@@ -1,0 +1,15 @@
+{
+  "name": "W05_G01_speed",
+  "walk": 5,
+  "command": "run",
+  "args": {},
+  "expect": {
+    "stdout": [
+      "5@m/s"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:3e0075bf5ff02bd147944507643a1e62ef449bad6b83febc02c25e7386ab976b",
+    "exit": 0
+  },
+  "entry": "main.ddn"
+}

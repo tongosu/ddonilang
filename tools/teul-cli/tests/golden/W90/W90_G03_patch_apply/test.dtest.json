@@ -1,0 +1,23 @@
+{
+  "name": "W90_G03_patch_apply",
+  "walk": 90,
+  "command": "patch_apply",
+  "entry": "ddn.patch.json",
+  "args": {
+    "approval": "build/ddn.patch.approval.json",
+    "out": "out"
+  },
+  "expect": {
+    "exit": 0,
+    "files_exist": [
+      "out/main.ddn"
+    ],
+    "files": {
+      "out/main.ddn": {
+        "contains": [
+          "인사 <- 3."
+        ]
+      }
+    }
+  }
+}

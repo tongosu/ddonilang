@@ -1,0 +1,16 @@
+{
+  "name": "W01_G7_newline_termination",
+  "walk": 1,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "안녕!"
+    ],
+    "stderr_contains": [],
+    "state_hash": "SAME_AS:W01_G2_store_only",
+    "trace_hash": "DIFFERS_FROM:W01_G2_store_only"
+  }
+}

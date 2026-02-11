@@ -1,0 +1,34 @@
+{
+  "name": "W20_G01_bdl1_packet_roundtrip",
+  "walk": 20,
+  "command": "pipeline",
+  "entry": "sample.bdl1.detbin",
+  "steps": [
+    {
+      "command": "bdl_packet",
+      "args": {
+        "mode": "wrap",
+        "input": "sample.bdl1.detbin",
+        "out": "out/sample.packet"
+      }
+    },
+    {
+      "command": "bdl_packet",
+      "args": {
+        "mode": "unwrap",
+        "input": "out/sample.packet",
+        "out": "out/unwrapped.bdl1.detbin"
+      }
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files_exist": [
+      "out/sample.packet",
+      "out/unwrapped.bdl1.detbin"
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "W90_G05_lint_suggest_patch",
+  "walk": 90,
+  "command": "lint",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--suggest-patch",
+      "--out",
+      "ddn.patch.json"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "files": {
+      "ddn.patch.json": {
+        "contains": [
+          "\"patch_version\": \"0.1-draft\"",
+          "\"anchor\": \"변수 <- 1.\"",
+          "\"이름 <- 1.\"",
+          "\"anchor\": \"함수 <- 2.\"",
+          "\"움직씨 <- 2.\"",
+          "\"anchor\": \"클래스 <- 3.\"",
+          "\"이름씨 <- 3.\"",
+          "\"anchor\": \"이벤트 <- 4.\"",
+          "\"알림씨 <- 4.\""
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+﻿{
+  "name": "W34_G01_geoul_blackbox",
+  "walk": 34,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae4_w34_geoul_blackbox/input.ddn",
+  "args": {
+    "madi": 201,
+    "seed": "0x0",
+    "cli": ["--geoul-out", "out/geoul"]
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:fb71f7aac47e2efc367cf882d981d787aecc975b44e94e995c1888c5384da613",
+    "stdout": [
+      "audit_hash=blake3:b18a2aa7da03dc98e317708f1b05b799e53fd88da7d18a5315a3a25a519a0791"
+    ],
+    "files_exist": [
+      "out/geoul/audit.ddni",
+      "out/geoul/audit.idx",
+      "out/geoul/manifest.detjson",
+      "out/geoul/checkpoints/cp_000000.detbin"
+    ]
+  }
+}

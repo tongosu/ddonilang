@@ -1,0 +1,20 @@
+# ddonilang/0단계/tool/Cargo.toml
+
+[package]
+name = "ddonirang-tool"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# 이전 설계 가이드에서 드린 의존성들을 여기에 적습니다
+blake3 = "1.5"
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+crossterm = "0.27"
+sha2 = "0.10"
+zip = "0.6"
+
+# 다른 크레이트와의 연결 (경로가 실제 폴더명과 일치해야 함)
+ddonirang-lang = { path = "../lang" }
+ddonirang-core = { path = "../core" }

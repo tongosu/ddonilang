@@ -1,0 +1,16 @@
+{
+  "name": "W49_G01_latency_simulate",
+  "walk": 49,
+  "command": "latency_simulate",
+  "entry": "-",
+  "args": {
+    "L": 3,
+    "mode": "fixed",
+    "count": 3,
+    "seed": 0
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"latency.simulation.v1\",\"L\":3,\"mode\":\"fixed\",\"seed\":0,\"schedule\":[{\"madi\":0,\"deliver_madi\":3},{\"madi\":1,\"deliver_madi\":4},{\"madi\":2,\"deliver_madi\":5}]}\nlatency_hash=sha256:ee1efeee46c191d585ab5b9076ed2aaa310193bcbe7d9953fe9bbf7e839509cc\n"
+  }
+}

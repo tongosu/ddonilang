@@ -1,0 +1,33 @@
+{
+  "name": "W11_E2E01_canon_to_run",
+  "walk": 11,
+  "command": "multi",
+  "entry": "in.ddn",
+  "args": {
+    "steps": [
+      {
+        "cmd": "canon",
+        "bridge": "age0_step01",
+        "emit": "ddn",
+        "out": "main.ddn"
+      },
+      {
+        "cmd": "check",
+        "in": "main.ddn"
+      },
+      {
+        "cmd": "run",
+        "in": "main.ddn",
+        "ticks": 1
+      }
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "10"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY"
+  }
+}

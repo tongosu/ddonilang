@@ -1,0 +1,46 @@
+{
+  "name": "W42_G01_branching_manager",
+  "walk": 42,
+  "command": "multi",
+  "entry": "../../../../../../pack/gogae4_w42_branching_manager/input.ddn",
+  "steps": [
+    {
+      "cmd": "run",
+      "in": "../../../../../../pack/gogae4_w42_branching_manager/input.ddn",
+      "madi": 6,
+      "seed": "0x0",
+      "cli": [
+        "--sam",
+        "../../../../../../pack/gogae4_w42_branching_manager/sam/base.input.bin",
+        "--geoul-out",
+        "out/base",
+        "--trace-tier",
+        "T-OFF"
+      ]
+    },
+    {
+      "cmd": "replay_branch",
+      "geoul": "out/base",
+      "at": 2,
+      "inject_sam": "../../../../../../pack/gogae4_w42_branching_manager/sam/branch.input.bin",
+      "out": "out/branch"
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:82cdc2e08686cf180f941d4d445df79683f2452b8dbc0a0ea2a68e52fa1b428c",
+    "stdout": [
+      "verify_base_ok=true",
+      "first_diverge_madi=3",
+      "branch_last_state_hash=blake3:e3b52b1e46494c8ace8dffa9f48009c1c86d47275e6903b4dc31f71ede87954d",
+      "branch_audit_hash=blake3:a9916edcc03e7833ab20fa832fa677907ff7415cb16fb220e7fdc2920e6ee34d"
+    ],
+    "files_exist": [
+      "out/branch/audit.ddni",
+      "out/branch/audit.idx",
+      "out/branch/manifest.detjson",
+      "out/branch/checkpoints/cp_000000.detbin",
+      "out/branch/entry.ddn"
+    ]
+  }
+}

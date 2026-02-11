@@ -1,0 +1,16 @@
+{
+  "name": "W01_G10_error_invalid_escape",
+  "walk": 1,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_LEX_BAD_ESCAPE"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

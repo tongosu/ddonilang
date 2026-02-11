@@ -1,0 +1,31 @@
+{
+  "name": "W21_G02_overlay_on",
+  "walk": 21,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "madi": 3,
+    "cli": [
+      "--bogae",
+      "web",
+      "--bogae-out",
+      "out/on",
+      "--no-open",
+      "--bogae-overlay",
+      "grid,bounds,delta"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "bogae_hash": "ABSENT",
+    "files_exist": [
+      "out/on/viewer/overlay.detjson"
+    ],
+    "stdout": [
+      "bogae_hash=blake3:8e79fe93f5f84faf24f8057370a5790701c6d021e7e86192c24426931071d32f cmd_count=2 codec=BDL1"
+    ]
+  }
+}

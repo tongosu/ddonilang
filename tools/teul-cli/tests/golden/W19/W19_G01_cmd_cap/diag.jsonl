@@ -1,0 +1,1 @@
+{"level":"error","code":"E_BOGAE_CMD_CAP","file":"main.ddn","line":1,"col":1,"message":"보개 cmd_count 상한 초과 cmd_count=201 cap=100","rule_id":"cmd_cap","reason":"cmd_count_exceeds_cap","cmd_count":201,"cap":100}

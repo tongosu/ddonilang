@@ -1,0 +1,17 @@
+{
+  "name": "W37_G01_memory_seed",
+  "walk": 37,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae4_w37_memory_seed/input.ddn",
+  "args": {
+    "madi": 4,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:d6d0c9448cd8463322c1a14ab14853311ccf55eb21fd4d22b8845fd2ab1285c3",
+    "stdout": [
+      "묶음{a=2, b=없음, kind=충돌, madi=2, target=없음, text=벽}"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+﻿{
+  "name": "W108_G01_tensor_stdlib",
+  "walk": 108,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "차림[2, 2]",
+      "차림[1, 2, 3, 4]",
+      "가로먼저",
+      "2",
+      "없음",
+      "묶음{배치=가로먼저, 자료=차림[1, 2, 9, 4], 형상=차림[2, 2]}"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

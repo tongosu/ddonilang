@@ -1,0 +1,130 @@
+{
+  "scopeName": "source.ddn",
+  "patterns": [
+    {"include": "#comments"},
+    {"include": "#resourceLiterals"},
+    {"include": "#strings"},
+    {"include": "#unitNumbers"},
+    {"include": "#josaPins"},
+    {"include": "#unitIdentifiers"},
+    {"include": "#numbers"},
+    {"include": "#keywords"},
+    {"include": "#seedKinds"},
+    {"include": "#types"},
+    {"include": "#constants"},
+    {"include": "#atoms"},
+    {"include": "#variables"},
+    {"include": "#operators"}
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {"name": "comment.line.double-slash.ddn", "match": "//.*$"},
+        {"name": "comment.block.ddn", "begin": "/\\*", "end": "\\*/"}
+      ]
+    },
+    "resourceLiterals": {
+      "patterns": [
+        {"name": "string.quoted.double.resource.ddn", "match": "@\\\"(?:\\\\.|[^\\\"\\\\])*\\\""}
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {"name": "string.quoted.double.ddn", "match": "\\\"(?:\\\\.|[^\\\"\\\\])*\\\""}
+      ]
+    },
+    "unitNumbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.unit.ddn",
+          "match": "\\b\\d+(?:\\.\\d+)?@[A-Za-z\\uAC00-\\uD7A3\\u3131-\\u318E\\u314F-\\u3163_0-9/\\^]+\\b"
+        }
+      ]
+    },
+    "josaPins": {
+      "patterns": [
+        {
+          "name": "variable.other.josa.ddn",
+          "match": "(?<![\\p{L}\\p{N}_])([\\p{L}\\p{N}_]+)~(를|을|가|이|은|는|에게|의|와|과|으로|로|부터|까지|마다|도|만|뿐|밖에|처럼|보다)(?![\\p{L}\\p{N}_])",
+          "captures": {
+            "1": {"name": "variable.other.ddn"},
+            "2": {"name": "keyword.other.josa.ddn"}
+          }
+        }
+      ]
+    },
+    "unitIdentifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.unit.ddn",
+          "match": "(?<![\\p{L}\\p{N}_])([\\p{L}\\p{N}_]+)@(?!를|을|가|이|은|는|에게|의|와|과|으로|로|부터|까지|마다|도|만|뿐|밖에|처럼|보다)[A-Za-z\\p{L}\\p{N}_/\\^0-9]+",
+          "captures": {
+            "1": {"name": "variable.other.ddn"}
+          }
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {"name": "constant.numeric.float.ddn", "match": "\\b\\d+\\.\\d+\\b"},
+        {"name": "constant.numeric.integer.ddn", "match": "\\b\\d+\\b"}
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.ddn",
+          "match": "(?<![\\p{L}\\p{N}_])(?:일때|아니면|이면|반복|따라|마다|반환|돌려줘|올때|바뀔때|감사|검사할때|틱|D-STRICT|D-FAST)(?![\\p{L}\\p{N}_])"
+        }
+      ]
+    },
+    "seedKinds": {
+      "patterns": [
+        {
+          "name": "storage.type.ddn",
+          "match": "(?<![\\p{L}\\p{N}_])(?:이름씨|움직씨|값함수|셈씨|이음씨|흐름씨|관계씨|고름씨|샘|일때씨|어찌씨)(?![\\p{L}\\p{N}_])"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.primitive.ddn",
+          "match": "(?<![\\p{L}\\p{N}_])(?:수|글|참거짓|값꾸러미)(?![\\p{L}\\p{N}_])"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.ddn",
+          "match": "(?<![\\p{L}\\p{N}_])(?:참|거짓|없음)(?![\\p{L}\\p{N}_])"
+        }
+      ]
+    },
+    "atoms": {
+      "patterns": [
+        {
+          "name": "constant.other.ddn",
+          "match": "#[\\w\\uAC00-\\uD7A3\\u3131-\\u318E\\u314F-\\u3163]+"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.ddn",
+          "match": "\\?[\\w\\uAC00-\\uD7A3\\u3131-\\u318E\\u314F-\\u3163]+"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.ddn",
+          "match": "<<-|<-|==|!=|<=|>=|&&|\\|\\||!|\\+|\\-|\\*|/|=|<|>|\\.|,|:|@|~"
+        }
+      ]
+    }
+  }
+}

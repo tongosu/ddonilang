@@ -1,0 +1,18 @@
+{
+  "name": "W104_G01_sugar_if_compound",
+  "walk": 104,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "ok1",
+      "2",
+      "차림[1, 2, 3]"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

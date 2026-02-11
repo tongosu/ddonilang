@@ -1,0 +1,16 @@
+{
+  "name": "W05_U1_unit_parse",
+  "walk": 5,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "10@m"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:4ebfb820463c5cf1c990354fb426900c6074961b1b8c967224e741a256420cdf",
+    "trace_hash": "blake3:a6c7e92dc96eac9961f5b03fbe9e3e353b9af50451ebfab3b6e165e93b75a81f"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "W22_G04_bdl2_fixed_q_mismatch",
+  "walk": 22,
+  "command": "view",
+  "entry": "fixed_q_7.bdl2.detbin",
+  "args": {
+    "cli": [
+      "--bogae",
+      "web",
+      "--no-open",
+      "--bogae-codec",
+      "bdl2"
+    ]
+  },
+  "expect": {
+    "exit": 1,
+    "stderr_contains": [
+      "E_BDL2_FIXED_Q"
+    ]
+  }
+}

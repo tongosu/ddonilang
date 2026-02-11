@@ -1,0 +1,44 @@
+{
+  "initial_state": {
+    "has_key": "false",
+    "door_open": "false"
+  },
+  "goal": {
+    "key": "door_open",
+    "value": "true",
+    "goal_id": 42,
+    "agent_id": 1,
+    "priority": 128
+  },
+  "actions": [
+    {
+      "id": 2,
+      "name": "Unlock door",
+      "preconditions": [
+        [
+          "has_key",
+          "true"
+        ]
+      ],
+      "effects": [
+        [
+          "door_open",
+          "true"
+        ]
+      ],
+      "cost": 1
+    },
+    {
+      "id": 1,
+      "name": "Pick up key",
+      "preconditions": [],
+      "effects": [
+        [
+          "has_key",
+          "true"
+        ]
+      ],
+      "cost": 1
+    }
+  ]
+}

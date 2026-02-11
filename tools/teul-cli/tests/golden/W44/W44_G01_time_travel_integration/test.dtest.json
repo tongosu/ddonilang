@@ -1,0 +1,76 @@
+{
+  "name": "W44_G01_time_travel_integration",
+  "walk": 44,
+  "command": "multi",
+  "entry": "../../../../../../pack/gogae4_w44_time_travel_integration/input.ddn",
+  "steps": [
+    {
+      "cmd": "run",
+      "in": "../../../../../../pack/gogae4_w44_time_travel_integration/input.ddn",
+      "madi": 6,
+      "seed": "0x0",
+      "cli": [
+        "--sam",
+        "../../../../../../pack/gogae4_w44_time_travel_integration/sam/base.input.bin",
+        "--geoul-out",
+        "out/base",
+        "--trace-tier",
+        "T-OFF"
+      ]
+    },
+    {
+      "cmd": "replay_branch",
+      "geoul": "out/base",
+      "at": 2,
+      "inject_sam": "../../../../../../pack/gogae4_w44_time_travel_integration/sam/fix.input.bin",
+      "out": "out/branch"
+    },
+    {
+      "cmd": "story_make",
+      "geoul": "out/branch",
+      "out": "out/branch/story/story.detjson"
+    },
+    {
+      "cmd": "timeline_make",
+      "geoul": "out/branch",
+      "story": "out/branch/story/story.detjson",
+      "out": "out/branch/timeline/timeline.detjson"
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "state_hash": "ANY",
+    "stdout": [
+      "verify_base_ok=true",
+      "first_diverge_madi=3",
+      "branch_last_state_hash=blake3:e3b52b1e46494c8ace8dffa9f48009c1c86d47275e6903b4dc31f71ede87954d",
+      "branch_audit_hash=blake3:a9916edcc03e7833ab20fa832fa677907ff7415cb16fb220e7fdc2920e6ee34d"
+    ],
+    "files_exist": [
+      "out/base/audit.ddni",
+      "out/base/audit.idx",
+      "out/base/manifest.detjson",
+      "out/base/checkpoints/cp_000000.detbin",
+      "out/base/entry.ddn",
+      "out/branch/audit.ddni",
+      "out/branch/audit.idx",
+      "out/branch/manifest.detjson",
+      "out/branch/checkpoints/cp_000000.detbin",
+      "out/branch/entry.ddn",
+      "out/branch/story/story.detjson",
+      "out/branch/timeline/timeline.detjson"
+    ],
+    "files": {
+      "out/branch/story/story.detjson": {
+        "contains": [
+          "\"summary\": \"frames=6\""
+        ]
+      },
+      "out/branch/timeline/timeline.detjson": {
+        "contains": [
+          "\"frames\": 6"
+        ]
+      }
+    }
+  }
+}

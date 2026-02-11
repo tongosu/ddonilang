@@ -1,0 +1,16 @@
+{
+  "name": "W06_G04_ascii1_ident_reject",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "FATAL:FORMULA_IDENT_NOT_ASCII1"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

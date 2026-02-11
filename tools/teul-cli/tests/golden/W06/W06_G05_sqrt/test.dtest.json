@@ -1,0 +1,15 @@
+{
+  "name": "W06_G05_sqrt",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "3"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:c63edfde0be83b631b08ef04042a688dfe1bfa4fe48c844eead6644f2444f5fd"
+  }
+}

@@ -1,0 +1,38 @@
+﻿{
+  "name": "W107_G01_contract_alert",
+  "walk": 107,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "diag": "geoul.diag.jsonl"
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "실패",
+      "끝"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY",
+    "files": {
+      "geoul.diag.jsonl": {
+        "jsonl_contains": [
+          {
+            "level": "warn",
+            "code": "W_CONTRACT_PRE",
+            "file": "main.ddn",
+            "line": 1,
+            "col": 4,
+            "message": "전제하에 조건이 실패했습니다",
+            "fault_id": "contract:pre:main.ddn:1:4:0",
+            "rule_id": "L0-CONTRACT-01",
+            "reason": "CONTRACT_PRE",
+            "contract_kind": "pre",
+            "mode": "알림"
+          }
+        ]
+      }
+    }
+  }
+}

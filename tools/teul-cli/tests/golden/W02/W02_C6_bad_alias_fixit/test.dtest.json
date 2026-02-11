@@ -1,0 +1,27 @@
+{
+  "name": "W02_C6_bad_alias_fixit",
+  "walk": 2,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--fixits-json",
+      "fixits.json",
+      "--diag-jsonl",
+      "diag.jsonl",
+      "--bridge",
+      "age0_step01"
+    ]
+  },
+  "expect": {
+    "exit": 1,
+    "stdout_text": "",
+    "stderr_contains": [
+      "E_CANON_BAD_ALIAS"
+    ],
+    "files_exist": [
+      "fixits.json",
+      "diag.jsonl"
+    ]
+  }
+}

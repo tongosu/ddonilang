@@ -1,0 +1,18 @@
+{
+  "name": "W25_G03_sam_unsorted",
+  "walk": 25,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w25_query_batch/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0",
+    "cli": [
+      "--sam",
+      "../../../../../../pack/gogae3_w25_query_batch/inputs/sample_input_snapshot_unsorted.detjson"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "SAME_AS:W25_G02_sam_sorted"
+  }
+}

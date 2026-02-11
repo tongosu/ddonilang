@@ -1,0 +1,14 @@
+{
+  "name": "W30_G01_state_hash",
+  "walk": 30,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w30_qchain_approval/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:9258fab24813e9a65e99ae9388afaff56226e991a6811bfd4c433888ceb0c8d6"
+  }
+}

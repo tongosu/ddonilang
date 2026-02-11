@@ -1,0 +1,17 @@
+{
+  "name": "W38_G01_emotion_wave",
+  "walk": 38,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae4_w38_emotion_wave/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:a5e01c3e6e37db2b0b9256b76ec90810cf35426de5b2217940b31c1048727cd1",
+    "stdout": [
+      "묶음{arousal=1, valence=1}"
+    ]
+  }
+}

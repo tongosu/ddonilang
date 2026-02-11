@@ -1,0 +1,17 @@
+{
+  "name": "W103_G01_charim_index",
+  "walk": 103,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "2",
+      "차림[1, 9, 3]"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:7f53654aadb4f4c03a34d8f64a5fcac41effa02163004d33c3977a40b185fccf",
+    "trace_hash": "blake3:f997cfb838b7ce4e9638fbb83dda79f0eb6a7e3276cc5aaef59be28659b1ab5d"
+  }
+}

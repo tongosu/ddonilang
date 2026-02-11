@@ -1,0 +1,16 @@
+{
+  "name": "W51_G01_intent_mock",
+  "walk": 51,
+  "command": "intent_mock",
+  "entry": "prompt.txt",
+  "args": {
+    "out": "intent.jsonl"
+  },
+  "expect": {
+    "exit": 0,
+    "files_exist": ["intent.jsonl"],
+    "files": {
+      "intent.jsonl": { "equals_file": "expect.jsonl" }
+    }
+  }
+}

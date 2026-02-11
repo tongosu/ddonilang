@@ -1,0 +1,12 @@
+{"level":"error","code":"E_CONTRACT_PRE","file":"main.ddn","line":1,"col":4,"message":"전제하에 조건이 실패했습니다","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_PRE","contract_kind":"pre","mode":"중단"}
+{"level":"error","code":"E_CONTRACT_PRE","file":"main.ddn","line":1,"col":4,"message":"전제하에 조건이 실패했습니다","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_PRE","contract_kind":"pre","mode":"중단"}
+{"level":"error","code":"E_CONTRACT_PRE","file":"main.ddn","line":1,"col":4,"message":"전제하에 조건이 실패했습니다","fault_id":"contract:pre:main.ddn:1:4:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_PRE","contract_kind":"pre","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:pre:main.ddn:1:4:0"}
+{"level":"error","code":"E_CONTRACT_PRE","file":"main.ddn","line":1,"col":4,"message":"전제하에 조건이 실패했습니다","fault_id":"contract:pre:main.ddn:1:4:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_PRE","contract_kind":"pre","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:pre:main.ddn:1:4:0"}
+{"level":"error","code":"E_CONTRACT_PRE","file":"main.ddn","line":1,"col":4,"message":"전제하에 조건이 실패했습니다","fault_id":"contract:pre:main.ddn:1:4:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_PRE","contract_kind":"pre","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:pre:main.ddn:1:4:0"}
+{"level":"error","code":"E_CONTRACT_PRE","file":"main.ddn","line":1,"col":4,"message":"전제하에 조건이 실패했습니다","fault_id":"contract:pre:main.ddn:1:4:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_PRE","contract_kind":"pre","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:pre:main.ddn:1:4:0"}
+{"level":"error","code":"E_CONTRACT_PRE","file":"main.ddn","line":1,"col":4,"message":"전제하에 조건이 실패했습니다","fault_id":"contract:pre:main.ddn:1:4:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_PRE","contract_kind":"pre","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:pre:main.ddn:1:4:0"}

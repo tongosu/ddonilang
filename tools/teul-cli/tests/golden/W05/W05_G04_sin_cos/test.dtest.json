@@ -1,0 +1,16 @@
+{
+  "name": "W05_G04_sin_cos",
+  "walk": 5,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "-0.0000000006",
+      "1.0000000016"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:265b65818c4215c0258f3a1c4baa193abeb7e2a5b0f1563799032dcc00d16648"
+  }
+}

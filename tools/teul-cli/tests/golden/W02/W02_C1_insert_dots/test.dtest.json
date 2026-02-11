@@ -1,0 +1,17 @@
+{
+  "name": "W02_C1_insert_dots",
+  "walk": 2,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--bridge",
+      "age0_step01"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "살림.인사 <- \"안녕!\".\n살림.인사 보여주기.\n",
+    "stderr_contains": []
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "W12_G02_template_rounding_width",
+  "walk": 12,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "x=1.2, y=-003"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:8612b35fc1fe61b4fef02fd9c9367af1c6eb032134c8def74c94324b6bbc1d2f"
+  }
+}

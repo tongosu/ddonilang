@@ -1,0 +1,14 @@
+{
+  "name": "W27_G01_state_hash",
+  "walk": 27,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w27_invariant_hook/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:ca4e12958914af0e04765614819b209d80a131e9bdec9597efdb6b41d8ebe412"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "W29_G01_state_hash",
+  "walk": 29,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w29_reactive_limit/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:81e1d2c3414e462d4b2a7071429c2911f888573613749516251919ce4718e5a6"
+  }
+}

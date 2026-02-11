@@ -1,0 +1,45 @@
+{
+  "name": "W43_G01_geoul_query",
+  "walk": 43,
+  "command": "multi",
+  "entry": "../../../../../../pack/gogae4_w43_audit_inspector/input.ddn",
+  "steps": [
+    {
+      "cmd": "run",
+      "in": "../../../../../../pack/gogae4_w43_audit_inspector/input.ddn",
+      "madi": 6,
+      "seed": "0x0",
+      "cli": [
+        "--sam",
+        "../../../../../../pack/gogae4_w43_audit_inspector/sam/left_pulse.input.bin",
+        "--geoul-out",
+        "out/geoul",
+        "--trace-tier",
+        "T-OFF"
+      ]
+    },
+    {
+      "cmd": "geoul_query",
+      "geoul": "out/geoul",
+      "madi": 3,
+      "key": "살림.점수"
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "state_hash": "ANY",
+    "stdout": [
+      "madi=3",
+      "key=살림.점수",
+      "value=14",
+      "state_hash=blake3:a809f9010ae7bd8073d96a857a1749d928d8c0b8ebcfae024dfbd8a6b2addef3"
+    ],
+    "files_exist": [
+      "out/geoul/audit.ddni",
+      "out/geoul/audit.idx",
+      "out/geoul/manifest.detjson",
+      "out/geoul/checkpoints/cp_000000.detbin",
+      "out/geoul/entry.ddn"
+    ]
+  }
+}

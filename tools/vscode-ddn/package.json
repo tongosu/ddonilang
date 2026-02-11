@@ -1,0 +1,28 @@
+{
+  "name": "ddn-language",
+  "displayName": "Ddonilang (ddn)",
+  "description": "Syntax highlighting for ddn",
+  "version": "0.0.1",
+  "publisher": "ddonilang",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": ["Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "ddn",
+        "aliases": ["DDN", "ddn", "Ddonilang"],
+        "extensions": [".ddn"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ddn",
+        "scopeName": "source.ddn",
+        "path": "./syntaxes/ddn.tmLanguage.json"
+      }
+    ]
+  }
+}

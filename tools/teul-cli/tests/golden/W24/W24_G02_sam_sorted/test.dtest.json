@@ -1,0 +1,18 @@
+{
+  "name": "W24_G02_sam_sorted",
+  "walk": 24,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w24_ecs_archetype/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0",
+    "cli": [
+      "--sam",
+      "../../../../../../pack/gogae3_w24_ecs_archetype/inputs/sample_input_snapshot.detjson"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:f987de93e633884c1bdfce74b3da35f02c112a89d06cea4f76dd9c2a6fea2509"
+  }
+}

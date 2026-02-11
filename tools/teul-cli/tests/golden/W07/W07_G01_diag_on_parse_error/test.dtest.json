@@ -1,0 +1,27 @@
+{
+  "name": "W07_G01_diag_on_parse_error",
+  "walk": 7,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "diag": "geoul.diag.jsonl"
+  },
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_EXPECTED_EXPR"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files": {
+      "geoul.diag.jsonl": {
+        "jsonl_contains": [
+          {
+            "code": "E_PARSE_EXPECTED_EXPR"
+          }
+        ]
+      }
+    }
+  }
+}

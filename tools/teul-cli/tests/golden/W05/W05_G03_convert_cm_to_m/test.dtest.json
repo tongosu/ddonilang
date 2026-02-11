@@ -1,0 +1,15 @@
+{
+  "name": "W05_G03_convert_cm_to_m",
+  "walk": 5,
+  "command": "run",
+  "args": {},
+  "expect": {
+    "stdout": [
+      "0@m"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:653c7efe7fc7fe47dc73f78c6338a7aba7a93695aa880ea6c78e7afe04900a2d",
+    "exit": 0
+  },
+  "entry": "main.ddn"
+}

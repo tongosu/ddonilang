@@ -1,0 +1,50 @@
+{
+  "name": "W18_G01_replay_diff_equal",
+  "walk": 18,
+  "command": "pipeline",
+  "entry": "main.ddn",
+  "steps": [
+    {
+      "command": "run",
+      "entry": "main.ddn",
+      "args": {
+        "madi": 3,
+        "cli": ["--bogae", "web", "--bogae-out", "out/run_a", "--no-open"]
+      }
+    },
+    {
+      "command": "run",
+      "entry": "main.ddn",
+      "args": {
+        "madi": 3,
+        "cli": ["--bogae", "web", "--bogae-out", "out/run_b", "--no-open"]
+      }
+    },
+    {
+      "command": "replay_diff",
+      "args": {
+        "a": "out/run_a",
+        "b": "out/run_b",
+        "out": "out/diff"
+      }
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files_exist": [
+      "out/diff/diff.detjson",
+      "out/diff/diff.txt"
+    ],
+    "files": {
+      "out/diff/diff.detjson": {
+        "contains": [
+          "\"equal\": true",
+          "\"first_diverge_madi\": null"
+        ]
+      }
+    }
+  }
+}

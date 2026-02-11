@@ -1,0 +1,15 @@
+{
+  "name": "W12_G01_template_fill_basic",
+  "walk": 12,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "ID=00000023, 키=1.235@m"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:2a45c782bff8c4c79b0afef6a7203bfd6766d82d78efae3a93d3e127211cbf41"
+  }
+}

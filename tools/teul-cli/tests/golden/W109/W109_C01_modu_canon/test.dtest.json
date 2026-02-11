@@ -1,0 +1,12 @@
+﻿{
+  "name": "W109_C01_modu_canon",
+  "walk": 109,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout_text": "(임자) 살림.목록에 대해: {\n  임자 보여주기.\n}.\n",
+    "stderr_contains": []
+  }
+}

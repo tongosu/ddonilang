@@ -1,0 +1,15 @@
+{
+  "name": "W06_G03_ascii1_implicit_mul",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "7"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:39919bc8aadf7a392a25eacf37b6291e2e5824b06ba82360532f866da7f247ea"
+  }
+}

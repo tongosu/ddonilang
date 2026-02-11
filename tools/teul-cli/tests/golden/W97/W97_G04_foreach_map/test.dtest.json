@@ -1,0 +1,17 @@
+{
+  "name": "W97_G04_foreach_map",
+  "walk": 97,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "차림[a, 1]",
+      "차림[b, 2]"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:fa3c1d33e1bb941ca00d09c048cd1a56503f11730c89b3bde8b25b7637900155",
+    "trace_hash": "blake3:eec87747f6084c3f02df7ca7b5848c7964b78b31ce16e23f34a33afd35dde201"
+  }
+}

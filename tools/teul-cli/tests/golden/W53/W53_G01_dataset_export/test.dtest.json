@@ -1,0 +1,28 @@
+{
+  "name": "W53_G01_dataset_export",
+  "walk": 53,
+  "command": "multi",
+  "entry": "input.ddn",
+  "args": {},
+  "steps": [
+    {
+      "cmd": "run",
+      "in": "input.ddn",
+      "args": { "madi": 2, "cli": ["--geoul-out", "out/geoul"] }
+    },
+    {
+      "cmd": "dataset_export",
+      "args": { "geoul": "out/geoul", "out": "out/dataset", "format": "nurigym_v0", "env_id": "nurigym.test" }
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "files_exist": [
+      "out/dataset/obs_spec.detjson",
+      "out/dataset/action_spec.detjson",
+      "out/dataset/nurigym.episode.jsonl",
+      "out/dataset/nurigym.dataset.jsonl",
+      "out/dataset/dataset.sha256"
+    ]
+  }
+}

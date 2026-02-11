@@ -1,0 +1,16 @@
+{
+  "name": "W97_G02_break_outside",
+  "walk": 97,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_BREAK_OUTSIDE_LOOP"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "W12_G07_template_match_basic",
+  "walk": 12,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "짝맞춤{age=>7, name=>또니}",
+      "없음"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:c96afc4d0e9f3752afcf0465e8390d0a1de8261592ee2bdf31b5026b1a20fd73"
+  }
+}

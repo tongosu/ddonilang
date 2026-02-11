@@ -1,0 +1,41 @@
+{
+  "name": "W35_G01_replay_verify",
+  "walk": 35,
+  "command": "multi",
+  "entry": "../../../../../../pack/gogae4_w35_replay_harness/input.ddn",
+  "steps": [
+    {
+      "cmd": "run",
+      "in": "../../../../../../pack/gogae4_w35_replay_harness/input.ddn",
+      "madi": 10,
+      "seed": "0x0",
+      "cli": [
+        "--sam",
+        "../../../../../../pack/gogae4_w35_replay_harness/sam/empty.input.bin",
+        "--geoul-out",
+        "out/geoul",
+        "--trace-tier",
+        "T-OFF"
+      ]
+    },
+    {
+      "cmd": "replay_verify",
+      "geoul": "out/geoul"
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:cba7a2336b12a59bd70f4fd0b9beabeff509f5b38ca2552642c4c1185c0a0999",
+    "stdout": [
+      "verify_ok=true",
+      "first_diverge_madi=null"
+    ],
+    "files_exist": [
+      "out/geoul/audit.ddni",
+      "out/geoul/audit.idx",
+      "out/geoul/manifest.detjson",
+      "out/geoul/checkpoints/cp_000000.detbin",
+      "out/geoul/entry.ddn"
+    ]
+  }
+}

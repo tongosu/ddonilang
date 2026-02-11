@@ -1,0 +1,16 @@
+{
+  "name": "W06_G09_formula_transform_basic",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "(#ascii) 수식{ y = diff(2*x + 3/2, x) }",
+      "(#ascii) 수식{ y = int(2*x + 3/2, x) }"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:781bf09610dc3307cf76e66c114e3cc5446baece4c51a758cd8c362a3e4745e0"
+  }
+}

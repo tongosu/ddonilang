@@ -1,0 +1,16 @@
+{
+  "name": "W12_G06_bogae_non_int_pixel",
+  "walk": 12,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_BOGAE_NON_INT_PIXEL"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

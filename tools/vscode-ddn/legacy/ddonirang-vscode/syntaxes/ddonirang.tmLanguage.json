@@ -1,0 +1,143 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ddonirang",
+  "scopeName": "source.ddonirang",
+  "patterns": [
+    {"include": "#comment"},
+    {"include": "#string"},
+    {"include": "#asset_string"},
+    {"include": "#metadata"},
+    {"include": "#keywords"},
+    {"include": "#types"},
+    {"include": "#atoms"},
+    {"include": "#numbers"},
+    {"include": "#operators"},
+    {"include": "#pin_spec"}
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.ddonirang",
+          "begin": "//",
+          "beginCaptures": {"0": {"name": "punctuation.definition.comment.ddonirang"}},
+          "end": "$\\n?"
+        },
+        {
+          "name": "comment.block.ddonirang",
+          "begin": "/\\*",
+          "beginCaptures": {"0": {"name": "punctuation.definition.comment.ddonirang"}},
+          "end": "\\*/",
+          "endCaptures": {"0": {"name": "punctuation.definition.comment.ddonirang"}}
+        }
+      ]
+    },
+    "string": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.ddonirang",
+          "begin": "\"",
+          "beginCaptures": {"0": {"name": "punctuation.definition.string.begin.ddonirang"}},
+          "end": "\"",
+          "endCaptures": {"0": {"name": "punctuation.definition.string.end.ddonirang"}},
+          "patterns": [
+            {"name": "constant.character.escape.ddonirang", "match": "\\\\(\\\\|\"|n|r|t)"}
+          ]
+        }
+      ]
+    },
+    "asset_string": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.asset.ddonirang",
+          "begin": "@\"",
+          "beginCaptures": {
+            "0": {"name": "punctuation.definition.string.begin.ddonirang"}
+          },
+          "end": "\"",
+          "endCaptures": {"0": {"name": "punctuation.definition.string.end.ddonirang"}}
+        }
+      ]
+    },
+    "metadata": {
+      "patterns": [
+        {
+          "name": "meta.brackets.ddonirang",
+          "match": "\\[[^\\]\\n]*\\]"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.ddonirang",
+          "match": "\\b(이면|아니면|따라|반복|반환)\\b"
+        },
+        {
+          "name": "keyword.other.ddonirang",
+          "match": "\\b(검사할때|일때|올때|바뀔때|마다|틱|감사|D-STRICT|D-FAST)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.ddonirang",
+          "match": "\\b(이름씨|움직씨|셈씨|이음씨|일묶음씨|흐름씨|샘|일때씨|어찌씨|고름씨|관계씨|값꾸러미|수|글|참거짓|없음)\\b"
+        },
+        {
+          "name": "entity.name.type.ddonirang",
+          "match": "(?<=:)([가-힣A-Za-z_][가-힣A-Za-z0-9_]*씨)\\b"
+        }
+      ]
+    },
+    "atoms": {
+      "patterns": [
+        {
+          "name": "constant.language.atom.ddonirang",
+          "match": "#[가-힣A-Za-z_][가-힣A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.ddonirang",
+          "match": "(?<![가-힣A-Za-z_])[-+]?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.ddonirang",
+          "match": "(<<-|<-)"
+        },
+        {
+          "name": "keyword.operator.ddonirang",
+          "match": "[=+\\-*/%]|<=|>=|==|!=|<|>"
+        },
+        {
+          "name": "punctuation.separator.ddonirang",
+          "match": "[{}\\[\\](),.:]"
+        },
+        {
+          "name": "punctuation.separator.unit-at.ddonirang",
+          "match": "@"
+        },
+        {
+          "name": "punctuation.separator.tilde.ddonirang",
+          "match": "~"
+        }
+      ]
+    },
+    "pin_spec": {
+      "patterns": [
+        {
+          "name": "meta.pin-spec.ddonirang",
+          "match": "@[가-힣A-Za-z_][가-힣A-Za-z0-9_]*(?:~[가-힣A-Za-z_][가-힣A-Za-z0-9_]*)?"
+        }
+      ]
+    }
+  }
+}

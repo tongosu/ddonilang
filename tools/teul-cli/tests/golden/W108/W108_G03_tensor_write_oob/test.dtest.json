@@ -1,0 +1,16 @@
+﻿{
+  "name": "W108_G03_tensor_write_oob",
+  "walk": 108,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "FATAL:CHARIM_INDEX_OUT_OF_RANGE"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

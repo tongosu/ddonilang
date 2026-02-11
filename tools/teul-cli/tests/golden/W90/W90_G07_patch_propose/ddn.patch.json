@@ -1,0 +1,61 @@
+{
+  "changes": [
+    {
+      "after": [
+        "이름 <- 1."
+      ],
+      "before": [
+        "변수 <- 1."
+      ],
+      "kind": "replace_block",
+      "reason": "TERM-LINT-01: TERM-WARN-001:변수->이름",
+      "target": {
+        "anchor": "변수 <- 1.",
+        "file": "main.ddn"
+      }
+    },
+    {
+      "after": [
+        "움직씨 <- 2."
+      ],
+      "before": [
+        "함수 <- 2."
+      ],
+      "kind": "replace_block",
+      "reason": "TERM-LINT-01: TERM-WARN-002:함수->움직씨",
+      "target": {
+        "anchor": "함수 <- 2.",
+        "file": "main.ddn"
+      }
+    },
+    {
+      "after": [
+        "이름씨 <- 3."
+      ],
+      "before": [
+        "클래스 <- 3."
+      ],
+      "kind": "replace_block",
+      "reason": "TERM-LINT-01: TERM-WARN-003:클래스->이름씨",
+      "target": {
+        "anchor": "클래스 <- 3.",
+        "file": "main.ddn"
+      }
+    },
+    {
+      "after": [
+        "알림씨 <- 4."
+      ],
+      "before": [
+        "이벤트 <- 4."
+      ],
+      "kind": "replace_block",
+      "reason": "TERM-LINT-01: TERM-WARN-004:이벤트->알림씨",
+      "target": {
+        "anchor": "이벤트 <- 4.",
+        "file": "main.ddn"
+      }
+    }
+  ],
+  "patch_version": "0.1-draft"
+}

@@ -1,0 +1,19 @@
+{
+    "name":  "W04_G02_mul_div_precedence",
+    "walk":  4,
+    "command":  "run",
+    "args":  {
+
+             },
+    "expect":  {
+                   "stdout":  [
+                                  "7"
+                              ],
+                   "stderr_contains":  [
+
+                                       ],
+                   "state_hash":  "ANY",
+                   "exit":  0
+               },
+    "entry":  "main.ddn"
+}

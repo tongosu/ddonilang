@@ -1,0 +1,14 @@
+{
+  "name": "W25_G01_state_hash",
+  "walk": 25,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w25_query_batch/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:ae45d4969102020f41713a3953b1b58551a16f37e278b5255f1fce4467bddc1e"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "W17_G01_input_replay",
+  "walk": 17,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "madi": 4,
+    "cli": ["--sam", "sam/input.bin", "--madi-hz", "20"]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

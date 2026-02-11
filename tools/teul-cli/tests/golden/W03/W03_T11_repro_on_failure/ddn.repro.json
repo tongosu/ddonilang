@@ -1,0 +1,1 @@
+{"ssot_version":"v20.2.27","repro_command":"teul-cli run main.ddn --madi 1 --seed 0x0","error_code":"E_RUNTIME_UNDEFINED","file":"main.ddn"}

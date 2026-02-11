@@ -1,0 +1,14 @@
+{
+  "name": "W28_G01_state_hash",
+  "walk": 28,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w28_indicators/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:87206ada2e429afd8fbc3e52fa945d2997a58885e918d24c570952a765378bc0"
+  }
+}

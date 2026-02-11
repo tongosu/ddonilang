@@ -1,0 +1,26 @@
+{
+  "name": "W09_G01_repro_on_failure",
+  "walk": 9,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "enable_repro": true
+  },
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_MATH_DIV_ZERO"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files": {
+      "build/repro/ddn.repro.last.json": {
+        "contains": [
+          "ssot_version",
+          "repro_command"
+        ]
+      }
+    }
+  }
+}

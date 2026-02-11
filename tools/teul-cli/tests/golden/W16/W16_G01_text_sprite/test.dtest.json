@@ -1,0 +1,30 @@
+{
+  "name": "W16_G01_text_sprite",
+  "walk": 16,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "madi": 1,
+    "cli": ["--bogae", "web", "--bogae-out", "out/w16", "--bogae-skin", "skin.detjson", "--no-open"]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files_exist": [
+      "out/w16/index.html",
+      "out/w16/drawlist.json",
+      "out/w16/drawlist.bdl1",
+      "out/w16/skin.detjson"
+    ],
+    "files": {
+      "out/w16/drawlist.json": {
+        "contains": [
+          "\"kind\": \"Text\"",
+          "\"kind\": \"Sprite\""
+        ]
+      }
+    }
+  }
+}

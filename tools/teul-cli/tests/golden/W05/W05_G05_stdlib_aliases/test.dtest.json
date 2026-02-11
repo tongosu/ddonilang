@@ -1,0 +1,23 @@
+{
+  "name": "W05_G05_stdlib_aliases",
+  "walk": 5,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "a-b-c",
+      "3",
+      "b",
+      "또니",
+      "9",
+      "3",
+      "9",
+      "5",
+      "3"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:26c5e96690381bcf4c69bbd458e5cd04798d0631e98abd1413722c02d51fbca4"
+  }
+}

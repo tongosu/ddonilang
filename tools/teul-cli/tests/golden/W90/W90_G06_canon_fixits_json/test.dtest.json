@@ -1,0 +1,38 @@
+{
+  "name": "W90_G06_canon_fixits_json",
+  "walk": 90,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--fixits-json",
+      "fixits.json"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "files": {
+      "fixits.json": {
+        "contains": [
+          "\"code\": \"TERM-WARN-001\"",
+          "\"start_line\": 1",
+          "\"old\": \"변수\"",
+          "\"new\": \"이름\"",
+          "\"code\": \"TERM-WARN-002\"",
+          "\"start_line\": 2",
+          "\"old\": \"함수\"",
+          "\"new\": \"움직씨\"",
+          "\"code\": \"TERM-WARN-003\"",
+          "\"start_line\": 3",
+          "\"old\": \"클래스\"",
+          "\"new\": \"이름씨\"",
+          "\"code\": \"TERM-WARN-004\"",
+          "\"start_line\": 4",
+          "\"old\": \"이벤트\"",
+          "\"new\": \"알림씨\""
+        ]
+      }
+    }
+  }
+}

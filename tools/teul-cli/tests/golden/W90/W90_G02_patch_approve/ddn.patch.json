@@ -1,0 +1,19 @@
+{
+  "patch_version": "0.1-draft",
+  "changes": [
+    {
+      "kind": "replace_block",
+      "target": {
+        "file": "main.ddn",
+        "anchor": "인사 <-"
+      },
+      "reason": "미리보기/승인 테스트",
+      "before": [
+        "인사 <- 1."
+      ],
+      "after": [
+        "인사 <- 3."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "W08_G01_tick_counter",
+  "walk": 8,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "ANY"
+  }
+}

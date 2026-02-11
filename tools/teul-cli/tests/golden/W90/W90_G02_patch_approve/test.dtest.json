@@ -1,0 +1,26 @@
+{
+  "name": "W90_G02_patch_approve",
+  "walk": 90,
+  "command": "patch_approve",
+  "entry": "ddn.patch.json",
+  "args": {
+    "out": "build/ddn.patch.approval.json",
+    "yes": true,
+    "notes": "골든 승인"
+  },
+  "expect": {
+    "exit": 0,
+    "files_exist": [
+      "build/ddn.patch.approval.json"
+    ],
+    "files": {
+      "build/ddn.patch.approval.json": {
+        "contains": [
+          "\"patch_hash\": \"blake3:",
+          "\"approved\": true",
+          "\"notes\": \"골든 승인\""
+        ]
+      }
+    }
+  }
+}

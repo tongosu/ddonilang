@@ -1,0 +1,15 @@
+{
+  "name": "W06_G02_inject_eval_expr",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "13.5"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:3e5e86f3d3dd8d460c7997732e06ce18e60a669fd14877e05d79adb717adc115"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "W36_G02_trace_tier_full",
+  "walk": 36,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae4_w36_trace_tier/input.ddn",
+  "args": {
+    "madi": 5,
+    "seed": "0x0",
+    "cli": [
+      "--geoul-out",
+      "out/geoul",
+      "--trace-tier",
+      "T-FULL"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "SAME_AS:W36_G01_trace_tier_off",
+    "stdout": [
+      "audit_hash=blake3:2ff4fdd17adce701ab0310d3b182d26d5149529fb4c74de15ece93d2a0c28eae"
+    ],
+    "files_exist": [
+      "out/geoul/audit.ddni",
+      "out/geoul/audit.idx",
+      "out/geoul/manifest.detjson"
+    ],
+    "files": {
+      "out/geoul/manifest.detjson": {
+        "contains": [
+          "\"trace_tier\": 3",
+          "\"audit_size\": 1122"
+        ]
+      }
+    }
+  }
+}

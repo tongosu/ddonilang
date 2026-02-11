@@ -1,0 +1,2203 @@
+use crate::core::fixed64::Fixed64;
+use crate::core::unit::{UnitExpr, UnitFactor};
+use crate::lang::ast::{
+    Binding, ChooseBranch, ContractKind, ContractMode, DeclItem, DeclKind, Expr, FormulaDialect,
+    HookKind, Literal, Path, Program, SeedKind, Stmt, UnaryOp, BinaryOp, NumberLiteral,
+};
+use crate::lang::span::Span;
+use crate::lang::token::{Token, TokenKind};
+use std::collections::HashSet;
+
+#[derive(Debug)]
+pub enum ParseError {
+    UnexpectedToken {
+        expected: &'static str,
+        #[allow(dead_code)]
+        found: TokenKind,
+        span: Span,
+    },
+    ExpectedExpr { span: Span },
+    ExpectedPath { span: Span },
+    ExpectedTarget { span: Span },
+    RootHideUndeclared { name: String, span: Span },
+    ConstMissingValue { name: String, span: Span },
+    GureutEqualForbidden { span: Span },
+    ButbakArrowForbidden { span: Span },
+    UnsupportedCompoundTarget { span: Span },
+    ExpectedRParen { span: Span },
+    ExpectedRBrace { span: Span },
+    ExpectedUnit { span: Span },
+    InvalidTensor { span: Span },
+}
+
+impl ParseError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            ParseError::UnexpectedToken { .. } => "E_PARSE_UNEXPECTED_TOKEN",
+            ParseError::ExpectedExpr { .. } => "E_PARSE_EXPECTED_EXPR",
+            ParseError::ExpectedPath { .. } => "E_PARSE_EXPECTED_PATH",
+            ParseError::ExpectedTarget { .. } => "E_PARSE_EXPECTED_TARGET",
+            ParseError::RootHideUndeclared { .. } => "E_PARSE_ROOT_HIDE_UNDECLARED",
+            ParseError::ConstMissingValue { .. } => "E_PARSE_CONST_MISSING_VALUE",
+            ParseError::GureutEqualForbidden { .. } => "E_PARSE_GUREUT_EQUAL_FORBIDDEN",
+            ParseError::ButbakArrowForbidden { .. } => "E_PARSE_BUTBAK_ARROW_FORBIDDEN",
+            ParseError::UnsupportedCompoundTarget { .. } => "E_PARSE_UNSUPPORTED_COMPOUND_TARGET",
+            ParseError::ExpectedRParen { .. } => "E_PARSE_EXPECTED_RPAREN",
+            ParseError::ExpectedRBrace { .. } => "E_PARSE_EXPECTED_RBRACE",
+            ParseError::ExpectedUnit { .. } => "E_PARSE_EXPECTED_UNIT",
+            ParseError::InvalidTensor { .. } => "E_PARSE_TENSOR_SHAPE",
+        }
+    }
+}
+
+fn has_root_hide_directive(source: &str) -> bool {
+    for line in source.lines() {
+        let trimmed = line.trim_start_matches(|ch| matches!(ch, ' ' | '\t' | '\r' | '\u{feff}'));
+        if !trimmed.starts_with('#') {
+            continue;
+        }
+        let rest = trimmed[1..].trim_start_matches(|ch| matches!(ch, ' ' | '\t'));
+        if rest.starts_with("바탕숨김") || rest.starts_with("암묵살림") {
+            return true;
+        }
+    }
+    false
+}
+
+pub struct Parser {
+    tokens: Vec<Token>,
+    pos: usize,
+    default_root: String,
+    root_hide: bool,
+    declared_scopes: Vec<HashSet<String>>,
+}
+
+impl Parser {
+    #[allow(dead_code)]
+    pub fn parse(tokens: Vec<Token>) -> Result<Program, ParseError> {
+        Parser::parse_with_default_root(tokens, "살림")
+    }
+
+    pub fn parse_with_default_root(tokens: Vec<Token>, default_root: &str) -> Result<Program, ParseError> {
+        let mut parser = Parser {
+            tokens,
+            pos: 0,
+            default_root: default_root.to_string(),
+            root_hide: default_root == "바탕",
+            declared_scopes: vec![HashSet::new()],
+        };
+        let mut stmts = Vec::new();
+        parser.skip_newlines();
+        while let Some(stmt) = parser.parse_stmt()? {
+            stmts.push(stmt);
+        }
+        Ok(Program { stmts })
+    }
+
+    pub fn default_root_for_source(source: &str) -> &'static str {
+        if has_root_hide_directive(source) {
+            "바탕"
+        } else {
+            "살림"
+        }
+    }
+
+    fn enter_scope(&mut self) {
+        self.declared_scopes.push(HashSet::new());
+    }
+
+    fn exit_scope(&mut self) {
+        self.declared_scopes.pop();
+    }
+
+    fn declare_name(&mut self, name: &str) {
+        if let Some(scope) = self.declared_scopes.last_mut() {
+            scope.insert(name.to_string());
+        }
+    }
+
+    fn is_declared(&self, name: &str) -> bool {
+        self.declared_scopes
+            .iter()
+            .rev()
+            .any(|scope| scope.contains(name))
+    }
+
+    fn ensure_root_declared_for_write(&self, path: &Path) -> Result<(), ParseError> {
+        if !self.root_hide || !path.implicit_root {
+            return Ok(());
+        }
+        let name = match path.segments.get(1) {
+            Some(name) => name.clone(),
+            None => {
+                return Err(ParseError::RootHideUndeclared {
+                    name: String::new(),
+                    span: path.span,
+                })
+            }
+        };
+        if self.is_declared(&name) {
+            return Ok(());
+        }
+        Err(ParseError::RootHideUndeclared {
+            name,
+            span: path.span,
+        })
+    }
+
+    fn parse_stmt(&mut self) -> Result<Option<Stmt>, ParseError> {
+        self.parse_stmt_internal(false)
+    }
+
+    fn parse_stmt_in_block(&mut self) -> Result<Option<Stmt>, ParseError> {
+        self.parse_stmt_internal(true)
+    }
+
+    fn parse_stmt_internal(&mut self, allow_rbrace: bool) -> Result<Option<Stmt>, ParseError> {
+        self.skip_newlines();
+
+        if allow_rbrace && self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Ok(None);
+        }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+            if allow_rbrace {
+                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            }
+            return Ok(None);
+        }
+
+        if !allow_rbrace {
+            if let Some(seed_def) = self.try_parse_seed_def()? {
+                return Ok(Some(seed_def));
+            }
+        }
+
+        if let Some(kind) = self.peek_decl_block_kind() {
+            return Ok(Some(self.parse_decl_block(kind)?));
+        }
+
+        if let Some(hook) = self.try_parse_hook()? {
+            return Ok(Some(hook));
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Repeat)) {
+            return Ok(Some(self.parse_repeat_stmt()?));
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Break)) {
+            return Ok(Some(self.parse_break_stmt()?));
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Goreugi)) {
+            return Ok(Some(self.parse_choose_stmt()?));
+        }
+
+        if self.is_foreach_start() {
+            return Ok(Some(self.parse_foreach_stmt()?));
+        }
+
+        if self.is_bogae_draw_stmt() {
+            return Ok(Some(self.parse_bogae_draw_stmt()?));
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Arrow | TokenKind::PlusArrow | TokenKind::MinusArrow)) {
+            let span = self.peek().span;
+            return Err(ParseError::ExpectedTarget { span });
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            let condition = self.parse_condition_expr()?;
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Ilttae)) {
+                let stmt = self.parse_if_stmt(condition)?;
+                return Ok(Some(stmt));
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::During)) {
+                let stmt = self.parse_while_stmt(condition)?;
+                return Ok(Some(stmt));
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Jeonjehae | TokenKind::Bojanghago)) {
+                let stmt = self.parse_contract_stmt(condition)?;
+                return Ok(Some(stmt));
+            }
+            return Err(ParseError::UnexpectedToken {
+                expected: "'일때' or '동안' or '바탕으로' or '다짐하고'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+
+        let expr = self.parse_expr()?;
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ilttae)) {
+            let stmt = self.parse_if_stmt(expr)?;
+            return Ok(Some(stmt));
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Jeonjehae | TokenKind::Bojanghago)) {
+            let stmt = self.parse_contract_stmt(expr)?;
+            return Ok(Some(stmt));
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::PlusEqual | TokenKind::MinusEqual)) {
+            let found = self.peek().kind.clone();
+            return Err(ParseError::UnexpectedToken {
+                expected: "'+<-' 또는 '-<-' (+=/-=는 미지원)",
+                found,
+                span: self.peek().span,
+            });
+        }
+
+        if self.peek_kind_is(|k| {
+            matches!(
+                k,
+                TokenKind::Arrow | TokenKind::Equal | TokenKind::PlusArrow | TokenKind::MinusArrow
+            )
+        }) {
+            let op = match self.peek().kind {
+                TokenKind::PlusArrow => Some(BinaryOp::Add),
+                TokenKind::MinusArrow => Some(BinaryOp::Sub),
+                _ => None,
+            };
+            self.advance();
+            let value = self.parse_expr()?;
+            let span = expr.span().merge(value.span());
+            self.consume_terminator()?;
+            if op.is_some() {
+                let Expr::Path(path) = expr else {
+                    return Err(ParseError::UnsupportedCompoundTarget { span: expr.span() });
+                };
+                let left = Expr::Path(path.clone());
+                let binary_span = left.span().merge(value.span());
+                let value_expr = Expr::Binary {
+                    left: Box::new(left),
+                    op: op.unwrap(),
+                    right: Box::new(value),
+                    span: binary_span,
+                };
+                self.ensure_root_declared_for_write(&path)?;
+                return Ok(Some(Stmt::Assign {
+                    target: path,
+                    value: value_expr,
+                    span,
+                }));
+            }
+
+            match expr {
+                Expr::Call { name, args, span: call_span }
+                    if name == "차림.값" && args.len() == 2 =>
+                {
+                    let target = match &args[0] {
+                        Expr::Path(path)
+                            if path.segments.len() == 2
+                                && matches!(path.segments[0].as_str(), "살림" | "바탕") =>
+                        {
+                            path.clone()
+                        }
+                        other => {
+                            return Err(ParseError::ExpectedTarget {
+                                span: other.span(),
+                            })
+                        }
+                    };
+                    self.ensure_root_declared_for_write(&target)?;
+                    let index_expr = args[1].clone();
+                    let set_span = call_span.merge(value.span());
+                    let value_call = Expr::Call {
+                        name: "차림.바꾼값".to_string(),
+                        args: vec![Expr::Path(target.clone()), index_expr, value],
+                        span: set_span,
+                    };
+                    return Ok(Some(Stmt::Assign { target, value: value_call, span }));
+                }
+                Expr::Path(path) => {
+                    self.ensure_root_declared_for_write(&path)?;
+                    return Ok(Some(Stmt::Assign {
+                        target: path,
+                        value,
+                        span,
+                    }));
+                }
+                other => {
+                    return Err(ParseError::ExpectedTarget {
+                        span: other.span(),
+                    })
+                }
+            }
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "돌려줘")) {
+            let end_span = self.advance().span;
+            let span = expr.span().merge(end_span);
+            self.consume_terminator()?;
+            return Ok(Some(Stmt::Return { value: expr, span }));
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Boyeojugi)) {
+            self.advance();
+            let span = expr.span();
+            self.consume_terminator()?;
+            return Ok(Some(Stmt::Show { value: expr, span }));
+        }
+
+        let span = expr.span();
+        self.consume_terminator()?;
+        Ok(Some(Stmt::Expr { value: expr, span }))
+    }
+
+    fn try_parse_hook(&mut self) -> Result<Option<Stmt>, ParseError> {
+        if self.is_hook_start() {
+            return Ok(Some(self.parse_hook(HookKind::Start)?));
+        }
+        if self.is_hook_every() {
+            return Ok(Some(self.parse_hook(HookKind::EveryMadi)?));
+        }
+        Ok(None)
+    }
+
+    fn is_hook_start(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Start))
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::RParen))
+            && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::Halttae))
+    }
+
+    fn is_hook_every(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::EveryMadi))
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::RParen))
+            && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::Mada))
+    }
+
+    fn is_bogae_draw_stmt(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "보개로"))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "그려"))
+    }
+
+    fn parse_bogae_draw_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::BogaeDraw { span })
+    }
+
+    fn peek_decl_block_kind(&self) -> Option<DeclKind> {
+        if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon)) {
+            return None;
+        }
+        match &self.peek().kind {
+            TokenKind::Ident(name) if name == "그릇채비" => Some(DeclKind::Gureut),
+            TokenKind::Ident(name) if name == "바탕칸" => Some(DeclKind::Gureut),
+            TokenKind::Ident(name) if name == "바탕칸표" => Some(DeclKind::Gureut),
+            TokenKind::Ident(name) if name == "붙박이마련" => Some(DeclKind::Butbak),
+            _ => None,
+        }
+    }
+
+    fn parse_decl_block(&mut self, kind: DeclKind) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        self.advance(); // colon
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+
+        let mut items = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            }
+
+            let name_token = self.peek().clone();
+            let name = match &name_token.kind {
+                TokenKind::Ident(text) => {
+                    self.advance();
+                    text.clone()
+                }
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "식별자",
+                        found: name_token.kind,
+                        span: name_token.span,
+                    })
+                }
+            };
+
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "':'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+
+            let type_token = self.peek().clone();
+            let type_name = match &type_token.kind {
+                TokenKind::Ident(text) => {
+                    self.advance();
+                    text.clone()
+                }
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "형 이름",
+                        found: type_token.kind,
+                        span: type_token.span,
+                    })
+                }
+            };
+
+            let mut value = None;
+            let mut end_span = type_token.span;
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Arrow)) {
+                if kind == DeclKind::Butbak {
+                    return Err(ParseError::ButbakArrowForbidden {
+                        span: self.peek().span,
+                    });
+                }
+                self.advance();
+                let expr = self.parse_expr()?;
+                end_span = end_span.merge(expr.span());
+                value = Some(expr);
+            } else if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+                if kind == DeclKind::Gureut {
+                    return Err(ParseError::GureutEqualForbidden {
+                        span: self.peek().span,
+                    });
+                }
+                self.advance();
+                let expr = self.parse_expr()?;
+                end_span = end_span.merge(expr.span());
+                value = Some(expr);
+            }
+
+            if kind == DeclKind::Butbak && value.is_none() {
+                return Err(ParseError::ConstMissingValue {
+                    name,
+                    span: end_span,
+                });
+            }
+
+            let item_span = name_token.span.merge(end_span);
+            self.consume_terminator()?;
+
+            if kind == DeclKind::Gureut {
+                self.declare_name(&name);
+            }
+
+            items.push(DeclItem {
+                name,
+                type_name,
+                value,
+                span: item_span,
+            });
+        }
+
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+
+        Ok(Stmt::DeclBlock { kind, items, span })
+    }
+
+    fn parse_hook(&mut self, kind: HookKind) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+        }
+        self.advance();
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::Hook { kind, body, span })
+    }
+
+    fn parse_repeat_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "':'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::Repeat { body, span })
+    }
+
+    fn parse_break_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let span = self.advance().span;
+        self.consume_terminator()?;
+        Ok(Stmt::Break { span })
+    }
+
+    fn parse_while_stmt(&mut self, condition: Expr) -> Result<Stmt, ParseError> {
+        let start_span = condition.span();
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "':'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::While {
+            condition,
+            body,
+            span,
+        })
+    }
+
+    fn is_foreach_start(&self) -> bool {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            return false;
+        }
+        let mut idx = self.pos + 1;
+        let Some(first) = self.tokens.get(idx) else {
+            return false;
+        };
+        if !matches!(first.kind, TokenKind::Ident(_)) {
+            return false;
+        }
+        idx += 1;
+        if let Some(token) = self.tokens.get(idx) {
+            if matches!(token.kind, TokenKind::Colon) {
+                idx += 1;
+                if !self
+                    .tokens
+                    .get(idx)
+                    .map(|tok| matches!(tok.kind, TokenKind::Ident(_)))
+                    .unwrap_or(false)
+                {
+                    return false;
+                }
+                idx += 1;
+            }
+        }
+        if !self
+            .tokens
+            .get(idx)
+            .map(|tok| matches!(tok.kind, TokenKind::RParen))
+            .unwrap_or(false)
+        {
+            return false;
+        }
+        idx += 1;
+        let mut depth = 0usize;
+        while let Some(token) = self.tokens.get(idx) {
+            match &token.kind {
+                TokenKind::LParen => depth += 1,
+                TokenKind::RParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                    }
+                }
+                TokenKind::Daehae if depth == 0 => {
+                    return self
+                        .tokens
+                        .get(idx + 1)
+                        .map(|tok| matches!(tok.kind, TokenKind::Colon))
+                        .unwrap_or(false);
+                }
+                TokenKind::Ident(name) if depth == 0 && name == "모두" => {
+                    return self
+                        .tokens
+                        .get(idx + 1)
+                        .map(|tok| matches!(tok.kind, TokenKind::LBrace))
+                        .unwrap_or(false);
+                }
+                TokenKind::Dot => {
+                    if !self
+                        .tokens
+                        .get(idx + 1)
+                        .map(|tok| matches!(tok.kind, TokenKind::Ident(_)))
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
+                    idx += 1;
+                }
+                TokenKind::Newline | TokenKind::RBrace | TokenKind::Eof => break,
+                _ => {}
+            }
+            idx += 1;
+        }
+        false
+    }
+
+    fn parse_foreach_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.peek().span;
+        let item = self.parse_foreach_var()?;
+        let mut iterable = self.parse_expr()?;
+        let is_modu = self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "모두"));
+        if !is_modu && !self.peek_kind_is(|k| matches!(k, TokenKind::Daehae)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'대해' or '모두'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        if is_modu {
+            self.advance();
+        } else {
+            self.advance();
+            if let Expr::Path(path) = &mut iterable {
+                if let Some(last) = path.segments.last_mut() {
+                    if let Some(trimmed) = last.strip_suffix('에') {
+                        if !trimmed.is_empty() {
+                            *last = trimmed.to_string();
+                        }
+                    }
+                }
+            }
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "':'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::ForEach {
+            item,
+            iterable,
+            body,
+            span,
+        })
+    }
+
+    fn parse_foreach_var(&mut self) -> Result<String, ParseError> {
+        let _start_span = self.advance().span;
+        let name_token = self.advance();
+        let name = match name_token.kind {
+            TokenKind::Ident(name) => name,
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "iteration variable",
+                    found: other,
+                    span: name_token.span,
+                })
+            }
+        };
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_))) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "type name",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+        }
+        self.advance();
+        Ok(name)
+    }
+
+    fn parse_block(&mut self) -> Result<Vec<Stmt>, ParseError> {
+        self.enter_scope();
+        let mut stmts = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            }
+            let stmt = self.parse_stmt_in_block()?;
+            if let Some(stmt) = stmt {
+                stmts.push(stmt);
+            }
+        }
+        self.exit_scope();
+        Ok(stmts)
+    }
+
+    fn try_parse_seed_def(&mut self) -> Result<Option<Stmt>, ParseError> {
+        let start_pos = self.pos;
+        let start_span = self.peek().span;
+        let mut params = Vec::new();
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            match self.parse_seed_params() {
+                Ok(list) => params = list,
+                Err(_) => {
+                    self.pos = start_pos;
+                    return Ok(None);
+                }
+            }
+            self.skip_newlines();
+        }
+
+        let name_token = self.peek().clone();
+        let name = match name_token.kind {
+            TokenKind::Ident(name) => {
+                self.advance();
+                name
+            }
+            _ => {
+                self.pos = start_pos;
+                return Ok(None);
+            }
+        };
+
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.pos = start_pos;
+            return Ok(None);
+        }
+        self.advance();
+
+        let kind = match self.peek().kind.clone() {
+            TokenKind::Ident(kind_name) => {
+                self.advance();
+                if let Some(kind) = SeedKind::from_name(&kind_name) {
+                    kind
+                } else {
+                    if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                        self.pos = start_pos;
+                        return Ok(None);
+                    }
+                    self.advance();
+                    let kind_token = self.peek().clone();
+                    let kind_name = match kind_token.kind {
+                        TokenKind::Ident(name) => {
+                            self.advance();
+                            name
+                        }
+                        _ => {
+                            self.pos = start_pos;
+                            return Ok(None);
+                        }
+                    };
+                    let Some(kind) = SeedKind::from_name(&kind_name) else {
+                        self.pos = start_pos;
+                        return Ok(None);
+                    };
+                    kind
+                }
+            }
+            _ => {
+                self.pos = start_pos;
+                return Ok(None);
+            }
+        };
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_seed_type_tokens();
+        }
+
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'='",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        self.skip_newlines();
+
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Some(Stmt::SeedDef {
+            name,
+            params,
+            kind,
+            body,
+            span,
+        }))
+    }
+
+    fn parse_seed_params(&mut self) -> Result<Vec<String>, ParseError> {
+        self.advance(); // '('
+        self.skip_newlines();
+        let mut params = Vec::new();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            self.advance();
+            return Ok(params);
+        }
+        loop {
+            self.skip_newlines();
+            let name_token = self.peek().clone();
+            let name = match name_token.kind {
+                TokenKind::Ident(name) => {
+                    self.advance();
+                    name
+                }
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "seed parameter",
+                        found: other,
+                        span: name_token.span,
+                    })
+                }
+            };
+            params.push(name);
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                self.advance();
+                self.skip_seed_type_tokens();
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+                self.advance();
+                let _ = self.parse_expr()?;
+            }
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Comma)) {
+                self.advance();
+                continue;
+            }
+            break;
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+        }
+        self.advance();
+        Ok(params)
+    }
+
+    fn skip_seed_type_tokens(&mut self) {
+        while !self.peek_kind_is(|k| matches!(k, TokenKind::Comma | TokenKind::RParen | TokenKind::Equal)) {
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof | TokenKind::Newline)) {
+                break;
+            }
+            self.advance();
+        }
+    }
+
+    fn parse_choose_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "':'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let mut branches = Vec::new();
+        let mut else_body: Option<Vec<Stmt>> = None;
+        let mut end_span = start_span;
+
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Aniramyeon)) {
+                self.advance();
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "':'",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                self.advance();
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "'{'",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                self.advance();
+                let body = self.parse_block()?;
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                    return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                }
+                end_span = self.advance().span;
+                else_body = Some(body);
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace | TokenKind::Eof)) {
+                break;
+            }
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'{'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            let condition = self.parse_condition_expr()?;
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "':'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'{'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            let body = self.parse_block()?;
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            }
+            end_span = self.advance().span;
+            branches.push(ChooseBranch { condition, body });
+        }
+
+        let Some(else_body) = else_body else {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'아니면:'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        };
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::Choose {
+            branches,
+            else_body,
+            span,
+        })
+    }
+
+    fn parse_if_stmt(&mut self, condition: Expr) -> Result<Stmt, ParseError> {
+        let start_span = condition.span();
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let then_body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let mut end_span = self.advance().span;
+
+        let mut lookahead = self.pos;
+        while self
+            .tokens
+            .get(lookahead)
+            .map(|token| matches!(token.kind, TokenKind::Newline))
+            .unwrap_or(false)
+        {
+            lookahead += 1;
+        }
+
+        if self
+            .tokens
+            .get(lookahead)
+            .map(|token| matches!(token.kind, TokenKind::Anigo))
+            .unwrap_or(false)
+        {
+            self.pos = lookahead;
+            self.advance();
+            self.skip_newlines();
+            let else_condition = self.parse_condition_expr()?;
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Ilttae)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'일때'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            let stmt = self.parse_if_stmt(else_condition)?;
+            let stmt_span = match &stmt {
+                Stmt::If { span, .. } => *span,
+                _ => end_span,
+            };
+            let span = start_span.merge(stmt_span);
+            return Ok(Stmt::If {
+                condition,
+                then_body,
+                else_body: Some(vec![stmt]),
+                span,
+            });
+        }
+
+        let else_body = if self
+            .tokens
+            .get(lookahead)
+            .map(|token| matches!(token.kind, TokenKind::Aniramyeon))
+            .unwrap_or(false)
+        {
+            self.pos = lookahead;
+            self.advance();
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'{'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            let body = self.parse_block()?;
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            }
+            end_span = self.advance().span;
+            Some(body)
+        } else {
+            None
+        };
+
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::If {
+            condition,
+            then_body,
+            else_body,
+            span,
+        })
+    }
+
+    fn parse_contract_stmt(&mut self, condition: Expr) -> Result<Stmt, ParseError> {
+        let start_span = condition.span();
+        let kind = if self.peek_kind_is(|k| matches!(k, TokenKind::Jeonjehae)) {
+            self.advance();
+            ContractKind::Pre
+        } else {
+            self.advance();
+            ContractKind::Post
+        };
+        let mode = self.parse_contract_mode()?;
+        self.skip_newlines();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Aniramyeon)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'아니면'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let else_body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let mut end_span = self.advance().span;
+        self.skip_newlines();
+        let then_body = if self.peek_kind_is(|k| matches!(k, TokenKind::Majeumyeon)) {
+            self.advance();
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'{'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            let body = self.parse_block()?;
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            }
+            end_span = self.advance().span;
+            Some(body)
+        } else {
+            None
+        };
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::Contract {
+            kind,
+            mode,
+            condition,
+            then_body,
+            else_body,
+            span,
+        })
+    }
+
+    fn parse_condition_expr(&mut self) -> Result<Expr, ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return self.parse_expr();
+        }
+        let start_span = self.advance().span;
+        let expr = self.parse_expr()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        self.skip_newlines();
+        let name = match &self.peek().kind {
+            TokenKind::Ident(name) => name.clone(),
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'인것' or '아닌것'",
+                    found: other.clone(),
+                    span: self.peek().span,
+                })
+            }
+        };
+        self.advance();
+        if name == "아닌것" {
+            let span = start_span.merge(end_span);
+            return Ok(Expr::Unary {
+                op: UnaryOp::Not,
+                expr: Box::new(expr),
+                span,
+            });
+        }
+        if name != "인것" {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'인것' or '아닌것'",
+                found: TokenKind::Ident(name),
+                span: self.peek().span,
+            });
+        }
+        Ok(expr)
+    }
+
+    fn parse_contract_mode(&mut self) -> Result<ContractMode, ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            return Ok(ContractMode::Abort);
+        }
+        let start_span = self.advance().span;
+        let (name, name_span) = match &self.peek().kind {
+            TokenKind::Ident(name) => (name.clone(), self.peek().span),
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'알림' or '중단'",
+                    found: other.clone(),
+                    span: self.peek().span,
+                })
+            }
+        };
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        let _ = start_span.merge(end_span);
+        match name.as_str() {
+            "알림" => Ok(ContractMode::Alert),
+            "중단" => Ok(ContractMode::Abort),
+            _ => Err(ParseError::UnexpectedToken {
+                expected: "'알림' or '중단'",
+                found: TokenKind::Ident(name),
+                span: name_span,
+            }),
+        }
+    }
+
+    fn parse_expr(&mut self) -> Result<Expr, ParseError> {
+        self.parse_logical_or()
+    }
+
+    fn parse_logical_or(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_logical_and()?;
+        loop {
+            let op = match self.peek().kind {
+                TokenKind::Or => Some(BinaryOp::Or),
+                TokenKind::Ident(ref name) if name == "또는" => Some(BinaryOp::Or),
+                _ => None,
+            };
+            let Some(op) = op else { break };
+            self.advance();
+            let right = self.parse_logical_and()?;
+            let span = expr.span().merge(right.span());
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+                span,
+            };
+        }
+        Ok(expr)
+    }
+
+    fn parse_logical_and(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_comparison()?;
+        loop {
+            let op = match self.peek().kind {
+                TokenKind::And => Some(BinaryOp::And),
+                TokenKind::Ident(ref name) if name == "그리고" => Some(BinaryOp::And),
+                _ => None,
+            };
+            let Some(op) = op else { break };
+            self.advance();
+            let right = self.parse_comparison()?;
+            let span = expr.span().merge(right.span());
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+                span,
+            };
+        }
+        Ok(expr)
+    }
+
+    fn parse_comparison(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_range()?;
+        loop {
+            let op = match self.peek().kind {
+                TokenKind::EqEq => Some(BinaryOp::Eq),
+                TokenKind::NotEq => Some(BinaryOp::NotEq),
+                TokenKind::Lt => Some(BinaryOp::Lt),
+                TokenKind::Lte => Some(BinaryOp::Lte),
+                TokenKind::Gt => Some(BinaryOp::Gt),
+                TokenKind::Gte => Some(BinaryOp::Gte),
+                _ => None,
+            };
+            let Some(op) = op else { break };
+            self.advance();
+            let right = self.parse_range()?;
+            let span = expr.span().merge(right.span());
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+                span,
+            };
+        }
+        Ok(expr)
+    }
+
+    fn parse_range(&mut self) -> Result<Expr, ParseError> {
+        let left = self.parse_additive()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::DotDot | TokenKind::DotDotEq)) {
+            return Ok(left);
+        }
+        let op_token = self.advance();
+        let inclusive = matches!(op_token.kind, TokenKind::DotDotEq);
+        let right = self.parse_additive()?;
+        let span = left.span().merge(right.span());
+        let flag_raw = if inclusive { Fixed64::from_int(1).raw() } else { 0 };
+        let flag_expr = Expr::Literal(
+            Literal::Num(NumberLiteral { raw: flag_raw, unit: None }),
+            op_token.span,
+        );
+        Ok(Expr::Call {
+            name: "표준.범위".to_string(),
+            args: vec![left, right, flag_expr],
+            span,
+        })
+    }
+
+    fn parse_additive(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_multiplicative()?;
+        loop {
+            let op = match self.peek().kind {
+                TokenKind::Plus => Some(BinaryOp::Add),
+                TokenKind::Minus => Some(BinaryOp::Sub),
+                _ => None,
+            };
+            let Some(op) = op else { break };
+            self.advance();
+            let right = self.parse_multiplicative()?;
+            let span = expr.span().merge(right.span());
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+                span,
+            };
+        }
+        Ok(expr)
+    }
+
+    fn parse_multiplicative(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_unary()?;
+        loop {
+            let op = match self.peek().kind {
+                TokenKind::Star => Some(BinaryOp::Mul),
+                TokenKind::Slash => Some(BinaryOp::Div),
+                _ => None,
+            };
+            let Some(op) = op else { break };
+            self.advance();
+            let right = self.parse_unary()?;
+            let span = expr.span().merge(right.span());
+            expr = Expr::Binary {
+                left: Box::new(expr),
+                op,
+                right: Box::new(right),
+                span,
+            };
+        }
+        Ok(expr)
+    }
+
+    fn parse_unary(&mut self) -> Result<Expr, ParseError> {
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Minus)) {
+            let start = self.advance().span;
+            let expr = self.parse_unary()?;
+            let span = start.merge(expr.span());
+            return Ok(Expr::Unary {
+                op: UnaryOp::Neg,
+                expr: Box::new(expr),
+                span,
+            });
+        }
+        self.parse_postfix()
+    }
+
+    fn parse_postfix(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_primary()?;
+        loop {
+            if self.peek_kind_is(|k| matches!(k, TokenKind::LBracket)) {
+                let start_span = expr.span();
+                self.advance();
+                let index_expr = self.parse_expr()?;
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::RBracket)) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "']'",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                let end_span = self.advance().span;
+                let span = start_span.merge(end_span);
+                expr = Expr::Call {
+                    name: "차림.값".to_string(),
+                    args: vec![expr, index_expr],
+                    span,
+                };
+                continue;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Dot))
+                && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_)))
+            {
+                let start_span = expr.span();
+                self.advance();
+                let field_token = self.advance();
+                let field = match field_token.kind {
+                    TokenKind::Ident(name) => name,
+                    _ => {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: "field name",
+                            found: field_token.kind,
+                            span: field_token.span,
+                        })
+                    }
+                };
+                let span = start_span.merge(field_token.span);
+                expr = Expr::FieldAccess {
+                    target: Box::new(expr),
+                    field,
+                    span,
+                };
+                continue;
+            }
+            break;
+        }
+        Ok(expr)
+    }
+
+    fn parse_primary(&mut self) -> Result<Expr, ParseError> {
+        if self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            if self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Atom(_))) {
+                let start_span = self.peek().span;
+                return self.parse_formula_expr(None, start_span);
+            }
+            if self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_)))
+                && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Equal))
+            {
+                let (bindings, start_span) = self.parse_bindings()?;
+                self.skip_newlines();
+                if self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+                    && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Atom(_)))
+                {
+                    return self.parse_formula_expr(Some(bindings), start_span);
+                }
+                self.skip_tag_blocks();
+                if self.peek_kind_is(|k| matches!(k, TokenKind::Template(_))) {
+                    let template = self.parse_template_expr()?;
+                    let span = start_span.merge(template.span());
+                    return Ok(Expr::TemplateFill {
+                        template: Box::new(template),
+                        bindings,
+                        span,
+                    });
+                }
+                if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "인")) {
+                    return self.parse_in_fill(bindings, start_span);
+                }
+                if self.peek_kind_is(|k| matches!(k, TokenKind::Chaewugi)) {
+                    return self.parse_template_fill_explicit(bindings, start_span);
+                }
+                return Ok(Expr::Pack {
+                    bindings,
+                    span: start_span,
+                });
+            }
+        }
+
+        let token = self.peek().clone();
+        match token.kind {
+            TokenKind::String(text) => {
+                let span = self.advance().span;
+                Ok(Expr::Literal(Literal::Str(text), span))
+            }
+            TokenKind::Template(body) => {
+                let span = self.advance().span;
+                Ok(Expr::Template { body, span })
+            }
+            TokenKind::Number(value) => {
+                let span = self.advance().span;
+                let (unit, span) = self.parse_unit_postfix(span)?;
+                Ok(Expr::Literal(
+                    Literal::Num(NumberLiteral { raw: value, unit }),
+                    span,
+                ))
+            }
+            TokenKind::True => {
+                let span = self.advance().span;
+                Ok(Expr::Literal(Literal::Bool(true), span))
+            }
+            TokenKind::False => {
+                let span = self.advance().span;
+                Ok(Expr::Literal(Literal::Bool(false), span))
+            }
+            TokenKind::None => {
+                let span = self.advance().span;
+                Ok(Expr::Literal(Literal::None, span))
+            }
+            TokenKind::Ident(_) => {
+                let path = self.parse_path()?;
+                Ok(Expr::Path(path))
+            }
+            TokenKind::Atom(text) => {
+                let span = self.advance().span;
+                Ok(Expr::Atom { text, span })
+            }
+            TokenKind::Salim => {
+                let path = self.parse_path()?;
+                Ok(Expr::Path(path))
+            }
+            TokenKind::LParen => {
+                let start_span = self.advance().span;
+                let mut args = Vec::new();
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+                    loop {
+                        let expr = self.parse_expr()?;
+                        args.push(expr);
+                        if self.peek_kind_is(|k| matches!(k, TokenKind::Comma)) {
+                            self.advance();
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+                    return Err(ParseError::ExpectedRParen { span: self.peek().span });
+                }
+                self.advance();
+                if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_) | TokenKind::Salim)) {
+                    let (name, name_span) = self.parse_call_name()?;
+                    return Ok(Expr::Call {
+                        name,
+                        args,
+                        span: start_span.merge(name_span),
+                    });
+                }
+                if args.len() == 1 {
+                    return Ok(args.into_iter().next().unwrap());
+                }
+                Err(ParseError::UnexpectedToken {
+                    expected: "call name",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                })
+            }
+            TokenKind::LBrace => {
+                let start_span = self.advance().span;
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_))) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "seed parameter",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Pipe)) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "'|'",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                let param_token = self.advance();
+                let param = match param_token.kind {
+                    TokenKind::Ident(name) => name,
+                    other => {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: "seed parameter",
+                            found: other,
+                            span: param_token.span,
+                        })
+                    }
+                };
+                self.advance();
+                let body = self.parse_expr()?;
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                    return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                }
+                let end_span = self.advance().span;
+                let span = start_span.merge(end_span);
+                Ok(Expr::SeedLiteral {
+                    param,
+                    body: Box::new(body),
+                    span,
+                })
+            }
+            TokenKind::LBracket => {
+                let start_span = self.advance().span;
+                let mut args = Vec::new();
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::RBracket)) {
+                    loop {
+                        let expr = self.parse_expr()?;
+                        args.push(expr);
+                        if self.peek_kind_is(|k| matches!(k, TokenKind::Comma)) {
+                            self.advance();
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::RBracket)) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "']'",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                let end_span = self.advance().span;
+                let span = start_span.merge(end_span);
+                self.build_charim_literal(args, span)
+            }
+            _ => Err(ParseError::ExpectedExpr { span: token.span }),
+        }
+    }
+
+    fn build_charim_literal(&self, args: Vec<Expr>, span: Span) -> Result<Expr, ParseError> {
+        let has_inner = args
+            .iter()
+            .any(|arg| matches!(arg, Expr::Call { name, .. } if name == "차림"));
+        if !has_inner {
+            return Ok(Expr::Call {
+                name: "차림".to_string(),
+                args,
+                span,
+            });
+        }
+
+        let mut rows: Vec<Vec<Expr>> = Vec::new();
+        for arg in args {
+            match arg {
+                Expr::Call { name, args, span: row_span } if name == "차림" => {
+                    if args.iter().any(|item| matches!(item, Expr::Call { name, .. } if name == "차림")) {
+                        return Err(ParseError::InvalidTensor { span: row_span });
+                    }
+                    rows.push(args);
+                }
+                other => {
+                    return Err(ParseError::InvalidTensor { span: other.span() });
+                }
+            }
+        }
+
+        let row_count = rows.len();
+        let col_count = rows.first().map(|row| row.len()).unwrap_or(0);
+        for row in &rows {
+            if row.len() != col_count {
+                return Err(ParseError::InvalidTensor { span });
+            }
+        }
+
+        let mut flat = Vec::new();
+        for row in rows {
+            flat.extend(row);
+        }
+
+        let row_literal = Expr::Literal(
+            Literal::Num(NumberLiteral {
+                raw: Fixed64::from_int(row_count as i64).raw(),
+                unit: None,
+            }),
+            span,
+        );
+        let col_literal = Expr::Literal(
+            Literal::Num(NumberLiteral {
+                raw: Fixed64::from_int(col_count as i64).raw(),
+                unit: None,
+            }),
+            span,
+        );
+        let shape = Expr::Call {
+            name: "차림".to_string(),
+            args: vec![row_literal, col_literal],
+            span,
+        };
+        let data = Expr::Call {
+            name: "차림".to_string(),
+            args: flat,
+            span,
+        };
+        let layout = Expr::Literal(Literal::Str("가로먼저".to_string()), span);
+        let bindings = vec![
+            Binding {
+                name: "형상".to_string(),
+                value: shape,
+                span,
+            },
+            Binding {
+                name: "자료".to_string(),
+                value: data,
+                span,
+            },
+            Binding {
+                name: "배치".to_string(),
+                value: layout,
+                span,
+            },
+        ];
+        Ok(Expr::Pack { bindings, span })
+    }
+
+    fn parse_template_expr(&mut self) -> Result<Expr, ParseError> {
+        let token = self.advance();
+        match token.kind {
+            TokenKind::Template(body) => Ok(Expr::Template { body, span: token.span }),
+            other => Err(ParseError::UnexpectedToken {
+                expected: "template",
+                found: other,
+                span: token.span,
+            }),
+        }
+    }
+
+    fn parse_in_fill(
+        &mut self,
+        bindings: Vec<Binding>,
+        start_span: Span,
+    ) -> Result<Expr, ParseError> {
+        self.advance();
+        let target_expr = if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_) | TokenKind::Salim)) {
+            Expr::Path(self.parse_path()?)
+        } else {
+            return Err(ParseError::ExpectedPath { span: self.peek().span });
+        };
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Chaewugi)) {
+            let end_span = self.advance().span;
+            let span = start_span.merge(end_span);
+            return Ok(Expr::TemplateFill {
+                template: Box::new(target_expr),
+                bindings,
+                span,
+            });
+        }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "풀기")) {
+            let end_span = self.advance().span;
+            let span = start_span.merge(end_span);
+            return Ok(Expr::FormulaFill {
+                formula: Box::new(target_expr),
+                bindings,
+                span,
+            });
+        }
+        Err(ParseError::UnexpectedToken {
+            expected: "'채우기' or '풀기'",
+            found: self.peek().kind.clone(),
+            span: self.peek().span,
+        })
+    }
+
+    fn parse_template_fill_explicit(
+        &mut self,
+        bindings: Vec<Binding>,
+        start_span: Span,
+    ) -> Result<Expr, ParseError> {
+        let mut template_binding: Option<Binding> = None;
+        let mut rest = Vec::new();
+        for binding in bindings {
+            if binding.name == "무늬" {
+                if template_binding.is_some() {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "single '무늬' binding",
+                        found: TokenKind::Chaewugi,
+                        span: binding.span,
+                    });
+                }
+                template_binding = Some(binding);
+            } else {
+                rest.push(binding);
+            }
+        }
+        let template_binding = template_binding.ok_or_else(|| ParseError::UnexpectedToken {
+            expected: "무늬 binding",
+            found: TokenKind::Chaewugi,
+            span: self.peek().span,
+        })?;
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        Ok(Expr::TemplateFill {
+            template: Box::new(template_binding.value),
+            bindings: rest,
+            span,
+        })
+    }
+
+    fn parse_call_name(&mut self) -> Result<(String, Span), ParseError> {
+        let first = self.advance();
+        let (first_name, mut span) = match first.kind {
+            TokenKind::Ident(name) => (name, first.span),
+            TokenKind::Salim => ("살림".to_string(), first.span),
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "call name",
+                    found: other,
+                    span: first.span,
+                })
+            }
+        };
+        let mut segments = vec![first_name];
+        while self.peek_kind_is(|k| matches!(k, TokenKind::Dot))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_)))
+        {
+            self.advance();
+            let token = self.advance();
+            if let TokenKind::Ident(name) = token.kind {
+                span = span.merge(token.span);
+                segments.push(name);
+            }
+        }
+        Ok((segments.join("."), span))
+    }
+
+    fn parse_bindings(&mut self) -> Result<(Vec<Binding>, Span), ParseError> {
+        let start_span = self.advance().span;
+        let mut bindings = Vec::new();
+        loop {
+            let name_token = self.advance();
+            let name = match &name_token.kind {
+                TokenKind::Ident(name) => name.clone(),
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "binding name",
+                        found: name_token.kind.clone(),
+                        span: name_token.span,
+                    })
+                }
+            };
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'='",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            let value = self.parse_expr()?;
+            let span = name_token.span.merge(value.span());
+            bindings.push(Binding { name, value, span });
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Comma)) {
+                self.advance();
+                continue;
+            }
+            break;
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        Ok((bindings, start_span.merge(end_span)))
+    }
+
+    fn parse_formula_expr(
+        &mut self,
+        bindings: Option<Vec<Binding>>,
+        start_span: Span,
+    ) -> Result<Expr, ParseError> {
+        let dialect = self.parse_formula_head()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Susic)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'수식'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.collect_formula_body()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        match bindings {
+            Some(bindings) => Ok(Expr::FormulaEval {
+                dialect,
+                body,
+                bindings,
+                span,
+            }),
+            None => Ok(Expr::Formula {
+                dialect,
+                body,
+                span,
+            }),
+        }
+    }
+
+    fn parse_formula_head(&mut self) -> Result<FormulaDialect, ParseError> {
+        self.advance();
+        let name_token = if self.peek_kind_is(|k| matches!(k, TokenKind::Atom(_))) {
+            self.advance()
+        } else {
+            return Err(ParseError::UnexpectedToken {
+                expected: "atom",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        };
+        let dialect = match name_token.kind {
+            TokenKind::Atom(text) if text == "#ascii" => FormulaDialect::Ascii,
+            TokenKind::Atom(text) if text == "#ascii1" => FormulaDialect::Ascii1,
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'ascii' or 'ascii1'",
+                    found: other,
+                    span: name_token.span,
+                })
+            }
+        };
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+        }
+        self.advance();
+        Ok(dialect)
+    }
+
+    fn skip_tag_blocks(&mut self) {
+        loop {
+            if self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+                && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Atom(_)))
+                && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::RParen))
+            {
+                self.advance();
+                self.advance();
+                self.advance();
+                self.skip_newlines();
+                continue;
+            }
+            break;
+        }
+    }
+
+    fn collect_formula_body(&mut self) -> Result<String, ParseError> {
+        let mut out = String::new();
+        loop {
+            let token = self.peek().clone();
+            if matches!(token.kind, TokenKind::RBrace) {
+                break;
+            }
+            if matches!(token.kind, TokenKind::Eof) {
+                return Err(ParseError::ExpectedRBrace { span: token.span });
+            }
+            self.advance();
+            match token.kind {
+                TokenKind::Newline => {}
+                TokenKind::Ident(name) => out.push_str(&name),
+                TokenKind::Number(raw) => out.push_str(&Fixed64::from_raw(raw).format()),
+                TokenKind::Plus => out.push('+'),
+                TokenKind::Minus => out.push('-'),
+                TokenKind::Star => out.push('*'),
+                TokenKind::Slash => out.push('/'),
+                TokenKind::Caret => out.push('^'),
+                TokenKind::Equal => out.push('='),
+                TokenKind::Comma => out.push(','),
+                TokenKind::LParen => out.push('('),
+                TokenKind::RParen => out.push(')'),
+                TokenKind::Dot => out.push('.'),
+                TokenKind::String(text) => {
+                    out.push('"');
+                    out.push_str(&text.replace('"', "\\\""));
+                    out.push('"');
+                }
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "formula token",
+                        found: other,
+                        span: token.span,
+                    })
+                }
+            }
+        }
+        Ok(out.trim().to_string())
+    }
+
+    fn parse_unit_postfix(&mut self, span: Span) -> Result<(Option<UnitExpr>, Span), ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::At)) {
+            return Ok((None, span));
+        }
+        let mut merged = span;
+        self.advance();
+        merged = merged.merge(self.peek().span);
+        let expr = self.parse_unit_expr()?;
+        let span = merged.merge(self.last_span());
+        Ok((Some(expr), span))
+    }
+
+    fn parse_unit_expr(&mut self) -> Result<UnitExpr, ParseError> {
+        let mut factors = Vec::new();
+        let mut sign = 1;
+
+        loop {
+            let token = self.peek().clone();
+            let name = match token.kind {
+                TokenKind::Ident(ref name) => name.clone(),
+                _ => {
+                    return Err(ParseError::ExpectedUnit { span: token.span });
+                }
+            };
+            self.advance();
+            let mut exp = 1;
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Caret)) {
+                self.advance();
+                let exp_token = self.peek().clone();
+                match exp_token.kind {
+                    TokenKind::Number(value) => {
+                        if value & 0xFFFF_FFFF != 0 {
+                            return Err(ParseError::ExpectedUnit { span: exp_token.span });
+                        }
+                        let int_value = value >> 32;
+                        if int_value < i32::MIN as i64 || int_value > i32::MAX as i64 {
+                            return Err(ParseError::ExpectedUnit { span: exp_token.span });
+                        }
+                        exp = int_value as i32;
+                        self.advance();
+                    }
+                    _ => {
+                        return Err(ParseError::ExpectedUnit { span: exp_token.span });
+                    }
+                }
+            }
+            factors.push(UnitFactor {
+                name,
+                exp: exp * sign,
+            });
+
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Star)) {
+                sign = 1;
+                self.advance();
+                continue;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Slash)) {
+                sign = -1;
+                self.advance();
+                continue;
+            }
+            break;
+        }
+
+        Ok(UnitExpr { factors })
+    }
+
+    fn last_span(&self) -> Span {
+        if self.pos == 0 {
+            self.peek().span
+        } else {
+            self.tokens[self.pos - 1].span
+        }
+    }
+
+    fn parse_path(&mut self) -> Result<Path, ParseError> {
+        let first_token = self.peek().clone();
+        let first_segment = match &first_token.kind {
+            TokenKind::Salim => {
+                self.advance();
+                "살림".to_string()
+            }
+            TokenKind::Ident(name) => {
+                self.advance();
+                name.clone()
+            }
+            _ => {
+                return Err(ParseError::ExpectedPath {
+                    span: first_token.span,
+                })
+            }
+        };
+
+        let mut segments = vec![first_segment];
+        let mut span = first_token.span;
+        let mut implicit_root = false;
+
+        loop {
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Dot)) {
+                break;
+            }
+            if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_))) {
+                break;
+            }
+            self.advance();
+            let ident_token = self.advance();
+            if let TokenKind::Ident(name) = ident_token.kind {
+                segments.push(name);
+                span = span.merge(ident_token.span);
+            }
+        }
+
+        if !matches!(
+            segments.first().map(|seg| seg.as_str()),
+            Some("살림" | "바탕" | "샘")
+        ) {
+            segments.insert(0, self.default_root.clone());
+            implicit_root = true;
+        }
+
+        Ok(Path {
+            segments,
+            span,
+            implicit_root,
+        })
+    }
+
+    fn consume_terminator(&mut self) -> Result<(), ParseError> {
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Dot)) {
+            self.advance();
+            self.skip_newlines();
+            return Ok(());
+        }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Newline)) {
+            self.skip_newlines();
+            return Ok(());
+        }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+            return Ok(());
+        }
+        Err(ParseError::UnexpectedToken {
+            expected: "'.' or newline",
+            found: self.peek().kind.clone(),
+            span: self.peek().span,
+        })
+    }
+
+    fn skip_newlines(&mut self) {
+        while self.peek_kind_is(|k| matches!(k, TokenKind::Newline)) {
+            self.advance();
+        }
+    }
+
+    fn peek(&self) -> &Token {
+        &self.tokens[self.pos]
+    }
+
+    fn peek_kind_is(&self, f: impl FnOnce(&TokenKind) -> bool) -> bool {
+        f(&self.peek().kind)
+    }
+
+    fn peek_kind_n_is(&self, n: usize, f: impl FnOnce(&TokenKind) -> bool) -> bool {
+        self.tokens
+            .get(self.pos + n)
+            .map(|token| f(&token.kind))
+            .unwrap_or(false)
+    }
+
+    fn advance(&mut self) -> Token {
+        let token = self.tokens[self.pos].clone();
+        self.pos += 1;
+        token
+    }
+}

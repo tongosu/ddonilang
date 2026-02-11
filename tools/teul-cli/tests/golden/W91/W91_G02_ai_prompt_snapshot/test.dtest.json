@@ -1,0 +1,19 @@
+{
+  "name": "W91_G02_ai_prompt_snapshot",
+  "walk": 91,
+  "command": "ai_prompt",
+  "entry": "main.ddn",
+  "args": {
+    "profile": "lean",
+    "out": "ai.prompt.txt"
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "files": {
+      "ai.prompt.txt": {
+        "equals_file": "ai.prompt.golden.txt"
+      }
+    }
+  }
+}

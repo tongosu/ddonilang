@@ -1,0 +1,10 @@
+{"level":"error","code":"E_CONTRACT_POST","file":"main.ddn","line":1,"col":3,"message":"보장하고 조건이 실패했습니다","fault_id":"contract:post:main.ddn:1:3:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_POST","contract_kind":"post","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:post:main.ddn:1:3:0"}
+{"level":"error","code":"E_CONTRACT_POST","file":"main.ddn","line":1,"col":3,"message":"보장하고 조건이 실패했습니다","fault_id":"contract:post:main.ddn:1:3:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_POST","contract_kind":"post","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:post:main.ddn:1:3:0"}
+{"level":"error","code":"E_CONTRACT_POST","file":"main.ddn","line":1,"col":3,"message":"보장하고 조건이 실패했습니다","fault_id":"contract:post:main.ddn:1:3:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_POST","contract_kind":"post","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:post:main.ddn:1:3:0"}
+{"level":"error","code":"E_CONTRACT_POST","file":"main.ddn","line":1,"col":3,"message":"보장하고 조건이 실패했습니다","fault_id":"contract:post:main.ddn:1:3:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_POST","contract_kind":"post","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:post:main.ddn:1:3:0"}
+{"level":"error","code":"E_CONTRACT_POST","file":"main.ddn","line":1,"col":3,"message":"보장하고 조건이 실패했습니다","fault_id":"contract:post:main.ddn:1:3:0","rule_id":"L0-CONTRACT-01","reason":"CONTRACT_POST","contract_kind":"post","mode":"중단"}
+{"event_kind":"hook","hook_name":"슬기.계약위반","hook_input_ref":"contract:post:main.ddn:1:3:0"}

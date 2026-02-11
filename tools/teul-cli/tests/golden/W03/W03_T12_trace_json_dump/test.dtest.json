@@ -1,0 +1,24 @@
+{
+  "name": "W03_T12_trace_json_dump",
+  "walk": 3,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--trace-json",
+      "trace.json"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "안녕!"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY",
+    "files_exist": [
+      "trace.json"
+    ]
+  }
+}

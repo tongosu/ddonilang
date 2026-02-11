@@ -1,0 +1,15 @@
+{
+  "name": "W06_G06_power",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "10"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:2fe2fae5c43c91a99afe4a2e27f1076fe92d8b205a6f17df40fb1d487a80affd"
+  }
+}

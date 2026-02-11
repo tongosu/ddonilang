@@ -1,0 +1,35 @@
+{
+  "name": "W91_G01_ai_prompt_invariants",
+  "walk": 91,
+  "command": "ai_prompt",
+  "entry": "main.ddn",
+  "args": {
+    "profile": "lean",
+    "out": "ai.prompt.txt"
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "files": {
+      "ai.prompt.txt": {
+        "contains": [
+          "[또니랑 코드 생성 규약]",
+          "SSOT_VERSION = v20.3.1",
+          "[컨텍스트]",
+          "SSOT_VERSION = v20.3.1",
+          "BUNDLE_KIND = dir",
+          "PROFILE = lean",
+          "BUNDLE_HASH = sha256:",
+          "FILE_LIST =",
+          "- SSOT_INDEX_v20.3.1.md",
+          "- SSOT_TERMS_v20.3.1.md",
+          "- SSOT_DECISIONS_v20.3.1.md",
+          "- SSOT_LANG_v20.3.1.md",
+          "- SSOT_DEMOS_v20.3.1.md",
+          "- GATE0_IMPLEMENTATION_CHECKLIST_v20.3.1.md",
+          "===== BEGIN SSOT_INDEX_v20.3.1.md ====="
+        ]
+      }
+    }
+  }
+}

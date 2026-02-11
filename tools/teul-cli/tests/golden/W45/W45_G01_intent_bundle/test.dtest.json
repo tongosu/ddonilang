@@ -1,0 +1,13 @@
+{
+  "name": "W45_G01_intent_bundle",
+  "walk": 45,
+  "command": "intent_inspect",
+  "entry": "intent.jsonl",
+  "args": {
+    "geoul": "."
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"seulgi.intent_bundle.v1\",\"items\":[{\"accepted_madi\":0,\"agent_id\":1,\"recv_seq\":1,\"target_madi\":5,\"intent\":{\"schema\":\"seulgi.intent.v1\",\"kind\":\"MoveTo\",\"x\":10.5,\"y\":20.75}},{\"accepted_madi\":0,\"agent_id\":1,\"recv_seq\":2,\"target_madi\":5,\"intent\":{\"schema\":\"seulgi.intent.v1\",\"kind\":\"Attack\",\"target_id\":42}},{\"accepted_madi\":0,\"agent_id\":1,\"recv_seq\":3,\"target_madi\":5,\"intent\":{\"schema\":\"seulgi.intent.v1\",\"kind\":\"Say\",\"text\":\"안녕\"}},{\"accepted_madi\":0,\"agent_id\":1,\"recv_seq\":4,\"target_madi\":5,\"intent\":{\"schema\":\"seulgi.intent.v1\",\"kind\":\"None\"}}]}\n"
+  }
+}

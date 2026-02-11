@@ -1,0 +1,28 @@
+{
+  "name": "ddonirang-syntax",
+  "displayName": "Ddonirang Syntax",
+  "description": "Syntax highlighting for the Ddonirang language (또니랑) based on SSOT_LANG/SSOT_TOOLCHAIN.",
+  "version": "0.0.1",
+  "publisher": "ddonirang",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "ddonirang",
+        "aliases": ["Ddonirang", "또니랑"],
+        "extensions": [".ddn"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ddonirang",
+        "scopeName": "source.ddonirang",
+        "path": "./syntaxes/ddonirang.tmLanguage.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "W13_G01_web_view_artifacts",
+  "walk": 13,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--bogae",
+      "web",
+      "--no-open",
+      "--bogae-out",
+      "out/web"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "bogae_hash": "ABSENT",
+    "files_exist": [
+      "out/web/index.html",
+      "out/web/drawlist.bdl1",
+      "out/web/drawlist.json"
+    ]
+  }
+}

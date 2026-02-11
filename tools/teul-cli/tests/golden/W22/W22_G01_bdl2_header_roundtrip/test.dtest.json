@@ -1,0 +1,20 @@
+{
+  "name": "W22_G01_bdl2_header_roundtrip",
+  "walk": 22,
+  "command": "view",
+  "entry": "header.bdl2.detbin",
+  "args": {
+    "cli": [
+      "--bogae",
+      "web",
+      "--no-open",
+      "--bogae-codec",
+      "bdl2"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "stdout_text": "bogae_hash=blake3:3434e7050dd1e153e04a9bc054413caff0f2a5024ea6552bed6a1cdfcb1c2f70 cmd_count=1 codec=BDL2\n"
+  }
+}

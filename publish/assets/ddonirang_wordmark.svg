@@ -1,0 +1,57 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="triStroke" x1="512" y1="160" x2="512" y2="860" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F6A623"/>
+      <stop offset="40%" stop-color="#2D8EDB"/>
+      <stop offset="100%" stop-color="#0B3D91"/>
+    </linearGradient>
+    <linearGradient id="nodeStroke" x1="300" y1="220" x2="780" y2="740" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F6A623"/>
+      <stop offset="60%" stop-color="#3BB6E8"/>
+      <stop offset="100%" stop-color="#0B3D91"/>
+    </linearGradient>
+  </defs>
+
+  <!-- outer rounded triangle -->
+  <path
+    d="M 300 740 Q 512 380 512 220 Q 512 380 724 740 Q 512 820 300 740 Z"
+    fill="none"
+    stroke="url(#triStroke)"
+    stroke-width="56"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- bottom inner arc accent -->
+  <path
+    d="M 360 710 Q 512 760 664 710"
+    fill="none"
+    stroke="#1E5FA8"
+    stroke-width="12"
+    stroke-linecap="round"
+  />
+
+  <!-- small inner arc (right) -->
+  <path
+    d="M 640 520 Q 700 610 680 700"
+    fill="none"
+    stroke="#6DC6E6"
+    stroke-width="10"
+    stroke-linecap="round"
+  />
+
+  <!-- nodes -->
+  <circle cx="512" cy="220" r="48" fill="#FFFFFF" stroke="url(#nodeStroke)" stroke-width="18"/>
+  <circle cx="300" cy="740" r="48" fill="#FFFFFF" stroke="url(#nodeStroke)" stroke-width="18"/>
+  <circle cx="724" cy="740" r="48" fill="#FFFFFF" stroke="url(#nodeStroke)" stroke-width="18"/>
+
+  <!-- check mark -->
+  <path
+    d="M 420 520 L 500 600 L 650 440"
+    fill="none"
+    stroke="#2D8EDB"
+    stroke-width="64"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

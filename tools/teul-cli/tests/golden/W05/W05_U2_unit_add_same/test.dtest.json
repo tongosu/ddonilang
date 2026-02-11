@@ -1,0 +1,16 @@
+{
+  "name": "W05_U2_unit_add_same",
+  "walk": 5,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "12@m"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:ecec651a751e4ec4c2c2ca41d57bafd7cda12f82300266111fbb9c40aa921231",
+    "trace_hash": "blake3:14f0a652162bb7c0827b2a2f8d96d26c411c1902ff1db25ef2df4796b82ab9e8"
+  }
+}

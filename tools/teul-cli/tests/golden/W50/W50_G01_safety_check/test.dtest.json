@@ -1,0 +1,14 @@
+{
+  "name": "W50_G01_safety_check",
+  "walk": 50,
+  "command": "safety_check",
+  "entry": "rules.detjson",
+  "args": {
+    "rules": "rules.detjson",
+    "intent": "intent.detjson"
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"seulgi.safety_check.v1\",\"allowed\":true,\"reason\":\"allowlist hit\"}\n"
+  }
+}

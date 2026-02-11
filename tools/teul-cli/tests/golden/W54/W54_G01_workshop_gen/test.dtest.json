@@ -1,0 +1,21 @@
+{
+  "name": "W54_G01_workshop_gen",
+  "walk": 54,
+  "command": "multi",
+  "entry": "input.ddn",
+  "steps": [
+    {
+      "cmd": "run",
+      "in": "input.ddn",
+      "args": { "madi": 2, "cli": ["--geoul-out", "out/geoul"] }
+    },
+    {
+      "cmd": "workshop_gen",
+      "args": { "geoul": "out/geoul", "out": "out/workshop" }
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "files_exist": ["out/workshop/index.html", "out/workshop/manifest.detjson"]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "W03_G01_schema_basic",
+  "walk": 3,
+  "command": "check",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "files": {
+      "ddn.schema.json": {
+        "contains": [
+          "\"name\": \"살림.인사\"",
+          "\"type\": \"글\"",
+          "\"name\": \"살림.나이\"",
+          "\"type\": \"수\""
+        ]
+      }
+    }
+  }
+}

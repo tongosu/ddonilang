@@ -1,0 +1,13 @@
+{
+  "name": "W90_G01_patch_preview",
+  "walk": 90,
+  "command": "patch_preview",
+  "entry": "ddn.patch.json",
+  "args": {
+    "format": "diff"
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "# patch_version: 0.1-draft\n--- main.ddn\n+++ main.ddn\n@@ 인사 <- (replace_block)\n# reason: 미리보기/승인 테스트\n-인사 <- 1.\n+인사 <- 3.\n"
+  }
+}

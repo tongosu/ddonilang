@@ -1,0 +1,19 @@
+{
+  "name": "W14_G01_headless_stdout",
+  "walk": 14,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "cli": ["--bogae", "web", "--no-open"]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "bogae_hash=blake3:bc0798547cdbf660abd103e7861b33a261e156621068e786948f3ed27dd1e9c5 cmd_count=2 codec=BDL1"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "bogae_hash": "ABSENT"
+  }
+}

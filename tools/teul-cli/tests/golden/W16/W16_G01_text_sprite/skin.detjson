@@ -1,0 +1,10 @@
+{
+  "kind": "bogae_skin_manifest_v1",
+  "symbols": [
+    {
+      "key": "sym:tetris.I",
+      "console": { "glyph": "I" },
+      "web": { "asset_uri": "assets/tetris_I.png" }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "W22_G05_bdl2_aa_determinism",
+  "walk": 22,
+  "command": "pipeline",
+  "steps": [
+    {
+      "command": "view",
+      "entry": "aa0.bdl2.detbin",
+      "args": {
+        "cli": [
+          "--bogae",
+          "web",
+          "--no-open",
+          "--bogae-codec",
+          "bdl2"
+        ]
+      }
+    },
+    {
+      "command": "view",
+      "entry": "aa1.bdl2.detbin",
+      "args": {
+        "cli": [
+          "--bogae",
+          "web",
+          "--no-open",
+          "--bogae-codec",
+          "bdl2"
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "stdout_text": "bogae_hash=blake3:e399ca7dc13b5e04f1ed37e02a7a153233445284e476bf821539230365abd96f cmd_count=1 codec=BDL2\nbogae_hash=blake3:62ee664a281b09a8360931c42392a6c3454c49324cf4e30ee6c2e6e1580eab52 cmd_count=1 codec=BDL2\n",
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

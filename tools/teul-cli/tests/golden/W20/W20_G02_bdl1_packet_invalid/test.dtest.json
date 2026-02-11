@@ -1,0 +1,17 @@
+{
+  "name": "W20_G02_bdl1_packet_invalid",
+  "walk": 20,
+  "command": "bdl_packet",
+  "entry": "bad.packet",
+  "args": {
+    "mode": "unwrap",
+    "input": "bad.packet",
+    "out": "out/invalid_output.bdl1.detbin"
+  },
+  "expect": {
+    "exit": 1,
+    "stderr_contains": [
+      "E_BDL1_PACKET_INVALID"
+    ]
+  }
+}

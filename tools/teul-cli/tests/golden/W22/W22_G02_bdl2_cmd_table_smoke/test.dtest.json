@@ -1,0 +1,20 @@
+{
+  "name": "W22_G02_bdl2_cmd_table_smoke",
+  "walk": 22,
+  "command": "view",
+  "entry": "cmd_table.bdl2.detbin",
+  "args": {
+    "cli": [
+      "--bogae",
+      "web",
+      "--no-open",
+      "--bogae-codec",
+      "bdl2"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "stdout_text": "bogae_hash=blake3:569c6e9b0971f2a28670c796292a90a39bcfd89fb647b5d2fe547dbcf494e925 cmd_count=10 codec=BDL2\n"
+  }
+}

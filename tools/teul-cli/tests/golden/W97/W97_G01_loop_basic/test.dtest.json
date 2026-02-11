@@ -1,0 +1,18 @@
+{
+  "name": "W97_G01_loop_basic",
+  "walk": 97,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "3",
+      "6",
+      "2"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:3cbc602138f4f9f722931cbde67961532fc2041a996bb6b1b08a09f3e0dc971f",
+    "trace_hash": "blake3:93362e1357d241f3124c220ada92d8a68243e8e53129b56727b7d1ff4e256bdf"
+  }
+}

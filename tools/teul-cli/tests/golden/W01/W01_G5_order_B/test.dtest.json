@@ -1,0 +1,14 @@
+{
+  "name": "W01_G5_order_B",
+  "walk": 1,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "SAME_AS:W01_G4_order_A",
+    "trace_hash": "DIFFERS_FROM:W01_G4_order_A"
+  }
+}

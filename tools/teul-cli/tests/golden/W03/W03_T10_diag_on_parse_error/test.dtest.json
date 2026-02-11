@@ -1,0 +1,24 @@
+{
+  "name": "W03_T10_diag_on_parse_error",
+  "walk": 3,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--diag-jsonl",
+      "geoul.diag.jsonl"
+    ]
+  },
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files_exist": [
+      "geoul.diag.jsonl"
+    ]
+  }
+}

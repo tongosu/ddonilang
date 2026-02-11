@@ -1,0 +1,17 @@
+{
+  "name": "W47_G01_nurigym_spec",
+  "walk": 47,
+  "command": "nurigym_spec",
+  "entry": "input.ddn",
+  "args": {
+    "out": "out"
+  },
+  "expect": {
+    "exit": 0,
+    "files_exist": ["out/obs_spec.detjson", "out/action_spec.detjson"],
+    "files": {
+      "out/obs_spec.detjson": { "equals_file": "expect_obs.detjson" },
+      "out/action_spec.detjson": { "equals_file": "expect_action.detjson" }
+    }
+  }
+}

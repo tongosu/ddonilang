@@ -1,0 +1,17 @@
+{
+  "name": "W12_G03_template_missing_key",
+  "walk": 12,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_TEMPLATE",
+      "주입 키 누락: y"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

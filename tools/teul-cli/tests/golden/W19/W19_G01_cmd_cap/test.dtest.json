@@ -1,0 +1,40 @@
+{
+  "name": "W19_G01_cmd_cap",
+  "walk": 19,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--bogae",
+      "web",
+      "--bogae-out",
+      "out/cap",
+      "--no-open",
+      "--bogae-cmd-policy",
+      "cap",
+      "--bogae-cmd-cap",
+      "100",
+      "--diag",
+      "diag.jsonl"
+    ]
+  },
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_BOGAE_CMD_CAP"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files": {
+      "diag.jsonl": {
+        "jsonl_contains": [
+          {
+            "code": "E_BOGAE_CMD_CAP",
+            "rule_id": "cmd_cap"
+          }
+        ]
+      }
+    }
+  }
+}

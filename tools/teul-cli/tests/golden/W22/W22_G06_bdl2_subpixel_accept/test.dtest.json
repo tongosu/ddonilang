@@ -1,0 +1,20 @@
+{
+  "name": "W22_G06_bdl2_subpixel_accept",
+  "walk": 22,
+  "command": "view",
+  "entry": "subpixel.bdl2.detbin",
+  "args": {
+    "cli": [
+      "--bogae",
+      "web",
+      "--no-open",
+      "--bogae-codec",
+      "bdl2"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "stdout_text": "bogae_hash=blake3:cf4b089eb39e879ae89779d791b3a7bbc46c81c9a1a589e46223cc3f7a78c755 cmd_count=2 codec=BDL2\n"
+  }
+}

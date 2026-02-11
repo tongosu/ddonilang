@@ -1,0 +1,10 @@
+{
+  "name": "W46_G01_goal_parse",
+  "walk": 46,
+  "command": "goal_parse",
+  "entry": "input.txt",
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"target_state.v1\",\"agent_id\":0,\"goal_id\":7303898441825431406,\"priority\":128,\"condition\":{\"type\":\"ObjectPlaced\",\"object_id\":7557826876394946252,\"location_id\":10636490656270503146}}\n"
+  }
+}

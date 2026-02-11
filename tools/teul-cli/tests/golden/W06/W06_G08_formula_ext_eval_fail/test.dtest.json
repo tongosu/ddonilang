@@ -1,0 +1,16 @@
+{
+  "name": "W06_G08_formula_ext_eval_fail",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "FATAL:FORMULA_EVAL_EXT_UNSUPPORTED"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

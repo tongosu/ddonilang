@@ -1,0 +1,18 @@
+{
+  "name": "W106_G01_length_bad_type",
+  "walk": 106,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_TYPE_MISMATCH",
+      "기대=",
+      "실제="
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

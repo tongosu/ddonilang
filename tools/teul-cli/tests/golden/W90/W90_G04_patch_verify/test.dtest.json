@@ -1,0 +1,14 @@
+{
+  "name": "W90_G04_patch_verify",
+  "walk": 90,
+  "command": "patch_verify",
+  "entry": "ddn.patch.json",
+  "args": {
+    "approval": "build/ddn.patch.approval.json",
+    "tests": "verify_tests",
+    "walk": "0"
+  },
+  "expect": {
+    "exit": 0
+  }
+}

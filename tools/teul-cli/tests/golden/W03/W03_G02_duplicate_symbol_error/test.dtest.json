@@ -1,0 +1,15 @@
+{
+  "name": "W03_G02_duplicate_symbol_error",
+  "walk": 3,
+  "command": "check",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_CHECK_DUPLICATE_SYMBOL"
+    ],
+    "state_hash": "ABSENT"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "W03_G03_type_flip_error",
+  "walk": 3,
+  "command": "check",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_CHECK_TYPE_MISMATCH"
+    ],
+    "state_hash": "ABSENT"
+  }
+}

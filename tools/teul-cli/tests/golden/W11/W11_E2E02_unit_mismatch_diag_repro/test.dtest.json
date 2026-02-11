@@ -1,0 +1,31 @@
+{
+  "name": "W11_E2E02_unit_mismatch_diag_repro",
+  "walk": 11,
+  "command": "multi",
+  "entry": "main.ddn",
+  "args": {
+    "diag": "geoul.diag.jsonl",
+    "enable_repro": true
+  },
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_UNIT_MISMATCH"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files": {
+      "geoul.diag.jsonl": {
+        "contains": [
+          "E_UNIT_MISMATCH"
+        ]
+      },
+      "build/repro/ddn.repro.last.json": {
+        "contains": [
+          "ssot_version"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "W52_G01_intent_merge",
+  "walk": 52,
+  "command": "intent_merge",
+  "entry": "agent_a.jsonl",
+  "args": {
+    "inputs": [
+      "agent_a.jsonl",
+      "agent_b.jsonl"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"seulgi.intent_bundle.v1\",\"items\":[{\"accepted_madi\":0,\"agent_id\":1,\"recv_seq\":1,\"target_madi\":0,\"intent\":{\"schema\":\"seulgi.intent.v1\",\"kind\":\"Say\",\"text\":\"A\"}},{\"accepted_madi\":0,\"agent_id\":2,\"recv_seq\":1,\"target_madi\":0,\"intent\":{\"schema\":\"seulgi.intent.v1\",\"kind\":\"Say\",\"text\":\"B\"}}]}\n"
+  }
+}

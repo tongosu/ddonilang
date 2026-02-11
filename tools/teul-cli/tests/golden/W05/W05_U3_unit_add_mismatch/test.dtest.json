@@ -1,0 +1,16 @@
+{
+  "name": "W05_U3_unit_add_mismatch",
+  "walk": 5,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_UNIT_MISMATCH"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

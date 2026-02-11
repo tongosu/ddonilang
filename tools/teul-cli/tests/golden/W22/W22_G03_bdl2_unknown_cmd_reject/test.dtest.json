@@ -1,0 +1,21 @@
+{
+  "name": "W22_G03_bdl2_unknown_cmd_reject",
+  "walk": 22,
+  "command": "view",
+  "entry": "unknown.bdl2.detbin",
+  "args": {
+    "cli": [
+      "--bogae",
+      "web",
+      "--no-open",
+      "--bogae-codec",
+      "bdl2"
+    ]
+  },
+  "expect": {
+    "exit": 1,
+    "stderr_contains": [
+      "E_BDL2_CMD_KIND"
+    ]
+  }
+}

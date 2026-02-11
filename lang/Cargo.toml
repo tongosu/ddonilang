@@ -1,0 +1,25 @@
+[package]
+name = "ddonirang-lang"
+version = "0.1.0"
+edition = "2021"
+authors = ["DdoniLang Team"]
+description = "또니랑 언어 코어 - 한국어 네이티브 프로그래밍 언어"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ddonirang/ddonirang-lang"
+keywords = ["korean", "programming-language", "parser", "compiler"]
+categories = ["parser-implementations", "compilers"]
+
+[dependencies]
+ddonirang-core = { path = "../core" }
+# 현재 의존성 없음 (순수 Rust 표준 라이브러리)
+
+[dev-dependencies]
+# 테스트용
+
+[lib]
+name = "ddonirang_lang"
+path = "src/lib.rs"
+
+[[example]]
+name = "parse_and_normalize"
+path = "examples/parse_and_normalize.rs"

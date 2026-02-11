@@ -1,0 +1,16 @@
+{
+  "name": "W06_G07_formula_ext_value_show",
+  "walk": 6,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "(#ascii) 수식{ sum(i, 1, 3, i) }",
+      "(#ascii) 수식{ diff(x^2, x, 2) }"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:2f642e62c816e2b37c76aabd4d0f63cddd1d25567de4f933332e6c2898510694"
+  }
+}

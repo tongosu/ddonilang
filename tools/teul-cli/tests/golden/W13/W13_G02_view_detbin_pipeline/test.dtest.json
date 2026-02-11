@@ -1,0 +1,32 @@
+{
+  "name": "W13_G02_view_detbin_pipeline",
+  "walk": 13,
+  "command": "pipeline",
+  "entry": "main.ddn",
+  "steps": [
+    {
+      "command": "run",
+      "entry": "main.ddn",
+      "args": {
+        "cli": ["--bogae-out", "out/raw.bdl1"]
+      }
+    },
+    {
+      "command": "view",
+      "entry": "out/raw.bdl1",
+      "args": {
+        "cli": ["--no-open", "--bogae-out", "out/view"]
+      }
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "files_exist": [
+      "out/raw.bdl1",
+      "out/view/index.html",
+      "out/view/drawlist.bdl1",
+      "out/view/drawlist.json"
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "W10_G01_ai_extract_request_pack",
+  "walk": 10,
+  "command": "ai_extract",
+  "entry": "main.ddn",
+  "args": {
+    "out": "ai.request.json"
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "files": {
+      "ai.request.json": {
+        "contains": [
+          "holes",
+          "prompt"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "W32_G01_state_hash",
+  "walk": 32,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae3_w32_diff_viewer/input.ddn",
+  "args": {
+    "madi": 1,
+    "seed": "0x0"
+  },
+  "expect": {
+    "exit": 0,
+    "state_hash": "blake3:249dc4d7a160cf7053b9f9585da6f92c83b79f88e7bfeba356075a9eed3d9b86"
+  }
+}

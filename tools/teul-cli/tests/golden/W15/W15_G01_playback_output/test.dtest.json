@@ -1,0 +1,33 @@
+{
+  "name": "W15_G01_playback_output",
+  "walk": 15,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "madi": 3,
+    "cli": ["--bogae", "web", "--bogae-out", "out/playback", "--no-open"]
+  },
+  "expect": {
+    "exit": 0,
+    "stderr_contains": [],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files_exist": [
+      "out/playback/manifest.detjson",
+      "out/playback/frames/000000.bdl1.detbin",
+      "out/playback/frames/000001.bdl1.detbin",
+      "out/playback/frames/000002.bdl1.detbin",
+      "out/playback/viewer/index.html",
+      "out/playback/viewer/viewer.js"
+    ],
+    "files": {
+      "out/playback/manifest.detjson": {
+        "contains": [
+          "\"kind\": \"bogae_web_playback_v1\"",
+          "\"codec\": \"BDL1\"",
+          "\"frames\""
+        ]
+      }
+    }
+  }
+}

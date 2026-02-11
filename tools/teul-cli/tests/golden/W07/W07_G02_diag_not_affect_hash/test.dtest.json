@@ -1,0 +1,17 @@
+{
+  "name": "W07_G02_diag_not_affect_hash",
+  "walk": 7,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "diag": "geoul.diag.jsonl"
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "10"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY"
+  }
+}

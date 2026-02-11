@@ -1,0 +1,16 @@
+{
+  "name": "W105_G02_tensor_ragged_error",
+  "walk": 105,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_TENSOR_SHAPE"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

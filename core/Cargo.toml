@@ -1,0 +1,14 @@
+[package]
+name = "ddonirang-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+blake3 = "1.5"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+unicode-normalization = "0.1"
+rayon = "1.8"
+
+[[example]]
+name = "gate0_tick"
+path = "examples/gate0_tick.rs"

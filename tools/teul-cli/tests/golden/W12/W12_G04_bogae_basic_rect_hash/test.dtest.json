@@ -1,0 +1,15 @@
+{
+  "name": "W12_G04_bogae_basic_rect_hash",
+  "walk": 12,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "blake3:e146e412935192925dc3d07f0e7cd04eeed0852cbceec6fa44ac76c504f1b941",
+    "trace_hash": "blake3:292d65167a1e8697a4b57036108c571899568053ad336b02824c8609a4125b4b",
+    "bogae_hash": "blake3:abf65400e4e074c0af141087238cfd37291ce51013766e7b106b4e406ce64f1e"
+  }
+}

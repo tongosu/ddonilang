@@ -1,0 +1,12 @@
+﻿{
+  "name": "W107_C01_contract_canon_alert",
+  "walk": 107,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{ 1 }인것 바탕으로(알림) 아니면 {\n  2 보여주기.\n}.\n",
+    "stderr_contains": []
+  }
+}

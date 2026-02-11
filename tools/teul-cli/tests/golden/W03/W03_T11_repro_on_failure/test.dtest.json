@@ -1,0 +1,24 @@
+{
+  "name": "W03_T11_repro_on_failure",
+  "walk": 3,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--repro-json",
+      "ddn.repro.json"
+    ]
+  },
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_UNDEFINED"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT",
+    "files_exist": [
+      "ddn.repro.json"
+    ]
+  }
+}

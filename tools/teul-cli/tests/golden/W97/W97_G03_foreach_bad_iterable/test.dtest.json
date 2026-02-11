@@ -1,0 +1,16 @@
+{
+  "name": "W97_G03_foreach_bad_iterable",
+  "walk": 97,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_TYPE_MISMATCH"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

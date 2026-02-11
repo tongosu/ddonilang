@@ -1,0 +1,17 @@
+{
+  "name": "W102_G01_charim_literal",
+  "walk": 102,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "차림[1, 2, 3]",
+      "차림[]"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:7ababd8e44388e68156fdf3f6bd9bb96144dab724b3d21d5561e6ffac9ac0300",
+    "trace_hash": "blake3:d47d2ed05ef96a3317ee77a36bdf9dbd0f3eaa61c4e5787de8766829b94888ba"
+  }
+}
