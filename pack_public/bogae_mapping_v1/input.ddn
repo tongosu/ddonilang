@@ -1,0 +1,8 @@
+#이름: bogae_mapping_v1
+#설명: 태그→Rect/Text/Sprite 매핑 스모크
+보개_그림판_가로 <- 64.
+보개_그림판_세로 <- 48.
+보개_바탕색 <- "#000000ff".
+보개_태그_목록 <- ((tag="hero", x=4, y=6, w=12, h=8, text="HERO", uri="sym:demo.star", color="#ffcc00"), (tag="hero", x=24, y=20, w=10, h=6, text="ALT", uri="sym:demo.moon", color="#66ccff")) 차림.
+보개_매핑_목록 <- ((rule_id=2, tag="hero", kind="sprite", x="$x", y="$y", w="$w", h="$h", uri="$uri", 색="#ffffffff"), (rule_id=1, tag="hero", kind="rect", x="$x", y="$y", w="$w", h="$h", 색="$color"), (rule_id=1, tag="hero", kind="text", x="$x", y="$y", size=8, text="$text", 색="#ffffffff")) 차림.
+보개로 그려.

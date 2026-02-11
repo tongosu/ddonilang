@@ -1,0 +1,86 @@
+[Excluded]
+i:\OneDrive\study\ddonilang\codex\codex\pack\age1_charim_index\input_error_out_of_range.ddn :: noncanon_case
+i:\OneDrive\study\ddonilang\codex\codex\pack\bogae_bg_key_v1\input_alias.ddn :: noncanon_case
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_ddn_mastercourse\L02\input_error.ddn :: noncanon_case
+i:\OneDrive\study\ddonilang\codex\codex\pack\math_calculus_v1\input_error_multi_var.ddn :: noncanon_case
+i:\OneDrive\study\ddonilang\codex\codex\pack\math_calculus_v1\input_error_no_var.ddn :: noncanon_case
+i:\OneDrive\study\ddonilang\codex\codex\pack\open_end_to_end\input_record.ddn :: noncanon_case
+i:\OneDrive\study\ddonilang\codex\codex\pack\open_end_to_end\input_replay.ddn :: noncanon_case
+i:\OneDrive\study\ddonilang\codex\codex\pack\open_file_read_unc_case\input.ddn :: unc_path
+i:\OneDrive\study\ddonilang\codex\codex\pack\open_file_read_unc_dot\input.ddn :: unc_path
+i:\OneDrive\study\ddonilang\codex\codex\pack\open_file_read_unc_dot_mix\input.ddn :: unc_path
+i:\OneDrive\study\ddonilang\codex\codex\pack\open_file_read_unc_mix\input.ddn :: unc_path
+i:\OneDrive\study\ddonilang\codex\codex\pack\open_file_read_unc_space_special\input.ddn :: unc_path
+
+[Failed]
+i:\OneDrive\study\ddonilang\codex\codex\pack\age1_math_ext\input_eval_fail.ddn
+E_CANON_EXPECTED_TERMINATOR 문장 끝에 마침표가 필요합니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_chem_reaction\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_math_function_line\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_math_parabola\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_physics_motion\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_seamgrim_econ_budget_table\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_seamgrim_econ_supply_demand\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_seamgrim_math_parabola\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_seamgrim_physics_circuit\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\edu_seamgrim_physics_projectile\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\game_maker_tetris_full\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\game_maker_tetris_slice0\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\gogae5_w46_goal_grammar\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\gogae5_w47_observation_spec\input.ddn
+E_CANON_EXPECTED_EXPR ?? 뒤에는 (표현식) 형태가 필요합니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\gogae5_w48_goap_planner\input.ddn
+E_CANON_EXPECTED_EXPR ?? 뒤에는 (표현식) 형태가 필요합니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\lang_range_literal_v0\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\seamgrim_graph_v0_basics\c01_line_meta_header\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\seamgrim_graph_v0_basics\c02_parabola\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\seamgrim_line_graph\input.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\seamgrim_line_graph\input_parabola.ddn
+E_CANON_UNEXPECTED_TOKEN 예상하지 못한 토큰입니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\type_runtime_typecheck\input_list_mismatch.ddn
+E_CANON_EXPECTED_IDENT 이름이 필요합니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\type_runtime_typecheck\input_map_mismatch.ddn
+E_CANON_EXPECTED_IDENT 이름이 필요합니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\type_runtime_typecheck\input_set_mismatch.ddn
+E_CANON_EXPECTED_IDENT 이름이 필요합니다.
+
+i:\OneDrive\study\ddonilang\codex\codex\pack\type_runtime_typecheck\input_unit_mismatch.ddn
+E_CANON_EXPECTED_IDENT 이름이 필요합니다.

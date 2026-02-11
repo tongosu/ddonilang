@@ -1,0 +1,4 @@
+바탕.시각 <- () 열림.시각.지금.
+바탕.시각.unix_sec 보여주기.
+바탕.텍스트 <- ("pack/open_replay_schema_v2_accept/hello.txt") 열림.파일.읽기.
+바탕.텍스트 보여주기.

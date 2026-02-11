@@ -1,0 +1,2 @@
+바탕.응답 <- (주소="https://example.test/hello", 방법="GET", 응답="hello net")인 열림.네트워크.요청.
+바탕.응답 보여주기.

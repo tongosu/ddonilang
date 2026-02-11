@@ -1,0 +1,4 @@
+bogae_canvas_w <- 32.
+bogae_canvas_h <- 24.
+보개_바탕색 <- "#101010ff".
+보개로 그려.
