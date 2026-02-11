@@ -1,4 +1,4 @@
-# Ddonirang Syntax (MVP)
+# Ddonilang Syntax (MVP)
 
 이 확장은 **SSOT_LANG / SSOT_TOOLCHAIN**에 근거한 **TextMate 기반 최소 문법 하이라이트(MVP)** 입니다.
 

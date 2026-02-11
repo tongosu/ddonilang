@@ -3,7 +3,7 @@
 > A Korean‑native programming language and tools for the era of games and AI  
 > Determinism (reproducibility) is built into the grammar, not an option.
 
-![Ddonilang logo](assets/ddonirang_wordmark.png)
+![Ddonilang logo](publish/assets/ddonirang_wordmark.png)
 
 ---
 

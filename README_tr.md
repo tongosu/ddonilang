@@ -3,7 +3,7 @@
 > Oyun ve AI çağının **Korece yerel** programlama dili ve aracı  
 > **Determinism (yeniden üretilebilirlik)** bir seçenek değil, **dil bilgisinin** parçasıdır.
 
-![Ddonilang logo](assets/ddonirang_wordmark.png)
+![Ddonilang logo](publish/assets/ddonirang_wordmark.png)
 
 ---
 

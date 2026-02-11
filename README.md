@@ -3,7 +3,7 @@
 > 게임과 AI 시대를 위한 **한국어 네이티브 프로그래밍 언어·도구**  
 > **결정성(재현)**을 “옵션”이 아니라 **문법**으로 만든다.
 
-![또니랑 로고](assets/ddonirang_wordmark.png)
+![또니랑 로고](publish/assets/ddonirang_wordmark.png)
 
 ---
 

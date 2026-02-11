@@ -3,7 +3,7 @@
 > ゲームとAIの時代のための **韓国語ネイティブ** プログラミング言語・ツール  
 > **決定性（再現性）** は「オプション」ではなく **文法** に組み込む
 
-![또니랑 로고](assets/ddonirang_wordmark.png)
+![또니랑 로고](publish/assets/ddonirang_wordmark.png)
 
 ---
 
