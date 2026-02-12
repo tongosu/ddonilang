@@ -45,5 +45,9 @@ teul-cli run path/to/input.ddn --open replay --open-log open.log.jsonl --unsafe-
 ## 테스트
 - PASS: `python tests/run_pack_golden.py open_net_record_replay open_ffi_record_replay open_gpu_record_replay`
 
+## 바이너리
+- Windows x64: `ddonirang-tool-0.1.0-windows-x64.zip`
+- 체크섬: `SHA256SUMS.txt`
+
 ## GitHub 업로드 범위
 - 코드 + `publish/` 문서만 업로드한다.

@@ -20,5 +20,14 @@
 - `publish/QUICKSTART.md` 사용법 보강
 - `publish/DOWNLOADS.md` 배포/패키징 규칙 보강
 
+## Assets
+- `ddonirang-tool-0.1.0-windows-x64.zip`
+- `SHA256SUMS.txt`
+
+SHA256
+```
+6174AA313EEAB0E1AAB7FAAF7B15DB867A3E33E7C0A0694AD880F8FC9E15C8A4  ddonirang-tool-0.1.0-windows-x64.zip
+```
+
 ## Tests
 - `python tests/run_pack_golden.py open_net_record_replay open_ffi_record_replay open_gpu_record_replay`
