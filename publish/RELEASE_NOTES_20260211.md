@@ -18,6 +18,8 @@
   - `pack/open_net_record_replay`
   - `pack/open_ffi_record_replay`
   - `pack/open_gpu_record_replay`
+- 문서: `publish/QUICKSTART.md` 사용법 보강
+- 문서: `publish/DOWNLOADS.md` 배포/패키징 규칙 보강
 
 ## 동작 변경(주의)
 - `open=record|replay`는 `age_target>=AGE2`에서만 허용된다.

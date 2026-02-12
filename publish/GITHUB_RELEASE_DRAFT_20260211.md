@@ -16,5 +16,9 @@
 - `pack/open_ffi_record_replay`
 - `pack/open_gpu_record_replay`
 
+## Docs
+- `publish/QUICKSTART.md` 사용법 보강
+- `publish/DOWNLOADS.md` 배포/패키징 규칙 보강
+
 ## Tests
 - `python tests/run_pack_golden.py open_net_record_replay open_ffi_record_replay open_gpu_record_replay`

@@ -19,7 +19,7 @@ Ddonilang is a Korean‑first language/tooling project aiming for “a language 
 
 ---
 
-## Why we made it
+## Why I made it
 
 I started this project after a year of preparation because I wanted to leave a memorable work before finishing elementary school.
 
