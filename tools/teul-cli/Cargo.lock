@@ -317,6 +317,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ddonirang-lang"
+version = "0.1.0"
+dependencies = [
+ "ddonirang-core",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -760,6 +767,7 @@ dependencies = [
  "clap",
  "crossterm",
  "ddonirang-core",
+ "ddonirang-lang",
  "hex",
  "serde",
  "serde_json",

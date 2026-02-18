@@ -10,7 +10,7 @@ pub const TERM_MAP_VERSION: &str = "tm-1";
 pub const FATAL_TERMS: [TermEntry; 12] = [
     TermEntry { code: "TERM-FATAL-001", input: "자산", canonical: "쓸감" },
     TermEntry { code: "TERM-FATAL-002", input: "객체", canonical: "임자" },
-    TermEntry { code: "TERM-FATAL-003", input: "리소스", canonical: "살림" },
+    TermEntry { code: "TERM-FATAL-003", input: "리소스", canonical: "바탕" },
     TermEntry { code: "TERM-FATAL-004", input: "프레임", canonical: "마디" },
     TermEntry { code: "TERM-FATAL-005", input: "입력", canonical: "샘" },
     TermEntry { code: "TERM-FATAL-006", input: "가드", canonical: "지킴이" },
@@ -22,11 +22,12 @@ pub const FATAL_TERMS: [TermEntry; 12] = [
     TermEntry { code: "TERM-FATAL-012", input: "패치", canonical: "고침" },
 ];
 
-pub const LEGACY_TERMS: [TermEntry; 4] = [
+pub const LEGACY_TERMS: [TermEntry; 5] = [
     TermEntry { code: "TERM-WARN-001", input: "변수", canonical: "이름/이름씨" },
     TermEntry { code: "TERM-WARN-002", input: "함수", canonical: "움직씨" },
     TermEntry { code: "TERM-WARN-003", input: "클래스", canonical: "이름씨" },
     TermEntry { code: "TERM-WARN-004", input: "이벤트", canonical: "알림씨" },
+    TermEntry { code: "TERM-WARN-005", input: "살림", canonical: "바탕" },
 ];
 
 pub const JOSA_ONLY: [&str; 18] = [
@@ -34,8 +35,8 @@ pub const JOSA_ONLY: [&str; 18] = [
     "께", "부터", "까지",
 ];
 
-pub const RESERVED_WORDS: [&str; 11] = [
-    "마디", "샘", "임자", "누리", "지킴이", "고장", "거울", "쓸감", "살림", "진단말", "고침",
+pub const RESERVED_WORDS: [&str; 10] = [
+    "마디", "샘", "임자", "누리", "지킴이", "고장", "거울", "쓸감", "진단말", "고침",
 ];
 
 pub fn find_fatal_term(term: &str) -> Option<TermEntry> {

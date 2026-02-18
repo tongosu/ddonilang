@@ -1,9 +1,11 @@
 // lang/src/lexer.rs
 use std::fmt;
+use crate::dialect::DialectConfig;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     Ident(String), Integer(i64), Float(String), StringLit(String), Atom(String), Variable(String), Nuance(String),
+    Pragma(String),
     TemplateBlock(String),
     FormulaBlock(String),
     KwImeumssi, KwUmjikssi, KwGallaessi, KwRelationssi, KwValueFunc, KwSam, KwHeureumssi, KwIeumssi, KwSemssi,
@@ -21,15 +23,31 @@ impl Span { pub fn new(start: usize, end: usize) -> Self { Self { start, end } }
 #[derive(Debug, Clone)]
 pub struct Token { pub kind: TokenKind, pub span: Span, pub raw: String }
 
-pub struct Lexer<'a> { source: &'a str, pos: usize }
+pub struct Lexer<'a> {
+    source: &'a str,
+    pos: usize,
+    pending: Option<Token>,
+    dialect: DialectConfig,
+}
 
 impl<'a> Lexer<'a> {
-    pub fn new(source: &'a str) -> Self { Self { source, pos: 0 } }
+    pub fn new(source: &'a str) -> Self {
+        Self {
+            source,
+            pos: 0,
+            pending: None,
+            dialect: DialectConfig::from_source(source),
+        }
+    }
     pub fn tokenize(&mut self) -> Result<Vec<Token>, LexError> {
         let mut tokens = Vec::new();
         while !self.is_eof() {
             self.skip_whitespace();
             if self.is_eof() { break; }
+            if self.peek_char() == Some('#') && self.is_line_directive_start() {
+                tokens.push(self.read_line_pragma());
+                continue;
+            }
             tokens.push(self.next_token()?);
         }
         tokens.push(Token { kind: TokenKind::Eof, span: Span::new(self.pos, self.pos), raw: String::new() });
@@ -37,7 +55,13 @@ impl<'a> Lexer<'a> {
     }
 
     fn next_token(&mut self) -> Result<Token, LexError> {
+        if let Some(token) = self.pending.take() {
+            return Ok(token);
+        }
         let start = self.pos;
+        if let Some(token) = self.try_read_sym3_token() {
+            return Ok(token);
+        }
         let ch = self.peek_char().ok_or_else(|| LexError::new(self.pos, "EOF"))?;
         let kind = match ch {
             '0'..='9' => return self.read_number(),
@@ -77,7 +101,7 @@ impl<'a> Lexer<'a> {
                 }
             },
             '@' => { self.advance(); TokenKind::At },
-            '~' => { self.advance(); TokenKind::Tilde },
+            '~' => { return Ok(self.read_tilde_token()); },
             '!' => {
                 self.advance();
                 if self.peek_char() == Some('=') {
@@ -161,6 +185,7 @@ impl<'a> Lexer<'a> {
             },
             '*' => { self.advance(); TokenKind::Star },
             '/' => { self.advance(); TokenKind::Slash },
+            '%' => { self.advance(); TokenKind::Percent },
             '^' => { self.advance(); TokenKind::Caret },
             _ => { self.advance(); return Err(LexError::new(start, "알 수 없는 문자")); }
         };
@@ -179,51 +204,38 @@ impl<'a> Lexer<'a> {
         if text == "수식" && self.peek_char() == Some('{') {
             return self.read_formula_block(start);
         }
+        let mut lexeme = text.to_string();
+        if let Some(canon) = self.dialect.canonicalize_keyword(text) {
+            lexeme = canon.to_string();
+            if let Some(kind) = keyword_kind_for(&lexeme) {
+                return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
+            }
+        }
+
         let josa_list = [
             "를", "을", "가", "이", "은", "는", "에게", "의", "로", "으로", "와", "과", "에", "에서",
             "부터", "까지", "마다", "도", "만", "뿐", "밖에", "처럼", "보다", "한테",
         ];
-        let kind = match text {
-            "이름씨" => TokenKind::KwImeumssi,
-            "움직씨" => TokenKind::KwUmjikssi,
-            "값함수" => TokenKind::KwValueFunc,
-            "셈씨" => TokenKind::KwSemssi,
-            "돌려줘" => TokenKind::KwDollyeojwo,
-            "일때" => TokenKind::KwIlttae,
-            "아니면" => TokenKind::KwAniramyeon,
-            "아니라면" => TokenKind::KwAniramyeon,
-            "반복" => TokenKind::KwBanbok,
-            "동안" => TokenKind::KwDongan,
-            "대해" => TokenKind::KwDaehae,
-            "멈추기" => TokenKind::KwMeomchugi,
-            "해보고" => TokenKind::KwHaebogo,
-            "고르기" => TokenKind::KwGoreugi,
-            "맞으면" => TokenKind::KwMajeumyeon,
-            "바탕으로" => TokenKind::KwJeonjehae,
-            "전제하에" => TokenKind::KwJeonjehae,
-            "다짐하고" => TokenKind::KwBojanghago,
-            "보장하고" => TokenKind::KwBojanghago,
-            "해서" => TokenKind::KwHaeseo,
-            "늘지켜보고" => TokenKind::KwNeuljikeobogo,
-            "검사할때" => TokenKind::KwNeuljikeobogo,
-            _ => {
-                if josa_list.iter().any(|j| *j == text) {
-                    return Ok(Token { kind: TokenKind::Josa(text.to_string()), span: Span::new(start, self.pos), raw: text.to_string() });
-                }
-                if self.peek_char() != Some(':') {
-                    for j in josa_list {
-                        if text.ends_with(j) && text.chars().count() > 2 {
-                            let sl = text.len() - j.len();
-                            self.pos = start + sl;
-                            let n = text[..sl].to_string();
-                            return Ok(Token { kind: TokenKind::Ident(n.clone()), span: Span::new(start, self.pos), raw: n });
-                        }
-                    }
-                }
-                TokenKind::Ident(text.to_string())
+        if josa_list.iter().any(|j| *j == lexeme.as_str()) {
+            return Ok(Token { kind: TokenKind::Josa(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme });
+        }
+        let no_split = ["길이"];
+        let has_underscore = lexeme.contains('_');
+        let next_sig = self.peek_non_ws_char();
+        if !has_underscore && self.peek_char() != Some(':') {
+            if matches!(next_sig, Some('<') | Some('=') | Some(':') | Some('.')) || no_split.iter().any(|w| *w == lexeme.as_str()) {
+                return Ok(Token { kind: TokenKind::Ident(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme });
             }
-        };
-        Ok(Token { kind, span: Span::new(start, self.pos), raw: text.to_string() })
+            for j in josa_list {
+                if lexeme.ends_with(j) && lexeme.chars().count() > 2 {
+                    let sl = lexeme.len() - j.len();
+                    self.pos = start + sl;
+                    let n = lexeme[..sl].to_string();
+                    return Ok(Token { kind: TokenKind::Ident(n.clone()), span: Span::new(start, self.pos), raw: n });
+                }
+            }
+        }
+        Ok(Token { kind: TokenKind::Ident(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme })
     }
 
     fn read_number(&mut self) -> Result<Token, LexError> {
@@ -266,6 +278,31 @@ impl<'a> Lexer<'a> {
         let start = self.pos; self.advance();
         while let Some(ch) = self.peek_char() { if matches!(ch, '가'..='힣' | 'a'..='z' | '0'..='9' | '_') { self.advance(); } else { break; } }
         Ok(Token { kind: TokenKind::Atom(self.source[start+1..self.pos].to_string()), span: Span::new(start, self.pos), raw: self.source[start..self.pos].to_string() })
+    }
+
+    fn read_line_pragma(&mut self) -> Token {
+        let start = self.pos;
+        self.advance(); // '#'
+        while let Some(ch) = self.peek_char() {
+            if matches!(ch, ' ' | '\t') {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        let text_start = self.pos;
+        while let Some(ch) = self.peek_char() {
+            if ch == '\n' {
+                break;
+            }
+            self.advance();
+        }
+        let text = self.source[text_start..self.pos].trim_end().to_string();
+        Token {
+            kind: TokenKind::Pragma(text),
+            span: Span::new(start, self.pos),
+            raw: self.source[start..self.pos].to_string(),
+        }
     }
 
     fn read_variable(&mut self) -> Result<Token, LexError> {
@@ -374,17 +411,156 @@ impl<'a> Lexer<'a> {
     fn read_ascii(&mut self) -> Result<Token, LexError> {
         let start = self.pos;
         while let Some(ch) = self.peek_char() { if ch.is_ascii_alphanumeric() || ch == '_' { self.advance(); } else { break; } }
-        Ok(Token { kind: TokenKind::Ident(self.source[start..self.pos].to_string()), span: Span::new(start, self.pos), raw: self.source[start..self.pos].to_string() })
+        let text = &self.source[start..self.pos];
+        let mut lexeme = text.to_string();
+        if let Some(canon) = self.dialect.canonicalize_keyword(text) {
+            lexeme = canon.to_string();
+            if let Some(kind) = keyword_kind_for(&lexeme) {
+                return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
+            }
+        }
+        Ok(Token { kind: TokenKind::Ident(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme })
+    }
+
+    fn try_read_sym3_token(&mut self) -> Option<Token> {
+        let start = self.pos;
+        let symbol_tokens: Vec<String> = self.dialect.symbol_tokens().to_vec();
+        for token in symbol_tokens.iter() {
+            if self.starts_with(token) {
+                if let Some(canon) = self.dialect.canonicalize_symbol(token) {
+                    if let Some(kind) = keyword_kind_for(canon) {
+                        self.advance_str(token);
+                        return Some(Token { kind, span: Span::new(start, self.pos), raw: token.to_string() });
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn read_tilde_token(&mut self) -> Token {
+        let start = self.pos;
+        self.advance();
+        let tail_start = self.pos;
+        let mut paren_depth = 0usize;
+        while let Some(ch) = self.peek_char() {
+            if ch == '(' {
+                paren_depth += 1;
+                self.advance();
+                continue;
+            }
+            if ch == ')' {
+                if paren_depth == 0 {
+                    break;
+                }
+                paren_depth -= 1;
+                self.advance();
+                continue;
+            }
+            if is_josa_tail_char(ch) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        if self.pos > tail_start {
+            let tail = self.source[tail_start..self.pos].to_string();
+            let span = Span::new(tail_start, self.pos);
+            self.pending = Some(Token { kind: TokenKind::Josa(tail.clone()), span, raw: tail });
+        }
+        Token { kind: TokenKind::Tilde, span: Span::new(start, start + 1), raw: "~".to_string() }
     }
 
     fn skip_whitespace(&mut self) {
-        while let Some(ch) = self.peek_char() { if ch.is_whitespace() { self.advance(); } else { break; } }
+        loop {
+            while let Some(ch) = self.peek_char() {
+                if ch.is_whitespace() {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            if self.peek_char() == Some('/') && self.peek_ahead(1) == Some('/') {
+                while let Some(ch) = self.peek_char() {
+                    self.advance();
+                    if ch == '\n' {
+                        break;
+                    }
+                }
+                continue;
+            }
+            break;
+        }
+    }
+
+    fn is_line_directive_start(&self) -> bool {
+        let line_start = self.source[..self.pos]
+            .rfind('\n')
+            .map(|idx| idx + 1)
+            .unwrap_or(0);
+        self.source[line_start..self.pos]
+            .chars()
+            .all(|ch| matches!(ch, ' ' | '\t' | '\r' | '\u{feff}'))
+    }
+
+    fn starts_with(&self, s: &str) -> bool {
+        self.source[self.pos..].starts_with(s)
+    }
+
+    fn advance_str(&mut self, s: &str) {
+        self.pos += s.len();
     }
 
     fn peek_char(&self) -> Option<char> { self.source[self.pos..].chars().next() }
     fn peek_ahead(&self, n: usize) -> Option<char> { self.source[self.pos..].chars().nth(n) }
+    fn peek_non_ws_char(&self) -> Option<char> {
+        let mut idx = self.pos;
+        while idx < self.source.len() {
+            let ch = self.source[idx..].chars().next()?;
+            if !ch.is_whitespace() {
+                return Some(ch);
+            }
+            idx += ch.len_utf8();
+        }
+        None
+    }
     fn advance(&mut self) { if let Some(ch) = self.peek_char() { self.pos += ch.len_utf8(); } }
     fn is_eof(&self) -> bool { self.pos >= self.source.len() }
+}
+
+fn is_josa_tail_char(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_' || ch == '-'
+}
+
+fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
+    match canon {
+        "이름씨" => Some(TokenKind::KwImeumssi),
+        "움직씨" => Some(TokenKind::KwUmjikssi),
+        "값함수" => Some(TokenKind::KwValueFunc),
+        "셈씨" => Some(TokenKind::KwSemssi),
+        "이음씨" => Some(TokenKind::KwIeumssi),
+        "흐름씨" => Some(TokenKind::KwHeureumssi),
+        "갈래씨" | "일묶음씨" => Some(TokenKind::KwGallaessi),
+        "관계씨" | "맞물림씨" => Some(TokenKind::KwRelationssi),
+        "샘" => Some(TokenKind::KwSam),
+        "그리고" => Some(TokenKind::And),
+        "또는" => Some(TokenKind::Or),
+        "일때" => Some(TokenKind::KwIlttae),
+        "아니면" | "아니라면" => Some(TokenKind::KwAniramyeon),
+        "되풀이" | "반복" => Some(TokenKind::KwBanbok),
+        "동안" => Some(TokenKind::KwDongan),
+        "대해" => Some(TokenKind::KwDaehae),
+        "멈추기" => Some(TokenKind::KwMeomchugi),
+        "되돌림" | "반환" | "돌려줘" => Some(TokenKind::KwDollyeojwo),
+        "해보고" => Some(TokenKind::KwHaebogo),
+        "고르기" => Some(TokenKind::KwGoreugi),
+        "맞으면" | "이면" => Some(TokenKind::KwMajeumyeon),
+        "바탕으로" | "전제하에" => Some(TokenKind::KwJeonjehae),
+        "다짐하고" | "보장하고" => Some(TokenKind::KwBojanghago),
+        "해서" => Some(TokenKind::KwHaeseo),
+        "늘지켜보고" | "유지하고" | "검사할때" => Some(TokenKind::KwNeuljikeobogo),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -392,3 +568,47 @@ pub struct LexError { pub pos: usize, pub message: String }
 impl LexError { fn new(pos: usize, message: &str) -> Self { Self { pos, message: message.to_string() } } }
 impl fmt::Display for LexError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "렉서 오류: {}", self.message) } }
 impl std::error::Error for LexError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn line_start_hash_becomes_pragma_token() {
+        let mut lexer = Lexer::new("#그래프(y축=x)\n살림.x <- 1.\n");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(matches!(tokens[0].kind, TokenKind::Pragma(_)));
+        match &tokens[0].kind {
+            TokenKind::Pragma(text) => assert_eq!(text, "그래프(y축=x)"),
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn inline_hash_keeps_atom_token() {
+        let mut lexer = Lexer::new("값 <- (#ascii) 수식{y=x}.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        let has_ascii_atom = tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Atom(text) if text == "ascii"));
+        assert!(has_ascii_atom, "expected #ascii atom token");
+    }
+
+    #[test]
+    fn english_keyword_is_only_active_under_en_dialect() {
+        let mut ko = Lexer::new("if 참.\n");
+        let ko_tokens = ko.tokenize().expect("tokenize");
+        assert!(matches!(ko_tokens[0].kind, TokenKind::Ident(ref name) if name == "if"));
+
+        let mut en = Lexer::new("#말씨: en\nif 참.\n");
+        let en_tokens = en.tokenize().expect("tokenize");
+        assert!(matches!(en_tokens[1].kind, TokenKind::KwIlttae));
+    }
+
+    #[test]
+    fn unsupported_dialect_keeps_english_keyword_as_ident() {
+        let mut lexer = Lexer::new("#말씨: xx\nif 참.\n");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(matches!(tokens[1].kind, TokenKind::Ident(ref name) if name == "if"));
+    }
+}

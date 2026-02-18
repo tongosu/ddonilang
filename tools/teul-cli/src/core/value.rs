@@ -153,6 +153,25 @@ impl MapValue {
     pub fn canon(&self) -> String {
         format_map(&self.entries, ValueFormat::Canon)
     }
+
+    pub fn map_get(&self, key: &Value) -> Value {
+        self.entries
+            .get(&key.canon())
+            .map(|entry| entry.value.clone())
+            .unwrap_or(Value::None)
+    }
+
+    pub fn map_set(&self, key: Value, value: Value) -> Self {
+        let mut entries = self.entries.clone();
+        entries.insert(
+            key.canon(),
+            MapEntry {
+                key,
+                value,
+            },
+        );
+        Self { entries }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -446,5 +465,35 @@ fn compare_map(a: &MapValue, b: &MapValue) -> Ordering {
                 other => return other,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_get_returns_value_or_none() {
+        let key = Value::Str("name".to_string());
+        let map = MapValue {
+            entries: BTreeMap::from([(
+                key.canon(),
+                MapEntry {
+                    key: key.clone(),
+                    value: Value::Str("ddn".to_string()),
+                },
+            )]),
+        };
+        assert_eq!(map.map_get(&key), Value::Str("ddn".to_string()));
+        assert_eq!(map.map_get(&Value::Str("missing".to_string())), Value::None);
+    }
+
+    #[test]
+    fn map_set_overwrites_existing_key() {
+        let key = Value::Str("k".to_string());
+        let map = MapValue { entries: BTreeMap::new() };
+        let map = map.map_set(key.clone(), Value::Bool(true));
+        let map = map.map_set(key.clone(), Value::Bool(false));
+        assert_eq!(map.map_get(&key), Value::Bool(false));
     }
 }

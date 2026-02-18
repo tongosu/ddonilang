@@ -74,6 +74,7 @@ enum TokenKind {
     MinusArrow,
     Star,
     Slash,
+    Percent,
     And,
     Or,
     Comma,
@@ -224,6 +225,12 @@ impl<'a> Lexer<'a> {
             self.bump();
             return Ok(Token {
                 kind: TokenKind::Slash,
+            });
+        }
+        if ch == '%' {
+            self.bump();
+            return Ok(Token {
+                kind: TokenKind::Percent,
             });
         }
         if ch == '&' && self.peek_next() == Some('&') {
@@ -777,6 +784,9 @@ enum SurfaceStmt {
         suffix: HookSuffix,
         body: Vec<SurfaceStmt>,
     },
+    OpenBlock {
+        body: Vec<SurfaceStmt>,
+    },
     Return {
         value: Expr,
     },
@@ -847,6 +857,9 @@ enum Stmt {
     Hook {
         name: String,
         suffix: HookSuffix,
+        body: Vec<Stmt>,
+    },
+    OpenBlock {
         body: Vec<Stmt>,
     },
     Return {
@@ -946,6 +959,7 @@ enum BinaryOp {
     Sub,
     Mul,
     Div,
+    Mod,
     And,
     Or,
     Eq,
@@ -1030,6 +1044,10 @@ impl Parser {
                 type_name,
                 value,
             });
+        }
+
+        if self.is_open_block_start() {
+            return self.parse_open_block_stmt();
         }
 
         if self.peek_is(|k| matches!(k, TokenKind::Repeat)) {
@@ -1171,7 +1189,38 @@ impl Parser {
                             value: value_call,
                         }
                     }
-                    Expr::Path(path) => SurfaceStmt::Assign { target: path, value },
+                    Expr::FieldAccess { target, field } => {
+                        let Expr::Path(path) = *target else {
+                            return Err(CanonError::new(
+                                "E_CANON_EXPECTED_TARGET",
+                                "점 대입 대상은 이름만 허용됩니다.",
+                            ));
+                        };
+                        let key_expr = Expr::Literal(Literal::Str(field));
+                        let value_call = Expr::Call {
+                            name: "짝맞춤.바꾼값".to_string(),
+                            args: vec![Expr::Path(path.clone()), key_expr, value],
+                        };
+                        SurfaceStmt::Assign {
+                            target: path,
+                            value: value_call,
+                        }
+                    }
+                    Expr::Path(path) => {
+                        if let Some((target, field)) = Self::split_map_dot_target(&path) {
+                            let key_expr = Expr::Literal(Literal::Str(field));
+                            let value_call = Expr::Call {
+                                name: "짝맞춤.바꾼값".to_string(),
+                                args: vec![Expr::Path(target.clone()), key_expr, value],
+                            };
+                            SurfaceStmt::Assign {
+                                target,
+                                value: value_call,
+                            }
+                        } else {
+                            SurfaceStmt::Assign { target: path, value }
+                        }
+                    }
                     _ => {
                         return Err(CanonError::new(
                             "E_CANON_EXPECTED_TARGET",
@@ -1349,6 +1398,33 @@ impl Parser {
         let body = self.parse_block()?;
         self.consume_optional_terminator();
         Ok(SurfaceStmt::Hook { name, suffix, body })
+    }
+
+    fn is_open_block_start(&self) -> bool {
+        if !self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "열림")) {
+            return false;
+        }
+        self.peek_next_non_newline_is(|k| matches!(k, TokenKind::LBrace))
+    }
+
+    fn parse_open_block_stmt(&mut self) -> Result<SurfaceStmt, CanonError> {
+        let name = self.expect_ident()?;
+        if name != "열림" {
+            return Err(CanonError::new(
+                "E_CANON_OPEN_BLOCK",
+                "열림 블록은 '열림'으로 시작해야 합니다.",
+            ));
+        }
+        self.skip_newlines();
+        if !self.peek_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(CanonError::new(
+                "E_CANON_EXPECTED_LBRACE",
+                "열림 블록에는 '{'가 필요합니다.",
+            ));
+        }
+        let body = self.parse_block()?;
+        self.consume_optional_terminator();
+        Ok(SurfaceStmt::OpenBlock { body })
     }
 
     fn is_seed_def_start(&self) -> bool {
@@ -1761,6 +1837,7 @@ impl Parser {
             let op = match self.peek_kind() {
                 TokenKind::Star => Some(BinaryOp::Mul),
                 TokenKind::Slash => Some(BinaryOp::Div),
+                TokenKind::Percent => Some(BinaryOp::Mod),
                 _ => None,
             };
             let Some(op) = op else { break };
@@ -2438,6 +2515,37 @@ impl Parser {
         Ok(Path { segments })
     }
 
+    // Step B scope: allow only one-level map write.
+    // - allowed: 살림.공.x, 바탕.공.x, 공.x
+    // - rejected: 공.속도.x, 살림.공.속도.x (Step C)
+    fn split_map_dot_target(path: &Path) -> Option<(Path, String)> {
+        if path.segments.len() < 2 {
+            return None;
+        }
+        let has_root = matches!(
+            path.segments.first().map(|seg| seg.as_str()),
+            Some("살림" | "바탕" | "샘")
+        );
+        if has_root {
+            if path.segments.len() != 3 {
+                return None;
+            }
+            let field = path.segments[2].clone();
+            let target = Path {
+                segments: vec![path.segments[0].clone(), path.segments[1].clone()],
+            };
+            return Some((target, field));
+        }
+        if path.segments.len() != 2 {
+            return None;
+        }
+        let field = path.segments[1].clone();
+        let target = Path {
+            segments: vec![path.segments[0].clone()],
+        };
+        Some((target, field))
+    }
+
     fn parse_call_name(&mut self) -> Result<String, CanonError> {
         let mut name = self.expect_ident()?;
         loop {
@@ -2588,6 +2696,17 @@ impl Parser {
             .get(self.pos + n)
             .map(|token| f(&token.kind))
             .unwrap_or(false)
+    }
+
+    fn peek_next_non_newline_is(&self, f: impl FnOnce(&TokenKind) -> bool) -> bool {
+        let mut idx = self.pos + 1;
+        while let Some(token) = self.tokens.get(idx) {
+            if !matches!(token.kind, TokenKind::Newline) {
+                return f(&token.kind);
+            }
+            idx += 1;
+        }
+        false
     }
 
     fn advance(&mut self) -> Token {
@@ -2765,6 +2884,10 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
             SurfaceStmt::Hook { name, suffix, body } => {
                 let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
                 canonical.push(Stmt::Hook { name, suffix, body });
+            }
+            SurfaceStmt::OpenBlock { body } => {
+                let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
+                canonical.push(Stmt::OpenBlock { body });
             }
             SurfaceStmt::Return { value } => {
                 let value = canonicalize_expr(value, &declared, bridge, default_root, root_hide);
@@ -3019,21 +3142,7 @@ fn canonicalize_expr(
 }
 
 fn canonicalize_stdlib_alias(name: &str) -> &str {
-    match name {
-        "갈라놓기" => "자르기",
-        "이어붙이기" => "붙이기",
-        "길이세기" => "길이",
-        "값뽑기" => "차림.값",
-        "올림" => "천장",
-        "내림" => "바닥",
-        "절댓값" => "abs",
-        "제곱근" => "sqrt",
-        "제곱" => "powi",
-        "거듭제곱" => "powi",
-        "최댓값" => "max",
-        "최솟값" => "min",
-        _ => name,
-    }
+    ddonirang_lang::stdlib::canonicalize_stdlib_alias(name)
 }
 
 fn canonicalize_path(
@@ -3297,6 +3406,11 @@ fn canonicalize_body(
                     body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
                 });
             }
+            SurfaceStmt::OpenBlock { body } => {
+                out.push(Stmt::OpenBlock {
+                    body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
+                });
+            }
             SurfaceStmt::Return { value } => {
                 out.push(Stmt::Return {
                     value: canonicalize_expr(value, declared, bridge, default_root, root_hide),
@@ -3531,6 +3645,13 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             }
             out.push_str(&format!("{}}}.\n", pad));
         }
+        Stmt::OpenBlock { body } => {
+            out.push_str(&format!("{}열림 {{\n", pad));
+            for stmt in body {
+                format_stmt(stmt, indent + 1, out);
+            }
+            out.push_str(&format!("{}}}.\n", pad));
+        }
         Stmt::Break => {
             out.push_str(&format!("{}멈추기.\n", pad));
         }
@@ -3758,6 +3879,7 @@ fn format_expr_prec(expr: &Expr, parent_prec: u8) -> String {
                 BinaryOp::Sub => (3, "-"),
                 BinaryOp::Mul => (4, "*"),
                 BinaryOp::Div => (4, "/"),
+                BinaryOp::Mod => (4, "%"),
             };
             let left_text = format_expr_prec(left, prec);
             let right_text = format_expr_prec(right, prec);

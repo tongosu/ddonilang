@@ -1,3 +1,4 @@
+use crate::lang::dialect::DialectConfig;
 use crate::lang::span::Span;
 use crate::lang::token::{Token, TokenKind};
 use crate::core::fixed64::Fixed64;
@@ -28,6 +29,7 @@ pub struct Lexer {
     pos: usize,
     line: usize,
     col: usize,
+    dialect: DialectConfig,
 }
 
 impl Lexer {
@@ -43,7 +45,8 @@ impl Lexer {
             }
 
             if lexer.peek() == Some('#') && lexer.is_line_directive_start() {
-                lexer.read_comment();
+                let token = lexer.read_line_pragma();
+                tokens.push(token);
                 continue;
             }
 
@@ -61,11 +64,13 @@ impl Lexer {
     }
 
     fn new(source: &str) -> Self {
+        let dialect = DialectConfig::from_source(source);
         Self {
             chars: source.chars().collect(),
             pos: 0,
             line: 1,
             col: 1,
+            dialect,
         }
     }
 
@@ -91,6 +96,23 @@ impl Lexer {
 
     fn peek_n(&self, offset: usize) -> Option<char> {
         self.chars.get(self.pos + offset).copied()
+    }
+
+    fn match_str(&self, token: &str) -> bool {
+        for (idx, ch) in token.chars().enumerate() {
+            if self.peek_n(idx) != Some(ch) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn advance_n(&mut self, count: usize) {
+        for _ in 0..count {
+            if self.advance().is_none() {
+                break;
+            }
+        }
     }
 
     fn advance(&mut self) -> Option<char> {
@@ -141,6 +163,9 @@ impl Lexer {
 
     fn next_token(&mut self) -> Result<Token, LexError> {
         let ch = self.peek().unwrap();
+        if let Some(token) = self.try_read_sym3_token() {
+            return Ok(token);
+        }
         match ch {
             '\n' => Ok(self.read_newline()),
             '"' => self.read_string(),
@@ -190,6 +215,7 @@ impl Lexer {
             '-' => self.single_char(TokenKind::Minus),
             '*' => self.single_char(TokenKind::Star),
             '/' => self.single_char(TokenKind::Slash),
+            '%' => self.single_char(TokenKind::Percent),
             '@' => self.single_char(TokenKind::At),
             '&' if self.peek_next() == Some('&') => {
                 let (start_line, start_col) = (self.line, self.col);
@@ -269,6 +295,7 @@ impl Lexer {
                 }
             }
             ':' => self.single_char(TokenKind::Colon),
+            '~' => self.read_josa(),
             '0'..='9' => self.read_number(),
             _ if is_ident_start(ch) => self.read_ident_or_keyword(),
             _ => Err(LexError::UnexpectedChar {
@@ -394,6 +421,33 @@ impl Lexer {
         Ok(self.read_atom_literal())
     }
 
+    fn read_line_pragma(&mut self) -> Token {
+        let (start_line, start_col) = (self.line, self.col);
+        self.advance(); // '#'
+        while let Some(ch) = self.peek() {
+            if matches!(ch, ' ' | '\t') {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
+        let mut text = String::new();
+        while let Some(ch) = self.peek() {
+            if ch == '\n' {
+                break;
+            }
+            text.push(ch);
+            self.advance();
+        }
+
+        let trimmed = text.trim_end().to_string();
+        Token::new(
+            TokenKind::Pragma(trimmed),
+            self.span_from(start_line, start_col),
+        )
+    }
+
     fn read_atom_literal(&mut self) -> Token {
         let (start_line, start_col) = (self.line, self.col);
         self.advance();
@@ -433,15 +487,67 @@ impl Lexer {
             return self.read_template_block(start_line, start_col);
         }
 
-        let kind = match ident.as_str() {
+        if let Some(canon) = self.dialect.canonicalize(&ident) {
+            ident = canon.to_string();
+        }
+
+        let kind = self.classify_ident(ident);
+
+        Ok(Token::new(kind, self.span_from(start_line, start_col)))
+    }
+
+    fn read_josa(&mut self) -> Result<Token, LexError> {
+        let (start_line, start_col) = (self.line, self.col);
+        let saved_pos = self.pos;
+        let saved_line = self.line;
+        let saved_col = self.col;
+        let mut text = String::new();
+        if let Some(ch) = self.advance() {
+            text.push(ch);
+        }
+        // Phase 1: read ident-only chars (josa candidate)
+        while let Some(ch) = self.peek() {
+            if is_ident_continue(ch) {
+                text.push(ch);
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        // Check if this is a known josa
+        if let Some(role) = self.dialect.canonicalize_josa(&text) {
+            let span = self.span_from(start_line, start_col);
+            return Ok(Token::new(TokenKind::Josa(role.to_string()), span));
+        }
+        // Phase 2: not a josa — rewind and read full tilde alias (including parens/dash)
+        self.pos = saved_pos;
+        self.line = saved_line;
+        self.col = saved_col;
+        let mut full_text = String::new();
+        if let Some(ch) = self.advance() {
+            full_text.push(ch);
+        }
+        while let Some(ch) = self.peek() {
+            if is_tilde_tail_char(ch) {
+                full_text.push(ch);
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        Ok(Token::new(TokenKind::Ident(full_text), self.span_from(start_line, start_col)))
+    }
+
+    fn classify_ident(&self, ident: String) -> TokenKind {
+        match ident.as_str() {
             "참" => TokenKind::True,
             "거짓" => TokenKind::False,
             "없음" => TokenKind::None,
-            "살림" => TokenKind::Salim,
+            "바탕" => TokenKind::Salim,
             "보여주기" => TokenKind::Boyeojugi,
             "채우기" => TokenKind::Chaewugi,
             "수식" => TokenKind::Susic,
-            "시작" => TokenKind::Start,
+            "처음" => TokenKind::Start,
             "매마디" => TokenKind::EveryMadi,
             "할때" => TokenKind::Halttae,
             "마다" => TokenKind::Mada,
@@ -450,20 +556,34 @@ impl Lexer {
             "아니고" => TokenKind::Anigo,
             "맞으면" => TokenKind::Majeumyeon,
             "바탕으로" => TokenKind::Jeonjehae,
-            "전제하에" => TokenKind::Jeonjehae,
             "다짐하고" => TokenKind::Bojanghago,
-            "보장하고" => TokenKind::Bojanghago,
             "고르기" => TokenKind::Goreugi,
-            "반복" => TokenKind::Repeat,
+            "되풀이" => TokenKind::Repeat,
             "동안" => TokenKind::During,
             "대해" => TokenKind::Daehae,
             "멈추기" => TokenKind::Break,
             "그리고" => TokenKind::And,
             "또는" => TokenKind::Or,
             _ => TokenKind::Ident(ident),
-        };
+        }
+    }
 
-        Ok(Token::new(kind, self.span_from(start_line, start_col)))
+    fn try_read_sym3_token(&mut self) -> Option<Token> {
+        let start_line = self.line;
+        let start_col = self.col;
+        for token in DialectConfig::sym3_tokens() {
+            if token.is_empty() {
+                continue;
+            }
+            if !self.match_str(token) {
+                continue;
+            }
+            let canon = self.dialect.canonicalize_symbol(token).map(str::to_string)?;
+            self.advance_n(token.chars().count());
+            let kind = self.classify_ident(canon);
+            return Some(Token::new(kind, self.span_from(start_line, start_col)));
+        }
+        None
     }
 
     fn read_template_block(
@@ -670,11 +790,15 @@ fn join_lines_with_backslash(input: &str) -> String {
 }
 
 fn is_ident_start(ch: char) -> bool {
-    ch == '_' || ch.is_ascii_alphabetic() || is_hangul(ch)
+    ch == '_' || ch.is_alphabetic()
 }
 
 fn is_ident_continue(ch: char) -> bool {
-    is_ident_start(ch) || ch.is_ascii_digit()
+    is_ident_start(ch) || ch.is_numeric()
+}
+
+fn is_tilde_tail_char(ch: char) -> bool {
+    is_ident_continue(ch) || ch == '(' || ch == ')' || ch == '-'
 }
 
 fn is_atom_stop_char(ch: char) -> bool {
@@ -685,9 +809,55 @@ fn is_atom_stop_char(ch: char) -> bool {
         )
 }
 
-fn is_hangul(ch: char) -> bool {
-    matches!(
-        ch,
-        '\u{AC00}'..='\u{D7AF}' | '\u{1100}'..='\u{11FF}' | '\u{3130}'..='\u{318F}'
-    )
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn line_start_hash_becomes_pragma_token() {
+        let source = "#그래프(y축=x)\n살림.x <- 1.\n";
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        assert!(!tokens.is_empty());
+        match &tokens[0].kind {
+            TokenKind::Pragma(text) => assert_eq!(text, "그래프(y축=x)"),
+            other => panic!("expected pragma token, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn inline_hash_keeps_atom_token() {
+        let source = "살림.x <- (#ascii) 수식{x+1}.\n";
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let has_ascii_atom = tokens.iter().any(|token| {
+            matches!(&token.kind, TokenKind::Atom(text) if text == "#ascii")
+        });
+        assert!(has_ascii_atom, "expected #ascii atom token");
+    }
+
+    #[test]
+    fn english_keyword_is_only_active_under_en_dialect() {
+        let ko_tokens = Lexer::tokenize("if 참.\n").expect("tokenize");
+        assert!(ko_tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "if")));
+        assert!(!ko_tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ilttae)));
+
+        let en_tokens = Lexer::tokenize("#말씨: en\nif 참.\n").expect("tokenize");
+        assert!(en_tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ilttae)));
+    }
+
+    #[test]
+    fn unsupported_dialect_keeps_english_keyword_as_ident() {
+        let tokens = Lexer::tokenize("#말씨: xx\nif 참.\n").expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "if")));
+        assert!(!tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ilttae)));
+    }
 }

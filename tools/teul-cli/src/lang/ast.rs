@@ -38,6 +38,14 @@ pub struct DeclItem {
 }
 
 #[derive(Clone, Debug)]
+pub struct ParamPin {
+    pub name: String,
+    pub josa_list: Vec<String>,
+    #[allow(dead_code)]
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
 pub enum Stmt {
     DeclBlock {
         kind: DeclKind,
@@ -47,7 +55,7 @@ pub enum Stmt {
     },
     SeedDef {
         name: String,
-        params: Vec<String>,
+        params: Vec<ParamPin>,
         kind: SeedKind,
         body: Vec<Stmt>,
         #[allow(dead_code)]
@@ -80,6 +88,11 @@ pub enum Stmt {
     },
     Hook {
         kind: HookKind,
+        body: Vec<Stmt>,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    OpenBlock {
         body: Vec<Stmt>,
         #[allow(dead_code)]
         span: Span,
@@ -128,6 +141,14 @@ pub enum Stmt {
         #[allow(dead_code)]
         span: Span,
     },
+    Pragma {
+        #[allow(dead_code)]
+        name: String,
+        #[allow(dead_code)]
+        args: String,
+        #[allow(dead_code)]
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -171,7 +192,7 @@ pub enum Expr {
     },
     Call {
         name: String,
-        args: Vec<Expr>,
+        args: Vec<ArgBinding>,
         span: Span,
     },
     Formula {
@@ -203,6 +224,24 @@ pub enum Expr {
         bindings: Vec<Binding>,
         span: Span,
     },
+}
+
+#[derive(Clone, Debug)]
+pub struct ArgBinding {
+    pub expr: Expr,
+    pub josa: Option<String>,
+    pub resolved_pin: Option<String>,
+    #[allow(dead_code)]
+    pub binding_reason: BindingReason,
+    #[allow(dead_code)]
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BindingReason {
+    Dictionary,
+    Positional,
+    UserFixed,
 }
 
 impl Expr {
@@ -286,6 +325,7 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    Mod,
     And,
     Or,
     Eq,

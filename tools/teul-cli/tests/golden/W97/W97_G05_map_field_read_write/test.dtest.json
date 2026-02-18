@@ -1,0 +1,17 @@
+{
+  "name": "W97_G05_map_field_read_write",
+  "walk": 97,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "4",
+      "7"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:62b3937aed3947fe35eebbf3adaa42ea51c1e3833bb7d0052bd9ff197ffbc9f6",
+    "trace_hash": "blake3:dc5e048ac3293bbbb6c42dca2d2c013861b763b46dde631faec4b60396ac52e9"
+  }
+}

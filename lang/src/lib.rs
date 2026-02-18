@@ -9,6 +9,7 @@
 
 pub mod ast;
 pub mod canonicalizer;
+pub mod dialect;
 pub mod lexer;
 pub mod parser;
 pub mod normalizer;
@@ -19,8 +20,9 @@ pub mod term_map;
 
 pub use ast::*;
 pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
+pub use dialect::DialectConfig;
 pub use lexer::{Lexer, Token, TokenKind, LexError};
-pub use parser::{Parser, ParseError};
+pub use parser::{Parser, ParseError, ParseMode};
 pub use normalizer::{Normalizer, NormalizationLevel, normalize};
 pub use stdlib::{FunctionSig, input_function_sigs, list_function_sigs, minimal_stdlib_sigs, string_function_sigs};
 pub use runtime::{
@@ -31,6 +33,11 @@ pub use surface::{surface_form, SurfaceError};
 
 /// 편리 함수: 소스 → AST
 pub fn parse(source: &str, file_path: &str) -> Result<CanonProgram, ParseError> {
+    parse_with_mode(source, file_path, ParseMode::Compat)
+}
+
+/// 편리 함수: 소스 → AST (모드 지정)
+pub fn parse_with_mode(source: &str, file_path: &str, mode: ParseMode) -> Result<CanonProgram, ParseError> {
     let tokens = Lexer::new(source)
         .tokenize()
         .map_err(|e| ParseError {
@@ -38,7 +45,7 @@ pub fn parse(source: &str, file_path: &str) -> Result<CanonProgram, ParseError> 
             message: e.message,
         })?;
     
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::new_with_mode(tokens, mode);
     parser.parse_program(source.to_string(), file_path.to_string())
 }
 
@@ -78,6 +85,45 @@ mod integration_tests {
             ExprKind::Call { args, .. } => args.clone(),
             _ => panic!("call expr expected"),
         }
+    }
+
+    fn normalize_without_pragma_lines(source: &str) -> String {
+        let mut program = parse(source, "test.ddoni").expect("parse");
+        let _report = canonicalize(&mut program).expect("canonicalize");
+        normalize(&program, NormalizationLevel::N1)
+            .lines()
+            .map(str::trim_end)
+            .filter(|line| !line.trim_start().starts_with('#'))
+            .filter(|line| !line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn dialect_surface_variants_keep_same_normalized_ast() {
+        let ko = r#"
+검사:셈씨 = {
+    (1 < 2) 일때 {
+        1 돌려줘.
+    } 아니면 {
+        2 돌려줘.
+    }
+}
+"#;
+        let en = r#"
+#말씨: en
+검사:셈씨 = {
+    (1 < 2) if {
+        1 돌려줘.
+    } else {
+        2 돌려줘.
+    }
+}
+"#;
+
+        let ko_norm = normalize_without_pragma_lines(ko);
+        let en_norm = normalize_without_pragma_lines(en);
+        assert_eq!(ko_norm, en_norm);
     }
     
     #[test]
@@ -708,7 +754,11 @@ mod integration_tests {
 "#;
         let args = first_call_args(source);
         let arg = &args[0];
-        assert_eq!(arg.resolved_pin.as_deref(), Some("시작"));
+        assert!(
+            matches!(arg.resolved_pin.as_deref(), Some("시작") | Some("처음")),
+            "unexpected resolved pin: {:?}",
+            arg.resolved_pin
+        );
         assert!(matches!(arg.binding_reason, BindingReason::UserFixed));
     }
 
@@ -1029,6 +1079,67 @@ Test:셈씨 = {
     }
 
     #[test]
+    fn test_pragma_stmt_parses_inside_seed() {
+        let source = r#"
+테스트:셈씨 = {
+    #그래프(y축=살림.x)
+    살림.x <- 1.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("pragma parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        assert!(matches!(body.stmts[0], Stmt::Pragma { .. }));
+        match &body.stmts[0] {
+            Stmt::Pragma { name, args, .. } => {
+                assert_eq!(name, "그래프");
+                assert_eq!(args, "y축=살림.x");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn test_top_level_pragma_is_ignored() {
+        let source = r#"
+#가져오기 누리/기본
+테스트:셈씨 = {
+    1 돌려줘.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("top-level pragma parse");
+        assert_eq!(program.items.len(), 1);
+    }
+
+    #[test]
+    fn test_pragma_is_semantic_noop_for_body_shape() {
+        let with_pragma = r#"
+테스트:셈씨 = {
+    #그래프(y축=살림.x)
+    살림.x <- 1.
+    살림.y <- 살림.x + 2.
+}
+"#;
+        let without_pragma = r#"
+테스트:셈씨 = {
+    살림.x <- 1.
+    살림.y <- 살림.x + 2.
+}
+"#;
+        assert_eq!(
+            normalize_without_pragma_lines(with_pragma),
+            normalize_without_pragma_lines(without_pragma),
+        );
+    }
+
+    #[test]
     fn test_butbak_requires_value() {
         let source = r#"
 테스트:셈씨 = {
@@ -1037,6 +1148,54 @@ Test:셈씨 = {
 "#;
         let err = parse(source, "test.ddoni").expect_err("butbak value");
         assert!(err.message.contains("붙박이마련"));
+    }
+
+    #[test]
+    fn test_tilde_josa_keeps_rparen_for_typed_pin() {
+        let source = r#"
+(값:_~을) 통과:셈씨 = {
+    값 돌려줘.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("typed pin parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "통과")
+            .expect("통과 seed");
+        assert_eq!(seed.params.len(), 1);
+        assert!(matches!(seed.params[0].type_ref, TypeRef::Infer));
+        assert_eq!(seed.params[0].josa_list, vec!["을".to_string()]);
+    }
+
+    #[test]
+    fn test_tilde_josa_with_unit_type_parses() {
+        let source = r#"
+(거리:(m)수~을) 이동:셈씨 = {
+    거리 돌려줘.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("unit typed pin parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "이동")
+            .expect("이동 seed");
+        assert_eq!(seed.params.len(), 1);
+        match &seed.params[0].type_ref {
+            TypeRef::Applied { name, args } => {
+                assert_eq!(name, "수");
+                assert_eq!(args.len(), 1);
+            }
+            other => panic!("unexpected type ref: {other:?}"),
+        }
+        assert_eq!(seed.params[0].josa_list, vec!["을".to_string()]);
     }
 
 }

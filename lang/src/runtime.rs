@@ -132,6 +132,89 @@ pub fn list_set(list: &Value, index: &Value, value: Value) -> Result<Value, Runt
     }
 }
 
+pub fn map_get(map: &BTreeMap<String, MapEntry>, key: &Value) -> Value {
+    map.get(&map_key_canon(key))
+        .map(|entry| entry.value.clone())
+        .unwrap_or(Value::None)
+}
+
+pub fn map_key_canon(value: &Value) -> String {
+    match value {
+        Value::None => "없음".to_string(),
+        Value::Bool(true) => "참".to_string(),
+        Value::Bool(false) => "거짓".to_string(),
+        Value::Fixed64(n) => n.to_string(),
+        Value::Unit(unit) => {
+            let suffix = unit
+                .display_symbol()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| unit.dim.format());
+            format!("{}@{}", unit.value, suffix)
+        }
+        Value::String(s) => format!("\"{}\"", escape_canon_string(s)),
+        Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
+        Value::List(items) => {
+            let mut out = String::from("차림[");
+            let mut first = true;
+            for item in items {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                out.push_str(&map_key_canon(item));
+            }
+            out.push(']');
+            out
+        }
+        Value::Set(items) => {
+            let mut out = String::from("모음{");
+            let mut first = true;
+            for item in items.values() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                out.push_str(&map_key_canon(item));
+            }
+            out.push('}');
+            out
+        }
+        Value::Map(entries) => {
+            let mut out = String::from("짝맞춤{");
+            let mut first = true;
+            for entry in entries.values() {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                out.push_str(&map_key_canon(&entry.key));
+                out.push_str("=>");
+                out.push_str(&map_key_canon(&entry.value));
+            }
+            out.push('}');
+            out
+        }
+        Value::Pack(items) => {
+            let mut out = String::from("묶음{");
+            let mut first = true;
+            for (key, item) in items {
+                if !first {
+                    out.push_str(", ");
+                }
+                first = false;
+                out.push_str(key);
+                out.push('=');
+                out.push_str(&map_key_canon(item));
+            }
+            out.push('}');
+            out
+        }
+        Value::Formula(formula) => formula.raw.clone(),
+        Value::Template(template) => template.raw.clone(),
+        Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
+    }
+}
+
 pub fn string_len(value: &Value) -> Result<Value, RuntimeError> {
     match value {
         Value::String(s) => Ok(Value::Fixed64(Fixed64::from_i64(s.chars().count() as i64))),
@@ -236,6 +319,21 @@ fn parse_index(index: &Value) -> Result<usize, RuntimeError> {
     }
 }
 
+fn escape_canon_string(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            '\r' => out.push_str("\\r"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,5 +377,20 @@ mod tests {
         assert!(!items.is_empty());
         let rejoin = string_join(&Value::List(items), &Value::String("a".to_string())).expect("join");
         assert_eq!(rejoin, joined);
+    }
+
+    #[test]
+    fn runtime_map_get_uses_canonical_key_and_returns_none_when_missing() {
+        let key = Value::String("이름".to_string());
+        let mut map = BTreeMap::new();
+        map.insert(
+            map_key_canon(&key),
+            MapEntry {
+                key: key.clone(),
+                value: Value::String("또니".to_string()),
+            },
+        );
+        assert_eq!(map_get(&map, &key), Value::String("또니".to_string()));
+        assert_eq!(map_get(&map, &Value::String("없는키".to_string())), Value::None);
     }
 }

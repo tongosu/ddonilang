@@ -5,6 +5,25 @@ pub struct FunctionSig {
     pub ret: &'static str,
 }
 
+pub fn canonicalize_stdlib_alias(name: &str) -> &str {
+    match name {
+        "갈라놓기" => "자르기",
+        "이어붙이기" => "붙이기",
+        "길이세기" => "길이",
+        "값뽑기" => "차림.값",
+        "번째" => "차림.값",
+        "올림" => "천장",
+        "내림" => "바닥",
+        "절댓값" => "abs",
+        "제곱근" => "sqrt",
+        "제곱" => "powi",
+        "거듭제곱" => "powi",
+        "최댓값" => "max",
+        "최솟값" => "min",
+        _ => name,
+    }
+}
+
 pub fn string_function_sigs() -> Vec<FunctionSig> {
     vec![
         FunctionSig {
@@ -345,6 +364,16 @@ pub fn transform_function_sigs() -> Vec<FunctionSig> {
             params: &["식", "주입"],
             ret: "수",
         },
+        FunctionSig {
+            name: "미분하기",
+            params: &["식", "옵션"],
+            ret: "식",
+        },
+        FunctionSig {
+            name: "적분하기",
+            params: &["식", "옵션"],
+            ret: "식",
+        },
     ]
 }
 
@@ -402,5 +431,15 @@ mod tests {
         assert!(sigs.iter().any(|s| s.name == "정렬"));
         assert!(sigs.iter().any(|s| s.name == "포함하나"));
         assert!(sigs.iter().any(|s| s.name == "숫자로"));
+    }
+
+    #[test]
+    fn canonicalize_stdlib_aliases_map_to_single_canonical_names() {
+        assert_eq!(canonicalize_stdlib_alias("길이세기"), "길이");
+        assert_eq!(canonicalize_stdlib_alias("값뽑기"), "차림.값");
+        assert_eq!(canonicalize_stdlib_alias("번째"), "차림.값");
+        assert_eq!(canonicalize_stdlib_alias("절댓값"), "abs");
+        assert_eq!(canonicalize_stdlib_alias("최솟값"), "min");
+        assert_eq!(canonicalize_stdlib_alias("차림.값"), "차림.값");
     }
 }

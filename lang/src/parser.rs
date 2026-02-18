@@ -13,11 +13,17 @@ pub struct Parser {
     nid: u64,
     root_hide: bool,
     declared_scopes: Vec<HashSet<String>>,
+    mode: ParseMode,
 }
 struct ArgSuffix {
     josa: Option<String>,
     binding_reason: BindingReason,
     fixed_pin: Option<String>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseMode {
+    Compat,
+    Strict,
 }
 #[derive(Debug, Clone, Copy)]
 enum DimState {
@@ -39,12 +45,16 @@ fn has_root_hide_directive(source: &str) -> bool {
 }
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
+        Self::new_with_mode(tokens, ParseMode::Compat)
+    }
+    pub fn new_with_mode(tokens: Vec<Token>, mode: ParseMode) -> Self {
         Self {
             tokens,
             pos: 0,
             nid: 1,
             root_hide: false,
             declared_scopes: vec![HashSet::new()],
+            mode,
         }
     }
     fn next_id(&mut self) -> NodeId { let id = self.nid; self.nid += 1; id }
@@ -53,7 +63,22 @@ impl Parser {
         self.declared_scopes.clear();
         self.declared_scopes.push(HashSet::new());
         let mut items = Vec::new();
-        while !self.is_at_end() { items.push(self.parse_top_level_item()?); }
+        let mut top_level_decl = Vec::new();
+        while !self.is_at_end() {
+            if matches!(self.current().kind, TokenKind::Pragma(_)) {
+                self.advance();
+                continue;
+            }
+            if let Some(kind) = self.peek_decl_block_kind() {
+                let stmt = self.parse_decl_block(kind)?;
+                top_level_decl.push(stmt);
+                continue;
+            }
+            items.push(self.parse_top_level_item()?);
+        }
+        if !top_level_decl.is_empty() {
+            self.inject_top_level_decl_blocks(&mut items, top_level_decl)?;
+        }
         let mut program = CanonProgram { id: self.next_id(), items, origin: OriginMap { file_path, source, node_spans: std::collections::HashMap::new() } };
         self.validate_seed_name_conflicts(&program)?;
         self.apply_default_args(&mut program)?;
@@ -100,6 +125,12 @@ impl Parser {
         self.validate_seed_name_tail(&name, self.previous_span())?;
         self.expect(&TokenKind::Colon, ":")?;
         let kind = self.parse_seed_kind()?;
+        if self.mode == ParseMode::Strict && name == "매틱" && matches!(kind, SeedKind::Umjikssi) {
+            return Err(ParseError {
+                span: start.merge(&self.previous_span()),
+                message: "E_LANG_COMPAT_MATIC_ENTRY_DISABLED: strict 모드에서는 `매틱:움직씨`를 허용하지 않습니다".to_string(),
+            });
+        }
         self.expect(&TokenKind::Equals, "=")?;
         self.enter_scope();
         for param in &params {
@@ -245,6 +276,9 @@ impl Parser {
 
     fn parse_stmt(&mut self, allow_implicit_terminator: bool) -> Result<Stmt, ParseError> {
         let s = self.current_span();
+        if matches!(self.current().kind, TokenKind::Pragma(_)) {
+            return self.parse_pragma_stmt();
+        }
         if self.check(&TokenKind::KwGoreugi) {
             return self.parse_choose_stmt();
         }
@@ -267,10 +301,11 @@ impl Parser {
             self.advance();
             let body = self.parse_body()?;
             self.validate_guard_body(&body, s.merge(&self.previous_span()))?;
+            let mood = self.consume_optional_terminator()?;
             return Ok(Stmt::Guard {
                 id: self.next_id(),
                 span: s.merge(&self.previous_span()),
-                mood: Mood::Declarative,
+                mood,
                 condition: e,
                 body,
             });
@@ -280,10 +315,11 @@ impl Parser {
             self.advance();
             self.expect(&TokenKind::Colon, ":")?;
             let body = self.parse_body()?;
+            let mood = self.consume_optional_terminator()?;
             return Ok(Stmt::Try {
                 id: self.next_id(),
                 span: s.merge(&self.previous_span()),
-                mood: Mood::Declarative,
+                mood,
                 action: e,
                 body,
             });
@@ -311,10 +347,11 @@ impl Parser {
             } else {
                 None
             };
+            let mood = self.consume_optional_terminator()?;
             return Ok(Stmt::Contract {
                 id: self.next_id(),
                 span: s.merge(&self.previous_span()),
-                mood: Mood::Declarative,
+                mood,
                 kind,
                 mode,
                 condition: e,
@@ -323,7 +360,7 @@ impl Parser {
             });
         }
 
-        if self.check(&TokenKind::KwIlttae) {
+        if self.check(&TokenKind::KwIlttae) || self.check(&TokenKind::KwMajeumyeon) {
             self.advance();
             let then_body = self.parse_body()?;
             let else_body = if self.check(&TokenKind::KwAniramyeon) {
@@ -332,10 +369,11 @@ impl Parser {
             } else {
                 None
             };
+            let mood = self.consume_optional_terminator()?;
             return Ok(Stmt::If {
                 id: self.next_id(),
                 span: s.merge(&self.previous_span()),
-                mood: Mood::Declarative,
+                mood,
                 condition: e,
                 then_body,
                 else_body,
@@ -347,10 +385,11 @@ impl Parser {
             self.ensure_eval_condition(&e, "동안 조건")?;
             self.expect(&TokenKind::Colon, ":")?;
             let body = self.parse_body()?;
+            let mood = self.consume_optional_terminator()?;
             return Ok(Stmt::While {
                 id: self.next_id(),
                 span: s.merge(&self.previous_span()),
-                mood: Mood::Declarative,
+                mood,
                 condition: e,
                 body,
             });
@@ -439,6 +478,20 @@ impl Parser {
         }
     }
 
+    fn parse_pragma_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let token = self.advance();
+        let (name, args) = match token.kind {
+            TokenKind::Pragma(text) => split_pragma_text(&text),
+            _ => unreachable!("parse_pragma_stmt requires TokenKind::Pragma"),
+        };
+        Ok(Stmt::Pragma {
+            id: self.next_id(),
+            span: self.to_ast_span(token.span),
+            name,
+            args,
+        })
+    }
+
     fn peek_decl_block_kind(&self) -> Option<DeclKind> {
         let Some(t0) = self.tokens.get(self.pos) else {
             return None;
@@ -508,7 +561,7 @@ impl Parser {
             items.push(item);
         }
         self.expect(&TokenKind::RBrace, "}")?;
-        let mood = self.consume_stmt_terminator()?;
+        let mood = self.consume_optional_terminator()?;
         Ok(Stmt::DeclBlock {
             id: self.next_id(),
             span: s.merge(&self.previous_span()),
@@ -543,10 +596,11 @@ impl Parser {
         let Some(else_body) = else_body else {
             return Err(self.error("고르기에는 아니면 절이 필요합니다"));
         };
+        let mood = self.consume_optional_terminator()?;
         Ok(Stmt::Choose {
             id: self.next_id(),
             span: s.merge(&self.previous_span()),
-            mood: Mood::Declarative,
+            mood,
             branches,
             else_body,
         })
@@ -557,10 +611,11 @@ impl Parser {
         self.expect(&TokenKind::KwBanbok, "반복")?;
         self.expect(&TokenKind::Colon, ":")?;
         let body = self.parse_body()?;
+        let mood = self.consume_optional_terminator()?;
         Ok(Stmt::Repeat {
             id: self.next_id(),
             span: s.merge(&self.previous_span()),
-            mood: Mood::Declarative,
+            mood,
             body,
         })
     }
@@ -669,10 +724,11 @@ impl Parser {
             }
         };
         self.exit_scope();
+        let mood = self.consume_optional_terminator()?;
         Ok(Stmt::ForEach {
             id: self.next_id(),
             span: s.merge(&self.previous_span()),
-            mood: Mood::Declarative,
+            mood,
             item: name,
             item_type,
             iterable,
@@ -809,12 +865,39 @@ impl Parser {
         Ok(l)
     }
     fn parse_multiplication(&mut self) -> Result<Expr, ParseError> {
-        let mut l = self.parse_primary()?;
-        while matches!(self.current().kind, TokenKind::Star | TokenKind::Slash) {
-            let op = self.advance().raw.clone(); let r = self.parse_primary()?;
+        let mut l = self.parse_unary()?;
+        while matches!(
+            self.current().kind,
+            TokenKind::Star | TokenKind::Slash | TokenKind::Percent
+        ) {
+            let op = self.advance().raw.clone();
+            let r = self.parse_unary()?;
             l = Expr::new(self.next_id(), l.span.merge(&r.span), ExprKind::Infix { left: Box::new(l), op, right: Box::new(r) });
         }
         Ok(l)
+    }
+
+    fn parse_unary(&mut self) -> Result<Expr, ParseError> {
+        if self.check(&TokenKind::Minus) {
+            let op_token = self.advance();
+            let rhs = self.parse_unary()?;
+            let zero = Expr::new(
+                self.next_id(),
+                self.to_ast_span(op_token.span),
+                ExprKind::Literal(Literal::Fixed64(Fixed64::from_i64(0))),
+            );
+            let span = zero.span.merge(&rhs.span);
+            return Ok(Expr::new(
+                self.next_id(),
+                span,
+                ExprKind::Infix { left: Box::new(zero), op: op_token.raw.clone(), right: Box::new(rhs) },
+            ));
+        }
+        if self.check(&TokenKind::Plus) {
+            self.advance();
+            return self.parse_unary();
+        }
+        self.parse_primary()
     }
     fn parse_primary(&mut self) -> Result<Expr, ParseError> {
         if self.check(&TokenKind::LParen) && self.peek_tagged_template() {
@@ -935,6 +1018,7 @@ impl Parser {
                     return Ok(Expr::new(self.next_id(), self.to_ast_span(t.span), ExprKind::Literal(Literal::None)));
                 }
                 let mut e = Expr::new(self.next_id(), self.to_ast_span(t.span), ExprKind::Var(n.clone()));
+                let mut end = t.span.end;
                 if n == "글무늬" && self.check(&TokenKind::LBrace) {
                     return Err(self.error("Gate0: 글무늬{ 는 붙여쓰기만 허용됩니다"));
                 }
@@ -942,14 +1026,25 @@ impl Parser {
                     return Err(self.error("Gate0: 수식{ 는 붙여쓰기만 허용됩니다"));
                 }
                 while self.check(&TokenKind::Dot) {
+                    let dot = self.current();
+                    if dot.span.start != end {
+                        break;
+                    }
+                    let Some(next) = self.tokens.get(self.pos + 1) else {
+                        break;
+                    };
+                    if next.span.start != dot.span.end {
+                        break;
+                    }
                     self.advance();
-                    let field = self.expect_ident("필드")?.raw.clone();
-                    let span = e.span.merge(&self.previous_span());
-                    e = Expr::new(
-                        self.next_id(),
-                        span,
-                        ExprKind::FieldAccess { target: Box::new(e), field },
-                    );
+                    let field_token = self.expect_ident("필드")?;
+                    let field = match &field_token.kind {
+                        TokenKind::Ident(name) | TokenKind::Josa(name) => name.clone(),
+                        _ => field_token.raw.clone(),
+                    };
+                    let span = e.span.merge(&self.to_ast_span(field_token.span));
+                    e = Expr::new(self.next_id(), span, ExprKind::FieldAccess { target: Box::new(e), field });
+                    end = field_token.span.end;
                 }
                 if self.check(&TokenKind::LParen) {
                     return Err(self.error("Gate0: 이름(인자) 호출은 금지입니다. (인자) 이름 형태를 사용하세요"));
@@ -1144,6 +1239,10 @@ impl Parser {
         matches!(&self.current().kind, TokenKind::Ident(name) if name == "인") && self.current().span.start == end
     }
     fn consume_arrow(&mut self) -> bool {
+        if self.mode == ParseMode::Compat && matches!(self.current().kind, TokenKind::Equals) {
+            self.advance();
+            return true;
+        }
         if matches!(self.current().kind, TokenKind::Arrow) {
             self.advance();
             return true;
@@ -1158,6 +1257,87 @@ impl Parser {
             }
         }
         false
+    }
+
+    fn inject_top_level_decl_blocks(
+        &mut self,
+        items: &mut Vec<TopLevelItem>,
+        mut decls: Vec<Stmt>,
+    ) -> Result<(), ParseError> {
+        let mut target_idx: Option<usize> = None;
+        for (idx, item) in items.iter_mut().enumerate() {
+            let TopLevelItem::SeedDef(seed) = item;
+            if matches!(seed.seed_kind, SeedKind::Umjikssi)
+                && (seed.canonical_name == "매마디" || seed.canonical_name == "매틱")
+            {
+                target_idx = Some(idx);
+                break;
+            }
+        }
+        if let Some(idx) = target_idx {
+            let TopLevelItem::SeedDef(seed) = &mut items[idx];
+            if let Some(body) = seed.body.as_mut() {
+                if let Some(first) = decls.first() {
+                    let first_span = Self::stmt_span(first);
+                    body.span = body.span.merge(&first_span);
+                }
+                let mut new_stmts = Vec::with_capacity(decls.len() + body.stmts.len());
+                new_stmts.append(&mut decls);
+                new_stmts.append(&mut body.stmts);
+                body.stmts = new_stmts;
+            } else {
+                let span = decls
+                    .first()
+                    .map(|stmt| Self::stmt_span(stmt))
+                    .unwrap_or_else(|| Span::new(0, 0));
+                seed.body = Some(Body {
+                    id: self.next_id(),
+                    span,
+                    stmts: decls,
+                });
+            }
+            return Ok(());
+        }
+
+        let span = decls
+            .first()
+            .map(|stmt| Self::stmt_span(stmt))
+            .unwrap_or_else(|| Span::new(0, 0));
+        let body = Body {
+            id: self.next_id(),
+            span,
+            stmts: decls,
+        };
+        let seed = SeedDef {
+            id: self.next_id(),
+            span,
+            canonical_name: "매마디".to_string(),
+            seed_kind: SeedKind::Umjikssi,
+            params: Vec::new(),
+            body: Some(body),
+            modifiers: Vec::new(),
+        };
+        items.push(TopLevelItem::SeedDef(seed));
+        Ok(())
+    }
+
+    fn stmt_span(stmt: &Stmt) -> Span {
+        match stmt {
+            Stmt::DeclBlock { span, .. }
+            | Stmt::Mutate { span, .. }
+            | Stmt::Expr { span, .. }
+            | Stmt::Return { span, .. }
+            | Stmt::If { span, .. }
+            | Stmt::Try { span, .. }
+            | Stmt::Choose { span, .. }
+            | Stmt::Repeat { span, .. }
+            | Stmt::While { span, .. }
+            | Stmt::ForEach { span, .. }
+            | Stmt::Break { span, .. }
+            | Stmt::Contract { span, .. }
+            | Stmt::Guard { span, .. }
+            | Stmt::Pragma { span, .. } => *span,
+        }
     }
 
     fn consume_compound_update(&mut self) -> Option<&'static str> {
@@ -1282,6 +1462,8 @@ impl Parser {
                 | TokenKind::Ident(_)
                 | TokenKind::Josa(_)
                 | TokenKind::At
+                | TokenKind::Plus
+                | TokenKind::Minus
                 | TokenKind::LParen
                 | TokenKind::LBrace
                 | TokenKind::LBracket
@@ -1384,23 +1566,25 @@ impl Parser {
     }
 
     fn consume_eval_marker(&mut self, close_end: usize) -> Result<Option<ThunkEvalMode>, ParseError> {
-        let TokenKind::Ident(name) = &self.current().kind else {
-            return Ok(None);
-        };
         if self.current().span.start != close_end {
             return Ok(None);
         }
-        let mode = match name.as_str() {
-            "한것" => Some(ThunkEvalMode::Value),
-            "인것" => Some(ThunkEvalMode::Bool),
-            "아닌것" => Some(ThunkEvalMode::Not),
-            "하고" => Some(ThunkEvalMode::Do),
-            "것" => {
-                return Err(ParseError {
-                    span: self.current_span(),
-                    message: "Gate0: }것은 }한것으로 바꿔주세요".to_string(),
-                })
-            }
+        let mode = match &self.current().kind {
+            TokenKind::Ident(name) => match name.as_str() {
+                "한것" => Some(ThunkEvalMode::Value),
+                "인것" | "is" => Some(ThunkEvalMode::Bool),
+                "아닌것" | "not" => Some(ThunkEvalMode::Not),
+                "하고" => Some(ThunkEvalMode::Do),
+                "것" => {
+                    return Err(ParseError {
+                        span: self.current_span(),
+                        message: "Gate0: }것은 }한것으로 바꿔주세요".to_string(),
+                    })
+                }
+                _ => None,
+            },
+            TokenKind::EqEq => Some(ThunkEvalMode::Bool),
+            TokenKind::NotEq => Some(ThunkEvalMode::Not),
             _ => None,
         };
         if mode.is_some() {
@@ -1574,6 +1758,7 @@ impl Parser {
             Stmt::Guard { condition, body, .. } => {
                 self.expr_has_mutation(condition) || self.body_has_mutation(body)
             }
+            Stmt::Pragma { .. } => false,
         }
     }
 
@@ -1614,6 +1799,7 @@ impl Parser {
                 self.expr_has_eval_do(condition) || self.body_has_eval_do(body)
             }
             Stmt::Mutate { .. } => false,
+            Stmt::Pragma { .. } => false,
         }
     }
 
@@ -1652,6 +1838,7 @@ impl Parser {
                 self.expr_has_random(condition) || self.body_has_random(body)
             }
             Stmt::Mutate { .. } => false,
+            Stmt::Pragma { .. } => false,
         }
     }
 
@@ -2484,6 +2671,7 @@ impl Parser {
                 self.validate_body_units(body)?;
                 Ok(())
             }
+            Stmt::Pragma { .. } => Ok(()),
         }
     }
 
@@ -2570,7 +2758,7 @@ impl Parser {
                 let left_dim = self.infer_expr_dim(left)?;
                 let right_dim = self.infer_expr_dim(right)?;
                 match op.as_str() {
-                    "+" | "-" => self.combine_add_sub(expr.span, left_dim, right_dim),
+                    "+" | "-" | "%" => self.combine_add_sub(expr.span, left_dim, right_dim),
                     "*" => self.combine_mul(expr.span, left_dim, right_dim),
                     "/" => self.combine_div(expr.span, left_dim, right_dim),
                     "==" | "!=" | "<" | "<=" | ">" | ">=" => {
@@ -2695,6 +2883,7 @@ impl Parser {
                     self.apply_defaults_in_expr(condition, signatures, known_seeds)?;
                     self.apply_defaults_in_body(body, signatures, known_seeds)?;
                 }
+                Stmt::Pragma { .. } => {}
             }
         }
         Ok(())
@@ -3204,18 +3393,22 @@ impl Parser {
                 used[idx] = true;
                 continue;
             }
-            if let Some(josa) = &arg.josa {
+            if let Some(josa) = arg.josa.clone() {
                 let candidates: Vec<usize> = params
                     .iter()
                     .enumerate()
-                    .filter(|(_, p)| p.josa_list.iter().any(|j| j == josa))
+                    .filter(|(_, p)| p.josa_list.iter().any(|j| j == &josa))
                     .map(|(i, _)| i)
                     .collect();
                 if candidates.is_empty() {
-                    return Err(ParseError {
-                        span,
-                        message: format!("조사 '{}'에 대응하는 핀이 없습니다", josa),
-                    });
+                    let mut arg = arg;
+                    let _ = self.merge_josa_into_expr(&mut arg.expr, &josa);
+                    arg.josa = None;
+                    if !matches!(arg.binding_reason, BindingReason::FlowInjected) {
+                        arg.binding_reason = BindingReason::Positional;
+                    }
+                    positional.push(arg);
+                    continue;
                 }
                 if candidates.len() > 1 {
                     return Err(ParseError {
@@ -3285,6 +3478,20 @@ impl Parser {
         Ok(())
     }
 
+    fn merge_josa_into_expr(&self, expr: &mut Expr, josa: &str) -> bool {
+        match &mut expr.kind {
+            ExprKind::Var(name) => {
+                name.push_str(josa);
+                true
+            }
+            ExprKind::FieldAccess { field, .. } => {
+                field.push_str(josa);
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn new_arg_binding(&mut self, expr: Expr) -> ArgBinding {
         ArgBinding {
             id: self.next_id(),
@@ -3299,6 +3506,35 @@ impl Parser {
 
 fn is_random_func(name: &str) -> bool {
     matches!(name, "무작위" | "무작위정수" | "무작위선택")
+}
+
+fn split_pragma_text(text: &str) -> (String, String) {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return (String::new(), String::new());
+    }
+    let mut ws_idx = None;
+    for (idx, ch) in trimmed.char_indices() {
+        if ch.is_whitespace() {
+            ws_idx = Some(idx);
+            break;
+        }
+    }
+    if let Some(idx) = ws_idx {
+        let name = trimmed[..idx].trim().to_string();
+        let args = trimmed[idx..].trim().to_string();
+        if !name.is_empty() {
+            return (name, args);
+        }
+    }
+    if let Some(open_idx) = trimmed.find('(') {
+        if trimmed.ends_with(')') && open_idx > 0 {
+            let name = trimmed[..open_idx].trim().to_string();
+            let args = trimmed[(open_idx + 1)..(trimmed.len() - 1)].trim().to_string();
+            return (name, args);
+        }
+    }
+    (trimmed.to_string(), String::new())
 }
 
 fn formula_body_is_ascii(body: &str) -> bool {

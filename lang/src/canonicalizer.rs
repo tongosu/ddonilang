@@ -20,7 +20,8 @@ pub fn canonicalize(program: &mut CanonProgram) -> Result<CanonicalizeReport, Pa
         canonicalize_top_level_item(item, &mut warnings)?;
     }
     let known_seeds = collect_known_seeds(program);
-    lint_tailless_calls(program, &known_seeds, &mut warnings);
+    let stdlib_names = collect_stdlib_names();
+    lint_tailless_calls(program, &known_seeds, &stdlib_names, &mut warnings);
     Ok(CanonicalizeReport { warnings })
 }
 
@@ -77,6 +78,7 @@ fn canonicalize_stmt(stmt: &mut Stmt, warnings: &mut Vec<LintWarning>) -> Result
             canonicalize_expr(value, warnings)?;
         }
         Stmt::Expr { expr, .. } => canonicalize_expr(expr, warnings)?,
+        Stmt::Pragma { .. } => {}
         Stmt::Return { value, .. } => canonicalize_expr(value, warnings)?,
         Stmt::If { condition, then_body, else_body, .. } => {
             canonicalize_expr(condition, warnings)?;
@@ -231,32 +233,46 @@ fn collect_known_seeds(program: &CanonProgram) -> HashSet<String> {
     known
 }
 
+fn collect_stdlib_names() -> HashSet<String> {
+    let mut names = HashSet::new();
+    for sig in minimal_stdlib_sigs() {
+        names.insert(sig.name.to_string());
+    }
+    names
+}
+
 fn lint_tailless_calls(
     program: &CanonProgram,
     known_seeds: &HashSet<String>,
+    stdlib_names: &HashSet<String>,
     warnings: &mut Vec<LintWarning>,
 ) {
     for item in &program.items {
         let TopLevelItem::SeedDef(seed) = item;
         if let Some(body) = &seed.body {
-            lint_tailless_body(body, known_seeds, warnings);
+            lint_tailless_body(body, known_seeds, stdlib_names, warnings);
         }
     }
 }
 
-fn lint_tailless_body(body: &Body, known_seeds: &HashSet<String>, warnings: &mut Vec<LintWarning>) {
+fn lint_tailless_body(
+    body: &Body,
+    known_seeds: &HashSet<String>,
+    stdlib_names: &HashSet<String>,
+    warnings: &mut Vec<LintWarning>,
+) {
     for stmt in &body.stmts {
         match stmt {
             Stmt::DeclBlock { items, .. } => {
                 for item in items {
                     if let Some(value) = &item.value {
-                        lint_tailless_expr(value, known_seeds, warnings);
+                        lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
                     }
                 }
             }
             Stmt::Expr { expr, .. } => {
                 if let ExprKind::Var(name) = &expr.kind {
-                    if known_seeds.contains(name) {
+                    if known_seeds.contains(name) && !stdlib_names.contains(name) {
                         warnings.push(LintWarning {
                             code: "E_CALL_TAIL_MISSING_STMT",
                             span: expr.span,
@@ -267,62 +283,71 @@ fn lint_tailless_body(body: &Body, known_seeds: &HashSet<String>, warnings: &mut
                         });
                     }
                 }
-                lint_tailless_expr(expr, known_seeds, warnings);
+                lint_tailless_expr(expr, known_seeds, stdlib_names, warnings);
             }
+            Stmt::Pragma { .. } => {}
             Stmt::Mutate { target, value, .. } => {
-                lint_tailless_expr(target, known_seeds, warnings);
-                lint_tailless_expr(value, known_seeds, warnings);
+                lint_tailless_expr(target, known_seeds, stdlib_names, warnings);
+                lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
             Stmt::Return { value, .. } => {
-                lint_tailless_expr(value, known_seeds, warnings);
+                lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
             Stmt::If { condition, then_body, else_body, .. } => {
-                lint_tailless_expr(condition, known_seeds, warnings);
-                lint_tailless_body(then_body, known_seeds, warnings);
+                lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
+                lint_tailless_body(then_body, known_seeds, stdlib_names, warnings);
                 if let Some(body) = else_body {
-                    lint_tailless_body(body, known_seeds, warnings);
+                    lint_tailless_body(body, known_seeds, stdlib_names, warnings);
                 }
             }
             Stmt::Try { action, body, .. } => {
-                lint_tailless_expr(action, known_seeds, warnings);
-                lint_tailless_body(body, known_seeds, warnings);
+                lint_tailless_expr(action, known_seeds, stdlib_names, warnings);
+                lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
             Stmt::Choose { branches, else_body, .. } => {
                 for branch in branches {
-                    lint_tailless_expr(&branch.condition, known_seeds, warnings);
-                    lint_tailless_body(&branch.body, known_seeds, warnings);
+                    lint_tailless_expr(&branch.condition, known_seeds, stdlib_names, warnings);
+                    lint_tailless_body(&branch.body, known_seeds, stdlib_names, warnings);
                 }
-                lint_tailless_body(else_body, known_seeds, warnings);
+                lint_tailless_body(else_body, known_seeds, stdlib_names, warnings);
             }
-            Stmt::Repeat { body, .. } => lint_tailless_body(body, known_seeds, warnings),
+            Stmt::Repeat { body, .. } => lint_tailless_body(body, known_seeds, stdlib_names, warnings),
             Stmt::While { condition, body, .. } => {
-                lint_tailless_expr(condition, known_seeds, warnings);
-                lint_tailless_body(body, known_seeds, warnings);
+                lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
+                lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
             Stmt::ForEach { iterable, body, .. } => {
-                lint_tailless_expr(iterable, known_seeds, warnings);
-                lint_tailless_body(body, known_seeds, warnings);
+                lint_tailless_expr(iterable, known_seeds, stdlib_names, warnings);
+                lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
             Stmt::Contract { condition, then_body, else_body, .. } => {
-                lint_tailless_expr(condition, known_seeds, warnings);
+                lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
                 if let Some(body) = then_body {
-                    lint_tailless_body(body, known_seeds, warnings);
+                    lint_tailless_body(body, known_seeds, stdlib_names, warnings);
                 }
-                lint_tailless_body(else_body, known_seeds, warnings);
+                lint_tailless_body(else_body, known_seeds, stdlib_names, warnings);
             }
             Stmt::Guard { condition, body, .. } => {
-                lint_tailless_expr(condition, known_seeds, warnings);
-                lint_tailless_body(body, known_seeds, warnings);
+                lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
+                lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
             Stmt::Break { .. } => {}
         }
     }
 }
 
-fn lint_tailless_expr(expr: &Expr, known_seeds: &HashSet<String>, warnings: &mut Vec<LintWarning>) {
+fn lint_tailless_expr(
+    expr: &Expr,
+    known_seeds: &HashSet<String>,
+    stdlib_names: &HashSet<String>,
+    warnings: &mut Vec<LintWarning>,
+) {
     match &expr.kind {
         ExprKind::Call { args, func } => {
-            if known_seeds.contains(func) && !has_call_tail(func) {
+            if known_seeds.contains(func)
+                && !stdlib_names.contains(func)
+                && !has_call_tail(func)
+            {
                 warnings.push(LintWarning {
                     code: "E_CALL_TAIL_MISSING_AFTER_ARGS",
                     span: expr.span,
@@ -333,39 +358,41 @@ fn lint_tailless_expr(expr: &Expr, known_seeds: &HashSet<String>, warnings: &mut
                 });
             }
             for arg in args {
-                lint_tailless_expr(&arg.expr, known_seeds, warnings);
+                lint_tailless_expr(&arg.expr, known_seeds, stdlib_names, warnings);
             }
         }
-        ExprKind::FieldAccess { target, .. } => lint_tailless_expr(target, known_seeds, warnings),
-        ExprKind::Infix { left, right, .. } => {
-            lint_tailless_expr(left, known_seeds, warnings);
-            lint_tailless_expr(right, known_seeds, warnings);
+        ExprKind::FieldAccess { target, .. } => {
+            lint_tailless_expr(target, known_seeds, stdlib_names, warnings)
         }
-        ExprKind::Suffix { value, .. } => lint_tailless_expr(value, known_seeds, warnings),
-        ExprKind::Thunk(body) => lint_tailless_body(body, known_seeds, warnings),
-        ExprKind::Eval { thunk, .. } => lint_tailless_expr(thunk, known_seeds, warnings),
-        ExprKind::SeedLiteral { body, .. } => lint_tailless_expr(body, known_seeds, warnings),
+        ExprKind::Infix { left, right, .. } => {
+            lint_tailless_expr(left, known_seeds, stdlib_names, warnings);
+            lint_tailless_expr(right, known_seeds, stdlib_names, warnings);
+        }
+        ExprKind::Suffix { value, .. } => lint_tailless_expr(value, known_seeds, stdlib_names, warnings),
+        ExprKind::Thunk(body) => lint_tailless_body(body, known_seeds, stdlib_names, warnings),
+        ExprKind::Eval { thunk, .. } => lint_tailless_expr(thunk, known_seeds, stdlib_names, warnings),
+        ExprKind::SeedLiteral { body, .. } => lint_tailless_expr(body, known_seeds, stdlib_names, warnings),
         ExprKind::Pipe { stages } => {
             for stage in stages {
-                lint_tailless_expr(stage, known_seeds, warnings);
+                lint_tailless_expr(stage, known_seeds, stdlib_names, warnings);
             }
         }
         ExprKind::Pack { fields } => {
             for (_, value) in fields {
-                lint_tailless_expr(value, known_seeds, warnings);
+                lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
         }
         ExprKind::TemplateRender { inject, .. } => {
             for (_, value) in inject {
-                lint_tailless_expr(value, known_seeds, warnings);
+                lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
         }
         ExprKind::FormulaEval { inject, .. } => {
             for (_, value) in inject {
-                lint_tailless_expr(value, known_seeds, warnings);
+                lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
         }
-        ExprKind::Nuance { expr, .. } => lint_tailless_expr(expr, known_seeds, warnings),
+        ExprKind::Nuance { expr, .. } => lint_tailless_expr(expr, known_seeds, stdlib_names, warnings),
         ExprKind::Literal(_) | ExprKind::Var(_) | ExprKind::FlowValue | ExprKind::Formula(_) | ExprKind::Template(_) => {}
     }
 }

@@ -202,6 +202,14 @@ impl Normalizer {
                 self.normalize_expr(expr);
                 self.write_stmt_terminator(stmt);
             }
+            Stmt::Pragma { name, args, .. } => {
+                self.write("#");
+                self.write(name);
+                if !args.is_empty() {
+                    self.write(" ");
+                    self.write(args);
+                }
+            }
             Stmt::Return { value, .. } => {
                 self.normalize_expr(value);
                 self.write(" 돌려줘");
@@ -532,6 +540,7 @@ impl Normalizer {
             Stmt::DeclBlock { mood, .. } => mood,
             Stmt::Mutate { mood, .. } => mood,
             Stmt::Expr { mood, .. } => mood,
+            Stmt::Pragma { .. } => return,
             Stmt::Return { mood, .. } => mood,
             Stmt::If { mood, .. } => mood,
             Stmt::Try { mood, .. } => mood,
@@ -591,7 +600,7 @@ mod tests {
         let source = "(x:수)증가:값함수={x+1돌려줘.}";
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
         
-        let expected = r#"(x:수) 증가:셈씨 = {
+        let expected = r#"(x:수) 증가:값함수 = {
     x + 1 돌려줘.
 }"#;
         assert_eq!(normalized.trim(), expected);

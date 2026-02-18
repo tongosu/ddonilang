@@ -68,6 +68,7 @@ pub enum Stmt {
     DeclBlock { id: NodeId, span: Span, mood: Mood, kind: DeclKind, items: Vec<DeclItem> },
     Mutate { id: NodeId, span: Span, mood: Mood, target: Expr, value: Expr },
     Expr { id: NodeId, span: Span, mood: Mood, expr: Expr },
+    Pragma { id: NodeId, span: Span, name: String, args: String },
     Return { id: NodeId, span: Span, mood: Mood, value: Expr },
     If { id: NodeId, span: Span, mood: Mood, condition: Expr, then_body: Body, else_body: Option<Body> },
     Try { id: NodeId, span: Span, mood: Mood, action: Expr, body: Body },

@@ -1,0 +1,17 @@
+{
+  "name": "W97_G06_foreach_map_field_update",
+  "walk": 97,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "짝맞춤{vx=>2, vy=>-1, x=>3, y=>9}",
+      "짝맞춤{vx=>-1, vy=>3, x=>4, y=>3}"
+    ],
+    "stderr_contains": [],
+    "state_hash": "blake3:be7f640da574453d052ee5fef9b32c075e9f469ebeb189bc624a27c1b7a8763d",
+    "trace_hash": "blake3:6137439dc9f77df6d6efaf777f89abaa692cb7140cda422e836ed52f50be72b7"
+  }
+}

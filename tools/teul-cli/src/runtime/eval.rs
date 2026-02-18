@@ -4,14 +4,16 @@ use crate::core::trace::Trace;
 use crate::core::unit::{eval_unit_expr, format_dim, UnitDim};
 use crate::core::value::{LambdaValue, ListValue, MapEntry, MapValue, PackValue, Quantity, SetValue, TemplateValue, Value};
 use crate::core::State;
-use crate::lang::ast::{BinaryOp, Binding, ContractKind, ContractMode, DeclKind, Expr, FormulaDialect, HookKind, Literal, Path, Program, SeedKind, Stmt, UnaryOp};
+use crate::lang::ast::{
+    ArgBinding, BinaryOp, Binding, ContractKind, ContractMode, DeclKind, Expr, FormulaDialect,
+    HookKind, Literal, ParamPin, Path, Program, SeedKind, Stmt, UnaryOp,
+};
 use crate::runtime::detmath;
 use crate::runtime::error::RuntimeError;
 use crate::runtime::open::OpenRuntime;
 use crate::runtime::formula::{analyze_formula, eval_formula_body, format_formula_body, FormulaError};
 use crate::runtime::template::{match_template, render_template};
 use ddonirang_core::ResourceHandle;
-use blake3;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -25,8 +27,8 @@ pub struct Evaluator {
     contract_diags: Vec<ContractDiag>,
     rng_state: Cell<u64>,
     current_madi: Cell<u64>,
-    open_seq: Cell<u64>,
     open_source: String,
+    open_source_lines: Vec<String>,
     open: OpenRuntime,
     user_seeds: BTreeMap<String, UserSeed>,
 }
@@ -53,7 +55,7 @@ enum Callable {
 #[derive(Clone)]
 struct UserSeed {
     kind: SeedKind,
-    params: Vec<String>,
+    params: Vec<ParamPin>,
     body: Vec<Stmt>,
     span: crate::lang::span::Span,
 }
@@ -77,7 +79,7 @@ impl Evaluator {
     }
 
     pub fn with_state_and_seed(state: State, seed: u64) -> Self {
-        Self::with_state_seed_open(state, seed, OpenRuntime::deny(), "<memory>".to_string())
+        Self::with_state_seed_open(state, seed, OpenRuntime::deny(), "<memory>".to_string(), None)
     }
 
     pub fn with_state_seed_open(
@@ -85,7 +87,13 @@ impl Evaluator {
         seed: u64,
         open: OpenRuntime,
         open_source: String,
+        open_source_text: Option<String>,
     ) -> Self {
+        let mut open = open;
+        open.set_tick(0);
+        let open_source_lines = open_source_text
+            .map(|text| text.split('\n').map(|line| line.to_string()).collect())
+            .unwrap_or_default();
         Self {
             state,
             trace: Trace::new(),
@@ -95,8 +103,8 @@ impl Evaluator {
             contract_diags: Vec::new(),
             rng_state: Cell::new(seed),
             current_madi: Cell::new(0),
-            open_seq: Cell::new(0),
             open_source,
+            open_source_lines,
             open,
             user_seeds: BTreeMap::new(),
         }
@@ -207,6 +215,7 @@ impl Evaluator {
 
         for madi in 0..ticks {
             self.current_madi.set(madi);
+            self.open.set_tick(madi);
             if should_stop(madi, &self.state) {
                 break;
             }
@@ -274,6 +283,7 @@ impl Evaluator {
                 );
                 Ok(FlowControl::Continue)
             }
+            Stmt::Pragma { .. } => Ok(FlowControl::Continue),
             Stmt::Assign { target, value, .. } => {
                 if let Some(root) = target.segments.first() {
                     if root == "샘" {
@@ -315,6 +325,14 @@ impl Evaluator {
                 Ok(FlowControl::Continue)
             }
             Stmt::Hook { .. } => Ok(FlowControl::Continue),
+            Stmt::OpenBlock { body, span } => {
+                self.trace
+                    .log(format!("open_block_enter {}:{}", span.start_line, span.start_col));
+                let flow = self.eval_block(body)?;
+                self.trace
+                    .log(format!("open_block_exit {}:{}", span.start_line, span.start_col));
+                Ok(flow)
+            }
             Stmt::If {
                 condition,
                 then_body,
@@ -537,25 +555,31 @@ impl Evaluator {
             Expr::Path(path) => self.eval_path(path),
             Expr::FieldAccess { target, field, span } => {
                 let base = self.eval_expr(target)?;
-                let Value::Pack(pack) = base else {
-                    return Err(RuntimeError::Pack {
-                        message: "묶음 필드 접근은 묶음에서만 가능합니다".to_string(),
+                match base {
+                    Value::Pack(pack) => {
+                        let Some(value) = pack.fields.get(field) else {
+                            return Err(RuntimeError::Pack {
+                                message: format!("필드 '{}'가 없습니다", field),
+                                span: *span,
+                            });
+                        };
+                        if matches!(value, Value::None) {
+                            return Err(RuntimeError::Pack {
+                                message: format!("필드 '{}' 값이 없음입니다", field),
+                                span: *span,
+                            });
+                        }
+                        Ok(value.clone())
+                    }
+                    Value::Map(map) => {
+                        let key = Value::Str(field.clone());
+                        Ok(map.map_get(&key))
+                    }
+                    _ => Err(RuntimeError::Pack {
+                        message: "묶음/짝맞춤 필드 접근만 가능합니다".to_string(),
                         span: *span,
-                    });
-                };
-                let Some(value) = pack.fields.get(field) else {
-                    return Err(RuntimeError::Pack {
-                        message: format!("필드 '{}'가 없습니다", field),
-                        span: *span,
-                    });
-                };
-                if matches!(value, Value::None) {
-                    return Err(RuntimeError::Pack {
-                        message: format!("필드 '{}' 값이 없음입니다", field),
-                        span: *span,
-                    });
+                    }),
                 }
-                Ok(value.clone())
             }
             Expr::Atom { text, .. } => Ok(Value::Str(text.clone())),
             Expr::Unary { op, expr, span } => {
@@ -653,25 +677,40 @@ impl Evaluator {
             span: path.span,
         })?;
         for field in path.segments.iter().skip(2) {
-            let Value::Pack(pack) = current else {
-                return Err(RuntimeError::Pack {
-                    message: "묶음 필드 접근은 묶음에서만 가능합니다".to_string(),
-                    span: path.span,
-                });
+            current = match current {
+                Value::Pack(pack) => {
+                    let Some(value) = pack.fields.get(field) else {
+                        return Err(RuntimeError::Pack {
+                            message: format!("필드 '{}'가 없습니다", field),
+                            span: path.span,
+                        });
+                    };
+                    if matches!(value, Value::None) {
+                        return Err(RuntimeError::Pack {
+                            message: format!("필드 '{}' 값이 없음입니다", field),
+                            span: path.span,
+                        });
+                    }
+                    value.clone()
+                }
+                Value::Map(map) => {
+                    let key = Value::Str(field.clone());
+                    let value = map.map_get(&key);
+                    if matches!(value, Value::None) {
+                        return Err(RuntimeError::Pack {
+                            message: format!("키 '{}'가 없습니다", field),
+                            span: path.span,
+                        });
+                    }
+                    value
+                }
+                _ => {
+                    return Err(RuntimeError::Pack {
+                        message: "묶음/짝맞춤 필드 접근만 가능합니다".to_string(),
+                        span: path.span,
+                    })
+                }
             };
-            let Some(value) = pack.fields.get(field) else {
-                return Err(RuntimeError::Pack {
-                    message: format!("필드 '{}'가 없습니다", field),
-                    span: path.span,
-                });
-            };
-            if matches!(value, Value::None) {
-                return Err(RuntimeError::Pack {
-                    message: format!("필드 '{}' 값이 없음입니다", field),
-                    span: path.span,
-                });
-            }
-            current = value.clone();
         }
         Ok(current)
     }
@@ -735,6 +774,7 @@ impl Evaluator {
             BinaryOp::Sub => self.eval_sub(left, right, span),
             BinaryOp::Mul => self.eval_mul(left, right, span),
             BinaryOp::Div => self.eval_div(left, right, span),
+            BinaryOp::Mod => self.eval_mod(left, right, span),
             BinaryOp::And => {
                 let left_ok = is_truthy(&left, span)?;
                 let right_ok = is_truthy(&right, span)?;
@@ -754,12 +794,28 @@ impl Evaluator {
         }
     }
 
-    fn eval_call(&mut self, name: &str, args: &[Expr], span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_call(
+        &mut self,
+        name: &str,
+        args: &[ArgBinding],
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         let mut values = Vec::new();
         for arg in args {
-            values.push(self.eval_expr(arg)?);
+            values.push(self.eval_expr(&arg.expr)?);
         }
-        self.eval_call_values(name, &values, span)
+        let canon_name = Self::canonicalize_stdlib_alias(name);
+        if Self::is_builtin_name(canon_name) {
+            return self.eval_call_values(name, &values, span);
+        }
+        if let Some(seed) = self.user_seeds.get(name).cloned() {
+            let bound = self.bind_seed_args(&seed, args, &values, span)?;
+            return self.eval_user_seed(&seed, &bound, span);
+        }
+        Err(RuntimeError::TypeMismatch {
+            expected: "known function",
+            span,
+        })
     }
 
     fn eval_call_values(
@@ -777,12 +833,12 @@ impl Evaluator {
                         span,
                     });
                 }
-                let site_id = self.open_site_id("clock");
+                let site_id = self.open_site_id(span);
                 self.open.open_clock(&site_id, span)
             }
             "열림.파일.읽기" => {
                 let path = expect_open_path(values, span)?;
-                let site_id = self.open_site_id("file_read");
+                let site_id = self.open_site_id(span);
                 self.open.open_file_read(&site_id, &path, span)
             }
             "열림.난수.뽑기" | "열림.난수.하나" | "열림.난수" => {
@@ -792,24 +848,24 @@ impl Evaluator {
                         span,
                     });
                 }
-                let site_id = self.open_site_id("rand");
+                let site_id = self.open_site_id(span);
                 self.open.open_rand(&site_id, span)
             }
             "열림.네트워크.요청" => {
                 let args = expect_open_net_args(values, span)?;
-                let site_id = self.open_site_id("net");
+                let site_id = self.open_site_id(span);
                 self.open
                     .open_net(&site_id, &args.url, &args.method, args.body.as_deref(), args.response.as_deref(), span)
             }
             "열림.호스트FFI.호출" => {
                 let args = expect_open_ffi_args(values, span)?;
-                let site_id = self.open_site_id("ffi");
+                let site_id = self.open_site_id(span);
                 self.open
                     .open_ffi(&site_id, &args.name, args.args.as_deref(), args.result.as_deref(), span)
             }
             "열림.GPU.실행" => {
                 let args = expect_open_gpu_args(values, span)?;
-                let site_id = self.open_site_id("gpu");
+                let site_id = self.open_site_id(span);
                 self.open
                     .open_gpu(&site_id, &args.kernel, args.payload.as_deref(), args.result.as_deref(), span)
             }
@@ -1798,6 +1854,14 @@ impl Evaluator {
                 }
                 Ok(Value::Map(MapValue { entries }))
             }
+            "짝맞춤.값" => {
+                let (map, key) = expect_map_and_key(values, span)?;
+                Ok(map.map_get(&key))
+            }
+            "짝맞춤.바꾼값" => {
+                let (map, key, value) = expect_map_key_and_value(values, span)?;
+                Ok(Value::Map(map.map_set(key, value)))
+            }
             "묶음값" => {
                 let (pack, key) = expect_pack_and_key(&values, span)?;
                 Ok(pack.fields.get(&key).cloned().unwrap_or(Value::None))
@@ -1950,22 +2014,104 @@ impl Evaluator {
     }
 
     fn canonicalize_stdlib_alias(name: &str) -> &str {
-        match name {
-            "갈라놓기" => "자르기",
-            "이어붙이기" => "붙이기",
-            "길이세기" => "길이",
-            "값뽑기" => "차림.값",
-            "번째" => "차림.값",
-            "올림" => "천장",
-            "내림" => "바닥",
-            "절댓값" => "abs",
-            "제곱근" => "sqrt",
-            "제곱" => "powi",
-            "거듭제곱" => "powi",
-            "최댓값" => "max",
-            "최솟값" => "min",
-            _ => name,
-        }
+        ddonirang_lang::stdlib::canonicalize_stdlib_alias(name)
+    }
+
+    fn is_builtin_name(name: &str) -> bool {
+        matches!(
+            name,
+            "abs"
+                | "clamp"
+                | "cos"
+                | "max"
+                | "min"
+                | "powi"
+                | "sin"
+                | "sqrt"
+                | "tetris_board_cell"
+                | "tetris_board_drawlist"
+                | "tetris_board_new"
+                | "tetris_can_place"
+                | "tetris_drop_y"
+                | "tetris_lock"
+                | "tetris_piece_block"
+                | "각각돌며"
+                | "감정더하기"
+                | "값목록"
+                | "거르기"
+                | "글로"
+                | "글바꾸기"
+                | "글자뽑기"
+                | "기억하기"
+                | "길이"
+                | "끝나나"
+                | "눌렸나"
+                | "다듬기"
+                | "대문자로바꾸기"
+                | "되풀이하기"
+                | "뒤집기"
+                | "들어있나"
+                | "마지막"
+                | "마지막기억"
+                | "막눌렸나"
+                | "말결값"
+                | "맞추기"
+                | "모음"
+                | "목록"
+                | "무작위"
+                | "무작위선택"
+                | "무작위정수"
+                | "묶음값"
+                | "미분하기"
+                | "바꾸기"
+                | "바닥"
+                | "반올림"
+                | "범위"
+                | "변환"
+                | "붙이기"
+                | "소문자로바꾸기"
+                | "숫자로"
+                | "시작하나"
+                | "쌍목록"
+                | "열림.GPU.실행"
+                | "열림.난수"
+                | "열림.난수.뽑기"
+                | "열림.난수.하나"
+                | "열림.네트워크.요청"
+                | "열림.시각.지금"
+                | "열림.파일.읽기"
+                | "열림.호스트FFI.호출"
+                | "자르기"
+                | "자원"
+                | "적분하기"
+                | "정렬"
+                | "제거"
+                | "짝맞춤"
+                | "짝맞춤.값"
+                | "짝맞춤.바꾼값"
+                | "차림"
+                | "차림.값"
+                | "차림.바꾼값"
+                | "찾기"
+                | "찾아보기"
+                | "천장"
+                | "첫번째"
+                | "추가"
+                | "키목록"
+                | "텐서.값"
+                | "텐서.바꾼값"
+                | "텐서.배치"
+                | "텐서.자료"
+                | "텐서.형상"
+                | "토막내기"
+                | "펼치기"
+                | "평균"
+                | "포함하나"
+                | "표준.범위"
+                | "풀기"
+                | "합계"
+                | "합치기"
+        )
     }
 
     fn eval_formula_value(
@@ -2127,6 +2273,18 @@ impl Evaluator {
         Ok(Value::Num(Quantity::new(raw, dim)))
     }
 
+    fn eval_mod(&self, left: Value, right: Value, span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+        let (l, r) = self.require_numbers(left, right, span)?;
+        if l.dim != r.dim {
+            return Err(RuntimeError::UnitMismatch { span });
+        }
+        if r.raw.raw() == 0 {
+            return Err(RuntimeError::MathDivZero { span });
+        }
+        let raw = Fixed64::from_raw(l.raw.raw() % r.raw.raw());
+        Ok(Value::Num(Quantity::new(raw, l.dim)))
+    }
+
     fn eval_callable(
         &mut self,
         callable: &Callable,
@@ -2160,6 +2318,91 @@ impl Evaluator {
         Ok(result)
     }
 
+    fn bind_seed_args(
+        &self,
+        seed: &UserSeed,
+        args: &[ArgBinding],
+        values: &[Value],
+        span: crate::lang::span::Span,
+    ) -> Result<Vec<Value>, RuntimeError> {
+        let mut bound: Vec<Option<Value>> = vec![None; seed.params.len()];
+        let mut next_pos = 0usize;
+
+        for (idx, arg) in args.iter().enumerate() {
+            let value = values.get(idx).cloned().ok_or(RuntimeError::Pack {
+                message: "인자 개수가 잘못되었습니다".to_string(),
+                span,
+            })?;
+            if let Some(pin) = &arg.resolved_pin {
+                let position = seed
+                    .params
+                    .iter()
+                    .position(|param| param.name == *pin)
+                    .ok_or(RuntimeError::Pack {
+                        message: format!("알 수 없는 핀 '{}'", pin),
+                        span,
+                    })?;
+                if bound[position].is_some() {
+                    return Err(RuntimeError::Pack {
+                        message: format!("핀 '{}'가 중복되었습니다", pin),
+                        span,
+                    });
+                }
+                bound[position] = Some(value);
+                continue;
+            }
+            if let Some(josa) = &arg.josa {
+                let mut candidates: Vec<usize> = seed
+                    .params
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, param)| param.josa_list.iter().any(|item| item == josa))
+                    .map(|(idx, _)| idx)
+                    .collect();
+                if candidates.is_empty() {
+                    return Err(RuntimeError::Pack {
+                        message: format!("조사 '{}'에 대응하는 매개변수가 없습니다", josa),
+                        span,
+                    });
+                }
+                let mut available: Vec<usize> = candidates
+                    .drain(..)
+                    .filter(|idx| bound[*idx].is_none())
+                    .collect();
+                if available.len() != 1 {
+                    return Err(RuntimeError::Pack {
+                        message: format!("조사 '{}'에 해당하는 매개변수가 여러 개입니다", josa),
+                        span,
+                    });
+                }
+                let position = available.pop().unwrap();
+                bound[position] = Some(value);
+                continue;
+            }
+
+            while next_pos < bound.len() && bound[next_pos].is_some() {
+                next_pos += 1;
+            }
+            if next_pos >= bound.len() {
+                return Err(RuntimeError::Pack {
+                    message: "인자 개수가 너무 많습니다".to_string(),
+                    span,
+                });
+            }
+            bound[next_pos] = Some(value);
+            next_pos += 1;
+        }
+
+        if bound.iter().any(|value| value.is_none()) {
+            return Err(RuntimeError::Pack {
+                message: "인자가 부족합니다".to_string(),
+                span,
+            });
+        }
+
+        Ok(bound.into_iter().map(|value| value.unwrap()).collect())
+    }
+
     fn eval_user_seed(
         &mut self,
         seed: &UserSeed,
@@ -2174,7 +2417,7 @@ impl Evaluator {
         }
         let mut prev = Vec::new();
         for (param, value) in seed.params.iter().zip(args.iter()) {
-            let key = Key::new(param.clone());
+            let key = Key::new(param.name.clone());
             let prev_value = self.state.get(&key).cloned();
             prev.push((key.clone(), prev_value));
             self.state.set(key, value.clone());
@@ -2197,16 +2440,16 @@ impl Evaluator {
         }
     }
 
-    fn open_site_id(&self, open_kind: &str) -> String {
-        let seq = self.open_seq.get();
-        self.open_seq.set(seq.saturating_add(1));
-        let madi = self.current_madi.get();
-        let raw = format!(
-            "{}#{}#{}#{}",
-            self.open_source, madi, seq, open_kind
-        );
-        let hash = blake3::hash(raw.as_bytes()).to_hex();
-        format!("blake3:{}", hash)
+    fn open_site_id(&self, span: crate::lang::span::Span) -> String {
+        if self.open_source == "<memory>" {
+            return "unknown".to_string();
+        }
+        let line_idx = span.start_line.saturating_sub(1);
+        let Some(line) = self.open_source_lines.get(line_idx) else {
+            return "unknown".to_string();
+        };
+        let col = utf16_col_for_line(line, span.start_col);
+        format!("{}:{}:{}", self.open_source, line_idx, col)
     }
 
     fn eval_compare(
@@ -2261,6 +2504,22 @@ impl Evaluator {
             (other, _) => Err(type_mismatch_detail("number", &other, span)),
         }
     }
+}
+
+fn utf16_col_for_line(line: &str, col1: usize) -> usize {
+    if col1 <= 1 {
+        return 0;
+    }
+    let mut col_utf16 = 0usize;
+    let mut idx = 1usize;
+    for ch in line.chars() {
+        if idx >= col1 {
+            break;
+        }
+        col_utf16 = col_utf16.saturating_add(ch.len_utf16());
+        idx += 1;
+    }
+    col_utf16
 }
 
 #[derive(Clone, Debug)]
@@ -2438,6 +2697,37 @@ fn expect_pack_and_key(values: &[Value], span: crate::lang::span::Span) -> Resul
         value => return Err(type_mismatch_detail("string key", value, span)),
     };
     Ok((pack, key))
+}
+
+fn expect_map_and_key(values: &[Value], span: crate::lang::span::Span) -> Result<(MapValue, Value), RuntimeError> {
+    if values.len() != 2 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "map, key",
+            span,
+        });
+    }
+    let map = match &values[0] {
+        Value::Map(map) => map.clone(),
+        value => return Err(type_mismatch_detail("map", value, span)),
+    };
+    Ok((map, values[1].clone()))
+}
+
+fn expect_map_key_and_value(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(MapValue, Value, Value), RuntimeError> {
+    if values.len() != 3 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "map, key, value",
+            span,
+        });
+    }
+    let map = match &values[0] {
+        Value::Map(map) => map.clone(),
+        value => return Err(type_mismatch_detail("map", value, span)),
+    };
+    Ok((map, values[1].clone(), values[2].clone()))
 }
 
 fn expect_any(values: &[Value], span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
