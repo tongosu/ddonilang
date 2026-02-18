@@ -1,5 +1,5 @@
 [또니랑 코드 생성 규약]
-SSOT_VERSION = v20.3.1
+SSOT_VERSION = v20.6.33
 AUTHORITY = SSOT (정본)
 
 [근거]
@@ -18,157 +18,136 @@ AUTHORITY = SSOT (정본)
 - 가능하면 데모/예시는 SSOT_DEMOS의 스타일을 따른다.
 
 [컨텍스트]
-SSOT_VERSION = v20.3.1
+SSOT_VERSION = v20.6.33
 BUNDLE_KIND = dir
 PROFILE = lean
-BUNDLE_HASH = sha256:0d291d05c8c29e87ca1332cea14ab4bae53bb6b66bcc168b6b76bd7b79fb4dff
+BUNDLE_HASH = sha256:5e95a00bd22615db146d954c1f7712cbe9d21add7359dcc4bd988139a4eaf972
 FILE_LIST =
-- SSOT_INDEX_v20.3.1.md
-- SSOT_TERMS_v20.3.1.md
-- SSOT_DECISIONS_v20.3.1.md
-- SSOT_LANG_v20.3.1.md
-- SSOT_DEMOS_v20.3.1.md
-- GATE0_IMPLEMENTATION_CHECKLIST_v20.3.1.md
-===== BEGIN SSOT_INDEX_v20.3.1.md =====
-# 또니랑 SSOT — INDEX (v20.3.1)
+- SSOT_INDEX_v20.6.33.md
+- SSOT_TERMS_v20.6.33.md
+- SSOT_DECISIONS_v20.6.33.md
+- SSOT_LANG_v20.6.33.md
+- SSOT_DEMOS_v20.6.33.md
+- GATE0_IMPLEMENTATION_CHECKLIST_v20.6.33.md
+===== BEGIN SSOT_INDEX_v20.6.33.md =====
+# 또니랑 SSOT — INDEX (v20.6.33)
 
-> 문서 버전: v20.3.1  
-> P26-01-25
+> 문서 버전: v20.6.33  
+> 작성일: 2026-02-17 (Asia/Seoul)
 
-- (2026-01-25) DR-079: AGE1 stdlib 정본 이름+별칭+구현현황판 운영 규칙 채택
-이 INDEX는 **이번 SSOT 묶음에서 실제로 존재하는 파일들만** 가리킨다.  
-(이전 묶음에서 “링크는 있는데 파일이 없는” 문제를 방지하기 위한 규칙)
+이 문서는 **SSOT 정본 문서(현재 스냅샷)** 의 읽기 순서와 구성요소를 안내한다.
 
 ---
 
-- (2026-01-25) DR-089: stdlib를 gaji 패키지로 분할(표준 가지) 결정 채택
-## 변경점 요약 (v20.3.1)
+## 0) 폴더 규칙(요약)
 
-- **제9고개(기)(89~99) 실행 기획 문서 링크 추가(SSOT 밖)**
-  - 실행 기획: `docs/context/roadmap/gogae9/PROPOSAL_GOGAE9_PLAN_v20.3.1.md`
-  - walks 뼈대: `docs/ssot/walks/gogae9/INDEX.md`
-- **문서 링크 경로 정리**
-  - `docs/roadmap/...` → `docs/context/roadmap/...` 로 통일
+- `docs/ssot/ssot/` : **현재 스냅샷 1벌**  
+  - 파일명 버전은 모두 `v20.6.33` 로 통일한다.
+- `docs/ssot/releases/<version>/` : 과거 스냅샷 보관(아카이브)
 
 ---
 
-## 직전 변경점 요약 (v20.3.0)
-- DR-089: stdlib gaji 분할(표준 가지) 채택
-- DR-069: 계약 실패 메시지/진단 표준 v1 채택
-- DR-070: 계약 위반 슬기 훅 v1 채택(AGE1 기록만)
-- DR-071: 보고서 정본 경로 통일 및 중복 제거
-- DR-076: 씨앗(익명함수) 리터럴 표기 v1 확정 (`{x | 식}`, `->` 미지원)
+## 1) 추천 읽기 순서
 
-- **제3고개(기)(23~33) 구현 기획 문서 링크 추가(SSOT 밖)**
-  - `docs/context/roadmap/gogae3/PROPOSAL_GOGAE3_PLAN_v20.1.10.md`
-- **SSOT_PLATFORM 보강**
-  - `InputSnapshot DetJson v1` 스키마(권장): `schema`, `net_events(sender/seq/order_key/payload)`, 안정 정렬 규칙
-  - 세상 명세 파일(권장): `ddn.world.json` + `limits.reactive_max_pass` + `ai_latency.L`
-- **SSOT_TOOLCHAIN 보강**: `teul-cli init`이 `ddn.world.json`을 선택적으로 생성할 수 있도록 권고(SHOULD)
-- **OPEN_ISSUES 추가**: OI-202 W25 군집 명령/쿼리 표면 문법(`모두 {}`) 정본화
+1. `README_v20.6.33.md`
+2. `SSOT_MASTER_v20.6.33.md`
+3. `SSOT_TERMS_v20.6.33.md`
+4. `SSOT_DECISIONS_v20.6.33.md`
+5. `SSOT_LANG_v20.6.33.md`
+6. `SSOT_TOOLCHAIN_v20.6.33.md`
+7. `SSOT_DEMOS_v20.6.33.md`
+8. `SSOT_PLANS_v20.6.33.md`
+9. `SSOT_ROADMAP_CATALOG_v20.6.33.md`
+10. `SSOT_OPEN_ISSUES_v20.6.33.md`
+11. `SSOT_PENDING_v20.6.33.md`
 
+(통합본)
+- `SSOT_ALL_v20.6.33.md`
 
-### 참고: v20.1.1에서 들어온 문법/표기(계속 유효)
-
-- **시스템 자음 뿌리 약칭(단자음) 예약**: `ㅅ.`을 `바탕.`의 별칭으로 허용, “자음만의 이름”은 사용자 정의 금지.
-- **말 이음씨(단어 중위연산자) 정식 채택**: `A 비교 B` 같은 한국어 중위 표기가 “브리지 전용”이 아니라 언어 기능으로 승격.
-- **기호 이음씨 말별칭(`기호~말`) 정리**: `+~더하기`처럼 기호 이음씨에 말별칭을 달 수 있고, 정본 출력에서는 별칭을 제거(메타 기록)하도록 규칙 고정.
-- **확장 이음기호(EXT_OPCHAR) + 1~3글자 조합**: 고정 후보 집합 안에서 다문자(1~3) 이음기호를 만들고(최장 일치), 예약 토큰/문서 메타(`〈〉《》`) 충돌을 금지.
-- **확장 이음기호 추천 기본 10(물리/수학/AI)**: 우선순위/별칭/예제를 SSOT_LANG에 한 장 표로 고정.
-
----
-## 권장 읽는 순서(입문자/구현자 공통)
-
-1) `SSOT_MASTER_v20.3.1.md` — 헌법/원칙/게이트 철학(프로젝트 방향)  
-2) `SSOT_TERMS_v20.3.1.md` + `SSOT_DECISIONS_v20.3.1.md` — 용어/결정(정본) 고정  
-3) `SSOT_LANG_v20.3.1.md` — 문법/정본 표면형/의미론(가장 중요)  
-4) `SSOT_TOOLCHAIN_v20.3.1.md` — 정본화(canon), 진단(거울), 덧댐 승인, 컨텍스트 합성  
-5) `SSOT_PLATFORM_v20.3.1.md` — 실행 모델(마디/샘/거울/state_hash)  
-6) `SSOT_DEMOS_v20.3.1.md` — 데모 규격/샘플 목록  
-7) `SSOT_PLANS_v20.3.1.md` + `SSOT_ROADMAP_CATALOG_v20.3.1.md` — 로드맵/예약 슬롯/일정  
-8) `SSOT_OPEN_ISSUES_v20.3.1.md` — 미해결/다음 시즌 의제  
-9) `GATE0_IMPLEMENTATION_CHECKLIST_v20.3.1.md` — AGE0 구현 DoD(검증 체크리스트)
+(무결성)
+- `SSOT_ALL_MANIFEST_v20.6.33.md`
 
 ---
 
-## 파일 맵
+## 2) 말씨(다국어) 레지스트리 데이터(참고)
 
-- 진입점: `SSOT_INDEX_v20.3.1.md` (이 문서)
-- README(요약): `README_v20.3.1.md`
-- 헌법/원칙: `SSOT_MASTER_v20.3.1.md`
-- 용어 정본: `SSOT_TERMS_v20.3.1.md`
-- 결정 기록(정본): `SSOT_DECISIONS_v20.3.1.md`
-- 언어 스펙: `SSOT_LANG_v20.3.1.md`
-- 도구체인/정본화: `SSOT_TOOLCHAIN_v20.3.1.md`
-- 플랫폼/엔진 뿌리: `SSOT_PLATFORM_v20.3.1.md`
-- 데모 카탈로그: `SSOT_DEMOS_v20.3.1.md`
-- 운영/계획: `SSOT_PLANS_v20.3.1.md`
-- 로드맵 카탈로그: `SSOT_ROADMAP_CATALOG_v20.3.1.md`
-- 미해결 이슈: `SSOT_OPEN_ISSUES_v20.3.1.md`
-- AGE0 구현 체크리스트: `GATE0_IMPLEMENTATION_CHECKLIST_v20.3.1.md`
-- 올인원(LLM/업로드 제약 대응): `SSOT_ALL_v20.3.1.md`
+- 기준표 v4 (로마자 중심, 자연스러움 리뷰 기준)
+  - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v4_20260215.tsv`
+  - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v4_20260215.detjson`
+  - (리뷰) `docs/context/notes/dialect/DIALECT_ALIAS_NATURALNESS_REVIEW_20260215.md`
 
----
+- 개선표 v8 (문법 용어 정합성 + 간소 별칭 병기, 셀의 `/`는 복수 별칭)
+  - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215.tsv`
+  - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215.detjson`
+  - (보기용) `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215.md`
+  - (변경 로그) `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215_CHANGELOG.md`
 
-## 문서 충돌 해결(권위) 순서
+### 2-1) 동치/보증 검증 팩(참고)
+- 기본 동치팩(ko/en/sym3/ja/mn/tr): `docs/ssot/pack/lang/dialect_equiv_v2/`
+- ne 전용 동치팩(ko/sym3/ne): `docs/ssot/pack/lang/dialect_equiv_ne_v1/`
+  - ne는 **데바나가리 표기 우선**이며, 일부 셀은 `देवनागरी/roman`처럼 `/`로 복수 별칭을 병기한다.
 
-내용이 충돌할 때(또는 구현 판단이 애매할 때), 아래 우선순위를 따른다.
+### 2-2) 관련 PROPOSAL(참고)
 
-1. **SSOT_MASTER** — 프로젝트 헌법(최상위 원칙)
-2. **SSOT_TERMS** — 용어/별칭/정본(출력) 계약
-3. **SSOT_DECISIONS** — 결정 기록(왜 이렇게 되었는가)
-4. **SSOT_LANG** — 문법/정본 표면형/의미론
-5. **SSOT_PLATFORM** — 실행 모델/입력(샘)/거울/상태해시
-6. **SSOT_TOOLCHAIN** — 정본화/진단/승인 레일(빌드·검증 절차)
-7. **SSOT_DEMOS** — 예시/팩 패턴/검증 예
-8. **SSOT_PLANS / SSOT_ROADMAP_CATALOG** — 운영/계획(참고)
-9. **SSOT_OPEN_ISSUES** — 미결/논의(참고)
-10. **GATE0_IMPLEMENTATION_CHECKLIST** — 구현 점검(DoD)
+- ne D-PACK(동일 AST/동일 state_hash) 제안: `docs/context/proposals/PROPOSAL_DIALECT_NE_GOLDEN_DPACK_V1_1_K003_NFC_20260215.md`
+- ne 입력 정규화(K003) 티켓: `docs/context/proposals/PROPOSAL_DIALECT_NE_INPUT_NORMALIZATION_K003_V1_20260215.md`
+- ne 입력 정규화(K004) 확장 티켓: `docs/context/proposals/PROPOSAL_DIALECT_NE_INPUT_NORMALIZATION_K004_V1_20260215.md`
+- 셈그림 V2 WASM 해석기 브릿지(V1): `docs/context/proposals/PROPOSAL_SEAMGRIM_WASM_INTERP_V1_20260215.md`
 
-> SSOT_INDEX는 **목차/진입 안내서**이며, 위 정본문서와 충돌할 때는 항상 **비권위**로 취급한다.
-- (2026-01-25) DR-077: `(임자)마다`/`모두{}` 임자(바인더) 규칙 + 지역 범위(바탕.* 최소화) + `:` 열 오해 방지 정합
 
-- DR-091 STDLIB 레거시 정책 v1(번째=공식 별칭, 글바꾸기=레거시 유지/정본 금지)
 
-- DR-092/093 AGE2(Open) 열림 봉인(record/replay/deny) + #열림 허용(...) 지시문(옵션)
-
-- DR-094/PLN-20260126-GOGAE7-BOGAE-01 제7고개(기) AGE3(Bogae) W67~W77
-
-- DR-095/PLN-20260126-SEMGIRIM-TETRIS-DEVERBOSE-01 테트리스 de-verbose 표준 패턴
-
-- DR-096 격자→픽셀 좌표변환 정본 호출 형태: (대상=...,원점=...,셀=...) 격자.픽셀.
-
-- DR-097 용어 표준화: 임자/임자가리킴/임자무리/붙이/임자-붙이 짜임/매김이
-
-- DR-098 임자무리(임자가리킴 차림) v1 채택
-
-- DR-099/PLN-20260130-GOGAE8-W78-PARALLEL-REALMS-PR1 병렬 터(Realms) W78 PR-1
-
-- DR-100 샘/거울 최소 스키마 v0(sam.input.v0, geoul.record.v0)
-
-- DR-101..109 제8고개(기) 배움의 깊이(78~88) 실행 트랙 확정
-
-- DR-110/DR-111 고개8 W87 EvalSuite/Cert + W88 Bundle Hash Parity
+- 정체성(결정론 수학/시뮬레이션 DSL): `docs/context/proposals/PROPOSAL_IDENTITY_MATH_SIM_DSL_V1_20260216.md`
+- 흐름(Stream) 값 타입 + 보임(Boim) 관행: `docs/context/proposals/PROPOSAL_STREAM_AND_BOIM_V2_20260216.md`
+- 흐름(Stream) 링버퍼 상세: `docs/context/proposals/PROPOSAL_STREAM_STATEFUL_RINGBUFFER_V1_20260216.md`
+- STDLIB 다국어 파이프라인: `docs/context/proposals/PROPOSAL_STDLIB_MULTILANG_PIPELINE_V1_20260215.md`
+- 우향 대입 `->` 제안: `docs/context/proposals/PROPOSAL_ASSIGN_ARROW_RIGHT_V1_20260216.md`
+- map/접근값 정책 제안: `docs/context/proposals/PROPOSAL_MAP_ACCESS_VALUE_V1_20260216.md`
+- 꾸러미 배포/레지스트리(곳간) 제안: `docs/context/proposals/PROPOSAL_PACKAGE_REGISTRY_V1_20260217.md`
+- 꾸러미 서버 MVP 제안: `docs/context/proposals/PROPOSAL_PACKAGE_SERVER_MVP_V1_20260217.md`
+- 정규식 리터럴 + 호출 오버로드(인자수/타입/조사) 제안: `docs/context/proposals/PROPOSAL_REGEX_LITERAL_AND_CALL_OVERLOAD_V1_20260217.md`
+- 결정성 계약 등급(Contract Tiers) 제안: `docs/context/proposals/PROPOSAL_CONTRACT_TIERS_V1_20260217.md`
+- DetMath 로드맵 제안: `docs/context/proposals/PROPOSAL_DETMATH_ROADMAP_V1_20260217.md`
+- 관측 프로토콜 V0 제안: `docs/context/proposals/PROPOSAL_OBSERVATION_PROTOCOL_V0_20260217.md`
+- DDN 아키텍처 종합 재설계(프라그마/가져오기 등) 제안: `docs/context/proposals/PROPOSAL_DDN_ARCHITECTURE_SYNTHESIS_V1_20260217.md`
+- 셈그림(Seamgrim) 재기획 V1(보개/이야기 분리) 제안: `docs/context/proposals/PROPOSAL_SEAMGRIM_REPLAN_V1_20260217.md`
 
 
 ---
-===== END SSOT_INDEX_v20.3.1.md =====
-===== BEGIN SSOT_TERMS_v20.3.1.md =====
-# 또니랑 SSOT — TERMS (v20.3.1)
+
+## 3) 작업 기준(SSOT 관리자 규칙)
+
+- 정본은 항상 **`SSOT_ALL` + workspace patch** 로 본다.
+- 문서 변경 시:
+  - (MUST) **버전 상승**
+  - (MUST) `SSOT_ALL_MANIFEST` 갱신
+  - (SHOULD) `docs/ssot/ssot/` 은 “현재 스냅샷 1벌”만 남긴다.
+===== END SSOT_INDEX_v20.6.33.md =====
+===== BEGIN SSOT_TERMS_v20.6.33.md =====
+# 또니랑 SSOT — TERMS (v20.6.33)
 
 이 문서는 **순우리말(정본) ↔ 기존/영문(별칭)**을 일관되게 쓰기 위한 **용어 정본**이다.
 
 - 정본 용어는 **문서/예시/AI 출력의 1순위**다.
 - 기존 용어(영문/한자어)는 **별칭**으로만 두고, 처음 등장할 때 `(별칭: …)`처럼 함께 적는다.
-- **기계 추출용 TERM-MAP JSON은 `SSOT_LANG_v20.3.1.md`의 `TERM-LINT-01 / TERM-MAP-01`을 정본으로 둔다.**  
+- **기계 추출용 TERM-MAP JSON은 `SSOT_LANG_v20.6.33.md`의 `TERM-LINT-01 / TERM-MAP-01`을 정본으로 둔다.**  
   (이 문서는 사람 읽기용 설명/표 중심)
 
 ---
 
 > **용어 정본 변경(채택):** `바탕`(정본) ↔ `살림`(레거시 별칭)  
 > - 입력에서는 `살림`을 별칭으로 허용할 수 있으나, 문서/정본 출력은 `바탕`을 사용한다.  
-> - 관련: DR-112 (v20.3.1)
+> - 관련: DR-112 (v20.4.1)
 
+
+> **용어 정본 변경(채택, 2026-02-13):**
+> - `맞물림씨`(정본) ↔ `관계씨`(별칭/레거시 입력)
+> - `되풀이`(정본) ↔ `반복`(별칭/레거시 입력)
+> - `되돌림`(정본) ↔ `반환`(별칭/레거시 입력)
+> - `톺아보기`(정본) ↔ `감사`(별칭/레거시 입력)
+> - `해봄줄`(정본) ↔ `시험줄`(별칭)
+> - `겹차림`(정본) ↔ `텐서`(별칭)
+> - `바른꼴`(정본) ↔ `정본`, `캐논`(별칭)
+> - `차림판`(정본) ↔ `차림표`(별칭)
 
 ## 0) 이 SSOT가 “용어 정본”을 따로 두는 이유
 
@@ -235,7 +214,7 @@ FILE_LIST =
   예) `토막(별칭: block)`  
 - (B) **이후:** 정본만 사용  
 - (C) 표/코드/키워드에서는 가능하면 정본 사용.  
-- (D) 용어 충돌이 생기면 `SSOT_LANG_v20.3.1.md`의 TERM‑LINT/TERM‑MAP을 먼저 갱신하고, 그 다음에 문서들을 정규화한다.
+- (D) 용어 충돌이 생기면 `SSOT_LANG_v20.6.33.md`의 TERM‑LINT/TERM‑MAP을 먼저 갱신하고, 그 다음에 문서들을 정규화한다.
 - (E) **별칭은 0~1개만 둔다(권장 → 장기적으로 MUST).**
   - ‘순우리말 정본’ + ‘대표 별칭 1개(일상말 *또는* 영문)’까지만 유지해 혼선을 줄인다.
   - 추가 표기(과거 문서 용어/검색 키워드)는 **레거시 입력**으로만 인정하고, AI/정본 출력에서는 생성하지 않는다.
@@ -252,6 +231,17 @@ FILE_LIST =
 | **가지** | repo의 패키지 단위. `/gaji/<이름>/gaji.toml`로 식별 | package |
 | **모듬** | 코드 이름공간/배포 단위(모듬 ID: `<가지ID>/<모듬이름>`) | module |
 | **작업터** | 여러 가지/프로젝트가 함께 사는 저장소(워크스페이스) | workspace |
+| **배포꾸러미** | 가지를 묶어 배포/설치하는 아카이브(압축) 단위. *(주의: **값꾸러미**(tuple/record)와 다른 말)* | bundle, package distribution |
+| **꾸러미.toml** | 배포꾸러미 메타(초안). 기존 `gaji.toml`과의 관계/명칭은 OI-501에서 결정 | bundle manifest |
+| **꾸러미.lock** | 프로젝트 의존을 해시로 핀하는 잠금파일(초안) | lockfile |
+| **곳간** | 배포꾸러미를 검색/다운로드하는 레지스트리(원격/로컬) | registry |
+| **스코프/이름@버전** | 꾸러미 식별 표기 초안(예: `표준/물리@20.6.33`) | scoped id |
+| **스코프/이름/모듬** | 모듬(모듈) 경로 표기(예: `표준/물리/역학`) | module path |
+| **표준** | (곳간 스코프) 공식 표준 라이브러리(정본) 꾸러미 | std, standard |
+| **나눔** | (곳간 스코프) 커뮤니티 기여 꾸러미 | community, contrib |
+| **내** | (곳간 스코프) 작업터/프로젝트 내부 전용 꾸러미(게시 금지) | local, private |
+| **벌림** | (곳간 스코프) 외부 의존을 로컬에 복사해 둔 꾸러미(vendor) | vendor, third-party |
+| **MVS** | Minimum Version Selection. 의존성 해결 규칙 후보 | minimum version selection |
 | **산출물** | `build/`·`dist/`에 생성되는 결과물 | artifact |
 | **알림 레지스트리** | 병합된 알림목록의 정본 목록(+해시) | event registry |
 | **꼬리 없는 호출** | 호출 꼬리 없이 씨앗 이름이 끝난 표현(진단 대상) | tailless call |
@@ -267,6 +257,9 @@ FILE_LIST =
 | **적분상수** | 부정적분에서 더해지는 상수(정본 기호: `C`) | constant of integration |
 | **차수** | 미분/적분의 반복 횟수(1차, 2차 …) | order |
 | **오차추정** | 수치근사의 오차 추정값 | error estimate |
+| **길잡이말** | `#...`로 시작하는 **메타 줄**. 실행/`state_hash`에는 영향이 없고, 도구(UI/린트/팩)가 읽어 관찰/조종/추적 등을 구성한다. | pragma, directive |
+| **관찰목록** | 글(.ddn)에서 관찰 가능한 마디/바탕 항목을 구조화한 목록(JSON). 보개(Seamgrim)·누리Gym이 공유할 수 있다. | observation manifest |
+| **보개메타** | 보개(관찰) 채널에 담기는 렌더/관찰 힌트(축/겹침/렌즈 등). `state_hash` 비대상. | view_meta |
 
 
 
@@ -528,13 +521,13 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
 ## §19 협업/정본 운영 용어
 
 - **Canon Workspace(정본 작업터)**: 정본 관리자가 발행한 작업터 스냅샷(폴더 트리) 1개.  
-  예: `workspace_bundle_vX.Y.Z_rN.zip`을 풀어놓은 레포 상태.
+  예: `workspace_bundle_vX.Y.Z__sha256_<sha256>.zip`을 풀어놓은 레포 상태.
 - **PROPOSAL(제안 문서)**: 직접 수정 대신 제출하는 변경 제안서.  
   파일 경로/이유/검증(pack)을 포함해야 한다.
 
 
 
-## §NEW (v20.3.1) 또니랑 스튜디오 ‘실험대 UI’ 용어
+## §NEW (v20.4.1) 또니랑 스튜디오 ‘실험대 UI’ 용어
 
 > 주의: `메03. 결정적 부름글 실험대(LLM 실험 재현)`(ROADMAP/DEMO에서 쓰는 말)과 혼동하지 말 것.  
 > 여기의 **실험대 UI**는 “교과/탐구 데모를 같은 껍데기에서 실행/관측/리플레이”하기 위한 **공통 UI 레이아웃**을 뜻한다.
@@ -609,6 +602,10 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
 
 용례:
 - `그릇채비:` = 변수(그릇) 선언(채비)
+- `채비:` = 변수(그릇)/붙박이(상수) **혼합 선언 입력 설탕**
+  - `채비:` 안에서 `=`는 붙박이 마련, `<-` 또는 `.`는 그릇 채비로 해석한다.
+  - 정본 출력은 `그릇채비:` + `붙박이마련:`으로 분해 저장한다. (SSOT_LANG [GUREUT-DECL-03])
+
 - `붙박이마련:` = 상수(붙박이) 마련(선언+초기화 동시)
 - `마련`은 “초기 알맹이 채우기”를 뜻하며, 구현/문법에서는 문맥에 맞게 별도 규칙으로 정의한다.
 
@@ -706,9 +703,26 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
 
 ---
 
-===== END SSOT_TERMS_v20.3.1.md =====
-===== BEGIN SSOT_DECISIONS_v20.3.1.md =====
-# 또니랑 SSOT — DECISIONS (v20.3.1)
+
+
+
+
+
+## 입력/글 표준 함수 용어(추가)
+
+- **입력키**: 현재 샘(InputSnapshot)에서 “마지막 입력 키”를 글로 얻는 표준 함수. compat에서는 미정의 시 빈 글을 반환할 수 있다.
+- **입력키?**: 입력키의 옵션 반환 버전(없음/있음).
+- **입력키!**: 입력키의 엄격 버전(없으면 오류).
+- **글바꾸기**: 글의 특정 인덱스 문자를 새 글로 교체하는 표준 함수(안전: 범위 밖이면 원본 반환).
+- **글바꾸기!**: 글바꾸기의 엄격 버전(범위 밖이면 오류).
+
+## 열림(open) 기록 용어(추가)
+
+- **site_id**: 열림(open) 호출 위치 식별자. replay 매칭의 기준이므로 결정적으로 생성한다.
+- **key**: 열림(open) 입력 식별 키. open_kind별 생성 규칙을 따른다.
+===== END SSOT_TERMS_v20.6.33.md =====
+===== BEGIN SSOT_DECISIONS_v20.6.33.md =====
+# 또니랑 SSOT — DECISIONS (v20.6.33)
 
 이 문서는 우리가 논의하며 채택한 **결정(Decision)과 채택 사유(Rationale)**를 모아둔 “결정 기록”이다.  
 규칙의 정본 텍스트는 각 SSOT 문서에 있고, 여기서는 **왜 그렇게 했는지**를 남긴다.
@@ -727,8 +741,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 어린이/초심자에게 학습 비용↓
   - AI 덧댐/검증에서 “같은 뜻 다른 단어”로 인한 흔들림↓
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` TERM-LINT-01, TERM-MAP-01
-  - `SSOT_TERMS_v20.3.1.md`
+  - `SSOT_LANG_v20.6.33.md` TERM-LINT-01, TERM-MAP-01
+  - `SSOT_TERMS_v20.6.33.md`
 
 ---
 
@@ -741,7 +755,7 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 사람도 “여기만 고치자”가 쉬움
   - 파이프/조건/계약을 토막 경계로 묶으면 의미가 덜 새나감
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` THUNK-01(토막), PIPE-THUNK-01, PIPE-THUNK-02
+  - `SSOT_LANG_v20.6.33.md` THUNK-01(토막), PIPE-THUNK-01, PIPE-THUNK-02
 
 ---
 
@@ -753,7 +767,7 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 한국어 네이티브 문장 흐름을 살리되, 파서/AI가 안정적으로 분해 가능
   - 모호할 때는 오류(FATAL)로 “조용한 오해”를 차단
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` JOSA-SPLIT-01
+  - `SSOT_LANG_v20.6.33.md` JOSA-SPLIT-01
 
 ---
 
@@ -768,8 +782,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - **AI 생성 안정성**: LLM이 자연어 문장 끝의 `-서`를 “연산/파이프”로 오인하거나, 반대로 파이프를 자연어로 흘려버리는 사고가 많다.
   - **도구 UX**: `~기 해서`/`~하기 해서`는 “행위(동사) → 연결”이 눈에 보여 IDE가 Fix-it/자동완성으로 유도하기 쉽다.
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` CONNECTOR-01
-  - `SSOT_LANG_v20.3.1.md` PIPE-01, PIPE-02
+  - `SSOT_LANG_v20.6.33.md` CONNECTOR-01
+  - `SSOT_LANG_v20.6.33.md` PIPE-01, PIPE-02
 
 ---
 
@@ -782,8 +796,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 수학/물리/경제 시뮬레이션에서는 재현이 핵심
   - 이야기/창작에서는 “느슨함”이 생산성
 - 관련:
-  - `SSOT_TOOLCHAIN_v20.3.1.md` LEVEL-01 (무쇠/주사위/열림)
-  - `SSOT_TOOLCHAIN_v20.3.1.md` REPRO-01, REPLAY-01
+  - `SSOT_TOOLCHAIN_v20.6.33.md` LEVEL-01 (무쇠/주사위/열림)
+  - `SSOT_TOOLCHAIN_v20.6.33.md` REPRO-01, REPLAY-01
 
 ---
 
@@ -796,8 +810,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - repro/diag/state_hash로 **재현성과 디버깅**을 강화
   - origin invalidation + agent isolation으로 **오염 확산**을 막는다
 - 관련:
-  - `SSOT_TOOLCHAIN_v20.3.1.md` AI-AWARE-* 섹션
-  - `SSOT_INDEX_v20.3.1.md` AI-aware 요약
+  - `SSOT_TOOLCHAIN_v20.6.33.md` AI-AWARE-* 섹션
+  - `SSOT_INDEX_v20.6.33.md` AI-aware 요약
 
 ---
 
@@ -808,8 +822,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
 - 근거:
   - 이야기 지향/어린이 지향/수학·시뮬레이션 지향을 한 곳에 묶는 최적의 통합 목표
 - 관련:
-  - `SSOT_ROADMAP_CATALOG_v20.3.1.md` “말힘 = 누리 API” 구상
-  - `SSOT_DEMOS_v20.3.1.md` 또니랑누리 데모(추가)
+  - `SSOT_ROADMAP_CATALOG_v20.6.33.md` “말힘 = 누리 API” 구상
+  - `SSOT_DEMOS_v20.6.33.md` 또니랑누리 데모(추가)
 
 ---
 
@@ -828,8 +842,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 예: 화면/입력 `10 더하기 5` ↔ 정본 `10 + 5` (또는 `(왼=10, 오른=5) 더하기.`)
   - 주의: `기호~말별칭`(예: `+~더하기`) 표기는 **이음씨 정의 헤더 전용**이며, 일반 계산 표기에서는 `A + B`처럼 기호만 쓴다. (별칭은 입력 허용/정본화 대상)
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` FieldSpec/PinSpec 규칙
-  - `SSOT_LANG_v20.3.1.md` 중위 연산자(별칭 가능)
+  - `SSOT_LANG_v20.6.33.md` FieldSpec/PinSpec 규칙
+  - `SSOT_LANG_v20.6.33.md` 중위 연산자(별칭 가능)
 
 ---
 
@@ -843,8 +857,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - `:`는 타입 표기/필드 표기와도 연상이 강해, 혼동을 비용으로 만든다
   - `=`는 이미 대입/지정 계열이라 named arg와 결이 맞다
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` CALL-NAMED-ARGS-01
-  - `SSOT_LANG_v20.3.1.md` PUNCT-01(`:`의 용도 제한)
+  - `SSOT_LANG_v20.6.33.md` CALL-NAMED-ARGS-01
+  - `SSOT_LANG_v20.6.33.md` PUNCT-01(`:`의 용도 제한)
 
 ---
 
@@ -856,8 +870,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 특수블록은 이미 `(#tag) 수식{…}` 패턴을 쓰므로 일관성이 높다
   - 다중 태그/설정(예: `(#geojson #v1 #tile)`) 확장이 쉽다
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` TagBundle 규칙(특수블록)
-  - `SSOT_ROADMAP_CATALOG_v20.3.1.md` 지도/연표 구상
+  - `SSOT_LANG_v20.6.33.md` TagBundle 규칙(특수블록)
+  - `SSOT_ROADMAP_CATALOG_v20.6.33.md` 지도/연표 구상
 
 ---
 
@@ -871,7 +885,7 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 문법 라벨을 늘리지 않아도 대부분의 참조/연결/덧댐이 가능
   - Gate0 파서 단순성 유지 + 미래 확장 여지 확보
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` 원자(`#이름`) / 태그 합
+  - `SSOT_LANG_v20.6.33.md` 원자(`#이름`) / 태그 합
 
 ## DR-012 — 정본 이름/세계관/교육 톤 (또니랑)
 
@@ -891,8 +905,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 본문은 서사를 우선하고, “개념 박스(선택 읽기)”로 설명을 분리한다.
   - 역사 파트는 디테일 과장/변형이 가능하되, 민감 요소는 안전하게 처리한다.
 - 관련:
-  - `SSOT_MASTER_v20.3.1.md` (핵심 중심축)
-  - `SSOT_TERMS_v20.3.1.md` (용어: 또니랑)
+  - `SSOT_MASTER_v20.6.33.md` (핵심 중심축)
+  - `SSOT_TERMS_v20.6.33.md` (용어: 또니랑)
 
 
 ## DR-013: 고름씨(태그) 생성에서 이름 인자 허용
@@ -983,7 +997,7 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
 - 이유:
   - 따옴표/이스케이프/개행 문제를 줄이고, 요청 내용을 정본화(JSON)하여 `prompt_hash`를 안정적으로 만들 수 있다.
 - 관련:
-  - `SSOT_TOOLCHAIN_v20.3.1.md` AI-PP-STRUCT-01..04
+  - `SSOT_TOOLCHAIN_v20.6.33.md` AI-PP-STRUCT-01..04
 
 ---
 
@@ -996,8 +1010,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
 - MUST:
   - 동일 입력 로그/시드면 동일 결과(state_hash)여야 하며, Golden Replay/AI Injection Sort에 얹을 수 있어야 한다.
 - 관련:
-  - `SSOT_DEMOS_v20.3.1.md` 막대기-쌓기 데모 스펙
-  - `SSOT_PLATFORM_v20.3.1.md` LEARN-BOUNDARY-01..03
+  - `SSOT_DEMOS_v20.6.33.md` 막대기-쌓기 데모 스펙
+  - `SSOT_PLATFORM_v20.6.33.md` LEARN-BOUNDARY-01..03
 
 
 ## DR-023: 머릿말(HeadSpec)로 블록 헤더를 정본화한다 (Gate0 문법 유지 + AST 통합)
@@ -1202,8 +1216,8 @@ AGE0에서 **말(LANG)**이 반드시 다뤄야 하는 값타입 이름을 정�
   - 실제 병렬이 필요하면 **언어 밖**에서 태스크를 분해하고, 결과 합성(머지) 규칙을 명시한다.
   - AGE3 도입 전까지, `{...}` 두 개를 나란히 써도 “동시 실행”으로 해석하지 않는다.
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` [V18-01]
-  - `SSOT_ROADMAP_CATALOG_v20.3.1.md` (동시성/병렬 슬롯)
+  - `SSOT_LANG_v20.6.33.md` [V18-01]
+  - `SSOT_ROADMAP_CATALOG_v20.6.33.md` (동시성/병렬 슬롯)
 
 
 ---
@@ -1548,9 +1562,9 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
   - 구현/검증(골든/재현/해시) 난이도를 낮추고, 결정성 계약을 흔들지 않는다
   - LaTeX는 표시층(View)로 남기고, 계산은 MathIR로 통일(§M1 삼층 분리)
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` §M1, §M2.2
+  - `SSOT_LANG_v20.6.33.md` §M1, §M2.2
   - `SSOT_TOOLCHAIN` §TC-M1.4 (ddn.math)
-  - `SSOT_DEMOS_v20.3.1.md` (Gate0: `#latex`는 저장/표시만)
+  - `SSOT_DEMOS_v20.6.33.md` (Gate0: `#latex`는 저장/표시만)
 
 
 ## DR-041: ddn.math 확장 표기(ddn.math/ext)는 Call + 예약 호출(`sum/prod/diff/int`), Gate0 `풀기`는 core-only
@@ -1740,9 +1754,9 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
   - D-PACK은 “검증/재현” 흐름의 핵심이라 `pack/` 이름을 살려야 한다.
   - `가지(package)`는 외부 생태계(패키지)와도 의미가 맞고, 검색/문서/팀 커뮤니케이션이 안정된다.
 - 관련:
-  - `SSOT_TERMS_v20.3.1.md` §18
-  - `SSOT_TOOLCHAIN_v20.3.1.md` (가지/워크스페이스 레이아웃)
-  - `SSOT_DEMOS_v20.3.1.md` (D-PACK, golden/*.test.json)
+  - `SSOT_TERMS_v20.6.33.md` §18
+  - `SSOT_TOOLCHAIN_v20.6.33.md` (가지/워크스페이스 레이아웃)
+  - `SSOT_DEMOS_v20.6.33.md` (D-PACK, golden/*.test.json)
 
 ---
 
@@ -1760,7 +1774,7 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - 이유:
   - “규칙(SSOT) / 패키지(가지) / 검증(D-PACK) / 학습(walks)”의 층위를 폴더에서 바로 분리하면, 도구 스캔과 팀 커뮤니케이션이 단순해진다.
 - 관련:
-  - `SSOT_TOOLCHAIN_v20.3.1.md` WORKSPACE-LAYOUT-*
+  - `SSOT_TOOLCHAIN_v20.6.33.md` WORKSPACE-LAYOUT-*
 
 ---
 
@@ -1780,8 +1794,8 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - 이유:
   - “배포/재사용(package)”과 “제품/작업(solution)”을 섞으면 버전/해시/릴리스가 불필요하게 흔들린다.
 - 관련:
-  - `SSOT_TERMS_v20.3.1.md` (솔루션, 걸음길, D-PACK)
-  - `SSOT_TOOLCHAIN_v20.3.1.md` (워크스페이스 스캔/빌드 단위)
+  - `SSOT_TERMS_v20.6.33.md` (솔루션, 걸음길, D-PACK)
+  - `SSOT_TOOLCHAIN_v20.6.33.md` (워크스페이스 스캔/빌드 단위)
 
 ---
 
@@ -1796,9 +1810,9 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - 이유:
   - “표현(렌더러)”은 플랫폼마다 달라도 되지만, “의도(무엇을 그리려 했나)”는 결정적으로 고정되어야 한다.
 - 관련:
-  - `SSOT_PLATFORM_v20.3.1.md` BOGAE-DRAWLIST-*
-  - `SSOT_TOOLCHAIN_v20.3.1.md` (MadiFrame.bogae_frames / golden 기대값)
-  - `SSOT_DEMOS_v20.3.1.md` (DetTest에서 bogae_hash 검증)
+  - `SSOT_PLATFORM_v20.6.33.md` BOGAE-DRAWLIST-*
+  - `SSOT_TOOLCHAIN_v20.6.33.md` (MadiFrame.bogae_frames / golden 기대값)
+  - `SSOT_DEMOS_v20.6.33.md` (DetTest에서 bogae_hash 검증)
 
 ---
 
@@ -1815,8 +1829,8 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - 이유:
   - 대용량 데이터는 버전/해시가 자주 흔들리므로, 규범(SSOT)과 데이터(가지)를 분리해야 한다.
 - 관련:
-  - `SSOT_LANG_v20.3.1.md` COLOR-LIT-*, COLOR-PACK-*
-  - `SSOT_TOOLCHAIN_v20.3.1.md` (가지 쓸감 로딩)
+  - `SSOT_LANG_v20.6.33.md` COLOR-LIT-*, COLOR-PACK-*
+  - `SSOT_TOOLCHAIN_v20.6.33.md` (가지 쓸감 로딩)
 
 
 ---
@@ -1869,12 +1883,12 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 
 ## DR-058: Canon Workspace + PROPOSAL-only + 메시지 머리말 + WIP 동결(운영 규범)
 
-**상태:** Adopted (v20.3.1)  
+**상태:** Adopted (v20.4.1)  
 **요지:** SSOT가 안정된 이후에는 “언어 규범”만으로는 협업이 꼬이기 쉽다.  
 따라서 정본 작업터(Canon Workspace)를 고정하고, 직접 수정 대신 PROPOSAL로만 제출하며,
 모든 메시지에 SSOT/Workspace 버전·해시 머리말을 붙이고, WIP 걸음 계약을 동결한다.
 
-- Canon Workspace: 정본 관리자가 발행한 `workspace_bundle_vX.Y.Z_rN.zip`
+- Canon Workspace: 정본 관리자가 발행한 `workspace_bundle_vX.Y.Z__sha256_<sha256>.zip`
 - 직접 수정 금지: (SSOT 수정 세션 제외) 변경은 `PROPOSAL_*.md`로만 제출
 - 메시지 머리말: `SSOT_ALL`, `Workspace`, `Date`를 상단에 명시
 - WIP 동결: 진행 중 걸음 계약을 깨는 변경은 `[DEFER_TO_STEP13+]`로 이월
@@ -1895,8 +1909,8 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
   - 본 결정은 12걸음(BOGAE/DrawList/색팩) 계약을 깨지 않는다. (W13/W14 이후 범위)
   - Circle/서브픽셀은 V2(BDL2) 이월 유지.
 - 관련:
-  - `SSOT_TOOLCHAIN_v20.3.1.md` 보개(Viewer) 모드/헤드리스 출력 규칙
-  - `SSOT_DEMOS_v20.3.1.md` expected_bogae_hash 기반 골든(픽셀 해시 금지)
+  - `SSOT_TOOLCHAIN_v20.6.33.md` 보개(Viewer) 모드/헤드리스 출력 규칙
+  - `SSOT_DEMOS_v20.6.33.md` expected_bogae_hash 기반 골든(픽셀 해시 금지)
 
 ---
 
@@ -2393,8 +2407,8 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
      - 여기서 `sha8`은 번들(zip) 또는 패치 묶음의 sha256 앞 8 hex이다.
   3) 정본 판정은 언제나 `WORKSPACE_MANIFEST.json`의 `key_files.sha256` 및 번들 sha256로 한다. (MUST)
 - 예:
-  - `ssot_only_v20.3.1_20260125_1a2b3c4d.zip`
-  - `workspace_bundle_v20.3.1_20260125_1a2b3c4d.zip`
+  - `ssot_only_v20.4.1_20260125_1a2b3c4d.zip`
+  - `workspace_bundle_v20.4.1_20260125_1a2b3c4d.zip`
   - `patch_docs_context_migration_20260125_1a2b3c4d.zip`
 - DoD:
   - 문서/프로토콜에서 `rN` 표기 예시는 제거되고, 해시 접미사 규칙이 안내된다.
@@ -3474,6 +3488,23 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - 근거: `docs/context/proposals/PROPOSAL_GOGAE8_PR9_W86_IMITATION_LEARNING_IMPL_v20.2.3_20260130_480b3855.md`
 
 ### 결정
+- metrics curve 출력 파일을 정준화한다:
+  - 파일명: `metrics_curve.detjsonl`
+  - 라인 스키마: `seulgi.imitation_metric.v1`
+  - 필드:
+    - `epoch` (1..max_epochs)
+    - `mismatch` (0..total)
+    - `total` (>0)
+    - `action_error_rate` = mismatch/total (Fixed64 Q32.32 문자열)
+    - `dataset_hash` (정렬된 dataset JSONL 전체 sha256)
+    - `curve_kind` = `"synthetic" | "measured"` (기본 `"synthetic"`)
+- 단조 감소 규칙:
+  - `curve_kind="synthetic"`인 경우 `mismatch`는 epoch 증가에 따라 **비증가(MUST)**.
+  - `curve_kind="measured"`인 경우 단조 감소는 **권장(SHOULD)**이며, 위반은 오류가 아니다.
+- 오류:
+  - `total==0`이면 `E_IMI_TOTAL_ZERO`
+  - `action_error_rate`가 [0,1] 범위를 벗어나면 `E_IMI_RATE_RANGE`
+
 - replay/episode JSONL → supervised dataset JSONL 변환 규칙을 고정한다(정렬: episode_id, step_index 오름차순).
 - metric: `action_error_rate = mismatch/total` 를 epoch별로 DetJson으로 기록한다.
 - v1은 toy trainer로 “오차 감소 곡선”을 결정적으로 골든에 고정한다.
@@ -3551,9 +3582,9 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
   - `바탕`은 “기반/컨텍스트” 의미가 강해 설계 의도(실행 단위 상태 봉투)에 더 부합.
   - 접두 생략은 학습 가독성을 크게 개선하지만, 오타/새 칸 생성 위험이 있어 안전장치를 권장.
 - 관련:
-  - `SSOT_TERMS_v20.3.1.md` (용어 정본/레거시)
-  - `SSOT_LANG_v20.3.1.md` ROOT-HIDE-01, 시스템 뿌리 별칭표
-  - `SSOT_TOOLCHAIN_v20.3.1.md` 정본화 출력/레거시 경고
+  - `SSOT_TERMS_v20.6.33.md` (용어 정본/레거시)
+  - `SSOT_LANG_v20.6.33.md` ROOT-HIDE-01, 시스템 뿌리 별칭표
+  - `SSOT_TOOLCHAIN_v20.6.33.md` 정본화 출력/레거시 경고
 ---
 
 ## DR-113 — 셈씨 결과는 “셈씨 이름(결과칸)에 대입”으로 표현
@@ -3667,6 +3698,25 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
   - `그릇채비:` 항목에서 `=`는 금지(오류 권장: `E-EQUAL-IN-GUREUT`).
 - 관련:
   - SSOT_LANG: [GUREUT-DECL-02], [EQUAL-DEF-01], [ASSIGN-ARROW-01]
+---
+
+
+
+## DR-148 — 통합 선언 설탕: `채비:` 블록에서 `=`(붙박이)와 `<-`(그릇) 혼합 허용
+
+- 상태: 채택
+- 날짜: 2026-02-16
+- 핵심:
+  - 선언 머릿말을 2개(`그릇채비:`/`붙박이마련:`) 외우는 부담을 줄이기 위해, 입력 설탕으로 `채비:` 블록을 추가한다.
+  - `채비:` 블록 내부에서
+    - `이름:형 = 식.` 은 붙박이(상수) 마련으로,
+    - `이름:형.` 또는 `이름:형 <- 식.` 은 그릇(변수) 채비로 해석한다.
+  - 정본 출력은 항상 `그릇채비:` + `붙박이마련:`로 **분해 저장**하여, 정본 문서/골든의 표면형을 안정화한다.
+- 주의:
+  - `채비:` 내부에서 변수/붙박이로 같은 이름을 중복 선언하는 것은 오류로 잡는다.
+- 관련:
+  - SSOT_LANG: [GUREUT-DECL-01], [GUREUT-DECL-02], [GUREUT-DECL-03]
+  - SSOT_LANG: [EQUAL-DEF-01], [ASSIGN-ARROW-01]
 ---
 
 ## DR-121 — DDN 파일 메타 헤더(`#키: 값`) 표준화
@@ -3787,6 +3837,7 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - 상태: 채택
 - 날짜: 2026-02-09
 - 핵심:
+  - `:핀`은 **모호성 해소용 옵션**이며, 유일 바인딩이면 정본 출력에서 제거한다.
   - 또니랑의 “한국어 네이티브” 목표를 위해, 정본 출력(canon)은 가능하면 **조사형(별칭 바인딩)** 으로 호출 인자를 표현한다.
   - 조사형이 불가/중의이면 **`:핀`(핀 고정)** 으로 봉인하고, 그마저 어려울 때만 **위치 바인딩 `( … )`** 으로 폴백한다.
   - 조사형/핀 고정형은 괄호 없이 나열할 수 있어 “문장처럼 읽히는 코드”를 유지한다.
@@ -3885,8 +3936,788 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
     - dense 1D/2D, sparse 2D 최소 케이스
     - 경계 케이스(0차원/빈 텐서/shape 불일치/중복 index) 진단 골든
 
-===== END SSOT_DECISIONS_v20.3.1.md =====
-===== BEGIN SSOT_LANG_v20.3.1.md =====
+
+
+---
+
+## DR-134 — 빠른 실행 경로 정본화(브리지/도구): `cargo run` 루프 금지 + `teul-cli` 직접 호출 + 상주 reset
+
+- 상태: 채택
+- 날짜: 2026-02-10
+- 목적:
+  - 셈그림/보개/브리지 같은 도구에서 DDN을 자주 실행할 때,
+    `cargo run`의 **프로세스 생성 + 빌드 최신 체크** 오버헤드가 실행 시간을 지배하는 문제를 제거한다.
+  - 동시에 “상주 실행(daemon)”을 도입하더라도 결정성을 깨지 않게 한다.
+
+### DR-134.1 실행기 선택 규칙 — MUST (AGE1+)
+
+- 도구/브리지는 “반복 실행 루프”에서 `cargo run`을 호출하지 않는다. (MUST)
+  - *예: Python bridge_server, GUI/IDE, 자동 테스트 러너 등*
+- 기본 실행기는 **빌드된 `teul-cli` 바이너리 직접 호출**이다. (MUST)
+  - 경로 발견 규칙은 SSOT_TOOLCHAIN §TC0.3을 따른다. (SHOULD)
+
+> 참고: `cargo run`은 “사람이 수동으로 1회 실행”할 때에 한해 허용되는 개발 편의이다(MAY).  
+> CI/배포/상주 브리지 경로에서 `cargo run`을 기본값으로 두면 안 된다.
+
+### DR-134.2 상주 모드(`:reset` 경계) — 결정
+
+상주(Resident) 모드는 성능을 위해 허용하되, 결정성을 위해 **요청 경계마다 완전 초기화**를 강제한다.
+
+- 브리지가 상주 프로세스를 사용한다면, **각 요청 처리 전에 반드시 `:reset`을 실행**한다. (MUST)
+- `:reset`의 의미는 다음과 같이 **정의**한다. (MUST)
+
+  1) `:reset` 이후의 실행(`run_file`)은, 같은 입력/같은 바이너리로 `teul-cli run`을 “새 프로세스에서 1회 실행한 결과”와 **비트 단위로 동치**여야 한다.  
+  2) `:reset`은 최소한 아래를 초기화한다:
+     - 살림(State/World) 전부
+     - 결정 PRNG 상태(미시드 상태로)
+     - 거울(로그) 세션 버퍼/핸들
+     - 보개 출력 버퍼(채널/프레임/틱 캐시)
+     - 컨트롤(입력) 임시값(미커밋 포함)
+     - last_error/last_trace 같은 “이전 실행 결과 상태”
+  3) 파서/정본화 캐시 등은 성능을 위해 유지할 수 있으나, 키가 `content_hash` 기반으로 고정되어 **결정성에 영향이 없어야** 한다. (MAY)
+
+(연결: `SSOT_TOOLCHAIN §TC0.3.3`)
+
+### DR-134.3 브리지 프로토콜(최종 확정) — 결정
+
+상주 모드에서 stdout 경계(프레이밍)를 **문자 sentinel**로 처리하면
+프로그램 출력과 충돌하거나 경계가 깨질 수 있다.
+
+따라서 상주 모드의 표준 프로토콜은 **DetJson-RPC v1(= JSON-RPC 2.0 스타일 + Content-Length 프레이밍)** 으로 **고정**한다. (MUST, AGE1+)
+
+- Gate0에서는 sentinel 프레이밍을 임시 허용할 수 있으나(디버그/전환 기간), (MAY)
+- **AGE1+에서는 sentinel을 금지**하고 DetJson-RPC v1만을 표준으로 한다. (MUST)
+
+(연결: `SSOT_TOOLCHAIN §TC0.3.4`)
+
+### DR-134.4 검증 팩(권장)
+
+- `pack/toolchain_fast_run_v1/*`
+  - 동일 입력을 (1) 프로세스 1회 실행, (2) 상주+reset 실행 두 방식으로 돌려
+    `state_hash`/출력 해시가 일치해야 한다.
+  - 부정 테스트: reset 누락 시 결과가 달라지는 케이스를 만들어 진단(경고/실패)을 보장한다.
+
+
+
+
+
+
+## DR-135 — AGE2 스튜디오 커널 v1(Closed-first) 채택: 게임/교과 시뮬 공통 기반 + 4팩 증명
+
+- 상태: 채택
+- 날짜: 2026-02-11
+- 목적:
+  - ‘게임/수학/물리/경제’ 도메인별 라이브러리를 한 번에 완비하려는 접근은 끝이 없으므로,
+    **공통 커널(실험대)** 을 먼저 완성하고 대표 팩으로 증명한다.
+  - AGE2를 “Open(열림) 봉인”만으로 한정하지 않고, Closed-first 기반을 포함해
+    사용자 체감(반복 실행/탐구/오버레이/세션 저장)을 끌어올린다.
+
+### DR-135.1 AGE2 스튜디오 DoD — MUST
+
+AGE2 스튜디오 커널 v1은 아래 3축을 동시에 만족해야 한다.
+
+1) **빠른 반복 실행**: `cargo run` 없이도 UI/브리지에서 반복 실행이 가능하다.
+   - `teul-cli` 직접 호출 기본값(반복 루프에서 cargo run 금지)
+   - `teul-cli worker`(DetJson-RPC v1) + `:reset`(새 프로세스 1회 실행과 비트 동치)
+2) **다변수/희소 탐구**: 채널목록(메타) + 희소 포인트 + 피벗 그래프가 표준으로 동작한다.
+   - 축 선택/시리즈 선택은 세션 상태로 저장/복원된다.
+3) **교과+게임 공통 루프**: 입력(조작)→재실행→비교/오버레이→동결(scene/session 저장)이 결정적으로 재현된다.
+
+### DR-135.2 증명 팩(권장, MUST)
+
+- `pack/age2_kernel_smoke_v1`
+- `pack/age2_phys_pendulum_v1`
+- `pack/age2_econ_market_shock_v1`
+- `pack/age2_math_calculus_v1`
+- `pack/age2_game_miniloop_v1`
+
+(연결: `SSOT_PLANS PLN-20260211-AGE2-STUDIO-KERNEL-01`, `SSOT_ROADMAP_CATALOG AGE2-스튜디오`)
+
+
+
+---
+
+## DR-136 — AGE2(Open) open.net/ffi/gpu v1 정식 런타임 API + open.log 스키마 확정
+
+- 상태: 채택
+- 날짜: 2026-02-11
+- 근거: PROPOSAL_SSOT_OPEN_NET_FFI_GPU_V1_20260211
+
+### 목적
+- AGE2(Open) 확장에서 네트워크/호스트FFI/GPU 밖일(open_kind)을 **정식 API**로 제공하고,
+  record/replay/deny 계약에서 **open.log 스키마를 결정적으로 고정**한다.
+
+### 표준 함수(API)
+- `열림.네트워크.요청.`
+- `열림.호스트FFI.호출.`
+- `열림.GPU.실행.`
+
+> 공통 원칙: 호출 인자에는 **팩 값(pack value)** 을 전달하는 것을 권장한다(정본 출력은 pack-only 권장).
+
+#### open.net (pack 필드)
+- 입력:
+  - `주소`(필수, string)
+  - `방법`(선택, string, 기본 "GET")
+  - `본문`(선택, string)
+  - `응답`(record 전용, string)
+- 출력: string (응답 텍스트)
+
+#### open.ffi (pack 필드)
+- 입력:
+  - `이름`(필수, string)
+  - `인자`(선택, string list)
+  - `결과`(record 전용, string)
+- 출력: string (결과)
+
+#### open.gpu (pack 필드)
+- 입력:
+  - `커널`(필수, string)
+  - `입력`(선택, string)
+  - `결과`(record 전용, string)
+- 출력: string (결과)
+
+### open.log v1 (DetJson) 스키마
+
+### site_id / key 생성 규칙(MUST)
+
+- `site_id`는 호출 위치를 결정적으로 식별한다.
+  - 기본 형식: `"{file}:{line}:{col}"` (UTF-16, 0-based)
+  - line/col을 얻을 수 없으면 `unknown`으로 두되, 그 경우 record는 금지(`E_OPEN_SITE_UNKNOWN`).
+- `key`는 open_kind별 입력 식별 키다(정규화/추측 금지).
+  - `open.net` : `"{method} {url}"` + (body 있으면 `" body_b3:{blake3(body_bytes)}"`)
+  - `open.ffi` : `"{name}({args_joined})"`
+  - `open.gpu` : `"{kernel}"` + (payload 있으면 `" payload_b3:{blake3(payload_bytes)}"`)
+
+### URL/본문 기록 정책(MUST)
+
+- `url/method/body`는 record 시점의 문자열을 **있는 그대로** 기록한다(자동 정규화 금지).
+- allowlist 판정 기본은 `(open_kind, key)`의 **정확 일치**다.
+- 공통 레코드 필드: `event_kind="open"`, `open_kind`, `site_id`, `key`, `value`, `detjson_hash`
+- `value`는 아래 스키마 중 하나(DetJson 객체)이며, `detjson_hash`는 value의 DetJson 직렬화 바이트에 대한 해시다.
+
+#### open.net.v1
+```json
+{
+  "schema": "open.net.v1",
+  "url": "https://...",
+  "method": "GET",
+  "body": "...",
+  "text": "..."
+}
+```
+
+#### open.ffi.v1
+```json
+{
+  "schema": "open.ffi.v1",
+  "name": "func_name",
+  "args": ["..."],
+  "result": "..."
+}
+```
+
+#### open.gpu.v1
+```json
+{
+  "schema": "open.gpu.v1",
+  "kernel": "kernel_name",
+  "payload": "...",
+  "result": "..."
+}
+```
+
+### v2 확장 훅(권장)
+
+v1은 문자열 기반을 기본으로 하되, 큰 payload/result를 위해 v2에서 DetBin 참조 확장을 권장한다.
+
+- `open.net.v2`: `body_ref`, `text_ref` 추가 가능
+- `open.gpu.v2`: `payload_ref`, `result_ref` 추가 가능
+- v2 공존 규칙(DR-137)에 따라 **추가 필드로만 확장**한다.
+
+### 정책(MUST)
+- record 모드: 응답/결과 필드(`text/result`)는 **필수**다.
+- replay 모드: open.log만 사용한다(실호출 금지). 실호출이 발생하면 반드시 실패한다.
+- 허용은 allowlist 정책으로만 한다(미허용은 FATAL). (OI-AGE2-OPEN 원칙 유지)
+
+### DoD
+- pack(최소) 3종:
+  - `pack/open_net_record_replay/*`
+  - `pack/open_ffi_record_replay/*`
+  - `pack/open_gpu_record_replay/*`
+
+---
+
+## DR-137 — open.log v2 공존 규칙(추가 필드 허용/해시 포함) 확정
+
+- 상태: 채택
+- 날짜: 2026-02-11
+- 근거: OPEN_LOG_V2_RULES
+
+### 공통 원칙
+- v2 로그는 v1과 동일한 필수 필드를 유지한다.
+- 추가 필드는 **허용되며 무시**한다.
+- `detjson_hash`는 value 전체(추가 필드 포함)의 DetJson 직렬화 바이트에 대해 계산한다.
+
+### open.clock.v2
+- 필수: `schema="open.clock.v2"`, `unix_sec`
+- 선택: 그 외 모든 필드(예: `meta`)
+
+### open.file_read.v2
+- 필수: `schema="open.file_read.v2"`, `text`
+- 선택: 그 외 모든 필드(예: `meta`)
+
+### DoD
+- v1 replay 검증은 v2 value를 **허용**하되(추가 필드 포함), `detjson_hash` 검증은 value 전체에 대해 수행한다.
+
+---
+
+## DR-138 — W90 Gateway 소켓 입력 옵션/리포트 필드 정준화
+
+- 상태: 채택
+- 날짜: 2026-02-11
+- 근거: SSOT_GATEWAY_SOCKET_REPORT_REQUEST_20260210
+
+### gateway serve 소켓 입력 옵션(MUST)
+- `listen`(addr)
+- `listen_proto`(tcp/udp)
+- `listen_max_events`
+- `listen_timeout_ms`
+
+종료 규칙:
+- `listen_max_events` 도달 또는 `listen_timeout_ms` 경과 시 수신 종료
+
+### gateway.serve_report.v1 필드(MUST)
+- `listen_addr`
+- `listen_proto`
+- `listen_max_events`
+- `listen_timeout_ms`
+
+### gateway.serve_report.v1 추가 필드(권장, SHOULD)
+
+- `stop_reason`: `"max_events" | "timeout" | "eof" | "error"`
+- `received_events`: 실제 수신 이벤트 수
+- `elapsed_ms`: 실제 수신 루프 경과(ms)
+
+### SSOT 범위 제외
+- 테스트 전용 self-send 옵션: `send`, `send_format` (SSOT 범위 밖)
+
+## DR-139 — 표기 스타일(canon/pretty) + 말씨(dialect ko/en/sym3) + SYM3 토큰셋
+
+- 상태: 채택
+- 링크:
+  - `SSOT_LANG`: [STYLE-CANON-01], [STYLE-PRETTY-01], [DIALECT-HEADER-01], [DIALECT-SYM3-01]
+  - `SSOT_LANG`: TERM-MAP(TERM-LEGACY-009~016), JOSA 별칭(`~ob/~sb/...`)
+  - `SSOT_TOOLCHAIN`: `fmt --style=canon|pretty|en|sym3` (Q2 정본화 단계)
+
+### 결정
+
+1) **표기 스타일 분리**
+- 정본 출력은 `canon`을 기준으로 하며, 조사 경계 `~`를 필요 시 삽입해 해석을 고정한다.
+- 사람용 출력은 `pretty`를 두고, `~` 생략은 “왕복 파싱(AST 동일)”이 보장될 때만 허용한다.
+
+2) **말씨(dialect) 도입**
+- 파일 메타 헤더 `#말씨: ko|en|sym3`를 표준화한다.
+- 말씨는 의미(=AST)를 바꾸지 않고, **입력 별칭 + 린트/포매터 기본값**만 바꾼다.
+
+3) **SYM3(기호 말씨) 토큰셋 확정**
+- 조건/분기/논리/파이프/토막 꼬리의 SYM3 토큰셋을 “2~3글자 + 최장일치” 원칙으로 확정한다.
+- 파이프는 `|>>`를 정본으로 하고, `|>`는 sym3에서 금지(또는 compat 경고+정규화)로 둔다.
+- sym3 호출 표지는 `!()`로 둔다.
+
+4) **용어 정본 갱신(순우리말)**
+- `되풀이/되돌림/톺아보기/맞물림씨/겹차림/바른꼴/해봄줄/차림판`을 정본(우선)으로 두고,
+  `반복/반환/감사/관계씨/텐서/정본/시험줄/차림표`는 입력 별칭(LEGACY)로 둔다.
+
+### 사유
+
+- 한국어 네이티브 가독성과, 비한국어 사용자(영어권/교착어 아닌 사용자)의 “표기 장벽”을 동시에 낮춘다.
+- 결정성(정본 출력)과 발표/교육/문서(사람용 출력)의 요구가 다르므로, 출력 스타일을 분리하는 것이 안전하다.
+- 조사 별칭(`~ob` 등)으로 “괄호 천국”을 줄이면서도, pin/josa 기반의 모호성 제거 원칙을 유지한다.
+
+
+
+---
+
+## DR-140 — SSOT_DEMOS 말씨(ko/en/sym3) 3단 병기 + i18n(읽기 번역)
+
+- 상태: 채택
+- 링크:
+  - `SSOT_DEMOS`: §E0.B
+  - `SSOT_LANG`: [DIALECT-HEADER-01], [DIALECT-EN-01], [DIALECT-SYM3-01], [DIALECT-I18N-01]
+  - `SSOT_TOOLCHAIN`: `fmt --style=i18n-ja|i18n-mn|i18n-tr` (문서/교육용 표시)
+
+### 결정
+
+1) **SSOT_DEMOS에 ‘같은 AST, 여러 말씨’ 템플릿을 추가한다.**
+- ko/en/sym3로 같은 의미를 병기하여, 학습/문서/리뷰에서 비교 비용을 낮춘다.
+
+2) **일본어/몽골어/터키어 도입은 단계적으로 한다.**
+- v20.6.2에서는 i18n(읽기/교육용 표시)만 제공했다.
+- v20.6.9에서는 DR-141로 `#말씨: ja|mn|tr` 입력 별칭을 v1(최소 키워드)로 채택한다.
+- `i18n-*`는 계속 “표시(render)” 전용이며, 왕복 파싱을 요구하지 않는다(팩/골든 저장 금지).
+
+3) **툴체인(fmt)은 i18n-*를 ‘표시 렌더’로만 제공할 수 있다(MAY).**
+- i18n 출력은 왕복 파싱을 요구하지 않으며, pack/golden 저장에 사용하면 안 된다.
+
+### 사유
+
+- 교육/문서에서 ‘표기(언어)’와 ‘의미(AST)’를 분리해 보여주면, 한국어 비원어민/비교착어 사용자도 빠르게 적응한다.
+- sym3는 ‘의미가 아니라 표기’이므로, 데모에서부터 혼용 위험을 낮추는 템플릿이 필요하다.
+- 다국어는 커뮤니티 확장에 중요하나, 파서 입력으로의 무리한 확장은 Gate0 안정성을 해칠 수 있어 단계적으로 도입한다.
+
+---
+
+## DR-141 — `#말씨: ja|mn|tr` 입력 별칭 말씨(v1 최소 키워드) 채택 + 동치 pack
+
+- 상태: 채택
+- 링크:
+  - `SSOT_LANG`: §10.6 ([DIALECT-JA-01], [DIALECT-MN-01], [DIALECT-TR-01]) / §10.8(조사 별칭)
+  - `SSOT_DEMOS`: §E0.B (6단 병기 예시)
+  - `SSOT_TOOLCHAIN`: [TC-FMT-STYLE-01] (`fmt --style=ja|mn|tr`)
+  - `SSOT_PACK`(신규 제안): `pack/lang/dialect_equiv_v1`
+
+### 결정
+
+1) **입력 말씨로 `ja/mn/tr`를 채택한다(단, v1 최소 셋).**
+- 의미(=AST)는 ko 정본과 동일하며, `ja/mn/tr`는 “키워드 별칭”만 제공한다.
+- v1에서의 범위:
+  - 조건/분기: `일때/아니면/이면`
+  - 논리: `그리고/또는/아님`
+  - 선택/분기: `따라`
+  - 흐름: `되풀이/되돌림/톺아보기`
+- 이 범위를 벗어나는 번역(표준 라이브러리 이름, 문장 전체 번역)은 `i18n-*` 표시 층으로 남긴다.
+
+2) **파이프/토막 꼬리는 “말씨별 권장형 + compat”로 운영한다.**
+- ja/mn/tr(및 en)은 `|>`를 **권장형(preferred)** 으로 유지한다(타이핑/관습/가독성).
+- ko 및 “순수 단어 기반 말씨”(예: ne/ta/te/kn/eu)는 말씨별 **접미/단어형 파이프**를 권장형으로 하고, `|>`는 **compat 입력으로만** 허용한다.
+  - fmt/pretty 및 문서 예제는 word형만 사용한다.
+- sym3의 파이프는 `|>>`가 권장형이며, `|>`는 금지 또는 compat 정규화로만 취급한다.
+- 토막(Thunk) 꼬리도 말씨별 권장형(예: ne `}गरेको`, `}गर्नु`)을 둘 수 있으며, `}=>/}==/}!=/}&>/}|>` 같은 기호형은 compat 입력으로 허용할 수 있다(단, lint로 혼용 경고 권장).
+
+3) **조사 표면형은 말씨별로 포용하며, 권장형/허용형을 구분한다.**
+- 목적: en/ja/mn/tr/sym3 말씨에서도 “인자 전달”을 괄호로만 쓰지 않고 `값~조사` 구조를 유지한다.
+- 원칙:
+  - 내부(바인딩/AST)는 role(SB/OB/…)로 정규화한다.
+  - 말씨별 표면형(ja/mn/tr의 자연 조사/격 표지)은 **허용(accepted)** 할 수 있다.
+  - 짧은 코드 조사(`~ob/~sb/...`)는 **모든 말씨에서 항상 허용되는 명시형(fallback)** 이다(모호성 회피용).
+- canon 출력은 ko 조사로 복원한다.
+4) **도구/검증: 말씨 동치 pack을 추가한다.**
+- pack id(제안): `pack/lang/dialect_equiv_v1`
+- 구성(예):
+  - `ko.ddn` / `en.ddn` / `sym3.ddn` / `ja.ddn` / `mn.ddn` / `tr.ddn`
+  - `canon.ddn`  (정본 출력 기대값, ko canon)
+  - `ast_hash.txt` 또는 `ast.detjson` (동치 비교용)
+- DoD:
+  - 위 6개 입력을 파싱했을 때 AST 해시가 동일해야 한다.
+  - 각 입력을 `canon`으로 정본화했을 때 출력이 `canon.ddn`와 동일해야 한다.
+  - `fmt --style=ja|mn|tr` 출력도 다시 파싱 시 동일 AST로 복원되어야 한다.
+
+5) **린트: 파일 말씨 혼용 경고를 유지한다.**
+- `#말씨: ja` 파일에서 ko/en/sym3 전용 키워드가 섞이면 경고를 낸다.
+- 단, 공용 기호(`|>`, `}|>`, `}&>` 등)는 예외로 둘 수 있다(구현체 lint 정책으로).
+
+### 사유
+
+- “한국어 정본 1개” 원칙을 유지하면서도, 해외 사용자/커뮤니티 확장을 위한 최소 표면 진입로가 필요하다.
+- v1은 **키워드 최소 셋**만 도입하여, Gate0 파서/팩/정본화 안정성을 깨지 않는다.
+- 동치 pack을 먼저 넣으면, 언어 추가가 “감각”이 아니라 “테스트로 증명”되는 변경이 된다.
+
+## DR-142 — 말씨(dialect) 표면 차이 포용(권장형/허용형) + 조사 role 매핑 확장
+
+- 상태: 채택
+- 링크:
+  - `SSOT_LANG`: §10.6([DIALECT-SURFACE-VARIATION-01]) / §10.8([JOSA-ROLE-01]~[JOSA-ROLE-04])
+  - `SSOT_TOOLCHAIN`: fmt/lint 권장(말씨별 preferred 정리)
+  - `SSOT_PACK`(권장): `pack/lang/dialect_equiv_v2` (허용형 케이스 포함)
+
+### 결정
+
+1) **말씨는 언어별 ‘자연스러운 표면 차이’를 허용한다.**
+- ja/mn/tr는 언어 특성상 조사/격 표지가 ko/en/sym3와 다르게 보일 수 있다.
+- 이 차이는 “표면”에서만 허용되며, 의미(AST)는 ko 정본과 동일해야 한다.
+
+2) **권장형(preferred)과 허용형(accepted)을 구분한다.**
+- 입력은 허용형을 넓게 받을 수 있다(포용).
+- fmt는 말씨별 권장형으로 정리할 수 있다(정돈).
+- `canon` 출력은 ko 정본 표기로 수렴한다(결정성/감사/리플레이).
+
+3) **모호성은 추측하지 않는다.**
+- 동일 표면형이 여러 role에 걸칠 수 있다(예: ja `~に`, `~から`).
+- 후보가 2개 이상이면 결정적 오류로 보고하고 `:핀`(또는 더 구체적 표기)을 요구한다.
+
+4) **짧은 코드 조사(`~ob/~sb/...`)는 보편 fallback으로 유지한다.**
+- 언어별 표면 조사만으로 애매해지거나, 키보드 입력이 불편한 경우를 위해
+  코드 조사는 모든 말씨에서 항상 허용된다.
+
+
+## DR-143 — D-PACK 케이스/골든 파일명 + `ast_hash` 포맷 고정
+
+- 상태: 채택
+- 링크:
+  - `SSOT_DEMOS`: §D-PACK.1.1 ([DPACK-CASE-01], [DPACK-GOLDEN-01], [DPACK-EQUIV-01])
+  - `SSOT_PLATFORM`: [HASH256-01] (해시 표기)
+  - `SSOT_TOOLCHAIN`: pack/golden은 `canon` 출력만 저장 (TC-FMT-STYLE-01 / pack 규칙)
+
+### 결정
+
+1) **팩의 입력은 `cases/` 아래 케이스 키로 묶는다.**  
+- 케이스 키: `KNNN_<slug>`  
+- 권장 파일명: `cases/<case_key>.<dialect>.ddn`
+
+2) **팩의 정본 산출물은 `golden/` 아래 3종을 MUST로 둔다.**
+- `golden/<case_key>.canon.ddn`
+- `golden/<case_key>.ast.detjson`
+- `golden/<case_key>.ast_hash.txt`
+
+3) **`ast_hash`는 `ast.detjson` 바이트의 BLAKE3-256으로 고정한다.**
+- 텍스트 표기: `blake3:<lower-hex64>` (1줄 + 개행)
+- 목적:
+  - “표기(말씨/심볼어)” 변화와 무관하게, 의미(AST)가 동일함을 빠르게 증명한다.
+  - golden 비교를 “픽셀”이 아닌 “구조/해시”로 옮겨 결정성을 강화한다.
+
+4) **golden 저장은 오직 `canon` 출력만 허용한다.**
+- `pretty`/`i18n-*`는 교육/표시용 렌더로만 취급하며,
+  pack/golden 저장에 사용하지 않는다. (MUST NOT)
+
+### 사유
+
+- pack이 커질수록 “파일 이름/해시 포맷”이 흔들리면 자동화가 붕괴한다.
+- `ast_hash`를 고정하면, 다국어/심볼어/조사 포용을 해도 의미의 동치가 테스트로 보장된다.
+
+## DR-146 — age_target 결정 기록(run_manifest) + 회귀 pack 위치(SSOT pack) (채택)
+
+### 결정 1) age_target 결정 기록 위치
+- `age_target`은 런의 메타/구성 결정이므로 **run_manifest에 기록하는 것을 정본(MUST)** 으로 채택한다.
+- 기록 필드(최소):
+  - `age_target_source` = `cli|project|default`
+  - `age_target_value`
+- 선택(SHOULD):
+  - `geoul.diag.jsonl`에 `event="run_config"` 레코드 1건(런당 최대 1건) 추가
+- stdout 한 줄 출력은 디버그 편의로만 허용하며 정식 기록으로는 사용하지 않는다.
+
+### 결정 2) 회귀 pack 위치
+- age_target 우선순위 정책을 검증하는 회귀 pack은 **SSOT 정식 pack**으로 생성한다.
+- 경로(정준):
+  - `docs/ssot/pack/project/project_age_target_precedence_v1/`
+- “가이드만 작성 + 사용자 수동 반영” 방식은 채택하지 않는다.
+
+### 완료 판정(DoD)
+- pack이 CI에서 PASS/FAIL expected를 안정적으로 판정한다.
+- run_manifest에 age_target 결정이 항상 기록된다.
+
+## DR-147 — SSOT 최신 1세트 유지 정책 (채택)
+
+### 정책
+- `docs/ssot/ssot/`에는 **최신 버전 1세트만 유지한다.**
+- 이전 버전은 `docs/ssot/releases/vX.Y.Z/`로 이동하여 보관한다.
+- `CURRENT.md`를 두지 않고, 디렉토리 구조 자체로 “최신만 존재”를 보장한다.
+
+### 목적
+- 정본 혼선 방지
+- 사람이 보는 폴더에서 다중 버전 충돌 제거
+
+## DR-149 — 또니랑 정체성 고정: 결정론 수학/시뮬레이션 DSL (3가지 목적)
+
+- 상태: 채택
+- 날짜: 2026-02-16
+- 핵심:
+  - 또니랑은 “범용 언어”가 아니라 **결정론 수학/시뮬레이션 DSL**로 정체성을 고정한다.
+  - 특화 목적은 3가지로 고정한다.
+    1) 시뮬레이션 교육(물리/수학/경제 등 과목)
+    2) AI Gym(강화학습 환경 정의 + 결정적 리플레이)
+    3) 또니랑누리/말힘누리(게임/창작용 세계의 결정론 코어)
+  - 이 결정은 “문법 발명”보다 **팩(pack)·리플레이·해시 중심의 개발 루프**를 우선하도록 방향을 잡는다.
+- 비목표(요지):
+  - 범용 I/O/OS API/스레드·네트워크를 코어 목표로 삼지 않는다.
+  - 플랫폼 의존/비결정적 동작(임의 실수, 임의 시계)은 기본으로 열지 않는다.
+- 관련:
+  - SSOT_MASTER: “정체성” 섹션
+  - SSOT_ROADMAP_CATALOG: 목적별 백로그 재정렬
+  - SSOT_PLATFORM: 결정성/리플레이/해시 규약
+
+---
+
+## DR-150 — ‘흐름’은 값 타입, ‘흐름씨’는 씨앗: ~씨 접미의 의미 고정
+
+- 상태: 채택
+- 날짜: 2026-02-16
+- 핵심:
+  - 접미 `~씨`는 **씨앗 종류(seed kind)** 를 뜻한다. (세계 실행 논리 블록)
+  - `흐름씨`는 기존처럼 **리액티브(Functional/Signal) 모델**의 씨앗이다.
+  - `흐름(Stream)`은 별개로 **값 타입(Value Type)** 으로 도입한다(상태형 링버퍼).
+    - 표면 타입 표기: `흐름(N)` (N=용량)
+    - 의미: 최근 N개의 값을 결정적으로 보존(오래된 값 자동 밀어내기)
+- 주의(혼동 방지):
+  - 파이프 설명에서 쓰는 “흐름값”은 타입 `흐름`과 다른 말이다(용어 충돌 금지).
+  - 문서/예시는 가능하면 “흐름(값 타입)”/“흐름씨(씨앗)”를 병기한다.
+- 관련:
+  - SSOT_LANG: 예약어/타입 시스템(복합 타입) / `<-` 의미(흐름에 대한 push)
+  - SSOT_PLATFORM: state_hash에 포함되는 상태 범위(흐름 버퍼 포함)
+
+---
+
+## DR-151 — 보개(Seamgrim) 빠른 그래프 관행: 접두 키 자동 렌더(권장)
+
+- 상태: 채택(권장 규칙)
+- 날짜: 2026-02-16
+- 핵심:
+  - 학습/실험 흐름에서 “DDN에서 그래프 배관을 매번 쓰는 비용”을 줄이기 위해,
+    UI(보개/셈그림)가 아래 접두 키를 자동 그래프로 렌더할 수 있다.
+    - `그래프_<이름>`
+    - `보개_그래프_<이름>`
+  - 위 규칙은 **뷰어 관행(Convention)** 이며, DDN 코어 의미론을 바꾸지 않는다.
+- 관련:
+  - SSOT_TOOLCHAIN: Seamgrim UI 계약(파생/뷰 전용 기능의 위치)
+  - SSOT_LANG: ‘보개’ 키 네임스페이스(예약)
+  - (참고) `docs/context/proposals/PROPOSAL_STREAM_AND_BOIM_V2_20260216.md`
+
+---
+
+## DR-152 — state_hash 경계: 보개/뷰 전용 키는 해시 입력에서 제외
+
+- 상태: 채택
+- 날짜: 2026-02-16
+- 핵심:
+  - 보개(UI) 전용 설정이 state_hash를 바꾸면 “연출 변경이 결과 해시를 오염”시키므로,
+    `보개_*` 계열 키는 **state_hash 입력에서 제외**한다.
+  - 결정성(재현/감사)은 “세계 상태”에만 걸어야 한다.
+- 관련:
+  - SSOT_PLATFORM: [STATE_HASH_V1-01] 입력 스냅샷 범위
+  - SSOT_LANG: 보개 키(예: `보개_바탕색`, `보개_그림판_목록`)는 “뷰 전용 네임스페이스”로 취급
+  - SSOT_TOOLCHAIN: golden/pack은 state_table(row) 대신 state_hash_trace 중심으로 가는 방향(Seamgrim replan)
+
+---
+
+## DR-153 — STDLIB 다국어 파이프라인 Stage A: 최소 내장(builtin) 별칭 정규화
+
+- 상태: 채택
+- 날짜: 2026-02-16
+- 핵심:
+  - 말씨(dialect)는 “키워드 치환”을 담당하지만, STDLIB 함수/상수는 키워드가 아니므로 별도 정규화가 필요하다.
+  - Stage A:
+    - 최소 내장(builtin) 30개 내외를 선정하고,
+    - 다국어 별칭을 **정본 식별자(ko canonical)** 로 정규화한다.
+  - Stage B/C는 로드맵으로 이월한다(전수 STDLIB, 사용자 함수 별칭 등).
+- 관련:
+  - SSOT_TOOLCHAIN: 정본화 파이프라인(키워드 말씨 + builtin 식별자 정규화)
+  - (참고) `docs/context/proposals/PROPOSAL_STDLIB_MULTILANG_PIPELINE_V1_20260215.md`
+
+---
+
+## DR-154 — 우향 대입 `->` 도입: 입력 설탕 허용, 정본 출력은 `<-` 고정
+
+- 상태: 채택
+- 날짜: 2026-02-16
+- 핵심:
+  - `값 -> 대상` 표기를 **입력 설탕**으로 허용한다.
+  - 의미는 `대상 <- 값`과 동일하며, 정본화(canon) 출력은 항상 `<-`로 수렴한다.
+  - 파서 규칙:
+    - `->` 우항은 **L-Value(대입 가능한 자리)** 여야 한다.
+    - 대입 연산자는 문장 내 **가장 낮은 우선순위**로 둔다(좌측 계산 후 우항에 저장).
+- 충돌 회피:
+  - `->`는 타입 시그니처 등에서 이미 쓰이므로, **정본 출력에서는 대입용 `->`를 사용하지 않는다.**
+  - 말결/통신 화살표는 대입과 토큰을 분리하기 위해 `~~>`로 예약한다. (DR-156, 문맥 판정 금지)
+- 관련:
+  - SSOT_LANG: [ASSIGN-ARROW-01] 및 우향 대입 규칙 추가
+  - SSOT_TOOLCHAIN: `teul-cli fmt --style=canon`은 `<-`만 출력
+
+
+
+---
+
+## DR-155 — 짝맞춤 점 접근 Step A(읽기): `m.열쇠` = 값 조회, 없는 키는 FATAL
+
+- 상태: 채택
+- 날짜: 2026-02-17
+- 핵심:
+  - `짝맞춤`(dict/map)에서 `m.열쇠` 표기를 **읽기 전용 설탕**으로 채택한다. *(Step A)*
+  - 의미:
+    - `m`이 `(글 V)짝맞춤`일 때, `m.열쇠`는 “열쇠=`"열쇠"`” 조회와 동치이다.
+    - 반환은 **값(Value)** 이며, Gate0에서 `m.열쇠`는 L-Value(대입 대상)가 아니다. *(쓰기/참조는 Step B/C 이월)*
+  - 키가 없으면 즉시 실패한다: `E_MAP_DOT_KEY_MISSING` (FATAL)
+- 이월:
+  - Step B/C(쓰기, 참조/L-Value, 중첩 갱신)는 별도 이슈로 유지한다. *(OI-MAP-ACCESS-01)*
+- 관련:
+  - SSOT_LANG: [MAP-DOT-READ-01]
+  - SSOT_OPEN_ISSUES: OI-MAP-ACCESS-01
+  - (참고) `docs/context/proposals/PROPOSAL_MAP_ACCESS_VALUE_V1_20260216.md`
+
+---
+
+## DR-156 — 말결/통신 화살표 토큰: `~~>` 예약
+
+- 상태: 채택
+- 날짜: 2026-02-17
+- 핵심:
+  - 대입 `->`(입력 설탕)과 문맥 판정을 섞지 않기 위해, 말결/통신(에이전트 메시지, 이벤트)은 **별도 토큰**으로 분리한다.
+  - 말결/통신 화살표 토큰은 `~~>`로 **예약(선점)** 한다.
+  - Gate0에서는 의미론/런타임이 아직 없으므로, `~~>`를 사용하면 즉시 실패한다: `E_SIGNAL_ARROW_UNSUPPORTED` (FATAL)
+- 관련:
+  - SSOT_LANG: [SIGNAL-ARROW-RESERVE-01]
+  - SSOT_OPEN_ISSUES: OI-ARROW-SIGNAL-01
+
+---
+
+## DR-157 — 번들/매니페스트 무결성 운영: sha256 접미사 & `file_count` 파생값
+
+- 상태: 채택
+- 날짜: 2026-02-17
+- 핵심:
+  - 번들/산출물 파일명에서 `_rN`(리비전) 표기는 전면 금지한다. *(DR-078 재확인; 운영 규칙으로 재고정)*
+  - `workspace_bundle`/`ssot_patch` 등 “스냅샷 ZIP”의 유일 식별자는 `sha256` 해시이며, 파일명에 `__sha256_<해시>` 접미사를 붙인다.
+  - `SSOT_ALL_MANIFEST`의 `file_count`는 표의 행수(파일 경로 행)와 **항상 일치**해야 한다.  
+    이 값은 “사람이 세는 값”이 아니라, **manifest 생성기/CI 체크가 검증하는 파생값**이다.
+- 관련:
+  - SSOT_MASTER: 협업/정본 운영 규칙(번들 식별)
+  - SSOT_ALL_MANIFEST: 헤더 `file_count` 규칙
+
+
+---
+
+## DEC-REGISTRY-SCOPE-01: 꾸러미 스코프(1칸) 이름 확정 — `표준/나눔/내/벌림`
+
+- 상태: 채택
+- 날짜: 2026-02-17
+- 핵심:
+  - 꾸러미(배포) 식별자에서 **첫 번째 칸(스코프)** 은 “출처/신뢰/배포 경로”를 나타낸다.
+  - 스코프 정본 이름은 아래 4개로 고정한다.
+
+| 스코프(정본) | 성격 | 게시(publish) | 의도 |
+|---|---|---|---|
+| `표준` | 공식 표준 라이브러리(정본) | 원격 게시 **제한**(관리자) | 교과/예제의 기본 기반 |
+| `나눔` | 커뮤니티 기여 | 원격 게시 **허용** | 공유/확장 생태계 |
+| `내` | 작업터/프로젝트 내부 전용 | **게시 금지** | 로컬 실험/사내 전용 |
+| `벌림` | 외부 의존을 로컬에 “복사(벤더링)”해 둔 것 | **게시 금지** | 재현성/감사(소스 봉인) |
+
+- 레거시(입력) 별칭:
+  - `std`, `standard` → `표준`
+  - `community`, `contrib` → `나눔`
+  - `local`, `private` → `내`
+  - `vendor`, `third-party` → `벌림`
+  - 단, **정본 출력(canon)에서는 위 영문 별칭을 생성하지 않는다.**
+- 예:
+  - `#가져오기 표준/물리/역학 (중력씨)`
+  - `#가져오기 나눔/교육/탄성 (스프링씨)`
+  - `#가져오기 내/도구 (기록씨)`
+
+  - 해석: `스코프/꾸러미/모듬...` 형태로 쓸 때, **첫 2칸(`스코프/꾸러미`)이 꾸러미 ID**이고, 그 뒤는 **모듬(모듈) 경로**다. 버전은 잠금파일/해결기로 결정한다.
+- 관련:
+  - SSOT_TERMS: “스코프/이름@버전” 및 스코프 용어 정리
+  - SSOT_TOOLCHAIN: 가져오기/해결기(resolver)에서 스코프별 해석 규칙
+  - (참고) `docs/context/proposals/PROPOSAL_PACKAGE_REGISTRY_V1_20260217.md`
+  - (참고) `docs/context/proposals/PROPOSAL_PACKAGE_SERVER_MVP_V1_20260217.md`
+
+---
+
+## DEC-REGEX-01: `정규식{}` 리터럴 + `정규*` API 채택(설계) — 호출 해석은 단계적
+
+- 상태: 채택(설계)
+- 날짜: 2026-02-17
+- 선택: C(넓게 닫기) — 단, **구현은 단계적으로** 진행한다.
+- 핵심:
+  - 값 타입 **`정규식`** 과 리터럴 표기 **`정규식{ ... }`** 를 채택한다.
+  - 정본(권장) API 이름은 동사 모호성을 줄이기 위해 **`정규*` 접두**로 고정한다.
+    - 예: `정규찾기`, `정규맞추기`, `정규바꾸기`, `정규나누기`
+  - 호출 해석(오버로드) 확장은 “기존 호출 바인딩(핀/이름/조사) + 다중 디스패치” 위에서 **추가 규칙을 최소화**하는 방식으로 단계적으로 도입한다.
+- 단계:
+  - Phase 1 (AGE2 목표):
+    - `정규식{}` 파싱/정본화 + `정규*` 표준 라이브러리(최소) 제공
+    - 동사형(`찾기/맞추기/바꾸기/나누기`)은 **레거시 별칭(입력 허용) 후보**로만 남기고, 정본 출력은 `정규*`를 사용한다.
+  - Phase 2 (OI로 이월):
+    - 동사형 API를 “정규식 인자 존재 시 정규 버전으로 해석”하는 편의 규칙을 추가할지 재검토
+    - 필요 시, 모호성은 `:핀`/이름바인딩으로 강제 해소한다.
+- 관련:
+  - SSOT_LANG: `정규식{}` 리터럴 문법 + 타입 + 진단 코드
+  - (참고) `docs/context/proposals/PROPOSAL_REGEX_LITERAL_AND_CALL_OVERLOAD_V1_20260217.md`
+
+---
+
+## DEC-CONTRACT-TIERS-01: 결정성 계약 등급(Contract Tiers) 4단계 채택 — Gate0는 `STRICT/OPEN`부터
+
+- 상태: 채택
+- 날짜: 2026-02-17
+- 선택: C(4단계 유지)
+- 등급(정본):
+  - **D-STRICT**: 비트 단위 결정성(예: fixed64)
+  - **D-SEALED**: “봉인된 결정성” (비결정 요소가 있어도 입력/테이프/거울로 봉인되어 재현 가능)
+  - **D-APPROX**: 근사(오차) 허용(오차 경계/측정 방법 명시가 계약의 일부)
+  - **D-OPEN**: 결정성 비보장(탐색/실험/개발 모드)
+- Gate0 집행 범위(현실적 단계화):
+  - Gate0/AGE1에서의 런타임 집행은 **D-STRICT / D-OPEN** 을 우선 지원한다.
+  - D-SEALED/D-APPROX는 개념/문서/스키마만 선반영하고, 실제 집행은 AGE3 로드맵으로 이월한다.
+  - Gate0에서 D-SEALED/D-APPROX를 “그럴듯하게 동작”시키지 않기 위해, 해당 등급을 **선언/요구**하면 `E_CONTRACT_TIER_UNSUPPORTED`로 즉시 실패(FATAL)한다. *(거짓 통과 방지)*
+- 관련:
+  - SSOT_PLATFORM: 계약 등급 표 + Gate0 지원 매트릭스
+  - (참고) `docs/context/proposals/PROPOSAL_CONTRACT_TIERS_V1_20260217.md`
+  - (참고) `docs/context/proposals/PROPOSAL_DETMATH_ROADMAP_V1_20260217.md`
+
+---
+
+## DEC-OBS-API-01 / DEC-OBS-SCHEMA-01: 관찰(Observation) 메타/스키마 확장(C) 채택 — 추가 필드 = 전부 MAY
+
+- 상태: 채택(설계)
+- 날짜: 2026-02-17
+- 핵심:
+  - “무엇을 관찰/행동/보상으로 읽을지”는 문법이 아니라, **상태기계/도구(보개·누리Gym)가 소비하는 메타데이터**로 정의한다.
+  - 관찰 스키마(`ddn.observation_manifest.v0`)는 앞으로 필드가 늘어날 수 있으므로, **추가 필드는 전부 MAY(선택)** 로 두고,
+    - 도구는 **unknown 필드를 무시**할 수 있어야 한다.
+    - 단, round-trip(읽기→쓰기)에서는 unknown 필드를 **보존**하는 것을 권장한다.
+
+- 채널/해시 원칙:
+  - 관찰목록은 **보개메타(view_meta)** 로 취급한다.
+  - 따라서 `state_hash`에는 영향을 주지 않는다.
+
+- 역할(role) 원칙:
+  - 역할은 1개의 축으로 잠그지 않고, **독립 태그**로 둔다(둘 다 선택):
+    - `state_role`: `상태|파생` *(state_hash 관점 분류)*
+    - `obs_role`: `obs|action|reward|terminal|aux` *(NuriGym 관점 분류)*
+
+- 생성 경로(정본):
+  - 엔진이 직접 생성해도 된다.
+  - 또는 도구가 `columns()`(상태 테이블) + `meta.toml` + 길잡이말(`#...`) 스캔을 합쳐 생성해도 된다.
+  - 어떤 경로든 **같은 최종 스키마**를 산출해야 한다.
+- 호환성/해시:
+  - 관찰 메타는 “상태(state_hash)”가 아니라 “메타(manifest)”로 취급한다.
+  - 해시/골든 비교가 필요할 때는, “키 정렬 + 결정적 JSON 직렬화” 규칙으로 전체 JSON을 canonicalize하여 `manifest_hash`를 계산한다.  
+    (알 수 없는 필드도 JSON으로는 그대로 포함되므로, **스키마 확장이 곧바로 호환성 파괴가 되지 않는다**.)
+- 관련:
+  - SSOT_TOOLCHAIN: `ddn.observation_manifest.v0`(v20.6.33 초안) 및 생성/저장 위치
+  - SSOT_PLATFORM: NuriGym 관측/행동 계약과의 접점
+  - (참고) `docs/context/proposals/PROPOSAL_OBSERVATION_PROTOCOL_V0_20260217.md`
+
+---
+
+## DEC-PRAGMA-LAYER-01: 길잡이말(`#...`)을 “도구 레이어 메타”로 채택 — 실행/해시와 분리
+
+- 상태: 채택(설계)
+- 날짜: 2026-02-17
+- 결론:
+  - `#...`로 시작하는 줄(길잡이말)은 **문법(누리) 실행**이 아니라, **도구 체인(보개/린트/팩/가져오기)** 이 소비하는 메타로 취급한다.
+  - 길잡이말은 **보개메타(view_meta)** 로 분류되며, `state_hash`에 **MUST NOT** 영향을 준다.
+  - Gate0에서는 `#말씨`류만 우선 구현해도 된다.
+  - `#가져오기/#내보내기/#그래프/#조종/#관찰/#추적` 등은 **예약 이름**으로 두고, 의미는 AGE2+에서 단계적으로 연다.
+- 관련:
+  - SSOT_TOOLCHAIN: “길잡이말(Pragma) 스캔” 절
+  - (참고) `docs/context/proposals/PROPOSAL_DDN_ARCHITECTURE_SYNTHESIS_V1_20260217.md`
+  - (참고) `docs/context/proposals/PROPOSAL_IMPLEMENTATION_ROADMAP_V1_20260217.md`
+
+---
+
+## DEC-STORY-NURI-01: “이야기(.ddn) = 누리(결정론 모델) 정의” 용어 축 고정
+
+- 상태: 채택(정리)
+- 날짜: 2026-02-17
+- 결론:
+  - `.ddn` 파일은 **이야기(Story)** 이다.
+  - 이야기의 본문(씨앗/마디/움직씨 등)은 곧 **누리(Nuri: 결정론 상태기계/모델)** 를 정의한다.
+  - 재사용 라이브러리는 누리가 아니라 **꾸러미(표준/나눔/내/벌림)** 로 부른다.
+  - **거울(Mirror)** 은 작성 대상이 아니라, 실행이 만들어내는 산출물(로그/리플레이)이다.
+- 근거/효과:
+  - “내가 쓰는 코드가 곧 세계를 만든다”는 교육/창작 직관을 유지한다.
+  - `누리`를 “레지스트리/꾸러미” 의미로 재사용하지 않아 용어 충돌을 방지한다.
+
+===== END SSOT_DECISIONS_v20.6.33.md =====
+===== BEGIN SSOT_LANG_v20.6.33.md =====
 - **AGE1 런타임 타입검사(타입 표기 있는 경우만)**: PinSpec/TypeRef에 타입이 명시된 항목은 실행 시 강제하며, 불일치는 `E_RUNTIME_TYPE_MISMATCH`로 통일한다. (DR-067)
 - **차림 인덱싱 설탕(AGE1+)**: `a[i]`, `a[i] <- v`는 DR-084의 canon 전개로 정본화한다.
 - **계약 모드 표면 문법(AGE1)**: `바탕으로(알림|중단)`, `다짐하고(알림|중단)` 및 기본값(중단)은 DR-085를 따른다.
@@ -3895,14 +4726,16 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - **AI 친화 Phase 0**: 주석 힌트 규격 + Self-Documented Pack + 오류 코퍼스 구축을 Phase 0 정준 루프로 채택한다. (DR-068)
 - **심볼릭 미분/적분 변환 v1**: `미분하기/적분하기`는 Gate0에서 `#ascii` 수식만 지원하며, 자유변수 자동 선택/오류 규칙 + 옵션(차수/상수포함) 키를 고정한다. 수치 미분/적분(근사)은 별도 규격으로 분리한다. (DR-081)
 - **보개 목록 키 v1**: 입력 키 `보개_그림판_목록`으로 Rect/Text/Sprite 항목 목록을 결정적 순서로 렌더한다. (DR-082)
+- **보개 키는 view-only**: `보개_*`는 UI(보개/셈그림) 전용 네임스페이스이며, `state_hash` 입력에서 제외한다. (DR-152)
 - **BDL2 서브픽셀/AA v1**: Q24.8 좌표/두께 + AA 플래그에 따른 정준 스냅 규칙을 최소 확정한다. (DR-083)
 - **토큰/표기 일관성 v1**: `그리고/또는/아님` ↔ `&&/||` 동치 + 예약어 처리로 함수 호출과 구분을 고정한다. (DR-132)
 - **텐서V0 정준 표현 v0**: `tensor.v0`(DetJson) 스키마(밀집/희소) + 정렬/불변식/해시 규칙을 고정한다. (DR-133)
+- **통합 선언 설탕 `채비:`**: 한 블록에서 `=`(붙박이) + `<-`(그릇) 혼합 선언을 허용하고, 정본 출력은 `그릇채비:` + `붙박이마련:`으로 분해 저장한다. (DR-148)
 
 
 
 
-# 또니랑 SSOT — LANG (v20.3.1, Normative)
+# 또니랑 SSOT — LANG (v20.6.33, Normative)
 
 > 이 문서는 **또니랑(Ddonirang)**의 *정본(규범) 언어 명세*입니다.  
 > **AGE0(구 Gate0, 최초 공개 구현)** 에서 **AI/구현체가 같은 결과를 내도록** “모호함을 금지”하고, **의미가 달라지는 표기**에 대해서만 “정본 표기 1개”를 강제합니다.  
@@ -3951,7 +4784,7 @@ AI가 **실패를 재현하고**, **관찰하고**, **검증으로 고쳤음을 
 - 주석: `// ...`
 - 글(문자열): `"..."` (이스케이프 `\"`, `\\`, `\n`, `\t`)
 - 문장 경계: 기본은 줄바꿈. 한 줄에 여러 문장을 넣을 때만 `.`(종결점) 사용 가능.
-- 대입(상태 변경): `<-` 한 가지.
+- 대입(상태 변경): 정본 `<-` 한 가지. 입력 설탕 `->` 허용(정본 출력은 `<-`).
 - 복합 갱신(설탕): `+<-`, `-<-` (정본 전개: `x <- x + y` 등). `+=`, `-=`는 미지원.
 - 점 `.`: 소수점/접근점/종결점으로만 토큰화(§DOT-LEX).
 
@@ -4180,6 +5013,14 @@ TERM-MAP은 **용어가 안정될수록 점진적으로 확장**될 수 있습�
 | TERM-LEGACY-006 | bogae_canvas_w | 보개_바탕_가로 | 보개 캔버스 가로(px) 키 정본화 |
 | TERM-LEGACY-007 | bogae_canvas_h | 보개_바탕_세로 | 보개 캔버스 세로(px) 키 정본화 |
 | TERM-LEGACY-008 | bogae_bg | 보개_바탕색 | 보개 캔버스 배경색 키 정본화 |
+| TERM-LEGACY-009 | 관계씨 | 맞물림씨 | 씨앗 종류(관계→맞물림) 정본화 |
+| TERM-LEGACY-010 | 반복 | 되풀이 | 루프 키워드 정본화(입력 별칭) |
+| TERM-LEGACY-011 | 반환 | 되돌림 | return 키워드 정본화(입력 별칭) |
+| TERM-LEGACY-012 | 감사 | 톺아보기 | audit/trace 용어 정본화(입력 별칭) |
+| TERM-LEGACY-013 | 텐서 | 겹차림 | tensor 용어 정본화(입력 별칭) |
+| TERM-LEGACY-014 | 정본 | 바른꼴 | canon 용어 정본화(입력 별칭) |
+| TERM-LEGACY-015 | 시험줄 | 해봄줄 | test line 용어 정본화(입력 별칭) |
+| TERM-LEGACY-016 | 차림표 | 차림판 | table/list 표기 혼선 완화(입력 별칭) |
 
 
 #### 4) 기계 판독용 TERM-MAP 블록 — MUST
@@ -4456,6 +5297,46 @@ TERM-MAP은 **용어가 안정될수록 점진적으로 확장**될 수 있습�
       "code": "TERM-LEGACY-008",
       "input": "bogae_bg",
       "canonical": "보개_바탕색"
+    },
+    {
+      "code": "TERM-LEGACY-009",
+      "input": "관계씨",
+      "canonical": "맞물림씨"
+    },
+    {
+      "code": "TERM-LEGACY-010",
+      "input": "반복",
+      "canonical": "되풀이"
+    },
+    {
+      "code": "TERM-LEGACY-011",
+      "input": "반환",
+      "canonical": "되돌림"
+    },
+    {
+      "code": "TERM-LEGACY-012",
+      "input": "감사",
+      "canonical": "톺아보기"
+    },
+    {
+      "code": "TERM-LEGACY-013",
+      "input": "텐서",
+      "canonical": "겹차림"
+    },
+    {
+      "code": "TERM-LEGACY-014",
+      "input": "정본",
+      "canonical": "바른꼴"
+    },
+    {
+      "code": "TERM-LEGACY-015",
+      "input": "시험줄",
+      "canonical": "해봄줄"
+    },
+    {
+      "code": "TERM-LEGACY-016",
+      "input": "차림표",
+      "canonical": "차림판"
     }
   ],
   "josa_only": [
@@ -4476,7 +5357,16 @@ TERM-MAP은 **용어가 안정될수록 점진적으로 확장**될 수 있습�
     "에게",
     "께",
     "부터",
-    "까지"
+    "까지",
+    "ob",
+    "sb",
+    "tp",
+    "at",
+    "by",
+    "fr",
+    "to",
+    "fm",
+    "un"
   ],
   "reserved_words": [
     "마디",
@@ -4510,7 +5400,7 @@ TERM-MAP은 **용어가 안정될수록 점진적으로 확장**될 수 있습�
 > 메모: 이 SSOT에서 **토막**은 ‘글–마디’ 사이(또는 마디 안)의 더 작은 묶음 단위로도 쓰인다.  
 > - 사람에게는 “여기만 고치자” 단위  
 > - AI에게는 “덧댐 최소 단위”  
-> 용어/역할은 `SSOT_TERMS_v20.3.1.md`와 `SSOT_DECISIONS_v20.3.1.md (DR-002)`를 함께 본다.
+> 용어/역할은 `SSOT_TERMS_v20.6.33.md`와 `SSOT_DECISIONS_v20.6.33.md (DR-002)`를 함께 본다.
 
 
 
@@ -4942,6 +5832,52 @@ Gate0에서는 계약을 **“명세(규정)로서 먼저 고정”**하고, 구
 
 
 
+
+
+
+
+### [GUREUT-DECL-03] `채비:` — 변수/붙박이 혼합 선언 입력 설탕 — SHOULD
+
+목적:
+- 예제/교육 문서에서 “선언 머릿말을 2개(그릇채비/붙박이마련) 외우는 부담”을 줄인다.
+- 한 블록에서 `=`(붙박이)와 `<-`(첫 넣기)로 구분해 선언을 한눈에 보이게 한다.
+
+규칙:
+- `채비:`는 **입력 설탕**이다.
+  - 정본 출력(포매터/정본화기)은 `그릇채비:` + `붙박이마련:` 두 블록으로 **분해하여 저장**한다.
+- `채비:` 블록 안 항목 해석:
+  - `이름:형.` 또는 `이름:형 <- 식.`  → **그릇(변수) 채비** 항목(= `그릇채비:`)
+  - `이름:형 = 식.` → **붙박이(상수) 마련** 항목(= `붙박이마련:`)
+
+금지(오류 권장/강제):
+- 같은 이름이 `채비:` 블록 내부에서 **변수/붙박이로 중복 선언**되면 오류(FATAL 권장): `E-DECL-DUP-IN-CHAEVI`.
+- `이름:형 =` 처럼 알맹이 없는 붙박이는 오류(FATAL). *(붙박이마련 규칙과 동일)*
+
+예(입력 설탕):
+```ddn
+채비: {
+  점수:수.
+  중력:수 <- 9.8.
+  원주율:수 = 3.141592.
+}.
+```
+
+정본화(출력) 예:
+```ddn
+그릇채비: {
+  점수:수.
+  중력:수 <- 9.8.
+}.
+
+붙박이마련: {
+  원주율:수 = 3.141592.
+}.
+```
+
+스코프:
+- `채비:`의 스코프/동작은 `그릇채비`/`붙박이마련`과 동일하게, 등장 위치(전역/지역)를 따른다.
+- `#바탕숨김`의 “미리 등록된 바탕칸” 판정에서는, `채비:`에서 선언된 이름(변수/붙박이 모두)을 **등록된 것으로 취급**한다(권장).
+
 ### [EQUAL-DEF-01] `=`는 “정의(Definition)” 전용 — MUST
 
 정의:
@@ -4972,6 +5908,10 @@ Gate0에서는 계약을 **“명세(규정)로서 먼저 고정”**하고, 구
 - `<-`는 **대입(Assignment)** 에서만 사용한다.
 - 대입은 “이미 존재하는 그릇(변수) 또는 결과칸에 알맹이를 넣거나 바꾸는 행위”이다.
 
+
+추가(입력 설탕):
+- 입력에서는 `값 -> 대상`(우향 대입)을 허용할 수 있다. 이는 `대상 <- 값`과 동치이다. (DR-154)
+- 정본 출력(canon/골든)은 항상 `<-`만 사용한다. (대입용 `->` 출력 금지)
 예(정본):
 ```ddn
 점수 <- 점수 + 1.
@@ -4982,6 +5922,54 @@ Gate0에서는 계약을 **“명세(규정)로서 먼저 고정”**하고, 구
 - 정의 문맥(셈씨/움직씨 헤더, 붙박이마련 항목)에서 `<-` 사용은 금지(오류 권장).
 
 
+
+
+### [ASSIGN-ARROW-RIGHT-01] `->` 우향 대입은 “입력 설탕”, 정본은 `<-` — MUST
+
+정의:
+- `식 -> 자리.` 는 **우향 대입**이다. (Source → Destination)
+- 의미는 항상 `자리 <- 식.` 과 동일하다.
+- 따라서 정본화기는 `A -> B.` 를 **반드시** `B <- A.` 로 정본화한다.
+
+파싱/의미 규칙(MUST):
+- `->` 우항은 **L-Value(대입 가능한 자리)** 여야 한다.
+  - 예: 이름(그릇), 결과칸(셈씨 결과 이름), 접근점(`바탕.중력`), 인덱싱 설탕(AGE1+) 등
+  - 비예: `1+2 -> 3` (오류)
+- 결합/우선순위:
+  - 대입은 문장 내 **가장 낮은 우선순위**를 가진다.
+  - 즉, `a + 1 -> b.` 는 `(a + 1) -> b.` 로 해석한다.
+
+예(입력 허용):
+```ddn
+점수 + 1 -> 점수.
+입력 |>> 더하기하고 제곱하기 -> 결과.
+```
+
+예(정본 출력):
+```ddn
+점수 <- 점수 + 1.
+결과 <- 입력 |>> 더하기하고 제곱하기.
+```
+
+충돌 회피(MUST):
+- `->`는 타입 시그니처(예: `T -> U`)에도 쓰이므로, **정본 출력에서는 대입용 `->`를 사용하지 않는다.**
+- 말결/통신 화살표는 `~~>`로 예약한다. (DR-156, 문맥 판정 금지)
+
+
+
+
+### [SIGNAL-ARROW-RESERVE-01] `~~>` 말결/통신 화살표 토큰 예약 — MUST (Gate0)
+
+정의:
+- `~~>`는 말결/통신(에이전트 메시지, 사건(Event) 방출 등) 표현을 위한 **예약 토큰**이다. *(DR-156)*
+- `~~>`는 **대입이 아니다.** `->`/`<-`와 의미적으로 연결하지 않는다. (문맥 판정 금지)
+
+Gate0 규칙(MUST):
+- Gate0는 `~~>`의 의미론/런타임을 아직 제공하지 않는다.
+- 따라서 `~~>`가 등장하면 즉시 실패한다: `E_SIGNAL_ARROW_UNSUPPORTED` (FATAL)
+
+비고:
+- 의미론/프로토콜은 관측(Observation)·거울(리플레이)·샘 입력 기록과 함께 후속으로 확정한다.
 
 ### [ROOT-DECL-01] 바탕칸 선언(등록) — SHOULD
 
@@ -5040,19 +6028,53 @@ Gate0는 아래 규칙으로 **결정적으로** 해석합니다.
   fix-it: 공백 제거 → `바탕.중력`
 - AccessDot이 필요한 자리에 TermDot을 쓰면 문법 오류입니다.
 
+
+
+### [MAP-DOT-READ-01] `짝맞춤` 점(`.`) 접근 Step A(읽기) — MUST (Gate0)
+
+목적:
+- `바탕.중력` 같은 “경로 접근”과 같은 모양을 이용해,
+  `짝맞춤`(dict/map)에서도 `m.열쇠`로 **읽기**를 할 수 있게 한다. *(DR-155)*
+- 그래프/보개/표에서 `("x",..., "y",...) 짝맞춤.` 같은 구조를 다룰 때 배관을 줄인다.
+
+정의(MUST):
+- `m.열쇠`는 `짝맞춤`의 **열쇠 조회(읽기)** 이다.
+- 이 규칙은 `m`이 `(글 V)짝맞춤`인 경우에만 적용한다. *(점 접근으로는 글(문자열) 열쇠만 지원)*
+- 조회 열쇠의 정본은 **식별자 텍스트 그대로**이다.  
+  예: `m.에너지`는 글 열쇠 `"에너지"` 조회와 동치.
+- 결과는 **값(Value)** 이다. Gate0에서 `m.열쇠`는 L-Value가 아니다. *(쓰기/참조는 Step B/C 이월)*
+
+실패(MUST):
+- 열쇠가 없으면 즉시 실패한다: `E_MAP_DOT_KEY_MISSING` (FATAL)
+
+예(읽기):
+```ddn
+상자 <- ("x", 1, "y", 2) 짝맞춤.
+x <- 상자.x.
+y <- 상자.y.
+```
+
+금지(Gate0):
+```text
+상자.x <- 3.      // Step B/C (쓰기) 이월
+```
+
 ### 4.4 예약어 (Keywords)
 
 다음 단어들은 식별자로 사용할 수 없습니다:
 
 ```
-이름씨, 움직씨, 셈씨, 이음씨, 일묶음씨, 흐름씨, 샘, 일때씨, 어찌씨, 고름씨, 관계씨
+이름씨, 움직씨, 셈씨, 이음씨, 일묶음씨, 흐름씨, 흐름, 샘, 일때씨, 어찌씨, 고름씨, 맞물림씨, 관계씨
 일때, 올때, 바뀔때, 마다, 수, 글, 참거짓, 없음, 값꾸러미, 차림, 모음, 짝맞춤
-이면, 아니면, 따라, 반복, 반환, D-STRICT, D-FAST, 마디, 감사, 늘지켜보고
+이면, 아니면, 따라, 되풀이, 반복, 되돌림, 반환, D-STRICT, D-FAST, 마디, 톺아보기, 감사, 늘지켜보고
 나, 그것, 저마다, 하나하나
 그리고, 또는, 아님
+그릇채비
+붙박이마련
+채비
 ```
 
-> LEGACY 입력(정본화됨): `목록` → `차림`
+> LEGACY 입력(정본화됨): `목록` → `차림`, `관계씨` → `맞물림씨`, `반복` → `되풀이`, `반환` → `되돌림`, `감사` → `톺아보기`
 
 
 ---
@@ -5082,10 +6104,30 @@ Gate0는 아래 규칙으로 **결정적으로** 해석합니다.
 | **차림** | list/sequence | 값들의 **순서 있는** 차림. `(T)차림` | 순서가 곧 정본 |
 | **모음** | set | 값들의 **중복 없는** 모아둠. `(T)모음` | 정본 반복 순서는 “정본화된 값의 바이트열” 기준 오름차순 |
 | **짝맞춤** | dict/map | `열쇠→값` 짝의 모음. `(K V)짝맞춤` | 정본 반복 순서는 “정본화된 열쇠” 기준 오름차순 |
+| **흐름** | stream | 최근 N개를 보존하는 **상태형 링버퍼**. `(T)흐름(N)` | 정본 반복/직렬화 순서는 “오래된→새로운” 고정, 용량 N은 규격에 포함 |
 
 > 주의: `모음/짝맞춤`은 “저장 순서/해시”에 기대면 결정성이 깨질 수 있으므로, **반복(순회) 순서를 규격으로 고정**합니다.
 
 
+
+
+
+### 5.1.2 흐름(Stream) 값 타입 — SHOULD (AGE1+)
+
+`흐름(N)`은 최근 N개의 값을 보존하는 **상태형 링버퍼** 값 타입이다. *(DR-150)*
+
+- 용도: 시계열(그래프), 최근 값 창(window), 관측(Observation) 히스토리
+- 직렬화/정본 순서: **오래된 값 → 새로운 값**
+- 결정성:
+  - 흐름의 내용(버퍼)은 “세계 상태”이므로 state_hash에 포함된다(단, `보개_*` 뷰 키는 제외; DR-152).
+
+표면 규범(권장, v1):
+- 선언: `이름:흐름(N).`
+- 초기화(빈 버퍼): `이름:흐름(N) <- () 차림.`
+- 갱신(push): `이름 <- 값.`
+- 리셋/일괄 지정: `이름 <- (값들)차림.` *(길이가 N을 넘으면 오래된 것부터 버린다)*
+
+> 주의: 이 규칙은 **값 타입 `흐름`**에만 적용된다. 씨앗 `흐름씨`의 `<<-`와 혼동하지 않는다.
 
 ### 5.2 수(숫자) 구체 타입
 
@@ -5619,6 +6661,9 @@ A:수 +~더하기:수:이음씨 B:수 = {
 
 ## 7. 흐름씨와 일때씨 (Reactive Model)
 
+> 주의: 여기서의 `흐름씨`는 “씨앗(실행 블록)”이다. 값 타입 `흐름(N)`(상태형 링버퍼)와 혼동하지 않는다. (DR-150)
+
+
 ### 7.1 흐름씨 (Stream)
 
 ```ddn
@@ -5864,6 +6909,7 @@ A=56 B=23 속도구하기
      예: `100@m~를`, `@"그림.png"~을`, `사과:대상~를`
 
 2) **핀 고정 바인딩(`:핀`)**
+   - `:핀`은 **모호성 해소용 옵션**이다. 조사형 바인딩이 유일하면 정본 출력에서 `:핀`을 제거한다.
    - 조사형이 불가능(별칭 없음/충돌/중의)하거나, 정본 출력에서 더 안전하게 핀을 봉인해야 하면 `:핀`을 사용한다.
    - `:핀` 바인딩도 **괄호 없이** 나열할 수 있다.  
      예: `100@m:거리 3@s:시간 이동하기.`
@@ -5872,6 +6918,16 @@ A=56 B=23 속도구하기
 3) **위치 바인딩(괄호 `()` )**
    - 위 둘이 불가하거나, 인자 표현이 복잡해 “인자 경계”를 안정적으로 잡기 어려울 때만 `( … )` 위치 바인딩으로 폴백한다.
    - 예: `(100@m, 3@s) 이동하기.`
+
+**정본화/진단(추가 규정):**
+
+- 정본화기는 조사형이 성립하면 그 형태를 우선하며, 불필요한 `:핀`과 불필요한 괄호(`()`)를 제거한다.
+  - 예: `3@초:시간~동안` → `3@초~동안`
+  - (권장 진단) `LINT-REDUNDANT-PIN` (별칭: `L_CALL_PIN_REDUNDANT`)
+- 인자 바인딩이 모호하여(핀/조사 생략 상태에서) 단일 해석이 불가능하면 실패한다. (MUST)
+  - 진단 코드: `E_CALL_PIN_REQUIRED`
+  - 권장 수정: `:핀` 추가를 우선 제안, 또는 `~조사` 추가
+
 
 **Loose 입력(편집기/대화용)**
 - 조사형/핀고정형 인자 나열에서 `,`는 “읽기 쉼표”로 **허용할 수 있다(MAY)**.  
@@ -5959,7 +7015,7 @@ A=56 B=23 속도구하기
 - 접미 접착자는 **인자 접미 위치**에서만 의미를 갖는다. (`@핀` 같은 표기는 **금지**: 핀 고정은 반드시 `:핀` 사용)
 - `@`(단위/쓸감)·`:`(핀)·`~`(조사)는 **각각 최대 1회**만 사용할 수 있다. (중복/역순이면 오류)
 - `:핀` 또는 `~조사`는 **상황에 따라 생략 가능**하다.  
-  - 생략 시에도 규칙만으로 단일 매핑이 가능해야 하며, 불가하면 오류 + `:핀`(우선) 또는 `~조사` 요구.
+  - 생략 시에도 규칙만으로 단일 매핑이 가능해야 하며, 불가하면 오류(`E_CALL_PIN_REQUIRED`) + `:핀`(우선) 또는 `~조사` 요구.
 - 이 접미들은 **공백 없는 붙임**에서 경계를 강제로 고정한다. (예: `사과를먹기` 대신 `사과~를 먹기`)
 
 **예시:**
@@ -6083,6 +7139,301 @@ fn parse_arg_atom(token: str) -> Result〈ArgAtom, Diag〉 {
 
 
 ---
+
+### 10.5 표기 스타일(style): canon / pretty
+
+이 절은 “같은 의미를 여러 모양으로 쓸 수 있을 때”의 **출력 규칙(정본화)**과 **사람용 표기**를 분리한다.
+
+#### [STYLE-CANON-01] 정본 출력(canon) — MUST
+- 정본화 출력은 조사 경계 `~`를 **필요한 곳에 반드시 삽입**하여 해석이 흔들리지 않게 한다.
+- 호출 인자 표기는 `값~조사`가 정본이며, `값:핀~조사`는 **모호성 해소용 옵션**이다.
+- 유일 바인딩이면 정본화 출력에서 **불필요한 `:핀`을 제거**한다.
+- `sym3/en` 등 말씨(별칭)로 입력이 들어와도, **canon 출력은 ko 정본 표기**로 복원한다.
+
+#### [STYLE-PRETTY-01] 사람용 출력(pretty) — SHOULD
+- 사람용 출력(pretty)은 기본 조사에 한해 `~`를 **생략할 수 있다**.
+- 단, 생략 결과를 다시 파싱했을 때 **동일 AST가 유일하게 복원되는 경우에만** 제거한다(왕복 가능).
+- 애매해지면 `~`를 유지한다.
+
+---
+
+### 10.6 말씨(dialect): ko + sym3 + (선택한 1개 말씨)
+
+> 말씨는 “의미(=AST)”를 바꾸지 않고, **표기(토큰/별칭)와 린트/포매터 기본값**만 바꾼다.
+
+#### [DIALECT-HEADER-01] 파일 말씨 헤더 — SHOULD
+- 파일 머리 메타 헤더로 `#말씨: <tag>` 를 둘 수 있다. (`#사투리:`는 별칭)
+- `<tag>`는 레지스트리 태그 중 1개다: `ko|en|sym3|ja|mn|tr|qu|ay|ne|ta|te|kn|eu`
+- **활성 키워드 집합(active token set)**:
+  - 항상 활성: `ko_canon` + `sym3`
+  - 조건부 활성: `#말씨: <tag>` 로 선택한 말씨 1개
+- `#말씨`가 없으면 기본은 `ko`이며, 활성 집합은 `ko_canon + sym3`만이다.
+- 비활성 말씨 토큰이 등장하면:
+  - (MUST) **키워드로 인식하지 말고 식별자**로 토큰화한다. (크래시 금지)
+  - (SHOULD) lint 경고 `DIALECT_TOKEN_NOT_ACTIVE` 를 낸다.
+- 한 파일에서 “말씨 A + 말씨 B” 혼용은 권장하지 않으며, 위 규칙에 의해 B는 식별자로 처리된다.
+  - 단, **ko 정본은 언제나 허용**된다(학습/디버깅/정본화 힌트).
+
+#### [DIALECT-REGISTRY-01] Registry(전수 등록) vs Certification(보증) — SHOULD
+- 레지스트리(표 등록)는 “입력 표면 후보”를 뜻하며, **동치 보증을 뜻하지 않는다.**
+- 보증(Certified) 표기는 **pack으로 동치가 확인된 말씨**에만 부여한다.
+  - 예: `docs/ssot/pack/lang/dialect_equiv_v2`
+  - 예: `docs/ssot/pack/lang/dialect_equiv_ne_v1` (ne: 데바나가리 입력, AST 동치 + state_hash 동치(확장))
+- Experimental 말씨는 `#말씨:`로 선택하면 **입력/정본화는 가능**하되, pack 동치 보증은 없다.  
+  *(대신 스모크 팩 + 문서/교육 “표시(render)”에서 우선 사용한다.)*
+
+#### [DIALECT-TAGSET-01] 말씨 태그 집합(레지스트리) — SHOULD
+- 핵심(구현 기준, Certified): `ko`, `en`, `sym3`
+- 입력 별칭(Certified by pack): `ja`, `mn`, `tr`
+- Registry/Experimental(표 + 선택 입력 가능): `qu`, `ay`, `ne`, `ta`, `te`, `kn`, `eu`
+- ne(네पाली)는 데바나가리 표기 우선이며, 일부 셀은 `देवनागरी/roman`처럼 `/`로 복수 별칭을 병기한다.
+  - 기준표 v4 (로마자 중심, 자연스러움 리뷰 기준)
+    - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v4_20260215.tsv`
+    - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v4_20260215.detjson`
+  - 개선표 v8 (문법 용어 정합성 + 간소 별칭 병기, 셀의 `/`는 복수 별칭을 뜻함)
+    - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215.tsv`
+    - `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215.detjson`
+    - (보기용) `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215.md`
+    - (변경로그) `docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215_CHANGELOG.md`
+
+#### [DIALECT-SURFACE-VARIATION-01] 언어별 표면 차이 포용 — SHOULD
+
+말씨는 **표면 토큰**이 달라도 된다.
+
+- 모든 말씨 입력은 **동일 AST**로 정규화되어야 한다. (의미 동일)
+- `canon` 출력은 항상 **ko 정본 표기**로 수렴한다. (감사/리플레이/팩 비교용)
+
+포용 범위(허용):
+- 동일 역할(role)을 표현하는 **여러 형태(이형태/동의 표지)** 를 허용할 수 있다.
+- 언어 특성상 자연스러운 **무표(∅)** 가 존재하는 경우, *표시(render) 층* 또는 *제한된 입력(예: 괄호식)* 에서 허용할 수 있다.
+- 허용형(accepted)을 받아도, fmt는 말씨별 **권장형(preferred)** 으로 정리할 수 있다.
+
+금지:
+- 말씨가 의미(평가 순서/스코프/결정성)에 차이를 만들면 안 된다.
+- 모호성은 추측하지 않는다. 후보가 2개 이상이면 **결정적 오류**로 보고하며, `:핀` 등 명시 표기를 요구한다.
+
+권장형/허용형:
+- 각 말씨/각 role에 대해 **권장형(preferred)** 과 **허용형(accepted)** 을 구분해 문서화한다.
+- pack/golden은 권장형 중심으로 작성하되, 허용형도 별도 케이스로 동치 검증한다.
+
+추가 가이드(“부품 vs 문장”):
+
+- **sym3 토큰셋**은 *키보드/도구를 위한 “부품”* 이다. (짧게 치고, 패턴을 맞추기 좋음)
+- **word‑dialect 토큰셋**(ne/ta/te/kn/eu/qu/ay 등)은 *사람이 읽는 “문장”* 이다. (교육/창작/자기 언어 감각)
+
+따라서 아래를 권장한다.
+
+- (SHOULD) `#말씨: X`(X≠sym3) 예제/팩은 **sym3 기호를 섞지 않고**, 해당 말씨의 **권장형(preferred)** 으로만 쓴다.
+- (MAY) 입력에서 sym3를 *compat* 로 허용하더라도, `fmt`/문서 예제는 **word‑dialect의 권장형**으로만 출력한다.
+
+파이프(pipe) 권장형(요약):
+- en: `|>` *(권장)*
+- ko: `해서` *(권장)*
+- ne: `-एर` *(권장; 허용형: `|>`)*
+
+호출(call) 권장형(요약):
+- en/ja/mn/tr: `()` — **비어있는 호출 표지** *(괄호 안 인자 금지; MUST empty)*
+  - 인자 전달은 `~ob/~sb/~tp` 등의 조사 별칭 또는 `:핀`을 사용한다.
+- ko: `~기/~하기`
+- ne: `~नु` *(권장; 허용형: `()`)*
+
+주의:
+- `foo()`의 괄호 안에는 인자를 넣지 않는다. 또니랑은 **조사/핀 기반 인자 전달**이 정본이다.
+
+#### [DIALECT-EXAMPLE-STYLE-01] 말씨 예제 작성 원칙 — SHOULD
+
+말씨는 “키워드 별칭”이며, **문법/공백 규칙 자체를 분기시키지 않는다.**
+
+- (SHOULD) `#말씨: X` 예제는 **X 말씨의 키워드 + ko 정본 키워드**만으로 작성한다.
+  - sym3 토큰(예: `|>>`, `!()`)은 “sym3 절”에서만 소개한다.
+  - 이유: 학습자에게 “한 파일에 규칙이 2개”로 보이는 인지 부하를 줄이기 위함.
+- (SHOULD) 함수/변수 **식별자(identifier)** 도 가능하면 해당 언어권에서 자연스러운 표기(자기 문자)를 쓴다.
+  - 예: `#말씨: ne` 예제에서 `add`, `sum` 같은 영어 식별자는 피한다.
+  - 단, 동치 검증(pack)처럼 **식별자 동일성**이 필요한 테스트에서는 중립 식별자를 사용한다.
+- (SHOULD) 표준 라이브러리(stdlib)의 **식별자**는 기본적으로 ko 정본을 유지한다.
+  - 말씨는 “예약어/조사/꼬리” 중심이다. stdlib 번역은 **별도 레이어(확장)** 로 다룬다.
+  - 필요 시 `stdlib_alias_<dialect>` 테이블로 “자국어 별칭”을 추가 지원할 수 있다(권장: 핵심 20개부터).
+- (SHOULD) word‑dialect 예제에서는 `|>`/`()` 같은 기호 표기를 섞지 않는다(compat는 허용).
+  - linter는 `DIALECT_SYMBOL_MIX`(가칭) 경고를 낼 수 있다.
+- (MUST) 정본화(`canon`)와 fmt는 언제나 **ko 정본 공백/줄바꿈 규칙**으로 수렴한다.
+  - 말씨는 “토큰 사전”이고, “문법”이 아니다.
+
+#### [DIALECT-KO-01] ko 정본 — MUST
+- 문서/예시/AI 출력의 기본 말씨는 **ko 정본**이다.
+- 정본 키워드(순우리말):
+  - `되풀이/되돌림/톺아보기/맞물림씨` 등
+- legacy alias(입력 허용, 정본화는 ko 권장):
+  - `반복/반환/감사/관계씨`
+
+#### [DIALECT-EN-01] en 별칭 — MAY
+- en 말씨는 “한국어를 모르는 사용자”를 위한 입력 별칭이다(정본 아님).
+- 권장 en 별칭(예):
+  - `if/else/match/then`
+  - `and/or/not`
+  - `loop/return/audit`
+- 파이프(ko `해서`)의 en 표면형:
+  - `|>`  *(권장; canon에서는 `해서`로 복원)*
+- 호출 꼬리(ko의 `~기/~하기`)의 en 표면형:
+  - `()`  *(비어있는 호출 표지; 괄호 안 인자 금지(MUST empty). 인자 전달은 조사(아래 10.8) 또는 `:핀`을 권장)*
+
+#### [DIALECT-SYM3-01] sym3 별칭 — MUST(말씨가 sym3로 고정된 경우)
+- sym3는 아래 10.7의 토큰셋을 정본으로 한다.
+- sym3 파이프(ko `해서`)는 `|>>`만 허용한다. (`|>`는 금지 또는 compat 경고+정규화)
+- 호출 꼬리(sym3 표면형): `!()`  *(3글자, 호출 표지)*
+
+#### [DIALECT-JA-01] ja 별칭(입력) — MAY (v1 최소 셋)
+- 목적: 일본어 사용자가 “제어/논리/흐름”을 **자기 언어로** 적을 수 있게 한다(정본 아님).
+- v1 범위: **조건/분기/논리/되풀이/되돌림/톺아보기** 최소 키워드만 지원한다.
+- 파이프(ko `해서`)는 ja 입력에서 `|>`를 권장한다. (단, ko 및 일부 단어 기반 말씨는 word 파이프를 권장하며 `|>`는 compat)
+- 호출 꼬리: `()`.
+
+권장 키워드 매핑(v1):
+- `もし` → `일때`
+- `でなければ` → `아니면`
+- `一致` → `따라`   *(match/switch)*
+- `なら` → `이면`   *(then/arm)*
+- `繰返` → `되풀이` *(loop; “繰り返し”의 축약 코드 토큰)*
+- `返す` → `되돌림` *(return)*
+- `かつ` → `그리고` *(and)*
+- `または` → `또는` *(or)*
+- `ではない` → `아님` *(not)*
+- `点検` → `톺아보기` *(audit/inspect)*
+
+#### [DIALECT-MN-01] mn 별칭(입력) — MAY (v1 최소 셋)
+- 목적: 몽골어 사용자가 “제어/논리/흐름”을 자기 언어로 적을 수 있게 한다(정본 아님).
+- v1 범위: **조건/분기/논리/되풀이/되돌림/톺아보기** 최소 키워드만 지원한다.
+- 파이프(ko `해서`)는 `|>`를 권장한다.
+- 호출 꼬리: `()`.
+
+권장 키워드 매핑(v1):
+- `хэрэв` → `일때`     *(if)*
+- `үгүйбол` → `아니면`  *(else; 코드 토큰은 공백 없이 붙여쓴다)*
+- `тааруул` → `따라`   *(match/switch; “맞추다/맞추기” 의미)*
+- `бол` → `이면`        *(then/arm)*
+- `давтах` → `되풀이`   *(loop)*
+- `буцаах` → `되돌림`   *(return)*
+- `мөн` → `그리고`      *(and)*
+- `эсвэл` → `또는`      *(or)*
+- `биш` → `아님`        *(not)*
+- `шалгах` → `톺아보기` *(audit/check)*
+
+#### [DIALECT-TR-01] tr 별칭(입력) — MAY (v1 최소 셋)
+- 목적: 터키어 사용자가 “제어/논리/흐름”을 자기 언어로 적을 수 있게 한다(정본 아님).
+- v1 범위: **조건/분기/논리/되풀이/되돌림/톺아보기** 최소 키워드만 지원한다.
+- 파이프(ko `해서`)는 `|>`를 권장한다.
+- 호출 꼬리: `()`.
+
+권장 키워드 매핑(v1):
+- `eger`/`eğer` → `일때`   *(if; 구현체는 둘 다 허용 가능)*
+- `yoksa` → `아니면`       *(else)*
+- `esle`/`eşle` → `따라`   *(match/switch; “eşle”=match)*
+- `ise` → `이면`            *(then/arm)*
+- `tekrar` → `되풀이`       *(loop)*
+- `dondur`/`döndür` → `되돌림` *(return)*
+- `ve` → `그리고`           *(and)*
+- `veya` → `또는`           *(or)*
+- `degil`/`değil` → `아님`  *(not)*
+- `denetle` → `톺아보기`    *(audit/inspect)*
+
+#### [DIALECT-I18N-01] i18n(다국어) 읽기 렌더링 — MAY
+- 목적: 문서/교육에서 ko 정본 코드를 여러 언어로 “읽기 좋게” 표시한다.
+- `ja/mn/tr` 말씨는 **파서 입력(제한된 키워드)** 으로 채택했지만,
+  `i18n-*`는 그보다 더 넓은 번역(설명/표지/문장/라이브러리 이름까지)을 할 수 있는 “표시(render)” 층이다.
+- `i18n-*` 출력은 왕복 파싱을 요구하지 않으며, pack/golden 저장에 사용하면 안 된다.
+
+### 10.7 SYM3 토큰셋(정본)
+
+> 원칙: **2~3글자 토큰** + **최장일치(맥스먼치)**.  
+> sym3는 “기호만으로” 쓰고 싶은 사용자를 위한 별칭 말씨이며, ko 정본을 대체하지 않는다.
+
+| ko | 의미 | sym3 |
+|---|---|---|
+| `일때` | if | `?=>` |
+| `아니면` | else | `;=>` |
+| `따라` | match/switch | `|=|` |
+| `이면` | then/arm | `=>>` |
+| `되풀이` | loop | `<*>` |
+| `되돌림` | return | `=<<` |
+| `그리고` | and | `&^&` |
+| `또는` | or | `|^|` |
+| `아님` | not | `^^^` |
+| `해서` | pipe | `|>>` |
+| `}한것` | thunk/value | `}=>` |
+| `}인것` | thunk/bool | `}==` |
+| `}아닌것` | thunk/not-bool | `}!=` |
+| `}하고` | thunk/do | `}&>` |
+| `}해서` | thunk/pipe | `}|>` |
+
+---
+
+### 10.8 조사(role) 말씨별 표면형: preferred / accepted
+
+목적:
+- ko 정본의 `값~조사` 호출 구조를 유지하면서, en/ja/mn/tr/sym3 사용자도 **자기 언어(또는 짧은 코드)** 로 인자 역할을 표시할 수 있게 한다.
+- 말씨별 표면형이 달라도 **정본화(canon)** 는 항상 ko 조사로 수렴한다.
+
+정본화 원칙:
+- 내부(바인딩/AST)는 “표면 조사 문자열”이 아니라 **role**(SB/OB/…)로 정규화해 다룬다.
+- 말씨 입력에서 role 후보가 2개 이상이면 **추측 금지**: 오류 + `:핀`(또는 더 구체적인 조사 표기)로 해소한다.
+
+#### [JOSA-ROLE-01] role 집합 — MUST
+
+| role | 뜻(요약) |
+|---|---|
+| SB | 주격(대상) |
+| OB | 목적격(대상) |
+| TP | 주제(화제) |
+| AT | 처소/방향/시간(에) |
+| BY | 수단/방식(로/으로) |
+| FR | 위치/출발(에서) |
+| TO | 수혜/대상(에게/께) |
+| FM | 시작(부터) |
+| UN | 한계(까지) |
+
+#### [JOSA-ROLE-02] 말씨별 권장형/허용형 — MUST
+
+표기:
+- `preferred` = fmt가 기본으로 정리해 출력하는 형태
+- `accepted` = 입력으로 허용하는 추가 형태(이형태/동의 표지)
+
+| role | ko preferred | en/sym3 preferred | ja preferred | ja accepted | mn preferred | mn accepted | tr preferred | tr accepted |
+|---|---|---|---|---|---|---|---|---|
+| SB | `~이/~가` | `~sb` | `~が` | `~が` | `~sb` | `~sb` *(무표는 표시 전용)* | `~sb` | `~sb` *(무표는 표시 전용)* |
+| OB | `~을/~를` | `~ob` | `~を` | `~を` | `~ыг` | `~ыг/~ийг` | `~ı` | `~ı/~i/~u/~ü` |
+| TP | `~은/~는` | `~tp` | `~は` | `~は` | `~бол` | `~бол/~нь` | `~tp` | `~tp` *(또는 accepted: `ise` 계열은 추후 확장)* |
+| AT | `~에` | `~at` | `~に` | `~に/へ` | `~д` | `~д` | `~a` | `~a/~e` |
+| BY | `~로/~으로` | `~by` | `~で` | `~で` | `~аар` | `~аар/~ээр` | `~la` | `~la/~le` |
+| FR | `~에서` | `~fr` | `~から` | `~で/~から` | `~аас` | `~аас/~ээс` | `~da` | `~da/~de` |
+| TO | `~에게/~께` | `~to` | `~に` | `~に` | `~д` | `~д` | `~a` | `~a/~e` |
+| FM | `~부터` | `~fm` | `~から` | `~から` | `~аас` | `~аас/~ээс` | `~dan` | `~dan/~den` |
+| UN | `~까지` | `~un` | `~まで` | `~まで` | `~хүртэл` | `~хүртэл` | `~kadar` | `~kadar` |
+
+#### [JOSA-ROLE-03] “무표(∅)” 처리 — MUST(제한)
+
+- mn/tr에서 주격(SB)은 현실 언어에서 무표(∅)가 자연스럽지만,
+  **AGE0(Gate0) 입력에서 “조사 완전 생략”은 기본 지원하지 않는다.**
+- 무표는:
+  - `i18n-*` 표시(render) 층에서의 출력,
+  - 또는 괄호식 호출 `( ... )` 등 “구분자가 이미 있는 형식”
+  에서만 허용한다.
+- josa 스타일 입력에서 SB를 생략하고 싶다면, 말씨별 `~sb`(명시형)을 사용한다.
+
+#### [JOSA-ROLE-04] fmt/lint 권장 — SHOULD
+
+- fmt는 말씨별 `accepted` 입력을 `preferred`로 정리할 수 있다.
+- `canon` 출력은 언제나 ko preferred(ko 조사)로 복원한다.
+- `ja`에서 `~に`(AT/TO), `~から`(FR/FM)처럼 **역할이 겹칠 수 있는 표면형**은,
+  후보가 2개 이상이면 오류로 보고하고 `:핀`을 요구한다.
+
+
+### 10.9 `}` 토막 꼬리 예약(선점)
+
+아래 꼬리는 **예약어로 선점**한다(추후 의미 부여).
+
+- `}하며`
+- `}한채`
+- `}하자마자`
+
 
 ## 11. 실행 어미 (Execution Endings)
 
@@ -6421,6 +7772,7 @@ $부사 동사.
 |------|:------:|------|
 | `$전혀` | 0.0 | 완전 부정 |
 | `$거의 안` | 0.1 | 미미 |
+| `$약간` | 0.2 | 아주 약함 |
 | `$조금` | 0.3 | 약함 |
 | `$반쯤` | 0.5 | 중간 |
 | `$꽤` | 0.7 | 상당 |
@@ -7917,6 +9269,65 @@ Gate0 지원 포맷(최소):
 
 > 확장(후순위): `{age:수}` 같은 **형 변환 매칭**은 이후 시즌에서 논의한다.
 
+
+## §R1 정규식(Regex) — `정규식{}` 리터럴 — AGE2+
+
+또니랑은 “동양적 말결”을 살리되, 텍스트 처리는 현실적으로 정규식이 필요하다.  
+다만 정규식은 구현체/플래그/유니코드 처리에 따라 결과가 달라질 수 있으므로, **정규식은 반드시 ‘값’으로 봉인**하고, 표준 API를 통해서만 실행한다.
+
+### §R1.1 리터럴 문법
+
+- 리터럴 표기: `정규식{ ... }`
+- 본문은 **문자열 리터럴 1개(패턴)** + 선택적으로 **문자열 리터럴 1개(깃발)** 를 `,`로 구분한다.
+
+예:
+
+```ddn
+패턴1 <- 정규식{"^[A-Z]{2}[0-9]+$"}.
+패턴2 <- 정규식{"[a-z]+", "i"}.  # i = 대소문자 무시
+```
+
+### §R1.2 타입/값 의미
+
+- 타입 이름: `정규식`
+- 의미:
+  - `pattern`: UTF-8 문자열
+  - `flags`: UTF-8 문자열(기본값 `""`)
+- 결정성 규칙:
+  - **같은 입력(글, 정규식 값) → 같은 출력**을 보장해야 한다.
+  - 구현체(엔진)는 런타임/표준 라이브러리 버전에 고정되어야 한다. (업그레이드는 버전으로만)
+
+### §R1.3 깃발(Flags) 최소 집합 (Gate0/AGE2)
+
+Gate0/AGE2에서 **최소 보장**하는 깃발은 아래와 같다.
+
+| 깃발 | 의미 |
+|---|---|
+| `""` | 기본 |
+| `"i"` | 대소문자 무시(case-insensitive) |
+
+> 그 외 깃발은 AGE3 이후 확장 대상으로 두며, 지원하지 않는 깃발은 즉시 실패한다.
+
+### §R1.4 표준 API(정본) — 이름만 선반영
+
+정규식 실행은 표준 라이브러리 API로만 노출한다. (문법 확장 없이 “라이브러리”로 해결)
+
+| API(정본 이름) | 최소 시그니처(초안) | 의미(초안) |
+|---|---|---|
+| `정규맞추기` | `(대상:글, 패턴:정규식) -> 참거짓` | 전체 일치(anchored) |
+| `정규찾기` | `(대상:글, 패턴:정규식) -> 글?` | 첫 매치(없으면 없음) |
+| `정규바꾸기` | `(대상:글, 패턴:정규식, 바꿈:글) -> 글` | 전체 치환(global) |
+| `정규나누기` | `(대상:글, 패턴:정규식) -> 차림<글>` | 분리(split) |
+
+### §R1.5 오류 코드(신규)
+
+| 코드 | 등급 | 의미 |
+|---|---|---|
+| `E_REGEX_FLAGS_INVALID` | FATAL | 지원하지 않는 깃발 문자열 |
+| `E_REGEX_PATTERN_INVALID` | FATAL | 패턴 컴파일 실패(문법 오류 등) |
+
+
+
 ## §P1 파이프(해서) — 흐름값/주입/모호성 금지 — MUST
 
 ### §P1.1 파이프의 목적
@@ -8674,8 +10085,9 @@ filesystem = false
 | 토큰 | 가중치 (Fixed64) | 비고 |
 |------|------------------|------|
 | `$전혀` | 0.0 | |
-| `$조금` | 0.2 | |
-| `$약간` | 0.3 | |
+| `$거의 안` | 0.1 | |
+| `$약간` | 0.2 | |
+| `$조금` | 0.3 | |
 | `$반쯤` | 0.5 | |
 | `$꽤` | 0.7 | |
 | `$매우` | 0.9 | |
@@ -8746,6 +10158,70 @@ filesystem = false
 ```
 
 ---
+
+## 추가 §입력키. 입력키 표준 함수(compat/strict)
+
+### 입력키.1 `입력키` (compat) — MAY (AGE1)
+
+**[STDLIB-INPUTKEY-01] (MAY)**  
+`입력키`는 현재 샘(InputSnapshot)에서 “마지막 입력 키”를 글로 돌려준다.
+
+- 정의되지 않은 경우 기본값은 **빈 글 `""`** (compat) 이다.
+- 이 기본값은 **호환(compat) 편의**이며, 엄격 사용자는 `입력키?` 또는 `입력키!`를 사용한다.
+
+시그니처:
+- `() 입력키:글`
+
+### 입력키.2 `입력키?` (권장) — SHOULD (AGE1+)
+
+**[STDLIB-INPUTKEY-OPT-01] (SHOULD)**  
+정의되지 않음을 안전하게 구분하기 위해 옵션 반환 버전을 제공한다.
+
+- `() 입력키?:글?`
+- 키가 없으면 `없음`을 반환한다.
+
+### 입력키.3 `입력키!` (엄격) — SHOULD (AGE2)
+
+**[STDLIB-INPUTKEY-STRICT-01] (SHOULD)**  
+키가 없으면 즉시 실패한다.
+
+- `() 입력키!:글`
+- 실패: `E_INPUTKEY_MISSING`
+
+> 린트(권장): `입력키`의 빈 글 기본값을 사용하는 코드는 `L_STDLIB_INPUTKEY_EMPTY_DEFAULT`로 경고할 수 있다.
+
+## 추가 §글. 글바꾸기 표준 함수
+
+### 글.1 `글바꾸기` (안전) — MAY
+
+**[STDLIB-STR-REPLACEAT-01] (MAY)**  
+`글바꾸기(글, 인덱스, 새글)`은 주어진 글의 특정 위치를 새글로 교체한다.
+
+- 인덱스 범위 밖이면 **원본 글을 그대로 반환**한다(안전 동작).
+- 인덱스는 0-based로 정의한다.
+
+시그니처:
+- `(원본:글, 인덱스:수, 새글:글) 글바꾸기:글`
+
+### 글.2 `글바꾸기!` (엄격) — SHOULD
+
+**[STDLIB-STR-REPLACEAT-STRICT-01] (SHOULD)**  
+범위 밖이면 즉시 실패한다.
+
+- `(원본:글, 인덱스:수, 새글:글) 글바꾸기!:글`
+- 실패: `E_STR_INDEX_OOB`
+
+## 추가 §매틱. 매틱 진입 호환(문서용) — MAY (Gate0/Compat)
+
+**[LANG-MATIC-ENTRY-COMPAT-01] (MAY)**  
+문서/레거시 예제 호환을 위해 아래 표면을 **입력에서만** 허용할 수 있다.
+
+- 입력(compat): `매틱:움직씨 = { ... }`
+- 정본 출력(canon): 표준 표면(정본 AST 전개)으로 **반드시 치환**한다.
+
+규칙:
+- Gate0/compat 모드에서만 허용한다. (strict 모드에서는 `E_LANG_COMPAT_MATIC_ENTRY_DISABLED`)
+- 치환은 의미를 바꾸지 않아야 하며, 정본 출력은 “조사/핀/괄호 정본 규칙”을 따른다.
 
 ## PinSpec(핀 스펙) — 상세 구현 노트
 
@@ -8924,7 +10400,7 @@ openness      = "open"   # "closed" | "open"
 
 ---
 
-## 셈씨 규칙 보강(v20.3.1)
+## 셈씨 규칙 보강(v20.4.1)
 
 ### [SEMSI-RESULT-01] 셈씨 결과칸(결과 이름 대입) — MUST
 
@@ -8973,7 +10449,9 @@ openness      = "open"   # "closed" | "open"
 
 표준 키(최소):
 - `#이름:`  파일/프로그램/입력의 이름
-- `#설명:`  한 줄 요약
+- `#설명:`  한 줄 요약 (별칭: `#풀이:`)
+- `#말씨:`  파일 말씨(표기) 고정 (`ko|en|sym3|ja|mn|tr|qu|ay|ne|ta|te|kn|eu`) — **의미는 같고 표기/린트만** 달라진다
+  - 별칭: `#사투리:`
 - (선택/확장) `#버전:`, `#태그:` 등은 추후 합의
 
 위치/종료:
@@ -9408,17 +10886,16 @@ v0 표준 목록:
 
 
 ---
-
-===== END SSOT_LANG_v20.3.1.md =====
-===== BEGIN SSOT_DEMOS_v20.3.1.md =====
-# 또니랑 SSOT — DEMOS (v20.3.1, Normative)
+===== END SSOT_LANG_v20.6.33.md =====
+===== BEGIN SSOT_DEMOS_v20.6.33.md =====
+# 또니랑 SSOT — DEMOS (v20.6.33, Reference)
 
 > 역할: 데모/예시 모음(참고). 예시는 SSOT_LANG v19 정본 표기(`$말결`, `늘지켜보고`, 제네릭 꺾쇠 금지)를 따른다.
 
-> 문서 버전: **v20.3.1**  | 기준일: **2026-01-17**  | 상태: **SSOT (정본)**
+> 문서 버전: **v20.6.9**  | 기준일: **2026-02-13**  | 상태: **SSOT (참고)**
 
 
-P26-01-17
+P26-02-13
 Status: RELEASE (Gate0 기준)
 
 ---
@@ -9426,8 +10903,8 @@ Status: RELEASE (Gate0 기준)
 <!--
 File Role: Demos + golden tests (Non-normative). Used for learning and verification.
 Authority: REFERENCE
-Version: v20.3.1 (Reference)
-P26-01-17
+Version: v20.6.9 (Reference)
+P26-02-13
 Status: Non-normative
 -->
 
@@ -9460,6 +10937,134 @@ Status: Non-normative
 ---
 
 
+## §E0.B 말씨(ko/en/sym3/ja/mn/tr) 6단 병기 템플릿 + i18n(읽기)
+
+이 절의 목적:
+- **같은 AST**를 말씨(표기 스타일)만 바꿔서 여러 방식으로 적는 예시를 제공한다.
+- 문서/팩/골든은 보통 `ko + canon`이 기준이고, 학습/입력 편의로 `en/sym3/ja/mn/tr`를 **별칭 말씨**로 쓸 수 있다.
+- `i18n-*`는 “코드 토큰 치환”을 넘어선 **읽기/교육용 표시(render)** 이다(왕복 파싱 불요).
+
+> 참고 1: `sym3`에서는 `해서`의 별칭 파이프가 `|>>`로 정본이며, `|>`는 금지 또는 compat(경고+정규화)로만 취급한다.  
+> 참고 2: `ja/mn/tr`는 v1에서 “제어/논리/흐름”의 **최소 키워드**만 입력 별칭으로 제공한다(세부 매핑은 `SSOT_LANG`의 [DIALECT-JA/MN/TR-01]).
+
+### §E0.B.1 파이프 + 토막(Thunk) 예제 (같은 의미)
+
+#### ko (정본: 조사 + `~기/~하기` 꼬리)
+
+```ddn
+#말씨: ko
+f~을 diff하기 해서 simp하기 해서 돌려주기.
+{ f~을 diff하기 }해서 돌려주기.
+```
+
+#### en (입력 별칭: 조사코드 + `()` 꼬리)
+
+```ddn
+#말씨: en
+f~ob diff() |> simp() |> return.
+{ f~ob diff() }|> return.
+```
+
+#### sym3 (기호 별칭: 조사코드 + `!()` 꼬리)
+
+```ddn
+#말씨: sym3
+f~ob diff!() |>> simp!() |>> =<<.
+{ f~ob diff!() }|> =<<.
+```
+
+#### ja (입력 별칭: 일본어 제어어 + `()` 꼬리)
+
+```ddn
+#말씨: ja
+f~ob diff() |> simp() |> 返す.
+{ f~ob diff() }|> 返す.
+```
+
+#### mn (입력 별칭: 몽골어 제어어 + `()` 꼬리)
+
+```ddn
+#말씨: mn
+f~ob diff() |> simp() |> буцаах.
+{ f~ob diff() }|> буцаах.
+```
+
+#### tr (입력 별칭: 터키어 제어어 + `()` 꼬리)
+
+```ddn
+#말씨: tr
+f~ob diff() |> simp() |> dondur.
+{ f~ob diff() }|> dondur.
+```
+### §E0.B.1b (선택) ja/mn/tr 자연 조사 표면형(accepted) 예시
+
+아래는 `~ob` 같은 코드 조사 대신, 말씨별 **자연 조사/격 표지**를 쓰는 예시다.  
+(입력은 `accepted`, fmt는 말씨별 `preferred`로 정리할 수 있다.)
+
+```ddn
+#말씨: ja
+f~を diff() |> simp() |> 返す.
+
+#말씨: mn
+f~ыг diff() |> simp() |> буцаах.
+
+#말씨: tr
+f~i diff() |> simp() |> dondur.
+```
+
+
+### §E0.B.2 조건/분기 예제 (같은 의미)
+
+#### ko
+
+```ddn
+#말씨: ko
+(HP < 10) 일때 { "위험!" show. } 아니면 { "안전." show. }.
+```
+
+#### en
+
+```ddn
+#말씨: en
+(HP < 10) if { "Danger!" show. } else { "Safe." show. }.
+```
+
+#### sym3
+
+```ddn
+#말씨: sym3
+(HP < 10) ?=> { "Danger!" show. } ;=> { "Safe." show. }.
+```
+
+#### ja
+
+```ddn
+#말씨: ja
+(HP < 10) もし { "危険!" show. } でなければ { "安全." show. }.
+```
+
+#### mn
+
+```ddn
+#말씨: mn
+(HP < 10) хэрэв { "Аюул!" show. } үгүйбол { "Аюулгүй." show. }.
+```
+
+#### tr
+
+```ddn
+#말씨: tr
+(HP < 10) eger { "Tehlike!" show. } yoksa { "Guvenli." show. }.
+```
+
+### §E0.B.3 i18n(읽기 렌더링) — 예시(코드가 아님)
+
+아래는 **코드가 아니라 문장 번역(읽기용)** 예시다.  
+(i18n 출력은 왕복 파싱을 요구하지 않으며, pack/golden 저장에 사용하면 안 된다.)
+
+- 日本語: 「HPが10未満なら『危険!』、そうでなければ『安全。』を表示する。」
+- Монгол: 「HP 10-аас бага бол ‘Аюул!’ гэж харуул; үгүй бол ‘Аюулгүй.’ гэж харуул.»
+- Türkçe: “HP 10’dan küçükse ‘Tehlike!’ göster; değilse ‘Güvenli.’ göster.”
 ## §E0.4 또니랑누리 ‘마법세계’ — 최소 플레이 루프(MVP) 데모
 
 이 데모는 “또니랑이 최종적으로 무엇을 해야 하는가?”를 **가장 짧게** 보여주는 기준선이다.
@@ -10039,16 +11644,16 @@ Compact 묶음에서는 파일 수를 줄이기 위해 **예제/용어/참고**�
 # 또니랑 3줄기(부)·9고개(기)·99걸음(단계) 로드맵(단일 출처)
 
 > 본 문서(SSOT_DEMOS)는 **"어떻게 맞는지(검증/데모)"**만 다룹니다.  
-> **"무엇을 만들지(로드맵)"** 상세(3줄기(부)·9고개(기)·99걸음(단계))는 **SSOT_ROADMAP_CATALOG_v20.3.1.md**가 단일 출처(SSOT)입니다.
+> **"무엇을 만들지(로드맵)"** 상세(3줄기(부)·9고개(기)·99걸음(단계))는 **SSOT_ROADMAP_CATALOG_v20.6.33.md**가 단일 출처(SSOT)입니다.
 
-- 로드맵 상세(단일 출처): `SSOT_ROADMAP_CATALOG_v20.3.1.md` §R1B  
+- 로드맵 상세(단일 출처): `SSOT_ROADMAP_CATALOG_v20.6.33.md` §R1B  
 - 본 DEMOS 문서는 로드맵 표/단계를 **복제하지 않습니다**(단일 출처·혼선 방지).
 
 
 # 또니랑 프로젝트 대백과 (PROJECTS_CATALOG)
 
-Version: v20.3.1
-P26-01-17
+Version: v20.4.1
+P26-02-13
 
 - 작성일: 2025-12-24 (KST)
 
@@ -11310,7 +12915,7 @@ teul-cli geoul query "rule:화면_경계 위반"
 
 ```json
 {
-  "toolchain_version": "v20.3.1",
+  "toolchain_version": "v20.4.1",
   "schema_hash": "blake3:...ddn.schema.json",
   "realm_initial_hash": "blake3:...initial_realm",
   "failed_madi": 1,
@@ -11448,7 +13053,7 @@ y = (x=6)인 b 풀기.
 ### 20.16 글무늬: `{키.경로}` 필드 선택 (Gate0)
 
 ```json
-{"toolchain_version": "v20.3.1", "code": "
+{"toolchain_version": "v20.4.1", "code": "
 카드:글무늬값 = 글무늬{ \"이름={사람.이름}, 키={사람.키|@.2m}\" }.
 
 # OK
@@ -11465,7 +13070,7 @@ y = (x=6)인 b 풀기.
 ### 20.17 수식: `풀기` 엄격성 & `#latex` (Gate0)
 
 ```json
-{"toolchain_version": "v20.3.1", "code": "
+{"toolchain_version": "v20.4.1", "code": "
 직선:수식값 = (#ascii) 수식{ y = 2*x + 3/2 }.
 
 # OK
@@ -11519,6 +13124,59 @@ SSOT 문법을 “설명”으로만 두지 않고, 실제로 *움직이게* 만
 - `expect/` : 기대 출력(콘솔/렌더/파일)과 해시
 - `diag/` : 거울 로그(선택) 또는 캡처
 - `tests/` : 최소 1개 골든 테스트(리플레이 포함)
+
+#### D-PACK.1.1 케이스/골든 파일 규약 — MUST(운영)
+
+> 이 절은 “팩을 자동으로 돌리고, 결과가 흔들리면 바로 잡는” 것을 위해  
+> **파일 이름/위치/해시 포맷**을 최소한으로 고정한다. *(DR-143)*
+
+##### [DPACK-CASE-01] 입력 케이스 파일명 — MUST
+
+팩은 `cases/` 아래에 “케이스 키(case_key)”로 묶인 입력을 둔다.
+
+- `case_key` 형식: `KNNN_<slug>`
+  - `KNNN` : 3자리 케이스 번호(예: `K001`)
+  - `<slug>` : 소문자/숫자/밑줄(`_`)만 사용 권장
+- 파일명(권장): `cases/<case_key>.<dialect>.ddn`
+  - 예: `cases/K001_keywords.ko.ddn`
+- `dialect`(말씨) 값(예): `ko|en|sym3|ja|mn|tr`
+  - 말씨별 “허용형(accepted)” 변형이 필요하면 suffix를 붙일 수 있다. (MAY)  
+    예: `cases/K010_josa.ja.acc1.ddn`
+
+> NOTE: 팩 러너는 `<case_key>`별로 입력들을 모아 같은 AST로 수렴하는지 검사한다.
+
+##### [DPACK-GOLDEN-01] 정본 출력(golden) 파일명 — MUST
+
+각 `case_key`는 `golden/` 아래에 **정본 산출물 3종**을 둔다.
+
+1) **정본화 소스**: `golden/<case_key>.canon.ddn`  
+   - “ko 정본 표기”로 수렴된 출력(= `canon` 출력)  
+   - 조사 경계 `~`는 정본화 규칙에 따라 필요시 삽입된 상태여야 한다.  
+   - `pretty`/`i18n-*` 출력은 golden 저장에 사용하지 않는다. (MUST NOT)
+
+2) **정본 AST 덤프**: `golden/<case_key>.ast.detjson`  
+   - 파서 AST를 DetJson으로 직렬화한 결과  
+   - 파일 자체가 **결정적(키 정렬/공백/줄끝 포함)** 이어야 한다. (MUST)
+
+3) **정본 AST 해시**: `golden/<case_key>.ast_hash.txt`  
+   - 내용은 1줄: `blake3:<lower-hex64>` + 개행(`\n`) (MUST)  
+   - 계산: `BLAKE3-256( bytes(golden/<case_key>.ast.detjson) )`  
+   - 표기 형식은 `SSOT_PLATFORM`의 [HASH256-01]을 따른다.
+
+##### [DPACK-EQUIV-01] 동치 검사 규칙(말씨/심볼어) — MUST
+
+- `cases/<case_key>.*.ddn` 각각을 파싱했을 때 **AST 해시가 동일**해야 한다.  
+  (기준: `golden/<case_key>.ast_hash.txt`)
+- 각 입력을 `canon`으로 정본화했을 때 출력이 **`golden/<case_key>.canon.ddn`와 동일**해야 한다.
+- `fmt --style=<dialect>` 출력은 **다시 파싱 시 동일 AST로 복원**되어야 한다. (SHOULD)
+
+##### [DPACK-GOLDEN-02] 추가 산출물(선택) — MAY
+
+팩은 필요 시 다음을 추가로 둘 수 있다.
+
+- `golden/<case_key>.canon_hash.txt` : canon.ddn의 HASH256 (검증 가속)
+- `diag/<case_key>.lint.detjson` : lint/진단 스냅샷(해시에 영향 없는 참고)
+- `notes/<case_key>.md` : 케이스 의도/경계조건 메모
 
 ### D-PACK.2 팩 카탈로그(초안)
 
@@ -11591,11 +13249,10 @@ SSOT 문법을 “설명”으로만 두지 않고, 실제로 *움직이게* 만
 
 
 ---
-
-===== END SSOT_DEMOS_v20.3.1.md =====
-===== BEGIN GATE0_IMPLEMENTATION_CHECKLIST_v20.3.1.md =====
-# GATE0_IMPLEMENTATION_CHECKLIST (v20.3.1)
-- Generated: 2026-02-10
+===== END SSOT_DEMOS_v20.6.33.md =====
+===== BEGIN GATE0_IMPLEMENTATION_CHECKLIST_v20.6.33.md =====
+# GATE0_IMPLEMENTATION_CHECKLIST (v20.6.33)
+- Generated: 2026-02-11
 - Purpose: Gate0 구현체/도구체인이 “정본 SSOT”를 따라가고 있는지 점검하는 체크리스트
 
 > 체크리스트는 **pack 통과**가 최종 판정이며, 이 문서는 “놓치기 쉬운 구현 포인트”를 빠르게 훑기 위한 용도입니다.
@@ -11607,6 +13264,7 @@ SSOT 문법을 “설명”으로만 두지 않고, 실제로 *움직이게* 만
 - [ ] 점(`.`)의 2중 역할(접근 vs 종결) 처리
 - [ ] `{}` 토막 + `}하고/}한것/}인것/}아닌것/}해서` 평가 표지 처리
 - [ ] 조사 경계 `~` 처리
+- [ ] (선택) 통합 선언 설탕 `채비:` 블록을 `그릇채비:` + `붙박이마련:`으로 분해하는 전처리/정본화 처리
 - [ ] 시스템 예약 단자음 식별자 예약 처리(사용자 정의 금지)
 
 ---
@@ -11633,4 +13291,21 @@ SSOT 문법을 “설명”으로만 두지 않고, 실제로 *움직이게* 만
 
 ---
 
-===== END GATE0_IMPLEMENTATION_CHECKLIST_v20.3.1.md =====
+## E. 브리지/실행 경로(성능 + 결정성)
+
+`cargo run` 기반 실행은 빌드 체크 오버헤드로 인해 “DDN 실행”보다 느릴 수 있으므로,
+Gate0에서도 기본값은 **빌드된 `teul-cli` 바이너리 직접 호출**로 둔다.
+
+- [ ] `bridge_server.py` 기본 실행 경로가 `cargo run ... -- run <file.ddn>`가 아니라, **`teul-cli` 바이너리 직접 호출**이다.
+- [ ] `TEUL_CLI_BIN`(환경변수)로 바이너리 경로를 지정할 수 있다.
+- [ ] 바이너리 탐색/선택 규칙이 `SSOT_TOOLCHAIN §TC0.3.2`의 결정적 알고리즘을 따른다.
+- [ ] (Gate0 한정) 바이너리가 없을 때만 `cargo run` 폴백이 가능하며,
+  - [ ] 반드시 경고(`WARN[TC0.3 cargo_fallback]`)를 출력하고,
+  - [ ] 실행 메타에 `exec_kind="cargo_fallback"`를 기록한다.
+
+(선택, 상주 모드)
+
+- [ ] `teul-cli repl`에 `:reset`이 있고, 요청마다 `:reset` 후 실행한다.
+- [ ] stdout 경계(프레이밍)는 Gate0에서는 sentinel을 임시 허용할 수 있으나,
+  - [ ] AGE1+ 목표는 `DetJson-RPC v1`로 전환(SSOT_TOOLCHAIN §TC0.3.4).
+===== END GATE0_IMPLEMENTATION_CHECKLIST_v20.6.33.md =====

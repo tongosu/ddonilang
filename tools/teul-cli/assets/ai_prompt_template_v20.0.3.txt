@@ -1,5 +1,5 @@
 [또니랑 코드 생성 규약]
-SSOT_VERSION = v20.3.1
+SSOT_VERSION = v20.6.33
 AUTHORITY = SSOT (정본)
 
 [근거]

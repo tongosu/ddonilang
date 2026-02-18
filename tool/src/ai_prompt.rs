@@ -5,7 +5,7 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
-const SSOT_VERSION: &str = "v20.3.1";
+const SSOT_VERSION: &str = "v20.6.33";
 const AI_PROMPT_TEMPLATE: &str = include_str!("../assets/ai_prompt_template_v20.0.3.txt");
 
 #[derive(Debug)]

@@ -14,20 +14,20 @@
       "ai.prompt.txt": {
         "contains": [
           "[또니랑 코드 생성 규약]",
-          "SSOT_VERSION = v20.3.1",
+          "SSOT_VERSION = v20.6.33",
           "[컨텍스트]",
-          "SSOT_VERSION = v20.3.1",
+          "SSOT_VERSION = v20.6.33",
           "BUNDLE_KIND = dir",
           "PROFILE = lean",
           "BUNDLE_HASH = sha256:",
           "FILE_LIST =",
-          "- SSOT_INDEX_v20.3.1.md",
-          "- SSOT_TERMS_v20.3.1.md",
-          "- SSOT_DECISIONS_v20.3.1.md",
-          "- SSOT_LANG_v20.3.1.md",
-          "- SSOT_DEMOS_v20.3.1.md",
-          "- GATE0_IMPLEMENTATION_CHECKLIST_v20.3.1.md",
-          "===== BEGIN SSOT_INDEX_v20.3.1.md ====="
+          "- SSOT_INDEX_v20.6.33.md",
+          "- SSOT_TERMS_v20.6.33.md",
+          "- SSOT_DECISIONS_v20.6.33.md",
+          "- SSOT_LANG_v20.6.33.md",
+          "- SSOT_DEMOS_v20.6.33.md",
+          "- GATE0_IMPLEMENTATION_CHECKLIST_v20.6.33.md",
+          "===== BEGIN SSOT_INDEX_v20.6.33.md ====="
         ]
       }
     }
