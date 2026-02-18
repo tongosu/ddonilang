@@ -1,0 +1,16 @@
+#이름: ssot_edu_phys_p014_02_electric_potential_r_V_variant_P014-02 전위 V(r)
+#설명: 점전하 주변 전위 V(r)=k/r (교육용 스케일). r=0 회피. (r,V) 출력.
+k <- 1000.
+
+r_min <- 1.
+r_max <- 50.
+dr <- 1.
+
+r목록 <- (r_min, r_max, dr) 범위.
+
+(r) r목록에 대해: {
+  V <- k / r.
+
+  r 보여주기.
+  V 보여주기.
+}.

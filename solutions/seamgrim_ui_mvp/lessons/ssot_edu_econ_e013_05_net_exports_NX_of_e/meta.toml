@@ -1,0 +1,10 @@
+title = "국제경제: 순수출과 환율(직관) (E013-05)"
+description = "국제경제: 순수출과 환율(직관)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["환율 변화가 순수출(NX)에 미치는 방향을 그래프로 본다", "민감도(x1,m1)가 기울기를 결정함을 이해한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e013_05_net_exports_NX_of_e"

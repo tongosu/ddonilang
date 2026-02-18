@@ -1,0 +1,32 @@
+#이름: ssot_edu_phys_p017_03_grating_maxima_theta_of_m_variant_P017-03 회절격자 최대 θm(m)
+#설명: d*sinθ = m*λ.  θ=arcsin(mλ/d) (Newton 근사).
+// 출력은 숫자만. (m, θ_deg) 순서.
+
+pi <- 3.1415926535.
+
+d <- 10.0.
+lam <- 1.0.
+
+m_min <- -5.
+m_max <-  5.
+dm <- 1.
+
+m목록 <- (m_min, m_max, dm) 범위.
+k목록 <- (1, 8, 1) 범위.
+
+(m) m목록에 대해: {
+  r <- (m * lam) / d.    // |r| <= 1
+
+  theta <- r.            // 초기값
+
+  (k) k목록에 대해: {
+    s <- (theta) sin.
+    c <- (theta) cos.
+    theta <- theta - (s - r) / c.
+  }.
+
+  deg <- theta * 180 / pi.
+
+  m 보여주기.
+  deg 보여주기.
+}.

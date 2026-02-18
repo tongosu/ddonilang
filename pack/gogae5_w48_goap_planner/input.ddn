@@ -1,0 +1,3 @@
+// W48: GOAP planner example
+??.??_?? <- [has_key=false, door_open=false].
+??.?? <- door_open=true.

@@ -1,0 +1,1 @@
+{"cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_file_read_unc_dot_mix/open.log.jsonl", "--no-open"], "stdout": ["hello unc dot mix"], "stderr": []}

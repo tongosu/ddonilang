@@ -1,0 +1,10 @@
+title = "파동(푸리에 맛보기) (P012-05)"
+description = "파동(푸리에 맛보기)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["사각파를 사인파의 합으로 근사할 수 있음을 그래프로 확인한다", "항의 개수(n_max)가 파형 근사 품질을 좌우함을 관찰한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p012_05_fourier_square_wave_yx"

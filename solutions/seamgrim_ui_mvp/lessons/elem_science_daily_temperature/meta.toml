@@ -1,0 +1,10 @@
+title = "하루 기온"
+description = "하루 기온 변화를 단순화한다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["하루 동안 기온이 변함을 이해한다"]
+story = "3–4학년 과학에서 '하루 기온' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

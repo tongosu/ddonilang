@@ -1,0 +1,83 @@
+#이름: age2_game_miniloop_v1
+#설명: AGE2 스튜디오 커널 v1 샘플(미니루프/2d/graph/table/structure)
+
+speed <- 1.0.
+
+score <- 0.
+
+// graph meta
+graph_kind <- "timeseries".
+x_kind <- "time".
+x_unit <- "tick".
+x_label <- "t".
+y_kind <- "score".
+y_unit <- "pt".
+y_label <- "score".
+graph_kind 보여주기.
+x_kind 보여주기.
+x_unit 보여주기.
+x_label 보여주기.
+y_kind 보여주기.
+y_unit 보여주기.
+y_label 보여주기.
+
+// channels
+"channels" 보여주기.
+"t" 보여주기.
+"value" 보여주기.
+"series" 보여주기.
+
+// structure
+"structure" 보여주기.
+node <- (id="player", label="플레이어", kind="entity").
+node 보여주기.
+node <- (id="goal", label="목표", kind="entity").
+node 보여주기.
+edge <- (from="player", to="goal", label="도달", kind="goal").
+edge 보여주기.
+
+// table header + pivot markers
+"table" 보여주기.
+"t,metric,value,series" 보여주기.
+"table.pivot" 보여주기.
+"metric" 보여주기.
+"series" 보여주기.
+
+tick목록 <- (0, 3, 1)범위.
+(tick) tick목록에 대해: {
+  x <- tick * speed.
+  y <- 0.
+
+  "space2d" 보여주기.
+  x 보여주기.
+  y 보여주기.
+
+  "space2d.shape" 보여주기.
+  "point" 보여주기.
+  "x" 보여주기.
+  x 보여주기.
+  "y" 보여주기.
+  y 보여주기.
+  "size" 보여주기.
+  0.1 보여주기.
+
+  무리 <- "score".
+  무리 보여주기.
+  tick 보여주기.
+  score 보여주기.
+
+  "table.row" 보여주기.
+  tick 보여주기.
+  "score" 보여주기.
+  score 보여주기.
+  "main" 보여주기.
+
+  score <- score + 10.
+}.
+
+// sparse row
+"table.row" 보여주기.
+4 보여주기.
+"score" 보여주기.
+없음 보여주기.
+"main" 보여주기.

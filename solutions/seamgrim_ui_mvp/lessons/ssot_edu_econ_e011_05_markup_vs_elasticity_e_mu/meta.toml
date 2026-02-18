@@ -1,0 +1,10 @@
+title = "시장구조·독점 — 상수탄력성 맛보기 (E011-05)"
+description = "시장구조·독점 — 상수탄력성 맛보기"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["탄력성이 1에 가까워지면(매우 비탄력) 마크업이 급격히 커지는 모양을 관찰한다."]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e011_05_markup_vs_elasticity_e_mu"

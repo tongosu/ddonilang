@@ -1,0 +1,10 @@
+{
+  "name": "gureut_equal_error",
+  "kind": "gate0_pipe",
+  "script": "pack/decl_block_runtime/scripts/decl_block_ok.ddn",
+  "sam_input": "pack/decl_block_runtime/inputs/empty.detjson",
+  "max_madi": 1,
+  "det_expected": {
+    "expected_error_contains": "그릇채비 항목에서는 '='를 사용할 수 없습니다"
+  }
+}

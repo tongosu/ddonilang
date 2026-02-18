@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "columns": [
+    { "key": "t", "label": "t", "type": "number" },
+    { "key": "x", "label": "x", "type": "number" },
+    { "key": "v", "label": "v", "type": "number" }
+  ],
+  "rows": [
+    { "t": 0, "x": 0, "v": 2 },
+    { "t": 1, "x": 2, "v": 2 },
+    { "t": 2, "x": 4, "v": 2 },
+    { "t": 3, "x": 6, "v": 2 },
+    { "t": 4, "x": 8, "v": 2 }
+  ],
+  "meta": { "title": "등가속도(등속) 측정표" }
+}

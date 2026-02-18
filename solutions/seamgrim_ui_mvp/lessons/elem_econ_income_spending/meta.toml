@@ -1,0 +1,10 @@
+title = "수입과 지출"
+description = "y = x * 0.7"
+grade = "elementary"
+grade_band = "3-4"
+subject = "econ"
+level = "intro"
+goals = ["수입과 지출 비율을 이해한다"]
+story = "수입 대비 지출이 일정 비율인 상황을 그래프로 봅니다."
+missions = ["지출 비율을 바꿔 비교하기", "x가 늘면 y가 어떻게 변하는지 설명하기"]
+required_views = ["graph"]

@@ -1,0 +1,10 @@
+title = "시장구조·독점 — 마크업과 탄력성 (E011-03)"
+description = "시장구조·독점 — 마크업과 탄력성"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["탄력성이 커질수록(더 민감) 마크업 여지가 줄어드는 관계를 확인한다."]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e011_03_lerner_index_e_L"

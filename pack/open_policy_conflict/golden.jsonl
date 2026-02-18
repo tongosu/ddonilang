@@ -1,0 +1,1 @@
+{"cli": ["--no-open"], "stdout": [], "stderr": ["E_OPEN_POLICY open.policy allow/deny 충돌: clock (/pack/open_policy_conflict/open.policy.toml)"], "exit_code": 1, "expected_error_code": "E_OPEN_POLICY"}

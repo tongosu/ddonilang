@@ -1,0 +1,30 @@
+#이름: P017-05 브루스터각 θB(r=n2/n1)
+#설명: tan(θB)=r.  θB=arctan(r) (Newton 근사).
+// 출력은 숫자만. (r, θB_deg) 순서.
+
+pi <- 3.1415926535.
+
+r_min <- 1.00.
+r_max <- 2.00.
+dr <- 0.02.
+
+r목록 <- (r_min, r_max, dr) 범위.
+k목록 <- (1, 10, 1) 범위.
+
+(r) r목록에 대해: {
+  theta <- 0.8 + 0.3*(r - 1).   // 초기값(라디안)
+
+  (k) k목록에 대해: {
+    s <- (theta) sin.
+    c <- (theta) cos.
+    tanv <- s / c.
+    f <- tanv - r.
+    // Newton: theta <- theta - f / (sec^2) = theta - f * cos^2
+    theta <- theta - f * c * c.
+  }.
+
+  deg <- theta * 180 / pi.
+
+  r 보여주기.
+  deg 보여주기.
+}.

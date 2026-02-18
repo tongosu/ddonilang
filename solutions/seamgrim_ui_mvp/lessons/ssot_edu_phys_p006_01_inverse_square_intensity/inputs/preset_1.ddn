@@ -1,0 +1,18 @@
+#이름: ssot_edu_phys_p006_01_inverse_square_intensity_variant_P006-01 역제곱 법칙 I(r)
+#설명: 점광원 모델에서 거리 r에 따른 빛의 세기 I = k / r^2 를 (r,I) 점열로 출력.
+// 출력은 숫자만. (r, I) 순서.
+
+k <- 1000.
+
+r_min <- 1.
+r_max <- 20.
+dr <- 0.5.
+
+I_of_r = (#ascii1) 수식{ y = k / (x*x) }.
+r목록 <- (r_min, r_max, dr) 범위.
+
+(x) r목록에 대해: {
+  I <- (x=x, k=k)인 I_of_r 풀기.
+  x 보여주기.
+  I 보여주기.
+}.

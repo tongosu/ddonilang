@@ -1,0 +1,1 @@
+{"cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_replay_schema_v2_missing/open.log.jsonl", "--no-open"], "stdout": [], "stderr": ["E_OPEN_LOG_PARSE pack/open_replay_schema_v2_missing/input.ddn:1:10 열림 로그 파싱 오류: open.clock unix_sec 누락"], "exit_code": 1, "expected_error_code": "E_OPEN_LOG_PARSE"}

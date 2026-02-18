@@ -1,0 +1,10 @@
+title = "광학: 편광(브루스터각) (P017-05)"
+description = "광학: 편광(브루스터각)"
+grade = "high"
+subject = "physics"
+level = "advanced"
+goals = ["굴절률비 r에 따라 브루스터각이 커지는 것을 본다", "tan(θ)=r을 반복으로 푸는 방법을 경험한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p017_05_brewster_angle_deg_of_ratio"

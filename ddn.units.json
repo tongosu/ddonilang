@@ -1,0 +1,29 @@
+{
+  "version": "v0",
+  "units": [
+    "m",
+    "mm",
+    "cm",
+    "km",
+    "inch",
+    "ft",
+    "\uD3C9",
+    "s",
+    "\uCD08",
+    "us",
+    "ms",
+    "min",
+    "h",
+    "kg",
+    "g",
+    "rad",
+    "px",
+    "m/s",
+    "mps",
+    "m/s^2",
+    "kmh",
+    "N",
+    "KRW",
+    "USD"
+  ]
+}

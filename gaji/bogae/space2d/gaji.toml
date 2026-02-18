@@ -1,0 +1,9 @@
+﻿id = "gaji/bogae/space2d"
+name = "보개 공간2d 가지"
+version = "0.1.0"
+ssot_requires = ">=20.2.26"
+
+det_tier = "D-STRICT"
+openness = "closed"
+
+description = "space2d drawlist 헬퍼"

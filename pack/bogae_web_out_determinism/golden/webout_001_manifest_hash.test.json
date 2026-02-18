@@ -1,0 +1,11 @@
+{
+  "name": "webout_001_manifest_hash",
+  "sam_input": "sam/empty.input.bin",
+  "max_madi": 10,
+  "det_expected": {
+    "no_fault": true,
+    "expected_observations": [
+      "manifest_hash=blake3:875ed9b16fc0fbe843dc44c2ee7708f30292e8212283e7f55f46af34affe8506"
+    ]
+  }
+}

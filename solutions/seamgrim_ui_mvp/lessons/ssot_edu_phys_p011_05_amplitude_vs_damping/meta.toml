@@ -1,0 +1,10 @@
+title = "진동(감쇠와 공진) (P011-05)"
+description = "진동(감쇠와 공진)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["감쇠가 커질수록 공진 진폭이 작아지는 관계를 그래프로 확인한다", "공진이 ‘증폭’처럼 보이지만 감쇠가 존재하면 한계가 있음을 이해한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p011_05_amplitude_vs_damping"

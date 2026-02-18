@@ -1,0 +1,9 @@
+title = "운동과 에너지 (P001-04)"
+description = "운동과 에너지"
+grade = "middle"
+subject = "physics"
+level = "intro"
+goals = ["자유낙하에서 높이 y가 시간에 따라 2차식으로 감소함을 확인한다", "낙하 시간과 초기 높이의 관계를 그래프에서 해석한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p001_04_free_fall_y_t"

@@ -1,0 +1,7 @@
+title = "고등 · 에너지 변화"
+description = "시간에 따른 에너지"
+grade = "high"
+subject = "physics"
+level = "intermediate"
+goals = ["변화 추적", "모델링 이해"]
+required_views = ["graph", "table", "text"]

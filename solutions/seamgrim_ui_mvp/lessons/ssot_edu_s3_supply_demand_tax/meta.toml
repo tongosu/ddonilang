@@ -1,0 +1,9 @@
+title = "수요와 공급 (S3)"
+description = "수요와 공급"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["수요곡선과 공급곡선의 교점을 균형으로 설명한다", "세금 부과가 균형과 후생에 미치는 영향을 설명한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_s3_supply_demand_tax"

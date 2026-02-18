@@ -1,0 +1,26 @@
+trigger:
+  - main
+  - master
+
+pr:
+  - "*"
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - script: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -y
+    displayName: install rust
+  - script: |
+      python3 --version || (sudo apt-get update && sudo apt-get install -y python3)
+      python3 tools/scripts/check_utf8.py || python tools/scripts/check_utf8.py
+    displayName: utf8 check
+  - script: |
+      source $HOME/.cargo/env
+      cargo test -p ddonirang-core fixed64_lint_gate_no_float_in_core
+    displayName: fixed64 lint gate
+  - script: |
+      source $HOME/.cargo/env
+      cargo test -p ddonirang-core
+    displayName: core tests

@@ -1,0 +1,10 @@
+title = "기본 포물선"
+description = "포물선 y = x^2를 본다."
+grade = "elementary"
+grade_band = "5-6"
+subject = "math"
+level = "intro"
+goals = ["포물선의 형태를 이해한다"]
+story = "5–6학년 수학에서 '기본 포물선' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

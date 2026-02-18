@@ -1,0 +1,10 @@
+title = "노동시장: 실업과 공석(직관) (E014-05)"
+description = "노동시장: 실업과 공석(직관)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["실업률 u와 공석률 v가 반비례(음의 관계)라는 직관을 그래프로 본다", "곡선 이동(효율/매칭)이라는 개념을 준비한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e014_05_beveridge_curve_v_of_u"

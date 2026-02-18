@@ -1,0 +1,11 @@
+﻿id = "gaji/30_nurigym_core"
+name = "누리짐 코어 가지"
+version = "0.1.0"
+ssot_requires = ">=20.1.23"
+
+# 결정성/공개성(초기값)
+det_tier = "D-STRICT"
+openness = "closed"
+
+# 메타
+description = "NuriGym 최소 스키마 및 CartPole 표준 샘플"

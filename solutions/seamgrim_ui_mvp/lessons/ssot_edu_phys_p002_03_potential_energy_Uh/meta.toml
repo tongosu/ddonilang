@@ -1,0 +1,9 @@
+title = "운동과 에너지 (P002-03)"
+description = "운동과 에너지"
+grade = "middle"
+subject = "physics"
+level = "intro"
+goals = ["중력 위치에너지 U가 높이 h에 비례함을 그래프로 확인한다", "기울기(mg)의 의미를 직관적으로 해석한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p002_03_potential_energy_Uh"

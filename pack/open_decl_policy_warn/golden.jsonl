@@ -1,0 +1,1 @@
+{"cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_decl_policy_warn/open.log.jsonl", "--no-open", "--trace-tier", "T-PATCH"], "stdout": ["1769577188", "hello warn"], "stderr": ["W_OPEN_NOT_DECLARED open_kind=file_read site_id=pack/open_decl_policy_warn/input.ddn:3:10"], "expected_warning_code": "W_OPEN_NOT_DECLARED"}

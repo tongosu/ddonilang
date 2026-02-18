@@ -1,0 +1,42 @@
+{
+  "description": "원문(raw) 보존 + 정본(canon) 분리 기록 테스트",
+  "version": "keymap_v1",
+  "cases": [
+    {
+      "raw_key": "왼쪽",
+      "raw_code": "ArrowLeft",
+      "expected": {
+        "raw_key": "왼쪽",
+        "canon_key": "ArrowLeft",
+        "canon_code": "ArrowLeft",
+        "canon_version": "keymap_v1",
+        "source": "browser"
+      },
+      "note": "한국어 raw는 보존, canon은 영어 정본으로 분리"
+    },
+    {
+      "raw_key": "Enter",
+      "raw_code": "Enter",
+      "expected": {
+        "raw_key": "Enter",
+        "canon_key": "Enter",
+        "canon_code": "Enter",
+        "canon_version": "keymap_v1",
+        "source": "browser"
+      },
+      "note": "영어 원문은 그대로 canon에도 반영"
+    },
+    {
+      "raw_key": "a",
+      "raw_code": "KeyA",
+      "expected": {
+        "raw_key": "a",
+        "canon_key": "a",
+        "canon_code": "KeyA",
+        "canon_version": "keymap_v1",
+        "source": "browser"
+      },
+      "note": "별칭 없는 키는 raw를 canon으로 그대로 사용"
+    }
+  ]
+}

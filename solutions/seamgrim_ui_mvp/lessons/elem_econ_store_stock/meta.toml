@@ -1,0 +1,10 @@
+title = "상점 재고"
+description = "시간에 따라 재고가 감소하는 모습을 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "econ"
+level = "intro"
+goals = ["재고가 줄어드는 추세를 이해한다"]
+story = "3–4학년 사회/경제에서 '상점 재고' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

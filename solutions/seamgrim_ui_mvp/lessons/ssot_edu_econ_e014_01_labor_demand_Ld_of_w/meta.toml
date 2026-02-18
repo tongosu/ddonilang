@@ -1,0 +1,10 @@
+title = "노동시장: 노동수요(기초) (E014-01)"
+description = "노동시장: 노동수요(기초)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["임금이 오르면 노동수요가 줄어드는(하향) 관계를 그래프로 본다", "a,b가 곡선의 위치/기울기를 정함을 이해한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e014_01_labor_demand_Ld_of_w"

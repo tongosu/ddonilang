@@ -1,0 +1,10 @@
+title = "열역학(일=면적, 적분 직관) (P013-02)"
+description = "열역학(일=면적, 적분 직관)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["P-V 그래프 아래 면적이 기체가 한 일(Work)임을 수치적으로 체험한다", "dV(표본 간격)를 줄이면 누적 일의 근사가 안정되는 것을 관찰한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p013_02_isothermal_work_v_W"

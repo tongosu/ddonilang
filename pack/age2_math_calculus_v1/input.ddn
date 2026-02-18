@@ -1,0 +1,69 @@
+#이름: age2_math_calculus_v1
+#설명: AGE2 스튜디오 커널 v1 샘플(미적분/graph/table/structure)
+
+// graph meta
+graph_kind <- "xy_line".
+x_kind <- "x".
+x_unit <- "unit".
+x_label <- "x".
+y_kind <- "value".
+y_unit <- "unit".
+y_label <- "f(x)".
+graph_kind 보여주기.
+x_kind 보여주기.
+x_unit 보여주기.
+x_label 보여주기.
+y_kind 보여주기.
+y_unit 보여주기.
+y_label 보여주기.
+
+// channels
+"channels" 보여주기.
+"x" 보여주기.
+"y" 보여주기.
+"series" 보여주기.
+
+// structure
+"structure" 보여주기.
+node <- (id="x", label="입력", kind="var").
+node 보여주기.
+node <- (id="f", label="함수", kind="curve").
+node 보여주기.
+edge <- (from="x", to="f", label="계산", kind="link").
+edge 보여주기.
+
+// table header + pivot markers
+"table" 보여주기.
+"x,metric,value,series" 보여주기.
+"table.pivot" 보여주기.
+"metric" 보여주기.
+"series" 보여주기.
+
+x목록 <- (-2, 2, 1)범위.
+(x) x목록에 대해: {
+  y <- x * x.
+  dy <- 2 * x.
+
+  무리 <- "f".
+  무리 보여주기.
+  x 보여주기.
+  y 보여주기.
+
+  무리 <- "df".
+  무리 보여주기.
+  x 보여주기.
+  dy 보여주기.
+
+  "table.row" 보여주기.
+  x 보여주기.
+  "f" 보여주기.
+  y 보여주기.
+  "main" 보여주기.
+}.
+
+// sparse row
+"table.row" 보여주기.
+0 보여주기.
+"df" 보여주기.
+없음 보여주기.
+"main" 보여주기.

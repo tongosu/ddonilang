@@ -1,0 +1,22 @@
+{
+  "drop_duplicates": true,
+  "events_deduped": 1,
+  "events_ordered": 2,
+  "events_total": 3,
+  "final_state_hashes": [
+    {
+      "realm_id": 0,
+      "state_hash": "sha256:4fffcb7a32fe7bbf2b22540be079ab9ce7c59068523406ff12ecec2e5bb6b81b"
+    },
+    {
+      "realm_id": 1,
+      "state_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "input_format": "sam",
+  "input_path": "pack/gogae9_w90_meta_universe/inputs/input_sam_v0.json",
+  "order_rule": "sender_seq",
+  "realms": 2,
+  "schema": "gateway.serve_report.v1",
+  "ssot_version": "20.3.1"
+}

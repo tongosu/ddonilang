@@ -1,0 +1,18 @@
+#이름: ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d_variant_P006-05 이중슬릿 줄무늬 간격 Δy(d)
+#설명: 이중슬릿(가까운 각도 근사)에서 줄무늬 간격 Δy = (λ*L)/d 를 (d,Δy)로 출력.
+// 출력은 숫자만. (d, Δy) 순서.
+
+K <- 10.  // K = λ*L (단위는 생략)
+
+d_min <- 1.
+d_max <- 20.
+dd <- 1.
+
+dy_of_d = (#ascii1) 수식{ y = K / x }.
+d목록 <- (d_min, d_max, dd) 범위.
+
+(x) d목록에 대해: {
+  dy <- (x=x, K=K)인 dy_of_d 풀기.
+  x 보여주기.
+  dy 보여주기.
+}.

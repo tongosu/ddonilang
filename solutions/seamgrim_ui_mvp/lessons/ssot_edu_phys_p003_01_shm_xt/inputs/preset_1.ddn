@@ -1,0 +1,23 @@
+#이름: ssot_edu_phys_p003_01_shm_xt_variant_P003-01 단진동 x-t
+#설명: 단진동: x(t)=A*sin(ω*t+φ) (출력: t x)
+
+// 출력은 숫자만. (t, x) 순서.
+
+살림.A <- 1.
+살림.omega <- 2.
+살림.phi <- 0.
+살림.dt <- 0.02.
+살림.t_max <- 10.
+
+살림.t <- 0.
+
+{ 살림.t <= 살림.t_max }인것 동안: {
+  살림.theta <- (omega=살림.omega, t=살림.t, phi=살림.phi) (#ascii) 수식{ omega*t + phi }.
+  살림.s <- (살림.theta) sin.
+  살림.x <- (A=살림.A, s=살림.s) (#ascii) 수식{ A*s }.
+
+  살림.t 보여주기.
+  살림.x 보여주기.
+
+  살림.t <- 살림.t + 살림.dt.
+}.

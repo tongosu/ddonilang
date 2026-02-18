@@ -1,0 +1,13 @@
+{
+  "schema": "swarm.collision_check.v1",
+  "agents": [
+    {"agent_id": 2, "x": 0, "y": 0},
+    {"agent_id": 1, "x": 0, "y": 0},
+    {"agent_id": 3, "x": 1, "y": 0}
+  ],
+  "actions": [
+    {"agent_id": 3, "dx": -1, "dy": 0},
+    {"agent_id": 2, "dx": 0, "dy": 0},
+    {"agent_id": 1, "dx": 0, "dy": 0}
+  ]
+}

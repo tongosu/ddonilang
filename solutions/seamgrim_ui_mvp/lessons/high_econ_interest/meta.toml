@@ -1,0 +1,7 @@
+title = "고등 · 이자 성장"
+description = "단순 이자 모델"
+grade = "high"
+subject = "econ"
+level = "intermediate"
+goals = ["관계 해석", "모델 읽기"]
+required_views = ["graph", "table", "text"]

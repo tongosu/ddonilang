@@ -1,0 +1,41 @@
+{
+  "schema": "seamgrim.table.v0",
+  "columns": [
+    {
+      "key": "t",
+      "label": "t",
+      "type": "number"
+    },
+    {
+      "key": "temp",
+      "label": "온도",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    {
+      "t": 0,
+      "temp": 80
+    },
+    {
+      "t": 2,
+      "temp": 72
+    },
+    {
+      "t": 4,
+      "temp": 64
+    },
+    {
+      "t": 6,
+      "temp": 56
+    },
+    {
+      "t": 8,
+      "temp": 48
+    },
+    {
+      "t": 10,
+      "temp": 40
+    }
+  ]
+}

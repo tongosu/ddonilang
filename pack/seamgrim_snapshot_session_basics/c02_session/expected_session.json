@@ -1,0 +1,53 @@
+{
+  "schema": "seamgrim.session.v0",
+  "ts": "2026-02-01T00:00:00Z",
+  "lesson": "math_line",
+  "ddn_text": "#이름: sample\n#설명: sample",
+  "formula_text": "y = 2*x + 1",
+  "sample": {
+    "var": "x",
+    "x_min": 0,
+    "x_max": 4,
+    "step": 1
+  },
+  "time": {
+    "enabled": false,
+    "t_min": 0,
+    "t_max": 1,
+    "step": 0.5,
+    "now": 0,
+    "interval": 300,
+    "loop": true
+  },
+  "view": {
+    "auto": true,
+    "panX": 0,
+    "panY": 0,
+    "zoom": 1,
+    "range": {
+      "xMin": 0,
+      "xMax": 4,
+      "yMin": 0,
+      "yMax": 4
+    },
+    "showGrid": true,
+    "showAxis": true
+  },
+  "runs": [],
+  "active_run_id": null,
+  "inputs": {
+    "registry": [
+      {
+        "id": "ddn:editor",
+        "type": "ddn",
+        "label": "sample",
+        "payload": {
+          "text": "#이름: sample\n#설명: sample"
+        },
+        "derived_ddn": null,
+        "ts": "2026-02-01T00:00:00Z"
+      }
+    ],
+    "selected_id": "ddn:editor"
+  }
+}

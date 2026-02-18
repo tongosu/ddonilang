@@ -1,0 +1,10 @@
+title = "국제경제: 환율(기초) (E013-01)"
+description = "국제경제: 환율(기초)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["국내금리와 기대환율변화(기대절하)의 관계를 직선으로 본다", "i_for(해외금리) 고정 시 Δs의 절편/기울기를 해석한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e013_01_uip_expected_depreciation"

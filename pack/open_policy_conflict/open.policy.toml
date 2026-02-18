@@ -1,0 +1,3 @@
+default = "deny"
+allow = ["clock", "file_read"]
+deny = ["clock"]

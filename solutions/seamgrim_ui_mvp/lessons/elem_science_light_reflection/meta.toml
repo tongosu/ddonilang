@@ -1,0 +1,10 @@
+title = "빛의 반사"
+description = "입사각과 반사각의 관계를 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["입사각과 반사각이 같음을 이해한다"]
+story = "3–4학년 과학에서 '빛의 반사' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

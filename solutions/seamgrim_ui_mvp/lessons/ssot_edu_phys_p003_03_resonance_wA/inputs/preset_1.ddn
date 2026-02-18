@@ -1,0 +1,56 @@
+#이름: ssot_edu_phys_p003_03_resonance_wA_variant_P003-03 공진 곡선 ω-A
+#설명: 강제진동: x'' + 2β x' + ω0^2 x = F0*cos(ω t) (Euler). 각 ω에서 정상상태 진폭 A를 추정해 (ω, A) 출력.
+
+// 출력은 숫자만. (ω, A) 순서.
+// NOTE:
+// - sqrt 없이도, 마지막 구간의 x_max/x_min으로 A=(xmax-xmin)/2를 추정한다.
+// - 각 ω마다 내부 시뮬을 돌리므로 (dw, t_max, dt)를 너무 촘촘히 하면 느려진다.
+
+살림.w_min <- 0.5.
+살림.w_max <- 3.0.
+살림.dw <- 0.1.
+
+살림.omega0 <- 1.5.
+살림.beta <- 0.05.
+살림.F0 <- 1.
+
+살림.dt <- 0.02.
+살림.t_max <- 30.
+살림.t_warm <- 15.
+
+살림.w <- 살림.w_min.
+
+{ 살림.w <= 살림.w_max }인것 동안: {
+  // 초기조건(각 ω마다)
+  살림.x <- 0.
+  살림.v <- 0.
+  살림.t <- 0.
+
+  살림.x_max <- -999999.
+  살림.x_min <- 999999.
+
+  { 살림.t <= 살림.t_max }인것 동안: {
+    // warm-up 이후에만 max/min 누적
+    { 살림.t >= 살림.t_warm }인것 일때 {
+      { 살림.x > 살림.x_max }인것 일때 { 살림.x_max <- 살림.x }.
+      { 살림.x < 살림.x_min }인것 일때 { 살림.x_min <- 살림.x }.
+    }.
+
+    살림.angle <- (w=살림.w, t=살림.t) (#ascii) 수식{ w*t }.
+    살림.drive <- (살림.angle) cos.
+
+    살림.a <- (beta=살림.beta, v=살림.v, omega0=살림.omega0, x=살림.x, F0=살림.F0, drive=살림.drive) (#ascii) 수식{ -2*beta*v - (omega0^2)*x + F0*drive }.
+
+    살림.v <- (v=살림.v, a=살림.a, dt=살림.dt) (#ascii) 수식{ v + a*dt }.
+    살림.x <- (x=살림.x, v=살림.v, dt=살림.dt) (#ascii) 수식{ x + v*dt }.
+
+    살림.t <- 살림.t + 살림.dt.
+  }.
+
+  살림.A <- (xmax=살림.x_max, xmin=살림.x_min) (#ascii) 수식{ (xmax - xmin)/2 }.
+
+  살림.w 보여주기.
+  살림.A 보여주기.
+
+  살림.w <- 살림.w + 살림.dw.
+}.

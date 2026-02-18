@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.structure.v0",
+  "nodes": [
+    { "id": "A", "label": "시작" },
+    { "id": "B", "label": "중간" },
+    { "id": "C", "label": "끝" }
+  ],
+  "edges": [
+    { "from": "A", "to": "B", "directed": true },
+    { "from": "B", "to": "C", "directed": true }
+  ],
+  "layout": { "type": "dag" },
+  "meta": {
+    "source_input_hash": "sample"
+  }
+}

@@ -1,0 +1,9 @@
+title = "운동과 에너지 (P001-03)"
+description = "운동과 에너지"
+grade = "middle"
+subject = "physics"
+level = "intro"
+goals = ["등가속도운동에서 위치 x가 시간 t에 대해 2차식(포물선) 형태임을 확인한다", "x-t 그래프가 직선이 아닌 이유를 '속도가 변하기 때문'으로 설명한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p001_03_uniform_accel_xt"

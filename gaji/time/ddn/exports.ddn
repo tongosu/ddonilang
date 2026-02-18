@@ -1,0 +1,14 @@
+﻿// exports.ddn — tick/t 유틸
+
+(fps:수, 총초:수) tick목록만들기:셈씨 = {
+  끝tick <- (총초 * fps) 정수로.
+  (0, 끝tick, 1) 범위 돌려줘.
+}.
+
+(tick:수, fps:수) tick에서_t:셈씨 = {
+  (tick / fps) 돌려줘.
+}.
+
+(t_min:수, t_max:수, dt:수) t목록만들기:셈씨 = {
+  (t_min, t_max, dt) 범위 돌려줘.
+}.

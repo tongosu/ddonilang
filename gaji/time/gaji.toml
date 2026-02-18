@@ -1,0 +1,9 @@
+﻿id = "gaji/time"
+name = "시간 가지"
+version = "0.1.0"
+ssot_requires = ">=20.2.26"
+
+det_tier = "D-STRICT"
+openness = "closed"
+
+description = "tick/t 유틸"

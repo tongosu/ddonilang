@@ -1,0 +1,7 @@
+title = "대학 · 조화 운동"
+description = "시간 함수 근사"
+grade = "college"
+subject = "physics"
+level = "advanced"
+goals = ["변화 추적", "모델링 이해"]
+required_views = ["graph", "text"]

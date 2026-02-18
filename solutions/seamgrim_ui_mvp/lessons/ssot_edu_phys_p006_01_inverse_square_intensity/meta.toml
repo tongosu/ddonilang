@@ -1,0 +1,9 @@
+title = "빛(역제곱 법칙) (P006-01)"
+description = "빛(역제곱 법칙)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["세기가 거리의 제곱에 반비례함을 그래프 형태로 이해한다", "r이 2배가 되면 I가 1/4가 되는지 확인한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p006_01_inverse_square_intensity"

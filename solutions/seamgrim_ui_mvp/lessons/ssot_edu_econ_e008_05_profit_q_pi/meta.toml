@@ -1,0 +1,10 @@
+title = "생산·비용(이윤) (E008-05)"
+description = "생산·비용(이윤)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["이윤 π(q)=p*q-TC(q)를 그래프로 이해한다", "가격 p 변화가 이윤에 미치는 영향을 실험한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e008_05_profit_q_pi"

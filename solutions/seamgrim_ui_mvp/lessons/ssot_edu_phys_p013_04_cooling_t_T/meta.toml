@@ -1,0 +1,10 @@
+title = "열역학(미분방정식 맛보기) (P013-04)"
+description = "열역학(미분방정식 맛보기)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["주변온도 T_env에 지수적으로 수렴하는 냉각을 수치적으로 관찰한다", "dt(시간 간격)가 크면 수렴이 거칠어질 수 있음을 경험한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p013_04_cooling_t_T"

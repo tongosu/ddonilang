@@ -1,0 +1,1 @@
+{"cli":["--bogae","web","--bogae-out","build/bogae_web_viewer_v1","--no-open"],"stdout":["bogae_hash=blake3:727f0c9d97ee1dd17bba14b3496602c8e8235b7b3c0d623a6d4cbce7340a29e9 cmd_count=3 codec=BDL1"]}

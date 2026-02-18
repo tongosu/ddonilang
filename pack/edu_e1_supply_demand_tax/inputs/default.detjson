@@ -1,0 +1,8 @@
+{
+  "schema": "seamgrim.lesson_input.v0",
+  "params": {
+    "demand_slope": -1,
+    "supply_slope": 1,
+    "tax": 0
+  }
+}

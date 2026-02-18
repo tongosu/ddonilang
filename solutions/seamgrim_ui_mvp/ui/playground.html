@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DDN Playground</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8f5ed;
+      --panel-bg: #ffffff;
+      --border: #d7d2c8;
+      --text: #1f2933;
+      --muted: #55636f;
+      --accent: #3a556a;
+      --accent-warm: #b45309;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --sans: "IBM Plex Sans KR", "Noto Sans KR", sans-serif;
+      --error-bg: #fef2f2;
+      --error-border: #fca5a5;
+      --error-text: #991b1b;
+      --success-bg: #f0fdf4;
+      --success-border: #86efac;
+      --guide-bg: #fffbeb;
+      --guide-border: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* --- Guide sidebar --- */
+    .guide-sidebar {
+      width: 320px;
+      min-width: 280px;
+      max-width: 400px;
+      background: var(--guide-bg);
+      border-right: 2px solid var(--guide-border);
+      padding: 20px 16px;
+      overflow-y: auto;
+      transition: margin-left 0.25s ease;
+      flex-shrink: 0;
+    }
+    .guide-sidebar.collapsed {
+      margin-left: -320px;
+    }
+    .guide-sidebar h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      color: var(--accent-warm);
+    }
+    .guide-sidebar h3 {
+      margin: 16px 0 6px;
+      font-size: 13px;
+      color: #7c2d12;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .guide-sidebar p,
+    .guide-sidebar li {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #44403c;
+    }
+    .guide-sidebar ul { padding-left: 20px; }
+    .guide-sidebar code {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: #fef3c7;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .guide-sidebar pre {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: #fefce8;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 10px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .guide-section {
+      border-bottom: 1px solid #fde68a;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .guide-section:last-child {
+      border-bottom: none;
+    }
+
+    /* --- Main area --- */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    /* --- Header bar --- */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      white-space: nowrap;
+    }
+    .header select {
+      font-family: var(--sans);
+      font-size: 13px;
+      padding: 6px 10px;
+      border: 1px solid #cfd6df;
+      border-radius: 8px;
+      background: #fbfaf7;
+      min-width: 200px;
+    }
+    .header .spacer { flex: 1; }
+    .header button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .header button.ghost {
+      background: var(--panel-bg);
+      border-color: #94a3b8;
+      color: var(--text);
+    }
+    .header button.secondary {
+      background: #fef3c7;
+      border-color: var(--accent-warm);
+      color: #7c2d12;
+    }
+
+    /* --- Content grid --- */
+    .content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr;
+      gap: 12px;
+      padding: 12px 20px 20px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 8px 20px rgba(23, 32, 43, 0.04);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #7b6f5b;
+      flex-shrink: 0;
+    }
+
+    /* Editor panel */
+    .editor-panel {
+      grid-row: 1 / 2;
+      min-height: 0;
+    }
+    .editor-panel textarea {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      border: 1px solid #cfd6df;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      background: #fbfaf7;
+      resize: vertical;
+      overflow-y: auto;
+      tab-size: 2;
+      line-height: 1.5;
+    }
+
+    /* Controls row inside editor */
+    .controls {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .controls button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .controls button.ghost {
+      background: var(--panel-bg);
+      border-color: #94a3b8;
+      color: var(--text);
+    }
+    .controls .inline-input {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .controls .inline-input input {
+      width: 60px;
+      padding: 4px 6px;
+      border: 1px solid #cfd6df;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      background: #fbfaf7;
+    }
+    .controls .inline-input select {
+      min-width: 80px;
+      padding: 4px 6px;
+      border: 1px solid #cfd6df;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      background: #fbfaf7;
+    }
+
+    /* Canvas panel */
+    .view-panel {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .canvas-panel canvas {
+      width: 100%;
+      height: clamp(220px, 45vh, 360px);
+      flex: 0 0 auto;
+      border: 1px solid #cbd5f5;
+      border-radius: 10px;
+      background: #0b1020;
+    }
+
+    .status-section {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .status-box {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 12px;
+      border-radius: 10px;
+      min-height: 80px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .error-box {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      background: var(--error-bg);
+      color: var(--error-text);
+      border: 1px solid var(--error-border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      display: none;
+    }
+    .error-box.visible { display: block; }
+
+    /* --- Input panel (keyboard/pointer) --- */
+    .input-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .input-row select {
+      min-width: 90px;
+      padding: 4px 6px;
+      border: 1px solid #cfd6df;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      background: #fbfaf7;
+    }
+    .input-row button {
+      border: 1px solid #94a3b8;
+      background: #fff;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 900px) {
+      .guide-sidebar { width: 260px; }
+      .guide-sidebar.collapsed { margin-left: -260px; }
+      .content { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+      .editor-panel { grid-row: auto; }
+      .status-panel { grid-column: auto; }
+    }
+    @media (max-width: 600px) {
+      .header { padding: 10px 12px; }
+      .content { padding: 8px 12px 12px; }
+      .guide-sidebar { width: 100%; position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; }
+      .guide-sidebar.collapsed { margin-left: -100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Guide Sidebar (collapsible) -->
+  <aside id="guide-sidebar" class="guide-sidebar collapsed">
+    <div class="guide-section">
+      <h2>DDN Playground Guide</h2>
+      <p>DDN(또니랑)으로 그래프와 애니메이션을 만들어 보세요.</p>
+    </div>
+
+    <div class="guide-section">
+      <h3>기본 문법</h3>
+      <ul>
+        <li><code>이름 &lt;- 값.</code> &mdash; 변수 대입</li>
+        <li><code>이름:타입 = 값.</code> &mdash; 타입 지정 대입</li>
+        <li><code>매틱:움직씨 = { ... }.</code> &mdash; 매 프레임 실행</li>
+        <li><code>// 한줄 주석</code></li>
+        <li><code>문장 끝에 마침표(.)</code> 필수</li>
+      </ul>
+    </div>
+
+    <div class="guide-section">
+      <h3>보개 그림판 API</h3>
+      <p><code>보개_그림판_가로</code>, <code>보개_그림판_세로</code>로 캔버스 크기를 설정합니다.</p>
+      <p><code>보개_그림판_목록</code>에 도형 목록을 넣으면 렌더링됩니다.</p>
+      <pre>보개_그림판_목록 &lt;- (
+  ("결", "#보개/2D.Rect",
+    "x", 10, "y", 20,
+    "w", 30, "h", 30,
+    "채움색", "#f59e0bff"
+  ) 짝맞춤
+) 차림.</pre>
+    </div>
+
+    <div class="guide-section">
+      <h3>도형 종류</h3>
+      <ul>
+        <li><code>#보개/2D.Rect</code> &mdash; 사각형 (x, y, w, h, 채움색)</li>
+        <li><code>#보개/2D.Circle</code> &mdash; 원 (cx, cy, r, 채움색)</li>
+        <li><code>#보개/2D.Line</code> &mdash; 선 (x1, y1, x2, y2, 색)</li>
+        <li><code>#보개/2D.Text</code> &mdash; 글 (x, y, text, 색)</li>
+      </ul>
+    </div>
+
+    <div class="guide-section">
+      <h3>내장 변수</h3>
+      <ul>
+        <li><code>프레임수</code> &mdash; 현재 프레임 번호 (0부터)</li>
+        <li><code>dt</code> &mdash; 프레임 간 시간 (초)</li>
+      </ul>
+    </div>
+
+    <div class="guide-section">
+      <h3>연산자</h3>
+      <ul>
+        <li><code>+ - * /</code> &mdash; 사칙연산</li>
+        <li><code>%</code> &mdash; 나머지(모듈로)</li>
+        <li><code>&lt; &gt; = != &lt;= &gt;=</code> &mdash; 비교</li>
+      </ul>
+    </div>
+
+    <div class="guide-section" id="guide-curriculum-slot">
+      <h3>교과과정</h3>
+      <p>교과과정 콘텐츠가 여기에 추가됩니다.</p>
+    </div>
+  </aside>
+
+  <!-- Main area -->
+  <div class="main">
+    <!-- Header bar -->
+    <div class="header">
+      <button id="btn-guide" class="ghost" title="가이드 패널 열기/닫기">Guide</button>
+      <h1>DDN Playground</h1>
+      <select id="sample-select">
+        <option value="">-- 샘플 선택 --</option>
+      </select>
+      <label class="toggle"><input id="sample-reinit" type="checkbox" />샘플 로드시 VM 리셋</label>
+      <div class="spacer"></div>
+      <button id="btn-init" class="ghost">WASM 초기화</button>
+      <button id="btn-reset" class="ghost">VM 리셋</button>
+    </div>
+
+    <!-- Content grid -->
+    <div class="content">
+      <!-- Left: Editor -->
+      <div class="panel editor-panel">
+        <h2>DDN 소스</h2>
+        <div class="controls">
+          <button id="btn-apply">로직 적용</button>
+          <button id="btn-step">한 스텝</button>
+          <button id="btn-start" class="ghost">루프 시작</button>
+          <button id="btn-stop" class="ghost">루프 정지</button>
+          <label class="inline-input">dt(s) <input id="input-dt" type="number" value="0.0333" step="0.001" /></label>
+          <label class="inline-input">fps <input id="input-fps" type="number" value="30" step="1" /></label>
+        </div>
+        <textarea id="ddn-source" spellcheck="false" placeholder="DDN 코드를 입력하거나 위에서 샘플을 선택하세요..."></textarea>
+        <div class="input-row">
+          <label class="toggle"><input id="key-up" type="checkbox" />Up</label>
+          <label class="toggle"><input id="key-left" type="checkbox" />Left</label>
+          <label class="toggle"><input id="key-down" type="checkbox" />Down</label>
+          <label class="toggle"><input id="key-right" type="checkbox" />Right</label>
+          <label class="inline-input">px <input id="input-px" type="number" value="0" step="1" style="width:50px" /></label>
+          <label class="inline-input">py <input id="input-py" type="number" value="0" step="1" style="width:50px" /></label>
+        </div>
+      </div>
+
+      <!-- Right: Canvas + Status -->
+      <div class="panel canvas-panel view-panel">
+        <h2>그래프 / Space2D</h2>
+        <canvas id="graph-canvas" width="520" height="280"></canvas>
+        <div class="input-row">
+          <label class="toggle"><input id="graph-show-axis" type="checkbox" checked />axis</label>
+          <label class="toggle"><input id="graph-show-grid" type="checkbox" checked />grid</label>
+          <label class="toggle"><input id="patch-prefer" type="checkbox" />patch 우선</label>
+          <label class="toggle"><input id="space2d-auto-fit" type="checkbox" checked />2D auto-fit</label>
+          <button id="space2d-reset-view" class="ghost">2D 뷰 리셋</button>
+        </div>
+        <div class="input-row">
+          <label class="toggle"><input id="lens-enable" type="checkbox" />렌즈 그래프</label>
+          <label class="inline-input">x
+            <select id="lens-x-key"></select>
+          </label>
+          <label class="inline-input">y
+            <select id="lens-y-key"></select>
+          </label>
+          <label class="inline-input">y2
+            <select id="lens-y2-key"></select>
+          </label>
+        </div>
+        <div class="input-row">
+          <label class="inline-input">프리셋
+            <select id="lens-preset"></select>
+          </label>
+          <label class="inline-input">이름
+            <input id="lens-preset-name" type="text" placeholder="preset 이름" style="width: 140px;" />
+          </label>
+          <button id="lens-preset-save" class="ghost">렌즈 저장</button>
+          <button id="lens-preset-delete" class="ghost">렌즈 삭제</button>
+        </div>
+        <div class="status-section">
+          <h2>실행 상태</h2>
+          <div id="status" class="status-box">status: ready</div>
+          <h2>관찰 채널</h2>
+          <div id="channel-list" class="status-box">-</div>
+          <div id="error-box" class="error-box"></div>
+          <div class="input-row">
+            <label class="toggle"><input id="toggle-raw" type="checkbox" />raw json</label>
+            <label class="toggle"><input id="param-show-fixed64" type="checkbox" checked />fixed64</label>
+            <label class="toggle"><input id="param-show-value" type="checkbox" checked />value</label>
+          </div>
+          <div class="input-row">
+            <label class="inline-input">param key
+              <input id="param-key" type="text" placeholder="변수명" style="width:110px" />
+            </label>
+            <label class="inline-input">mode
+              <select id="param-mode">
+                <option value="scalar">scalar(set_param)</option>
+                <option value="fixed64_raw">fixed64_raw(set_param_fixed64)</option>
+              </select>
+            </label>
+            <label class="inline-input">value
+              <input id="param-input" type="text" placeholder="10 / true / \"글\" / raw_i64" style="width:170px" />
+            </label>
+            <button id="param-apply" class="ghost">param 적용</button>
+          </div>
+          <div id="param-apply-status" class="hint">param: -</div>
+          <textarea id="raw-json" style="display:none; margin-top:6px; width:100%; min-height:80px; font-family:var(--mono); font-size:11px; border:1px solid #cfd6df; border-radius:8px; padding:8px; background:#fbfaf7; resize:vertical;" readonly></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./playground.js"></script>
+</body>
+</html>

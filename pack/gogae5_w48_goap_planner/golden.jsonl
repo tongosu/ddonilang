@@ -1,0 +1,1 @@
+{"cmd": ["goal", "plan", "--actions", "pack/gogae5_w48_goap_planner/actions.detjson", "--out", "build/plan.detjson"], "stdout": []}

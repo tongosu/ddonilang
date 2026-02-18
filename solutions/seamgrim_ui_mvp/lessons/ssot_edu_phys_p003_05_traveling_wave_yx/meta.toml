@@ -1,0 +1,9 @@
+title = "파동과 진동 (P003-05)"
+description = "파동과 진동"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["진행파의 공간 파형 y(x)를 그래프로 확인한다", "학습목표\" = [", "진행파의 공간 파형 y(x)를 그래프로 확인한다", "t0를 바꾸면 파형이 이동(위상 이동)하는 것처럼 보임을 이해한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p003_05_traveling_wave_yx"

@@ -1,0 +1,1 @@
+{"cmd": ["infer", "mlp", "pack/gogae8_w85_ondevice_infer_v1/model.detjson", "pack/gogae8_w85_ondevice_infer_v1/input.detjson", "--out", "pack/gogae8_w85_ondevice_infer_v1/out"], "stdout": ["{\"schema\":\"seulgi.infer_output.v1\",\"model_hash\":\"blake3:1391c84a4d985d4f30cfd3b34d7042b7c51e31e82b2f2f5944c822ad9d71e8bd\",\"output\":[-9]}"]}

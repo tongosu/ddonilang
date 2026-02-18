@@ -1,0 +1,7 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "set_param": {
+    "key": "g",
+    "value": 15.0
+  }
+}

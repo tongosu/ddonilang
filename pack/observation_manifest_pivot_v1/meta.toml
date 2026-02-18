@@ -1,0 +1,3 @@
+id = "observation_manifest_pivot_v1"
+kind = "D-PACK"
+requires = ["viewer-web", "wasm-ddn"]

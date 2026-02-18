@@ -1,0 +1,1 @@
+{"cmd":["bogae","bundle","--mapping","pack/bogae_bundle_v1/mapping.ddn","--assets","pack/bogae_bundle_v1/assets","--out","pack/bogae_bundle_v1/bogae.bundle"],"stdout":["bogae_bundle_hash=blake3:2a3552afd8d97b7506ed5cf632c7c5cb5faefe079996aef362cae7e3e90759b9"]}

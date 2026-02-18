@@ -1,0 +1,7 @@
+title = "경제 · 가계부"
+description = "수입/지출 요약 표"
+grade = "middle"
+subject = "econ"
+level = "intro"
+goals = ["관계 해석", "모델 읽기"]
+required_views = ["graph", "table", "text"]

@@ -1,0 +1,9 @@
+title = "시장균형 (E001-03)"
+description = "시장균형"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["수요곡선과 공급곡선의 교점이 균형임을 설명한다", "매개변수 변화가 균형(Q*,P*)를 어떻게 바꾸는지 관찰한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e001_03_equilibrium_point_QP"

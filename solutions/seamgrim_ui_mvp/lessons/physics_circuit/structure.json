@@ -1,0 +1,14 @@
+{
+  "schema": "seamgrim.structure.v0",
+  "nodes": [
+    { "id": "battery", "label": "Battery" },
+    { "id": "resistor", "label": "Resistor" },
+    { "id": "lamp", "label": "Lamp" }
+  ],
+  "edges": [
+    { "from": "battery", "to": "resistor" },
+    { "from": "resistor", "to": "lamp" },
+    { "from": "lamp", "to": "battery" }
+  ],
+  "meta": { "title": "회로 구조" }
+}

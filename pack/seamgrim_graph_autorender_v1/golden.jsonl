@@ -1,0 +1,1 @@
+{"fixture":"fixtures/state_prefix_basic.detjson","expected_graph":"expected/basic.graph.v0.json","prefer_patch":false}

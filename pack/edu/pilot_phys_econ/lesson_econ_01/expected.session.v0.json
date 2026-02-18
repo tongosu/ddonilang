@@ -1,0 +1,51 @@
+{
+  "cursor": {
+    "id": "demand",
+    "t": 0.0,
+    "tick": 0
+  },
+  "graph_ref": "expected.graph.v0.json",
+  "inputs": {
+    "control_meta": "#control: income:수=0 [-50..50] step=1 unit=idx",
+    "control_values": {
+      "income": 0
+    },
+    "registry": [
+      {
+        "id": "main_ddn",
+        "payload_ref": "lesson.ddn",
+        "type": "ddn"
+      }
+    ],
+    "selected_id": "main_ddn"
+  },
+  "layers": [
+    {
+      "id": "baseline",
+      "order": 0,
+      "params": {
+        "income": 0
+      },
+      "role": "baseline",
+      "visible": true
+    },
+    {
+      "id": "variant",
+      "order": 1,
+      "params": {
+        "income": 20
+      },
+      "role": "variant",
+      "visible": false
+    }
+  ],
+  "layout_preset": "좌graph_우table_중text_하단dock",
+  "required_views": [
+    "graph",
+    "table",
+    "text",
+    "structure"
+  ],
+  "scene_ref": "expected.scene.v0.json",
+  "schema": "seamgrim.session.v0"
+}

@@ -1,0 +1,1 @@
+{"input": "살림.텍스트 <- (\"{{CWD_UPPER}}/pack/open_file_read_abs_case/hello.txt\") 열림.파일.읽기.\n살림.텍스트 보여주기.\n", "cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_file_read_abs_case/open.log.jsonl", "--no-open"], "stdout": ["hello case"], "stderr": []}

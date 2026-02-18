@@ -1,0 +1,10 @@
+# Tests
+
+## Manual run
+- `teul-cli run pack/nuri_gym_cartpole/input.ddn`
+
+## Expected output
+```
+{"schema":"nurigym.episode.v1","env_id":"nurigym.cartpole1d","episode_id":1,"seed":12345,"madi_start":0,"madi_end":0,"obs_spec_hash":"sha256:721fa92e40a78e7b2e9b3c1ba30aa907e74cabc53eb50f6649e535d272789782","action_spec_hash":"sha256:9eb508234f5ffa51d2039cdf9219b4c5298a9e32d4c07ebbe08dc54db66c5d33"}
+{"schema":"nurigym.step.v1","episode_id":1,"agent_id":0,"madi":0,"observation":{"schema":"nurigym.obs.v1","slot_count":4,"values":[0,0,0,0]},"action":{"schema":"nurigym.action.v1","value":-1},"reward":1,"next_observation":{"schema":"nurigym.obs.v1","slot_count":4,"values":[0,0,0,0]},"done":false}
+```

@@ -1,0 +1,75 @@
+#이름: age2_econ_market_shock_v1
+#설명: AGE2 스튜디오 커널 v1 샘플(수요/공급 충격)
+
+a <- 100.
+b <- 5.
+c <- 20.
+d <- 4.
+shock <- -10.
+
+// graph meta
+graph_kind <- "xy_line".
+x_kind <- "price".
+x_unit <- "unit".
+x_label <- "가격".
+y_kind <- "quantity".
+y_unit <- "unit".
+y_label <- "수량".
+graph_kind 보여주기.
+x_kind 보여주기.
+x_unit 보여주기.
+x_label 보여주기.
+y_kind 보여주기.
+y_unit 보여주기.
+y_label 보여주기.
+
+// channels
+"channels" 보여주기.
+"x" 보여주기.
+"y" 보여주기.
+"series" 보여주기.
+
+// structure
+"structure" 보여주기.
+node <- (id="demand", label="수요", kind="curve").
+node 보여주기.
+node <- (id="supply", label="공급", kind="curve").
+node 보여주기.
+edge <- (from="shock", to="demand", label="충격", kind="shift").
+edge 보여주기.
+
+// table header + pivot markers
+"table" 보여주기.
+"p,metric,value,series" 보여주기.
+"table.pivot" 보여주기.
+"metric" 보여주기.
+"series" 보여주기.
+
+p목록 <- (0, 2, 1)범위.
+(p) p목록에 대해: {
+  Qd <- a - b * p + shock.
+  Qs <- c + d * p.
+
+  무리 <- "demand".
+  무리 보여주기.
+  p 보여주기.
+  Qd 보여주기.
+
+  무리 <- "supply".
+  무리 보여주기.
+  p 보여주기.
+  Qs 보여주기.
+
+  "table.row" 보여주기.
+  p 보여주기.
+  "Qd" 보여주기.
+  Qd 보여주기.
+  "demand" 보여주기.
+}.
+
+// sparse row
+"table.row" 보여주기.
+3 보여주기.
+"Qs" 보여주기.
+없음 보여주기.
+"supply" 보여주기.

@@ -1,0 +1,8 @@
+{
+  "env_id": "nurigym.pendulum1d",
+  "seed": 7,
+  "episode_id": 1,
+  "agent_id": 0,
+  "max_steps": 10,
+  "actions": [1, -1, 1, 1, -1, -1, 1, -1, 1, 1]
+}

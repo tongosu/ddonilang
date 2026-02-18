@@ -1,0 +1,15 @@
+{
+  "patch_version": "0.1-draft",
+  "changes": [
+    {
+      "kind": "replace_block",
+      "target": { "file": "input.ddn", "anchor": "인사:씨앗" },
+      "code": [
+        "인사:씨앗 = {",
+        "  살림.문장 <- \"안녕, 패치!\".",
+        "}."
+      ],
+      "reason": "패치 승인/적용 파이프라인 예시"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "step_before_state": 2
+}

@@ -1,0 +1,2 @@
+{"input_path": "c01_line_meta_header/input.ddn", "expected_graph": "c01_line_meta_header/expected.seamgrim.graph.v0.json", "stdout": ["0", "1", "1", "3", "2", "5"]}
+{"input_path": "c02_parabola/input.ddn", "expected_graph": "c02_parabola/expected.seamgrim.graph.v0.json", "stdout": ["-1", "1.5", "-0.5", "0.75", "0", "0.5", "0.5", "0.75", "1", "1.5"]}

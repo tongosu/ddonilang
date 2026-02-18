@@ -1,0 +1,10 @@
+{
+  "created_at": 1769703411,
+  "diag_jsonl": "geoul.diag.jsonl",
+  "entry": "pack/open_bundle_artifact/input.ddn",
+  "kind": "run_bundle_v1",
+  "open_log": "open.log.jsonl",
+  "open_mode": "record",
+  "ssot_version": "20.2.27",
+  "toolchain_version": "0.1.0"
+}

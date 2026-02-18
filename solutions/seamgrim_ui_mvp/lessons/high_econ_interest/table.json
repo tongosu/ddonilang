@@ -1,0 +1,61 @@
+{
+  "schema": "seamgrim.table.v0",
+  "columns": [
+    {
+      "key": "year",
+      "label": "연도",
+      "type": "number"
+    },
+    {
+      "key": "balance",
+      "label": "잔액",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    {
+      "year": 0,
+      "balance": 1.0
+    },
+    {
+      "year": 1,
+      "balance": 1.08
+    },
+    {
+      "year": 2,
+      "balance": 1.16
+    },
+    {
+      "year": 3,
+      "balance": 1.24
+    },
+    {
+      "year": 4,
+      "balance": 1.32
+    },
+    {
+      "year": 5,
+      "balance": 1.4
+    },
+    {
+      "year": 6,
+      "balance": 1.48
+    },
+    {
+      "year": 7,
+      "balance": 1.56
+    },
+    {
+      "year": 8,
+      "balance": 1.64
+    },
+    {
+      "year": 9,
+      "balance": 1.72
+    },
+    {
+      "year": 10,
+      "balance": 1.8
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+title = "수학 · 직선"
+description = "일차 함수 기본"
+grade = "middle"
+subject = "math"
+level = "intro"
+goals = ["그래프 해석", "함수 이해"]
+required_views = ["graph"]

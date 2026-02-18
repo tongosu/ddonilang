@@ -1,0 +1,41 @@
+﻿{
+  "schema": "seamgrim.graph.v0",
+  "sample": {
+    "var": "x",
+    "x_min": 0,
+    "x_max": 4,
+    "step": 1
+  },
+  "axis": {
+    "x_min": 0,
+    "x_max": 4,
+    "y_min": 0,
+    "y_max": 4
+  },
+  "view": {
+    "auto": false,
+    "x_min": -1,
+    "x_max": 5,
+    "y_min": -1,
+    "y_max": 5,
+    "pan_x": 0,
+    "pan_y": 0,
+    "zoom": 1
+  },
+  "series": [
+    {
+      "id": "main",
+      "label": "f(x)",
+      "points": [
+        { "x": 0, "y": 0 },
+        { "x": 1, "y": 1 },
+        { "x": 2, "y": 2 }
+      ]
+    }
+  ],
+  "meta": {
+    "update": "replace",
+    "source_input_hash": "example",
+    "result_hash": "example"
+  }
+}

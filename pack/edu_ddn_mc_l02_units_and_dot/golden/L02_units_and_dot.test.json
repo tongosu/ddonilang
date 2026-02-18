@@ -1,0 +1,8 @@
+{
+  "name": "L02_units_and_dot",
+  "sam_input": "inputs/empty.detjson",
+  "max_madi": 1,
+  "det_expected": {
+    "no_fault": true
+  }
+}

@@ -1,0 +1,10 @@
+title = "지도 축척"
+description = "y = x * 5"
+grade = "elementary"
+grade_band = "5-6"
+subject = "math"
+level = "intro"
+goals = ["축척을 이용해 실제 길이를 계산한다"]
+story = "지도에서 실제 거리를 계산하는 원리를 그래프로 이해합니다."
+missions = ["축척을 바꿔 결과 비교하기", "x와 y의 비례 관계 설명하기"]
+required_views = ["graph"]

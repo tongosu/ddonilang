@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "columns": [
+    { "key": "name", "label": "이름", "type": "string" },
+    { "key": "score", "label": "점수", "type": "number" },
+    { "key": "passed", "label": "합격", "type": "bool" }
+  ],
+  "rows": [
+    { "name": "A", "score": 82.5, "passed": true },
+    { "name": "B", "score": 74.2, "passed": false },
+    { "name": "C", "score": 91.8, "passed": true }
+  ],
+  "meta": {
+    "source_input_hash": "sample"
+  }
+}

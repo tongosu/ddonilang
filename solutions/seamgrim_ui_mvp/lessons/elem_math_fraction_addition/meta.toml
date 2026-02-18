@@ -1,0 +1,10 @@
+title = "분수 더하기"
+description = "y = x/6 + 1/2"
+grade = "elementary"
+grade_band = "3-4"
+subject = "math"
+level = "intro"
+goals = ["분수 덧셈을 그래프로 확인한다"]
+story = "3–4학년 분수 덧셈을 시각적으로 살펴봅니다."
+missions = ["분모를 바꿔 변화 관찰하기", "기울기와 절편을 말로 설명하기"]
+required_views = ["graph"]

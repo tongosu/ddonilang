@@ -1,0 +1,10 @@
+{
+  "kind": "bogae_asset_manifest_v1",
+  "assets": [
+    {
+      "id": "blake3:240d596359ba87103ecd4c53881b83619dee0093270a47477dd73943156dcdbe",
+      "path": "demo.txt",
+      "name": "demo.txt"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+title = "저축 목표"
+description = "저축액이 쌓이는 과정을 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "econ"
+level = "intro"
+goals = ["저축이 누적됨을 이해한다"]
+story = "3–4학년 사회/경제에서 '저축 목표' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

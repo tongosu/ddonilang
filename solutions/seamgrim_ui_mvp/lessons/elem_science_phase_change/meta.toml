@@ -1,0 +1,10 @@
+title = "물의 상태 변화"
+description = "가열 과정의 평탄 구간을 단순화한다."
+grade = "elementary"
+grade_band = "5-6"
+subject = "physics"
+level = "intro"
+goals = ["상변화 동안 온도가 일정함을 이해한다"]
+story = "5–6학년 과학에서 '물의 상태 변화' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

@@ -1,0 +1,10 @@
+title = "노동시장: 최저임금(기초 모형) (E014-04)"
+description = "노동시장: 최저임금(기초 모형)"
+grade = "high"
+subject = "econ"
+level = "advanced"
+goals = ["최저임금이 균형보다 높으면 초과공급(실업)이 생길 수 있음을 그래프로 본다", "수요/공급 민감도에 따라 실업 규모가 달라짐을 관찰한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e014_04_min_wage_unemployment_of_wmin"

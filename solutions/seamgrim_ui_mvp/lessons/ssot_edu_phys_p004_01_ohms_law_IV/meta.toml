@@ -1,0 +1,9 @@
+title = "전기(저항) (P004-01)"
+description = "전기(저항)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["저항이 일정할 때 전류-전압(I–V) 관계가 직선임을 확인한다", "기울기(1/R)가 의미하는 바를 설명한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p004_01_ohms_law_IV"

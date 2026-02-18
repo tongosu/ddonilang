@@ -1,0 +1,7 @@
+title = "고등 · 도함수"
+description = "다항함수 변화율"
+grade = "high"
+subject = "math"
+level = "intermediate"
+goals = ["그래프 해석", "함수 이해"]
+required_views = ["graph", "text"]

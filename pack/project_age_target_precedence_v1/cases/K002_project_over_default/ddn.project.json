@@ -1,0 +1,8 @@
+{
+  "name": "project_age_target_precedence_v1",
+  "age_target": "AGE2",
+  "det_tier": "D-STRICT",
+  "trace_tier": "T-PATCH",
+  "detmath_seal_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "nuri_lock_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+}

@@ -1,0 +1,2 @@
+{"cmd": ["nurigym", "run", "pack\\nuri_gym_gridmaze_easy_v1\\input.json", "--out", "build\\nuri_gym_gridmaze_easy_v1"], "stdout_path": "golden.txt"}
+{"cmd": ["nurigym", "run", "pack\\nuri_gym_gridmaze_easy_v1\\input_alt.json", "--out", "build\\nuri_gym_gridmaze_easy_v1_alt"], "stdout_path": "golden_alt.txt"}

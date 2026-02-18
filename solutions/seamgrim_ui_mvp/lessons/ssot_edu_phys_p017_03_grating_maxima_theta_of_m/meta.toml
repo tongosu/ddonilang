@@ -1,0 +1,10 @@
+title = "광학: 회절격자(최대 조건) (P017-03)"
+description = "광학: 회절격자(최대 조건)"
+grade = "high"
+subject = "physics"
+level = "advanced"
+goals = ["정수 m(차수)에 따라 최대 각도가 커지는 것을 본다", "d가 커지면 각도가 작아지는(무늬가 촘촘) 직관을 얻는다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p017_03_grating_maxima_theta_of_m"

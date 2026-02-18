@@ -1,0 +1,1 @@
+{"schema":"seulgi.mlp.v1","input_size":2,"hidden_size":2,"output_size":1,"activation":"relu","weights_path":"weights_fail.bin"}

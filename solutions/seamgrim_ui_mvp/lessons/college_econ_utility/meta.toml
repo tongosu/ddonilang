@@ -1,0 +1,7 @@
+title = "대학 · 효용 함수"
+description = "효용 곡선"
+grade = "college"
+subject = "econ"
+level = "advanced"
+goals = ["관계 해석", "모델 읽기"]
+required_views = ["graph", "text"]

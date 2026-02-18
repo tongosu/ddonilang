@@ -1,0 +1,134 @@
+#이름: 수요공급_균형_한편의장면
+#설명: graph(수요/공급 곡선) + table(균형 값) + text(설명/자막) + ViewDock
+#교과: 경제-수요공급
+#필수보개: graph, table, text, structure
+#layout_preset: 좌graph_우table_중text_하단dock
+#physics_backend: none
+#control: income:수=0 [-50..50] step=1 unit=idx
+
+붙박이마련: {
+  // 기본 선형 모형 파라미터
+  a:수 = 100.   // 수요 절편
+  b:수 = 5.     // 수요 기울기(가격↑ → 수요↓)
+  c:수 = 20.    // 공급 절편
+  d:수 = 4.     // 공급 기울기(가격↑ → 공급↑)
+  k:수 = 1.0.   // 소득이 수요에 미치는 영향(shift)
+
+  p_min:수 = 0.
+  p_max:수 = 20.
+  p_step:수 = 0.5.
+}.
+
+그릇채비: {
+  income:수 <- 0.
+}.
+
+// 바탕(전제): 기울기/범위 유효성
+// { b > 0 }인것 바탕으로
+//   아니면 { b <- 1 }로 고친다.
+//   맞으면 { }하고.
+// { d > 0 }인것 바탕으로
+//   아니면 { d <- 1 }로 고친다.
+//   맞으면 { }하고.
+// { p_step > 0 }인것 바탕으로
+//   아니면 { p_step <- 1 }로 고친다.
+//   맞으면 { }하고.
+
+// graph meta
+graph_kind <- "xy_line".
+x_kind <- "price".    x_unit <- "unit".  x_label <- "가격 p".
+y_kind <- "quantity". y_unit <- "unit".  y_label <- "수량 Q".
+graph_kind 보여주기.
+x_kind 보여주기. x_unit 보여주기. x_label 보여주기.
+y_kind 보여주기. y_unit 보여주기. y_label 보여주기.
+
+// 수요/공급 수식 정의
+Qdexpr <- (#ascii1) 수식{ a - b*p + k*i }.
+Qsexpr <- (#ascii1) 수식{ c + d*p }.
+
+// 균형(해석해) p* = (a + k*income - c)/(b + d), Q* = Qs(p*)
+peq <- (#ascii1) 수식{ (a + k*i - c) / (b + d) }.
+Qsatp <- (#ascii1) 수식{ c + d*p }.
+
+// 보개장면(연출 메타; AGE1+)
+보개장면 {
+  마디0 (tick=0~30): {
+    (#제목, 글="수요·공급 균형") 나타나기.
+    (#자막, 글="소득(income)을 바꾸면 수요곡선이 이동합니다.") 나타나기.
+  }
+
+  마디1 (tick=31~120): {
+    (#자막, 글="수요곡선(Qd)과 공급곡선(Qs)을 그립니다.") 나타나기.
+    (#곡선, id="demand", 보개="graph") 그려지기(방식="progress").
+    (#곡선, id="supply", 보개="graph") 그려지기(방식="progress").
+  }
+
+  마디2 (tick=121~180): {
+    (#자막, 글="교점이 균형점(p*, Q*) 입니다.") 나타나기.
+    (#점, id="eq", 보개="graph") 나타나기.
+  }
+}.
+
+// 구조(인과지도) — 최소 예시(선택적으로 사용)
+// 마디목록 <- [
+//   (id="income", 이름="소득", 종류="변수") 값꾸러미,
+//   (id="demand", 이름="수요", 종류="곡선") 값꾸러미,
+//   (id="price", 이름="가격", 종류="변수") 값꾸러미
+// ].
+// 잇기목록 <- [
+//   (from="income", to="demand", 이름="증가", 종류="인과") 값꾸러미,
+//   (from="demand", to="price", 이름="상승", 종류="인과") 값꾸러미
+// ].
+// 마디목록 보여주기.
+// 잇기목록 보여주기.
+
+// DDN 실행(샘플링) — tick은 단순 프레임 번호로 사용
+tick목록 <- (0, 180, 1)범위.
+(tick) tick목록에 대해: {
+  tick 보여주기.
+
+  // 균형 계산
+  pstar <- (a=a, b=b, c=c, d=d, k=k, i=income)인 peq 풀기.
+  Qstar <- (c=c, d=d, p=pstar)인 Qsatp 풀기.
+
+  // 다짐(약속): 균형이 유한값
+  // { pstar == pstar }인것 다짐하고
+  //   아니면 { pstar <- 0 }로 고친다.
+  // { Qstar == Qstar }인것 다짐하고
+  //   아니면 { Qstar <- 0 }로 고친다.
+
+  // 균형 table(행)
+  // 행 <- (항목="균형 가격 p*", 수치=pstar) 값꾸러미.
+  // 행 보여주기.
+  // 행 <- (항목="균형 수량 Q*", 수치=Qstar) 값꾸러미.
+  // 행 보여주기.
+
+  // 곡선 샘플은 매 tick마다 다시 append하지 않도록 replace 정책 권장(도구 정책)
+  // 여기서는 단순히 (x,y,무리) 채널을 내보내는 예시로 둔다.
+
+  // 수요/공급 곡선 점열 (p_min..p_max)
+  p목록 <- (p_min, p_max, p_step)범위.
+  (p) p목록에 대해: {
+    Qd <- (a=a, b=b, k=k, i=income, p=p)인 Qdexpr 풀기.
+    Qs <- (c=c, d=d, p=p)인 Qsexpr 풀기.
+
+    // 수요 시리즈
+    무리 <- "demand". 무리 보여주기.
+    x <- p. y <- Qd.
+    x 보여주기. y 보여주기.
+
+    // 공급 시리즈
+    무리 <- "supply". 무리 보여주기.
+    x <- p. y <- Qs.
+    x 보여주기. y 보여주기.
+  }.
+
+  // 균형점 (graph 점)
+  무리 <- "eq". 무리 보여주기.
+  x <- pstar. y <- Qstar.
+  x 보여주기. y 보여주기.
+
+  // text 설명
+  글 <- "현재 income={income}. 균형점은 p*={pstar}, Q*={Qstar} 입니다.".
+  글 보여주기.
+}.

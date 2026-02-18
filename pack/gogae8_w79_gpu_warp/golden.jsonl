@@ -1,0 +1,2 @@
+{"cmd": ["warp", "bench", "pack\\gogae8_w79_gpu_warp\\input.json", "--backend", "cpu", "--policy", "strict", "--threads", "1"], "stdout_path": "golden_cpu.json"}
+{"cmd": ["warp", "bench", "pack\\gogae8_w79_gpu_warp\\input.json", "--backend", "gpu", "--policy", "fast", "--threads", "8"], "stdout_path": "golden_gpu.json"}

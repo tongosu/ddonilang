@@ -1,0 +1,9 @@
+schema = "SeamgrimViewSpecV0"
+
+required_views = [
+  "seamgrim.graph.v0:main"
+]
+
+required_gauges = [
+  "seamgrim.table.v0:points"
+]

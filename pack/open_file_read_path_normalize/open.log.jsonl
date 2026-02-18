@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:fae1cfb7c6db394ce72604abb809eeb59845b9e971a630af4eef9bdaa2e6a582","event_kind":"open","key":"pack/open_file_read_path_normalize/hello.txt","open_kind":"file_read","site_id":"pack/open_file_read_path_normalize/input.ddn:0:10","value":{"schema":"open.file_read.v1","text":"hello normalize\n"}}

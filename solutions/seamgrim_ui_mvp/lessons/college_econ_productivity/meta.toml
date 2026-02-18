@@ -1,0 +1,7 @@
+title = "대학 · 생산성"
+description = "비선형 생산 함수"
+grade = "college"
+subject = "econ"
+level = "advanced"
+goals = ["관계 해석", "모델 읽기"]
+required_views = ["graph", "text"]

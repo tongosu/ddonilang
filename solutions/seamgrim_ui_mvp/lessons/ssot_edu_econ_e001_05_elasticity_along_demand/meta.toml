@@ -1,0 +1,9 @@
+title = "가격탄력성(직관) (E001-05)"
+description = "가격탄력성(직관)"
+grade = "high"
+subject = "econ"
+level = "advanced"
+goals = ["수요곡선 위 위치에 따라 탄력성이 달라질 수 있음을 그래프로 확인한다", "탄력성의 의미(가격 변화에 대한 수요 변화 민감도)를 말로 설명한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e001_05_elasticity_along_demand"

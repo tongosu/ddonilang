@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:ef5014ddb8b73cc86c79a67fee61d7dd2125c853e6fe499ae7f8886135fa5668","event_kind":"open","key":"do_thing(a,b)","open_kind":"ffi","site_id":"pack/open_ffi_record_replay/input.ddn:1:9","value":{"args":["a","b"],"name":"do_thing","result":"ok","schema":"open.ffi.v1"}}

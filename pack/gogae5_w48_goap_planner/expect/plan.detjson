@@ -1,0 +1,1 @@
+{"schema":"goap.plan.v1","goal_id":42,"total_cost":2,"madi_count":3,"actions":[{"id":1,"name":"Pick up key","cost":1,"preconditions":[],"effects":[["has_key","true"]]},{"id":2,"name":"Unlock door","cost":1,"preconditions":[["has_key","true"]],"effects":[["door_open","true"]]}]}

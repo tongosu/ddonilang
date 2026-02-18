@@ -1,0 +1,10 @@
+title = "열역학(단열, 더 가파른 감소) (P013-03)"
+description = "열역학(단열, 더 가파른 감소)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["단열 과정(단순화)에서 P가 V에 더 빠르게 감소하는 형태를 관찰한다", "등온(1/V)과 단열(1/V^2) 곡선을 오버레이로 비교한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p013_03_adiabatic_pv_v_p"

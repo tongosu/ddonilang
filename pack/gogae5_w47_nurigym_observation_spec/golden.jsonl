@@ -1,0 +1,1 @@
+{"cmd": ["nurigym", "spec", "--from", "pack/gogae5_w47_nurigym_observation_spec/input.ddn", "--out", "build/nurigym_spec"], "stdout": ["obs_spec_hash=sha256:cb4733790acfd96ca558d51324e5e3703637f71e031e9d2b945957479ce1211b", "action_spec_hash=sha256:f429769842eb3ea2034d40727bcea85bcca272298e5a08fbea5332efade14985"]}

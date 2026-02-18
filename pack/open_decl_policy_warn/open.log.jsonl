@@ -1,0 +1,2 @@
+{"detjson_hash":"sha256:497aded5708e3d4546f20c48f527dc961e38777c331006e390ab40b46309f335","event_kind":"open","key":"now","open_kind":"clock","site_id":"pack/open_decl_policy_warn/input.ddn:1:9","value":{"schema":"open.clock.v1","unix_sec":1769577188}}
+{"detjson_hash":"sha256:03a0b0ca665462b96da9d6bd3218b33a2a0bff96641367b93d13cce02d9652d3","event_kind":"open","key":"pack/open_decl_policy_warn/hello.txt","open_kind":"file_read","site_id":"pack/open_decl_policy_warn/input.ddn:3:10","value":{"schema":"open.file_read.v1","text":"hello warn\n"}}

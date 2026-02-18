@@ -1,0 +1,10 @@
+title = "가열 시간과 온도"
+description = "y = 20 + 3x"
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["시간이 지날수록 온도가 상승함을 이해한다"]
+story = "가열 실험을 단순화해 온도 변화를 살펴봅니다."
+missions = ["시작 온도를 바꿔 비교하기", "기울기의 의미를 말하기"]
+required_views = ["graph"]

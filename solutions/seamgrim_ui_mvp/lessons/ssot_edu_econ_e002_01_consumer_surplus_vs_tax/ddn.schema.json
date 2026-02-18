@@ -1,0 +1,13 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.a", "type": "수" },
+    { "name": "살림.b", "type": "수" },
+    { "name": "살림.c", "type": "수" },
+    { "name": "살림.d", "type": "수" },
+    { "name": "살림.dtau", "type": "수" },
+    { "name": "살림.tau_max", "type": "수" },
+    { "name": "살림.tau_min", "type": "수" },
+    { "name": "살림.tau목록", "type": "수" }
+  ]
+}

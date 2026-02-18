@@ -1,0 +1,2 @@
+{"cli":["--bogae-out","build/bogae_hash_determinism_v1.bdl1"],"stdout":["bogae_hash=blake3:40af020a8fa00885b6a6ca88292856c3dbb6c9e9fe6904b02aa2d3e096040390"]}
+{"cli":["--bogae-codec","bdl2","--bogae-out","build/bogae_hash_determinism_v1.bdl2"],"stdout":["bogae_hash=blake3:752486010145c5eefbeb41d962a7582a349ea507abd5e017742dc6b4ddb8447a"]}

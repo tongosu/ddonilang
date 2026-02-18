@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.wasm.viewmeta_statehash.v1",
+  "labels": {
+    "a": "a",
+    "b": "b",
+    "c": "c"
+  },
+  "hashes": {
+    "a": "blake3:e753287fdcdb2a801ef80ff67fa89282479e6fd6c70b3d694d939f58fb202981",
+    "b": "blake3:e753287fdcdb2a801ef80ff67fa89282479e6fd6c70b3d694d939f58fb202981",
+    "c": "blake3:46c48969ad8b9e5793b31b0e452131af2f59701bcc0d69a6c65ceb7e75cdaa07"
+  },
+  "equal_ab": true,
+  "equal_bc": false,
+  "note": "a/b는 보개_* 변경만 포함, c는 상태 키 변경 포함"
+}

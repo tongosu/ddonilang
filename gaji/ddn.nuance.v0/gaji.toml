@@ -1,0 +1,11 @@
+id = "gaji/ddn.nuance.v0"
+name = "말결 가중치 v0"
+version = "0.1.0"
+ssot_requires = ">=20.1.24"
+
+# 결정성/공개성(초기값)
+det_tier = "D-STRICT"
+openness = "closed"
+
+# 메타
+description = "말결(부사) 가중치 사전"

@@ -1,0 +1,12 @@
+{
+  "kind": "bogae_skin_manifest_v1",
+  "symbols": [
+    { "key": "sym:tetris.I", "console": { "glyph": "I" }, "web": { "asset_uri": "assets/tiles/tetris_I.png" } },
+    { "key": "sym:tetris.J", "console": { "glyph": "J" }, "web": { "asset_uri": "assets/tiles/tetris_J.png" } },
+    { "key": "sym:tetris.L", "console": { "glyph": "L" }, "web": { "asset_uri": "assets/tiles/tetris_L.png" } },
+    { "key": "sym:tetris.O", "console": { "glyph": "O" }, "web": { "asset_uri": "assets/tiles/tetris_O.png" } },
+    { "key": "sym:tetris.S", "console": { "glyph": "S" }, "web": { "asset_uri": "assets/tiles/tetris_S.png" } },
+    { "key": "sym:tetris.T", "console": { "glyph": "T" }, "web": { "asset_uri": "assets/tiles/tetris_T.png" } },
+    { "key": "sym:tetris.Z", "console": { "glyph": "Z" }, "web": { "asset_uri": "assets/tiles/tetris_Z.png" } }
+  ]
+}

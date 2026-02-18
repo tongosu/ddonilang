@@ -1,0 +1,10 @@
+title = "현대물리: 방사성 붕괴(기초) (P018-01)"
+description = "현대물리: 방사성 붕괴(기초)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["방사성 붕괴가 시간에 따라 감소하는 곡선을 본다", "차분(반복)으로 지수형 변화를 근사하는 감각을 얻는다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p018_01_radioactive_decay_Nt"

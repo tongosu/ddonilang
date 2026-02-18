@@ -1,0 +1,10 @@
+title = "달의 위상"
+description = "달의 위상 변화를 주기 그래프로 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["달의 위상 주기를 이해한다"]
+story = "3–4학년 과학에서 '달의 위상' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

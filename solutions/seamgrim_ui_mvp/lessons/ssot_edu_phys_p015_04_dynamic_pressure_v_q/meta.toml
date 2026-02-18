@@ -1,0 +1,10 @@
+title = "유체 — 베르누이(속도항) (P015-04)"
+description = "유체 — 베르누이(속도항)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["동압이 속도 v의 제곱에 비례함을 확인한다."]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p015_04_dynamic_pressure_v_q"

@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:cd3156ae126c90b18fac8bab4ae179672ce099fc453b77ae013c37c99236b05a","event_kind":"open","key":"pack/open_file_read_record_replay/hello.txt","open_kind":"file_read","site_id":"pack/open_file_read_record_replay/input.ddn:0:9","value":{"schema":"open.file_read.v1","text":"hello open\n"}}

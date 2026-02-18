@@ -1,0 +1,9 @@
+// edu_s1_function_graph — lesson.ddn (placeholder)
+// 목적: 교과 연계 실험대 UI에서 로드될 “진입점” 파일 자리.
+//
+// NOTE: 아직 실행 가능한 내용은 없다(스켈레톤).
+// TODO(구현):
+// - inputs/*.detjson 프리셋 로드
+// - y=f(x) 계산 및 DrawList 생성
+// - state_hash/bogae_hash 골든 지정
+// - 교과판 질문(버튼) 2개 이상을 프리셋에 연결

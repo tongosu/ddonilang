@@ -1,0 +1,10 @@
+title = "짝수 패턴"
+description = "짝수가 2씩 증가하는 패턴을 본다."
+grade = "elementary"
+grade_band = "1-2"
+subject = "math"
+level = "intro"
+goals = ["짝수의 규칙을 이해한다"]
+story = "1–2학년 수학에서 '짝수 패턴' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

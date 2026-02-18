@@ -1,0 +1,7 @@
+title = "고등 · 파동 근사"
+description = "간단한 시간 함수"
+grade = "high"
+subject = "physics"
+level = "intermediate"
+goals = ["변화 추적", "모델링 이해"]
+required_views = ["graph", "text"]

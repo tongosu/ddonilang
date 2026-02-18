@@ -1,0 +1,10 @@
+title = "퍼센트 감각"
+description = "1% 단위 변화를 그래프로 표현한다."
+grade = "elementary"
+grade_band = "5-6"
+subject = "math"
+level = "intro"
+goals = ["퍼센트가 비율임을 이해한다"]
+story = "5–6학년 수학에서 '퍼센트 감각' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

@@ -1,0 +1,8 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "step_before_columns": 1,
+  "set_param": {
+    "key": "g",
+    "value": 15.0
+  }
+}

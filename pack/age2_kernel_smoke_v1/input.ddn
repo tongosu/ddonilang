@@ -1,0 +1,5 @@
+#이름: age2_kernel_smoke_v1
+#설명: AGE2 스튜디오 커널 v1 스캐폴딩 (임시)
+
+바탕.메시지 <- "age2_kernel_smoke_v1".
+바탕.메시지 보여주기.

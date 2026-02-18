@@ -1,0 +1,2 @@
+{"level":"info","event":"run_config","age_target_source":"project","age_target_value":"AGE2","tick":0,"seq":0}
+{"det_tier":"D-STRICT","key_hash":"sha256:ed5eb9a37e2d8231af3388319b941995f6dc8755c56043d0cc52b5fe405a87de","open_kind":"open.clock","open_seq":1,"result":"ok","run_id":"sha256:8461c22a8ce843314452e69b9048b38468dcba4e5ff18c6740f389f15783478d","site_id":"input.ddn:0:9","tick":0,"trace_tier":"T-OFF","value_hash":"sha256:3323587f77bb291f5f3131752c76270d038484eedbafaf45071d50d726ac0c26"}

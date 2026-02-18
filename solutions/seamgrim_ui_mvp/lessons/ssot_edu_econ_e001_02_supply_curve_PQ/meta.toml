@@ -1,0 +1,9 @@
+title = "공급과 공급곡선 (E001-02)"
+description = "공급과 공급곡선"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["공급곡선이 우상향하는 이유를 그래프로 설명한다", "공급곡선의 절편/기울기 변화가 의미하는 바를 말한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e001_02_supply_curve_PQ"

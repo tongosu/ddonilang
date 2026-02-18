@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:699ca988d97138d52bcca1e5f5a3cca18dabd7033a60f26bea67c74d1f546566","event_kind":"open","key":"GET https://example.test/hello","open_kind":"net","site_id":"pack/open_net_record_replay/input.ddn:1:9","value":{"method":"GET","schema":"open.net.v1","text":"hello net","url":"https://example.test/hello"}}

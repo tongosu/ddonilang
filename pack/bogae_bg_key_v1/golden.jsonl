@@ -1,0 +1,2 @@
+{"input_path":"input_canon.ddn","cli":["--bogae-out","build/bogae_bg_key_v1.detbin"],"stdout":["bogae_hash=blake3:6b2720c62f15bad6665ec140f596226c2acd978272fe14b9dcb1f4a7b077eb05"]}
+{"input_path":"input_alias.ddn","cli":["--bogae-out","build/bogae_bg_key_v1.detbin"],"stdout":["bogae_hash=blake3:6b2720c62f15bad6665ec140f596226c2acd978272fe14b9dcb1f4a7b077eb05"]}

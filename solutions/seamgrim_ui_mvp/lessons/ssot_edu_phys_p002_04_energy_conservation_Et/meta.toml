@@ -1,0 +1,9 @@
+title = "운동과 에너지 (P002-04)"
+description = "운동과 에너지"
+grade = "middle"
+subject = "physics"
+level = "intro"
+goals = ["자유낙하(저항 무시)에서 총에너지 E=K+U가 일정함을 그래프로 확인한다", "K와 U가 서로 바뀌어도 합이 일정하다는 의미를 이해한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p002_04_energy_conservation_Et"

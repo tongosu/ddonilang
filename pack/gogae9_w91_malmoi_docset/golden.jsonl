@@ -1,0 +1,1 @@
+{"cmd":["doc","verify","--pack","pack/gogae9_w91_malmoi_docset"],"stdout":["docset_hash=sha256:e98620a57774dabe58f771a8c8c83f9a90a0bdf4e518e07b75338e1212a99906","docset_verify=ok","doctest_passed=12"]}

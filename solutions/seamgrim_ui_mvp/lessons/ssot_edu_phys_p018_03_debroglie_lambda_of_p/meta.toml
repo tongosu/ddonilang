@@ -1,0 +1,10 @@
+title = "현대물리: 드브로이(기초) (P018-03)"
+description = "현대물리: 드브로이(기초)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["운동량 p가 커질수록 파장 λ가 작아지는 반비례 관계를 본다", "파동-입자 이중성의 ‘수치 직관’을 얻는다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p018_03_debroglie_lambda_of_p"

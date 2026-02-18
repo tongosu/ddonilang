@@ -1,0 +1,13 @@
+{
+  "schema": "seamgrim.wasm.reset.v1",
+  "param_key": "g",
+  "initial_hash": "blake3:352bd266dae53c6e6a29244011cfa029813d0ab8434b2a2b830a487d882832ba",
+  "stepped_hash": "blake3:f5f4a796c86d42f79e7fb225435f00279da3aecf06c694e3b8e8aa8c04512f85",
+  "set_param_ok": true,
+  "after_param_hash": "blake3:2808ef9961face982d7335777b3122373cad16e27ead1943a7830fa414cf212f",
+  "reset_keep_has_key": true,
+  "reset_keep_value": 15,
+  "reset_drop_has_key": false,
+  "reset_drop_hash": "blake3:352bd266dae53c6e6a29244011cfa029813d0ab8434b2a2b830a487d882832ba",
+  "initial_equals_drop": true
+}

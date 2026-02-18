@@ -1,0 +1,4 @@
+id = "seamgrim_wasm_restore_state_v1"
+kind = "D-PACK"
+requires = ["viewer-web", "wasm-ddn"]
+

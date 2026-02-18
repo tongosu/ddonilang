@@ -1,0 +1,23 @@
+{
+  "master_seed": 123,
+  "realm_count": 4,
+  "steps": 10,
+  "step_batch": [
+    {
+      "realm_id": 0,
+      "delta": 1
+    },
+    {
+      "realm_id": 1,
+      "delta": 2
+    },
+    {
+      "realm_id": 2,
+      "delta": 3
+    },
+    {
+      "realm_id": 3,
+      "delta": 4
+    }
+  ]
+}

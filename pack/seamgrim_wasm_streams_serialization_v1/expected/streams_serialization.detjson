@@ -1,0 +1,190 @@
+{
+  "schema": "seamgrim.wasm.streams_serialization.v1",
+  "raw_schema": "seamgrim.engine_response.v0",
+  "normalized_schema": "seamgrim.state.v0",
+  "step_count": 0,
+  "expected_keys": [
+    "energy_stream",
+    "가격흐름",
+    "속도흐름"
+  ],
+  "top_keys": [
+    "가격흐름",
+    "속도흐름",
+    "energy_stream"
+  ],
+  "nested_keys": [
+    "가격흐름",
+    "속도흐름",
+    "energy_stream"
+  ],
+  "normalized_keys": [
+    "가격흐름",
+    "속도흐름",
+    "energy_stream"
+  ],
+  "top_has_expected_keys": true,
+  "nested_has_expected_keys": true,
+  "normalized_has_expected_keys": true,
+  "top_nested_keys_equal": true,
+  "top_normalized_keys_equal": true,
+  "top_nested_streams_equal_for_expected": true,
+  "stream_details": {
+    "energy_stream": {
+      "top": {
+        "capacity": 5,
+        "head": 2,
+        "len": 3,
+        "buffer_len": 5,
+        "buffer_prefix": [
+          10,
+          20,
+          30,
+          null,
+          null
+        ]
+      },
+      "nested": {
+        "capacity": 5,
+        "head": 2,
+        "len": 3,
+        "buffer_len": 5,
+        "buffer_prefix": [
+          10,
+          20,
+          30,
+          null,
+          null
+        ]
+      },
+      "normalized": {
+        "capacity": 5,
+        "head": 2,
+        "len": 3,
+        "buffer_len": 5,
+        "buffer_prefix": [
+          10,
+          20,
+          30,
+          null,
+          null
+        ]
+      }
+    },
+    "가격흐름": {
+      "top": {
+        "capacity": 4,
+        "head": 1,
+        "len": 2,
+        "buffer_len": 4,
+        "buffer_prefix": [
+          1,
+          2,
+          null,
+          null
+        ]
+      },
+      "nested": {
+        "capacity": 4,
+        "head": 1,
+        "len": 2,
+        "buffer_len": 4,
+        "buffer_prefix": [
+          1,
+          2,
+          null,
+          null
+        ]
+      },
+      "normalized": {
+        "capacity": 4,
+        "head": 1,
+        "len": 2,
+        "buffer_len": 4,
+        "buffer_prefix": [
+          1,
+          2,
+          null,
+          null
+        ]
+      }
+    },
+    "속도흐름": {
+      "top": {
+        "capacity": 6,
+        "head": 2,
+        "len": 3,
+        "buffer_len": 6,
+        "buffer_prefix": [
+          7,
+          8,
+          9,
+          null,
+          null,
+          null
+        ]
+      },
+      "nested": {
+        "capacity": 6,
+        "head": 2,
+        "len": 3,
+        "buffer_len": 6,
+        "buffer_prefix": [
+          7,
+          8,
+          9,
+          null,
+          null,
+          null
+        ]
+      },
+      "normalized": {
+        "capacity": 6,
+        "head": 2,
+        "len": 3,
+        "buffer_len": 6,
+        "buffer_prefix": [
+          7,
+          8,
+          9,
+          null,
+          null,
+          null
+        ]
+      }
+    }
+  },
+  "expected_checks": {
+    "energy_stream": {
+      "capacity": true,
+      "head": true,
+      "len": true,
+      "buffer_prefix": true
+    },
+    "가격흐름": {
+      "capacity": true,
+      "head": true,
+      "len": true,
+      "buffer_prefix": true
+    },
+    "속도흐름": {
+      "capacity": true,
+      "head": true,
+      "len": true,
+      "buffer_prefix": true
+    }
+  },
+  "expected_checks_all_passed": true,
+  "state_value_keys": [
+    "가격흐름",
+    "가격흐름_길이",
+    "가격흐름_머리",
+    "가격흐름_용량",
+    "속도흐름",
+    "energy_stream",
+    "energy_stream_capacity",
+    "energy_stream_head",
+    "energy_stream_len"
+  ],
+  "state_fixed64_keys": []
+}

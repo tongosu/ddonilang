@@ -1,0 +1,10 @@
+title = "할인과 가격"
+description = "할인율에 따른 가격 변화를 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "econ"
+level = "intro"
+goals = ["할인이 가격을 낮춘다는 것을 이해한다"]
+story = "3–4학년 사회/경제에서 '할인과 가격' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

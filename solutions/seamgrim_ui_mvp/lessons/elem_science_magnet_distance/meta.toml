@@ -1,0 +1,10 @@
+title = "자석과 거리"
+description = "거리가 멀어질수록 힘이 약해진다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["거리와 힘의 관계를 이해한다"]
+story = "3–4학년 과학에서 '자석과 거리' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

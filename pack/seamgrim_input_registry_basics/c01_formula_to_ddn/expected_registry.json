@@ -1,0 +1,38 @@
+{
+  "inputs": {
+    "selected_id": "formula:main",
+    "registry": [
+      {
+        "id": "formula:main",
+        "type": "formula",
+        "label": "수식",
+        "payload": {
+          "text": "y = 2*x + 1",
+          "axis_var": "x",
+          "params": {
+            "a": "2",
+            "b": "1",
+            "c": "0"
+          },
+          "sample": {
+            "var": "x",
+            "x_min": 0,
+            "x_max": 4,
+            "step": 1
+          },
+          "time": {
+            "enabled": false,
+            "t_min": 0,
+            "t_max": 1,
+            "step": 0.5,
+            "now": 0,
+            "interval": 300,
+            "loop": true
+          }
+        },
+        "derived_ddn": "#이름: formula_sample\n#설명: 수식->DDN 샘플\n\n직선 = (#ascii1) 수식{ y = 2*x + 1 }.\n\nx목록 <- (0, 4, 1) 범위.\n\n(x) x목록에 대해: {\n  y <- (x=x)인 직선 풀기.\n  x 보여주기.\n  y 보여주기.\n}.\n",
+        "ts": "2026-02-01T00:00:00Z"
+      }
+    ]
+  }
+}

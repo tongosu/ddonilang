@@ -1,0 +1,3 @@
+// edu_s2_projectile — lesson.ddn (placeholder)
+// NOTE: 아직 실행 가능한 내용은 없다(스켈레톤).
+// TODO(구현): inputs/*.detjson 프리셋 로드 → 투사체 시뮬 → DrawList 생성 → 골든(state_hash/bogae_hash)

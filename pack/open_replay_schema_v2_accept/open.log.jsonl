@@ -1,0 +1,2 @@
+{"detjson_hash":"sha256:40f19ef47762da521c7b13eafd06b4306e50309d0ee7903d92b41e6b54087670","event_kind":"open","key":"now","open_kind":"clock","site_id":"pack/open_replay_schema_v2_accept/input.ddn:0:9","value":{"schema":"open.clock.v2","unix_sec":1769680978}}
+{"detjson_hash":"sha256:ffd32c9b756288fc19b5a3b481303342a5c60158562543839bfdf541a5c156a4","event_kind":"open","key":"pack/open_replay_schema_v2_accept/hello.txt","open_kind":"file_read","site_id":"pack/open_replay_schema_v2_accept/input.ddn:2:10","value":{"schema":"open.file_read.v2","text":"hello v2\n"}}

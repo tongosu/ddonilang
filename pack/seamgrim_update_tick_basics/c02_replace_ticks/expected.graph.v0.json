@@ -1,0 +1,37 @@
+{
+  "schema": "seamgrim.graph.v0",
+  "sample": {
+    "var": "x",
+    "x_min": 0,
+    "x_max": 1,
+    "step": 1
+  },
+  "axis": {
+    "x_min": 0,
+    "x_max": 1,
+    "y_min": 1,
+    "y_max": 3
+  },
+  "series": [
+    {
+      "id": "main",
+      "label": "replace",
+      "points": [
+        {
+          "x": 0,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 3
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "update": "replace",
+    "tick": 5,
+    "source_input_hash": "example-input",
+    "result_hash": "example-result"
+  }
+}

@@ -1,0 +1,10 @@
+title = "진동(감쇠 운동) (P011-02)"
+description = "진동(감쇠 운동)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["임계감쇠에서는 진동 없이 빠르게 평형으로 돌아감을 x(t)로 확인한다", "언더/오버 감쇠와 비교해 ‘가장 빠른 비진동 복원’의 의미를 이해한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p011_02_critical_damping_xt"

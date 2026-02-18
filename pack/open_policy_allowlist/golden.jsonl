@@ -1,0 +1,1 @@
+{"cli": ["--unsafe-open", "--open-log", "pack/open_policy_allowlist/open.log.jsonl", "--no-open"], "stdout": [], "stderr": ["E_OPEN_DENIED pack/open_policy_allowlist/input.ddn:3:11 열림이 차단되었습니다: file_read"], "exit_code": 1, "expected_error_code": "E_OPEN_DENIED"}

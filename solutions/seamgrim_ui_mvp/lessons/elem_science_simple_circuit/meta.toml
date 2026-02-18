@@ -1,0 +1,10 @@
+title = "전압과 전류"
+description = "전압이 커질수록 전류가 증가한다."
+grade = "elementary"
+grade_band = "1-2"
+subject = "physics"
+level = "intro"
+goals = ["전압과 전류의 비례 관계를 이해한다"]
+story = "1–2학년 과학에서 '전압과 전류' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

@@ -1,0 +1,11 @@
+id = "gaji/ddn.story.v0"
+name = "서사 스키마 v0"
+version = "0.1.0"
+ssot_requires = ">=20.1.24"
+
+# 결정성/공개성(초기값)
+det_tier = "D-STRICT"
+openness = "closed"
+
+# 메타
+description = "시트콤/서사 결과 스키마"

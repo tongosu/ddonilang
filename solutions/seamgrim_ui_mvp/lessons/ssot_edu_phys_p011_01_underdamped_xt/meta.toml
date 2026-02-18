@@ -1,0 +1,10 @@
+title = "진동(감쇠 진동) (P011-01)"
+description = "진동(감쇠 진동)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["감쇠가 있는 진동에서 진폭이 감소하는 모습을 x(t) 그래프로 확인한다", "감쇠계수 c가 작으면 진동이 유지되며 서서히 줄어듦을 관찰한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p011_01_underdamped_xt"

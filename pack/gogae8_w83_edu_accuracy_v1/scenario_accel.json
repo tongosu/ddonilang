@@ -1,0 +1,14 @@
+{
+  "schema": "edu.scenario.v1",
+  "scenario_id": "accel1d_v1",
+  "abs_tol": "0.01",
+  "rel_tol": "0.001",
+  "eps": "0.000001",
+  "cases": [
+    {
+      "id": "t0",
+      "formula": ["0", "1", "2", "3"],
+      "sim": ["0", "1", "2.0005", "2.999"]
+    }
+  ]
+}

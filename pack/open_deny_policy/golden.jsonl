@@ -1,0 +1,2 @@
+{"cli": ["--unsafe-open", "--open", "deny", "--no-open"], "stdout": [], "stderr": ["E_OPEN_DENIED pack/open_deny_policy/input.ddn:1:10 열림이 차단되었습니다: clock"], "exit_code": 1, "expected_error_code": "E_OPEN_DENIED"}
+{"cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_deny_policy/open.log.jsonl", "--no-open"], "stdout": ["1769673599"], "stderr": []}

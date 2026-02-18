@@ -1,0 +1,11 @@
+id = "gaji/element_swap"
+name = "원소 교체 가지"
+version = "0.1.0"
+ssot_requires = ">=20.1.23"
+
+# 결정성/공개성(초기값)
+det_tier = "D-STRICT"
+openness = "closed"
+
+# 메타
+description = "샘/보개 등 원소 구현 교체 경로"

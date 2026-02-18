@@ -1,0 +1,18 @@
+#이름: ssot_edu_econ_e013_01_uip_expected_depreciation_variant_E013-01 UIP(간이): 기대절하 Δs(i_dom)
+#설명: Δs ≈ i_dom - i_for  (단순화). i_for는 고정.
+// 출력은 숫자만. (i_dom, Δs) 순서.
+
+i_for <- 0.03.
+
+i_dom_min <- -0.02.
+i_dom_max <- 0.10.
+di <- 0.002.
+
+i목록 <- (i_dom_min, i_dom_max, di) 범위.
+
+(i_dom) i목록에 대해: {
+  ds <- i_dom - i_for.
+
+  i_dom 보여주기.
+  ds 보여주기.
+}.

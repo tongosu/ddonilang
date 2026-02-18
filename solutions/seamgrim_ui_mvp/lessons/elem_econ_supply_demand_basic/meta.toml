@@ -1,0 +1,10 @@
+title = "수요·공급 기초"
+description = "단순한 수요 곡선을 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "econ"
+level = "intro"
+goals = ["가격이 오르면 수요가 줄어듦을 이해한다"]
+story = "3–4학년 사회/경제에서 '수요·공급 기초' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

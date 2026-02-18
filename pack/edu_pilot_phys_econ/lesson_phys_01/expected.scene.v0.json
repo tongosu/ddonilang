@@ -1,0 +1,110 @@
+{
+  "bindings": [
+    {
+      "from": {
+        "token": "theta",
+        "view": "text"
+      },
+      "to": {
+        "series_id": "theta",
+        "view": "graph"
+      }
+    }
+  ],
+  "fps": 60,
+  "schema": "seamgrim.scene.v0",
+  "sections": [
+    {
+      "commands": [
+        {
+          "args": {
+            "글": "진자: θ(t)와 움직임"
+          },
+          "target": {
+            "type": "#제목",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        },
+        {
+          "args": {
+            "글": "먼저 진자의 각도 θ(t)를 보겠습니다."
+          },
+          "target": {
+            "type": "#자막",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        }
+      ],
+      "id": "마디0",
+      "tick_from": 0,
+      "tick_to": 30
+    },
+    {
+      "commands": [
+        {
+          "args": {
+            "글": "이제 θ(t) 곡선을 그려보겠습니다."
+          },
+          "target": {
+            "type": "#자막",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        },
+        {
+          "args": {
+            "방식": "progress"
+          },
+          "target": {
+            "id": "theta",
+            "type": "#곡선",
+            "view": "graph"
+          },
+          "verb": "그려지기"
+        },
+        {
+          "args": {
+            "글": "강조: theta",
+            "토큰": "theta"
+          },
+          "target": {
+            "type": "#해설",
+            "view": "text"
+          },
+          "verb": "강조하기"
+        }
+      ],
+      "id": "마디1",
+      "tick_from": 31,
+      "tick_to": 120
+    },
+    {
+      "commands": [
+        {
+          "args": {
+            "글": "좌측 진자(2D)와 우측 그래프가 tick으로 맞물립니다."
+          },
+          "target": {
+            "type": "#자막",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        },
+        {
+          "args": {},
+          "target": {
+            "id": "theta_cursor",
+            "type": "#점",
+            "view": "graph"
+          },
+          "verb": "움직이기"
+        }
+      ],
+      "id": "마디2",
+      "tick_from": 121,
+      "tick_to": 300
+    }
+  ]
+}

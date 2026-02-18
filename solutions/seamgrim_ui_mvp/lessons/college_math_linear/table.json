@@ -1,0 +1,24 @@
+{
+  "schema": "seamgrim.table.v0",
+  "columns": [
+    {
+      "key": "coef",
+      "label": "계수"
+    },
+    {
+      "key": "value",
+      "label": "값",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    {
+      "coef": "a",
+      "value": 1.5
+    },
+    {
+      "coef": "b",
+      "value": -1
+    }
+  ]
+}

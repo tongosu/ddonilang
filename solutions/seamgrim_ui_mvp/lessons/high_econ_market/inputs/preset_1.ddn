@@ -1,0 +1,15 @@
+#이름: high_econ_market_variant_high_econ_market
+#설명: y = a x + b
+
+수요 = (#ascii1) 수식{ y = a x + b }.
+
+a <- -0.8.
+b <- 10.
+
+x목록 <- (0, 10, 1) 범위.
+
+(x) x목록에 대해: {
+  y <- (a=a, b=b, x=x)인 수요 풀기.
+  x 보여주기.
+  y 보여주기.
+}.

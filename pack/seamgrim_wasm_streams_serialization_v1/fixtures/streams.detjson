@@ -1,0 +1,90 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "step_before_state": 0,
+  "restore_payload": {
+    "schema": "seamgrim.engine_response.v0",
+    "state": {
+      "resources": {
+        "json": {},
+        "fixed64": {},
+        "handle": {},
+        "value_det": {
+          "energy_stream": {
+            "type": "list",
+            "items": [
+              { "type": "fixed64", "value": 10 },
+              { "type": "fixed64", "value": 20 },
+              { "type": "fixed64", "value": 30 }
+            ]
+          },
+          "가격흐름": {
+            "type": "list",
+            "items": [
+              { "type": "fixed64", "value": 1 },
+              { "type": "fixed64", "value": 2 }
+            ]
+          },
+          "energy_stream_head": { "type": "string", "value": "2" },
+          "energy_stream_len": { "type": "string", "value": "3" },
+          "energy_stream_capacity": { "type": "string", "value": "5" },
+          "가격흐름_머리": { "type": "string", "value": "1" },
+          "가격흐름_길이": { "type": "string", "value": "2" },
+          "가격흐름_용량": { "type": "string", "value": "4" },
+          "속도흐름": {
+            "type": "map",
+            "entries": [
+              {
+                "key": { "type": "string", "value": "버퍼" },
+                "value": {
+                  "type": "list",
+                  "items": [
+                    { "type": "fixed64", "value": 7 },
+                    { "type": "fixed64", "value": 8 },
+                    { "type": "fixed64", "value": 9 }
+                  ]
+                }
+              },
+              {
+                "key": { "type": "string", "value": "머리" },
+                "value": { "type": "string", "value": "2" }
+              },
+              {
+                "key": { "type": "string", "value": "길이" },
+                "value": { "type": "string", "value": "3" }
+              },
+              {
+                "key": { "type": "string", "value": "용량" },
+                "value": { "type": "string", "value": "6" }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "expected_keys": [
+    "energy_stream",
+    "가격흐름",
+    "속도흐름"
+  ],
+  "expected_streams": {
+    "energy_stream": {
+      "capacity": 5,
+      "head": 2,
+      "len": 3,
+      "buffer_prefix": [10, 20, 30, null, null]
+    },
+    "가격흐름": {
+      "capacity": 4,
+      "head": 1,
+      "len": 2,
+      "buffer_prefix": [1, 2, null, null]
+    },
+    "속도흐름": {
+      "capacity": 6,
+      "head": 2,
+      "len": 3,
+      "buffer_prefix": [7, 8, 9, null, null, null]
+    }
+  }
+}

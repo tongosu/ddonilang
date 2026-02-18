@@ -1,0 +1,9 @@
+title = "수요와 수요곡선 (E001-01)"
+description = "수요와 수요곡선"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["수요곡선이 우하향하는 이유를 그래프로 설명한다", "수요곡선의 기울기와 '민감도' 직관을 얻는다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e001_01_demand_curve_PQ"

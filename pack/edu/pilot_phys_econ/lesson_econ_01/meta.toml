@@ -1,0 +1,2 @@
+required_views = ["graph", "table", "text", "structure"]
+layout_preset = "좌graph_우table_중text_하단dock"

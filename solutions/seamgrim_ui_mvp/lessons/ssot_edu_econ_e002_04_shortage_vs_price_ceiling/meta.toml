@@ -1,0 +1,9 @@
+title = "가격통제(상한/하한) (E002-04)"
+description = "가격통제(상한/하한)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["가격상한이 균형가격보다 낮을 때 부족(초과수요)이 생김을 그래프로 확인한다", "상한가격을 더 낮추면 부족이 커지는 경향을 관찰한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e002_04_shortage_vs_price_ceiling"

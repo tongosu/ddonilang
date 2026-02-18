@@ -1,0 +1,11 @@
+id = "gaji/std_map"
+name = "표준 묶음 가지"
+version = "0.1.0"
+ssot_requires = ">=20.1.22"
+
+# 결정성/공개성(초기값)
+det_tier = "D-STRICT"
+openness = "closed"
+
+# 메타
+description = "묶음(키-값) 처리"

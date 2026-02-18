@@ -1,0 +1,24 @@
+#이름: ssot_edu_phys_p017_04_thin_film_interference_variant_P017-04 박막 간섭(간이) I(t)
+#설명: I(t)=0.5*(1+cos(4π n t / λ))  (위상차만 반영한 단순 모델)
+// 출력은 숫자만. (t, I) 순서.
+
+pi <- 3.1415926535.
+
+n <- 1.33.
+lam <- 1.0.
+I0 <- 1.0.
+
+t_min <- 0.
+t_max <- 2.0.
+dt <- 0.002.
+
+t목록 <- (t_min, t_max, dt) 범위.
+
+(t) t목록에 대해: {
+  delta <- 4 * pi * n * t / lam.
+  c <- (delta) cos.
+  I <- 0.5 * I0 * (1 + c).
+
+  t 보여주기.
+  I 보여주기.
+}.

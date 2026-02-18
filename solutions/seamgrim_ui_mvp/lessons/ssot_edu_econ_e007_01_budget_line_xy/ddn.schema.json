@@ -1,0 +1,12 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.I", "type": "수" },
+    { "name": "살림.dx", "type": "수" },
+    { "name": "살림.px", "type": "수" },
+    { "name": "살림.py", "type": "수" },
+    { "name": "살림.x_max", "type": "수" },
+    { "name": "살림.x_min", "type": "수" },
+    { "name": "살림.x목록", "type": "수" }
+  ]
+}

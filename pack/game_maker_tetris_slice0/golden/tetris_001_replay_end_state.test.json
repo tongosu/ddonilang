@@ -1,0 +1,10 @@
+{
+  "name": "tetris_001_replay_end_state",
+  "sam_input": "sam/tetris_slice0.input.bin",
+  "max_madi": 600,
+  "det_expected": {
+    "no_fault": true,
+    "expected_state_hash": "blake3:4e3f848d9750ac17ab3f96783c2fa4b0354819ed5a1ebe36d436da272fb1361e",
+    "expected_observations": []
+  }
+}

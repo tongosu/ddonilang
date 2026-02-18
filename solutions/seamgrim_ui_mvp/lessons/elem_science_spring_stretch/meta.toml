@@ -1,0 +1,10 @@
+title = "스프링 늘어남"
+description = "y = 0.5x"
+grade = "elementary"
+grade_band = "5-6"
+subject = "physics"
+level = "intro"
+goals = ["힘과 늘어남의 비례 관계를 이해한다"]
+story = "스프링 실험 결과를 그래프로 정리합니다."
+missions = ["계수를 바꿔 늘어남 차이 관찰하기", "비례 관계를 설명하기"]
+required_views = ["graph"]

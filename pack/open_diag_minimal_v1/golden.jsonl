@@ -1,0 +1,1 @@
+{"stdout": [], "cmd": ["run", "pack/open_diag_minimal_v1/input.ddn", "--open", "replay", "--open-log", "pack/open_diag_minimal_v1/open.log.jsonl", "--diag", "pack/open_diag_minimal_v1/geoul.diag.jsonl", "--trace-tier", "T-OFF"], "meta_out": "geoul.diag.jsonl", "expected_meta": "golden/diag.expected.jsonl"}

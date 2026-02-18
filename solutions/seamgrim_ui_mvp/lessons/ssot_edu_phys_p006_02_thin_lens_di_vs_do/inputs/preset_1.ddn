@@ -1,0 +1,18 @@
+#이름: ssot_edu_phys_p006_02_thin_lens_di_vs_do_variant_P006-02 얇은 렌즈 d_i(d_o)
+#설명: 얇은 렌즈 방정식 1/f = 1/d_o + 1/d_i 를 이용해 d_i = f*d_o/(d_o - f) 를 점열로 출력.
+// 출력은 숫자만. (d_o, d_i) 순서.
+
+f <- 10.
+
+d_o_min <- 12.
+d_o_max <- 100.
+dd_o <- 2.
+
+d_i_of_d_o = (#ascii1) 수식{ y = (f * x) / (x - f) }.
+d_o목록 <- (d_o_min, d_o_max, dd_o) 범위.
+
+(x) d_o목록에 대해: {
+  d_i <- (x=x, f=f)인 d_i_of_d_o 풀기.
+  x 보여주기.
+  d_i 보여주기.
+}.

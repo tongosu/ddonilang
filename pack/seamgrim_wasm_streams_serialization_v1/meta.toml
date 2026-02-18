@@ -1,0 +1,3 @@
+id = "seamgrim_wasm_streams_serialization_v1"
+kind = "D-PACK"
+requires = ["viewer-web", "wasm-ddn"]

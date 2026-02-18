@@ -1,0 +1,17 @@
+{
+  "env_id": "nurigym.cartpole1d",
+  "seed": 21,
+  "episode_id": 3,
+  "shared_env": true,
+  "shared_env_mode": "sync",
+  "merge": "priority",
+  "noop_action": 0,
+  "reward_mode": "weighted",
+  "reward_weights": { "0": 1.0, "1": 1.0, "2": 2.0 },
+  "max_steps": 3,
+  "agents": [
+    { "agent_id": 0, "actions": [0, 1, -1] },
+    { "agent_id": 1, "actions": [-1, 0, 1] },
+    { "agent_id": 2, "actions": [1, 1, 1] }
+  ]
+}

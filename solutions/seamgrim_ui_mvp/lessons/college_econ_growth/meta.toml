@@ -1,0 +1,7 @@
+title = "대학 · 성장률"
+description = "비선형 성장 모델"
+grade = "college"
+subject = "econ"
+level = "advanced"
+goals = ["관계 해석", "모델 읽기"]
+required_views = ["graph", "text"]

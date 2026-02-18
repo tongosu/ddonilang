@@ -1,0 +1,38 @@
+{
+  "schema": "seamgrim.wasm.tick_loop.v1",
+  "step_blocks": [
+    1,
+    2,
+    3
+  ],
+  "rows_a": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:858021ec448f870b3f3ad8ae3f10d737674e0610256368450311000be7b5934d"
+    },
+    {
+      "tick": 2,
+      "state_hash": "blake3:a8f258aeb141013543c30636bca833710d2fe76d1505cb3a9bc336c39f5dff27"
+    },
+    {
+      "tick": 5,
+      "state_hash": "blake3:5ffaabbfb793922774602c2b453b3e160c620d7e58116860370b9511221e6bc7"
+    }
+  ],
+  "rows_b": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:858021ec448f870b3f3ad8ae3f10d737674e0610256368450311000be7b5934d"
+    },
+    {
+      "tick": 2,
+      "state_hash": "blake3:a8f258aeb141013543c30636bca833710d2fe76d1505cb3a9bc336c39f5dff27"
+    },
+    {
+      "tick": 5,
+      "state_hash": "blake3:5ffaabbfb793922774602c2b453b3e160c620d7e58116860370b9511221e6bc7"
+    }
+  ],
+  "monotonic_tick": true,
+  "deterministic_equal": true
+}

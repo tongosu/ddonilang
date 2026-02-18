@@ -1,0 +1,24 @@
+{
+  "drop_duplicates": true,
+  "events_deduped": 1,
+  "events_ordered": 3,
+  "events_total": 4,
+  "final_state_hashes": [
+    {
+      "realm_id": 0,
+      "state_hash": "sha256:0809935b6d7dddd31810a635916e2a918137c1c0aa8e3945377d2bb1a318dd34"
+    },
+    {
+      "realm_id": 1,
+      "state_hash": "sha256:7d73f510a495658acf459f9f0ea163a478478aa44fb932e771e5fecb716dc1a1"
+    }
+  ],
+  "listen_addr": "127.0.0.1:0",
+  "listen_max_events": 4,
+  "listen_proto": "udp",
+  "listen_timeout_ms": 200,
+  "order_rule": "sender_seq",
+  "realms": 2,
+  "schema": "gateway.serve_report.v1",
+  "ssot_version": "20.3.1"
+}

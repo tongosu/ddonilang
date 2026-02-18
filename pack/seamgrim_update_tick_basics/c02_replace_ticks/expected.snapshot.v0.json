@@ -1,0 +1,62 @@
+{
+  "schema": "seamgrim.snapshot.v0",
+  "ts": "2026-02-01T00:00:00Z",
+  "note": "replace",
+  "run": {
+    "id": "run-replace",
+    "label": "replace",
+    "source": {
+      "kind": "ddn",
+      "text": "#name: replace"
+    },
+    "inputs": {
+      "sample": {
+        "var": "x",
+        "x_min": 0,
+        "x_max": 1,
+        "step": 1
+      }
+    },
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "sample": {
+        "var": "x",
+        "x_min": 0,
+        "x_max": 1,
+        "step": 1
+      },
+      "axis": {
+        "x_min": 0,
+        "x_max": 1,
+        "y_min": 1,
+        "y_max": 3
+      },
+      "series": [
+        {
+          "id": "main",
+          "label": "replace",
+          "points": [
+            {
+              "x": 0,
+              "y": 1
+            },
+            {
+              "x": 1,
+              "y": 3
+            }
+          ]
+        }
+      ],
+      "meta": {
+        "update": "replace",
+        "tick": 5,
+        "source_input_hash": "example-input",
+        "result_hash": "example-result"
+      }
+    },
+    "hash": {
+      "input": "example-input",
+      "result": "example-result"
+    }
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "schema": "malmoi.examples_manifest.v1",
+  "examples": [
+    {
+      "id": "template_fill",
+      "path": "docs/EXAMPLES/template_fill.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:2a45c782bff8c4c79b0afef6a7203bfd6766d82d78efae3a93d3e127211cbf41"
+    },
+    {
+      "id": "input_echo",
+      "path": "docs/EXAMPLES/input_echo.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:6ecfbdebb0749057b9fa1899bcf44e18d660b9e7d613039dcfada9ad8694b7b0"
+    },
+    {
+      "id": "string_replace",
+      "path": "docs/EXAMPLES/string_replace.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:5894defcd3ede08d9c842e0df53b090994ebc707bc541d451c46363a0a47e4d1"
+    },
+    {
+      "id": "formula_pulgi",
+      "path": "docs/EXAMPLES/formula_pulgi.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:81959c2abe0fd7167b0816fe6b7ad9563fe417d78f12c835c2c86bdada199e2a"
+    },
+    {
+      "id": "list_basics",
+      "path": "docs/EXAMPLES/list_basics.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:dcc956333d0eddececb98dafe708d91ec9290e51a5b4c2a108902671f0088640"
+    },
+    {
+      "id": "template_match",
+      "path": "docs/EXAMPLES/template_match.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:5df5c28ad09dc1446f34633c3796a119fb9d22f3ab12c1f9dbd591cf38144236"
+    },
+    {
+      "id": "loop_basic",
+      "path": "docs/EXAMPLES/loop_basic.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:3cbc602138f4f9f722931cbde67961532fc2041a996bb6b1b08a09f3e0dc971f"
+    },
+    {
+      "id": "if_demo",
+      "path": "docs/EXAMPLES/w49_if_demo.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:c91a0b953d89fef920536824190eb77a4b91c6cb1e93bf597a89be9930c8874c"
+    },
+    {
+      "id": "choose_demo",
+      "path": "docs/EXAMPLES/w50_choose_demo.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:6abef430e43233ca1eb78b690e5c552ee911c1f3cb349a068415e4108e274cb9"
+    },
+    {
+      "id": "not_condition_demo",
+      "path": "docs/EXAMPLES/w52_not_condition_demo.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:bb26ca725c03c58d6a85490a293deaf09702d799f58e8f6da746fad7c7250096"
+    },
+    {
+      "id": "tick_hooks",
+      "path": "docs/EXAMPLES/tick_hooks.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:f0a5a59e4b60c5b09361801bd4f843eb1b44d2a799afaa8313e445537a673254"
+    },
+    {
+      "id": "formula_transform",
+      "path": "docs/EXAMPLES/formula_transform.ddn",
+      "ticks": 1,
+      "seed": 0,
+      "state_hash": "blake3:fedba784d058bc8b48f023fc25604f51979f7ef40ca4c9c55b764bd95322b310"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+title = "빛(렌즈) (P006-03)"
+description = "빛(렌즈)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["물체거리가 초점거리 근처일수록 확대율의 크기가 커지는 이유를 이해한다", "m의 부호가 상의 방향(도립)을 나타낸다는 점을 연결한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p006_03_magnification_vs_do"

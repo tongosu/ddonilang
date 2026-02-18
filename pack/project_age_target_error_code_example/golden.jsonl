@@ -1,0 +1,2 @@
+{"input_path":"cases/K001_invalid_project_value_EXPECT_FAIL/input.ko.ddn","expected_error_code":"E_PROJECT_AGE_TARGET_INVALID"}
+{"input_path":"cases/K002_invalid_cli_value_EXPECT_FAIL/input.ko.ddn","cli":["--age-target","INVALID"],"expected_error_code":"E_CLI_AGE_TARGET"}

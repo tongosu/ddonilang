@@ -1,0 +1,7 @@
+title = "대학 · 행렬 기초"
+description = "2x2 행렬과 벡터"
+grade = "college"
+subject = "math"
+level = "advanced"
+goals = ["그래프 해석", "함수 이해"]
+required_views = ["graph", "table", "text"]

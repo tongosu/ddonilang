@@ -1,0 +1,10 @@
+title = "분수와 소수"
+description = "절반/사분의 일을 그래프로 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "math"
+level = "intro"
+goals = ["분수와 소수의 관계를 이해한다"]
+story = "3–4학년 수학에서 '분수와 소수' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

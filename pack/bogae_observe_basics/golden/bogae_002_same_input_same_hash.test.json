@@ -1,0 +1,10 @@
+{
+  "name": "bogae_002_same_input_same_hash",
+  "sam_input": "sam/bogae_rect.input.bin",
+  "max_madi": 1,
+  "det_expected": {
+    "no_fault": true,
+    "expected_bogae_hash": "blake3:abf65400e4e074c0af141087238cfd37291ce51013766e7b106b4e406ce64f1e",
+    "expected_observations": []
+  }
+}

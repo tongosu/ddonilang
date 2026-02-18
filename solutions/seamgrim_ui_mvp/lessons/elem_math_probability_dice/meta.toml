@@ -1,0 +1,10 @@
+title = "주사위 확률"
+description = "각 눈이 나올 확률을 점열로 표현한다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "math"
+level = "intro"
+goals = ["균등확률의 개념을 이해한다"]
+story = "3–4학년 수학에서 '주사위 확률' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

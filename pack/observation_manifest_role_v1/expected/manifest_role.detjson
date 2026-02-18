@@ -1,0 +1,18 @@
+{
+  "schema": "seamgrim.wasm.observation_manifest_role.v1",
+  "manifest_schema": "ddn.observation_manifest.v0",
+  "manifest_source": "native",
+  "native_manifest": true,
+  "node_count": 1,
+  "param_count": 0,
+  "trace_count": 0,
+  "diagnostic_count": 0,
+  "contract": "D-STRICT",
+  "detmath_seal_hash": "",
+  "nuri_lock_hash": "",
+  "tick": 2,
+  "role_set": [
+    "state"
+  ],
+  "all_state_role": true
+}

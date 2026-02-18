@@ -1,0 +1,45 @@
+#이름: E013-04 관세 τ와 사중손실 DWL(간이)
+#설명: 수요 Qd=a-bp, 공급 Qs=c+dp, 세계가격 pw. 관세 τ → 국내가격 p=pw+τ.
+//      DWL ≈ 0.5*τ*((Qd0-Qd1)+(Qs1-Qs0)) (선형에서 삼각형 2개 합)
+// 출력은 숫자만. (τ, DWL) 순서.
+
+a <- 100.
+b <- 2.
+c <- 10.
+d <- 1.
+
+pw <- 20.
+
+tau_min <- 0.
+tau_max <- 30.
+dtau <- 1.
+
+tau목록 <- (tau_min, tau_max, dtau) 범위.
+
+Qd0 <- a - b*pw.
+{ Qd0 < 0 }인것 일때 {
+  Qd0 <- 0.
+}.
+Qs0 <- c + d*pw.
+{ Qs0 < 0 }인것 일때 {
+  Qs0 <- 0.
+}.
+(tau) tau목록에 대해: {
+  p <- pw + tau.
+
+  Qd1 <- a - b*p.
+  { Qd1 < 0 }인것 일때 {
+    Qd1 <- 0.
+  }.
+  Qs1 <- c + d*p.
+  { Qs1 < 0 }인것 일때 {
+    Qs1 <- 0.
+  }.
+  dQd <- Qd0 - Qd1.
+  dQs <- Qs1 - Qs0.
+
+  DWL <- 0.5 * tau * (dQd + dQs).
+
+  tau 보여주기.
+  DWL 보여주기.
+}.

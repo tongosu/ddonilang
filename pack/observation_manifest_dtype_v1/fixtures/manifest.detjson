@@ -1,0 +1,11 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "step_before_state": 2,
+  "expected_dtypes": {
+    "g": "num",
+    "x": "num",
+    "y": "num",
+    "z": "num",
+    "프레임수": "num"
+  }
+}

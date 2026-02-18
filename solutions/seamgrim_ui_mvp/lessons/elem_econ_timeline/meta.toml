@@ -1,0 +1,10 @@
+title = "연표 읽기"
+description = "시간 순서에 따른 사건 변화를 표시한다."
+grade = "elementary"
+grade_band = "1-2"
+subject = "econ"
+level = "intro"
+goals = ["시간 흐름을 그래프로 이해한다"]
+story = "1–2학년 사회/경제에서 '연표 읽기' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

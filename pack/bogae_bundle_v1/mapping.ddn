@@ -1,0 +1,5 @@
+#이름: bogae_bundle_v1_mapping
+#설명: bundle mapping sample
+
+보개_태그_목록 <- [(tag="bundle", x=4, y=6, w=10, h=8, text="BUNDLE", uri="sym:bundle.star", color="#ffcc00")].
+보개_매핑_목록 <- [(rule_id=1, tag="bundle", kind="rect", x="$x", y="$y", w="$w", h="$h", 색="$color")].

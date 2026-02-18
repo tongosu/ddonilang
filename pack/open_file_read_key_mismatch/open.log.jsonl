@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:70bd4833d76906e5b34bb85ce77b2a26ff7116abd9253beba933aeeb460e0adf","event_kind":"open","key":"pack/open_file_read_key_mismatch/beta.txt","open_kind":"file_read","site_id":"pack/open_file_read_key_mismatch/input.ddn:0:10","value":{"schema":"open.file_read.v1","text":"alpha\n"}}

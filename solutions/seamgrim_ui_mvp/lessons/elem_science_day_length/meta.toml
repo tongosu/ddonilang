@@ -1,0 +1,10 @@
+title = "하루 낮의 길이"
+description = "계절에 따른 낮 길이를 단순화한다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["낮 길이 변화가 주기적임을 이해한다"]
+story = "3–4학년 과학에서 '하루 낮의 길이' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

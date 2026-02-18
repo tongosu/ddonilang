@@ -1,0 +1,19 @@
+#이름: ssot_edu_econ_e007_03_demand_x_vs_px_variant_E007-03 마샬 수요 x(px) (I 고정)
+#설명: U=sqrt(x*y), 예산 px*x+py*y=I 에서 최적 x* = I/(2*px). (px, x*) 점열 출력.
+// 출력은 숫자만. (px, x*) 순서.
+
+I <- 100.
+py <- 5.
+
+px_min <- 1.
+px_max <- 50.
+dpx <- 1.
+
+px목록 <- (px_min, px_max, dpx) 범위.
+
+(px) px목록에 대해: {
+  x_star <- I / (2*px).
+
+  px 보여주기.
+  x_star 보여주기.
+}.

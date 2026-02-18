@@ -1,0 +1,10 @@
+{
+  "realm_count": 4,
+  "steps": 7,
+  "state_hashes": [
+    "blake3:c6513e47f5e02fe709dc5cb916da521bf97bc4ce69efba5a4138f095d2e3a0c5",
+    "blake3:6d3f8cd98834c49063fa321ac994f7b66a9cf31a49667ca74e606f25fecfb1b0",
+    "blake3:0e7ab6d3f59945a8a43f7216983529747f98b178202ea8ba05f3e0da025e3e08",
+    "blake3:85a0491525719273379eb289829de7188e2375f8fc7672785e90f3d126c708f7"
+  ]
+}

@@ -1,0 +1,10 @@
+title = "생산·비용(총비용) (E008-01)"
+description = "생산·비용(총비용)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["총비용 TC(q)의 의미(고정비+변동비)를 그래프로 이해한다", "생산량 q가 커질수록 비용이 빠르게 증가하는(볼록) 경우를 관찰한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e008_01_total_cost_q_tc"

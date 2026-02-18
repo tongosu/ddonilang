@@ -1,0 +1,10 @@
+// WASM observation channels fixture
+// 목적: channels/row 계약 검증용 최소 상태 전개
+
+매틱:움직씨 = {
+  g <- 9.8.
+  t <- 프레임수.
+  x <- (프레임수 * 2).
+  y <- (g - 프레임수).
+  프레임수 <- (프레임수 + 1).
+}.

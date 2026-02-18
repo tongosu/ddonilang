@@ -1,0 +1,12 @@
+{
+  "schema": "seamgrim.lesson_input.v0",
+  "sample": {
+    "x_min": -5,
+    "x_max": 5,
+    "step": 1
+  },
+  "params": {
+    "a": 1,
+    "b": 0
+  }
+}

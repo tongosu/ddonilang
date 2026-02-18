@@ -1,0 +1,1 @@
+{"cmd":["bogae","edit","--input","pack/bogae_editor_v0/input.detbin","--out","pack/bogae_editor_v0/output.detbin","--dx","2","--dy","1","--color","#ff00ff"],"stdout":["bogae_hash=blake3:ce6b67521e051c41e4452fc0ecf31f42ea80bdc572c2fcccdcb4b118120d08b5"]}

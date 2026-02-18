@@ -1,0 +1,10 @@
+title = "소비자 선택(예산선) (E007-01)"
+description = "소비자 선택(예산선)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["예산선의 의미(소득과 가격 제약)를 그래프로 이해한다", "소득(I)과 가격(px,py)이 예산선의 기울기/절편을 어떻게 바꾸는지 실험한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e007_01_budget_line_xy"

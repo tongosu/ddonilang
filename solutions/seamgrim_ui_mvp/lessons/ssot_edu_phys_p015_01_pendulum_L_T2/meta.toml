@@ -1,0 +1,10 @@
+title = "진동/주기 — 단진자 (P015-01)"
+description = "진동/주기 — 단진자"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["단진자에서 주기제곱 T²가 길이 L에 비례함을 그래프로 확인한다."]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p015_01_pendulum_L_T2"

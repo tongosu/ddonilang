@@ -1,0 +1,1 @@
+{"cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_replay_schema_mismatch/open.log.jsonl", "--no-open"], "stdout": [], "stderr": ["E_OPEN_LOG_PARSE pack/open_replay_schema_mismatch/input.ddn:1:10 열림 로그 파싱 오류: open.clock schema 불일치: expected=open.clock.v1,open.clock.v2 actual=open.clock.v0"], "exit_code": 1, "expected_error_code": "E_OPEN_LOG_PARSE"}

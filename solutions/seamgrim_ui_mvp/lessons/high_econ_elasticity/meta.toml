@@ -1,0 +1,7 @@
+title = "고등 · 탄력성"
+description = "가격 변화에 대한 반응"
+grade = "high"
+subject = "econ"
+level = "intermediate"
+goals = ["관계 해석", "모델 읽기"]
+required_views = ["graph", "text"]

@@ -1,0 +1,36 @@
+{
+  "schema": "seamgrim.table.v0",
+  "columns": [
+    {
+      "key": "item",
+      "label": "항목"
+    },
+    {
+      "key": "c1",
+      "label": "c1",
+      "type": "number"
+    },
+    {
+      "key": "c2",
+      "label": "c2",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    {
+      "item": "A1",
+      "c1": 1,
+      "c2": 2
+    },
+    {
+      "item": "A2",
+      "c1": 3,
+      "c2": 4
+    },
+    {
+      "item": "b",
+      "c1": 1,
+      "c2": 0
+    }
+  ]
+}

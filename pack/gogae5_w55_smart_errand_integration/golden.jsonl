@@ -1,0 +1,3 @@
+{"cmd": ["run", "pack/gogae5_w55_smart_errand_integration/input.ddn", "--madi", "2", "--geoul-out", "build/geoul_w55"], "stdout": ["audit_hash=blake3:7b159b1e0fbe79fea2d96529cfdfe29a2d04eabd07e00bfaed71c6f99e2f5fae", "심부름"]}
+{"cmd": ["replay", "verify", "--geoul", "build/geoul_w55"], "stdout": ["verify_ok=true", "first_diverge_madi=null"]}
+{"cmd": ["dataset", "export", "--geoul", "build/geoul_w55", "--format", "nurigym_v0", "--out", "build/dataset_w55"], "stdout": ["dataset_hash=sha256:3155fea6d58e2ceb01d4def8e986f31188db3b4fdf585df29ae1a89a1676dfcd"]}

@@ -1,0 +1,10 @@
+title = "직선의 절편"
+description = "y = x + 2"
+grade = "elementary"
+grade_band = "5-6"
+subject = "math"
+level = "intro"
+goals = ["절편이 그래프 위치를 바꾼다는 것을 이해한다"]
+story = "직선 그래프의 절편과 기울기를 비교합니다."
+missions = ["상수를 바꿔 그래프 위치 비교하기", "y절편을 읽어 설명하기"]
+required_views = ["graph"]

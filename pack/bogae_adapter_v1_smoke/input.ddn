@@ -1,0 +1,10 @@
+#이름: bogae_adapter_v1_smoke
+#설명: 보개 AdapterV1 입력(태그/형상/자산참조) 스모크
+
+보개_그림판_가로 <- 64.
+보개_그림판_세로 <- 48.
+보개_바탕색 <- "#0b0f18ff".
+
+보개_그림판_목록 <- [(id="tag.rect", 결="#보개/2D.Rect", x=4, y=6, w=20, h=10, 채움색="#ffcc00"), (id="tag.text", 결="#보개/2D.Text", x=6, y=22, size=8, text="BogaeAdapterV1", 색="#ffffffff"), (id="tag.sprite", 결="#보개/2D.Sprite", x=30, y=8, w=12, h=12, uri="sym:demo.star", 색="#66ccffff")].
+
+보개로 그려.

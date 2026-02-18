@@ -1,0 +1,14 @@
+#이름: elem_science_boiling_time_variant_가열 시간과 온도
+#설명: y = 20 + 3x
+
+x_min <- 0.0.
+x_max <- 10.0.
+dx <- 2.0.
+
+x목록 <- (x_min, x_max, dx) 범위.
+
+(x) x목록에 대해: {
+  y <- 20 + 3 * x.
+  x 보여주기.
+  y 보여주기.
+}.

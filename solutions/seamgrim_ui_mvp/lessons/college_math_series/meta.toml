@@ -1,0 +1,7 @@
+title = "대학 · 급수 근사"
+description = "다항식 근사"
+grade = "college"
+subject = "math"
+level = "advanced"
+goals = ["그래프 해석", "함수 이해"]
+required_views = ["graph", "text"]

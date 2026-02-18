@@ -1,0 +1,9 @@
+title = "파동과 진동 (P003-02)"
+description = "파동과 진동"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["감쇠가 있는 진동에서 진폭이 시간이 지날수록 감소함을 그래프로 확인한다", "학습목표\" = [", "감쇠가 있는 진동에서 진폭이 시간이 지날수록 감소함을 그래프로 확인한다", "감쇠계수 beta가 커지면 감쇠가 빨라짐을 실험으로 확인한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p003_02_damped_xt"

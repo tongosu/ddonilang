@@ -1,0 +1,10 @@
+title = "현대물리: 흑체복사(빈의 법칙) (P018-04)"
+description = "현대물리: 흑체복사(빈의 법칙)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["온도가 올라가면 최대복사 파장이 짧아지는(역비례) 관계를 본다", "‘색이 푸르게 간다’는 직관을 그래프로 연결한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p018_04_wien_lambda_max_of_T"

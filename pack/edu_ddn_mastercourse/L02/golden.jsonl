@@ -1,0 +1,2 @@
+{"stdout":["3"]}
+{"input_path": "input_error.ddn", "stdout": [], "stderr": ["E_PARSE_EXPECTED_RBRACE pack/edu_ddn_mastercourse/L02/input_error.ddn:7:1 닫는 중괄호가 필요합니다"], "exit_code": 1, "expected_error_code": "E_PARSE_EXPECTED_RBRACE"}

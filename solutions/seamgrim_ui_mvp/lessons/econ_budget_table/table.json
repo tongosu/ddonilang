@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "columns": [
+    { "key": "week", "label": "주차", "type": "text" },
+    { "key": "income", "label": "수입", "type": "number" },
+    { "key": "expense", "label": "지출", "type": "number" },
+    { "key": "balance", "label": "잔액", "type": "number" }
+  ],
+  "rows": [
+    { "week": "1", "income": 40, "expense": 15, "balance": 25 },
+    { "week": "2", "income": 35, "expense": 20, "balance": 40 },
+    { "week": "3", "income": 50, "expense": 30, "balance": 60 },
+    { "week": "4", "income": 45, "expense": 25, "balance": 80 }
+  ],
+  "meta": { "title": "가계부 예시" }
+}

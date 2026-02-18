@@ -1,0 +1,10 @@
+title = "소비자 선택(수요함수) (E007-03)"
+description = "소비자 선택(수요함수)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["가격(px)이 변할 때 최적 소비량 x*가 어떻게 변하는지(수요곡선) 본다", "단순 효용함수에서 닫힌형(공식) 수요를 확인한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e007_03_demand_x_vs_px"

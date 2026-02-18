@@ -1,0 +1,11 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.Q_max", "type": "수" },
+    { "name": "살림.Q_min", "type": "수" },
+    { "name": "살림.Q목록", "type": "수" },
+    { "name": "살림.a", "type": "수" },
+    { "name": "살림.b", "type": "수" },
+    { "name": "살림.dQ", "type": "수" }
+  ]
+}

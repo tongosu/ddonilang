@@ -1,0 +1,13 @@
+{
+  "schema": "seamgrim.wasm.state_apply.v1",
+  "patch_count": 1,
+  "patch_dispatch_mode": "patch",
+  "full_dispatch_mode": "full",
+  "normalized_full_schema": "seamgrim.state.v0",
+  "normalized_patch_schema": "seamgrim.state.v0",
+  "full_channels_count": 0,
+  "patch_channels_count": 1,
+  "full_row_matches_channels": true,
+  "patch_row_matches_channels": true,
+  "state_hash_changes_after_step": true
+}

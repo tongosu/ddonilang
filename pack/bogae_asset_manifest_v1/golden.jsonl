@@ -1,0 +1,1 @@
+{"cmd":["asset","manifest","pack/bogae_asset_manifest_v1/assets","--out","pack/bogae_asset_manifest_v1/manifest.detjson"],"stdout":["asset_manifest_hash=blake3:79c880f1160a619a230ae76e13f298ba1d8b16369de9cdd13e46c4a0bcbb3fd6"]}

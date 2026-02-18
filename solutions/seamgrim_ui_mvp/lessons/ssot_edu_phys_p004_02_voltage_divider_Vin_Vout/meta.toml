@@ -1,0 +1,9 @@
+title = "전기(직렬 회로/전압분배) (P004-02)"
+description = "전기(직렬 회로/전압분배)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["직렬 저항에서 전압이 분배되는 비율을 확인한다", "R1,R2 비율이 Vout에 미치는 영향을 설명한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p004_02_voltage_divider_Vin_Vout"

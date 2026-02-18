@@ -1,0 +1,9 @@
+title = "조세와 후생(잉여) (E002-02)"
+description = "조세와 후생(잉여)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["단위세가 커질수록 생산자잉여가 줄어드는 방향을 확인한다", "공급 기울기(d)가 PS 곡선에 주는 영향을 관찰한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e002_02_producer_surplus_vs_tax"

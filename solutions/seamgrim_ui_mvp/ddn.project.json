@@ -1,0 +1,8 @@
+{
+  "ssot_requires": "20.6.6",
+  "age_target": "AGE1",
+  "det_tier": "D-STRICT",
+  "trace_tier": "T-FULL",
+  "deps": [],
+  "name": "solution_seamgrim_ui_mvp"
+}

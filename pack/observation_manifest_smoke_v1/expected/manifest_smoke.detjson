@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.wasm.observation_manifest_smoke.v1",
+  "manifest_schema": "ddn.observation_manifest.v0",
+  "manifest_source": "native",
+  "native_manifest": true,
+  "node_count": 1,
+  "param_count": 0,
+  "trace_count": 0,
+  "diagnostic_count": 0,
+  "contract": "D-STRICT",
+  "detmath_seal_hash": "",
+  "nuri_lock_hash": "",
+  "tick": 2,
+  "nodes_non_empty": true,
+  "has_default_pivot": true
+}

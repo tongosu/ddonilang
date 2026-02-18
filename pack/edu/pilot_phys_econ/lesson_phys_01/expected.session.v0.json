@@ -1,0 +1,53 @@
+{
+  "cursor": {
+    "id": "theta",
+    "t": 0.0,
+    "tick": 0
+  },
+  "graph_ref": "expected.graph.v0.json",
+  "inputs": {
+    "control_meta": "#control: L:수=1.0 [0.2..3.0] step=0.01 unit=m; theta0:수=0.6 [-1.57..1.57] step=0.01 unit=rad",
+    "control_values": {
+      "L": 1.0,
+      "theta0": 0.6
+    },
+    "registry": [
+      {
+        "id": "main_ddn",
+        "payload_ref": "lesson.ddn",
+        "type": "ddn"
+      }
+    ],
+    "selected_id": "main_ddn"
+  },
+  "layers": [
+    {
+      "id": "baseline",
+      "order": 0,
+      "params": {
+        "L": 1.0,
+        "theta0": 0.6
+      },
+      "role": "baseline",
+      "visible": true
+    },
+    {
+      "id": "variant",
+      "order": 1,
+      "params": {
+        "L": 2.0,
+        "theta0": 0.6
+      },
+      "role": "variant",
+      "visible": false
+    }
+  ],
+  "layout_preset": "좌2d_우graph_중text_하단dock",
+  "required_views": [
+    "2d",
+    "graph",
+    "text"
+  ],
+  "scene_ref": "expected.scene.v0.json",
+  "schema": "seamgrim.session.v0"
+}

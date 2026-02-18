@@ -1,0 +1,13 @@
+{
+  "algo": "blake3",
+  "rows": [
+    {
+      "madi": 0,
+      "state_hash": "blake3:a8f258aeb141013543c30636bca833710d2fe76d1505cb3a9bc336c39f5dff27"
+    },
+    {
+      "madi": 1,
+      "state_hash": "blake3:319dc0cca716d8638a22889c290876c93864daff3e4e83483a1c0c4df53910ae"
+    }
+  ]
+}

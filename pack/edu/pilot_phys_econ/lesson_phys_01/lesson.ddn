@@ -1,0 +1,102 @@
+#이름: 진자_한편의장면
+#설명: 좌=진자(2d), 우=θ(t) 그래프(graph), 중=수식/자막(text), 하단=ViewDock
+#교과: 물리-진자
+#필수보개: 2d, graph, text
+#layout_preset: 좌2d_우graph_중text_하단dock
+#physics_backend: calc
+#control: L:수=1.0 [0.2..3.0] step=0.01 unit=m; theta0:수=0.6 [-1.57..1.57] step=0.01 unit=rad
+
+붙박이마련: {
+  g:수 = 9.8.
+  fps:수 = 60.
+  총초:수 = 5.0.
+}.
+
+그릇채비: {
+  L:수 <- 1.0.
+  theta0:수 <- 0.6.
+}.
+
+// 바탕(전제): 파라미터 유효성
+// { L > 0 }인것 바탕으로
+//   아니면 { L <- 1.0 }로 고친다.
+//   맞으면 { }하고.
+// { fps > 0 }인것 바탕으로
+//   아니면 { fps <- 60 }로 고친다.
+//   맞으면 { }하고.
+// { 총초 > 0 }인것 바탕으로
+//   아니면 { 총초 <- 5.0 }로 고친다.
+//   맞으면 { }하고.
+
+// graph meta (축을 제대로 그리기 위해)
+graph_kind <- "timeseries".
+x_kind <- "time".  x_unit <- "s".  x_label <- "t".
+y_kind <- "angle". y_unit <- "rad". y_label <- "θ".
+graph_kind 보여주기.
+x_kind 보여주기. x_unit 보여주기. x_label 보여주기.
+y_kind 보여주기. y_unit 보여주기. y_label 보여주기.
+
+// 소각근사 진자: θ(t) = θ0 * cos( sqrt(g/L) * t )
+
+// 보개장면(연출 메타; AGE1+)
+보개장면 {
+  마디0 (tick=0~30): {
+    (#제목, 글="진자: θ(t)와 움직임") 나타나기.
+    (#자막, 글="먼저 진자의 각도 θ(t)를 보겠습니다.") 나타나기.
+  }
+
+  마디1 (tick=31~120): {
+    (#자막, 글="이제 θ(t) 곡선을 그려보겠습니다.") 나타나기.
+    (#곡선, id="theta", 보개="graph") 그려지기(방식="progress").
+    (#해설, 글="강조: theta", 토큰="theta") 강조하기.
+  }
+}.
+
+// 시간축
+dt <- 1.0 / fps.
+끝tick <- (총초 * fps) 정수로.
+tick목록 <- (0, 끝tick, 1)범위.
+
+omegaN <- (g / L) ^ 0.5.
+pivot <- (x=0.0, y=0.0) 값꾸러미.
+
+(tick) tick목록에 대해: {
+  t <- tick * dt.
+
+  tick 보여주기.
+  t 보여주기.
+
+  // θ(t)
+  theta <- theta0 * cos(omegaN * t).
+
+  // 다짐(약속): theta가 유한 값이어야 한다(간이 NaN 방지)
+  // { theta == theta }인것 다짐하고
+  //   아니면 { theta <- 0.0 }로 고친다.
+
+  theta 보여주기.
+
+  // 2D 위치(이제 theta는 항상 유한)
+  bx <- L * sin(theta).
+  by <- -L * cos(theta).
+  bob <- (x=bx, y=by) 값꾸러미.
+
+  // space2d drawlist(C+) — 월드 좌표
+  그림 <- [
+    (도형="선", 시작=pivot, 끝=bob, 색="#333333", 굵기=0.02) 값꾸러미,
+    (도형="원", 중심=bob, 반지름=0.05, 채움="#0066ff", 테두리="#0044aa") 값꾸러미,
+    (도형="점", 위치=pivot, 크기=0.03, 색="#000000") 값꾸러미
+  ].
+  그림 보여주기.
+
+  // graph series: (t, theta)
+  무리 <- "theta".
+  x <- t.
+  y <- theta.
+  무리 보여주기.
+  x 보여주기.
+  y 보여주기.
+
+  // text
+  글 <- "각도 **[theta]θ(t)** = {theta} rad  (t={t}s)".
+  글 보여주기.
+}.

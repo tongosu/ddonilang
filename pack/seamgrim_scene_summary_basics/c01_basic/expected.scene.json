@@ -1,0 +1,48 @@
+{
+  "schema": "seamgrim.scene.v0",
+  "ts": "2026-02-01T00:00:00Z",
+  "view": {
+    "kind": "view-graph",
+    "config": {
+      "range": {
+        "x_min": 0,
+        "x_max": 4,
+        "y_min": 0,
+        "y_max": 4
+      },
+      "pan_x": 0,
+      "pan_y": 0,
+      "zoom": 1,
+      "grid": true,
+      "axis": true
+    }
+  },
+  "inputs": {
+    "kind": "ddn",
+    "label": "basic",
+    "input_hash": "example-input",
+    "result_hash": "example-result"
+  },
+  "required_views": [
+    "graph"
+  ],
+  "layers": [
+    {
+      "id": "run-1",
+      "label": "basic",
+      "visible": true,
+      "order": 0,
+      "opacity": 1,
+      "update": "replace",
+      "tick": null,
+      "series_id": "main",
+      "points": 3
+    }
+  ],
+  "timeline": null,
+  "hashes": {
+    "input_hash": "example-input",
+    "result_hash": "example-result"
+  },
+  "bogae_scene": null
+}

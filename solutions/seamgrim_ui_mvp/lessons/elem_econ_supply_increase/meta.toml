@@ -1,0 +1,10 @@
+title = "공급 증가"
+description = "가격에 따른 공급 증가를 본다."
+grade = "elementary"
+grade_band = "5-6"
+subject = "econ"
+level = "intro"
+goals = ["가격이 오르면 공급이 늘어남을 이해한다"]
+story = "5–6학년 사회/경제에서 '공급 증가' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

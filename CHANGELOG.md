@@ -1,0 +1,342 @@
+# CHANGELOG.md
+
+## Unreleased
+- Expanded the Seamgrim (셈그림) UI MVP report and added a mastercourse curriculum proposal.
+- Added a stdlib_range_basics unit-mismatch error golden case.
+- Added a unit-annotated range case to stdlib_range_basics and extended bridge_check to validate the UI markup.
+- Added an error-case golden for stdlib_range_basics (step=0) to lock the runtime failure message.
+- Added pack/stdlib_range_basics golden coverage for the stdlib range helper and updated default pack runner/coverage table.
+- Added a Seamgrim (셈그림) UI DDN sync button, a local bridge check script, stdlib range entries in status tables, and the ddonirang_mastercourse plan scaffold.
+- Clarified AGENTS guidance to create build/out dirs on startup, preferring I: paths with C: fallbacks.
+- Added stdlib `범위` (2~3 args, unit-safe inclusive range with step) to teul-cli/tool runtimes and lang stdlib signatures, and updated Seamgrim samples/auto DDN generation to use it.
+- Added SSOT admin request note for sam/geoul minimal schema adoption.
+- Split Seamgrim (셈그림) UI input into formula/DDN tabs and simplified the DDN samples with list iteration.
+- Wired Seamgrim (셈그림) UI MVP formula panel to runtime bridge (auto DDN), clarified sam/geoul v0 schema aliases, and strengthened UI validation/summaries.
+- Added a range literal/minimal range spec proposal and regenerated ssot_*_ALL.md aggregates.
+- Added Seamgrim (셈그림) UI MVP proposal/design docs, UI skeleton with DDN editor + local bridge run, graph/snapshot import/export + sam/geoul validation + multi overlay compare + summary cards + overlay rules, a seamgrim_line_graph D-PACK (two cases), and a seamgrim_ui_mvp solution + export/bridge tools + snapshot/sam/geoul schemas + sam/geoul SSOT proposal.
+- Added W77 gogae7 demo pack coverage (bogae_hash golden).
+- Added W76 detbin cache (hit/miss log) and pack coverage.
+- Added W74 pack runner support for `bogae_hash` as a first-class field and pack coverage.
+- Recorded W75 docs/ssot/walks update as SSOT-manager work (no direct edits).
+- Added W73 bogae bundle v1 CLI and pack coverage.
+- Added W72 bogae hash determinism v1 pack coverage.
+- Added W71 bogae editor v0 CLI (detbin translate + color override) and pack coverage.
+- Added W70 bogae web viewer v1 pack coverage.
+- Added W69 bogae mapping v1 pack coverage and mapping rules (tag list + rule list with $ references).
+- Added W68 bogae asset manifest v1 pack coverage plus `teul-cli asset manifest` command.
+- Added W67 bogae adapter v1 smoke pack coverage.
+- Added W66 open end-to-end pack coverage (deny/record/replay).
+- Added W65 open bundle artifacts (--open-bundle) and open_bundle_artifact pack coverage.
+- Added W64 open rand sealing (record/replay) and open_rand_record_replay pack coverage.
+- Added W63 open replay mismatch diagnostics (log missing/parse/miss/tamper) and open_replay_mismatch_diag pack coverage.
+- Added W62 site_id canonicalization (blake3 hash) plus open_site_id_canon pack and refreshed open logs.
+- Added W61 open.policy allowlist parsing (default/allow/deny), root-up search, and open_policy_allowlist pack coverage.
+- Added W48 GOAP planner (A* planning), teul-cli goap plan command, and D-PACK/golden coverage.
+- Added W47 ObservationSpec (observation structs, detjson canonicalization, VisionCone) with D-PACK and teul-cli goldens.
+- Added W46 goal grammar (-도록) parsing with TargetState/GoalCondition, plus pack/golden coverage.
+- Added W59 open allow directive parsing (`#열림 허용(...)`), warning on undeclared open kinds, and an open_decl_policy D-PACK/golden.
+- Added open_deny_policy D-PACK with stderr/exit_code golden checks and extended the pack golden runner to support stderr/exit_code assertions.
+- Added open_decl_policy_warn D-PACK to validate W_OPEN_NOT_DECLARED warnings for undeclared open kinds.
+- Added open_replay_missing D-PACK to assert E_OPEN_REPLAY_MISSING on empty replay logs.
+- Added open_replay_invalid D-PACK to assert E_OPEN_REPLAY_INVALID on malformed replay logs and expanded open_deny_policy with a record case.
+- Added open_replay_hash_mismatch D-PACK and replay log detjson_hash validation.
+- Added open_replay_site_mismatch and open_replay_schema_mismatch D-PACKs plus replay schema validation.
+- Added open_file_read_key_mismatch D-PACK and stderr golden alternatives for site_id variations.
+- Added open_replay_schema_v2_accept and open_file_read_path_normalize D-PACKs, plus open.log v2 schema fallback + path normalization.
+- Added open_file_read_abs_path D-PACK and golden runner CWD placeholder expansion for absolute path tests.
+- Added open_file_read_abs_case and open_replay_schema_v2_extra D-PACKs, plus {{CWD_UPPER}} placeholder support.
+- Added open_file_read_unc_case and open_replay_schema_v2_missing D-PACKs plus OPEN_LOG_V2_RULES documentation.
+- Added open_file_read_unc_dot and open_replay_schema_v2_nested_meta D-PACKs, plus nested meta rules in OPEN_LOG_V2_RULES.
+- Added open_file_read_unc_mix and open_replay_schema_v2_meta_list D-PACKs, plus v2 meta scalar/list rules.
+- Added open_file_read_unc_dot_mix and open_replay_schema_v2_meta_scalar D-PACKs, plus v2 meta string/number rules.
+- Added open_file_read_unc_space_special and open_replay_schema_v2_meta_bool_null D-PACKs, plus v2 meta boolean/null rules.
+- Implemented AGE2(Open) W56 basics: `--open=deny|record|replay`, open.log.jsonl handling, and open clock/file_read packs with golden coverage.
+- Added gogae5 pack golden.jsonl coverage and extended the golden runner to support non-`run` teul-cli commands.
+- Hid the live console cursor to reduce bottom-line flicker and defaulted the web viewer scale to 1.25.
+- Added a Tetris render alignment guide plus a web viewer scale parameter for larger grids.
+- Added a full Tetris D-PACK (`pack/game_maker_tetris_full`) with 7-bag/hold/ghost/scoring and updated examples.
+- Aligned W45 SeulgiIntent/SeulgiPacket to SSOT v20.2.0 (MoveTo/Attack/Say/None + accepted/target_madi) and refreshed intent bundle pack/golden.
+- Synced SSOT version references to v20.2.0 (CURRENT + ai prompt + W91/toolchain goldens + SSOT_bundle_v20.2.0_codex.zip).
+- Added W44 time travel integration D-PACK/golden coverage.
+- Added W43 audit inspector (geoul query/backtrace) CLI and D-PACK/golden coverage.
+- Added W42 branching manager (replay branch) CLI and D-PACK/golden coverage.
+- Added W41 timeline make CLI, gaji/ddn.timeline.v0, and D-PACK/golden coverage.
+- Added suggested_intents to W40 story output and updated W40 golden expectations.
+- Added W40 sitcom engine v1 (story make CLI), gaji/ddn.story.v0, and D-PACK/golden coverage.
+- Added W39 nuance weight (말결값) runtime support, gaji/ddn.nuance.v0, and D-PACK/golden coverage.
+- Added W37 memory seed (기억씨) and W38 emotion wave (감정씨) runtime support, packs, and teul-cli golden coverage.
+- Recorded AGE1 stdlib completion (2026-01-26) and fixed stdlib_missing_coverage_* pack goldens with explicit seed.
+- Implemented teul-cli runtime support for `풀기`, input/RNG/resource stdlib, and call-expression statements; refreshed stdlib_missing_coverage_pure/io pack goldens.
+- Added a fix-it in-place guard to `teul-cli canon` and documented rails/training boundaries in `ddn.ai.policy.json`.
+- Added `teul-cli run --run-manifest` and `--artifact` to pin artifact inputs in a run manifest.
+- Added `gaji/element_swap` skeleton to reserve element-implementation swap paths for sam/bogae.
+- Marked AGE1 pending C2/C3/C4 items as done (fixits rail, prompt goldens, artifact pinning, swap path).
+- Updated `docs/WORKSPACE_MANIFEST.json` and `docs/context/CURRENT.md` to patch_version v20.2.0_20260127_292dad7d.
+- Extended teul-cli canon to support seed definitions (params/defaults), call-expression statements, atom literals (`#...`), hook statements (`할때`/`마다`), `?`/`!` terminators, `??` prompt syntax, pipe chaining (`해서/하고`), `(핀묶음)인 호출`, decimal numbers, multi-word call names, multiline conditions, and newline-based terminators.
+- Expanded canon input checks to cover docs/EXAMPLES, refreshed guides examples 01~04, and reduced CANON:SKIP to 0 items.
+- Added `teul-cli canon --check` plus pack-call parsing for canonical `차림.값/바꾼값` output and a guides-only canon check script.
+- Added `teul-cli gaji lock` (build/lock/gaji.lock.json) and `teul-cli scan` with W_SKIP_NON_GAJI_DIR warnings.
+- Canonicalized guides examples (01_basic/02_charim) and marked function-heavy examples with `CANON:SKIP` until canon supports declarations.
+- Updated W90 patch goldens to canonicalizable single-line inputs and refreshed patch approvals.
+- Updated `docs/WORKSPACE_MANIFEST.json` and `docs/context/CURRENT.md` for the latest patch_version.
+- Added tailless call diagnostics (E_CALL_TAIL_MISSING_*) to LSP/canonicalizer with QuickFix suggestions.
+- Added `gaji/30_nurigym_core` skeleton and updated `pack/nuri_gym_cartpole` to DR-075 DetJson samples.
+- Added `teul-cli alrim registry` to build `build/registry/alrim.registry.json` with hash/conflict detection.
+- Added `ddn.ai.policy.json` baseline policy file for AI preprocess hashing.
+- Expanded `ddn.patch.json` to before/after blocks, updated patch goldens, and defaulted patch verify tests root.
+- Added Seulgi/NuriGym/GOAP/latency/safety/dataset/workshop core + teul-cli modules with W45~W55 packs and golden coverage.
+- Added stdlib gaji v1 skeletons (`gaji/std_{text,charim,math,map,logic}`) with exports stubs and updated WORKSPACE_MANIFEST.
+- Added D-PACKs for math calculus v1, BDL2 subpixel/AA v1, and charim index sugar v1 with pack golden coverage.
+- Included math_calculus_v1/bdl2_subpixel_aa_v1/age1_charim_index in the default pack golden runner list.
+- Revalidated W22 BDL2 detbin goldens and the new pack golden cases.
+- Marked AI-friendly Phase0, math calculus, BDL2 subpixel/AA, and charim index items as done in AGE1 pending.
+- Fixed stdlib_examples string-contains sample (reserved identifier) and template-match expected output, then revalidated all pack goldens.
+- Added pack goldens for Korean key aliases, bogae background key normalization, and drawlist listkey, marking the AGE1 items as done.
+- Marked tensor stdlib P0 / stdlib align / 모두{} sugar as done and added pack golden coverage plus W108/W109 revalidation.
+- Marked AGE1 runtime typecheck/contract diag/seulgi hook as done and revalidated W106/W107 goldens.
+- Added pack golden coverage for compound update and contract mode, and included them in the default pack golden runner list.
+- Added D-PACKs for compound update and contract mode (`pack/compound_update_basics`, `pack/diag_contract_mode_v1`) and marked the related AGE1 pending items as done.
+- Refreshed `tests/toolchain_golden/ai_prompt_lean.txt` for SSOT v20.1.18 and revalidated ai prompt golden tests.
+- Bumped WORKSPACE_MANIFEST patch_version to v20.1.18_20260125_a0a63b00 after ai prompt golden refresh.
+- Updated `docs/context/CURRENT.md` to SSOT v20.1.18 and manifest patch_version authority.
+- Added math stdlib helpers (abs/min/max/clamp/sqrt/powi) to ddn runtime.
+- Added `tests/run_pack_golden.py` to verify all stdlib pack golden cases.
+- Updated `docs/WORKSPACE_MANIFEST.json`.
+- Added stdlib status docs (`docs/status/STDLIB_IMPL_MATRIX.md`, `docs/status/STDLIB_ALIAS_TABLE.md`).
+- Added stdlib base packs (`pack/stdlib_text_basics`, `pack/stdlib_charim_basics`, `pack/stdlib_math_basics`, `pack/stdlib_map_basics`).
+- Added stdlib alias canonicalization for teul-cli/ddn runtime (문자열/차림/수학 함수 별칭 입력 허용).
+- Added pack field access syntax `대상.필드` in teul-cli (parser/canon/runtime) with W05 golden coverage.
+- Bumped SSOT bundle to v20.1.17, regenerated SSOT_bundle_v20.1.17_codex.zip, and refreshed W91 ai prompt goldens.
+- Added seed literal `{x | ...}` parsing/canonicalization/runtime support and aligned charim/string stdlib signatures (정렬/거르기/변환/합치기, 포함하나/시작하나/끝나나/숫자로) with SSOT v20.1.15.
+- Added `teul-cli lint --suggest-patch` to generate ddn.patch.json for legacy term replacements.
+- Implemented `teul-cli canon --emit fixits-json` output with legacy-term suggestions and added `pack/cli_fixits_json_basics` plus W90_G06 golden coverage.
+- Added `teul-cli patch propose` and W90_G07 golden coverage.
+- Added `teul-cli ai prompt` (lean/runtime/full profiles) with zip/dir bundle input and deterministic context output.
+- Added W91 golden coverage for ai prompt (invariants + snapshot).
+- Added AI-PROMPT-GOLDEN-01 bundle hash unit test coverage in teul-cli.
+- Fixed teul-cli canon Parser::peek lookup and check SeedLiteral match to restore builds.
+- Refreshed W91 ai prompt snapshot golden output for the current SSOT bundle contents.
+- Bumped teul-cli ai prompt SSOT_VERSION to v20.1.16 and refreshed W91 ai prompt goldens.
+- Added SSOT_bundle_v20.1.16_codex.zip and switched W91 ai prompt goldens to the zip bundle.
+- Re-verified teul-cli goldens (W01~W109).
+- Added an AGE1 stdlib extension implementation mapping table proposal.
+- Added an AGE1 stdlib name normalization proposal for canonical/alias decisions.
+- Recorded DEC-20260125-STDLIB-NAMES-01 (AGE1 stdlib naming normalization decision).
+- Implemented DR-069 contract diag standard fields (including fault_id) and recorded `슬기.계약위반` hook events in teul-cli.
+- Added D-PACKs for contract diag standard/hook and expanded W107 post-contract golden coverage.
+- Added AI-friendly Phase0 data (pack/stdlib_examples, errors.jsonl, index.json).
+- Enforced arg-before call syntax `(args) name` and removed prefix `name(args)` parsing; updated packs/examples/golden inputs accordingly.
+- Consolidated docs sample locations: moved maze tracks to `docs/EXAMPLES/tracks/`, demos to `docs/EXAMPLES/demos/`, Gate0 records to `docs/steps/000/`, and folded reviews/templates into existing docs folders.
+- Removed `docs/legacy` (archive_root/quarantine) and cleaned up the remaining references.
+- Moved design drafts to `docs/context/design/` and updated references (SSOT pending refs handled separately).
+- Removed `docs/ssot/ssot/SSOT_PENDING.md` and kept pending notes in `docs/decisions/SSOT_PENDING.md`.
+- Moved roadmap documents to `docs/context/roadmap/` and updated references.
+- Consolidated docs structure and aligned report paths to `docs/reports/impl|audit` with `docs/context/reports` as redirect.
+- Added logical operators `&&`/`||` with Korean `그리고`/`또는` plus `아님` negation sugar in lang/tool runtime.
+- Added contract alert mode syntax `바탕으로(알림)`/`다짐하고(알림)` and logged violations without aborting.
+- Added teul-cli contract parsing/execution (`바탕으로`/`다짐하고`/`맞으면`), contract diag JSONL output, and W107 golden tests.
+- Recorded SSOT decisions for the contract diag standard and the `슬기.계약위반` hook.
+- Added teul-cli runtime type mismatch messages with expected/actual types and expanded type_runtime_typecheck inputs (unitless/optional mismatches).
+- Reflected DR-067 runtime typecheck semantics in SSOT (PinSpec/TypeRef enforcement rules).
+- Implemented PinSpec runtime typechecks in ddn_runtime with `E_RUNTIME_TYPE_MISMATCH` messaging and unit tests.
+- Added `pack/type_runtime_typecheck` inputs and teul-cli W106 golden coverage for runtime type mismatches.
+- Added charim index sugar `a[i]`/`a[i] <- v` that canonicalizes to `차림.값`/`차림.바꾼값`.
+- Added runtime support for `차림.값`/`차림.바꾼값` (out-of-range writes are FATAL).
+- Added W103 teul-cli golden coverage for charim indexing.
+- Added `[]` 차림 리터als (parser/normalizer) that canonicalize to `(…) 차림`.
+- Added teul-cli `[]` 차림 literal parsing/canon support and W102 golden coverage.
+- Added else-if sugar `아니고 (조건) 일때` plus `+<-`/`-<-` compound update sugar (variable targets only) with W104 golden coverage.
+- Added nested charim tensor sugar `[[...],[...]]` canonicalization to shape/data/layout packs, plus W105 golden coverage and ragged-shape parse errors.
+- Added `(임자) 대상차림 모두 { ... }.` sugar with canonicalization to `~에 대해:` plus tensor stdlib functions (`텐서.형상/자료/배치/값/바꾼값`), W108/W109 golden coverage, and related D-PACKs.
+- Added pack/age1_container_resource golden input/expectation and a ddn runtime container resource state_hash test.
+- Updated teul-cli ai prompt SSOT_VERSION to v20.1.13 and refreshed the lean golden output.
+- Added deterministic resource storage for containers (차림/모음/짝맞춤) via ResourceValue in core and ddn runtime resource assignment.
+- Added ddn runtime/teul-cli foreach support for 차림/모음/짝맞춤 (짝맞춤 yields a key/value 차림 pair), ddn runtime constructors for 차림/모음/짝맞춤, and W97_G04 foreach map golden coverage.
+- Added teul-cli loop statements (`반복:`/`동안:`/`에 대해:`) with `멈추기`, plus a loop example.
+- Added W97 teul-cli golden test coverage for loop/foreach/break.
+- Added lang/tool loop/foreach/break support in ddn runtime.
+- Added parser/normalizer support for container type notation like `(T)차림`.
+- Added `미분하기`/`적분하기` formula transforms that wrap expressions into ddn.math/ext `diff/int`.
+- Added template pattern matching (`맞추기`) with age1_template_match pack/example coverage.
+- Allowed ddn.math/ext call parsing in #ascii formulas, added Gate0 eval FATAL handling, and included age1_math_ext pack/example coverage.
+- Replaced `?_??_?` placeholders with `보개_그림판_가로/세로` in Bogae-related pack inputs.
+- Updated Bogae-related packs to use `보개_바탕색` and switched W35 replay harness input to a Korean arrow key alias.
+- Added Korean key aliases for sam keyboard input (왼쪽화살표/Z키/스페이스, etc.), plus the `보개_바탕색` background alias and updated Tetris Slice0 key usage.
+- Added W90 patch pipeline golden tests, an age1 patch approval sample pack, list-based Bogae drawlist entries (`보개_그림판_목록`), and `tetris_board_drawlist` to slim the Tetris Slice0 board rendering.
+- Added teul-cli patch preview/approve/apply/verify pipeline, container values (차림/모음/짝맞춤), list/string stdlib ops, and an AGE1 container pack/example.
+- Added W35 replay verify (geoul snapshot reinjection) and W36 trace-tier logging (T-OFF~T-FULL) with D-PACK/golden coverage.
+- Added W34 geoul blackbox logging (audit.ddni/idx/manifest + checkpoint), geoul seek/hash CLI, and gogae4_w34 pack/golden coverage.
+- Re-verified teul-cli golden tests (W01~W33) and ddonirang-tool state_hash smoke tests (W23~W33).
+- Added W33 teul-cli golden test coverage.
+- Added W32 teul-cli golden test coverage and W33 market integration state_hash computation with updated pack expectations/tests.
+- Added W31 teul-cli golden test coverage and W32 diff viewer state_hash computation with updated pack expectations/tests.
+- Added W30 teul-cli golden test coverage and W31 shared stage state_hash computation with updated pack expectations/tests.
+- Added W29 teul-cli golden test coverage and W30 qchain approval state_hash computation with updated pack expectations/tests.
+- Added W28 teul-cli golden test coverage and W29 reactive limit state_hash computation with updated pack expectations/tests.
+- Added W27 teul-cli golden test coverage and W28 indicators state_hash computation with updated pack expectations/tests.
+- Added W27 invariant hook state_hash computation in core gogae3 and updated the gogae3_w27_invariant_hook pack expectations/tests.
+- Added W26 econ seeds state_hash computation in core gogae3 and updated the gogae3_w26_econ_seeds pack expectations/tests.
+- Added core gogae3 helpers for W24 ECS archetype and W25 query batch state_hash computation, and updated pack expectations/tests.
+- Synced teul-cli W24/W25 state_hash with core computation and refreshed golden expectations.
+- Implemented ECS archetype/column storage in core and updated W24 state_hash test coverage.
+- Added W24/W25 input snapshot schema/samples and sam sorted/unsorted golden tests.
+- Added W24/W25 state_hash expectations and golden tests (W24_G01/W25_G01).
+- Verified W23 network sam determinism test and recorded W23 DoD completion.
+- Reviewed W24/W25 D-PACK skeletons and recorded them as incomplete.
+- Verified W22 golden tests and recorded W22 DoD completion.
+- Added teul-cli detjson sam parsing (net_events sort + summary resources) and W23 test docs update.
+- Ensured CI installs/validates python3 before running UTF-8 checks.
+- Repaired broken text and removed BOM in SSOT_PENDING_20260118 proposal.
+- Added W23 net_events state_hash expectation + test (pack expect/state_hash.txt, test Iyagi).
+- Wired UTF-8 checker into CI (GitLab/Azure) and removed remaining BOMs from step docs/W23 sample.
+- Added a UTF-8 check utility and enforced net_events sorting on input snapshot detjson parsing (W23).
+- Re-encoded non-UTF8 docs as UTF-8 and repaired broken text in SSOT_PENDING (notes/decisions).
+- Removed UTF-8 BOM from repository text files.
+- Added BDL2 subpixel Q24.8 decoding and AA-aware rendering (snap when AA is off, subpixel when AA is on), plus a W22 subpixel golden test.
+- Added BDL2 Circle/Arc/Curve command support (core/web/playback) with AA cmd flag parsing and W22 golden tests.
+- Updated golden DDNs + docs/ssot/pack for Bogae key canonicalization and refreshed W19/W21 stdout expectations.
+- Updated Bogae example/pack DDNs to 생김새/결/보개_그림판_* keys.
+- Canonicalized Bogae drawlist keys to 생김새/결/보개_그림판_* while keeping 모양/트레잇/bogae_canvas_* as aliases.
+- Moved root golden gate0 tests into `docs/steps/000/artifacts/golden`, relocated `해보기` samples into `docs/EXAMPLES/haebogi`, and archived `tools/ddonirang-vscode` under `tools/vscode-ddn/legacy`.
+- Added W23 InputSnapshot detjson net_events parsing and replay log net_events roundtrip support.
+- Added W23 net_events field to InputSnapshot with deterministic sorting in DetSam.
+- Added W26~W33 D-PACK skeletons under pack/gogae3_w26~w33.
+- Added W23 input snapshot schema/sample docs and W24/W25 D-PACK skeletons.
+- Started W23 D-PACK skeleton (`pack/gogae3_w23_network_sam`).
+- Fixed the golden runner to keep stdout lines that include hash tokens plus other fields (W14 stdout contract).
+- Re-verified W14/W15 golden tests (W14_G01_headless_stdout, W15_G01_playback_output).
+- Moved Gate0 step 000 records to `docs/steps/000`.
+- Adjusted Tetris Slice0 canvas height to show the bottom board row.
+- Skipped drawing sprites with tint alpha 0 in web/playback viewers to avoid empty-cell overdraw.
+- Added sam-live console stop handling (Ctrl+C/Esc) and sprite glyph mapping in console renderer.
+- Added `tetris_piece_block` builtin plus Slice0 updates for 4-block rendering, DAS/ARR movement, wall-kick rotation, and game-over detection.
+- Added `tetris_board_cell` builtin for board sprite/color lookup and updated Tetris Slice0 locked-block rendering plus line-clear scoring/effects.
+- Added teul-cli `tetris_*` helpers and `묶음값` for Slice0 board collisions/line clears.
+- Added `{...}아닌것` condition example.
+- Added canon support for `일때/고르기` branching and `{...}인것` conditions.
+- Extended Tetris Slice0 with basic gravity/lock flow.
+- Added teul-cli `고르기:` branching with `아니면:` and updated Tetris Slice0 input with conditional flow.
+- Added teul-cli `일때/아니면` conditional statement parsing/execution and a demo example.
+- Added Tetris Slice0 input skeleton (state model + key mapping + hold/rotation) in pack.
+- Added live sam input (`--sam-live console|web`) with input server and viewer input forwarding.
+- Added BDL2 detbin codec support with `--bogae-codec` and viewer parsing.
+- Added W22 implementation plan (phases) and expanded BDL2 pack test/diag definitions.
+- Added live Bogae console/web mode (`--bogae-live`) with ASCII renderer and live.html polling viewer.
+- Added W18 replay diff CLI and playback manifest `state_hash`.
+- Added W19 cmd_count cap/summary policy with diag fields and golden packs.
+- Added W20 BDL1 packet framing and `teul-cli bdl packet wrap/unwrap`, plus roundtrip tests.
+- Added W21 overlay output (`overlay.detjson`) and viewer overlay support with hash invariance tests.
+- Added W22 BDL2 spec skeleton proposal and pack skeleton.
+- Updated W22 BDL2 draft with detbin schema/command table (fixed_q=8) and filled pack docs.
+- Re-verified W16/W17 golden tests (W16_G01_text_sprite, W17_G01_input_replay).
+- Re-verified W14/W15 golden tests (W14_G01_headless_stdout, W15_G01_playback_output).
+- Removed unused `TokenKind::Hash` and simplified formula tag parsing to Atom-only.
+- Re-verified W01-W17 golden tests.
+- Fixed formula injection parsing for `(#ascii/#ascii1)` after bindings (W06 golden pass).
+- Relaxed W13_G01 artifacts test stdout/hash expectations to align with W14 headless stdout.
+- Added W14 headless output line for `--no-open` (bogae_hash/cmd_count/codec) and W14 golden test.
+- Added W13 web(Canvas) viewer support: `teul-cli view`, `--bogae web`, and viewer artifacts (`index.html`, `drawlist.bdl1`, `drawlist.json`).
+- Added W12 demo example program for Bogae drawlist output.
+- Added W12 atom literals (#...), pack literal bindings, state-driven Bogae drawlist (rect fill), and the Bogae D-PACK/golden updates.
+- Added W12 Bogae drawlist/BDL1 hashing, `--bogae-out` output, and `bogae_hash` parsing in the golden runner.
+- Verified W07~W11 golden packs in teul-cli.
+- Documented roadmap vs WALK spec precedence in AGENTS.
+- Verified W06 golden pack in teul-cli.
+- Verified W05 golden pack in teul-cli.
+- Verified W04 golden pack in teul-cli.
+- Corrected AGE references from age1 to age0 in docs and AGENTS.
+- Updated SSOT path references to the new walks/age structure across AGENTS/steps/status docs.
+- Verified W03 golden pack (schema/duplicate/type/diag/repro/trace) in teul-cli.
+- Added gaji/pack input bridge: `=` assignment, `(묶음)인 식 풀기`, and bare path `살림.` auto-prefix.
+- Added line-directive (`#...`) skipping in teul-cli lexer/canon for step01 directive headers.
+- Added per-walk demos (001~011) under docs/EXAMPLES/demos with usage notes.
+- Added Gate0 formula power operator (`^`) parsing/eval and a W06 golden test.
+- Added deterministic `sin`/`cos` (CORDIC) and a W05 golden test.
+- Added 글무늬 템플릿 렌더링(자리표시자/포맷/단위 변환)과 W12 골든 테스트.
+- Added W03~W11 step docs and updated the step index statuses.
+- Added W06 formula/MathIR evaluation (#ascii/#ascii1) with DetMath stdlib (abs/min/max/clamp/sqrt/powi) and Fixed64 sqrt.
+- Added hook/tick engine: `(시작)할때` and `(매마디)마다`, plus `--ticks/--madi` run support.
+- Added `--diag` alias for diag JSONL output and ensured diag does not affect state_hash.
+- Added `--enable-repro` default repro path and repro JSON meta fields (ssot_version, repro_command).
+- Added `teul-cli ai extract` for ??() prompt extraction.
+- Added canon `--out` path support and run_golden multi pipeline support.
+- Added W03~W11 golden test packs and passing coverage.
+- Added AGE01 WALK01 `tools/teul-cli` scaffold with `state_hash`/`trace_hash` (blake3) and W01 golden test runner.
+- Updated SSOT baseline references to v20.0.3 across step 000 and status docs.
+- Added SYNTAX_BRIDGE support via `canon --bridge age0_step01` and refreshed SSOT bundle/template references for v20.0.3.
+- Updated SSOT baseline references to v20.0.0 in step 000 docs/HANDOFF and recorded the 99-step plan (AGE0=1~33) exception in SSOT_CHANGELOG.
+- Added `canon` command to ddonirang-tool for canonical DDN output (`--emit ddn`, `--out`, `--check`).
+- Added `teul-cli ai prompt` output (lean profile, SSOT template/context), bundle zip/dir support, and AI-PROMPT-GOLDEN-01/02/03 tests.
+- Added v19.4.19 주입 표기 지원: `(<키=값>) 글무늬{...}`/`(<키=값>) 수식{...}` 즉시 평가, `(키=값)인 식 풀기` 정본화.
+- Added `??{...}` structured AI card preprocessing (equivalent to `??(글무늬{...})`).
+- Implemented `수식{...}` block parsing and `풀기` evaluation (ASCII/ASCII1, strict injection, `#latex` FATAL).
+- Recorded contract violations as Signal::Diag (CONTRACT_PRE/POST) with standardized fields and EmitSignal seq/madi assignment.
+- Ensured ARITH-TRACE-01 coverage with arith:* expr tags and source_span for DivAssignResourceFixed64 paths.
+- Replaced generic angle brackets in docs with 〈〉 (SSOT excluded).
+- Documented `target-dir` relocation to `C:\dev\cargo-target\ddonilang` to avoid OneDrive churn.
+- Updated SSOT baseline references to v19.4.19 (꺾쇠 금지, `$` 뉘앙스, `글무늬` 템플릿, `}해서`/`-서`, 계약 정본 `바탕으로/다짐하고`).
+- Implemented v19.4.8 Gate0 gaps: `}해서` tail, `-서` FATAL ban, `$` 뉘앙스, `글무늬`/`채우기`, `늘지켜보고`, prefix 호출 + `핀=값`, `[]`/`&` 예약 처리, 계약 정본 키워드 지원.
+- Updated step 000 docs and status summaries to reflect v19.4.19 baseline and applied fixes.
+- Updated base unit registry list to include `mm/us/min/h/g`.
+- Updated internal doc SSOT references to v18.22.1 (steps/status/impl_draft).
+- Clarified SSOT v18.17.12 lint placement: PLANS override, strict-terms optional, compat/termmap deferred.
+- Moved NAME-LINT-01/TERM-LINT-01 enforcement to parser (fatal/reserved/josa) and kept canonicalizer as legacy warning only (no auto replacement).
+- Added arith diag source_span/expr trace fields and runtime emission path.
+- Added lint_version/term_map_version fields to repro reports.
+- Updated SSOT references to v18.12.12 (steps/status/impl_draft).
+- Updated SSOT references and LANG_STATUS to v18.0.11 baseline.
+- Switched deterministic hash output to state_hash (BLAKE3) and updated logs/golden format.
+- Updated steps SSOT references to docs/ssot v18.0.11.
+- Reorganized steps into per-step directories and added step 000 for Gate0.
+- Adopted Gate0 dev checklist v18.0.11 as a step 000 reference.
+- Moved golden/replay artifacts into docs/steps/000/artifacts and updated tool defaults.
+- Organized the 11-step demo track under docs/EXAMPLES/tracks/11단계.
+- Added docs decision/notes structure for SSOT change proposals and approvals.
+- Added decision/reason sections to all step RESULT files.
+- Added per-step WORKLOG.md templates and initial logs for 000/001.
+- Added publish/ folder for documents intended for GitHub upload.
+- Added user-facing publish docs and binary release policy.
+- Added per-step TODO policy and TODO sections in step plans.
+- Added josa/@ token handling, optional param parsing, default injection, josa-based arg binding, @pin fixing, and mood terminator handling in lang canonicalizer path.
+- Added suffix-based mood inference for '.' terminators and updated pin/josa suffixes to `:핀`/`~조사` to match SSOT v18.0.11.
+- Added expression-level `@단위`/`@"자원"` parsing with a minimal unit registry and expanded 조사 토큰 목록.
+- Expanded unit registry + runtime unit semantics (UnitDim/UnitValue) with dimension mismatch validation.
+- Added ResourceHandle storage, `@"자원"` handle resolution, and unit-tagged resource read/write handling.
+- Added LSP diagnostic/QuickFix for `@핀` 오용을 `:핀`으로 교정 제안.
+- Extended CLI run-once parsing to store simple 수/글/참거짓 선언 값.
+- Added ddn interpreter and maze runners (run-maze-ddn, run-maze-ddn-live).
+- Added input last_key_name propagation to ddn runtime.
+- Added string escape handling in lexer (\n, \t, \r, \", \\).
+- Added built-in function 글바꾸기 for string replacement.
+- Updated ddn maze scripts to support coin pickup and map edits.
+- Added VS Code syntax highlighting (TextMate grammar).
+- Expanded highlighting for @ (josa/unit/resource) and keywords.
+- Improved ddn maze rendering to use 맵원본.
+- Added missing docs for architecture/CLI/decisions/known issues and linked design proposals.
+- Added DetMath LUT manifest/loader and startup hash verification guard.
+- Added DetMath manifest missing-entry negative test.
+- Updated DivAssignResourceFixed64 to emit div0 faults without committing resource updates.
+- Added Alrim 16-pass carryover loop and demo logging command.
+- Added Korean surface-form golden tests (Gate0 minimal set).
+- Added suffix-chain parsing/binding golden tests.
+- Added optional parameter default-injection test suite (5 cases).
+- Added static unit dimension validation for explicit unit expressions.
+- Expanded unit registry (평/inch/ft/kmh/mps/KRW/USD) and separated KRW/USD dimensions.
+- Added Gate0 registry loaders and default `ddn.asset.json`/`ddn.units.json` templates.
+- Added call-tail equivalence/resolve rules (~기/하기, ~고/하고, ~면/하면) with ambiguity/no-seed errors.
+- Added X/X하 seed-name conflict validation (E_SEED_NAME_CONFLICT_HA).
+- Allowed legacy `ddn.resource.json` as an input alias with a warning.
+- Added Gate0 Thunk/eval markers (`}한것/}인것/}아닌것/}하고`) and strict `}것` error.
+- Added pipe call-only enforcement with flow-value injection rules.
+- Added `해보고:`/`고르기:`/`바탕으로`/`다짐하고`(별칭: `전제하에`/`보장하고`) parsing and execution support.
+- Added deterministic RNG functions (무작위/무작위정수/무작위선택) with InputSnapshot seed usage.
+- Updated LSP traversal for new AST nodes and added gate0_flow example script.
+- Added runtime unit-dimension safety net (assignment invalidation + 차원고장 signal).
+- Added Gate0 golden scenarios (G0-PIPE/UNIT/FAULT) and scripts for pipe/unit checks.
+- Added Fixed64 raw_i64 determinism vector test.
+- Updated Gate0 step docs to reflect SSOT v18.0.12 AI-aware requirements.
+- Added `??()` preprocessor (preprocess-ai) that strips `!!{}` blocks and freezes calls into `!!{}` meta.
+- Added `ddn.schema.json` generator with `build-schema` command.
+- Added Patch Origin metadata, Guard violation enforcement, and `geoul.diag.jsonl` event recording.
+- Added `teul-cli test` runner for `golden/*.test.json` (DetTest) with repro generation.
+- Added `teul-cli geoul query` to filter `geoul.diag.jsonl`.

@@ -1,0 +1,10 @@
+title = "수직선과 수"
+description = "수직선 위에서 수의 위치를 확인합니다."
+grade = "elementary"
+grade_band = "1-2"
+subject = "math"
+level = "intro"
+goals = ["수직선에서 수의 위치를 이해한다"]
+story = "1–2학년 수학에서 '수직선과 수' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

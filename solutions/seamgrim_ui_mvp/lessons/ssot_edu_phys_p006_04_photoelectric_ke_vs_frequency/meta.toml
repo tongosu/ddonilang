@@ -1,0 +1,9 @@
+title = "현대물리(광전효과) (P006-04)"
+description = "현대물리(광전효과)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["문턱진동수 f0 아래에서는 광전자가 나오지 않는(KE=0) 구간을 확인한다", "f가 커질수록 KE가 직선적으로 증가하는 경향을 관찰한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p006_04_photoelectric_ke_vs_frequency"

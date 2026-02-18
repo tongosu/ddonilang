@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:453dccba4331f01cb6f874928fcb98e7ca21f065b6f2b0ffc375b8039c03bc89","event_kind":"open","key":"GET https://example.test/hello","open_kind":"net","site_id":"pack/open_net_schema_invalid/input.ddn:1:9","value":{"schema":"open.net.v1","text":"hello net","url":"https://example.test/hello"}}

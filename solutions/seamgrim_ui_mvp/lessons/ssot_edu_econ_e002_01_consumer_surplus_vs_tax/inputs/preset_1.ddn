@@ -1,0 +1,21 @@
+#이름: ssot_edu_econ_e002_01_consumer_surplus_vs_tax_variant_E002-01 소비자잉여 CS(tau)
+#설명: 선형 수요/공급에서 단위세 tau(조세) 증가에 따른 소비자잉여(CS) 변화를 점열로 출력.
+// 출력은 숫자만. (tau, CS) 순서.
+
+a <- 100.
+b <- 1.
+c <- 20.
+d <- 1.
+
+tau_min <- 0.
+tau_max <- 80.
+dtau <- 2.
+
+CS_of_tau = (#ascii1) 수식{ y = 0.5 * b * ((a - c - x) / (b + d))^2 }.
+tau목록 <- (tau_min, tau_max, dtau) 범위.
+
+(x) tau목록에 대해: {
+  CS <- (x=x, a=a, b=b, c=c, d=d)인 CS_of_tau 풀기.
+  x 보여주기.
+  CS 보여주기.
+}.

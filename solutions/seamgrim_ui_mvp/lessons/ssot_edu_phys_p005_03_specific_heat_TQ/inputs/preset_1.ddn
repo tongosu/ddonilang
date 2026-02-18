@@ -1,0 +1,23 @@
+#이름: ssot_edu_phys_p005_03_specific_heat_TQ_variant_P005-03 비열(가열) T-Q
+#설명: T = T0 + Q/(m*c)  (출력: Q T)
+
+// 출력은 숫자만. (Q, T) 순서.
+// NOTE: export_graph.py는 stdout 숫자쌍을 (x,y)로 묶는다.
+
+m <- 1.
+c <- 4200.
+T0 <- 20.
+
+Q_min <- 0.
+Q_max <- 42000.
+dQ <- 2000.
+
+온도식 = (#ascii1) 수식{ y = T0 + x/(m*c) }.
+
+Q목록 <- (Q_min, Q_max, dQ) 범위.
+
+(Q) Q목록에 대해: {
+  T <- (T0=T0, m=m, c=c, x=Q)인 온도식 풀기.
+  Q 보여주기.
+  T 보여주기.
+}.

@@ -1,0 +1,1 @@
+{"cmd":["goal","parse","pack/gogae5_w46_goal_grammar/input.ddn"],"stdout":["{\"schema\":\"target_state.v1\",\"agent_id\":0,\"goal_id\":7303898441825431406,\"priority\":128,\"condition\":{\"type\":\"ObjectPlaced\",\"object_id\":7557826876394946252,\"location_id\":10636490656270503146}}"]}

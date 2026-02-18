@@ -1,0 +1,14 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.a", "type": "수" },
+    { "name": "살림.b", "type": "수" },
+    { "name": "살림.c", "type": "수" },
+    { "name": "살림.d", "type": "수" },
+    { "name": "살림.dq", "type": "수" },
+    { "name": "살림.q_max", "type": "수" },
+    { "name": "살림.q_min", "type": "수" },
+    { "name": "살림.q목록", "type": "수" },
+    { "name": "살림.tax", "type": "수" }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "scenarios": [
+    {
+      "name": "decl_block_ok",
+      "kind": {
+        "kind": "gate0_pipe",
+        "script": "pack/decl_block_runtime/scripts/decl_block_ok.ddn"
+      },
+      "hashes": []
+    }
+  ]
+}

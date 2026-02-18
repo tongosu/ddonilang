@@ -1,0 +1,39 @@
+{
+  "schema": "seamgrim.graph.v0",
+  "graph_kind": "timeseries",
+  "series": [
+    {
+      "name": "그래프_에너지",
+      "points": [
+        {
+          "x": 0,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 3
+        },
+        {
+          "x": 2,
+          "y": 2
+        }
+      ]
+    },
+    {
+      "name": "보개_그래프_속도",
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 1,
+          "y": 1.5
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "source": "value-prefix"
+  }
+}

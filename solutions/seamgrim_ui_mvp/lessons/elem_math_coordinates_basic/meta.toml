@@ -1,0 +1,10 @@
+title = "기초 좌표"
+description = "좌표 평면에서 대각선 점열을 본다."
+grade = "elementary"
+grade_band = "5-6"
+subject = "math"
+level = "intro"
+goals = ["좌표 (x", "y)의 의미를 이해한다"]
+story = "5–6학년 수학에서 '기초 좌표' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

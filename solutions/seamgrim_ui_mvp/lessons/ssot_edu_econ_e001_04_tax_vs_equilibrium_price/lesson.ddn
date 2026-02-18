@@ -1,0 +1,26 @@
+#이름: E001-04 세금(τ) vs 균형가격 P*(τ)
+#설명: 공급에 세금 τ가 붙어 P = (Q-c)/d + τ. 균형가격을 τ의 함수로 출력 (τ, P*).
+
+// 출력은 숫자만. (τ, P*) 순서.
+a <- 100.
+b <- 2.
+c <- 0.
+d <- 1.
+
+tau_min <- 0.
+tau_max <- 30.
+dtau <- 1.
+
+// Q(τ) = (d*a + b*c - τ*b*d) / (b + d)
+Q_of_tau = (#ascii1) 수식{ y = (d*a + b*c - x*b*d) / (b + d) }.
+P_demand = (#ascii1) 수식{ y = (a - x) / b }.
+
+tau목록 <- (tau_min, tau_max, dtau) 범위.
+
+(x) tau목록에 대해: {
+  Qstar <- (x=x, a=a, b=b, c=c, d=d)인 Q_of_tau 풀기.
+  Pstar <- (x=Qstar, a=a, b=b)인 P_demand 풀기.
+
+  x 보여주기.
+  Pstar 보여주기.
+}.

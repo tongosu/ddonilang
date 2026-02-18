@@ -1,0 +1,24 @@
+#이름: ssot_edu_phys_p017_02_double_slit_interference_variant_P017-02 이중슬릿 간섭 I(θ)
+#설명: I(θ)=cos^2( π*d*sinθ / λ )  (간이).
+// 출력은 숫자만. (θ, I) 순서.
+
+pi <- 3.1415926535.
+
+d <- 4.0.
+lam <- 1.0.
+
+th_min <- -pi/2.
+th_max <-  pi/2.
+dth <- 0.002.
+
+th목록 <- (th_min, th_max, dth) 범위.
+
+(th) th목록에 대해: {
+  s <- (th) sin.
+  beta <- pi * d * s / lam.
+  c <- (beta) cos.
+  I <- c*c.
+
+  th 보여주기.
+  I 보여주기.
+}.

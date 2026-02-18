@@ -1,0 +1,18 @@
+﻿{
+  "version": "v1",
+  "level": "dev",
+  "allow": {
+    "external_calls": false,
+    "open_blocks": false,
+    "network": false
+  },
+  "rails": {
+    "fixits_auto_apply": false,
+    "approval_required": true
+  },
+  "training": {
+    "engine_training_allowed": false,
+    "artifact_pin_required": true
+  },
+  "notes": "TODO: 정책 범위/규칙 확정 필요 (fixits/학습 경계 포함)"
+}

@@ -1,0 +1,10 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.d_o_max", "type": "수" },
+    { "name": "살림.d_o_min", "type": "수" },
+    { "name": "살림.d_o목록", "type": "수" },
+    { "name": "살림.dd_o", "type": "수" },
+    { "name": "살림.f", "type": "수" }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "schema": "seamgrim.scene.v0",
+  "ts": "2026-02-01T00:00:00Z",
+  "view": {
+    "kind": "view-graph",
+    "config": {
+      "range": {
+        "x_min": -1,
+        "x_max": 3,
+        "y_min": -1,
+        "y_max": 5
+      },
+      "pan_x": 0,
+      "pan_y": 0,
+      "zoom": 1,
+      "grid": false,
+      "axis": true
+    }
+  },
+  "inputs": {
+    "kind": "ddn",
+    "label": "layer-order",
+    "input_hash": "example-input",
+    "result_hash": "example-result"
+  },
+  "required_views": [
+    "graph",
+    "table"
+  ],
+  "layers": [
+    {
+      "id": "run-2",
+      "label": "overlay",
+      "visible": true,
+      "order": 0,
+      "opacity": 0.7,
+      "update": "append",
+      "tick": 2,
+      "series_id": "overlay",
+      "points": 2
+    },
+    {
+      "id": "run-1",
+      "label": "base",
+      "visible": true,
+      "order": 1,
+      "opacity": 1,
+      "update": "replace",
+      "tick": null,
+      "series_id": "main",
+      "points": 3
+    }
+  ],
+  "timeline": {
+    "t_min": 0,
+    "t_max": 2,
+    "step": 1,
+    "now": 1,
+    "playing": false,
+    "frame_count": 3,
+    "frame_sample": [
+      0,
+      1,
+      2
+    ]
+  },
+  "hashes": {
+    "input_hash": "example-input",
+    "result_hash": "example-result"
+  },
+  "bogae_scene": []
+}

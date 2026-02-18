@@ -1,0 +1,33 @@
+﻿// exports.ddn — 진자 계산 유틸
+
+(t:수, g:수, L:수, theta0:수) 진자_소각근사_theta:셈씨 = {
+  (t=t, g=g, L=L, theta0=theta0) (#ascii) 수식{ theta0 * cos(sqrt(g/L) * t) } 돌려줘.
+}.
+
+(t:수, g:수, L:수, theta0:수) 진자_소각근사_xy:셈씨 = {
+  theta <- (t=t, g=g, L=L, theta0=theta0) (#ascii) 수식{ theta0 * cos(sqrt(g/L) * t) }.
+  x <- (L=L, theta=theta) (#ascii) 수식{ L * sin(theta) }.
+  y <- (L=L, theta=theta) (#ascii) 수식{ -L * cos(theta) }.
+  (x=x, y=y) 값꾸러미 돌려줘.
+}.
+
+(theta:수, omega:수, dt:수, g:수, L:수) 진자_RK4_한스텝:셈씨 = {
+  k1_theta <- omega.
+  k1_omega <- (g=g, L=L, theta=theta) (#ascii) 수식{ -(g / L) * sin(theta) }.
+
+  k2_theta <- (omega=omega, dt=dt, k1_omega=k1_omega) (#ascii) 수식{ omega + 0.5 * dt * k1_omega }.
+  k2_omega <- (g=g, L=L, theta=theta, dt=dt, k1_theta=k1_theta) (#ascii) 수식{ -(g / L) * sin(theta + 0.5 * dt * k1_theta) }.
+
+  k3_theta <- (omega=omega, dt=dt, k2_omega=k2_omega) (#ascii) 수식{ omega + 0.5 * dt * k2_omega }.
+  k3_omega <- (g=g, L=L, theta=theta, dt=dt, k2_theta=k2_theta) (#ascii) 수식{ -(g / L) * sin(theta + 0.5 * dt * k2_theta) }.
+
+  k4_theta <- (omega=omega, dt=dt, k3_omega=k3_omega) (#ascii) 수식{ omega + dt * k3_omega }.
+  k4_omega <- (g=g, L=L, theta=theta, dt=dt, k3_theta=k3_theta) (#ascii) 수식{ -(g / L) * sin(theta + dt * k3_theta) }.
+
+  next_theta <- (theta=theta, dt=dt, k1_theta=k1_theta, k2_theta=k2_theta, k3_theta=k3_theta, k4_theta=k4_theta)
+    (#ascii) 수식{ theta + (dt/6) * (k1_theta + 2*k2_theta + 2*k3_theta + k4_theta) }.
+  next_omega <- (omega=omega, dt=dt, k1_omega=k1_omega, k2_omega=k2_omega, k3_omega=k3_omega, k4_omega=k4_omega)
+    (#ascii) 수식{ omega + (dt/6) * (k1_omega + 2*k2_omega + 2*k3_omega + k4_omega) }.
+
+  (theta=next_theta, omega=next_omega) 값꾸러미 돌려줘.
+}.

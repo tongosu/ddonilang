@@ -1,0 +1,10 @@
+title = "소비자 선택(간접효용) (E007-05)"
+description = "소비자 선택(간접효용)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["최적 소비를 대입해 ‘효용이 소득의 함수’가 되는 모습을 본다", "가격(px,py)이 커지면 같은 소득에서도 효용이 줄어드는 직관을 얻는다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e007_05_indirect_utility_ui"

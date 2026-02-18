@@ -1,0 +1,6 @@
+{
+  "schema": "ddn.input_snapshot.v1",
+  "tick": 0,
+  "device_events": [],
+  "net_events": []
+}

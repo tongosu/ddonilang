@@ -1,0 +1,4 @@
+{"sender":"peer-b","seq":2,"order_key":"","realm_id":1,"payload":{"cmd":"B2"}}
+{"sender":"peer-a","seq":1,"order_key":"","realm_id":0,"payload":{"cmd":"A1"}}
+{"sender":"peer-a","seq":1,"order_key":"","realm_id":0,"payload":{"cmd":"A1-dup"}}
+{"sender":"peer-c","seq":3,"order_key":"","realm_id":1,"payload":{"cmd":"C3"}}

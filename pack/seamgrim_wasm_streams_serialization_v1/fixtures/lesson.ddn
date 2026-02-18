@@ -1,0 +1,20 @@
+// streams 직렬화 검증용 fixture
+
+매틱:움직씨 = {
+  // ASCII sidecar + 리스트
+  energy_stream <- (10, 20, 30) 차림.
+  energy_stream_head <- 2.
+  energy_stream_len <- 3.
+  energy_stream_capacity <- 5.
+
+  // 한글 sidecar + 리스트
+  가격흐름 <- (1, 2) 차림.
+  가격흐름_머리 <- 1.
+  가격흐름_길이 <- 2.
+  가격흐름_용량 <- 4.
+
+  // 맵 기반 흐름
+  속도흐름 <- ("버퍼", (7, 8, 9) 차림, "머리", 2, "길이", 3, "용량", 6) 짝맞춤.
+
+  프레임수 <- (프레임수 + 1).
+}.

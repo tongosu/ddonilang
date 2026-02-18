@@ -1,0 +1,82 @@
+#이름: age2_phys_pendulum_v1
+#설명: AGE2 스튜디오 커널 v1 샘플(진자/2d/graph/table/structure)
+
+L <- 1.0.
+g <- 9.8.
+theta0 <- 0.6.
+
+// graph meta
+graph_kind <- "timeseries".
+x_kind <- "time".
+x_unit <- "s".
+x_label <- "t".
+y_kind <- "angle".
+y_unit <- "rad".
+y_label <- "theta".
+graph_kind 보여주기.
+x_kind 보여주기.
+x_unit 보여주기.
+x_label 보여주기.
+y_kind 보여주기.
+y_unit 보여주기.
+y_label 보여주기.
+
+// channels
+"channels" 보여주기.
+"t" 보여주기.
+"value" 보여주기.
+"series" 보여주기.
+
+// structure
+"structure" 보여주기.
+node <- (id="pendulum", label="진자", kind="object").
+node 보여주기.
+edge <- (from="pivot", to="pendulum", label="연결", kind="constraint").
+edge 보여주기.
+
+// table header + pivot markers
+"table" 보여주기.
+"t,metric,value,series" 보여주기.
+"table.pivot" 보여주기.
+"metric" 보여주기.
+"series" 보여주기.
+
+tick목록 <- (0, 2, 1)범위.
+(tick) tick목록에 대해: {
+  t <- tick * 0.1.
+  theta <- theta0 - 0.05 * tick.
+
+  무리 <- "theta".
+  무리 보여주기.
+  t 보여주기.
+  theta 보여주기.
+
+  bx <- L * theta.
+  by <- -L.
+
+  "space2d" 보여주기.
+  bx 보여주기.
+  by 보여주기.
+
+  "space2d.shape" 보여주기.
+  "circle" 보여주기.
+  "cx" 보여주기.
+  bx 보여주기.
+  "cy" 보여주기.
+  by 보여주기.
+  "r" 보여주기.
+  0.08 보여주기.
+
+  "table.row" 보여주기.
+  tick 보여주기.
+  "theta" 보여주기.
+  theta 보여주기.
+  "main" 보여주기.
+}.
+
+// sparse row
+"table.row" 보여주기.
+3 보여주기.
+"theta" 보여주기.
+없음 보여주기.
+"main" 보여주기.

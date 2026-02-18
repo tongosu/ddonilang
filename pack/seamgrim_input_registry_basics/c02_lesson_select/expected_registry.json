@@ -1,0 +1,20 @@
+{
+  "inputs": {
+    "selected_id": "lesson:math_line",
+    "registry": [
+      {
+        "id": "lesson:math_line",
+        "type": "lesson",
+        "label": "수학 · 직선",
+        "payload": {
+          "lesson_id": "math_line",
+          "required_views": [
+            "graph"
+          ]
+        },
+        "derived_ddn": "﻿#이름: lesson_math_line\n#설명: y = 2x + 1 직선\n\n직선 = (#ascii1) 수식{ y = 2*x + 1 }.\n\nx목록 <- (0, 4, 1) 범위.\n\n(x) x목록에 대해: {\n  y <- (x=x)인 직선 풀기.\n  x 보여주기.\n  y 보여주기.\n}.\n",
+        "ts": "2026-02-01T00:00:00Z"
+      }
+    ]
+  }
+}

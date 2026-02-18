@@ -1,0 +1,11 @@
+id = "gaji/ddn.timeline.v0"
+name = "타임라인 스키마 v0"
+version = "0.1.0"
+ssot_requires = ">=20.1.24"
+
+# 결정성/공개성(초기값)
+det_tier = "D-STRICT"
+openness = "closed"
+
+# 메타
+description = "타임라인(detjson) 스키마"

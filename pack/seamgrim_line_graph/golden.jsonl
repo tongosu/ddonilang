@@ -1,0 +1,2 @@
+{"cli":["--bogae-out","C:/ddn/codex/build/seamgrim_line_graph.bdl1"],"bogae_hash":"blake3:fe7877cc55cd042d7df414abc8c7fff5149785681dd58c74058227127de43c15"}
+{"input_path":"input_parabola.ddn","cli":["--bogae-out","C:/ddn/codex/build/seamgrim_line_graph_parabola.bdl1"],"bogae_hash":"blake3:4f6e2e49768da012f6a003e590e68f068d71f82db1cd6b749944b2e1db1f3950"}

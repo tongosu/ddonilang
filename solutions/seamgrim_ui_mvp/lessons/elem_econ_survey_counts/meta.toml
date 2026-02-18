@@ -1,0 +1,10 @@
+title = "설문 결과"
+description = "설문 결과를 간단한 점열로 표현한다."
+grade = "elementary"
+grade_band = "1-2"
+subject = "econ"
+level = "intro"
+goals = ["간단한 데이터 분포를 읽는다"]
+story = "1–2학년 사회/경제에서 '설문 결과' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

@@ -1,0 +1,9 @@
+title = "정부 개입(세금)과 균형 (E001-04)"
+description = "정부 개입(세금)과 균형"
+grade = "high"
+subject = "econ"
+level = "advanced"
+goals = ["세금이 균형가격을 어떻게 변화시키는지 그래프로 관찰한다", "세금이 커질수록 거래량이 감소할 수 있음을 수치로 확인한다(확장)"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e001_04_tax_vs_equilibrium_price"

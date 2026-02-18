@@ -1,0 +1,15 @@
+{
+  "schema": "seamgrim.wasm.restore_state.v1",
+  "snapshot_schema": "seamgrim.engine_response.v0",
+  "snapshot_tick": 2,
+  "snapshot_state_hash": "blake3:1de88c98a6b252de66787a97fc559f887e2060473a6e4454eb9d3e7d9dc4945e",
+  "hash_before_restore": "blake3:e7ed6d3727ac9ff4ed8e90ef6117cb50904624ed5fa596625d8b76af206daec2",
+  "restore_ok": true,
+  "restore_tick": 2,
+  "hash_after_restore": "blake3:1de88c98a6b252de66787a97fc559f887e2060473a6e4454eb9d3e7d9dc4945e",
+  "restored_equals_snapshot": true,
+  "changed_before_restore": true,
+  "post_restore_schema": "seamgrim.engine_response.v0",
+  "post_restore_tick": 2,
+  "post_restore_state_hash": "blake3:1de88c98a6b252de66787a97fc559f887e2060473a6e4454eb9d3e7d9dc4945e"
+}

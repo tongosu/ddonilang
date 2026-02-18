@@ -1,0 +1,10 @@
+title = "시장구조(독점) — 선형수요 (E010-05)"
+description = "시장구조(독점) — 선형수요"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["독점 모형에서 수요/총수입/한계수입/이윤의 관계를 그래프로 확인한다.", "파라미터(a", "b", "c 등)를 바꿔 곡선 이동과 최적점 변화를 관찰한다."]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e010_05_monopoly_optimum_a_qm"

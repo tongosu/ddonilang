@@ -1,0 +1,3408 @@
+{
+  "lessons": [
+    {
+      "id": "college_econ_growth",
+      "title": "대학 · 성장률",
+      "description": "비선형 성장 모델",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "econ",
+      "level": "advanced",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_econ_productivity",
+      "title": "대학 · 생산성",
+      "description": "비선형 생산 함수",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "econ",
+      "level": "advanced",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_econ_utility",
+      "title": "대학 · 효용 함수",
+      "description": "효용 곡선",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "econ",
+      "level": "advanced",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_math_linear",
+      "title": "대학 · 선형변환",
+      "description": "선형 변환 예시",
+      "required_views": [
+        "graph",
+        "table",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "math",
+      "level": "advanced",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_math_matrix",
+      "title": "대학 · 행렬 기초",
+      "description": "2x2 행렬과 벡터",
+      "required_views": [
+        "graph",
+        "table",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "math",
+      "level": "advanced",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_math_series",
+      "title": "대학 · 급수 근사",
+      "description": "다항식 근사",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "math",
+      "level": "advanced",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_physics_harmonic",
+      "title": "대학 · 조화 운동",
+      "description": "시간 함수 근사",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_physics_orbit",
+      "title": "대학 · 궤도 근사",
+      "description": "2D 궤적(시간)",
+      "required_views": [
+        "graph",
+        "2d",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "college_physics_thermal",
+      "title": "대학 · 온도 변화",
+      "description": "냉각 모델",
+      "required_views": [
+        "graph",
+        "table",
+        "text"
+      ],
+      "grade": "college",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "econ_budget_table",
+      "title": "경제 · 가계부",
+      "description": "수입/지출 요약 표",
+      "required_views": [
+        "graph",
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "econ_supply_demand",
+      "title": "경제 · 수요/공급",
+      "description": "수요 곡선 기본",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_econ_elasticity",
+      "title": "고등 · 탄력성",
+      "description": "가격 변화에 대한 반응",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intermediate",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_econ_interest",
+      "title": "고등 · 이자 성장",
+      "description": "단순 이자 모델",
+      "required_views": [
+        "graph",
+        "table",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intermediate",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_econ_market",
+      "title": "고등 · 시장 균형",
+      "description": "수요/공급 곡선",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intermediate",
+      "goals": [
+        "관계 해석",
+        "모델 읽기"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_math_derivative",
+      "title": "고등 · 도함수",
+      "description": "다항함수 변화율",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "math",
+      "level": "intermediate",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_math_polynomial",
+      "title": "고등 · 다항함수",
+      "description": "삼차 함수 형태",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "math",
+      "level": "intermediate",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_math_quadratic",
+      "title": "고등 · 이차함수 심화",
+      "description": "이차 함수의 형태",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "math",
+      "level": "intermediate",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_physics_damped",
+      "title": "고등 · 감쇠 운동",
+      "description": "시간에 따른 위치",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intermediate",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_physics_energy",
+      "title": "고등 · 에너지 변화",
+      "description": "시간에 따른 에너지",
+      "required_views": [
+        "graph",
+        "table",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intermediate",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "high_physics_wave",
+      "title": "고등 · 파동 근사",
+      "description": "간단한 시간 함수",
+      "required_views": [
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intermediate",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "math_line",
+      "title": "수학 · 직선",
+      "description": "일차 함수 기본",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "math_parabola",
+      "title": "수학 · 포물선",
+      "description": "이차 함수 기본",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "그래프 해석",
+        "함수 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "physics_circuit",
+      "title": "물리 · 회로 구조",
+      "description": "간단 회로 노드/간선",
+      "required_views": [
+        "structure",
+        "text",
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "physics_motion",
+      "title": "물리 · 등가속도",
+      "description": "t축 등가속도 운동",
+      "required_views": [
+        "graph",
+        "table"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "physics_projectile",
+      "title": "물리 · 투사체",
+      "description": "2D 궤적(시간)",
+      "required_views": [
+        "graph",
+        "2d"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "변화 추적",
+        "모델링 이해"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "edu_pilot_phys_econ_lesson_phys_01",
+      "title": "진자 · 한편의 장면",
+      "description": "좌=진자(2d), 우=θ(t) 그래프(graph), 중=수식/자막(text), 하단=View Dock",
+      "required_views": [
+        "2d",
+        "graph",
+        "text"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "진자의 각도 θ(t)와 움직임을 함께 관찰한다",
+        "시간에 따른 그래프/공간 대응을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_pilot_phys_econ_lesson_phys_01"
+    },
+    {
+      "id": "ssot_edu_econ_e001_01_demand_curve_PQ",
+      "title": "수요와 수요곡선 (E001-01)",
+      "description": "수요와 수요곡선",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수요곡선이 우하향하는 이유를 그래프로 설명한다",
+        "수요곡선의 기울기와 '민감도' 직관을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e001_01_demand_curve_PQ"
+    },
+    {
+      "id": "ssot_edu_econ_e001_02_supply_curve_PQ",
+      "title": "공급과 공급곡선 (E001-02)",
+      "description": "공급과 공급곡선",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "공급곡선이 우상향하는 이유를 그래프로 설명한다",
+        "공급곡선의 절편/기울기 변화가 의미하는 바를 말한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e001_02_supply_curve_PQ"
+    },
+    {
+      "id": "ssot_edu_econ_e001_03_equilibrium_point_QP",
+      "title": "시장균형 (E001-03)",
+      "description": "시장균형",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수요곡선과 공급곡선의 교점이 균형임을 설명한다",
+        "매개변수 변화가 균형(Q*,P*)를 어떻게 바꾸는지 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e001_03_equilibrium_point_QP"
+    },
+    {
+      "id": "ssot_edu_econ_e001_04_tax_vs_equilibrium_price",
+      "title": "정부 개입(세금)과 균형 (E001-04)",
+      "description": "정부 개입(세금)과 균형",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "advanced",
+      "goals": [
+        "세금이 균형가격을 어떻게 변화시키는지 그래프로 관찰한다",
+        "세금이 커질수록 거래량이 감소할 수 있음을 수치로 확인한다(확장)"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e001_04_tax_vs_equilibrium_price"
+    },
+    {
+      "id": "ssot_edu_econ_e001_05_elasticity_along_demand",
+      "title": "가격탄력성(직관) (E001-05)",
+      "description": "가격탄력성(직관)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "advanced",
+      "goals": [
+        "수요곡선 위 위치에 따라 탄력성이 달라질 수 있음을 그래프로 확인한다",
+        "탄력성의 의미(가격 변화에 대한 수요 변화 민감도)를 말로 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e001_05_elasticity_along_demand"
+    },
+    {
+      "id": "ssot_edu_econ_e002_01_consumer_surplus_vs_tax",
+      "title": "조세와 후생(잉여) (E002-01)",
+      "description": "조세와 후생(잉여)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "단위세가 커질수록 거래량이 줄어드는 직관을 얻는다",
+        "세금이 소비자잉여를 줄이는 방향을 그래프로 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e002_01_consumer_surplus_vs_tax"
+    },
+    {
+      "id": "ssot_edu_econ_e002_02_producer_surplus_vs_tax",
+      "title": "조세와 후생(잉여) (E002-02)",
+      "description": "조세와 후생(잉여)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "단위세가 커질수록 생산자잉여가 줄어드는 방향을 확인한다",
+        "공급 기울기(d)가 PS 곡선에 주는 영향을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e002_02_producer_surplus_vs_tax"
+    },
+    {
+      "id": "ssot_edu_econ_e002_03_dwl_vs_tax",
+      "title": "조세와 후생(잉여) (E002-03)",
+      "description": "조세와 후생(잉여)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "조세가 만드는 '삼각형 손실(DWL)'을 그래프로 확인한다",
+        "DWL이 tau에 대해 '대체로 제곱처럼' 커진다는 감각을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e002_03_dwl_vs_tax"
+    },
+    {
+      "id": "ssot_edu_econ_e002_04_shortage_vs_price_ceiling",
+      "title": "가격통제(상한/하한) (E002-04)",
+      "description": "가격통제(상한/하한)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "가격상한이 균형가격보다 낮을 때 부족(초과수요)이 생김을 그래프로 확인한다",
+        "상한가격을 더 낮추면 부족이 커지는 경향을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e002_04_shortage_vs_price_ceiling"
+    },
+    {
+      "id": "ssot_edu_econ_e002_05_surplus_vs_price_floor",
+      "title": "가격통제(상한/하한) (E002-05)",
+      "description": "가격통제(상한/하한)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "가격하한이 균형가격보다 높을 때 잉여(초과공급)가 생김을 그래프로 확인한다",
+        "하한가격을 더 올리면 잉여가 커지는 경향을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e002_05_surplus_vs_price_floor"
+    },
+    {
+      "id": "ssot_edu_phys_p001_01_uniform_motion_xt",
+      "title": "운동과 에너지 (P001-01)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "등속운동에서 위치 x가 시간 t에 비례함을 그래프로 확인한다",
+        "기울기(=속력)의 의미를 그래프에서 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p001_01_uniform_motion_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p001_02_uniform_accel_vt",
+      "title": "운동과 에너지 (P001-02)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "등가속도운동에서 속도 v가 시간 t에 선형으로 증가/감소함을 확인한다",
+        "v-t 그래프의 기울기가 가속도 a임을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p001_02_uniform_accel_vt"
+    },
+    {
+      "id": "ssot_edu_phys_p001_03_uniform_accel_xt",
+      "title": "운동과 에너지 (P001-03)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "등가속도운동에서 위치 x가 시간 t에 대해 2차식(포물선) 형태임을 확인한다",
+        "x-t 그래프가 직선이 아닌 이유를 '속도가 변하기 때문'으로 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p001_03_uniform_accel_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p001_04_free_fall_y_t",
+      "title": "운동과 에너지 (P001-04)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "자유낙하에서 높이 y가 시간에 따라 2차식으로 감소함을 확인한다",
+        "낙하 시간과 초기 높이의 관계를 그래프에서 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p001_04_free_fall_y_t"
+    },
+    {
+      "id": "ssot_edu_phys_p001_05_projectile_xy",
+      "title": "운동과 에너지 (P001-05)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "투사체 운동의 궤적이 포물선임을 x-y 그래프로 확인한다",
+        "수평/수직 운동 분해의 의미를 간단한 파라미터로 실험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p001_05_projectile_xy"
+    },
+    {
+      "id": "ssot_edu_phys_p002_01_work_Wx",
+      "title": "운동과 에너지 (P002-01)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "일(work) W가 거리 x에 비례함을 그래프로 확인한다",
+        "힘이 일정할 때 W=F*x를 직관적으로 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p002_01_work_Wx"
+    },
+    {
+      "id": "ssot_edu_phys_p002_02_kinetic_energy_Kv",
+      "title": "운동과 에너지 (P002-02)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "운동에너지 K가 속도 v의 제곱에 비례함을 그래프로 확인한다",
+        "v가 2배가 되면 K가 4배가 된다는 관계를 시각적으로 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p002_02_kinetic_energy_Kv"
+    },
+    {
+      "id": "ssot_edu_phys_p002_03_potential_energy_Uh",
+      "title": "운동과 에너지 (P002-03)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "중력 위치에너지 U가 높이 h에 비례함을 그래프로 확인한다",
+        "기울기(mg)의 의미를 직관적으로 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p002_03_potential_energy_Uh"
+    },
+    {
+      "id": "ssot_edu_phys_p002_04_energy_conservation_Et",
+      "title": "운동과 에너지 (P002-04)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "자유낙하(저항 무시)에서 총에너지 E=K+U가 일정함을 그래프로 확인한다",
+        "K와 U가 서로 바뀌어도 합이 일정하다는 의미를 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p002_04_energy_conservation_Et"
+    },
+    {
+      "id": "ssot_edu_phys_p002_05_impulse_vt_step",
+      "title": "운동과 에너지 (P002-05)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "힘이 작용하는 구간에서 속도가 선형으로 변하고, 이후에는 일정해짐을 v-t로 확인한다",
+        "구간별(조각별) 함수 그래프를 읽는 연습을 한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p002_05_impulse_vt_step"
+    },
+    {
+      "id": "ssot_edu_phys_p003_01_shm_xt",
+      "title": "파동과 진동 (P003-01)",
+      "description": "파동과 진동",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "단진동이 사인(또는 코사인) 그래프로 표현됨을 확인한다",
+        "학습목표\" = [",
+        "단진동이 사인(또는 코사인) 그래프로 표현됨을 확인한다",
+        "진폭 A, 각진동수 ω, 위상 φ가 그래프 모양에 주는 영향을 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p003_01_shm_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p003_02_damped_xt",
+      "title": "파동과 진동 (P003-02)",
+      "description": "파동과 진동",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "감쇠가 있는 진동에서 진폭이 시간이 지날수록 감소함을 그래프로 확인한다",
+        "학습목표\" = [",
+        "감쇠가 있는 진동에서 진폭이 시간이 지날수록 감소함을 그래프로 확인한다",
+        "감쇠계수 beta가 커지면 감쇠가 빨라짐을 실험으로 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p003_02_damped_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p003_03_resonance_wA",
+      "title": "파동과 진동 (P003-03)",
+      "description": "파동과 진동",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "강제진동에서 구동 주파수(ω)에 따라 정상상태 진폭이 달라짐을 그래프로 확인한다",
+        "학습목표\" = [",
+        "강제진동에서 구동 주파수(ω)에 따라 정상상태 진폭이 달라짐을 그래프로 확인한다",
+        "공진(공명)이 고유진동수(ω0) 근처에서 발생함을 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p003_03_resonance_wA"
+    },
+    {
+      "id": "ssot_edu_phys_p003_04_beats_xt",
+      "title": "파동과 진동 (P003-04)",
+      "description": "파동과 진동",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "주파수가 가까운 두 진동을 합성하면 진폭이 천천히 커졌다 작아지는 맥놀이가 나타남을 확인한다",
+        "학습목표\" = [",
+        "주파수가 가까운 두 진동을 합성하면 진폭이 천천히 커졌다 작아지는 맥놀이가 나타남을 확인한다",
+        "맥놀이의 느린 변화(봉우리 간격)가 두 주파수의 차이와 관련 있음을 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p003_04_beats_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p003_05_traveling_wave_yx",
+      "title": "파동과 진동 (P003-05)",
+      "description": "파동과 진동",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "진행파의 공간 파형 y(x)를 그래프로 확인한다",
+        "학습목표\" = [",
+        "진행파의 공간 파형 y(x)를 그래프로 확인한다",
+        "t0를 바꾸면 파형이 이동(위상 이동)하는 것처럼 보임을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p003_05_traveling_wave_yx"
+    },
+    {
+      "id": "ssot_edu_phys_p004_01_ohms_law_IV",
+      "title": "전기(저항) (P004-01)",
+      "description": "전기(저항)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "저항이 일정할 때 전류-전압(I–V) 관계가 직선임을 확인한다",
+        "기울기(1/R)가 의미하는 바를 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p004_01_ohms_law_IV"
+    },
+    {
+      "id": "ssot_edu_phys_p004_02_voltage_divider_Vin_Vout",
+      "title": "전기(직렬 회로/전압분배) (P004-02)",
+      "description": "전기(직렬 회로/전압분배)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "직렬 저항에서 전압이 분배되는 비율을 확인한다",
+        "R1,R2 비율이 Vout에 미치는 영향을 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p004_02_voltage_divider_Vin_Vout"
+    },
+    {
+      "id": "ssot_edu_phys_p004_03_parallel_resistors_IV",
+      "title": "전기(병렬 회로/등가저항) (P004-03)",
+      "description": "전기(병렬 회로/등가저항)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "병렬 회로에서 전체 전류가 가지 전류의 합임을 확인한다",
+        "R1,R2가 바뀌면 기울기가 어떻게 변하는지 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p004_03_parallel_resistors_IV"
+    },
+    {
+      "id": "ssot_edu_phys_p004_04_rc_charging_Vc_t",
+      "title": "전기(과도응답/RC) (P004-04)",
+      "description": "전기(과도응답/RC)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "RC 회로에서 전압이 시간에 따라 변하는 과도응답을 확인한다",
+        "R 또는 C가 커지면 변화가 느려짐(시간상수) 을 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p004_04_rc_charging_Vc_t"
+    },
+    {
+      "id": "ssot_edu_phys_p004_05_rlc_step_Vc_t",
+      "title": "전기(2차 과도응답/RLC) (P004-05)",
+      "description": "전기(2차 과도응답/RLC)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "2차 시스템의 진동/감쇠 응답을 그래프로 관찰한다",
+        "R을 바꾸면 진동이 어떻게 달라지는지 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p004_05_rlc_step_Vc_t"
+    },
+    {
+      "id": "ssot_edu_phys_p005_01_ideal_gas_PV",
+      "title": "열(기체) (P005-01)",
+      "description": "열(기체)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "온도가 일정할 때 압력 P가 부피 V에 반비례함을 그래프로 확인한다",
+        "하이퍼볼라(쌍곡선) 그래프의 모양을 관찰하고, V→0에서 P가 커지는 이유를 말해본다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p005_01_ideal_gas_PV"
+    },
+    {
+      "id": "ssot_edu_phys_p005_02_charles_law_VT",
+      "title": "열(기체) (P005-02)",
+      "description": "열(기체)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "압력이 일정할 때 부피 V가 절대온도 T에 비례함을 그래프로 확인한다",
+        "직선 그래프의 기울기가 (nR/P)임을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p005_02_charles_law_VT"
+    },
+    {
+      "id": "ssot_edu_phys_p005_03_specific_heat_TQ",
+      "title": "열(비열) (P005-03)",
+      "description": "열(비열)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "열량 Q가 증가하면 온도 T가 선형으로 증가함을 확인한다",
+        "기울기(1/(m*c))가 크면 온도가 더 빨리 오른다는 점을 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p005_03_specific_heat_TQ"
+    },
+    {
+      "id": "ssot_edu_phys_p005_04_heating_curve_TQ_piecewise",
+      "title": "열(상변화/잠열) (P005-04)",
+      "description": "열(상변화/잠열)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "상변화가 있을 때 T–Q 그래프에 평평한 구간(온도 일정)이 나타남을 이해한다",
+        "가열(직선 구간)과 상변화(평평 구간)를 구분하여 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p005_04_heating_curve_TQ_piecewise"
+    },
+    {
+      "id": "ssot_edu_phys_p005_05_newton_cooling_Tt_discrete",
+      "title": "열(열전달/냉각) (P005-05)",
+      "description": "열(열전달/냉각)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "온도 차이가 클수록 더 빨리 식는(변화율이 큰) 경향을 그래프로 관찰한다",
+        "반복 갱신(이산 근사)으로 연속 현상을 흉내 낼 수 있음을 경험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p005_05_newton_cooling_Tt_discrete"
+    },
+    {
+      "id": "ssot_edu_phys_p006_01_inverse_square_intensity",
+      "title": "빛(역제곱 법칙) (P006-01)",
+      "description": "빛(역제곱 법칙)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "세기가 거리의 제곱에 반비례함을 그래프 형태로 이해한다",
+        "r이 2배가 되면 I가 1/4가 되는지 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p006_01_inverse_square_intensity"
+    },
+    {
+      "id": "ssot_edu_phys_p006_02_thin_lens_di_vs_do",
+      "title": "빛(렌즈) (P006-02)",
+      "description": "빛(렌즈)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "물체거리가 초점거리보다 클 때 상거리가 어떻게 변하는지 그래프로 이해한다",
+        "d_o가 커질수록 d_i가 f에 가까워진다는 사실을 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p006_02_thin_lens_di_vs_do"
+    },
+    {
+      "id": "ssot_edu_phys_p006_03_magnification_vs_do",
+      "title": "빛(렌즈) (P006-03)",
+      "description": "빛(렌즈)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "물체거리가 초점거리 근처일수록 확대율의 크기가 커지는 이유를 이해한다",
+        "m의 부호가 상의 방향(도립)을 나타낸다는 점을 연결한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p006_03_magnification_vs_do"
+    },
+    {
+      "id": "ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency",
+      "title": "현대물리(광전효과) (P006-04)",
+      "description": "현대물리(광전효과)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "문턱진동수 f0 아래에서는 광전자가 나오지 않는(KE=0) 구간을 확인한다",
+        "f가 커질수록 KE가 직선적으로 증가하는 경향을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p006_04_photoelectric_ke_vs_frequency"
+    },
+    {
+      "id": "ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d",
+      "title": "빛(간섭) (P006-05)",
+      "description": "빛(간섭)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "슬릿 간격 d가 커질수록 줄무늬 간격 Δy가 작아짐(반비례)을 확인한다",
+        "파장 λ 또는 스크린 거리 L이 커지면 Δy가 커진다는 관계를 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p006_05_double_slit_fringe_spacing_vs_d"
+    },
+    {
+      "id": "ssot_edu_s1_function_graph",
+      "title": "함수와 그래프 (S1)",
+      "description": "함수와 그래프",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "함수의 입력-출력 관계를 그래프로 읽고 해석한다",
+        "그래프의 변화(기울기/절편)를 조작과 연결한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_s1_function_graph"
+    },
+    {
+      "id": "ssot_edu_s2_projectile",
+      "title": "운동과 에너지 (S2)",
+      "description": "운동과 에너지",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "middle",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "초기 속도와 발사각에 따른 투사체의 궤적을 설명한다",
+        "수평/수직 운동을 분해하여 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_s2_projectile"
+    },
+    {
+      "id": "ssot_edu_s3_supply_demand_tax",
+      "title": "수요와 공급 (S3)",
+      "description": "수요와 공급",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수요곡선과 공급곡선의 교점을 균형으로 설명한다",
+        "세금 부과가 균형과 후생에 미치는 영향을 설명한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_s3_supply_demand_tax"
+    },
+    {
+      "id": "elem_econ_allowance_budget",
+      "title": "용돈과 지출",
+      "description": "시간에 따른 잔액 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수입/지출에 따른 잔액 변화를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_demand_drop",
+      "title": "수요 감소",
+      "description": "가격 상승 시 수요 감소를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "가격 상승 시 수요가 줄어듦을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_discount",
+      "title": "할인과 가격",
+      "description": "할인율에 따른 가격 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "할인이 가격을 낮춘다는 것을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_income_spending",
+      "title": "수입과 지출",
+      "description": "y = x * 0.7",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수입과 지출 비율을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_population",
+      "title": "인구 변화",
+      "description": "시간에 따른 인구 변화를 단순화한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "시간에 따른 변화 추세를 읽는다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_saving_goal",
+      "title": "저축 목표",
+      "description": "저축액이 쌓이는 과정을 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "저축이 누적됨을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_store_stock",
+      "title": "상점 재고",
+      "description": "시간에 따라 재고가 감소하는 모습을 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "재고가 줄어드는 추세를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_supply_demand_basic",
+      "title": "수요·공급 기초",
+      "description": "단순한 수요 곡선을 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "가격이 오르면 수요가 줄어듦을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_supply_drop",
+      "title": "공급 감소",
+      "description": "y = 12 - x/2",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수량이 늘어날수록 공급이 줄어드는 상황을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_supply_increase",
+      "title": "공급 증가",
+      "description": "가격에 따른 공급 증가를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "가격이 오르면 공급이 늘어남을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_survey_counts",
+      "title": "설문 결과",
+      "description": "설문 결과를 간단한 점열로 표현한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "간단한 데이터 분포를 읽는다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_tax_price",
+      "title": "세금과 가격",
+      "description": "세금이 포함된 가격 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "세금이 가격을 높임을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_timeline",
+      "title": "연표 읽기",
+      "description": "시간 순서에 따른 사건 변화를 표시한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "시간 흐름을 그래프로 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_econ_unit_price",
+      "title": "단가 비교",
+      "description": "y = x/2",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "물건 수와 가격의 비례 관계를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_add_sub_pattern",
+      "title": "덧셈·뺄셈 규칙",
+      "description": "간단한 덧셈/뺄셈 패턴을 그래프로 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "덧셈/뺄셈 규칙을 그래프에서 해석한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_area_square",
+      "title": "정사각형 넓이",
+      "description": "한 변의 길이에 따른 넓이를 그래프로 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "넓이가 길이의 제곱에 비례함을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_arithmetic_sequence",
+      "title": "등차수열",
+      "description": "같은 차이로 증가하는 수열을 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "등차수열의 증가 패턴을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_coordinates_basic",
+      "title": "기초 좌표",
+      "description": "좌표 평면에서 대각선 점열을 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "좌표 (x",
+        "y)의 의미를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_cubic_growth",
+      "title": "세제곱 성장",
+      "description": "x^3의 성장 속도를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "세제곱 증가를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_decimal_scale",
+      "title": "소수 배율",
+      "description": "0.1배의 변화를 그래프로 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "소수 배율을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_decimal_shift",
+      "title": "소수점 이동",
+      "description": "y = x * 10",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "소수점 이동에 따른 값 변화를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_even_numbers",
+      "title": "짝수 패턴",
+      "description": "짝수가 2씩 증가하는 패턴을 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "짝수의 규칙을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_fraction_addition",
+      "title": "분수 더하기",
+      "description": "y = x/6 + 1/2",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "분수 덧셈을 그래프로 확인한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_fraction_compare",
+      "title": "분수 비교",
+      "description": "분모가 같을 때 분수 크기를 비교한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "분수의 크기를 비교한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_fraction_line",
+      "title": "분수와 소수",
+      "description": "절반/사분의 일을 그래프로 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "분수와 소수의 관계를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_fraction_multiplication",
+      "title": "분수 곱셈",
+      "description": "y = x * 1/3",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "분수 곱셈이 비례 관계임을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_line_intercept",
+      "title": "직선의 절편",
+      "description": "y = x + 2",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "절편이 그래프 위치를 바꾼다는 것을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_mean_line",
+      "title": "평균의 의미",
+      "description": "기준값 주변의 평균선을 시각화한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "평균이 대표값임을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_multiplication_table",
+      "title": "구구단 그래프",
+      "description": "곱셈을 선형 그래프로 표현한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "곱셈이 반복 덧셈임을 시각화한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_number_line",
+      "title": "수직선과 수",
+      "description": "수직선 위에서 수의 위치를 확인합니다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "수직선에서 수의 위치를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_odd_numbers",
+      "title": "홀수 패턴",
+      "description": "홀수 패턴(2x+1)을 그래프로 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "홀수의 규칙을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_parabola_basic",
+      "title": "기본 포물선",
+      "description": "포물선 y = x^2를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "포물선의 형태를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_percent_scale",
+      "title": "퍼센트 감각",
+      "description": "1% 단위 변화를 그래프로 표현한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "퍼센트가 비율임을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_percentage_of",
+      "title": "비율 계산(%)",
+      "description": "y = x * 1/4",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "전체의 일정 비율을 계산한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_perimeter_square",
+      "title": "정사각형 둘레",
+      "description": "한 변의 길이에 따른 둘레 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "둘레가 길이에 비례함을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_probability_dice",
+      "title": "주사위 확률",
+      "description": "각 눈이 나올 확률을 점열로 표현한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "균등확률의 개념을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_ratio_proportion",
+      "title": "비례 관계",
+      "description": "비례식 y = kx를 그래프로 표현한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "비례 관계를 그래프로 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_rectangle_area",
+      "title": "직사각형 넓이",
+      "description": "가로가 일정할 때 넓이 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "넓이가 길이에 비례함을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_scale_map",
+      "title": "지도 축척",
+      "description": "y = x * 5",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "축척을 이용해 실제 길이를 계산한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_speed_distance",
+      "title": "속력·거리",
+      "description": "거리 = 속력 × 시간 관계를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "거리-시간 관계를 그래프로 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_symmetry_reflection",
+      "title": "대칭과 반사",
+      "description": "y = -x 대칭선을 시각화한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "대칭의 개념을 그래프로 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_triangle_area",
+      "title": "삼각형 넓이",
+      "description": "밑변이 변할 때 넓이를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "삼각형 넓이를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_unit_cm_to_mm",
+      "title": "cm→mm 변환",
+      "description": "단위 변환을 그래프로 이해한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "단위 변환을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_math_unit_m_to_cm",
+      "title": "m→cm 변환",
+      "description": "큰 단위에서 작은 단위로 변환한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "단위 관계를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_boiling_time",
+      "title": "가열 시간과 온도",
+      "description": "y = 20 + 3x",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "시간이 지날수록 온도가 상승함을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_bulb_brightness",
+      "title": "전구 개수와 밝기",
+      "description": "y = 2x",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "전구 개수에 따라 밝기가 늘어남을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_daily_temperature",
+      "title": "하루 기온",
+      "description": "하루 기온 변화를 단순화한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "하루 동안 기온이 변함을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_day_length",
+      "title": "하루 낮의 길이",
+      "description": "계절에 따른 낮 길이를 단순화한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "낮 길이 변화가 주기적임을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_evaporation",
+      "title": "증발과 수위",
+      "description": "시간에 따른 수위 감소를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "증발로 인해 수위가 감소함을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_light_intensity",
+      "title": "빛의 세기",
+      "description": "거리와 빛의 세기 관계를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "거리가 멀어질수록 빛이 약해짐을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_light_reflection",
+      "title": "빛의 반사",
+      "description": "입사각과 반사각의 관계를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "입사각과 반사각이 같음을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_magnet_distance",
+      "title": "자석과 거리",
+      "description": "거리가 멀어질수록 힘이 약해진다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "거리와 힘의 관계를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_moon_phase",
+      "title": "달의 위상",
+      "description": "달의 위상 변화를 주기 그래프로 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "달의 위상 주기를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_pendulum",
+      "title": "진자 운동",
+      "description": "진자의 반복 운동을 단순화한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "진자의 주기성을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_phase_change",
+      "title": "물의 상태 변화",
+      "description": "가열 과정의 평탄 구간을 단순화한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "상변화 동안 온도가 일정함을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_plant_growth",
+      "title": "식물 성장",
+      "description": "시간에 따른 성장량을 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "시간에 따른 성장 변화를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_rainfall",
+      "title": "월별 강수량",
+      "description": "월별 강수량의 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "시간에 따른 기후 변화를 읽는다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_season_temp",
+      "title": "계절과 기온",
+      "description": "1년 주기의 온도 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "계절 주기성과 온도 변화를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_shadow_length",
+      "title": "그림자 길이",
+      "description": "시간에 따른 그림자 길이 변화를 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "해의 위치와 그림자 길이의 관계를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_simple_circuit",
+      "title": "전압과 전류",
+      "description": "전압이 커질수록 전류가 증가한다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "전압과 전류의 비례 관계를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_sound_wave",
+      "title": "소리의 진동",
+      "description": "진동을 파형으로 본다.",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "소리가 진동임을 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "elem_science_spring_stretch",
+      "title": "스프링 늘어남",
+      "description": "y = 0.5x",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "elementary",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "힘과 늘어남의 비례 관계를 이해한다"
+      ],
+      "source": "",
+      "ssot_pack": ""
+    },
+    {
+      "id": "ssot_edu_econ_e007_01_budget_line_xy",
+      "title": "소비자 선택(예산선) (E007-01)",
+      "description": "소비자 선택(예산선)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "예산선의 의미(소득과 가격 제약)를 그래프로 이해한다",
+        "소득(I)과 가격(px,py)이 예산선의 기울기/절편을 어떻게 바꾸는지 실험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e007_01_budget_line_xy"
+    },
+    {
+      "id": "ssot_edu_econ_e007_02_indifference_curve_xy",
+      "title": "소비자 선택(무차별곡선) (E007-02)",
+      "description": "소비자 선택(무차별곡선)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "효용이 일정한 조합(무차별곡선)의 의미를 그래프로 이해한다",
+        "U가 바뀌면 무차별곡선이 어떻게 이동하는지 실험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e007_02_indifference_curve_xy"
+    },
+    {
+      "id": "ssot_edu_econ_e007_03_demand_x_vs_px",
+      "title": "소비자 선택(수요함수) (E007-03)",
+      "description": "소비자 선택(수요함수)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "가격(px)이 변할 때 최적 소비량 x*가 어떻게 변하는지(수요곡선) 본다",
+        "단순 효용함수에서 닫힌형(공식) 수요를 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e007_03_demand_x_vs_px"
+    },
+    {
+      "id": "ssot_edu_econ_e007_04_engel_x_vs_income",
+      "title": "소비자 선택(엥겔곡선) (E007-04)",
+      "description": "소비자 선택(엥겔곡선)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "소득(I)이 변할 때 최적 소비량 x*가 어떻게 변하는지(엥겔곡선) 본다",
+        "정상재(소득 증가 → 수요 증가)의 기본 그림을 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e007_04_engel_x_vs_income"
+    },
+    {
+      "id": "ssot_edu_econ_e007_05_indirect_utility_ui",
+      "title": "소비자 선택(간접효용) (E007-05)",
+      "description": "소비자 선택(간접효용)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "최적 소비를 대입해 ‘효용이 소득의 함수’가 되는 모습을 본다",
+        "가격(px,py)이 커지면 같은 소득에서도 효용이 줄어드는 직관을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e007_05_indirect_utility_ui"
+    },
+    {
+      "id": "ssot_edu_econ_e008_01_total_cost_q_tc",
+      "title": "생산·비용(총비용) (E008-01)",
+      "description": "생산·비용(총비용)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "총비용 TC(q)의 의미(고정비+변동비)를 그래프로 이해한다",
+        "생산량 q가 커질수록 비용이 빠르게 증가하는(볼록) 경우를 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e008_01_total_cost_q_tc"
+    },
+    {
+      "id": "ssot_edu_econ_e008_02_average_cost_q_ac",
+      "title": "생산·비용(평균비용) (E008-02)",
+      "description": "생산·비용(평균비용)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "평균비용 AC(q)=TC(q)/q 의 의미를 그래프로 이해한다",
+        "고정비가 평균비용에 미치는 영향을 실험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e008_02_average_cost_q_ac"
+    },
+    {
+      "id": "ssot_edu_econ_e008_03_marginal_cost_q_mc",
+      "title": "생산·비용(한계비용) (E008-03)",
+      "description": "생산·비용(한계비용)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "한계비용 MC(q)의 의미를 그래프로 이해한다",
+        "MC가 생산량 q에 따라 증가할 수 있음을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e008_03_marginal_cost_q_mc"
+    },
+    {
+      "id": "ssot_edu_econ_e008_04_supply_p_q",
+      "title": "생산·비용(공급곡선) (E008-04)",
+      "description": "생산·비용(공급곡선)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "완전경쟁(단기)에서 가격-한계비용 연결을 그래프로 이해한다",
+        "가격 p가 올라갈수록 공급량 q가 증가하는 이유를 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e008_04_supply_p_q"
+    },
+    {
+      "id": "ssot_edu_econ_e008_05_profit_q_pi",
+      "title": "생산·비용(이윤) (E008-05)",
+      "description": "생산·비용(이윤)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "이윤 π(q)=p*q-TC(q)를 그래프로 이해한다",
+        "가격 p 변화가 이윤에 미치는 영향을 실험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e008_05_profit_q_pi"
+    },
+    {
+      "id": "ssot_edu_econ_e009_01_demand_p_qd",
+      "title": "시장 균형(수요곡선) (E009-01)",
+      "description": "시장 균형(수요곡선)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수요곡선이 가격 p에 따라 거래량 qd가 줄어드는 관계임을 그래프로 확인한다",
+        "절편 a",
+        "기울기 b를 바꿔 수요곡선 이동/회전을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e009_01_demand_p_qd"
+    },
+    {
+      "id": "ssot_edu_econ_e009_02_supply_p_qs",
+      "title": "시장 균형(공급곡선) (E009-02)",
+      "description": "시장 균형(공급곡선)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "공급곡선이 가격 p에 따라 거래량 qs가 늘어나는 관계임을 그래프로 확인한다",
+        "절편 c",
+        "기울기 d를 바꿔 공급곡선 이동/회전을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e009_02_supply_p_qs"
+    },
+    {
+      "id": "ssot_edu_econ_e009_03_equilibrium_a_pstar",
+      "title": "시장 균형(비교정태) (E009-03)",
+      "description": "시장 균형(비교정태)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "수요가 증가(절편 a 증가)하면 균형가격 p*가 어떻게 변하는지 확인한다",
+        "균형조건 qd(p)=qs(p)로부터 p*를 계산하는 과정을 경험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e009_03_equilibrium_a_pstar"
+    },
+    {
+      "id": "ssot_edu_econ_e009_04_tax_incidence_tau_pc",
+      "title": "시장 정책(조세부담/귀착) (E009-04)",
+      "description": "시장 정책(조세부담/귀착)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "단위세 τ가 커질수록 소비자 가격 p_c가 어떻게 변하는지 확인한다",
+        "수요/공급 기울기에 따라 조세부담이 어떻게 나뉘는지(귀착) 직관을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e009_04_tax_incidence_tau_pc"
+    },
+    {
+      "id": "ssot_edu_econ_e009_05_dwl_tau",
+      "title": "후생(사중손실) (E009-05)",
+      "description": "후생(사중손실)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "세금이 거래량을 줄여 사중손실이 발생함을 확인한다",
+        "선형 모형에서 DWL이 대략 τ^2에 비례해 커지는 경향을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e009_05_dwl_tau"
+    },
+    {
+      "id": "ssot_edu_econ_e010_01_inverse_demand_q_p",
+      "title": "시장구조(독점) — 선형수요 (E010-01)",
+      "description": "시장구조(독점) — 선형수요",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "독점 모형에서 수요/총수입/한계수입/이윤의 관계를 그래프로 확인한다.",
+        "파라미터(a",
+        "b",
+        "c 등)를 바꿔 곡선 이동과 최적점 변화를 관찰한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e010_01_inverse_demand_q_p"
+    },
+    {
+      "id": "ssot_edu_econ_e010_02_total_revenue_q_tr",
+      "title": "시장구조(독점) — 선형수요 (E010-02)",
+      "description": "시장구조(독점) — 선형수요",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "독점 모형에서 수요/총수입/한계수입/이윤의 관계를 그래프로 확인한다.",
+        "파라미터(a",
+        "b",
+        "c 등)를 바꿔 곡선 이동과 최적점 변화를 관찰한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e010_02_total_revenue_q_tr"
+    },
+    {
+      "id": "ssot_edu_econ_e010_03_marginal_revenue_q_mr",
+      "title": "시장구조(독점) — 선형수요 (E010-03)",
+      "description": "시장구조(독점) — 선형수요",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "독점 모형에서 수요/총수입/한계수입/이윤의 관계를 그래프로 확인한다.",
+        "파라미터(a",
+        "b",
+        "c 등)를 바꿔 곡선 이동과 최적점 변화를 관찰한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e010_03_marginal_revenue_q_mr"
+    },
+    {
+      "id": "ssot_edu_econ_e010_04_profit_q_pi",
+      "title": "시장구조(독점) — 선형수요 (E010-04)",
+      "description": "시장구조(독점) — 선형수요",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "독점 모형에서 수요/총수입/한계수입/이윤의 관계를 그래프로 확인한다.",
+        "파라미터(a",
+        "b",
+        "c 등)를 바꿔 곡선 이동과 최적점 변화를 관찰한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e010_04_profit_q_pi"
+    },
+    {
+      "id": "ssot_edu_econ_e010_05_monopoly_optimum_a_qm",
+      "title": "시장구조(독점) — 선형수요 (E010-05)",
+      "description": "시장구조(독점) — 선형수요",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "독점 모형에서 수요/총수입/한계수입/이윤의 관계를 그래프로 확인한다.",
+        "파라미터(a",
+        "b",
+        "c 등)를 바꿔 곡선 이동과 최적점 변화를 관찰한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e010_05_monopoly_optimum_a_qm"
+    },
+    {
+      "id": "ssot_edu_econ_e011_01_price_elasticity_p_absE",
+      "title": "시장구조·탄력성 — 선형수요 (E011-01)",
+      "description": "시장구조·탄력성 — 선형수요",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "선형수요에서 탄력성이 가격에 따라 변하는 모습을 그래프로 확인한다.",
+        "탄력성이 1보다 큰/작은 구간을 관찰해 해석한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e011_01_price_elasticity_p_absE"
+    },
+    {
+      "id": "ssot_edu_econ_e011_02_total_revenue_p_TR",
+      "title": "시장구조·탄력성 — 총수입 (E011-02)",
+      "description": "시장구조·탄력성 — 총수입",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "총수입이 가격에 대해 ‘이차곡선’ 모양으로 변하는 것을 확인한다.",
+        "TR 최대점과 탄력성(단위탄력) 아이디어를 연결한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e011_02_total_revenue_p_TR"
+    },
+    {
+      "id": "ssot_edu_econ_e011_03_lerner_index_e_L",
+      "title": "시장구조·독점 — 마크업과 탄력성 (E011-03)",
+      "description": "시장구조·독점 — 마크업과 탄력성",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "탄력성이 커질수록(더 민감) 마크업 여지가 줄어드는 관계를 확인한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e011_03_lerner_index_e_L"
+    },
+    {
+      "id": "ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL",
+      "title": "시장구조·후생 — 독점 vs 경쟁 (E011-04)",
+      "description": "시장구조·후생 — 독점 vs 경쟁",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "독점이 생산량을 줄여 후생손실이 생기는 직관을 그래프로 확인한다.",
+        "비용(c)이 높아질수록 시장이 어떻게 변하는지 관찰한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e011_04_dwl_vs_mc_c_DWL"
+    },
+    {
+      "id": "ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu",
+      "title": "시장구조·독점 — 상수탄력성 맛보기 (E011-05)",
+      "description": "시장구조·독점 — 상수탄력성 맛보기",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "탄력성이 1에 가까워지면(매우 비탄력) 마크업이 급격히 커지는 모양을 관찰한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e011_05_markup_vs_elasticity_e_mu"
+    },
+    {
+      "id": "ssot_edu_econ_e013_01_uip_expected_depreciation",
+      "title": "국제경제: 환율(기초) (E013-01)",
+      "description": "국제경제: 환율(기초)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "국내금리와 기대환율변화(기대절하)의 관계를 직선으로 본다",
+        "i_for(해외금리) 고정 시 Δs의 절편/기울기를 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e013_01_uip_expected_depreciation"
+    },
+    {
+      "id": "ssot_edu_econ_e013_02_real_exchange_rate_qt",
+      "title": "국제경제: 실질환율(직관) (E013-02)",
+      "description": "국제경제: 실질환율(직관)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "물가상승률 차이가 실질환율(q) 추세에 영향을 주는 것을 시계열로 본다",
+        "q=e*P*/P 관계를 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e013_02_real_exchange_rate_qt"
+    },
+    {
+      "id": "ssot_edu_econ_e013_03_ppf_linear_xy",
+      "title": "국제경제/무역: 비교우위(직관) (E013-03)",
+      "description": "국제경제/무역: 비교우위(직관)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "PPF를 통해 ‘기회비용/교환관계’를 시각적으로 본다",
+        "b가 커지면 기회비용이 커지는 것을 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e013_03_ppf_linear_xy"
+    },
+    {
+      "id": "ssot_edu_econ_e013_04_tariff_dwl_of_tau",
+      "title": "국제경제/무역: 관세와 후생(기초) (E013-04)",
+      "description": "국제경제/무역: 관세와 후생(기초)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "advanced",
+      "goals": [
+        "관세가 커질수록 사중손실이 증가하는 모양을 본다",
+        "수요·공급 기울기(b,d)가 손실 크기에 영향을 줌을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e013_04_tariff_dwl_of_tau"
+    },
+    {
+      "id": "ssot_edu_econ_e013_05_net_exports_NX_of_e",
+      "title": "국제경제: 순수출과 환율(직관) (E013-05)",
+      "description": "국제경제: 순수출과 환율(직관)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "환율 변화가 순수출(NX)에 미치는 방향을 그래프로 본다",
+        "민감도(x1,m1)가 기울기를 결정함을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e013_05_net_exports_NX_of_e"
+    },
+    {
+      "id": "ssot_edu_econ_e014_01_labor_demand_Ld_of_w",
+      "title": "노동시장: 노동수요(기초) (E014-01)",
+      "description": "노동시장: 노동수요(기초)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "임금이 오르면 노동수요가 줄어드는(하향) 관계를 그래프로 본다",
+        "a,b가 곡선의 위치/기울기를 정함을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e014_01_labor_demand_Ld_of_w"
+    },
+    {
+      "id": "ssot_edu_econ_e014_02_labor_supply_Ls_of_w",
+      "title": "노동시장: 노동공급(기초) (E014-02)",
+      "description": "노동시장: 노동공급(기초)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "임금이 오르면 노동공급이 늘어나는(상향) 관계를 그래프로 본다",
+        "c,d가 곡선의 위치/기울기를 정함을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e014_02_labor_supply_Ls_of_w"
+    },
+    {
+      "id": "ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A",
+      "title": "노동시장: 균형 변화(생산성/수요충격) (E014-03)",
+      "description": "노동시장: 균형 변화(생산성/수요충격)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "생산성(수요 절편)이 오르면 균형고용이 늘어나는 관계를 그래프로 본다",
+        "균형 해를 연립(교점)으로 해석한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e014_03_equilibrium_employment_Lstar_of_A"
+    },
+    {
+      "id": "ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin",
+      "title": "노동시장: 최저임금(기초 모형) (E014-04)",
+      "description": "노동시장: 최저임금(기초 모형)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "advanced",
+      "goals": [
+        "최저임금이 균형보다 높으면 초과공급(실업)이 생길 수 있음을 그래프로 본다",
+        "수요/공급 민감도에 따라 실업 규모가 달라짐을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e014_04_min_wage_unemployment_of_wmin"
+    },
+    {
+      "id": "ssot_edu_econ_e014_05_beveridge_curve_v_of_u",
+      "title": "노동시장: 실업과 공석(직관) (E014-05)",
+      "description": "노동시장: 실업과 공석(직관)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "실업률 u와 공석률 v가 반비례(음의 관계)라는 직관을 그래프로 본다",
+        "곡선 이동(효율/매칭)이라는 개념을 준비한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_econ_e014_05_beveridge_curve_v_of_u"
+    },
+    {
+      "id": "ssot_edu_phys_p011_01_underdamped_xt",
+      "title": "진동(감쇠 진동) (P011-01)",
+      "description": "진동(감쇠 진동)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "감쇠가 있는 진동에서 진폭이 감소하는 모습을 x(t) 그래프로 확인한다",
+        "감쇠계수 c가 작으면 진동이 유지되며 서서히 줄어듦을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p011_01_underdamped_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p011_02_critical_damping_xt",
+      "title": "진동(감쇠 운동) (P011-02)",
+      "description": "진동(감쇠 운동)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "임계감쇠에서는 진동 없이 빠르게 평형으로 돌아감을 x(t)로 확인한다",
+        "언더/오버 감쇠와 비교해 ‘가장 빠른 비진동 복원’의 의미를 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p011_02_critical_damping_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p011_03_overdamped_xt",
+      "title": "진동(감쇠 운동) (P011-03)",
+      "description": "진동(감쇠 운동)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "오버댐핑에서는 진동 없이 느리게 평형으로 접근함을 x(t)로 확인한다",
+        "임계감쇠와 비교해 ‘감쇠가 너무 크면 오히려 느려짐’을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p011_03_overdamped_xt"
+    },
+    {
+      "id": "ssot_edu_phys_p011_04_resonance_amplitude_vs_omega",
+      "title": "진동(강제진동과 공진) (P011-04)",
+      "description": "진동(강제진동과 공진)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "구동 주파수(ω)에 따라 진폭이 달라지는 공진곡선을 그래프로 확인한다",
+        "감쇠(c)가 공진의 높이/폭에 영향을 준다는 직관을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p011_04_resonance_amplitude_vs_omega"
+    },
+    {
+      "id": "ssot_edu_phys_p011_05_amplitude_vs_damping",
+      "title": "진동(감쇠와 공진) (P011-05)",
+      "description": "진동(감쇠와 공진)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "감쇠가 커질수록 공진 진폭이 작아지는 관계를 그래프로 확인한다",
+        "공진이 ‘증폭’처럼 보이지만 감쇠가 존재하면 한계가 있음을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p011_05_amplitude_vs_damping"
+    },
+    {
+      "id": "ssot_edu_phys_p012_01_standing_wave_yx_snapshot",
+      "title": "파동(정상파) (P012-01)",
+      "description": "파동(정상파)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "정상파의 공간 모양 y(x)를 스냅샷 그래프로 관찰한다",
+        "마디(node)의 위치가 k에 의해 결정됨을 확인한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p012_01_standing_wave_yx_snapshot"
+    },
+    {
+      "id": "ssot_edu_phys_p012_02_standing_wave_intensity_Ix",
+      "title": "파동(정상파·세기) (P012-02)",
+      "description": "파동(정상파·세기)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "정상파에서 마디/배가 공간적으로 고정된 패턴임을 확인한다",
+        "세기(진폭^2)의 공간 분포를 그래프로 본다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p012_02_standing_wave_intensity_Ix"
+    },
+    {
+      "id": "ssot_edu_phys_p012_03_beats_yt",
+      "title": "파동(중첩·맥놀이) (P012-03)",
+      "description": "파동(중첩·맥놀이)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "주파수가 비슷한 두 파동의 합이 맥놀이를 만든다는 것을 그래프로 본다",
+        "주파수 차이가 비트의 느린 변화 속도를 결정함을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p012_03_beats_yt"
+    },
+    {
+      "id": "ssot_edu_phys_p012_04_doppler_vs_source_speed",
+      "title": "파동(도플러 효과) (P012-04)",
+      "description": "파동(도플러 효과)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "도플러 효과에서 속도와 주파수의 관계를 그래프로 본다",
+        "v_s의 부호(다가옴/멀어짐)에 따른 변화 방향을 이해한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p012_04_doppler_vs_source_speed"
+    },
+    {
+      "id": "ssot_edu_phys_p012_05_fourier_square_wave_yx",
+      "title": "파동(푸리에 맛보기) (P012-05)",
+      "description": "파동(푸리에 맛보기)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "사각파를 사인파의 합으로 근사할 수 있음을 그래프로 확인한다",
+        "항의 개수(n_max)가 파형 근사 품질을 좌우함을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p012_05_fourier_square_wave_yx"
+    },
+    {
+      "id": "ssot_edu_phys_p013_01_isothermal_pv_v_p",
+      "title": "열역학(이상기체, 등온) (P013-01)",
+      "description": "열역학(이상기체, 등온)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "등온 과정에서 압력 P가 부피 V에 반비례함을 그래프로 확인한다",
+        "상수 k=nRT(고정)의 의미를 파라미터로 실험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p013_01_isothermal_pv_v_p"
+    },
+    {
+      "id": "ssot_edu_phys_p013_02_isothermal_work_v_W",
+      "title": "열역학(일=면적, 적분 직관) (P013-02)",
+      "description": "열역학(일=면적, 적분 직관)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "P-V 그래프 아래 면적이 기체가 한 일(Work)임을 수치적으로 체험한다",
+        "dV(표본 간격)를 줄이면 누적 일의 근사가 안정되는 것을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p013_02_isothermal_work_v_W"
+    },
+    {
+      "id": "ssot_edu_phys_p013_03_adiabatic_pv_v_p",
+      "title": "열역학(단열, 더 가파른 감소) (P013-03)",
+      "description": "열역학(단열, 더 가파른 감소)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "단열 과정(단순화)에서 P가 V에 더 빠르게 감소하는 형태를 관찰한다",
+        "등온(1/V)과 단열(1/V^2) 곡선을 오버레이로 비교한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p013_03_adiabatic_pv_v_p"
+    },
+    {
+      "id": "ssot_edu_phys_p013_04_cooling_t_T",
+      "title": "열역학(미분방정식 맛보기) (P013-04)",
+      "description": "열역학(미분방정식 맛보기)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "주변온도 T_env에 지수적으로 수렴하는 냉각을 수치적으로 관찰한다",
+        "dt(시간 간격)가 크면 수렴이 거칠어질 수 있음을 경험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p013_04_cooling_t_T"
+    },
+    {
+      "id": "ssot_edu_phys_p013_05_carnot_Th_eta",
+      "title": "열역학(열기관 효율) (P013-05)",
+      "description": "열역학(열기관 효율)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "고온 열원 Th가 높을수록 최대 효율(카르노 효율)이 증가함을 확인한다",
+        "Tc/Th 비율이 효율을 결정한다는 점을 수치로 실험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p013_05_carnot_Th_eta"
+    },
+    {
+      "id": "ssot_edu_phys_p014_01_electric_field_r_E",
+      "title": "전자기/회로 — 함수·시간응답·공진(그래프) (P014-01)",
+      "description": "전자기/회로 — 함수·시간응답·공진(그래프)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "전기장/전위/회로의 관계를 그래프(함수/시계열)로 관찰한다.",
+        "표본 범위와 표시 범위를 분리해 실험/비교(오버레이)한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p014_01_electric_field_r_E"
+    },
+    {
+      "id": "ssot_edu_phys_p014_02_electric_potential_r_V",
+      "title": "전자기/회로 — 함수·시간응답·공진(그래프) (P014-02)",
+      "description": "전자기/회로 — 함수·시간응답·공진(그래프)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "전기장/전위/회로의 관계를 그래프(함수/시계열)로 관찰한다.",
+        "표본 범위와 표시 범위를 분리해 실험/비교(오버레이)한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p014_02_electric_potential_r_V"
+    },
+    {
+      "id": "ssot_edu_phys_p014_03_rc_discharge_t_V",
+      "title": "전자기/회로 — 함수·시간응답·공진(그래프) (P014-03)",
+      "description": "전자기/회로 — 함수·시간응답·공진(그래프)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "전기장/전위/회로의 관계를 그래프(함수/시계열)로 관찰한다.",
+        "표본 범위와 표시 범위를 분리해 실험/비교(오버레이)한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p014_03_rc_discharge_t_V"
+    },
+    {
+      "id": "ssot_edu_phys_p014_04_lc_oscillation_t_Q",
+      "title": "전자기/회로 — 함수·시간응답·공진(그래프) (P014-04)",
+      "description": "전자기/회로 — 함수·시간응답·공진(그래프)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "전기장/전위/회로의 관계를 그래프(함수/시계열)로 관찰한다.",
+        "표본 범위와 표시 범위를 분리해 실험/비교(오버레이)한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p014_04_lc_oscillation_t_Q"
+    },
+    {
+      "id": "ssot_edu_phys_p014_05_rlc_resonance_w_I2",
+      "title": "전자기/회로 — 함수·시간응답·공진(그래프) (P014-05)",
+      "description": "전자기/회로 — 함수·시간응답·공진(그래프)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "전기장/전위/회로의 관계를 그래프(함수/시계열)로 관찰한다.",
+        "표본 범위와 표시 범위를 분리해 실험/비교(오버레이)한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p014_05_rlc_resonance_w_I2"
+    },
+    {
+      "id": "ssot_edu_phys_p015_01_pendulum_L_T2",
+      "title": "진동/주기 — 단진자 (P015-01)",
+      "description": "진동/주기 — 단진자",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "단진자에서 주기제곱 T²가 길이 L에 비례함을 그래프로 확인한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p015_01_pendulum_L_T2"
+    },
+    {
+      "id": "ssot_edu_phys_p015_02_spring_m_T2",
+      "title": "진동/주기 — 용수철 (P015-02)",
+      "description": "진동/주기 — 용수철",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "질량 m이 커질수록 주기제곱 T²가 선형으로 증가함을 확인한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p015_02_spring_m_T2"
+    },
+    {
+      "id": "ssot_edu_phys_p015_03_centripetal_v_a",
+      "title": "원운동 — 구심가속도 (P015-03)",
+      "description": "원운동 — 구심가속도",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "구심가속도가 속도 v의 제곱에 비례함을 그래프로 확인한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p015_03_centripetal_v_a"
+    },
+    {
+      "id": "ssot_edu_phys_p015_04_dynamic_pressure_v_q",
+      "title": "유체 — 베르누이(속도항) (P015-04)",
+      "description": "유체 — 베르누이(속도항)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "동압이 속도 v의 제곱에 비례함을 확인한다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p015_04_dynamic_pressure_v_q"
+    },
+    {
+      "id": "ssot_edu_phys_p015_05_linear_drag_fall_t_v",
+      "title": "역학 — 저항과 종단속도 (P015-05)",
+      "description": "역학 — 저항과 종단속도",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "저항이 있을 때 속도가 일정 값(종단속도)으로 수렴하는 모습을 그래프로 본다."
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p015_05_linear_drag_fall_t_v"
+    },
+    {
+      "id": "ssot_edu_phys_p017_01_critical_angle_deg_of_ratio",
+      "title": "광학: 전반사(임계각) (P017-01)",
+      "description": "광학: 전반사(임계각)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "임계각이 굴절률비 r=n2/n1에 따라 어떻게 변하는지 본다",
+        "arcsin을 ‘Newton 반복’으로 근사해 수치적 사고를 경험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p017_01_critical_angle_deg_of_ratio"
+    },
+    {
+      "id": "ssot_edu_phys_p017_02_double_slit_interference",
+      "title": "광학: 간섭(이중슬릿) (P017-02)",
+      "description": "광학: 간섭(이중슬릿)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "이중슬릿 간섭무늬가 각도에 따라 주기적으로 변함을 본다",
+        "d/λ가 커질수록 무늬가 촘촘해짐을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p017_02_double_slit_interference"
+    },
+    {
+      "id": "ssot_edu_phys_p017_03_grating_maxima_theta_of_m",
+      "title": "광학: 회절격자(최대 조건) (P017-03)",
+      "description": "광학: 회절격자(최대 조건)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "정수 m(차수)에 따라 최대 각도가 커지는 것을 본다",
+        "d가 커지면 각도가 작아지는(무늬가 촘촘) 직관을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p017_03_grating_maxima_theta_of_m"
+    },
+    {
+      "id": "ssot_edu_phys_p017_04_thin_film_interference",
+      "title": "광학: 박막 간섭(직관) (P017-04)",
+      "description": "광학: 박막 간섭(직관)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "박막 두께에 따라 반사/투과 세기가 주기적으로 변함을 본다",
+        "n/λ 비율이 주기를 좌우함을 관찰한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p017_04_thin_film_interference"
+    },
+    {
+      "id": "ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio",
+      "title": "광학: 편광(브루스터각) (P017-05)",
+      "description": "광학: 편광(브루스터각)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "advanced",
+      "goals": [
+        "굴절률비 r에 따라 브루스터각이 커지는 것을 본다",
+        "tan(θ)=r을 반복으로 푸는 방법을 경험한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p017_05_brewster_angle_deg_of_ratio"
+    },
+    {
+      "id": "ssot_edu_phys_p018_01_radioactive_decay_Nt",
+      "title": "현대물리: 방사성 붕괴(기초) (P018-01)",
+      "description": "현대물리: 방사성 붕괴(기초)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "방사성 붕괴가 시간에 따라 감소하는 곡선을 본다",
+        "차분(반복)으로 지수형 변화를 근사하는 감각을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p018_01_radioactive_decay_Nt"
+    },
+    {
+      "id": "ssot_edu_phys_p018_02_photoelectric_Vs_of_f",
+      "title": "현대물리: 광전효과(기초) (P018-02)",
+      "description": "현대물리: 광전효과(기초)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "임계주파수 f0 이하에서는 전자가 나오지 않는(정지전압 0) 구간을 본다",
+        "f가 커질수록 Vs가 선형 증가하는 직관을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p018_02_photoelectric_Vs_of_f"
+    },
+    {
+      "id": "ssot_edu_phys_p018_03_debroglie_lambda_of_p",
+      "title": "현대물리: 드브로이(기초) (P018-03)",
+      "description": "현대물리: 드브로이(기초)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "운동량 p가 커질수록 파장 λ가 작아지는 반비례 관계를 본다",
+        "파동-입자 이중성의 ‘수치 직관’을 얻는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p018_03_debroglie_lambda_of_p"
+    },
+    {
+      "id": "ssot_edu_phys_p018_04_wien_lambda_max_of_T",
+      "title": "현대물리: 흑체복사(빈의 법칙) (P018-04)",
+      "description": "현대물리: 흑체복사(빈의 법칙)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "온도가 올라가면 최대복사 파장이 짧아지는(역비례) 관계를 본다",
+        "‘색이 푸르게 간다’는 직관을 그래프로 연결한다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p018_04_wien_lambda_max_of_T"
+    },
+    {
+      "id": "ssot_edu_phys_p018_05_hydrogen_energy_levels",
+      "title": "현대물리: 원자모형(수소) (P018-05)",
+      "description": "현대물리: 원자모형(수소)",
+      "required_views": [
+        "graph"
+      ],
+      "grade": "high",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "n이 커질수록 에너지 준위가 0에 가까워짐을 본다",
+        "1/n^2 감소 형태를 그래프로 읽는다"
+      ],
+      "source": "ssot",
+      "ssot_pack": "edu_phys_p018_05_hydrogen_energy_levels"
+    }
+  ]
+}

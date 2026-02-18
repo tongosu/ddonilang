@@ -1,0 +1,7 @@
+title = "대학 · 온도 변화"
+description = "냉각 모델"
+grade = "college"
+subject = "physics"
+level = "advanced"
+goals = ["변화 추적", "모델링 이해"]
+required_views = ["graph", "table", "text"]

@@ -1,0 +1,14 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "prepare": [
+    { "type": "set_param", "key": "x", "value": 3.0 },
+    { "type": "set_param", "key": "보개_색", "value": "#111111" },
+    { "type": "step", "n": 2 }
+  ],
+  "mutate": [
+    { "type": "set_param", "key": "x", "value": 99.0 },
+    { "type": "set_param", "key": "보개_색", "value": "#222222" },
+    { "type": "step", "n": 1 }
+  ]
+}
+

@@ -1,0 +1,22 @@
+#이름: ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency_variant_P006-04 광전효과 KE(f)
+#설명: 광전효과에서 최대 운동에너지 KE = h*(f - f0) (f>=f0), 그 외 0. 을 (f,KE)로 출력.
+// 출력은 숫자만. (f, KE) 순서.
+
+h <- 1.
+f0 <- 5.
+
+f_min <- 0.
+f_max <- 10.
+df <- 0.25.
+
+KE_linear = (#ascii1) 수식{ y = h * (x - f0) }.
+f목록 <- (f_min, f_max, df) 범위.
+
+(x) f목록에 대해: {
+  KE <- 0.
+  { x >= f0 }인것 일때 {
+    KE <- (x=x, h=h, f0=f0)인 KE_linear 풀기.
+  }.
+  x 보여주기.
+  KE 보여주기.
+}.

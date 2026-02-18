@@ -1,0 +1,7 @@
+title = "물리 · 회로 구조"
+description = "간단 회로 노드/간선"
+grade = "middle"
+subject = "physics"
+level = "intro"
+goals = ["변화 추적", "모델링 이해"]
+required_views = ["structure", "text", "graph"]

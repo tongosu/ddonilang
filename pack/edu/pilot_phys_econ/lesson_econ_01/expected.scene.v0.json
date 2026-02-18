@@ -1,0 +1,98 @@
+{
+  "fps": 60,
+  "schema": "seamgrim.scene.v0",
+  "sections": [
+    {
+      "commands": [
+        {
+          "args": {
+            "글": "수요·공급 균형"
+          },
+          "target": {
+            "type": "#제목",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        },
+        {
+          "args": {
+            "글": "소득(income)을 바꾸면 수요곡선이 이동합니다."
+          },
+          "target": {
+            "type": "#자막",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        }
+      ],
+      "id": "마디0",
+      "tick_from": 0,
+      "tick_to": 30
+    },
+    {
+      "commands": [
+        {
+          "args": {
+            "글": "수요곡선(Qd)과 공급곡선(Qs)을 그립니다."
+          },
+          "target": {
+            "type": "#자막",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        },
+        {
+          "args": {
+            "방식": "progress"
+          },
+          "target": {
+            "id": "demand",
+            "type": "#곡선",
+            "view": "graph"
+          },
+          "verb": "그려지기"
+        },
+        {
+          "args": {
+            "방식": "progress"
+          },
+          "target": {
+            "id": "supply",
+            "type": "#곡선",
+            "view": "graph"
+          },
+          "verb": "그려지기"
+        }
+      ],
+      "id": "마디1",
+      "tick_from": 31,
+      "tick_to": 120
+    },
+    {
+      "commands": [
+        {
+          "args": {
+            "글": "교점이 균형점(p*, Q*) 입니다."
+          },
+          "target": {
+            "type": "#자막",
+            "view": "text"
+          },
+          "verb": "나타나기"
+        },
+        {
+          "args": {},
+          "target": {
+            "id": "eq",
+            "type": "#점",
+            "view": "graph"
+          },
+          "verb": "나타나기"
+        }
+      ],
+      "id": "마디2",
+      "tick_from": 121,
+      "tick_to": 180
+    }
+  ]
+}

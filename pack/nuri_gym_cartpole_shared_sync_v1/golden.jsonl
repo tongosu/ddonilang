@@ -1,0 +1,3 @@
+{"cmd": ["nurigym", "run", "pack\\nuri_gym_cartpole_shared_sync_v1\\input.json", "--out", "build\\nurigym_cartpole_shared_sync_v1"], "stdout_path": "golden.txt"}
+{"cmd": ["nurigym", "run", "pack\\nuri_gym_cartpole_shared_sync_v1\\input_alt.json", "--out", "build\\nuri_gym_cartpole_shared_sync_v1_alt"], "stdout_path": "golden_alt.txt"}
+{"cmd": ["nurigym", "run", "pack\\nuri_gym_cartpole_shared_sync_v1\\input_alt2.json", "--out", "build\\nuri_gym_cartpole_shared_sync_v1_alt2"], "stdout_path": "golden_alt2.txt"}

@@ -1,0 +1,18 @@
+{
+  "name": "L03_assign_update",
+  "sam_input": "inputs/empty.detjson",
+  "max_madi": 1,
+  "det_expected": {
+    "no_fault": true,
+    "expected_observations": [
+      {
+        "madi": 1,
+        "query": "바탕.점수",
+        "assert": {
+          "op": "eq",
+          "value": 30
+        }
+      }
+    ]
+  }
+}

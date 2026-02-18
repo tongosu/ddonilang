@@ -1,0 +1,10 @@
+title = "인구 변화"
+description = "시간에 따른 인구 변화를 단순화한다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "econ"
+level = "intro"
+goals = ["시간에 따른 변화 추세를 읽는다"]
+story = "3–4학년 사회/경제에서 '인구 변화' 상황을 데이터로 해석합니다."
+missions = ["추세를 해석하기", "변수를 바꿔 결과 예측하기"]
+required_views = ["graph"]

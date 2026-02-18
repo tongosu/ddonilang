@@ -1,0 +1,10 @@
+title = "월별 강수량"
+description = "월별 강수량의 변화를 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["시간에 따른 기후 변화를 읽는다"]
+story = "3–4학년 과학에서 '월별 강수량' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

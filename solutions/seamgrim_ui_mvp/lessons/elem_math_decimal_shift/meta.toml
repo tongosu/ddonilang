@@ -1,0 +1,10 @@
+title = "소수점 이동"
+description = "y = x * 10"
+grade = "elementary"
+grade_band = "3-4"
+subject = "math"
+level = "intro"
+goals = ["소수점 이동에 따른 값 변화를 이해한다"]
+story = "자릿값 변화가 그래프에 어떻게 드러나는지 확인합니다."
+missions = ["x 범위를 바꿔 결과를 비교하기", "배율이 바뀌면 기울기가 어떻게 되는지 말하기"]
+required_views = ["graph"]

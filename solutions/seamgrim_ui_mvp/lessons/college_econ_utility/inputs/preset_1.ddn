@@ -1,0 +1,15 @@
+#이름: college_econ_utility_variant_college_econ_utility
+#설명: y = a x^2 + b x
+
+효용 = (#ascii1) 수식{ y = a x^2 + b x }.
+
+a <- -0.2.
+b <- 2.4.
+
+x목록 <- (0, 10, 1) 범위.
+
+(x) x목록에 대해: {
+  y <- (a=a, b=b, x=x)인 효용 풀기.
+  x 보여주기.
+  y 보여주기.
+}.

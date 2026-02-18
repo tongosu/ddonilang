@@ -1,0 +1,10 @@
+title = "비율 계산(%)"
+description = "y = x * 1/4"
+grade = "elementary"
+grade_band = "5-6"
+subject = "math"
+level = "intro"
+goals = ["전체의 일정 비율을 계산한다"]
+story = "5–6학년에서 비율과 퍼센트를 그래프로 확인합니다."
+missions = ["분수를 바꿔 다른 비율을 시각화하기", "x가 클 때 변화량을 설명하기"]
+required_views = ["graph"]

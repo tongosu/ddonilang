@@ -1,0 +1,5 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "steps": 3,
+  "set_param": { "key": "g", "value": 21.0 }
+}

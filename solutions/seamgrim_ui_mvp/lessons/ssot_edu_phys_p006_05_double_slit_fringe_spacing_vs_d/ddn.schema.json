@@ -1,0 +1,10 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.K", "type": "수" },
+    { "name": "살림.d_max", "type": "수" },
+    { "name": "살림.d_min", "type": "수" },
+    { "name": "살림.dd", "type": "수" },
+    { "name": "살림.d목록", "type": "수" }
+  ]
+}

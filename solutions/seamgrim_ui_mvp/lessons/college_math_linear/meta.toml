@@ -1,0 +1,7 @@
+title = "대학 · 선형변환"
+description = "선형 변환 예시"
+grade = "college"
+subject = "math"
+level = "advanced"
+goals = ["그래프 해석", "함수 이해"]
+required_views = ["graph", "table", "text"]

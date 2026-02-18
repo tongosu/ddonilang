@@ -1,0 +1,14 @@
+{
+  "schema": "edu.scenario.v1",
+  "scenario_id": "pendulum_small_angle_v1",
+  "abs_tol": "0.001",
+  "rel_tol": "0.01",
+  "eps": "0.000001",
+  "cases": [
+    {
+      "id": "theta",
+      "formula": ["0.0", "0.1", "0.2", "0.3", "0.4"],
+      "sim": ["0.0", "0.0999", "0.2001", "0.3002", "0.3998"]
+    }
+  ]
+}

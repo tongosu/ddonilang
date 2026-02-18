@@ -1,0 +1,18 @@
+#이름: ssot_edu_econ_e001_03_equilibrium_point_QP_variant_E001-03 균형점 (Q*, P*)
+#설명: 수요 P=(a-Q)/b, 공급 P=(Q-c)/d 의 교점 (Q*,P*) 1점 출력.
+
+// 출력은 숫자만. (Q*, P*) 순서.
+a <- 100.
+b <- 2.
+c <- 0.
+d <- 1.
+
+// Q* = (d*a + b*c) / (b + d)
+Q별 = (#ascii1) 수식{ y = (d*a + b*c) / (b + d) }.
+P수요 = (#ascii1) 수식{ y = (a - x) / b }.
+
+Qstar <- (a=a, b=b, c=c, d=d)인 Q별 풀기.
+Pstar <- (x=Qstar, a=a, b=b)인 P수요 풀기.
+
+Qstar 보여주기.
+Pstar 보여주기.

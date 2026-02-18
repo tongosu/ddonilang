@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:8f5046068448e5eda5d3d752449a9d744094ddfac11027b8e07f6cfa917c1e16","event_kind":"open","key":"//server/share/pack/open_file_read_unc_dot/hello.txt","open_kind":"file_read","site_id":"pack/open_file_read_unc_dot/input.ddn:0:10","value":{"schema":"open.file_read.v1","text":"hello unc dot\n"}}

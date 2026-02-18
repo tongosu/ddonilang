@@ -1,0 +1,1 @@
+{"cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_replay_schema_v2_meta_list/open.log.jsonl", "--no-open"], "stdout": ["1769686000"], "stderr": []}

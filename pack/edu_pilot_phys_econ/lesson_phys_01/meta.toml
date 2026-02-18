@@ -1,0 +1,3 @@
+required_views = ["2d", "graph", "text"]
+layout_preset = "좌2d_우graph_중text_하단dock"
+view_overlay_order = "graph"

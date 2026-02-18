@@ -1,0 +1,14 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.P_star", "type": "수" },
+    { "name": "살림.Pc_max", "type": "수" },
+    { "name": "살림.Pc_min", "type": "수" },
+    { "name": "살림.Pc목록", "type": "수" },
+    { "name": "살림.a", "type": "수" },
+    { "name": "살림.b", "type": "수" },
+    { "name": "살림.c", "type": "수" },
+    { "name": "살림.d", "type": "수" },
+    { "name": "살림.dPc", "type": "수" }
+  ]
+}

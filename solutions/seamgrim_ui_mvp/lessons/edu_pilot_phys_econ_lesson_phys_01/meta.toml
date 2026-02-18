@@ -1,0 +1,11 @@
+﻿title = "진자 · 한편의 장면"
+description = "좌=진자(2d), 우=θ(t) 그래프(graph), 중=수식/자막(text), 하단=View Dock"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["진자의 각도 θ(t)와 움직임을 함께 관찰한다", "시간에 따른 그래프/공간 대응을 이해한다"]
+required_views = ["2d", "graph", "text"]
+view_combo_layout = "horizontal"
+view_overlay_order = "graph"
+source = "ssot"
+ssot_pack = "edu_pilot_phys_econ_lesson_phys_01"

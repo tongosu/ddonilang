@@ -1,0 +1,17 @@
+{
+  "name": "bogae_003_non_int_pixel_should_fail",
+  "sam_input": "sam/bogae_non_int_pixel.input.bin",
+  "max_madi": 1,
+  "trace_expected": {
+    "events": [
+      {
+        "kind": "GUARD_VIOLATION",
+        "count": 1
+      },
+      {
+        "kind": "EXTERNAL_CALL",
+        "count": 0
+      }
+    ]
+  }
+}

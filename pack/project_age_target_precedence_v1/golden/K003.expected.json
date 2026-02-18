@@ -1,0 +1,17 @@
+{
+  "age_target_source": "cli",
+  "age_target_value": "AGE2",
+  "artifact_pins": [],
+  "bogae_hash": null,
+  "contract": "D-STRICT",
+  "detmath_seal_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "entry": "pack/project_age_target_precedence_v1/cases/K003_cli_over_project/input.ddn",
+  "kind": "run_manifest_v1",
+  "nuri_lock_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "seed": 0,
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:91cd510e6e8eac80c4c1ed22cf2d4032c42769bd7d2b77b9d775182dc4999d25",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:eb2d069a4bde0eae6c702b8c138debd25eb727cd3d8294c7b6e367b4701bd5e9"
+}

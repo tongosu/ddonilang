@@ -1,0 +1,10 @@
+title = "시장 정책(조세부담/귀착) (E009-04)"
+description = "시장 정책(조세부담/귀착)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["단위세 τ가 커질수록 소비자 가격 p_c가 어떻게 변하는지 확인한다", "수요/공급 기울기에 따라 조세부담이 어떻게 나뉘는지(귀착) 직관을 얻는다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e009_04_tax_incidence_tau_pc"

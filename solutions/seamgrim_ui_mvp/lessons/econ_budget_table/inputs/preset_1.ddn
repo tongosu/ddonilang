@@ -1,0 +1,15 @@
+#이름: econ_budget_table_variant_econ_budget_table
+#설명: 가계부(잔액) 예시
+
+잔액 = (#ascii1) 수식{ y = a x + b }.
+
+a <- 1.
+b <- 0.
+
+x목록 <- (0, 4, 1) 범위.
+
+(x) x목록에 대해: {
+  y <- (a=a, b=b, x=x)인 잔액 풀기.
+  x 보여주기.
+  y 보여주기.
+}.

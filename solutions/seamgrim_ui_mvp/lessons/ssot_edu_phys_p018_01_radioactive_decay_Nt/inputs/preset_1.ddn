@@ -1,0 +1,22 @@
+#이름: ssot_edu_phys_p018_01_radioactive_decay_Nt_variant_P018-01 방사성 붕괴 N(t)
+#설명: N_{t+1} = N_t*(1 - lambda*dt).  (지수붕괴의 차분 근사)
+// 출력은 숫자만. (t, N) 순서.
+
+N0 <- 1000.
+lambda <- 0.05.
+dt <- 1.
+
+t_max <- 100.
+t목록 <- (0, t_max, dt) 범위.
+
+N <- N0.
+
+(t) t목록에 대해: {
+  t 보여주기.
+  N 보여주기.
+
+  N <- N * (1 - lambda*dt).
+  { N < 0 }인것 일때 {
+    N <- 0.
+  }.
+}.

@@ -1,0 +1,23 @@
+{
+  "clients": 4,
+  "drop_duplicates": true,
+  "events_total": 12,
+  "final_state_hashes": [
+    {
+      "realm_id": 0,
+      "state_hash": "sha256:dc115b0623f6b7cf73acdc3d14dd69e223038f773514b381b16df497f92b2a7f"
+    },
+    {
+      "realm_id": 1,
+      "state_hash": "sha256:23c28cd3d09d24a3187776c17ad7bb0870bcd80521a0816aaf274e5728fc7912"
+    }
+  ],
+  "order_rule": "sender_seq",
+  "schema": "gateway.load_report.v1",
+  "seed": 1,
+  "ssot_version": "20.3.1",
+  "thread_mode": "threads=4",
+  "throughput_events_per_sec": 240,
+  "tick_hz": 60,
+  "ticks": 3
+}

@@ -1,0 +1,10 @@
+title = "전구 개수와 밝기"
+description = "y = 2x"
+grade = "elementary"
+grade_band = "1-2"
+subject = "physics"
+level = "intro"
+goals = ["전구 개수에 따라 밝기가 늘어남을 이해한다"]
+story = "간단한 회로 실험을 그래프로 정리합니다."
+missions = ["전구 수를 늘렸을 때의 변화를 말하기", "그래프의 모양을 관찰하기"]
+required_views = ["graph"]

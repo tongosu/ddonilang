@@ -1,0 +1,10 @@
+title = "생산·비용(공급곡선) (E008-04)"
+description = "생산·비용(공급곡선)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["완전경쟁(단기)에서 가격-한계비용 연결을 그래프로 이해한다", "가격 p가 올라갈수록 공급량 q가 증가하는 이유를 확인한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e008_04_supply_p_q"

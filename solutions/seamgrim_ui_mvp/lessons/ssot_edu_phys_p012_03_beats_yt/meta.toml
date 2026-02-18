@@ -1,0 +1,10 @@
+title = "파동(중첩·맥놀이) (P012-03)"
+description = "파동(중첩·맥놀이)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["주파수가 비슷한 두 파동의 합이 맥놀이를 만든다는 것을 그래프로 본다", "주파수 차이가 비트의 느린 변화 속도를 결정함을 관찰한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p012_03_beats_yt"

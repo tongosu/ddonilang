@@ -1,0 +1,10 @@
+title = "국제경제: 실질환율(직관) (E013-02)"
+description = "국제경제: 실질환율(직관)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["물가상승률 차이가 실질환율(q) 추세에 영향을 주는 것을 시계열로 본다", "q=e*P*/P 관계를 해석한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_econ_e013_02_real_exchange_rate_qt"

@@ -1,0 +1,9 @@
+﻿{
+  "schema": "ddn.state_hash_stream.v1",
+  "frames": [
+    {"madi": 0, "state_hash": "blake3:0e22ab500cc72aa114b32fef87ffad328579e49ecebf872087483ecb3546bd21"},
+    {"madi": 50, "state_hash": "blake3:00f12681383d5c6de6b502497b829b0291b634fbf4fb42dc9c510839ace4836b"},
+    {"madi": 100, "state_hash": "blake3:abc59cee970f6d98a77e0cf0b25a0ad4b572646f2972d3e786e8ea67c5de0169"},
+    {"madi": 200, "state_hash": "blake3:fb71f7aac47e2efc367cf882d981d787aecc975b44e94e995c1888c5384da613"}
+  ]
+}

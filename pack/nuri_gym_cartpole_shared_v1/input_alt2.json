@@ -1,0 +1,13 @@
+{
+  "env_id": "nurigym.cartpole1d",
+  "seed": 31,
+  "episode_id": 4,
+  "shared_env": true,
+  "reward_mode": "shared",
+  "max_steps": 5,
+  "agents": [
+    { "agent_id": 0, "actions": [1, 1, -1, 1, -1] },
+    { "agent_id": 1, "actions": [-1, -1, 1, -1, 1] },
+    { "agent_id": 2, "actions": [1, 1, 1, 1, 1] }
+  ]
+}

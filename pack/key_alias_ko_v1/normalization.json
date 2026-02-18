@@ -1,0 +1,10 @@
+{
+  "description": "정규화 규칙 테스트 (공백 제거, 전각→반각, 대소문자 무시)",
+  "version": "keymap_v1",
+  "cases": [
+    { "input": "왼 쪽", "expected_canon": "ArrowLeft", "matched": true, "note": "공백 제거" },
+    { "input": " 엔터 ", "expected_canon": "Enter", "matched": true, "note": "양끝 공백" },
+    { "input": "ESC", "expected_canon": "Escape", "matched": true, "note": "전각 ASCII" },
+    { "input": "Esc", "expected_canon": "Escape", "matched": true, "note": "대소문자 혼합" }
+  ]
+}

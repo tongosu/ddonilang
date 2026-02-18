@@ -1,0 +1,12 @@
+image: rust:1.75
+
+stages:
+  - test
+
+core-tests:
+  stage: test
+  script:
+    - apt-get update && apt-get install -y python3
+    - python3 tools/scripts/check_utf8.py || python tools/scripts/check_utf8.py
+    - cargo test -p ddonirang-core fixed64_lint_gate_no_float_in_core
+    - cargo test -p ddonirang-core

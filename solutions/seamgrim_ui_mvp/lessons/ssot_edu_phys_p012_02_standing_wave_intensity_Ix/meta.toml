@@ -1,0 +1,10 @@
+title = "파동(정상파·세기) (P012-02)"
+description = "파동(정상파·세기)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["정상파에서 마디/배가 공간적으로 고정된 패턴임을 확인한다", "세기(진폭^2)의 공간 분포를 그래프로 본다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p012_02_standing_wave_intensity_Ix"

@@ -1,0 +1,3 @@
+default = "replay"
+allow = ["clock"]
+deny = ["file_read"]

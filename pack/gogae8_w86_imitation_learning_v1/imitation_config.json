@@ -1,0 +1,6 @@
+{
+  "schema": "seulgi.imitation_config.v1",
+  "replay_path": "replay.jsonl",
+  "train_seed": 17,
+  "max_epochs": 4
+}

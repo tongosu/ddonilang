@@ -1,0 +1,15 @@
+{
+  "name": "ddonirang-tool",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "ddonirang_tool_bg.wasm",
+    "ddonirang_tool.js",
+    "ddonirang_tool.d.ts"
+  ],
+  "main": "ddonirang_tool.js",
+  "types": "ddonirang_tool.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

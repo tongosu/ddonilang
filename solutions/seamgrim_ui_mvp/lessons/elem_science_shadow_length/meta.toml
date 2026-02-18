@@ -1,0 +1,10 @@
+title = "그림자 길이"
+description = "시간에 따른 그림자 길이 변화를 본다."
+grade = "elementary"
+grade_band = "1-2"
+subject = "physics"
+level = "intro"
+goals = ["해의 위치와 그림자 길이의 관계를 이해한다"]
+story = "1–2학년 과학에서 '그림자 길이' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

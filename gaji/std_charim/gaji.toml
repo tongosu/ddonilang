@@ -1,0 +1,11 @@
+id = "gaji/std_charim"
+name = "표준 차림 가지"
+version = "0.1.0"
+ssot_requires = ">=20.1.22"
+
+# 결정성/공개성(초기값)
+det_tier = "D-STRICT"
+openness = "closed"
+
+# 메타
+description = "배열/차림 처리"

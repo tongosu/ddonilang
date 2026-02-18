@@ -1,0 +1,17 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.L", "type": "수" },
+    { "name": "살림.Q1", "type": "수" },
+    { "name": "살림.Q2", "type": "수" },
+    { "name": "살림.Q3", "type": "수" },
+    { "name": "살림.Q목록", "type": "수" },
+    { "name": "살림.T0", "type": "수" },
+    { "name": "살림.Tend", "type": "수" },
+    { "name": "살림.Tm", "type": "수" },
+    { "name": "살림.c1", "type": "수" },
+    { "name": "살림.c2", "type": "수" },
+    { "name": "살림.dQ", "type": "수" },
+    { "name": "살림.m", "type": "수" }
+  ]
+}

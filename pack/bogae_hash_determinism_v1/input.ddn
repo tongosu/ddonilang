@@ -1,0 +1,10 @@
+#이름: bogae_hash_determinism_v1
+#설명: detbin 직렬화 + bogae_hash 결정성 고정
+
+보개_그림판_가로 <- 40.
+보개_그림판_세로 <- 30.
+보개_바탕색 <- "#111122ff".
+
+보개_그림판_목록 <- [(결="#보개/2D.Rect", x=4, y=6, w=12, h=10, 채움색="#ffcc00"), (결="#보개/2D.Text", x=8, y=20, size=8, text="HASH", 색="#ffffffff")].
+
+보개로 그려.

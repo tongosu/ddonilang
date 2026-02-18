@@ -1,0 +1,10 @@
+title = "계절과 기온"
+description = "1년 주기의 온도 변화를 본다."
+grade = "elementary"
+grade_band = "3-4"
+subject = "physics"
+level = "intro"
+goals = ["계절 주기성과 온도 변화를 이해한다"]
+story = "3–4학년 과학에서 '계절과 기온' 현상을 그래프로 관찰합니다."
+missions = ["곡선의 모양을 관찰하기", "조건을 바꿔 결과 비교하기"]
+required_views = ["graph"]

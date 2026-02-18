@@ -1,0 +1,1 @@
+{"cli": ["--unsafe-open", "--open", "replay", "--open-log", "pack/open_replay_missing/open.log.jsonl", "--no-open"], "stdout": [], "stderr": ["E_OPEN_REPLAY_MISS pack/open_replay_missing/input.ddn:1:10 열림 리플레이 로그 없음: kind=clock site_id=pack/open_replay_missing/input.ddn:0:9 key=now"], "exit_code": 1, "expected_error_code": "E_OPEN_REPLAY_MISS"}

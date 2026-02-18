@@ -1,0 +1,20 @@
+{
+  "schema": "seamgrim.wasm.observation_channels.v1",
+  "raw_schema_state": "seamgrim.engine_response.v0",
+  "raw_schema_step": "seamgrim.engine_response.v0",
+  "columns_count": 1,
+  "state_channels_count": 1,
+  "state_state_channels_count": 1,
+  "step_channels_count": 2,
+  "step_state_channels_count": 2,
+  "columns_vs_state_equal": true,
+  "state_vs_nested_state_equal": true,
+  "columns_vs_step_equal": false,
+  "step_vs_nested_step_equal": true,
+  "state_row_matches_channels": true,
+  "nested_state_row_matches_channels": true,
+  "step_row_matches_channels": true,
+  "nested_step_row_matches_channels": true,
+  "contains_param_key": true,
+  "contains_tick_key": false
+}

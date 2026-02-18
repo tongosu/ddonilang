@@ -1,0 +1,10 @@
+{
+  "name": "W47_G01_observation_canon",
+  "walk": 47,
+  "command": "observation_canon",
+  "entry": "input.detjson",
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"seulgi.observation.v1\",\"agent_id\":1,\"madi\":100,\"timestamp_ms\":1500,\"self_state\":{\"position\":{\"x\":10.5,\"y\":20.5},\"velocity\":{\"x\":1,\"y\":0},\"health\":100,\"status\":\"idle\"},\"visible_objects\":[{\"id\":1,\"position\":{\"x\":15,\"y\":20},\"object_type\":\"ball\",\"color\":\"blue\",\"size\":0.5},{\"id\":2,\"position\":{\"x\":25,\"y\":25},\"object_type\":\"box\",\"color\":\"yellow\",\"size\":1.5},{\"id\":3,\"position\":{\"x\":50,\"y\":50},\"object_type\":\"wall\",\"color\":\"gray\",\"size\":10}],\"visible_agents\":[{\"id\":2,\"position\":{\"x\":20,\"y\":20},\"name\":\"mini\"},{\"id\":4,\"position\":{\"x\":30,\"y\":30},\"name\":\"rumi\"}],\"world_state\":{\"gravity\":-9.799999,\"time_of_day\":12000,\"weather\":\"clear\"}}\n"
+  }
+}

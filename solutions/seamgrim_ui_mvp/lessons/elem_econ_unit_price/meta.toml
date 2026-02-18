@@ -1,0 +1,10 @@
+title = "단가 비교"
+description = "y = x/2"
+grade = "elementary"
+grade_band = "3-4"
+subject = "econ"
+level = "intro"
+goals = ["물건 수와 가격의 비례 관계를 이해한다"]
+story = "가격과 개수의 관계를 그래프로 확인합니다."
+missions = ["가격 비율을 바꿔 그래프 비교하기", "단가가 일정함을 설명하기"]
+required_views = ["graph"]

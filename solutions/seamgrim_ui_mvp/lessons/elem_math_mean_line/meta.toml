@@ -1,0 +1,10 @@
+title = "평균의 의미"
+description = "기준값 주변의 평균선을 시각화한다."
+grade = "elementary"
+grade_band = "5-6"
+subject = "math"
+level = "intro"
+goals = ["평균이 대표값임을 이해한다"]
+story = "5–6학년 수학에서 '평균의 의미' 개념을 시각적으로 탐구합니다."
+missions = ["그래프의 규칙을 말로 설명하기", "값을 바꿔 변화 확인하기"]
+required_views = ["graph"]

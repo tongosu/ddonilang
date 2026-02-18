@@ -1,0 +1,32 @@
+{
+  "schema": "ddn.input_snapshot.v1",
+  "net_events": [
+    {
+      "sender": "peer-a",
+      "seq": 1,
+      "order_key": "peer-a#1",
+      "payload": {
+        "kind": "net_key",
+        "key": "W"
+      }
+    },
+    {
+      "sender": "peer-a",
+      "seq": 2,
+      "order_key": "peer-a#2",
+      "payload": {
+        "kind": "net_key",
+        "key": "D"
+      }
+    },
+    {
+      "sender": "peer-b",
+      "seq": 1,
+      "order_key": "peer-b#1",
+      "payload": {
+        "kind": "net_key",
+        "key": "A"
+      }
+    }
+  ]
+}

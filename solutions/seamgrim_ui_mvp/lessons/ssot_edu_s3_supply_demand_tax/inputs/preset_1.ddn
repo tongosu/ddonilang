@@ -1,0 +1,3 @@
+// edu_s3_supply_demand_tax — lesson.ddn (placeholder)
+// NOTE: 아직 실행 가능한 내용은 없다(스켈레톤).
+// TODO(구현): inputs/*.detjson 프리셋 로드 → 균형/후생 계산 → 지표 생성 → checks/* 검증

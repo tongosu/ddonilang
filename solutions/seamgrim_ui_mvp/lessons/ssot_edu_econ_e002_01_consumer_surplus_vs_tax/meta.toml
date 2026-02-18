@@ -1,0 +1,9 @@
+title = "조세와 후생(잉여) (E002-01)"
+description = "조세와 후생(잉여)"
+grade = "high"
+subject = "econ"
+level = "intro"
+goals = ["단위세가 커질수록 거래량이 줄어드는 직관을 얻는다", "세금이 소비자잉여를 줄이는 방향을 그래프로 확인한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_econ_e002_01_consumer_surplus_vs_tax"

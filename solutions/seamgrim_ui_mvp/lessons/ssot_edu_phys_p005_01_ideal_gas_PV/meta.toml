@@ -1,0 +1,9 @@
+title = "열(기체) (P005-01)"
+description = "열(기체)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["온도가 일정할 때 압력 P가 부피 V에 반비례함을 그래프로 확인한다", "하이퍼볼라(쌍곡선) 그래프의 모양을 관찰하고, V→0에서 P가 커지는 이유를 말해본다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_phys_p005_01_ideal_gas_PV"

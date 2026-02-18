@@ -1,0 +1,9 @@
+title = "운동과 에너지 (S2)"
+description = "운동과 에너지"
+grade = "middle"
+subject = "math"
+level = "intro"
+goals = ["초기 속도와 발사각에 따른 투사체의 궤적을 설명한다", "수평/수직 운동을 분해하여 이해한다"]
+required_views = ["graph"]
+source = "ssot"
+ssot_pack = "edu_s2_projectile"

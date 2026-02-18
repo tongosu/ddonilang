@@ -1,0 +1,8 @@
+version = "bogae_bundle_v1"
+mapping = "mapping.ddn"
+
+[[asset]]
+id = "blake3:43539820d2cd3ca8d18960e5b418bf392aae6e32180d7d5e713bbe4ba1d7816b"
+path = "assets/43539820d2cd3ca8d18960e5b418bf392aae6e32180d7d5e713bbe4ba1d7816b.txt"
+source = "bundle.txt"
+

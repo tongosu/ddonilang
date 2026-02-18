@@ -1,0 +1,22 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "events": [
+    {
+      "type": "reset"
+    },
+    {
+      "type": "step",
+      "n": 3
+    },
+    {
+      "type": "set_param",
+      "name": "g",
+      "value": 15.0
+    },
+    {
+      "type": "step",
+      "n": 2
+    }
+  ],
+  "note": "각 step 블록 종료 state_hash를 expected/state_hash_trace.detjson으로 고정한다."
+}

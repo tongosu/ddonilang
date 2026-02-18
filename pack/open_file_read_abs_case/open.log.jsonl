@@ -1,0 +1,1 @@
+{"detjson_hash": "sha256:c9d21cdd7ee9e902565d9d782565406eaabdaf8f97c538e0d755150679fd55c5", "event_kind": "open", "key": "pack/open_file_read_abs_case/hello.txt", "open_kind": "file_read", "site_id": "pack/open_file_read_abs_case/.tmp_case_1.ddn:0:10", "value": {"schema": "open.file_read.v1", "text": "hello case\n"}}

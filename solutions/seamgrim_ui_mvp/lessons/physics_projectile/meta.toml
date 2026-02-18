@@ -1,0 +1,7 @@
+title = "물리 · 투사체"
+description = "2D 궤적(시간)"
+grade = "middle"
+subject = "physics"
+level = "intro"
+goals = ["변화 추적", "모델링 이해"]
+required_views = ["graph", "2d"]

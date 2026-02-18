@@ -1,0 +1,22 @@
+#이름: ssot_edu_econ_e002_03_dwl_vs_tax_variant_E002-03 사중손실 DWL(tau)
+#설명: 단위세 tau로 인해 줄어든 거래량이 만드는 사중손실(DWL)을 점열로 출력.
+// 출력은 숫자만. (tau, DWL) 순서.
+
+a <- 100.
+b <- 1.
+c <- 20.
+d <- 1.
+
+tau_min <- 0.
+tau_max <- 80.
+dtau <- 2.
+
+# 선형 수요/공급에서 DWL = 0.5 * τ * (Q0 - Qτ) = 0.5 * τ^2 / (b + d)
+DWL_of_tau = (#ascii1) 수식{ y = 0.5 * x^2 / (b + d) }.
+tau목록 <- (tau_min, tau_max, dtau) 범위.
+
+(x) tau목록에 대해: {
+  DWL <- (x=x, b=b, d=d)인 DWL_of_tau 풀기.
+  x 보여주기.
+  DWL 보여주기.
+}.

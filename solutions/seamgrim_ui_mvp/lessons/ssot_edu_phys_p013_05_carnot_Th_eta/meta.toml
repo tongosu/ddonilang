@@ -1,0 +1,10 @@
+title = "열역학(열기관 효율) (P013-05)"
+description = "열역학(열기관 효율)"
+grade = "high"
+subject = "physics"
+level = "intro"
+goals = ["고온 열원 Th가 높을수록 최대 효율(카르노 효율)이 증가함을 확인한다", "Tc/Th 비율이 효율을 결정한다는 점을 수치로 실험한다"]
+required_views = ["graph"]
+missing_assets = ["table"]
+source = "ssot"
+ssot_pack = "edu_phys_p013_05_carnot_Th_eta"

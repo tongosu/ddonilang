@@ -1,0 +1,9 @@
+{
+  "schema": "gateway.load_sim.v1",
+  "clients": 4,
+  "ticks": 3,
+  "seed": 1,
+  "realms": 2,
+  "tick_hz": 60,
+  "threads": 4
+}

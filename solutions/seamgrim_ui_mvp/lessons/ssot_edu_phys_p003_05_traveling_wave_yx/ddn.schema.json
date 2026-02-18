@@ -1,0 +1,15 @@
+{
+  "version": 0,
+  "symbols": [
+    { "name": "살림.A", "type": "수" },
+    { "name": "살림.dx", "type": "수" },
+    { "name": "살림.k", "type": "수" },
+    { "name": "살림.lambda", "type": "수" },
+    { "name": "살림.omega", "type": "수" },
+    { "name": "살림.pi", "type": "수" },
+    { "name": "살림.t0", "type": "수" },
+    { "name": "살림.x", "type": "수" },
+    { "name": "살림.x_max", "type": "수" },
+    { "name": "살림.x_min", "type": "수" }
+  ]
+}

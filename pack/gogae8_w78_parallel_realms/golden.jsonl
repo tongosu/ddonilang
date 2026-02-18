@@ -1,0 +1,6 @@
+{"cmd": ["test", "pack\\gogae8_w78_parallel_realms\\input_basic.json", "--threads", "1"], "stdout_path": "golden_basic_threads_1.json"}
+{"cmd": ["test", "pack\\gogae8_w78_parallel_realms\\input_basic.json", "--threads", "8"], "stdout_path": "golden_basic_threads_8.json"}
+{"cmd": ["test", "pack\\gogae8_w78_parallel_realms\\input_isolation.json", "--threads", "1"], "stdout_path": "golden_isolation_threads_1.json"}
+{"cmd": ["test", "pack\\gogae8_w78_parallel_realms\\input_isolation.json", "--threads", "8"], "stdout_path": "golden_isolation_threads_8.json"}
+{"cmd": ["test", "pack\\gogae8_w78_parallel_realms\\input_shuffle.json", "--threads", "1"], "stdout_path": "golden_shuffle_threads_1.json"}
+{"cmd": ["test", "pack\\gogae8_w78_parallel_realms\\input_shuffle.json", "--threads", "8"], "stdout_path": "golden_shuffle_threads_8.json"}
