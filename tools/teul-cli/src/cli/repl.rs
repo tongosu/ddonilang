@@ -10,6 +10,7 @@ pub fn repl() -> Result<(), String> {
 
     println!("또니랑 REPL (WALK01)");
     println!(":hash - 현재 state_hash 출력");
+    println!(":reset - 상태 초기화");
     println!(":quit - 종료");
     println!();
 
@@ -28,6 +29,11 @@ pub fn repl() -> Result<(), String> {
         }
         if line == ":hash" || line == ":h" {
             println!("state_hash={}", hash::state_hash(&state));
+            continue;
+        }
+        if line == ":reset" {
+            state = State::new();
+            println!("reset=ok");
             continue;
         }
         if line.is_empty() {

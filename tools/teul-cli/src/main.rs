@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use std::env;
+use crate::cli::run::RunEmitSink;
 
 mod canon;
 mod cli;
@@ -63,19 +64,21 @@ impl WarpPolicyArg {
 #[derive(Parser)]
 #[command(name = "teul-cli")]
 #[command(about = "또니랑 실행 도구 (WALK02)")]
-struct Cli {
+pub(crate) struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    pub(crate) command: Commands,
 }
 
 #[derive(Subcommand)]
-enum Commands {
+pub(crate) enum Commands {
     Run {
         file: PathBuf,
         #[arg(long, aliases = ["ticks", "max-madi"], value_name = "N|infinite")]
         madi: Option<String>,
         #[arg(long, default_value = "0x0")]
         seed: String,
+        #[arg(long = "age-target")]
+        age_target: Option<String>,
         #[arg(long = "state")]
         state: Vec<String>,
         #[arg(long = "state-file")]
@@ -98,6 +101,8 @@ enum Commands {
         geoul_record_out: Option<PathBuf>,
         #[arg(long = "trace-tier", value_enum, default_value_t = cli::trace_tier::TraceTierArg::TOff)]
         trace_tier: cli::trace_tier::TraceTierArg,
+        #[arg(long = "lang-mode", value_enum)]
+        lang_mode: Option<cli::lang_mode::LangModeArg>,
         #[arg(long = "bogae", value_enum)]
         bogae: Option<cli::bogae::BogaeMode>,
         #[arg(long = "bogae-codec", value_enum, default_value_t = cli::bogae::BogaeCodec::Bdl1)]
@@ -182,11 +187,27 @@ enum Commands {
         file: PathBuf,
     },
     Test {
-        file: PathBuf,
+        file: Option<PathBuf>,
         #[arg(long, default_value_t = 1)]
         threads: usize,
         #[arg(long)]
         out: Option<PathBuf>,
+        #[arg(long)]
+        smoke: bool,
+        #[arg(long)]
+        golden: bool,
+        #[arg(long = "pack")]
+        pack: Vec<String>,
+        #[arg(long)]
+        all: bool,
+        #[arg(long)]
+        record: bool,
+        #[arg(long)]
+        update: bool,
+        #[arg(long = "skip-ui-common")]
+        skip_ui_common: bool,
+        #[arg(long = "skip-wrapper")]
+        skip_wrapper: bool,
     },
     Warp {
         #[command(subcommand)]
@@ -203,6 +224,7 @@ enum Commands {
         out: Option<PathBuf>,
     },
     Repl,
+    Worker,
     Canon {
         file: PathBuf,
         #[arg(long, value_enum, default_value_t = cli::canon::EmitKind::Ddn)]
@@ -905,6 +927,210 @@ impl LatencyModeArg {
     }
 }
 
+pub(crate) struct RunCommandArgs {
+    pub(crate) file: PathBuf,
+    pub(crate) madi: Option<String>,
+    pub(crate) seed: String,
+    pub(crate) age_target: Option<String>,
+    pub(crate) state: Vec<String>,
+    pub(crate) state_file: Vec<PathBuf>,
+    pub(crate) diag_jsonl: Option<PathBuf>,
+    pub(crate) enable_repro: bool,
+    pub(crate) repro_json: Option<PathBuf>,
+    pub(crate) run_manifest: Option<PathBuf>,
+    pub(crate) artifact: Vec<String>,
+    pub(crate) trace_json: Option<PathBuf>,
+    pub(crate) geoul_out: Option<PathBuf>,
+    pub(crate) geoul_record_out: Option<PathBuf>,
+    pub(crate) trace_tier: cli::trace_tier::TraceTierArg,
+    pub(crate) lang_mode: Option<cli::lang_mode::LangModeArg>,
+    pub(crate) bogae: Option<cli::bogae::BogaeMode>,
+    pub(crate) bogae_codec: cli::bogae::BogaeCodec,
+    pub(crate) bogae_out: Option<PathBuf>,
+    pub(crate) bogae_skin: Option<PathBuf>,
+    pub(crate) bogae_overlay: Option<String>,
+    pub(crate) bogae_cmd_policy: cli::bogae::BogaeCmdPolicy,
+    pub(crate) bogae_cmd_cap: Option<u32>,
+    pub(crate) bogae_cache_log: bool,
+    pub(crate) bogae_live: bool,
+    pub(crate) console_cell_aspect: cli::bogae_console::ConsoleCellAspect,
+    pub(crate) console_grid: Option<String>,
+    pub(crate) console_panel_cols: usize,
+    pub(crate) until_gameover: bool,
+    pub(crate) gameover_key: String,
+    pub(crate) sam: Option<PathBuf>,
+    pub(crate) record_sam: Option<PathBuf>,
+    pub(crate) sam_live: Option<cli::sam_live::SamLiveMode>,
+    pub(crate) sam_live_host: String,
+    pub(crate) sam_live_port: u16,
+    pub(crate) madi_hz: Option<u32>,
+    pub(crate) open_mode: Option<cli::open::OpenModeArg>,
+    pub(crate) open_log: Option<PathBuf>,
+    pub(crate) open_bundle: Option<PathBuf>,
+    pub(crate) no_open: bool,
+    pub(crate) unsafe_open: bool,
+    pub(crate) run_command_override: Option<String>,
+}
+
+pub(crate) fn execute_run_command(
+    args: RunCommandArgs,
+    emit: &mut dyn cli::run::RunEmitSink,
+) -> Result<(), String> {
+    let RunCommandArgs {
+        file,
+        madi,
+        seed,
+        age_target,
+        state,
+        state_file,
+        diag_jsonl,
+        enable_repro,
+        repro_json,
+        run_manifest,
+        artifact,
+        trace_json,
+        geoul_out,
+        geoul_record_out,
+        trace_tier,
+        lang_mode,
+        bogae,
+        bogae_codec,
+        bogae_out,
+        bogae_skin,
+        bogae_overlay,
+        bogae_cmd_policy,
+        bogae_cmd_cap,
+        bogae_cache_log,
+        bogae_live,
+        console_cell_aspect,
+        console_grid,
+        console_panel_cols,
+        until_gameover,
+        gameover_key,
+        sam,
+        record_sam,
+        sam_live,
+        sam_live_host,
+        sam_live_port,
+        madi_hz,
+        open_mode,
+        open_log,
+        open_bundle,
+        no_open,
+        unsafe_open,
+        run_command_override,
+    } = args;
+
+    let seed = parse_seed(&seed).map_err(|message| format!("E_CLI_BAD_SEED {}", message))?;
+    let madi = parse_madi_arg(madi.as_deref()).map_err(|message| format!("E_CLI_MADI {}", message))?;
+    let console_grid =
+        parse_console_grid(console_grid.as_deref()).map_err(|message| format!("E_CLI_CONSOLE_GRID {}", message))?;
+    if console_panel_cols > 0 && console_grid.is_none() {
+        return Err("E_CLI_CONSOLE_PANEL console-panel-cols requires --console-grid".to_string());
+    }
+    let repro_json = match (enable_repro, repro_json) {
+        (true, Some(path)) => Some(path),
+        (true, None) => Some(cli::paths::build_dir().join("repro").join("ddn.repro.last.json")),
+        (false, Some(path)) => Some(path),
+        (false, None) => None,
+    };
+    let artifact_pins = cli::run::parse_artifact_pins(&artifact)
+        .map_err(|message| format!("E_CLI_ARTIFACT {}", message))?;
+    let cmd_policy = match bogae_cmd_policy {
+        cli::bogae::BogaeCmdPolicy::None => {
+            if bogae_cmd_cap.is_some() {
+                return Err(
+                    "E_CLI_BOGAE_CMD_POLICY bogae-cmd-cap은 policy=none에서 사용할 수 없습니다."
+                        .to_string(),
+                );
+            }
+            crate::core::bogae::CmdPolicyConfig::none()
+        }
+        cli::bogae::BogaeCmdPolicy::Cap => {
+            let cap = match bogae_cmd_cap {
+                Some(value) if value > 0 => value,
+                _ => {
+                    return Err(
+                        "E_CLI_BOGAE_CMD_POLICY bogae-cmd-cap(>0)이 필요합니다.".to_string(),
+                    );
+                }
+            };
+            crate::core::bogae::CmdPolicyConfig {
+                mode: crate::core::bogae::CmdPolicyMode::Cap,
+                cap,
+            }
+        }
+        cli::bogae::BogaeCmdPolicy::Summary => {
+            let cap = match bogae_cmd_cap {
+                Some(value) if value > 0 => value,
+                _ => {
+                    return Err(
+                        "E_CLI_BOGAE_CMD_POLICY bogae-cmd-cap(>0)이 필요합니다.".to_string(),
+                    );
+                }
+            };
+            crate::core::bogae::CmdPolicyConfig {
+                mode: crate::core::bogae::CmdPolicyMode::Summary,
+                cap,
+            }
+        }
+    };
+    let overlay = match bogae_overlay {
+        Some(value) => cli::bogae::OverlayConfig::from_csv(&value)
+            .map_err(|message| format!("E_CLI_BOGAE_OVERLAY {}", message))?,
+        None => cli::bogae::OverlayConfig::empty(),
+    };
+    let bogae_codec = match bogae_codec {
+        cli::bogae::BogaeCodec::Bdl1 => crate::core::bogae::BogaeCodec::Bdl1,
+        cli::bogae::BogaeCodec::Bdl2 => crate::core::bogae::BogaeCodec::Bdl2,
+    };
+    let mut console_config = cli::bogae_console::ConsoleRenderConfig::with_cell_aspect(console_cell_aspect);
+    console_config.panel_cols = console_panel_cols;
+    if let Some((cols, rows)) = console_grid {
+        console_config.grid_cols = Some(cols);
+        console_config.grid_rows = Some(rows);
+    }
+    let run_command = run_command_override.or_else(|| Some(build_command_string()));
+    let options = cli::run::RunOptions {
+        diag_jsonl,
+        repro_json,
+        trace_json,
+        geoul_out,
+        geoul_record_out,
+        trace_tier: trace_tier.to_core(),
+        age_target,
+        lang_mode,
+        bogae_mode: bogae,
+        bogae_codec,
+        bogae_out,
+        bogae_skin,
+        overlay,
+        cmd_policy,
+        bogae_cache_log,
+        bogae_live,
+        console_config,
+        until_gameover,
+        gameover_key,
+        sam_path: sam,
+        record_sam_path: record_sam,
+        sam_live,
+        sam_live_host,
+        sam_live_port,
+        madi_hz,
+        open_mode: open_mode.map(|mode| mode.to_runtime()),
+        open_log,
+        open_bundle,
+        no_open,
+        unsafe_open,
+        run_manifest,
+        artifact_pins,
+        run_command,
+        init_state: state,
+        init_state_files: state_file,
+    };
+    cli::run::run_file_with_emitter(&file, madi, seed, options, emit)
+}
+
 fn main() {
     let cli = Cli::parse();
     match cli.command {
@@ -912,6 +1138,7 @@ fn main() {
             file,
             madi,
             seed,
+            age_target,
             state,
             state_file,
             diag_jsonl,
@@ -923,6 +1150,7 @@ fn main() {
             geoul_out,
             geoul_record_out,
             trace_tier,
+            lang_mode,
             bogae,
             bogae_codec,
             bogae_out,
@@ -949,138 +1177,53 @@ fn main() {
             no_open,
             unsafe_open,
         } => {
-            let seed = match parse_seed(&seed) {
-                Ok(value) => value,
-                Err(message) => {
-                    eprintln!("E_CLI_BAD_SEED {}", message);
-                    std::process::exit(1);
-                }
-            };
-            let madi = match parse_madi_arg(madi.as_deref()) {
-                Ok(value) => value,
-                Err(message) => {
-                    eprintln!("E_CLI_MADI {}", message);
-                    std::process::exit(1);
-                }
-            };
-            let console_grid = match parse_console_grid(console_grid.as_deref()) {
-                Ok(value) => value,
-                Err(message) => {
-                    eprintln!("E_CLI_CONSOLE_GRID {}", message);
-                    std::process::exit(1);
-                }
-            };
-            if console_panel_cols > 0 && console_grid.is_none() {
-                eprintln!("E_CLI_CONSOLE_PANEL console-panel-cols requires --console-grid");
-                std::process::exit(1);
-            }
-            let repro_json = match (enable_repro, repro_json) {
-                (true, Some(path)) => Some(path),
-                (true, None) => Some(cli::paths::build_dir().join("repro").join("ddn.repro.last.json")),
-                (false, Some(path)) => Some(path),
-                (false, None) => None,
-            };
-            let artifact_pins = match cli::run::parse_artifact_pins(&artifact) {
-                Ok(pins) => pins,
-                Err(message) => {
-                    eprintln!("E_CLI_ARTIFACT {}", message);
-                    std::process::exit(1);
-                }
-            };
-            let cmd_policy = match bogae_cmd_policy {
-                cli::bogae::BogaeCmdPolicy::None => {
-                    if bogae_cmd_cap.is_some() {
-                        eprintln!("E_CLI_BOGAE_CMD_POLICY bogae-cmd-cap은 policy=none에서 사용할 수 없습니다.");
-                        std::process::exit(1);
-                    }
-                    crate::core::bogae::CmdPolicyConfig::none()
-                }
-                cli::bogae::BogaeCmdPolicy::Cap => {
-                    let cap = match bogae_cmd_cap {
-                        Some(value) if value > 0 => value,
-                        _ => {
-                            eprintln!("E_CLI_BOGAE_CMD_POLICY bogae-cmd-cap(>0)이 필요합니다.");
-                            std::process::exit(1);
-                        }
-                    };
-                    crate::core::bogae::CmdPolicyConfig {
-                        mode: crate::core::bogae::CmdPolicyMode::Cap,
-                        cap,
-                    }
-                }
-                cli::bogae::BogaeCmdPolicy::Summary => {
-                    let cap = match bogae_cmd_cap {
-                        Some(value) if value > 0 => value,
-                        _ => {
-                            eprintln!("E_CLI_BOGAE_CMD_POLICY bogae-cmd-cap(>0)이 필요합니다.");
-                            std::process::exit(1);
-                        }
-                    };
-                    crate::core::bogae::CmdPolicyConfig {
-                        mode: crate::core::bogae::CmdPolicyMode::Summary,
-                        cap,
-                    }
-                }
-            };
-            let overlay = match bogae_overlay {
-                Some(value) => match cli::bogae::OverlayConfig::from_csv(&value) {
-                    Ok(config) => config,
-                    Err(message) => {
-                        eprintln!("E_CLI_BOGAE_OVERLAY {}", message);
-                        std::process::exit(1);
-                    }
-                },
-                None => cli::bogae::OverlayConfig::empty(),
-            };
-            let bogae_codec = match bogae_codec {
-                cli::bogae::BogaeCodec::Bdl1 => crate::core::bogae::BogaeCodec::Bdl1,
-                cli::bogae::BogaeCodec::Bdl2 => crate::core::bogae::BogaeCodec::Bdl2,
-            };
-            let mut console_config =
-                cli::bogae_console::ConsoleRenderConfig::with_cell_aspect(console_cell_aspect);
-            console_config.panel_cols = console_panel_cols;
-            if let Some((cols, rows)) = console_grid {
-                console_config.grid_cols = Some(cols);
-                console_config.grid_rows = Some(rows);
-            }
-            let run_command = Some(build_command_string());
-            let options = cli::run::RunOptions {
+            let mut emitter = cli::run::StdoutRunEmitter;
+            let run_args = RunCommandArgs {
+                file,
+                madi,
+                seed,
+                age_target,
+                state,
+                state_file,
                 diag_jsonl,
+                enable_repro,
                 repro_json,
+                run_manifest,
+                artifact,
                 trace_json,
                 geoul_out,
                 geoul_record_out,
-                trace_tier: trace_tier.to_core(),
-                bogae_mode: bogae,
+                trace_tier,
+                lang_mode,
+                bogae,
                 bogae_codec,
                 bogae_out,
                 bogae_skin,
-                overlay,
-                cmd_policy,
+                bogae_overlay,
+                bogae_cmd_policy,
+                bogae_cmd_cap,
                 bogae_cache_log,
                 bogae_live,
-                console_config,
+                console_cell_aspect,
+                console_grid,
+                console_panel_cols,
                 until_gameover,
                 gameover_key,
-                sam_path: sam,
-                record_sam_path: record_sam,
+                sam,
+                record_sam,
                 sam_live,
                 sam_live_host,
                 sam_live_port,
                 madi_hz,
-                open_mode: open_mode.map(|mode| mode.to_runtime()),
+                open_mode,
                 open_log,
                 open_bundle,
                 no_open,
                 unsafe_open,
-                run_manifest,
-                artifact_pins,
-                run_command,
-                init_state: state,
-                init_state_files: state_file,
+                run_command_override: None,
             };
-            if let Err(err) = cli::run::run_file(&file, madi, seed, options) {
-                eprintln!("{}", err);
+            if let Err(err) = execute_run_command(run_args, &mut emitter) {
+                emitter.err(&err);
                 std::process::exit(1);
             }
         }
@@ -1149,10 +1292,72 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Test { file, threads, out } => {
-            if let Err(err) = cli::test::run_realms_test(&file, threads, out.as_deref()) {
-                eprintln!("{}", err);
+        Commands::Test {
+            file,
+            threads,
+            out,
+            smoke,
+            golden,
+            pack,
+            all,
+            record,
+            update,
+            skip_ui_common,
+            skip_wrapper,
+        } => {
+            if smoke && golden {
+                eprintln!("E_TEST_MODE_CONFLICT --smoke 와 --golden 은 동시에 사용할 수 없습니다.");
                 std::process::exit(1);
+            }
+            if smoke || golden {
+                if file.is_some() {
+                    eprintln!("E_TEST_FILE_CONFLICT --smoke/--golden 모드에서는 file 위치 인자를 사용하지 않습니다.");
+                    std::process::exit(1);
+                }
+                if smoke {
+                    if all || record {
+                        eprintln!("E_TEST_SMOKE_OPTION --smoke 모드에서는 --all/--record 를 사용할 수 없습니다.");
+                        std::process::exit(1);
+                    }
+                    let options = cli::test::SmokeRunnerOptions {
+                        packs: pack,
+                        update,
+                        skip_ui_common,
+                        skip_wrapper,
+                    };
+                    if let Err(err) = cli::test::run_wasm_smoke_runner(options) {
+                        eprintln!("{}", err);
+                        std::process::exit(1);
+                    }
+                } else {
+                    if skip_ui_common || skip_wrapper {
+                        eprintln!("E_TEST_GOLDEN_OPTION --golden 모드에서는 --skip-ui-common/--skip-wrapper 를 사용할 수 없습니다.");
+                        std::process::exit(1);
+                    }
+                    let options = cli::test::GoldenRunnerOptions {
+                        packs: pack,
+                        all,
+                        record,
+                        update,
+                    };
+                    if let Err(err) = cli::test::run_pack_golden_runner(options) {
+                        eprintln!("{}", err);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let Some(file) = file else {
+                    eprintln!("E_TEST_FILE_REQUIRED 기본 test 모드에서는 file 위치 인자가 필요합니다.");
+                    std::process::exit(1);
+                };
+                if all || record || update || skip_ui_common || skip_wrapper || !pack.is_empty() {
+                    eprintln!("E_TEST_OPTION_INVALID 기본 test 모드에서는 --all/--record/--update/--pack/--skip-* 옵션을 사용할 수 없습니다.");
+                    std::process::exit(1);
+                }
+                if let Err(err) = cli::test::run_realms_test(&file, threads, out.as_deref()) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
             }
         }
         Commands::Warp { command } => match command {
@@ -1196,6 +1401,12 @@ fn main() {
         }
         Commands::Repl => {
             if let Err(err) = cli::repl::repl() {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
+        }
+        Commands::Worker => {
+            if let Err(err) = cli::worker::run() {
                 eprintln!("{}", err);
                 std::process::exit(1);
             }
@@ -1853,11 +2064,12 @@ fn parse_console_grid(input: Option<&str>) -> Result<Option<(usize, usize)>, Str
 }
 
 fn build_command_string() -> String {
-    let mut parts = Vec::new();
-    for arg in env::args() {
-        parts.push(shell_quote_arg(&arg));
-    }
-    parts.join(" ")
+    let parts = env::args().collect::<Vec<_>>();
+    build_command_string_from_parts(&parts)
+}
+
+pub(crate) fn build_command_string_from_parts(parts: &[String]) -> String {
+    parts.iter().map(|arg| shell_quote_arg(arg)).collect::<Vec<_>>().join(" ")
 }
 
 fn shell_quote_arg(arg: &str) -> String {

@@ -56,6 +56,25 @@ impl OpenLogError {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct OpenDiagConfig {
+    path: PathBuf,
+    run_id: String,
+    det_tier: String,
+    trace_tier: String,
+}
+
+impl OpenDiagConfig {
+    pub fn new(path: PathBuf, run_id: String, det_tier: String, trace_tier: String) -> Self {
+        Self {
+            path,
+            run_id,
+            det_tier,
+            trace_tier,
+        }
+    }
+}
+
 pub struct OpenRuntime {
     mode: OpenMode,
     #[allow(dead_code)]
@@ -64,6 +83,9 @@ pub struct OpenRuntime {
     replay: BTreeMap<OpenKey, VecDeque<OpenValue>>,
     allow: BTreeMap<String, ()>,
     policy: Option<OpenPolicy>,
+    diag: Option<OpenDiagConfig>,
+    open_seq: u64,
+    current_tick: u64,
 }
 
 impl OpenRuntime {
@@ -75,6 +97,9 @@ impl OpenRuntime {
             replay: BTreeMap::new(),
             allow: BTreeMap::new(),
             policy: None,
+            diag: None,
+            open_seq: 0,
+            current_tick: 0,
         }
     }
 
@@ -96,6 +121,9 @@ impl OpenRuntime {
                 replay: BTreeMap::new(),
                 allow,
                 policy,
+                diag: None,
+                open_seq: 0,
+                current_tick: 0,
             });
         }
         let path = log_path.ok_or_else(|| OpenLogError::Parse {
@@ -118,6 +146,9 @@ impl OpenRuntime {
                     replay: BTreeMap::new(),
                     allow,
                     policy,
+                    diag: None,
+                    open_seq: 0,
+                    current_tick: 0,
                 })
             }
             OpenMode::Replay => {
@@ -129,6 +160,9 @@ impl OpenRuntime {
                     replay,
                     allow,
                     policy,
+                    diag: None,
+                    open_seq: 0,
+                    current_tick: 0,
                 })
             }
             OpenMode::Deny => Ok(Self::deny()),
@@ -140,15 +174,32 @@ impl OpenRuntime {
         self.mode
     }
 
+    pub fn configure_diag(&mut self, config: OpenDiagConfig) {
+        self.diag = Some(config);
+    }
+
+    pub fn set_tick(&mut self, tick: u64) {
+        self.current_tick = tick;
+    }
+
     pub fn open_clock(&mut self, site_id: &str, span: Span) -> Result<Value, RuntimeError> {
-        self.ensure_policy_allows("clock", span)?;
+        let open_seq = self.next_open_seq();
+        if !self.policy_allows("clock") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "clock".to_string(),
+                span,
+            };
+            self.record_diag("clock", site_id, "now", None, "deny", Some(err.code()), open_seq, span)?;
+            return Err(err);
+        }
         self.warn_not_declared("clock", site_id);
-        match self.mode {
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
             OpenMode::Deny => Err(RuntimeError::OpenDenied {
                 open_kind: "clock".to_string(),
                 span,
             }),
-            OpenMode::Record => {
+            OpenMode::Record => (|| {
                 let unix_sec = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .map_err(|e| RuntimeError::OpenIo {
@@ -160,15 +211,20 @@ impl OpenRuntime {
                     "schema": "open.clock.v1",
                     "unix_sec": unix_sec,
                 });
-                self.append_event("clock", site_id, "now", &value_json, span)?;
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("clock", site_id, "now", &value_json, &detjson_hash, span)?;
                 Ok(Value::Pack(clock_pack(unix_sec)))
-            }
-            OpenMode::Replay => {
+            })(),
+            OpenMode::Replay => (|| {
                 let value = self.take_replay("clock", site_id, "now", span)?;
+                value_hash = Some(value.detjson_hash.clone());
                 let unix_sec = parse_unix_sec(&value.value, span)?;
                 Ok(Value::Pack(clock_pack(unix_sec)))
-            }
-        }
+            })(),
+        };
+        self.finish_diag("clock", site_id, "now", value_hash.as_deref(), &result, open_seq, span)?;
+        result
     }
 
     pub fn open_file_read(
@@ -177,15 +233,24 @@ impl OpenRuntime {
         path: &str,
         span: Span,
     ) -> Result<Value, RuntimeError> {
-        self.ensure_policy_allows("file_read", span)?;
+        let open_seq = self.next_open_seq();
         let (key, fs_path) = normalize_open_path(path);
+        if !self.policy_allows("file_read") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "file_read".to_string(),
+                span,
+            };
+            self.record_diag("file_read", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            return Err(err);
+        }
         self.warn_not_declared("file_read", site_id);
-        match self.mode {
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
             OpenMode::Deny => Err(RuntimeError::OpenDenied {
                 open_kind: "file_read".to_string(),
                 span,
             }),
-            OpenMode::Record => {
+            OpenMode::Record => (|| {
                 let text = fs::read_to_string(&fs_path).map_err(|e| RuntimeError::OpenIo {
                     message: format!("파일 읽기 실패: {} ({})", fs_path.display(), e),
                     span,
@@ -194,26 +259,40 @@ impl OpenRuntime {
                     "schema": "open.file_read.v1",
                     "text": text,
                 });
-                self.append_event("file_read", site_id, &key, &value_json, span)?;
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("file_read", site_id, &key, &value_json, &detjson_hash, span)?;
                 Ok(Value::Str(text))
-            }
-            OpenMode::Replay => {
+            })(),
+            OpenMode::Replay => (|| {
                 let value = self.take_replay("file_read", site_id, &key, span)?;
+                value_hash = Some(value.detjson_hash.clone());
                 let text = parse_text(&value.value, span)?;
                 Ok(Value::Str(text))
-            }
-        }
+            })(),
+        };
+        self.finish_diag("file_read", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        result
     }
 
     pub fn open_rand(&mut self, site_id: &str, span: Span) -> Result<Value, RuntimeError> {
-        self.ensure_policy_allows("rand", span)?;
+        let open_seq = self.next_open_seq();
+        if !self.policy_allows("rand") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "rand".to_string(),
+                span,
+            };
+            self.record_diag("rand", site_id, "rng", None, "deny", Some(err.code()), open_seq, span)?;
+            return Err(err);
+        }
         self.warn_not_declared("rand", site_id);
-        match self.mode {
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
             OpenMode::Deny => Err(RuntimeError::OpenDenied {
                 open_kind: "rand".to_string(),
                 span,
             }),
-            OpenMode::Record => {
+            OpenMode::Record => (|| {
                 let nanos = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .map_err(|e| RuntimeError::OpenIo {
@@ -231,21 +310,26 @@ impl OpenRuntime {
                     "schema": "open.rand.v1",
                     "value": value,
                 });
-                self.append_event("rand", site_id, "rng", &value_json, span)?;
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("rand", site_id, "rng", &value_json, &detjson_hash, span)?;
                 Ok(Value::Num(Quantity::new(
                     Fixed64::from_int(value),
                     UnitDim::zero(),
                 )))
-            }
-            OpenMode::Replay => {
+            })(),
+            OpenMode::Replay => (|| {
                 let value = self.take_replay("rand", site_id, "rng", span)?;
+                value_hash = Some(value.detjson_hash.clone());
                 let value = parse_rand_value(&value.value, span)?;
                 Ok(Value::Num(Quantity::new(
                     Fixed64::from_int(value),
                     UnitDim::zero(),
                 )))
-            }
-        }
+            })(),
+        };
+        self.finish_diag("rand", site_id, "rng", value_hash.as_deref(), &result, open_seq, span)?;
+        result
     }
 
     pub fn open_net(
@@ -257,14 +341,24 @@ impl OpenRuntime {
         response: Option<&str>,
         span: Span,
     ) -> Result<Value, RuntimeError> {
-        self.ensure_policy_allows("net", span)?;
+        let open_seq = self.next_open_seq();
+        let key = build_open_net_key(method, url, body);
+        if !self.policy_allows("net") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "net".to_string(),
+                span,
+            };
+            self.record_diag("net", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            return Err(err);
+        }
         self.warn_not_declared("net", site_id);
-        match self.mode {
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
             OpenMode::Deny => Err(RuntimeError::OpenDenied {
                 open_kind: "net".to_string(),
                 span,
             }),
-            OpenMode::Record => {
+            OpenMode::Record => (|| {
                 let Some(response) = response else {
                     return Err(RuntimeError::OpenIo {
                         message: "open.net 기록에는 응답이 필요합니다".to_string(),
@@ -272,15 +366,20 @@ impl OpenRuntime {
                     });
                 };
                 let value_json = build_open_net_value(url, method, body, response);
-                self.append_event("net", site_id, url, &value_json, span)?;
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("net", site_id, &key, &value_json, &detjson_hash, span)?;
                 Ok(Value::Str(response.to_string()))
-            }
-            OpenMode::Replay => {
-                let value = self.take_replay("net", site_id, url, span)?;
+            })(),
+            OpenMode::Replay => (|| {
+                let value = self.take_replay("net", site_id, &key, span)?;
+                value_hash = Some(value.detjson_hash.clone());
                 let text = parse_open_net_text(&value.value, span)?;
                 Ok(Value::Str(text))
-            }
-        }
+            })(),
+        };
+        self.finish_diag("net", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        result
     }
 
     pub fn open_ffi(
@@ -291,15 +390,24 @@ impl OpenRuntime {
         result: Option<&str>,
         span: Span,
     ) -> Result<Value, RuntimeError> {
-        self.ensure_policy_allows("ffi", span)?;
-        self.warn_not_declared("ffi", site_id);
+        let open_seq = self.next_open_seq();
         let key = build_open_ffi_key(name, args);
-        match self.mode {
+        if !self.policy_allows("ffi") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "ffi".to_string(),
+                span,
+            };
+            self.record_diag("ffi", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            return Err(err);
+        }
+        self.warn_not_declared("ffi", site_id);
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
             OpenMode::Deny => Err(RuntimeError::OpenDenied {
                 open_kind: "ffi".to_string(),
                 span,
             }),
-            OpenMode::Record => {
+            OpenMode::Record => (|| {
                 let Some(result) = result else {
                     return Err(RuntimeError::OpenIo {
                         message: "open.ffi 기록에는 결과가 필요합니다".to_string(),
@@ -307,15 +415,20 @@ impl OpenRuntime {
                     });
                 };
                 let value_json = build_open_ffi_value(name, args, result);
-                self.append_event("ffi", site_id, &key, &value_json, span)?;
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("ffi", site_id, &key, &value_json, &detjson_hash, span)?;
                 Ok(Value::Str(result.to_string()))
-            }
-            OpenMode::Replay => {
+            })(),
+            OpenMode::Replay => (|| {
                 let value = self.take_replay("ffi", site_id, &key, span)?;
+                value_hash = Some(value.detjson_hash.clone());
                 let text = parse_open_ffi_result(&value.value, span)?;
                 Ok(Value::Str(text))
-            }
-        }
+            })(),
+        };
+        self.finish_diag("ffi", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        result
     }
 
     pub fn open_gpu(
@@ -326,14 +439,24 @@ impl OpenRuntime {
         result: Option<&str>,
         span: Span,
     ) -> Result<Value, RuntimeError> {
-        self.ensure_policy_allows("gpu", span)?;
+        let open_seq = self.next_open_seq();
+        let key = build_open_gpu_key(kernel, payload);
+        if !self.policy_allows("gpu") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "gpu".to_string(),
+                span,
+            };
+            self.record_diag("gpu", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            return Err(err);
+        }
         self.warn_not_declared("gpu", site_id);
-        match self.mode {
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
             OpenMode::Deny => Err(RuntimeError::OpenDenied {
                 open_kind: "gpu".to_string(),
                 span,
             }),
-            OpenMode::Record => {
+            OpenMode::Record => (|| {
                 let Some(result) = result else {
                     return Err(RuntimeError::OpenIo {
                         message: "open.gpu 기록에는 결과가 필요합니다".to_string(),
@@ -341,15 +464,20 @@ impl OpenRuntime {
                     });
                 };
                 let value_json = build_open_gpu_value(kernel, payload, result);
-                self.append_event("gpu", site_id, kernel, &value_json, span)?;
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("gpu", site_id, &key, &value_json, &detjson_hash, span)?;
                 Ok(Value::Str(result.to_string()))
-            }
-            OpenMode::Replay => {
-                let value = self.take_replay("gpu", site_id, kernel, span)?;
+            })(),
+            OpenMode::Replay => (|| {
+                let value = self.take_replay("gpu", site_id, &key, span)?;
+                value_hash = Some(value.detjson_hash.clone());
                 let text = parse_open_gpu_result(&value.value, span)?;
                 Ok(Value::Str(text))
-            }
-        }
+            })(),
+        };
+        self.finish_diag("gpu", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        result
     }
 
     fn append_event(
@@ -358,6 +486,7 @@ impl OpenRuntime {
         site_id: &str,
         key: &str,
         value: &JsonValue,
+        detjson_hash: &str,
         span: Span,
     ) -> Result<(), RuntimeError> {
         let Some(file) = self.record_out.as_mut() else {
@@ -366,11 +495,9 @@ impl OpenRuntime {
                 span,
             });
         };
-        let detjson_text = serde_json::to_string(value).map_err(|e| RuntimeError::OpenIo {
-            message: format!("open.log value 직렬화 실패: {}", e),
-            span,
-        })?;
-        let detjson_hash = format!("sha256:{}", sha256_hex(detjson_text.as_bytes()));
+        if site_id == "unknown" {
+            return Err(RuntimeError::OpenSiteUnknown { span });
+        }
         let event = serde_json::json!({
             "event_kind": "open",
             "open_kind": open_kind,
@@ -454,17 +581,111 @@ impl OpenRuntime {
         );
     }
 
-    fn ensure_policy_allows(&self, open_kind: &str, span: Span) -> Result<(), RuntimeError> {
+    fn policy_allows(&self, open_kind: &str) -> bool {
         let Some(policy) = &self.policy else {
+            return true;
+        };
+        policy.allows(open_kind)
+    }
+
+    fn next_open_seq(&mut self) -> u64 {
+        self.open_seq = self.open_seq.saturating_add(1);
+        self.open_seq
+    }
+
+    fn finish_diag(
+        &mut self,
+        open_kind: &str,
+        site_id: &str,
+        key: &str,
+        value_hash: Option<&str>,
+        result: &Result<Value, RuntimeError>,
+        open_seq: u64,
+        span: Span,
+    ) -> Result<(), RuntimeError> {
+        let (result_label, diag_code) = match result {
+            Ok(_) => ("ok", None),
+            Err(err) => {
+                let label = match err {
+                    RuntimeError::OpenDenied { .. } => "deny",
+                    _ => "fault",
+                };
+                (label, Some(err.code()))
+            }
+        };
+        self.record_diag(open_kind, site_id, key, value_hash, result_label, diag_code, open_seq, span)
+    }
+
+    fn record_diag(
+        &mut self,
+        open_kind: &str,
+        site_id: &str,
+        key: &str,
+        value_hash: Option<&str>,
+        result: &str,
+        diag_code: Option<&str>,
+        open_seq: u64,
+        span: Span,
+    ) -> Result<(), RuntimeError> {
+        let Some(diag) = &self.diag else {
             return Ok(());
         };
-        if policy.allows(open_kind) {
-            return Ok(());
+        if let Some(parent) = diag.path.parent() {
+            fs::create_dir_all(parent).map_err(|e| RuntimeError::OpenIo {
+                message: format!("geoul.diag 생성 실패: {} ({})", diag.path.display(), e),
+                span,
+            })?;
         }
-        Err(RuntimeError::OpenDenied {
-            open_kind: open_kind.to_string(),
+        let key_hash = format!("sha256:{}", sha256_hex(key.as_bytes()));
+        let open_kind = diag_open_kind(open_kind);
+        let mut obj = serde_json::Map::new();
+        obj.insert("run_id".to_string(), JsonValue::String(diag.run_id.clone()));
+        obj.insert(
+            "tick".to_string(),
+            JsonValue::Number(serde_json::Number::from(self.current_tick)),
+        );
+        obj.insert(
+            "open_seq".to_string(),
+            JsonValue::Number(serde_json::Number::from(open_seq)),
+        );
+        obj.insert("open_kind".to_string(), JsonValue::String(open_kind.to_string()));
+        obj.insert("site_id".to_string(), JsonValue::String(site_id.to_string()));
+        obj.insert("key_hash".to_string(), JsonValue::String(key_hash));
+        match value_hash {
+            Some(value) => obj.insert("value_hash".to_string(), JsonValue::String(value.to_string())),
+            None => obj.insert("value_hash".to_string(), JsonValue::Null),
+        };
+        obj.insert("result".to_string(), JsonValue::String(result.to_string()));
+        obj.insert("det_tier".to_string(), JsonValue::String(diag.det_tier.clone()));
+        obj.insert("trace_tier".to_string(), JsonValue::String(diag.trace_tier.clone()));
+        if let Some(code) = diag_code {
+            obj.insert("diag_code".to_string(), JsonValue::String(code.to_string()));
+        }
+        let line = serde_json::to_string(&JsonValue::Object(obj)).map_err(|e| RuntimeError::OpenIo {
+            message: format!("geoul.diag 직렬화 실패: {}", e),
             span,
-        })
+        })?;
+        let mut file_handle = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&diag.path)
+            .map_err(|e| RuntimeError::OpenIo {
+                message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
+                span,
+            })?;
+        file_handle.write_all(line.as_bytes()).map_err(|e| RuntimeError::OpenIo {
+            message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
+            span,
+        })?;
+        file_handle.write_all(b"\n").map_err(|e| RuntimeError::OpenIo {
+            message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
+            span,
+        })?;
+        file_handle.flush().map_err(|e| RuntimeError::OpenIo {
+            message: format!("geoul.diag flush 실패: {} ({})", diag.path.display(), e),
+            span,
+        })?;
+        Ok(())
     }
 }
 
@@ -506,6 +727,26 @@ fn sha256_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     format!("{:x}", hasher.finalize())
+}
+
+fn build_detjson_hash(value: &JsonValue, span: Span) -> Result<String, RuntimeError> {
+    let detjson_text = serde_json::to_string(value).map_err(|e| RuntimeError::OpenIo {
+        message: format!("open.log value 직렬화 실패: {}", e),
+        span,
+    })?;
+    Ok(format!("sha256:{}", sha256_hex(detjson_text.as_bytes())))
+}
+
+fn diag_open_kind(open_kind: &str) -> &'static str {
+    match open_kind {
+        "clock" => "open.clock",
+        "file_read" => "open.file_read",
+        "rand" => "open.rand",
+        "net" => "open.net",
+        "ffi" => "open.ffi",
+        "gpu" => "open.gpu",
+        _ => "open.unknown",
+    }
 }
 
 fn load_replay_log(path: &Path) -> Result<BTreeMap<OpenKey, VecDeque<OpenValue>>, OpenLogError> {
@@ -699,6 +940,16 @@ fn build_open_net_value(url: &str, method: &str, body: Option<&str>, response: &
     JsonValue::Object(obj)
 }
 
+fn build_open_net_key(method: &str, url: &str, body: Option<&str>) -> String {
+    let mut key = format!("{} {}", method, url);
+    if let Some(body) = body {
+        let digest = blake3::hash(body.as_bytes()).to_hex();
+        key.push_str(" body_b3:");
+        key.push_str(digest.as_str());
+    }
+    key
+}
+
 fn parse_open_net_text(value: &JsonValue, span: Span) -> Result<String, RuntimeError> {
     let Some(obj) = value.as_object() else {
         return Err(RuntimeError::OpenReplayInvalid {
@@ -719,10 +970,10 @@ fn parse_open_net_text(value: &JsonValue, span: Span) -> Result<String, RuntimeE
             span,
         });
     }
-    let text = obj.get("text").and_then(|v| v.as_str()).ok_or(RuntimeError::OpenReplayInvalid {
-        message: "open.net text 누락".to_string(),
-        span,
-    })?;
+    require_string_field(obj, "open.net", "url", span)?;
+    require_string_field(obj, "open.net", "method", span)?;
+    optional_string_field(obj, "open.net", "body", span)?;
+    let text = require_string_field(obj, "open.net", "text", span)?;
     Ok(text.to_string())
 }
 
@@ -768,13 +1019,9 @@ fn parse_open_ffi_result(value: &JsonValue, span: Span) -> Result<String, Runtim
             span,
         });
     }
-    let text = obj
-        .get("result")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.ffi result 누락".to_string(),
-            span,
-        })?;
+    require_string_field(obj, "open.ffi", "name", span)?;
+    optional_string_array_field(obj, "open.ffi", "args", span)?;
+    let text = require_string_field(obj, "open.ffi", "result", span)?;
     Ok(text.to_string())
 }
 
@@ -787,6 +1034,16 @@ fn build_open_gpu_value(kernel: &str, payload: Option<&str>, result: &str) -> Js
     }
     obj.insert("result".to_string(), JsonValue::String(result.to_string()));
     JsonValue::Object(obj)
+}
+
+fn build_open_gpu_key(kernel: &str, payload: Option<&str>) -> String {
+    let mut key = kernel.to_string();
+    if let Some(payload) = payload {
+        let digest = blake3::hash(payload.as_bytes()).to_hex();
+        key.push_str(" payload_b3:");
+        key.push_str(digest.as_str());
+    }
+    key
 }
 
 fn parse_open_gpu_result(value: &JsonValue, span: Span) -> Result<String, RuntimeError> {
@@ -809,14 +1066,75 @@ fn parse_open_gpu_result(value: &JsonValue, span: Span) -> Result<String, Runtim
             span,
         });
     }
-    let text = obj
-        .get("result")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.gpu result 누락".to_string(),
-            span,
-        })?;
+    require_string_field(obj, "open.gpu", "kernel", span)?;
+    optional_string_field(obj, "open.gpu", "payload", span)?;
+    let text = require_string_field(obj, "open.gpu", "result", span)?;
     Ok(text.to_string())
+}
+
+fn require_string_field<'a>(
+    obj: &'a serde_json::Map<String, JsonValue>,
+    label: &str,
+    key: &str,
+    span: Span,
+) -> Result<&'a str, RuntimeError> {
+    let Some(value) = obj.get(key) else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {} 누락", label, key),
+            span,
+        });
+    };
+    let Some(text) = value.as_str() else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {}은 문자열이어야 합니다", label, key),
+            span,
+        });
+    };
+    Ok(text)
+}
+
+fn optional_string_field(
+    obj: &serde_json::Map<String, JsonValue>,
+    label: &str,
+    key: &str,
+    span: Span,
+) -> Result<Option<String>, RuntimeError> {
+    let Some(value) = obj.get(key) else {
+        return Ok(None);
+    };
+    let Some(text) = value.as_str() else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {}은 문자열이어야 합니다", label, key),
+            span,
+        });
+    };
+    Ok(Some(text.to_string()))
+}
+
+fn optional_string_array_field(
+    obj: &serde_json::Map<String, JsonValue>,
+    label: &str,
+    key: &str,
+    span: Span,
+) -> Result<(), RuntimeError> {
+    let Some(value) = obj.get(key) else {
+        return Ok(());
+    };
+    let Some(array) = value.as_array() else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {}는 배열이어야 합니다", label, key),
+            span,
+        });
+    };
+    for item in array {
+        if !item.is_string() {
+            return Err(RuntimeError::OpenReplayInvalid {
+                message: format!("{} {} 항목은 문자열이어야 합니다", label, key),
+                span,
+            });
+        }
+    }
+    Ok(())
 }
 
 fn normalize_open_key(path: &str) -> String {

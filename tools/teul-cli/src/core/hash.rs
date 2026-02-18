@@ -3,7 +3,7 @@ use blake3;
 use crate::core::detbin::{encode_state, encode_trace_bundle, TraceMeta};
 use crate::core::{State, Trace};
 
-pub const SSOT_VERSION: &str = "20.3.1";
+pub const SSOT_VERSION: &str = "20.6.6";
 
 pub fn state_hash(state: &State) -> String {
     hash_bytes(&encode_state(state))

@@ -8,6 +8,7 @@
 
 use blake3::Hasher;
 use std::collections::BTreeMap;
+use std::fs;
 use ddonirang_core::NuriWorld;
 
 // ============================================================================
@@ -417,7 +418,7 @@ impl DetCert {
 /// ddonirang-tool의 증거 관련 명령
 pub enum ProofCommand {
     /// 상태 해시 출력
-    StateHash { _input_file: String },
+    StateHash { input_file: String },
     
     /// 리플레이 검증
     Replay {
@@ -437,9 +438,15 @@ pub struct ProofTool;
 impl ProofTool {
     pub fn execute(cmd: ProofCommand) -> Result<String, String> {
         match cmd {
-            ProofCommand::StateHash { _input_file } => {
-                // TODO: 파일 로드 후 해시 계산
-                Ok("state_hash: 0x...".to_string())
+            ProofCommand::StateHash { input_file } => {
+                let bytes = fs::read(&input_file).map_err(|err| {
+                    format!(
+                        "상태 해시 입력 파일을 읽을 수 없습니다: {} ({})",
+                        input_file, err
+                    )
+                })?;
+                let digest = blake3::hash(&bytes).to_hex();
+                Ok(format!("state_hash: blake3:{digest}"))
             }
             ProofCommand::Replay { .. } => { 
                 // 현재 구현되지 않은 기능이므로 아무것도 하지 않음
@@ -457,6 +464,8 @@ impl ProofTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
     
     #[test]
     fn test_state_hash_determinism() {
@@ -533,5 +542,39 @@ mod tests {
         let hash = state_hash_world(&world);
         let core_hash = world.state_hash();
         assert_eq!(hash.as_bytes(), core_hash.as_bytes());
+    }
+
+    #[test]
+    fn test_proof_tool_state_hash_hashes_input_file() {
+        let path = unique_temp_file("proof_tool_state_hash");
+        let bytes = b"ddn-proof-input";
+        fs::write(&path, bytes).expect("write state hash input");
+
+        let output = ProofTool::execute(ProofCommand::StateHash {
+            input_file: path.to_string_lossy().to_string(),
+        })
+        .expect("state hash command");
+        let expected = format!("state_hash: blake3:{}", blake3::hash(bytes).to_hex());
+        assert_eq!(output, expected);
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_proof_tool_state_hash_missing_file_returns_error() {
+        let path = unique_temp_file("proof_tool_state_hash_missing");
+        let err = ProofTool::execute(ProofCommand::StateHash {
+            input_file: path.to_string_lossy().to_string(),
+        })
+        .expect_err("missing input should fail");
+        assert!(err.contains("읽을 수 없습니다"));
+    }
+
+    fn unique_temp_file(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}_{}_{}.txt", std::process::id(), nanos))
     }
 }

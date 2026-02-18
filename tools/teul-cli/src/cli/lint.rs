@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
+use crate::lang::dialect::DialectConfig;
 use crate::lang::lexer::Lexer;
 use crate::lang::token::TokenKind;
 
@@ -53,6 +54,7 @@ struct LineChange {
 
 pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), String> {
     let source = fs::read_to_string(file).map_err(|e| format!("E_LINT_READ {}", e))?;
+    let dialect = DialectConfig::from_source(&source);
     let tokens = Lexer::tokenize(&source).map_err(|e| format!("{} lint 실패", e.code()))?;
 
     let lines: Vec<String> = source.lines().map(|line| line.to_string()).collect();
@@ -61,11 +63,18 @@ pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), S
         *line_counts.entry(line.clone()).or_insert(0) += 1;
     }
 
+    let mut warnings: Vec<String> = Vec::new();
     let mut by_line: BTreeMap<usize, Vec<Replacement>> = BTreeMap::new();
     for token in tokens {
         let TokenKind::Ident(name) = &token.kind else {
             continue;
         };
+        if dialect.is_inactive_keyword(name) {
+            warnings.push(format!(
+                "DIALECT_TOKEN_NOT_ACTIVE line={} col={} token={}",
+                token.span.start_line, token.span.start_col, name
+            ));
+        }
         let Some(term) = find_legacy_term(name.as_str()) else {
             continue;
         };
@@ -85,7 +94,6 @@ pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), S
     }
 
     let mut changes: Vec<serde_json::Value> = Vec::new();
-    let mut warnings: Vec<String> = Vec::new();
     let file_label = file.to_string_lossy().to_string();
 
     for (line_idx, replacements) in by_line {

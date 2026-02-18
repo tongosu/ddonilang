@@ -5,6 +5,7 @@ use ddonirang_core::{
     ArithmeticFaultKind, ExprTrace, FaultContext, Fixed64, InputSnapshot, ResourceHandle, Signal,
     SourceSpan, UnitDim, UnitError, UnitValue, unit_spec_from_symbol,
 };
+use libm;
 use ddonirang_core::signals::DiagEvent;
 use crate::gate0_registry;
 use crate::preprocess::{preprocess_source_for_parse, split_file_meta, FileMeta};
@@ -12,19 +13,44 @@ use ddonirang_core::platform::{
     EntityId, NuriWorld, Origin, Patch, PatchOp, ResourceMapEntry, ResourceValue,
 };
 use ddonirang_lang::{
-    canonicalize, parse, AtSuffix, Body, CanonProgram, Expr, ExprKind, Formula, FormulaDialect,
-    Literal, ParamPin, ParseError, SeedDef, SeedKind, Stmt, TemplateFormat, TemplatePart, TypeRef,
+    canonicalize, parse_with_mode, AtSuffix, Body, CanonProgram, Expr, ExprKind, Formula,
+    FormulaDialect, Literal, ParamPin, ParseError, ParseMode, SeedDef, SeedKind, Stmt,
+    TemplateFormat, TemplatePart, TypeRef,
 };
 use ddonirang_lang::runtime::{
     input_just_pressed, input_pressed, list_add, list_len, list_nth, list_remove, list_set,
+    map_get, map_key_canon,
     string_concat, string_contains, string_ends, string_join, string_len, string_split, string_starts,
     string_to_number, InputState, LambdaValue, MapEntry, RuntimeError, Value,
 };
 
 static LAMBDA_SEQ: AtomicU64 = AtomicU64::new(1);
+static DEFAULT_PARSE_MODE: AtomicU64 = AtomicU64::new(0);
 
 fn next_lambda_id() -> u64 {
     LAMBDA_SEQ.fetch_add(1, Ordering::Relaxed)
+}
+
+fn encode_parse_mode(mode: ParseMode) -> u64 {
+    match mode {
+        ParseMode::Compat => 0,
+        ParseMode::Strict => 1,
+    }
+}
+
+fn decode_parse_mode(value: u64) -> ParseMode {
+    match value {
+        1 => ParseMode::Strict,
+        _ => ParseMode::Compat,
+    }
+}
+
+pub fn default_parse_mode() -> ParseMode {
+    decode_parse_mode(DEFAULT_PARSE_MODE.load(Ordering::Relaxed))
+}
+
+pub fn set_default_parse_mode(mode: ParseMode) {
+    DEFAULT_PARSE_MODE.store(encode_parse_mode(mode), Ordering::Relaxed);
 }
 
 #[derive(Clone)]
@@ -38,10 +64,18 @@ pub struct DdnProgram {
 
 impl DdnProgram {
     pub fn from_source(source: &str, file_path: &str) -> Result<Self, String> {
+        Self::from_source_with_mode(source, file_path, default_parse_mode())
+    }
+
+    pub fn from_source_with_mode(
+        source: &str,
+        file_path: &str,
+        mode: ParseMode,
+    ) -> Result<Self, String> {
         let meta_parse = split_file_meta(source);
         let cleaned = preprocess_source_for_parse(&meta_parse.stripped)?;
-        let mut program =
-            parse(&cleaned, file_path).map_err(|e| format_parse_error(&cleaned, &e))?;
+        let mut program = parse_with_mode(&cleaned, file_path, mode)
+            .map_err(|e| format_parse_error(&cleaned, &e))?;
         let _report =
             canonicalize(&mut program).map_err(|e| format_parse_error(&cleaned, &e))?;
         let mut functions = HashMap::new();
@@ -104,11 +138,16 @@ impl DdnRunner {
         );
         ctx.resources
             .insert("입력키".to_string(), Value::String(input.last_key_name.clone()));
-        let update = ctx
-            .program
-            .functions
-            .get(&self.update_name)
-            .ok_or_else(|| format!("업데이트 함수 '{}'를 찾을 수 없습니다", self.update_name))?;
+        let update = if let Some(update) = ctx.program.functions.get(&self.update_name) {
+            update
+        } else if self.update_name == "매마디" {
+            ctx.program
+                .functions
+                .get("매틱")
+                .ok_or_else(|| format!("업데이트 함수 '{}'를 찾을 수 없습니다", self.update_name))?
+        } else {
+            return Err(format!("업데이트 함수 '{}'를 찾을 수 없습니다", self.update_name));
+        };
         ctx.eval_seed(update, Vec::new())
             .map_err(|err| err.to_string())?;
         Ok(DdnRunOutput {
@@ -118,6 +157,11 @@ impl DdnRunner {
             },
             resources: ctx.resources,
         })
+    }
+
+    #[allow(dead_code)]
+    pub fn reset_transient_state(&mut self) {
+        self.prev_keys_pressed = 0;
     }
 }
 
@@ -389,6 +433,7 @@ impl<'a> EvalContext<'a> {
                 }
             }
             Stmt::Expr { expr, .. } => Ok(ThunkResult::Value(self.eval_expr(locals, expr)?)),
+            Stmt::Pragma { .. } => Ok(ThunkResult::Value(Value::None)),
             Stmt::Return { value, .. } => Ok(ThunkResult::Return(self.eval_expr(locals, value)?)),
             Stmt::If { condition, then_body, else_body, .. } => {
                 let cond = self.eval_expr(locals, condition)?;
@@ -686,6 +731,7 @@ impl<'a> EvalContext<'a> {
                 };
                 Ok(FlowControl::Continue)
             }
+            Stmt::Pragma { .. } => Ok(FlowControl::Continue),
             Stmt::Return { value, .. } => {
                 let val = self.eval_expr(locals, value)?;
                 Ok(FlowControl::Return(val))
@@ -863,16 +909,22 @@ impl<'a> EvalContext<'a> {
             }
             ExprKind::FieldAccess { target, field } => {
                 let base = self.eval_expr(locals, target)?;
-                let Value::Pack(pack) = base else {
-                    return Err("묶음 필드 접근은 묶음 값만 가능합니다".to_string().into());
-                };
-                let Some(value) = pack.get(field) else {
-                    return Err(format!("FATAL:PACK_FIELD_MISSING:{}", field).into());
-                };
-                if matches!(value, Value::None) {
-                    return Err(format!("FATAL:PACK_FIELD_NONE:{}", field).into());
+                match base {
+                    Value::Pack(pack) => {
+                        let Some(value) = pack.get(field) else {
+                            return Err(format!("FATAL:PACK_FIELD_MISSING:{}", field).into());
+                        };
+                        if matches!(value, Value::None) {
+                            return Err(format!("FATAL:PACK_FIELD_NONE:{}", field).into());
+                        }
+                        Ok(value.clone())
+                    }
+                    Value::Map(entries) => {
+                        let key = Value::String(field.clone());
+                        Ok(map_get(&entries, &key))
+                    }
+                    _ => Err("묶음/짝맞춤 필드 접근만 가능합니다".to_string().into()),
                 }
-                Ok(value.clone())
             }
             ExprKind::Call { args, func } => {
                 let mut values = Vec::with_capacity(args.len());
@@ -1020,21 +1072,7 @@ impl<'a> EvalContext<'a> {
     }
 
     fn canonicalize_stdlib_alias(name: &str) -> &str {
-        match name {
-            "갈라놓기" => "자르기",
-            "이어붙이기" => "붙이기",
-            "길이세기" => "길이",
-            "값뽑기" => "차림.값",
-            "올림" => "천장",
-            "내림" => "바닥",
-            "절댓값" => "abs",
-            "제곱근" => "sqrt",
-            "제곱" => "powi",
-            "거듭제곱" => "powi",
-            "최댓값" => "max",
-            "최솟값" => "min",
-            _ => name,
-        }
+        ddonirang_lang::stdlib::canonicalize_stdlib_alias(name)
     }
 
     fn eval_call(&mut self, func: &str, args: Vec<Value>) -> Result<Value, EvalError> {
@@ -1083,8 +1121,34 @@ impl<'a> EvalContext<'a> {
                         key: key_value.clone(),
                         value: chunk[1].clone(),
                     };
-                    entries.insert(value_canon(&key_value), entry);
+                    entries.insert(map_key_canon(&key_value), entry);
                 }
+                Ok(Value::Map(entries))
+            }
+            "짝맞춤.값" => {
+                if args.len() != 2 {
+                    return Err("짝맞춤.값은 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::Map(map) = &args[0] else {
+                    return Err("짝맞춤.값은 짝맞춤 인자가 필요합니다".to_string().into());
+                };
+                Ok(map_get(map, &args[1]))
+            }
+            "짝맞춤.바꾼값" => {
+                if args.len() != 3 {
+                    return Err("짝맞춤.바꾼값은 인자 3개를 받습니다".to_string().into());
+                }
+                let Value::Map(map) = &args[0] else {
+                    return Err("짝맞춤.바꾼값은 짝맞춤 인자가 필요합니다".to_string().into());
+                };
+                let mut entries = map.clone();
+                entries.insert(
+                    map_key_canon(&args[1]),
+                    MapEntry {
+                        key: args[1].clone(),
+                        value: args[2].clone(),
+                    },
+                );
                 Ok(Value::Map(entries))
             }
             "키목록" => {
@@ -1170,6 +1234,16 @@ impl<'a> EvalContext<'a> {
                 }
                 let value = eval_formula_expr(&parsed.expr, pack)?;
                 Ok(unit_value_to_value(value))
+            }
+            "미분하기" => {
+                let (formula, options) = expect_formula_transform(&args, "미분하기")?;
+                let transformed = transform_formula_value(formula, options, "diff", "미분하기")?;
+                Ok(Value::Formula(transformed))
+            }
+            "적분하기" => {
+                let (formula, options) = expect_formula_transform(&args, "적분하기")?;
+                let transformed = transform_formula_value(formula, options, "int", "적분하기")?;
+                Ok(Value::Formula(transformed))
             }
             "번째" => {
                 if args.len() != 2 {
@@ -1914,6 +1988,24 @@ impl<'a> EvalContext<'a> {
                 let div = l.div(r).map_err(unit_error)?;
                 Ok(unit_value_to_value(div))
             }
+            "%" => {
+                let l = unit_value_from_value(&left)?;
+                let r = unit_value_from_value(&right)?;
+                if l.dim != r.dim {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: l.dim,
+                        right: r.dim,
+                    }));
+                }
+                if r.value.raw_i64() == 0 {
+                    return Err(unit_error(UnitError::DivisionByZero));
+                }
+                let raw = l.value.raw_i64() % r.value.raw_i64();
+                Ok(unit_value_to_value(UnitValue {
+                    value: Fixed64::from_raw_i64(raw),
+                    dim: l.dim,
+                }))
+            }
             "==" | "!=" => {
                 if let (Some(l), Some(r)) = (numeric_value(&left), numeric_value(&right)) {
                     if l.dim != r.dim {
@@ -2213,10 +2305,10 @@ impl<'a> EvalContext<'a> {
                     .insert(name.to_string(), Value::ResourceHandle(handle));
             }
             Value::None => return Err("없음은 자원에 대입할 수 없습니다".to_string().into()),
-            Value::List(_) | Value::Set(_) | Value::Map(_) => {
+            Value::List(_) | Value::Set(_) | Value::Map(_) | Value::Pack(_) => {
                 if parse_resource_unit_tag(name).is_some() {
                     return Err(
-                        "단위 태그 자원에는 차림/모음/짝맞춤을 저장할 수 없습니다"
+                        "단위 태그 자원에는 차림/모음/짝맞춤/묶음을 저장할 수 없습니다"
                             .to_string()
                             .into(),
                     );
@@ -2228,7 +2320,6 @@ impl<'a> EvalContext<'a> {
                 });
                 self.resources.insert(name.to_string(), value);
             }
-            Value::Pack(_) => return Err("묶음은 자원에 대입할 수 없습니다".to_string().into()),
             Value::Formula(_) => return Err("수식은 자원에 대입할 수 없습니다".to_string().into()),
             Value::Template(_) => return Err("글무늬는 자원에 대입할 수 없습니다".to_string().into()),
             Value::Lambda(_) => return Err("씨앗은 자원에 대입할 수 없습니다".to_string().into()),
@@ -2378,6 +2469,10 @@ fn unit_error(err: UnitError) -> EvalError {
 
 fn fixed64_floor(value: Fixed64) -> Fixed64 {
     Fixed64::from_i64(value.int_part())
+}
+
+fn fixed64_to_f64(value: Fixed64) -> f64 {
+    value.raw_i64() as f64 / Fixed64::SCALE_F64
 }
 
 fn fixed64_ceil(value: Fixed64) -> Fixed64 {
@@ -2573,7 +2668,21 @@ fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> 
             }
             Ok(ResourceValue::Map(converted))
         }
-        Value::Pack(_) => Err("묶음은 자원에 대입할 수 없습니다".to_string().into()),
+        Value::Pack(entries) => {
+            let mut converted = BTreeMap::new();
+            for (key, value) in entries {
+                let entry_key = ResourceValue::String(key.clone());
+                let entry_value = resource_value_from_value(value)?;
+                converted.insert(
+                    entry_key.canon_key(),
+                    ResourceMapEntry {
+                        key: entry_key,
+                        value: entry_value,
+                    },
+                );
+            }
+            Ok(ResourceValue::Map(converted))
+        }
         Value::Formula(_) => Err("수식은 자원에 대입할 수 없습니다".to_string().into()),
         Value::Template(_) => Err("글무늬는 자원에 대입할 수 없습니다".to_string().into()),
         Value::Lambda(_) => Err("씨앗은 자원에 대입할 수 없습니다".to_string().into()),
@@ -2882,10 +2991,24 @@ struct ParsedFormula {
     vars: BTreeSet<String>,
 }
 
+#[derive(Default)]
+struct FormulaTransformOptions {
+    var_name: Option<String>,
+    order: Option<i64>,
+    include_const: Option<bool>,
+}
+
+struct FormulaAnalysis {
+    assign_name: Option<String>,
+    expr: FormulaExpr,
+    vars: BTreeSet<String>,
+}
+
 #[derive(Debug, Clone)]
 enum FormulaExpr {
     Number(UnitValue),
     Var(String),
+    Func { name: String, args: Vec<FormulaExpr> },
     Unary { op: FormulaOp, expr: Box<FormulaExpr> },
     Binary { op: FormulaOp, left: Box<FormulaExpr>, right: Box<FormulaExpr> },
 }
@@ -2896,6 +3019,7 @@ enum FormulaOp {
     Sub,
     Mul,
     Div,
+    Mod,
     Pow,
 }
 
@@ -2907,10 +3031,12 @@ enum FormulaToken {
     Minus,
     Star,
     Slash,
+    Percent,
     Caret,
     LParen,
     RParen,
     Eq,
+    Comma,
 }
 
 struct FormulaParser {
@@ -2981,6 +3107,15 @@ impl FormulaParser {
                 };
                 continue;
             }
+            if self.consume(&FormulaToken::Percent) {
+                let rhs = self.parse_pow()?;
+                expr = FormulaExpr::Binary {
+                    op: FormulaOp::Mod,
+                    left: Box::new(expr),
+                    right: Box::new(rhs),
+                };
+                continue;
+            }
             if matches!(self.dialect, FormulaDialect::Ascii1) && self.next_starts_factor() {
                 let rhs = self.parse_pow()?;
                 expr = FormulaExpr::Binary {
@@ -3032,8 +3167,26 @@ impl FormulaParser {
                 dim: UnitDim::NONE,
             })),
             FormulaToken::Ident(name) => {
-                self.vars.insert(name.clone());
-                Ok(FormulaExpr::Var(name))
+                if self.consume(&FormulaToken::LParen) {
+                    if self.consume(&FormulaToken::RParen) {
+                        return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+                    }
+                    let mut args = Vec::new();
+                    loop {
+                        args.push(self.parse_expr()?);
+                        if self.consume(&FormulaToken::Comma) {
+                            continue;
+                        }
+                        if self.consume(&FormulaToken::RParen) {
+                            break;
+                        }
+                        return Err(EvalError::Message("FATAL:FORMULA_SYNTAX".to_string()));
+                    }
+                    Ok(FormulaExpr::Func { name, args })
+                } else {
+                    self.vars.insert(name.clone());
+                    Ok(FormulaExpr::Var(name))
+                }
             }
             FormulaToken::LParen => {
                 let expr = self.parse_expr()?;
@@ -3118,6 +3271,690 @@ fn parse_formula_value(formula: &Formula) -> Result<ParsedFormula, EvalError> {
     })
 }
 
+fn parse_formula_with_vars(
+    body: &str,
+    dialect: &FormulaDialect,
+) -> Result<(Option<String>, FormulaExpr, BTreeSet<String>), EvalError> {
+    let tokens = tokenize_formula(body, dialect)?;
+    let eq_index = find_top_level_eq(&tokens)?;
+    let (expr_tokens, assign_name) = if let Some(eq_index) = eq_index {
+        if eq_index == 0 || eq_index + 1 >= tokens.len() {
+            return Err(EvalError::Message(
+                "FATAL:FORMULA_EQUATION_UNSUPPORTED".to_string(),
+            ));
+        }
+        let lhs = &tokens[..eq_index];
+        if lhs.len() != 1 {
+            return Err(EvalError::Message(
+                "FATAL:FORMULA_EQUATION_UNSUPPORTED".to_string(),
+            ));
+        }
+        let FormulaToken::Ident(name) = &lhs[0] else {
+            return Err(EvalError::Message(
+                "FATAL:FORMULA_EQUATION_UNSUPPORTED".to_string(),
+            ));
+        };
+        (tokens[eq_index + 1..].to_vec(), Some(name.clone()))
+    } else {
+        (tokens, None)
+    };
+    let mut parser = FormulaParser::new(expr_tokens, dialect.clone());
+    let expr = parser.parse_expr()?;
+    if parser.pos != parser.tokens.len() {
+        return Err(EvalError::Message("FATAL:FORMULA_SYNTAX".to_string()));
+    }
+    Ok((assign_name, expr, parser.vars))
+}
+
+fn analyze_formula_for_transform(formula: &Formula) -> Result<FormulaAnalysis, EvalError> {
+    let (assign_name, expr, mut vars) = parse_formula_with_vars(&formula.raw, &formula.dialect)?;
+    if let Some(name) = &assign_name {
+        vars.remove(name);
+    }
+    Ok(FormulaAnalysis {
+        assign_name,
+        expr,
+        vars,
+    })
+}
+
+fn format_formula_body(body: &str, dialect: &FormulaDialect) -> Result<String, EvalError> {
+    let (assign_name, expr, _) = parse_formula_with_vars(body, dialect)?;
+    let expr_text = format_formula_expr(&expr, 0);
+    if let Some(assign) = assign_name {
+        Ok(format!("{} = {}", assign, expr_text))
+    } else {
+        Ok(expr_text)
+    }
+}
+
+fn format_formula_expr(expr: &FormulaExpr, parent_prec: u8) -> String {
+    match expr {
+        FormulaExpr::Number(value) => value.value.to_string(),
+        FormulaExpr::Var(name) => name.clone(),
+        FormulaExpr::Func { name, args } => {
+            let rendered = args
+                .iter()
+                .map(|arg| format_formula_expr(arg, 0))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}({})", name, rendered)
+        }
+        FormulaExpr::Unary { op: FormulaOp::Sub, expr } => {
+            let inner = format_formula_expr(expr, 3);
+            format!("-{}", inner)
+        }
+        FormulaExpr::Unary { expr, .. } => format_formula_expr(expr, parent_prec),
+        FormulaExpr::Binary { op, left, right } => {
+            let (prec, op_str, spaced, right_assoc) = match op {
+                FormulaOp::Add => (1, "+", true, false),
+                FormulaOp::Sub => (1, "-", true, false),
+                FormulaOp::Mul => (2, "*", false, false),
+                FormulaOp::Div => (2, "/", false, false),
+                FormulaOp::Mod => (2, "%", false, false),
+                FormulaOp::Pow => (3, "^", false, true),
+            };
+            let (left_prec, right_prec) = if right_assoc {
+                (prec + 1, prec)
+            } else {
+                (prec, prec + 1)
+            };
+            let left_str = format_formula_expr(left, left_prec);
+            let right_str = format_formula_expr(right, right_prec);
+            let joined = if spaced {
+                format!("{} {} {}", left_str, op_str, right_str)
+            } else {
+                format!("{}{}{}", left_str, op_str, right_str)
+            };
+            if prec < parent_prec {
+                format!("({})", joined)
+            } else {
+                joined
+            }
+        }
+    }
+}
+
+fn expect_formula_transform(
+    values: &[Value],
+    label: &'static str,
+) -> Result<(Formula, FormulaTransformOptions), EvalError> {
+    if values.is_empty() || values.len() > 2 {
+        return Err(EvalError::Message(
+            "formula[, variable|options]".to_string(),
+        ));
+    }
+    let formula = match &values[0] {
+        Value::Formula(value) => value.clone(),
+        _ => {
+            return Err(EvalError::Message(format!(
+                "{}는 수식값 인자가 필요합니다",
+                label
+            )))
+        }
+    };
+    if values.len() == 1 {
+        return Ok((formula, FormulaTransformOptions::default()));
+    }
+    let options = parse_formula_transform_arg(&values[1], label)?;
+    Ok((formula, options))
+}
+
+fn parse_formula_transform_arg(
+    value: &Value,
+    label: &'static str,
+) -> Result<FormulaTransformOptions, EvalError> {
+    match value {
+        Value::String(_) => Ok(FormulaTransformOptions {
+            var_name: Some(parse_formula_var_name(value, label)?),
+            ..FormulaTransformOptions::default()
+        }),
+        Value::Pack(pack) => parse_formula_transform_pack(pack, label),
+        _ => Err(EvalError::Message("string variable or pack options".to_string())),
+    }
+}
+
+fn parse_formula_transform_pack(
+    pack: &BTreeMap<String, Value>,
+    label: &'static str,
+) -> Result<FormulaTransformOptions, EvalError> {
+    let mut options = FormulaTransformOptions::default();
+    for key in pack.keys() {
+        match key.as_str() {
+            "변수" | "차수" | "상수포함" => {}
+            _ => {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_TRANSFORM_UNSUPPORTED_OPTION: {} 옵션을 지원하지 않습니다",
+                    key
+                )))
+            }
+        }
+    }
+
+    if let Some(value) = pack.get("변수") {
+        if !matches!(value, Value::None) {
+            options.var_name = Some(parse_formula_var_name(value, label)?);
+        }
+    }
+    if let Some(value) = pack.get("차수") {
+        if !matches!(value, Value::None) {
+            let order = expect_int_strict(value)?;
+            if order < 1 {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_TRANSFORM_BAD_ORDER: {} 차수는 1 이상이어야 합니다",
+                    label
+                )));
+            }
+            options.order = Some(order);
+        }
+    }
+    if let Some(value) = pack.get("상수포함") {
+        if !matches!(value, Value::None) {
+            let include = match value {
+                Value::Bool(flag) => *flag,
+                _ => {
+                    return Err(EvalError::Message(
+                        "상수포함은 참/거짓이어야 합니다".to_string(),
+                    ))
+                }
+            };
+            options.include_const = Some(include);
+        }
+    }
+    Ok(options)
+}
+
+fn parse_formula_var_name(value: &Value, label: &'static str) -> Result<String, EvalError> {
+    let raw = match value {
+        Value::String(text) => text.clone(),
+        _ => {
+            return Err(EvalError::Message(format!(
+                "{} 변수 이름이 글이어야 합니다",
+                label
+            )))
+        }
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(EvalError::Message(format!(
+            "{} 변수 이름이 비어 있습니다",
+            label
+        )));
+    }
+    Ok(trimmed.trim_start_matches('#').to_string())
+}
+
+fn expect_int_strict(value: &Value) -> Result<i64, EvalError> {
+    match value {
+        Value::Fixed64(n) => {
+            if n.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(n.int_part())
+        }
+        Value::Unit(unit) if unit.is_dimensionless() => {
+            if unit.value.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(unit.value.int_part())
+        }
+        _ => Err("정수 값이 필요합니다".to_string().into()),
+    }
+}
+
+fn transform_formula_value(
+    formula: Formula,
+    options: FormulaTransformOptions,
+    call_name: &'static str,
+    label: &'static str,
+) -> Result<Formula, EvalError> {
+    let dialect = formula.dialect.clone();
+    if !matches!(dialect, FormulaDialect::Ascii) {
+        return Err(EvalError::Message(format!(
+            "{}는 #ascii 수식만 지원합니다",
+            label
+        )));
+    }
+
+    let analysis = analyze_formula_for_transform(&formula)?;
+    let vars = analysis.vars.clone();
+    let var_name = match options.var_name {
+        Some(name) => {
+            if !vars.contains(&name) {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_FREEVAR_NOT_FOUND: {} 변수 '{}'가 수식에 없습니다",
+                    label, name
+                )));
+            }
+            name
+        }
+        None => infer_single_var(&vars, label)?,
+    };
+    ensure_formula_ident(&var_name, &dialect, label)?;
+
+    if call_name == "diff" && options.include_const.is_some() {
+        return Err(EvalError::Message(
+            "E_CALC_TRANSFORM_UNSUPPORTED_OPTION: 미분하기는 상수포함을 지원하지 않습니다"
+                .to_string(),
+        ));
+    }
+    if call_name == "int" && options.order.is_some() {
+        return Err(EvalError::Message(
+            "E_CALC_TRANSFORM_UNSUPPORTED_OPTION: 적분하기는 차수를 지원하지 않습니다"
+                .to_string(),
+        ));
+    }
+
+    let expr = if call_name == "diff" {
+        let order = options.order.unwrap_or(1);
+        let mut out = analysis.expr.clone();
+        for _ in 0..order {
+            out = diff_formula_expr(&out, &var_name, label)?;
+        }
+        out
+    } else {
+        integrate_formula_expr(&analysis.expr, &var_name, label)?
+    };
+
+    let mut expr_text = format_formula_expr(&expr, 0);
+    if call_name == "int" && options.include_const.unwrap_or(false) {
+        expr_text = format!("{} + C", expr_text);
+    }
+
+    let body = if let Some(assign) = analysis.assign_name {
+        format!("{} = {}", assign, expr_text)
+    } else {
+        expr_text
+    };
+    let formatted = format_formula_body(&body, &dialect)?;
+    Ok(Formula {
+        raw: formatted,
+        dialect,
+        explicit_tag: formula.explicit_tag,
+    })
+}
+
+fn diff_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) -> Result<FormulaExpr, EvalError> {
+    use FormulaExpr::*;
+    use FormulaOp::*;
+
+    let d = match expr {
+        Number(_) => num_zero(),
+        Var(name) => {
+            if name == var {
+                num_one()
+            } else {
+                num_zero()
+            }
+        }
+        Unary { op: Sub, expr } => unary_sub(diff_formula_expr(expr, var, label)?),
+        Unary { expr, .. } => diff_formula_expr(expr, var, label)?,
+        Binary { op: Add, left, right } => add(
+            diff_formula_expr(left, var, label)?,
+            diff_formula_expr(right, var, label)?,
+        ),
+        Binary { op: Sub, left, right } => sub(
+            diff_formula_expr(left, var, label)?,
+            diff_formula_expr(right, var, label)?,
+        ),
+        Binary { op: Mul, left, right } => {
+            let dl = diff_formula_expr(left, var, label)?;
+            let dr = diff_formula_expr(right, var, label)?;
+            add(mul(dl, right.as_ref().clone()), mul(left.as_ref().clone(), dr))
+        }
+        Binary { op: Div, left, right } => {
+            let dl = diff_formula_expr(left, var, label)?;
+            let dr = diff_formula_expr(right, var, label)?;
+            let num = sub(mul(dl, right.as_ref().clone()), mul(left.as_ref().clone(), dr));
+            let denom = pow(right.as_ref().clone(), num_i(2));
+            div(num, denom)
+        }
+        Binary { op: Pow, left, right } => {
+            if let Some(exp) = number_as_int(right) {
+                if exp == 0 {
+                    num_zero()
+                } else {
+                    let coeff = num_i(exp);
+                    let pow_expr = pow(left.as_ref().clone(), num_i(exp - 1));
+                    let dl = diff_formula_expr(left, var, label)?;
+                    mul(coeff, mul(pow_expr, dl))
+                }
+            } else {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_TRANSFORM_UNSUPPORTED: {}는 거듭제곱 미분을 지원하지 않습니다",
+                    label
+                )));
+            }
+        }
+        Binary { op: Mod, .. } => {
+            return Err(EvalError::Message(format!(
+                "E_CALC_TRANSFORM_UNSUPPORTED: {}는 나머지 미분을 지원하지 않습니다",
+                label
+            )));
+        }
+        Func { name, args } => {
+            let Some(first) = args.first() else {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_TRANSFORM_UNSUPPORTED: {}는 빈 함수 미분을 지원하지 않습니다",
+                    label
+                )));
+            };
+            let du = diff_formula_expr(first, var, label)?;
+            match name.as_str() {
+                "sin" => mul(func("cos", vec![first.clone()]), du),
+                "cos" => mul(unary_sub(func("sin", vec![first.clone()])), du),
+                "tan" => {
+                    let cos_u = func("cos", vec![first.clone()]);
+                    let denom = pow(cos_u, num_i(2));
+                    div(du, denom)
+                }
+                "exp" => mul(func("exp", vec![first.clone()]), du),
+                "ln" => div(du, first.clone()),
+                "log10" => {
+                    let denom = mul(first.clone(), num_ln10());
+                    div(du, denom)
+                }
+                "log2" => {
+                    let denom = mul(first.clone(), num_ln2());
+                    div(du, denom)
+                }
+                "sqrt" => {
+                    let denom = mul(num_i(2), func("sqrt", vec![first.clone()]));
+                    div(du, denom)
+                }
+                _ => {
+                    return Err(EvalError::Message(format!(
+                        "E_CALC_TRANSFORM_UNSUPPORTED: {}는 함수 '{}' 미분을 지원하지 않습니다",
+                        label, name
+                    )))
+                }
+            }
+        }
+    };
+    Ok(d)
+}
+
+fn integrate_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) -> Result<FormulaExpr, EvalError> {
+    use FormulaExpr::*;
+    use FormulaOp::*;
+
+    if !expr_contains_var(expr, var) {
+        return Ok(mul(expr.clone(), Var(var.to_string())));
+    }
+
+    let out = match expr {
+        Number(_) => mul(expr.clone(), Var(var.to_string())),
+        Var(name) => {
+            if name == var {
+                div(pow(Var(var.to_string()), num_i(2)), num_i(2))
+            } else {
+                mul(expr.clone(), Var(var.to_string()))
+            }
+        }
+        Unary { op: Sub, expr } => unary_sub(integrate_formula_expr(expr, var, label)?),
+        Unary { expr, .. } => integrate_formula_expr(expr, var, label)?,
+        Binary { op: Add, left, right } => add(
+            integrate_formula_expr(left, var, label)?,
+            integrate_formula_expr(right, var, label)?,
+        ),
+        Binary { op: Sub, left, right } => sub(
+            integrate_formula_expr(left, var, label)?,
+            integrate_formula_expr(right, var, label)?,
+        ),
+        Binary { op: Mul, left, right } => {
+            if !expr_contains_var(left, var) {
+                mul(left.as_ref().clone(), integrate_formula_expr(right, var, label)?)
+            } else if !expr_contains_var(right, var) {
+                mul(right.as_ref().clone(), integrate_formula_expr(left, var, label)?)
+            } else if let Some(exp) = detect_var_power(expr, var) {
+                let next = exp + 1;
+                let num = pow(Var(var.to_string()), num_i(next));
+                div(num, num_i(next))
+            } else {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_TRANSFORM_UNSUPPORTED: {}는 곱셈 적분을 지원하지 않습니다",
+                    label
+                )));
+            }
+        }
+        Binary { op: Pow, left, right } => {
+            if let (FormulaExpr::Var(name), Some(exp)) = (&**left, number_as_int(right)) {
+                if name == var && exp != -1 {
+                    let next = exp + 1;
+                    let num = pow(Var(var.to_string()), num_i(next));
+                    div(num, num_i(next))
+                } else {
+                    return Err(EvalError::Message(format!(
+                        "E_CALC_TRANSFORM_UNSUPPORTED: {}는 거듭제곱 적분을 지원하지 않습니다",
+                        label
+                    )));
+                }
+            } else {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_TRANSFORM_UNSUPPORTED: {}는 거듭제곱 적분을 지원하지 않습니다",
+                    label
+                )));
+            }
+        }
+        Binary { op: Div, .. } | Binary { op: Mod, .. } => {
+            return Err(EvalError::Message(format!(
+                "E_CALC_TRANSFORM_UNSUPPORTED: {}는 나눗셈 적분을 지원하지 않습니다",
+                label
+            )));
+        }
+        Func { name, args } => {
+            let Some(first) = args.first() else {
+                return Err(EvalError::Message(format!(
+                    "E_CALC_TRANSFORM_UNSUPPORTED: {}는 빈 함수 적분을 지원하지 않습니다",
+                    label
+                )));
+            };
+            match name.as_str() {
+                "sin" => unary_sub(func("cos", vec![first.clone()])),
+                "cos" => func("sin", vec![first.clone()]),
+                "exp" => func("exp", vec![first.clone()]),
+                _ => {
+                    return Err(EvalError::Message(format!(
+                        "E_CALC_TRANSFORM_UNSUPPORTED: {}는 함수 '{}' 적분을 지원하지 않습니다",
+                        label, name
+                    )))
+                }
+            }
+        }
+    };
+    Ok(out)
+}
+
+fn expr_contains_var(expr: &FormulaExpr, var: &str) -> bool {
+    match expr {
+        FormulaExpr::Var(name) => name == var,
+        FormulaExpr::Number(_) => false,
+        FormulaExpr::Func { args, .. } => args.iter().any(|arg| expr_contains_var(arg, var)),
+        FormulaExpr::Unary { expr, .. } => expr_contains_var(expr, var),
+        FormulaExpr::Binary { left, right, .. } => expr_contains_var(left, var) || expr_contains_var(right, var),
+    }
+}
+
+fn detect_var_power(expr: &FormulaExpr, var: &str) -> Option<i64> {
+    match expr {
+        FormulaExpr::Var(name) if name == var => Some(1),
+        FormulaExpr::Binary { op: FormulaOp::Pow, left, right } => {
+            if let FormulaExpr::Var(name) = &**left {
+                if name == var {
+                    return number_as_int(right);
+                }
+            }
+            None
+        }
+        FormulaExpr::Binary { op: FormulaOp::Mul, left, right } => {
+            if let (Some(a), Some(b)) = (detect_var_power(left, var), detect_var_power(right, var)) {
+                return Some(a + b);
+            }
+            if let (Some(a), FormulaExpr::Var(name)) = (detect_var_power(left, var), &**right) {
+                if name == var {
+                    return Some(a + 1);
+                }
+            }
+            if let (FormulaExpr::Var(name), Some(b)) = (&**left, detect_var_power(right, var)) {
+                if name == var {
+                    return Some(b + 1);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn number_as_int(expr: &FormulaExpr) -> Option<i64> {
+    match expr {
+        FormulaExpr::Number(value) if value.dim == UnitDim::NONE => {
+            if value.value.frac_part() == 0 {
+                Some(value.value.int_part())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn num_zero() -> FormulaExpr {
+    FormulaExpr::Number(UnitValue { value: Fixed64::from_i64(0), dim: UnitDim::NONE })
+}
+
+fn num_one() -> FormulaExpr {
+    FormulaExpr::Number(UnitValue { value: Fixed64::from_i64(1), dim: UnitDim::NONE })
+}
+
+fn num_i(value: i64) -> FormulaExpr {
+    FormulaExpr::Number(UnitValue { value: Fixed64::from_i64(value), dim: UnitDim::NONE })
+}
+
+fn num_ln10() -> FormulaExpr {
+    FormulaExpr::Number(UnitValue { value: Fixed64::from_f64_lossy(libm::log(10.0)), dim: UnitDim::NONE })
+}
+
+fn num_ln2() -> FormulaExpr {
+    FormulaExpr::Number(UnitValue { value: Fixed64::from_f64_lossy(libm::log(2.0)), dim: UnitDim::NONE })
+}
+
+fn func(name: &str, args: Vec<FormulaExpr>) -> FormulaExpr {
+    FormulaExpr::Func { name: name.to_string(), args }
+}
+
+fn unary_sub(expr: FormulaExpr) -> FormulaExpr {
+    FormulaExpr::Unary { op: FormulaOp::Sub, expr: Box::new(expr) }
+}
+
+fn add(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
+    if is_zero(&left) { return right; }
+    if is_zero(&right) { return left; }
+    if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
+        if let Ok(out) = l.add(r) {
+            return FormulaExpr::Number(out);
+        }
+    }
+    FormulaExpr::Binary { op: FormulaOp::Add, left: Box::new(left), right: Box::new(right) }
+}
+
+fn sub(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
+    if is_zero(&right) { return left; }
+    if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
+        if let Ok(out) = l.sub(r) {
+            return FormulaExpr::Number(out);
+        }
+    }
+    FormulaExpr::Binary { op: FormulaOp::Sub, left: Box::new(left), right: Box::new(right) }
+}
+
+fn mul(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
+    if is_zero(&left) || is_zero(&right) { return num_zero(); }
+    if is_one(&left) { return right; }
+    if is_one(&right) { return left; }
+    if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
+        return FormulaExpr::Number(l.mul(r));
+    }
+    FormulaExpr::Binary { op: FormulaOp::Mul, left: Box::new(left), right: Box::new(right) }
+}
+
+fn div(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
+    if is_zero(&left) { return num_zero(); }
+    if is_one(&right) { return left; }
+    if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
+        if let Ok(out) = l.div(r) {
+            return FormulaExpr::Number(out);
+        }
+    }
+    FormulaExpr::Binary { op: FormulaOp::Div, left: Box::new(left), right: Box::new(right) }
+}
+
+fn pow(base: FormulaExpr, exp: FormulaExpr) -> FormulaExpr {
+    if let Some(e) = number_as_int(&exp) {
+        if e == 0 { return num_one(); }
+        if e == 1 { return base; }
+    }
+    FormulaExpr::Binary { op: FormulaOp::Pow, left: Box::new(base), right: Box::new(exp) }
+}
+
+fn as_number(expr: &FormulaExpr) -> Option<UnitValue> {
+    if let FormulaExpr::Number(value) = expr { Some(*value) } else { None }
+}
+
+fn is_zero(expr: &FormulaExpr) -> bool {
+    matches!(expr, FormulaExpr::Number(value) if value.value.raw_i64() == 0)
+}
+
+fn is_one(expr: &FormulaExpr) -> bool {
+    matches!(expr, FormulaExpr::Number(value) if value.dim == UnitDim::NONE && value.value.raw_i64() == Fixed64::from_i64(1).raw_i64())
+}
+
+fn infer_single_var(vars: &BTreeSet<String>, label: &'static str) -> Result<String, EvalError> {
+    match vars.len() {
+        1 => Ok(vars.iter().next().unwrap().to_string()),
+        0 => Err(EvalError::Message(format!(
+            "E_CALC_FREEVAR_AMBIGUOUS: {}는 변수 이름을 지정해야 합니다",
+            label
+        ))),
+        _ => Err(EvalError::Message(format!(
+            "E_CALC_FREEVAR_AMBIGUOUS: {} 변수 이름이 여러 개입니다",
+            label
+        ))),
+    }
+}
+
+fn ensure_formula_ident(
+    name: &str,
+    dialect: &FormulaDialect,
+    label: &'static str,
+) -> Result<(), EvalError> {
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return Err(EvalError::Message(format!(
+            "{} 변수 이름이 비어 있습니다",
+            label
+        )));
+    };
+    if !first.is_ascii_alphabetic() {
+        return Err(EvalError::Message(format!(
+            "{} 변수 이름이 올바르지 않습니다: {}",
+            label, name
+        )));
+    }
+    let valid = match dialect {
+        FormulaDialect::Ascii => chars.all(|ch| ch.is_ascii_alphanumeric()),
+        FormulaDialect::Ascii1 => chars.all(|ch| ch.is_ascii_digit()),
+        _ => false,
+    };
+    if !valid {
+        return Err(EvalError::Message(format!(
+            "{} 변수 이름이 올바르지 않습니다: {}",
+            label, name
+        )));
+    }
+    Ok(())
+}
+
 fn tokenize_formula(body: &str, dialect: &FormulaDialect) -> Result<Vec<FormulaToken>, EvalError> {
     let mut tokens = Vec::new();
     let mut chars = body.chars().peekable();
@@ -3169,6 +4006,14 @@ fn tokenize_formula(body: &str, dialect: &FormulaDialect) -> Result<Vec<FormulaT
                 chars.next();
                 tokens.push(FormulaToken::Slash);
             }
+            '%' => {
+                chars.next();
+                tokens.push(FormulaToken::Percent);
+            }
+            ',' => {
+                chars.next();
+                tokens.push(FormulaToken::Comma);
+            }
             '^' => {
                 chars.next();
                 tokens.push(FormulaToken::Caret);
@@ -3208,21 +4053,11 @@ where
     let mut ident = String::new();
     ident.push(first);
     if matches!(dialect, FormulaDialect::Ascii1) {
-        let mut saw_digit = false;
         while let Some(&next) = chars.peek() {
-            if next.is_ascii_digit() {
-                saw_digit = true;
+            if next.is_ascii_alphanumeric() {
                 ident.push(next);
                 chars.next();
                 continue;
-            }
-            if next.is_ascii_alphabetic() {
-                if !saw_digit {
-                    return Err(EvalError::Message(
-                        "FATAL:FORMULA_ASCII1_VAR".to_string(),
-                    ));
-                }
-                break;
             }
             if next == '_' {
                 return Err(EvalError::Message(
@@ -3272,10 +4107,29 @@ fn eval_formula_expr(
     match expr {
         FormulaExpr::Number(value) => Ok(*value),
         FormulaExpr::Var(name) => {
-            let value = env
-                .get(name)
-                .ok_or_else(|| EvalError::Message(format!("풀기: 키 '{}'가 없습니다", name)))?;
-            unit_value_from_value(value)
+            if let Some(value) = env.get(name) {
+                return unit_value_from_value(value);
+            }
+            if name == "pi" {
+                return Ok(UnitValue {
+                    value: Fixed64::from_f64_lossy(std::f64::consts::PI),
+                    dim: UnitDim::NONE,
+                });
+            }
+            if name == "e" {
+                return Ok(UnitValue {
+                    value: Fixed64::from_f64_lossy(std::f64::consts::E),
+                    dim: UnitDim::NONE,
+                });
+            }
+            Err(EvalError::Message(format!("풀기: 키 '{}'가 없습니다", name)))
+        }
+        FormulaExpr::Func { name, args } => {
+            let mut evaluated = Vec::with_capacity(args.len());
+            for arg in args {
+                evaluated.push(eval_formula_expr(arg, env)?);
+            }
+            eval_formula_func(name, evaluated)
         }
         FormulaExpr::Unary { op, expr } => {
             let value = eval_formula_expr(expr, env)?;
@@ -3295,10 +4149,361 @@ fn eval_formula_expr(
                 FormulaOp::Sub => l.sub(r).map_err(unit_error),
                 FormulaOp::Mul => Ok(l.mul(r)),
                 FormulaOp::Div => l.div(r).map_err(unit_error),
+                FormulaOp::Mod => {
+                    if l.dim != r.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: l.dim,
+                            right: r.dim,
+                        }));
+                    }
+                    let raw_r = r.value.raw_i64();
+                    if raw_r == 0 {
+                        return Err(EvalError::Message("FATAL:FORMULA_MOD_ZERO".to_string()));
+                    }
+                    Ok(UnitValue {
+                        value: Fixed64::from_raw_i64(l.value.raw_i64() % raw_r),
+                        dim: l.dim,
+                    })
+                }
                 FormulaOp::Pow => eval_formula_pow(l, r),
             }
         }
     }
+}
+
+fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, EvalError> {
+    let expect_args = |expected: usize| -> Result<Vec<UnitValue>, EvalError> {
+        if args.len() != expected {
+            return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+        }
+        Ok(args.clone())
+    };
+
+    match name {
+        "sin" | "cos" | "tan" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            if !(arg.is_dimensionless() || arg.dim == UnitDim::ANGLE) {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: arg.dim,
+                    right: UnitDim::ANGLE,
+                }));
+            }
+            let angle = fixed64_to_f64(arg.value);
+            let out = match name {
+                "sin" => libm::sin(angle),
+                "cos" => libm::cos(angle),
+                _ => libm::tan(angle),
+            };
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(out),
+                dim: UnitDim::NONE,
+            });
+        }
+        "asin" | "acos" | "atan" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            if !arg.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: arg.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let value = fixed64_to_f64(arg.value);
+            let out = match name {
+                "asin" => libm::asin(value),
+                "acos" => libm::acos(value),
+                _ => libm::atan(value),
+            };
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(out),
+                dim: UnitDim::NONE,
+            });
+        }
+        "atan2" => {
+            if args.len() != 2 {
+                return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+            }
+            let y = args[0];
+            let x = args[1];
+            if !y.is_dimensionless() || !x.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: y.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let out = libm::atan2(fixed64_to_f64(y.value), fixed64_to_f64(x.value));
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(out),
+                dim: UnitDim::NONE,
+            });
+        }
+        "sinh" | "cosh" | "tanh" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            if !arg.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: arg.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let value = fixed64_to_f64(arg.value);
+            let out = match name {
+                "sinh" => libm::sinh(value),
+                "cosh" => libm::cosh(value),
+                _ => libm::tanh(value),
+            };
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(out),
+                dim: UnitDim::NONE,
+            });
+        }
+        "asinh" | "acosh" | "atanh" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            if !arg.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: arg.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let value = fixed64_to_f64(arg.value);
+            let out = match name {
+                "asinh" => libm::asinh(value),
+                "acosh" => libm::acosh(value),
+                _ => libm::atanh(value),
+            };
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(out),
+                dim: UnitDim::NONE,
+            });
+        }
+        "abs" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            return Ok(UnitValue {
+                value: fixed64_abs(arg.value),
+                dim: arg.dim,
+            });
+        }
+        "sign" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            let raw = arg.value.raw_i64();
+            let sign = if raw > 0 { 1 } else if raw < 0 { -1 } else { 0 };
+            return Ok(UnitValue {
+                value: Fixed64::from_i64(sign),
+                dim: UnitDim::NONE,
+            });
+        }
+        "floor" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            return Ok(UnitValue {
+                value: fixed64_floor(arg.value),
+                dim: arg.dim,
+            });
+        }
+        "ceil" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            return Ok(UnitValue {
+                value: fixed64_ceil(arg.value),
+                dim: arg.dim,
+            });
+        }
+        "round" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            return Ok(UnitValue {
+                value: fixed64_round_even(arg.value),
+                dim: arg.dim,
+            });
+        }
+        "trunc" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            return Ok(UnitValue {
+                value: Fixed64::from_i64(arg.value.int_part()),
+                dim: arg.dim,
+            });
+        }
+        "fract" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            let floor = fixed64_floor(arg.value);
+            let frac = arg.value - floor;
+            return Ok(UnitValue {
+                value: frac,
+                dim: arg.dim,
+            });
+        }
+        "sqrt" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            if !arg.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: arg.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let Some(value) = fixed64_sqrt(arg.value) else {
+                return Err(EvalError::Message("FATAL:FORMULA_SQRT_INVALID".to_string()));
+            };
+            return Ok(UnitValue {
+                value,
+                dim: UnitDim::NONE,
+            });
+        }
+        "cbrt" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            if !arg.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: arg.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let value = fixed64_to_f64(arg.value);
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(libm::cbrt(value)),
+                dim: UnitDim::NONE,
+            });
+        }
+        "powi" => {
+            if args.len() != 2 {
+                return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+            }
+            let base = args[0];
+            let exp = args[1];
+            if !exp.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: exp.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let exp_i = exp.value.int_part();
+            return unit_powi(base, exp_i);
+        }
+        "pow" => {
+            if args.len() != 2 {
+                return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+            }
+            let base = args[0];
+            let exp = args[1];
+            if !exp.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: exp.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            if exp.value.frac_part() == 0 {
+                return unit_powi(base, exp.value.int_part());
+            }
+            if !base.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: base.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let out = libm::pow(fixed64_to_f64(base.value), fixed64_to_f64(exp.value));
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(out),
+                dim: UnitDim::NONE,
+            });
+        }
+        "exp" | "ln" | "log10" | "log2" => {
+            let args = expect_args(1)?;
+            let arg = args[0];
+            if !arg.is_dimensionless() {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: arg.dim,
+                    right: UnitDim::NONE,
+                }));
+            }
+            let value = fixed64_to_f64(arg.value);
+            let out = match name {
+                "exp" => libm::exp(value),
+                "ln" => libm::log(value),
+                "log10" => libm::log10(value),
+                _ => libm::log2(value),
+            };
+            return Ok(UnitValue {
+                value: Fixed64::from_f64_lossy(out),
+                dim: UnitDim::NONE,
+            });
+        }
+        "min" | "max" => {
+            if args.len() != 2 {
+                return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+            }
+            let a = args[0];
+            let b = args[1];
+            if a.dim != b.dim {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: a.dim,
+                    right: b.dim,
+                }));
+            }
+            let pick = if name == "min" {
+                if a.value <= b.value { a } else { b }
+            } else if a.value >= b.value {
+                a
+            } else {
+                b
+            };
+            return Ok(pick);
+        }
+        "clamp" => {
+            if args.len() != 3 {
+                return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+            }
+            let x = args[0];
+            let lo = args[1];
+            let hi = args[2];
+            if x.dim != lo.dim || x.dim != hi.dim {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: x.dim,
+                    right: lo.dim,
+                }));
+            }
+            let mut out = x;
+            if out.value < lo.value {
+                out = lo;
+            }
+            if out.value > hi.value {
+                out = hi;
+            }
+            return Ok(out);
+        }
+        "mod" => {
+            if args.len() != 2 {
+                return Err(EvalError::Message("FATAL:FORMULA_FUNC_ARG".to_string()));
+            }
+            let a = args[0];
+            let b = args[1];
+            if a.dim != b.dim {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: a.dim,
+                    right: b.dim,
+                }));
+            }
+            let raw_b = b.value.raw_i64();
+            if raw_b == 0 {
+                return Err(EvalError::Message("FATAL:FORMULA_MOD_ZERO".to_string()));
+            }
+            let raw = a.value.raw_i64() % raw_b;
+            return Ok(UnitValue {
+                value: Fixed64::from_raw_i64(raw),
+                dim: a.dim,
+            });
+        }
+        _ => {}
+    }
+    Err(EvalError::Message(format!(
+        "FATAL:FORMULA_FUNC_UNKNOWN:{}",
+        name
+    )))
 }
 
 fn eval_formula_pow(base: UnitValue, exponent: UnitValue) -> Result<UnitValue, EvalError> {

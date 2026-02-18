@@ -5,16 +5,32 @@ name = "ddonirang-tool"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+wasm = ["wasm-bindgen", "js-sys", "web-sys"]
+
 [dependencies]
 # 이전 설계 가이드에서 드린 의존성들을 여기에 적습니다
 blake3 = "1.5"
 hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-crossterm = "0.27"
 sha2 = "0.10"
-zip = "0.6"
+libm = "0.2"
+wasm-bindgen = { version = "0.2", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["console"] }
 
 # 다른 크레이트와의 연결 (경로가 실제 폴더명과 일치해야 함)
 ddonirang-lang = { path = "../lang" }
 ddonirang-core = { path = "../core" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+crossterm = "0.27"
+zip = "0.6"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+zip = { version = "0.6", default-features = false, features = ["deflate"] }

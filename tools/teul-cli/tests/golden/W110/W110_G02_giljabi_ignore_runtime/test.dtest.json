@@ -1,0 +1,20 @@
+﻿{
+    "name":  "W110_G02_giljabi_ignore_runtime",
+    "walk":  110,
+    "command":  "run",
+    "args":  {
+
+             },
+    "expect":  {
+                   "stdout":  [
+                                  "3"
+                              ],
+                   "stderr_contains":  [
+
+                                       ],
+                   "trace_hash":  "blake3:b5e401ffbf841822be3d0c28591442f25422e36bea7ed0826235199270c7edbb",
+                   "state_hash":  "blake3:f4d7e91d1a4a1f1c5e75fd66ce584ef257f2a65a8caa617230d4b1ceb31d41b3",
+                   "exit":  0
+               },
+    "entry":  "main.ddn"
+}

@@ -1,0 +1,43 @@
+{
+  "name": "W66_G04_open_diag_replay_ok",
+  "walk": 66,
+  "command": "run",
+  "entry": "../../../../../../pack/open_diag_minimal_v1/input.ddn",
+  "args": {
+    "cli": [
+      "--open",
+      "replay",
+      "--open-log",
+      "../../../../../../pack/open_diag_minimal_v1/open.log.jsonl",
+      "--diag",
+      "geoul.diag.jsonl",
+      "--trace-tier",
+      "T-OFF"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY",
+    "files_exist": [
+      "geoul.diag.jsonl"
+    ],
+    "files": {
+      "geoul.diag.jsonl": {
+        "jsonl_contains": [
+          {
+            "open_kind": "open.clock",
+            "open_seq": 1,
+            "result": "ok",
+            "det_tier": "D-STRICT",
+            "trace_tier": "T-OFF",
+            "tick": 0,
+            "key_hash": "sha256:ed5eb9a37e2d8231af3388319b941995f6dc8755c56043d0cc52b5fe405a87de"
+          }
+        ]
+      }
+    }
+  }
+}

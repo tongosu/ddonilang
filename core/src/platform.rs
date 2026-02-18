@@ -517,6 +517,34 @@ impl NuriWorld {
         self.resources_value.get(tag).cloned()
     }
 
+    pub fn resource_json_entries(&self) -> Vec<(String, String)> {
+        self.resources_json
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+
+    pub fn resource_fixed64_entries(&self) -> Vec<(String, Fixed64)> {
+        self.resources_fixed64
+            .iter()
+            .map(|(k, v)| (k.clone(), *v))
+            .collect()
+    }
+
+    pub fn resource_handle_entries(&self) -> Vec<(String, ResourceHandle)> {
+        self.resources_handle
+            .iter()
+            .map(|(k, v)| (k.clone(), *v))
+            .collect()
+    }
+
+    pub fn resource_value_entries(&self) -> Vec<(String, ResourceValue)> {
+        self.resources_value
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+
     /// SSOT: state_hash는 BLAKE3(DetBin) 기반
     pub fn state_hash(&self) -> StateHash {
         let bytes = self.encode_canonical();
@@ -524,35 +552,83 @@ impl NuriWorld {
         StateHash::from_bytes(*digest.as_bytes())
     }
 
+    /// state_hash 계산 시 리소스 키 접두어를 제외한다.
+    /// 예: ["보개_"]를 넘기면 보개(view-only) 리소스는 해시에 포함되지 않는다.
+    pub fn state_hash_excluding_resource_prefixes(&self, excluded_prefixes: &[&str]) -> StateHash {
+        let bytes = self.encode_canonical_with_filter(excluded_prefixes);
+        let digest = hash(&bytes);
+        StateHash::from_bytes(*digest.as_bytes())
+    }
+
     fn encode_canonical(&self) -> Vec<u8> {
+        self.encode_canonical_with_filter(&[])
+    }
+
+    fn encode_canonical_with_filter(&self, excluded_prefixes: &[&str]) -> Vec<u8> {
+        let include_tag = |tag: &str| -> bool {
+            !excluded_prefixes.iter().any(|prefix| tag.starts_with(prefix))
+        };
+
         let mut out = Vec::<u8>::new();
 
         out.extend_from_slice(&self.next_entity.to_le_bytes());
 
         // resources_json (tag, json)
-        out.extend_from_slice(&(self.resources_json.len() as u64).to_le_bytes());
+        let json_len = self
+            .resources_json
+            .iter()
+            .filter(|(k, _)| include_tag(k))
+            .count() as u64;
+        out.extend_from_slice(&json_len.to_le_bytes());
         for (k, v) in &self.resources_json {
+            if !include_tag(k) {
+                continue;
+            }
             push_str(&mut out, k);
             push_str(&mut out, v);
         }
 
         // ✅ resources_fixed64 (tag, raw_i64)
-        out.extend_from_slice(&(self.resources_fixed64.len() as u64).to_le_bytes());
+        let fixed_len = self
+            .resources_fixed64
+            .iter()
+            .filter(|(k, _)| include_tag(k))
+            .count() as u64;
+        out.extend_from_slice(&fixed_len.to_le_bytes());
         for (k, v) in &self.resources_fixed64 {
+            if !include_tag(k) {
+                continue;
+            }
             push_str(&mut out, k);
             out.extend_from_slice(&v.raw_i64().to_le_bytes());
         }
 
         // ✅ resources_handle (tag, u64)
-        out.extend_from_slice(&(self.resources_handle.len() as u64).to_le_bytes());
+        let handle_len = self
+            .resources_handle
+            .iter()
+            .filter(|(k, _)| include_tag(k))
+            .count() as u64;
+        out.extend_from_slice(&handle_len.to_le_bytes());
         for (k, v) in &self.resources_handle {
+            if !include_tag(k) {
+                continue;
+            }
             push_str(&mut out, k);
             out.extend_from_slice(&v.raw().to_le_bytes());
         }
 
-        if !self.resources_value.is_empty() {
-            out.extend_from_slice(&(self.resources_value.len() as u64).to_le_bytes());
+        let value_len = self
+            .resources_value
+            .iter()
+            .filter(|(k, _)| include_tag(k))
+            .count() as u64;
+        if value_len > 0 {
+            out.extend_from_slice(&value_len.to_le_bytes());
             for (k, v) in &self.resources_value {
+                if !include_tag(k) {
+                    continue;
+                }
                 push_str(&mut out, k);
                 v.encode_canon(&mut out);
             }
@@ -1170,5 +1246,43 @@ impl Geoul for InMemoryGeoul {
 
     fn replay_next(&mut self) -> Option<TickFrame> {
         self.q.pop_front()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NuriWorld;
+    use crate::Fixed64;
+
+    #[test]
+    fn state_hash_filter_excludes_bogae_prefix() {
+        let mut world = NuriWorld::new();
+        world.set_resource_fixed64("x".to_string(), Fixed64::from_i64(1));
+        world.set_resource_json("보개_색".to_string(), "#111111".to_string());
+
+        let full_a = world.state_hash();
+        let filtered_a = world.state_hash_excluding_resource_prefixes(&["보개_"]);
+
+        world.set_resource_json("보개_색".to_string(), "#222222".to_string());
+        let full_b = world.state_hash();
+        let filtered_b = world.state_hash_excluding_resource_prefixes(&["보개_"]);
+
+        assert_ne!(full_a.to_hex(), full_b.to_hex());
+        assert_eq!(filtered_a.to_hex(), filtered_b.to_hex());
+
+        world.set_resource_fixed64("x".to_string(), Fixed64::from_i64(2));
+        let filtered_c = world.state_hash_excluding_resource_prefixes(&["보개_"]);
+        assert_ne!(filtered_b.to_hex(), filtered_c.to_hex());
+    }
+
+    #[test]
+    fn state_hash_filter_empty_prefix_is_identity() {
+        let mut world = NuriWorld::new();
+        world.set_resource_fixed64("a".to_string(), Fixed64::from_i64(10));
+        world.set_resource_json("보개_디버그".to_string(), "on".to_string());
+        assert_eq!(
+            world.state_hash().to_hex(),
+            world.state_hash_excluding_resource_prefixes(&[]).to_hex()
+        );
     }
 }

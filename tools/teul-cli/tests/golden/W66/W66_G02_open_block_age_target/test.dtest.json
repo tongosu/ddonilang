@@ -1,0 +1,16 @@
+{
+  "name": "W66_G02_open_block_age_target",
+  "walk": 66,
+  "command": "run",
+  "entry": "input.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_OPEN_BLOCK_AGE_TARGET"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

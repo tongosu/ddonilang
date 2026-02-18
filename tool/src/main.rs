@@ -1,4 +1,6 @@
-﻿pub mod lsp;
+﻿#![cfg(not(target_arch = "wasm32"))]
+
+pub mod lsp;
 pub mod proof;
 mod ddn_runtime;
 mod detmath_assets;
@@ -17,7 +19,7 @@ use ddonirang_core::{
     signals::{DiagEvent, Signal, TickId, VecSignalSink},
 };
 use ddonirang_lang::runtime::Value;
-use ddonirang_lang::{canonicalize, normalize, parse, NormalizationLevel};
+use ddonirang_lang::{canonicalize, normalize, parse_with_mode, NormalizationLevel, ParseMode};
 use ddonirang_lang::{Expr, ExprKind, Literal, SeedDef, SeedKind, Stmt, TopLevelItem};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -647,7 +649,9 @@ impl Iyagi for InputIyagi {
         ];
 
         if let Ok(cleaned) = preprocess_source_for_parse(&self.line) {
-            if let Ok(mut program) = parse(&cleaned, "stdin.ddoni") {
+            if let Ok(mut program) =
+                parse_with_mode(&cleaned, "stdin.ddoni", ddn_runtime::default_parse_mode())
+            {
                 if canonicalize(&mut program).is_ok() {
                     let normalized = normalize(&program, NormalizationLevel::N1);
                     ops.push(PatchOp::SetResourceJson {
@@ -1942,8 +1946,12 @@ fn run_canon(
         None => meta_parse.stripped,
     };
     let cleaned = preprocess_source_for_parse(&source_body)?;
-    let mut program =
-        parse(&cleaned, input_path).map_err(|e| format_parse_error_basic(&cleaned, &e))?;
+    let mut program = parse_with_mode(
+        &cleaned,
+        input_path,
+        ddn_runtime::default_parse_mode(),
+    )
+    .map_err(|e| format_parse_error_basic(&cleaned, &e))?;
     let report =
         canonicalize(&mut program).map_err(|e| format_parse_error_basic(&cleaned, &e))?;
     for warning in report.warnings {
@@ -2831,6 +2839,39 @@ fn take_flag(args: &mut Vec<String>, flag: &str) -> bool {
     }
 }
 
+fn take_arg_value(args: &mut Vec<String>, flag: &str) -> Option<String> {
+    let prefix = format!("{flag}=");
+    if let Some(index) = args.iter().position(|arg| arg.starts_with(&prefix)) {
+        let raw = args.remove(index);
+        return Some(raw[prefix.len()..].to_string());
+    }
+    if let Some(index) = args.iter().position(|arg| arg == flag) {
+        let value = if index + 1 < args.len() {
+            args.remove(index + 1)
+        } else {
+            String::new()
+        };
+        args.remove(index);
+        if value.is_empty() {
+            return None;
+        }
+        return Some(value);
+    }
+    None
+}
+
+fn parse_lang_mode(raw: Option<&str>) -> Result<ParseMode, String> {
+    let Some(raw) = raw else {
+        return Ok(ParseMode::Compat);
+    };
+    let normalized = raw.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "compat" => Ok(ParseMode::Compat),
+        "strict" => Ok(ParseMode::Strict),
+        _ => Err(format!("지원하지 않는 --lang-mode 값: {raw} (compat|strict)")),
+    }
+}
+
 fn ensure_feature(policy: Option<&ProjectPolicy>, feature: FeatureGate) -> Result<(), String> {
     if let Some(policy) = policy {
         policy.require_feature(feature)?;
@@ -2841,8 +2882,18 @@ fn ensure_feature(policy: Option<&ProjectPolicy>, feature: FeatureGate) -> Resul
 fn main() {
     let mut raw_args: Vec<String> = std::env::args().skip(1).collect();
     let unsafe_compat = take_flag(&mut raw_args, "--unsafe-compat");
+    let lang_mode_raw = take_arg_value(&mut raw_args, "--lang-mode");
     let mut args = raw_args.into_iter();
     let cmd = args.next();
+
+    let parse_mode = match parse_lang_mode(lang_mode_raw.as_deref()) {
+        Ok(mode) => mode,
+        Err(err) => {
+            eprintln!("{err}");
+            return;
+        }
+    };
+    ddn_runtime::set_default_parse_mode(parse_mode);
     let requires_project = matches!(
         cmd.as_deref(),
         Some(
@@ -4198,7 +4249,7 @@ mod tests {
         let mut nuri = DetNuri::new();
         nuri
             .world_mut()
-            .set_resource_value("배열".to_string(), ResourceValue::List(Vec::new()));
+            .set_resource_value("차림".to_string(), ResourceValue::List(Vec::new()));
         nuri
             .world_mut()
             .set_resource_value("모음값".to_string(), ResourceValue::Set(BTreeMap::new()));
@@ -4233,7 +4284,7 @@ mod tests {
             ResourceValue::Fixed64(Fixed64::from_i64(3)),
         ]);
         assert_eq!(
-            nuri.world().get_resource_value("배열"),
+            nuri.world().get_resource_value("차림"),
             Some(expected_list)
         );
 
@@ -4845,7 +4896,7 @@ mod tests {
 "#,
                 vec![
                     "E_RUNTIME_TYPE_MISMATCH",
-                    "핀=집합",
+                    "핀=모음",
                     "기대=(글)모음",
                     "실제=모음(요소: 정수)",
                 ],

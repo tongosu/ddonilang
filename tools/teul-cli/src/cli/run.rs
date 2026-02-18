@@ -11,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use blake3;
 use serde_json::json;
 use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
@@ -39,10 +40,13 @@ use crate::core::state::Key;
 use crate::core::unit::UnitDim;
 use crate::core::value::{ListValue, PackValue, Quantity, Value};
 use crate::core::{State, Trace};
-use crate::lang::ast::{ContractKind, ContractMode};
+use crate::lang::ast::{ContractKind, ContractMode, Program, Stmt};
 use crate::lang::lexer::{LexError, Lexer};
-use crate::lang::parser::{ParseError, Parser};
-use crate::runtime::{ContractDiag, EvalOutput, Evaluator, OpenMode, OpenPolicy, OpenRuntime, RuntimeError};
+use crate::lang::parser::{ParseError, Parser, ParseMode};
+use crate::runtime::{
+    ContractDiag, EvalOutput, Evaluator, OpenDiagConfig, OpenMode, OpenPolicy, OpenRuntime,
+    RuntimeError,
+};
 use ddonirang_core::gogae3::{
     compute_w24_state_hash, compute_w25_state_hash, compute_w26_state_hash,
     compute_w27_state_hash, compute_w28_state_hash, compute_w29_state_hash,
@@ -108,6 +112,23 @@ impl RunError {
     }
 }
 
+pub trait RunEmitSink {
+    fn out(&mut self, line: &str);
+    fn err(&mut self, line: &str);
+}
+
+pub struct StdoutRunEmitter;
+
+impl RunEmitSink for StdoutRunEmitter {
+    fn out(&mut self, line: &str) {
+        println!("{}", line);
+    }
+
+    fn err(&mut self, line: &str) {
+        eprintln!("{}", line);
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum MadiLimit {
     Finite(u64),
@@ -155,6 +176,8 @@ pub struct RunOptions {
     pub init_state: Vec<String>,
     pub init_state_files: Vec<PathBuf>,
     pub trace_tier: TraceTier,
+    pub age_target: Option<String>,
+    pub lang_mode: Option<crate::cli::lang_mode::LangModeArg>,
     pub bogae_mode: Option<BogaeMode>,
     pub bogae_codec: BogaeCodec,
     pub bogae_out: Option<PathBuf>,
@@ -465,6 +488,7 @@ impl BogaeCache {
         codec: BogaeCodec,
         cache_log: bool,
         madi: Option<u64>,
+        emit: &mut dyn RunEmitSink,
     ) -> Result<(BogaeOutput, Option<CmdPolicyEvent>), RunError> {
         let state_hash = hash::state_hash(state);
         let key = BogaeCacheKey {
@@ -475,13 +499,13 @@ impl BogaeCache {
         };
         if self.last_key.as_ref() == Some(&key) {
             if let Some(output) = self.last_output.clone() {
-                log_bogae_cache(cache_log, true, madi, &state_hash, &output);
+                log_bogae_cache(cache_log, true, madi, &state_hash, &output, emit);
                 return Ok((output, self.last_event.clone()));
             }
         }
         let (output, event) =
             build_bogae_output(state, pack, policy, codec).map_err(RunError::Bogae)?;
-        log_bogae_cache(cache_log, false, madi, &state_hash, &output);
+        log_bogae_cache(cache_log, false, madi, &state_hash, &output, emit);
         self.last_key = Some(key);
         self.last_output = Some(output.clone());
         self.last_event = event.clone();
@@ -495,6 +519,7 @@ fn log_bogae_cache(
     madi: Option<u64>,
     state_hash: &str,
     output: &BogaeOutput,
+    emit: &mut dyn RunEmitSink,
 ) {
     if !enabled {
         return;
@@ -504,14 +529,14 @@ fn log_bogae_cache(
         None => "final".to_string(),
     };
     let hit_text = if hit { "hit" } else { "miss" };
-    println!(
+    emit.out(&format!(
         "bogae_cache={} madi={} state_hash={} cmd_count={} codec={}",
         hit_text,
         madi_text,
         state_hash,
         output.drawlist.cmds.len(),
         output.codec.tag()
-    );
+    ));
 }
 
 struct TickSnapshot {
@@ -1400,6 +1425,67 @@ enum AgeTarget {
     Age7,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum AgeTargetSource {
+    Cli,
+    Project,
+    Default,
+}
+
+impl AgeTargetSource {
+    fn label(self) -> &'static str {
+        match self {
+            AgeTargetSource::Cli => "cli",
+            AgeTargetSource::Project => "project",
+            AgeTargetSource::Default => "default",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct AgeTargetDecision {
+    value: AgeTarget,
+    source: AgeTargetSource,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DetTier {
+    Strict,
+    Fast,
+    Ultra,
+}
+
+impl DetTier {
+    fn parse(text: &str) -> Option<Self> {
+        let collapsed: String = text
+            .chars()
+            .filter(|ch| !ch.is_whitespace() && *ch != '_' && *ch != '-')
+            .collect();
+        match collapsed.to_ascii_uppercase().as_str() {
+            "DSTRICT" => Some(DetTier::Strict),
+            "DFAST" => Some(DetTier::Fast),
+            "DULTRA" => Some(DetTier::Ultra),
+            _ => None,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            DetTier::Strict => "D-STRICT",
+            DetTier::Fast => "D-FAST",
+            DetTier::Ultra => "D-ULTRA",
+        }
+    }
+
+    fn as_u32(self) -> u32 {
+        match self {
+            DetTier::Strict => 1,
+            DetTier::Fast => 2,
+            DetTier::Ultra => 3,
+        }
+    }
+}
+
 impl AgeTarget {
     fn parse(text: &str) -> Option<Self> {
         match text.trim().to_ascii_uppercase().as_str() {
@@ -1429,6 +1515,102 @@ impl AgeTarget {
     }
 }
 
+fn parse_trace_tier(text: &str) -> Option<TraceTier> {
+    let collapsed: String = text
+        .chars()
+        .filter(|ch| !ch.is_whitespace() && *ch != '_' && *ch != '-')
+        .collect();
+    match collapsed.to_ascii_uppercase().as_str() {
+        "TOFF" => Some(TraceTier::Off),
+        "TPATCH" => Some(TraceTier::Patch),
+        "TALRIM" => Some(TraceTier::Alrim),
+        "TFULL" => Some(TraceTier::Full),
+        _ => None,
+    }
+}
+
+fn trace_tier_label(tier: TraceTier) -> &'static str {
+    match tier {
+        TraceTier::Off => "T-OFF",
+        TraceTier::Patch => "T-PATCH",
+        TraceTier::Alrim => "T-ALRIM",
+        TraceTier::Full => "T-FULL",
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ProjectPolicy {
+    age_target: Option<AgeTarget>,
+    det_tier: Option<DetTier>,
+    trace_tier: Option<TraceTier>,
+    lang_mode: Option<ParseMode>,
+    detmath_seal_hash: Option<String>,
+    nuri_lock_hash: Option<String>,
+}
+
+fn contract_label_for_manifest(det_tier: Option<DetTier>) -> &'static str {
+    match det_tier {
+        Some(DetTier::Strict) => "D-STRICT",
+        Some(_) => "D-APPROX",
+        None => "",
+    }
+}
+
+fn parse_lang_mode(text: &str) -> Option<ParseMode> {
+    let collapsed: String = text.chars().filter(|ch| !ch.is_whitespace()).collect();
+    match collapsed.to_ascii_lowercase().as_str() {
+        "compat" => Some(ParseMode::Compat),
+        "strict" => Some(ParseMode::Strict),
+        _ => None,
+    }
+}
+
+fn resolve_lang_mode(
+    cli_lang_mode: Option<crate::cli::lang_mode::LangModeArg>,
+    project_policy: &ProjectPolicy,
+) -> Result<ParseMode, String> {
+    if let Some(mode) = cli_lang_mode {
+        return Ok(mode.to_parse_mode());
+    }
+    if let Some(mode) = project_policy.lang_mode {
+        return Ok(mode);
+    }
+    Ok(ParseMode::Compat)
+}
+
+fn resolve_age_target(
+    cli_age_target: Option<&str>,
+    project_policy: &ProjectPolicy,
+) -> Result<AgeTargetDecision, String> {
+    if let Some(text) = cli_age_target {
+        let value = AgeTarget::parse(text)
+            .ok_or_else(|| format!("E_CLI_AGE_TARGET age_target 오류: {}", text))?;
+        return Ok(AgeTargetDecision {
+            value,
+            source: AgeTargetSource::Cli,
+        });
+    }
+    if let Some(value) = project_policy.age_target {
+        return Ok(AgeTargetDecision {
+            value,
+            source: AgeTargetSource::Project,
+        });
+    }
+    Ok(AgeTargetDecision {
+        value: AgeTarget::Age1,
+        source: AgeTargetSource::Default,
+    })
+}
+
+fn err_age_not_available(feature: &str, current: AgeTarget, need: AgeTarget) -> String {
+    format!(
+        "E_AGE_NOT_AVAILABLE 요청 기능은 현재 AGE에서 사용할 수 없습니다: {} (need {}, current {})",
+        feature,
+        need.label(),
+        current.label()
+    )
+}
+
 fn normalize_open_kind(text: &str) -> Option<&'static str> {
     let collapsed: String = text.chars().filter(|ch| !ch.is_whitespace()).collect();
     match collapsed.as_str() {
@@ -1449,6 +1631,68 @@ fn normalize_open_kind(text: &str) -> Option<&'static str> {
                 _ => None,
             }
         }
+    }
+}
+
+fn program_contains_open_block(program: &Program) -> bool {
+    stmts_contain_open_block(&program.stmts)
+}
+
+fn stmts_contain_open_block(stmts: &[Stmt]) -> bool {
+    for stmt in stmts {
+        if stmt_contains_open_block(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+fn stmt_contains_open_block(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::OpenBlock { .. } => true,
+        Stmt::SeedDef { body, .. } => stmts_contain_open_block(body),
+        Stmt::Hook { body, .. } => stmts_contain_open_block(body),
+        Stmt::If {
+            then_body,
+            else_body,
+            ..
+        } => {
+            if stmts_contain_open_block(then_body) {
+                return true;
+            }
+            if let Some(body) = else_body {
+                return stmts_contain_open_block(body);
+            }
+            false
+        }
+        Stmt::Choose {
+            branches,
+            else_body,
+            ..
+        } => {
+            for branch in branches {
+                if stmts_contain_open_block(&branch.body) {
+                    return true;
+                }
+            }
+            stmts_contain_open_block(else_body)
+        }
+        Stmt::Repeat { body, .. } => stmts_contain_open_block(body),
+        Stmt::While { body, .. } => stmts_contain_open_block(body),
+        Stmt::ForEach { body, .. } => stmts_contain_open_block(body),
+        Stmt::Contract {
+            then_body,
+            else_body,
+            ..
+        } => {
+            if let Some(body) = then_body {
+                if stmts_contain_open_block(body) {
+                    return true;
+                }
+            }
+            stmts_contain_open_block(else_body)
+        }
+        _ => false,
     }
 }
 
@@ -1531,11 +1775,18 @@ fn find_project_root(start_dir: &Path) -> PathBuf {
         .to_path_buf()
 }
 
-fn load_age_target(input_path: &Path) -> Result<Option<AgeTarget>, String> {
+fn load_project_policy(input_path: &Path) -> Result<ProjectPolicy, String> {
     let root_dir = find_project_root(input_path.parent().unwrap_or_else(|| Path::new(".")));
     let path = root_dir.join("ddn.project.json");
     if !path.exists() {
-        return Ok(None);
+        return Ok(ProjectPolicy {
+            age_target: None,
+            det_tier: None,
+            trace_tier: None,
+            lang_mode: None,
+            detmath_seal_hash: None,
+            nuri_lock_hash: None,
+        });
     }
     let text = fs::read_to_string(&path)
         .map_err(|e| format!("ddn.project.json 읽기 실패: {} ({})", path.display(), e))?;
@@ -1547,13 +1798,59 @@ fn load_age_target(input_path: &Path) -> Result<Option<AgeTarget>, String> {
             path.display()
         )
     })?;
-    let age_text = obj
-        .get("age_target")
+    let age_text = obj.get("age_target").and_then(|value| value.as_str());
+    let age_target = if let Some(text) = age_text {
+        Some(
+            AgeTarget::parse(text).ok_or_else(|| {
+                format!("E_PROJECT_AGE_TARGET_INVALID ddn.project.json age_target 오류: {}", text)
+            })?,
+        )
+    } else {
+        None
+    };
+    let age_for_validation = age_target.unwrap_or(AgeTarget::Age1);
+    let det_text = obj.get("det_tier").and_then(|value| value.as_str());
+    let det_tier = det_text.and_then(DetTier::parse);
+    if det_text.is_some() && det_tier.is_none() && age_for_validation >= AgeTarget::Age2 {
+        return Err(format!(
+            "ddn.project.json det_tier 오류: {}",
+            det_text.unwrap_or_default()
+        ));
+    }
+    let trace_text = obj.get("trace_tier").and_then(|value| value.as_str());
+    let trace_tier = trace_text.and_then(parse_trace_tier);
+    if trace_text.is_some() && trace_tier.is_none() && age_for_validation >= AgeTarget::Age2 {
+        return Err(format!(
+            "ddn.project.json trace_tier 오류: {}",
+            trace_text.unwrap_or_default()
+        ));
+    }
+    let lang_mode_text = obj.get("lang_mode").and_then(|value| value.as_str());
+    let lang_mode = if let Some(text) = lang_mode_text {
+        Some(parse_lang_mode(text).ok_or_else(|| {
+            format!("ddn.project.json lang_mode 오류: {}", text)
+        })?)
+    } else {
+        None
+    };
+    let detmath_seal_hash = obj
+        .get("detmath_seal_hash")
         .and_then(|value| value.as_str())
-        .unwrap_or("AGE1");
-    let age = AgeTarget::parse(age_text)
-        .ok_or_else(|| format!("ddn.project.json age_target 오류: {}", age_text))?;
-    Ok(Some(age))
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty());
+    let nuri_lock_hash = obj
+        .get("nuri_lock_hash")
+        .and_then(|value| value.as_str())
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty());
+    Ok(ProjectPolicy {
+        age_target,
+        det_tier,
+        trace_tier,
+        lang_mode,
+        detmath_seal_hash,
+        nuri_lock_hash,
+    })
 }
 
 fn canonical_open_source_path(path: &Path) -> String {
@@ -1575,6 +1872,13 @@ fn open_mode_label(mode: OpenMode) -> &'static str {
         OpenMode::Record => "record",
         OpenMode::Replay => "replay",
     }
+}
+
+fn build_open_run_id(open_source: &str, seed: u64) -> String {
+    let payload = format!("{}|{}", open_source, seed);
+    let mut hasher = Sha256::new();
+    hasher.update(payload.as_bytes());
+    format!("sha256:{:x}", hasher.finalize())
 }
 
 fn write_open_bundle_meta(
@@ -1639,6 +1943,7 @@ fn parse_open_policy_json(text: &str, path: &Path) -> Result<OpenPolicy, String>
         None => Vec::new(),
     };
     let deny = normalize_open_kind_list("deny", deny_raw)?;
+    ensure_open_policy_no_conflict(&allow, &deny, path)?;
     Ok(OpenPolicy::new(default_mode, allow, deny))
 }
 
@@ -1721,6 +2026,7 @@ fn parse_open_policy_toml(text: &str, path: &Path) -> Result<OpenPolicy, String>
         allow_raw.ok_or_else(|| format!("open.policy allow 누락: {}", path.display()))?;
     let allow = normalize_open_kind_list("allow", allow_raw)?;
     let deny = normalize_open_kind_list("deny", deny_raw.unwrap_or_default())?;
+    ensure_open_policy_no_conflict(&allow, &deny, path)?;
     Ok(OpenPolicy::new(default_mode, allow, deny))
 }
 
@@ -1744,6 +2050,28 @@ fn normalize_open_kind_list(label: &str, items: Vec<String>) -> Result<Vec<Strin
         }
     }
     Ok(out)
+}
+
+fn ensure_open_policy_no_conflict(
+    allow: &[String],
+    deny: &[String],
+    path: &Path,
+) -> Result<(), String> {
+    if allow.is_empty() || deny.is_empty() {
+        return Ok(());
+    }
+    let allow_set: std::collections::BTreeSet<&str> =
+        allow.iter().map(|item| item.as_str()).collect();
+    let deny_set: std::collections::BTreeSet<&str> =
+        deny.iter().map(|item| item.as_str()).collect();
+    for kind in allow_set.intersection(&deny_set) {
+        return Err(format!(
+            "open.policy allow/deny 충돌: {} ({})",
+            kind,
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 fn strip_toml_comment(line: &str) -> &str {
@@ -1787,11 +2115,23 @@ fn parse_toml_string_array(value: &str) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+#[allow(dead_code)]
 pub fn run_file(
     path: &Path,
     madi: Option<MadiLimit>,
     seed: u64,
     options: RunOptions,
+) -> Result<(), String> {
+    let mut emitter = StdoutRunEmitter;
+    run_file_with_emitter(path, madi, seed, options, &mut emitter)
+}
+
+pub fn run_file_with_emitter(
+    path: &Path,
+    madi: Option<MadiLimit>,
+    seed: u64,
+    options: RunOptions,
+    emit: &mut dyn RunEmitSink,
 ) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let file_label = path.display().to_string();
@@ -1805,17 +2145,68 @@ pub fn run_file(
             .map(|policy| policy.default_mode())
             .unwrap_or(OpenMode::Deny)
     });
-    if open_mode != OpenMode::Deny && !options.unsafe_open {
-        if let Some(age_target) = load_age_target(path)? {
-            if age_target < AgeTarget::Age2 {
-                return Err(format!(
-                    "E_OPEN_AGE_TARGET age_target={} open_mode={} (AGE2 이상 필요, 우회는 --unsafe-open)",
-                    age_target.label(),
-                    open_mode_label(open_mode)
-                ));
+    let project_policy = load_project_policy(path)?;
+    let parse_mode = resolve_lang_mode(options.lang_mode, &project_policy)?;
+    let program_for_gate = {
+        let tokens = match Lexer::tokenize(&source) {
+            Ok(tokens) => tokens,
+            Err(err) => {
+                return Err(RunError::Lex(err).format(&file_label));
+            }
+        };
+        let default_root = Parser::default_root_for_source(&source);
+        match Parser::parse_with_default_root_mode(tokens, default_root, parse_mode) {
+            Ok(program) => program,
+            Err(err) => {
+                return Err(RunError::Parse(err).format(&file_label));
             }
         }
+    };
+    let uses_open_block = program_contains_open_block(&program_for_gate);
+    let age_decision = resolve_age_target(options.age_target.as_deref(), &project_policy)?;
+    let age_target = age_decision.value;
+    let age_target_source = age_decision.source;
+    if uses_open_block && !options.unsafe_open && age_target < AgeTarget::Age2 {
+        return Err(err_age_not_available(
+            "open_block",
+            age_target,
+            AgeTarget::Age2,
+        ));
     }
+    if open_mode != OpenMode::Deny && !options.unsafe_open && age_target < AgeTarget::Age2 {
+        return Err(format!(
+            "{} mode={} (우회는 --unsafe-open)",
+            err_age_not_available("open_mode", age_target, AgeTarget::Age2),
+            open_mode_label(open_mode)
+        ));
+    }
+    let open_diag_enabled = age_target >= AgeTarget::Age2;
+    let diag_append = open_diag_enabled;
+    let det_tier = if open_diag_enabled {
+        project_policy.det_tier.ok_or_else(|| {
+            "E_DET_TIER_REQUIRED AGE2 이상에서는 ddn.project.json det_tier가 필요합니다".to_string()
+        })?
+    } else {
+        project_policy.det_tier.unwrap_or(DetTier::Strict)
+    };
+    let effective_trace_tier = if open_diag_enabled {
+        let trace_tier_project = project_policy.trace_tier.ok_or_else(|| {
+            "E_TRACE_TIER_REQUIRED AGE2 이상에서는 ddn.project.json trace_tier가 필요합니다".to_string()
+        })?;
+        if options.trace_tier == TraceTier::Off {
+            trace_tier_project
+        } else if trace_tier_project != options.trace_tier {
+            return Err(format!(
+                "E_TRACE_TIER_MISMATCH ddn.project.json trace_tier={} cli_trace_tier={}",
+                trace_tier_label(trace_tier_project),
+                trace_tier_label(options.trace_tier)
+            ));
+        } else {
+            options.trace_tier
+        }
+    } else {
+        options.trace_tier
+    };
     if options.open_bundle.is_some() && options.open_log.is_some() {
         return Err("E_OPEN_BUNDLE_CONFLICT --open-bundle과 --open-log는 함께 사용할 수 없습니다.".to_string());
     }
@@ -1838,10 +2229,18 @@ pub fn run_file(
             }
         }
     };
-    let diag_jsonl = options
+    let mut diag_jsonl = options
         .diag_jsonl
         .clone()
         .or_else(|| open_bundle.as_ref().map(|dir| dir.join("geoul.diag.jsonl")));
+    if open_diag_enabled && diag_jsonl.is_none() {
+        diag_jsonl = Some(PathBuf::from("geoul.diag.jsonl"));
+    }
+    if let Some(diag_path) = diag_jsonl.as_ref() {
+        if let Err(write_err) = append_run_config_diag(diag_path, age_target_source, age_target) {
+            emit.err(&format!("E_DIAG_WRITE {}", write_err));
+        }
+    }
     if let Some(bundle_dir) = open_bundle.as_ref() {
         if open_mode == OpenMode::Record {
             fs::create_dir_all(bundle_dir)
@@ -1855,8 +2254,21 @@ pub fn run_file(
             )?;
         }
     }
-    let open_runtime = OpenRuntime::new(open_mode, open_log.clone(), open_allow, open_policy)
+    let mut open_runtime = OpenRuntime::new(open_mode, open_log.clone(), open_allow, open_policy)
         .map_err(|err| format!("{} {}", err.code(), err.message()))?;
+    if open_diag_enabled {
+        let diag_path = diag_jsonl.as_ref().ok_or_else(|| {
+            "E_OPEN_DIAG_REQUIRED geoul.diag.jsonl 경로가 필요합니다".to_string()
+        })?;
+        let run_id = build_open_run_id(&open_source, seed);
+        let config = OpenDiagConfig::new(
+            diag_path.clone(),
+            run_id,
+            det_tier.label().to_string(),
+            trace_tier_label(effective_trace_tier).to_string(),
+        );
+        open_runtime.configure_diag(config);
+    }
     let wants_live = options.bogae_live;
     let wants_geoul = options.geoul_out.is_some();
     let wants_geoul_record = options.geoul_record_out.is_some();
@@ -1961,7 +2373,7 @@ pub fn run_file(
         }
     }
     if let Some(url) = input_url.as_ref() {
-        eprintln!("sam_live_input_url={}", url);
+        emit.err(&format!("sam_live_input_url={}", url));
     }
     let mut tick_snapshots: Vec<TickSnapshot> = Vec::new();
     let stop_flag = live_input.as_ref().map(|input| input.stop_flag());
@@ -1984,9 +2396,14 @@ pub fn run_file(
     };
     let geoul_out_dir = options.geoul_out.clone();
     let geoul_record_path = options.geoul_record_out.clone();
-    let trace_tier = options.trace_tier;
+    let trace_tier = effective_trace_tier;
+    let det_tier_value = if open_diag_enabled {
+        det_tier.as_u32()
+    } else {
+        0
+    };
     let geoul_writer = if let Some(dir) = geoul_out_dir.as_ref() {
-        let header = AuditHeader::new(0, trace_tier.as_u32(), 1, 0);
+        let header = AuditHeader::new(det_tier_value, trace_tier.as_u32(), 1, 0);
         let mut writer = GeoulBundleWriter::create(
             dir,
             header,
@@ -2122,6 +2539,7 @@ pub fn run_file(
                 bogae_codec,
                 cache_log,
                 Some(madi),
+                emit,
             )?;
             if let Some(event) = policy_event {
                 if let Some(path) = diag_path {
@@ -2160,8 +2578,8 @@ pub fn run_file(
         Ok(outcome) => (outcome.output, outcome.ticks),
         Err(err) => {
             if let Some(diag_path) = diag_jsonl.as_ref() {
-                if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &err) {
-                    eprintln!("E_DIAG_WRITE {}", write_err);
+                if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &err, diag_append) {
+                    emit.err(&format!("E_DIAG_WRITE {}", write_err));
                 }
             }
             if let Some(repro_path) = options.repro_json.as_ref() {
@@ -2174,11 +2592,11 @@ pub fn run_file(
                     options.until_gameover,
                     &options.gameover_key,
                 ) {
-                    eprintln!("E_REPRO_WRITE {}", write_err);
+                    emit.err(&format!("E_REPRO_WRITE {}", write_err));
                 }
             }
             if let Some(finish_error) = finish_error {
-                eprintln!("E_SAM_FINISH {}", finish_error);
+                emit.err(&format!("E_SAM_FINISH {}", finish_error));
             }
             return Err(err.format(&file_label));
         }
@@ -2191,7 +2609,7 @@ pub fn run_file(
     }
     if let Some(diag_path) = diag_jsonl.as_ref() {
         if let Err(write_err) = append_contract_diags(diag_path, &file_label, &output.contract_diags) {
-            eprintln!("E_DIAG_WRITE {}", write_err);
+            emit.err(&format!("E_DIAG_WRITE {}", write_err));
         }
     }
 
@@ -2230,8 +2648,8 @@ pub fn run_file(
             Err(err) => {
                 let run_err = RunError::Bogae(err);
                 if let Some(diag_path) = diag_jsonl.as_ref() {
-                    if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &run_err) {
-                        eprintln!("E_DIAG_WRITE {}", write_err);
+                    if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &run_err, diag_append) {
+                        emit.err(&format!("E_DIAG_WRITE {}", write_err));
                     }
                 }
                 if let Some(repro_path) = options.repro_json.as_ref() {
@@ -2244,7 +2662,7 @@ pub fn run_file(
                         options.until_gameover,
                         &options.gameover_key,
                     ) {
-                        eprintln!("E_REPRO_WRITE {}", write_err);
+                        emit.err(&format!("E_REPRO_WRITE {}", write_err));
                     }
                 }
                 return Err(run_err.format(&file_label));
@@ -2254,7 +2672,7 @@ pub fn run_file(
             if let Some(diag_path) = diag_jsonl.as_ref() {
                 if let Err(write_err) = append_cmd_policy_diag(diag_path, &file_label, None, &event)
                 {
-                    eprintln!("E_DIAG_WRITE {}", write_err);
+                    emit.err(&format!("E_DIAG_WRITE {}", write_err));
                 }
             }
         }
@@ -2268,10 +2686,10 @@ pub fn run_file(
     if let Some(mode) = options.bogae_mode {
         if matches!(mode, BogaeMode::Console) && !options.bogae_live {
             if let Some(bogae_output) = &bogae_output {
-                println!(
-                    "{}",
-                    render_drawlist_ascii(&bogae_output.drawlist, options.console_config)
-                );
+                emit.out(&render_drawlist_ascii(
+                    &bogae_output.drawlist,
+                    options.console_config,
+                ));
             }
         }
     }
@@ -2288,12 +2706,13 @@ pub fn run_file(
             options.bogae_cache_log,
             diag_jsonl.as_deref(),
             &file_label,
+            emit,
         ) {
             Ok(path) => path,
             Err(err) => {
                 if let Some(diag_path) = diag_jsonl.as_ref() {
-                    if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &err) {
-                        eprintln!("E_DIAG_WRITE {}", write_err);
+                    if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &err, diag_append) {
+                        emit.err(&format!("E_DIAG_WRITE {}", write_err));
                     }
                 }
                 if let Some(repro_path) = options.repro_json.as_ref() {
@@ -2306,7 +2725,7 @@ pub fn run_file(
                         options.until_gameover,
                         &options.gameover_key,
                     ) {
-                        eprintln!("E_REPRO_WRITE {}", write_err);
+                        emit.err(&format!("E_REPRO_WRITE {}", write_err));
                     }
                 }
                 return Err(err.format(&file_label));
@@ -2365,7 +2784,7 @@ pub fn run_file(
     }
 
     if let Some(summary) = &geoul_summary {
-        println!("audit_hash={}", summary.audit_hash);
+        emit.out(&format!("audit_hash={}", summary.audit_hash));
     }
 
     if let Some(path) = options.run_manifest.as_ref() {
@@ -2379,6 +2798,11 @@ pub fn run_file(
             &trace_hash,
             bogae_hash,
             &options.artifact_pins,
+            age_target_source,
+            age_target,
+            contract_label_for_manifest(project_policy.det_tier),
+            project_policy.detmath_seal_hash.as_deref().unwrap_or(""),
+            project_policy.nuri_lock_hash.as_deref().unwrap_or(""),
         )?;
     }
 
@@ -2392,23 +2816,23 @@ pub fn run_file(
     if options.no_open && wants_web_assets && !options.bogae_live {
         if let Some(bogae_output) = &bogae_output {
             let cmd_count = bogae_output.drawlist.cmds.len() as u32;
-            println!(
+            emit.out(&format!(
                 "bogae_hash={} cmd_count={} codec={}",
                 bogae_output.hash,
                 cmd_count,
                 bogae_output.codec.tag()
-            );
+            ));
             return Ok(());
         }
     }
 
     for line in output.trace.log_lines() {
-        println!("{}", line);
+        emit.out(line);
     }
-    println!("state_hash={}", state_hash);
-    println!("trace_hash={}", trace_hash);
+    emit.out(&format!("state_hash={}", state_hash));
+    emit.out(&format!("trace_hash={}", trace_hash));
     if let Some(bogae_output) = &bogae_output {
-        println!("bogae_hash={}", bogae_output.hash);
+        emit.out(&format!("bogae_hash={}", bogae_output.hash));
     }
     Ok(())
 }
@@ -2429,12 +2853,14 @@ pub fn run_source_with_state_seed_ticks(
 ) -> Result<EvalOutput, RunError> {
     let tokens = Lexer::tokenize(source).map_err(RunError::Lex)?;
     let default_root = Parser::default_root_for_source(source);
-    let program = Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
+    let program =
+        Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
     let evaluator = Evaluator::with_state_seed_open(
         state,
         seed,
         OpenRuntime::deny(),
         "<memory>".to_string(),
+        Some(source.to_string()),
     );
     evaluator.run_with_ticks(&program, ticks).map_err(RunError::Runtime)
 }
@@ -2464,12 +2890,14 @@ where
     let mut ticks_run = 0u64;
     let tokens = Lexer::tokenize(source).map_err(RunError::Lex)?;
     let default_root = Parser::default_root_for_source(source);
-    let program = Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
+    let program =
+        Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
     let evaluator = Evaluator::with_state_seed_open(
         state,
         seed,
         open_runtime,
         open_source.to_string(),
+        Some(source.to_string()),
     );
     let mut on_tick = |madi: u64, state: &State, tick_requested: bool| {
         ticks_run = madi + 1;
@@ -2575,6 +3003,7 @@ fn write_playback_outputs(
     cache_log: bool,
     diag_path: Option<&Path>,
     file_label: &str,
+    emit: &mut dyn RunEmitSink,
 ) -> Result<PathBuf, RunError> {
     fs::create_dir_all(out_dir).map_err(|e| RunError::Io {
         path: out_dir.to_path_buf(),
@@ -2590,8 +3019,15 @@ fn write_playback_outputs(
     let mut cache = BogaeCache::new();
     for (idx, snapshot) in snapshots.iter().enumerate() {
         let state_hash = hash::state_hash(&snapshot.state);
-        let (output, policy_event) =
-            cache.build(&snapshot.state, pack, cmd_policy, codec, cache_log, Some(snapshot.madi))?;
+        let (output, policy_event) = cache.build(
+            &snapshot.state,
+            pack,
+            cmd_policy,
+            codec,
+            cache_log,
+            Some(snapshot.madi),
+            emit,
+        )?;
         if let Some(event) = policy_event {
             if let Some(diag_path) = diag_path {
                 let _ = append_cmd_policy_diag(diag_path, file_label, Some(snapshot.madi), &event);
@@ -2675,6 +3111,8 @@ fn parse_line(err: &ParseError) -> usize {
         ParseError::ExpectedRBrace { span } => span.start_line,
         ParseError::ExpectedUnit { span } => span.start_line,
         ParseError::InvalidTensor { span } => span.start_line,
+        ParseError::CompatEqualDisabled { span } => span.start_line,
+        ParseError::CompatMaticEntryDisabled { span } => span.start_line,
     }
 }
 
@@ -2693,6 +3131,8 @@ fn parse_col(err: &ParseError) -> usize {
         ParseError::ExpectedRBrace { span } => span.start_col,
         ParseError::ExpectedUnit { span } => span.start_col,
         ParseError::InvalidTensor { span } => span.start_col,
+        ParseError::CompatEqualDisabled { span } => span.start_col,
+        ParseError::CompatMaticEntryDisabled { span } => span.start_col,
     }
 }
 
@@ -2723,6 +3163,12 @@ fn parse_message(err: &ParseError) -> String {
         ParseError::InvalidTensor { .. } => {
             "중첩 차림은 같은 길이의 2차 차림이어야 합니다".to_string()
         }
+        ParseError::CompatEqualDisabled { .. } => {
+            "strict 모드에서는 '=' 대입이 허용되지 않습니다".to_string()
+        }
+        ParseError::CompatMaticEntryDisabled { .. } => {
+            "strict 모드에서는 '매틱:움직씨' 선언이 허용되지 않습니다".to_string()
+        }
     }
 }
 
@@ -2745,6 +3191,7 @@ fn runtime_line(err: &RuntimeError) -> usize {
         RuntimeError::Pack { span, .. } => span.start_line,
         RuntimeError::BreakOutsideLoop { span } => span.start_line,
         RuntimeError::ReturnOutsideSeed { span } => span.start_line,
+        RuntimeError::OpenSiteUnknown { span } => span.start_line,
         RuntimeError::OpenDenied { span, .. } => span.start_line,
         RuntimeError::OpenReplayMissing { span, .. } => span.start_line,
         RuntimeError::OpenReplayInvalid { span, .. } => span.start_line,
@@ -2772,6 +3219,7 @@ fn runtime_col(err: &RuntimeError) -> usize {
         RuntimeError::Pack { span, .. } => span.start_col,
         RuntimeError::BreakOutsideLoop { span } => span.start_col,
         RuntimeError::ReturnOutsideSeed { span } => span.start_col,
+        RuntimeError::OpenSiteUnknown { span } => span.start_col,
         RuntimeError::OpenDenied { span, .. } => span.start_col,
         RuntimeError::OpenReplayMissing { span, .. } => span.start_col,
         RuntimeError::OpenReplayInvalid { span, .. } => span.start_col,
@@ -2805,6 +3253,7 @@ fn runtime_message(err: &RuntimeError) -> String {
         RuntimeError::Pack { message, .. } => message.clone(),
         RuntimeError::BreakOutsideLoop { .. } => "멈추기는 반복 안에서만 사용할 수 있습니다".to_string(),
         RuntimeError::ReturnOutsideSeed { .. } => "돌려주기는 씨앗 안에서만 사용할 수 있습니다".to_string(),
+        RuntimeError::OpenSiteUnknown { .. } => "열림 위치를 알 수 없습니다".to_string(),
         RuntimeError::OpenDenied { open_kind, .. } => format!("열림이 차단되었습니다: {}", open_kind),
         RuntimeError::OpenReplayMissing { open_kind, site_id, key, .. } => {
             format!("열림 리플레이 로그 없음: kind={} site_id={} key={}", open_kind, site_id, key)
@@ -2815,7 +3264,7 @@ fn runtime_message(err: &RuntimeError) -> String {
     }
 }
 
-fn write_diag_jsonl(path: &Path, file: &str, err: &RunError) -> Result<(), String> {
+fn write_diag_jsonl(path: &Path, file: &str, err: &RunError, append: bool) -> Result<(), String> {
     let (line, col, message) = match err {
         RunError::Lex(err) => (lex_line(err), lex_col(err), lex_message(err)),
         RunError::Parse(err) => (parse_line(err), parse_col(err), parse_message(err)),
@@ -2837,7 +3286,21 @@ fn write_diag_jsonl(path: &Path, file: &str, err: &RunError) -> Result<(), Strin
         json.push_str(&extra);
     }
     json.push_str("}\n");
-    fs::write(path, json).map_err(|e| e.to_string())
+    if append {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut file_handle = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| e.to_string())?;
+        file_handle
+            .write_all(json.as_bytes())
+            .map_err(|e| e.to_string())
+    } else {
+        fs::write(path, json).map_err(|e| e.to_string())
+    }
 }
 
 fn contract_fault_id(file: &str, event: &ContractDiag, index: usize) -> String {
@@ -2968,6 +3431,27 @@ fn append_cmd_policy_diag(
     file_handle.write_all(json.as_bytes()).map_err(|e| e.to_string())
 }
 
+fn append_run_config_diag(
+    path: &Path,
+    age_target_source: AgeTargetSource,
+    age_target: AgeTarget,
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = format!(
+        "{{\"level\":\"info\",\"event\":\"run_config\",\"age_target_source\":\"{}\",\"age_target_value\":\"{}\",\"tick\":0,\"seq\":0}}\n",
+        escape_json(age_target_source.label()),
+        escape_json(age_target.label()),
+    );
+    let mut file_handle = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    file_handle.write_all(json.as_bytes()).map_err(|e| e.to_string())
+}
+
 fn write_repro_json(
     path: &Path,
     file: &str,
@@ -3024,6 +3508,11 @@ fn write_run_manifest(
     trace_hash: &str,
     bogae_hash: Option<&str>,
     artifact_pins: &[ArtifactPin],
+    age_target_source: AgeTargetSource,
+    age_target: AgeTarget,
+    contract: &str,
+    detmath_seal_hash: &str,
+    nuri_lock_hash: &str,
 ) -> Result<(), String> {
     let mut pins: Vec<ArtifactPin> = artifact_pins.to_vec();
     pins.sort_by(|a, b| a.id.cmp(&b.id).then_with(|| a.hash.cmp(&b.hash)));
@@ -3047,6 +3536,11 @@ fn write_run_manifest(
         "trace_hash": trace_hash,
         "bogae_hash": bogae_hash,
         "artifact_pins": pins_json,
+        "age_target_source": age_target_source.label(),
+        "age_target_value": age_target.label(),
+        "contract": contract,
+        "detmath_seal_hash": detmath_seal_hash,
+        "nuri_lock_hash": nuri_lock_hash,
     });
     let text =
         serde_json::to_string_pretty(&root).map_err(|e| format!("E_RUN_MANIFEST_JSON {}", e))?;

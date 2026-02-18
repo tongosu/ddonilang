@@ -1,0 +1,20 @@
+{
+  "name": "W66_G01_open_block_basic",
+  "walk": 66,
+  "command": "run",
+  "entry": "input.ddn",
+  "args": {
+    "cli": ["--unsafe-open"]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "open_block_enter 1:1",
+      "안녕",
+      "open_block_exit 1:1"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

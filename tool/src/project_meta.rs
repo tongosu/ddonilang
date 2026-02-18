@@ -3,8 +3,8 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const SSOT_VERSION: &str = "20.3.1";
-const SSOT_FILE_VERSION: &str = "v20.3.1";
+const SSOT_VERSION: &str = "20.6.33";
+const SSOT_FILE_VERSION: &str = "v20.6.33";
 
 const SSOT_BUNDLE_FILES: [&str; 12] = [
     "SSOT_MASTER",
@@ -139,9 +139,10 @@ impl ProjectPolicy {
     pub fn require_feature(&self, feature: FeatureGate) -> Result<(), String> {
         if self.age_target < feature.min_age() {
             return Err(format!(
-                "age_target violation: project={} requires={}",
+                "E_AGE_NOT_AVAILABLE 요청 기능은 현재 AGE에서 사용할 수 없습니다: {} (need {}, current {})",
+                feature.label(),
+                feature.min_age().as_str(),
                 self.age_target.as_str(),
-                feature.min_age().as_str()
             ));
         }
         self.require_gate(feature.min_det(), feature.requires_open())
@@ -198,6 +199,14 @@ pub fn load_project_policy(unsafe_compat: bool) -> Result<ProjectPolicy, String>
 }
 
 impl FeatureGate {
+    pub const fn label(self) -> &'static str {
+        match self {
+            FeatureGate::ClosedCore => "closed_core",
+            FeatureGate::AiTooling => "ai_tooling",
+            FeatureGate::OpenMode => "open_mode",
+        }
+    }
+
     pub const fn min_age(self) -> AgeTarget {
         match self {
             FeatureGate::ClosedCore => AgeTarget::Age0,
@@ -295,4 +304,52 @@ fn ssot_base_dir(root: &Path) -> PathBuf {
         return preferred;
     }
     root.join("docs").join("ssot")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn policy(age_target: AgeTarget, det_tier: DetTier, openness: Openness) -> ProjectPolicy {
+        ProjectPolicy {
+            name: None,
+            ssot_requires: SSOT_VERSION.to_string(),
+            ssot_bundle_hash: None,
+            age_target,
+            det_tier,
+            trace_tier: None,
+            openness,
+        }
+    }
+
+    #[test]
+    fn require_feature_reports_age_not_available_code() {
+        let project = policy(AgeTarget::Age0, DetTier::Strict, Openness::Closed);
+        let err = project
+            .require_feature(FeatureGate::OpenMode)
+            .expect_err("age gate should fail");
+        assert!(err.contains("E_AGE_NOT_AVAILABLE"));
+        assert!(err.contains("need AGE2"));
+        assert!(err.contains("current AGE0"));
+    }
+
+    #[test]
+    fn age0_requires_strict_and_closed() {
+        assert!(enforce_age_policy(AgeTarget::Age0, DetTier::Strict, Openness::Closed).is_ok());
+
+        let det_err = enforce_age_policy(AgeTarget::Age0, DetTier::Fast, Openness::Closed)
+            .expect_err("AGE0 must reject non-strict det_tier");
+        assert!(det_err.contains("AGE0 requires det_tier=D-STRICT"));
+
+        let openness_err = enforce_age_policy(AgeTarget::Age0, DetTier::Strict, Openness::Open)
+            .expect_err("AGE0 must reject openness=open");
+        assert!(openness_err.contains("AGE0 requires openness=closed"));
+    }
+
+    #[test]
+    fn age1_forbids_open_mode() {
+        let err = enforce_age_policy(AgeTarget::Age1, DetTier::Strict, Openness::Open)
+            .expect_err("AGE1 should reject openness=open");
+        assert!(err.contains("AGE1 forbids openness=open"));
+    }
 }

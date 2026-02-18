@@ -1,0 +1,8 @@
+{
+  "name": "open_diag_det_tier_invalid",
+  "age_target": "AGE2",
+  "det_tier": "D-BOGUS",
+  "trace_tier": "T-OFF",
+  "openness": "closed",
+  "deps": []
+}

@@ -1,0 +1,16 @@
+{
+  "name": "W66_G06_open_diag_trace_tier_invalid",
+  "walk": 66,
+  "command": "run",
+  "entry": "input.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "trace_tier 오류"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}
