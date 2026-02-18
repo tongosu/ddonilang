@@ -1,0 +1,4 @@
+{"input_path":"input.ddn","stdout":["dialect_smoke_ok"]}
+{"input_path":"input_sym3.ddn","stdout":["dialect_sym3_ok"]}
+{"input_path":"input_inactive_default.ddn","stdout":["inactive_default_ok"]}
+{"input_path":"input_inactive_unsupported.ddn","stdout":["inactive_unsupported_ok"]}
