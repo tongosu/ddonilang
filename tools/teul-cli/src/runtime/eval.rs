@@ -249,13 +249,13 @@ impl Evaluator {
             return Ok(FlowControl::Continue);
         }
         match stmt {
-            Stmt::DeclBlock { kind, items, .. } => {
+            Stmt::DeclBlock { items, .. } => {
                 for item in items {
                     let value = if let Some(expr) = &item.value {
                         self.eval_expr(expr)?
-                    } else if matches!(kind, DeclKind::Butbak) {
+                    } else if matches!(item.kind, DeclKind::Butbak) {
                         return Err(RuntimeError::Pack {
-                            message: format!("붙박이마련에는 초기값이 필요합니다: {}", item.name),
+                            message: format!("채비에서 '=' 항목은 초기값이 필요합니다: {}", item.name),
                             span: item.span,
                         });
                     } else {

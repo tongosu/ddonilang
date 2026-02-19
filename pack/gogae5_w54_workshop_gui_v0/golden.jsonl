@@ -1,2 +1,2 @@
-{"cmd": ["run", "pack/gogae5_w54_workshop_gui_v0/input.ddn", "--madi", "2", "--geoul-out", "build/geoul_w54"], "stdout": ["audit_hash=blake3:33ff4392f9c7a511d71261dbaed46fed76bc00ac9d54d47dce8b3c024a91606d", "0"]}
-{"cmd": ["workshop", "gen", "--geoul", "build/geoul_w54", "--out", "build/workshop_w54"], "stdout": ["workshop_out=build/workshop_w54"]}
+{"cmd": ["run", "pack/gogae5_w54_workshop_gui_v0/input.ddn", "--madi", "2", "--geoul-out", "build/geoul_w54"], "stdout": ["audit_hash=blake3:76a6475022b93b84c01236a36f1c2b082fa569c815b6a1f29ac9a8a1769adffe", "0"], "exit_code": 0}
+{"cmd": ["workshop", "gen", "--geoul", "build/geoul_w54", "--out", "build/workshop_w54"], "stdout": ["workshop_out=build/workshop_w54"], "exit_code": 0}

@@ -11,7 +11,7 @@ pub enum TokenKind {
     KwImeumssi, KwUmjikssi, KwGallaessi, KwRelationssi, KwValueFunc, KwSam, KwHeureumssi, KwIeumssi, KwSemssi,
     KwIlttae, KwAniramyeon, KwBanbok, KwButeo, KwKkaji, KwDongan, KwDaehae, KwMeomchugi, KwDollyeojwo, KwAllyeo,
     KwHaebogo, KwGoreugi, KwMajeumyeon, KwJeonjehae, KwBojanghago, KwHaeseo, KwNeuljikeobogo,
-    Josa(String), At, Question, Bang, Tilde, Colon, Equals, Arrow, DoubleArrow, Dot, DotDot, DotDotEq, Comma, Semicolon, Pipe,
+    Josa(String), At, Question, Bang, Tilde, Colon, Equals, Arrow, RightArrow, DoubleArrow, Dot, DotDot, DotDotEq, Comma, Semicolon, Pipe,
     LParen, RParen, LBrace, RBrace, LBracket, RBracket, Plus, PlusArrow, PlusEqual, Minus, MinusArrow, MinusEqual, Star, Slash, Percent, Caret,
     EqEq, NotEq, Lt, Gt, LtEq, GtEq, And, Or, Not, Eof,
 }
@@ -101,7 +101,16 @@ impl<'a> Lexer<'a> {
                 }
             },
             '@' => { self.advance(); TokenKind::At },
-            '~' => { return Ok(self.read_tilde_token()); },
+            '~' => {
+                if self.peek_ahead(1) == Some('~') && self.peek_ahead(2) == Some('>') {
+                    self.advance();
+                    self.advance();
+                    self.advance();
+                    TokenKind::DoubleArrow
+                } else {
+                    return Ok(self.read_tilde_token());
+                }
+            },
             '!' => {
                 self.advance();
                 if self.peek_char() == Some('=') {
@@ -172,7 +181,10 @@ impl<'a> Lexer<'a> {
             },
             '-' => {
                 self.advance();
-                if self.peek_char() == Some('<') && self.peek_ahead(1) == Some('-') {
+                if self.peek_char() == Some('>') {
+                    self.advance();
+                    TokenKind::RightArrow
+                } else if self.peek_char() == Some('<') && self.peek_ahead(1) == Some('-') {
                     self.advance();
                     self.advance();
                     TokenKind::MinusArrow
@@ -207,9 +219,9 @@ impl<'a> Lexer<'a> {
         let mut lexeme = text.to_string();
         if let Some(canon) = self.dialect.canonicalize_keyword(text) {
             lexeme = canon.to_string();
-            if let Some(kind) = keyword_kind_for(&lexeme) {
-                return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
-            }
+        }
+        if let Some(kind) = keyword_kind_for(&lexeme) {
+            return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
         }
 
         let josa_list = [
@@ -415,9 +427,9 @@ impl<'a> Lexer<'a> {
         let mut lexeme = text.to_string();
         if let Some(canon) = self.dialect.canonicalize_keyword(text) {
             lexeme = canon.to_string();
-            if let Some(kind) = keyword_kind_for(&lexeme) {
-                return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
-            }
+        }
+        if let Some(kind) = keyword_kind_for(&lexeme) {
+            return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
         }
         Ok(Token { kind: TokenKind::Ident(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme })
     }
@@ -536,11 +548,11 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
     match canon {
         "이름씨" => Some(TokenKind::KwImeumssi),
         "움직씨" => Some(TokenKind::KwUmjikssi),
-        "값함수" => Some(TokenKind::KwValueFunc),
+        "값함수" => None,
         "셈씨" => Some(TokenKind::KwSemssi),
         "이음씨" => Some(TokenKind::KwIeumssi),
         "흐름씨" => Some(TokenKind::KwHeureumssi),
-        "갈래씨" | "일묶음씨" => Some(TokenKind::KwGallaessi),
+        "갈래씨" => Some(TokenKind::KwGallaessi),
         "관계씨" | "맞물림씨" => Some(TokenKind::KwRelationssi),
         "샘" => Some(TokenKind::KwSam),
         "그리고" => Some(TokenKind::And),
@@ -558,7 +570,7 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
         "바탕으로" | "전제하에" => Some(TokenKind::KwJeonjehae),
         "다짐하고" | "보장하고" => Some(TokenKind::KwBojanghago),
         "해서" => Some(TokenKind::KwHaeseo),
-        "늘지켜보고" | "유지하고" | "검사할때" => Some(TokenKind::KwNeuljikeobogo),
+        "늘지켜보고" => Some(TokenKind::KwNeuljikeobogo),
         _ => None,
     }
 }
@@ -610,5 +622,28 @@ mod tests {
         let mut lexer = Lexer::new("#말씨: xx\nif 참.\n");
         let tokens = lexer.tokenize().expect("tokenize");
         assert!(matches!(tokens[1].kind, TokenKind::Ident(ref name) if name == "if"));
+    }
+
+    #[test]
+    fn double_arrow_uses_tilde_form() {
+        let mut lexer = Lexer::new("왼 ~~> 오른.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::DoubleArrow)));
+        let arrow = tokens
+            .iter()
+            .find(|token| matches!(token.kind, TokenKind::DoubleArrow))
+            .expect("double arrow");
+        assert_eq!(arrow.raw, "~~>");
+    }
+
+    #[test]
+    fn double_arrow_legacy_form_is_kept_for_compat() {
+        let mut lexer = Lexer::new("왼 <<- 오른.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::DoubleArrow)));
     }
 }

@@ -63,11 +63,19 @@ pub enum TypeRef {
 #[derive(Debug, Clone)]
 pub struct Body { pub id: NodeId, pub span: Span, pub stmts: Vec<Stmt> }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetaBlockKind {
+    Setting,
+    Bogae,
+    Seulgi,
+}
+
 #[derive(Debug, Clone)]
 pub enum Stmt {
     DeclBlock { id: NodeId, span: Span, mood: Mood, kind: DeclKind, items: Vec<DeclItem> },
     Mutate { id: NodeId, span: Span, mood: Mood, target: Expr, value: Expr },
     Expr { id: NodeId, span: Span, mood: Mood, expr: Expr },
+    MetaBlock { id: NodeId, span: Span, mood: Mood, kind: MetaBlockKind, entries: Vec<String> },
     Pragma { id: NodeId, span: Span, name: String, args: String },
     Return { id: NodeId, span: Span, mood: Mood, value: Expr },
     If { id: NodeId, span: Span, mood: Mood, condition: Expr, then_body: Body, else_body: Option<Body> },
@@ -92,6 +100,7 @@ pub struct DeclItem {
     pub id: NodeId,
     pub span: Span,
     pub name: String,
+    pub kind: DeclKind,
     pub type_ref: TypeRef,
     pub value: Option<Expr>,
 }

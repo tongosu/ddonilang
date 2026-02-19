@@ -6,15 +6,6 @@ const DIALECT_TABLE_TSV: &str = include_str!(concat!(
     "/../docs/context/notes/dialect/DDONIRANG_dialect_keywords_full_v8_20260215.tsv"
 ));
 
-const LEGACY_ALIASES: &[(&str, &str)] = &[
-    ("반복", "되풀이"),
-    ("반환", "되돌림"),
-    ("돌려줘", "되돌림"),
-    ("보장하고", "다짐하고"),
-    ("전제하에", "바탕으로"),
-    ("아니라면", "아니면"),
-];
-
 const TAG_COLUMNS_EXCLUDED: &[&str] = &["kind", "ko_canon", "ko_alias", "notes", "sym3"];
 
 #[derive(Clone, Debug)]
@@ -160,7 +151,10 @@ impl DialectLexicon {
             insert_keyword(ko_map, &canon, &canon);
             insert_keyword(&mut all_keywords, &canon, &canon);
 
-            if let Some(alias) = normalize_keyword_token(ko_alias) {
+            for alias in split_keyword_alias_tokens(ko_alias) {
+                if is_removed_legacy_keyword_alias(&alias, &canon) {
+                    continue;
+                }
                 insert_keyword(ko_map, &alias, &canon);
                 insert_keyword(&mut all_keywords, &alias, &canon);
             }
@@ -177,13 +171,6 @@ impl DialectLexicon {
 
             for token in split_symbol_tokens(sym3_raw) {
                 insert_symbol(&mut symbol_map, &token, &canon);
-            }
-        }
-
-        if let Some(ko_map) = by_lang.get_mut("ko") {
-            for (alias, canon) in LEGACY_ALIASES {
-                insert_keyword(ko_map, alias, canon);
-                insert_keyword(&mut all_keywords, alias, canon);
             }
         }
 
@@ -344,6 +331,24 @@ fn split_symbol_tokens(raw: &str) -> Vec<String> {
         .collect()
 }
 
+fn split_keyword_alias_tokens(raw: &str) -> Vec<String> {
+    raw.split(|ch: char| matches!(ch, '/' | '|' | ',' | ';'))
+        .filter_map(normalize_keyword_token)
+        .collect()
+}
+
+fn is_removed_legacy_keyword_alias(alias: &str, canon: &str) -> bool {
+    matches!(
+        (alias, canon),
+        ("값함수", "셈씨")
+            | ("일묶음씨", "갈래씨")
+            | ("유지하고", "늘지켜보고")
+            | ("검사할때", "늘지켜보고")
+            | ("설정보개", "보개")
+            | ("보임", "보개")
+    )
+}
+
 fn is_ident_like(text: &str) -> bool {
     let mut chars = text.chars();
     let Some(first) = chars.next() else {
@@ -404,5 +409,16 @@ mod tests {
         let cfg = DialectConfig::from_source("#말씨: ko\n값~ob 보여주기.\n");
         assert_eq!(cfg.canonicalize_josa("~ob"), Some("object"));
         assert_eq!(cfg.canonicalize_josa("~sb"), Some("subject"));
+    }
+
+    #[test]
+    fn ko_aliases_do_not_include_removed_legacy_keywords() {
+        let cfg = DialectConfig::from_source("#말씨: ko\n");
+        assert_eq!(cfg.canonicalize_keyword("값함수"), None);
+        assert_eq!(cfg.canonicalize_keyword("일묶음씨"), None);
+        assert_eq!(cfg.canonicalize_keyword("유지하고"), None);
+        assert_eq!(cfg.canonicalize_keyword("검사할때"), None);
+        assert_eq!(cfg.canonicalize_keyword("설정보개"), None);
+        assert_eq!(cfg.canonicalize_keyword("보임"), None);
     }
 }

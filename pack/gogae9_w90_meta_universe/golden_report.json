@@ -15,7 +15,7 @@
   "order_rule": "sender_seq",
   "schema": "gateway.load_report.v1",
   "seed": 1,
-  "ssot_version": "20.3.1",
+  "ssot_version": "20.6.6",
   "thread_mode": "threads=4",
   "throughput_events_per_sec": 240,
   "tick_hz": 60,

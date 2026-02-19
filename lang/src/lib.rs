@@ -33,7 +33,7 @@ pub use surface::{surface_form, SurfaceError};
 
 /// 편리 함수: 소스 → AST
 pub fn parse(source: &str, file_path: &str) -> Result<CanonProgram, ParseError> {
-    parse_with_mode(source, file_path, ParseMode::Compat)
+    parse_with_mode(source, file_path, ParseMode::Strict)
 }
 
 /// 편리 함수: 소스 → AST (모드 지정)
@@ -87,30 +87,9 @@ mod integration_tests {
         }
     }
 
-    fn normalize_without_pragma_lines(source: &str) -> String {
-        let mut program = parse(source, "test.ddoni").expect("parse");
-        let _report = canonicalize(&mut program).expect("canonicalize");
-        normalize(&program, NormalizationLevel::N1)
-            .lines()
-            .map(str::trim_end)
-            .filter(|line| !line.trim_start().starts_with('#'))
-            .filter(|line| !line.trim().is_empty())
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
     #[test]
-    fn dialect_surface_variants_keep_same_normalized_ast() {
-        let ko = r#"
-검사:셈씨 = {
-    (1 < 2) 일때 {
-        1 돌려줘.
-    } 아니면 {
-        2 돌려줘.
-    }
-}
-"#;
-        let en = r#"
+    fn dialect_header_is_rejected() {
+        let source = r#"
 #말씨: en
 검사:셈씨 = {
     (1 < 2) if {
@@ -120,10 +99,8 @@ mod integration_tests {
     }
 }
 "#;
-
-        let ko_norm = normalize_without_pragma_lines(ko);
-        let en_norm = normalize_without_pragma_lines(en);
-        assert_eq!(ko_norm, en_norm);
+        let err = parse(source, "test.ddoni").expect_err("pragma header rejected");
+        assert!(err.message.contains("길잡이말"));
     }
     
     #[test]
@@ -614,6 +591,29 @@ mod integration_tests {
     }
 
     #[test]
+    fn test_right_assign_normalizes_to_left_assign() {
+        let source = r#"
+테스트:셈씨 = {
+    점수 <- 0.
+    점수 + 1 -> 점수.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("점수 <- 점수 + 1."));
+    }
+
+    #[test]
+    fn test_right_assign_index_normalizes_to_charim_set() {
+        let source = r#"
+테스트:셈씨 = {
+    3 -> 보드[2].
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("보드 <- (대상=보드, i=2, 값=3) 차림.바꾼값."));
+    }
+
+    #[test]
     fn test_suffix_chain_unit_pin_josa() {
         let source = r#"
 (거리:수~에서) 이동:셈씨 = {
@@ -1050,7 +1050,7 @@ Test:셈씨 = {
     fn test_decl_block_parses() {
         let source = r#"
 테스트:셈씨 = {
-    그릇채비: { 점수:수 <- 0. }.
+    채비: { 점수:수 <- 0. }.
     점수 <- 점수 + 1.
 }
 "#;
@@ -1058,35 +1058,59 @@ Test:셈씨 = {
         let TopLevelItem::SeedDef(seed) = &program.items[0];
         let body = seed.body.as_ref().unwrap();
         match &body.stmts[0] {
-            Stmt::DeclBlock { kind, items, .. } => {
-                assert!(matches!(kind, DeclKind::Gureut));
+            Stmt::DeclBlock { items, .. } => {
                 assert_eq!(items.len(), 1);
+                assert!(matches!(items[0].kind, DeclKind::Gureut));
             }
             _ => panic!("decl block expected"),
         }
     }
 
     #[test]
-    fn test_root_hide_requires_decl() {
+    fn test_root_hide_pragma_is_rejected() {
         let source = r#"
 테스트:셈씨 = {
     #바탕숨김.
     값 <- 1.
 }
 "#;
-        let err = parse(source, "test.ddoni").expect_err("root hide");
-        assert!(err.message.contains("바탕숨김"));
+        let err = parse(source, "test.ddoni").expect_err("pragma rejected");
+        assert!(err.message.contains("길잡이말"));
     }
 
     #[test]
-    fn test_pragma_stmt_parses_inside_seed() {
+    fn test_pragma_stmt_rejected_inside_seed() {
         let source = r#"
 테스트:셈씨 = {
     #그래프(y축=살림.x)
     살림.x <- 1.
 }
 "#;
-        let program = parse(source, "test.ddoni").expect("pragma parse");
+        let err = parse(source, "test.ddoni").expect_err("pragma rejected");
+        assert!(err.message.contains("길잡이말"));
+    }
+
+    #[test]
+    fn test_top_level_pragma_is_rejected() {
+        let source = r#"
+#가져오기 누리/기본
+테스트:셈씨 = {
+    1 돌려줘.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("top-level pragma rejected");
+        assert!(err.message.contains("길잡이말"));
+    }
+
+    #[test]
+    fn test_setting_block_parses_with_colon() {
+        let source = r#"
+테스트:셈씨 = {
+    설정: { 화면: "기본". }.
+    1 돌려줘.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("setting block parse");
         let seed = program
             .items
             .iter()
@@ -1096,58 +1120,77 @@ Test:셈씨 = {
             .find(|seed| seed.canonical_name == "테스트")
             .expect("테스트 seed");
         let body = seed.body.as_ref().expect("테스트 body");
-        assert!(matches!(body.stmts[0], Stmt::Pragma { .. }));
-        match &body.stmts[0] {
-            Stmt::Pragma { name, args, .. } => {
-                assert_eq!(name, "그래프");
-                assert_eq!(args, "y축=살림.x");
-            }
-            _ => unreachable!(),
-        }
+        assert!(matches!(body.stmts[0], Stmt::MetaBlock { .. }));
     }
 
     #[test]
-    fn test_top_level_pragma_is_ignored() {
+    fn test_setting_block_without_colon_is_error() {
         let source = r#"
-#가져오기 누리/기본
 테스트:셈씨 = {
+    설정 { 화면: "기본". }.
     1 돌려줘.
 }
 "#;
-        let program = parse(source, "test.ddoni").expect("top-level pragma parse");
-        assert_eq!(program.items.len(), 1);
+        let _err = parse(source, "test.ddoni").expect_err("setting block without colon");
     }
 
     #[test]
-    fn test_pragma_is_semantic_noop_for_body_shape() {
-        let with_pragma = r#"
-테스트:셈씨 = {
-    #그래프(y축=살림.x)
-    살림.x <- 1.
-    살림.y <- 살림.x + 2.
-}
-"#;
-        let without_pragma = r#"
-테스트:셈씨 = {
-    살림.x <- 1.
-    살림.y <- 살림.x + 2.
-}
-"#;
-        assert_eq!(
-            normalize_without_pragma_lines(with_pragma),
-            normalize_without_pragma_lines(without_pragma),
-        );
-    }
-
-    #[test]
-    fn test_butbak_requires_value() {
+    fn test_setting_bogae_alias_is_rejected() {
         let source = r#"
 테스트:셈씨 = {
-    붙박이마련: { 파이:수. }.
+    설정보개: { y축: 값. }.
+    1 돌려줘.
 }
 "#;
-        let err = parse(source, "test.ddoni").expect_err("butbak value");
-        assert!(err.message.contains("붙박이마련"));
+        let err = parse(source, "test.ddoni").expect_err("legacy bogae alias rejected");
+        assert!(err.message.contains("문장 종결") || err.message.contains("설정/보개/슬기"));
+    }
+
+    #[test]
+    fn test_boim_block_without_colon_is_rejected() {
+        let source = r#"
+테스트:셈씨 = {
+    보임 { y축: 값. }.
+    1 돌려줘.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("legacy boim alias rejected");
+        assert!(err.message.contains("문장 종결") || err.message.contains("설정/보개/슬기"));
+    }
+
+    #[test]
+    fn test_legacy_ilmukssi_is_rejected() {
+        let source = r#"
+테스트:일묶음씨 = {
+    1 돌려줘.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("legacy ilmukssi rejected");
+        assert!(err.message.contains("일묶음씨"));
+        assert!(err.message.contains("갈래씨"));
+    }
+
+    #[test]
+    fn test_legacy_valuefunc_is_rejected() {
+        let source = r#"
+테스트:값함수 = {
+    1 돌려줘.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("legacy valuefunc rejected");
+        assert!(err.message.contains("값함수"));
+        assert!(err.message.contains("셈씨"));
+    }
+
+    #[test]
+    fn test_legacy_decl_headers_are_rejected() {
+        let source = r#"
+테스트:셈씨 = {
+    붙박이마련: { 파이:수 = 3. }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("legacy decl header");
+        assert!(err.message.contains("채비"));
     }
 
     #[test]

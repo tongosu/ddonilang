@@ -163,12 +163,8 @@ impl Normalizer {
     
     fn normalize_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::DeclBlock { kind, items, .. } => {
-                let keyword = match kind {
-                    DeclKind::Gureut => "그릇채비",
-                    DeclKind::Butbak => "붙박이마련",
-                };
-                self.write(keyword);
+            Stmt::DeclBlock { items, .. } => {
+                self.write("채비");
                 self.write(": ");
                 self.write("{\n");
                 self.indent += 1;
@@ -178,7 +174,7 @@ impl Normalizer {
                     self.write(":");
                     self.normalize_type(&item.type_ref);
                     if let Some(value) = &item.value {
-                        match kind {
+                        match item.kind {
                             DeclKind::Gureut => self.write(" <- "),
                             DeclKind::Butbak => self.write(" = "),
                         }
@@ -200,6 +196,26 @@ impl Normalizer {
             }
             Stmt::Expr { expr, .. } => {
                 self.normalize_expr(expr);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::MetaBlock { kind, entries, .. } => {
+                let name = match kind {
+                    MetaBlockKind::Setting => "설정",
+                    MetaBlockKind::Bogae => "보개",
+                    MetaBlockKind::Seulgi => "슬기",
+                };
+                self.write(name);
+                self.write(": ");
+                self.write("{\n");
+                self.indent += 1;
+                for entry in entries {
+                    self.write_indent();
+                    self.write(entry);
+                    self.write(".\n");
+                }
+                self.indent -= 1;
+                self.write_indent();
+                self.write("}");
                 self.write_stmt_terminator(stmt);
             }
             Stmt::Pragma { name, args, .. } => {
@@ -540,6 +556,7 @@ impl Normalizer {
             Stmt::DeclBlock { mood, .. } => mood,
             Stmt::Mutate { mood, .. } => mood,
             Stmt::Expr { mood, .. } => mood,
+            Stmt::MetaBlock { mood, .. } => mood,
             Stmt::Pragma { .. } => return,
             Stmt::Return { mood, .. } => mood,
             Stmt::If { mood, .. } => mood,
@@ -597,10 +614,10 @@ mod tests {
     
     #[test]
     fn test_n1_function_formatting() {
-        let source = "(x:수)증가:값함수={x+1돌려줘.}";
+        let source = "(x:수)증가:셈씨={x+1돌려줘.}";
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
         
-        let expected = r#"(x:수) 증가:값함수 = {
+        let expected = r#"(x:수) 증가:셈씨 = {
     x + 1 돌려줘.
 }"#;
         assert_eq!(normalized.trim(), expected);

@@ -18,5 +18,5 @@
   "order_rule": "sender_seq",
   "realms": 2,
   "schema": "gateway.serve_report.v1",
-  "ssot_version": "20.3.1"
+  "ssot_version": "20.6.6"
 }

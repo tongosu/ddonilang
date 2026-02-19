@@ -86,16 +86,18 @@ def load_cases(pack_dir: Path) -> list[dict]:
             data = json.loads(line)
         except json.JSONDecodeError as exc:
             raise ValueError(f"{golden_path} line {idx}: {exc}")
-        if (
-            "stdout" not in data
-            and "stdout_path" not in data
-            and "bogae_hash" not in data
-            and "expected_error_code" not in data
-            and "expected_warning_code" not in data
-            and "smoke_golden" not in data
-        ):
+        has_core_expectation = (
+            "stdout" in data
+            or "stdout_path" in data
+            or "bogae_hash" in data
+            or "expected_error_code" in data
+            or "expected_warning_code" in data
+            or "smoke_golden" in data
+        )
+        has_graph_expectation = "fixture" in data and "expected_graph" in data
+        if not has_core_expectation and not has_graph_expectation:
             raise ValueError(
-                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, or smoke_golden"
+                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, smoke_golden, or fixture/expected_graph"
             )
         if "stdout" in data and not isinstance(data["stdout"], list):
             raise ValueError(f"{golden_path} line {idx}: stdout must be a list")
@@ -115,6 +117,12 @@ def load_cases(pack_dir: Path) -> list[dict]:
             raise ValueError(f"{golden_path} line {idx}: expected_warning_code must be a string")
         if "smoke_golden" in data and not isinstance(data["smoke_golden"], str):
             raise ValueError(f"{golden_path} line {idx}: smoke_golden must be a string")
+        if "fixture" in data and "expected_graph" not in data:
+            raise ValueError(f"{golden_path} line {idx}: fixture requires expected_graph")
+        if "fixture" in data and not isinstance(data["fixture"], str):
+            raise ValueError(f"{golden_path} line {idx}: fixture must be a string")
+        if "expected_graph" in data and not isinstance(data["expected_graph"], str):
+            raise ValueError(f"{golden_path} line {idx}: expected_graph must be a string")
         if "expected_contract" in data and not isinstance(data["expected_contract"], str):
             raise ValueError(f"{golden_path} line {idx}: expected_contract must be a string")
         if "expected_detmath_seal_hash" in data and not isinstance(data["expected_detmath_seal_hash"], str):
@@ -404,6 +412,77 @@ def run_smoke_golden_case(
     return True, got_lines, got_lines, "\n".join(stderr_lines), artifacts
 
 
+def canonical_json_lines(data: object) -> list[str]:
+    return [json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))]
+
+
+def run_graph_autorender_case(
+    root: Path,
+    pack_dir: Path,
+    case_idx: int,
+    case: dict,
+) -> tuple[bool, list[str], list[str], str, dict]:
+    fixture_rel = case.get("fixture")
+    expected_rel = case.get("expected_graph")
+    prefer_patch = bool(case.get("prefer_patch", False))
+    if not isinstance(fixture_rel, str) or not fixture_rel.strip():
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: fixture must be non-empty string")
+    if not isinstance(expected_rel, str) or not expected_rel.strip():
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: expected_graph must be non-empty string")
+
+    expected_path = (pack_dir / expected_rel).resolve()
+    if not expected_path.exists():
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: expected_graph not found: {expected_rel}")
+    expected_obj = json.loads(expected_path.read_text(encoding="utf-8"))
+
+    runner = root / "tests" / "seamgrim_graph_autorender_runner.mjs"
+    cmd = [
+        "node",
+        "--no-warnings",
+        str(runner),
+        str(pack_dir),
+        fixture_rel,
+        "true" if prefer_patch else "false",
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
+    if result.returncode != 0:
+        detail = stderr_lines or [line for line in result.stdout.splitlines() if line.strip()] or ["runner failed"]
+        return (
+            False,
+            ["graph autorender runner exit_code=0"],
+            [f"graph autorender runner exit_code={result.returncode}"],
+            "\n".join(detail),
+            {
+                "stdout_lines": [line for line in result.stdout.splitlines() if line.strip()],
+                "stderr_lines": stderr_lines,
+                "exit_code": result.returncode,
+                "actual_meta": None,
+            },
+        )
+
+    actual_obj = json.loads(result.stdout)
+    expected_lines = canonical_json_lines(expected_obj)
+    actual_lines = canonical_json_lines(actual_obj)
+    ok = expected_lines == actual_lines
+    artifacts = {
+        "stdout_lines": actual_lines,
+        "stderr_lines": stderr_lines,
+        "exit_code": 0,
+        "actual_meta": None,
+        "graph_expected_path": str(expected_path),
+        "graph_actual_json": actual_obj,
+    }
+    return ok, expected_lines, actual_lines, "\n".join(stderr_lines), artifacts
+
+
 def run_case(
     root: Path,
     pack_dir: Path,
@@ -414,6 +493,8 @@ def run_case(
     smoke_golden = case.get("smoke_golden")
     if isinstance(smoke_golden, str) and smoke_golden.strip():
         return run_smoke_golden_case(root, pack_dir, case_idx, case, run_policy)
+    if "fixture" in case and "expected_graph" in case:
+        return run_graph_autorender_case(root, pack_dir, case_idx, case)
 
     input_text = case.get("input")
     input_path = case.get("input_path")
@@ -725,6 +806,18 @@ def write_case_updates(
                     encoding="utf-8",
                     newline="\n",
                 )
+
+    graph_expected_path = artifacts.get("graph_expected_path")
+    graph_actual_json = artifacts.get("graph_actual_json")
+    if isinstance(graph_expected_path, str) and graph_actual_json is not None:
+        graph_path = Path(graph_expected_path)
+        if should_write_expected(graph_path, update, record):
+            graph_path.parent.mkdir(parents=True, exist_ok=True)
+            graph_path.write_text(
+                json.dumps(graph_actual_json, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
 
     return case_changed, issues
 

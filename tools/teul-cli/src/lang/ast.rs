@@ -31,6 +31,7 @@ impl SeedKind {
 #[derive(Clone, Debug)]
 pub struct DeclItem {
     pub name: String,
+    pub kind: DeclKind,
     #[allow(dead_code)]
     pub type_name: String,
     pub value: Option<Expr>,
@@ -48,7 +49,6 @@ pub struct ParamPin {
 #[derive(Clone, Debug)]
 pub enum Stmt {
     DeclBlock {
-        kind: DeclKind,
         items: Vec<DeclItem>,
         #[allow(dead_code)]
         span: Span,

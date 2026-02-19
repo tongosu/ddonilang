@@ -177,7 +177,7 @@ impl LspServer {
                     self.collect_from_expr(condition, visualizations);
                     self.collect_from_body(body, visualizations);
                 }
-                Stmt::Pragma { .. } => {}
+                Stmt::Pragma { .. } | Stmt::MetaBlock { .. } => {}
             }
         }
     }
@@ -489,7 +489,7 @@ impl LspServer {
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
                 Stmt::Break { .. } => {}
-                Stmt::Pragma { .. } => {}
+                Stmt::Pragma { .. } | Stmt::MetaBlock { .. } => {}
             }
         }
     }

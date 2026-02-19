@@ -1559,7 +1559,6 @@ fn contract_label_for_manifest(det_tier: Option<DetTier>) -> &'static str {
 fn parse_lang_mode(text: &str) -> Option<ParseMode> {
     let collapsed: String = text.chars().filter(|ch| !ch.is_whitespace()).collect();
     match collapsed.to_ascii_lowercase().as_str() {
-        "compat" => Some(ParseMode::Compat),
         "strict" => Some(ParseMode::Strict),
         _ => None,
     }
@@ -1575,7 +1574,7 @@ fn resolve_lang_mode(
     if let Some(mode) = project_policy.lang_mode {
         return Ok(mode);
     }
-    Ok(ParseMode::Compat)
+    Ok(ParseMode::Strict)
 }
 
 fn resolve_age_target(
@@ -3103,16 +3102,12 @@ fn parse_line(err: &ParseError) -> usize {
         ParseError::ExpectedPath { span } => span.start_line,
         ParseError::ExpectedTarget { span } => span.start_line,
         ParseError::RootHideUndeclared { span, .. } => span.start_line,
-        ParseError::ConstMissingValue { span, .. } => span.start_line,
-        ParseError::GureutEqualForbidden { span } => span.start_line,
-        ParseError::ButbakArrowForbidden { span } => span.start_line,
         ParseError::UnsupportedCompoundTarget { span } => span.start_line,
         ParseError::ExpectedRParen { span } => span.start_line,
         ParseError::ExpectedRBrace { span } => span.start_line,
         ParseError::ExpectedUnit { span } => span.start_line,
         ParseError::InvalidTensor { span } => span.start_line,
         ParseError::CompatEqualDisabled { span } => span.start_line,
-        ParseError::CompatMaticEntryDisabled { span } => span.start_line,
     }
 }
 
@@ -3123,16 +3118,12 @@ fn parse_col(err: &ParseError) -> usize {
         ParseError::ExpectedPath { span } => span.start_col,
         ParseError::ExpectedTarget { span } => span.start_col,
         ParseError::RootHideUndeclared { span, .. } => span.start_col,
-        ParseError::ConstMissingValue { span, .. } => span.start_col,
-        ParseError::GureutEqualForbidden { span } => span.start_col,
-        ParseError::ButbakArrowForbidden { span } => span.start_col,
         ParseError::UnsupportedCompoundTarget { span } => span.start_col,
         ParseError::ExpectedRParen { span } => span.start_col,
         ParseError::ExpectedRBrace { span } => span.start_col,
         ParseError::ExpectedUnit { span } => span.start_col,
         ParseError::InvalidTensor { span } => span.start_col,
         ParseError::CompatEqualDisabled { span } => span.start_col,
-        ParseError::CompatMaticEntryDisabled { span } => span.start_col,
     }
 }
 
@@ -3145,15 +3136,6 @@ fn parse_message(err: &ParseError) -> String {
         ParseError::RootHideUndeclared { name, .. } => {
             format!("바탕숨김에서 미등록 바탕칸 쓰기: {}", name)
         }
-        ParseError::ConstMissingValue { name, .. } => {
-            format!("붙박이마련에는 초기값이 필요합니다: {}", name)
-        }
-        ParseError::GureutEqualForbidden { .. } => {
-            "그릇채비 항목에서는 '='를 사용할 수 없습니다".to_string()
-        }
-        ParseError::ButbakArrowForbidden { .. } => {
-            "붙박이마련 항목은 '<-'가 아니라 '='를 사용합니다".to_string()
-        }
         ParseError::UnsupportedCompoundTarget { .. } => {
             "복합 갱신(+<-, -<-)은 이름 대상만 허용됩니다".to_string()
         }
@@ -3165,9 +3147,6 @@ fn parse_message(err: &ParseError) -> String {
         }
         ParseError::CompatEqualDisabled { .. } => {
             "strict 모드에서는 '=' 대입이 허용되지 않습니다".to_string()
-        }
-        ParseError::CompatMaticEntryDisabled { .. } => {
-            "strict 모드에서는 '매틱:움직씨' 선언이 허용되지 않습니다".to_string()
         }
     }
 }

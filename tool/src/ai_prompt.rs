@@ -5,7 +5,8 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
-const SSOT_VERSION: &str = "v20.6.33";
+const SSOT_INDEX_PREFIX: &str = "SSOT_INDEX_";
+const SSOT_BUNDLE_PREFIX: &str = "SSOT_bundle_";
 const AI_PROMPT_TEMPLATE: &str = include_str!("../assets/ai_prompt_template_v20.0.3.txt");
 
 #[derive(Debug)]
@@ -25,6 +26,12 @@ struct PromptFile {
 enum BundleSource {
     Dir(PathBuf),
     Zip(PathBuf),
+}
+
+#[derive(Debug)]
+struct SsotSelection {
+    version: String,
+    file_names: Vec<String>,
 }
 
 pub fn parse_ai_prompt_args<I>(args: &mut I) -> Result<AiPromptArgs, String>
@@ -88,9 +95,8 @@ pub fn run_ai_prompt(args: AiPromptArgs) -> Result<(), String> {
 fn build_ai_prompt(args: &AiPromptArgs) -> Result<Vec<u8>, String> {
     let profile = args.profile.to_ascii_lowercase();
     let (bundle_kind, source) = resolve_bundle_source(args.bundle_path.as_deref())?;
-    let file_names = profile_file_names(&profile)?;
-    ensure_version_matches(&file_names)?;
-    let files = load_profile_files(&source, &file_names)?;
+    let selection = select_ssot(&source, &profile)?;
+    let files = load_profile_files(&source, &selection.file_names)?;
     let bundle_hash = compute_bundle_hash(&files);
 
     let mut out = Vec::new();
@@ -98,10 +104,11 @@ fn build_ai_prompt(args: &AiPromptArgs) -> Result<Vec<u8>, String> {
     out.push(b'\n');
     write_context_header(
         &mut out,
+        &selection.version,
         &profile,
         &bundle_kind,
         &bundle_hash,
-        &file_names,
+        &selection.file_names,
     );
     for file in &files {
         append_file_block(&mut out, file);
@@ -158,58 +165,193 @@ fn default_bundle_zip_path() -> Option<PathBuf> {
     let root = manifest_dir
         .parent()
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")));
-    let name = format!("SSOT_bundle_{SSOT_VERSION}_codex.zip");
-    let root_path = root.join(&name);
-    if root_path.exists() {
-        return Some(root_path);
+    let candidates = [
+        root.to_path_buf(),
+        root.join("docs").join("ssot").join("ssot"),
+        root.join("docs").join("ssot"),
+    ];
+    let mut best: Option<(String, PathBuf)> = None;
+    for base in candidates {
+        let Ok(entries) = fs::read_dir(&base) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let Some(version) = extract_version_from_bundle_name(name) else {
+                continue;
+            };
+            if !name.contains("_codex") {
+                continue;
+            }
+            if best
+                .as_ref()
+                .map(|(current, _)| compare_versions(&version, current).is_gt())
+                .unwrap_or(true)
+            {
+                best = Some((version, path));
+            }
+        }
     }
-    let nested_docs_path = root.join("docs").join("ssot").join("ssot").join(&name);
-    if nested_docs_path.exists() {
-        return Some(nested_docs_path);
-    }
-    let docs_path = root.join("docs").join("ssot").join(&name);
-    if docs_path.exists() {
-        return Some(docs_path);
-    }
-    None
+    best.map(|(_, path)| path)
 }
 
-fn profile_file_names(profile: &str) -> Result<Vec<String>, String> {
+fn select_ssot(source: &BundleSource, profile: &str) -> Result<SsotSelection, String> {
+    let version = resolve_ssot_version(source)?;
+    let file_names = profile_file_names(profile, &version)?;
+    Ok(SsotSelection { version, file_names })
+}
+
+fn resolve_ssot_version(source: &BundleSource) -> Result<String, String> {
+    match source {
+        BundleSource::Dir(path) => resolve_ssot_version_from_dir(path),
+        BundleSource::Zip(path) => resolve_ssot_version_from_zip(path),
+    }
+}
+
+fn resolve_ssot_version_from_dir(path: &Path) -> Result<String, String> {
+    let entries = fs::read_dir(path)
+        .map_err(|e| format!("SSOT 디렉터리 읽기 실패: {} ({e})", path.display()))?;
+    let mut best: Option<String> = None;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let Some(version) = extract_version_from_index_name(name) else {
+            continue;
+        };
+        if best
+            .as_ref()
+            .map(|current| compare_versions(&version, current).is_gt())
+            .unwrap_or(true)
+        {
+            best = Some(version);
+        }
+    }
+    best.ok_or_else(|| format!("SSOT_INDEX 파일을 찾을 수 없습니다: {}", path.display()))
+}
+
+fn resolve_ssot_version_from_zip(path: &Path) -> Result<String, String> {
+    let file = fs::File::open(path)
+        .map_err(|e| format!("SSOT 번들 열기 실패: {} ({e})", path.display()))?;
+    let mut archive =
+        ZipArchive::new(file).map_err(|e| format!("SSOT 번들 읽기 실패: {e}"))?;
+    let mut best: Option<String> = None;
+    for index in 0..archive.len() {
+        let entry_name = archive
+            .by_index(index)
+            .map_err(|e| format!("SSOT 번들 엔트리 읽기 실패: {e}"))?
+            .name()
+            .to_string();
+        let basename = entry_name.rsplit('/').next().unwrap_or(&entry_name);
+        let Some(version) = extract_version_from_index_name(basename) else {
+            continue;
+        };
+        if best
+            .as_ref()
+            .map(|current| compare_versions(&version, current).is_gt())
+            .unwrap_or(true)
+        {
+            best = Some(version);
+        }
+    }
+    best.ok_or_else(|| format!("SSOT_INDEX 파일을 번들에서 찾을 수 없습니다: {}", path.display()))
+}
+
+fn profile_file_names(profile: &str, version: &str) -> Result<Vec<String>, String> {
     let names = match profile {
         "lean" => vec![
-            ssot_file("SSOT_INDEX"),
-            ssot_file("SSOT_TERMS"),
-            ssot_file("SSOT_DECISIONS"),
-            ssot_file("SSOT_LANG"),
-            ssot_file("SSOT_DEMOS"),
-            ssot_file("GATE0_IMPLEMENTATION_CHECKLIST"),
+            ssot_file("SSOT_INDEX", version),
+            ssot_file("SSOT_TERMS", version),
+            ssot_file("SSOT_DECISIONS", version),
+            ssot_file("SSOT_LANG", version),
+            ssot_file("SSOT_DEMOS", version),
+            ssot_file("GATE0_IMPLEMENTATION_CHECKLIST", version),
         ],
         "runtime" => vec![
-            ssot_file("SSOT_INDEX"),
-            ssot_file("SSOT_TERMS"),
-            ssot_file("SSOT_DECISIONS"),
-            ssot_file("SSOT_LANG"),
-            ssot_file("SSOT_PLATFORM"),
-            ssot_file("SSOT_DEMOS"),
-            ssot_file("GATE0_IMPLEMENTATION_CHECKLIST"),
+            ssot_file("SSOT_INDEX", version),
+            ssot_file("SSOT_TERMS", version),
+            ssot_file("SSOT_DECISIONS", version),
+            ssot_file("SSOT_LANG", version),
+            ssot_file("SSOT_PLATFORM", version),
+            ssot_file("SSOT_DEMOS", version),
+            ssot_file("GATE0_IMPLEMENTATION_CHECKLIST", version),
         ],
-        "full" => vec![ssot_file("SSOT_ALL")],
+        "full" => vec![ssot_file("SSOT_ALL", version)],
         _ => return Err(format!("지원하지 않는 프로파일: {profile}")),
     };
     Ok(names)
 }
 
-fn ssot_file(base: &str) -> String {
-    format!("{base}_{SSOT_VERSION}.md")
+fn ssot_file(base: &str, version: &str) -> String {
+    format!("{base}_{version}.md")
 }
 
-fn ensure_version_matches(file_names: &[String]) -> Result<(), String> {
-    for name in file_names {
-        if !name.contains(SSOT_VERSION) {
-            return Err(format!("SSOT 버전 불일치: {name}"));
+fn extract_version_from_index_name(name: &str) -> Option<String> {
+    if !name.starts_with(SSOT_INDEX_PREFIX) || !name.ends_with(".md") {
+        return None;
+    }
+    let version = &name[SSOT_INDEX_PREFIX.len()..name.len() - 3];
+    is_version_like(version).then_some(version.to_string())
+}
+
+fn extract_version_from_bundle_name(name: &str) -> Option<String> {
+    if !name.starts_with(SSOT_BUNDLE_PREFIX) || !name.ends_with(".zip") {
+        return None;
+    }
+    let rest = &name[SSOT_BUNDLE_PREFIX.len()..name.len() - 4];
+    let version = if let Some((head, _)) = rest.split_once("_codex") {
+        head
+    } else if let Some((head, _)) = rest.split_once("__") {
+        head
+    } else {
+        rest
+    };
+    is_version_like(version).then_some(version.to_string())
+}
+
+fn is_version_like(version: &str) -> bool {
+    if !version.starts_with('v') {
+        return false;
+    }
+    parse_version_parts(version).is_some()
+}
+
+fn parse_version_parts(version: &str) -> Option<Vec<u32>> {
+    let body = version.strip_prefix('v')?;
+    let mut parts = Vec::new();
+    for part in body.split('.') {
+        if part.is_empty() {
+            return None;
+        }
+        parts.push(part.parse::<u32>().ok()?);
+    }
+    Some(parts)
+}
+
+fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    let Some(pa) = parse_version_parts(a) else {
+        return a.cmp(b);
+    };
+    let Some(pb) = parse_version_parts(b) else {
+        return a.cmp(b);
+    };
+    let max_len = pa.len().max(pb.len());
+    for idx in 0..max_len {
+        let av = *pa.get(idx).unwrap_or(&0);
+        let bv = *pb.get(idx).unwrap_or(&0);
+        match av.cmp(&bv) {
+            std::cmp::Ordering::Equal => {}
+            other => return other,
         }
     }
-    Ok(())
+    std::cmp::Ordering::Equal
 }
 
 fn load_profile_files(
@@ -339,13 +481,14 @@ fn push_line(out: &mut Vec<u8>, line: &str) {
 
 fn write_context_header(
     out: &mut Vec<u8>,
+    ssot_version: &str,
     profile: &str,
     bundle_kind: &str,
     bundle_hash: &str,
     file_names: &[String],
 ) {
     push_line(out, "[컨텍스트]");
-    push_line(out, &format!("SSOT_VERSION = {SSOT_VERSION}"));
+    push_line(out, &format!("SSOT_VERSION = {ssot_version}"));
     push_line(out, &format!("BUNDLE_KIND = {bundle_kind}"));
     push_line(out, &format!("PROFILE = {profile}"));
     push_line(out, &format!("BUNDLE_HASH = {bundle_hash}"));
@@ -396,6 +539,7 @@ mod tests {
         };
         let output = build_ai_prompt(&args).expect("build ai prompt");
         let (bundle_kind, source) = resolve_bundle_source(None).expect("bundle source");
+        let ssot_version = resolve_ssot_version(&source).expect("ssot version");
         assert!(!output.contains(&b'\r'));
         let output_str = String::from_utf8(output.clone()).expect("utf8");
         assert!(output_str.starts_with("[또니랑 코드 생성 규약]"));
@@ -405,7 +549,7 @@ mod tests {
             .expect("context header");
         let mut lines = output_str[ctx_index..].lines();
         assert_eq!(lines.next(), Some("[컨텍스트]"));
-        let expected_version = format!("SSOT_VERSION = {SSOT_VERSION}");
+        let expected_version = format!("SSOT_VERSION = {ssot_version}");
         assert_eq!(lines.next(), Some(expected_version.as_str()));
         assert_eq!(
             lines.next(),
@@ -416,7 +560,7 @@ mod tests {
         assert!(bundle_hash_line.starts_with("BUNDLE_HASH = sha256:"));
         assert_eq!(lines.next(), Some("FILE_LIST ="));
 
-        let expected_files = profile_file_names("lean").expect("files");
+        let expected_files = profile_file_names("lean", &ssot_version).expect("files");
         let mut actual_files = Vec::new();
         for _ in 0..expected_files.len() {
             let line = lines.next().expect("file list line");

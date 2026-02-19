@@ -106,9 +106,7 @@ fn expand_colon_blocks(source: &str) -> String {
             && !trimmed_end.contains('{')
             && !trimmed_start.starts_with('#');
         if is_colon_block {
-            let mut line_no_colon = trimmed_end.to_string();
-            line_no_colon.pop();
-            out.push_str(&line_no_colon);
+            out.push_str(trimmed_end);
             out.push_str(" {");
             out.push_str(newline);
             let indent_str = line[..indent_len].to_string();
@@ -498,8 +496,42 @@ fn normalize_closing_brace_dot(source: &str) -> String {
 /// teul-cli 호환: 단항 마이너스 `-숫자` → `(0 - 숫자)` 변환
 /// lang/ 파서는 단항 마이너스(`-5`, `-3.14`)를 지원하지 않으므로 이항 연산으로 풀어쓴다.
 fn rewrite_unary_minus(source: &str) -> String {
-    let chars: Vec<char> = source.chars().collect();
     let mut out = String::with_capacity(source.len());
+    let mut meta_block_depth = 0i32;
+    for chunk in source.split_inclusive('\n') {
+        let (line, newline) = split_line(chunk);
+        let trimmed = line.trim_start();
+        let enters_meta_block = meta_block_depth == 0 && is_meta_block_header_line(trimmed);
+        if enters_meta_block || meta_block_depth > 0 {
+            out.push_str(line);
+            out.push_str(newline);
+            meta_block_depth += brace_diff(line);
+            if meta_block_depth < 0 {
+                meta_block_depth = 0;
+            }
+            continue;
+        }
+        if line.trim_start().starts_with('#') {
+            out.push_str(line);
+            out.push_str(newline);
+            continue;
+        }
+        out.push_str(&rewrite_unary_minus_line(line));
+        out.push_str(newline);
+    }
+    out
+}
+
+fn is_meta_block_header_line(trimmed: &str) -> bool {
+    (trimmed.starts_with("설정:")
+        || trimmed.starts_with("보개:")
+        || trimmed.starts_with("슬기:"))
+        && trimmed.contains('{')
+}
+
+fn rewrite_unary_minus_line(line: &str) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let mut out = String::with_capacity(line.len());
     let mut i = 0;
     let mut in_string = false;
     let mut escape = false;
@@ -1101,6 +1133,65 @@ mod tests {
         assert_eq!(out, "  }\n");
     }
 
+    #[test]
+    fn preprocess_keeps_setting_block_syntax() {
+        let source = r#"
+매틱:움직씨 = {
+설정: {
+  그래프축: "x".
+  (x=1) 동작성.
+}.
+없음.
+}
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("설정: {"));
+        assert!(!out.contains("#설정 "));
+    }
+
+    #[test]
+    fn preprocess_expands_bogae_colon_block_with_colon_preserved() {
+        let source = r#"
+보개:
+  y축: 값.
+매틱:움직씨 = {
+  없음.
+}
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("보개: {"));
+        assert!(!out.contains("#보개 "));
+    }
+
+    #[test]
+    fn preprocess_does_not_canonicalize_legacy_bogae_alias() {
+        let source = r#"
+설정보개:
+  y축: 값.
+매틱:움직씨 = {
+  없음.
+}
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("설정보개: {"));
+        assert!(!out.contains("#보개 "));
+    }
+
+    #[test]
+    fn preprocess_keeps_boim_legacy_header_unchanged() {
+        let source = r#"
+보임 {
+  y축: 값.
+}
+매틱:움직씨 = {
+  없음.
+}
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("보임 {"));
+        assert!(!out.contains("#보개 "));
+    }
+
     // --- rewrite_unary_minus ---
 
     #[test]
@@ -1157,5 +1248,27 @@ mod tests {
         let source = "(프레임수 * -2)\n";
         let out = rewrite_unary_minus(source);
         assert_eq!(out, "(프레임수 * (0 - 2))\n");
+    }
+
+    #[test]
+    fn unary_minus_skips_pragma_lines() {
+        let source = "#설정 x: -5.\n";
+        let out = rewrite_unary_minus(source);
+        assert_eq!(out, "#설정 x: -5.\n");
+    }
+
+    #[test]
+    fn preprocess_keeps_setting_negative_literal_raw() {
+        let source = r#"
+매틱:움직씨 = {
+설정: {
+  x: -5.
+}.
+없음.
+}
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("x: -5."));
+        assert!(!out.contains("(0 - 5)"));
     }
 }

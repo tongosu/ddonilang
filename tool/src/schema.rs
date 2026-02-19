@@ -58,7 +58,7 @@ struct AssetManifest {
 
 pub fn build_schema(source: &str, file_path: &str) -> Result<DdnSchema, String> {
     let cleaned = preprocess_source_for_parse(source)?;
-    let program = parse_with_mode(&cleaned, file_path, ParseMode::Compat)
+    let program = parse_with_mode(&cleaned, file_path, ParseMode::Strict)
         .map_err(|e| format!("스키마 파싱 실패: {}", e))?;
 
     let mut pins = BTreeSet::new();

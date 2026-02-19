@@ -78,6 +78,7 @@ fn canonicalize_stmt(stmt: &mut Stmt, warnings: &mut Vec<LintWarning>) -> Result
             canonicalize_expr(value, warnings)?;
         }
         Stmt::Expr { expr, .. } => canonicalize_expr(expr, warnings)?,
+        Stmt::MetaBlock { .. } => {}
         Stmt::Pragma { .. } => {}
         Stmt::Return { value, .. } => canonicalize_expr(value, warnings)?,
         Stmt::If { condition, then_body, else_body, .. } => {
@@ -285,6 +286,7 @@ fn lint_tailless_body(
                 }
                 lint_tailless_expr(expr, known_seeds, stdlib_names, warnings);
             }
+            Stmt::MetaBlock { .. } => {}
             Stmt::Pragma { .. } => {}
             Stmt::Mutate { target, value, .. } => {
                 lint_tailless_expr(target, known_seeds, stdlib_names, warnings);

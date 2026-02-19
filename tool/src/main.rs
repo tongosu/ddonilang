@@ -2862,13 +2862,12 @@ fn take_arg_value(args: &mut Vec<String>, flag: &str) -> Option<String> {
 
 fn parse_lang_mode(raw: Option<&str>) -> Result<ParseMode, String> {
     let Some(raw) = raw else {
-        return Ok(ParseMode::Compat);
+        return Ok(ParseMode::Strict);
     };
     let normalized = raw.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "compat" => Ok(ParseMode::Compat),
         "strict" => Ok(ParseMode::Strict),
-        _ => Err(format!("지원하지 않는 --lang-mode 값: {raw} (compat|strict)")),
+        _ => Err(format!("지원하지 않는 --lang-mode 값: {raw} (strict)")),
     }
 }
 

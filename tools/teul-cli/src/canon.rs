@@ -707,6 +707,7 @@ enum DeclKind {
 #[derive(Debug, Clone)]
 struct DeclItem {
     name: String,
+    kind: DeclKind,
     type_name: String,
     value: Option<Expr>,
 }
@@ -714,7 +715,6 @@ struct DeclItem {
 #[derive(Debug, Clone)]
 enum SurfaceStmt {
     RootDecl {
-        kind: DeclKind,
         items: Vec<DeclItem>,
     },
     Decl {
@@ -799,7 +799,6 @@ enum SurfaceStmt {
 #[derive(Debug, Clone)]
 enum Stmt {
     RootDecl {
-        kind: DeclKind,
         items: Vec<DeclItem>,
     },
     Assign { target: Path, value: Expr },
@@ -1262,16 +1261,19 @@ impl Parser {
             return None;
         }
         match self.peek() {
-            Some(TokenKind::Ident(name)) if name == "그릇채비" => Some(DeclKind::Gureut),
-            Some(TokenKind::Ident(name)) if name == "바탕칸" => Some(DeclKind::Gureut),
-            Some(TokenKind::Ident(name)) if name == "바탕칸표" => Some(DeclKind::Gureut),
-            Some(TokenKind::Ident(name)) if name == "붙박이마련" => Some(DeclKind::Butbak),
+            Some(TokenKind::Ident(name)) if name == "채비" => Some(DeclKind::Gureut),
             _ => None,
         }
     }
 
-    fn parse_decl_block(&mut self, kind: DeclKind) -> Result<SurfaceStmt, CanonError> {
-        self.advance(); // keyword
+    fn parse_decl_block(&mut self, _kind: DeclKind) -> Result<SurfaceStmt, CanonError> {
+        let keyword = self.expect_ident()?;
+        if keyword != "채비" {
+            return Err(CanonError::new(
+                "E_CANON_DECL_HEADER_ONLY_CHAEVI",
+                "선언 블록 머릿말은 `채비:`만 사용합니다",
+            ));
+        }
         self.expect(TokenKind::Colon)?;
         self.expect(TokenKind::LBrace)?;
 
@@ -1293,36 +1295,20 @@ impl Parser {
             let type_name = self.expect_ident()?;
 
             let mut value = None;
+            let mut kind = DeclKind::Gureut;
             if self.peek_is(|k| matches!(k, TokenKind::Arrow)) {
-                if kind == DeclKind::Butbak {
-                    return Err(CanonError::new(
-                        "E_CANON_BUTBAK_ARROW_FORBIDDEN",
-                        "붙박이마련 항목은 '<-'가 아니라 '='를 사용합니다",
-                    ));
-                }
                 self.advance();
                 value = Some(self.parse_expr()?);
             } else if self.peek_is(|k| matches!(k, TokenKind::Equals)) {
-                if kind == DeclKind::Gureut {
-                    return Err(CanonError::new(
-                        "E_CANON_GUREUT_EQUAL_FORBIDDEN",
-                        "그릇채비 항목에서는 '='를 사용할 수 없습니다",
-                    ));
-                }
+                kind = DeclKind::Butbak;
                 self.advance();
                 value = Some(self.parse_expr()?);
-            }
-
-            if kind == DeclKind::Butbak && value.is_none() {
-                return Err(CanonError::new(
-                    "E_CANON_CONST_MISSING_VALUE",
-                    format!("붙박이마련에는 초기값이 필요합니다: {}", name),
-                ));
             }
 
             self.consume_terminator()?;
             items.push(DeclItem {
                 name,
+                kind,
                 type_name,
                 value,
             });
@@ -1330,7 +1316,7 @@ impl Parser {
 
         self.expect(TokenKind::RBrace)?;
         self.consume_terminator()?;
-        Ok(SurfaceStmt::RootDecl { kind, items })
+        Ok(SurfaceStmt::RootDecl { items })
     }
 
     fn is_hook_start(&self) -> bool {
@@ -2736,9 +2722,11 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
             SurfaceStmt::Decl { name, .. } => {
                 declared.insert(name.clone());
             }
-            SurfaceStmt::RootDecl { kind, items } if *kind == DeclKind::Gureut => {
+            SurfaceStmt::RootDecl { items, .. } => {
                 for item in items {
-                    declared.insert(item.name.clone());
+                    if item.kind == DeclKind::Gureut {
+                        declared.insert(item.name.clone());
+                    }
                 }
             }
             _ => {}
@@ -2748,18 +2736,19 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
     let mut canonical = Vec::new();
     for stmt in surface {
         match stmt {
-            SurfaceStmt::RootDecl { kind, items } => {
+            SurfaceStmt::RootDecl { items } => {
                 let items = items
                     .into_iter()
                     .map(|item| DeclItem {
                         name: item.name,
+                        kind: item.kind,
                         type_name: item.type_name,
                         value: item
                             .value
                             .map(|expr| canonicalize_expr(expr, &declared, bridge, default_root, root_hide)),
                     })
                     .collect();
-                canonical.push(Stmt::RootDecl { kind, items });
+                canonical.push(Stmt::RootDecl { items });
             }
             SurfaceStmt::Decl {
                 name,
@@ -3199,18 +3188,19 @@ fn canonicalize_body(
     let mut out = Vec::new();
     for stmt in body {
         match stmt {
-            SurfaceStmt::RootDecl { kind, items } => {
+            SurfaceStmt::RootDecl { items } => {
                 let items = items
                     .into_iter()
                     .map(|item| DeclItem {
                         name: item.name,
+                        kind: item.kind,
                         type_name: item.type_name,
                         value: item
                             .value
                             .map(|expr| canonicalize_expr(expr, declared, bridge, default_root, root_hide)),
                     })
                     .collect();
-                out.push(Stmt::RootDecl { kind, items });
+                out.push(Stmt::RootDecl { items });
             }
             SurfaceStmt::Decl {
                 name,
@@ -3440,12 +3430,8 @@ fn format_program(stmts: &[Stmt]) -> String {
 fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
     let pad = "  ".repeat(indent);
     match stmt {
-        Stmt::RootDecl { kind, items } => {
-            let keyword = match kind {
-                DeclKind::Gureut => "그릇채비",
-                DeclKind::Butbak => "붙박이마련",
-            };
-            out.push_str(&format!("{}{}: {{\n", pad, keyword));
+        Stmt::RootDecl { items, .. } => {
+            out.push_str(&format!("{}채비: {{\n", pad));
             for item in items {
                 out.push_str(&pad);
                 out.push_str("  ");
@@ -3453,7 +3439,11 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 out.push(':');
                 out.push_str(&item.type_name);
                 if let Some(value) = &item.value {
-                    out.push_str(" = ");
+                    if item.kind == DeclKind::Butbak {
+                        out.push_str(" = ");
+                    } else {
+                        out.push_str(" <- ");
+                    }
                     out.push_str(&format_expr(value));
                 }
                 out.push_str(".\n");

@@ -25,7 +25,7 @@ use ddonirang_lang::runtime::{
 };
 
 static LAMBDA_SEQ: AtomicU64 = AtomicU64::new(1);
-static DEFAULT_PARSE_MODE: AtomicU64 = AtomicU64::new(0);
+static DEFAULT_PARSE_MODE: AtomicU64 = AtomicU64::new(1);
 
 fn next_lambda_id() -> u64 {
     LAMBDA_SEQ.fetch_add(1, Ordering::Relaxed)
@@ -33,16 +33,13 @@ fn next_lambda_id() -> u64 {
 
 fn encode_parse_mode(mode: ParseMode) -> u64 {
     match mode {
-        ParseMode::Compat => 0,
         ParseMode::Strict => 1,
     }
 }
 
 fn decode_parse_mode(value: u64) -> ParseMode {
-    match value {
-        1 => ParseMode::Strict,
-        _ => ParseMode::Compat,
-    }
+    let _ = value;
+    ParseMode::Strict
 }
 
 pub fn default_parse_mode() -> ParseMode {
@@ -433,6 +430,7 @@ impl<'a> EvalContext<'a> {
                 }
             }
             Stmt::Expr { expr, .. } => Ok(ThunkResult::Value(self.eval_expr(locals, expr)?)),
+            Stmt::MetaBlock { .. } => Ok(ThunkResult::Value(Value::None)),
             Stmt::Pragma { .. } => Ok(ThunkResult::Value(Value::None)),
             Stmt::Return { value, .. } => Ok(ThunkResult::Return(self.eval_expr(locals, value)?)),
             Stmt::If { condition, then_body, else_body, .. } => {
@@ -591,7 +589,7 @@ impl<'a> EvalContext<'a> {
             return Ok(FlowControl::Continue);
         }
         match stmt {
-            Stmt::DeclBlock { kind, items, .. } => {
+            Stmt::DeclBlock { items, .. } => {
                 for item in items {
                     let value = if let Some(expr) = &item.value {
                         match self.eval_expr(locals, expr) {
@@ -621,13 +619,13 @@ impl<'a> EvalContext<'a> {
                             }
                             Err(err) => return Err(err),
                         }
-                    } else if matches!(kind, ddonirang_lang::DeclKind::Butbak) {
-                        return Err(format!("붙박이마련에는 초기값이 필요합니다: {}", item.name).into());
+                    } else if matches!(item.kind, ddonirang_lang::DeclKind::Butbak) {
+                        return Err(format!("채비에서 '=' 항목은 초기값이 필요합니다: {}", item.name).into());
                     } else {
                         Value::None
                     };
                     locals.insert(item.name.clone(), value);
-                    if matches!(kind, ddonirang_lang::DeclKind::Butbak) {
+                    if matches!(item.kind, ddonirang_lang::DeclKind::Butbak) {
                         self.declare_const(&item.name);
                     }
                 }
@@ -731,6 +729,7 @@ impl<'a> EvalContext<'a> {
                 };
                 Ok(FlowControl::Continue)
             }
+            Stmt::MetaBlock { .. } => Ok(FlowControl::Continue),
             Stmt::Pragma { .. } => Ok(FlowControl::Continue),
             Stmt::Return { value, .. } => {
                 let val = self.eval_expr(locals, value)?;
@@ -921,7 +920,11 @@ impl<'a> EvalContext<'a> {
                     }
                     Value::Map(entries) => {
                         let key = Value::String(field.clone());
-                        Ok(map_get(&entries, &key))
+                        let value = map_get(&entries, &key);
+                        if matches!(value, Value::None) {
+                            return Err(format!("FATAL:MAP_KEY_MISSING:{}", field).into());
+                        }
+                        Ok(value)
                     }
                     _ => Err("묶음/짝맞춤 필드 접근만 가능합니다".to_string().into()),
                 }
@@ -4854,4 +4857,60 @@ fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
         idx += ch.len_utf8();
     }
     (line, col)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_input() -> InputSnapshot {
+        InputSnapshot {
+            tick_id: 0,
+            dt: Fixed64::from_i64(1),
+            keys_pressed: 0,
+            last_key_name: String::new(),
+            pointer_x_i32: 0,
+            pointer_y_i32: 0,
+            ai_injections: Vec::new(),
+            net_events: Vec::new(),
+            rng_seed: 0,
+        }
+    }
+
+    #[test]
+    fn map_dot_access_existing_key_runs() {
+        let script = r#"
+매틱:움직씨 = {
+    m <- ("a", 1) 짝맞춤.
+    값 <- m.a.
+}
+"#;
+        let program = DdnProgram::from_source(script, "test.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        runner
+            .run_update(&world, &empty_input(), &HashMap::new())
+            .expect("run update");
+    }
+
+    #[test]
+    fn map_dot_access_missing_key_is_fatal() {
+        let script = r#"
+매틱:움직씨 = {
+    m <- ("a", 1) 짝맞춤.
+    값 <- m.b.
+}
+"#;
+        let program = DdnProgram::from_source(script, "test.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let err = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("missing key must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.contains("FATAL:MAP_KEY_MISSING:b"),
+            "unexpected error: {err}"
+        );
+    }
 }

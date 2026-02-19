@@ -64,6 +64,7 @@ pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), S
     }
 
     let mut warnings: Vec<String> = Vec::new();
+    warnings.extend(collect_i18n_warnings(&source));
     let mut by_line: BTreeMap<usize, Vec<Replacement>> = BTreeMap::new();
     for token in tokens {
         let TokenKind::Ident(name) = &token.kind else {
@@ -157,6 +158,106 @@ pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), S
     Ok(())
 }
 
+fn collect_i18n_warnings(source: &str) -> Vec<String> {
+    let mut warnings = Vec::new();
+    let active_tag = detect_active_dialect_tag(source);
+    for (idx, line) in source.lines().enumerate() {
+        let line_no = idx + 1;
+        let trimmed = line.trim_start_matches(|ch| matches!(ch, ' ' | '\t' | '\r' | '\u{feff}'));
+        if let Some(pragma) = parse_pragma_line(trimmed) {
+            if is_setting_pragma_name(pragma) {
+                warnings.push(format!(
+                    "I18N101_SETTINGS_PRAGMA_BLOCK line={} pragma=#{} use=설정보개/보개/보임/슬기 블록",
+                    line_no, pragma
+                ));
+            }
+        }
+        match active_tag.as_deref() {
+            Some("ay") => {
+                if line.contains("~xa") {
+                    warnings.push(format!(
+                        "I18N001_AMBIGUOUS_JOSA line={} token=~xa hint=핀고정 또는 ~xa1/~xa2 사용",
+                        line_no
+                    ));
+                }
+                if contains_ident_word(line, "janiwa") {
+                    warnings.push(format!(
+                        "I18N002_SYM3_REQUIRED line={} token=janiwa pair=none/not hint=sym3 표기 사용",
+                        line_no
+                    ));
+                }
+            }
+            Some("qu") => {
+                if contains_ident_word(line, "mana") {
+                    warnings.push(format!(
+                        "I18N002_SYM3_REQUIRED line={} token=mana pair=none/not hint=sym3 표기 사용",
+                        line_no
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    warnings
+}
+
+fn detect_active_dialect_tag(source: &str) -> Option<String> {
+    for line in source.lines() {
+        let trimmed = line.trim_start_matches(|ch| matches!(ch, ' ' | '\t' | '\r' | '\u{feff}'));
+        if !trimmed.starts_with('#') {
+            continue;
+        }
+        let rest = trimmed[1..].trim();
+        if rest.starts_with("말씨:") {
+            let tag = rest["말씨:".len()..].trim();
+            if !tag.is_empty() {
+                return Some(tag.to_ascii_lowercase());
+            }
+        }
+        if rest.starts_with("사투리:") {
+            let tag = rest["사투리:".len()..].trim();
+            if !tag.is_empty() {
+                return Some(tag.to_ascii_lowercase());
+            }
+        }
+    }
+    None
+}
+
+fn parse_pragma_line(trimmed_line: &str) -> Option<&str> {
+    if !trimmed_line.starts_with('#') {
+        return None;
+    }
+    let body = trimmed_line[1..].trim();
+    if body.is_empty() {
+        return None;
+    }
+    Some(body)
+}
+
+fn is_setting_pragma_name(pragma_body: &str) -> bool {
+    let name = pragma_body
+        .split(|ch: char| ch == '(' || ch == ':' || ch.is_whitespace())
+        .next()
+        .unwrap_or("");
+    matches!(name, "그래프" | "조종" | "관찰" | "추적" | "설정" | "보개" | "슬기")
+}
+
+fn contains_ident_word(line: &str, word: &str) -> bool {
+    let mut current = String::new();
+    for ch in line.chars() {
+        if ch == '_' || ch == '\'' || ch.is_alphanumeric() {
+            current.push(ch);
+            continue;
+        }
+        if current == word {
+            return true;
+        }
+        current.clear();
+    }
+    current == word
+}
+
 fn find_legacy_term(name: &str) -> Option<&'static LegacyTerm> {
     LEGACY_TERMS.iter().find(|term| term.input == name)
 }
@@ -211,4 +312,38 @@ fn apply_replacements(
         new_line,
         reason,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{collect_i18n_warnings, contains_ident_word, detect_active_dialect_tag};
+
+    #[test]
+    fn detect_active_dialect_header() {
+        let src = "#말씨: ay\n값 <- 1.\n";
+        assert_eq!(detect_active_dialect_tag(src).as_deref(), Some("ay"));
+    }
+
+    #[test]
+    fn i18n_warns_for_setting_pragmas() {
+        let src = "#그래프(y축=바탕.x)\n값 <- 1.\n";
+        let warnings = collect_i18n_warnings(src);
+        assert!(warnings
+            .iter()
+            .any(|line| line.contains("I18N101_SETTINGS_PRAGMA_BLOCK")));
+    }
+
+    #[test]
+    fn i18n_warns_for_ay_xa_and_janiwa() {
+        let src = "#말씨: ay\n값~xa <- 1.\njaniwa 조건.\n";
+        let warnings = collect_i18n_warnings(src);
+        assert!(warnings.iter().any(|line| line.contains("I18N001_AMBIGUOUS_JOSA")));
+        assert!(warnings.iter().any(|line| line.contains("I18N002_SYM3_REQUIRED")));
+    }
+
+    #[test]
+    fn contains_ident_word_matches_whole_token() {
+        assert!(contains_ident_word("mana 조건", "mana"));
+        assert!(!contains_ident_word("imanager", "mana"));
+    }
 }

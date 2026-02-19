@@ -6,9 +6,17 @@
 | --- | --- | --- |
 | `publish/README.md` | 사용자 문서 진입점 | 배포 문서 변경 시 |
 | `publish/README_en.md` | README 영어 버전 | README 변경 시 |
+| `publish/README_ay.md` | README 아이마라어 버전 | README 변경 시 |
+| `publish/README_eu.md` | README 바스크어 버전 | README 변경 시 |
 | `publish/README_ja.md` | README 일본어 버전 | README 변경 시 |
-| `publish/README_tr.md` | README 터키어 버전 | README 변경 시 |
+| `publish/README_kn.md` | README 칸나다어 버전 | README 변경 시 |
 | `publish/README_mn.md` | README 몽골어 버전 | README 변경 시 |
+| `publish/README_ne.md` | README 네팔어 버전 | README 변경 시 |
+| `publish/README_qu.md` | README 케추아어 버전 | README 변경 시 |
+| `publish/README_sym3.md` | README sym3 버전 | README 변경 시 |
+| `publish/README_ta.md` | README 타밀어 버전 | README 변경 시 |
+| `publish/README_te.md` | README 텔루구어 버전 | README 변경 시 |
+| `publish/README_tr.md` | README 터키어 버전 | README 변경 시 |
 | `publish/QUICKSTART.md` | 설치/실행 요약 | 실행 방법 변경 시 |
 | `publish/DOWNLOADS.md` | 바이너리 배포 안내 | 배포 대상/파일명 변경 시 |
 | `publish/ddonirang_grammar_summary.md` | 문법 요약(발표용) | 문법 요약 갱신 시 |

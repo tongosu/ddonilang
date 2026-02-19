@@ -35,10 +35,10 @@ const GRAPH_POINTS_TAGS: &[(&str, &str, &str)] = &[
 fn parse_mode_from_str(mode: &str) -> Result<ParseMode, JsValue> {
     let normalized = mode.trim().to_ascii_lowercase();
     match normalized.as_str() {
-        "" | "compat" => Ok(ParseMode::Compat),
+        "" => Ok(ParseMode::Strict),
         "strict" => Ok(ParseMode::Strict),
         _ => Err(JsValue::from_str(&format!(
-            "지원하지 않는 lang-mode: {mode} (compat|strict)"
+            "지원하지 않는 lang-mode: {mode} (strict)"
         ))),
     }
 }
@@ -83,7 +83,7 @@ pub struct DdnWasmVm {
 impl DdnWasmVm {
     #[wasm_bindgen(constructor)]
     pub fn new(source: &str) -> Result<DdnWasmVm, JsValue> {
-        let program = DdnProgram::from_source_with_mode(source, "<wasm>", ParseMode::Compat)
+        let program = DdnProgram::from_source_with_mode(source, "<wasm>", ParseMode::Strict)
             .map_err(|err| JsValue::from_str(&err))?;
         let mut defaults = HashMap::new();
         seed_bogae_defaults(&mut defaults);
@@ -105,7 +105,7 @@ impl DdnWasmVm {
             input_dt: Fixed64::from_i64(1),
             last_patch: None,
             pending_ai_injections: Vec::new(),
-            lang_mode: ParseMode::Compat,
+            lang_mode: ParseMode::Strict,
         })
     }
 
@@ -1051,6 +1051,7 @@ mod tests {
         assert!(codes.contains(&"STATE_HASH_MISMATCH"));
         assert!(codes.contains(&"VIEW_HASH_MISMATCH"));
     }
+
 }
 
 fn serialize_param_overrides(params: &BTreeMap<String, Value>) -> JsonValue {

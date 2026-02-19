@@ -20,6 +20,12 @@ pub fn canonicalize_stdlib_alias(name: &str) -> &str {
         "거듭제곱" => "powi",
         "최댓값" => "max",
         "최솟값" => "min",
+        "쓸감" => "자원",
+        "겹차림.형상" => "텐서.형상",
+        "겹차림.자료" => "텐서.자료",
+        "겹차림.배치" => "텐서.배치",
+        "겹차림.값" => "텐서.값",
+        "겹차림.바꾼값" => "텐서.바꾼값",
         _ => name,
     }
 }
@@ -440,6 +446,12 @@ mod tests {
         assert_eq!(canonicalize_stdlib_alias("번째"), "차림.값");
         assert_eq!(canonicalize_stdlib_alias("절댓값"), "abs");
         assert_eq!(canonicalize_stdlib_alias("최솟값"), "min");
+        assert_eq!(canonicalize_stdlib_alias("쓸감"), "자원");
+        assert_eq!(canonicalize_stdlib_alias("겹차림.형상"), "텐서.형상");
+        assert_eq!(canonicalize_stdlib_alias("겹차림.자료"), "텐서.자료");
+        assert_eq!(canonicalize_stdlib_alias("겹차림.배치"), "텐서.배치");
+        assert_eq!(canonicalize_stdlib_alias("겹차림.값"), "텐서.값");
+        assert_eq!(canonicalize_stdlib_alias("겹차림.바꾼값"), "텐서.바꾼값");
         assert_eq!(canonicalize_stdlib_alias("차림.값"), "차림.값");
     }
 }

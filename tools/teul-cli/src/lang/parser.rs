@@ -21,16 +21,12 @@ pub enum ParseError {
     ExpectedPath { span: Span },
     ExpectedTarget { span: Span },
     RootHideUndeclared { name: String, span: Span },
-    ConstMissingValue { name: String, span: Span },
-    GureutEqualForbidden { span: Span },
-    ButbakArrowForbidden { span: Span },
     UnsupportedCompoundTarget { span: Span },
     ExpectedRParen { span: Span },
     ExpectedRBrace { span: Span },
     ExpectedUnit { span: Span },
     InvalidTensor { span: Span },
     CompatEqualDisabled { span: Span },
-    CompatMaticEntryDisabled { span: Span },
 }
 
 impl ParseError {
@@ -41,23 +37,18 @@ impl ParseError {
             ParseError::ExpectedPath { .. } => "E_PARSE_EXPECTED_PATH",
             ParseError::ExpectedTarget { .. } => "E_PARSE_EXPECTED_TARGET",
             ParseError::RootHideUndeclared { .. } => "E_PARSE_ROOT_HIDE_UNDECLARED",
-            ParseError::ConstMissingValue { .. } => "E_PARSE_CONST_MISSING_VALUE",
-            ParseError::GureutEqualForbidden { .. } => "E_PARSE_GUREUT_EQUAL_FORBIDDEN",
-            ParseError::ButbakArrowForbidden { .. } => "E_PARSE_BUTBAK_ARROW_FORBIDDEN",
             ParseError::UnsupportedCompoundTarget { .. } => "E_PARSE_UNSUPPORTED_COMPOUND_TARGET",
             ParseError::ExpectedRParen { .. } => "E_PARSE_EXPECTED_RPAREN",
             ParseError::ExpectedRBrace { .. } => "E_PARSE_EXPECTED_RBRACE",
             ParseError::ExpectedUnit { .. } => "E_PARSE_EXPECTED_UNIT",
             ParseError::InvalidTensor { .. } => "E_PARSE_TENSOR_SHAPE",
             ParseError::CompatEqualDisabled { .. } => "E_PARSE_COMPAT_EQUAL_DISABLED",
-            ParseError::CompatMaticEntryDisabled { .. } => "E_PARSE_COMPAT_MATIC_DISABLED",
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseMode {
-    Compat,
     Strict,
 }
 
@@ -67,27 +58,12 @@ struct ArgSuffix {
     binding_reason: BindingReason,
 }
 
-fn has_root_hide_directive(source: &str) -> bool {
-    for line in source.lines() {
-        let trimmed = line.trim_start_matches(|ch| matches!(ch, ' ' | '\t' | '\r' | '\u{feff}'));
-        if !trimmed.starts_with('#') {
-            continue;
-        }
-        let rest = trimmed[1..].trim_start_matches(|ch| matches!(ch, ' ' | '\t'));
-        if rest.starts_with("바탕숨김") || rest.starts_with("암묵살림") {
-            return true;
-        }
-    }
-    false
-}
-
 pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     default_root: String,
     root_hide: bool,
     declared_scopes: Vec<HashSet<String>>,
-    mode: ParseMode,
 }
 
 impl Parser {
@@ -97,13 +73,13 @@ impl Parser {
     }
 
     pub fn parse_with_default_root(tokens: Vec<Token>, default_root: &str) -> Result<Program, ParseError> {
-        Parser::parse_with_default_root_mode(tokens, default_root, ParseMode::Compat)
+        Parser::parse_with_default_root_mode(tokens, default_root, ParseMode::Strict)
     }
 
     pub fn parse_with_default_root_mode(
         tokens: Vec<Token>,
         default_root: &str,
-        mode: ParseMode,
+        _mode: ParseMode,
     ) -> Result<Program, ParseError> {
         let mut parser = Parser {
             tokens,
@@ -111,7 +87,6 @@ impl Parser {
             default_root: default_root.to_string(),
             root_hide: default_root == "바탕",
             declared_scopes: vec![HashSet::new()],
-            mode,
         };
         let mut stmts = Vec::new();
         parser.skip_newlines();
@@ -123,11 +98,8 @@ impl Parser {
     }
 
     pub fn default_root_for_source(source: &str) -> &'static str {
-        if has_root_hide_directive(source) {
-            "바탕"
-        } else {
-            "살림"
-        }
+        let _ = source;
+        "살림"
     }
 
     fn enter_scope(&mut self) {
@@ -264,13 +236,25 @@ impl Parser {
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Pragma(_))) {
-            return Ok(Some(self.parse_pragma_stmt()?));
+            return Err(ParseError::UnexpectedToken {
+                expected: "길잡이말(#...) 없이 설정:/보개:/슬기: 블록 사용",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
         }
 
         if !allow_rbrace {
             if let Some(seed_def) = self.try_parse_seed_def()? {
                 return Ok(Some(seed_def));
             }
+        }
+
+        if let Some(legacy) = self.peek_legacy_decl_block_name() {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'채비:'",
+                found: TokenKind::Ident(legacy.to_string()),
+                span: self.peek().span,
+            });
         }
 
         if let Some(kind) = self.peek_decl_block_kind() {
@@ -352,7 +336,7 @@ impl Parser {
             });
         }
 
-        if self.mode == ParseMode::Strict && self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
             return Err(ParseError::CompatEqualDisabled { span: self.peek().span });
         }
 
@@ -513,35 +497,42 @@ impl Parser {
         Ok(Stmt::BogaeDraw { span })
     }
 
-    fn parse_pragma_stmt(&mut self) -> Result<Stmt, ParseError> {
-        let token = self.advance();
-        let (name, args) = match token.kind {
-            TokenKind::Pragma(text) => split_pragma_text(&text),
-            _ => unreachable!("parse_pragma_stmt requires TokenKind::Pragma"),
-        };
-        self.consume_terminator()?;
-        Ok(Stmt::Pragma {
-            name,
-            args,
-            span: token.span,
-        })
-    }
-
     fn peek_decl_block_kind(&self) -> Option<DeclKind> {
         if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon)) {
             return None;
         }
         match &self.peek().kind {
-            TokenKind::Ident(name) if name == "그릇채비" => Some(DeclKind::Gureut),
-            TokenKind::Ident(name) if name == "바탕칸" => Some(DeclKind::Gureut),
-            TokenKind::Ident(name) if name == "바탕칸표" => Some(DeclKind::Gureut),
-            TokenKind::Ident(name) if name == "붙박이마련" => Some(DeclKind::Butbak),
+            TokenKind::Ident(name) if name == "채비" => Some(DeclKind::Gureut),
             _ => None,
         }
     }
 
-    fn parse_decl_block(&mut self, kind: DeclKind) -> Result<Stmt, ParseError> {
+    fn peek_legacy_decl_block_name(&self) -> Option<&'static str> {
+        if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon)) {
+            return None;
+        }
+        match &self.peek().kind {
+            TokenKind::Ident(name) if name == "그릇채비" => Some("그릇채비"),
+            TokenKind::Ident(name) if name == "붙박이마련" => Some("붙박이마련"),
+            TokenKind::Ident(name) if name == "붙박이채비" => Some("붙박이채비"),
+            TokenKind::Ident(name) if name == "바탕칸" => Some("바탕칸"),
+            TokenKind::Ident(name) if name == "바탕칸표" => Some("바탕칸표"),
+            _ => None,
+        }
+    }
+
+    fn parse_decl_block(&mut self, _kind: DeclKind) -> Result<Stmt, ParseError> {
         let start_span = self.advance().span;
+        let TokenKind::Ident(keyword) = &self.tokens[self.pos - 1].kind else {
+            unreachable!("decl block keyword must be identifier")
+        };
+        if keyword != "채비" {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'채비:'",
+                found: TokenKind::Ident(keyword.clone()),
+                span: start_span,
+            });
+        }
         self.advance(); // colon
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
@@ -602,45 +593,29 @@ impl Parser {
             };
 
             let mut value = None;
+            let mut item_kind = DeclKind::Gureut;
             let mut end_span = type_token.span;
             if self.peek_kind_is(|k| matches!(k, TokenKind::Arrow)) {
-                if kind == DeclKind::Butbak {
-                    return Err(ParseError::ButbakArrowForbidden {
-                        span: self.peek().span,
-                    });
-                }
                 self.advance();
                 let expr = self.parse_expr()?;
                 end_span = end_span.merge(expr.span());
                 value = Some(expr);
             } else if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
-                if kind == DeclKind::Gureut {
-                    return Err(ParseError::GureutEqualForbidden {
-                        span: self.peek().span,
-                    });
-                }
+                item_kind = DeclKind::Butbak;
                 self.advance();
                 let expr = self.parse_expr()?;
                 end_span = end_span.merge(expr.span());
                 value = Some(expr);
             }
 
-            if kind == DeclKind::Butbak && value.is_none() {
-                return Err(ParseError::ConstMissingValue {
-                    name,
-                    span: end_span,
-                });
-            }
-
             let item_span = name_token.span.merge(end_span);
             self.consume_terminator()?;
 
-            if kind == DeclKind::Gureut {
-                self.declare_name(&name);
-            }
+            self.declare_name(&name);
 
             items.push(DeclItem {
                 name,
+                kind: item_kind,
                 type_name,
                 value,
                 span: item_span,
@@ -651,7 +626,7 @@ impl Parser {
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
 
-        Ok(Stmt::DeclBlock { kind, items, span })
+        Ok(Stmt::DeclBlock { items, span })
     }
 
     fn parse_hook(&mut self, kind: HookKind) -> Result<Stmt, ParseError> {
@@ -1032,10 +1007,6 @@ impl Parser {
                 return Ok(None);
             }
         };
-
-        if self.mode == ParseMode::Strict && name == "매틱" && matches!(kind, SeedKind::Umjikssi) {
-            return Err(ParseError::CompatMaticEntryDisabled { span: start_span });
-        }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
             self.advance();
@@ -2553,76 +2524,33 @@ impl Parser {
     }
 }
 
-fn split_pragma_text(text: &str) -> (String, String) {
-    let trimmed = text.trim();
-    if trimmed.is_empty() {
-        return (String::new(), String::new());
-    }
-    let mut ws_idx = None;
-    for (idx, ch) in trimmed.char_indices() {
-        if ch.is_whitespace() {
-            ws_idx = Some(idx);
-            break;
-        }
-    }
-    if let Some(idx) = ws_idx {
-        let name = trimmed[..idx].trim().to_string();
-        let args = trimmed[idx..].trim().to_string();
-        if !name.is_empty() {
-            return (name, args);
-        }
-    }
-    if let Some(open_idx) = trimmed.find('(') {
-        if trimmed.ends_with(')') && open_idx > 0 {
-            let name = trimmed[..open_idx].trim().to_string();
-            let args = trimmed[(open_idx + 1)..(trimmed.len() - 1)].trim().to_string();
-            return (name, args);
-        }
-    }
-    (trimmed.to_string(), String::new())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::lang::lexer::Lexer;
 
     #[test]
-    fn parse_pragma_graph_stmt() {
+    fn parse_pragma_graph_stmt_rejected() {
         let source = "#그래프(y축=x)\n살림.x <- 1.\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        assert!(!program.stmts.is_empty());
-        match &program.stmts[0] {
-            Stmt::Pragma { name, args, .. } => {
-                assert_eq!(name, "그래프");
-                assert_eq!(args, "y축=x");
-            }
-            other => panic!("expected pragma stmt, got: {:?}", other),
-        }
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("pragma rejected");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
     }
 
     #[test]
-    fn parse_pragma_import_like_stmt() {
+    fn parse_pragma_import_like_stmt_rejected() {
         let source = "#가져오기 누리/물리/역학 (중력씨, 이동씨)\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        assert_eq!(program.stmts.len(), 1);
-        match &program.stmts[0] {
-            Stmt::Pragma { name, args, .. } => {
-                assert_eq!(name, "가져오기");
-                assert_eq!(args, "누리/물리/역학 (중력씨, 이동씨)");
-            }
-            other => panic!("expected pragma stmt, got: {:?}", other),
-        }
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("pragma rejected");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
     }
 
     #[test]
-    fn parse_if_with_en_dialect_keywords() {
-        let source = r#"#말씨: en
-(1 < 2) if {
+    fn parse_if_with_korean_keywords() {
+        let source = r#"
+(1 < 2) 일때 {
     살림.x <- 1.
-} else {
+} 아니면 {
     살림.x <- 2.
 }
 "#;
@@ -2635,7 +2563,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_dialect_does_not_activate_en_if_keyword() {
+    fn parse_dialect_header_rejected() {
         let source = r#"#말씨: xx
 (1 < 2) if {
     살림.x <- 1.
@@ -2643,11 +2571,39 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let err = Parser::parse_with_default_root(tokens, "살림").expect_err("parse should fail");
-        let code = err.code();
-        assert!(
-            code == "E_PARSE_UNEXPECTED_TOKEN"
-                || code == "E_PARSE_EXPECTED_TERMINATOR"
-                || code == "E_PARSE_EXPECTED_PATH"
-        );
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+    }
+
+    #[test]
+    fn parse_decl_block_chaebi_item_kinds() {
+        let source = r#"
+채비: {
+  점수:수 <- 0.
+  파이:수 = 3.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        let Stmt::DeclBlock { items, .. } = &body[0] else {
+            panic!("decl block expected");
+        };
+        assert_eq!(items.len(), 2);
+        assert!(matches!(items[0].kind, DeclKind::Gureut));
+        assert!(matches!(items[1].kind, DeclKind::Butbak));
+    }
+
+    #[test]
+    fn parse_decl_block_legacy_header_rejected() {
+        let source = r#"
+그릇채비: {
+  점수:수 <- 0.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("legacy header");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
     }
 }
