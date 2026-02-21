@@ -50,9 +50,11 @@ def main() -> int:
         "--step-log-failed-only",
     ]
     fixed64_threeway_tokens = [
+        "tools/scripts/resolve_fixed64_threeway_inputs.py",
+        "--json-out build/reports/fixed64_threeway_inputs.detjson",
+        "--strict-invalid",
         "DDN_REQUIRE_FIXED64_3WAY",
         "--require-fixed64-3way",
-        "DDN_DARWIN_PROBE_REPORT",
         "fixed64_cross_platform_probe_darwin.detjson",
     ]
     emit_tokens = [

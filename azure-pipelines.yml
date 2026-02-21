@@ -35,10 +35,9 @@ steps:
   - script: |
       rc=0
       fixed64_threeway_flag=""
-      darwin_report_src="${DDN_DARWIN_PROBE_REPORT:-}"
-      if [ -n "$darwin_report_src" ] && [ -f "$darwin_report_src" ]; then
-        mkdir -p build/reports
-        cp "$darwin_report_src" build/reports/fixed64_cross_platform_probe_darwin.detjson
+      python3 tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid || rc=$?
       fi
       if [ "${DDN_REQUIRE_FIXED64_3WAY:-0}" = "1" ]; then
         fixed64_threeway_flag="--require-fixed64-3way"
