@@ -19,6 +19,9 @@ PASS_REQUIRED_KEYS = (
     "ci_fail_triage_exists",
     "age3_status",
     "age4_status",
+    "fixed64_threeway_report",
+    "fixed64_threeway_status",
+    "fixed64_threeway_ok",
 )
 
 
@@ -103,6 +106,7 @@ def main() -> int:
             "ci_fail_triage_hint": str(reports.get("ci_fail_triage_json", "")).strip(),
             "age3_status": str(reports.get("age3_close_status_json", "")).strip(),
             "age4_status": str(reports.get("age4_close", "")).strip(),
+            "fixed64_threeway_report": str(reports.get("fixed64_threeway_gate", "")).strip(),
         }
         for key, expected in compare_map.items():
             if not expected:
@@ -112,6 +116,14 @@ def main() -> int:
                     f"{key} mismatch summary={kv.get(key)} index={expected}",
                     code=CODES["SUMMARY_INDEX_PATH_MISMATCH"],
                 )
+        fixed64_ok_text = kv.get("fixed64_threeway_ok", "").strip()
+        if fixed64_ok_text not in {"0", "1"}:
+            return fail(f"fixed64_threeway_ok invalid: {fixed64_ok_text}", code=CODES["PASS_KEY_MISSING"])
+        if fixed64_ok_text != "1":
+            return fail("PASS summary requires fixed64_threeway_ok=1", code=CODES["PASS_KEY_MISSING"])
+        fixed64_status = kv.get("fixed64_threeway_status", "").strip()
+        if not fixed64_status:
+            return fail("fixed64_threeway_status is empty", code=CODES["PASS_KEY_MISSING"])
 
         hint = kv.get("ci_fail_brief_hint", "").strip()
         if not hint:

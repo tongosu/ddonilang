@@ -244,6 +244,32 @@ def read_compact_from_parse(parse_path: Path, fallback: str) -> str:
     return fallback
 
 
+def load_fixed64_threeway_snapshot(report_path: Path) -> dict[str, str]:
+    doc = load_payload(report_path)
+    if not isinstance(doc, dict):
+        return {
+            "status": "missing_report",
+            "ok": "0",
+            "reason": "report missing or invalid",
+        }
+    status = str(doc.get("status", "")).strip() or "unknown"
+    ok_text = "1" if bool(doc.get("ok", False)) else "0"
+    reason = clip_line(str(doc.get("reason", "-")).strip() or "-", 200)
+    return {
+        "status": status,
+        "ok": ok_text,
+        "reason": reason,
+    }
+
+
+def append_fixed64_threeway_summary_lines(lines: list[str], report_path: Path) -> None:
+    snap = load_fixed64_threeway_snapshot(report_path)
+    lines.append(f"[ci-gate-summary] fixed64_threeway_report={report_path}")
+    lines.append(f"[ci-gate-summary] fixed64_threeway_status={snap['status']}")
+    lines.append(f"[ci-gate-summary] fixed64_threeway_ok={snap['ok']}")
+    lines.append(f"[ci-gate-summary] fixed64_threeway_reason={snap['reason']}")
+
+
 def resolve_summary_compact(
     ci_gate_result_line_path: Path,
     final_status_parse_path: Path,
@@ -632,6 +658,7 @@ def main() -> int:
     aggregate_base_name = "ci_aggregate_report.detjson"
     backup_hygiene_move_base_name = "seamgrim_backup_hygiene_move.detjson"
     backup_hygiene_verify_base_name = "seamgrim_backup_hygiene_verify.detjson"
+    fixed64_threeway_gate_base_name = "fixed64_cross_platform_threeway_gate.detjson"
     report_base_names = [
         seamgrim_base_name,
         seamgrim_ui_age3_base_name,
@@ -640,6 +667,7 @@ def main() -> int:
         age4_pack_base_name,
         backup_hygiene_move_base_name,
         backup_hygiene_verify_base_name,
+        fixed64_threeway_gate_base_name,
         args.age3_summary_base_name,
         args.age3_status_base_name,
         args.age3_status_line_base_name,
@@ -683,6 +711,7 @@ def main() -> int:
     age4_pack_report = report_path(report_dir, age4_pack_base_name, prefix)
     backup_hygiene_move_report = report_path(report_dir, backup_hygiene_move_base_name, prefix)
     backup_hygiene_verify_report = report_path(report_dir, backup_hygiene_verify_base_name, prefix)
+    fixed64_threeway_gate_report = report_path(report_dir, fixed64_threeway_gate_base_name, prefix)
     explicit_age3_summary_md = args.age3_summary_md.strip()
     if explicit_age3_summary_md:
         age3_close_summary_md = Path(explicit_age3_summary_md)
@@ -804,6 +833,7 @@ def main() -> int:
             print(f" - step_log_failed_only={int(bool(args.step_log_failed_only))}")
         print(f" - backup_hygiene_move={backup_hygiene_move_report}")
         print(f" - backup_hygiene_verify={backup_hygiene_verify_report}")
+        print(f" - fixed64_threeway_gate={fixed64_threeway_gate_report}")
     run_core_tests = bool(args.core_tests)
     steps_log: list[dict[str, object]] = []
 
@@ -862,6 +892,7 @@ def main() -> int:
                 "age4_pack": str(age4_pack_report),
                 "backup_hygiene_move": str(backup_hygiene_move_report),
                 "backup_hygiene_verify": str(backup_hygiene_verify_report),
+                "fixed64_threeway_gate": str(fixed64_threeway_gate_report),
                 "age3_close_summary_md": str(age3_close_summary_md),
                 "age3_close_status_json": str(age3_close_status_json),
                 "age3_close_status_line": str(age3_close_status_line),
@@ -1274,6 +1305,8 @@ def main() -> int:
         cmd = [
             py,
             "tests/run_fixed64_cross_platform_threeway_gate.py",
+            "--report-out",
+            str(fixed64_threeway_gate_report),
         ]
         if require_darwin:
             cmd.append("--require-darwin")
@@ -1430,6 +1463,7 @@ def main() -> int:
         )
         lines.append(f"[ci-gate-summary] age3_status={age3_close_status_json}")
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
+        append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] age3_status_line={age3_close_status_line}")
         lines.append(f"[ci-gate-summary] age3_badge={age3_close_badge_json}")
         lines.append(f"[ci-gate-summary] age3_status_compact={read_compact_line(age3_close_status_line)}")
@@ -1931,6 +1965,7 @@ def main() -> int:
             aggregate_report,
         )
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
+        append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
         lines.append(f"[ci-gate-summary] aggregate_status_compact={read_compact_line(aggregate_status_line)}")
@@ -2015,6 +2050,7 @@ def main() -> int:
             aggregate_report,
         )
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
+        append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
         lines.append(f"[ci-gate-summary] aggregate_status_compact={read_compact_line(aggregate_status_line)}")
@@ -2086,6 +2122,7 @@ def main() -> int:
             f"[ci-gate-summary] age3_status={age3_close_status_json}",
             f"[ci-gate-summary] age4_status={age4_close_report}",
         ]
+    append_fixed64_threeway_summary_lines(pass_lines, fixed64_threeway_gate_report)
     for line in pass_lines:
         print(line)
     write_summary(summary_path, pass_lines)

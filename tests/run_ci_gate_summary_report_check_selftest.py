@@ -51,7 +51,8 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
     triage = case_dir / "ci_fail_triage.detjson"
     age3_status = case_dir / "age3_close_status.detjson"
     age4_status = case_dir / "age4_close_report.detjson"
-    for path in (summary_line, result, badge, brief, triage, age3_status, age4_status):
+    fixed64_threeway_report = case_dir / "fixed64_cross_platform_threeway_gate.detjson"
+    for path in (summary_line, result, badge, brief, triage, age3_status, age4_status, fixed64_threeway_report):
         write_text(path, "{}")
     write_json(
         index_path,
@@ -64,6 +65,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
                 "ci_fail_triage_json": str(triage),
                 "age3_close_status_json": str(age3_status),
                 "age4_close": str(age4_status),
+                "fixed64_threeway_gate": str(fixed64_threeway_report),
             },
         },
     )
@@ -80,6 +82,9 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
         "[ci-gate-summary] ci_fail_triage_exists=1",
         f"[ci-gate-summary] age3_status={age3_status}",
         f"[ci-gate-summary] age4_status={age4_status}",
+        f"[ci-gate-summary] fixed64_threeway_report={fixed64_threeway_report}",
+        "[ci-gate-summary] fixed64_threeway_status=pending_darwin",
+        "[ci-gate-summary] fixed64_threeway_ok=1",
     ]
     write_text(summary_path, "\n".join(lines))
     return summary_path, index_path
