@@ -1,7 +1,7 @@
 {
   "name": "ddonilang",
-  "ssot_requires": "20.6.6",
-  "ssot_bundle_hash": "sha256:7ee16871db62e109030c1565fa691189fcd96c5b00b6f7ecb60a909560e1b3df",
+  "ssot_requires": "20.6.42",
+  "ssot_bundle_hash": "sha256:01a61a3eedb6937de9a548d65fced65bd8f159f5a53caa35ab09040bfad109d3",
   "age_target": "AGE2",
   "det_tier": "D-STRICT",
   "trace_tier": "T-PATCH",

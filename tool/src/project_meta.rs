@@ -1,10 +1,11 @@
+use ddonirang_lang::{age_not_available_error, AgeTarget};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const SSOT_VERSION: &str = "20.6.33";
-const SSOT_FILE_VERSION: &str = "v20.6.33";
+const SSOT_VERSION: &str = "20.6.42";
+const SSOT_FILE_VERSION: &str = "v20.6.42";
 
 const SSOT_BUNDLE_FILES: [&str; 12] = [
     "SSOT_MASTER",
@@ -64,14 +65,6 @@ pub struct ProjectPolicy {
     pub openness: Openness,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum AgeTarget {
-    Age0,
-    Age1,
-    Age2,
-    Age3,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureGate {
     ClosedCore,
@@ -101,27 +94,6 @@ impl Openness {
     }
 }
 
-impl AgeTarget {
-    fn parse(input: &str) -> Result<Self, String> {
-        match input {
-            "AGE0" => Ok(Self::Age0),
-            "AGE1" => Ok(Self::Age1),
-            "AGE2" => Ok(Self::Age2),
-            "AGE3" => Ok(Self::Age3),
-            _ => Err(format!("invalid age_target: {input}")),
-        }
-    }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            AgeTarget::Age0 => "AGE0",
-            AgeTarget::Age1 => "AGE1",
-            AgeTarget::Age2 => "AGE2",
-            AgeTarget::Age3 => "AGE3",
-        }
-    }
-}
-
 impl ProjectPolicy {
     pub fn require_gate(&self, min_det: DetTier, requires_open: bool) -> Result<(), String> {
         if self.det_tier < min_det {
@@ -138,11 +110,10 @@ impl ProjectPolicy {
 
     pub fn require_feature(&self, feature: FeatureGate) -> Result<(), String> {
         if self.age_target < feature.min_age() {
-            return Err(format!(
-                "E_AGE_NOT_AVAILABLE 요청 기능은 현재 AGE에서 사용할 수 없습니다: {} (need {}, current {})",
+            return Err(age_not_available_error(
                 feature.label(),
-                feature.min_age().as_str(),
-                self.age_target.as_str(),
+                feature.min_age(),
+                self.age_target,
             ));
         }
         self.require_gate(feature.min_det(), feature.requires_open())
@@ -181,7 +152,7 @@ pub fn load_project_policy(unsafe_compat: bool) -> Result<ProjectPolicy, String>
     let age_target = meta
         .age_target
         .as_deref()
-        .map(AgeTarget::parse)
+        .map(parse_project_age_target)
         .transpose()?
         .unwrap_or(AgeTarget::Age1);
 
@@ -248,8 +219,8 @@ fn enforce_age_policy(
 }
 
 fn find_project_meta() -> Result<PathBuf, String> {
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("failed to get current directory: {e}"))?;
+    let cwd =
+        std::env::current_dir().map_err(|e| format!("failed to get current directory: {e}"))?;
     let local = cwd.join("ddn.project.json");
     if local.exists() {
         return Ok(local);
@@ -282,8 +253,7 @@ fn compute_ssot_bundle_hash() -> Result<String, String> {
         if bytes.contains(&b'\r') {
             return Err(format!("SSOT file contains CRLF: {name}"));
         }
-        std::str::from_utf8(&bytes)
-            .map_err(|_| format!("SSOT file is not UTF-8: {name}"))?;
+        std::str::from_utf8(&bytes).map_err(|_| format!("SSOT file is not UTF-8: {name}"))?;
         files.push((name, bytes));
     }
 
@@ -304,6 +274,14 @@ fn ssot_base_dir(root: &Path) -> PathBuf {
         return preferred;
     }
     root.join("docs").join("ssot")
+}
+
+fn parse_project_age_target(input: &str) -> Result<AgeTarget, String> {
+    let parsed = AgeTarget::parse(input).ok_or_else(|| format!("invalid age_target: {input}"))?;
+    if parsed > AgeTarget::Age3 {
+        return Err(format!("invalid age_target: {input}"));
+    }
+    Ok(parsed)
 }
 
 #[cfg(test)]

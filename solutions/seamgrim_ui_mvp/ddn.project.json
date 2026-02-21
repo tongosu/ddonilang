@@ -1,5 +1,5 @@
 {
-  "ssot_requires": "20.6.6",
+  "ssot_requires": "20.6.42",
   "age_target": "AGE1",
   "det_tier": "D-STRICT",
   "trace_tier": "T-FULL",
