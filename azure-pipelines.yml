@@ -24,3 +24,22 @@ steps:
       source $HOME/.cargo/env
       cargo test -p ddonirang-core
     displayName: core tests
+  - script: |
+      rc=0
+      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+      fi
+      python3 tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || python tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || true
+      python3 tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || python tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || rc=$?
+      if [ "$rc" -eq 0 ]; then
+        python3 tools/scripts/emit_ci_final_line.py --report-dir build/reports --require-final-line --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || python tools/scripts/emit_ci_final_line.py --report-dir build/reports --require-final-line --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || rc=$?
+      fi
+      exit "$rc"
+    displayName: aggregate quality gate
+  - task: PublishBuildArtifacts@1
+    displayName: publish OI-405/406 reports
+    condition: succeededOrFailed()
+    inputs:
+      PathtoPublish: build/reports
+      ArtifactName: oi405_406_reports

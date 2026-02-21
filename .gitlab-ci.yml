@@ -10,3 +10,26 @@ core-tests:
     - python3 tools/scripts/check_utf8.py || python tools/scripts/check_utf8.py
     - cargo test -p ddonirang-core fixed64_lint_gate_no_float_in_core
     - cargo test -p ddonirang-core
+    - |
+      rc=0
+      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --auto-prefix-env CI_PIPELINE_ID,CI_JOB_ID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --auto-prefix-env CI_PIPELINE_ID,CI_JOB_ID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+      fi
+      python3 tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || python tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || true
+      python3 tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || python tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || rc=$?
+      if [ "$rc" -eq 0 ]; then
+        python3 tools/scripts/emit_ci_final_line.py --report-dir build/reports --require-final-line --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || python tools/scripts/emit_ci_final_line.py --report-dir build/reports --require-final-line --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || rc=$?
+      fi
+      exit "$rc"
+  artifacts:
+    when: always
+    paths:
+      - build/reports/*.json
+      - build/reports/*.detjson
+      - build/reports/*.txt
+      - build/reports/*.md
+      - build/reports/*.ci_gate_step_*.stdout.txt
+      - build/reports/*.ci_gate_step_*.stderr.txt
+      - build/reports/*.ci_fail_brief.txt
+      - build/reports/*.ci_fail_triage.detjson

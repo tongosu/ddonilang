@@ -68,10 +68,38 @@ def check_scene_session(root: Path, pack_dir: Path) -> None:
         raise RuntimeError(msg)
 
 
+def check_lesson_schema_gate(root: Path, require_promoted: bool = False) -> None:
+    checker = root / "tests" / "run_seamgrim_lesson_schema_gate.py"
+    cmd = [sys.executable, str(checker)]
+    if require_promoted:
+        cmd.append("--require-promoted")
+    result = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        msg = result.stderr.strip() or result.stdout.strip() or "lesson schema gate failed"
+        raise RuntimeError(msg)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run seamgrim graph + scene/session checks")
     parser.add_argument("packs", nargs="*", help="pack lesson directories")
     parser.add_argument("--strict-graph", action="store_true", help="fail if graph export fails")
+    parser.add_argument(
+        "--skip-schema-gate",
+        action="store_true",
+        help="skip lesson AGE3 schema gate check",
+    )
+    parser.add_argument(
+        "--require-promoted",
+        action="store_true",
+        help="schema gate에서 source==preview 승격 완료 상태를 요구",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -84,6 +112,8 @@ def main() -> int:
     for pack_dir in pack_dirs:
         check_graph(root, pack_dir, args.strict_graph, warnings)
         check_scene_session(root, pack_dir)
+    if not args.skip_schema_gate:
+        check_lesson_schema_gate(root, require_promoted=args.require_promoted)
 
     if warnings:
         print("seamgrim full check ok (graph warnings)")

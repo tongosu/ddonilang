@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
 from pathlib import Path
 import re
+from datetime import datetime, timezone
+import time
 
 DIALECT_SMOKE_PACK = "lang_dialect_smoke_v1"
 
@@ -59,6 +62,13 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "gogae9_w91_malmoi_docset",
         pack_root / "geoul_min_schema_v0",
         pack_root / "seamgrim_smoke_golden_v1",
+        pack_root / "bogae_api_catalog_v1_basic",
+        pack_root / "bogae_api_catalog_v1_graph",
+        pack_root / "bogae_api_catalog_v1_game_hud",
+        pack_root / "bogae_api_catalog_v1_errors",
+        pack_root / "dotbogi_ddn_interface_v1_smoke",
+        pack_root / "dotbogi_ddn_interface_v1_event_roundtrip",
+        pack_root / "dotbogi_ddn_interface_v1_write_forbidden",
     ]
     negative_packs = sorted(
         {
@@ -95,9 +105,10 @@ def load_cases(pack_dir: Path) -> list[dict]:
             or "smoke_golden" in data
         )
         has_graph_expectation = "fixture" in data and "expected_graph" in data
-        if not has_core_expectation and not has_graph_expectation:
+        has_dotbogi_expectation = "dotbogi_case" in data
+        if not has_core_expectation and not has_graph_expectation and not has_dotbogi_expectation:
             raise ValueError(
-                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, smoke_golden, or fixture/expected_graph"
+                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, smoke_golden, fixture/expected_graph, or dotbogi_case"
             )
         if "stdout" in data and not isinstance(data["stdout"], list):
             raise ValueError(f"{golden_path} line {idx}: stdout must be a list")
@@ -123,6 +134,16 @@ def load_cases(pack_dir: Path) -> list[dict]:
             raise ValueError(f"{golden_path} line {idx}: fixture must be a string")
         if "expected_graph" in data and not isinstance(data["expected_graph"], str):
             raise ValueError(f"{golden_path} line {idx}: expected_graph must be a string")
+        if "dotbogi_case" in data and not isinstance(data["dotbogi_case"], str):
+            raise ValueError(f"{golden_path} line {idx}: dotbogi_case must be a string")
+        if "expected_dotbogi_output" in data and not isinstance(data["expected_dotbogi_output"], str):
+            raise ValueError(f"{golden_path} line {idx}: expected_dotbogi_output must be a string")
+        if "expected_view_meta_hash" in data and not isinstance(data["expected_view_meta_hash"], str):
+            raise ValueError(f"{golden_path} line {idx}: expected_view_meta_hash must be a string")
+        if "expected_after_state" in data and not isinstance(data["expected_after_state"], str):
+            raise ValueError(f"{golden_path} line {idx}: expected_after_state must be a string")
+        if "expected_after_state_hash" in data and not isinstance(data["expected_after_state_hash"], str):
+            raise ValueError(f"{golden_path} line {idx}: expected_after_state_hash must be a string")
         if "expected_contract" in data and not isinstance(data["expected_contract"], str):
             raise ValueError(f"{golden_path} line {idx}: expected_contract must be a string")
         if "expected_detmath_seal_hash" in data and not isinstance(data["expected_detmath_seal_hash"], str):
@@ -416,6 +437,283 @@ def canonical_json_lines(data: object) -> list[str]:
     return [json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))]
 
 
+def canonical_json_text(data: object) -> str:
+    return json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def hash_canonical_json(data: object, token: str) -> str:
+    value = str(token).strip()
+    if ":" not in value:
+        raise ValueError(f"hash token must have algorithm prefix: {token}")
+    algo, _ = value.split(":", 1)
+    payload = canonical_json_text(data).encode("utf-8")
+    algo = algo.strip().lower()
+    if algo == "sha256":
+        return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+    if algo == "blake3":
+        try:
+            import blake3  # type: ignore
+        except Exception as exc:
+            raise ValueError(f"blake3 hash requested but blake3 module is unavailable: {exc}") from exc
+        return f"blake3:{blake3.blake3(payload).hexdigest()}"
+    raise ValueError(f"unsupported hash algorithm: {algo}")
+
+
+def load_json_doc(path: Path) -> object:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path}: JSON parse failed: {exc}") from exc
+
+
+def run_dotbogi_case(
+    root: Path,
+    pack_dir: Path,
+    case_idx: int,
+    case: dict,
+) -> tuple[bool, list[str], list[str], str, dict]:
+    rel = str(case.get("dotbogi_case", "")).strip()
+    if not rel:
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: dotbogi_case must be non-empty string")
+    doc_path = (pack_dir / rel).resolve()
+    if not doc_path.exists():
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: dotbogi_case not found: {rel}")
+    report_path = pack_dir / f".tmp_dotbogi_case_{case_idx}.report.detjson"
+    manifest = root / "tools" / "teul-cli" / "Cargo.toml"
+    cmd = [
+        "cargo",
+        "run",
+        "-q",
+        "--manifest-path",
+        str(manifest),
+        "--",
+        "dotbogi",
+        "case",
+        str(doc_path),
+        "--report-out",
+        str(report_path),
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    stderr_lines = [
+        normalize_stderr_line(line, root)
+        for line in result.stderr.splitlines()
+        if line.strip()
+    ]
+    stdout_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    expected_error_code = case.get("expected_error_code")
+    pre_artifacts = {
+        "stdout_lines": stdout_lines,
+        "stderr_lines": stderr_lines,
+        "exit_code": result.returncode,
+        "actual_meta": None,
+    }
+    if isinstance(expected_error_code, str):
+        if result.returncode == 0:
+            report_path.unlink(missing_ok=True)
+            return (
+                False,
+                [f"exit_code!=0 expected ({expected_error_code})"],
+                [f"exit_code={result.returncode}"],
+                "\n".join(stderr_lines),
+                pre_artifacts,
+            )
+        combined = stderr_lines + stdout_lines
+        report_path.unlink(missing_ok=True)
+        if not any(expected_error_code in line for line in combined):
+            return (
+                False,
+                [f"expected_error_code={expected_error_code}"],
+                combined,
+                "\n".join(stderr_lines),
+                pre_artifacts,
+            )
+        return True, [f"expected_error_code={expected_error_code}"], combined, "\n".join(stderr_lines), pre_artifacts
+
+    if result.returncode != 0:
+        report_path.unlink(missing_ok=True)
+        return (
+            False,
+            ["exit_code=0"],
+            [f"exit_code={result.returncode}"],
+            "\n".join(stderr_lines),
+            pre_artifacts,
+        )
+
+    if not report_path.exists():
+        return (
+            False,
+            ["dotbogi report file exists"],
+            ["dotbogi report missing"],
+            "\n".join(stderr_lines),
+            pre_artifacts,
+        )
+    report = load_json_doc(report_path)
+    report_path.unlink(missing_ok=True)
+    if not isinstance(report, dict):
+        raise ValueError(f"{doc_path}: report root must be object")
+    output = report.get("output")
+    if not isinstance(output, dict):
+        raise ValueError(f"{doc_path}: report.output must be object")
+    view_meta = output.get("view_meta")
+    if not isinstance(view_meta, dict):
+        raise ValueError(f"{doc_path}: report.output.view_meta must be object")
+
+    output_artifacts: dict[str, object] = {
+        "dotbogi_output_actual_json": output,
+    }
+    after_state_artifacts: dict[str, object] = {}
+
+    expected_output_rel = case.get("expected_dotbogi_output")
+    if isinstance(expected_output_rel, str) and expected_output_rel.strip():
+        expected_output_path = (pack_dir / expected_output_rel).resolve()
+        output_artifacts["dotbogi_output_expected_path"] = str(expected_output_path)
+        if not expected_output_path.exists():
+            raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: expected_dotbogi_output not found: {expected_output_rel}")
+        expected_output = load_json_doc(expected_output_path)
+        expected_lines = canonical_json_lines(expected_output)
+        actual_lines = canonical_json_lines(output)
+        if expected_lines != actual_lines:
+            return (
+                False,
+                expected_lines,
+                actual_lines,
+                "\n".join(stderr_lines),
+                {
+                    "stdout_lines": actual_lines,
+                    "stderr_lines": stderr_lines,
+                    "exit_code": 0,
+                    "actual_meta": None,
+                    **output_artifacts,
+                },
+            )
+
+    actual_view_meta_hash = report.get("view_meta_hash")
+    if not isinstance(actual_view_meta_hash, str) or not actual_view_meta_hash.strip():
+        actual_view_meta_hash = None
+    expected_view_meta_hash = case.get("expected_view_meta_hash")
+    if isinstance(expected_view_meta_hash, str) and expected_view_meta_hash.strip():
+        if not (
+            isinstance(actual_view_meta_hash, str)
+            and expected_view_meta_hash.startswith("sha256:")
+            and actual_view_meta_hash.startswith("sha256:")
+        ):
+            actual_view_meta_hash = hash_canonical_json(view_meta, expected_view_meta_hash)
+        if actual_view_meta_hash != expected_view_meta_hash:
+            return (
+                False,
+                [f"view_meta_hash={expected_view_meta_hash}"],
+                [f"view_meta_hash={actual_view_meta_hash}"],
+                "\n".join(stderr_lines),
+                {
+                    "stdout_lines": stdout_lines,
+                    "stderr_lines": stderr_lines,
+                    "exit_code": 0,
+                    "actual_meta": None,
+                    "dotbogi_view_meta_hash_actual": actual_view_meta_hash,
+                    **output_artifacts,
+                },
+            )
+
+    after_state = report.get("after_state")
+    if isinstance(after_state, dict):
+        after_state_artifacts["dotbogi_after_state_actual_json"] = after_state
+    else:
+        after_state = None
+    expected_after_state_rel = case.get("expected_after_state")
+    if isinstance(expected_after_state_rel, str) and expected_after_state_rel.strip():
+        if after_state is None:
+            return (
+                False,
+                ["after_state expected but roundtrip is missing"],
+                ["after_state unavailable"],
+                "\n".join(stderr_lines),
+                {"stdout_lines": stdout_lines, "stderr_lines": stderr_lines, "exit_code": 0, "actual_meta": None},
+            )
+        expected_after_state_path = (pack_dir / expected_after_state_rel).resolve()
+        after_state_artifacts["dotbogi_after_state_expected_path"] = str(expected_after_state_path)
+        if not expected_after_state_path.exists():
+            raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: expected_after_state not found: {expected_after_state_rel}")
+        expected_after_state = load_json_doc(expected_after_state_path)
+        expected_lines = canonical_json_lines(expected_after_state)
+        actual_lines = canonical_json_lines(after_state)
+        if expected_lines != actual_lines:
+            return (
+                False,
+                expected_lines,
+                actual_lines,
+                "\n".join(stderr_lines),
+                {
+                    "stdout_lines": actual_lines,
+                    "stderr_lines": stderr_lines,
+                    "exit_code": 0,
+                    "actual_meta": None,
+                    **output_artifacts,
+                    **after_state_artifacts,
+                },
+            )
+
+    actual_after_state_hash = report.get("after_state_hash")
+    if not isinstance(actual_after_state_hash, str) or not actual_after_state_hash.strip():
+        actual_after_state_hash = None
+    expected_after_state_hash = case.get("expected_after_state_hash")
+    if isinstance(expected_after_state_hash, str) and expected_after_state_hash.strip():
+        if after_state is None:
+            return (
+                False,
+                ["after_state_hash expected but roundtrip is missing"],
+                ["after_state unavailable"],
+                "\n".join(stderr_lines),
+                {"stdout_lines": stdout_lines, "stderr_lines": stderr_lines, "exit_code": 0, "actual_meta": None},
+            )
+        if not (
+            isinstance(actual_after_state_hash, str)
+            and expected_after_state_hash.startswith("sha256:")
+            and actual_after_state_hash.startswith("sha256:")
+        ):
+            actual_after_state_hash = hash_canonical_json(after_state, expected_after_state_hash)
+        if actual_after_state_hash != expected_after_state_hash:
+            return (
+                False,
+                [f"after_state_hash={expected_after_state_hash}"],
+                [f"after_state_hash={actual_after_state_hash}"],
+                "\n".join(stderr_lines),
+                {
+                    "stdout_lines": stdout_lines,
+                    "stderr_lines": stderr_lines,
+                    "exit_code": 0,
+                    "actual_meta": None,
+                    "dotbogi_after_state_hash_actual": actual_after_state_hash,
+                    **output_artifacts,
+                    **after_state_artifacts,
+                },
+            )
+
+    lines = stdout_lines if stdout_lines else [f"dotbogi_output={canonical_json_text(output)}"]
+    return (
+        True,
+        lines,
+        lines,
+        "\n".join(stderr_lines),
+        {
+            "stdout_lines": lines,
+            "stderr_lines": stderr_lines,
+            "exit_code": 0,
+            "actual_meta": None,
+            "dotbogi_view_meta_hash_actual": actual_view_meta_hash,
+            "dotbogi_after_state_hash_actual": actual_after_state_hash,
+            **output_artifacts,
+            **after_state_artifacts,
+        },
+    )
+
+
 def run_graph_autorender_case(
     root: Path,
     pack_dir: Path,
@@ -493,6 +791,9 @@ def run_case(
     smoke_golden = case.get("smoke_golden")
     if isinstance(smoke_golden, str) and smoke_golden.strip():
         return run_smoke_golden_case(root, pack_dir, case_idx, case, run_policy)
+    dotbogi_case = case.get("dotbogi_case")
+    if isinstance(dotbogi_case, str) and dotbogi_case.strip():
+        return run_dotbogi_case(root, pack_dir, case_idx, case)
     if "fixture" in case and "expected_graph" in case:
         return run_graph_autorender_case(root, pack_dir, case_idx, case)
 
@@ -740,6 +1041,42 @@ def should_write_expected(path: Path, update: bool, record: bool) -> bool:
     return False
 
 
+def clip_lines(lines: list[str], limit: int = 6) -> list[str]:
+    if len(lines) <= limit:
+        return lines
+    return lines[:limit] + [f"... ({len(lines) - limit} more lines)"]
+
+
+def format_failure_lines(failure: tuple, root: Path) -> list[str]:
+    if len(failure) == 2:
+        pack_dir, reason = failure
+        pack_text = str(pack_dir)
+        try:
+            pack_text = str(Path(pack_dir).relative_to(root))
+        except Exception:
+            pass
+        return [f"[FAIL] pack={pack_text} reason={reason}"]
+    if len(failure) != 5:
+        return [f"[FAIL] unexpected failure tuple={failure}"]
+    pack_dir, idx, expected, got, stderr = failure
+    pack_text = str(pack_dir)
+    try:
+        pack_text = str(Path(pack_dir).relative_to(root))
+    except Exception:
+        pass
+    lines = [f"[FAIL] pack={pack_text} case={idx}"]
+    expected_lines = clip_lines([str(item) for item in (expected or [])], limit=5)
+    got_lines = clip_lines([str(item) for item in (got or [])], limit=5)
+    stderr_lines = clip_lines([line for line in str(stderr).splitlines() if line.strip()], limit=5)
+    if expected_lines:
+        lines.append(f"  expected: {' | '.join(expected_lines)}")
+    if got_lines:
+        lines.append(f"  got: {' | '.join(got_lines)}")
+    if stderr_lines:
+        lines.append(f"  stderr: {' | '.join(stderr_lines)}")
+    return lines
+
+
 def write_case_updates(
     pack_dir: Path,
     case: dict,
@@ -819,6 +1156,50 @@ def write_case_updates(
                 newline="\n",
             )
 
+    dotbogi_output_expected_path = artifacts.get("dotbogi_output_expected_path")
+    dotbogi_output_actual_json = artifacts.get("dotbogi_output_actual_json")
+    if isinstance(dotbogi_output_expected_path, str) and dotbogi_output_actual_json is not None:
+        output_path = Path(dotbogi_output_expected_path)
+        if should_write_expected(output_path, update, record):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                json.dumps(dotbogi_output_actual_json, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+
+    dotbogi_after_state_expected_path = artifacts.get("dotbogi_after_state_expected_path")
+    dotbogi_after_state_actual_json = artifacts.get("dotbogi_after_state_actual_json")
+    if isinstance(dotbogi_after_state_expected_path, str) and dotbogi_after_state_actual_json is not None:
+        after_state_path = Path(dotbogi_after_state_expected_path)
+        if should_write_expected(after_state_path, update, record):
+            after_state_path.parent.mkdir(parents=True, exist_ok=True)
+            after_state_path.write_text(
+                json.dumps(dotbogi_after_state_actual_json, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+
+    dotbogi_view_meta_hash_actual = artifacts.get("dotbogi_view_meta_hash_actual")
+    if (
+        update
+        and "expected_view_meta_hash" in case
+        and isinstance(dotbogi_view_meta_hash_actual, str)
+        and dotbogi_view_meta_hash_actual.strip()
+    ):
+        case["expected_view_meta_hash"] = dotbogi_view_meta_hash_actual
+        case_changed = True
+
+    dotbogi_after_state_hash_actual = artifacts.get("dotbogi_after_state_hash_actual")
+    if (
+        update
+        and "expected_after_state_hash" in case
+        and isinstance(dotbogi_after_state_hash_actual, str)
+        and dotbogi_after_state_hash_actual.strip()
+    ):
+        case["expected_after_state_hash"] = dotbogi_after_state_hash_actual
+        case_changed = True
+
     return case_changed, issues
 
 
@@ -828,6 +1209,7 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="scan all pack folders with golden.jsonl")
     parser.add_argument("--record", action="store_true", help="record missing expected artifacts")
     parser.add_argument("--update", action="store_true", help="update expected artifacts in-place")
+    parser.add_argument("--report-out", help="write JSON report to this path")
     args = parser.parse_args()
     if args.record and args.update:
         print("--record 와 --update 는 동시에 사용할 수 없습니다.", file=sys.stderr)
@@ -839,31 +1221,104 @@ def main() -> int:
 
     failures = []
     updated_pack_files = 0
+    started = time.perf_counter()
+    report_packs: list[dict] = []
     for pack_dir in packs:
+        pack_started = time.perf_counter()
+        try:
+            pack_name = pack_dir.relative_to(root / "pack").as_posix()
+        except ValueError:
+            pack_name = pack_dir.as_posix()
+        pack_report = {
+            "pack": pack_name,
+            "path": str(pack_dir),
+            "ok": True,
+            "case_count": 0,
+            "failed_case_count": 0,
+            "cases": [],
+            "errors": [],
+        }
         if not pack_dir.exists():
             failures.append((pack_dir, "missing pack"))
+            pack_report["ok"] = False
+            pack_report["errors"].append("missing pack")
+            pack_report["elapsed_ms"] = int((time.perf_counter() - pack_started) * 1000)
+            report_packs.append(pack_report)
             continue
         cases = load_cases(pack_dir)
+        pack_report["case_count"] = len(cases)
         case_file_changed = False
         for idx, case in enumerate(cases, 1):
             ok, expected, got, stderr, artifacts = run_case(root, pack_dir, idx, case, run_policy)
+            stderr_lines = [line for line in str(stderr).splitlines() if line.strip()]
+            case_report = {
+                "index": idx,
+                "ok": True,
+                "checked_ok": bool(ok),
+            }
             if args.update or args.record:
                 changed, issues = write_case_updates(pack_dir, case, artifacts, args.update, args.record)
                 if changed:
                     case_file_changed = True
                 for issue in issues:
                     failures.append((pack_dir, idx, [issue], [], stderr))
+                if issues:
+                    case_report["ok"] = False
+                    case_report["issues"] = issues
+                    if stderr_lines:
+                        case_report["stderr"] = stderr_lines
+                    pack_report["ok"] = False
+                    pack_report["failed_case_count"] += 1
             elif not ok:
                 failures.append((pack_dir, idx, expected, got, stderr))
+                case_report["ok"] = False
+                case_report["expected"] = expected
+                case_report["got"] = got
+                if stderr_lines:
+                    case_report["stderr"] = stderr_lines
+                pack_report["ok"] = False
+                pack_report["failed_case_count"] += 1
+            pack_report["cases"].append(case_report)
         if (args.update or args.record) and case_file_changed:
             golden_path = pack_dir / "golden.jsonl"
             lines = [json.dumps(case, ensure_ascii=False) for case in cases]
             golden_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
             updated_pack_files += 1
+        pack_report["elapsed_ms"] = int((time.perf_counter() - pack_started) * 1000)
+        report_packs.append(pack_report)
+
+    if args.report_out:
+        report_path = Path(args.report_out)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        mode = "check"
+        if args.update:
+            mode = "update"
+        elif args.record:
+            mode = "record"
+        report = {
+            "schema": "ddn.pack.golden.report.v1",
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "mode": mode,
+            "overall_ok": len(failures) == 0,
+            "updated_pack_files": updated_pack_files,
+            "failure_count": len(failures),
+            "elapsed_ms": int((time.perf_counter() - started) * 1000),
+            "packs": report_packs,
+        }
+        report_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
 
     if failures:
+        print("pack golden failed", file=sys.stderr)
         for failure in failures:
-            print(failure)
+            for line in format_failure_lines(failure, root):
+                print(line, file=sys.stderr)
+        print(f"failure_count={len(failures)}", file=sys.stderr)
+        if args.report_out:
+            print(f"report_out={args.report_out}", file=sys.stderr)
         return 1
 
     if args.update:
