@@ -29,14 +29,12 @@ def clip(text: str, limit: int = 140) -> str:
 
 def default_report_path(file_name: str) -> str:
     preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
-    fallback = Path("C:/ddn/codex/build/reports")
     if os.name == "nt":
-        for candidate in (preferred, fallback):
-            try:
-                candidate.mkdir(parents=True, exist_ok=True)
-                return str(candidate / file_name)
-            except OSError:
-                continue
+        try:
+            preferred.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        return str(preferred / file_name)
     return f"build/reports/{file_name}"
 
 

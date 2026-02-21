@@ -43,14 +43,12 @@ def clip(text: str, limit: int = 140) -> str:
 
 def default_report_path(file_name: str) -> str:
     preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
-    fallback = Path("C:/ddn/codex/build/reports")
     if os.name == "nt":
-        for candidate in (preferred, fallback):
-            try:
-                candidate.mkdir(parents=True, exist_ok=True)
-                return str(candidate / file_name)
-            except OSError:
-                continue
+        try:
+            preferred.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        return str(preferred / file_name)
     return f"build/reports/{file_name}"
 
 
@@ -166,14 +164,15 @@ def resolve_cargo_target_dir(root: Path) -> Path | None:
     if env_candidate:
         candidates.append(Path(env_candidate))
 
-    candidates.extend(
-        [
-            Path("I:/home/urihanl/ddn/codex/build/cargo-target-age4-close"),
-            Path("C:/ddn/codex/build/cargo-target-age4-close"),
-            root / "build" / "cargo-target-age4-close",
-            root / "out" / "cargo-target-age4-close",
-        ]
-    )
+    if os.name == "nt":
+        candidates.append(Path("I:/home/urihanl/ddn/codex/build/cargo-target-age4-close"))
+    else:
+        candidates.extend(
+            [
+                root / "build" / "cargo-target-age4-close",
+                root / "out" / "cargo-target-age4-close",
+            ]
+        )
 
     seen: set[str] = set()
     for candidate in candidates:

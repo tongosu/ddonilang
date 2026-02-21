@@ -23,15 +23,11 @@ def resolve_build_root() -> Path:
         local.mkdir(parents=True, exist_ok=True)
         return local
     preferred = Path("I:/home/urihanl/ddn/codex/build")
-    fallback = Path("C:/ddn/codex/build")
-    local = ROOT / "build"
-    for candidate in (preferred, fallback, local):
-        try:
-            candidate.mkdir(parents=True, exist_ok=True)
-            return candidate
-        except OSError:
-            continue
-    raise RuntimeError("build root 경로를 만들 수 없습니다.")
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        return preferred
+    except OSError as exc:
+        raise RuntimeError(f"build root 경로를 만들 수 없습니다: {preferred}") from exc
 
 
 def parse_kv_lines(text: str) -> dict[str, str]:

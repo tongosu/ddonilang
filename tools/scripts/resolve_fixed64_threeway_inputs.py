@@ -77,14 +77,12 @@ def write_json(path: Path, payload: dict) -> None:
 
 def default_report_dir() -> str:
     preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
-    fallback = Path("C:/ddn/codex/build/reports")
     if os.name == "nt":
-        for candidate in (preferred, fallback):
-            try:
-                candidate.mkdir(parents=True, exist_ok=True)
-                return str(candidate)
-            except OSError:
-                continue
+        try:
+            preferred.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        return str(preferred)
     return "build/reports"
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,15 +15,15 @@ DEFAULT_LESSONS_ROOT = ROOT / "solutions" / "seamgrim_ui_mvp" / "lessons"
 
 def resolve_build_root() -> Path:
     preferred = Path("I:/home/urihanl/ddn/codex/build")
-    fallback = Path("C:/ddn/codex/build")
-    local = ROOT / "build"
-    for candidate in (preferred, fallback, local):
+    if os.name == "nt":
         try:
-            candidate.mkdir(parents=True, exist_ok=True)
-            return candidate
-        except OSError:
-            continue
-    raise RuntimeError("build root 경로를 만들 수 없습니다.")
+            preferred.mkdir(parents=True, exist_ok=True)
+            return preferred
+        except OSError as exc:
+            raise RuntimeError(f"build root 경로를 만들 수 없습니다: {preferred}") from exc
+    local = ROOT / "build"
+    local.mkdir(parents=True, exist_ok=True)
+    return local
 
 
 def collect_backup_files(lessons_root: Path, name_contains: str) -> list[Path]:
