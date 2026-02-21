@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import time
 
 DIALECT_SMOKE_PACK = "lang_dialect_smoke_v1"
+DIALECT_BUILTIN_EQUIV_PACK = "dialect_builtin_equiv_v1"
 
 
 def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
@@ -50,6 +51,7 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "project_age_target_precedence_v1",
         pack_root / "lang_ddn_meta_header_basics",
         pack_root / DIALECT_SMOKE_PACK,
+        pack_root / DIALECT_BUILTIN_EQUIV_PACK,
         pack_root / "lang_range_literal_v0",
         pack_root / "gogae8_w81_reward_v1",
         pack_root / "gogae8_w82_seulgi_train_v2",
