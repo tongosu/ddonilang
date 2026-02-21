@@ -588,6 +588,11 @@ def main() -> int:
         action="store_true",
         help="run lesson backup hygiene step before seamgrim gate (move *.bak.ddn + verify empty)",
     )
+    parser.add_argument(
+        "--require-fixed64-3way",
+        action="store_true",
+        help="require fixed64 3way(windows/linux/darwin) gate; if darwin report missing, fail",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -1265,6 +1270,22 @@ def main() -> int:
         ]
         return run_and_record("ci_fixed64_win_wsl_matrix_selftest", cmd)
 
+    def check_ci_fixed64_threeway_gate(require_darwin: bool) -> int:
+        cmd = [
+            py,
+            "tests/run_fixed64_cross_platform_threeway_gate.py",
+        ]
+        if require_darwin:
+            cmd.append("--require-darwin")
+        return run_and_record("ci_fixed64_threeway_gate", cmd)
+
+    def check_ci_fixed64_threeway_gate_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_fixed64_cross_platform_threeway_gate_selftest.py",
+        ]
+        return run_and_record("ci_fixed64_threeway_gate_selftest", cmd)
+
     def check_ci_aggregate_status_line_selftest() -> int:
         cmd = [
             py,
@@ -1790,6 +1811,18 @@ def main() -> int:
             ci_fixed64_win_wsl_matrix_selftest_rc,
             "[ci-gate] fast-fail: ci fixed64 windows+wsl matrix selftest failed",
         )
+    ci_fixed64_threeway_gate_rc = check_ci_fixed64_threeway_gate(require_darwin=args.require_fixed64_3way)
+    if args.fast_fail and ci_fixed64_threeway_gate_rc != 0:
+        return fail_and_exit(
+            ci_fixed64_threeway_gate_rc,
+            "[ci-gate] fast-fail: ci fixed64 threeway gate failed",
+        )
+    ci_fixed64_threeway_gate_selftest_rc = check_ci_fixed64_threeway_gate_selftest()
+    if args.fast_fail and ci_fixed64_threeway_gate_selftest_rc != 0:
+        return fail_and_exit(
+            ci_fixed64_threeway_gate_selftest_rc,
+            "[ci-gate] fast-fail: ci fixed64 threeway gate selftest failed",
+        )
     ci_backup_hygiene_selftest_rc = check_ci_backup_hygiene_selftest()
     if args.fast_fail and ci_backup_hygiene_selftest_rc != 0:
         return fail_and_exit(
@@ -1873,6 +1906,8 @@ def main() -> int:
             and ci_builtin_name_sync_rc == 0
             and ci_fixed64_probe_selftest_rc == 0
             and ci_fixed64_win_wsl_matrix_selftest_rc == 0
+            and ci_fixed64_threeway_gate_rc == 0
+            and ci_fixed64_threeway_gate_selftest_rc == 0
             and ci_backup_hygiene_selftest_rc == 0
             and ci_emit_artifacts_baseline_rc == 0
             and ci_emit_artifacts_generate_rc == 0
@@ -1957,6 +1992,8 @@ def main() -> int:
         or ci_builtin_name_sync_rc != 0
         or ci_fixed64_probe_selftest_rc != 0
         or ci_fixed64_win_wsl_matrix_selftest_rc != 0
+        or ci_fixed64_threeway_gate_rc != 0
+        or ci_fixed64_threeway_gate_selftest_rc != 0
         or ci_backup_hygiene_selftest_rc != 0
         or ci_emit_artifacts_baseline_rc != 0
         or ci_emit_artifacts_generate_rc != 0
