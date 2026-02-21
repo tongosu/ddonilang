@@ -52,6 +52,8 @@ def main() -> int:
     fixed64_threeway_tokens = [
         "DDN_REQUIRE_FIXED64_3WAY",
         "--require-fixed64-3way",
+        "DDN_DARWIN_PROBE_REPORT",
+        "fixed64_cross_platform_probe_darwin.detjson",
     ]
     emit_tokens = [
         "tools/scripts/emit_ci_final_line.py",

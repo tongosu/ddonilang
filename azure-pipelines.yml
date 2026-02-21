@@ -35,7 +35,15 @@ steps:
   - script: |
       rc=0
       fixed64_threeway_flag=""
+      darwin_report_src="${DDN_DARWIN_PROBE_REPORT:-}"
+      if [ -n "$darwin_report_src" ] && [ -f "$darwin_report_src" ]; then
+        mkdir -p build/reports
+        cp "$darwin_report_src" build/reports/fixed64_cross_platform_probe_darwin.detjson
+      fi
       if [ "${DDN_REQUIRE_FIXED64_3WAY:-0}" = "1" ]; then
+        fixed64_threeway_flag="--require-fixed64-3way"
+      fi
+      if [ -f build/reports/fixed64_cross_platform_probe_darwin.detjson ]; then
         fixed64_threeway_flag="--require-fixed64-3way"
       fi
       python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only $fixed64_threeway_flag || rc=$?
