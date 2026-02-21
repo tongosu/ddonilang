@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.dotbogi.case.v1",
+  "input": {
+    "schema": "dotbogi.input.v1",
+    "madi": 12,
+    "state": {
+      "player": {
+        "hp": 87,
+        "mp": 24
+      },
+      "inventory": {
+        "potion": 2,
+        "key": 1
+      }
+    },
+    "view_meta": {
+      "panel": "hud"
+    },
+    "obs_manifest": {
+      "version": 1
+    }
+  },
+  "dotbogi": {
+    "view_meta": {
+      "layout": "inventory",
+      "rows": [
+        {
+          "id": "potion",
+          "count": 2
+        },
+        {
+          "id": "key",
+          "count": 1
+        }
+      ]
+    },
+    "events": []
+  }
+}

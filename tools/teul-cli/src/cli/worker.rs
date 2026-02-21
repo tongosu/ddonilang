@@ -1,5 +1,5 @@
-use serde_json::Value;
 use clap::Parser;
+use serde_json::Value;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::Command;
@@ -23,7 +23,8 @@ pub fn run() -> Result<(), String> {
         let request: Value = match serde_json::from_slice(&frame) {
             Ok(value) => value,
             Err(err) => {
-                let response = jsonrpc_error(Value::Null, -32700, &format!("요청 파싱 실패: {err}"));
+                let response =
+                    jsonrpc_error(Value::Null, -32700, &format!("요청 파싱 실패: {err}"));
                 write_frame(&mut writer, &response)?;
                 continue;
             }
@@ -171,7 +172,10 @@ fn run_file_inproc(id: Value, path: &str, args: &[String]) -> Value {
         Ok(report) => {
             let mut result = serde_json::Map::new();
             result.insert("ok".to_string(), Value::Bool(report.ok));
-            result.insert("exit_code".to_string(), Value::Number(report.exit_code.into()));
+            result.insert(
+                "exit_code".to_string(),
+                Value::Number(report.exit_code.into()),
+            );
             result.insert(
                 "stdout".to_string(),
                 Value::Array(report.stdout.into_iter().map(Value::String).collect()),
@@ -434,9 +438,10 @@ fn read_frame(reader: &mut BufReader<impl Read>) -> Result<Option<Vec<u8>>, Stri
         }
         let lower = trimmed.to_ascii_lowercase();
         if let Some(rest) = lower.strip_prefix("content-length:") {
-            let value = rest.trim().parse::<usize>().map_err(|_| {
-                "content-length 값이 숫자가 아닙니다".to_string()
-            })?;
+            let value = rest
+                .trim()
+                .parse::<usize>()
+                .map_err(|_| "content-length 값이 숫자가 아닙니다".to_string())?;
             content_length = Some(value);
         }
     }
@@ -466,9 +471,7 @@ fn detjson_string(value: &Value) -> String {
 
 fn order_value(value: &Value) -> Value {
     match value {
-        Value::Array(items) => {
-            Value::Array(items.iter().map(order_value).collect())
-        }
+        Value::Array(items) => Value::Array(items.iter().map(order_value).collect()),
         Value::Object(map) => {
             let mut keys: Vec<_> = map.keys().collect();
             keys.sort();

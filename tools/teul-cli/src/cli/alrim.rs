@@ -1,4 +1,4 @@
-﻿use std::collections::HashMap;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -45,11 +45,13 @@ pub fn run_registry(root: &Path, out_dir: &Path) -> Result<(), String> {
             .map_err(|e| format!("E_ALRIM_READ {} ({})", file.display(), e))?;
         let found = extract_variants(&text, &file)?;
         for mut variant in found {
-            let entry = variants.entry(variant.tag.clone()).or_insert_with(|| VariantSchema {
-                tag: variant.tag.clone(),
-                fields: variant.fields.clone(),
-                origins: Vec::new(),
-            });
+            let entry = variants
+                .entry(variant.tag.clone())
+                .or_insert_with(|| VariantSchema {
+                    tag: variant.tag.clone(),
+                    fields: variant.fields.clone(),
+                    origins: Vec::new(),
+                });
             if entry.fields == variant.fields {
                 entry.origins.append(&mut variant.origins);
             } else {
@@ -65,7 +67,10 @@ pub fn run_registry(root: &Path, out_dir: &Path) -> Result<(), String> {
         for (tag, origins) in conflicts {
             msg.push_str(&format!("- {}:\n", tag));
             for origin in origins {
-                msg.push_str(&format!("  - {}:{}:{}\n", origin.file, origin.line, origin.col));
+                msg.push_str(&format!(
+                    "  - {}:{}:{}\n",
+                    origin.file, origin.line, origin.col
+                ));
             }
         }
         return Err(msg);
@@ -148,7 +153,15 @@ fn should_skip_dir(path: &Path) -> bool {
     };
     matches!(
         name,
-        ".git" | "target" | "build" | "out" | "dist" | "docs" | "publish" | "node_modules" | ".cargo"
+        ".git"
+            | "target"
+            | "build"
+            | "out"
+            | "dist"
+            | "docs"
+            | "publish"
+            | "node_modules"
+            | ".cargo"
     )
 }
 
@@ -510,8 +523,14 @@ fn build_registry_json(
     variants: &[VariantOutput],
 ) -> Result<String, String> {
     let mut root = Map::new();
-    root.insert("schema_version".to_string(), Value::String(schema_version.to_string()));
-    root.insert("alrim_registry_hash".to_string(), Value::String(registry_hash.to_string()));
+    root.insert(
+        "schema_version".to_string(),
+        Value::String(schema_version.to_string()),
+    );
+    root.insert(
+        "alrim_registry_hash".to_string(),
+        Value::String(registry_hash.to_string()),
+    );
     let mut items = Vec::new();
     for variant in variants {
         let mut entry = Map::new();
@@ -540,14 +559,21 @@ fn build_registry_json(
         for origin in &variant.origins {
             let mut o = Map::new();
             o.insert("file".to_string(), Value::String(origin.file.clone()));
-            o.insert("line".to_string(), Value::Number(serde_json::Number::from(origin.line as u64)));
-            o.insert("col".to_string(), Value::Number(serde_json::Number::from(origin.col as u64)));
+            o.insert(
+                "line".to_string(),
+                Value::Number(serde_json::Number::from(origin.line as u64)),
+            );
+            o.insert(
+                "col".to_string(),
+                Value::Number(serde_json::Number::from(origin.col as u64)),
+            );
             origins_json.push(Value::Object(o));
         }
         entry.insert("origins".to_string(), Value::Array(origins_json));
         items.push(Value::Object(entry));
     }
     root.insert("variants".to_string(), Value::Array(items));
-    serde_json::to_string_pretty(&Value::Object(root)).map_err(|e| format!("E_ALRIM_JSON {}", e))
+    serde_json::to_string_pretty(&Value::Object(root))
+        .map_err(|e| format!("E_ALRIM_JSON {}", e))
         .map(|text| format!("{}\n", text))
 }

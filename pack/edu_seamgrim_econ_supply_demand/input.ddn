@@ -1,7 +1,7 @@
 #이름: econ_supply_demand
 #설명: 수요 곡선(예시)
 
-수요 = (#ascii1) 수식{ y = a x + b }.
+수요 <- (#ascii1) 수식{ y = a x + b }.
 
 a <- -1.
 b <- 10.

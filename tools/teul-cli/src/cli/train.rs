@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -47,7 +47,8 @@ pub fn run_train(config_path: &Path, out_dir: Option<&Path>) -> Result<(), Strin
     }
 
     let run_id = build_run_id(&config_hash, config.train_seed);
-    let mix_seed = config.train_seed ^ hash_to_u64(&format!("{}:{}", config.dataset_hash, config.recipe_hash));
+    let mix_seed =
+        config.train_seed ^ hash_to_u64(&format!("{}:{}", config.dataset_hash, config.recipe_hash));
     let (base, step) = derive_curve(mix_seed);
 
     let outcome = run_toy_training(base, step, config.target_score, config.max_epochs);
@@ -136,7 +137,10 @@ fn run_toy_training(base: u64, step: u64, target: u64, max_epochs: u64) -> Train
 
 fn build_train_report(run_id: &str, outcome: &TrainOutcome, target: u64) -> String {
     let mut map = serde_json::Map::new();
-    map.insert("schema".to_string(), JsonValue::String("seulgi.train_report.v1".to_string()));
+    map.insert(
+        "schema".to_string(),
+        JsonValue::String("seulgi.train_report.v1".to_string()),
+    );
     map.insert("run_id".to_string(), JsonValue::String(run_id.to_string()));
     map.insert("epoch".to_string(), JsonValue::Number(outcome.epoch.into()));
     map.insert("score".to_string(), JsonValue::Number(outcome.score.into()));
@@ -158,7 +162,10 @@ fn build_artifact(
         "schema".to_string(),
         JsonValue::String("seulgi.model_artifact.v1".to_string()),
     );
-    map.insert("model_id".to_string(), JsonValue::String(model_id.to_string()));
+    map.insert(
+        "model_id".to_string(),
+        JsonValue::String(model_id.to_string()),
+    );
     map.insert("run_id".to_string(), JsonValue::String(run_id.to_string()));
     map.insert(
         "ssot_version".to_string(),

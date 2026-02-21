@@ -1,0 +1,13 @@
+{
+  "events": [
+    {
+      "item_id": "potion",
+      "type": "아이템사용"
+    }
+  ],
+  "schema": "dotbogi.output.v1",
+  "view_meta": {
+    "focus": "potion",
+    "layout": "inventory"
+  }
+}

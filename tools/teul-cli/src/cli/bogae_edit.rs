@@ -17,8 +17,7 @@ pub struct BogaeEditOptions<'a> {
 
 pub fn run_edit(options: BogaeEditOptions<'_>) -> Result<(), String> {
     let bytes = fs::read(options.input).map_err(|e| e.to_string())?;
-    let (drawlist, codec) =
-        decode_drawlist_detbin_any(&bytes).map_err(|err| err.message())?;
+    let (drawlist, codec) = decode_drawlist_detbin_any(&bytes).map_err(|err| err.message())?;
     let override_color = if let Some(color_text) = options.color {
         let pack = load_css4_pack().ok();
         Some(canonicalize_color(color_text, pack.as_ref()).map_err(|err| err.message())?)
@@ -56,18 +55,20 @@ fn apply_edit(
     }
 }
 
-fn edit_cmd(
-    cmd: &BogaeCmd,
-    dx: f32,
-    dy: f32,
-    color: Option<crate::core::bogae::Rgba>,
-) -> BogaeCmd {
+fn edit_cmd(cmd: &BogaeCmd, dx: f32, dy: f32, color: Option<crate::core::bogae::Rgba>) -> BogaeCmd {
     match cmd {
         BogaeCmd::Clear { color: clear, aa } => BogaeCmd::Clear {
             color: *clear,
             aa: *aa,
         },
-        BogaeCmd::RectFill { x, y, w, h, color: c, aa } => BogaeCmd::RectFill {
+        BogaeCmd::RectFill {
+            x,
+            y,
+            w,
+            h,
+            color: c,
+            aa,
+        } => BogaeCmd::RectFill {
             x: x + dx,
             y: y + dy,
             w: *w,
@@ -75,18 +76,32 @@ fn edit_cmd(
             color: color.unwrap_or(*c),
             aa: *aa,
         },
-        BogaeCmd::RectStroke { x, y, w, h, thickness, color: c, aa } => {
-            BogaeCmd::RectStroke {
-                x: x + dx,
-                y: y + dy,
-                w: *w,
-                h: *h,
-                thickness: *thickness,
-                color: color.unwrap_or(*c),
-                aa: *aa,
-            }
-        }
-        BogaeCmd::Line { x1, y1, x2, y2, thickness, color: c, aa } => BogaeCmd::Line {
+        BogaeCmd::RectStroke {
+            x,
+            y,
+            w,
+            h,
+            thickness,
+            color: c,
+            aa,
+        } => BogaeCmd::RectStroke {
+            x: x + dx,
+            y: y + dy,
+            w: *w,
+            h: *h,
+            thickness: *thickness,
+            color: color.unwrap_or(*c),
+            aa: *aa,
+        },
+        BogaeCmd::Line {
+            x1,
+            y1,
+            x2,
+            y2,
+            thickness,
+            color: c,
+            aa,
+        } => BogaeCmd::Line {
             x1: x1 + dx,
             y1: y1 + dy,
             x2: x2 + dx,
@@ -95,7 +110,14 @@ fn edit_cmd(
             color: color.unwrap_or(*c),
             aa: *aa,
         },
-        BogaeCmd::Text { x, y, size_px, color: c, text, aa } => BogaeCmd::Text {
+        BogaeCmd::Text {
+            x,
+            y,
+            size_px,
+            color: c,
+            text,
+            aa,
+        } => BogaeCmd::Text {
             x: x + dx,
             y: y + dy,
             size_px: *size_px,
@@ -103,7 +125,15 @@ fn edit_cmd(
             text: text.clone(),
             aa: *aa,
         },
-        BogaeCmd::Sprite { x, y, w, h, tint, asset, aa } => BogaeCmd::Sprite {
+        BogaeCmd::Sprite {
+            x,
+            y,
+            w,
+            h,
+            tint,
+            asset,
+            aa,
+        } => BogaeCmd::Sprite {
             x: x + dx,
             y: y + dy,
             w: *w,
@@ -112,35 +142,53 @@ fn edit_cmd(
             asset: asset.clone(),
             aa: *aa,
         },
-        BogaeCmd::CircleFill { cx, cy, r, color: c, aa } => BogaeCmd::CircleFill {
+        BogaeCmd::CircleFill {
+            cx,
+            cy,
+            r,
+            color: c,
+            aa,
+        } => BogaeCmd::CircleFill {
             cx: cx + dx,
             cy: cy + dy,
             r: *r,
             color: color.unwrap_or(*c),
             aa: *aa,
         },
-        BogaeCmd::CircleStroke { cx, cy, r, thickness, color: c, aa } => {
-            BogaeCmd::CircleStroke {
-                cx: cx + dx,
-                cy: cy + dy,
-                r: *r,
-                thickness: *thickness,
-                color: color.unwrap_or(*c),
-                aa: *aa,
-            }
-        }
-        BogaeCmd::ArcStroke { cx, cy, r, start_turn, sweep_turn, thickness, color: c, aa } => {
-            BogaeCmd::ArcStroke {
-                cx: cx + dx,
-                cy: cy + dy,
-                r: *r,
-                start_turn: *start_turn,
-                sweep_turn: *sweep_turn,
-                thickness: *thickness,
-                color: color.unwrap_or(*c),
-                aa: *aa,
-            }
-        }
+        BogaeCmd::CircleStroke {
+            cx,
+            cy,
+            r,
+            thickness,
+            color: c,
+            aa,
+        } => BogaeCmd::CircleStroke {
+            cx: cx + dx,
+            cy: cy + dy,
+            r: *r,
+            thickness: *thickness,
+            color: color.unwrap_or(*c),
+            aa: *aa,
+        },
+        BogaeCmd::ArcStroke {
+            cx,
+            cy,
+            r,
+            start_turn,
+            sweep_turn,
+            thickness,
+            color: c,
+            aa,
+        } => BogaeCmd::ArcStroke {
+            cx: cx + dx,
+            cy: cy + dy,
+            r: *r,
+            start_turn: *start_turn,
+            sweep_turn: *sweep_turn,
+            thickness: *thickness,
+            color: color.unwrap_or(*c),
+            aa: *aa,
+        },
         BogaeCmd::CurveCubicStroke {
             p0x,
             p0y,

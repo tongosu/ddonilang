@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use ddonirang_core::Fixed64;
@@ -89,8 +89,8 @@ pub fn run_accuracy(input: &Path, out_dir: Option<&Path>) -> Result<(), String> 
         for (formula_val, sim_val) in case.formula.iter().zip(case.sim.iter()) {
             let formula = parse_fixed64_value(formula_val)
                 .map_err(|e| format!("E_EDU_FORMULA {} {}", case.id, e))?;
-            let sim = parse_fixed64_value(sim_val)
-                .map_err(|e| format!("E_EDU_SIM {} {}", case.id, e))?;
+            let sim =
+                parse_fixed64_value(sim_val).map_err(|e| format!("E_EDU_SIM {} {}", case.id, e))?;
             let abs_err = abs_fixed64(sim - formula);
             let denom = max_fixed64(abs_fixed64(formula), eps);
             let rel_err = abs_err

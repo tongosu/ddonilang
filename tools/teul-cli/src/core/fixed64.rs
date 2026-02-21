@@ -139,7 +139,9 @@ fn parse_fixed64(text: &str) -> Option<i64> {
             if !ch.is_ascii_digit() {
                 return None;
             }
-            frac_value = frac_value.saturating_mul(10).saturating_add((ch as u8 - b'0') as i128);
+            frac_value = frac_value
+                .saturating_mul(10)
+                .saturating_add((ch as u8 - b'0') as i128);
             denom = denom.saturating_mul(10);
         }
         let frac_scaled = (frac_value << Fixed64::SCALE_BITS) / denom;

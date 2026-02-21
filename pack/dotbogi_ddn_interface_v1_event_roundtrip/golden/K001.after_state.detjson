@@ -1,0 +1,10 @@
+{
+  "inventory": {
+    "key": 1,
+    "potion": 1
+  },
+  "player": {
+    "hp": 90,
+    "mp": 15
+  }
+}

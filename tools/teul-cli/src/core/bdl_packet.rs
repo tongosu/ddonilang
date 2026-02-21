@@ -33,7 +33,10 @@ impl BdlPacketError {
                 format!("지원하지 않는 codec: {}", String::from_utf8_lossy(codec))
             }
             BdlPacketError::LengthMismatch { expected, actual } => {
-                format!("payload 길이 불일치 expected={} actual={}", expected, actual)
+                format!(
+                    "payload 길이 불일치 expected={} actual={}",
+                    expected, actual
+                )
             }
             BdlPacketError::HashMismatch => "payload_hash 불일치".to_string(),
             BdlPacketError::Truncated => "packet 길이가 부족함".to_string(),
@@ -49,9 +52,8 @@ pub struct BdlPacketInfo {
 }
 
 pub fn encode_bdl1_packet(payload: &[u8]) -> Result<Vec<u8>, BdlPacketError> {
-    let len = u32::try_from(payload.len()).map_err(|_| BdlPacketError::PayloadTooLarge {
-        len: payload.len(),
-    })?;
+    let len = u32::try_from(payload.len())
+        .map_err(|_| BdlPacketError::PayloadTooLarge { len: payload.len() })?;
     let mut out = Vec::with_capacity(4 + 4 + 4 + 4 + 32 + payload.len());
     out.extend_from_slice(MAGIC);
     out.extend_from_slice(&VERSION.to_le_bytes());

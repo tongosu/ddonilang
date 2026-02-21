@@ -55,6 +55,7 @@ const state = {
   geoul: null,
   viewConfig: null,
   contractView: "plain",
+  workspaceMode: "basic",
   activeView: "view-graph",
   viewCombo: false,
   viewComboLayout: "horizontal",
@@ -108,10 +109,14 @@ const state = {
       grade: "all",
       subject: "all",
       query: "",
+      schema: "all",
     },
     activeId: null,
     meta: null,
     ddnText: "",
+    ddnSource: "-",
+    useAge3Preview: true,
+    schemaStatus: {},
   },
   schemaStatus: {
     graph: "-",
@@ -132,12 +137,36 @@ const state = {
     seriesId: null,
     savedVisibility: {},
     blockReason: "",
+    sequence: {
+      playing: false,
+      timer: null,
+      intervalMs: 800,
+      showVariant: false,
+    },
   },
   controls: {
     specs: [],
     values: {},
     metaRaw: "",
     autoRun: true,
+    editorDebounceMs: 420,
+  },
+  mediaExport: {
+    mode: "idle",
+    recorder: null,
+    stream: null,
+    chunks: [],
+    mimeType: "",
+    format: "webm",
+    timer: null,
+    startedAt: 0,
+    canvasId: "",
+    frameTimer: null,
+    gifFrames: [],
+    gifWidth: 0,
+    gifHeight: 0,
+    gifDelayCs: 3,
+    gifCaptureCanvas: null,
   },
   wasm: {
     enabled: false,
@@ -334,6 +363,7 @@ const wasmLoader = createWasmLoader({
   missingExportMessage: "DdnWasmVm export 누락: scripts/build_wasm_tool.ps1 --features wasm 필요",
 });
 let wasmLoopController = null;
+let ddnEditorAutoRunTimer = null;
 
 async function initWasmVmExample() {
   if (!WASM_EXAMPLE_ENABLED) return;
@@ -2025,11 +2055,11 @@ function applyControlValuesToDdnText(text, specs, values) {
     let insertAt = 0;
     let braceIndex = -1;
     for (let i = 0; i < nextLines.length; i += 1) {
-      if (/^\s*그릇채비\s*:\s*\{\s*$/.test(nextLines[i])) {
+      if (/^\s*(그릇채비|채비)\s*:\s*\{\s*$/.test(nextLines[i])) {
         braceIndex = i + 1;
         break;
       }
-      if (/^\s*그릇채비\s*:/.test(nextLines[i]) && nextLines[i].includes("{")) {
+      if (/^\s*(그릇채비|채비)\s*:/.test(nextLines[i]) && nextLines[i].includes("{")) {
         braceIndex = i + 1;
         break;
       }
@@ -3135,6 +3165,94 @@ function canOverlayCompare(baselineRun, variantRun) {
   return { ok: true, reason: "" };
 }
 
+function syncCompareSequenceButtons() {
+  const playBtn = $("compare-play");
+  const stopBtn = $("compare-stop");
+  const baseline = state.runs.find((run) => run.id === state.compare.baselineId);
+  const variant = state.runs.find((run) => run.id === state.compare.variantId);
+  const ready = state.compare.enabled && baseline && variant && !state.compare.blockReason;
+  if (playBtn) playBtn.disabled = !ready || state.compare.sequence.playing;
+  if (stopBtn) stopBtn.disabled = !state.compare.sequence.playing;
+}
+
+function applyCompareSequenceVisibility() {
+  if (!state.compare.enabled) return;
+  const baselineId = state.compare.baselineId;
+  const variantId = state.compare.variantId;
+  const showVariant = state.compare.sequence.showVariant;
+  state.runs.forEach((run) => {
+    if (!(run.id in state.compare.savedVisibility)) {
+      state.compare.savedVisibility[run.id] = run.visible;
+    }
+    if (run.id === baselineId) {
+      run.visible = !showVariant;
+      return;
+    }
+    if (run.id === variantId) {
+      run.visible = showVariant;
+      return;
+    }
+    run.visible = false;
+  });
+  renderOverlayList();
+  renderRunList();
+  renderAll();
+}
+
+function stopCompareSequence(options = {}) {
+  if (state.compare.sequence.timer) {
+    clearInterval(state.compare.sequence.timer);
+    state.compare.sequence.timer = null;
+  }
+  const wasPlaying = state.compare.sequence.playing;
+  state.compare.sequence.playing = false;
+  state.compare.sequence.showVariant = false;
+  if (options.restoreVisibility !== false) {
+    syncCompareVisibility();
+    renderOverlayList();
+    renderRunList();
+    renderAll();
+  }
+  syncCompareSequenceButtons();
+  updateCompareStatusUI();
+  if (wasPlaying && options.log !== false) {
+    log("before/after 순차 비교를 중지했습니다.");
+  }
+}
+
+function startCompareSequence() {
+  if (!state.compare.enabled) {
+    log("비교 모드를 먼저 켜주세요.");
+    return;
+  }
+  const baseline = state.runs.find((run) => run.id === state.compare.baselineId);
+  const variant = state.runs.find((run) => run.id === state.compare.variantId);
+  if (!baseline || !variant) {
+    log("before/after 비교에는 baseline과 variant가 모두 필요합니다.");
+    return;
+  }
+  if (state.compare.blockReason) {
+    log(`비교 불가 상태입니다: ${state.compare.blockReason}`);
+    return;
+  }
+  const intervalRaw = Number($("compare-interval")?.value ?? state.compare.sequence.intervalMs);
+  const intervalMs = Math.min(5000, Math.max(120, Number.isFinite(intervalRaw) ? intervalRaw : 800));
+  state.compare.sequence.intervalMs = intervalMs;
+
+  stopCompareSequence({ restoreVisibility: false, log: false });
+  state.compare.sequence.playing = true;
+  state.compare.sequence.showVariant = false;
+  applyCompareSequenceVisibility();
+  state.compare.sequence.timer = setInterval(() => {
+    state.compare.sequence.showVariant = !state.compare.sequence.showVariant;
+    applyCompareSequenceVisibility();
+    updateCompareStatusUI();
+  }, intervalMs);
+  syncCompareSequenceButtons();
+  updateCompareStatusUI();
+  log(`before/after 순차 비교 시작 (${intervalMs}ms)`);
+}
+
 function updateCompareStatusUI() {
   const el = $("compare-status");
   if (!el) return;
@@ -3144,21 +3262,29 @@ function updateCompareStatusUI() {
   const variant = state.runs.find((run) => run.id === state.compare.variantId);
   if (!state.compare.enabled) {
     el.textContent = "비교 모드: 꺼짐";
+    syncCompareSequenceButtons();
     return;
   }
   if (state.compare.blockReason) {
     el.textContent = `비교 불가: ${state.compare.blockReason}`;
+    syncCompareSequenceButtons();
     return;
   }
-  el.textContent = `baseline: ${baseline?.label ?? "-"} / variant: ${variant?.label ?? "-"}`;
+  const seq =
+    state.compare.sequence.playing
+      ? ` / 순차: ${state.compare.sequence.showVariant ? "after" : "before"} (${state.compare.sequence.intervalMs}ms)`
+      : "";
+  el.textContent = `baseline: ${baseline?.label ?? "-"} / variant: ${variant?.label ?? "-"}${seq}`;
+  syncCompareSequenceButtons();
 }
 
 function syncCompareVisibility() {
   if (!state.compare.enabled) return;
+  if (state.compare.sequence.playing) return;
   const baselineId = state.compare.baselineId;
   const variantId = state.compare.variantId;
   state.runs.forEach((run) => {
-    if (!state.compare.savedVisibility[run.id]) {
+    if (!(run.id in state.compare.savedVisibility)) {
       state.compare.savedVisibility[run.id] = run.visible;
     }
     run.visible = run.id === baselineId || run.id === variantId;
@@ -3166,6 +3292,7 @@ function syncCompareVisibility() {
 }
 
 function clearCompareState() {
+  stopCompareSequence({ restoreVisibility: false, log: false });
   state.compare.enabled = false;
   state.compare.baselineId = null;
   state.compare.variantId = null;
@@ -3188,6 +3315,9 @@ function clearCompareState() {
 }
 
 function setCompareEnabled(enabled) {
+  if (!enabled) {
+    stopCompareSequence({ restoreVisibility: true, log: false });
+  }
   state.compare.enabled = enabled;
   state.compare.blockReason = "";
   if (!enabled) {
@@ -3214,6 +3344,7 @@ function setCompareEnabled(enabled) {
 
 function setCompareBaseline(run) {
   if (!run) return;
+  stopCompareSequence({ restoreVisibility: false, log: false });
   state.compare.enabled = true;
   state.compare.blockReason = "";
   state.compare.baselineId = run.id;
@@ -3507,11 +3638,13 @@ function getVisibleRuns() {
 function removeRun(runId) {
   state.runs = state.runs.filter((run) => run.id !== runId);
   if (state.compare.baselineId === runId) {
+    stopCompareSequence({ restoreVisibility: false, log: false });
     state.compare.baselineId = null;
     state.compare.axisSig = null;
     state.compare.seriesId = null;
   }
   if (state.compare.variantId === runId) {
+    stopCompareSequence({ restoreVisibility: false, log: false });
     state.compare.variantId = null;
   }
   if (state.activeRunId === runId) {
@@ -3533,6 +3666,7 @@ function removeRun(runId) {
 }
 
 function clearRuns() {
+  stopCompareSequence({ restoreVisibility: false, log: false });
   state.runs = [];
   state.activeRunId = null;
   state.soloRunId = null;
@@ -5775,9 +5909,23 @@ function updateDdnTimeStatus() {
   }
 }
 
+function scheduleDdnEditorAutoRun() {
+  if (!state.controls.autoRun) return;
+  if (ddnEditorAutoRunTimer) {
+    clearTimeout(ddnEditorAutoRunTimer);
+    ddnEditorAutoRunTimer = null;
+  }
+  const waitMs = Math.max(120, Number(state.controls.editorDebounceMs ?? 420) || 420);
+  ddnEditorAutoRunTimer = setTimeout(() => {
+    ddnEditorAutoRunTimer = null;
+    runDdnBridge({ mode: "auto" });
+  }, waitMs);
+}
+
 function focusViewDock() {
   const dock = document.querySelector(".view-dock");
   if (!dock) return;
+  setWorkspaceMode("basic");
   const runTab = document.querySelector('.main-tabs .tab[data-tab="run-tab"]');
   if (runTab) runTab.click();
   const graphTab = document.querySelector('.view-group .tab[data-tab="view-graph"]');
@@ -5962,7 +6110,7 @@ async function runDdnBridge(options = {}) {
   const ddnText = $("ddn-editor").value;
   if (!ddnText.trim()) {
     log("DDN 텍스트를 입력하세요.");
-    return;
+    return false;
   }
   updateWasmLogicFromEditor();
   const autoReplace = options.mode === "auto";
@@ -5971,7 +6119,7 @@ async function runDdnBridge(options = {}) {
   const baseUrl = $("bridge-url").value.trim();
   if (!baseUrl) {
     log("브리지 URL을 입력하세요.");
-    return;
+    return false;
   }
   try {
     const timeState = readTimeControls();
@@ -6067,7 +6215,7 @@ async function runDdnBridge(options = {}) {
       } else {
         log("DDN 실행 완료(시간 프레임: View Dock 범위)");
       }
-      return;
+      return true;
     }
 
       const { graph, space2d, textDoc, table, structure } = await fetchGraphFromBridge(baseUrl, ddnText);
@@ -6137,9 +6285,496 @@ async function runDdnBridge(options = {}) {
       renderStructureView();
       renderInspector();
       log("DDN 실행 완료");
+      return true;
   } catch (err) {
     finishDdnFrameJob("DDN 프레임: 실패");
     log(err.message);
+    return false;
+  }
+}
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function updateMediaExportStatus(text, level = "") {
+  const el = $("media-export-status");
+  if (!el) return;
+  el.textContent = text;
+  el.className = ["hint", level].filter(Boolean).join(" ");
+}
+
+function syncMediaExportButtons() {
+  const startBtn = $("media-export-start");
+  const stopBtn = $("media-export-stop");
+  const active = state.mediaExport.mode !== "idle";
+  if (startBtn) startBtn.disabled = Boolean(active);
+  if (stopBtn) stopBtn.disabled = !active;
+}
+
+function resetMediaExportState() {
+  if (state.mediaExport.timer) {
+    clearTimeout(state.mediaExport.timer);
+  }
+  if (state.mediaExport.frameTimer) {
+    clearInterval(state.mediaExport.frameTimer);
+  }
+  if (state.mediaExport.stream) {
+    state.mediaExport.stream.getTracks().forEach((track) => track.stop());
+  }
+  state.mediaExport.mode = "idle";
+  state.mediaExport.recorder = null;
+  state.mediaExport.stream = null;
+  state.mediaExport.chunks = [];
+  state.mediaExport.mimeType = "";
+  state.mediaExport.format = "webm";
+  state.mediaExport.timer = null;
+  state.mediaExport.frameTimer = null;
+  state.mediaExport.startedAt = 0;
+  state.mediaExport.canvasId = "";
+  state.mediaExport.gifFrames = [];
+  state.mediaExport.gifWidth = 0;
+  state.mediaExport.gifHeight = 0;
+  state.mediaExport.gifDelayCs = 3;
+  state.mediaExport.gifCaptureCanvas = null;
+  syncMediaExportButtons();
+}
+
+function selectMediaRecorderMimeType() {
+  const supported = typeof MediaRecorder !== "undefined";
+  if (!supported) return null;
+  const candidates = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  for (const candidate of candidates) {
+    if (
+      typeof MediaRecorder.isTypeSupported !== "function" ||
+      MediaRecorder.isTypeSupported(candidate)
+    ) {
+      return candidate;
+    }
+  }
+  return format === "webm" ? "video/webm" : null;
+}
+
+function resolveMediaExportCanvas() {
+  if (state.activeView === "view-2d") return $("canvas-2d");
+  if (state.activeView === "view-structure") return $("structure-canvas");
+  if (state.activeView === "view-graph") return $("canvas");
+  if (state.viewCombo) return $("canvas");
+  return null;
+}
+
+function readMediaExportOptions() {
+  const format = String($("media-export-format")?.value || "webm").toLowerCase() === "gif"
+    ? "gif"
+    : "webm";
+  const fpsRaw = Number($("media-export-fps")?.value ?? 30);
+  const durationRaw = Number($("media-export-duration")?.value ?? 6);
+  const fps = Math.min(120, Math.max(1, Number.isFinite(fpsRaw) ? fpsRaw : 30));
+  const durationSec = Math.min(120, Math.max(0, Number.isFinite(durationRaw) ? durationRaw : 6));
+  return { format, fps, durationSec };
+}
+
+function buildGifPalette332() {
+  const palette = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const r = (i >> 5) & 0x07;
+    const g = (i >> 2) & 0x07;
+    const b = i & 0x03;
+    palette[i * 3] = Math.round((r * 255) / 7);
+    palette[i * 3 + 1] = Math.round((g * 255) / 7);
+    palette[i * 3 + 2] = Math.round((b * 255) / 3);
+  }
+  return palette;
+}
+
+const GIF_PALETTE_332 = buildGifPalette332();
+
+function rgbaToIndexed332(rgbaBytes) {
+  const pixels = Math.floor((rgbaBytes?.length ?? 0) / 4);
+  const out = new Uint8Array(pixels);
+  for (let i = 0; i < pixels; i++) {
+    const p = i * 4;
+    const r3 = rgbaBytes[p] >> 5;
+    const g3 = rgbaBytes[p + 1] >> 5;
+    const b2 = rgbaBytes[p + 2] >> 6;
+    out[i] = (r3 << 5) | (g3 << 2) | b2;
+  }
+  return out;
+}
+
+function writeGifWord(bytes, value) {
+  bytes.push(value & 0xff, (value >> 8) & 0xff);
+}
+
+function lzwCompressGifIndices(indices, minCodeSize = 8) {
+  const clearCode = 1 << minCodeSize;
+  const endCode = clearCode + 1;
+  const maxCode = 4095;
+
+  const resetTable = () => {
+    const table = new Map();
+    for (let i = 0; i < clearCode; i++) {
+      table.set(String(i), i);
+    }
+    return table;
+  };
+
+  const output = [];
+  let table = resetTable();
+  let codeSize = minCodeSize + 1;
+  let nextCode = endCode + 1;
+  let bitBuffer = 0;
+  let bitCount = 0;
+
+  const emitCode = (code) => {
+    bitBuffer |= code << bitCount;
+    bitCount += codeSize;
+    while (bitCount >= 8) {
+      output.push(bitBuffer & 0xff);
+      bitBuffer >>= 8;
+      bitCount -= 8;
+    }
+  };
+
+  const clearTable = () => {
+    table = resetTable();
+    codeSize = minCodeSize + 1;
+    nextCode = endCode + 1;
+  };
+
+  emitCode(clearCode);
+  if (!indices.length) {
+    emitCode(endCode);
+    if (bitCount > 0) output.push(bitBuffer & 0xff);
+    return new Uint8Array(output);
+  }
+
+  let prefix = String(indices[0]);
+  for (let i = 1; i < indices.length; i++) {
+    const k = indices[i];
+    const candidate = `${prefix},${k}`;
+    if (table.has(candidate)) {
+      prefix = candidate;
+      continue;
+    }
+
+    emitCode(table.get(prefix) ?? 0);
+    if (nextCode <= maxCode) {
+      table.set(candidate, nextCode);
+      nextCode += 1;
+      if (nextCode === 1 << codeSize && codeSize < 12) {
+        codeSize += 1;
+      }
+    } else {
+      emitCode(clearCode);
+      clearTable();
+    }
+    prefix = String(k);
+  }
+
+  emitCode(table.get(prefix) ?? 0);
+  emitCode(endCode);
+  if (bitCount > 0) output.push(bitBuffer & 0xff);
+  return new Uint8Array(output);
+}
+
+function appendGifSubBlocks(bytes, payload) {
+  let offset = 0;
+  while (offset < payload.length) {
+    const size = Math.min(255, payload.length - offset);
+    bytes.push(size);
+    for (let i = 0; i < size; i++) {
+      bytes.push(payload[offset + i]);
+    }
+    offset += size;
+  }
+  bytes.push(0x00);
+}
+
+function encodeGifFromIndexedFrames(width, height, frames, delayCs) {
+  const bytes = [];
+  const header = "GIF89a";
+  for (let i = 0; i < header.length; i++) {
+    bytes.push(header.charCodeAt(i));
+  }
+
+  writeGifWord(bytes, width);
+  writeGifWord(bytes, height);
+  bytes.push(0xf7); // global color table(256)
+  bytes.push(0x00); // background color index
+  bytes.push(0x00); // pixel aspect ratio
+  for (let i = 0; i < GIF_PALETTE_332.length; i++) {
+    bytes.push(GIF_PALETTE_332[i]);
+  }
+
+  // Netscape loop extension (infinite loop)
+  bytes.push(
+    0x21,
+    0xff,
+    0x0b,
+    0x4e,
+    0x45,
+    0x54,
+    0x53,
+    0x43,
+    0x41,
+    0x50,
+    0x45,
+    0x32,
+    0x2e,
+    0x30,
+    0x03,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+  );
+
+  const frameDelay = Math.max(1, Math.min(65535, delayCs));
+  for (const indices of frames) {
+    bytes.push(0x21, 0xf9, 0x04, 0x00);
+    writeGifWord(bytes, frameDelay);
+    bytes.push(0x00, 0x00);
+
+    bytes.push(0x2c);
+    writeGifWord(bytes, 0);
+    writeGifWord(bytes, 0);
+    writeGifWord(bytes, width);
+    writeGifWord(bytes, height);
+    bytes.push(0x00); // no local color table
+
+    bytes.push(0x08); // LZW min code size
+    const compressed = lzwCompressGifIndices(indices, 8);
+    appendGifSubBlocks(bytes, compressed);
+  }
+
+  bytes.push(0x3b);
+  return new Uint8Array(bytes);
+}
+
+function prepareGifCaptureCanvas(sourceCanvas) {
+  const maxSide = 360;
+  const maxSrcSide = Math.max(sourceCanvas.width || 0, sourceCanvas.height || 0, 1);
+  const scale = Math.min(1, maxSide / maxSrcSide);
+  const width = Math.max(1, Math.round((sourceCanvas.width || 1) * scale));
+  const height = Math.max(1, Math.round((sourceCanvas.height || 1) * scale));
+  const captureCanvas = document.createElement("canvas");
+  captureCanvas.width = width;
+  captureCanvas.height = height;
+  return captureCanvas;
+}
+
+function captureGifIndexedFrame(sourceCanvas, captureCanvas) {
+  const ctx = captureCanvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, captureCanvas.width, captureCanvas.height);
+  ctx.drawImage(sourceCanvas, 0, 0, captureCanvas.width, captureCanvas.height);
+  const image = ctx.getImageData(0, 0, captureCanvas.width, captureCanvas.height);
+  return rgbaToIndexed332(image.data);
+}
+
+function startGifExport(canvas, fps, durationSec) {
+  const startedAt = Date.now();
+  const captureCanvas = prepareGifCaptureCanvas(canvas);
+  const delayCs = Math.max(1, Math.round(100 / fps));
+  const intervalMs = Math.max(16, Math.round(1000 / fps));
+  const maxFrames = 600;
+
+  state.mediaExport.mode = "gif";
+  state.mediaExport.format = "gif";
+  state.mediaExport.startedAt = startedAt;
+  state.mediaExport.canvasId = canvas.id || "canvas";
+  state.mediaExport.gifFrames = [];
+  state.mediaExport.gifWidth = captureCanvas.width;
+  state.mediaExport.gifHeight = captureCanvas.height;
+  state.mediaExport.gifDelayCs = delayCs;
+  state.mediaExport.gifCaptureCanvas = captureCanvas;
+  syncMediaExportButtons();
+
+  const capture = () => {
+    const frame = captureGifIndexedFrame(canvas, captureCanvas);
+    if (!frame) return;
+    if (state.mediaExport.gifFrames.length >= maxFrames) {
+      stopMediaExport({ reason: "프레임 한도 도달" });
+      return;
+    }
+    state.mediaExport.gifFrames.push(frame);
+  };
+
+  capture();
+  state.mediaExport.frameTimer = setInterval(capture, intervalMs);
+  if (durationSec > 0) {
+    state.mediaExport.timer = setTimeout(() => {
+      stopMediaExport({ reason: "자동 중지" });
+    }, durationSec * 1000);
+  }
+  updateMediaExportStatus(
+    `내보내기 상태: 녹화 중 (GIF ${fps}fps${durationSec > 0 ? `, ${durationSec}s` : ""})`,
+    "ok",
+  );
+  log(`미디어 녹화 시작: GIF ${fps}fps`);
+}
+
+function startWebmExport(canvas, fps, durationSec) {
+  if (typeof MediaRecorder === "undefined") {
+    updateMediaExportStatus("내보내기 상태: 이 브라우저는 MediaRecorder를 지원하지 않습니다.", "error");
+    log("MediaRecorder 미지원 브라우저입니다.");
+    return;
+  }
+  if (typeof canvas.captureStream !== "function") {
+    updateMediaExportStatus("내보내기 상태: 캔버스 captureStream 미지원입니다.", "error");
+    log("캔버스 captureStream 미지원 환경입니다.");
+    return;
+  }
+  const mimeType = selectMediaRecorderMimeType();
+  if (!mimeType) {
+    updateMediaExportStatus("내보내기 상태: WebM 녹화를 지원하지 않습니다.", "error");
+    log("WebM 녹화 미지원 환경입니다.");
+    return;
+  }
+  const stream = canvas.captureStream(fps);
+  const recorder = new MediaRecorder(stream, { mimeType });
+  const chunks = [];
+  const startedAt = Date.now();
+
+  state.mediaExport.mode = "recorder";
+  state.mediaExport.recorder = recorder;
+  state.mediaExport.stream = stream;
+  state.mediaExport.chunks = chunks;
+  state.mediaExport.mimeType = mimeType;
+  state.mediaExport.format = "webm";
+  state.mediaExport.startedAt = startedAt;
+  state.mediaExport.canvasId = canvas.id || "canvas";
+  syncMediaExportButtons();
+
+  recorder.ondataavailable = (event) => {
+    if (event.data && event.data.size > 0) {
+      chunks.push(event.data);
+    }
+  };
+
+  recorder.onerror = (event) => {
+    const message = event?.error?.message || "녹화 오류";
+    updateMediaExportStatus(`내보내기 상태: 실패 (${message})`, "error");
+    log(`미디어 녹화 실패: ${message}`);
+  };
+
+  recorder.onstop = () => {
+    const tookMs = Date.now() - startedAt;
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    if (!chunks.length) {
+      updateMediaExportStatus("내보내기 상태: 실패 (기록된 프레임 없음)", "error");
+      resetMediaExportState();
+      return;
+    }
+    const blob = new Blob(chunks, { type: state.mediaExport.mimeType || mimeType });
+    const filename = `seamgrim_${state.mediaExport.canvasId}_${stamp}.webm`;
+    triggerBlobDownload(blob, filename);
+    updateMediaExportStatus(`내보내기 상태: 완료 (WEBM / ${(tookMs / 1000).toFixed(1)}s)`, "ok");
+    log(`미디어 내보내기 완료: ${filename}`);
+    resetMediaExportState();
+  };
+
+  recorder.start(200);
+  if (durationSec > 0) {
+    state.mediaExport.timer = setTimeout(() => {
+      stopMediaExport({ reason: "자동 중지" });
+    }, durationSec * 1000);
+  }
+  updateMediaExportStatus(
+    `내보내기 상태: 녹화 중 (WEBM ${fps}fps${durationSec > 0 ? `, ${durationSec}s` : ""})`,
+    "ok",
+  );
+  log(`미디어 녹화 시작: WEBM ${fps}fps`);
+}
+
+function stopMediaExport(options = {}) {
+  const mode = state.mediaExport.mode;
+  if (mode === "idle") return;
+  if (state.mediaExport.timer) {
+    clearTimeout(state.mediaExport.timer);
+    state.mediaExport.timer = null;
+  }
+  if (state.mediaExport.frameTimer) {
+    clearInterval(state.mediaExport.frameTimer);
+    state.mediaExport.frameTimer = null;
+  }
+
+  const reason = options.reason || "녹화 중지";
+  if (mode === "recorder") {
+    const recorder = state.mediaExport.recorder;
+    if (!recorder) {
+      resetMediaExportState();
+      return;
+    }
+    if (recorder.state !== "inactive") {
+      updateMediaExportStatus(`내보내기 상태: ${reason} 처리 중...`);
+      recorder.stop();
+      return;
+    }
+    resetMediaExportState();
+    return;
+  }
+
+  if (mode === "gif") {
+    const frames = state.mediaExport.gifFrames;
+    if (!frames.length) {
+      updateMediaExportStatus("내보내기 상태: 실패 (기록된 프레임 없음)", "error");
+      resetMediaExportState();
+      return;
+    }
+    updateMediaExportStatus(`내보내기 상태: ${reason} 처리 중...`);
+    const bytes = encodeGifFromIndexedFrames(
+      state.mediaExport.gifWidth,
+      state.mediaExport.gifHeight,
+      frames,
+      state.mediaExport.gifDelayCs,
+    );
+    const blob = new Blob([bytes], { type: "image/gif" });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `seamgrim_${state.mediaExport.canvasId}_${stamp}.gif`;
+    triggerBlobDownload(blob, filename);
+    const tookMs = Date.now() - state.mediaExport.startedAt;
+    updateMediaExportStatus(`내보내기 상태: 완료 (GIF / ${(tookMs / 1000).toFixed(1)}s)`, "ok");
+    log(`미디어 내보내기 완료: ${filename}`);
+    resetMediaExportState();
+    return;
+  }
+}
+
+function startMediaExport() {
+  if (state.mediaExport.mode !== "idle") {
+    log("이미 녹화 중입니다.");
+    return;
+  }
+  const canvas = resolveMediaExportCanvas();
+  if (!canvas) {
+    updateMediaExportStatus("내보내기 상태: 캔버스 뷰(그래프/2D/구조)에서만 녹화할 수 있습니다.", "error");
+    log("녹화 대상 캔버스가 없습니다. 그래프/2D/구조 뷰로 전환하세요.");
+    return;
+  }
+
+  const { format, fps, durationSec } = readMediaExportOptions();
+  try {
+    if (format === "gif") {
+      startGifExport(canvas, fps, durationSec);
+      return;
+    }
+    startWebmExport(canvas, fps, durationSec);
+  } catch (err) {
+    updateMediaExportStatus(
+      `내보내기 상태: 실패 (${err?.message || err})`,
+      "error",
+    );
+    log(`미디어 내보내기 시작 실패: ${err?.message || err}`);
+    resetMediaExportState();
   }
 }
 
@@ -6152,14 +6787,7 @@ function exportDdnText() {
   const meta = extractDdnMeta(ddnText);
   const filename = meta.name ? `${meta.name}.ddn` : "seamgrim.ddn";
   const blob = new Blob([ddnText], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, filename);
 }
 
 async function importDdnText() {
@@ -6322,14 +6950,7 @@ function exportGraph() {
   const graph = JSON.parse(JSON.stringify(run.graph));
   if (state.viewConfig) applyViewToGraph(graph, state.viewConfig);
   const blob = new Blob([JSON.stringify(graph, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "seamgrim.graph.v0.json";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, "seamgrim.graph.v0.json");
 }
 
 function createSnapshotFromRun(run) {
@@ -6405,14 +7026,7 @@ function exportSnapshots() {
   }
   const payload = state.snapshots[0];
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "seamgrim.snapshot.v0.json";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, "seamgrim.snapshot.v0.json");
 }
 
 function exportSession() {
@@ -6475,14 +7089,7 @@ function exportSession() {
   };
   state.schemaStatus.session = session.schema;
   const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "seamgrim.session.v0.json";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, "seamgrim.session.v0.json");
 }
 
 function restoreInputRegistryFromSession(data) {
@@ -7061,17 +7668,73 @@ function setActiveView(viewId) {
   renderAll();
 }
 
+function ownedTabsInGroup(group) {
+  return Array.from(group.querySelectorAll(".tab")).filter(
+    (tab) => tab.closest(".tab-group") === group,
+  );
+}
+
+function ownedTabBodiesInGroup(group) {
+  return Array.from(group.querySelectorAll(".tab-body")).filter(
+    (body) => body.closest(".tab-group") === group,
+  );
+}
+
+function getMainTabButton(tabId) {
+  return document.querySelector(`.main-tabs .tab[data-tab="${tabId}"]`);
+}
+
+function setWorkspaceMode(mode, options = {}) {
+  const normalized = mode === "advanced" ? "advanced" : "basic";
+  const ensureTab = options.ensureTab !== false;
+  state.workspaceMode = normalized;
+
+  const basicBtn = $("workspace-mode-basic");
+  const advancedBtn = $("workspace-mode-advanced");
+  basicBtn?.classList.toggle("active", normalized === "basic");
+  advancedBtn?.classList.toggle("active", normalized === "advanced");
+
+  const basicTabIds = ["lesson-tab", "ddn-tab", "run-tab"];
+  basicTabIds.forEach((tabId) => {
+    const tab = getMainTabButton(tabId);
+    if (tab) tab.classList.toggle("hidden", normalized !== "basic");
+  });
+
+  const toolsTab = getMainTabButton("tools-tab");
+  if (toolsTab) toolsTab.classList.toggle("hidden", normalized !== "advanced");
+
+  if (normalized === "advanced") {
+    if (ensureTab) {
+      toolsTab?.click();
+    } else {
+      renderLogs();
+    }
+    return;
+  }
+
+  if (ensureTab) {
+    const active = document.querySelector(".main-tabs .tab.active");
+    if (active?.dataset.tab === "tools-tab") {
+      const fallback =
+        getMainTabButton("ddn-tab") ??
+        getMainTabButton("lesson-tab") ??
+        getMainTabButton("run-tab");
+      fallback?.click();
+    }
+  }
+}
+
 function initTabs() {
   document.querySelectorAll(".tab-group").forEach((group) => {
-    const tabs = Array.from(group.querySelectorAll(".tab"));
-    const bodies = Array.from(group.querySelectorAll(".tab-body"));
+    const tabs = ownedTabsInGroup(group);
+    const bodies = ownedTabBodiesInGroup(group);
     tabs.forEach((tab) => {
       tab.addEventListener("click", () => {
         tabs.forEach((t) => t.classList.remove("active"));
         bodies.forEach((b) => b.classList.add("hidden"));
         tab.classList.add("active");
         const target = tab.dataset.tab;
-        const body = group.querySelector(`#${target}`);
+        const body = bodies.find((pane) => pane.id === target);
         if (body) body.classList.remove("hidden");
         if (group.classList.contains("view-group")) {
           if (state.viewCombo && !["view-graph", "view-2d"].includes(target)) {
@@ -7082,13 +7745,36 @@ function initTabs() {
           setActiveView(target);
         }
         if (group.classList.contains("main-tabs")) {
+          if (target === "tools-tab") {
+            setWorkspaceMode("advanced", { ensureTab: false });
+          } else {
+            setWorkspaceMode("basic", { ensureTab: false });
+          }
           if (target === "run-tab") updateDockVisibility();
-          if (target === "tools-tab") renderLogs();
         }
       });
     });
   });
 }
+
+async function loadLessonSchemaStatus() {
+  try {
+    const response = await fetch("/lessons/schema_status.json");
+    if (!response.ok) return;
+    const payload = await response.json();
+    const rows = Array.isArray(payload?.lessons) ? payload.lessons : [];
+    const map = {};
+    rows.forEach((row) => {
+      const id = String(row?.lesson_id ?? "").trim();
+      if (!id) return;
+      map[id] = row;
+    });
+    state.lessons.schemaStatus = map;
+  } catch (_) {
+    // optional index
+  }
+}
+
 async function loadLessonCatalog() {
   try {
     const response = await fetch("/lessons/index.json");
@@ -7096,6 +7782,7 @@ async function loadLessonCatalog() {
     const data = await response.json();
     state.lessons.list = data.lessons ?? [];
     state.lessons.groups = data.groups ?? [];
+    await loadLessonSchemaStatus();
     renderLessonFilters();
     renderLessonList();
   } catch (_) {
@@ -7133,6 +7820,7 @@ async function loadLessonCatalog() {
         ],
       },
     ];
+    await loadLessonSchemaStatus();
     renderLessonFilters();
     renderLessonList();
   }
@@ -7142,6 +7830,13 @@ function renderLessonList() {
   const list = $("lesson-list");
   list.innerHTML = "";
   const lessonMap = new Map(state.lessons.list.map((lesson) => [lesson.id, lesson]));
+  const profileRank = {
+    age3_target: 0,
+    modern_partial: 1,
+    mixed: 2,
+    legacy: 3,
+    unknown: 4,
+  };
 
   const matchesFilter = (lesson) => {
     if (!lesson) return false;
@@ -7149,9 +7844,26 @@ function renderLessonList() {
     const subject = lesson.subject ?? "unknown";
     const gradeFilter = state.lessons.filter.grade ?? "all";
     const subjectFilter = state.lessons.filter.subject ?? "all";
+    const schemaFilter = state.lessons.filter.schema ?? "all";
     const query = (state.lessons.filter.query ?? "").trim().toLowerCase();
     if (gradeFilter !== "all" && gradeFilter !== grade) return false;
     if (subjectFilter !== "all" && subjectFilter !== subject) return false;
+    if (schemaFilter !== "all") {
+      const status = state.lessons.schemaStatus?.[lesson.id] ?? null;
+      if (schemaFilter === "preview" && !status?.has_preview) return false;
+      if (schemaFilter === "legacy") {
+        const legacyCount = Number(status?.effective_counts?.legacy_show ?? 0);
+        if (!(legacyCount > 0)) return false;
+      }
+      if (
+        schemaFilter === "age3_target" ||
+        schemaFilter === "modern_partial" ||
+        schemaFilter === "mixed" ||
+        schemaFilter === "unknown"
+      ) {
+        if ((status?.effective_profile ?? "unknown") !== schemaFilter) return false;
+      }
+    }
     if (query) {
       const targets = [
         lesson.id,
@@ -7167,7 +7879,9 @@ function renderLessonList() {
     return true;
   };
 
-  const hasMatch = state.lessons.list.some((lesson) => matchesFilter(lesson));
+  const matchedLessons = state.lessons.list.filter((lesson) => matchesFilter(lesson));
+  updateLessonSchemaSummary(matchedLessons.length);
+  const hasMatch = matchedLessons.length > 0;
   if (!hasMatch) {
     const empty = document.createElement("div");
     empty.className = "lesson-empty";
@@ -7175,6 +7889,26 @@ function renderLessonList() {
     list.appendChild(empty);
     return;
   }
+
+  const lessonPriority = (lesson) => {
+    const status = state.lessons.schemaStatus?.[lesson?.id] ?? null;
+    const profile = status?.effective_profile ?? "unknown";
+    const rank = profileRank[profile] ?? profileRank.unknown;
+    const previewPenalty = status?.has_preview ? 0 : 1;
+    const legacyPenalty = Number(status?.effective_counts?.legacy_show ?? 0) > 0 ? 1 : 0;
+    const title = String(lesson?.title ?? lesson?.id ?? "").toLowerCase();
+    return [rank, previewPenalty, legacyPenalty, title];
+  };
+
+  const comparePriority = (a, b) => {
+    const pa = lessonPriority(a);
+    const pb = lessonPriority(b);
+    for (let i = 0; i < pa.length; i++) {
+      if (pa[i] < pb[i]) return -1;
+      if (pa[i] > pb[i]) return 1;
+    }
+    return 0;
+  };
 
   const renderLessonItem = (lesson, container) => {
     if (!lesson || !matchesFilter(lesson)) return false;
@@ -7212,6 +7946,14 @@ function renderLessonList() {
     desc.textContent = lesson.description ?? "";
     item.appendChild(header);
     item.appendChild(desc);
+    const schemaHint = state.lessons.schemaStatus?.[lesson.id];
+    if (schemaHint) {
+      const info = document.createElement("div");
+      info.className = "lesson-goals";
+      const previewFlag = schemaHint.has_preview ? "preview" : "legacy";
+      info.textContent = `DDN: ${previewFlag} · ${schemaHint.effective_profile ?? "unknown"}`;
+      item.appendChild(info);
+    }
     if (Array.isArray(lesson.goals) && lesson.goals.length) {
       const goals = document.createElement("div");
       goals.className = "lesson-goals";
@@ -7236,8 +7978,11 @@ function renderLessonList() {
     let added = 0;
 
     if (Array.isArray(group.lessons)) {
-      group.lessons.forEach((lessonRef) => {
-        const lesson = typeof lessonRef === "string" ? lessonMap.get(lessonRef) : lessonRef;
+      const rows = group.lessons
+        .map((lessonRef) => (typeof lessonRef === "string" ? lessonMap.get(lessonRef) : lessonRef))
+        .filter(Boolean)
+        .sort(comparePriority);
+      rows.forEach((lesson) => {
         if (renderLessonItem(lesson, body)) added += 1;
       });
     }
@@ -7267,12 +8012,37 @@ function renderLessonList() {
     return;
   }
 
-  state.lessons.list.forEach((lesson) => renderLessonItem(lesson, list));
+  state.lessons.list
+    .slice()
+    .sort(comparePriority)
+    .forEach((lesson) => renderLessonItem(lesson, list));
+}
+
+function updateLessonSchemaSummary(filteredCount = null) {
+  const summaryEl = $("lesson-schema-summary");
+  if (!summaryEl) return;
+  const rows = Object.values(state.lessons.schemaStatus ?? {});
+  if (!rows.length) {
+    summaryEl.textContent = "스키마 요약: 상태 파일 없음";
+    return;
+  }
+  const countBy = (profile) => rows.filter((row) => (row?.effective_profile ?? "unknown") === profile).length;
+  const total = rows.length;
+  const age3 = countBy("age3_target");
+  const partial = countBy("modern_partial");
+  const legacy = countBy("legacy");
+  const mixed = countBy("mixed");
+  const unknown = countBy("unknown");
+  const visible = Number.isFinite(filteredCount) ? filteredCount : state.lessons.list.length;
+  summaryEl.textContent =
+    `스키마 요약: AGE3 ${age3}/${total} · 전환중 ${partial} · 레거시 ${legacy}` +
+    ` · 혼합 ${mixed} · 미확인 ${unknown} · 현재 목록 ${visible}`;
 }
 
 function renderLessonFilters() {
   const gradeSelect = $("lesson-grade-filter");
   const subjectSelect = $("lesson-subject-filter");
+  const schemaSelect = $("lesson-schema-filter");
   const searchInput = $("lesson-search");
   if (!gradeSelect || !subjectSelect) return;
   const gradeLabels = {
@@ -7324,23 +8094,79 @@ function renderLessonFilters() {
   };
   buildOptions(gradeSelect, grades, state.lessons.filter.grade, gradeLabels);
   buildOptions(subjectSelect, subjects, state.lessons.filter.subject, subjectLabels);
+  if (schemaSelect) {
+    schemaSelect.innerHTML = "";
+    [
+      { value: "all", label: "전체" },
+      { value: "preview", label: "preview 가능" },
+      { value: "age3_target", label: "AGE3 목표형" },
+      { value: "modern_partial", label: "전환중(보임)" },
+      { value: "legacy", label: "레거시" },
+      { value: "mixed", label: "혼합" },
+      { value: "unknown", label: "미확인" },
+    ].forEach((item) => {
+      const opt = document.createElement("option");
+      opt.value = item.value;
+      opt.textContent = item.label;
+      schemaSelect.appendChild(opt);
+    });
+    schemaSelect.value = state.lessons.filter.schema ?? "all";
+  }
   if (searchInput) searchInput.value = state.lessons.filter.query ?? "";
 }
 
+async function fetchFirstOkText(urls) {
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      return { url, text: await res.text() };
+    } catch (_) {
+      // ignore and continue fallback chain
+    }
+  }
+  return null;
+}
+
+async function loadLessonDdnText(lessonId, usePreview = true) {
+  if (!lessonId) return null;
+  const ddnCandidates = usePreview
+    ? [
+        `/lessons/${lessonId}/lesson.age3.preview.ddn`,
+        `/lessons/${lessonId}/lesson.ddn`,
+      ]
+    : [
+        `/lessons/${lessonId}/lesson.ddn`,
+        `/lessons/${lessonId}/lesson.age3.preview.ddn`,
+      ];
+  const ddnLoaded = await fetchFirstOkText(ddnCandidates);
+  if (!ddnLoaded) return null;
+  return {
+    text: ddnLoaded.text,
+    source: ddnLoaded.url.split("/").pop() || ddnLoaded.url,
+  };
+}
+
 async function selectLesson(lesson) {
+  if (!lesson) return;
   state.lessons.activeId = lesson.id;
   let meta = lesson;
   let ddnText = lesson.ddn ?? "";
+  let ddnSource = lesson.ddn ? "embedded" : "-";
+
   try {
     if (!lesson.ddn && lesson.id) {
       const metaRes = await fetch(`/lessons/${lesson.id}/meta.toml`);
-      const ddnRes = await fetch(`/lessons/${lesson.id}/lesson.ddn`);
       if (metaRes.ok) {
         const metaText = await metaRes.text();
         meta = { ...meta, ...parseToml(metaText) };
       }
-      if (ddnRes.ok) {
-        ddnText = await ddnRes.text();
+      const usePreview = $("lesson-use-age3-preview")?.checked ?? state.lessons.useAge3Preview;
+      state.lessons.useAge3Preview = usePreview;
+      const ddnLoaded = await loadLessonDdnText(lesson.id, usePreview);
+      if (ddnLoaded) {
+        ddnText = ddnLoaded.text;
+        ddnSource = ddnLoaded.source;
       }
     }
   } catch (_) {
@@ -7348,10 +8174,19 @@ async function selectLesson(lesson) {
   }
   state.lessons.meta = meta;
   state.lessons.ddnText = ddnText;
+  state.lessons.ddnSource = ddnSource;
   $("lesson-title").textContent = meta.title || meta.id || lesson.id || "lesson";
   $("lesson-desc").textContent = meta.description || "-";
   const views = meta.required_views || ["graph"];
   $("lesson-meta").textContent = `required_views: ${views.join(", ")}`;
+  const lessonSchemaEl = $("lesson-schema-status");
+  if (lessonSchemaEl) {
+    lessonSchemaEl.textContent = resolveLessonSchemaStatusLabel(lesson.id, ddnText);
+  }
+  const lessonSourceEl = $("lesson-ddn-source");
+  if (lessonSourceEl) {
+    lessonSourceEl.textContent = `DDN 소스: ${state.lessons.ddnSource}`;
+  }
   if (views.includes("2d")) {
     state.viewUpdate["view-2d"] = { update: "append", tick: null };
     if (state.activeView === "view-2d") {
@@ -7372,6 +8207,7 @@ async function selectLesson(lesson) {
   await maybeAutoRunLesson(ddnText);
   renderLessonList();
   // 교과 로드 후 DDN 탭으로 자동 전환
+  setWorkspaceMode("basic");
   const ddnTab = document.querySelector('.main-tabs .tab[data-tab="ddn-tab"]');
   if (ddnTab) ddnTab.click();
 }
@@ -7525,6 +8361,32 @@ async function maybeAutoRunLesson(ddnText) {
     log("브리지 URL이 없어 교과 자동 실행을 건너뜁니다.");
     return;
   }
+  const ok = await runDdnBridge({ mode: "auto" });
+  const fromPreview = String(state.lessons.ddnSource || "").includes(".age3.preview.ddn");
+  if (ok || !fromPreview) return;
+  const lessonId = state.lessons.activeId;
+  if (!lessonId) return;
+  const fallback = await loadLessonDdnText(lessonId, false);
+  if (!fallback?.text) return;
+  state.lessons.ddnText = fallback.text;
+  state.lessons.ddnSource = fallback.source;
+  $("ddn-editor").value = fallback.text;
+  updateSceneFromDdn(fallback.text);
+  refreshDdnControlsFromText(fallback.text);
+  applyTimeDefaultsFromDdn(fallback.text);
+  const lessonSourceEl = $("lesson-ddn-source");
+  if (lessonSourceEl) {
+    lessonSourceEl.textContent = `DDN 소스: ${state.lessons.ddnSource}`;
+  }
+  const lessonSchemaEl = $("lesson-schema-status");
+  if (lessonSchemaEl) {
+    lessonSchemaEl.textContent = resolveLessonSchemaStatusLabel(lessonId, fallback.text);
+  }
+  const previewToggle = $("lesson-use-age3-preview");
+  if (previewToggle) previewToggle.checked = false;
+  state.lessons.useAge3Preview = false;
+  saveLessonPreviewMode();
+  log("AGE3 preview 자동실행 실패: lesson.ddn로 자동 폴백합니다.");
   await runDdnBridge({ mode: "auto" });
 }
 
@@ -7594,6 +8456,43 @@ function resolveLessonOverlayOrder(meta) {
   return null;
 }
 
+function detectLessonSchemaProfile(ddnText) {
+  const text = String(ddnText || "");
+  const hasLegacyShow = /보여주기\./.test(text);
+  const hasMamadi = /\(매마디\)마다/.test(text);
+  const hasViewBlock = /보임\s*\{/.test(text);
+  if (hasViewBlock && hasMamadi && !hasLegacyShow) {
+    return "스키마: AGE3 목표형(매마디/보임)";
+  }
+  if (hasLegacyShow && hasMamadi) {
+    return "스키마: 전환 필요(매마디 + 보여주기)";
+  }
+  if (hasLegacyShow) {
+    return "스키마: 레거시(보여주기)";
+  }
+  return "스키마: 혼합/미확인";
+}
+
+function formatLessonSchemaProfile(profile) {
+  const key = String(profile || "unknown");
+  const map = {
+    age3_target: "AGE3 목표형(매마디/보임)",
+    modern_partial: "전환중(보임)",
+    legacy: "레거시(보여주기)",
+    mixed: "혼합",
+    unknown: "미확인",
+  };
+  return map[key] ?? map.unknown;
+}
+
+function resolveLessonSchemaStatusLabel(lessonId, ddnText) {
+  const status = state.lessons.schemaStatus?.[lessonId];
+  if (status?.effective_profile) {
+    return `스키마: ${formatLessonSchemaProfile(status.effective_profile)}`;
+  }
+  return detectLessonSchemaProfile(ddnText);
+}
+
 function applyRequiredViews(views) {
   const graphTab = document.querySelector('.view-group .tab[data-tab="view-graph"]');
   const spaceTab = document.querySelector('.view-group .tab[data-tab="view-2d"]');
@@ -7626,6 +8525,14 @@ $("lesson-apply").addEventListener("click", () => {
   if (state.lessons.ddnText) {
     $("ddn-editor").value = state.lessons.ddnText;
     refreshDdnControlsFromText(state.lessons.ddnText);
+    const lessonSchemaEl = $("lesson-schema-status");
+    if (lessonSchemaEl) {
+      lessonSchemaEl.textContent = resolveLessonSchemaStatusLabel(state.lessons.activeId, state.lessons.ddnText);
+    }
+    const lessonSourceEl = $("lesson-ddn-source");
+    if (lessonSourceEl) {
+      lessonSourceEl.textContent = `DDN 소스: ${state.lessons.ddnSource}`;
+    }
     log("lesson.ddn 로드 완료");
   } else {
     log("lesson.ddn가 없습니다.");
@@ -7636,9 +8543,35 @@ $("lesson-reset").addEventListener("click", () => {
   if (state.lessons.ddnText) {
     $("ddn-editor").value = state.lessons.ddnText;
     refreshDdnControlsFromText(state.lessons.ddnText);
+    const lessonSchemaEl = $("lesson-schema-status");
+    if (lessonSchemaEl) {
+      lessonSchemaEl.textContent = resolveLessonSchemaStatusLabel(state.lessons.activeId, state.lessons.ddnText);
+    }
+    const lessonSourceEl = $("lesson-ddn-source");
+    if (lessonSourceEl) {
+      lessonSourceEl.textContent = `DDN 소스: ${state.lessons.ddnSource}`;
+    }
     log("lesson.ddn로 복원했습니다.");
   }
 });
+
+const lessonPreviewToggle = $("lesson-use-age3-preview");
+if (lessonPreviewToggle) {
+  loadLessonPreviewMode();
+  lessonPreviewToggle.checked = Boolean(state.lessons.useAge3Preview);
+  lessonPreviewToggle.addEventListener("change", async () => {
+    state.lessons.useAge3Preview = lessonPreviewToggle.checked;
+    saveLessonPreviewMode();
+    const active = state.lessons.list.find((item) => item.id === state.lessons.activeId);
+    if (!active) return;
+    await selectLesson(active);
+    log(
+      state.lessons.useAge3Preview
+        ? "교과 DDN 로드 모드: AGE3 preview 우선"
+        : "교과 DDN 로드 모드: 기본 lesson.ddn 우선",
+    );
+  });
+}
 
 const gradeFilter = $("lesson-grade-filter");
 if (gradeFilter) {
@@ -7661,6 +8594,13 @@ if (lessonSearch) {
     renderLessonList();
   });
 }
+const lessonSchemaFilter = $("lesson-schema-filter");
+if (lessonSchemaFilter) {
+  lessonSchemaFilter.addEventListener("change", (event) => {
+    state.lessons.filter.schema = event.target.value || "all";
+    renderLessonList();
+  });
+}
 
 $("ddn-run").addEventListener("click", runDdnBridge);
 $("ddn-export").addEventListener("click", exportDdnText);
@@ -7669,6 +8609,7 @@ if ($("ddn-editor")) {
   $("ddn-editor").addEventListener("input", () => {
     updateDdnTimeStatus();
     refreshDdnControlsFromText($("ddn-editor").value, { preserveValues: true });
+    scheduleDdnEditorAutoRun();
   });
 }
 $("ddn-frame-stop").addEventListener("click", cancelDdnFrameJob);
@@ -7685,11 +8626,25 @@ if ($("ddn-time-focus")) $("ddn-time-focus").addEventListener("click", focusView
 $("ddn-save").addEventListener("click", saveDdnPreset);
 $("ddn-export-presets").addEventListener("click", exportDdnPresets);
 $("ddn-import-presets").addEventListener("click", importDdnPresets);
+const mediaExportStartBtn = $("media-export-start");
+if (mediaExportStartBtn) {
+  mediaExportStartBtn.addEventListener("click", startMediaExport);
+}
+const mediaExportStopBtn = $("media-export-stop");
+if (mediaExportStopBtn) {
+  mediaExportStopBtn.addEventListener("click", () => {
+    stopMediaExport({ reason: "사용자 중지" });
+  });
+}
 const controlAutoRun = $("ddn-control-auto-run");
 if (controlAutoRun) {
   state.controls.autoRun = controlAutoRun.checked;
   controlAutoRun.addEventListener("change", () => {
     state.controls.autoRun = controlAutoRun.checked;
+    if (!state.controls.autoRun && ddnEditorAutoRunTimer) {
+      clearTimeout(ddnEditorAutoRunTimer);
+      ddnEditorAutoRunTimer = null;
+    }
   });
 }
 $("snapshot-save").addEventListener("click", saveSnapshot);
@@ -7978,6 +8933,27 @@ const WASM_KEY_BITS = {
 const WASM_SETTINGS_KEY = "seamgrim.wasm.settings.v1";
 const WASM_SCHEMA_PRESETS_KEY = "seamgrim.wasm.schema_presets.v1";
 const WASM_LENS_PRESETS_KEY = "seamgrim.wasm.lens_presets.v1";
+const LESSON_PREVIEW_MODE_KEY = "seamgrim.lesson.use_age3_preview.v1";
+
+function loadLessonPreviewMode() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const raw = localStorage.getItem(LESSON_PREVIEW_MODE_KEY);
+    if (raw == null) return;
+    state.lessons.useAge3Preview = raw === "1";
+  } catch (_) {
+    // ignore local storage errors
+  }
+}
+
+function saveLessonPreviewMode() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(LESSON_PREVIEW_MODE_KEY, state.lessons.useAge3Preview ? "1" : "0");
+  } catch (_) {
+    // ignore local storage errors
+  }
+}
 const WASM_SCHEMA_TARGETS = ["graph", "space2d", "table", "text", "structure"];
 const WASM_KEY_PRESETS = {
   wasd_arrows: {
@@ -8329,6 +9305,15 @@ window.addEventListener("keyup", (e) => {
 });
 
 initTabs();
+const workspaceModeBasicBtn = $("workspace-mode-basic");
+const workspaceModeAdvancedBtn = $("workspace-mode-advanced");
+workspaceModeBasicBtn?.addEventListener("click", () => {
+  setWorkspaceMode("basic");
+});
+workspaceModeAdvancedBtn?.addEventListener("click", () => {
+  setWorkspaceMode("advanced");
+});
+setWorkspaceMode("basic", { ensureTab: false });
 setActiveView("view-graph");
 updateViewInputsEnabled();
 updateSpace2dInputsEnabled();
@@ -8352,6 +9337,8 @@ state.structureView.showLabels = $("structure-show-labels").checked;
 state.space2dView = getSpace2dViewConfigFromControls();
 bindSpace2dCanvasInteractions();
 renderLogs();
+syncMediaExportButtons();
+updateMediaExportStatus("내보내기 상태: 대기");
 log("UI 준비 완료");
 initWasmVmExample();
 updateCompareStatusUI();
@@ -8389,5 +9376,30 @@ if (compareRunBtn) {
       return;
     }
     runDdnBridge();
+  });
+}
+const compareIntervalInput = $("compare-interval");
+if (compareIntervalInput) {
+  compareIntervalInput.addEventListener("change", () => {
+    const raw = Number(compareIntervalInput.value ?? state.compare.sequence.intervalMs);
+    state.compare.sequence.intervalMs = Math.min(5000, Math.max(120, Number.isFinite(raw) ? raw : 800));
+    compareIntervalInput.value = String(state.compare.sequence.intervalMs);
+    if (state.compare.sequence.playing) {
+      startCompareSequence();
+    } else {
+      updateCompareStatusUI();
+    }
+  });
+}
+const comparePlayBtn = $("compare-play");
+if (comparePlayBtn) {
+  comparePlayBtn.addEventListener("click", () => {
+    startCompareSequence();
+  });
+}
+const compareStopBtn = $("compare-stop");
+if (compareStopBtn) {
+  compareStopBtn.addEventListener("click", () => {
+    stopCompareSequence({ restoreVisibility: true });
   });
 }

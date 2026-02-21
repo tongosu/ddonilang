@@ -3,7 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cli::sam_snapshot::apply_snapshot;
-use crate::core::geoul::{audit_hash, decode_input_snapshot, geoul_state_hash_bytes, GeoulBundleReader, InputSnapshotV1};
+use crate::core::geoul::{
+    audit_hash, decode_input_snapshot, geoul_state_hash_bytes, GeoulBundleReader, InputSnapshotV1,
+};
 use crate::core::state::Key;
 use crate::core::value::Value;
 use crate::core::State;
@@ -38,8 +40,7 @@ pub fn run_geoul_query(
     let snapshots = load_snapshots(dir, madi)?;
     let key = parse_query_key(key)?;
 
-    let tokens = Lexer::tokenize(&source)
-        .map_err(|err| format!("E_GEOUL_LEX {:?}", err))?;
+    let tokens = Lexer::tokenize(&source).map_err(|err| format!("E_GEOUL_LEX {:?}", err))?;
     let default_root = Parser::default_root_for_source(&source);
     let program = Parser::parse_with_default_root(tokens, default_root)
         .map_err(|err| format!("E_GEOUL_PARSE {:?}", err))?;
@@ -91,8 +92,7 @@ pub fn run_geoul_backtrace(
     let snapshots = load_snapshots(dir, to)?;
     let key = parse_query_key(key)?;
 
-    let tokens = Lexer::tokenize(&source)
-        .map_err(|err| format!("E_GEOUL_LEX {:?}", err))?;
+    let tokens = Lexer::tokenize(&source).map_err(|err| format!("E_GEOUL_LEX {:?}", err))?;
     let default_root = Parser::default_root_for_source(&source);
     let program = Parser::parse_with_default_root(tokens, default_root)
         .map_err(|err| format!("E_GEOUL_PARSE {:?}", err))?;
@@ -150,10 +150,7 @@ fn resolve_entry_path(dir: &Path, entry_override: Option<&Path>) -> Result<PathB
         .map(|path| path.to_path_buf())
         .unwrap_or_else(|| dir.join("entry.ddn"));
     if !entry_path.exists() {
-        return Err(format!(
-            "E_GEOUL_ENTRY_MISSING {}",
-            entry_path.display()
-        ));
+        return Err(format!("E_GEOUL_ENTRY_MISSING {}", entry_path.display()));
     }
     Ok(entry_path)
 }
@@ -260,8 +257,8 @@ struct GeoulRecordStep {
 }
 
 pub fn run_geoul_record_make(input: &Path, out: Option<&Path>) -> Result<(), String> {
-    let text =
-        fs::read_to_string(input).map_err(|e| format!("E_GEOUL_RECORD_READ {} {}", input.display(), e))?;
+    let text = fs::read_to_string(input)
+        .map_err(|e| format!("E_GEOUL_RECORD_READ {} {}", input.display(), e))?;
     let spec: GeoulRecordMakeSpec =
         serde_json::from_str(&text).map_err(|e| format!("E_GEOUL_RECORD_PARSE {}", e))?;
     if let Some(schema) = spec.schema.as_deref() {
@@ -292,8 +289,8 @@ pub fn run_geoul_record_make(input: &Path, out: Option<&Path>) -> Result<(), Str
 }
 
 pub fn run_geoul_record_check(input: &Path) -> Result<(), String> {
-    let text =
-        fs::read_to_string(input).map_err(|e| format!("E_GEOUL_RECORD_READ {} {}", input.display(), e))?;
+    let text = fs::read_to_string(input)
+        .map_err(|e| format!("E_GEOUL_RECORD_READ {} {}", input.display(), e))?;
     let mut lines = Vec::new();
     for (idx, line) in text.lines().enumerate() {
         let trimmed = line.trim();
@@ -306,12 +303,24 @@ pub fn run_geoul_record_check(input: &Path) -> Result<(), String> {
         return Err("E_GEOUL_RECORD_EMPTY geoul.record.v0 파일이 비었습니다".to_string());
     }
     let (header_line_no, header_line) = lines[0].clone();
-    let header_value: JsonValue = serde_json::from_str(&header_line)
-        .map_err(|e| format!("E_GEOUL_RECORD_HEADER_PARSE {}:{} {}", input.display(), header_line_no, e))?;
+    let header_value: JsonValue = serde_json::from_str(&header_line).map_err(|e| {
+        format!(
+            "E_GEOUL_RECORD_HEADER_PARSE {}:{} {}",
+            input.display(),
+            header_line_no,
+            e
+        )
+    })?;
     let schema = header_value
         .get("schema")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| format!("E_GEOUL_RECORD_HEADER {}:{} schema 누락", input.display(), header_line_no))?;
+        .ok_or_else(|| {
+            format!(
+                "E_GEOUL_RECORD_HEADER {}:{} schema 누락",
+                input.display(),
+                header_line_no
+            )
+        })?;
     if schema != "geoul.record.v0" {
         return Err(format!(
             "E_GEOUL_RECORD_SCHEMA {}:{} {}",
@@ -320,13 +329,16 @@ pub fn run_geoul_record_check(input: &Path) -> Result<(), String> {
             schema
         ));
     }
-    let meta = header_value.get("meta").and_then(|v| v.as_object()).ok_or_else(|| {
-        format!(
-            "E_GEOUL_RECORD_HEADER {}:{} meta 누락",
-            input.display(),
-            header_line_no
-        )
-    })?;
+    let meta = header_value
+        .get("meta")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| {
+            format!(
+                "E_GEOUL_RECORD_HEADER {}:{} meta 누락",
+                input.display(),
+                header_line_no
+            )
+        })?;
     for key in ["ssot_version", "created_at", "cmd"] {
         let ok = meta.get(key).and_then(|v| v.as_str()).is_some();
         if !ok {
@@ -349,16 +361,13 @@ pub fn run_geoul_record_check(input: &Path) -> Result<(), String> {
                 e
             )
         })?;
-        let kind = value
-            .get("kind")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                format!(
-                    "E_GEOUL_RECORD_STEP {}:{} kind 누락",
-                    input.display(),
-                    line_no
-                )
-            })?;
+        let kind = value.get("kind").and_then(|v| v.as_str()).ok_or_else(|| {
+            format!(
+                "E_GEOUL_RECORD_STEP {}:{} kind 누락",
+                input.display(),
+                line_no
+            )
+        })?;
         if kind != "step" {
             return Err(format!(
                 "E_GEOUL_RECORD_STEP_KIND {}:{} {}",
@@ -367,16 +376,13 @@ pub fn run_geoul_record_check(input: &Path) -> Result<(), String> {
                 kind
             ));
         }
-        let step = value
-            .get("step")
-            .and_then(|v| v.as_u64())
-            .ok_or_else(|| {
-                format!(
-                    "E_GEOUL_RECORD_STEP {}:{} step 누락",
-                    input.display(),
-                    line_no
-                )
-            })?;
+        let step = value.get("step").and_then(|v| v.as_u64()).ok_or_else(|| {
+            format!(
+                "E_GEOUL_RECORD_STEP {}:{} step 누락",
+                input.display(),
+                line_no
+            )
+        })?;
         let state_hash = value
             .get("state_hash")
             .and_then(|v| v.as_str())
@@ -399,10 +405,7 @@ pub fn run_geoul_record_check(input: &Path) -> Result<(), String> {
                 line_no
             ));
         }
-        steps.push(GeoulRecordStep {
-            step,
-            state_hash,
-        });
+        steps.push(GeoulRecordStep { step, state_hash });
     }
 
     println!("schema=geoul.record.v0");

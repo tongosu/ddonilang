@@ -32,28 +32,28 @@ pub struct Normalizer {
 impl Normalizer {
     pub fn new(level: NormalizationLevel) -> Self {
         Self {
-            _level : level,
+            _level: level,
             indent: 0,
             output: String::new(),
         }
     }
-    
+
     /// 프로그램 정본화
     pub fn normalize_program(&mut self, program: &CanonProgram) -> String {
         for item in &program.items {
             self.normalize_top_level_item(item);
             self.write("\n\n");
         }
-        
+
         self.output.trim_end().to_string()
     }
-    
+
     fn normalize_top_level_item(&mut self, item: &TopLevelItem) {
         match item {
             TopLevelItem::SeedDef(seed) => self.normalize_seed_def(seed),
         }
     }
-    
+
     /// 씨앗 정의 정본화
     /// 표준 형식: (params) name:kind = { body }
     fn normalize_seed_def(&mut self, seed: &SeedDef) {
@@ -68,19 +68,19 @@ impl Normalizer {
             }
             self.write(") ");
         }
-        
+
         // 이름
         self.write(&seed.canonical_name);
-        
+
         // 콜론 (N1: 앞뒤 공백 없음)
         self.write(":");
-        
+
         // 씨앗 종류
         self.normalize_seed_kind(&seed.seed_kind);
-        
+
         // 등호 (N1: 앞뒤 공백 있음)
         self.write(" = ");
-        
+
         // 본문
         if let Some(body) = &seed.body {
             if seed.params.is_empty() {
@@ -94,7 +94,7 @@ impl Normalizer {
             self.normalize_body(body);
         }
     }
-    
+
     fn normalize_param(&mut self, param: &ParamPin) {
         self.write(&param.pin_name);
         self.write(":");
@@ -111,7 +111,7 @@ impl Normalizer {
             self.normalize_expr(default_value);
         }
     }
-    
+
     fn normalize_seed_kind(&mut self, kind: &SeedKind) {
         let s = match kind {
             SeedKind::Imeumssi => "이름씨",
@@ -127,7 +127,7 @@ impl Normalizer {
         };
         self.write(s);
     }
-    
+
     fn normalize_type(&mut self, type_ref: &TypeRef) {
         match type_ref {
             TypeRef::Named(name) => self.write(name),
@@ -145,22 +145,22 @@ impl Normalizer {
             TypeRef::Infer => self.write("_"),
         }
     }
-    
+
     fn normalize_body(&mut self, body: &Body) {
         self.write("{\n");
         self.indent += 1;
-        
+
         for stmt in &body.stmts {
             self.write_indent();
             self.normalize_stmt(stmt);
             self.write("\n");
         }
-        
+
         self.indent -= 1;
         self.write_indent();
         self.write("}");
     }
-    
+
     fn normalize_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::DeclBlock { items, .. } => {
@@ -231,7 +231,12 @@ impl Normalizer {
                 self.write(" 돌려줘");
                 self.write_stmt_terminator(stmt);
             }
-            Stmt::If { condition, then_body, else_body, .. } => {
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 self.normalize_expr(condition);
                 self.write(" 일때 ");
                 self.normalize_body(then_body);
@@ -245,7 +250,11 @@ impl Normalizer {
                 self.write(" ???: ");
                 self.normalize_body(body);
             }
-            Stmt::Choose { branches, else_body, .. } => {
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
                 self.write("???:\n");
                 self.indent += 1;
                 for branch in branches {
@@ -264,12 +273,20 @@ impl Normalizer {
                 self.write("반복: ");
                 self.normalize_body(body);
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 self.normalize_expr(condition);
                 self.write(" 동안: ");
                 self.normalize_body(body);
             }
-            Stmt::ForEach { item, item_type, iterable, body, .. } => {
+            Stmt::ForEach {
+                item,
+                item_type,
+                iterable,
+                body,
+                ..
+            } => {
                 self.write("(");
                 self.write(item);
                 if let Some(type_ref) = item_type.as_ref() {
@@ -285,7 +302,14 @@ impl Normalizer {
                 self.write("멈추기");
                 self.write_stmt_terminator(stmt);
             }
-            Stmt::Contract { kind, mode, condition, then_body, else_body, .. } => {
+            Stmt::Contract {
+                kind,
+                mode,
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 self.normalize_expr(condition);
                 match kind {
                     ContractKind::Pre => self.write(" 바탕으로"),
@@ -307,14 +331,16 @@ impl Normalizer {
                 }
                 self.indent -= 1;
             }
-            Stmt::Guard { condition, body, .. } => {
+            Stmt::Guard {
+                condition, body, ..
+            } => {
                 self.normalize_expr(condition);
                 self.write(" 늘지켜보고 ");
                 self.normalize_body(body);
             }
         }
     }
-    
+
     fn normalize_expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Literal(lit) => self.normalize_literal(lit),
@@ -441,18 +467,28 @@ impl Normalizer {
                 self.write(" ");
                 self.normalize_expr(expr);
             }
-
         }
     }
-    
+
     fn normalize_literal(&mut self, lit: &Literal) {
         match lit {
             Literal::Int(n) => self.write(&n.to_string()),
             Literal::Fixed64(f) => self.write(&f.to_string()),
             Literal::Bool(b) => self.write(if *b { "참" } else { "거짓" }),
-            Literal::Atom(a) => { self.write("#"); self.write(a); },
-            Literal::String(s) => { self.write("\""); self.write(s); self.write("\""); },
-            Literal::Resource(path) => { self.write("@\""); self.write(path); self.write("\""); },
+            Literal::Atom(a) => {
+                self.write("#");
+                self.write(a);
+            }
+            Literal::String(s) => {
+                self.write("\"");
+                self.write(s);
+                self.write("\"");
+            }
+            Literal::Resource(path) => {
+                self.write("@\"");
+                self.write(path);
+                self.write("\"");
+            }
             Literal::None => self.write("없음"),
         }
     }
@@ -538,13 +574,13 @@ impl Normalizer {
         self.write(func);
         true
     }
-    
+
     // ========== 유틸리티 ==========
-    
+
     fn write(&mut self, s: &str) {
         self.output.push_str(s);
     }
-    
+
     fn write_indent(&mut self) {
         for _ in 0..self.indent {
             self.output.push_str("    ");
@@ -588,49 +624,51 @@ mod tests {
     use super::*;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
-    
+
     fn parse_and_normalize(source: &str, level: NormalizationLevel) -> String {
         let tokens = Lexer::new(source).tokenize().unwrap();
         let mut parser = Parser::new(tokens);
-        let program = parser.parse_program(source.to_string(), "test.ddoni".to_string()).unwrap();
+        let program = parser
+            .parse_program(source.to_string(), "test.ddoni".to_string())
+            .unwrap();
         normalize(&program, level)
     }
-    
+
     #[test]
     fn test_n1_spacing_correction() {
         let irregular = "나이:수=10";
         let normalized = parse_and_normalize(irregular, NormalizationLevel::N1);
-        
+
         assert_eq!(normalized.trim(), "나이:수 = 10");
     }
-    
+
     #[test]
     fn test_n1_extra_spaces() {
         let irregular = "나이  :  수  =  10";
         let normalized = parse_and_normalize(irregular, NormalizationLevel::N1);
-        
+
         assert_eq!(normalized.trim(), "나이:수 = 10");
     }
-    
+
     #[test]
     fn test_n1_function_formatting() {
         let source = "(x:수)증가:셈씨={x+1돌려줘.}";
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
-        
+
         let expected = r#"(x:수) 증가:셈씨 = {
     x + 1 돌려줘.
 }"#;
         assert_eq!(normalized.trim(), expected);
     }
-    
+
     #[test]
     fn test_roundtrip() {
         let original = "(x:수) 증가:셈씨 = { x + 1 돌려줘. }";
         let normalized = parse_and_normalize(original, NormalizationLevel::N1);
-        
+
         // 두 번째 정본화는 동일해야 함 (왕복성)
         let normalized2 = parse_and_normalize(&normalized, NormalizationLevel::N1);
-        
+
         assert_eq!(normalized.trim(), normalized2.trim());
     }
 

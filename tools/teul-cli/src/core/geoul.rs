@@ -382,7 +382,9 @@ impl GeoulBundleReader {
             .offsets
             .get(idx)
             .ok_or_else(|| "madi 범위가 idx를 벗어났습니다".to_string())?;
-        self.file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
+        self.file
+            .seek(SeekFrom::Start(offset))
+            .map_err(|e| e.to_string())?;
         read_frame_header(&mut self.file)
     }
 
@@ -451,7 +453,8 @@ fn read_header(file: &mut File) -> Result<AuditHeader, String> {
 fn read_frame_header(file: &mut File) -> Result<AuditFrameHeader, String> {
     let madi = read_u64(file)?;
     let mut state_hash = [0u8; 32];
-    file.read_exact(&mut state_hash).map_err(|e| e.to_string())?;
+    file.read_exact(&mut state_hash)
+        .map_err(|e| e.to_string())?;
     let snapshot_bytes = read_u32(file)?;
     let patch_bytes = read_u32(file)?;
     let alrim_bytes = read_u32(file)?;
@@ -477,8 +480,7 @@ fn read_idx_file(path: &Path) -> Result<Vec<u64>, String> {
     let mut offsets = Vec::with_capacity(buf.len() / 8);
     for chunk in buf.chunks_exact(8) {
         offsets.push(u64::from_le_bytes([
-            chunk[0], chunk[1], chunk[2], chunk[3],
-            chunk[4], chunk[5], chunk[6], chunk[7],
+            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
         ]));
     }
     Ok(offsets)
@@ -508,7 +510,10 @@ fn build_manifest_text(
     let mut out = String::new();
     out.push_str("{\n");
     out.push_str("  \"kind\": \"geoul_bundle_v1\",\n");
-    out.push_str(&format!("  \"ssot_version\": \"{}\",\n", escape_json(ssot_version)));
+    out.push_str(&format!(
+        "  \"ssot_version\": \"{}\",\n",
+        escape_json(ssot_version)
+    ));
     out.push_str(&format!(
         "  \"toolchain_version\": \"{}\",\n",
         escape_json(toolchain_version)
@@ -619,7 +624,12 @@ fn read_u32_slice(bytes: &[u8], idx: &mut usize) -> Result<u32, String> {
     if end > bytes.len() {
         return Err("snapshot detbin EOF".to_string());
     }
-    let out = u32::from_le_bytes([bytes[*idx], bytes[*idx + 1], bytes[*idx + 2], bytes[*idx + 3]]);
+    let out = u32::from_le_bytes([
+        bytes[*idx],
+        bytes[*idx + 1],
+        bytes[*idx + 2],
+        bytes[*idx + 3],
+    ]);
     *idx = end;
     Ok(out)
 }
@@ -649,8 +659,8 @@ fn read_str_slice(bytes: &[u8], idx: &mut usize) -> Result<String, String> {
     if end > bytes.len() {
         return Err("snapshot detbin 문자열 EOF".to_string());
     }
-    let text =
-        std::str::from_utf8(&bytes[*idx..end]).map_err(|_| "snapshot detbin UTF-8 오류".to_string())?;
+    let text = std::str::from_utf8(&bytes[*idx..end])
+        .map_err(|_| "snapshot detbin UTF-8 오류".to_string())?;
     *idx = end;
     Ok(text.to_string())
 }

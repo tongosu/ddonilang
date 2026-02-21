@@ -1,0 +1,54 @@
+{
+  "schema": "ddn.dotbogi.case.v1",
+  "input": {
+    "schema": "dotbogi.input.v1",
+    "madi": 20,
+    "state": {
+      "player": {
+        "hp": 70,
+        "mp": 15
+      },
+      "inventory": {
+        "potion": 2,
+        "key": 1
+      }
+    },
+    "view_meta": {
+      "panel": "inventory"
+    },
+    "obs_manifest": {
+      "version": 1
+    }
+  },
+  "dotbogi": {
+    "view_meta": {
+      "layout": "inventory",
+      "focus": "potion"
+    },
+    "events": [
+      {
+        "type": "아이템사용",
+        "item_id": "potion"
+      }
+    ]
+  },
+  "roundtrip": {
+    "event_rules": [
+      {
+        "event_type": "아이템사용",
+        "ops": [
+          {
+            "path": "player.hp",
+            "op": "add",
+            "value": 20
+          },
+          {
+            "path": "inventory.potion",
+            "op": "add",
+            "value": -1
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -85,8 +85,13 @@ pub fn run_parity(
 
     let eval_report_path = bundle_in.join("eval_report.detjson");
     if eval_report_path.exists() {
-        let eval_report = fs::read_to_string(&eval_report_path)
-            .map_err(|e| format!("E_BUNDLE_EVAL_REPORT_READ {} {}", eval_report_path.display(), e))?;
+        let eval_report = fs::read_to_string(&eval_report_path).map_err(|e| {
+            format!(
+                "E_BUNDLE_EVAL_REPORT_READ {} {}",
+                eval_report_path.display(),
+                e
+            )
+        })?;
         let eval_hash = format!("sha256:{}", sha256_hex(eval_report.as_bytes()));
         if let Some(expected) = &manifest.eval_report_hash {
             if expected != &eval_hash {
@@ -141,7 +146,10 @@ pub fn run_parity(
     let out_dir = resolve_out_dir(out_dir);
     fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
     write_text(&out_dir.join("outputs.detjson"), &outputs_text)?;
-    write_text(&out_dir.join("outputs_hash.txt"), &format!("{}\n", outputs_hash))?;
+    write_text(
+        &out_dir.join("outputs_hash.txt"),
+        &format!("{}\n", outputs_hash),
+    )?;
 
     println!("{}", outputs_text);
     println!("outputs_hash={}", outputs_hash);
@@ -222,10 +230,7 @@ fn read_hash_file(path: &Path) -> Result<String, String> {
         break;
     }
     let Some(value) = value else {
-        return Err(format!(
-            "E_BUNDLE_WASM_HASH_EMPTY {}",
-            path.display()
-        ));
+        return Err(format!("E_BUNDLE_WASM_HASH_EMPTY {}", path.display()));
     };
     if !value.starts_with("sha256:") {
         return Err(format!(
@@ -279,7 +284,11 @@ fn run_inference(model: &MlpModel, activation: &str, input: &[i64], weights: &[i
         let bias = weights[offset] as i64;
         offset += 1;
         acc = acc.saturating_add(bias);
-        hidden[h] = if activation == "relu" && acc < 0 { 0 } else { acc };
+        hidden[h] = if activation == "relu" && acc < 0 {
+            0
+        } else {
+            acc
+        };
     }
 
     let mut output = vec![0i64; model.output_size];
@@ -309,9 +318,7 @@ fn build_outputs(model_hash: &str, outputs: &[Vec<i64>]) -> String {
     );
     let items = outputs
         .iter()
-        .map(|row| {
-            JsonValue::Array(row.iter().map(|v| JsonValue::Number((*v).into())).collect())
-        })
+        .map(|row| JsonValue::Array(row.iter().map(|v| JsonValue::Number((*v).into())).collect()))
         .collect::<Vec<_>>();
     map.insert("outputs".to_string(), JsonValue::Array(items));
     JsonValue::Object(map).to_string()

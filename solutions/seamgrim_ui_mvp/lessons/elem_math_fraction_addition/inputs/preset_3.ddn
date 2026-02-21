@@ -1,14 +1,18 @@
 #이름: elem_math_fraction_addition_variant_분수 더하기
 #설명: y = x/6 + 1/2
 
-x_min <- 0.0.
-x_max <- 12.0.
-dx <- 2.0.
+(매마디)마다 {
+  x_min <- 0.0.
+  x_max <- 12.0.
+  dx <- 2.0.
 
-x목록 <- (x_min, x_max, dx) 범위.
+  x목록 <- (x_min, x_max, dx) 범위.
 
-(x) x목록에 대해: {
-  y <- x / 6 + 1 / 2.
-  x 보여주기.
-  y 보여주기.
+  (x) x목록에 대해: {
+    y <- x / 6 + 1 / 2.
+    보임 {
+      x: x.
+      y: y.
+    }.
+  }.
 }.

@@ -32,11 +32,7 @@ impl UnitDim {
     }
 
     pub fn is_dimensionless(self) -> bool {
-        self.length == 0
-            && self.time == 0
-            && self.mass == 0
-            && self.angle == 0
-            && self.pixel == 0
+        self.length == 0 && self.time == 0 && self.mass == 0 && self.angle == 0 && self.pixel == 0
     }
 
     pub fn add(self, other: Self) -> Self {

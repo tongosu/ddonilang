@@ -1,21 +1,26 @@
 #이름: P012-04 도플러 효과 f'(v_s)
 #설명: 음속 c, 원래 주파수 f에서, 소스가 관측자 쪽으로 속도 v_s로 이동하면 f' = f * c/(c - v_s).
 #      v_s가 음속에 가까워지면 주파수는 급격히 커진다. (v_s, f') 출력.
-// 출력은 숫자만. (v_s, f_prime) 순서.
 
-c <- 340.0.    // m/s
-f <- 440.0.    // Hz (A4)
+(매마디)마다 {
+  // 출력은 숫자만. (v_s, f_prime) 순서.
 
-vs_min <- -100.0.
-vs_max <- 100.0.
-dvs <- 1.0.
+  c <- 340.0.    // m/s
+  f <- 440.0.    // Hz (A4)
 
-vs목록 <- (vs_min, vs_max, dvs) 범위.
+  vs_min <- -100.0.
+  vs_max <- 100.0.
+  dvs <- 1.0.
 
-(vs) vs목록에 대해: {
-  denom <- c - vs.
-  f_prime <- f * (c / denom).
+  vs목록 <- (vs_min, vs_max, dvs) 범위.
 
-  vs 보여주기.
-  f_prime 보여주기.
+  (vs) vs목록에 대해: {
+    denom <- c - vs.
+    f_prime <- f * (c / denom).
+
+    보임 {
+      vs: vs.
+      f_prime: f_prime.
+    }.
+  }.
 }.

@@ -81,7 +81,12 @@ fn canonicalize_stmt(stmt: &mut Stmt, warnings: &mut Vec<LintWarning>) -> Result
         Stmt::MetaBlock { .. } => {}
         Stmt::Pragma { .. } => {}
         Stmt::Return { value, .. } => canonicalize_expr(value, warnings)?,
-        Stmt::If { condition, then_body, else_body, .. } => {
+        Stmt::If {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => {
             canonicalize_expr(condition, warnings)?;
             canonicalize_body(then_body, warnings)?;
             if let Some(body) = else_body {
@@ -92,7 +97,11 @@ fn canonicalize_stmt(stmt: &mut Stmt, warnings: &mut Vec<LintWarning>) -> Result
             canonicalize_expr(action, warnings)?;
             canonicalize_body(body, warnings)?;
         }
-        Stmt::Choose { branches, else_body, .. } => {
+        Stmt::Choose {
+            branches,
+            else_body,
+            ..
+        } => {
             for branch in branches {
                 canonicalize_expr(&mut branch.condition, warnings)?;
                 canonicalize_body(&mut branch.body, warnings)?;
@@ -102,11 +111,20 @@ fn canonicalize_stmt(stmt: &mut Stmt, warnings: &mut Vec<LintWarning>) -> Result
         Stmt::Repeat { body, .. } => {
             canonicalize_body(body, warnings)?;
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             canonicalize_expr(condition, warnings)?;
             canonicalize_body(body, warnings)?;
         }
-        Stmt::ForEach { item, item_type, iterable, body, span, .. } => {
+        Stmt::ForEach {
+            item,
+            item_type,
+            iterable,
+            body,
+            span,
+            ..
+        } => {
             canonicalize_ident(item, *span, warnings)?;
             if let Some(type_ref) = item_type.as_mut() {
                 canonicalize_type_ref(type_ref, *span, warnings)?;
@@ -115,14 +133,21 @@ fn canonicalize_stmt(stmt: &mut Stmt, warnings: &mut Vec<LintWarning>) -> Result
             canonicalize_body(body, warnings)?;
         }
         Stmt::Break { .. } => {}
-        Stmt::Contract { condition, then_body, else_body, .. } => {
+        Stmt::Contract {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => {
             canonicalize_expr(condition, warnings)?;
             if let Some(body) = then_body {
                 canonicalize_body(body, warnings)?;
             }
             canonicalize_body(else_body, warnings)?;
         }
-        Stmt::Guard { condition, body, .. } => {
+        Stmt::Guard {
+            condition, body, ..
+        } => {
             canonicalize_expr(condition, warnings)?;
             canonicalize_body(body, warnings)?;
         }
@@ -295,7 +320,12 @@ fn lint_tailless_body(
             Stmt::Return { value, .. } => {
                 lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
-            Stmt::If { condition, then_body, else_body, .. } => {
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
                 lint_tailless_body(then_body, known_seeds, stdlib_names, warnings);
                 if let Some(body) = else_body {
@@ -306,15 +336,23 @@ fn lint_tailless_body(
                 lint_tailless_expr(action, known_seeds, stdlib_names, warnings);
                 lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
-            Stmt::Choose { branches, else_body, .. } => {
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
                 for branch in branches {
                     lint_tailless_expr(&branch.condition, known_seeds, stdlib_names, warnings);
                     lint_tailless_body(&branch.body, known_seeds, stdlib_names, warnings);
                 }
                 lint_tailless_body(else_body, known_seeds, stdlib_names, warnings);
             }
-            Stmt::Repeat { body, .. } => lint_tailless_body(body, known_seeds, stdlib_names, warnings),
-            Stmt::While { condition, body, .. } => {
+            Stmt::Repeat { body, .. } => {
+                lint_tailless_body(body, known_seeds, stdlib_names, warnings)
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
                 lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
                 lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
@@ -322,14 +360,21 @@ fn lint_tailless_body(
                 lint_tailless_expr(iterable, known_seeds, stdlib_names, warnings);
                 lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
-            Stmt::Contract { condition, then_body, else_body, .. } => {
+            Stmt::Contract {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
                 if let Some(body) = then_body {
                     lint_tailless_body(body, known_seeds, stdlib_names, warnings);
                 }
                 lint_tailless_body(else_body, known_seeds, stdlib_names, warnings);
             }
-            Stmt::Guard { condition, body, .. } => {
+            Stmt::Guard {
+                condition, body, ..
+            } => {
                 lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
                 lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
@@ -346,10 +391,7 @@ fn lint_tailless_expr(
 ) {
     match &expr.kind {
         ExprKind::Call { args, func } => {
-            if known_seeds.contains(func)
-                && !stdlib_names.contains(func)
-                && !has_call_tail(func)
-            {
+            if known_seeds.contains(func) && !stdlib_names.contains(func) && !has_call_tail(func) {
                 warnings.push(LintWarning {
                     code: "E_CALL_TAIL_MISSING_AFTER_ARGS",
                     span: expr.span,
@@ -370,10 +412,16 @@ fn lint_tailless_expr(
             lint_tailless_expr(left, known_seeds, stdlib_names, warnings);
             lint_tailless_expr(right, known_seeds, stdlib_names, warnings);
         }
-        ExprKind::Suffix { value, .. } => lint_tailless_expr(value, known_seeds, stdlib_names, warnings),
+        ExprKind::Suffix { value, .. } => {
+            lint_tailless_expr(value, known_seeds, stdlib_names, warnings)
+        }
         ExprKind::Thunk(body) => lint_tailless_body(body, known_seeds, stdlib_names, warnings),
-        ExprKind::Eval { thunk, .. } => lint_tailless_expr(thunk, known_seeds, stdlib_names, warnings),
-        ExprKind::SeedLiteral { body, .. } => lint_tailless_expr(body, known_seeds, stdlib_names, warnings),
+        ExprKind::Eval { thunk, .. } => {
+            lint_tailless_expr(thunk, known_seeds, stdlib_names, warnings)
+        }
+        ExprKind::SeedLiteral { body, .. } => {
+            lint_tailless_expr(body, known_seeds, stdlib_names, warnings)
+        }
         ExprKind::Pipe { stages } => {
             for stage in stages {
                 lint_tailless_expr(stage, known_seeds, stdlib_names, warnings);
@@ -394,8 +442,14 @@ fn lint_tailless_expr(
                 lint_tailless_expr(value, known_seeds, stdlib_names, warnings);
             }
         }
-        ExprKind::Nuance { expr, .. } => lint_tailless_expr(expr, known_seeds, stdlib_names, warnings),
-        ExprKind::Literal(_) | ExprKind::Var(_) | ExprKind::FlowValue | ExprKind::Formula(_) | ExprKind::Template(_) => {}
+        ExprKind::Nuance { expr, .. } => {
+            lint_tailless_expr(expr, known_seeds, stdlib_names, warnings)
+        }
+        ExprKind::Literal(_)
+        | ExprKind::Var(_)
+        | ExprKind::FlowValue
+        | ExprKind::Formula(_)
+        | ExprKind::Template(_) => {}
     }
 }
 

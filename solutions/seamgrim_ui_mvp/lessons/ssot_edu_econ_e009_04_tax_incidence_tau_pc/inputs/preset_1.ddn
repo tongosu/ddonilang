@@ -1,25 +1,29 @@
 #이름: ssot_edu_econ_e009_04_tax_incidence_tau_pc_variant_E009-04 단위세 τ 변화에 따른 소비자 가격 p_c
 #설명: 단위세 τ에서 p_c = p_p + τ, qd(p_c)=qs(p_p)로부터 p_c(τ) 계산. (τ,p_c) 출력.
 
-a <- 100.
-b <- 2.
-c <- -20.
-d <- 1.5.
+(매마디)마다 {
+  a <- 100.
+  b <- 2.
+  c <- -20.
+  d <- 1.5.
 
-tau_min <- 0.
-tau_max <- 40.
-dtau <- 1.
+  tau_min <- 0.
+  tau_max <- 40.
+  dtau <- 1.
 
-tau목록 <- (tau_min, tau_max, dtau) 범위.
+  tau목록 <- (tau_min, tau_max, dtau) 범위.
 
-(tau) tau목록에 대해: {
-  분모 <- b + d.
-  p_p <- (a - c - (b * tau)) / 분모.
-  { p_p < 0 }인것 일때 {
-    p_p <- 0.
+  (tau) tau목록에 대해: {
+    분모 <- b + d.
+    p_p <- (a - c - (b * tau)) / 분모.
+    { p_p < 0 }인것 일때 {
+      p_p <- 0.
+    }.
+    p_c <- p_p + tau.
+
+    보임 {
+      tau: tau.
+      p_c: p_c.
+    }.
   }.
-  p_c <- p_p + tau.
-
-  tau 보여주기.
-  p_c 보여주기.
 }.

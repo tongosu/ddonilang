@@ -50,10 +50,11 @@ impl ColorNamePack {
             path: path.to_path_buf(),
             message: e.to_string(),
         })?;
-        let json: JsonValue = serde_json::from_str(&raw).map_err(|e| BogaeError::ColorPackLoad {
-            path: path.to_path_buf(),
-            message: e.to_string(),
-        })?;
+        let json: JsonValue =
+            serde_json::from_str(&raw).map_err(|e| BogaeError::ColorPackLoad {
+                path: path.to_path_buf(),
+                message: e.to_string(),
+            })?;
         let entries = json
             .get("entries")
             .and_then(|value| value.as_array())
@@ -124,8 +125,18 @@ pub struct CmdPolicyEvent {
 
 #[derive(Clone, Debug)]
 pub enum BogaeCmd {
-    Clear { color: Rgba, aa: bool },
-    RectFill { x: f32, y: f32, w: f32, h: f32, color: Rgba, aa: bool },
+    Clear {
+        color: Rgba,
+        aa: bool,
+    },
+    RectFill {
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        color: Rgba,
+        aa: bool,
+    },
     RectStroke {
         x: f32,
         y: f32,
@@ -210,16 +221,52 @@ pub struct AssetRefV1 {
 
 #[derive(Debug)]
 pub enum BogaeError {
-    NonIntPixel { field: String, value: Fixed64 },
-    BadFieldType { field: String, expected: &'static str },
-    MissingField { field: String },
-    ColorPackLoad { path: PathBuf, message: String },
-    ColorPackNotFound { tried: Vec<PathBuf> },
-    InvalidColorHex { value: String },
-    UnknownColorName { value: String },
-    DetbinParse { message: String },
-    Bdl2Parse { code: &'static str, message: String },
-    CmdCap { cap: u32, cmd_count: u32 },
+    NonIntPixel {
+        field: String,
+        value: Fixed64,
+    },
+    BadFieldType {
+        field: String,
+        expected: &'static str,
+    },
+    MissingField {
+        field: String,
+    },
+    ItemKindInvalid {
+        field: String,
+        kind: String,
+    },
+    ItemFieldMissing {
+        field: String,
+    },
+    ChannelTypeInvalid {
+        channel: String,
+        expected: &'static str,
+    },
+    ColorPackLoad {
+        path: PathBuf,
+        message: String,
+    },
+    ColorPackNotFound {
+        tried: Vec<PathBuf>,
+    },
+    InvalidColorHex {
+        value: String,
+    },
+    UnknownColorName {
+        value: String,
+    },
+    DetbinParse {
+        message: String,
+    },
+    Bdl2Parse {
+        code: &'static str,
+        message: String,
+    },
+    CmdCap {
+        cap: u32,
+        cmd_count: u32,
+    },
 }
 
 impl BogaeError {
@@ -228,6 +275,9 @@ impl BogaeError {
             BogaeError::NonIntPixel { .. } => "E_BOGAE_NON_INT_PIXEL",
             BogaeError::BadFieldType { .. } => "E_BOGAE_BAD_FIELD_TYPE",
             BogaeError::MissingField { .. } => "E_BOGAE_MISSING_FIELD",
+            BogaeError::ItemKindInvalid { .. } => "E_BOGAE_ITEM_KIND_INVALID",
+            BogaeError::ItemFieldMissing { .. } => "E_BOGAE_ITEM_FIELD_MISSING",
+            BogaeError::ChannelTypeInvalid { .. } => "E_BOGAE_CHANNEL_TYPE_INVALID",
             BogaeError::ColorPackLoad { .. } => "E_BOGAE_COLOR_PACK_LOAD",
             BogaeError::ColorPackNotFound { .. } => "E_BOGAE_COLOR_PACK_MISSING",
             BogaeError::InvalidColorHex { .. } => "E_BOGAE_COLOR_INVALID",
@@ -244,10 +294,25 @@ impl BogaeError {
                 format!("픽셀 필드는 정수여야 합니다: {}={}", field, value.format())
             }
             BogaeError::BadFieldType { field, expected } => {
-                format!("보개 필드 타입이 맞지 않습니다: {} ({} 필요)", field, expected)
+                format!(
+                    "보개 필드 타입이 맞지 않습니다: {} ({} 필요)",
+                    field, expected
+                )
             }
             BogaeError::MissingField { field } => {
                 format!("보개 필드가 없습니다: {}", field)
+            }
+            BogaeError::ItemKindInvalid { field, kind } => {
+                format!("보개 항목 종류가 올바르지 않습니다: {}={}", field, kind)
+            }
+            BogaeError::ItemFieldMissing { field } => {
+                format!("보개 항목 필수 필드가 없습니다: {}", field)
+            }
+            BogaeError::ChannelTypeInvalid { channel, expected } => {
+                format!(
+                    "보개 채널 타입이 올바르지 않습니다: {} ({} 필요)",
+                    channel, expected
+                )
             }
             BogaeError::ColorPackLoad { path, message } => {
                 format!("색 이름팩 로드 실패: {} ({})", path.display(), message)
@@ -271,7 +336,10 @@ impl BogaeError {
             }
             BogaeError::Bdl2Parse { message, .. } => message.clone(),
             BogaeError::CmdCap { cap, cmd_count } => {
-                format!("보개 cmd_count 상한 초과 cmd_count={} cap={}", cmd_count, cap)
+                format!(
+                    "보개 cmd_count 상한 초과 cmd_count={} cap={}",
+                    cmd_count, cap
+                )
             }
         }
     }
@@ -486,9 +554,11 @@ fn collect_draw_entries(
         if is_rect_trait(&trait_id) {
             let rect_key = shape_key(entity_id, "네모");
             let rect_key_alias = shape_key_alias(entity_id, "네모");
-            let rect_pack = read_pack_with_alias(state, &rect_key, &rect_key_alias)?
-                .ok_or_else(|| BogaeError::MissingField {
-                    field: rect_key.clone(),
+            let rect_pack =
+                read_pack_with_alias(state, &rect_key, &rect_key_alias)?.ok_or_else(|| {
+                    BogaeError::MissingField {
+                        field: rect_key.clone(),
+                    }
                 })?;
             let x = read_pack_pixel_i32(rect_pack, "x", &format!("{rect_key}.x"))?;
             let y = read_pack_pixel_i32(rect_pack, "y", &format!("{rect_key}.y"))?;
@@ -519,9 +589,11 @@ fn collect_draw_entries(
         if is_text_trait(&trait_id) {
             let text_key = shape_key(entity_id, "글씨");
             let text_key_alias = shape_key_alias(entity_id, "글씨");
-            let text_pack = read_pack_with_alias(state, &text_key, &text_key_alias)?
-                .ok_or_else(|| BogaeError::MissingField {
-                    field: text_key.clone(),
+            let text_pack =
+                read_pack_with_alias(state, &text_key, &text_key_alias)?.ok_or_else(|| {
+                    BogaeError::MissingField {
+                        field: text_key.clone(),
+                    }
                 })?;
             let x = read_pack_pixel_i32(text_pack, "x", &format!("{text_key}.x"))?;
             let y = read_pack_pixel_i32(text_pack, "y", &format!("{text_key}.y"))?;
@@ -601,7 +673,7 @@ fn collect_draw_entries_from_list(
     state: &State,
     pack: Option<&ColorNamePack>,
 ) -> Result<Vec<DrawEntry>, BogaeError> {
-    let Some(list) = read_list(state, DRAWLIST_LIST_CANON)? else {
+    let Some(list) = read_list_channel(state, DRAWLIST_LIST_CANON)? else {
         return Ok(Vec::new());
     };
     let mut entries = Vec::new();
@@ -625,24 +697,22 @@ fn collect_draw_entries_from_list(
         {
             value
         } else {
-            return Err(BogaeError::MissingField {
+            return Err(BogaeError::ItemFieldMissing {
                 field: format!("{entry_ref}.결"),
             });
         };
         let trait_id = trait_id.trim().to_string();
-        let entity_id =
-            read_pack_string_optional(pack_value, "id", &format!("{entry_ref}.id"))?
-                .unwrap_or_else(|| format!("목록.{:06}", idx));
-        let z_order =
-            read_pack_pixel_i32_optional(pack_value, "겹", &format!("{entry_ref}.겹"))?
-                .unwrap_or(0);
+        let entity_id = read_pack_string_optional(pack_value, "id", &format!("{entry_ref}.id"))?
+            .unwrap_or_else(|| format!("목록.{:06}", idx));
+        let z_order = read_pack_pixel_i32_optional(pack_value, "겹", &format!("{entry_ref}.겹"))?
+            .unwrap_or(0);
 
         if is_rect_trait(&trait_id) {
-            let x = read_pack_pixel_i32(pack_value, "x", &format!("{entry_ref}.x"))?;
-            let y = read_pack_pixel_i32(pack_value, "y", &format!("{entry_ref}.y"))?;
-            let w = read_pack_pixel_i32(pack_value, "w", &format!("{entry_ref}.w"))?;
-            let h = read_pack_pixel_i32(pack_value, "h", &format!("{entry_ref}.h"))?;
-            let color = read_pack_color(pack_value, &entry_ref, pack)?;
+            let x = read_pack_pixel_i32_item(pack_value, "x", &format!("{entry_ref}.x"))?;
+            let y = read_pack_pixel_i32_item(pack_value, "y", &format!("{entry_ref}.y"))?;
+            let w = read_pack_pixel_i32_item(pack_value, "w", &format!("{entry_ref}.w"))?;
+            let h = read_pack_pixel_i32_item(pack_value, "h", &format!("{entry_ref}.h"))?;
+            let color = read_pack_color_item(pack_value, &entry_ref, pack)?;
             entries.push(DrawEntry {
                 entity_id,
                 trait_id,
@@ -665,15 +735,15 @@ fn collect_draw_entries_from_list(
         }
 
         if is_text_trait(&trait_id) {
-            let x = read_pack_pixel_i32(pack_value, "x", &format!("{entry_ref}.x"))?;
-            let y = read_pack_pixel_i32(pack_value, "y", &format!("{entry_ref}.y"))?;
+            let x = read_pack_pixel_i32_item(pack_value, "x", &format!("{entry_ref}.x"))?;
+            let y = read_pack_pixel_i32_item(pack_value, "y", &format!("{entry_ref}.y"))?;
             let size = if pack_value.fields.contains_key("size") {
-                read_pack_pixel_i32(pack_value, "size", &format!("{entry_ref}.size"))?
+                read_pack_pixel_i32_item(pack_value, "size", &format!("{entry_ref}.size"))?
             } else {
-                read_pack_pixel_i32(pack_value, "size_px", &format!("{entry_ref}.size_px"))?
+                read_pack_pixel_i32_item(pack_value, "size_px", &format!("{entry_ref}.size_px"))?
             };
-            let text = read_pack_string(pack_value, "text", &format!("{entry_ref}.text"))?;
-            let color = read_pack_color(pack_value, &entry_ref, pack)?;
+            let text = read_pack_string_item(pack_value, "text", &format!("{entry_ref}.text"))?;
+            let color = read_pack_color_item(pack_value, &entry_ref, pack)?;
             entries.push(DrawEntry {
                 entity_id,
                 trait_id,
@@ -699,12 +769,12 @@ fn collect_draw_entries_from_list(
         }
 
         if is_sprite_trait(&trait_id) {
-            let x = read_pack_pixel_i32(pack_value, "x", &format!("{entry_ref}.x"))?;
-            let y = read_pack_pixel_i32(pack_value, "y", &format!("{entry_ref}.y"))?;
-            let w = read_pack_pixel_i32(pack_value, "w", &format!("{entry_ref}.w"))?;
-            let h = read_pack_pixel_i32(pack_value, "h", &format!("{entry_ref}.h"))?;
-            let uri = read_pack_string(pack_value, "uri", &format!("{entry_ref}.uri"))?;
-            let tint = read_pack_color(pack_value, &entry_ref, pack)?;
+            let x = read_pack_pixel_i32_item(pack_value, "x", &format!("{entry_ref}.x"))?;
+            let y = read_pack_pixel_i32_item(pack_value, "y", &format!("{entry_ref}.y"))?;
+            let w = read_pack_pixel_i32_item(pack_value, "w", &format!("{entry_ref}.w"))?;
+            let h = read_pack_pixel_i32_item(pack_value, "h", &format!("{entry_ref}.h"))?;
+            let uri = read_pack_string_item(pack_value, "uri", &format!("{entry_ref}.uri"))?;
+            let tint = read_pack_color_item(pack_value, &entry_ref, pack)?;
             entries.push(DrawEntry {
                 entity_id,
                 trait_id,
@@ -728,7 +798,12 @@ fn collect_draw_entries_from_list(
                     aa: false,
                 },
             });
+            continue;
         }
+        return Err(BogaeError::ItemKindInvalid {
+            field: format!("{entry_ref}.결"),
+            kind: trait_id,
+        });
     }
     Ok(entries)
 }
@@ -737,10 +812,10 @@ fn collect_draw_entries_from_mapping(
     state: &State,
     pack: Option<&ColorNamePack>,
 ) -> Result<Vec<DrawEntry>, BogaeError> {
-    let Some(rule_list) = read_list(state, MAPPING_LIST_CANON)? else {
+    let Some(rule_list) = read_list_channel(state, MAPPING_LIST_CANON)? else {
         return Ok(Vec::new());
     };
-    let Some(tag_list) = read_list(state, TAG_LIST_CANON)? else {
+    let Some(tag_list) = read_list_channel(state, TAG_LIST_CANON)? else {
         return Ok(Vec::new());
     };
 
@@ -824,9 +899,7 @@ fn collect_draw_entries_from_mapping(
                     .unwrap_or(0);
             let entity_id = format!(
                 "매핑.{:06}.{:06}.{:06}",
-                rule.rule_id as usize,
-                rule.idx,
-                tag_idx
+                rule.rule_id as usize, rule.idx, tag_idx
             );
             let kind = rule.kind.trim().to_lowercase();
             if kind == "rect" {
@@ -911,9 +984,9 @@ fn collect_draw_entries_from_mapping(
                     },
                 });
             } else {
-                return Err(BogaeError::BadFieldType {
+                return Err(BogaeError::ItemKindInvalid {
                     field: format!("{entry_ref}.kind"),
-                    expected: "rect/text/sprite",
+                    kind,
                 });
             }
         }
@@ -1057,8 +1130,9 @@ fn apply_cmd_policy(
 pub fn canonicalize_color(value: &str, pack: Option<&ColorNamePack>) -> Result<Rgba, BogaeError> {
     let trimmed = value.trim();
     if trimmed.starts_with('#') {
-        return parse_hex_color(trimmed)
-            .ok_or_else(|| BogaeError::InvalidColorHex { value: trimmed.to_string() });
+        return parse_hex_color(trimmed).ok_or_else(|| BogaeError::InvalidColorHex {
+            value: trimmed.to_string(),
+        });
     }
     let Some(pack) = pack else {
         return Err(BogaeError::ColorPackNotFound {
@@ -1085,7 +1159,9 @@ pub fn encode_drawlist_detbin(drawlist: &BogaeDrawListV1) -> Vec<u8> {
                 out.push(0x01);
                 push_rgba(&mut out, *color);
             }
-            BogaeCmd::RectFill { x, y, w, h, color, .. } => {
+            BogaeCmd::RectFill {
+                x, y, w, h, color, ..
+            } => {
                 out.push(0x02);
                 push_i32(&mut out, round_f32_to_i32(*x));
                 push_i32(&mut out, round_f32_to_i32(*y));
@@ -1167,7 +1243,9 @@ pub fn encode_drawlist_detbin(drawlist: &BogaeDrawListV1) -> Vec<u8> {
                     }
                 }
             }
-            BogaeCmd::CircleFill { cx, cy, r, color, .. } => {
+            BogaeCmd::CircleFill {
+                cx, cy, r, color, ..
+            } => {
                 out.push(0x02);
                 let cx = round_f32_to_i32(*cx);
                 let cy = round_f32_to_i32(*cy);
@@ -1265,7 +1343,14 @@ pub fn encode_drawlist_detbin_bdl2(drawlist: &BogaeDrawListV1) -> Vec<u8> {
                 out.push(if *aa { 0x01 } else { 0x00 });
                 push_rgba(&mut out, *color);
             }
-            BogaeCmd::RectFill { x, y, w, h, color, aa } => {
+            BogaeCmd::RectFill {
+                x,
+                y,
+                w,
+                h,
+                color,
+                aa,
+            } => {
                 out.push(0x02);
                 out.push(if *aa { 0x01 } else { 0x00 });
                 push_q24_8(&mut out, *x);
@@ -1352,7 +1437,13 @@ pub fn encode_drawlist_detbin_bdl2(drawlist: &BogaeDrawListV1) -> Vec<u8> {
                     }
                 }
             }
-            BogaeCmd::CircleFill { cx, cy, r, color, aa } => {
+            BogaeCmd::CircleFill {
+                cx,
+                cy,
+                r,
+                color,
+                aa,
+            } => {
                 out.push(0x07);
                 out.push(if *aa { 0x01 } else { 0x00 });
                 push_q24_8(&mut out, *cx);
@@ -1625,7 +1716,14 @@ pub fn decode_drawlist_detbin_bdl2(bytes: &[u8]) -> Result<BogaeDrawListV1, Boga
                 let w = read_q24_8_f32(bytes, &mut idx, "w")?;
                 let h = read_q24_8_f32(bytes, &mut idx, "h")?;
                 let color = read_rgba_bdl2(bytes, &mut idx)?;
-                BogaeCmd::RectFill { x, y, w, h, color, aa }
+                BogaeCmd::RectFill {
+                    x,
+                    y,
+                    w,
+                    h,
+                    color,
+                    aa,
+                }
             }
             0x03 => {
                 let x = read_q24_8_f32(bytes, &mut idx, "x")?;
@@ -1708,7 +1806,13 @@ pub fn decode_drawlist_detbin_bdl2(bytes: &[u8]) -> Result<BogaeDrawListV1, Boga
                 let cy = read_q24_8_f32(bytes, &mut idx, "cy")?;
                 let r = read_q24_8_f32(bytes, &mut idx, "r")?;
                 let color = read_rgba_bdl2(bytes, &mut idx)?;
-                BogaeCmd::CircleFill { cx, cy, r, color, aa }
+                BogaeCmd::CircleFill {
+                    cx,
+                    cy,
+                    r,
+                    color,
+                    aa,
+                }
             }
             0x08 => {
                 let cx = read_q24_8_f32(bytes, &mut idx, "cx")?;
@@ -1840,23 +1944,50 @@ fn read_pack<'a>(state: &'a State, key: &str) -> Result<Option<&'a PackValue>, B
     }
 }
 
-fn read_list<'a>(state: &'a State, key: &str) -> Result<Option<&'a ListValue>, BogaeError> {
+fn read_list_channel<'a>(state: &'a State, key: &str) -> Result<Option<&'a ListValue>, BogaeError> {
     let value = state.resources.get(&Key::new(key));
     match value {
         None => Ok(None),
         Some(Value::List(list)) => Ok(Some(list)),
-        Some(_) => Err(BogaeError::BadFieldType {
-            field: key.to_string(),
+        Some(_) => Err(BogaeError::ChannelTypeInvalid {
+            channel: key.to_string(),
             expected: "목록",
         }),
     }
 }
 
-fn read_pack_pixel_i32(
+fn promote_item_field_missing(err: BogaeError) -> BogaeError {
+    match err {
+        BogaeError::MissingField { field } => BogaeError::ItemFieldMissing { field },
+        other => other,
+    }
+}
+
+fn read_pack_pixel_i32_item(
     pack: &PackValue,
     field: &str,
     full_field: &str,
 ) -> Result<i32, BogaeError> {
+    read_pack_pixel_i32(pack, field, full_field).map_err(promote_item_field_missing)
+}
+
+fn read_pack_string_item(
+    pack: &PackValue,
+    field: &str,
+    full_field: &str,
+) -> Result<String, BogaeError> {
+    read_pack_string(pack, field, full_field).map_err(promote_item_field_missing)
+}
+
+fn read_pack_color_item(
+    pack_value: &PackValue,
+    entry_ref: &str,
+    pack: Option<&ColorNamePack>,
+) -> Result<Rgba, BogaeError> {
+    read_pack_color(pack_value, entry_ref, pack).map_err(promote_item_field_missing)
+}
+
+fn read_pack_pixel_i32(pack: &PackValue, field: &str, full_field: &str) -> Result<i32, BogaeError> {
     let value = pack
         .fields
         .get(field)
@@ -1877,11 +2008,7 @@ fn read_pack_pixel_i32_optional(
     value_to_pixel_i32(value, full_field).map(Some)
 }
 
-fn read_pack_string(
-    pack: &PackValue,
-    field: &str,
-    full_field: &str,
-) -> Result<String, BogaeError> {
+fn read_pack_string(pack: &PackValue, field: &str, full_field: &str) -> Result<String, BogaeError> {
     let value = pack
         .fields
         .get(field)
@@ -1962,7 +2089,10 @@ fn resolve_mapping_pixel(
                     field: format!("{}[{}].{}", TAG_LIST_CANON, tag_idx, tag_key),
                 });
             };
-            value_to_pixel_i32(tag_value, &format!("{}[{}].{}", TAG_LIST_CANON, tag_idx, tag_key))
+            value_to_pixel_i32(
+                tag_value,
+                &format!("{}[{}].{}", TAG_LIST_CANON, tag_idx, tag_key),
+            )
         }
         _ => Err(BogaeError::BadFieldType {
             field: format!("{entry_ref}.{field}"),
@@ -2046,7 +2176,9 @@ fn read_pack_color(
 ) -> Result<Rgba, BogaeError> {
     let candidates = ["채움색", "색"];
     for name in candidates {
-        if let Some(value) = read_pack_string_optional(pack_value, name, &format!("{entry_ref}.{name}"))? {
+        if let Some(value) =
+            read_pack_string_optional(pack_value, name, &format!("{entry_ref}.{name}"))?
+        {
             return canonicalize_color(&value, pack);
         }
     }
@@ -2168,11 +2300,7 @@ fn push_str(out: &mut Vec<u8>, text: &str) {
     out.extend_from_slice(bytes);
 }
 
-fn take_bytes<'a>(
-    bytes: &'a [u8],
-    idx: &mut usize,
-    len: usize,
-) -> Result<&'a [u8], BogaeError> {
+fn take_bytes<'a>(bytes: &'a [u8], idx: &mut usize, len: usize) -> Result<&'a [u8], BogaeError> {
     let end = idx.saturating_add(len);
     if end > bytes.len() {
         return Err(BogaeError::DetbinParse {

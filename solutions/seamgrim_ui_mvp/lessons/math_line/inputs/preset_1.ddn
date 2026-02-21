@@ -1,12 +1,21 @@
-﻿#이름: math_line_variant_lesson_math_line
-#설명: y = 2x + 1 직선
+#이름: math_line_variant_lesson_math_line
+#설명: y = a*x + b 직선 (완만한 기울기)
+#control: a:수=1.2 [-5..5] step=0.1; b:수=0.5 [-10..10] step=0.1; x_start:수=-6 [-20..20] step=0.5; x_end:수=6 [-20..20] step=0.5; dx:수=0.2 [0.05..2] step=0.05
 
-직선 = (#ascii1) 수식{ y = 2*x + 1 }.
+(매마디)마다 {
+  a <- 1.2.
+  b <- 0.5.
+  x_start <- -6.
+  x_end <- 6.
+  dx <- 0.2.
 
-x목록 <- (0, 4, 1) 범위.
-
-(x) x목록에 대해: {
-  y <- (x=x)인 직선 풀기.
-  x 보여주기.
-  y 보여주기.
+  x <- x_start.
+  { x <= x_end }인것 동안: {
+    y <- a * x + b.
+    보임 {
+      x: x.
+      y: y.
+    }.
+    x <- x + dx.
+  }.
 }.

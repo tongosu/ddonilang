@@ -1,15 +1,19 @@
 #이름: high_econ_interest_variant_high_econ_interest
 #설명: y = p + r t
 
-이자 = (#ascii1) 수식{ y = p + r t }.
+(매마디)마다 {
+  이자 = (#ascii1) 수식{ y = p + r t }.
 
-p <- 1.
-r <- 0.08.
+  p <- 1.
+  r <- 0.08.
 
-t목록 <- (0, 10, 1) 범위.
+  t목록 <- (0, 10, 1) 범위.
 
-(t) t목록에 대해: {
-  y <- (p=p, r=r, t=t)인 이자 풀기.
-  t 보여주기.
-  y 보여주기.
+  (t) t목록에 대해: {
+    y <- (p=p, r=r, t=t)인 이자 풀기.
+    보임 {
+      t: t.
+      y: y.
+    }.
+  }.
 }.

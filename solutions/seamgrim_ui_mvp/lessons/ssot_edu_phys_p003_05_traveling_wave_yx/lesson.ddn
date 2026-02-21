@@ -1,30 +1,34 @@
 #이름: P003-05 진행파 y-x
 #설명: 진행파(스냅샷): y(x)=A*sin(k*x - ω*t0) (출력: x y)
 
-// 출력은 숫자만. (x, y) 순서.
+(매마디)마다 {
+  // 출력은 숫자만. (x, y) 순서.
 
-살림.A <- 1.
-살림.lambda <- 4.
-살림.pi <- 3.1415926535.
-살림.omega <- 2.
-살림.t0 <- 0.
+  살림.A <- 1.
+  살림.lambda <- 4.
+  살림.pi <- 3.1415926535.
+  살림.omega <- 2.
+  살림.t0 <- 0.
 
-// k = 2π/λ
-살림.k <- (pi=살림.pi, lambda=살림.lambda) (#ascii) 수식{ 2*pi/lambda }.
+  // k = 2π/λ
+  살림.k <- (pi=살림.pi, lambda=살림.lambda) (#ascii) 수식{ 2*pi/lambda }.
 
-살림.x_min <- 0.
-살림.x_max <- 20.
-살림.dx <- 0.05.
+  살림.x_min <- 0.
+  살림.x_max <- 20.
+  살림.dx <- 0.05.
 
-살림.x <- 살림.x_min.
+  살림.x <- 살림.x_min.
 
-{ 살림.x <= 살림.x_max }인것 동안: {
-  살림.phase <- (k=살림.k, x=살림.x, omega=살림.omega, t0=살림.t0) (#ascii) 수식{ k*x - omega*t0 }.
-  살림.s <- (살림.phase) sin.
-  살림.y <- (A=살림.A, s=살림.s) (#ascii) 수식{ A*s }.
+  { 살림.x <= 살림.x_max }인것 동안: {
+    살림.phase <- (k=살림.k, x=살림.x, omega=살림.omega, t0=살림.t0) (#ascii) 수식{ k*x - omega*t0 }.
+    살림.s <- (살림.phase) sin.
+    살림.y <- (A=살림.A, s=살림.s) (#ascii) 수식{ A*s }.
 
-  살림.x 보여주기.
-  살림.y 보여주기.
+    보임 {
+      값1: 살림.x.
+      값2: 살림.y.
+    }.
 
-  살림.x <- 살림.x + 살림.dx.
+    살림.x <- 살림.x + 살림.dx.
+  }.
 }.

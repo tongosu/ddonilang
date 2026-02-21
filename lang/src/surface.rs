@@ -5,7 +5,9 @@ pub struct SurfaceError {
 
 impl SurfaceError {
     fn new(message: &str) -> Self {
-        Self { message: message.to_string() }
+        Self {
+            message: message.to_string(),
+        }
     }
 }
 

@@ -71,45 +71,21 @@ fn apply_keyboard_mask(state: &mut State, held: u16, pressed: u16, released: u16
         let held_on = if held & bit != 0 { 1 } else { 0 };
         let pressed_on = if pressed & bit != 0 { 1 } else { 0 };
         let released_on = if released & bit != 0 { 1 } else { 0 };
-        set_flag_number(
-            state,
-            format!("샘.키보드.누르고있음.{}", key),
-            held_on,
-        );
+        set_flag_number(state, format!("샘.키보드.누르고있음.{}", key), held_on);
         set_flag_number(state, format!("샘.키보드.눌림.{}", key), pressed_on);
         set_flag_number(state, format!("샘.키보드.뗌.{}", key), released_on);
 
-        set_flag_number(
-            state,
-            format!("입력상태.키_누르고있음.{}", key),
-            held_on,
-        );
-        set_flag_number(
-            state,
-            format!("입력상태.키_눌림.{}", key),
-            pressed_on,
-        );
+        set_flag_number(state, format!("입력상태.키_누르고있음.{}", key), held_on);
+        set_flag_number(state, format!("입력상태.키_눌림.{}", key), pressed_on);
         set_flag_number(state, format!("입력상태.키_뗌.{}", key), released_on);
 
         for alias in key_aliases(key) {
-            set_flag_number(
-                state,
-                format!("샘.키보드.누르고있음.{}", alias),
-                held_on,
-            );
+            set_flag_number(state, format!("샘.키보드.누르고있음.{}", alias), held_on);
             set_flag_number(state, format!("샘.키보드.눌림.{}", alias), pressed_on);
             set_flag_number(state, format!("샘.키보드.뗌.{}", alias), released_on);
 
-            set_flag_number(
-                state,
-                format!("입력상태.키_누르고있음.{}", alias),
-                held_on,
-            );
-            set_flag_number(
-                state,
-                format!("입력상태.키_눌림.{}", alias),
-                pressed_on,
-            );
+            set_flag_number(state, format!("입력상태.키_누르고있음.{}", alias), held_on);
+            set_flag_number(state, format!("입력상태.키_눌림.{}", alias), pressed_on);
             set_flag_number(state, format!("입력상태.키_뗌.{}", alias), released_on);
         }
     }
@@ -139,11 +115,7 @@ fn apply_net_events(state: &mut State, net_events: &[NetEventV1]) {
         "샘.네트워크.이벤트_개수".to_string(),
         net_events.len() as i64,
     );
-    set_flag_text(
-        state,
-        "샘.네트워크.이벤트_요약".to_string(),
-        summary,
-    );
+    set_flag_text(state, "샘.네트워크.이벤트_요약".to_string(), summary);
 }
 
 fn set_flag_number(state: &mut State, key: String, value: i64) {

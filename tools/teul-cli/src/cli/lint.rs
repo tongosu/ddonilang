@@ -82,16 +82,13 @@ pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), S
         let line_idx = token.span.start_line.saturating_sub(1);
         let start_col = token.span.start_col;
         let len = name.chars().count();
-        by_line
-            .entry(line_idx)
-            .or_default()
-            .push(Replacement {
-                start_col,
-                len,
-                old: term.input.to_string(),
-                new: term.canonical.to_string(),
-                code: term.code.to_string(),
-            });
+        by_line.entry(line_idx).or_default().push(Replacement {
+            start_col,
+            len,
+            old: term.input.to_string(),
+            new: term.canonical.to_string(),
+            code: term.code.to_string(),
+        });
     }
 
     let mut changes: Vec<serde_json::Value> = Vec::new();
@@ -120,12 +117,9 @@ pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), S
             ));
             continue;
         }
-        let Some(change) = apply_replacements(
-            &old_line,
-            &replacements,
-            line_idx + 1,
-            &mut warnings,
-        ) else {
+        let Some(change) =
+            apply_replacements(&old_line, &replacements, line_idx + 1, &mut warnings)
+        else {
             continue;
         };
         changes.push(json!({
@@ -240,7 +234,10 @@ fn is_setting_pragma_name(pragma_body: &str) -> bool {
         .split(|ch: char| ch == '(' || ch == ':' || ch.is_whitespace())
         .next()
         .unwrap_or("");
-    matches!(name, "그래프" | "조종" | "관찰" | "추적" | "설정" | "보개" | "슬기")
+    matches!(
+        name,
+        "그래프" | "조종" | "관찰" | "추적" | "설정" | "보개" | "슬기"
+    )
 }
 
 fn contains_ident_word(line: &str, word: &str) -> bool {
@@ -337,8 +334,12 @@ mod tests {
     fn i18n_warns_for_ay_xa_and_janiwa() {
         let src = "#말씨: ay\n값~xa <- 1.\njaniwa 조건.\n";
         let warnings = collect_i18n_warnings(src);
-        assert!(warnings.iter().any(|line| line.contains("I18N001_AMBIGUOUS_JOSA")));
-        assert!(warnings.iter().any(|line| line.contains("I18N002_SYM3_REQUIRED")));
+        assert!(warnings
+            .iter()
+            .any(|line| line.contains("I18N001_AMBIGUOUS_JOSA")));
+        assert!(warnings
+            .iter()
+            .any(|line| line.contains("I18N002_SYM3_REQUIRED")));
     }
 
     #[test]

@@ -1,7 +1,7 @@
+use crate::core::fixed64::Fixed64;
 use crate::lang::dialect::DialectConfig;
 use crate::lang::span::Span;
 use crate::lang::token::{Token, TokenKind};
-use crate::core::fixed64::Fixed64;
 
 #[derive(Debug)]
 pub enum LexError {
@@ -221,13 +221,19 @@ impl Lexer {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
                 self.advance();
-                Ok(Token::new(TokenKind::And, self.span_from(start_line, start_col)))
+                Ok(Token::new(
+                    TokenKind::And,
+                    self.span_from(start_line, start_col),
+                ))
             }
             '|' if self.peek_next() == Some('|') => {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
                 self.advance();
-                Ok(Token::new(TokenKind::Or, self.span_from(start_line, start_col)))
+                Ok(Token::new(
+                    TokenKind::Or,
+                    self.span_from(start_line, start_col),
+                ))
             }
             '|' => self.single_char(TokenKind::Pipe),
             '(' => self.single_char(TokenKind::LParen),
@@ -243,31 +249,46 @@ impl Lexer {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
                 self.advance();
-                Ok(Token::new(TokenKind::EqEq, self.span_from(start_line, start_col)))
+                Ok(Token::new(
+                    TokenKind::EqEq,
+                    self.span_from(start_line, start_col),
+                ))
             }
             '!' if self.peek_next() == Some('=') => {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
                 self.advance();
-                Ok(Token::new(TokenKind::NotEq, self.span_from(start_line, start_col)))
+                Ok(Token::new(
+                    TokenKind::NotEq,
+                    self.span_from(start_line, start_col),
+                ))
             }
             '<' if self.peek_next() == Some('=') => {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
                 self.advance();
-                Ok(Token::new(TokenKind::Lte, self.span_from(start_line, start_col)))
+                Ok(Token::new(
+                    TokenKind::Lte,
+                    self.span_from(start_line, start_col),
+                ))
             }
             '>' if self.peek_next() == Some('=') => {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
                 self.advance();
-                Ok(Token::new(TokenKind::Gte, self.span_from(start_line, start_col)))
+                Ok(Token::new(
+                    TokenKind::Gte,
+                    self.span_from(start_line, start_col),
+                ))
             }
             '<' if self.peek_next() == Some('-') => {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
                 self.advance();
-                Ok(Token::new(TokenKind::Arrow, self.span_from(start_line, start_col)))
+                Ok(Token::new(
+                    TokenKind::Arrow,
+                    self.span_from(start_line, start_col),
+                ))
             }
             '<' => self.single_char(TokenKind::Lt),
             '>' => self.single_char(TokenKind::Gt),
@@ -291,7 +312,10 @@ impl Lexer {
                     }
                 } else {
                     self.advance();
-                    Ok(Token::new(TokenKind::Dot, self.span_from(start_line, start_col)))
+                    Ok(Token::new(
+                        TokenKind::Dot,
+                        self.span_from(start_line, start_col),
+                    ))
                 }
             }
             ':' => self.single_char(TokenKind::Colon),
@@ -535,7 +559,10 @@ impl Lexer {
                 break;
             }
         }
-        Ok(Token::new(TokenKind::Ident(full_text), self.span_from(start_line, start_col)))
+        Ok(Token::new(
+            TokenKind::Ident(full_text),
+            self.span_from(start_line, start_col),
+        ))
     }
 
     fn classify_ident(&self, ident: String) -> TokenKind {
@@ -578,7 +605,10 @@ impl Lexer {
             if !self.match_str(token) {
                 continue;
             }
-            let canon = self.dialect.canonicalize_symbol(token).map(str::to_string)?;
+            let canon = self
+                .dialect
+                .canonicalize_symbol(token)
+                .map(str::to_string)?;
             self.advance_n(token.chars().count());
             let kind = self.classify_ident(canon);
             return Some(Token::new(kind, self.span_from(start_line, start_col)));
@@ -746,7 +776,10 @@ fn dedent_text(input: &str) -> String {
         if line.trim().is_empty() {
             continue;
         }
-        let indent = line.chars().take_while(|ch| *ch == ' ' || *ch == '\t').count();
+        let indent = line
+            .chars()
+            .take_while(|ch| *ch == ' ' || *ch == '\t')
+            .count();
         min_indent = Some(match min_indent {
             Some(value) => value.min(indent),
             None => indent,
@@ -828,9 +861,9 @@ mod tests {
     fn inline_hash_keeps_atom_token() {
         let source = "살림.x <- (#ascii) 수식{x+1}.\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let has_ascii_atom = tokens.iter().any(|token| {
-            matches!(&token.kind, TokenKind::Atom(text) if text == "#ascii")
-        });
+        let has_ascii_atom = tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Atom(text) if text == "#ascii"));
         assert!(has_ascii_atom, "expected #ascii atom token");
     }
 

@@ -43,7 +43,8 @@ pub struct CheckArgs {
 
 pub fn run(file: &Path, args: CheckArgs) -> Result<(), String> {
     let source = fs::read_to_string(file).map_err(|e| e.to_string())?;
-    let tokens = Lexer::tokenize(&source).map_err(|e| RunError::Lex(e).format(&file.display().to_string()))?;
+    let tokens = Lexer::tokenize(&source)
+        .map_err(|e| RunError::Lex(e).format(&file.display().to_string()))?;
     let default_root = Parser::default_root_for_source(&source);
     let program = Parser::parse_with_default_root(tokens, default_root)
         .map_err(|e| RunError::Parse(e).format(&file.display().to_string()))?;

@@ -494,6 +494,48 @@ def normalize_pow_half(input_text: str) -> str:
     return text
 
 
+def flatten_storage_blocks(input_text: str) -> str:
+    lines = input_text.splitlines()
+    out: list[str] = []
+    in_block = False
+    depth = 0
+    block_head = re.compile(r"^\s*(?:붙박이마련|그릇채비|채비)\s*:\s*\{\s*$")
+    decl = re.compile(
+        r"^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*:\s*[^.=<>]+(?:<-|=)\s*(.+?)\s*\.\s*$"
+    )
+
+    for line in lines:
+        stripped = line.strip()
+        if not in_block and block_head.match(line):
+            in_block = True
+            depth = 1
+            continue
+        if not in_block:
+            out.append(line)
+            continue
+
+        opens = line.count("{")
+        closes = line.count("}")
+        if opens:
+            depth += opens
+        if closes:
+            depth -= closes
+            if depth <= 0:
+                in_block = False
+                depth = 0
+                continue
+
+        if not stripped or stripped.startswith("//"):
+            continue
+        match = decl.match(line)
+        if not match:
+            continue
+        name = match.group(1)
+        expr = match.group(2).strip()
+        out.append(f"{name} <- {expr}.")
+    return "\n".join(out)
+
+
 def strip_draw_blocks(input_text: str) -> str:
     lines = input_text.splitlines()
     out: list[str] = []
@@ -521,6 +563,7 @@ def normalize_int_cast(input_text: str) -> str:
 
 def preprocess_ddn_for_teul(input_text: str, strip_draw: bool = True) -> str:
     text, _ = strip_bogae_scene_blocks(input_text)
+    text = flatten_storage_blocks(text)
     text = normalize_inline_calls(text)
     text = normalize_pow_half(text)
     if strip_draw:

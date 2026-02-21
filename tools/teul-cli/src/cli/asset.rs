@@ -81,8 +81,14 @@ fn build_manifest_text(entries: &[AssetEntry]) -> String {
     for (idx, entry) in entries.iter().enumerate() {
         out.push_str("    {\n");
         out.push_str(&format!("      \"id\": \"{}\",\n", escape_json(&entry.id)));
-        out.push_str(&format!("      \"path\": \"{}\",\n", escape_json(&entry.path)));
-        out.push_str(&format!("      \"name\": \"{}\"\n", escape_json(&entry.name)));
+        out.push_str(&format!(
+            "      \"path\": \"{}\",\n",
+            escape_json(&entry.path)
+        ));
+        out.push_str(&format!(
+            "      \"name\": \"{}\"\n",
+            escape_json(&entry.name)
+        ));
         out.push_str("    }");
         if idx + 1 != entries.len() {
             out.push(',');

@@ -267,11 +267,7 @@ impl<'a> Lexer<'a> {
             });
         }
         if ch == '?' {
-            if !self
-                .peek_next()
-                .map(is_ident_continue)
-                .unwrap_or(false)
-            {
+            if !self.peek_next().map(is_ident_continue).unwrap_or(false) {
                 self.bump();
                 return Ok(Token {
                     kind: TokenKind::Question,
@@ -506,7 +502,12 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        if self.peek() == Some('.') && self.peek_next().map(|ch| ch.is_ascii_digit()).unwrap_or(false) {
+        if self.peek() == Some('.')
+            && self
+                .peek_next()
+                .map(|ch| ch.is_ascii_digit())
+                .unwrap_or(false)
+        {
             buf.push('.');
             self.bump();
             while let Some(ch) = self.peek() {
@@ -541,7 +542,10 @@ impl<'a> Lexer<'a> {
                 break;
             }
             if ch == '.' {
-                if matches!(self.peek_next(), None | Some(' ') | Some('\t') | Some('\r') | Some('\n')) {
+                if matches!(
+                    self.peek_next(),
+                    None | Some(' ') | Some('\t') | Some('\r') | Some('\n')
+                ) {
                     break;
                 }
             }
@@ -560,10 +564,7 @@ impl<'a> Lexer<'a> {
     fn lex_string(&mut self) -> Result<String, CanonError> {
         let mut buf = String::new();
         if self.peek() != Some('"') {
-            return Err(CanonError::new(
-                "E_CANON_BAD_STRING",
-                "문자열이 아닙니다.",
-            ));
+            return Err(CanonError::new("E_CANON_BAD_STRING", "문자열이 아닙니다."));
         }
         self.bump();
         while let Some(ch) = self.peek() {
@@ -801,14 +802,19 @@ enum Stmt {
     RootDecl {
         items: Vec<DeclItem>,
     },
-    Assign { target: Path, value: Expr },
+    Assign {
+        target: Path,
+        value: Expr,
+    },
     SeedDef {
         name: String,
         kind: String,
         params: Vec<Param>,
         body: Vec<Stmt>,
     },
-    Show { value: Expr },
+    Show {
+        value: Expr,
+    },
     BogaeDraw,
     If {
         condition: Condition,
@@ -880,21 +886,61 @@ enum HookSuffix {
 enum Expr {
     Literal(Literal),
     Resource(String),
-    Template { body: String },
-    TemplateApply { bindings: Vec<Binding>, body: String },
-    Formula { tag: Option<String>, body: String },
-    PromptExpr { expr: Box<Expr> },
-    PromptBlock { body: String },
+    Template {
+        body: String,
+    },
+    TemplateApply {
+        bindings: Vec<Binding>,
+        body: String,
+    },
+    Formula {
+        tag: Option<String>,
+        body: String,
+    },
+    PromptExpr {
+        expr: Box<Expr>,
+    },
+    PromptBlock {
+        body: String,
+    },
     Path(Path),
-    FieldAccess { target: Box<Expr>, field: String },
-    Call { name: String, args: Vec<Expr> },
-    CallIn { name: String, bindings: Vec<Binding> },
-    Pack { bindings: Vec<Binding> },
-    Unit { value: Box<Expr>, unit: String },
-    Unary { op: UnaryOp, expr: Box<Expr> },
-    Binary { left: Box<Expr>, op: BinaryOp, right: Box<Expr> },
-    Pipe { left: Box<Expr>, kind: PipeKind, right: Box<Expr> },
-    SeedLiteral { param: String, body: Box<Expr> },
+    FieldAccess {
+        target: Box<Expr>,
+        field: String,
+    },
+    Call {
+        name: String,
+        args: Vec<Expr>,
+    },
+    CallIn {
+        name: String,
+        bindings: Vec<Binding>,
+    },
+    Pack {
+        bindings: Vec<Binding>,
+    },
+    Unit {
+        value: Box<Expr>,
+        unit: String,
+    },
+    Unary {
+        op: UnaryOp,
+        expr: Box<Expr>,
+    },
+    Binary {
+        left: Box<Expr>,
+        op: BinaryOp,
+        right: Box<Expr>,
+    },
+    Pipe {
+        left: Box<Expr>,
+        kind: PipeKind,
+        right: Box<Expr>,
+    },
+    SeedLiteral {
+        param: String,
+        body: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -997,7 +1043,11 @@ struct Parser {
 
 impl Parser {
     fn new(tokens: Vec<Token>, bridge: bool) -> Self {
-        Self { tokens, pos: 0, bridge }
+        Self {
+            tokens,
+            pos: 0,
+            bridge,
+        }
     }
 
     fn parse_program(&mut self) -> Result<Vec<SurfaceStmt>, CanonError> {
@@ -1217,7 +1267,10 @@ impl Parser {
                                 value: value_call,
                             }
                         } else {
-                            SurfaceStmt::Assign { target: path, value }
+                            SurfaceStmt::Assign {
+                                target: path,
+                                value,
+                            }
                         }
                     }
                     _ => {
@@ -1361,6 +1414,22 @@ impl Parser {
         {
             idx += 1;
         }
+        if self
+            .tokens
+            .get(idx)
+            .map(|t| matches!(t.kind, TokenKind::Colon))
+            .unwrap_or(false)
+        {
+            idx += 1;
+            while self
+                .tokens
+                .get(idx)
+                .map(|t| matches!(t.kind, TokenKind::Newline))
+                .unwrap_or(false)
+            {
+                idx += 1;
+            }
+        }
         self.tokens
             .get(idx)
             .map(|t| matches!(t.kind, TokenKind::LBrace))
@@ -1381,6 +1450,11 @@ impl Parser {
                 ))
             }
         };
+        self.skip_newlines();
+        if self.peek_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
         let body = self.parse_block()?;
         self.consume_optional_terminator();
         Ok(SurfaceStmt::Hook { name, suffix, body })
@@ -1415,7 +1489,12 @@ impl Parser {
 
     fn is_seed_def_start(&self) -> bool {
         let mut idx = self.pos;
-        if self.tokens.get(idx).map(|t| matches!(t.kind, TokenKind::LParen)) == Some(true) {
+        if self
+            .tokens
+            .get(idx)
+            .map(|t| matches!(t.kind, TokenKind::LParen))
+            == Some(true)
+        {
             let mut depth = 1usize;
             idx += 1;
             while idx < self.tokens.len() && depth > 0 {
@@ -2034,10 +2113,7 @@ impl Parser {
             self.expect(TokenKind::RParen)?;
             if self.peek_is(|k| matches!(k, TokenKind::Ident(_))) {
                 let name = self.parse_call_name()?;
-                return Ok(Expr::Call {
-                    name,
-                    args,
-                });
+                return Ok(Expr::Call { name, args });
             }
             if args.len() == 1 {
                 return Ok(args.into_iter().next().unwrap());
@@ -2142,7 +2218,10 @@ impl Parser {
         for arg in args {
             match arg {
                 Expr::Call { name, args } if name == "차림" => {
-                    if args.iter().any(|item| matches!(item, Expr::Call { name, .. } if name == "차림")) {
+                    if args
+                        .iter()
+                        .any(|item| matches!(item, Expr::Call { name, .. } if name == "차림"))
+                    {
                         return Err(CanonError::new(
                             "E_CANON_TENSOR_SHAPE",
                             "중첩 차림은 같은 길이의 2차 차림이어야 합니다.",
@@ -2328,7 +2407,10 @@ impl Parser {
             ));
         };
         self.consume_optional_terminator();
-        Ok(SurfaceStmt::Choose { branches, else_body })
+        Ok(SurfaceStmt::Choose {
+            branches,
+            else_body,
+        })
     }
 
     fn parse_prompt_choose_stmt(&mut self) -> Result<SurfaceStmt, CanonError> {
@@ -2361,7 +2443,10 @@ impl Parser {
         }
 
         self.consume_optional_terminator();
-        Ok(SurfaceStmt::PromptChoose { branches, else_body })
+        Ok(SurfaceStmt::PromptChoose {
+            branches,
+            else_body,
+        })
     }
 
     fn parse_prompt_after_stmt(&mut self, value: Expr) -> Result<SurfaceStmt, CanonError> {
@@ -2375,7 +2460,10 @@ impl Parser {
         Ok(SurfaceStmt::PromptAfter { value, body })
     }
 
-    fn parse_prompt_condition_stmt(&mut self, condition: Condition) -> Result<SurfaceStmt, CanonError> {
+    fn parse_prompt_condition_stmt(
+        &mut self,
+        condition: Condition,
+    ) -> Result<SurfaceStmt, CanonError> {
         self.expect(TokenKind::Prompt)?;
         self.skip_newlines();
         if self.peek_is(|k| matches!(k, TokenKind::Prompt)) {
@@ -2545,9 +2633,9 @@ impl Parser {
                 continue;
             }
             if self.peek_is(|k| matches!(k, TokenKind::Ident(_))) {
-                if self
-                    .peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "해서" || name == "하고"))
-                {
+                if self.peek_is(
+                    |k| matches!(k, TokenKind::Ident(name) if name == "해서" || name == "하고"),
+                ) {
                     break;
                 }
                 let ident = self.expect_ident()?;
@@ -2609,7 +2697,10 @@ impl Parser {
 
     fn is_bogae_draw_stmt(&self) -> bool {
         matches!(self.peek_kind(), TokenKind::Ident(ref name) if name == "보개로")
-            && self.peek_n_is(1, |k| matches!(k, TokenKind::Ident(ref name) if name == "그려"))
+            && self.peek_n_is(
+                1,
+                |k| matches!(k, TokenKind::Ident(ref name) if name == "그려"),
+            )
     }
 
     fn expect_ident(&mut self) -> Result<String, CanonError> {
@@ -2743,9 +2834,9 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                         name: item.name,
                         kind: item.kind,
                         type_name: item.type_name,
-                        value: item
-                            .value
-                            .map(|expr| canonicalize_expr(expr, &declared, bridge, default_root, root_hide)),
+                        value: item.value.map(|expr| {
+                            canonicalize_expr(expr, &declared, bridge, default_root, root_hide)
+                        }),
                     })
                     .collect();
                 canonical.push(Stmt::RootDecl { items });
@@ -2798,9 +2889,9 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                     .map(|param| Param {
                         name: param.name,
                         type_name: param.type_name,
-                        default: param
-                            .default
-                            .map(|expr| canonicalize_expr(expr, &declared, bridge, default_root, root_hide)),
+                        default: param.default.map(|expr| {
+                            canonicalize_expr(expr, &declared, bridge, default_root, root_hide)
+                        }),
                     })
                     .collect();
                 let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
@@ -2823,10 +2914,18 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                 then_body,
                 else_body,
             } => {
-                let condition = canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
-                let then_body = canonicalize_body(then_body, &declared, bridge, default_root, root_hide)?;
+                let condition =
+                    canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
+                let then_body =
+                    canonicalize_body(then_body, &declared, bridge, default_root, root_hide)?;
                 let else_body = match else_body {
-                    Some(body) => Some(canonicalize_body(body, &declared, bridge, default_root, root_hide)?),
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        &declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
                     None => None,
                 };
                 canonical.push(Stmt::If {
@@ -2842,10 +2941,18 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                 then_body,
                 else_body,
             } => {
-                let condition = canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
-                let else_body = canonicalize_body(else_body, &declared, bridge, default_root, root_hide)?;
+                let condition =
+                    canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
+                let else_body =
+                    canonicalize_body(else_body, &declared, bridge, default_root, root_hide)?;
                 let then_body = match then_body {
-                    Some(body) => Some(canonicalize_body(body, &declared, bridge, default_root, root_hide)?),
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        &declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
                     None => None,
                 };
                 canonical.push(Stmt::Contract {
@@ -2861,14 +2968,24 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                 canonical.push(Stmt::Repeat { body });
             }
             SurfaceStmt::While { condition, body } => {
-                let condition = canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
+                let condition =
+                    canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
                 let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
                 canonical.push(Stmt::While { condition, body });
             }
-            SurfaceStmt::ForEach { item, iterable, body } => {
-                let iterable = canonicalize_expr(iterable, &declared, bridge, default_root, root_hide);
+            SurfaceStmt::ForEach {
+                item,
+                iterable,
+                body,
+            } => {
+                let iterable =
+                    canonicalize_expr(iterable, &declared, bridge, default_root, root_hide);
                 let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::ForEach { item, iterable, body });
+                canonical.push(Stmt::ForEach {
+                    item,
+                    iterable,
+                    body,
+                });
             }
             SurfaceStmt::Hook { name, suffix, body } => {
                 let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
@@ -2889,7 +3006,10 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
             SurfaceStmt::Break => {
                 canonical.push(Stmt::Break);
             }
-            SurfaceStmt::PromptChoose { branches, else_body } => {
+            SurfaceStmt::PromptChoose {
+                branches,
+                else_body,
+            } => {
                 let mut mapped = Vec::new();
                 for branch in branches {
                     mapped.push(ChooseBranch {
@@ -2900,11 +3020,23 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                             default_root,
                             root_hide,
                         ),
-                        body: canonicalize_body(branch.body, &declared, bridge, default_root, root_hide)?,
+                        body: canonicalize_body(
+                            branch.body,
+                            &declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        )?,
                     });
                 }
                 let else_body = match else_body {
-                    Some(body) => Some(canonicalize_body(body, &declared, bridge, default_root, root_hide)?),
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        &declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
                     None => None,
                 };
                 canonical.push(Stmt::PromptChoose {
@@ -2920,7 +3052,13 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
             }
             SurfaceStmt::PromptCondition { condition, body } => {
                 canonical.push(Stmt::PromptCondition {
-                    condition: canonicalize_condition(condition, &declared, bridge, default_root, root_hide),
+                    condition: canonicalize_condition(
+                        condition,
+                        &declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
                     body: canonicalize_body(body, &declared, bridge, default_root, root_hide)?,
                 });
             }
@@ -2929,7 +3067,10 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                     body: canonicalize_body(body, &declared, bridge, default_root, root_hide)?,
                 });
             }
-            SurfaceStmt::Choose { branches, else_body } => {
+            SurfaceStmt::Choose {
+                branches,
+                else_body,
+            } => {
                 let mut mapped = Vec::new();
                 for branch in branches {
                     mapped.push(ChooseBranch {
@@ -2940,10 +3081,17 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
                             default_root,
                             root_hide,
                         ),
-                        body: canonicalize_body(branch.body, &declared, bridge, default_root, root_hide)?,
+                        body: canonicalize_body(
+                            branch.body,
+                            &declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        )?,
                     });
                 }
-                let else_body = canonicalize_body(else_body, &declared, bridge, default_root, root_hide)?;
+                let else_body =
+                    canonicalize_body(else_body, &declared, bridge, default_root, root_hide)?;
                 canonical.push(Stmt::Choose {
                     branches: mapped,
                     else_body,
@@ -2955,10 +3103,7 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
     let ddn = format_program(&canonical);
     let mut warnings = Vec::new();
     if !meta_parse.dup_keys.is_empty() {
-        warnings.push(format!(
-            "META_DUP_KEY {}",
-            meta_parse.dup_keys.join(", ")
-        ));
+        warnings.push(format!("META_DUP_KEY {}", meta_parse.dup_keys.join(", ")));
     }
     let mut output = String::new();
     output.push_str(&format_file_meta(&meta_parse.meta));
@@ -3195,9 +3340,9 @@ fn canonicalize_body(
                         name: item.name,
                         kind: item.kind,
                         type_name: item.type_name,
-                        value: item
-                            .value
-                            .map(|expr| canonicalize_expr(expr, declared, bridge, default_root, root_hide)),
+                        value: item.value.map(|expr| {
+                            canonicalize_expr(expr, declared, bridge, default_root, root_hide)
+                        }),
                     })
                     .collect();
                 out.push(Stmt::RootDecl { items });
@@ -3230,9 +3375,9 @@ fn canonicalize_body(
                     .map(|param| Param {
                         name: param.name,
                         type_name: param.type_name,
-                        default: param
-                            .default
-                            .map(|expr| canonicalize_expr(expr, declared, bridge, default_root, root_hide)),
+                        default: param.default.map(|expr| {
+                            canonicalize_expr(expr, declared, bridge, default_root, root_hide)
+                        }),
                     })
                     .collect();
                 let body = canonicalize_body(body, declared, bridge, default_root, root_hide)?;
@@ -3277,13 +3422,26 @@ fn canonicalize_body(
                 then_body,
                 else_body,
             } => {
-                let then_body = canonicalize_body(then_body, declared, bridge, default_root, root_hide)?;
+                let then_body =
+                    canonicalize_body(then_body, declared, bridge, default_root, root_hide)?;
                 let else_body = match else_body {
-                    Some(body) => Some(canonicalize_body(body, declared, bridge, default_root, root_hide)?),
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
                     None => None,
                 };
                 out.push(Stmt::If {
-                    condition: canonicalize_condition(condition, declared, bridge, default_root, root_hide),
+                    condition: canonicalize_condition(
+                        condition,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
                     then_body,
                     else_body,
                 });
@@ -3295,20 +3453,36 @@ fn canonicalize_body(
                 then_body,
                 else_body,
             } => {
-                let else_body = canonicalize_body(else_body, declared, bridge, default_root, root_hide)?;
+                let else_body =
+                    canonicalize_body(else_body, declared, bridge, default_root, root_hide)?;
                 let then_body = match then_body {
-                    Some(body) => Some(canonicalize_body(body, declared, bridge, default_root, root_hide)?),
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
                     None => None,
                 };
                 out.push(Stmt::Contract {
                     kind,
                     mode,
-                    condition: canonicalize_condition(condition, declared, bridge, default_root, root_hide),
+                    condition: canonicalize_condition(
+                        condition,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
                     then_body,
                     else_body,
                 });
             }
-            SurfaceStmt::Choose { branches, else_body } => {
+            SurfaceStmt::Choose {
+                branches,
+                else_body,
+            } => {
                 let mut mapped = Vec::new();
                 for branch in branches {
                     mapped.push(ChooseBranch {
@@ -3319,15 +3493,30 @@ fn canonicalize_body(
                             default_root,
                             root_hide,
                         ),
-                        body: canonicalize_body(branch.body, declared, bridge, default_root, root_hide)?,
+                        body: canonicalize_body(
+                            branch.body,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        )?,
                     });
                 }
                 out.push(Stmt::Choose {
                     branches: mapped,
-                    else_body: canonicalize_body(else_body, declared, bridge, default_root, root_hide)?,
+                    else_body: canonicalize_body(
+                        else_body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?,
                 });
             }
-            SurfaceStmt::PromptChoose { branches, else_body } => {
+            SurfaceStmt::PromptChoose {
+                branches,
+                else_body,
+            } => {
                 let mut mapped = Vec::new();
                 for branch in branches {
                     mapped.push(ChooseBranch {
@@ -3338,11 +3527,23 @@ fn canonicalize_body(
                             default_root,
                             root_hide,
                         ),
-                        body: canonicalize_body(branch.body, declared, bridge, default_root, root_hide)?,
+                        body: canonicalize_body(
+                            branch.body,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        )?,
                     });
                 }
                 let else_body = match else_body {
-                    Some(body) => Some(canonicalize_body(body, declared, bridge, default_root, root_hide)?),
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
                     None => None,
                 };
                 out.push(Stmt::PromptChoose {
@@ -3358,7 +3559,13 @@ fn canonicalize_body(
             }
             SurfaceStmt::PromptCondition { condition, body } => {
                 out.push(Stmt::PromptCondition {
-                    condition: canonicalize_condition(condition, declared, bridge, default_root, root_hide),
+                    condition: canonicalize_condition(
+                        condition,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
                     body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
                 });
             }
@@ -3374,7 +3581,13 @@ fn canonicalize_body(
             }
             SurfaceStmt::While { condition, body } => {
                 out.push(Stmt::While {
-                    condition: canonicalize_condition(condition, declared, bridge, default_root, root_hide),
+                    condition: canonicalize_condition(
+                        condition,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
                     body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
                 });
             }
@@ -3385,7 +3598,13 @@ fn canonicalize_body(
             } => {
                 out.push(Stmt::ForEach {
                     item,
-                    iterable: canonicalize_expr(iterable, declared, bridge, default_root, root_hide),
+                    iterable: canonicalize_expr(
+                        iterable,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
                     body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
                 });
             }
@@ -3451,7 +3670,12 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             out.push_str(&format!("{}}}.\n", pad));
         }
         Stmt::Assign { target, value } => {
-            out.push_str(&format!("{}{} <- {}.\n", pad, format_path(target), format_expr(value)));
+            out.push_str(&format!(
+                "{}{} <- {}.\n",
+                pad,
+                format_path(target),
+                format_expr(value)
+            ));
         }
         Stmt::SeedDef {
             name,
@@ -3532,7 +3756,10 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             }
             out.push_str(".\n");
         }
-        Stmt::Choose { branches, else_body } => {
+        Stmt::Choose {
+            branches,
+            else_body,
+        } => {
             out.push_str(&format!("{}고르기:\n", pad));
             for branch in branches {
                 out.push_str(&format!(
@@ -3551,7 +3778,10 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             }
             out.push_str(&format!("{}  }}.\n", pad));
         }
-        Stmt::PromptChoose { branches, else_body } => {
+        Stmt::PromptChoose {
+            branches,
+            else_body,
+        } => {
             out.push_str(&format!("{}??:\n", pad));
             for branch in branches {
                 out.push_str(&format!(
@@ -3602,7 +3832,11 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             out.push_str(&format!("{}}}.\n", pad));
         }
         Stmt::While { condition, body } => {
-            out.push_str(&format!("{}{} 동안: {{\n", pad, format_condition(condition)));
+            out.push_str(&format!(
+                "{}{} 동안: {{\n",
+                pad,
+                format_condition(condition)
+            ));
             for stmt in body {
                 format_stmt(stmt, indent + 1, out);
             }
@@ -3912,7 +4146,11 @@ fn format_condition(condition: &Condition) -> String {
     match condition.style {
         ConditionStyle::Plain => expr,
         ConditionStyle::Thunk => {
-            let suffix = if condition.negated { "아닌것" } else { "인것" };
+            let suffix = if condition.negated {
+                "아닌것"
+            } else {
+                "인것"
+            };
             format!("{{ {} }}{}", expr, suffix)
         }
     }

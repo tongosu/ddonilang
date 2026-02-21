@@ -91,8 +91,13 @@ fn load_manifest(path: &Path) -> Result<ManifestInfo, String> {
     };
     let raw = fs::read_to_string(&manifest_path)
         .map_err(|e| format!("E_REPLAY_DIFF_READ {}:1:1 {}", manifest_path.display(), e))?;
-    let json: Value = serde_json::from_str(&raw)
-        .map_err(|e| format!("E_REPLAY_DIFF_MANIFEST {}:1:1 {}", manifest_path.display(), e))?;
+    let json: Value = serde_json::from_str(&raw).map_err(|e| {
+        format!(
+            "E_REPLAY_DIFF_MANIFEST {}:1:1 {}",
+            manifest_path.display(),
+            e
+        )
+    })?;
 
     let start_madi = json
         .get("start_madi")
@@ -112,12 +117,15 @@ fn load_manifest(path: &Path) -> Result<ManifestInfo, String> {
                 manifest_path.display()
             )
         })?;
-    let frames_value = json.get("frames").and_then(|value| value.as_array()).ok_or_else(|| {
-        format!(
-            "E_REPLAY_DIFF_MANIFEST {}:1:1 frames 누락",
-            manifest_path.display()
-        )
-    })?;
+    let frames_value = json
+        .get("frames")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| {
+            format!(
+                "E_REPLAY_DIFF_MANIFEST {}:1:1 frames 누락",
+                manifest_path.display()
+            )
+        })?;
 
     let mut frames = BTreeMap::new();
     for frame in frames_value {
@@ -176,13 +184,13 @@ fn build_detjson_report(
     let mut out = String::new();
     out.push_str("{\n");
     out.push_str("  \"kind\": \"replay_diff_v1\",\n");
-    out.push_str(&format!("  \"equal\": {},\n", if equal { "true" } else { "false" }));
+    out.push_str(&format!(
+        "  \"equal\": {},\n",
+        if equal { "true" } else { "false" }
+    ));
     match first_diverge {
         Some(diverge) => {
-            out.push_str(&format!(
-                "  \"first_diverge_madi\": {},\n",
-                diverge.madi
-            ));
+            out.push_str(&format!("  \"first_diverge_madi\": {},\n", diverge.madi));
         }
         None => {
             out.push_str("  \"first_diverge_madi\": null,\n");
@@ -202,10 +210,30 @@ fn build_detjson_report(
         Some(diverge) => {
             out.push_str("  \"first_diverge\": {\n");
             out.push_str(&format!("    \"madi\": {},\n", diverge.madi));
-            push_optional_string(&mut out, "state_hash_a", diverge.state_hash_a.as_deref(), true);
-            push_optional_string(&mut out, "state_hash_b", diverge.state_hash_b.as_deref(), true);
-            push_optional_string(&mut out, "bogae_hash_a", diverge.bogae_hash_a.as_deref(), true);
-            push_optional_string(&mut out, "bogae_hash_b", diverge.bogae_hash_b.as_deref(), false);
+            push_optional_string(
+                &mut out,
+                "state_hash_a",
+                diverge.state_hash_a.as_deref(),
+                true,
+            );
+            push_optional_string(
+                &mut out,
+                "state_hash_b",
+                diverge.state_hash_b.as_deref(),
+                true,
+            );
+            push_optional_string(
+                &mut out,
+                "bogae_hash_a",
+                diverge.bogae_hash_a.as_deref(),
+                true,
+            );
+            push_optional_string(
+                &mut out,
+                "bogae_hash_b",
+                diverge.bogae_hash_b.as_deref(),
+                false,
+            );
             out.push_str("  }\n");
         }
         None => {
@@ -252,7 +280,10 @@ fn escape_json(input: &str) -> String {
 
 fn build_summary_text(equal: bool, first_diverge: &Option<FirstDiverge>) -> String {
     let mut out = String::new();
-    out.push_str(&format!("equal: {}\n", if equal { "true" } else { "false" }));
+    out.push_str(&format!(
+        "equal: {}\n",
+        if equal { "true" } else { "false" }
+    ));
     match first_diverge {
         Some(diverge) => {
             out.push_str(&format!("first_diverge_madi: {}\n", diverge.madi));

@@ -43,8 +43,7 @@ pub fn run_realms_test(path: &Path, threads: usize, out: Option<&Path>) -> Resul
         ThreadMode::Rayon(threads)
     };
 
-    let mut manager =
-        MultiRealmManager::new(input.realm_count, input.master_seed, thread_mode);
+    let mut manager = MultiRealmManager::new(input.realm_count, input.master_seed, thread_mode);
     let batch: Vec<RealmStepInput> = input
         .step_batch
         .iter()
@@ -70,8 +69,8 @@ pub fn run_realms_test(path: &Path, threads: usize, out: Option<&Path>) -> Resul
         state_hashes,
     };
 
-    let json = serde_json::to_string_pretty(&output)
-        .map_err(|err| format!("E_REALM_OUTPUT {}", err))?;
+    let json =
+        serde_json::to_string_pretty(&output).map_err(|err| format!("E_REALM_OUTPUT {}", err))?;
     if let Some(out_path) = out {
         std::fs::write(out_path, format!("{json}\n")).map_err(|err| err.to_string())?;
     }
@@ -99,7 +98,10 @@ fn find_workspace_root() -> Result<PathBuf, String> {
     let mut dir = std::env::current_dir().map_err(|err| format!("E_TEST_CWD {}", err))?;
     loop {
         let has_pack_runner = dir.join("tests").join("run_pack_golden.py").exists();
-        let has_smoke_runner = dir.join("tests").join("run_seamgrim_wasm_smoke.py").exists();
+        let has_smoke_runner = dir
+            .join("tests")
+            .join("run_seamgrim_wasm_smoke.py")
+            .exists();
         if has_pack_runner && has_smoke_runner {
             return Ok(dir);
         }

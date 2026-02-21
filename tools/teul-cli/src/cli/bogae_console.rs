@@ -121,21 +121,9 @@ pub fn render_drawlist_ascii(drawlist: &BogaeDrawListV1, config: ConsoleRenderCo
                 let w = snap_i32(*w);
                 let h = snap_i32(*h);
                 let thickness = snap_i32(*thickness);
-                stroke_rect(
-                    &mut grid,
-                    x,
-                    y,
-                    w,
-                    h,
-                    thickness,
-                    scale_x,
-                    scale_y,
-                    '*',
-                );
+                stroke_rect(&mut grid, x, y, w, h, thickness, scale_x, scale_y, '*');
             }
-            BogaeCmd::Line {
-                x1, y1, x2, y2, ..
-            } => {
+            BogaeCmd::Line { x1, y1, x2, y2, .. } => {
                 let x1 = snap_i32(*x1);
                 let y1 = snap_i32(*y1);
                 let x2 = snap_i32(*x2);
@@ -147,7 +135,15 @@ pub fn render_drawlist_ascii(drawlist: &BogaeDrawListV1, config: ConsoleRenderCo
                 let y = snap_i32(*y);
                 draw_text(&mut grid, x, y, scale_x, scale_y, text, config);
             }
-            BogaeCmd::Sprite { x, y, w, h, tint, asset, .. } => {
+            BogaeCmd::Sprite {
+                x,
+                y,
+                w,
+                h,
+                tint,
+                asset,
+                ..
+            } => {
                 if tint.a == 0 {
                     continue;
                 }
@@ -174,7 +170,11 @@ pub fn render_drawlist_ascii(drawlist: &BogaeDrawListV1, config: ConsoleRenderCo
                 );
             }
             BogaeCmd::CircleStroke {
-                cx, cy, r, thickness, ..
+                cx,
+                cy,
+                r,
+                thickness,
+                ..
             } => {
                 let cx = snap_i32(*cx);
                 let cy = snap_i32(*cy);
@@ -211,7 +211,9 @@ pub fn render_drawlist_ascii(drawlist: &BogaeDrawListV1, config: ConsoleRenderCo
                 let y2 = (cy + r * end.sin()).round() as i32;
                 draw_line(&mut grid, x1, y1, x2, y2, scale_x, scale_y, '*');
             }
-            BogaeCmd::CurveCubicStroke { p0x, p0y, p3x, p3y, .. } => {
+            BogaeCmd::CurveCubicStroke {
+                p0x, p0y, p3x, p3y, ..
+            } => {
                 let p0x = snap_i32(*p0x);
                 let p0y = snap_i32(*p0y);
                 let p3x = snap_i32(*p3x);
@@ -556,9 +558,7 @@ fn draw_line(
     let mut y0 = y1.div_euclid(scale_y);
     let mut x1 = x2.div_euclid(scale_x);
     let mut y1 = y2.div_euclid(scale_y);
-    if !clip_point(&mut x0, &mut y0, cols, rows)
-        && !clip_point(&mut x1, &mut y1, cols, rows)
-    {
+    if !clip_point(&mut x0, &mut y0, cols, rows) && !clip_point(&mut x1, &mut y1, cols, rows) {
         return;
     }
     let dx = (x1 - x0).abs();
@@ -751,7 +751,10 @@ fn tetris_sprite_bounds(
     let mut max_r = 0usize;
     let mut found = false;
     for cmd in &drawlist.cmds {
-        let BogaeCmd::Sprite { x, y, w, h, asset, .. } = cmd else {
+        let BogaeCmd::Sprite {
+            x, y, w, h, asset, ..
+        } = cmd
+        else {
             continue;
         };
         if !asset.uri.starts_with("sym:tetris.") {

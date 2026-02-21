@@ -163,13 +163,7 @@ impl MapValue {
 
     pub fn map_set(&self, key: Value, value: Value) -> Self {
         let mut entries = self.entries.clone();
-        entries.insert(
-            key.canon(),
-            MapEntry {
-                key,
-                value,
-            },
-        );
+        entries.insert(key.canon(), MapEntry { key, value });
         Self { entries }
     }
 }
@@ -491,7 +485,9 @@ mod tests {
     #[test]
     fn map_set_overwrites_existing_key() {
         let key = Value::Str("k".to_string());
-        let map = MapValue { entries: BTreeMap::new() };
+        let map = MapValue {
+            entries: BTreeMap::new(),
+        };
         let map = map.map_set(key.clone(), Value::Bool(true));
         let map = map.map_set(key.clone(), Value::Bool(false));
         assert_eq!(map.map_get(&key), Value::Bool(false));

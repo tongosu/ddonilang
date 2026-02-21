@@ -1,9 +1,9 @@
-pub mod error;
 pub mod detmath;
+pub mod error;
 pub mod eval;
 pub mod formula;
-pub mod template;
 pub mod open;
+pub mod template;
 
 pub use error::RuntimeError;
 pub use eval::{ContractDiag, EvalOutput, Evaluator};

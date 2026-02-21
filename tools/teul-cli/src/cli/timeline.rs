@@ -23,8 +23,14 @@ pub fn run_make(geoul_dir: &Path, story_path: &Path, out_path: &Path) -> Result<
         };
         let t0 = obj.get("t0").cloned().unwrap_or(Value::Number(0.into()));
         let t1 = obj.get("t1").cloned().unwrap_or(Value::Number(0.into()));
-        let kind = obj.get("kind").cloned().unwrap_or(Value::String("summary".to_string()));
-        let text = obj.get("text").cloned().unwrap_or(Value::String(String::new()));
+        let kind = obj
+            .get("kind")
+            .cloned()
+            .unwrap_or(Value::String("summary".to_string()));
+        let text = obj
+            .get("text")
+            .cloned()
+            .unwrap_or(Value::String(String::new()));
         let mut item = Map::new();
         item.insert("t0".to_string(), t0);
         item.insert("t1".to_string(), t1);

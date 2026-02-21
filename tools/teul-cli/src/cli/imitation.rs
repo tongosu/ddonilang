@@ -74,9 +74,17 @@ pub fn run_imitation(config_path: &Path, out_dir: Option<&Path>) -> Result<(), S
     let out_dir = resolve_out_dir(out_dir);
     fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
     write_text(&out_dir.join("imitation.dataset.jsonl"), &dataset_text)?;
-    write_text(&out_dir.join("dataset.sha256"), &format!("{}\n", dataset_hash))?;
+    write_text(
+        &out_dir.join("dataset.sha256"),
+        &format!("{}\n", dataset_hash),
+    )?;
 
-    let metrics = build_metrics_curve(&dataset_hash, config.train_seed, config.max_epochs, steps.len() as u64)?;
+    let metrics = build_metrics_curve(
+        &dataset_hash,
+        config.train_seed,
+        config.max_epochs,
+        steps.len() as u64,
+    )?;
     let metrics_text = metrics.join("\n") + "\n";
     write_text(&out_dir.join("metrics_curve.detjsonl"), &metrics_text)?;
 
@@ -116,45 +124,34 @@ fn parse_replay_lines(text: &str) -> Result<(Option<String>, Vec<ReplayStep>), S
         }
         let value: JsonValue = serde_json::from_str(trimmed)
             .map_err(|e| format!("E_IMITATION_REPLAY_PARSE {} {}", idx + 1, e))?;
-        let schema = value
-            .get("schema")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let schema = value.get("schema").and_then(|v| v.as_str()).unwrap_or("");
         match schema {
-            "nurigym.episode.v1" | "imitation.episode.v1" | "nurigym.dataset.v1" | "imitation.dataset.v1" => {
+            "nurigym.episode.v1"
+            | "imitation.episode.v1"
+            | "nurigym.dataset.v1"
+            | "imitation.dataset.v1" => {
                 let line_env = value
                     .get("env_id")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        format!("E_IMITATION_REPLAY_ENV {} env_id 누락", idx + 1)
-                    })?;
+                    .ok_or_else(|| format!("E_IMITATION_REPLAY_ENV {} env_id 누락", idx + 1))?;
                 note_env_id(&mut env_id, idx + 1, line_env)?;
             }
             "nurigym.step.v1" | "imitation.step.v1" => {
                 let obj = value.as_object().ok_or_else(|| {
                     format!("E_IMITATION_REPLAY_STEP {} step이 객체가 아닙니다", idx + 1)
                 })?;
-                let episode_id = value_as_u64(
-                    obj.get("episode_id"),
-                    idx + 1,
-                    "episode_id",
-                )?;
+                let episode_id = value_as_u64(obj.get("episode_id"), idx + 1, "episode_id")?;
                 let step_index = match obj.get("step_index") {
                     Some(value) => value_as_u64(Some(value), idx + 1, "step_index")?,
                     None => value_as_u64(obj.get("madi"), idx + 1, "madi")?,
                 };
-                let observation = obj
-                    .get("observation")
-                    .cloned()
-                    .ok_or_else(|| {
-                        format!("E_IMITATION_REPLAY_STEP {} observation 누락", idx + 1)
-                    })?;
+                let observation = obj.get("observation").cloned().ok_or_else(|| {
+                    format!("E_IMITATION_REPLAY_STEP {} observation 누락", idx + 1)
+                })?;
                 let action = obj
                     .get("action")
                     .cloned()
-                    .ok_or_else(|| {
-                        format!("E_IMITATION_REPLAY_STEP {} action 누락", idx + 1)
-                    })?;
+                    .ok_or_else(|| format!("E_IMITATION_REPLAY_STEP {} action 누락", idx + 1))?;
 
                 steps.push(ReplayStep {
                     episode_id,
@@ -193,18 +190,24 @@ fn note_env_id(env_id: &mut Option<String>, line_no: usize, line_env: &str) -> R
 
 fn value_as_u64(value: Option<&JsonValue>, line_no: usize, field: &str) -> Result<u64, String> {
     let Some(value) = value else {
-        return Err(format!("E_IMITATION_REPLAY_STEP {} {} 누락", line_no, field));
+        return Err(format!(
+            "E_IMITATION_REPLAY_STEP {} {} 누락",
+            line_no, field
+        ));
     };
     match value {
-        JsonValue::Number(num) => num
-            .as_u64()
-            .ok_or_else(|| format!("E_IMITATION_REPLAY_STEP {} {} 숫자 범위 오류", line_no, field)),
-        JsonValue::String(text) => text
-            .trim()
-            .parse::<u64>()
-            .map_err(|_| {
-                format!("E_IMITATION_REPLAY_STEP {} {} 숫자 변환 실패", line_no, field)
-            }),
+        JsonValue::Number(num) => num.as_u64().ok_or_else(|| {
+            format!(
+                "E_IMITATION_REPLAY_STEP {} {} 숫자 범위 오류",
+                line_no, field
+            )
+        }),
+        JsonValue::String(text) => text.trim().parse::<u64>().map_err(|_| {
+            format!(
+                "E_IMITATION_REPLAY_STEP {} {} 숫자 변환 실패",
+                line_no, field
+            )
+        }),
         _ => Err(format!(
             "E_IMITATION_REPLAY_STEP {} {} 타입이 숫자가 아닙니다",
             line_no, field

@@ -1,0 +1,3 @@
+{"input_path":"cases/K001_item_kind_invalid_EXPECT_FAIL/input.ddn","expected_error_code":"E_BOGAE_ITEM_KIND_INVALID"}
+{"input_path":"cases/K002_item_field_missing_EXPECT_FAIL/input.ddn","expected_error_code":"E_BOGAE_ITEM_FIELD_MISSING"}
+{"input_path":"cases/K003_channel_type_invalid_EXPECT_FAIL/input.ddn","expected_error_code":"E_BOGAE_CHANNEL_TYPE_INVALID"}

@@ -33,11 +33,7 @@ pub fn write_web_assets(
 }
 
 fn build_drawlist_json(drawlist: &BogaeDrawListV1) -> Result<String, String> {
-    let cmds = drawlist
-        .cmds
-        .iter()
-        .map(cmd_to_json)
-        .collect::<Vec<_>>();
+    let cmds = drawlist.cmds.iter().map(cmd_to_json).collect::<Vec<_>>();
     let payload = json!({
         "version": 1,
         "width_px": drawlist.width_px,
@@ -54,7 +50,14 @@ fn cmd_to_json(cmd: &BogaeCmd) -> serde_json::Value {
             "color": rgba_to_json(*color),
             "aa": aa,
         }),
-        BogaeCmd::RectFill { x, y, w, h, color, aa } => json!({
+        BogaeCmd::RectFill {
+            x,
+            y,
+            w,
+            h,
+            color,
+            aa,
+        } => json!({
             "kind": "RectFill",
             "x": x,
             "y": y,
@@ -133,7 +136,13 @@ fn cmd_to_json(cmd: &BogaeCmd) -> serde_json::Value {
             "uri": asset.uri,
             "aa": aa,
         }),
-        BogaeCmd::CircleFill { cx, cy, r, color, aa } => json!({
+        BogaeCmd::CircleFill {
+            cx,
+            cy,
+            r,
+            color,
+            aa,
+        } => json!({
             "kind": "CircleFill",
             "cx": cx,
             "cy": cy,

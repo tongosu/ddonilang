@@ -13,9 +13,7 @@ use clap::ValueEnum;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::terminal;
 
-use crate::cli::input_tape::{
-    key_index, mask_to_bytes, write_input_tape, InputRecord, InputTape,
-};
+use crate::cli::input_tape::{key_index, mask_to_bytes, write_input_tape, InputRecord, InputTape};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum SamLiveMode {
@@ -244,8 +242,8 @@ fn start_web_input_server(
     stop: Arc<AtomicBool>,
 ) -> Result<JoinHandle<()>, String> {
     let addr = format!("{}:{}", host, port);
-    let listener = TcpListener::bind(&addr)
-        .map_err(|e| format!("E_SAM_LIVE_BIND {} {}", addr, e))?;
+    let listener =
+        TcpListener::bind(&addr).map_err(|e| format!("E_SAM_LIVE_BIND {} {}", addr, e))?;
     listener
         .set_nonblocking(true)
         .map_err(|e| format!("E_SAM_LIVE_NONBLOCK {}", e))?;

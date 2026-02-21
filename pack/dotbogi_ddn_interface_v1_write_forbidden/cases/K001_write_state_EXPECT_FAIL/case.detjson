@@ -1,0 +1,26 @@
+{
+  "schema": "ddn.dotbogi.case.v1",
+  "input": {
+    "schema": "dotbogi.input.v1",
+    "madi": 1,
+    "state": {
+      "player": {
+        "hp": 50
+      }
+    },
+    "view_meta": {},
+    "obs_manifest": {
+      "version": 1
+    }
+  },
+  "dotbogi": {
+    "view_meta": {
+      "layout": "status"
+    },
+    "events": [],
+    "state_write": {
+      "path": "player.hp",
+      "value": 999
+    }
+  }
+}

@@ -32,10 +32,7 @@ pub fn run_replay_verify(
         .map(|path| path.to_path_buf())
         .unwrap_or_else(|| geoul_dir.join("entry.ddn"));
     if !entry_path.exists() {
-        return Err(format!(
-            "E_REPLAY_ENTRY_MISSING {}",
-            entry_path.display()
-        ));
+        return Err(format!("E_REPLAY_ENTRY_MISSING {}", entry_path.display()));
     }
     let source = fs::read_to_string(&entry_path)
         .map_err(|err| format!("E_REPLAY_ENTRY_READ {} {}", entry_path.display(), err))?;
@@ -89,8 +86,7 @@ pub fn run_replay_verify(
         });
     }
 
-    let tokens = Lexer::tokenize(&source)
-        .map_err(|err| format!("E_REPLAY_LEX {:?}", err))?;
+    let tokens = Lexer::tokenize(&source).map_err(|err| format!("E_REPLAY_LEX {:?}", err))?;
     let default_root = Parser::default_root_for_source(&source);
     let program = Parser::parse_with_default_root(tokens, default_root)
         .map_err(|err| format!("E_REPLAY_PARSE {:?}", err))?;

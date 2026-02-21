@@ -22,8 +22,14 @@ enum TemplatePart {
 
 #[derive(Clone, Debug)]
 enum TemplateFormat {
-    Width { width: usize, zero_pad: bool },
-    Fixed { decimals: u8, unit: Option<UnitFormat> },
+    Width {
+        width: usize,
+        zero_pad: bool,
+    },
+    Fixed {
+        decimals: u8,
+        unit: Option<UnitFormat>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -157,7 +163,15 @@ fn match_parts(
             }
             let next_pos = pos + text.len();
             let next_idx = pos_index(positions, next_pos, span)?;
-            match_parts(parts, target, positions, part_idx + 1, next_idx, captures, span)
+            match_parts(
+                parts,
+                target,
+                positions,
+                part_idx + 1,
+                next_idx,
+                captures,
+                span,
+            )
         }
         TemplatePart::Slot { path, format } => {
             if format.is_some() {
@@ -182,7 +196,15 @@ fn match_parts(
                 }
                 let next_pos = pos + existing.len();
                 let next_idx = pos_index(positions, next_pos, span)?;
-                return match_parts(parts, target, positions, part_idx + 1, next_idx, captures, span);
+                return match_parts(
+                    parts,
+                    target,
+                    positions,
+                    part_idx + 1,
+                    next_idx,
+                    captures,
+                    span,
+                );
             }
 
             // 최소 매칭 규칙: 가능한 가장 짧은 캡처부터 시도한다.
@@ -192,7 +214,15 @@ fn match_parts(
                     continue;
                 };
                 captures.insert(name.clone(), segment.to_string());
-                if match_parts(parts, target, positions, part_idx + 1, end_idx, captures, span)? {
+                if match_parts(
+                    parts,
+                    target,
+                    positions,
+                    part_idx + 1,
+                    end_idx,
+                    captures,
+                    span,
+                )? {
                     return Ok(true);
                 }
                 captures.remove(name);
@@ -209,13 +239,18 @@ fn char_positions(text: &str) -> Vec<usize> {
 }
 
 fn pos_index(positions: &[usize], pos: usize, span: Span) -> Result<usize, RuntimeError> {
-    positions.binary_search(&pos).map_err(|_| RuntimeError::Template {
-        message: "글무늬 매칭 위치 계산에 실패했습니다".to_string(),
-        span,
-    })
+    positions
+        .binary_search(&pos)
+        .map_err(|_| RuntimeError::Template {
+            message: "글무늬 매칭 위치 계산에 실패했습니다".to_string(),
+            span,
+        })
 }
 
-fn parse_placeholder(text: &str, span: Span) -> Result<(Vec<String>, Option<TemplateFormat>), RuntimeError> {
+fn parse_placeholder(
+    text: &str,
+    span: Span,
+) -> Result<(Vec<String>, Option<TemplateFormat>), RuntimeError> {
     if text.is_empty() {
         return Err(RuntimeError::Template {
             message: "글무늬 자리표시자 키가 비어 있습니다".to_string(),
@@ -501,10 +536,13 @@ fn resolve_path<'a>(
                 span,
             });
         };
-        current = pack.fields.get(segment).ok_or_else(|| RuntimeError::Template {
-            message: format!("묶음 필드가 없습니다: {}", segment),
-            span,
-        })?;
+        current = pack
+            .fields
+            .get(segment)
+            .ok_or_else(|| RuntimeError::Template {
+                message: format!("묶음 필드가 없습니다: {}", segment),
+                span,
+            })?;
         if matches!(current, Value::None) {
             return Err(RuntimeError::Template {
                 message: format!("묶음 필드 값이 없음입니다: {}", segment),
@@ -561,7 +599,10 @@ fn format_quantity(
                         crate::core::unit::UnitError::Unknown(name) => name,
                         crate::core::unit::UnitError::Overflow => "overflow".to_string(),
                     };
-                    RuntimeError::UnitUnknown { unit: unit_name, span }
+                    RuntimeError::UnitUnknown {
+                        unit: unit_name,
+                        span,
+                    }
                 })?;
                 if dim != qty.dim {
                     return Err(RuntimeError::UnitMismatch { span });
@@ -585,7 +626,9 @@ fn format_quantity(
 }
 
 fn pad_width(text: &str, width: usize, zero_pad: bool) -> String {
-    let (sign, rest) = text.strip_prefix('-').map_or(("", text), |rest| ("-", rest));
+    let (sign, rest) = text
+        .strip_prefix('-')
+        .map_or(("", text), |rest| ("-", rest));
     let total_len = sign.len() + rest.len();
     if total_len >= width {
         return text.to_string();

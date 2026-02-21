@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use ddonirang_core::fixed64::Fixed64;
@@ -8,7 +8,12 @@ use serde_json::Value;
 
 use super::detjson::write_text;
 
-pub fn run_inspect(geoul: &Path, madi: Option<u64>, agent: Option<u64>, out: Option<&Path>) -> Result<(), String> {
+pub fn run_inspect(
+    geoul: &Path,
+    madi: Option<u64>,
+    agent: Option<u64>,
+    out: Option<&Path>,
+) -> Result<(), String> {
     let jsonl_path = geoul.join("intent.jsonl");
     if !jsonl_path.exists() {
         return Err("E_INTENT_MISSING intent.jsonl이 없습니다".to_string());
@@ -47,7 +52,12 @@ pub fn run_mock(
     Ok(())
 }
 
-pub fn run_merge(inputs: &[PathBuf], madi: Option<u64>, agent: Option<u64>, out: Option<&Path>) -> Result<(), String> {
+pub fn run_merge(
+    inputs: &[PathBuf],
+    madi: Option<u64>,
+    agent: Option<u64>,
+    out: Option<&Path>,
+) -> Result<(), String> {
     let mut records = Vec::new();
     for path in inputs.iter() {
         let mut subset = parse_intent_jsonl(path.as_path(), madi, agent)?;
@@ -62,7 +72,11 @@ pub fn run_merge(inputs: &[PathBuf], madi: Option<u64>, agent: Option<u64>, out:
     Ok(())
 }
 
-fn parse_intent_jsonl(path: &Path, madi: Option<u64>, agent: Option<u64>) -> Result<Vec<IntentRecord>, String> {
+fn parse_intent_jsonl(
+    path: &Path,
+    madi: Option<u64>,
+    agent: Option<u64>,
+) -> Result<Vec<IntentRecord>, String> {
     let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let mut records = Vec::new();
     for (idx, line) in text.lines().enumerate() {
@@ -140,16 +154,24 @@ fn value_as_u64_opt(value: &Value, key: &str) -> Result<Option<u64>, String> {
 }
 
 fn value_as_u64(value: &Value, key: &str) -> Result<u64, String> {
-    let target = value.get(key).ok_or_else(|| format!("E_INTENT_FIELD {} 없음", key))?;
+    let target = value
+        .get(key)
+        .ok_or_else(|| format!("E_INTENT_FIELD {} 없음", key))?;
     match target {
-        Value::Number(num) => num.as_u64().ok_or_else(|| format!("E_INTENT_FIELD {} 숫자 아님", key)),
-        Value::String(text) => text.parse::<u64>().map_err(|_| format!("E_INTENT_FIELD {} 숫자 변환 실패", key)),
+        Value::Number(num) => num
+            .as_u64()
+            .ok_or_else(|| format!("E_INTENT_FIELD {} 숫자 아님", key)),
+        Value::String(text) => text
+            .parse::<u64>()
+            .map_err(|_| format!("E_INTENT_FIELD {} 숫자 변환 실패", key)),
         _ => Err(format!("E_INTENT_FIELD {} 형식 오류", key)),
     }
 }
 
 fn value_as_str<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
-    let target = value.get(key).ok_or_else(|| format!("E_INTENT_FIELD {} 없음", key))?;
+    let target = value
+        .get(key)
+        .ok_or_else(|| format!("E_INTENT_FIELD {} 없음", key))?;
     match target {
         Value::String(text) => Ok(text.as_str()),
         _ => Err(format!("E_INTENT_FIELD {} 형식 오류", key)),
@@ -157,7 +179,9 @@ fn value_as_str<'a>(value: &'a Value, key: &str) -> Result<&'a str, String> {
 }
 
 fn value_as_fixed64(value: &Value, key: &str) -> Result<Fixed64, String> {
-    let target = value.get(key).ok_or_else(|| format!("E_INTENT_FIELD {} 없음", key))?;
+    let target = value
+        .get(key)
+        .ok_or_else(|| format!("E_INTENT_FIELD {} 없음", key))?;
     match target {
         Value::Number(num) => parse_fixed64_string(&num.to_string()),
         Value::String(text) => parse_fixed64_string(text),

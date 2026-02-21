@@ -87,8 +87,14 @@ pub fn file_meta_to_json(meta: &FileMeta) -> String {
     let mut entries = Vec::with_capacity(meta.entries.len());
     for entry in &meta.entries {
         let mut item = serde_json::Map::new();
-        item.insert("key".to_string(), serde_json::Value::String(entry.key.clone()));
-        item.insert("value".to_string(), serde_json::Value::String(entry.value.clone()));
+        item.insert(
+            "key".to_string(),
+            serde_json::Value::String(entry.key.clone()),
+        );
+        item.insert(
+            "value".to_string(),
+            serde_json::Value::String(entry.value.clone()),
+        );
         entries.push(serde_json::Value::Object(item));
     }
     let mut root = serde_json::Map::new();

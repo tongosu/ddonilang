@@ -1,43 +1,47 @@
 #이름: ssot_edu_econ_e009_05_dwl_tau_variant_E009-05 단위세 τ에 따른 사중손실 DWL(근사)
 #설명: 근사 DWL ≈ 0.5*τ*(Q0-Qτ). 선형 수요/공급+단위세에서 Qτ를 계산하고 (τ,DWL) 출력.
 
-a <- 100.
-b <- 2.
-c <- -20.
-d <- 1.5.
+(매마디)마다 {
+  a <- 100.
+  b <- 2.
+  c <- -20.
+  d <- 1.5.
 
-tau_min <- 0.
-tau_max <- 40.
-dtau <- 1.
+  tau_min <- 0.
+  tau_max <- 40.
+  dtau <- 1.
 
-분모 <- b + d.
+  분모 <- b + d.
 
-# τ=0 기준 균형
-p0 <- (a - c) / 분모.
-{ p0 < 0 }인것 일때 {
-  p0 <- 0.
-}.
-q0 <- c + (d * p0).
-{ q0 < 0 }인것 일때 {
-  q0 <- 0.
-}.
-tau목록 <- (tau_min, tau_max, dtau) 범위.
-
-(tau) tau목록에 대해: {
-  p_p <- (a - c - (b * tau)) / 분모.
-  { p_p < 0 }인것 일때 {
-    p_p <- 0.
+  # τ=0 기준 균형
+  p0 <- (a - c) / 분모.
+  { p0 < 0 }인것 일때 {
+    p0 <- 0.
   }.
-  q_tau <- c + (d * p_p).
-  { q_tau < 0 }인것 일때 {
-    q_tau <- 0.
+  q0 <- c + (d * p0).
+  { q0 < 0 }인것 일때 {
+    q0 <- 0.
   }.
-  dq <- q0 - q_tau.
-  { dq < 0 }인것 일때 {
-    dq <- 0.
-  }.
-  DWL <- 0.5 * tau * dq.
+  tau목록 <- (tau_min, tau_max, dtau) 범위.
 
-  tau 보여주기.
-  DWL 보여주기.
+  (tau) tau목록에 대해: {
+    p_p <- (a - c - (b * tau)) / 분모.
+    { p_p < 0 }인것 일때 {
+      p_p <- 0.
+    }.
+    q_tau <- c + (d * p_p).
+    { q_tau < 0 }인것 일때 {
+      q_tau <- 0.
+    }.
+    dq <- q0 - q_tau.
+    { dq < 0 }인것 일때 {
+      dq <- 0.
+    }.
+    DWL <- 0.5 * tau * dq.
+
+    보임 {
+      tau: tau.
+      DWL: DWL.
+    }.
+  }.
 }.

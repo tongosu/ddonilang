@@ -1,16 +1,21 @@
 #이름: ssot_edu_phys_p015_03_centripetal_v_a_variant_P015-03 구심가속도 a(v)=v²/r
 #설명: 원운동 구심가속도 a=v²/r. r 고정 시 a는 v에 대해 제곱비례. (v, a) 출력.
-r <- 10.
 
-v_min <- 0.
-v_max <- 50.
-dv <- 0.5.
+(매마디)마다 {
+  r <- 10.
 
-v목록 <- (v_min, v_max, dv) 범위.
+  v_min <- 0.
+  v_max <- 50.
+  dv <- 0.5.
 
-(v) v목록에 대해: {
-  a <- (v * v) / r.
+  v목록 <- (v_min, v_max, dv) 범위.
 
-  v 보여주기.
-  a 보여주기.
+  (v) v목록에 대해: {
+    a <- (v * v) / r.
+
+    보임 {
+      v: v.
+      a: a.
+    }.
+  }.
 }.

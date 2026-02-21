@@ -1,16 +1,20 @@
-﻿#이름: physics_motion_variant_lesson_physics_motion
-#설명: 등가속도 y = 0.5 t^2 + 2 t + 1
+(매마디)마다 {
+  ﻿#이름: physics_motion_variant_lesson_physics_motion
+  #설명: 등가속도 y = 0.5 t^2 + 2 t + 1
 
-운동 = (#ascii1) 수식{ y = a t^2 + b t + c }.
+  운동 = (#ascii1) 수식{ y = a t^2 + b t + c }.
 
-a <- 0.5.
-b <- 2.
-c <- 1.
+  a <- 0.5.
+  b <- 2.
+  c <- 1.
 
-t목록 <- (0, 5, 0.5) 범위.
+  t목록 <- (0, 5, 0.5) 범위.
 
-(t) t목록에 대해: {
-  y <- (a=a, b=b, c=c, t=t)인 운동 풀기.
-  t 보여주기.
-  y 보여주기.
+  (t) t목록에 대해: {
+    y <- (a=a, b=b, c=c, t=t)인 운동 풀기.
+    보임 {
+      t: t.
+      y: y.
+    }.
+  }.
 }.

@@ -59,7 +59,6 @@ pub struct WarpBenchInput {
 pub struct WarpBenchOutput {
     pub cpu_ms: u64,
     pub gpu_ms: u64,
-    pub speedup: f64,
     pub realm_count: usize,
     pub step_count: u64,
 }
@@ -156,11 +155,9 @@ pub fn run_warp_bench(
         gpu_ms = cpu_ms;
     }
 
-    let speedup = cpu_ms as f64 / gpu_ms as f64;
     Ok(WarpBenchOutput {
         cpu_ms,
         gpu_ms,
-        speedup,
         realm_count: input.realm_count,
         step_count: input.steps,
     })

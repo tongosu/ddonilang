@@ -1,28 +1,33 @@
 #이름: ssot_edu_phys_p017_01_critical_angle_deg_of_ratio_variant_P017-01 임계각 θc(r=n2/n1)
 #설명: n1>n2일 때 sin(θc)=n2/n1=r.  θc=arcsin(r) (Newton 근사).
-// 출력은 숫자만. (r, θc_deg) 순서.
 
-pi <- 3.1415926535.
+(매마디)마다 {
+  // 출력은 숫자만. (r, θc_deg) 순서.
 
-r_min <- 0.10.
-r_max <- 0.99.
-dr <- 0.01.
+  pi <- 3.1415926535.
 
-r목록 <- (r_min, r_max, dr) 범위.
-k목록 <- (1, 8, 1) 범위.
+  r_min <- 0.10.
+  r_max <- 0.99.
+  dr <- 0.01.
 
-(r) r목록에 대해: {
-  theta <- r.   // 초기값(라디안, 작은 r에서 근사)
+  r목록 <- (r_min, r_max, dr) 범위.
+  k목록 <- (1, 8, 1) 범위.
 
-  (k) k목록에 대해: {
-    s <- (theta) sin.
-    c <- (theta) cos.
-    // Newton: theta <- theta - (sin(theta)-r)/cos(theta)
-    theta <- theta - (s - r) / c.
+  (r) r목록에 대해: {
+    theta <- r.   // 초기값(라디안, 작은 r에서 근사)
+
+    (k) k목록에 대해: {
+      s <- (theta) sin.
+      c <- (theta) cos.
+      // Newton: theta <- theta - (sin(theta)-r)/cos(theta)
+      theta <- theta - (s - r) / c.
+    }.
+
+    deg <- theta * 180 / pi.
+
+    보임 {
+      r: r.
+      deg: deg.
+    }.
   }.
-
-  deg <- theta * 180 / pi.
-
-  r 보여주기.
-  deg 보여주기.
 }.

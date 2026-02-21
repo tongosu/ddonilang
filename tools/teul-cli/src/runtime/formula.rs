@@ -1,15 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::core::fixed64::Fixed64;
-use crate::core::value::Quantity;
 use crate::core::unit::UnitDim;
+use crate::core::value::Quantity;
 use crate::lang::ast::FormulaDialect;
 
 #[derive(Debug)]
 pub enum FormulaError {
     Parse(String),
     Undefined(String),
-    ExtUnsupported { name: String },
+    ExtUnsupported {
+        name: String,
+    },
     #[allow(dead_code)]
     IdentNotAscii1,
     UnitMismatch,
@@ -45,7 +47,10 @@ enum BinOp {
 enum Expr {
     Number(Fixed64),
     Var(String),
-    Call { name: String, args: Vec<Expr> },
+    Call {
+        name: String,
+        args: Vec<Expr>,
+    },
     UnaryNeg(Box<Expr>),
     Binary {
         op: BinOp,
@@ -228,7 +233,10 @@ fn eval_expr(expr: &Expr, bindings: &BTreeMap<String, Quantity>) -> Result<Quant
                         .raw
                         .checked_div(right_val.raw)
                         .ok_or(FormulaError::DivZero)?;
-                    Ok(Quantity::new(raw, left_val.dim.add(right_val.dim.scale(-1))))
+                    Ok(Quantity::new(
+                        raw,
+                        left_val.dim.add(right_val.dim.scale(-1)),
+                    ))
                 }
                 BinOp::Pow => {
                     if !right_val.dim.is_dimensionless() {
@@ -414,7 +422,11 @@ struct FormulaParser {
 
 impl FormulaParser {
     fn new(tokens: Vec<Token>, dialect: FormulaDialect) -> Self {
-        Self { tokens, pos: 0, dialect }
+        Self {
+            tokens,
+            pos: 0,
+            dialect,
+        }
     }
 
     fn parse_assignment(&mut self) -> Result<FormulaAst, FormulaError> {
@@ -532,7 +544,10 @@ impl FormulaParser {
                 }
             }
             Token::End => Err(FormulaError::Parse("unexpected end".to_string())),
-            other => Err(FormulaError::Parse(format!("unexpected token: {:?}", other))),
+            other => Err(FormulaError::Parse(format!(
+                "unexpected token: {:?}",
+                other
+            ))),
         }
     }
 
@@ -634,7 +649,10 @@ impl FormulaParser {
     fn expect_end(&mut self) -> Result<(), FormulaError> {
         match self.peek() {
             Token::End => Ok(()),
-            other => Err(FormulaError::Parse(format!("unexpected token: {:?}", other))),
+            other => Err(FormulaError::Parse(format!(
+                "unexpected token: {:?}",
+                other
+            ))),
         }
     }
 
@@ -647,6 +665,9 @@ impl FormulaParser {
     }
 
     fn peek_starts_primary(&self) -> bool {
-        matches!(self.peek(), Token::Number(_) | Token::Ident(_) | Token::LParen)
+        matches!(
+            self.peek(),
+            Token::Number(_) | Token::Ident(_) | Token::LParen
+        )
     }
 }

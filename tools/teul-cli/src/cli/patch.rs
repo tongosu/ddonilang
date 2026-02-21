@@ -143,16 +143,13 @@ pub fn run_propose(file: &Path, out: Option<&Path>) -> Result<(), String> {
         let line_idx = token.span.start_line.saturating_sub(1);
         let start_col = token.span.start_col;
         let len = name.chars().count();
-        by_line
-            .entry(line_idx)
-            .or_default()
-            .push(Replacement {
-                start_col,
-                len,
-                old: term.input.to_string(),
-                new: term.canonical.to_string(),
-                code: term.code.to_string(),
-            });
+        by_line.entry(line_idx).or_default().push(Replacement {
+            start_col,
+            len,
+            old: term.input.to_string(),
+            new: term.canonical.to_string(),
+            code: term.code.to_string(),
+        });
     }
 
     let mut changes: Vec<serde_json::Value> = Vec::new();
@@ -182,12 +179,9 @@ pub fn run_propose(file: &Path, out: Option<&Path>) -> Result<(), String> {
             ));
             continue;
         }
-        let Some(change) = apply_replacements(
-            &old_line,
-            &replacements,
-            line_idx + 1,
-            &mut warnings,
-        ) else {
+        let Some(change) =
+            apply_replacements(&old_line, &replacements, line_idx + 1, &mut warnings)
+        else {
             continue;
         };
         changes.push(json!({
@@ -219,7 +213,12 @@ pub fn run_propose(file: &Path, out: Option<&Path>) -> Result<(), String> {
     Ok(())
 }
 
-pub fn run_approve(path: &Path, out: &Path, yes: bool, notes: Option<String>) -> Result<(), String> {
+pub fn run_approve(
+    path: &Path,
+    out: &Path,
+    yes: bool,
+    notes: Option<String>,
+) -> Result<(), String> {
     let patch_bytes = fs::read(path).map_err(|e| format!("E_PATCH_READ {}", e))?;
     let patch_hash = patch_hash_string(&patch_bytes);
 
@@ -228,7 +227,9 @@ pub fn run_approve(path: &Path, out: &Path, yes: bool, notes: Option<String>) ->
         stdout
             .write_all("ddn.patch.json 승인을 진행할까요? (yes/no): ".as_bytes())
             .map_err(|e| format!("E_PATCH_APPROVE {}", e))?;
-        stdout.flush().map_err(|e| format!("E_PATCH_APPROVE {}", e))?;
+        stdout
+            .flush()
+            .map_err(|e| format!("E_PATCH_APPROVE {}", e))?;
         let mut input = String::new();
         io::stdin()
             .read_line(&mut input)
@@ -248,12 +249,20 @@ pub fn run_approve(path: &Path, out: &Path, yes: bool, notes: Option<String>) ->
     if let Some(parent) = out.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("E_PATCH_WRITE {}", e))?;
     }
-    fs::write(out, serde_json::to_string_pretty(&approval_json).unwrap() + "\n")
-        .map_err(|e| format!("E_PATCH_WRITE {}", e))?;
+    fs::write(
+        out,
+        serde_json::to_string_pretty(&approval_json).unwrap() + "\n",
+    )
+    .map_err(|e| format!("E_PATCH_WRITE {}", e))?;
     Ok(())
 }
 
-pub fn run_apply(path: &Path, approval: &Path, out: Option<&Path>, in_place: bool) -> Result<(), String> {
+pub fn run_apply(
+    path: &Path,
+    approval: &Path,
+    out: Option<&Path>,
+    in_place: bool,
+) -> Result<(), String> {
     let patch_bytes = fs::read(path).map_err(|e| format!("E_PATCH_READ {}", e))?;
     let patch_hash = patch_hash_string(&patch_bytes);
     let approval = load_approval(approval)?;
@@ -333,7 +342,10 @@ pub fn run_verify(
     Ok(())
 }
 
-fn resolve_apply_mode(out: Option<&Path>, in_place: bool) -> Result<(Option<PathBuf>, bool), String> {
+fn resolve_apply_mode(
+    out: Option<&Path>,
+    in_place: bool,
+) -> Result<(Option<PathBuf>, bool), String> {
     if out.is_some() && in_place {
         return Err("E_PATCH_MODE --out과 --in-place는 함께 사용할 수 없습니다".to_string());
     }
@@ -351,7 +363,9 @@ fn patch_hash_string(bytes: &[u8]) -> String {
 fn load_patch(path: &Path) -> Result<PatchFile, String> {
     let text = fs::read_to_string(path).map_err(|e| format!("E_PATCH_READ {}", e))?;
     let json: Value = serde_json::from_str(&text).map_err(|e| format!("E_PATCH_JSON {}", e))?;
-    let obj = json.as_object().ok_or_else(|| "E_PATCH_JSON root must be object".to_string())?;
+    let obj = json
+        .as_object()
+        .ok_or_else(|| "E_PATCH_JSON root must be object".to_string())?;
 
     let patch_version = obj
         .get("patch_version")
@@ -372,7 +386,9 @@ fn load_patch(path: &Path) -> Result<PatchFile, String> {
 }
 
 fn parse_change(value: &Value) -> Result<PatchChange, String> {
-    let obj = value.as_object().ok_or_else(|| "E_PATCH_JSON change must be object".to_string())?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "E_PATCH_JSON change must be object".to_string())?;
     let kind = obj
         .get("kind")
         .and_then(|v| v.as_str())
@@ -400,7 +416,10 @@ fn parse_change(value: &Value) -> Result<PatchChange, String> {
     } else {
         return Err("E_PATCH_JSON change.after is required".to_string());
     };
-    let reason = obj.get("reason").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let reason = obj
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     Ok(PatchChange {
         kind,
         target,
@@ -424,7 +443,9 @@ fn parse_lines(value: &Value, field: &str) -> Result<Vec<String>, String> {
 }
 
 fn parse_target(value: &Value) -> Result<PatchTarget, String> {
-    let obj = value.as_object().ok_or_else(|| "E_PATCH_JSON target must be object".to_string())?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "E_PATCH_JSON target must be object".to_string())?;
     let file = obj
         .get("file")
         .and_then(|v| v.as_str())
@@ -510,7 +531,9 @@ fn print_preview_json(previews: &[PatchPreview], patch_version: Option<&str>) {
 fn load_approval(path: &Path) -> Result<PatchApproval, String> {
     let text = fs::read_to_string(path).map_err(|e| format!("E_PATCH_READ {}", e))?;
     let json: Value = serde_json::from_str(&text).map_err(|e| format!("E_PATCH_JSON {}", e))?;
-    let obj = json.as_object().ok_or_else(|| "E_PATCH_JSON approval must be object".to_string())?;
+    let obj = json
+        .as_object()
+        .ok_or_else(|| "E_PATCH_JSON approval must be object".to_string())?;
     let patch_hash = obj
         .get("patch_hash")
         .and_then(|v| v.as_str())
@@ -520,7 +543,10 @@ fn load_approval(path: &Path) -> Result<PatchApproval, String> {
         .get("approved")
         .and_then(|v| v.as_bool())
         .ok_or_else(|| "E_PATCH_JSON approval.approved missing".to_string())?;
-    Ok(PatchApproval { patch_hash, approved })
+    Ok(PatchApproval {
+        patch_hash,
+        approved,
+    })
 }
 
 fn validate_approval(approval: &PatchApproval, expected_hash: &str) -> Result<(), String> {
@@ -587,7 +613,13 @@ fn find_block_range(lines: &[String], anchor: &str) -> Result<(usize, usize), St
     let matches: Vec<usize> = lines
         .iter()
         .enumerate()
-        .filter_map(|(idx, line)| if line.contains(anchor) { Some(idx) } else { None })
+        .filter_map(|(idx, line)| {
+            if line.contains(anchor) {
+                Some(idx)
+            } else {
+                None
+            }
+        })
         .collect();
     if matches.is_empty() {
         return Err(format!("E_PATCH_ANCHOR '{}' not found", anchor));

@@ -173,7 +173,10 @@ pub enum Expr {
         field: String,
         span: Span,
     },
-    Atom { text: String, span: Span },
+    Atom {
+        text: String,
+        span: Span,
+    },
     Unary {
         op: UnaryOp,
         expr: Box<Expr>,

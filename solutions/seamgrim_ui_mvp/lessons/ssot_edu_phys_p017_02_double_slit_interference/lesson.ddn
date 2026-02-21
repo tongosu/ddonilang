@@ -1,24 +1,29 @@
 #이름: P017-02 이중슬릿 간섭 I(θ)
 #설명: I(θ)=cos^2( π*d*sinθ / λ )  (간이).
-// 출력은 숫자만. (θ, I) 순서.
 
-pi <- 3.1415926535.
+(매마디)마다 {
+  // 출력은 숫자만. (θ, I) 순서.
 
-d <- 4.0.
-lam <- 1.0.
+  pi <- 3.1415926535.
 
-th_min <- -pi/2.
-th_max <-  pi/2.
-dth <- 0.002.
+  d <- 4.0.
+  lam <- 1.0.
 
-th목록 <- (th_min, th_max, dth) 범위.
+  th_min <- -pi/2.
+  th_max <-  pi/2.
+  dth <- 0.002.
 
-(th) th목록에 대해: {
-  s <- (th) sin.
-  beta <- pi * d * s / lam.
-  c <- (beta) cos.
-  I <- c*c.
+  th목록 <- (th_min, th_max, dth) 범위.
 
-  th 보여주기.
-  I 보여주기.
+  (th) th목록에 대해: {
+    s <- (th) sin.
+    beta <- pi * d * s / lam.
+    c <- (beta) cos.
+    I <- c*c.
+
+    보임 {
+      th: th.
+      I: I.
+    }.
+  }.
 }.

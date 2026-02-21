@@ -3,7 +3,9 @@ use std::path::Path;
 
 use blake3;
 
-use crate::core::bdl_packet::{decode_bdl1_packet, encode_bdl1_packet, payload_hash_string, BdlPacketError};
+use crate::core::bdl_packet::{
+    decode_bdl1_packet, encode_bdl1_packet, payload_hash_string, BdlPacketError,
+};
 
 pub fn wrap_packet(input: &Path, out: &Path) -> Result<(), String> {
     let payload = fs::read(input).map_err(|e| format_error(input, BdlPacketError::Truncated, e))?;
@@ -26,8 +28,7 @@ pub fn wrap_packet(input: &Path, out: &Path) -> Result<(), String> {
 
 pub fn unwrap_packet(input: &Path, out: &Path) -> Result<(), String> {
     let bytes = fs::read(input).map_err(|e| format_error(input, BdlPacketError::Truncated, e))?;
-    let (payload, info) =
-        decode_bdl1_packet(&bytes).map_err(|err| format_error(input, err, ""))?;
+    let (payload, info) = decode_bdl1_packet(&bytes).map_err(|err| format_error(input, err, ""))?;
     if let Some(parent) = out.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }

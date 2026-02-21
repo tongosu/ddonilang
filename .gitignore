@@ -7,3 +7,10 @@ docs/
 /PR_CHECKLIST_v*.md
 /3.ddn
 /ddn.cmd
+target/
+**/__pycache__/
+*.pyc
+*.pyo
+*.age3.preview.ddn
+/.claude/
+geoul.diag.jsonl

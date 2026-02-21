@@ -84,7 +84,10 @@ impl DialectLexicon {
 
     fn load() -> Self {
         let mut lines = DIALECT_TABLE_TSV.lines();
-        let header_line = lines.next().unwrap_or_default().trim_start_matches('\u{feff}');
+        let header_line = lines
+            .next()
+            .unwrap_or_default()
+            .trim_start_matches('\u{feff}');
         let headers: Vec<&str> = header_line.split('\t').collect();
         let mut tags = HashSet::new();
         let mut by_lang: HashMap<String, HashMap<String, String>> = HashMap::new();
@@ -279,8 +282,7 @@ fn insert_josa_tokens(map: &mut HashMap<String, String>, raw: &str, role: &str) 
         if !token.starts_with('~') {
             continue;
         }
-        map.entry(token)
-            .or_insert_with(|| role.to_string());
+        map.entry(token).or_insert_with(|| role.to_string());
     }
 }
 

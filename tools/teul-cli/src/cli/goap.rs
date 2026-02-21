@@ -66,18 +66,9 @@ fn parse_goal(value: &Value) -> Result<TargetState, String> {
         .get("value")
         .and_then(|v| v.as_str())
         .ok_or_else(|| "E_GOAP_INPUT goal.value 없음".to_string())?;
-    let goal_id = obj
-        .get("goal_id")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-    let agent_id = obj
-        .get("agent_id")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-    let priority = obj
-        .get("priority")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(128) as u8;
+    let goal_id = obj.get("goal_id").and_then(|v| v.as_u64()).unwrap_or(0);
+    let agent_id = obj.get("agent_id").and_then(|v| v.as_u64()).unwrap_or(0);
+    let priority = obj.get("priority").and_then(|v| v.as_u64()).unwrap_or(128) as u8;
 
     Ok(TargetState {
         agent_id,

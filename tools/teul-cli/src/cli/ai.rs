@@ -17,7 +17,9 @@ pub fn extract(in_path: &Path, out_path: &Path) -> Result<(), String> {
         out.push_str("\"}");
     }
     out.push_str("],\"prompt\":\"");
-    out.push_str(&escape_json(prompts.get(0).map(String::as_str).unwrap_or("")));
+    out.push_str(&escape_json(
+        prompts.get(0).map(String::as_str).unwrap_or(""),
+    ));
     out.push_str("\"}\n");
     fs::write(out_path, out).map_err(|e| e.to_string())
 }

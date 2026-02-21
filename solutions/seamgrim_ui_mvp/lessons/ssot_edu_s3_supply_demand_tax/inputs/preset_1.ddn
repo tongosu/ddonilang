@@ -1,3 +1,24 @@
-// edu_s3_supply_demand_tax — lesson.ddn (placeholder)
-// NOTE: 아직 실행 가능한 내용은 없다(스켈레톤).
-// TODO(구현): inputs/*.detjson 프리셋 로드 → 균형/후생 계산 → 지표 생성 → checks/* 검증
+#이름: ssot_edu_s3_supply_demand_tax_preset_1
+#설명: 탄력도가 높은 수요 조건에서의 세율-균형가격 관계
+#control: a:수=150 [20..300] step=1; b:수=3.5 [0.1..10] step=0.1; c:수=20 [0..200] step=1; d:수=1.0 [0.1..10] step=0.1; tau_min:수=0 [0..60] step=1; tau_max:수=24 [1..100] step=1; tau_step:수=1 [0.5..10] step=0.5
+
+(매마디)마다 {
+  a <- 150.
+  b <- 3.5.
+  c <- 20.
+  d <- 1.0.
+  tau_min <- 0.
+  tau_max <- 24.
+  tau_step <- 1.
+
+  tau <- tau_min.
+  { tau <= tau_max }인것 동안: {
+    p_star <- (a - c + d * tau) / (b + d).
+    q_star <- a - b * p_star.
+    보임 {
+      tau: tau.
+      p_star: p_star.
+    }.
+    tau <- tau + tau_step.
+  }.
+}.

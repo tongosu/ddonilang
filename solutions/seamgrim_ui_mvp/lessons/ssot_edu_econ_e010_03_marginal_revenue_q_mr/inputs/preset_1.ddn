@@ -1,16 +1,21 @@
 #이름: ssot_edu_econ_e010_03_marginal_revenue_q_mr_variant_E010-03 한계수입 MR(Q)
 #설명: 선형 역수요 P(Q)=a-bQ 에서 TR=aQ-bQ^2, MR=dTR/dQ=a-2bQ. (Q,MR) 출력.
-a <- 100.
-b <- 1.
 
-Q_min <- 0.
-Q_max <- 140.
-dQ <- 1.
+(매마디)마다 {
+  a <- 100.
+  b <- 1.
 
-Q목록 <- (Q_min, Q_max, dQ) 범위.
+  Q_min <- 0.
+  Q_max <- 140.
+  dQ <- 1.
 
-(Q) Q목록에 대해: {
-  MR <- a - (2 * b * Q).
-  Q 보여주기.
-  MR 보여주기.
+  Q목록 <- (Q_min, Q_max, dQ) 범위.
+
+  (Q) Q목록에 대해: {
+    MR <- a - (2 * b * Q).
+    보임 {
+      Q: Q.
+      MR: MR.
+    }.
+  }.
 }.

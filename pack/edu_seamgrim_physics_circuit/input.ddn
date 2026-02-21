@@ -1,7 +1,7 @@
 #이름: physics_circuit
 #설명: 간단 회로 구조(노드-간선)
 
-전압 = (#ascii1) 수식{ y = a x + b }.
+전압 <- (#ascii1) 수식{ y = a x + b }.
 
 a <- 1.
 b <- 0.

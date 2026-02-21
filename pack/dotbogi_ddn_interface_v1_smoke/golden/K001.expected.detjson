@@ -1,0 +1,17 @@
+{
+  "schema": "dotbogi.output.v1",
+  "view_meta": {
+    "layout": "inventory",
+    "rows": [
+      {
+        "id": "potion",
+        "count": 2
+      },
+      {
+        "id": "key",
+        "count": 1
+      }
+    ]
+  },
+  "events": []
+}

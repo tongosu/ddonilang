@@ -39,10 +39,7 @@ pub fn run_replay_branch(
         .map(|path| path.to_path_buf())
         .unwrap_or_else(|| geoul_dir.join("entry.ddn"));
     if !entry_path.exists() {
-        return Err(format!(
-            "E_REPLAY_ENTRY_MISSING {}",
-            entry_path.display()
-        ));
+        return Err(format!("E_REPLAY_ENTRY_MISSING {}", entry_path.display()));
     }
     let source = fs::read_to_string(&entry_path)
         .map_err(|err| format!("E_REPLAY_ENTRY_READ {} {}", entry_path.display(), err))?;
@@ -117,8 +114,7 @@ pub fn run_replay_branch(
         branch_snapshots.push(snapshot);
     }
 
-    let tokens = Lexer::tokenize(&source)
-        .map_err(|err| format!("E_REPLAY_LEX {:?}", err))?;
+    let tokens = Lexer::tokenize(&source).map_err(|err| format!("E_REPLAY_LEX {:?}", err))?;
     let default_root = Parser::default_root_for_source(&source);
     let program = Parser::parse_with_default_root(tokens, default_root)
         .map_err(|err| format!("E_REPLAY_PARSE {:?}", err))?;
@@ -181,7 +177,10 @@ pub fn run_replay_branch(
         let mut patch_buf = Vec::new();
         let mut alrim_buf = Vec::new();
         let mut full_blob = None;
-        if matches!(trace_tier, TraceTier::Patch | TraceTier::Alrim | TraceTier::Full) {
+        if matches!(
+            trace_tier,
+            TraceTier::Patch | TraceTier::Alrim | TraceTier::Full
+        ) {
             let state_hash = blake3::hash(&state_bytes);
             patch_buf.extend_from_slice(state_hash.as_bytes());
             if matches!(trace_tier, TraceTier::Alrim | TraceTier::Full) {
@@ -206,9 +205,10 @@ pub fn run_replay_branch(
             },
             full: full_blob,
         };
-        if let Err(err) = writer
-            .borrow_mut()
-            .record_frame(madi, &snapshot_bytes, &state_bytes, payload)
+        if let Err(err) =
+            writer
+                .borrow_mut()
+                .record_frame(madi, &snapshot_bytes, &state_bytes, payload)
         {
             record_error.replace(Some(err));
             return;

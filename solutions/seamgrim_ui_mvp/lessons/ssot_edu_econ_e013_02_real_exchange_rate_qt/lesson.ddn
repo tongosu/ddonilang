@@ -1,27 +1,32 @@
 #이름: E013-02 실질환율 q(t) 동학
 #설명: q = e * (P_for / P_dom).  e는 고정, 물가만 누적.
-// 출력은 숫자만. (t, q) 순서.
 
-e <- 1200.          // 명목환율(예: 원/달러)
-P_dom0 <- 100.
-P_for0 <- 100.
+(매마디)마다 {
+  // 출력은 숫자만. (t, q) 순서.
 
-pi_dom <- 0.03.     // 국내 물가상승률(연/기 단위는 해석에 맞춰)
-pi_for <- 0.02.
+  e <- 1200.          // 명목환율(예: 원/달러)
+  P_dom0 <- 100.
+  P_for0 <- 100.
 
-dt <- 1.
-t_max <- 50.
-t목록 <- (0, t_max, dt) 범위.
+  pi_dom <- 0.03.     // 국내 물가상승률(연/기 단위는 해석에 맞춰)
+  pi_for <- 0.02.
 
-P_dom <- P_dom0.
-P_for <- P_for0.
+  dt <- 1.
+  t_max <- 50.
+  t목록 <- (0, t_max, dt) 범위.
 
-(t) t목록에 대해: {
-  q <- e * (P_for / P_dom).
+  P_dom <- P_dom0.
+  P_for <- P_for0.
 
-  t 보여주기.
-  q 보여주기.
+  (t) t목록에 대해: {
+    q <- e * (P_for / P_dom).
 
-  P_dom <- P_dom * (1 + pi_dom).
-  P_for <- P_for * (1 + pi_for).
+    보임 {
+      t: t.
+      q: q.
+    }.
+
+    P_dom <- P_dom * (1 + pi_dom).
+    P_for <- P_for * (1 + pi_for).
+  }.
 }.

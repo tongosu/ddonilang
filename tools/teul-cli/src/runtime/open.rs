@@ -189,7 +189,16 @@ impl OpenRuntime {
                 open_kind: "clock".to_string(),
                 span,
             };
-            self.record_diag("clock", site_id, "now", None, "deny", Some(err.code()), open_seq, span)?;
+            self.record_diag(
+                "clock",
+                site_id,
+                "now",
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
             return Err(err);
         }
         self.warn_not_declared("clock", site_id);
@@ -223,7 +232,15 @@ impl OpenRuntime {
                 Ok(Value::Pack(clock_pack(unix_sec)))
             })(),
         };
-        self.finish_diag("clock", site_id, "now", value_hash.as_deref(), &result, open_seq, span)?;
+        self.finish_diag(
+            "clock",
+            site_id,
+            "now",
+            value_hash.as_deref(),
+            &result,
+            open_seq,
+            span,
+        )?;
         result
     }
 
@@ -240,7 +257,16 @@ impl OpenRuntime {
                 open_kind: "file_read".to_string(),
                 span,
             };
-            self.record_diag("file_read", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            self.record_diag(
+                "file_read",
+                site_id,
+                &key,
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
             return Err(err);
         }
         self.warn_not_declared("file_read", site_id);
@@ -271,7 +297,15 @@ impl OpenRuntime {
                 Ok(Value::Str(text))
             })(),
         };
-        self.finish_diag("file_read", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        self.finish_diag(
+            "file_read",
+            site_id,
+            &key,
+            value_hash.as_deref(),
+            &result,
+            open_seq,
+            span,
+        )?;
         result
     }
 
@@ -282,7 +316,16 @@ impl OpenRuntime {
                 open_kind: "rand".to_string(),
                 span,
             };
-            self.record_diag("rand", site_id, "rng", None, "deny", Some(err.code()), open_seq, span)?;
+            self.record_diag(
+                "rand",
+                site_id,
+                "rng",
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
             return Err(err);
         }
         self.warn_not_declared("rand", site_id);
@@ -328,7 +371,15 @@ impl OpenRuntime {
                 )))
             })(),
         };
-        self.finish_diag("rand", site_id, "rng", value_hash.as_deref(), &result, open_seq, span)?;
+        self.finish_diag(
+            "rand",
+            site_id,
+            "rng",
+            value_hash.as_deref(),
+            &result,
+            open_seq,
+            span,
+        )?;
         result
     }
 
@@ -348,7 +399,16 @@ impl OpenRuntime {
                 open_kind: "net".to_string(),
                 span,
             };
-            self.record_diag("net", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            self.record_diag(
+                "net",
+                site_id,
+                &key,
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
             return Err(err);
         }
         self.warn_not_declared("net", site_id);
@@ -378,7 +438,15 @@ impl OpenRuntime {
                 Ok(Value::Str(text))
             })(),
         };
-        self.finish_diag("net", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        self.finish_diag(
+            "net",
+            site_id,
+            &key,
+            value_hash.as_deref(),
+            &result,
+            open_seq,
+            span,
+        )?;
         result
     }
 
@@ -397,7 +465,16 @@ impl OpenRuntime {
                 open_kind: "ffi".to_string(),
                 span,
             };
-            self.record_diag("ffi", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            self.record_diag(
+                "ffi",
+                site_id,
+                &key,
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
             return Err(err);
         }
         self.warn_not_declared("ffi", site_id);
@@ -427,7 +504,15 @@ impl OpenRuntime {
                 Ok(Value::Str(text))
             })(),
         };
-        self.finish_diag("ffi", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        self.finish_diag(
+            "ffi",
+            site_id,
+            &key,
+            value_hash.as_deref(),
+            &result,
+            open_seq,
+            span,
+        )?;
         result
     }
 
@@ -446,7 +531,16 @@ impl OpenRuntime {
                 open_kind: "gpu".to_string(),
                 span,
             };
-            self.record_diag("gpu", site_id, &key, None, "deny", Some(err.code()), open_seq, span)?;
+            self.record_diag(
+                "gpu",
+                site_id,
+                &key,
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
             return Err(err);
         }
         self.warn_not_declared("gpu", site_id);
@@ -476,7 +570,15 @@ impl OpenRuntime {
                 Ok(Value::Str(text))
             })(),
         };
-        self.finish_diag("gpu", site_id, &key, value_hash.as_deref(), &result, open_seq, span)?;
+        self.finish_diag(
+            "gpu",
+            site_id,
+            &key,
+            value_hash.as_deref(),
+            &result,
+            open_seq,
+            span,
+        )?;
         result
     }
 
@@ -510,10 +612,11 @@ impl OpenRuntime {
             message: format!("open.log 직렬화 실패: {}", e),
             span,
         })?;
-        file.write_all(line.as_bytes()).map_err(|e| RuntimeError::OpenIo {
-            message: format!("open.log 기록 실패: {}", e),
-            span,
-        })?;
+        file.write_all(line.as_bytes())
+            .map_err(|e| RuntimeError::OpenIo {
+                message: format!("open.log 기록 실패: {}", e),
+                span,
+            })?;
         file.write_all(b"\n").map_err(|e| RuntimeError::OpenIo {
             message: format!("open.log 기록 실패: {}", e),
             span,
@@ -551,10 +654,11 @@ impl OpenRuntime {
             key: key.to_string(),
             span,
         })?;
-        let detjson_text = serde_json::to_string(&value.value).map_err(|e| RuntimeError::OpenReplayInvalid {
-            message: format!("open.log value 직렬화 실패: {}", e),
-            span,
-        })?;
+        let detjson_text =
+            serde_json::to_string(&value.value).map_err(|e| RuntimeError::OpenReplayInvalid {
+                message: format!("open.log value 직렬화 실패: {}", e),
+                span,
+            })?;
         let actual_hash = format!("sha256:{}", sha256_hex(detjson_text.as_bytes()));
         if actual_hash != value.detjson_hash {
             return Err(RuntimeError::OpenLogTamper {
@@ -613,7 +717,16 @@ impl OpenRuntime {
                 (label, Some(err.code()))
             }
         };
-        self.record_diag(open_kind, site_id, key, value_hash, result_label, diag_code, open_seq, span)
+        self.record_diag(
+            open_kind,
+            site_id,
+            key,
+            value_hash,
+            result_label,
+            diag_code,
+            open_seq,
+            span,
+        )
     }
 
     fn record_diag(
@@ -648,23 +761,39 @@ impl OpenRuntime {
             "open_seq".to_string(),
             JsonValue::Number(serde_json::Number::from(open_seq)),
         );
-        obj.insert("open_kind".to_string(), JsonValue::String(open_kind.to_string()));
-        obj.insert("site_id".to_string(), JsonValue::String(site_id.to_string()));
+        obj.insert(
+            "open_kind".to_string(),
+            JsonValue::String(open_kind.to_string()),
+        );
+        obj.insert(
+            "site_id".to_string(),
+            JsonValue::String(site_id.to_string()),
+        );
         obj.insert("key_hash".to_string(), JsonValue::String(key_hash));
         match value_hash {
-            Some(value) => obj.insert("value_hash".to_string(), JsonValue::String(value.to_string())),
+            Some(value) => obj.insert(
+                "value_hash".to_string(),
+                JsonValue::String(value.to_string()),
+            ),
             None => obj.insert("value_hash".to_string(), JsonValue::Null),
         };
         obj.insert("result".to_string(), JsonValue::String(result.to_string()));
-        obj.insert("det_tier".to_string(), JsonValue::String(diag.det_tier.clone()));
-        obj.insert("trace_tier".to_string(), JsonValue::String(diag.trace_tier.clone()));
+        obj.insert(
+            "det_tier".to_string(),
+            JsonValue::String(diag.det_tier.clone()),
+        );
+        obj.insert(
+            "trace_tier".to_string(),
+            JsonValue::String(diag.trace_tier.clone()),
+        );
         if let Some(code) = diag_code {
             obj.insert("diag_code".to_string(), JsonValue::String(code.to_string()));
         }
-        let line = serde_json::to_string(&JsonValue::Object(obj)).map_err(|e| RuntimeError::OpenIo {
-            message: format!("geoul.diag 직렬화 실패: {}", e),
-            span,
-        })?;
+        let line =
+            serde_json::to_string(&JsonValue::Object(obj)).map_err(|e| RuntimeError::OpenIo {
+                message: format!("geoul.diag 직렬화 실패: {}", e),
+                span,
+            })?;
         let mut file_handle = OpenOptions::new()
             .create(true)
             .append(true)
@@ -673,14 +802,18 @@ impl OpenRuntime {
                 message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
                 span,
             })?;
-        file_handle.write_all(line.as_bytes()).map_err(|e| RuntimeError::OpenIo {
-            message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
-            span,
-        })?;
-        file_handle.write_all(b"\n").map_err(|e| RuntimeError::OpenIo {
-            message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
-            span,
-        })?;
+        file_handle
+            .write_all(line.as_bytes())
+            .map_err(|e| RuntimeError::OpenIo {
+                message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
+                span,
+            })?;
+        file_handle
+            .write_all(b"\n")
+            .map_err(|e| RuntimeError::OpenIo {
+                message: format!("geoul.diag 기록 실패: {} ({})", diag.path.display(), e),
+                span,
+            })?;
         file_handle.flush().map_err(|e| RuntimeError::OpenIo {
             message: format!("geoul.diag flush 실패: {} ({})", diag.path.display(), e),
             span,
@@ -771,10 +904,9 @@ fn load_replay_log(path: &Path) -> Result<BTreeMap<OpenKey, VecDeque<OpenValue>>
         if trimmed.is_empty() {
             continue;
         }
-        let value: JsonValue = serde_json::from_str(trimmed)
-            .map_err(|e| OpenLogError::Parse {
-                message: format!("open.log 파싱 실패 {}:{} ({})", path.display(), idx + 1, e),
-            })?;
+        let value: JsonValue = serde_json::from_str(trimmed).map_err(|e| OpenLogError::Parse {
+            message: format!("open.log 파싱 실패 {}:{} ({})", path.display(), idx + 1, e),
+        })?;
         let event_kind = value
             .get("event_kind")
             .and_then(|v| v.as_str())
@@ -808,11 +940,9 @@ fn load_replay_log(path: &Path) -> Result<BTreeMap<OpenKey, VecDeque<OpenValue>>
             .ok_or_else(|| OpenLogError::Parse {
                 message: format!("open.log detjson_hash 누락: {}:{}", path.display(), idx + 1),
             })?;
-        let payload = value
-            .get("value")
-            .ok_or_else(|| OpenLogError::Parse {
-                message: format!("open.log value 누락: {}:{}", path.display(), idx + 1),
-            })?;
+        let payload = value.get("value").ok_or_else(|| OpenLogError::Parse {
+            message: format!("open.log value 누락: {}:{}", path.display(), idx + 1),
+        })?;
         let key = if open_kind == "file_read" {
             normalize_open_key(key)
         } else {
@@ -848,13 +978,13 @@ fn parse_unix_sec(value: &JsonValue, span: Span) -> Result<i64, RuntimeError> {
             span,
         });
     };
-    let schema = obj
-        .get("schema")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.clock schema 누락".to_string(),
-            span,
-        })?;
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.clock schema 누락".to_string(),
+                span,
+            })?;
     if !matches!(schema, "open.clock.v1" | "open.clock.v2") {
         return Err(RuntimeError::OpenReplayInvalid {
             message: format!(
@@ -864,10 +994,13 @@ fn parse_unix_sec(value: &JsonValue, span: Span) -> Result<i64, RuntimeError> {
             span,
         });
     }
-    let unix_sec = obj.get("unix_sec").and_then(|v| v.as_i64()).ok_or(RuntimeError::OpenReplayInvalid {
-        message: "open.clock unix_sec 누락".to_string(),
-        span,
-    })?;
+    let unix_sec =
+        obj.get("unix_sec")
+            .and_then(|v| v.as_i64())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.clock unix_sec 누락".to_string(),
+                span,
+            })?;
     Ok(unix_sec)
 }
 
@@ -878,13 +1011,13 @@ fn parse_text(value: &JsonValue, span: Span) -> Result<String, RuntimeError> {
             span,
         });
     };
-    let schema = obj
-        .get("schema")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.file_read schema 누락".to_string(),
-            span,
-        })?;
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.file_read schema 누락".to_string(),
+                span,
+            })?;
     if !matches!(schema, "open.file_read.v1" | "open.file_read.v2") {
         return Err(RuntimeError::OpenReplayInvalid {
             message: format!(
@@ -894,10 +1027,13 @@ fn parse_text(value: &JsonValue, span: Span) -> Result<String, RuntimeError> {
             span,
         });
     }
-    let text = obj.get("text").and_then(|v| v.as_str()).ok_or(RuntimeError::OpenReplayInvalid {
-        message: "open.file_read text 누락".to_string(),
-        span,
-    })?;
+    let text = obj
+        .get("text")
+        .and_then(|v| v.as_str())
+        .ok_or(RuntimeError::OpenReplayInvalid {
+            message: "open.file_read text 누락".to_string(),
+            span,
+        })?;
     Ok(text.to_string())
 }
 
@@ -908,29 +1044,38 @@ fn parse_rand_value(value: &JsonValue, span: Span) -> Result<i64, RuntimeError> 
             span,
         });
     };
-    let schema = obj
-        .get("schema")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.rand schema 누락".to_string(),
-            span,
-        })?;
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.rand schema 누락".to_string(),
+                span,
+            })?;
     if schema != "open.rand.v1" {
         return Err(RuntimeError::OpenReplayInvalid {
-            message: format!("open.rand schema 불일치: expected=open.rand.v1 actual={}", schema),
+            message: format!(
+                "open.rand schema 불일치: expected=open.rand.v1 actual={}",
+                schema
+            ),
             span,
         });
     }
-    let value = obj.get("value").and_then(|v| v.as_i64()).ok_or(RuntimeError::OpenReplayInvalid {
-        message: "open.rand value 누락".to_string(),
-        span,
-    })?;
+    let value =
+        obj.get("value")
+            .and_then(|v| v.as_i64())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.rand value 누락".to_string(),
+                span,
+            })?;
     Ok(value)
 }
 
 fn build_open_net_value(url: &str, method: &str, body: Option<&str>, response: &str) -> JsonValue {
     let mut obj = serde_json::Map::new();
-    obj.insert("schema".to_string(), JsonValue::String("open.net.v1".to_string()));
+    obj.insert(
+        "schema".to_string(),
+        JsonValue::String("open.net.v1".to_string()),
+    );
     obj.insert("url".to_string(), JsonValue::String(url.to_string()));
     obj.insert("method".to_string(), JsonValue::String(method.to_string()));
     if let Some(body) = body {
@@ -957,16 +1102,19 @@ fn parse_open_net_text(value: &JsonValue, span: Span) -> Result<String, RuntimeE
             span,
         });
     };
-    let schema = obj
-        .get("schema")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.net schema 누락".to_string(),
-            span,
-        })?;
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.net schema 누락".to_string(),
+                span,
+            })?;
     if schema != "open.net.v1" {
         return Err(RuntimeError::OpenReplayInvalid {
-            message: format!("open.net schema 불일치: expected=open.net.v1 actual={}", schema),
+            message: format!(
+                "open.net schema 불일치: expected=open.net.v1 actual={}",
+                schema
+            ),
             span,
         });
     }
@@ -986,7 +1134,10 @@ fn build_open_ffi_key(name: &str, args: Option<&[String]>) -> String {
 
 fn build_open_ffi_value(name: &str, args: Option<&[String]>, result: &str) -> JsonValue {
     let mut obj = serde_json::Map::new();
-    obj.insert("schema".to_string(), JsonValue::String("open.ffi.v1".to_string()));
+    obj.insert(
+        "schema".to_string(),
+        JsonValue::String("open.ffi.v1".to_string()),
+    );
     obj.insert("name".to_string(), JsonValue::String(name.to_string()));
     if let Some(items) = args {
         let array = items
@@ -1006,16 +1157,19 @@ fn parse_open_ffi_result(value: &JsonValue, span: Span) -> Result<String, Runtim
             span,
         });
     };
-    let schema = obj
-        .get("schema")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.ffi schema 누락".to_string(),
-            span,
-        })?;
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.ffi schema 누락".to_string(),
+                span,
+            })?;
     if schema != "open.ffi.v1" {
         return Err(RuntimeError::OpenReplayInvalid {
-            message: format!("open.ffi schema 불일치: expected=open.ffi.v1 actual={}", schema),
+            message: format!(
+                "open.ffi schema 불일치: expected=open.ffi.v1 actual={}",
+                schema
+            ),
             span,
         });
     }
@@ -1027,10 +1181,16 @@ fn parse_open_ffi_result(value: &JsonValue, span: Span) -> Result<String, Runtim
 
 fn build_open_gpu_value(kernel: &str, payload: Option<&str>, result: &str) -> JsonValue {
     let mut obj = serde_json::Map::new();
-    obj.insert("schema".to_string(), JsonValue::String("open.gpu.v1".to_string()));
+    obj.insert(
+        "schema".to_string(),
+        JsonValue::String("open.gpu.v1".to_string()),
+    );
     obj.insert("kernel".to_string(), JsonValue::String(kernel.to_string()));
     if let Some(payload) = payload {
-        obj.insert("payload".to_string(), JsonValue::String(payload.to_string()));
+        obj.insert(
+            "payload".to_string(),
+            JsonValue::String(payload.to_string()),
+        );
     }
     obj.insert("result".to_string(), JsonValue::String(result.to_string()));
     JsonValue::Object(obj)
@@ -1053,16 +1213,19 @@ fn parse_open_gpu_result(value: &JsonValue, span: Span) -> Result<String, Runtim
             span,
         });
     };
-    let schema = obj
-        .get("schema")
-        .and_then(|v| v.as_str())
-        .ok_or(RuntimeError::OpenReplayInvalid {
-            message: "open.gpu schema 누락".to_string(),
-            span,
-        })?;
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.gpu schema 누락".to_string(),
+                span,
+            })?;
     if schema != "open.gpu.v1" {
         return Err(RuntimeError::OpenReplayInvalid {
-            message: format!("open.gpu schema 불일치: expected=open.gpu.v1 actual={}", schema),
+            message: format!(
+                "open.gpu schema 불일치: expected=open.gpu.v1 actual={}",
+                schema
+            ),
             span,
         });
     }

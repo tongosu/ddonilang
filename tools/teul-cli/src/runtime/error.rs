@@ -2,29 +2,94 @@ use crate::lang::span::Span;
 
 #[derive(Debug)]
 pub enum RuntimeError {
-    Undefined { path: String, span: Span },
-    InvalidPath { path: String, span: Span },
-    MathDivZero { span: Span },
-    MathDomain { message: &'static str, span: Span },
-    TypeMismatch { expected: &'static str, span: Span },
-    TypeMismatchDetail { expected: &'static str, actual: String, span: Span },
-    IndexOutOfRange { span: Span },
-    UnitMismatch { span: Span },
-    UnitUnknown { unit: String, span: Span },
-    FormulaParse { message: String, span: Span },
-    FormulaUndefined { name: String, span: Span },
-    FormulaIdentNotAscii1 { span: Span },
-    FormulaExtUnsupported { name: String, span: Span },
-    Template { message: String, span: Span },
-    Pack { message: String, span: Span },
-    BreakOutsideLoop { span: Span },
-    ReturnOutsideSeed { span: Span },
-    OpenSiteUnknown { span: Span },
-    OpenDenied { open_kind: String, span: Span },
-    OpenReplayMissing { open_kind: String, site_id: String, key: String, span: Span },
-    OpenReplayInvalid { message: String, span: Span },
-    OpenLogTamper { message: String, span: Span },
-    OpenIo { message: String, span: Span },
+    Undefined {
+        path: String,
+        span: Span,
+    },
+    InvalidPath {
+        path: String,
+        span: Span,
+    },
+    MathDivZero {
+        span: Span,
+    },
+    MathDomain {
+        message: &'static str,
+        span: Span,
+    },
+    TypeMismatch {
+        expected: &'static str,
+        span: Span,
+    },
+    TypeMismatchDetail {
+        expected: &'static str,
+        actual: String,
+        span: Span,
+    },
+    IndexOutOfRange {
+        span: Span,
+    },
+    UnitMismatch {
+        span: Span,
+    },
+    UnitUnknown {
+        unit: String,
+        span: Span,
+    },
+    FormulaParse {
+        message: String,
+        span: Span,
+    },
+    FormulaUndefined {
+        name: String,
+        span: Span,
+    },
+    FormulaIdentNotAscii1 {
+        span: Span,
+    },
+    FormulaExtUnsupported {
+        name: String,
+        span: Span,
+    },
+    Template {
+        message: String,
+        span: Span,
+    },
+    Pack {
+        message: String,
+        span: Span,
+    },
+    BreakOutsideLoop {
+        span: Span,
+    },
+    ReturnOutsideSeed {
+        span: Span,
+    },
+    OpenSiteUnknown {
+        span: Span,
+    },
+    OpenDenied {
+        open_kind: String,
+        span: Span,
+    },
+    OpenReplayMissing {
+        open_kind: String,
+        site_id: String,
+        key: String,
+        span: Span,
+    },
+    OpenReplayInvalid {
+        message: String,
+        span: Span,
+    },
+    OpenLogTamper {
+        message: String,
+        span: Span,
+    },
+    OpenIo {
+        message: String,
+        span: Span,
+    },
 }
 
 impl RuntimeError {

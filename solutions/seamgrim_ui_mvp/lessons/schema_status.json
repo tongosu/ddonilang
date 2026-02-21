@@ -1,0 +1,4025 @@
+{
+  "schema": "seamgrim.lesson.schema_status.v1",
+  "lessons": [
+    {
+      "lesson_id": "college_econ_growth",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_econ_growth\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_econ_growth\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_econ_productivity",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_econ_productivity\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_econ_productivity\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_econ_utility",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_econ_utility\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_econ_utility\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_math_linear",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_math_linear\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_math_linear\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_math_matrix",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_math_matrix\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_math_matrix\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_math_series",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_math_series\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_math_series\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_physics_harmonic",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_physics_harmonic\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_physics_harmonic\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_physics_orbit",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_physics_orbit\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_physics_orbit\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "college_physics_thermal",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_physics_thermal\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\college_physics_thermal\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "econ_budget_table",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\econ_budget_table\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\econ_budget_table\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "econ_supply_demand",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\econ_supply_demand\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\econ_supply_demand\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "edu_pilot_phys_econ_lesson_phys_01",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\edu_pilot_phys_econ_lesson_phys_01\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\edu_pilot_phys_econ_lesson_phys_01\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 13,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 13,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_allowance_budget",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_allowance_budget\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_allowance_budget\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_demand_drop",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_demand_drop\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_demand_drop\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_discount",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_discount\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_discount\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_income_spending",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_income_spending\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_income_spending\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_population",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_population\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_population\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_saving_goal",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_saving_goal\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_saving_goal\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_store_stock",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_store_stock\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_store_stock\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_supply_demand_basic",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_supply_demand_basic\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_supply_demand_basic\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_supply_drop",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_supply_drop\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_supply_drop\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_supply_increase",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_supply_increase\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_supply_increase\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_survey_counts",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_survey_counts\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_survey_counts\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_tax_price",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_tax_price\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_tax_price\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_timeline",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_timeline\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_timeline\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_econ_unit_price",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_unit_price\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_econ_unit_price\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_add_sub_pattern",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_add_sub_pattern\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_add_sub_pattern\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_area_square",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_area_square\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_area_square\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_arithmetic_sequence",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_arithmetic_sequence\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_arithmetic_sequence\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_coordinates_basic",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_coordinates_basic\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_coordinates_basic\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_cubic_growth",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_cubic_growth\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_cubic_growth\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_decimal_scale",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_decimal_scale\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_decimal_scale\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_decimal_shift",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_decimal_shift\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_decimal_shift\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_even_numbers",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_even_numbers\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_even_numbers\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_fraction_addition",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_addition\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_addition\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_fraction_compare",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_compare\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_compare\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_fraction_line",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_line\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_line\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_fraction_multiplication",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_multiplication\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_fraction_multiplication\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_line_intercept",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_line_intercept\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_line_intercept\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_mean_line",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_mean_line\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_mean_line\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_multiplication_table",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_multiplication_table\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_multiplication_table\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_number_line",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_number_line\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_number_line\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_odd_numbers",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_odd_numbers\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_odd_numbers\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_parabola_basic",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_parabola_basic\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_parabola_basic\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_percent_scale",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_percent_scale\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_percent_scale\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_percentage_of",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_percentage_of\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_percentage_of\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_perimeter_square",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_perimeter_square\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_perimeter_square\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_probability_dice",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_probability_dice\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_probability_dice\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_ratio_proportion",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_ratio_proportion\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_ratio_proportion\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_rectangle_area",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_rectangle_area\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_rectangle_area\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_scale_map",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_scale_map\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_scale_map\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_speed_distance",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_speed_distance\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_speed_distance\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_symmetry_reflection",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_symmetry_reflection\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_symmetry_reflection\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_triangle_area",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_triangle_area\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_triangle_area\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_unit_cm_to_mm",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_unit_cm_to_mm\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_unit_cm_to_mm\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_math_unit_m_to_cm",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_unit_m_to_cm\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_math_unit_m_to_cm\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_boiling_time",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_boiling_time\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_boiling_time\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_bulb_brightness",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_bulb_brightness\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_bulb_brightness\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_daily_temperature",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_daily_temperature\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_daily_temperature\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_day_length",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_day_length\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_day_length\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_evaporation",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_evaporation\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_evaporation\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_light_intensity",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_light_intensity\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_light_intensity\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_light_reflection",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_light_reflection\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_light_reflection\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_magnet_distance",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_magnet_distance\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_magnet_distance\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_moon_phase",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_moon_phase\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_moon_phase\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_pendulum",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_pendulum\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_pendulum\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_phase_change",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_phase_change\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_phase_change\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_plant_growth",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_plant_growth\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_plant_growth\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_rainfall",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_rainfall\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_rainfall\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_season_temp",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_season_temp\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_season_temp\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_shadow_length",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_shadow_length\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_shadow_length\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_simple_circuit",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_simple_circuit\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_simple_circuit\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_sound_wave",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_sound_wave\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_sound_wave\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "elem_science_spring_stretch",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_spring_stretch\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\elem_science_spring_stretch\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_econ_elasticity",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_econ_elasticity\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_econ_elasticity\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_econ_interest",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_econ_interest\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_econ_interest\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_econ_market",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_econ_market\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_econ_market\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_math_derivative",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_math_derivative\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_math_derivative\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_math_polynomial",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_math_polynomial\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_math_polynomial\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_math_quadratic",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_math_quadratic\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_math_quadratic\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_physics_damped",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_physics_damped\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_physics_damped\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_physics_energy",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_physics_energy\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_physics_energy\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "high_physics_wave",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_physics_wave\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\high_physics_wave\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "math_line",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\math_line\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\math_line\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "math_parabola",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\math_parabola\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\math_parabola\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "physics_circuit",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\physics_circuit\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\physics_circuit\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "physics_motion",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\physics_motion\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\physics_motion\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "physics_projectile",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\physics_projectile\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\physics_projectile\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_01_demand_curve_PQ",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_01_demand_curve_PQ\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_01_demand_curve_PQ\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_02_supply_curve_PQ",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_02_supply_curve_PQ\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_02_supply_curve_PQ\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_03_equilibrium_point_QP",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_03_equilibrium_point_QP\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_03_equilibrium_point_QP\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_04_tax_vs_equilibrium_price",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_04_tax_vs_equilibrium_price\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_04_tax_vs_equilibrium_price\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_05_elasticity_along_demand",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_05_elasticity_along_demand\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_05_elasticity_along_demand\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_01_consumer_surplus_vs_tax",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_01_consumer_surplus_vs_tax\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_01_consumer_surplus_vs_tax\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_02_producer_surplus_vs_tax",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_02_producer_surplus_vs_tax\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_02_producer_surplus_vs_tax\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_03_dwl_vs_tax",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_03_dwl_vs_tax\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_03_dwl_vs_tax\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_04_shortage_vs_price_ceiling",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_04_shortage_vs_price_ceiling\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_04_shortage_vs_price_ceiling\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_05_surplus_vs_price_floor",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_05_surplus_vs_price_floor\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e002_05_surplus_vs_price_floor\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_01_budget_line_xy",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_01_budget_line_xy\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_01_budget_line_xy\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_02_indifference_curve_xy",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_02_indifference_curve_xy\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_02_indifference_curve_xy\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_03_demand_x_vs_px",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_03_demand_x_vs_px\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_03_demand_x_vs_px\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_04_engel_x_vs_income",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_04_engel_x_vs_income\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_04_engel_x_vs_income\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_05_indirect_utility_ui",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_05_indirect_utility_ui\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e007_05_indirect_utility_ui\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_01_total_cost_q_tc",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_01_total_cost_q_tc\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_01_total_cost_q_tc\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_02_average_cost_q_ac",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_02_average_cost_q_ac\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_02_average_cost_q_ac\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_03_marginal_cost_q_mc",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_03_marginal_cost_q_mc\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_03_marginal_cost_q_mc\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_04_supply_p_q",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_04_supply_p_q\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_04_supply_p_q\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_05_profit_q_pi",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_05_profit_q_pi\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e008_05_profit_q_pi\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_01_demand_p_qd",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_01_demand_p_qd\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_01_demand_p_qd\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_02_supply_p_qs",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_02_supply_p_qs\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_02_supply_p_qs\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_03_equilibrium_a_pstar",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_03_equilibrium_a_pstar\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_03_equilibrium_a_pstar\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_04_tax_incidence_tau_pc",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_04_tax_incidence_tau_pc\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_04_tax_incidence_tau_pc\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_05_dwl_tau",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_05_dwl_tau\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e009_05_dwl_tau\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_01_inverse_demand_q_p",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_01_inverse_demand_q_p\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_01_inverse_demand_q_p\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_02_total_revenue_q_tr",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_02_total_revenue_q_tr\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_02_total_revenue_q_tr\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_03_marginal_revenue_q_mr",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_03_marginal_revenue_q_mr\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_03_marginal_revenue_q_mr\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_04_profit_q_pi",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_04_profit_q_pi\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_04_profit_q_pi\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_05_monopoly_optimum_a_qm",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_05_monopoly_optimum_a_qm\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e010_05_monopoly_optimum_a_qm\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_01_price_elasticity_p_absE",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_01_price_elasticity_p_absE\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_01_price_elasticity_p_absE\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_02_total_revenue_p_TR",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_02_total_revenue_p_TR\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_02_total_revenue_p_TR\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_03_lerner_index_e_L",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_03_lerner_index_e_L\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_03_lerner_index_e_L\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_01_uip_expected_depreciation",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_01_uip_expected_depreciation\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_01_uip_expected_depreciation\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_02_real_exchange_rate_qt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_02_real_exchange_rate_qt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_02_real_exchange_rate_qt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_03_ppf_linear_xy",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_03_ppf_linear_xy\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_03_ppf_linear_xy\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_04_tariff_dwl_of_tau",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_04_tariff_dwl_of_tau\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_04_tariff_dwl_of_tau\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_05_net_exports_NX_of_e",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_05_net_exports_NX_of_e\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e013_05_net_exports_NX_of_e\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_01_labor_demand_Ld_of_w",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_01_labor_demand_Ld_of_w\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_01_labor_demand_Ld_of_w\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_02_labor_supply_Ls_of_w",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_02_labor_supply_Ls_of_w\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_02_labor_supply_Ls_of_w\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_05_beveridge_curve_v_of_u",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_05_beveridge_curve_v_of_u\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e014_05_beveridge_curve_v_of_u\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_01_uniform_motion_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_01_uniform_motion_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_01_uniform_motion_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_02_uniform_accel_vt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_02_uniform_accel_vt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_02_uniform_accel_vt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_03_uniform_accel_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_03_uniform_accel_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_03_uniform_accel_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_04_free_fall_y_t",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_04_free_fall_y_t\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_04_free_fall_y_t\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_05_projectile_xy",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_05_projectile_xy\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p001_05_projectile_xy\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_01_work_Wx",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_01_work_Wx\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_01_work_Wx\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_02_kinetic_energy_Kv",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_02_kinetic_energy_Kv\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_02_kinetic_energy_Kv\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_03_potential_energy_Uh",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_03_potential_energy_Uh\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_03_potential_energy_Uh\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_04_energy_conservation_Et",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_04_energy_conservation_Et\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_04_energy_conservation_Et\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_05_impulse_vt_step",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_05_impulse_vt_step\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p002_05_impulse_vt_step\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_01_shm_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_01_shm_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_01_shm_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_02_damped_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_02_damped_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_02_damped_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_03_resonance_wA",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_03_resonance_wA\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_03_resonance_wA\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_04_beats_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_04_beats_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_04_beats_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_05_traveling_wave_yx",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_05_traveling_wave_yx\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p003_05_traveling_wave_yx\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_01_ohms_law_IV",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_01_ohms_law_IV\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_01_ohms_law_IV\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_02_voltage_divider_Vin_Vout",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_02_voltage_divider_Vin_Vout\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_02_voltage_divider_Vin_Vout\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_03_parallel_resistors_IV",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_03_parallel_resistors_IV\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_03_parallel_resistors_IV\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_04_rc_charging_Vc_t",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_04_rc_charging_Vc_t\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_04_rc_charging_Vc_t\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_05_rlc_step_Vc_t",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_05_rlc_step_Vc_t\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p004_05_rlc_step_Vc_t\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_01_ideal_gas_PV",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_01_ideal_gas_PV\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_01_ideal_gas_PV\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_02_charles_law_VT",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_02_charles_law_VT\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_02_charles_law_VT\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_03_specific_heat_TQ",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_03_specific_heat_TQ\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_03_specific_heat_TQ\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_04_heating_curve_TQ_piecewise",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_04_heating_curve_TQ_piecewise\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_04_heating_curve_TQ_piecewise\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_05_newton_cooling_Tt_discrete",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_05_newton_cooling_Tt_discrete\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p005_05_newton_cooling_Tt_discrete\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_01_inverse_square_intensity",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_01_inverse_square_intensity\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_01_inverse_square_intensity\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_02_thin_lens_di_vs_do",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_02_thin_lens_di_vs_do\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_02_thin_lens_di_vs_do\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_03_magnification_vs_do",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_03_magnification_vs_do\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_03_magnification_vs_do\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_01_underdamped_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_01_underdamped_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_01_underdamped_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_02_critical_damping_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_02_critical_damping_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_02_critical_damping_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_03_overdamped_xt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_03_overdamped_xt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_03_overdamped_xt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_04_resonance_amplitude_vs_omega",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_04_resonance_amplitude_vs_omega\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_04_resonance_amplitude_vs_omega\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_05_amplitude_vs_damping",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_05_amplitude_vs_damping\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p011_05_amplitude_vs_damping\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_01_standing_wave_yx_snapshot",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_01_standing_wave_yx_snapshot\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_01_standing_wave_yx_snapshot\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_02_standing_wave_intensity_Ix",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_02_standing_wave_intensity_Ix\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_02_standing_wave_intensity_Ix\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_03_beats_yt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_03_beats_yt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_03_beats_yt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_04_doppler_vs_source_speed",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_04_doppler_vs_source_speed\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_04_doppler_vs_source_speed\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_05_fourier_square_wave_yx",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_05_fourier_square_wave_yx\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p012_05_fourier_square_wave_yx\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_01_isothermal_pv_v_p",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_01_isothermal_pv_v_p\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_01_isothermal_pv_v_p\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_02_isothermal_work_v_W",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_02_isothermal_work_v_W\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_02_isothermal_work_v_W\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_03_adiabatic_pv_v_p",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_03_adiabatic_pv_v_p\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_03_adiabatic_pv_v_p\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_04_cooling_t_T",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_04_cooling_t_T\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_04_cooling_t_T\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_05_carnot_Th_eta",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_05_carnot_Th_eta\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p013_05_carnot_Th_eta\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_01_electric_field_r_E",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_01_electric_field_r_E\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_01_electric_field_r_E\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_02_electric_potential_r_V",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_02_electric_potential_r_V\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_02_electric_potential_r_V\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_03_rc_discharge_t_V",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_03_rc_discharge_t_V\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_03_rc_discharge_t_V\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_04_lc_oscillation_t_Q",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_04_lc_oscillation_t_Q\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_04_lc_oscillation_t_Q\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_05_rlc_resonance_w_I2",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_05_rlc_resonance_w_I2\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p014_05_rlc_resonance_w_I2\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_01_pendulum_L_T2",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_01_pendulum_L_T2\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_01_pendulum_L_T2\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_02_spring_m_T2",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_02_spring_m_T2\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_02_spring_m_T2\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_03_centripetal_v_a",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_03_centripetal_v_a\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_03_centripetal_v_a\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_04_dynamic_pressure_v_q",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_04_dynamic_pressure_v_q\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_04_dynamic_pressure_v_q\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_05_linear_drag_fall_t_v",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_05_linear_drag_fall_t_v\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p015_05_linear_drag_fall_t_v\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_01_critical_angle_deg_of_ratio",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_01_critical_angle_deg_of_ratio\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_01_critical_angle_deg_of_ratio\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_02_double_slit_interference",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_02_double_slit_interference\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_02_double_slit_interference\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_03_grating_maxima_theta_of_m",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_03_grating_maxima_theta_of_m\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_03_grating_maxima_theta_of_m\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_04_thin_film_interference",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_04_thin_film_interference\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_04_thin_film_interference\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_01_radioactive_decay_Nt",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_01_radioactive_decay_Nt\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_01_radioactive_decay_Nt\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_02_photoelectric_Vs_of_f",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_02_photoelectric_Vs_of_f\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_02_photoelectric_Vs_of_f\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_03_debroglie_lambda_of_p",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_03_debroglie_lambda_of_p\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_03_debroglie_lambda_of_p\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_04_wien_lambda_max_of_T",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_04_wien_lambda_max_of_T\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_04_wien_lambda_max_of_T\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_05_hydrogen_energy_levels",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_05_hydrogen_energy_levels\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_phys_p018_05_hydrogen_energy_levels\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_s1_function_graph",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_s1_function_graph\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_s1_function_graph\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_s2_projectile",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_s2_projectile\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_s2_projectile\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "ssot_edu_s3_supply_demand_tax",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_s3_supply_demand_tax\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_s3_supply_demand_tax\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    }
+  ]
+}

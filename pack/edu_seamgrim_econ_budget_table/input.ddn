@@ -1,7 +1,7 @@
 #이름: econ_budget_table
 #설명: 가계부(잔액) 예시
 
-잔액 = (#ascii1) 수식{ y = a x + b }.
+잔액 <- (#ascii1) 수식{ y = a x + b }.
 
 a <- 1.
 b <- 0.

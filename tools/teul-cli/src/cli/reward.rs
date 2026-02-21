@@ -58,15 +58,18 @@ pub fn run_reward_check(input: &Path, out_dir: Option<&Path>) -> Result<(), Stri
     for (idx, item) in input.cases.into_iter().enumerate() {
         let mut vars = BTreeMap::new();
         for (key, value) in item.vars {
-            let fixed = parse_fixed64_value(&value)
-                .map_err(|e| format!("E_REWARD_VAR {} {}", key, e))?;
+            let fixed =
+                parse_fixed64_value(&value).map_err(|e| format!("E_REWARD_VAR {} {}", key, e))?;
             vars.insert(key, fixed);
         }
-        cases.push((idx, RewardCase {
-            realm_id: item.realm_id,
-            step: item.step,
-            vars,
-        }));
+        cases.push((
+            idx,
+            RewardCase {
+                realm_id: item.realm_id,
+                step: item.step,
+                vars,
+            },
+        ));
     }
 
     cases.sort_by(|(a_idx, a), (b_idx, b)| {
@@ -92,12 +95,10 @@ pub fn run_reward_check(input: &Path, out_dir: Option<&Path>) -> Result<(), Stri
     let mut summaries: BTreeMap<u64, RealmSummary> = BTreeMap::new();
     let mut total = Fixed64::ZERO;
     for entry in &entries {
-        let summary = summaries
-            .entry(entry.realm_id)
-            .or_insert(RealmSummary {
-                step_count: 0,
-                total: Fixed64::ZERO,
-            });
+        let summary = summaries.entry(entry.realm_id).or_insert(RealmSummary {
+            step_count: 0,
+            total: Fixed64::ZERO,
+        });
         summary.step_count = summary.step_count.saturating_add(1);
         summary.total = summary.total.saturating_add(entry.reward);
         total = total.saturating_add(entry.reward);
@@ -700,8 +701,8 @@ impl RewardParser {
     fn parse_primary(&mut self) -> Result<RewardExpr, String> {
         match self.next() {
             Token::Number(text) => {
-                let value = parse_fixed64_decimal(&text)
-                    .map_err(|e| format!("E_REWARD_PARSE {}", e))?;
+                let value =
+                    parse_fixed64_decimal(&text).map_err(|e| format!("E_REWARD_PARSE {}", e))?;
                 Ok(RewardExpr::Number(value))
             }
             Token::Ident(name) => {

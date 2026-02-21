@@ -1,27 +1,106 @@
 // lang/src/lexer.rs
-use std::fmt;
 use crate::dialect::DialectConfig;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    Ident(String), Integer(i64), Float(String), StringLit(String), Atom(String), Variable(String), Nuance(String),
+    Ident(String),
+    Integer(i64),
+    Float(String),
+    StringLit(String),
+    Atom(String),
+    Variable(String),
+    Nuance(String),
     Pragma(String),
     TemplateBlock(String),
     FormulaBlock(String),
-    KwImeumssi, KwUmjikssi, KwGallaessi, KwRelationssi, KwValueFunc, KwSam, KwHeureumssi, KwIeumssi, KwSemssi,
-    KwIlttae, KwAniramyeon, KwBanbok, KwButeo, KwKkaji, KwDongan, KwDaehae, KwMeomchugi, KwDollyeojwo, KwAllyeo,
-    KwHaebogo, KwGoreugi, KwMajeumyeon, KwJeonjehae, KwBojanghago, KwHaeseo, KwNeuljikeobogo,
-    Josa(String), At, Question, Bang, Tilde, Colon, Equals, Arrow, RightArrow, DoubleArrow, Dot, DotDot, DotDotEq, Comma, Semicolon, Pipe,
-    LParen, RParen, LBrace, RBrace, LBracket, RBracket, Plus, PlusArrow, PlusEqual, Minus, MinusArrow, MinusEqual, Star, Slash, Percent, Caret,
-    EqEq, NotEq, Lt, Gt, LtEq, GtEq, And, Or, Not, Eof,
+    KwImeumssi,
+    KwUmjikssi,
+    KwGallaessi,
+    KwRelationssi,
+    KwValueFunc,
+    KwSam,
+    KwHeureumssi,
+    KwIeumssi,
+    KwSemssi,
+    KwIlttae,
+    KwAniramyeon,
+    KwBanbok,
+    KwButeo,
+    KwKkaji,
+    KwDongan,
+    KwDaehae,
+    KwMeomchugi,
+    KwDollyeojwo,
+    KwAllyeo,
+    KwHaebogo,
+    KwGoreugi,
+    KwMajeumyeon,
+    KwJeonjehae,
+    KwBojanghago,
+    KwHaeseo,
+    KwNeuljikeobogo,
+    Josa(String),
+    At,
+    Question,
+    Bang,
+    Tilde,
+    Colon,
+    Equals,
+    Arrow,
+    RightArrow,
+    DoubleArrow,
+    Dot,
+    DotDot,
+    DotDotEq,
+    Comma,
+    Semicolon,
+    Pipe,
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Plus,
+    PlusArrow,
+    PlusEqual,
+    Minus,
+    MinusArrow,
+    MinusEqual,
+    Star,
+    Slash,
+    Percent,
+    Caret,
+    EqEq,
+    NotEq,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
+    And,
+    Or,
+    Not,
+    Eof,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span { pub start: usize, pub end: usize }
-impl Span { pub fn new(start: usize, end: usize) -> Self { Self { start, end } } }
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
+impl Span {
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+}
 
 #[derive(Debug, Clone)]
-pub struct Token { pub kind: TokenKind, pub span: Span, pub raw: String }
+pub struct Token {
+    pub kind: TokenKind,
+    pub span: Span,
+    pub raw: String,
+}
 
 pub struct Lexer<'a> {
     source: &'a str,
@@ -43,14 +122,20 @@ impl<'a> Lexer<'a> {
         let mut tokens = Vec::new();
         while !self.is_eof() {
             self.skip_whitespace();
-            if self.is_eof() { break; }
+            if self.is_eof() {
+                break;
+            }
             if self.peek_char() == Some('#') && self.is_line_directive_start() {
                 tokens.push(self.read_line_pragma());
                 continue;
             }
             tokens.push(self.next_token()?);
         }
-        tokens.push(Token { kind: TokenKind::Eof, span: Span::new(self.pos, self.pos), raw: String::new() });
+        tokens.push(Token {
+            kind: TokenKind::Eof,
+            span: Span::new(self.pos, self.pos),
+            raw: String::new(),
+        });
         Ok(tokens)
     }
 
@@ -62,7 +147,9 @@ impl<'a> Lexer<'a> {
         if let Some(token) = self.try_read_sym3_token() {
             return Ok(token);
         }
-        let ch = self.peek_char().ok_or_else(|| LexError::new(self.pos, "EOF"))?;
+        let ch = self
+            .peek_char()
+            .ok_or_else(|| LexError::new(self.pos, "EOF"))?;
         let kind = match ch {
             '0'..='9' => return self.read_number(),
             '"' => return self.read_string(),
@@ -80,17 +167,42 @@ impl<'a> Lexer<'a> {
             }
             '가'..='힣' | 'ㄱ'..='ㅎ' | 'ㅏ'..='ㅣ' => return self.read_hangul(),
             'a'..='z' | 'A'..='Z' | '_' => return self.read_ascii(),
-            ':' => { self.advance(); TokenKind::Colon },
-            '=' => { self.advance(); if self.peek_char() == Some('=') { self.advance(); TokenKind::EqEq } else { TokenKind::Equals } },
+            ':' => {
+                self.advance();
+                TokenKind::Colon
+            }
+            '=' => {
+                self.advance();
+                if self.peek_char() == Some('=') {
+                    self.advance();
+                    TokenKind::EqEq
+                } else {
+                    TokenKind::Equals
+                }
+            }
             '<' => {
                 self.advance();
                 match self.peek_char() {
-                    Some('=') => { self.advance(); TokenKind::LtEq },
-                    Some('-') => { self.advance(); TokenKind::Arrow },
-                    Some('<') => { self.advance(); if self.peek_char() == Some('-') { self.advance(); TokenKind::DoubleArrow } else { return Err(LexError::new(start, "<<-")); } },
+                    Some('=') => {
+                        self.advance();
+                        TokenKind::LtEq
+                    }
+                    Some('-') => {
+                        self.advance();
+                        TokenKind::Arrow
+                    }
+                    Some('<') => {
+                        self.advance();
+                        if self.peek_char() == Some('-') {
+                            self.advance();
+                            TokenKind::DoubleArrow
+                        } else {
+                            return Err(LexError::new(start, "<<-"));
+                        }
+                    }
                     _ => TokenKind::Lt,
                 }
-            },
+            }
             '>' => {
                 self.advance();
                 if self.peek_char() == Some('=') {
@@ -99,8 +211,11 @@ impl<'a> Lexer<'a> {
                 } else {
                     TokenKind::Gt
                 }
-            },
-            '@' => { self.advance(); TokenKind::At },
+            }
+            '@' => {
+                self.advance();
+                TokenKind::At
+            }
             '~' => {
                 if self.peek_ahead(1) == Some('~') && self.peek_ahead(2) == Some('>') {
                     self.advance();
@@ -110,7 +225,7 @@ impl<'a> Lexer<'a> {
                 } else {
                     return Ok(self.read_tilde_token());
                 }
-            },
+            }
             '!' => {
                 self.advance();
                 if self.peek_char() == Some('=') {
@@ -119,7 +234,7 @@ impl<'a> Lexer<'a> {
                 } else {
                     TokenKind::Bang
                 }
-            },
+            }
             '&' => {
                 self.advance();
                 if self.peek_char() == Some('&') {
@@ -128,7 +243,7 @@ impl<'a> Lexer<'a> {
                 } else {
                     return Err(LexError::new(start, "Gate0: '&'는 예약 기호입니다"));
                 }
-            },
+            }
             '[' => {
                 self.advance();
                 TokenKind::LBracket
@@ -145,7 +260,7 @@ impl<'a> Lexer<'a> {
                 } else {
                     TokenKind::Pipe
                 }
-            },
+            }
             '.' => {
                 if self.peek_ahead(1) == Some('.') {
                     self.advance();
@@ -160,12 +275,27 @@ impl<'a> Lexer<'a> {
                     self.advance();
                     TokenKind::Dot
                 }
-            },
-            ',' => { self.advance(); TokenKind::Comma },
-            '(' => { self.advance(); TokenKind::LParen },
-            ')' => { self.advance(); TokenKind::RParen },
-            '{' => { self.advance(); TokenKind::LBrace },
-            '}' => { self.advance(); TokenKind::RBrace },
+            }
+            ',' => {
+                self.advance();
+                TokenKind::Comma
+            }
+            '(' => {
+                self.advance();
+                TokenKind::LParen
+            }
+            ')' => {
+                self.advance();
+                TokenKind::RParen
+            }
+            '{' => {
+                self.advance();
+                TokenKind::LBrace
+            }
+            '}' => {
+                self.advance();
+                TokenKind::RBrace
+            }
             '+' => {
                 self.advance();
                 if self.peek_char() == Some('<') && self.peek_ahead(1) == Some('-') {
@@ -178,7 +308,7 @@ impl<'a> Lexer<'a> {
                 } else {
                     TokenKind::Plus
                 }
-            },
+            }
             '-' => {
                 self.advance();
                 if self.peek_char() == Some('>') {
@@ -194,20 +324,44 @@ impl<'a> Lexer<'a> {
                 } else {
                     TokenKind::Minus
                 }
-            },
-            '*' => { self.advance(); TokenKind::Star },
-            '/' => { self.advance(); TokenKind::Slash },
-            '%' => { self.advance(); TokenKind::Percent },
-            '^' => { self.advance(); TokenKind::Caret },
-            _ => { self.advance(); return Err(LexError::new(start, "알 수 없는 문자")); }
+            }
+            '*' => {
+                self.advance();
+                TokenKind::Star
+            }
+            '/' => {
+                self.advance();
+                TokenKind::Slash
+            }
+            '%' => {
+                self.advance();
+                TokenKind::Percent
+            }
+            '^' => {
+                self.advance();
+                TokenKind::Caret
+            }
+            _ => {
+                self.advance();
+                return Err(LexError::new(start, "알 수 없는 문자"));
+            }
         };
-        Ok(Token { kind, span: Span::new(start, self.pos), raw: self.source[start..self.pos].to_string() })
+        Ok(Token {
+            kind,
+            span: Span::new(start, self.pos),
+            raw: self.source[start..self.pos].to_string(),
+        })
     }
 
     fn read_hangul(&mut self) -> Result<Token, LexError> {
         let start = self.pos;
         while let Some(ch) = self.peek_char() {
-            if matches!(ch, '가'..='힣' | 'ㄱ'..='ㅎ' | 'ㅏ'..='ㅣ' | 'a'..='z' | 'A'..='Z' | '0'..='9' | '_') { self.advance(); } else { break; }
+            if matches!(ch, '가'..='힣' | 'ㄱ'..='ㅎ' | 'ㅏ'..='ㅣ' | 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')
+            {
+                self.advance();
+            } else {
+                break;
+            }
         }
         let text = &self.source[start..self.pos];
         if text == "글무늬" && self.peek_char() == Some('{') {
@@ -221,61 +375,122 @@ impl<'a> Lexer<'a> {
             lexeme = canon.to_string();
         }
         if let Some(kind) = keyword_kind_for(&lexeme) {
-            return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
+            return Ok(Token {
+                kind,
+                span: Span::new(start, self.pos),
+                raw: lexeme,
+            });
         }
 
         let josa_list = [
-            "를", "을", "가", "이", "은", "는", "에게", "의", "로", "으로", "와", "과", "에", "에서",
-            "부터", "까지", "마다", "도", "만", "뿐", "밖에", "처럼", "보다", "한테",
+            "를", "을", "가", "이", "은", "는", "에게", "의", "로", "으로", "와", "과", "에",
+            "에서", "부터", "까지", "마다", "도", "만", "뿐", "밖에", "처럼", "보다", "한테",
         ];
         if josa_list.iter().any(|j| *j == lexeme.as_str()) {
-            return Ok(Token { kind: TokenKind::Josa(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme });
+            return Ok(Token {
+                kind: TokenKind::Josa(lexeme.clone()),
+                span: Span::new(start, self.pos),
+                raw: lexeme,
+            });
         }
         let no_split = ["길이"];
         let has_underscore = lexeme.contains('_');
         let next_sig = self.peek_non_ws_char();
         if !has_underscore && self.peek_char() != Some(':') {
-            if matches!(next_sig, Some('<') | Some('=') | Some(':') | Some('.')) || no_split.iter().any(|w| *w == lexeme.as_str()) {
-                return Ok(Token { kind: TokenKind::Ident(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme });
+            if matches!(next_sig, Some('<') | Some('=') | Some(':') | Some('.'))
+                || no_split.iter().any(|w| *w == lexeme.as_str())
+            {
+                return Ok(Token {
+                    kind: TokenKind::Ident(lexeme.clone()),
+                    span: Span::new(start, self.pos),
+                    raw: lexeme,
+                });
             }
             for j in josa_list {
                 if lexeme.ends_with(j) && lexeme.chars().count() > 2 {
                     let sl = lexeme.len() - j.len();
                     self.pos = start + sl;
                     let n = lexeme[..sl].to_string();
-                    return Ok(Token { kind: TokenKind::Ident(n.clone()), span: Span::new(start, self.pos), raw: n });
+                    return Ok(Token {
+                        kind: TokenKind::Ident(n.clone()),
+                        span: Span::new(start, self.pos),
+                        raw: n,
+                    });
                 }
             }
         }
-        Ok(Token { kind: TokenKind::Ident(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme })
+        Ok(Token {
+            kind: TokenKind::Ident(lexeme.clone()),
+            span: Span::new(start, self.pos),
+            raw: lexeme,
+        })
     }
 
     fn read_number(&mut self) -> Result<Token, LexError> {
         let start = self.pos;
         while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_digit() { self.advance(); }
-            else if ch == '.' && self.peek_ahead(1).map(|c| c.is_ascii_digit()).unwrap_or(false) { self.advance(); }
-            else { break; }
+            if ch.is_ascii_digit() {
+                self.advance();
+            } else if ch == '.'
+                && self
+                    .peek_ahead(1)
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+            {
+                self.advance();
+            } else {
+                break;
+            }
         }
         let raw = &self.source[start..self.pos];
-        let kind = if raw.contains('.') { TokenKind::Float(raw.to_string()) } else { TokenKind::Integer(raw.parse().unwrap_or(0)) };
-        Ok(Token { kind, span: Span::new(start, self.pos), raw: raw.to_string() })
+        let kind = if raw.contains('.') {
+            TokenKind::Float(raw.to_string())
+        } else {
+            TokenKind::Integer(raw.parse().unwrap_or(0))
+        };
+        Ok(Token {
+            kind,
+            span: Span::new(start, self.pos),
+            raw: raw.to_string(),
+        })
     }
 
     fn read_string(&mut self) -> Result<Token, LexError> {
-        let start = self.pos; self.advance();
+        let start = self.pos;
+        self.advance();
         let mut c = String::new();
         while let Some(ch) = self.peek_char() {
-            if ch == '"' { self.advance(); break; }
+            if ch == '"' {
+                self.advance();
+                break;
+            }
             if ch == '\\' {
                 self.advance();
                 match self.peek_char() {
-                    Some('n') => { c.push('\n'); self.advance(); }
-                    Some('r') => { c.push('\r'); self.advance(); }
-                    Some('t') => { c.push('\t'); self.advance(); }
-                    Some('"') => { c.push('"'); self.advance(); }
-                    Some('\\') => { c.push('\\'); self.advance(); }
-                    Some(other) => { c.push(other); self.advance(); }
+                    Some('n') => {
+                        c.push('\n');
+                        self.advance();
+                    }
+                    Some('r') => {
+                        c.push('\r');
+                        self.advance();
+                    }
+                    Some('t') => {
+                        c.push('\t');
+                        self.advance();
+                    }
+                    Some('"') => {
+                        c.push('"');
+                        self.advance();
+                    }
+                    Some('\\') => {
+                        c.push('\\');
+                        self.advance();
+                    }
+                    Some(other) => {
+                        c.push(other);
+                        self.advance();
+                    }
                     None => return Err(LexError::new(self.pos, "문자열 종료")),
                 }
                 continue;
@@ -283,13 +498,28 @@ impl<'a> Lexer<'a> {
             c.push(ch);
             self.advance();
         }
-        Ok(Token { kind: TokenKind::StringLit(c), span: Span::new(start, self.pos), raw: self.source[start..self.pos].to_string() })
+        Ok(Token {
+            kind: TokenKind::StringLit(c),
+            span: Span::new(start, self.pos),
+            raw: self.source[start..self.pos].to_string(),
+        })
     }
 
     fn read_atom(&mut self) -> Result<Token, LexError> {
-        let start = self.pos; self.advance();
-        while let Some(ch) = self.peek_char() { if matches!(ch, '가'..='힣' | 'a'..='z' | '0'..='9' | '_') { self.advance(); } else { break; } }
-        Ok(Token { kind: TokenKind::Atom(self.source[start+1..self.pos].to_string()), span: Span::new(start, self.pos), raw: self.source[start..self.pos].to_string() })
+        let start = self.pos;
+        self.advance();
+        while let Some(ch) = self.peek_char() {
+            if matches!(ch, '가'..='힣' | 'a'..='z' | '0'..='9' | '_') {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        Ok(Token {
+            kind: TokenKind::Atom(self.source[start + 1..self.pos].to_string()),
+            span: Span::new(start, self.pos),
+            raw: self.source[start..self.pos].to_string(),
+        })
     }
 
     fn read_line_pragma(&mut self) -> Token {
@@ -318,16 +548,29 @@ impl<'a> Lexer<'a> {
     }
 
     fn read_variable(&mut self) -> Result<Token, LexError> {
-        let start = self.pos; self.advance();
-        while let Some(ch) = self.peek_char() { if matches!(ch, '가'..='힣' | 'a'..='z' | '0'..='9' | '_') { self.advance(); } else { break; } }
-        Ok(Token { kind: TokenKind::Variable(self.source[start+1..self.pos].to_string()), span: Span::new(start, self.pos), raw: self.source[start..self.pos].to_string() })
+        let start = self.pos;
+        self.advance();
+        while let Some(ch) = self.peek_char() {
+            if matches!(ch, '가'..='힣' | 'a'..='z' | '0'..='9' | '_') {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        Ok(Token {
+            kind: TokenKind::Variable(self.source[start + 1..self.pos].to_string()),
+            span: Span::new(start, self.pos),
+            raw: self.source[start..self.pos].to_string(),
+        })
     }
 
     fn read_nuance(&mut self) -> Result<Token, LexError> {
-        let start = self.pos; self.advance();
+        let start = self.pos;
+        self.advance();
         let mut saw = false;
         while let Some(ch) = self.peek_char() {
-            if matches!(ch, '가'..='힣' | 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | 'ㄱ'..='ㅎ' | 'ㅏ'..='ㅣ') {
+            if matches!(ch, '가'..='힣' | 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | 'ㄱ'..='ㅎ' | 'ㅏ'..='ㅣ')
+            {
                 self.advance();
                 saw = true;
             } else {
@@ -335,7 +578,10 @@ impl<'a> Lexer<'a> {
             }
         }
         if !saw {
-            return Err(LexError::new(start, "Gate0: '$' 뒤에는 뉘앙스 토큰이 필요합니다"));
+            return Err(LexError::new(
+                start,
+                "Gate0: '$' 뒤에는 뉘앙스 토큰이 필요합니다",
+            ));
         }
         Ok(Token {
             kind: TokenKind::Nuance(self.source[start + 1..self.pos].to_string()),
@@ -422,16 +668,30 @@ impl<'a> Lexer<'a> {
 
     fn read_ascii(&mut self) -> Result<Token, LexError> {
         let start = self.pos;
-        while let Some(ch) = self.peek_char() { if ch.is_ascii_alphanumeric() || ch == '_' { self.advance(); } else { break; } }
+        while let Some(ch) = self.peek_char() {
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                self.advance();
+            } else {
+                break;
+            }
+        }
         let text = &self.source[start..self.pos];
         let mut lexeme = text.to_string();
         if let Some(canon) = self.dialect.canonicalize_keyword(text) {
             lexeme = canon.to_string();
         }
         if let Some(kind) = keyword_kind_for(&lexeme) {
-            return Ok(Token { kind, span: Span::new(start, self.pos), raw: lexeme });
+            return Ok(Token {
+                kind,
+                span: Span::new(start, self.pos),
+                raw: lexeme,
+            });
         }
-        Ok(Token { kind: TokenKind::Ident(lexeme.clone()), span: Span::new(start, self.pos), raw: lexeme })
+        Ok(Token {
+            kind: TokenKind::Ident(lexeme.clone()),
+            span: Span::new(start, self.pos),
+            raw: lexeme,
+        })
     }
 
     fn try_read_sym3_token(&mut self) -> Option<Token> {
@@ -442,7 +702,11 @@ impl<'a> Lexer<'a> {
                 if let Some(canon) = self.dialect.canonicalize_symbol(token) {
                     if let Some(kind) = keyword_kind_for(canon) {
                         self.advance_str(token);
-                        return Some(Token { kind, span: Span::new(start, self.pos), raw: token.to_string() });
+                        return Some(Token {
+                            kind,
+                            span: Span::new(start, self.pos),
+                            raw: token.to_string(),
+                        });
                     }
                 }
             }
@@ -478,9 +742,17 @@ impl<'a> Lexer<'a> {
         if self.pos > tail_start {
             let tail = self.source[tail_start..self.pos].to_string();
             let span = Span::new(tail_start, self.pos);
-            self.pending = Some(Token { kind: TokenKind::Josa(tail.clone()), span, raw: tail });
+            self.pending = Some(Token {
+                kind: TokenKind::Josa(tail.clone()),
+                span,
+                raw: tail,
+            });
         }
-        Token { kind: TokenKind::Tilde, span: Span::new(start, start + 1), raw: "~".to_string() }
+        Token {
+            kind: TokenKind::Tilde,
+            span: Span::new(start, start + 1),
+            raw: "~".to_string(),
+        }
     }
 
     fn skip_whitespace(&mut self) {
@@ -523,8 +795,12 @@ impl<'a> Lexer<'a> {
         self.pos += s.len();
     }
 
-    fn peek_char(&self) -> Option<char> { self.source[self.pos..].chars().next() }
-    fn peek_ahead(&self, n: usize) -> Option<char> { self.source[self.pos..].chars().nth(n) }
+    fn peek_char(&self) -> Option<char> {
+        self.source[self.pos..].chars().next()
+    }
+    fn peek_ahead(&self, n: usize) -> Option<char> {
+        self.source[self.pos..].chars().nth(n)
+    }
     fn peek_non_ws_char(&self) -> Option<char> {
         let mut idx = self.pos;
         while idx < self.source.len() {
@@ -536,8 +812,14 @@ impl<'a> Lexer<'a> {
         }
         None
     }
-    fn advance(&mut self) { if let Some(ch) = self.peek_char() { self.pos += ch.len_utf8(); } }
-    fn is_eof(&self) -> bool { self.pos >= self.source.len() }
+    fn advance(&mut self) {
+        if let Some(ch) = self.peek_char() {
+            self.pos += ch.len_utf8();
+        }
+    }
+    fn is_eof(&self) -> bool {
+        self.pos >= self.source.len()
+    }
 }
 
 fn is_josa_tail_char(ch: char) -> bool {
@@ -576,9 +858,23 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
 }
 
 #[derive(Debug, Clone)]
-pub struct LexError { pub pos: usize, pub message: String }
-impl LexError { fn new(pos: usize, message: &str) -> Self { Self { pos, message: message.to_string() } } }
-impl fmt::Display for LexError { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "렉서 오류: {}", self.message) } }
+pub struct LexError {
+    pub pos: usize,
+    pub message: String,
+}
+impl LexError {
+    fn new(pos: usize, message: &str) -> Self {
+        Self {
+            pos,
+            message: message.to_string(),
+        }
+    }
+}
+impl fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "렉서 오류: {}", self.message)
+    }
+}
 impl std::error::Error for LexError {}
 
 #[cfg(test)]

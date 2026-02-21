@@ -96,7 +96,11 @@ pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
     }
 }
 
-fn ensure_no_inplace_fixits(path: &Path, args: &CanonArgs, fixits_json: &str) -> Result<(), String> {
+fn ensure_no_inplace_fixits(
+    path: &Path,
+    args: &CanonArgs,
+    fixits_json: &str,
+) -> Result<(), String> {
     if !has_fixits(fixits_json) {
         return Ok(());
     }
@@ -107,7 +111,9 @@ fn ensure_no_inplace_fixits(path: &Path, args: &CanonArgs, fixits_json: &str) ->
         return Ok(());
     };
     if is_same_path(path, out_path) {
-        return Err("E_CANON_FIXIT_INPLACE fix-it이 필요한 입력은 자동 반영할 수 없습니다.".to_string());
+        return Err(
+            "E_CANON_FIXIT_INPLACE fix-it이 필요한 입력은 자동 반영할 수 없습니다.".to_string(),
+        );
     }
     Ok(())
 }
@@ -124,18 +130,12 @@ fn is_same_path(left: &Path, right: &Path) -> bool {
     }
 }
 
-fn write_emit(
-    path: &Path,
-    args: &CanonArgs,
-    fixits_json: &str,
-    ddn: &str,
-) -> Result<(), String> {
+fn write_emit(path: &Path, args: &CanonArgs, fixits_json: &str, ddn: &str) -> Result<(), String> {
     match args.emit {
         EmitKind::Ddn => {
             if let Some(out_path) = args.out_dir.as_ref() {
                 if let Some(parent) = out_path.parent() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| format!("E_CLI_WRITE {}", e))?;
+                    fs::create_dir_all(parent).map_err(|e| format!("E_CLI_WRITE {}", e))?;
                 }
                 fs::write(out_path, ddn).map_err(|e| format!("E_CLI_WRITE {}", e))?;
             } else {
@@ -148,11 +148,11 @@ fn write_emit(
             Ok(())
         }
         EmitKind::Both => {
-            let out_dir = args.out_dir.as_ref().ok_or_else(|| {
-                "E_CLI_MISSING_OUT 출력 디렉터리가 필요합니다.".to_string()
-            })?;
-            fs::create_dir_all(out_dir)
-                .map_err(|e| format!("E_CLI_WRITE {}", e))?;
+            let out_dir = args
+                .out_dir
+                .as_ref()
+                .ok_or_else(|| "E_CLI_MISSING_OUT 출력 디렉터리가 필요합니다.".to_string())?;
+            fs::create_dir_all(out_dir).map_err(|e| format!("E_CLI_WRITE {}", e))?;
             let stem = path
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -173,7 +173,10 @@ fn maybe_write_fixits(fixits_json: &str, path: &Option<PathBuf>) -> Result<(), S
     Ok(())
 }
 
-fn maybe_write_meta(meta: &crate::file_meta::FileMeta, path: &Option<PathBuf>) -> Result<(), String> {
+fn maybe_write_meta(
+    meta: &crate::file_meta::FileMeta,
+    path: &Option<PathBuf>,
+) -> Result<(), String> {
     if let Some(path) = path {
         let text = crate::file_meta::file_meta_to_json(meta);
         fs::write(path, text).map_err(|e| format!("E_CLI_WRITE {}", e))?;
@@ -183,8 +186,7 @@ fn maybe_write_meta(meta: &crate::file_meta::FileMeta, path: &Option<PathBuf>) -
 
 fn maybe_write_diag(path: &Option<PathBuf>, line: &str) -> Result<(), String> {
     if let Some(path) = path {
-        fs::write(path, format!("{}\n", line))
-            .map_err(|e| format!("E_CLI_WRITE {}", e))?;
+        fs::write(path, format!("{}\n", line)).map_err(|e| format!("E_CLI_WRITE {}", e))?;
     }
     Ok(())
 }

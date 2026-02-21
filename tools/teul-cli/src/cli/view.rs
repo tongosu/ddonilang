@@ -48,13 +48,23 @@ pub fn run_view(path: &Path, options: ViewOptions) -> Result<(), String> {
                 options.overlay,
             )?;
             if options.no_open {
-                println!("bogae_hash={} cmd_count={} codec={}", hash, cmd_count, codec.tag());
+                println!(
+                    "bogae_hash={} cmd_count={} codec={}",
+                    hash,
+                    cmd_count,
+                    codec.tag()
+                );
                 return Ok(());
             }
             open_in_browser(&index_path)?;
         }
         BogaeMode::Console => {
-            println!("bogae_hash={} cmd_count={} codec={}", hash, cmd_count, codec.tag());
+            println!(
+                "bogae_hash={} cmd_count={} codec={}",
+                hash,
+                cmd_count,
+                codec.tag()
+            );
             println!(
                 "{}",
                 render_drawlist_ascii(&drawlist, options.console_config)

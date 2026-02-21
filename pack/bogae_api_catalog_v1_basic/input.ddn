@@ -1,0 +1,10 @@
+#이름: bogae_api_catalog_v1_basic
+#설명: 보개 API 카탈로그 V1 기본 항목 결정성
+
+보개_그림판_가로 <- 96.
+보개_그림판_세로 <- 54.
+보개_바탕색 <- "#101418ff".
+
+보개_그림판_목록 <- [(id="bg", 결="#보개/2D.Rect", x=4, y=4, w=88, h=46, 채움색="#203040"), (id="title", 결="#보개/2D.Text", x=10, y=18, size=10, text="BASIC", 색="#ffffffff"), (id="icon", 결="#보개/2D.Sprite", x=70, y=10, w=12, h=12, uri="sym:basic.icon", 색="#66ccffff")].
+
+보개로 그려.

@@ -1,9 +1,9 @@
 use crate::core::fixed64::Fixed64;
 use crate::core::unit::{UnitExpr, UnitFactor};
 use crate::lang::ast::{
-    ArgBinding, Binding, BindingReason, ChooseBranch, ContractKind, ContractMode, DeclItem, DeclKind,
-    Expr, FormulaDialect, HookKind, Literal, ParamPin, Path, Program, SeedKind, Stmt, UnaryOp,
-    BinaryOp, NumberLiteral,
+    ArgBinding, BinaryOp, Binding, BindingReason, ChooseBranch, ContractKind, ContractMode,
+    DeclItem, DeclKind, Expr, FormulaDialect, HookKind, Literal, NumberLiteral, ParamPin, Path,
+    Program, SeedKind, Stmt, UnaryOp,
 };
 use crate::lang::span::Span;
 use crate::lang::token::{Token, TokenKind};
@@ -17,16 +17,37 @@ pub enum ParseError {
         found: TokenKind,
         span: Span,
     },
-    ExpectedExpr { span: Span },
-    ExpectedPath { span: Span },
-    ExpectedTarget { span: Span },
-    RootHideUndeclared { name: String, span: Span },
-    UnsupportedCompoundTarget { span: Span },
-    ExpectedRParen { span: Span },
-    ExpectedRBrace { span: Span },
-    ExpectedUnit { span: Span },
-    InvalidTensor { span: Span },
-    CompatEqualDisabled { span: Span },
+    ExpectedExpr {
+        span: Span,
+    },
+    ExpectedPath {
+        span: Span,
+    },
+    ExpectedTarget {
+        span: Span,
+    },
+    RootHideUndeclared {
+        name: String,
+        span: Span,
+    },
+    UnsupportedCompoundTarget {
+        span: Span,
+    },
+    ExpectedRParen {
+        span: Span,
+    },
+    ExpectedRBrace {
+        span: Span,
+    },
+    ExpectedUnit {
+        span: Span,
+    },
+    InvalidTensor {
+        span: Span,
+    },
+    CompatEqualDisabled {
+        span: Span,
+    },
 }
 
 impl ParseError {
@@ -72,7 +93,10 @@ impl Parser {
         Parser::parse_with_default_root(tokens, "살림")
     }
 
-    pub fn parse_with_default_root(tokens: Vec<Token>, default_root: &str) -> Result<Program, ParseError> {
+    pub fn parse_with_default_root(
+        tokens: Vec<Token>,
+        default_root: &str,
+    ) -> Result<Program, ParseError> {
         Parser::parse_with_default_root_mode(tokens, default_root, ParseMode::Strict)
     }
 
@@ -161,7 +185,10 @@ impl Parser {
 
         let mut injected = false;
         for stmt in rest.iter_mut() {
-            if let Stmt::SeedDef { name, kind, body, .. } = stmt {
+            if let Stmt::SeedDef {
+                name, kind, body, ..
+            } = stmt
+            {
                 if matches!(kind, SeedKind::Umjikssi) && (name == "매틱" || name == "매마디") {
                     let mut new_body = Vec::with_capacity(decls.len() + body.len());
                     new_body.append(&mut decls);
@@ -230,17 +257,28 @@ impl Parser {
         }
         if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
             if allow_rbrace {
-                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
             }
             return Ok(None);
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Pragma(_))) {
-            return Err(ParseError::UnexpectedToken {
-                expected: "길잡이말(#...) 없이 설정:/보개:/슬기: 블록 사용",
-                found: self.peek().kind.clone(),
-                span: self.peek().span,
-            });
+            let token = self.advance();
+            let span = token.span;
+            let TokenKind::Pragma(raw) = token.kind else {
+                unreachable!("pragma branch must receive pragma token")
+            };
+            if Self::is_forbidden_setting_pragma(&raw) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "길잡이말(#...) 없이 설정:/보개:/슬기: 블록 사용",
+                    found: TokenKind::Pragma(raw),
+                    span,
+                });
+            }
+            let (name, args) = Self::split_pragma_parts(&raw);
+            return Ok(Some(Stmt::Pragma { name, args, span }));
         }
 
         if !allow_rbrace {
@@ -289,7 +327,12 @@ impl Parser {
             return Ok(Some(self.parse_bogae_draw_stmt()?));
         }
 
-        if self.peek_kind_is(|k| matches!(k, TokenKind::Arrow | TokenKind::PlusArrow | TokenKind::MinusArrow)) {
+        if self.peek_kind_is(|k| {
+            matches!(
+                k,
+                TokenKind::Arrow | TokenKind::PlusArrow | TokenKind::MinusArrow
+            )
+        }) {
             let span = self.peek().span;
             return Err(ParseError::ExpectedTarget { span });
         }
@@ -337,7 +380,9 @@ impl Parser {
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
-            return Err(ParseError::CompatEqualDisabled { span: self.peek().span });
+            return Err(ParseError::CompatEqualDisabled {
+                span: self.peek().span,
+            });
         }
 
         if self.peek_kind_is(|k| {
@@ -376,9 +421,11 @@ impl Parser {
             }
 
             match expr {
-                Expr::Call { name, args, span: call_span }
-                    if name == "차림.값" && args.len() == 2 =>
-                {
+                Expr::Call {
+                    name,
+                    args,
+                    span: call_span,
+                } if name == "차림.값" && args.len() == 2 => {
                     let target = match &args[0].expr {
                         Expr::Path(path)
                             if path.segments.len() == 2
@@ -386,11 +433,7 @@ impl Parser {
                         {
                             path.clone()
                         }
-                        other => {
-                            return Err(ParseError::ExpectedTarget {
-                                span: other.span(),
-                            })
-                        }
+                        other => return Err(ParseError::ExpectedTarget { span: other.span() }),
                     };
                     self.ensure_root_declared_for_write(&target)?;
                     let index_expr = args[1].expr.clone();
@@ -404,7 +447,11 @@ impl Parser {
                         ],
                         span: set_span,
                     };
-                    return Ok(Some(Stmt::Assign { target, value: value_call, span }));
+                    return Ok(Some(Stmt::Assign {
+                        target,
+                        value: value_call,
+                        span,
+                    }));
                 }
                 Expr::Path(path) => {
                     if let Some((target, field)) = Self::split_map_dot_target(&path) {
@@ -433,11 +480,7 @@ impl Parser {
                         span,
                     }));
                 }
-                other => {
-                    return Err(ParseError::ExpectedTarget {
-                        span: other.span(),
-                    })
-                }
+                other => return Err(ParseError::ExpectedTarget { span: other.span() }),
             }
         }
 
@@ -550,7 +593,9 @@ impl Parser {
                 break;
             }
             if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
-                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
             }
 
             let name_token = self.peek().clone();
@@ -633,10 +678,17 @@ impl Parser {
         let start_span = self.advance().span;
         self.advance();
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
-            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
         }
         self.advance();
         self.advance();
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
                 expected: "'{'",
@@ -647,7 +699,9 @@ impl Parser {
         self.advance();
         let body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
@@ -675,12 +729,42 @@ impl Parser {
         self.advance();
         let body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
         Ok(Stmt::OpenBlock { body, span })
+    }
+
+    fn is_forbidden_setting_pragma(raw: &str) -> bool {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+        let head = trimmed
+            .split(|ch: char| ch == ':' || ch == '(' || ch.is_whitespace())
+            .next()
+            .unwrap_or("")
+            .trim();
+        matches!(head, "설정" | "보개" | "슬기" | "설정보개")
+    }
+
+    fn split_pragma_parts(raw: &str) -> (String, String) {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return (String::new(), String::new());
+        }
+        if let Some((name, rest)) = trimmed.split_once(':') {
+            return (name.trim().to_string(), rest.trim().to_string());
+        }
+        if let Some(idx) = trimmed.find(|ch: char| ch.is_whitespace()) {
+            let (name, rest) = trimmed.split_at(idx);
+            return (name.trim().to_string(), rest.trim().to_string());
+        }
+        (trimmed.to_string(), String::new())
     }
 
     fn parse_repeat_stmt(&mut self) -> Result<Stmt, ParseError> {
@@ -703,7 +787,9 @@ impl Parser {
         self.advance();
         let body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
@@ -738,7 +824,9 @@ impl Parser {
         self.advance();
         let body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
@@ -871,7 +959,9 @@ impl Parser {
         self.advance();
         let body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
@@ -909,7 +999,9 @@ impl Parser {
             self.advance();
         }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
-            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
         }
         self.advance();
         Ok(name)
@@ -924,7 +1016,9 @@ impl Parser {
                 break;
             }
             if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
-                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
             }
             let stmt = self.parse_stmt_in_block()?;
             if let Some(stmt) = stmt {
@@ -1034,12 +1128,20 @@ impl Parser {
         self.advance();
         let body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
-        Ok(Some(Stmt::SeedDef { name, params, kind, body, span }))
+        Ok(Some(Stmt::SeedDef {
+            name,
+            params,
+            kind,
+            body,
+            span,
+        }))
     }
 
     fn parse_seed_params(&mut self) -> Result<Vec<ParamPin>, ParseError> {
@@ -1095,14 +1197,18 @@ impl Parser {
             break;
         }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
-            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
         }
         self.advance();
         Ok(params)
     }
 
     fn skip_seed_type_tokens(&mut self, josa_list: &mut Vec<String>) -> Result<(), ParseError> {
-        while !self.peek_kind_is(|k| matches!(k, TokenKind::Comma | TokenKind::RParen | TokenKind::Equal)) {
+        while !self
+            .peek_kind_is(|k| matches!(k, TokenKind::Comma | TokenKind::RParen | TokenKind::Equal))
+        {
             if self.peek_kind_is(|k| matches!(k, TokenKind::Eof | TokenKind::Newline)) {
                 break;
             }
@@ -1152,7 +1258,9 @@ impl Parser {
                 self.advance();
                 let body = self.parse_block()?;
                 if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-                    return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                    return Err(ParseError::ExpectedRBrace {
+                        span: self.peek().span,
+                    });
                 }
                 end_span = self.advance().span;
                 else_body = Some(body);
@@ -1187,7 +1295,9 @@ impl Parser {
             self.advance();
             let body = self.parse_block()?;
             if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
             }
             end_span = self.advance().span;
             branches.push(ChooseBranch { condition, body });
@@ -1222,7 +1332,9 @@ impl Parser {
         self.advance();
         let then_body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let mut end_span = self.advance().span;
 
@@ -1285,7 +1397,9 @@ impl Parser {
             self.advance();
             let body = self.parse_block()?;
             if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
             }
             end_span = self.advance().span;
             Some(body)
@@ -1332,7 +1446,9 @@ impl Parser {
         self.advance();
         let else_body = self.parse_block()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let mut end_span = self.advance().span;
         self.skip_newlines();
@@ -1348,7 +1464,9 @@ impl Parser {
             self.advance();
             let body = self.parse_block()?;
             if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-                return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
             }
             end_span = self.advance().span;
             Some(body)
@@ -1374,7 +1492,9 @@ impl Parser {
         let start_span = self.advance().span;
         let expr = self.parse_expr()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         self.skip_newlines();
@@ -1437,7 +1557,9 @@ impl Parser {
         };
         self.advance();
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
-            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let _ = start_span.merge(end_span);
@@ -1535,9 +1657,16 @@ impl Parser {
         let inclusive = matches!(op_token.kind, TokenKind::DotDotEq);
         let right = self.parse_additive()?;
         let span = left.span().merge(right.span());
-        let flag_raw = if inclusive { Fixed64::from_int(1).raw() } else { 0 };
+        let flag_raw = if inclusive {
+            Fixed64::from_int(1).raw()
+        } else {
+            0
+        };
         let flag_expr = Expr::Literal(
-            Literal::Num(NumberLiteral { raw: flag_raw, unit: None }),
+            Literal::Num(NumberLiteral {
+                raw: flag_raw,
+                unit: None,
+            }),
             op_token.span,
         );
         Ok(Expr::Call {
@@ -1758,7 +1887,9 @@ impl Parser {
                     }
                 }
                 if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
-                    return Err(ParseError::ExpectedRParen { span: self.peek().span });
+                    return Err(ParseError::ExpectedRParen {
+                        span: self.peek().span,
+                    });
                 }
                 self.advance();
                 if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_) | TokenKind::Salim)) {
@@ -1811,7 +1942,9 @@ impl Parser {
                 self.advance();
                 let body = self.parse_expr()?;
                 if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-                    return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+                    return Err(ParseError::ExpectedRBrace {
+                        span: self.peek().span,
+                    });
                 }
                 let end_span = self.advance().span;
                 let span = start_span.merge(end_span);
@@ -1946,7 +2079,10 @@ impl Parser {
         if !has_inner {
             return Ok(Expr::Call {
                 name: "차림".to_string(),
-                args: args.into_iter().map(|expr| self.new_arg_binding(expr)).collect(),
+                args: args
+                    .into_iter()
+                    .map(|expr| self.new_arg_binding(expr))
+                    .collect(),
                 span,
             });
         }
@@ -1954,7 +2090,11 @@ impl Parser {
         let mut rows: Vec<Vec<Expr>> = Vec::new();
         for arg in args {
             match arg {
-                Expr::Call { name, args, span: row_span } if name == "차림" => {
+                Expr::Call {
+                    name,
+                    args,
+                    span: row_span,
+                } if name == "차림" => {
                     if args
                         .iter()
                         .any(|item| matches!(&item.expr, Expr::Call { name, .. } if name == "차림"))
@@ -2013,7 +2153,10 @@ impl Parser {
         };
         let data = Expr::Call {
             name: "차림".to_string(),
-            args: flat.into_iter().map(|expr| self.new_arg_binding(expr)).collect(),
+            args: flat
+                .into_iter()
+                .map(|expr| self.new_arg_binding(expr))
+                .collect(),
             span,
         };
         let layout = Expr::Literal(Literal::Str("가로먼저".to_string()), span);
@@ -2040,7 +2183,10 @@ impl Parser {
     fn parse_template_expr(&mut self) -> Result<Expr, ParseError> {
         let token = self.advance();
         match token.kind {
-            TokenKind::Template(body) => Ok(Expr::Template { body, span: token.span }),
+            TokenKind::Template(body) => Ok(Expr::Template {
+                body,
+                span: token.span,
+            }),
             other => Err(ParseError::UnexpectedToken {
                 expected: "template",
                 found: other,
@@ -2055,11 +2201,14 @@ impl Parser {
         start_span: Span,
     ) -> Result<Expr, ParseError> {
         self.advance();
-        let target_expr = if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_) | TokenKind::Salim)) {
-            Expr::Path(self.parse_path()?)
-        } else {
-            return Err(ParseError::ExpectedPath { span: self.peek().span });
-        };
+        let target_expr =
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_) | TokenKind::Salim)) {
+                Expr::Path(self.parse_path()?)
+            } else {
+                return Err(ParseError::ExpectedPath {
+                    span: self.peek().span,
+                });
+            };
         if self.peek_kind_is(|k| matches!(k, TokenKind::Chaewugi)) {
             let end_span = self.advance().span;
             let span = start_span.merge(end_span);
@@ -2180,7 +2329,9 @@ impl Parser {
             break;
         }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
-            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         Ok((bindings, start_span.merge(end_span)))
@@ -2210,7 +2361,9 @@ impl Parser {
         self.advance();
         let body = self.collect_formula_body()?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace { span: self.peek().span });
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
         }
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
@@ -2252,7 +2405,9 @@ impl Parser {
             }
         };
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
-            return Err(ParseError::ExpectedRParen { span: self.peek().span });
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
         }
         self.advance();
         Ok(dialect)
@@ -2349,17 +2504,23 @@ impl Parser {
                 match exp_token.kind {
                     TokenKind::Number(value) => {
                         if value & 0xFFFF_FFFF != 0 {
-                            return Err(ParseError::ExpectedUnit { span: exp_token.span });
+                            return Err(ParseError::ExpectedUnit {
+                                span: exp_token.span,
+                            });
                         }
                         let int_value = value >> 32;
                         if int_value < i32::MIN as i64 || int_value > i32::MAX as i64 {
-                            return Err(ParseError::ExpectedUnit { span: exp_token.span });
+                            return Err(ParseError::ExpectedUnit {
+                                span: exp_token.span,
+                            });
                         }
                         exp = int_value as i32;
                         self.advance();
                     }
                     _ => {
-                        return Err(ParseError::ExpectedUnit { span: exp_token.span });
+                        return Err(ParseError::ExpectedUnit {
+                            span: exp_token.span,
+                        });
                     }
                 }
             }
@@ -2530,18 +2691,32 @@ mod tests {
     use crate::lang::lexer::Lexer;
 
     #[test]
-    fn parse_pragma_graph_stmt_rejected() {
+    fn parse_pragma_graph_stmt_noop() {
         let source = "#그래프(y축=x)\n살림.x <- 1.\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("pragma rejected");
-        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("pragma parsed");
+        assert!(matches!(program.stmts.first(), Some(Stmt::Pragma { .. })));
+        assert!(program
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::Assign { .. })));
     }
 
     #[test]
-    fn parse_pragma_import_like_stmt_rejected() {
+    fn parse_pragma_import_like_stmt_noop() {
         let source = "#가져오기 누리/물리/역학 (중력씨, 이동씨)\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("pragma rejected");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("pragma parsed");
+        assert_eq!(program.stmts.len(), 1);
+        assert!(matches!(program.stmts[0], Stmt::Pragma { .. }));
+    }
+
+    #[test]
+    fn parse_setting_pragma_rejected() {
+        let source = "#설정: { 열림: 허용 }\n살림.x <- 1.\n";
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err =
+            Parser::parse_with_default_root(tokens, "살림").expect_err("setting pragma rejected");
         assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
     }
 
@@ -2605,5 +2780,23 @@ mod tests {
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let err = Parser::parse_with_default_root(tokens, "살림").expect_err("legacy header");
         assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+    }
+
+    #[test]
+    fn parse_hook_every_allows_optional_colon() {
+        let source = r#"
+(매마디)마다: {
+  살림.t <- 살림.t + 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(program.stmts.iter().any(|stmt| matches!(
+            stmt,
+            Stmt::Hook {
+                kind: HookKind::EveryMadi,
+                ..
+            }
+        )));
     }
 }

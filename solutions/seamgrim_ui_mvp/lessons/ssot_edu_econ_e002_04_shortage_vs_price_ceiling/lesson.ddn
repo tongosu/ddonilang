@@ -1,24 +1,29 @@
 #이름: E002-04 가격상한 Pc에 따른 부족(초과수요)
 #설명: 가격상한 Pc(<=균형가격)에서 Qd-Qs(초과수요=부족)가 얼마나 생기는지 점열로 출력.
-// 출력은 숫자만. (Pc, 부족) 순서.
 
-a <- 100.
-b <- 1.
-c <- 20.
-d <- 1.
+(매마디)마다 {
+  // 출력은 숫자만. (Pc, 부족) 순서.
 
-# 균형가격 P* = (a*d + b*c) / (b + d)
-P_star <- (a * d + b * c) / (b + d).
+  a <- 100.
+  b <- 1.
+  c <- 20.
+  d <- 1.
 
-Pc_min <- c.
-Pc_max <- P_star.
-dPc <- 2.
+  # 균형가격 P* = (a*d + b*c) / (b + d)
+  P_star <- (a * d + b * c) / (b + d).
 
-부족식 = (#ascii1) 수식{ y = (a - x) / b - (x - c) / d }.
-Pc목록 <- (Pc_min, Pc_max, dPc) 범위.
+  Pc_min <- c.
+  Pc_max <- P_star.
+  dPc <- 2.
 
-(x) Pc목록에 대해: {
-  shortage <- (x=x, a=a, b=b, c=c, d=d)인 부족식 풀기.
-  x 보여주기.
-  shortage 보여주기.
+  부족식 = (#ascii1) 수식{ y = (a - x) / b - (x - c) / d }.
+  Pc목록 <- (Pc_min, Pc_max, dPc) 범위.
+
+  (x) Pc목록에 대해: {
+    shortage <- (x=x, a=a, b=b, c=c, d=d)인 부족식 풀기.
+    보임 {
+      x: x.
+      shortage: shortage.
+    }.
+  }.
 }.

@@ -2,7 +2,9 @@ use crate::core::fixed64::Fixed64;
 use crate::core::state::Key;
 use crate::core::trace::Trace;
 use crate::core::unit::{eval_unit_expr, format_dim, UnitDim};
-use crate::core::value::{LambdaValue, ListValue, MapEntry, MapValue, PackValue, Quantity, SetValue, TemplateValue, Value};
+use crate::core::value::{
+    LambdaValue, ListValue, MapEntry, MapValue, PackValue, Quantity, SetValue, TemplateValue, Value,
+};
 use crate::core::State;
 use crate::lang::ast::{
     ArgBinding, BinaryOp, Binding, ContractKind, ContractMode, DeclKind, Expr, FormulaDialect,
@@ -10,8 +12,10 @@ use crate::lang::ast::{
 };
 use crate::runtime::detmath;
 use crate::runtime::error::RuntimeError;
+use crate::runtime::formula::{
+    analyze_formula, eval_formula_body, format_formula_body, FormulaError,
+};
 use crate::runtime::open::OpenRuntime;
-use crate::runtime::formula::{analyze_formula, eval_formula_body, format_formula_body, FormulaError};
 use crate::runtime::template::{match_template, render_template};
 use ddonirang_core::ResourceHandle;
 use std::cell::Cell;
@@ -79,7 +83,13 @@ impl Evaluator {
     }
 
     pub fn with_state_and_seed(state: State, seed: u64) -> Self {
-        Self::with_state_seed_open(state, seed, OpenRuntime::deny(), "<memory>".to_string(), None)
+        Self::with_state_seed_open(
+            state,
+            seed,
+            OpenRuntime::deny(),
+            "<memory>".to_string(),
+            None,
+        )
     }
 
     pub fn with_state_seed_open(
@@ -128,7 +138,13 @@ impl Evaluator {
     where
         F: FnMut(u64, &State, bool),
     {
-        self.run_with_ticks_internal(program, ticks, no_op_before_tick, no_op_should_stop, on_tick)
+        self.run_with_ticks_internal(
+            program,
+            ticks,
+            no_op_before_tick,
+            no_op_should_stop,
+            on_tick,
+        )
     }
 
     pub fn run_with_ticks_observe_and_inject<F, G>(
@@ -191,7 +207,14 @@ impl Evaluator {
         }
 
         for stmt in seed_defs {
-            let Stmt::SeedDef { name, params, kind, body, span } = stmt else {
+            let Stmt::SeedDef {
+                name,
+                params,
+                kind,
+                body,
+                span,
+            } = stmt
+            else {
                 continue;
             };
             self.user_seeds.insert(
@@ -255,7 +278,10 @@ impl Evaluator {
                         self.eval_expr(expr)?
                     } else if matches!(item.kind, DeclKind::Butbak) {
                         return Err(RuntimeError::Pack {
-                            message: format!("채비에서 '=' 항목은 초기값이 필요합니다: {}", item.name),
+                            message: format!(
+                                "채비에서 '=' 항목은 초기값이 필요합니다: {}",
+                                item.name
+                            ),
                             span: item.span,
                         });
                     } else {
@@ -326,11 +352,15 @@ impl Evaluator {
             }
             Stmt::Hook { .. } => Ok(FlowControl::Continue),
             Stmt::OpenBlock { body, span } => {
-                self.trace
-                    .log(format!("open_block_enter {}:{}", span.start_line, span.start_col));
+                self.trace.log(format!(
+                    "open_block_enter {}:{}",
+                    span.start_line, span.start_col
+                ));
                 let flow = self.eval_block(body)?;
-                self.trace
-                    .log(format!("open_block_exit {}:{}", span.start_line, span.start_col));
+                self.trace.log(format!(
+                    "open_block_exit {}:{}",
+                    span.start_line, span.start_col
+                ));
                 Ok(flow)
             }
             Stmt::If {
@@ -377,9 +407,7 @@ impl Evaluator {
                 Ok(FlowControl::Continue)
             }
             Stmt::While {
-                condition,
-                body,
-                ..
+                condition, body, ..
             } => {
                 loop {
                     if self.aborted {
@@ -475,7 +503,9 @@ impl Evaluator {
                             if let Some(body) = then_body {
                                 match self.eval_block(body)? {
                                     FlowControl::Continue => {}
-                                    FlowControl::Break(span) => return Ok(FlowControl::Break(span)),
+                                    FlowControl::Break(span) => {
+                                        return Ok(FlowControl::Break(span))
+                                    }
                                     FlowControl::Return(value, span) => {
                                         return Ok(FlowControl::Return(value, span));
                                     }
@@ -553,7 +583,11 @@ impl Evaluator {
         match expr {
             Expr::Literal(lit, span) => self.literal_to_value(lit, *span),
             Expr::Path(path) => self.eval_path(path),
-            Expr::FieldAccess { target, field, span } => {
+            Expr::FieldAccess {
+                target,
+                field,
+                span,
+            } => {
                 let base = self.eval_expr(target)?;
                 match base {
                     Value::Pack(pack) => {
@@ -602,14 +636,20 @@ impl Evaluator {
                 body: (*body.clone()),
             })),
             Expr::Call { name, args, span } => self.eval_call(name, args, *span),
-            Expr::Formula { dialect, body, span } => self.eval_formula_value(*dialect, body, *span),
+            Expr::Formula {
+                dialect,
+                body,
+                span,
+            } => self.eval_formula_value(*dialect, body, *span),
             Expr::FormulaEval {
                 dialect,
                 body,
                 bindings,
                 span,
             } => self.eval_formula_eval(*dialect, body, bindings, *span),
-            Expr::Template { body, span: _ } => Ok(Value::Template(TemplateValue { body: body.clone() })),
+            Expr::Template { body, span: _ } => {
+                Ok(Value::Template(TemplateValue { body: body.clone() }))
+            }
             Expr::TemplateFill {
                 template,
                 bindings,
@@ -672,10 +712,14 @@ impl Evaluator {
                 })
             }
         };
-        let mut current = self.state.get(&base_key).cloned().ok_or_else(|| RuntimeError::Undefined {
-            path: path.segments.join("."),
-            span: path.span,
-        })?;
+        let mut current =
+            self.state
+                .get(&base_key)
+                .cloned()
+                .ok_or_else(|| RuntimeError::Undefined {
+                    path: path.segments.join("."),
+                    span: path.span,
+                })?;
         for field in path.segments.iter().skip(2) {
             current = match current {
                 Value::Pack(pack) => {
@@ -743,7 +787,12 @@ impl Evaluator {
         }
     }
 
-    fn eval_unary(&self, op: &UnaryOp, value: Value, span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_unary(
+        &self,
+        op: &UnaryOp,
+        value: Value,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         match op {
             UnaryOp::Neg => match value {
                 Value::Num(qty) => Ok(Value::Num(Quantity::new(
@@ -854,20 +903,36 @@ impl Evaluator {
             "열림.네트워크.요청" => {
                 let args = expect_open_net_args(values, span)?;
                 let site_id = self.open_site_id(span);
-                self.open
-                    .open_net(&site_id, &args.url, &args.method, args.body.as_deref(), args.response.as_deref(), span)
+                self.open.open_net(
+                    &site_id,
+                    &args.url,
+                    &args.method,
+                    args.body.as_deref(),
+                    args.response.as_deref(),
+                    span,
+                )
             }
             "열림.호스트FFI.호출" => {
                 let args = expect_open_ffi_args(values, span)?;
                 let site_id = self.open_site_id(span);
-                self.open
-                    .open_ffi(&site_id, &args.name, args.args.as_deref(), args.result.as_deref(), span)
+                self.open.open_ffi(
+                    &site_id,
+                    &args.name,
+                    args.args.as_deref(),
+                    args.result.as_deref(),
+                    span,
+                )
             }
             "열림.GPU.실행" => {
                 let args = expect_open_gpu_args(values, span)?;
                 let site_id = self.open_site_id(span);
-                self.open
-                    .open_gpu(&site_id, &args.kernel, args.payload.as_deref(), args.result.as_deref(), span)
+                self.open.open_gpu(
+                    &site_id,
+                    &args.kernel,
+                    args.payload.as_deref(),
+                    args.result.as_deref(),
+                    span,
+                )
             }
             "sqrt" => {
                 let qty = expect_quantity(&values, 1, span)?;
@@ -959,7 +1024,10 @@ impl Evaluator {
             "합계" => {
                 let list = expect_list(&values, span)?;
                 if list.items.is_empty() {
-                    return Ok(Value::Num(Quantity::new(Fixed64::from_int(0), UnitDim::zero())));
+                    return Ok(Value::Num(Quantity::new(
+                        Fixed64::from_int(0),
+                        UnitDim::zero(),
+                    )));
                 }
                 let mut total = expect_quantity_value(&list.items[0], span)?;
                 for item in list.items.iter().skip(1) {
@@ -990,11 +1058,17 @@ impl Evaluator {
             "길이" => match values {
                 [Value::Str(text)] => {
                     let len = text.chars().count() as i64;
-                    Ok(Value::Num(Quantity::new(Fixed64::from_int(len), UnitDim::zero())))
+                    Ok(Value::Num(Quantity::new(
+                        Fixed64::from_int(len),
+                        UnitDim::zero(),
+                    )))
                 }
                 [Value::List(list)] => {
                     let len = list.items.len() as i64;
-                    Ok(Value::Num(Quantity::new(Fixed64::from_int(len), UnitDim::zero())))
+                    Ok(Value::Num(Quantity::new(
+                        Fixed64::from_int(len),
+                        UnitDim::zero(),
+                    )))
                 }
                 [value] => Err(type_mismatch_detail("string or list", value, span)),
                 _ => Err(RuntimeError::TypeMismatch {
@@ -1165,7 +1239,10 @@ impl Evaluator {
                     .find(&pattern)
                     .map(|byte_idx| text[..byte_idx].chars().count() as i64)
                     .unwrap_or(-1);
-                Ok(Value::Num(Quantity::new(Fixed64::from_int(idx), UnitDim::zero())))
+                Ok(Value::Num(Quantity::new(
+                    Fixed64::from_int(idx),
+                    UnitDim::zero(),
+                )))
             }
             "첫번째" => {
                 let list = expect_list(values, span)?;
@@ -1283,7 +1360,10 @@ impl Evaluator {
                     .position(|item| item == target)
                     .map(|i| i as i64)
                     .unwrap_or(-1);
-                Ok(Value::Num(Quantity::new(Fixed64::from_int(idx), UnitDim::zero())))
+                Ok(Value::Num(Quantity::new(
+                    Fixed64::from_int(idx),
+                    UnitDim::zero(),
+                )))
             }
             "뒤집기" => {
                 let list = expect_list(values, span)?;
@@ -1430,12 +1510,13 @@ impl Evaluator {
                     Value::Pack(pack) => pack.clone(),
                     value => return Err(type_mismatch_detail("pack", value, span)),
                 };
-                let dialect = FormulaDialect::from_tag(&math.dialect).ok_or(RuntimeError::TypeMismatch {
-                    expected: "formula",
-                    span,
-                })?;
-                let analysis =
-                    analyze_formula(&math.body, dialect).map_err(|err| map_formula_error(err, span))?;
+                let dialect =
+                    FormulaDialect::from_tag(&math.dialect).ok_or(RuntimeError::TypeMismatch {
+                        expected: "formula",
+                        span,
+                    })?;
+                let analysis = analyze_formula(&math.body, dialect)
+                    .map_err(|err| map_formula_error(err, span))?;
                 let required = analysis.vars;
                 let provided: BTreeSet<String> = pack.fields.keys().cloned().collect();
                 let missing: Vec<String> = required.difference(&provided).cloned().collect();
@@ -1463,14 +1544,15 @@ impl Evaluator {
                     let qty = expect_quantity_value(value, span)?;
                     map.insert(key.clone(), qty);
                 }
-                let qty =
-                    eval_formula_body(&math.body, dialect, &map).map_err(|err| map_formula_error(err, span))?;
+                let qty = eval_formula_body(&math.body, dialect, &map)
+                    .map_err(|err| map_formula_error(err, span))?;
                 Ok(Value::Num(qty))
             }
             "눌렸나" => {
                 let key = expect_single_string(values, span)?;
-                let pressed = read_state_flag(&self.state, &format!("샘.키보드.누르고있음.{}", key))
-                    || read_state_flag(&self.state, &format!("입력상태.키_누르고있음.{}", key));
+                let pressed =
+                    read_state_flag(&self.state, &format!("샘.키보드.누르고있음.{}", key))
+                        || read_state_flag(&self.state, &format!("입력상태.키_누르고있음.{}", key));
                 Ok(Value::Bool(pressed))
             }
             "막눌렸나" => {
@@ -1499,7 +1581,10 @@ impl Evaluator {
                 }
                 let range = (max - min + 1) as u64;
                 let value = (self.next_rng_u64() % range) as i64 + min;
-                Ok(Value::Num(Quantity::new(Fixed64::from_int(value), UnitDim::zero())))
+                Ok(Value::Num(Quantity::new(
+                    Fixed64::from_int(value),
+                    UnitDim::zero(),
+                )))
             }
             "무작위선택" => {
                 if values.len() != 1 {
@@ -1569,7 +1654,8 @@ impl Evaluator {
                     Value::Num(Quantity::new(arousal, UnitDim::zero())),
                 );
                 let pack = PackValue { fields };
-                self.state.set(Key::new("감정씨"), Value::Pack(pack.clone()));
+                self.state
+                    .set(Key::new("감정씨"), Value::Pack(pack.clone()));
                 Ok(Value::Pack(pack))
             }
             "말결값" => {
@@ -1639,27 +1725,26 @@ impl Evaluator {
                 let mut fields = BTreeMap::new();
                 fields.insert(
                     "madi".to_string(),
-                    Value::Num(Quantity::new(Fixed64::from_int(madi as i64), UnitDim::zero())),
+                    Value::Num(Quantity::new(
+                        Fixed64::from_int(madi as i64),
+                        UnitDim::zero(),
+                    )),
                 );
                 fields.insert("kind".to_string(), Value::Str(kind));
                 fields.insert("text".to_string(), Value::Str(text));
-                fields.insert(
-                    "a".to_string(),
-                    a_value.unwrap_or(Value::None),
-                );
-                fields.insert(
-                    "b".to_string(),
-                    b_value.unwrap_or(Value::None),
-                );
-                fields.insert(
-                    "target".to_string(),
-                    target.unwrap_or(Value::None),
-                );
+                fields.insert("a".to_string(), a_value.unwrap_or(Value::None));
+                fields.insert("b".to_string(), b_value.unwrap_or(Value::None));
+                fields.insert("target".to_string(), target.unwrap_or(Value::None));
                 let event_pack = PackValue { fields };
                 events.push(Value::Pack(event_pack.clone()));
                 let mut memory_fields = BTreeMap::new();
-                memory_fields.insert("events".to_string(), Value::List(ListValue { items: events }));
-                let memory_pack = PackValue { fields: memory_fields };
+                memory_fields.insert(
+                    "events".to_string(),
+                    Value::List(ListValue { items: events }),
+                );
+                let memory_pack = PackValue {
+                    fields: memory_fields,
+                };
                 self.state.set(Key::new("기억씨"), Value::Pack(memory_pack));
                 Ok(Value::Pack(event_pack))
             }
@@ -1742,20 +1827,16 @@ impl Evaluator {
                     let mut entries = BTreeMap::new();
                     for (name, value) in captures {
                         let key = Value::Str(name.clone());
-                        entries.insert(
-                            key.canon(),
-                            MapEntry {
-                                key,
-                                value,
-                            },
-                        );
+                        entries.insert(key.canon(), MapEntry { key, value });
                     }
                     Ok(Value::Map(MapValue { entries }))
                 } else {
                     Ok(Value::None)
                 }
             }
-            "차림" | "목록" => Ok(Value::List(ListValue { items: values.to_vec() })),
+            "차림" | "목록" => Ok(Value::List(ListValue {
+                items: values.to_vec(),
+            })),
             "차림.값" => {
                 let (list, index) = expect_list_and_index(values, span)?;
                 Ok(list.items.get(index).cloned().unwrap_or(Value::None))
@@ -1804,7 +1885,10 @@ impl Evaluator {
                 if row >= tensor.rows || col >= tensor.cols {
                     return Ok(Value::None);
                 }
-                let index = match row.checked_mul(tensor.cols).and_then(|base| base.checked_add(col)) {
+                let index = match row
+                    .checked_mul(tensor.cols)
+                    .and_then(|base| base.checked_add(col))
+                {
                     Some(index) => index,
                     None => return Ok(Value::None),
                 };
@@ -1815,7 +1899,10 @@ impl Evaluator {
                 if row >= tensor.rows || col >= tensor.cols {
                     return Err(RuntimeError::IndexOutOfRange { span });
                 }
-                let index = match row.checked_mul(tensor.cols).and_then(|base| base.checked_add(col)) {
+                let index = match row
+                    .checked_mul(tensor.cols)
+                    .and_then(|base| base.checked_add(col))
+                {
                     Some(index) => index,
                     None => return Err(RuntimeError::IndexOutOfRange { span }),
                 };
@@ -1946,7 +2033,10 @@ impl Evaluator {
                 while tetris_can_place_at(&args, args.x, y + 1)? {
                     y += 1;
                 }
-                Ok(Value::Num(Quantity::new(Fixed64::from_int(i64::from(y)), UnitDim::zero())))
+                Ok(Value::Num(Quantity::new(
+                    Fixed64::from_int(i64::from(y)),
+                    UnitDim::zero(),
+                )))
             }
             "tetris_lock" => {
                 let args = expect_tetris_args(&values, span)?;
@@ -1979,11 +2069,17 @@ impl Evaluator {
                 let mut fields = BTreeMap::new();
                 fields.insert(
                     "dx".to_string(),
-                    Value::Num(Quantity::new(Fixed64::from_int(i64::from(dx)), UnitDim::zero())),
+                    Value::Num(Quantity::new(
+                        Fixed64::from_int(i64::from(dx)),
+                        UnitDim::zero(),
+                    )),
                 );
                 fields.insert(
                     "dy".to_string(),
-                    Value::Num(Quantity::new(Fixed64::from_int(i64::from(dy)), UnitDim::zero())),
+                    Value::Num(Quantity::new(
+                        Fixed64::from_int(i64::from(dy)),
+                        UnitDim::zero(),
+                    )),
                 );
                 Ok(Value::Pack(PackValue { fields }))
             }
@@ -2120,7 +2216,8 @@ impl Evaluator {
         body: &str,
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
-        let formatted = format_formula_body(body, dialect).map_err(|err| map_formula_error(err, span))?;
+        let formatted =
+            format_formula_body(body, dialect).map_err(|err| map_formula_error(err, span))?;
         Ok(Value::Math(crate::core::value::MathValue {
             dialect: dialect.tag().to_string(),
             body: formatted,
@@ -2161,7 +2258,8 @@ impl Evaluator {
             };
             map.insert(binding.name.clone(), qty);
         }
-        let qty = eval_formula_body(body, dialect, &map).map_err(|err| map_formula_error(err, span))?;
+        let qty =
+            eval_formula_body(body, dialect, &map).map_err(|err| map_formula_error(err, span))?;
         Ok(Value::Num(qty))
     }
 
@@ -2181,10 +2279,11 @@ impl Evaluator {
                 })
             }
         };
-        let dialect = FormulaDialect::from_tag(&math.dialect).ok_or(RuntimeError::TypeMismatch {
-            expected: "formula",
-            span,
-        })?;
+        let dialect =
+            FormulaDialect::from_tag(&math.dialect).ok_or(RuntimeError::TypeMismatch {
+                expected: "formula",
+                span,
+            })?;
         self.eval_formula_bindings(dialect, &math.body, bindings, span)
     }
 
@@ -2221,7 +2320,11 @@ impl Evaluator {
         Ok(Value::Str(rendered))
     }
 
-    fn eval_pack(&mut self, bindings: &[Binding], _span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_pack(
+        &mut self,
+        bindings: &[Binding],
+        _span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         let mut map = BTreeMap::new();
         for binding in bindings {
             if map.contains_key(&binding.name) {
@@ -2236,7 +2339,12 @@ impl Evaluator {
         Ok(Value::Pack(PackValue { fields: map }))
     }
 
-    fn eval_add(&self, left: Value, right: Value, span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_add(
+        &self,
+        left: Value,
+        right: Value,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         let (l, r) = self.require_numbers(left, right, span)?;
         if l.dim != r.dim {
             return Err(RuntimeError::UnitMismatch { span });
@@ -2247,7 +2355,12 @@ impl Evaluator {
         )))
     }
 
-    fn eval_sub(&self, left: Value, right: Value, span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_sub(
+        &self,
+        left: Value,
+        right: Value,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         let (l, r) = self.require_numbers(left, right, span)?;
         if l.dim != r.dim {
             return Err(RuntimeError::UnitMismatch { span });
@@ -2258,7 +2371,12 @@ impl Evaluator {
         )))
     }
 
-    fn eval_mul(&self, left: Value, right: Value, span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_mul(
+        &self,
+        left: Value,
+        right: Value,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         let (l, r) = self.require_numbers(left, right, span)?;
         Ok(Value::Num(Quantity::new(
             l.raw.saturating_mul(r.raw),
@@ -2266,14 +2384,27 @@ impl Evaluator {
         )))
     }
 
-    fn eval_div(&self, left: Value, right: Value, span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_div(
+        &self,
+        left: Value,
+        right: Value,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         let (l, r) = self.require_numbers(left, right, span)?;
-        let raw = l.raw.checked_div(r.raw).ok_or(RuntimeError::MathDivZero { span })?;
+        let raw = l
+            .raw
+            .checked_div(r.raw)
+            .ok_or(RuntimeError::MathDivZero { span })?;
         let dim = l.dim.add(r.dim.scale(-1));
         Ok(Value::Num(Quantity::new(raw, dim)))
     }
 
-    fn eval_mod(&self, left: Value, right: Value, span: crate::lang::span::Span) -> Result<Value, RuntimeError> {
+    fn eval_mod(
+        &self,
+        left: Value,
+        right: Value,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
         let (l, r) = self.require_numbers(left, right, span)?;
         if l.dim != r.dim {
             return Err(RuntimeError::UnitMismatch { span });
@@ -2463,11 +2594,19 @@ impl Evaluator {
             match (&left, &right) {
                 (Value::Str(a), Value::Str(b)) => {
                     let equal = a == b;
-                    return Ok(Value::Bool(if matches!(op, BinaryOp::Eq) { equal } else { !equal }));
+                    return Ok(Value::Bool(if matches!(op, BinaryOp::Eq) {
+                        equal
+                    } else {
+                        !equal
+                    }));
                 }
                 (Value::Bool(a), Value::Bool(b)) => {
                     let equal = a == b;
-                    return Ok(Value::Bool(if matches!(op, BinaryOp::Eq) { equal } else { !equal }));
+                    return Ok(Value::Bool(if matches!(op, BinaryOp::Eq) {
+                        equal
+                    } else {
+                        !equal
+                    }));
                 }
                 (Value::None, Value::None) => {
                     return Ok(Value::Bool(matches!(op, BinaryOp::Eq)));
@@ -2531,7 +2670,12 @@ pub struct ContractDiag {
 }
 
 impl Evaluator {
-    fn emit_contract_violation(&mut self, kind: ContractKind, mode: ContractMode, span: crate::lang::span::Span) {
+    fn emit_contract_violation(
+        &mut self,
+        kind: ContractKind,
+        mode: ContractMode,
+        span: crate::lang::span::Span,
+    ) {
         let message = match kind {
             ContractKind::Pre => "전제하에 조건이 실패했습니다".to_string(),
             ContractKind::Post => "보장하고 조건이 실패했습니다".to_string(),
@@ -2628,7 +2772,11 @@ fn number_type_name(qty: &Quantity) -> String {
     }
 }
 
-fn expect_quantity(values: &[Value], expected: usize, span: crate::lang::span::Span) -> Result<Quantity, RuntimeError> {
+fn expect_quantity(
+    values: &[Value],
+    expected: usize,
+    span: crate::lang::span::Span,
+) -> Result<Quantity, RuntimeError> {
     if values.len() != expected {
         return Err(RuntimeError::TypeMismatch {
             expected: "number",
@@ -2645,7 +2793,10 @@ fn expect_quantity(values: &[Value], expected: usize, span: crate::lang::span::S
     }
 }
 
-fn expect_two_quantities(values: &[Value], span: crate::lang::span::Span) -> Result<(Quantity, Quantity), RuntimeError> {
+fn expect_two_quantities(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(Quantity, Quantity), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "two numbers",
@@ -2659,7 +2810,10 @@ fn expect_two_quantities(values: &[Value], span: crate::lang::span::Span) -> Res
     }
 }
 
-fn expect_three_quantities(values: &[Value], span: crate::lang::span::Span) -> Result<(Quantity, Quantity, Quantity), RuntimeError> {
+fn expect_three_quantities(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(Quantity, Quantity, Quantity), RuntimeError> {
     if values.len() != 3 {
         return Err(RuntimeError::TypeMismatch {
             expected: "three numbers",
@@ -2674,14 +2828,20 @@ fn expect_three_quantities(values: &[Value], span: crate::lang::span::Span) -> R
     }
 }
 
-fn expect_quantity_value(value: &Value, span: crate::lang::span::Span) -> Result<Quantity, RuntimeError> {
+fn expect_quantity_value(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<Quantity, RuntimeError> {
     match value {
         Value::Num(qty) => Ok(qty.clone()),
         other => Err(type_mismatch_detail("number", other, span)),
     }
 }
 
-fn expect_pack_and_key(values: &[Value], span: crate::lang::span::Span) -> Result<(PackValue, String), RuntimeError> {
+fn expect_pack_and_key(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(PackValue, String), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "pack, string",
@@ -2699,7 +2859,10 @@ fn expect_pack_and_key(values: &[Value], span: crate::lang::span::Span) -> Resul
     Ok((pack, key))
 }
 
-fn expect_map_and_key(values: &[Value], span: crate::lang::span::Span) -> Result<(MapValue, Value), RuntimeError> {
+fn expect_map_and_key(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(MapValue, Value), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "map, key",
@@ -2740,7 +2903,10 @@ fn expect_any(values: &[Value], span: crate::lang::span::Span) -> Result<Value, 
     Ok(values[0].clone())
 }
 
-fn expect_single_string(values: &[Value], span: crate::lang::span::Span) -> Result<String, RuntimeError> {
+fn expect_single_string(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<String, RuntimeError> {
     if values.len() != 1 {
         return Err(RuntimeError::TypeMismatch {
             expected: "string",
@@ -2753,7 +2919,10 @@ fn expect_single_string(values: &[Value], span: crate::lang::span::Span) -> Resu
     }
 }
 
-fn expect_open_path(values: &[Value], span: crate::lang::span::Span) -> Result<String, RuntimeError> {
+fn expect_open_path(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<String, RuntimeError> {
     if values.len() != 1 {
         return Err(RuntimeError::TypeMismatch {
             expected: "string or pack{경로}",
@@ -2797,7 +2966,10 @@ struct OpenGpuArgs {
     result: Option<String>,
 }
 
-fn expect_open_net_args(values: &[Value], span: crate::lang::span::Span) -> Result<OpenNetArgs, RuntimeError> {
+fn expect_open_net_args(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<OpenNetArgs, RuntimeError> {
     if values.len() != 1 {
         return Err(RuntimeError::TypeMismatch {
             expected: "string or pack{주소}",
@@ -2830,7 +3002,10 @@ fn expect_open_net_args(values: &[Value], span: crate::lang::span::Span) -> Resu
     }
 }
 
-fn expect_open_ffi_args(values: &[Value], span: crate::lang::span::Span) -> Result<OpenFfiArgs, RuntimeError> {
+fn expect_open_ffi_args(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<OpenFfiArgs, RuntimeError> {
     if values.len() != 1 {
         return Err(RuntimeError::TypeMismatch {
             expected: "string or pack{이름}",
@@ -2867,7 +3042,10 @@ fn expect_open_ffi_args(values: &[Value], span: crate::lang::span::Span) -> Resu
     }
 }
 
-fn expect_open_gpu_args(values: &[Value], span: crate::lang::span::Span) -> Result<OpenGpuArgs, RuntimeError> {
+fn expect_open_gpu_args(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<OpenGpuArgs, RuntimeError> {
     if values.len() != 1 {
         return Err(RuntimeError::TypeMismatch {
             expected: "string or pack{커널}",
@@ -2932,7 +3110,10 @@ fn find_pack_value<'a>(pack: &'a PackValue, keys: &[&str]) -> Option<&'a Value> 
     None
 }
 
-fn expect_two_strings(values: &[Value], span: crate::lang::span::Span) -> Result<(String, String), RuntimeError> {
+fn expect_two_strings(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(String, String), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "two strings",
@@ -2963,7 +3144,10 @@ fn expect_list(values: &[Value], span: crate::lang::span::Span) -> Result<ListVa
     }
 }
 
-fn expect_list_and_item(values: &[Value], span: crate::lang::span::Span) -> Result<(ListValue, Value), RuntimeError> {
+fn expect_list_and_item(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(ListValue, Value), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "list, item",
@@ -2977,7 +3161,10 @@ fn expect_list_and_item(values: &[Value], span: crate::lang::span::Span) -> Resu
     Ok((list, values[1].clone()))
 }
 
-fn expect_list_and_index(values: &[Value], span: crate::lang::span::Span) -> Result<(ListValue, usize), RuntimeError> {
+fn expect_list_and_index(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(ListValue, usize), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "list, index",
@@ -3040,7 +3227,10 @@ struct TensorValue {
     cols: usize,
 }
 
-fn expect_tensor(value: &Value, span: crate::lang::span::Span) -> Result<TensorValue, RuntimeError> {
+fn expect_tensor(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<TensorValue, RuntimeError> {
     let pack = match value {
         Value::Pack(pack) => pack.clone(),
         other => return Err(type_mismatch_detail("tensor pack", other, span)),
@@ -3164,7 +3354,10 @@ fn expect_list_reduce(
 }
 
 #[allow(dead_code)]
-fn expect_list_and_delim(values: &[Value], span: crate::lang::span::Span) -> Result<(ListValue, String), RuntimeError> {
+fn expect_list_and_delim(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(ListValue, String), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "list, delimiter",
@@ -3189,11 +3382,18 @@ fn expect_callable(value: &Value, span: crate::lang::span::Span) -> Result<Calla
             Ok(Callable::Name(trimmed.to_string()))
         }
         Value::Lambda(lambda) => Ok(Callable::Lambda(lambda.clone())),
-        _ => Err(type_mismatch_detail("function or seed literal", value, span)),
+        _ => Err(type_mismatch_detail(
+            "function or seed literal",
+            value,
+            span,
+        )),
     }
 }
 
-fn expect_two_ints(values: &[Value], span: crate::lang::span::Span) -> Result<(i64, i64), RuntimeError> {
+fn expect_two_ints(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(i64, i64), RuntimeError> {
     if values.len() != 2 {
         return Err(RuntimeError::TypeMismatch {
             expected: "two integers",
@@ -3335,7 +3535,10 @@ fn parse_formula_transform_pack(
             let order = expect_int(value, span)?;
             if order < 1 {
                 return Err(RuntimeError::FormulaParse {
-                    message: format!("E_CALC_TRANSFORM_BAD_ORDER: {} 차수는 1 이상이어야 합니다", label),
+                    message: format!(
+                        "E_CALC_TRANSFORM_BAD_ORDER: {} 차수는 1 이상이어야 합니다",
+                        label
+                    ),
                     span,
                 });
             }
@@ -3394,13 +3597,18 @@ fn transform_formula_value(
         return Err(RuntimeError::FormulaParse {
             message: format!(
                 "{}는 #ascii 수식만 지원합니다",
-                if call_name == "diff" { "미분하기" } else { "적분하기" }
+                if call_name == "diff" {
+                    "미분하기"
+                } else {
+                    "적분하기"
+                }
             ),
             span,
         });
     }
 
-    let analysis = analyze_formula(&math.body, dialect).map_err(|err| map_formula_error(err, span))?;
+    let analysis =
+        analyze_formula(&math.body, dialect).map_err(|err| map_formula_error(err, span))?;
     let mut vars = analysis.vars.clone();
     if let Some(assign) = &analysis.assign_name {
         vars.remove(assign);
@@ -3411,7 +3619,11 @@ fn transform_formula_value(
                 return Err(RuntimeError::FormulaParse {
                     message: format!(
                         "E_CALC_FREEVAR_NOT_FOUND: {} 변수 '{}'가 수식에 없습니다",
-                        if call_name == "diff" { "미분하기" } else { "적분하기" },
+                        if call_name == "diff" {
+                            "미분하기"
+                        } else {
+                            "적분하기"
+                        },
                         name
                     ),
                     span,
@@ -3440,7 +3652,10 @@ fn transform_formula_value(
 
     let mut expr = if call_name == "diff" {
         if let Some(order) = options.order {
-            format!("{}({}, {}, {})", call_name, analysis.expr_text, var_name, order)
+            format!(
+                "{}({}, {}, {})",
+                call_name, analysis.expr_text, var_name, order
+            )
         } else {
             format!("{}({}, {})", call_name, analysis.expr_text, var_name)
         }
@@ -3454,7 +3669,8 @@ fn transform_formula_value(
     if let Some(assign) = analysis.assign_name {
         body = format!("{} = {}", assign, body);
     }
-    let formatted = format_formula_body(&body, dialect).map_err(|err| map_formula_error(err, span))?;
+    let formatted =
+        format_formula_body(&body, dialect).map_err(|err| map_formula_error(err, span))?;
     Ok(crate::core::value::MathValue {
         dialect: math.dialect,
         body: formatted,
@@ -3471,14 +3687,22 @@ fn infer_single_var(
         0 => Err(RuntimeError::FormulaParse {
             message: format!(
                 "E_CALC_FREEVAR_AMBIGUOUS: {}는 변수 이름을 지정해야 합니다",
-                if call_name == "diff" { "미분하기" } else { "적분하기" }
+                if call_name == "diff" {
+                    "미분하기"
+                } else {
+                    "적분하기"
+                }
             ),
             span,
         }),
         _ => Err(RuntimeError::FormulaParse {
             message: format!(
                 "E_CALC_FREEVAR_AMBIGUOUS: {} 변수 이름이 여러 개입니다",
-                if call_name == "diff" { "미분하기" } else { "적분하기" }
+                if call_name == "diff" {
+                    "미분하기"
+                } else {
+                    "적분하기"
+                }
             ),
             span,
         }),
@@ -3496,7 +3720,11 @@ fn ensure_formula_ident(
         return Err(RuntimeError::FormulaParse {
             message: format!(
                 "{} 변수 이름이 비어 있습니다",
-                if call_name == "diff" { "미분하기" } else { "적분하기" }
+                if call_name == "diff" {
+                    "미분하기"
+                } else {
+                    "적분하기"
+                }
             ),
             span,
         });
@@ -3505,7 +3733,11 @@ fn ensure_formula_ident(
         return Err(RuntimeError::FormulaParse {
             message: format!(
                 "{} 변수 이름이 올바르지 않습니다: {}",
-                if call_name == "diff" { "미분하기" } else { "적분하기" },
+                if call_name == "diff" {
+                    "미분하기"
+                } else {
+                    "적분하기"
+                },
                 name
             ),
             span,
@@ -3519,7 +3751,11 @@ fn ensure_formula_ident(
         return Err(RuntimeError::FormulaParse {
             message: format!(
                 "{} 변수 이름이 올바르지 않습니다: {}",
-                if call_name == "diff" { "미분하기" } else { "적분하기" },
+                if call_name == "diff" {
+                    "미분하기"
+                } else {
+                    "적분하기"
+                },
                 name
             ),
             span,
@@ -3561,7 +3797,10 @@ struct TetrisBlockArgs {
     index: usize,
 }
 
-fn expect_tetris_args(values: &[Value], span: crate::lang::span::Span) -> Result<TetrisArgs, RuntimeError> {
+fn expect_tetris_args(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<TetrisArgs, RuntimeError> {
     if values.len() != 7 {
         return Err(RuntimeError::TypeMismatch {
             expected: "board, width, height, piece_id, rot, x, y",
@@ -3579,22 +3818,26 @@ fn expect_tetris_args(values: &[Value], span: crate::lang::span::Span) -> Result
     };
     let width = require_nonnegative(expect_int(&values[1], span)?, span)?;
     let height = require_nonnegative(expect_int(&values[2], span)?, span)?;
-    let piece_id = i32::try_from(expect_int(&values[3], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "piece id",
-        span,
-    })?;
-    let rotation = i32::try_from(expect_int(&values[4], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "rotation",
-        span,
-    })?;
-    let x = i32::try_from(expect_int(&values[5], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "x",
-        span,
-    })?;
-    let y = i32::try_from(expect_int(&values[6], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "y",
-        span,
-    })?;
+    let piece_id =
+        i32::try_from(expect_int(&values[3], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "piece id",
+            span,
+        })?;
+    let rotation =
+        i32::try_from(expect_int(&values[4], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "rotation",
+            span,
+        })?;
+    let x =
+        i32::try_from(expect_int(&values[5], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "x",
+            span,
+        })?;
+    let y =
+        i32::try_from(expect_int(&values[6], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "y",
+            span,
+        })?;
     Ok(TetrisArgs {
         board,
         width,
@@ -3606,7 +3849,10 @@ fn expect_tetris_args(values: &[Value], span: crate::lang::span::Span) -> Result
     })
 }
 
-fn expect_tetris_cell_args(values: &[Value], span: crate::lang::span::Span) -> Result<TetrisCellArgs, RuntimeError> {
+fn expect_tetris_cell_args(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<TetrisCellArgs, RuntimeError> {
     if values.len() != 5 {
         return Err(RuntimeError::TypeMismatch {
             expected: "board, width, height, x, y",
@@ -3624,14 +3870,16 @@ fn expect_tetris_cell_args(values: &[Value], span: crate::lang::span::Span) -> R
     };
     let width = require_nonnegative(expect_int(&values[1], span)?, span)?;
     let height = require_nonnegative(expect_int(&values[2], span)?, span)?;
-    let x = i32::try_from(expect_int(&values[3], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "x",
-        span,
-    })?;
-    let y = i32::try_from(expect_int(&values[4], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "y",
-        span,
-    })?;
+    let x =
+        i32::try_from(expect_int(&values[3], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "x",
+            span,
+        })?;
+    let y =
+        i32::try_from(expect_int(&values[4], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "y",
+            span,
+        })?;
     Ok(TetrisCellArgs {
         board,
         width,
@@ -3641,7 +3889,10 @@ fn expect_tetris_cell_args(values: &[Value], span: crate::lang::span::Span) -> R
     })
 }
 
-fn expect_tetris_drawlist_args(values: &[Value], span: crate::lang::span::Span) -> Result<TetrisDrawListArgs, RuntimeError> {
+fn expect_tetris_drawlist_args(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<TetrisDrawListArgs, RuntimeError> {
     if values.len() != 6 {
         return Err(RuntimeError::TypeMismatch {
             expected: "board, width, height, origin_x, origin_y, cell",
@@ -3659,14 +3910,16 @@ fn expect_tetris_drawlist_args(values: &[Value], span: crate::lang::span::Span) 
     };
     let width = require_nonnegative(expect_int(&values[1], span)?, span)?;
     let height = require_nonnegative(expect_int(&values[2], span)?, span)?;
-    let origin_x = i32::try_from(expect_int(&values[3], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "origin_x",
-        span,
-    })?;
-    let origin_y = i32::try_from(expect_int(&values[4], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "origin_y",
-        span,
-    })?;
+    let origin_x =
+        i32::try_from(expect_int(&values[3], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "origin_x",
+            span,
+        })?;
+    let origin_y =
+        i32::try_from(expect_int(&values[4], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "origin_y",
+            span,
+        })?;
     let cell = require_nonnegative(expect_int(&values[5], span)?, span)?;
     let cell = i32::try_from(cell).map_err(|_| RuntimeError::TypeMismatch {
         expected: "cell",
@@ -3682,21 +3935,26 @@ fn expect_tetris_drawlist_args(values: &[Value], span: crate::lang::span::Span) 
     })
 }
 
-fn expect_tetris_block_args(values: &[Value], span: crate::lang::span::Span) -> Result<TetrisBlockArgs, RuntimeError> {
+fn expect_tetris_block_args(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<TetrisBlockArgs, RuntimeError> {
     if values.len() != 3 {
         return Err(RuntimeError::TypeMismatch {
             expected: "piece_id, rot, index",
             span,
         });
     }
-    let piece_id = i32::try_from(expect_int(&values[0], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "piece id",
-        span,
-    })?;
-    let rotation = i32::try_from(expect_int(&values[1], span)?).map_err(|_| RuntimeError::TypeMismatch {
-        expected: "rotation",
-        span,
-    })?;
+    let piece_id =
+        i32::try_from(expect_int(&values[0], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "piece id",
+            span,
+        })?;
+    let rotation =
+        i32::try_from(expect_int(&values[1], span)?).map_err(|_| RuntimeError::TypeMismatch {
+            expected: "rotation",
+            span,
+        })?;
     let index = require_nonnegative(expect_int(&values[2], span)?, span)?;
     Ok(TetrisBlockArgs {
         piece_id,
@@ -3705,7 +3963,10 @@ fn expect_tetris_block_args(values: &[Value], span: crate::lang::span::Span) -> 
     })
 }
 
-fn tetris_can_place(args: &TetrisArgs, span: crate::lang::span::Span) -> Result<bool, RuntimeError> {
+fn tetris_can_place(
+    args: &TetrisArgs,
+    span: crate::lang::span::Span,
+) -> Result<bool, RuntimeError> {
     validate_board(args, span)?;
     tetris_can_place_at(args, args.x, args.y)
 }
@@ -3735,7 +3996,10 @@ fn tetris_can_place_at(args: &TetrisArgs, x: i32, y: i32) -> Result<bool, Runtim
     Ok(true)
 }
 
-fn tetris_lock(args: &TetrisArgs, span: crate::lang::span::Span) -> Result<(String, i64, bool), RuntimeError> {
+fn tetris_lock(
+    args: &TetrisArgs,
+    span: crate::lang::span::Span,
+) -> Result<(String, i64, bool), RuntimeError> {
     validate_board(args, span)?;
     if !tetris_can_place_at(args, args.x, args.y)? {
         return Ok((args.board.clone(), 0, false));
@@ -3776,7 +4040,10 @@ fn tetris_lock(args: &TetrisArgs, span: crate::lang::span::Span) -> Result<(Stri
     Ok((board, cleared, true))
 }
 
-fn tetris_board_cell(args: &TetrisCellArgs, span: crate::lang::span::Span) -> Result<(String, String), RuntimeError> {
+fn tetris_board_cell(
+    args: &TetrisCellArgs,
+    span: crate::lang::span::Span,
+) -> Result<(String, String), RuntimeError> {
     validate_board_dims(&args.board, args.width, args.height, span)?;
     if args.x < 0 || args.y < 0 {
         return Ok((default_board_uri(), empty_board_color()));
@@ -3795,7 +4062,10 @@ fn tetris_board_cell(args: &TetrisCellArgs, span: crate::lang::span::Span) -> Re
     }
 }
 
-fn tetris_board_drawlist(args: &TetrisDrawListArgs, span: crate::lang::span::Span) -> Result<ListValue, RuntimeError> {
+fn tetris_board_drawlist(
+    args: &TetrisDrawListArgs,
+    span: crate::lang::span::Span,
+) -> Result<ListValue, RuntimeError> {
     validate_board_dims(&args.board, args.width, args.height, span)?;
     let mut items = Vec::with_capacity(args.width.saturating_mul(args.height));
     let cell = i64::from(args.cell);
@@ -3849,7 +4119,12 @@ fn validate_board(args: &TetrisArgs, span: crate::lang::span::Span) -> Result<()
     validate_board_dims(&args.board, args.width, args.height, span)
 }
 
-fn validate_board_dims(board: &str, width: usize, height: usize, span: crate::lang::span::Span) -> Result<(), RuntimeError> {
+fn validate_board_dims(
+    board: &str,
+    width: usize,
+    height: usize,
+    span: crate::lang::span::Span,
+) -> Result<(), RuntimeError> {
     let expected = width
         .checked_mul(height)
         .ok_or(RuntimeError::TypeMismatch {
@@ -3947,14 +4222,21 @@ fn piece_blocks(piece_id: i32, rotation: i32) -> [(i32, i32); 4] {
     }
 }
 
-fn ensure_same_dim(a: &Quantity, b: &Quantity, span: crate::lang::span::Span) -> Result<(), RuntimeError> {
+fn ensure_same_dim(
+    a: &Quantity,
+    b: &Quantity,
+    span: crate::lang::span::Span,
+) -> Result<(), RuntimeError> {
     if a.dim != b.dim {
         return Err(RuntimeError::UnitMismatch { span });
     }
     Ok(())
 }
 
-fn ensure_dimensionless(value: &Quantity, span: crate::lang::span::Span) -> Result<(), RuntimeError> {
+fn ensure_dimensionless(
+    value: &Quantity,
+    span: crate::lang::span::Span,
+) -> Result<(), RuntimeError> {
     if !value.dim.is_dimensionless() {
         return Err(RuntimeError::UnitMismatch { span });
     }

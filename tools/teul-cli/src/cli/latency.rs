@@ -1,4 +1,4 @@
-﻿use std::path::Path;
+use std::path::Path;
 
 use ddonirang_core::seulgi::latency::{simulate, LatencyEvent, LatencyMode, LatencyPolicy};
 

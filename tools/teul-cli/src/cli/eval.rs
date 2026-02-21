@@ -79,8 +79,14 @@ pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String
     let avg_score = sum / scores.len() as u64;
     let pass = avg_score >= CARTPOLE_THRESHOLD;
 
-    let (report_text, report_hash) =
-        build_report(&model_hash, &config.suite_id, &seeds, &scores, avg_score, pass);
+    let (report_text, report_hash) = build_report(
+        &model_hash,
+        &config.suite_id,
+        &seeds,
+        &scores,
+        avg_score,
+        pass,
+    );
 
     let out_dir = resolve_out_dir(out_dir);
     fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
@@ -89,18 +95,13 @@ pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String
     let mut artifact_text = None;
     if let Some(artifact_path) = &config.artifact_path {
         let artifact_path = resolve_path(config_path, artifact_path);
-        let artifact_raw = fs::read_to_string(&artifact_path).map_err(|e| {
-            format!(
-                "E_EVAL_ARTIFACT_READ {} {}",
-                artifact_path.display(),
-                e
-            )
-        })?;
+        let artifact_raw = fs::read_to_string(&artifact_path)
+            .map_err(|e| format!("E_EVAL_ARTIFACT_READ {} {}", artifact_path.display(), e))?;
         let mut artifact_value: JsonValue = serde_json::from_str(&artifact_raw)
             .map_err(|e| format!("E_EVAL_ARTIFACT_PARSE {}", e))?;
-        let obj = artifact_value.as_object_mut().ok_or_else(|| {
-            "E_EVAL_ARTIFACT_SCHEMA artifact는 객체여야 합니다".to_string()
-        })?;
+        let obj = artifact_value
+            .as_object_mut()
+            .ok_or_else(|| "E_EVAL_ARTIFACT_SCHEMA artifact는 객체여야 합니다".to_string())?;
         obj.remove("cert_mark");
         obj.remove("cert_report_hash");
         if pass {
@@ -178,11 +179,21 @@ fn build_report(
     );
     map.insert(
         "seeds".to_string(),
-        JsonValue::Array(seeds.iter().map(|v| JsonValue::Number((*v).into())).collect()),
+        JsonValue::Array(
+            seeds
+                .iter()
+                .map(|v| JsonValue::Number((*v).into()))
+                .collect(),
+        ),
     );
     map.insert(
         "scores".to_string(),
-        JsonValue::Array(scores.iter().map(|v| JsonValue::Number((*v).into())).collect()),
+        JsonValue::Array(
+            scores
+                .iter()
+                .map(|v| JsonValue::Number((*v).into()))
+                .collect(),
+        ),
     );
     map.insert("avg_score".to_string(), JsonValue::Number(avg_score.into()));
     map.insert("pass".to_string(), JsonValue::Bool(pass));

@@ -1,3 +1,27 @@
-// edu_s2_projectile — lesson.ddn (placeholder)
-// NOTE: 아직 실행 가능한 내용은 없다(스켈레톤).
-// TODO(구현): inputs/*.detjson 프리셋 로드 → 투사체 시뮬 → DrawList 생성 → 골든(state_hash/bogae_hash)
+#이름: ssot_edu_s2_projectile_preset_1
+#설명: 저중력 조건에서의 포물선 궤적
+#control: v0:수=20 [1..60] step=0.5; angle_deg:수=35 [5..85] step=1; g:수=4.9 [1..20] step=0.1; dt:수=0.05 [0.01..0.2] step=0.01; t_max:수=6 [0.5..12] step=0.1
+
+(매마디)마다 {
+  v0 <- 20.
+  angle_deg <- 35.
+  g <- 4.9.
+  dt <- 0.05.
+  t_max <- 6.
+
+  rad <- angle_deg * 0.01745329252.
+  vx <- v0 * cos(rad).
+  vy0 <- v0 * sin(rad).
+  t <- 0.
+  { t <= t_max }인것 동안: {
+    x <- vx * t.
+    y <- (vy0 * t) - (0.5 * g * t * t).
+    { y >= 0 }인것 일때 {
+      보임 {
+        x: x.
+        y: y.
+      }.
+    }.
+    t <- t + dt.
+  }.
+}.

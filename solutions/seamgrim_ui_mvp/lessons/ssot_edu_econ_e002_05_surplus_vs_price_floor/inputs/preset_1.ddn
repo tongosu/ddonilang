@@ -1,24 +1,29 @@
 #이름: ssot_edu_econ_e002_05_surplus_vs_price_floor_variant_E002-05 가격하한 Pf에 따른 잉여(초과공급)
 #설명: 가격하한 Pf(>=균형가격)에서 Qs-Qd(초과공급=잉여재고)가 얼마나 생기는지 점열로 출력.
-// 출력은 숫자만. (Pf, 잉여) 순서.
 
-a <- 100.
-b <- 1.
-c <- 20.
-d <- 1.
+(매마디)마다 {
+  // 출력은 숫자만. (Pf, 잉여) 순서.
 
-# 균형가격 P* = (a*d + b*c) / (b + d)
-P_star <- (a * d + b * c) / (b + d).
+  a <- 100.
+  b <- 1.
+  c <- 20.
+  d <- 1.
 
-Pf_min <- P_star.
-Pf_max <- a.
-dPf <- 2.
+  # 균형가격 P* = (a*d + b*c) / (b + d)
+  P_star <- (a * d + b * c) / (b + d).
 
-잉여식 = (#ascii1) 수식{ y = (x - c) / d - (a - x) / b }.
-Pf목록 <- (Pf_min, Pf_max, dPf) 범위.
+  Pf_min <- P_star.
+  Pf_max <- a.
+  dPf <- 2.
 
-(x) Pf목록에 대해: {
-  surplus <- (x=x, a=a, b=b, c=c, d=d)인 잉여식 풀기.
-  x 보여주기.
-  surplus 보여주기.
+  잉여식 = (#ascii1) 수식{ y = (x - c) / d - (a - x) / b }.
+  Pf목록 <- (Pf_min, Pf_max, dPf) 범위.
+
+  (x) Pf목록에 대해: {
+    surplus <- (x=x, a=a, b=b, c=c, d=d)인 잉여식 풀기.
+    보임 {
+      x: x.
+      surplus: surplus.
+    }.
+  }.
 }.

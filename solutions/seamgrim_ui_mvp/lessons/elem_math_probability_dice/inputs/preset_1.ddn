@@ -1,16 +1,20 @@
 #이름: elem_math_probability_dice_variant_주사위 확률
 #설명: 모든 눈의 확률이 같다
 
-c <- 1.
+(매마디)마다 {
+  c <- 1.
 
-x_min <- 1.
-x_max <- 6.
-dx <- 1.
+  x_min <- 1.
+  x_max <- 6.
+  dx <- 1.
 
-x목록 <- (x_min, x_max, dx) 범위.
+  x목록 <- (x_min, x_max, dx) 범위.
 
-(x) x목록에 대해: {
-  y <- c.
-  x 보여주기.
-  y 보여주기.
+  (x) x목록에 대해: {
+    y <- c.
+    보임 {
+      x: x.
+      y: y.
+    }.
+  }.
 }.

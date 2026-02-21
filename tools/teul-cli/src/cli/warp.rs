@@ -1,6 +1,8 @@
 use std::path::Path;
 
-use ddonirang_core::{run_warp_bench, RealmStepInput, StepBatchSoA, WarpBackend, WarpBenchInput, WarpPolicy};
+use ddonirang_core::{
+    run_warp_bench, RealmStepInput, StepBatchSoA, WarpBackend, WarpBenchInput, WarpPolicy,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::cli::detjson::read_text;
@@ -26,6 +28,11 @@ struct WarpBenchOutputView {
     speedup: f64,
     realm_count: usize,
     step_count: u64,
+}
+
+fn calc_speedup(cpu_ms: u64, gpu_ms: u64) -> f64 {
+    let den = gpu_ms.max(1) as f64;
+    cpu_ms as f64 / den
 }
 
 pub fn run_bench(
@@ -58,12 +65,12 @@ pub fn run_bench(
     let view = WarpBenchOutputView {
         cpu_ms: output.cpu_ms,
         gpu_ms: output.gpu_ms,
-        speedup: output.speedup,
+        speedup: calc_speedup(output.cpu_ms, output.gpu_ms),
         realm_count: output.realm_count,
         step_count: output.step_count,
     };
-    let json = serde_json::to_string_pretty(&view)
-        .map_err(|err| format!("E_WARP_OUTPUT {}", err))?;
+    let json =
+        serde_json::to_string_pretty(&view).map_err(|err| format!("E_WARP_OUTPUT {}", err))?;
     if let Some(out_path) = out {
         std::fs::write(out_path, format!("{json}\n")).map_err(|err| err.to_string())?;
     }

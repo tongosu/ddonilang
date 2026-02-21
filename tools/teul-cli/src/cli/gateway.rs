@@ -70,10 +70,14 @@ pub fn run_serve(opts: ServeOptions) -> Result<(), String> {
     println!("gateway_threads={}", opts.threads);
     println!("gateway_world_hash=sha256:{}", hex::encode(digest));
     if opts.input.is_some() && opts.listen_addr.is_some() {
-        return Err("E_GATEWAY_INPUT_CONFLICT input과 listen은 동시에 지정할 수 없습니다.".to_string());
+        return Err(
+            "E_GATEWAY_INPUT_CONFLICT input과 listen은 동시에 지정할 수 없습니다.".to_string(),
+        );
     }
     if opts.send_path.is_some() && opts.listen_addr.is_none() {
-        return Err("E_GATEWAY_SEND_REQUIRES_LISTEN listen 없이 send를 사용할 수 없습니다.".to_string());
+        return Err(
+            "E_GATEWAY_SEND_REQUIRES_LISTEN listen 없이 send를 사용할 수 없습니다.".to_string(),
+        );
     }
     if opts.send_path.is_some() && opts.listen_max_events.is_none() {
         return Err("E_GATEWAY_SEND_REQUIRES_MAX listen_max_events가 필요합니다.".to_string());
@@ -100,7 +104,10 @@ pub fn run_serve(opts: ServeOptions) -> Result<(), String> {
 
 pub fn run_load_sim(opts: LoadSimOptions) -> Result<(), String> {
     if opts.clients == 0 || opts.ticks == 0 || opts.realms == 0 || opts.tick_hz == 0 {
-        return Err("E_GATEWAY_INVALID_PARAMS clients/ticks/realms/tick_hz는 1 이상이어야 합니다.".to_string());
+        return Err(
+            "E_GATEWAY_INVALID_PARAMS clients/ticks/realms/tick_hz는 1 이상이어야 합니다."
+                .to_string(),
+        );
     }
     let width = digits(opts.clients.saturating_sub(1)).max(2);
     let events_total = opts
@@ -119,9 +126,7 @@ pub fn run_load_sim(opts: LoadSimOptions) -> Result<(), String> {
             let seq = tick;
             let realm_id = (client % opts.realms) as usize;
             let payload = mix_payload(opts.seed, client, tick);
-            let line = format!(
-                "sender={sender}|seq={seq}|realm={realm_id}|payload={payload}\n"
-            );
+            let line = format!("sender={sender}|seq={seq}|realm={realm_id}|payload={payload}\n");
             hashers[realm_id].update(line.as_bytes());
         }
     }
@@ -267,21 +272,15 @@ fn read_sam_input_events(path: &Path) -> Result<Vec<GatewayNetEvent>, String> {
             .and_then(|v| v.as_str())
             .unwrap_or("sam")
             .to_string();
-        let seq = item
-            .get("t")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(idx as u64);
+        let seq = item.get("t").and_then(|v| v.as_u64()).unwrap_or(idx as u64);
         let order_key = item
             .get("order_key")
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let realm_id = item
-            .get("realm_id")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        let payload = serde_json::to_string(item)
-            .map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
+        let realm_id = item.get("realm_id").and_then(|v| v.as_u64()).unwrap_or(0);
+        let payload =
+            serde_json::to_string(item).map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
         events.push(GatewayNetEvent {
             sender,
             seq,
@@ -319,15 +318,12 @@ fn parse_event_from_value(value: &JsonValue) -> Result<GatewayNetEvent, String> 
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let realm_id = value
-        .get("realm_id")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
+    let realm_id = value.get("realm_id").and_then(|v| v.as_u64()).unwrap_or(0);
     let payload = value
         .get("payload")
         .ok_or_else(|| "E_GATEWAY_INPUT_FIELD payload".to_string())?;
-    let payload = serde_json::to_string(payload)
-        .map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
+    let payload =
+        serde_json::to_string(payload).map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
     Ok(GatewayNetEvent {
         sender,
         seq,
@@ -373,14 +369,18 @@ fn build_serve_report(opts: &ServeOptions) -> Result<JsonValue, String> {
     });
     if let Some(input) = opts.input.as_deref() {
         report["input_path"] = JsonValue::String(input.to_string_lossy().to_string());
-        report["input_format"] = JsonValue::String(format!("{:?}", opts.input_format).to_lowercase());
+        report["input_format"] =
+            JsonValue::String(format!("{:?}", opts.input_format).to_lowercase());
     }
     if let Some(addr) = opts.listen_addr.as_deref() {
         report["listen_addr"] = JsonValue::String(addr.to_string());
-        report["listen_proto"] = JsonValue::String(match opts.listen_proto {
-            ListenProtocol::Tcp => "tcp",
-            ListenProtocol::Udp => "udp",
-        }.to_string());
+        report["listen_proto"] = JsonValue::String(
+            match opts.listen_proto {
+                ListenProtocol::Tcp => "tcp",
+                ListenProtocol::Udp => "udp",
+            }
+            .to_string(),
+        );
         if let Some(max_events) = opts.listen_max_events {
             report["listen_max_events"] = JsonValue::Number(max_events.into());
         }
@@ -423,7 +423,9 @@ fn read_events_from_tcp(
     } else {
         None
     };
-    let (stream, _) = listener.accept().map_err(|e| format!("E_GATEWAY_ACCEPT {}", e))?;
+    let (stream, _) = listener
+        .accept()
+        .map_err(|e| format!("E_GATEWAY_ACCEPT {}", e))?;
     if let Some(ms) = timeout_ms {
         stream
             .set_read_timeout(Some(Duration::from_millis(ms)))
@@ -436,7 +438,10 @@ fn read_events_from_tcp(
     Ok(events)
 }
 
-fn read_events_from_stream(mut stream: TcpStream, max_events: Option<u64>) -> Result<Vec<GatewayNetEvent>, String> {
+fn read_events_from_stream(
+    mut stream: TcpStream,
+    max_events: Option<u64>,
+) -> Result<Vec<GatewayNetEvent>, String> {
     let mut events = Vec::new();
     let mut reader = BufReader::new(&mut stream);
     let mut line = String::new();
@@ -562,8 +567,8 @@ fn send_events_over_udp(
 }
 
 fn serialize_event_line(event: &GatewayNetEvent) -> Result<String, String> {
-    let payload: JsonValue = serde_json::from_str(&event.payload)
-        .map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
+    let payload: JsonValue =
+        serde_json::from_str(&event.payload).map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
     let value = json!({
         "sender": event.sender,
         "seq": event.seq,
@@ -571,8 +576,8 @@ fn serialize_event_line(event: &GatewayNetEvent) -> Result<String, String> {
         "realm_id": event.realm_id,
         "payload": payload,
     });
-    let mut line = serde_json::to_string(&value)
-        .map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
+    let mut line =
+        serde_json::to_string(&value).map_err(|e| format!("E_GATEWAY_INPUT_PAYLOAD {e}"))?;
     line.push('\n');
     Ok(line)
 }

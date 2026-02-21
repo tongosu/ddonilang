@@ -7,27 +7,32 @@
 // - Normalizer: N1 레벨 정본화
 // - AST: 비손실 정본 구조
 
+pub mod age_gate;
 pub mod ast;
 pub mod canonicalizer;
 pub mod dialect;
 pub mod lexer;
-pub mod parser;
 pub mod normalizer;
-pub mod stdlib;
+pub mod parser;
 pub mod runtime;
+pub mod stdlib;
 pub mod surface;
 pub mod term_map;
 
+pub use age_gate::{age_not_available_error, AgeTarget};
 pub use ast::*;
 pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
 pub use dialect::DialectConfig;
-pub use lexer::{Lexer, Token, TokenKind, LexError};
-pub use parser::{Parser, ParseError, ParseMode};
-pub use normalizer::{Normalizer, NormalizationLevel, normalize};
-pub use stdlib::{FunctionSig, input_function_sigs, list_function_sigs, minimal_stdlib_sigs, string_function_sigs};
+pub use lexer::{LexError, Lexer, Token, TokenKind};
+pub use normalizer::{normalize, NormalizationLevel, Normalizer};
+pub use parser::{ParseError, ParseMode, Parser};
 pub use runtime::{
-    InputState, RuntimeError, Value, input_just_pressed, input_pressed, list_add, list_len,
-    list_new, list_nth, list_remove, list_set, string_concat, string_join, string_len, string_split,
+    input_just_pressed, input_pressed, list_add, list_len, list_new, list_nth, list_remove,
+    list_set, string_concat, string_join, string_len, string_split, InputState, RuntimeError,
+    Value,
+};
+pub use stdlib::{
+    input_function_sigs, list_function_sigs, minimal_stdlib_sigs, string_function_sigs, FunctionSig,
 };
 pub use surface::{surface_form, SurfaceError};
 
@@ -37,14 +42,19 @@ pub fn parse(source: &str, file_path: &str) -> Result<CanonProgram, ParseError> 
 }
 
 /// 편리 함수: 소스 → AST (모드 지정)
-pub fn parse_with_mode(source: &str, file_path: &str, mode: ParseMode) -> Result<CanonProgram, ParseError> {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .map_err(|e| ParseError {
-            span: crate::ast::Span { start: e.pos, end: e.pos + 1 },
-            message: e.message,
-        })?;
-    
+pub fn parse_with_mode(
+    source: &str,
+    file_path: &str,
+    mode: ParseMode,
+) -> Result<CanonProgram, ParseError> {
+    let tokens = Lexer::new(source).tokenize().map_err(|e| ParseError {
+        span: crate::ast::Span {
+            start: e.pos,
+            end: e.pos + 1,
+        },
+        message: e.message,
+    })?;
+
     let mut parser = Parser::new_with_mode(tokens, mode);
     parser.parse_program(source.to_string(), file_path.to_string())
 }
@@ -102,15 +112,15 @@ mod integration_tests {
         let err = parse(source, "test.ddoni").expect_err("pragma header rejected");
         assert!(err.message.contains("길잡이말"));
     }
-    
+
     #[test]
     fn test_full_pipeline() {
         let source = "나이 : 수 = 10";
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        
+
         assert_eq!(normalized.trim(), "나이:수 = 10");
     }
-    
+
     #[test]
     fn test_complex_function() {
         let source = r#"
@@ -119,14 +129,14 @@ mod integration_tests {
 }
 "#;
         let program = parse(source, "test.ddoni").unwrap();
-        
+
         assert_eq!(program.items.len(), 1);
-        
+
         let TopLevelItem::SeedDef(seed) = &program.items[0];
         assert_eq!(seed.canonical_name, "더하");
         assert_eq!(seed.params.len(), 2);
     }
-    
+
     #[test]
     fn test_korean_call() {
         let source = r#"
@@ -135,7 +145,7 @@ mod integration_tests {
 }
 "#;
         let program = parse(source, "test.ddoni").unwrap();
-        
+
         let normalized = normalize(&program, NormalizationLevel::N1);
         assert!(normalized.contains("(x) 증가"));
     }
@@ -266,7 +276,7 @@ mod integration_tests {
 }
 "#;
         let program = parse(source, "test.ddoni").unwrap();
-        
+
         let TopLevelItem::SeedDef(seed) = &program.items[0];
         assert!(matches!(seed.seed_kind, SeedKind::Umjikssi));
 
@@ -631,7 +641,10 @@ mod integration_tests {
         assert_eq!(arg.resolved_pin.as_deref(), Some("거리"));
         assert!(matches!(arg.binding_reason, BindingReason::UserFixed));
         match &arg.expr.kind {
-            ExprKind::Suffix { at: AtSuffix::Unit(unit), .. } => {
+            ExprKind::Suffix {
+                at: AtSuffix::Unit(unit),
+                ..
+            } => {
                 assert_eq!(unit, "m");
             }
             _ => panic!("unit suffix expected"),
@@ -737,8 +750,8 @@ mod integration_tests {
     (사과@대상~를) 먹어.
 }
 "#;
-    let err = parse(source, "test.ddoni").expect_err("unit unknown");
-    assert!(err.message.contains("핀 고정은 핀=값"));
+        let err = parse(source, "test.ddoni").expect_err("unit unknown");
+        assert!(err.message.contains("핀 고정은 핀=값"));
     }
 
     #[test]
@@ -1240,5 +1253,4 @@ Test:셈씨 = {
         }
         assert_eq!(seed.params[0].josa_list, vec!["을".to_string()]);
     }
-
 }

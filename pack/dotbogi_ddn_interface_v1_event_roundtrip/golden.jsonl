@@ -1,0 +1,1 @@
+{"dotbogi_case":"cases/K001_potion_click/case.detjson","expected_dotbogi_output":"golden/K001.events.detjson","expected_after_state":"golden/K001.after_state.detjson","expected_after_state_hash":"sha256:53fc30996175b60a950748eed1c470425df917abf9f99e8312d1127eb0020eef"}

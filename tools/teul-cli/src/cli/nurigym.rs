@@ -3,15 +3,17 @@ use std::path::Path;
 
 use ddonirang_core::fixed64::Fixed64;
 use ddonirang_core::mix64;
-use ddonirang_core::nurigym::cartpole::{run_episode as run_cartpole_episode, CartPoleConfig, CartPoleEnv};
+use ddonirang_core::nurigym::cartpole::{
+    run_episode as run_cartpole_episode, CartPoleConfig, CartPoleEnv,
+};
 use ddonirang_core::nurigym::gridmaze::{
     run_episode as run_gridmaze_episode,
-    run_episode_with_layout as run_gridmaze_episode_with_layout,
-    GridMazeConfig,
-    GridMazeEnv,
+    run_episode_with_layout as run_gridmaze_episode_with_layout, GridMazeConfig, GridMazeEnv,
     GridMazeLayout,
 };
-use ddonirang_core::nurigym::pendulum::{run_episode as run_pendulum_episode, PendulumConfig, PendulumEnv};
+use ddonirang_core::nurigym::pendulum::{
+    run_episode as run_pendulum_episode, PendulumConfig, PendulumEnv,
+};
 use ddonirang_core::nurigym::spec::{ActionSpec, ObservationSpec};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -167,14 +169,29 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
     let gridmaze_layout = select_gridmaze_layout(input.seed, input.gridmaze_layouts.as_deref())?;
 
     let (obs_slot_count, action_spec) = match env_id.as_str() {
-        "nurigym.cartpole1d" => (4u32, ActionSpec { actions: vec!["left".to_string(), "right".to_string()] }),
-        "nurigym.pendulum1d" => (2u32, ActionSpec { actions: vec!["left".to_string(), "right".to_string()] }),
-        "nurigym.gridmaze2d" => (2u32, ActionSpec { actions: vec![
-            "left".to_string(),
-            "right".to_string(),
-            "down".to_string(),
-            "up".to_string(),
-        ] }),
+        "nurigym.cartpole1d" => (
+            4u32,
+            ActionSpec {
+                actions: vec!["left".to_string(), "right".to_string()],
+            },
+        ),
+        "nurigym.pendulum1d" => (
+            2u32,
+            ActionSpec {
+                actions: vec!["left".to_string(), "right".to_string()],
+            },
+        ),
+        "nurigym.gridmaze2d" => (
+            2u32,
+            ActionSpec {
+                actions: vec![
+                    "left".to_string(),
+                    "right".to_string(),
+                    "down".to_string(),
+                    "up".to_string(),
+                ],
+            },
+        ),
         other => {
             return Err(format!("E_NURIGYM_ENV unknown env_id={}", other));
         }
@@ -202,14 +219,22 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
         )?
     };
 
-    let obs_spec = ObservationSpec { slot_count: obs_slot_count };
+    let obs_spec = ObservationSpec {
+        slot_count: obs_slot_count,
+    };
     let obs_text = obs_spec.to_detjson();
     let action_text = action_spec.to_detjson();
     let obs_hash = format!("sha256:{}", sha256_hex(obs_text.as_bytes()));
     let action_hash = format!("sha256:{}", sha256_hex(action_text.as_bytes()));
 
-    write_text(&out_dir.join("obs_spec.detjson"), &format!("{}\n", obs_text))?;
-    write_text(&out_dir.join("action_spec.detjson"), &format!("{}\n", action_text))?;
+    write_text(
+        &out_dir.join("obs_spec.detjson"),
+        &format!("{}\n", obs_text),
+    )?;
+    write_text(
+        &out_dir.join("action_spec.detjson"),
+        &format!("{}\n", action_text),
+    )?;
 
     let count = step_records.len() as u64;
     let episode_header = build_episode_header(
@@ -221,7 +246,10 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
         &obs_hash,
         &action_hash,
     );
-    write_text(&out_dir.join("nurigym.episode.jsonl"), &format!("{}\n", episode_header))?;
+    write_text(
+        &out_dir.join("nurigym.episode.jsonl"),
+        &format!("{}\n", episode_header),
+    )?;
 
     let agent_ids = collect_agent_ids(&step_records);
     let dataset_header = build_dataset_header(
@@ -251,7 +279,10 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
     write_text(&out_dir.join("nurigym.dataset.jsonl"), &dataset_text)?;
 
     let dataset_hash = format!("sha256:{}", sha256_hex(dataset_text.as_bytes()));
-    write_text(&out_dir.join("dataset.sha256"), &format!("{}\n", dataset_hash))?;
+    write_text(
+        &out_dir.join("dataset.sha256"),
+        &format!("{}\n", dataset_hash),
+    )?;
 
     println!("dataset_hash={}", dataset_hash);
     Ok(())
@@ -314,7 +345,9 @@ fn run_independent_env(
         let steps = match env_id {
             "nurigym.cartpole1d" => run_cartpole(agent_seed, agent, default_max)?,
             "nurigym.pendulum1d" => run_pendulum(agent_seed, agent, default_max)?,
-            "nurigym.gridmaze2d" => run_gridmaze_with_layout(agent_seed, agent, default_max, gridmaze_layout.clone())?,
+            "nurigym.gridmaze2d" => {
+                run_gridmaze_with_layout(agent_seed, agent, default_max, gridmaze_layout.clone())?
+            }
             other => return Err(format!("E_NURIGYM_ENV unknown env_id={}", other)),
         };
         step_records.extend(steps);
@@ -392,7 +425,11 @@ fn run_shared_env(
     }
 }
 
-fn run_cartpole(seed: u64, agent: &AgentRun, default_max: Option<u64>) -> Result<Vec<StepRecord>, String> {
+fn run_cartpole(
+    seed: u64,
+    agent: &AgentRun,
+    default_max: Option<u64>,
+) -> Result<Vec<StepRecord>, String> {
     let mut config = CartPoleConfig::default_v1();
     if let Some(max_steps) = agent.max_steps.or(default_max) {
         config.max_steps = max_steps;
@@ -411,7 +448,11 @@ fn run_cartpole(seed: u64, agent: &AgentRun, default_max: Option<u64>) -> Result
         .collect())
 }
 
-fn run_pendulum(seed: u64, agent: &AgentRun, default_max: Option<u64>) -> Result<Vec<StepRecord>, String> {
+fn run_pendulum(
+    seed: u64,
+    agent: &AgentRun,
+    default_max: Option<u64>,
+) -> Result<Vec<StepRecord>, String> {
     let steps = run_pendulum_episode(seed, &agent.actions, agent.max_steps.or(default_max))?;
     Ok(steps
         .into_iter()
@@ -433,7 +474,12 @@ fn run_gridmaze_with_layout(
     layout: Option<GridMazeLayout>,
 ) -> Result<Vec<StepRecord>, String> {
     let steps = if let Some(layout) = layout {
-        run_gridmaze_episode_with_layout(seed, &agent.actions, agent.max_steps.or(default_max), layout)?
+        run_gridmaze_episode_with_layout(
+            seed,
+            &agent.actions,
+            agent.max_steps.or(default_max),
+            layout,
+        )?
     } else {
         run_gridmaze_episode(seed, &agent.actions, agent.max_steps.or(default_max))?
     };
@@ -756,7 +802,11 @@ fn run_shared_cartpole_sync(
     let limits = agent_limits(agents);
     let mut max_ticks = limits.iter().copied().max().unwrap_or(0) as u64;
     if let Some(limit) = max_steps {
-        max_ticks = if limit == 0 { max_ticks } else { limit.min(max_ticks) };
+        max_ticks = if limit == 0 {
+            max_ticks
+        } else {
+            limit.min(max_ticks)
+        };
     }
     config.max_steps = max_ticks;
     if config.max_steps == 0 {
@@ -792,7 +842,11 @@ fn run_shared_pendulum_sync(
     let limits = agent_limits(agents);
     let mut max_ticks = limits.iter().copied().max().unwrap_or(0) as u64;
     if let Some(limit) = max_steps {
-        max_ticks = if limit == 0 { max_ticks } else { limit.min(max_ticks) };
+        max_ticks = if limit == 0 {
+            max_ticks
+        } else {
+            limit.min(max_ticks)
+        };
     }
     config.max_steps = max_ticks;
     if config.max_steps == 0 {
@@ -829,7 +883,11 @@ fn run_shared_gridmaze_sync(
     let limits = agent_limits(agents);
     let mut max_ticks = limits.iter().copied().max().unwrap_or(0) as u64;
     if let Some(limit) = max_steps {
-        max_ticks = if limit == 0 { max_ticks } else { limit.min(max_ticks) };
+        max_ticks = if limit == 0 {
+            max_ticks
+        } else {
+            limit.min(max_ticks)
+        };
     }
     config.max_steps = max_ticks;
     if config.max_steps == 0 {
@@ -885,7 +943,6 @@ fn effective_limit(actions_len: usize, max_steps: Option<u64>) -> usize {
         None => actions_len,
     }
 }
-
 
 fn build_episode_header(
     env_id: &str,
@@ -965,7 +1022,13 @@ fn build_dataset_header(
     out
 }
 
-fn build_step_record(episode_id: u64, agent_id: u64, madi: u64, step: &StepRecord, slot_count: u32) -> String {
+fn build_step_record(
+    episode_id: u64,
+    agent_id: u64,
+    madi: u64,
+    step: &StepRecord,
+    slot_count: u32,
+) -> String {
     let (obs_text, _) = build_observation(&step.observation, slot_count);
     let (next_text, _) = build_observation(&step.next_observation, slot_count);
 
@@ -1030,11 +1093,7 @@ fn build_action(action: i64) -> String {
 }
 
 fn parse_shared_env_mode(input: &NuriGymRunInput) -> SharedEnvMode {
-    match input
-        .shared_env_mode
-        .as_deref()
-        .unwrap_or("round_robin")
-    {
+    match input.shared_env_mode.as_deref().unwrap_or("round_robin") {
         "sync" => SharedEnvMode::Sync,
         _ => SharedEnvMode::RoundRobin,
     }

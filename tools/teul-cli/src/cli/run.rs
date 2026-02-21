@@ -22,18 +22,18 @@ use crate::cli::bogae_console::{render_drawlist_ascii, ConsoleLive, ConsoleRende
 use crate::cli::bogae_playback::{write_manifest, write_viewer_assets, PlaybackFrameMeta};
 use crate::cli::bogae_web::write_web_assets;
 use crate::cli::input_tape::{
-    mask_from_bytes, mask_to_bytes, parse_held_mask, read_input_tape, write_input_tape, InputRecord,
-    InputTape, KEY_REGISTRY_KEYS,
+    mask_from_bytes, mask_to_bytes, parse_held_mask, read_input_tape, write_input_tape,
+    InputRecord, InputTape, KEY_REGISTRY_KEYS,
 };
 use crate::cli::sam_live::{LiveInput, SamLiveMode};
 use crate::core::bogae::{
-    build_bogae_output, load_css4_pack, BogaeCodec, CmdPolicyConfig, CmdPolicyEvent,
-    CmdPolicyMode, BogaeError, BogaeOutput, ColorNamePack,
+    build_bogae_output, load_css4_pack, BogaeCodec, BogaeError, BogaeOutput, CmdPolicyConfig,
+    CmdPolicyEvent, CmdPolicyMode, ColorNamePack,
 };
 use crate::core::fixed64::Fixed64;
 use crate::core::geoul::{
-    encode_input_snapshot, encode_state_for_geoul, AuditHeader, GeoulBundleWriter, GeoulFramePayload,
-    InputSnapshotV1, NetEventV1, TraceTier, DEFAULT_CHECKPOINT_STRIDE,
+    encode_input_snapshot, encode_state_for_geoul, AuditHeader, GeoulBundleWriter,
+    GeoulFramePayload, InputSnapshotV1, NetEventV1, TraceTier, DEFAULT_CHECKPOINT_STRIDE,
 };
 use crate::core::hash;
 use crate::core::state::Key;
@@ -42,18 +42,18 @@ use crate::core::value::{ListValue, PackValue, Quantity, Value};
 use crate::core::{State, Trace};
 use crate::lang::ast::{ContractKind, ContractMode, Program, Stmt};
 use crate::lang::lexer::{LexError, Lexer};
-use crate::lang::parser::{ParseError, Parser, ParseMode};
+use crate::lang::parser::{ParseError, ParseMode, Parser};
 use crate::runtime::{
     ContractDiag, EvalOutput, Evaluator, OpenDiagConfig, OpenMode, OpenPolicy, OpenRuntime,
     RuntimeError,
 };
 use ddonirang_core::gogae3::{
-    compute_w24_state_hash, compute_w25_state_hash, compute_w26_state_hash,
-    compute_w27_state_hash, compute_w28_state_hash, compute_w29_state_hash,
-    compute_w30_state_hash, compute_w31_state_hash, compute_w32_state_hash,
-    compute_w33_state_hash, W24Params, W25Params, W26Params, W27Params, W28Params, W29Params,
-    W30Params, W31Params, W32Params, W33Params,
+    compute_w24_state_hash, compute_w25_state_hash, compute_w26_state_hash, compute_w27_state_hash,
+    compute_w28_state_hash, compute_w29_state_hash, compute_w30_state_hash, compute_w31_state_hash,
+    compute_w32_state_hash, compute_w33_state_hash, W24Params, W25Params, W26Params, W27Params,
+    W28Params, W29Params, W30Params, W31Params, W32Params, W33Params,
 };
+use ddonirang_lang::{age_not_available_error, AgeTarget};
 pub enum RunError {
     Lex(LexError),
     Parse(ParseError),
@@ -99,12 +99,7 @@ impl RunError {
                 runtime_col(err),
                 runtime_message(err)
             ),
-            RunError::Bogae(err) => format!(
-                "{} {}:1:1 {}",
-                err.code(),
-                file,
-                err.message()
-            ),
+            RunError::Bogae(err) => format!("{} {}:1:1 {}", err.code(), file, err.message()),
             RunError::Io { path, message } => {
                 format!("E_IO_WRITE {}:1:1 {}", path.display(), message)
             }
@@ -210,7 +205,11 @@ struct StateEntry {
     value: Value,
 }
 
-fn apply_init_state(state: &mut State, options: &RunOptions, source_path: &Path) -> Result<(), String> {
+fn apply_init_state(
+    state: &mut State,
+    options: &RunOptions,
+    source_path: &Path,
+) -> Result<(), String> {
     let mut entries = Vec::new();
     let base_dir = source_path.parent().unwrap_or_else(|| Path::new("."));
     for item in &options.init_state {
@@ -283,7 +282,10 @@ fn parse_state_json(text: &str, base_dir: &Path) -> Result<Vec<StateEntry>, Stri
             let normalized = normalize_state_key(key);
             let value = json_to_value(value, base_dir)
                 .map_err(|e| format!("E_INIT_STATE_JSON_VALUE {} {}", key, e))?;
-            entries.push(StateEntry { key: normalized, value });
+            entries.push(StateEntry {
+                key: normalized,
+                value,
+            });
         }
         return Ok(entries);
     }
@@ -296,7 +298,10 @@ fn parse_state_json(text: &str, base_dir: &Path) -> Result<Vec<StateEntry>, Stri
         let normalized = normalize_state_key(&key);
         let value = json_to_value(&value, base_dir)
             .map_err(|e| format!("E_INIT_STATE_JSON_VALUE {} {}", key, e))?;
-        entries.push(StateEntry { key: normalized, value });
+        entries.push(StateEntry {
+            key: normalized,
+            value,
+        });
     }
     Ok(entries)
 }
@@ -307,10 +312,20 @@ fn json_to_value(value: &JsonValue, base_dir: &Path) -> Result<Value, String> {
         JsonValue::Bool(flag) => Ok(Value::Bool(*flag)),
         JsonValue::Number(num) => {
             if let Some(i) = num.as_i64() {
-                Ok(Value::Num(Quantity::new(Fixed64::from_int(i), UnitDim::zero())))
+                Ok(Value::Num(Quantity::new(
+                    Fixed64::from_int(i),
+                    UnitDim::zero(),
+                )))
             } else if let Some(u) = num.as_u64() {
-                let signed = if u > i64::MAX as u64 { i64::MAX } else { u as i64 };
-                Ok(Value::Num(Quantity::new(Fixed64::from_int(signed), UnitDim::zero())))
+                let signed = if u > i64::MAX as u64 {
+                    i64::MAX
+                } else {
+                    u as i64
+                };
+                Ok(Value::Num(Quantity::new(
+                    Fixed64::from_int(signed),
+                    UnitDim::zero(),
+                )))
             } else if let Some(f) = num.as_f64() {
                 let text = format!("{}", f);
                 let raw = Fixed64::parse_literal(&text)
@@ -440,7 +455,9 @@ fn unescape_state_string(text: &str) -> Result<String, String> {
             out.push(ch);
             continue;
         }
-        let esc = chars.next().ok_or_else(|| "문자열 이스케이프가 끝나지 않았습니다".to_string())?;
+        let esc = chars
+            .next()
+            .ok_or_else(|| "문자열 이스케이프가 끝나지 않았습니다".to_string())?;
         let mapped = match esc {
             'n' => '\n',
             't' => '\t',
@@ -635,8 +652,14 @@ impl LivePlaybackWriter {
         }
         let start_madi = self.start_madi.unwrap_or(0);
         let end_madi = start_madi + self.frames.len() as u64;
-        write_manifest(&self.out_dir, start_madi, end_madi, &self.frames, self.codec.tag())
-            .map_err(|e| RunError::Io {
+        write_manifest(
+            &self.out_dir,
+            start_madi,
+            end_madi,
+            &self.frames,
+            self.codec.tag(),
+        )
+        .map_err(|e| RunError::Io {
             path: self.out_dir.join("manifest.detjson"),
             message: e,
         })?;
@@ -674,7 +697,9 @@ fn build_sam_plan(
     madi_hz: Option<u32>,
 ) -> Result<SamPlanResult, String> {
     if sam_path.is_some() && record_path.is_some() {
-        return Err("E_SAM_MODE_CONFLICT --sam과 --record-sam은 동시에 사용할 수 없습니다".to_string());
+        return Err(
+            "E_SAM_MODE_CONFLICT --sam과 --record-sam은 동시에 사용할 수 없습니다".to_string(),
+        );
     }
     if sam_path.is_none() && record_path.is_none() {
         return Ok(SamPlanResult { plan: None, ticks });
@@ -743,7 +768,9 @@ fn build_sam_plan(
         });
     }
 
-    let ticks = ticks.ok_or_else(|| "E_SAM_RECORD_MADI_REQUIRED --record-sam은 --madi가 필요합니다.".to_string())?;
+    let ticks = ticks.ok_or_else(|| {
+        "E_SAM_RECORD_MADI_REQUIRED --record-sam은 --madi가 필요합니다.".to_string()
+    })?;
     let hz = madi_hz.unwrap_or(60);
     if hz == 0 {
         return Err("E_SAM_BAD_MADI_HZ madi-hz는 0이 될 수 없습니다".to_string());
@@ -757,7 +784,10 @@ fn build_sam_plan(
             held_mask: mask_to_bytes(*mask),
         })
         .collect::<Vec<_>>();
-    let tape = InputTape { madi_hz: hz, records };
+    let tape = InputTape {
+        madi_hz: hz,
+        records,
+    };
     let record_out = record_path.map(|path| (path.to_path_buf(), tape));
 
     Ok(SamPlanResult {
@@ -812,8 +842,8 @@ fn read_net_events_detjson(path: &Path) -> Result<Vec<NetEventDet>, String> {
             let payload = event
                 .get("payload")
                 .ok_or_else(|| "E_SAM_DETJSON_FIELD payload".to_string())?;
-            let payload = serde_json::to_string(payload)
-                .map_err(|e| format!("E_SAM_DETJSON_PAYLOAD {e}"))?;
+            let payload =
+                serde_json::to_string(payload).map_err(|e| format!("E_SAM_DETJSON_PAYLOAD {e}"))?;
             events.push(NetEventDet {
                 sender,
                 seq,
@@ -905,11 +935,7 @@ fn apply_net_events(state: &mut State, net_events: Option<&[NetEventDet]>, madi:
         "샘.네트워크.이벤트_개수".to_string(),
         net_events.len() as i64,
     );
-    set_flag_text(
-        state,
-        "샘.네트워크.이벤트_요약".to_string(),
-        summary,
-    );
+    set_flag_text(state, "샘.네트워크.이벤트_요약".to_string(), summary);
 }
 
 fn key_aliases(key: &str) -> &'static [&'static str] {
@@ -933,45 +959,21 @@ fn apply_keyboard_mask(state: &mut State, held: u16, pressed: u16, released: u16
         let held_on = if held & bit != 0 { 1 } else { 0 };
         let pressed_on = if pressed & bit != 0 { 1 } else { 0 };
         let released_on = if released & bit != 0 { 1 } else { 0 };
-        set_flag_number(
-            state,
-            format!("샘.키보드.누르고있음.{}", key),
-            held_on,
-        );
+        set_flag_number(state, format!("샘.키보드.누르고있음.{}", key), held_on);
         set_flag_number(state, format!("샘.키보드.눌림.{}", key), pressed_on);
         set_flag_number(state, format!("샘.키보드.뗌.{}", key), released_on);
 
-        set_flag_number(
-            state,
-            format!("입력상태.키_누르고있음.{}", key),
-            held_on,
-        );
-        set_flag_number(
-            state,
-            format!("입력상태.키_눌림.{}", key),
-            pressed_on,
-        );
+        set_flag_number(state, format!("입력상태.키_누르고있음.{}", key), held_on);
+        set_flag_number(state, format!("입력상태.키_눌림.{}", key), pressed_on);
         set_flag_number(state, format!("입력상태.키_뗌.{}", key), released_on);
 
         for alias in key_aliases(key) {
-            set_flag_number(
-                state,
-                format!("샘.키보드.누르고있음.{}", alias),
-                held_on,
-            );
+            set_flag_number(state, format!("샘.키보드.누르고있음.{}", alias), held_on);
             set_flag_number(state, format!("샘.키보드.눌림.{}", alias), pressed_on);
             set_flag_number(state, format!("샘.키보드.뗌.{}", alias), released_on);
 
-            set_flag_number(
-                state,
-                format!("입력상태.키_누르고있음.{}", alias),
-                held_on,
-            );
-            set_flag_number(
-                state,
-                format!("입력상태.키_눌림.{}", alias),
-                pressed_on,
-            );
+            set_flag_number(state, format!("입력상태.키_누르고있음.{}", alias), held_on);
+            set_flag_number(state, format!("입력상태.키_눌림.{}", alias), pressed_on);
             set_flag_number(state, format!("입력상태.키_뗌.{}", alias), released_on);
         }
     }
@@ -1019,7 +1021,8 @@ impl GeoulRecordWriter {
         }
         let mut file = fs::File::create(path).map_err(|e| e.to_string())?;
         let header = build_geoul_record_header(&meta);
-        file.write_all(header.as_bytes()).map_err(|e| e.to_string())?;
+        file.write_all(header.as_bytes())
+            .map_err(|e| e.to_string())?;
         file.write_all(b"\n").map_err(|e| e.to_string())?;
         Ok(Self {
             path: path.to_path_buf(),
@@ -1029,7 +1032,9 @@ impl GeoulRecordWriter {
 
     fn write_step(&mut self, step: u64, state_hash: &str) -> Result<(), String> {
         let line = build_geoul_record_step(step, state_hash);
-        self.file.write_all(line.as_bytes()).map_err(|e| e.to_string())?;
+        self.file
+            .write_all(line.as_bytes())
+            .map_err(|e| e.to_string())?;
         self.file.write_all(b"\n").map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -1176,8 +1181,8 @@ fn quantity_to_u64(qty: &Quantity) -> Option<u64> {
 fn read_w24_params_from_state(state: &State) -> Option<W24Params> {
     let entity_count =
         read_state_u64(state, "개체수").or_else(|| read_state_u64(state, "살림.개체수"))?;
-    let component_count = read_state_u64(state, "컴포넌트수")
-        .or_else(|| read_state_u64(state, "살림.컴포넌트수"))?;
+    let component_count =
+        read_state_u64(state, "컴포넌트수").or_else(|| read_state_u64(state, "살림.컴포넌트수"))?;
     let archetype_moves = read_state_u64(state, "아키타입_이동")
         .or_else(|| read_state_u64(state, "살림.아키타입_이동"))?;
     let perf_cap =
@@ -1211,12 +1216,12 @@ fn read_w26_params_from_state(state: &State) -> Option<W26Params> {
         read_state_u64(state, "상품수").or_else(|| read_state_u64(state, "살림.상품수"))?;
     let trade_count =
         read_state_u64(state, "거래수").or_else(|| read_state_u64(state, "살림.거래수"))?;
-    let starting_balance = read_state_u64(state, "초기_잔고")
-        .or_else(|| read_state_u64(state, "살림.초기_잔고"))?;
-    let starting_inventory = read_state_u64(state, "초기_재고")
-        .or_else(|| read_state_u64(state, "살림.초기_재고"))?;
-    let base_price = read_state_u64(state, "기본_가격")
-        .or_else(|| read_state_u64(state, "살림.기본_가격"))?;
+    let starting_balance =
+        read_state_u64(state, "초기_잔고").or_else(|| read_state_u64(state, "살림.초기_잔고"))?;
+    let starting_inventory =
+        read_state_u64(state, "초기_재고").or_else(|| read_state_u64(state, "살림.초기_재고"))?;
+    let base_price =
+        read_state_u64(state, "기본_가격").or_else(|| read_state_u64(state, "살림.기본_가격"))?;
     Some(W26Params {
         agent_count,
         item_count,
@@ -1232,12 +1237,12 @@ fn read_w27_params_from_state(state: &State) -> Option<W27Params> {
         read_state_u64(state, "임자수").or_else(|| read_state_u64(state, "살림.임자수"))?;
     let trade_count =
         read_state_u64(state, "거래수").or_else(|| read_state_u64(state, "살림.거래수"))?;
-    let starting_balance = read_state_u64(state, "초기_잔고")
-        .or_else(|| read_state_u64(state, "살림.초기_잔고"))?;
+    let starting_balance =
+        read_state_u64(state, "초기_잔고").or_else(|| read_state_u64(state, "살림.초기_잔고"))?;
     let min_balance =
         read_state_u64(state, "잔고_최소").or_else(|| read_state_u64(state, "살림.잔고_최소"))?;
-    let trade_amount = read_state_u64(state, "거래_금액")
-        .or_else(|| read_state_u64(state, "살림.거래_금액"))?;
+    let trade_amount =
+        read_state_u64(state, "거래_금액").or_else(|| read_state_u64(state, "살림.거래_금액"))?;
     Some(W27Params {
         agent_count,
         trade_count,
@@ -1254,10 +1259,10 @@ fn read_w28_params_from_state(state: &State) -> Option<W28Params> {
         read_state_u64(state, "상품수").or_else(|| read_state_u64(state, "살림.상품수"))?;
     let trade_count =
         read_state_u64(state, "거래수").or_else(|| read_state_u64(state, "살림.거래수"))?;
-    let base_price = read_state_u64(state, "기본_가격")
-        .or_else(|| read_state_u64(state, "살림.기본_가격"))?;
-    let trade_amount = read_state_u64(state, "거래_금액")
-        .or_else(|| read_state_u64(state, "살림.거래_금액"))?;
+    let base_price =
+        read_state_u64(state, "기본_가격").or_else(|| read_state_u64(state, "살림.기본_가격"))?;
+    let trade_amount =
+        read_state_u64(state, "거래_금액").or_else(|| read_state_u64(state, "살림.거래_금액"))?;
     Some(W28Params {
         agent_count,
         item_count,
@@ -1270,10 +1275,10 @@ fn read_w28_params_from_state(state: &State) -> Option<W28Params> {
 fn read_w29_params_from_state(state: &State) -> Option<W29Params> {
     let reactive_max_pass = read_state_u64(state, "반응_패스_최대")
         .or_else(|| read_state_u64(state, "살림.반응_패스_최대"))?;
-    let alert_chain = read_state_u64(state, "알림_연쇄")
-        .or_else(|| read_state_u64(state, "살림.알림_연쇄"))?;
-    let step_value = read_state_u64(state, "반응_증분")
-        .or_else(|| read_state_u64(state, "살림.반응_증분"))?;
+    let alert_chain =
+        read_state_u64(state, "알림_연쇄").or_else(|| read_state_u64(state, "살림.알림_연쇄"))?;
+    let step_value =
+        read_state_u64(state, "반응_증분").or_else(|| read_state_u64(state, "살림.반응_증분"))?;
     let initial_value =
         read_state_u64(state, "초기_값").or_else(|| read_state_u64(state, "살림.초기_값"))?;
     Some(W29Params {
@@ -1287,12 +1292,12 @@ fn read_w29_params_from_state(state: &State) -> Option<W29Params> {
 fn read_w30_params_from_state(state: &State) -> Option<W30Params> {
     let proposal_count =
         read_state_u64(state, "제안_수").or_else(|| read_state_u64(state, "살림.제안_수"))?;
-    let approval_tokens = read_state_u64(state, "승인_토큰")
-        .or_else(|| read_state_u64(state, "살림.승인_토큰"))?;
-    let apply_requests = read_state_u64(state, "적용_요청")
-        .or_else(|| read_state_u64(state, "살림.적용_요청"))?;
-    let approval_required = read_state_u64(state, "승인_필수")
-        .or_else(|| read_state_u64(state, "살림.승인_필수"))?;
+    let approval_tokens =
+        read_state_u64(state, "승인_토큰").or_else(|| read_state_u64(state, "살림.승인_토큰"))?;
+    let apply_requests =
+        read_state_u64(state, "적용_요청").or_else(|| read_state_u64(state, "살림.적용_요청"))?;
+    let approval_required =
+        read_state_u64(state, "승인_필수").or_else(|| read_state_u64(state, "살림.승인_필수"))?;
     Some(W30Params {
         proposal_count,
         approval_tokens,
@@ -1306,12 +1311,12 @@ fn read_w31_params_from_state(state: &State) -> Option<W31Params> {
         read_state_u64(state, "참가자수").or_else(|| read_state_u64(state, "살림.참가자수"))?;
     let host_inputs = read_state_u64(state, "호스트_입력")
         .or_else(|| read_state_u64(state, "살림.호스트_입력"))?;
-    let guest_inputs = read_state_u64(state, "손님_입력")
-        .or_else(|| read_state_u64(state, "살림.손님_입력"))?;
+    let guest_inputs =
+        read_state_u64(state, "손님_입력").or_else(|| read_state_u64(state, "살림.손님_입력"))?;
     let sync_rounds = read_state_u64(state, "동기_라운드")
         .or_else(|| read_state_u64(state, "살림.동기_라운드"))?;
-    let starting_value = read_state_u64(state, "시작_값")
-        .or_else(|| read_state_u64(state, "살림.시작_값"))?;
+    let starting_value =
+        read_state_u64(state, "시작_값").or_else(|| read_state_u64(state, "살림.시작_값"))?;
     Some(W31Params {
         participant_count,
         host_inputs,
@@ -1413,18 +1418,6 @@ fn parse_open_allow_directives(source: &str) -> Vec<String> {
     allow
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum AgeTarget {
-    Age0,
-    Age1,
-    Age2,
-    Age3,
-    Age4,
-    Age5,
-    Age6,
-    Age7,
-}
-
 #[derive(Clone, Copy, Debug)]
 enum AgeTargetSource {
     Cli,
@@ -1482,35 +1475,6 @@ impl DetTier {
             DetTier::Strict => 1,
             DetTier::Fast => 2,
             DetTier::Ultra => 3,
-        }
-    }
-}
-
-impl AgeTarget {
-    fn parse(text: &str) -> Option<Self> {
-        match text.trim().to_ascii_uppercase().as_str() {
-            "AGE0" => Some(AgeTarget::Age0),
-            "AGE1" => Some(AgeTarget::Age1),
-            "AGE2" => Some(AgeTarget::Age2),
-            "AGE3" => Some(AgeTarget::Age3),
-            "AGE4" => Some(AgeTarget::Age4),
-            "AGE5" => Some(AgeTarget::Age5),
-            "AGE6" => Some(AgeTarget::Age6),
-            "AGE7" => Some(AgeTarget::Age7),
-            _ => None,
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            AgeTarget::Age0 => "AGE0",
-            AgeTarget::Age1 => "AGE1",
-            AgeTarget::Age2 => "AGE2",
-            AgeTarget::Age3 => "AGE3",
-            AgeTarget::Age4 => "AGE4",
-            AgeTarget::Age5 => "AGE5",
-            AgeTarget::Age6 => "AGE6",
-            AgeTarget::Age7 => "AGE7",
         }
     }
 }
@@ -1602,12 +1566,7 @@ fn resolve_age_target(
 }
 
 fn err_age_not_available(feature: &str, current: AgeTarget, need: AgeTarget) -> String {
-    format!(
-        "E_AGE_NOT_AVAILABLE 요청 기능은 현재 AGE에서 사용할 수 없습니다: {} (need {}, current {})",
-        feature,
-        need.label(),
-        current.label()
-    )
+    age_not_available_error(feature, need, current)
 }
 
 fn normalize_open_kind(text: &str) -> Option<&'static str> {
@@ -1700,13 +1659,8 @@ fn load_open_policy(input_path: &Path) -> Result<Option<OpenPolicy>, String> {
     let Some(policy_path) = policy_path else {
         return Ok(None);
     };
-    let text = fs::read_to_string(&policy_path).map_err(|e| {
-        format!(
-            "open.policy 읽기 실패: {} ({})",
-            policy_path.display(),
-            e
-        )
-    })?;
+    let text = fs::read_to_string(&policy_path)
+        .map_err(|e| format!("open.policy 읽기 실패: {} ({})", policy_path.display(), e))?;
     let policy = if policy_path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -1751,7 +1705,10 @@ fn find_open_policy_path(input_path: &Path) -> Result<Option<PathBuf>, String> {
             .map(|path| path.display().to_string())
             .collect::<Vec<_>>();
         list.sort();
-        return Err(format!("open.policy 파일이 여러 개입니다: {}", list.join(", ")));
+        return Err(format!(
+            "open.policy 파일이 여러 개입니다: {}",
+            list.join(", ")
+        ));
     }
     Ok(candidates.pop())
 }
@@ -1789,21 +1746,24 @@ fn load_project_policy(input_path: &Path) -> Result<ProjectPolicy, String> {
     }
     let text = fs::read_to_string(&path)
         .map_err(|e| format!("ddn.project.json 읽기 실패: {} ({})", path.display(), e))?;
-    let value: JsonValue = serde_json::from_str(&text)
-        .map_err(|e| format!("ddn.project.json JSON 파싱 실패: {} ({})", path.display(), e))?;
-    let obj = value.as_object().ok_or_else(|| {
+    let value: JsonValue = serde_json::from_str(&text).map_err(|e| {
         format!(
-            "ddn.project.json은 객체여야 합니다: {}",
-            path.display()
+            "ddn.project.json JSON 파싱 실패: {} ({})",
+            path.display(),
+            e
         )
     })?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| format!("ddn.project.json은 객체여야 합니다: {}", path.display()))?;
     let age_text = obj.get("age_target").and_then(|value| value.as_str());
     let age_target = if let Some(text) = age_text {
-        Some(
-            AgeTarget::parse(text).ok_or_else(|| {
-                format!("E_PROJECT_AGE_TARGET_INVALID ddn.project.json age_target 오류: {}", text)
-            })?,
-        )
+        Some(AgeTarget::parse(text).ok_or_else(|| {
+            format!(
+                "E_PROJECT_AGE_TARGET_INVALID ddn.project.json age_target 오류: {}",
+                text
+            )
+        })?)
     } else {
         None
     };
@@ -1826,9 +1786,10 @@ fn load_project_policy(input_path: &Path) -> Result<ProjectPolicy, String> {
     }
     let lang_mode_text = obj.get("lang_mode").and_then(|value| value.as_str());
     let lang_mode = if let Some(text) = lang_mode_text {
-        Some(parse_lang_mode(text).ok_or_else(|| {
-            format!("ddn.project.json lang_mode 오류: {}", text)
-        })?)
+        Some(
+            parse_lang_mode(text)
+                .ok_or_else(|| format!("ddn.project.json lang_mode 오류: {}", text))?,
+        )
     } else {
         None
     };
@@ -1920,12 +1881,9 @@ fn write_open_bundle_meta(
 fn parse_open_policy_json(text: &str, path: &Path) -> Result<OpenPolicy, String> {
     let value: JsonValue = serde_json::from_str(text)
         .map_err(|e| format!("open.policy JSON 파싱 실패: {} ({})", path.display(), e))?;
-    let obj = value.as_object().ok_or_else(|| {
-        format!(
-            "open.policy JSON은 객체여야 합니다: {}",
-            path.display()
-        )
-    })?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| format!("open.policy JSON은 객체여야 합니다: {}", path.display()))?;
     let default_value = obj
         .get("default")
         .and_then(|value| value.as_str())
@@ -2018,9 +1976,8 @@ fn parse_open_policy_toml(text: &str, path: &Path) -> Result<OpenPolicy, String>
     }
     let default_value =
         default_value.ok_or_else(|| format!("open.policy default 누락: {}", path.display()))?;
-    let default_mode = parse_open_mode_value(&default_value).map_err(|message| {
-        format!("open.policy default 오류: {} ({})", message, path.display())
-    })?;
+    let default_mode = parse_open_mode_value(&default_value)
+        .map_err(|message| format!("open.policy default 오류: {} ({})", message, path.display()))?;
     let allow_raw =
         allow_raw.ok_or_else(|| format!("open.policy allow 누락: {}", path.display()))?;
     let allow = normalize_open_kind_list("allow", allow_raw)?;
@@ -2042,7 +1999,10 @@ fn normalize_open_kind_list(label: &str, items: Vec<String>) -> Result<Vec<Strin
     let mut out: Vec<String> = Vec::new();
     for item in items {
         let Some(kind) = normalize_open_kind(&item) else {
-            return Err(format!("open.policy {} 알 수 없는 open_kind: {}", label, item));
+            return Err(format!(
+                "open.policy {} 알 수 없는 open_kind: {}",
+                label, item
+            ));
         };
         if !out.iter().any(|entry| entry == kind) {
             out.push(kind.to_string());
@@ -2190,7 +2150,8 @@ pub fn run_file_with_emitter(
     };
     let effective_trace_tier = if open_diag_enabled {
         let trace_tier_project = project_policy.trace_tier.ok_or_else(|| {
-            "E_TRACE_TIER_REQUIRED AGE2 이상에서는 ddn.project.json trace_tier가 필요합니다".to_string()
+            "E_TRACE_TIER_REQUIRED AGE2 이상에서는 ddn.project.json trace_tier가 필요합니다"
+                .to_string()
         })?;
         if options.trace_tier == TraceTier::Off {
             trace_tier_project
@@ -2207,10 +2168,15 @@ pub fn run_file_with_emitter(
         options.trace_tier
     };
     if options.open_bundle.is_some() && options.open_log.is_some() {
-        return Err("E_OPEN_BUNDLE_CONFLICT --open-bundle과 --open-log는 함께 사용할 수 없습니다.".to_string());
+        return Err(
+            "E_OPEN_BUNDLE_CONFLICT --open-bundle과 --open-log는 함께 사용할 수 없습니다."
+                .to_string(),
+        );
     }
     if open_mode == OpenMode::Deny && options.open_bundle.is_some() {
-        return Err("E_OPEN_BUNDLE_MODE --open-bundle은 open 모드(record/replay)가 필요합니다.".to_string());
+        return Err(
+            "E_OPEN_BUNDLE_MODE --open-bundle은 open 모드(record/replay)가 필요합니다.".to_string(),
+        );
     }
     let open_bundle = options.open_bundle.clone();
     let open_log = match open_mode {
@@ -2256,9 +2222,9 @@ pub fn run_file_with_emitter(
     let mut open_runtime = OpenRuntime::new(open_mode, open_log.clone(), open_allow, open_policy)
         .map_err(|err| format!("{} {}", err.code(), err.message()))?;
     if open_diag_enabled {
-        let diag_path = diag_jsonl.as_ref().ok_or_else(|| {
-            "E_OPEN_DIAG_REQUIRED geoul.diag.jsonl 경로가 필요합니다".to_string()
-        })?;
+        let diag_path = diag_jsonl
+            .as_ref()
+            .ok_or_else(|| "E_OPEN_DIAG_REQUIRED geoul.diag.jsonl 경로가 필요합니다".to_string())?;
         let run_id = build_open_run_id(&open_source, seed);
         let config = OpenDiagConfig::new(
             diag_path.clone(),
@@ -2279,12 +2245,16 @@ pub fn run_file_with_emitter(
     let bogae_codec = options.bogae_codec;
     let wants_live_input = options.sam_live.is_some();
     if wants_live_input && options.sam_path.is_some() {
-        return Err("E_SAM_MODE_CONFLICT --sam-live와 --sam은 동시에 사용할 수 없습니다.".to_string());
+        return Err(
+            "E_SAM_MODE_CONFLICT --sam-live와 --sam은 동시에 사용할 수 없습니다.".to_string(),
+        );
     }
     let madi_arg = madi;
     let explicit_infinite = matches!(madi_arg, Some(MadiLimit::Infinite));
     if explicit_infinite && options.sam_path.is_some() {
-        return Err("E_SAM_MADI_INFINITE --sam과 --madi infinite는 함께 쓸 수 없습니다.".to_string());
+        return Err(
+            "E_SAM_MADI_INFINITE --sam과 --madi infinite는 함께 쓸 수 없습니다.".to_string(),
+        );
     }
     let mut ticks = match (madi_arg, options.until_gameover) {
         (Some(MadiLimit::Finite(value)), _) => Some(value),
@@ -2320,7 +2290,9 @@ pub fn run_file_with_emitter(
         should_write_playback(ticks, options.bogae_mode, options.bogae_out.as_deref())
     };
     if explicit_infinite && wants_playback {
-        return Err("E_BOGAE_PLAYBACK_INFINITE 무한 실행에서는 playback을 만들 수 없습니다.".to_string());
+        return Err(
+            "E_BOGAE_PLAYBACK_INFINITE 무한 실행에서는 playback을 만들 수 없습니다.".to_string(),
+        );
     }
     let mut live_input = if let Some(mode) = options.sam_live {
         let hz = options.madi_hz.unwrap_or(60);
@@ -2364,7 +2336,8 @@ pub fn run_file_with_emitter(
             }
             None => {}
         }
-        if let (Some(BogaeMode::Web), Some(index_path)) = (options.bogae_mode, web_index_path.as_ref())
+        if let (Some(BogaeMode::Web), Some(index_path)) =
+            (options.bogae_mode, web_index_path.as_ref())
         {
             if !options.no_open {
                 open_in_browser(index_path)?;
@@ -2461,7 +2434,8 @@ pub fn run_file_with_emitter(
         stop_enabled,
         &mut should_stop,
         |madi, state, tick_requested| {
-            let wants_geoul_bytes = geoul_writer.borrow().is_some() || geoul_record_writer.borrow().is_some();
+            let wants_geoul_bytes =
+                geoul_writer.borrow().is_some() || geoul_record_writer.borrow().is_some();
             let mut state_bytes: Option<Vec<u8>> = None;
             if wants_geoul_bytes {
                 state_bytes = Some(encode_state_for_geoul(state));
@@ -2469,16 +2443,17 @@ pub fn run_file_with_emitter(
             if let Some(writer) = geoul_writer.borrow_mut().as_mut() {
                 let snapshot = build_geoul_snapshot(madi, seed, state);
                 let snapshot_bytes = encode_input_snapshot(&snapshot);
-                let state_bytes = state_bytes
-                    .as_ref()
-                    .ok_or_else(|| RunError::Io {
-                        path: writer.audit_path().to_path_buf(),
-                        message: "state bytes 누락".to_string(),
-                    })?;
+                let state_bytes = state_bytes.as_ref().ok_or_else(|| RunError::Io {
+                    path: writer.audit_path().to_path_buf(),
+                    message: "state bytes 누락".to_string(),
+                })?;
                 let mut patch_buf = Vec::new();
                 let mut alrim_buf = Vec::new();
                 let mut full_blob = None;
-                if matches!(trace_tier, TraceTier::Patch | TraceTier::Alrim | TraceTier::Full) {
+                if matches!(
+                    trace_tier,
+                    TraceTier::Patch | TraceTier::Alrim | TraceTier::Full
+                ) {
                     let state_hash = blake3::hash(state_bytes);
                     patch_buf.extend_from_slice(state_hash.as_bytes());
                     if matches!(trace_tier, TraceTier::Alrim | TraceTier::Full) {
@@ -2511,12 +2486,10 @@ pub fn run_file_with_emitter(
                     })?;
             }
             if let Some(writer) = geoul_record_writer.borrow_mut().as_mut() {
-                let state_bytes = state_bytes
-                    .as_ref()
-                    .ok_or_else(|| RunError::Io {
-                        path: writer.path.clone(),
-                        message: "state bytes 누락".to_string(),
-                    })?;
+                let state_bytes = state_bytes.as_ref().ok_or_else(|| RunError::Io {
+                    path: writer.path.clone(),
+                    message: "state bytes 누락".to_string(),
+                })?;
                 let state_hash = format!("blake3:{}", blake3::hash(state_bytes).to_hex());
                 writer
                     .write_step(madi, &state_hash)
@@ -2577,7 +2550,8 @@ pub fn run_file_with_emitter(
         Ok(outcome) => (outcome.output, outcome.ticks),
         Err(err) => {
             if let Some(diag_path) = diag_jsonl.as_ref() {
-                if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &err, diag_append) {
+                if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &err, diag_append)
+                {
                     emit.err(&format!("E_DIAG_WRITE {}", write_err));
                 }
             }
@@ -2607,7 +2581,9 @@ pub fn run_file_with_emitter(
         clear_sam_keys(&mut output.state);
     }
     if let Some(diag_path) = diag_jsonl.as_ref() {
-        if let Err(write_err) = append_contract_diags(diag_path, &file_label, &output.contract_diags) {
+        if let Err(write_err) =
+            append_contract_diags(diag_path, &file_label, &output.contract_diags)
+        {
             emit.err(&format!("E_DIAG_WRITE {}", write_err));
         }
     }
@@ -2647,7 +2623,9 @@ pub fn run_file_with_emitter(
             Err(err) => {
                 let run_err = RunError::Bogae(err);
                 if let Some(diag_path) = diag_jsonl.as_ref() {
-                    if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &run_err, diag_append) {
+                    if let Err(write_err) =
+                        write_diag_jsonl(diag_path, &file_label, &run_err, diag_append)
+                    {
                         emit.err(&format!("E_DIAG_WRITE {}", write_err));
                     }
                 }
@@ -2710,7 +2688,9 @@ pub fn run_file_with_emitter(
             Ok(path) => path,
             Err(err) => {
                 if let Some(diag_path) = diag_jsonl.as_ref() {
-                    if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &err, diag_append) {
+                    if let Err(write_err) =
+                        write_diag_jsonl(diag_path, &file_label, &err, diag_append)
+                    {
                         emit.err(&format!("E_DIAG_WRITE {}", write_err));
                     }
                 }
@@ -2852,8 +2832,7 @@ pub fn run_source_with_state_seed_ticks(
 ) -> Result<EvalOutput, RunError> {
     let tokens = Lexer::tokenize(source).map_err(RunError::Lex)?;
     let default_root = Parser::default_root_for_source(source);
-    let program =
-        Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
+    let program = Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
     let evaluator = Evaluator::with_state_seed_open(
         state,
         seed,
@@ -2861,7 +2840,9 @@ pub fn run_source_with_state_seed_ticks(
         "<memory>".to_string(),
         Some(source.to_string()),
     );
-    evaluator.run_with_ticks(&program, ticks).map_err(RunError::Runtime)
+    evaluator
+        .run_with_ticks(&program, ticks)
+        .map_err(RunError::Runtime)
 }
 
 fn run_source_with_state_ticks_observe<F, G>(
@@ -2889,8 +2870,7 @@ where
     let mut ticks_run = 0u64;
     let tokens = Lexer::tokenize(source).map_err(RunError::Lex)?;
     let default_root = Parser::default_root_for_source(source);
-    let program =
-        Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
+    let program = Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
     let evaluator = Evaluator::with_state_seed_open(
         state,
         seed,
@@ -2966,7 +2946,9 @@ where
                 .map_err(RunError::Runtime)?
         }
     } else {
-        let output = evaluator.run_with_ticks(&program, ticks).map_err(RunError::Runtime)?;
+        let output = evaluator
+            .run_with_ticks(&program, ticks)
+            .map_err(RunError::Runtime)?;
         ticks_run = ticks;
         output
     };
@@ -2983,11 +2965,7 @@ pub fn run_source_with_state(source: &str, state: State) -> Result<EvalOutput, R
     run_source_with_state_ticks(source, state, 1)
 }
 
-fn should_write_playback(
-    ticks: u64,
-    mode: Option<BogaeMode>,
-    bogae_out: Option<&Path>,
-) -> bool {
+fn should_write_playback(ticks: u64, mode: Option<BogaeMode>, bogae_out: Option<&Path>) -> bool {
     ticks > 1 && bogae_out.is_some() && matches!(mode, Some(BogaeMode::Web))
 }
 
@@ -3049,9 +3027,11 @@ fn write_playback_outputs(
 
     let start_madi = snapshots.first().map(|s| s.madi).unwrap_or(0);
     let end_madi = start_madi + frames.len() as u64;
-    write_manifest(out_dir, start_madi, end_madi, &frames, codec.tag()).map_err(|e| RunError::Io {
-        path: out_dir.join("manifest.detjson"),
-        message: e,
+    write_manifest(out_dir, start_madi, end_madi, &frames, codec.tag()).map_err(|e| {
+        RunError::Io {
+            path: out_dir.join("manifest.detjson"),
+            message: e,
+        }
     })?;
     let index_path =
         write_viewer_assets(out_dir, skin_source, overlay).map_err(|e| RunError::Io {
@@ -3216,7 +3196,9 @@ fn runtime_message(err: &RuntimeError) -> String {
         RuntimeError::TypeMismatch { expected, .. } => {
             format!("타입 불일치: {}", expected)
         }
-        RuntimeError::TypeMismatchDetail { expected, actual, .. } => {
+        RuntimeError::TypeMismatchDetail {
+            expected, actual, ..
+        } => {
             format!("타입 불일치: 기대={} 실제={}", expected, actual)
         }
         RuntimeError::IndexOutOfRange { .. } => "차림 인덱스 범위를 벗어났습니다".to_string(),
@@ -3230,14 +3212,30 @@ fn runtime_message(err: &RuntimeError) -> String {
         }
         RuntimeError::Template { message, .. } => message.clone(),
         RuntimeError::Pack { message, .. } => message.clone(),
-        RuntimeError::BreakOutsideLoop { .. } => "멈추기는 반복 안에서만 사용할 수 있습니다".to_string(),
-        RuntimeError::ReturnOutsideSeed { .. } => "돌려주기는 씨앗 안에서만 사용할 수 있습니다".to_string(),
-        RuntimeError::OpenSiteUnknown { .. } => "열림 위치를 알 수 없습니다".to_string(),
-        RuntimeError::OpenDenied { open_kind, .. } => format!("열림이 차단되었습니다: {}", open_kind),
-        RuntimeError::OpenReplayMissing { open_kind, site_id, key, .. } => {
-            format!("열림 리플레이 로그 없음: kind={} site_id={} key={}", open_kind, site_id, key)
+        RuntimeError::BreakOutsideLoop { .. } => {
+            "멈추기는 반복 안에서만 사용할 수 있습니다".to_string()
         }
-        RuntimeError::OpenReplayInvalid { message, .. } => format!("열림 로그 파싱 오류: {}", message),
+        RuntimeError::ReturnOutsideSeed { .. } => {
+            "돌려주기는 씨앗 안에서만 사용할 수 있습니다".to_string()
+        }
+        RuntimeError::OpenSiteUnknown { .. } => "열림 위치를 알 수 없습니다".to_string(),
+        RuntimeError::OpenDenied { open_kind, .. } => {
+            format!("열림이 차단되었습니다: {}", open_kind)
+        }
+        RuntimeError::OpenReplayMissing {
+            open_kind,
+            site_id,
+            key,
+            ..
+        } => {
+            format!(
+                "열림 리플레이 로그 없음: kind={} site_id={} key={}",
+                open_kind, site_id, key
+            )
+        }
+        RuntimeError::OpenReplayInvalid { message, .. } => {
+            format!("열림 로그 파싱 오류: {}", message)
+        }
         RuntimeError::OpenLogTamper { message, .. } => format!("열림 로그 변조: {}", message),
         RuntimeError::OpenIo { message, .. } => message.clone(),
     }
@@ -3289,11 +3287,7 @@ fn contract_fault_id(file: &str, event: &ContractDiag, index: usize) -> String {
     };
     format!(
         "contract:{}:{}:{}:{}:{}",
-        kind,
-        file,
-        event.span.start_line,
-        event.span.start_col,
-        index
+        kind, file, event.span.start_line, event.span.start_col, index
     )
 }
 
@@ -3310,11 +3304,7 @@ fn append_contract_hook_event(
         .map_err(|e| e.to_string())
 }
 
-fn append_contract_diags(
-    path: &Path,
-    file: &str,
-    events: &[ContractDiag],
-) -> Result<(), String> {
+fn append_contract_diags(path: &Path, file: &str, events: &[ContractDiag]) -> Result<(), String> {
     if events.is_empty() {
         return Ok(());
     }
@@ -3358,7 +3348,9 @@ fn append_contract_diags(
             contract_kind,
             mode_label
         );
-        file_handle.write_all(json.as_bytes()).map_err(|e| e.to_string())?;
+        file_handle
+            .write_all(json.as_bytes())
+            .map_err(|e| e.to_string())?;
         append_contract_hook_event(&mut file_handle, &fault_id)?;
     }
     Ok(())
@@ -3407,7 +3399,9 @@ fn append_cmd_policy_diag(
         .append(true)
         .open(path)
         .map_err(|e| e.to_string())?;
-    file_handle.write_all(json.as_bytes()).map_err(|e| e.to_string())
+    file_handle
+        .write_all(json.as_bytes())
+        .map_err(|e| e.to_string())
 }
 
 fn append_run_config_diag(
@@ -3428,7 +3422,9 @@ fn append_run_config_diag(
         .append(true)
         .open(path)
         .map_err(|e| e.to_string())?;
-    file_handle.write_all(json.as_bytes()).map_err(|e| e.to_string())
+    file_handle
+        .write_all(json.as_bytes())
+        .map_err(|e| e.to_string())
 }
 
 fn write_repro_json(
@@ -3526,12 +3522,16 @@ fn write_run_manifest(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("E_RUN_MANIFEST_WRITE {}", e))?;
     }
-    fs::write(path, format!("{}\n", text))
-        .map_err(|e| format!("E_RUN_MANIFEST_WRITE {}", e))?;
+    fs::write(path, format!("{}\n", text)).map_err(|e| format!("E_RUN_MANIFEST_WRITE {}", e))?;
     Ok(())
 }
 
-fn write_trace_json(path: &Path, trace: &Trace, state_hash: &str, trace_hash: &str) -> Result<(), String> {
+fn write_trace_json(
+    path: &Path,
+    trace: &Trace,
+    state_hash: &str,
+    trace_hash: &str,
+) -> Result<(), String> {
     let mut out = String::new();
     out.push_str("{\"logs\":[");
     for (idx, line) in trace.log_lines().iter().enumerate() {

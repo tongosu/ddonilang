@@ -1,6 +1,8 @@
-use std::collections::{BTreeMap, HashMap};
-use ddonirang_core::{Fixed64, ResourceHandle, UnitDim, UnitValue, is_key_just_pressed, is_key_pressed};
 use crate::ast::{Expr, Formula, Template};
+use ddonirang_core::{
+    is_key_just_pressed, is_key_pressed, Fixed64, ResourceHandle, UnitDim, UnitValue,
+};
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MapEntry {
@@ -249,7 +251,9 @@ pub fn string_join(list: &Value, delim: &Value) -> Result<Value, RuntimeError> {
             let mut out = String::new();
             for (i, item) in items.iter().enumerate() {
                 let Value::String(s) = item else {
-                    return Err(RuntimeError::TypeMismatch { expected: "차림<글>" });
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "차림<글>",
+                    });
                 };
                 if i > 0 {
                     out.push_str(d);
@@ -258,7 +262,9 @@ pub fn string_join(list: &Value, delim: &Value) -> Result<Value, RuntimeError> {
             }
             Ok(Value::String(out))
         }
-        _ => Err(RuntimeError::TypeMismatch { expected: "차림<글>" }),
+        _ => Err(RuntimeError::TypeMismatch {
+            expected: "차림<글>",
+        }),
     }
 }
 
@@ -362,7 +368,9 @@ mod tests {
         let second = list_nth(&list, &Value::Fixed64(Fixed64::from_i64(1))).expect("nth");
         assert_eq!(second, Value::String("b".to_string()));
         let removed = list_remove(&list, &Value::Fixed64(Fixed64::from_i64(0))).expect("remove");
-        let Value::List(items) = removed else { panic!("expected list") };
+        let Value::List(items) = removed else {
+            panic!("expected list")
+        };
         assert_eq!(items, vec![Value::String("b".to_string())]);
     }
 
@@ -373,9 +381,12 @@ mod tests {
         let joined = string_concat(&a, &b).expect("concat");
         assert_eq!(joined, Value::String("haha".to_string()));
         let parts = string_split(&joined, &Value::String("a".to_string())).expect("split");
-        let Value::List(items) = parts else { panic!("expected list") };
+        let Value::List(items) = parts else {
+            panic!("expected list")
+        };
         assert!(!items.is_empty());
-        let rejoin = string_join(&Value::List(items), &Value::String("a".to_string())).expect("join");
+        let rejoin =
+            string_join(&Value::List(items), &Value::String("a".to_string())).expect("join");
         assert_eq!(rejoin, joined);
     }
 
@@ -391,6 +402,9 @@ mod tests {
             },
         );
         assert_eq!(map_get(&map, &key), Value::String("또니".to_string()));
-        assert_eq!(map_get(&map, &Value::String("없는키".to_string())), Value::None);
+        assert_eq!(
+            map_get(&map, &Value::String("없는키".to_string())),
+            Value::None
+        );
     }
 }

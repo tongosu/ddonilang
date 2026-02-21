@@ -123,8 +123,7 @@ pub fn parse_held_mask(line: &str) -> Result<u16, String> {
         if token.is_empty() {
             continue;
         }
-        let idx = key_index(token)
-            .ok_or_else(|| format!("unknown key token: {}", token))?;
+        let idx = key_index(token).ok_or_else(|| format!("unknown key token: {}", token))?;
         mask |= 1u16 << idx;
     }
     Ok(mask)

@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use blake3;
@@ -133,7 +133,11 @@ fn run_inference(model: &MlpModel, activation: &str, input: &[i64], weights: &[i
         let bias = weights[offset] as i64;
         offset += 1;
         acc = acc.saturating_add(bias);
-        hidden[h] = if activation == "relu" && acc < 0 { 0 } else { acc };
+        hidden[h] = if activation == "relu" && acc < 0 {
+            0
+        } else {
+            acc
+        };
     }
 
     let mut output = vec![0i64; model.output_size];

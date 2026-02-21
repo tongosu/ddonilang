@@ -1,19 +1,24 @@
 #이름: ssot_edu_phys_p015_02_spring_m_T2_variant_P015-02 용수철-질량 주기제곱 T²(m)
 #설명: 용수철 진동 주기 T = 2π√(m/k). 제곱하면 T² = (4π²/k)·m. (m, T²) 출력.
-pi <- 3.141592.
-k <- 10.
 
-m_min <- 0.
-m_max <- 5.
-dm <- 0.05.
+(매마디)마다 {
+  pi <- 3.141592.
+  k <- 10.
 
-coef <- (4 * pi * pi) / k.  # T^2 = coef * m
+  m_min <- 0.
+  m_max <- 5.
+  dm <- 0.05.
 
-m목록 <- (m_min, m_max, dm) 범위.
+  coef <- (4 * pi * pi) / k.  # T^2 = coef * m
 
-(m) m목록에 대해: {
-  T2 <- coef * m.
+  m목록 <- (m_min, m_max, dm) 범위.
 
-  m 보여주기.
-  T2 보여주기.
+  (m) m목록에 대해: {
+    T2 <- coef * m.
+
+    보임 {
+      m: m.
+      T2: T2.
+    }.
+  }.
 }.

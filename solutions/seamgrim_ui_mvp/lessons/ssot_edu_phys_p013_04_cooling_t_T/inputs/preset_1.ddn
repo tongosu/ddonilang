@@ -1,20 +1,24 @@
 #이름: ssot_edu_phys_p013_04_cooling_t_T_variant_P013-04 뉴턴의 냉각법칙 T(t) (Euler)
 #설명: 뉴턴의 냉각법칙 dT/dt=-k(T-T_env)을 Euler로 적분. (t,T) 점열 출력.
 
-k <- 0.15.
-T_env <- 20.
-T <- 100.
+(매마디)마다 {
+  k <- 0.15.
+  T_env <- 20.
+  T <- 100.
 
-t <- 0.
-t_max <- 60.
-dt <- 0.5.
+  t <- 0.
+  t_max <- 60.
+  dt <- 0.5.
 
-{ t <= t_max }인것 동안: {
-  dT <- (-k) * (T - T_env).
-  T <- T + (dT * dt).
+  { t <= t_max }인것 동안: {
+    dT <- (-k) * (T - T_env).
+    T <- T + (dT * dt).
 
-  t 보여주기.
-  T 보여주기.
+    보임 {
+      t: t.
+      T: T.
+    }.
 
-  t <- t + dt.
+    t <- t + dt.
+  }.
 }.

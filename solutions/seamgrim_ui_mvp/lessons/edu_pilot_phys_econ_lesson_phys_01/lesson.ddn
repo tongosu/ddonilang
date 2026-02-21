@@ -6,138 +6,170 @@
 #physics_backend: calc
 #control: L:수=1.0 [0.2..3.0] step=0.01 unit=m; theta0:수=0.6 [-1.57..1.57] step=0.01 unit=rad
 
-붙박이마련: {
-  g:수 = 9.8.
-  fps:수 = 60.
-  총초:수 = 5.0.
-}.
+(매마디)마다 {
+  붙박이마련: {
+    g:수 = 9.8.
+    fps:수 = 60.
+    총초:수 = 5.0.
+  }.
 
-그릇채비: {
-  L:수 <- 1.0.
-  theta0:수 <- 0.6.
-}.
+  그릇채비: {
+    L:수 <- 1.0.
+    theta0:수 <- 0.6.
+  }.
 
-// graph meta (축을 제대로 그리기 위해)
-graph_kind <- "timeseries".
-x_kind <- "time".  x_unit <- "s".  x_label <- "t".
-y_kind <- "angle". y_unit <- "rad". y_label <- "θ".
+  // graph meta (축을 제대로 그리기 위해)
+  graph_kind <- "timeseries".
+  x_kind <- "time".  x_unit <- "s".  x_label <- "t".
+  y_kind <- "angle". y_unit <- "rad". y_label <- "θ".
 
-graph_kind 보여주기.
-x_kind 보여주기. x_unit 보여주기. x_label 보여주기.
-y_kind 보여주기. y_unit 보여주기. y_label 보여주기.
+  보임 {
+    graph_kind: graph_kind.
+    x_kind: x_kind.
+    x_unit: x_unit.
+    x_label: x_label.
+    y_kind: y_kind.
+    y_unit: y_unit.
+    y_label: y_label.
+  }.
 
-// 보개장면(연출 메타; AGE1+)
-보개장면 {
-  마디0 (tick=0~30): {
-    (#제목, 글="진자: θ(t)와 움직임") 나타나기.
-    (#자막, 글="먼저 진자의 각도 θ(t)를 보겠습니다.") 나타나기.
-  }
+  // 보개장면(연출 메타; AGE1+)
+  보개장면 {
+    마디0 (tick=0~30): {
+      (#제목, 글="진자: θ(t)와 움직임") 나타나기.
+      (#자막, 글="먼저 진자의 각도 θ(t)를 보겠습니다.") 나타나기.
+    }
 
-  마디1 (tick=31~120): {
-    (#자막, 글="이제 θ(t) 곡선을 그려보겠습니다.") 나타나기.
-    (#곡선, id="theta", 보개="graph") 그려지기(방식="progress").
-    (#해설, 글="강조: theta", 토큰="theta") 강조하기.
-  }
+    마디1 (tick=31~120): {
+      (#자막, 글="이제 θ(t) 곡선을 그려보겠습니다.") 나타나기.
+      (#곡선, id="theta", 보개="graph") 그려지기(방식="progress").
+      (#해설, 글="강조: theta", 토큰="theta") 강조하기.
+    }
 
-  마디2 (tick=121~300): {
-    (#자막, 글="좌측 진자(2D)와 우측 그래프가 tick으로 맞물립니다.") 나타나기.
-    (#점, id="theta_cursor", 보개="graph") 움직이기.
-  }
-}.
+    마디2 (tick=121~300): {
+      (#자막, 글="좌측 진자(2D)와 우측 그래프가 tick으로 맞물립니다.") 나타나기.
+      (#점, id="theta_cursor", 보개="graph") 움직이기.
+    }
+  }.
 
-// 시간축
-dt <- 1.0 / fps.
-끝tick <- (총초 * fps) 정수로.
-tick목록 <- (0, 끝tick, 1)범위.
+  // 시간축
+  dt <- 1.0 / fps.
+  끝tick <- (총초 * fps) 정수로.
+  tick목록 <- (0, 끝tick, 1)범위.
 
-// 소각근사 진자: θ(t) = θ0 * cos( sqrt(g/L) * t )
-omegaN <- (g / L) ^ 0.5.
-pivot <- (x=0.0, y=0.0) 값꾸러미.
+  // 소각근사 진자: θ(t) = θ0 * cos( sqrt(g/L) * t )
+  omegaN <- (g / L) ^ 0.5.
+  pivot <- (x=0.0, y=0.0) 값꾸러미.
 
-(tick) tick목록에 대해: {
-  t <- tick * dt.
+  (tick) tick목록에 대해: {
+    t <- tick * dt.
 
-  tick 보여주기.
-  t 보여주기.
+    보임 {
+      tick: tick.
+      t: t.
+    }.
 
-  theta <- theta0 * cos(omegaN * t).
-  theta 보여주기.
+    theta <- theta0 * cos(omegaN * t).
+    보임 {
+      theta: theta.
+    }.
 
-  // 2D 위치
-  bx <- L * sin(theta).
-  by <- -L * cos(theta).
-  bob <- (x=bx, y=by) 값꾸러미.
+    // 2D 위치
+    bx <- L * sin(theta).
+    by <- -L * cos(theta).
+    bob <- (x=bx, y=by) 값꾸러미.
 
-  공간표시 <- "space2d".
-  공간표시 보여주기.
-  bx 보여주기.
-  by 보여주기.
+    공간표시 <- "space2d".
+    보임 {
+      공간표시: 공간표시.
+      bx: bx.
+      by: by.
+    }.
 
-  // space2d shapes (stdout)
-  도형표시 <- "space2d.shape".
-  도형표시 보여주기.
-  도형종류 <- "line".
-  도형종류 보여주기.
-  "x1" 보여주기.
-  0.0 보여주기.
-  "y1" 보여주기.
-  0.0 보여주기.
-  "x2" 보여주기.
-  bx 보여주기.
-  "y2" 보여주기.
-  by 보여주기.
-  "stroke" 보여주기.
-  "#cbd5e1" 보여주기.
-  "width" 보여주기.
-  0.028 보여주기.
+    // space2d shapes (stdout)
+    도형표시 <- "space2d.shape".
+    보임 {
+      도형표시: 도형표시.
+    }.
+    도형종류 <- "line".
+    보임 {
+      도형종류: 도형종류.
+      값2: "x1".
+      값3: 0.0.
+      값4: "y1".
+      값5: 0.0.
+      값6: "x2".
+      bx: bx.
+      값8: "y2".
+      by: by.
+      값10: "stroke".
+      값11: "#cbd5e1".
+      값12: "width".
+      값13: 0.028.
+    }.
 
-  도형표시 <- "space2d.shape".
-  도형표시 보여주기.
-  도형종류 <- "circle".
-  도형종류 보여주기.
-  "cx" 보여주기.
-  bx 보여주기.
-  "cy" 보여주기.
-  by 보여주기.
-  "r" 보여주기.
-  0.065 보여주기.
-  "fill" 보여주기.
-  "#38bdf8" 보여주기.
-  "stroke" 보여주기.
-  "#0ea5e9" 보여주기.
-  "width" 보여주기.
-  0.024 보여주기.
+    도형표시 <- "space2d.shape".
+    보임 {
+      도형표시: 도형표시.
+    }.
+    도형종류 <- "circle".
+    보임 {
+      도형종류: 도형종류.
+      값2: "cx".
+      bx: bx.
+      값4: "cy".
+      by: by.
+      값6: "r".
+      값7: 0.065.
+      값8: "fill".
+      값9: "#38bdf8".
+      값10: "stroke".
+      값11: "#0ea5e9".
+      값12: "width".
+      값13: 0.024.
+    }.
 
-  도형표시 <- "space2d.shape".
-  도형표시 보여주기.
-  도형종류 <- "point".
-  도형종류 보여주기.
-  "x" 보여주기.
-  0.0 보여주기.
-  "y" 보여주기.
-  0.0 보여주기.
-  "size" 보여주기.
-  0.04 보여주기.
-  "color" 보여주기.
-  "#f59e0b" 보여주기.
+    도형표시 <- "space2d.shape".
+    보임 {
+      도형표시: 도형표시.
+    }.
+    도형종류 <- "point".
+    보임 {
+      도형종류: 도형종류.
+      값2: "x".
+      값3: 0.0.
+      값4: "y".
+      값5: 0.0.
+      값6: "size".
+      값7: 0.04.
+      값8: "color".
+      값9: "#f59e0b".
+    }.
 
-  // space2d drawlist(C+) — 월드 좌표
-  그림 <- [
-    (도형="선", 시작=pivot, 끝=bob, 색="#cbd5e1", 굵기=0.028, 토큰="rod") 값꾸러미,
-    (도형="원", 중심=bob, 반지름=0.065, 채움="#38bdf8", 테두리="#0ea5e9", 굵기=0.024, 토큰="bob") 값꾸러미,
-    (도형="점", 위치=pivot, 크기=0.04, 색="#f59e0b", 토큰="pivot") 값꾸러미
-  ].
-  그림 보여주기.
+    // space2d drawlist(C+) — 월드 좌표
+    그림 <- [
+      (도형="선", 시작=pivot, 끝=bob, 색="#cbd5e1", 굵기=0.028, 토큰="rod") 값꾸러미,
+      (도형="원", 중심=bob, 반지름=0.065, 채움="#38bdf8", 테두리="#0ea5e9", 굵기=0.024, 토큰="bob") 값꾸러미,
+      (도형="점", 위치=pivot, 크기=0.04, 색="#f59e0b", 토큰="pivot") 값꾸러미
+    ].
+    보임 {
+      그림: 그림.
+    }.
 
-  // graph series: (t, theta)
-  무리 <- "series:theta".
-  x <- t.
-  y <- theta.
-  무리 보여주기.
-  x 보여주기.
-  y 보여주기.
+    // graph series: (t, theta)
+    무리 <- "series:theta".
+    x <- t.
+    y <- theta.
+    보임 {
+      무리: 무리.
+      x: x.
+      y: y.
+    }.
 
-  // text
-  글 <- "각도 **[theta]θ(t)** = {theta} rad  (t={t}s)".
-  글 보여주기.
+    // text
+    글 <- "각도 **[theta]θ(t)** = {theta} rad  (t={t}s)".
+    보임 {
+      글: 글.
+    }.
+  }.
 }.

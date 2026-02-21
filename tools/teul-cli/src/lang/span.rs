@@ -17,6 +17,11 @@ impl Span {
     }
 
     pub fn merge(self, other: Span) -> Span {
-        Span::new(self.start_line, self.start_col, other.end_line, other.end_col)
+        Span::new(
+            self.start_line,
+            self.start_col,
+            other.end_line,
+            other.end_col,
+        )
     }
 }

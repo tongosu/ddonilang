@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::Path;
 
 use crate::core::geoul::{decode_input_snapshot, GeoulBundleReader};
@@ -8,7 +8,12 @@ use serde_json::{Map, Value};
 
 use super::detjson::{sha256_hex, write_text};
 
-pub fn run_export(geoul_dir: &Path, format: &str, out_dir: &Path, env_id: &str) -> Result<(), String> {
+pub fn run_export(
+    geoul_dir: &Path,
+    format: &str,
+    out_dir: &Path,
+    env_id: &str,
+) -> Result<(), String> {
     if format != "nurigym_v0" {
         return Err(format!("E_DATASET_FORMAT 지원하지 않는 format: {}", format));
     }
@@ -52,7 +57,10 @@ pub fn run_export(geoul_dir: &Path, format: &str, out_dir: &Path, env_id: &str) 
         &obs_hash,
         &action_hash,
     );
-    write_text(&out_dir.join("nurigym.episode.jsonl"), &format!("{}\n", episode_header))?;
+    write_text(
+        &out_dir.join("nurigym.episode.jsonl"),
+        &format!("{}\n", episode_header),
+    )?;
 
     let dataset_header = build_dataset_header(env_id, frame_count as u64);
     let mut dataset_lines = Vec::with_capacity(frame_count as usize + 1);
@@ -76,7 +84,10 @@ pub fn run_export(geoul_dir: &Path, format: &str, out_dir: &Path, env_id: &str) 
     write_text(&dataset_path, &dataset_text)?;
 
     let dataset_hash = format!("sha256:{}", sha256_hex(dataset_text.as_bytes()));
-    write_text(&out_dir.join("dataset.sha256"), &format!("{}\n", dataset_hash))?;
+    write_text(
+        &out_dir.join("dataset.sha256"),
+        &format!("{}\n", dataset_hash),
+    )?;
     println!("dataset_hash={}", dataset_hash);
     Ok(())
 }
@@ -91,42 +102,78 @@ fn build_episode_header(
     action_spec_hash: &str,
 ) -> String {
     let mut map = Map::new();
-    map.insert("schema".to_string(), Value::String("nurigym.episode.v1".to_string()));
+    map.insert(
+        "schema".to_string(),
+        Value::String("nurigym.episode.v1".to_string()),
+    );
     map.insert("env_id".to_string(), Value::String(env_id.to_string()));
     map.insert("episode_id".to_string(), Value::Number(episode_id.into()));
     map.insert("seed".to_string(), Value::Number(seed.into()));
     map.insert("madi_start".to_string(), Value::Number(madi_start.into()));
     map.insert("madi_end".to_string(), Value::Number(madi_end.into()));
-    map.insert("obs_spec_hash".to_string(), Value::String(obs_spec_hash.to_string()));
-    map.insert("action_spec_hash".to_string(), Value::String(action_spec_hash.to_string()));
+    map.insert(
+        "obs_spec_hash".to_string(),
+        Value::String(obs_spec_hash.to_string()),
+    );
+    map.insert(
+        "action_spec_hash".to_string(),
+        Value::String(action_spec_hash.to_string()),
+    );
     Value::Object(map).to_string()
 }
 
 fn build_dataset_header(env_id: &str, count: u64) -> String {
     let mut map = Map::new();
-    map.insert("schema".to_string(), Value::String("nurigym.dataset.v1".to_string()));
+    map.insert(
+        "schema".to_string(),
+        Value::String("nurigym.dataset.v1".to_string()),
+    );
     map.insert("env_id".to_string(), Value::String(env_id.to_string()));
     map.insert("count".to_string(), Value::Number(count.into()));
     Value::Object(map).to_string()
 }
 
-fn build_step_record(madi: u64, obs_hash: &str, next_hash: &str, slot_count: u32, done: bool) -> String {
+fn build_step_record(
+    madi: u64,
+    obs_hash: &str,
+    next_hash: &str,
+    slot_count: u32,
+    done: bool,
+) -> String {
     let mut obs = Map::new();
-    obs.insert("schema".to_string(), Value::String("nurigym.obs.v1".to_string()));
-    obs.insert("state_hash".to_string(), Value::String(obs_hash.to_string()));
+    obs.insert(
+        "schema".to_string(),
+        Value::String("nurigym.obs.v1".to_string()),
+    );
+    obs.insert(
+        "state_hash".to_string(),
+        Value::String(obs_hash.to_string()),
+    );
     obs.insert("slot_count".to_string(), Value::Number(slot_count.into()));
 
     let mut next_obs = Map::new();
-    next_obs.insert("schema".to_string(), Value::String("nurigym.obs.v1".to_string()));
-    next_obs.insert("state_hash".to_string(), Value::String(next_hash.to_string()));
+    next_obs.insert(
+        "schema".to_string(),
+        Value::String("nurigym.obs.v1".to_string()),
+    );
+    next_obs.insert(
+        "state_hash".to_string(),
+        Value::String(next_hash.to_string()),
+    );
     next_obs.insert("slot_count".to_string(), Value::Number(slot_count.into()));
 
     let mut action = Map::new();
-    action.insert("schema".to_string(), Value::String("seulgi.intent.v1".to_string()));
+    action.insert(
+        "schema".to_string(),
+        Value::String("seulgi.intent.v1".to_string()),
+    );
     action.insert("kind".to_string(), Value::String("none".to_string()));
 
     let mut map = Map::new();
-    map.insert("schema".to_string(), Value::String("nurigym.step.v1".to_string()));
+    map.insert(
+        "schema".to_string(),
+        Value::String("nurigym.step.v1".to_string()),
+    );
     map.insert("episode_id".to_string(), Value::Number(1u64.into()));
     map.insert("agent_id".to_string(), Value::Number(0u64.into()));
     map.insert("madi".to_string(), Value::Number(madi.into()));

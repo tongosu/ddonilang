@@ -1,24 +1,29 @@
 #이름: ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A_variant_E014-03 균형고용 L*(A)
 #설명: Ld=a-bw, Ls=c+dw.  a=A(생산성/수요절편).
 #      균형: a-bw = c+dw -> w*=(a-c)/(b+d), L*=c+d*w*.
-// 출력은 숫자만. (A, L*) 순서.
 
-b <- 2.
-c <- 10.
-d <- 1.5.
+(매마디)마다 {
+  // 출력은 숫자만. (A, L*) 순서.
 
-A_min <- 60.
-A_max <- 140.
-dA <- 2.
+  b <- 2.
+  c <- 10.
+  d <- 1.5.
 
-A목록 <- (A_min, A_max, dA) 범위.
+  A_min <- 60.
+  A_max <- 140.
+  dA <- 2.
 
-(A) A목록에 대해: {
-  w <- (A - c) / (b + d).
-  L <- c + d*w.
-  { L < 0 }인것 일때 {
-    L <- 0.
+  A목록 <- (A_min, A_max, dA) 범위.
+
+  (A) A목록에 대해: {
+    w <- (A - c) / (b + d).
+    L <- c + d*w.
+    { L < 0 }인것 일때 {
+      L <- 0.
+    }.
+    보임 {
+      A: A.
+      L: L.
+    }.
   }.
-  A 보여주기.
-  L 보여주기.
 }.

@@ -375,11 +375,42 @@ button.ghost:hover {
   color: var(--muted);
 }
 
+#media-export-status.ok {
+  color: var(--accent-2);
+}
+
+#media-export-status.error {
+  color: #b91c1c;
+}
+
 .tabs {
   display: flex;
   gap: 6px;
   margin-bottom: 12px;
   flex-wrap: wrap;
+}
+
+.workspace-mode {
+  display: inline-flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.mode-tab {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  background: #f6f1e8;
+  cursor: pointer;
+}
+
+.mode-tab.active {
+  color: #fff;
+  background: var(--accent-3);
+  border-color: var(--accent-3);
 }
 
 .tab {

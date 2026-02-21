@@ -1,4 +1,4 @@
-﻿use std::fs;
+use std::fs;
 use std::path::Path;
 
 use ddonirang_core::seulgi::safety::{check, SafetyMode, SafetyRule};

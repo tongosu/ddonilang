@@ -1,22 +1,27 @@
 #이름: ssot_edu_econ_e007_05_indirect_utility_ui_variant_E007-05 간접효용 U(I) (가격 고정)
 #설명: U=sqrt(x*y), 예산 px*x+py*y=I 에서 U(I)=I/(2*sqrt(px*py)). (I,U) 점열 출력.
-// 출력은 숫자만. (I, U) 순서.
 
-px <- 10.
-py <- 5.
+(매마디)마다 {
+  // 출력은 숫자만. (I, U) 순서.
 
-I_min <- 0.
-I_max <- 200.
-dI <- 2.
+  px <- 10.
+  py <- 5.
 
-I목록 <- (I_min, I_max, dI) 범위.
+  I_min <- 0.
+  I_max <- 200.
+  dI <- 2.
 
-(I) I목록에 대해: {
-  u <- px * py.
-  root <- ((u) sqrt).
-  denom <- 2 * root.
-  U <- I / denom.
+  I목록 <- (I_min, I_max, dI) 범위.
 
-  I 보여주기.
-  U 보여주기.
+  (I) I목록에 대해: {
+    u <- px * py.
+    root <- ((u) sqrt).
+    denom <- 2 * root.
+    U <- I / denom.
+
+    보임 {
+      I: I.
+      U: U.
+    }.
+  }.
 }.

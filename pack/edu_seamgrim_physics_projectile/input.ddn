@@ -1,8 +1,8 @@
 #이름: physics_projectile
 #설명: 2D 투사체 궤적(단순)
 
-수평 = (#ascii1) 수식{ x = vx t }.
-수직 = (#ascii1) 수식{ y = vy t - 0.5 g t^2 }.
+수평 <- (#ascii1) 수식{ x = vx t }.
+수직 <- (#ascii1) 수식{ y = vy t - 0.5 g t^2 }.
 
 vx <- 4.
 vy <- 8.
