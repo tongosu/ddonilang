@@ -60,13 +60,16 @@ def main() -> int:
 
     seamgrim = payload.get("seamgrim") if isinstance(payload.get("seamgrim"), dict) else {}
     age3 = payload.get("age3") if isinstance(payload.get("age3"), dict) else {}
+    age4 = payload.get("age4") if isinstance(payload.get("age4"), dict) else {}
     oi = payload.get("oi405_406") if isinstance(payload.get("oi405_406"), dict) else {}
     seamgrim_failed = len(seamgrim.get("failed_steps", [])) if isinstance(seamgrim, dict) else 0
     age3_failed = len(age3.get("failed_criteria", [])) if isinstance(age3, dict) else 0
+    age4_failed = len(age4.get("failed_criteria", [])) if isinstance(age4, dict) else 0
     oi_failed = len(oi.get("failed_packs", [])) if isinstance(oi, dict) else 0
     print(
         f"[ci-aggregate] overall_ok={int(overall_ok)} seamgrim_failed={seamgrim_failed} "
-        f"age3_failed={age3_failed} oi405_406_failed={oi_failed} report={path}"
+        f"age3_failed={age3_failed} age4_failed={age4_failed} "
+        f"oi405_406_failed={oi_failed} report={path}"
     )
     gate_index_raw = payload.get("gate_index_report_path")
     age3_status_raw = payload.get("age3_status_report_path")

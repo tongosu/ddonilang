@@ -126,6 +126,42 @@ def age3_summary(doc: dict | None, path: Path, require_age3: bool) -> dict[str, 
     }
 
 
+def age4_summary(doc: dict | None, path: Path, require_age4: bool) -> dict[str, object]:
+    if doc is None and not require_age4:
+        return {
+            "ok": True,
+            "skipped": True,
+            "report_path": str(path),
+            "failed_criteria": [],
+            "failure_digest": [],
+        }
+    if not isinstance(doc, dict):
+        return {
+            "ok": False,
+            "report_path": str(path),
+            "error": "missing_or_invalid_report",
+            "failed_criteria": [],
+            "failure_digest": [f"age4 report missing_or_invalid: {path}"],
+        }
+    criteria = doc.get("criteria")
+    failed_criteria: list[str] = []
+    if isinstance(criteria, list):
+        for row in criteria:
+            if isinstance(row, dict) and not bool(row.get("ok", False)):
+                failed_criteria.append(str(row.get("name", "-")))
+    digest = doc.get("failure_digest")
+    failure_digest = [str(item) for item in digest] if isinstance(digest, list) else []
+    if not failure_digest and failed_criteria:
+        failure_digest = [f"criteria={name}" for name in failed_criteria]
+    return {
+        "ok": bool(doc.get("overall_ok", False)),
+        "report_path": str(path),
+        "schema": doc.get("schema"),
+        "failed_criteria": failed_criteria,
+        "failure_digest": failure_digest,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Combine seamgrim/oi close reports into one detjson report")
     parser.add_argument(
@@ -147,6 +183,16 @@ def main() -> int:
         "--require-age3",
         action="store_true",
         help="require age3 close report to exist and pass",
+    )
+    parser.add_argument(
+        "--age4-report",
+        default="build/reports/age4_close_report.detjson",
+        help="path to age4 close report",
+    )
+    parser.add_argument(
+        "--require-age4",
+        action="store_true",
+        help="require age4 close report to exist and pass",
     )
     parser.add_argument(
         "--age3-status",
@@ -179,6 +225,7 @@ def main() -> int:
 
     seamgrim_path = Path(args.seamgrim_report)
     age3_path = Path(args.age3_report)
+    age4_path = Path(args.age4_report)
     age3_status_path = Path(args.age3_status) if args.age3_status.strip() else None
     age3_status_line_path = Path(args.age3_status_line) if args.age3_status_line.strip() else None
     age3_badge_path = Path(args.age3_badge) if args.age3_badge.strip() else None
@@ -188,14 +235,22 @@ def main() -> int:
 
     seamgrim = seamgrim_summary(load_json(seamgrim_path), seamgrim_path)
     age3 = age3_summary(load_json(age3_path), age3_path, bool(args.require_age3))
+    age4 = age4_summary(load_json(age4_path), age4_path, bool(args.require_age4))
     oi = oi_summary(load_json(oi_path), oi_path)
-    overall_ok = bool(seamgrim.get("ok", False)) and bool(age3.get("ok", False)) and bool(oi.get("ok", False))
+    overall_ok = (
+        bool(seamgrim.get("ok", False))
+        and bool(age3.get("ok", False))
+        and bool(age4.get("ok", False))
+        and bool(oi.get("ok", False))
+    )
 
     failure_digest: list[str] = []
     for item in seamgrim.get("failure_digest", []):
         failure_digest.append(f"seamgrim: {clip(str(item))}")
     for item in age3.get("failure_digest", []):
         failure_digest.append(f"age3: {clip(str(item))}")
+    for item in age4.get("failure_digest", []):
+        failure_digest.append(f"age4: {clip(str(item))}")
     for item in oi.get("failure_digest", []):
         failure_digest.append(f"oi405_406: {clip(str(item))}")
 
@@ -205,6 +260,7 @@ def main() -> int:
         "overall_ok": overall_ok,
         "seamgrim": seamgrim,
         "age3": age3,
+        "age4": age4,
         "oi405_406": oi,
         "failure_digest": failure_digest[:16],
     }
@@ -238,6 +294,10 @@ def main() -> int:
         print(
             f" - age3: ok={int(bool(age3.get('ok', False)))} "
             f"failed_criteria={len(age3.get('failed_criteria', []))}"
+        )
+        print(
+            f" - age4: ok={int(bool(age4.get('ok', False)))} "
+            f"failed_criteria={len(age4.get('failed_criteria', []))}"
         )
         if age3_status_path is not None:
             print(

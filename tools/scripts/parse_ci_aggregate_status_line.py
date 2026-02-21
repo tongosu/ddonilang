@@ -14,6 +14,7 @@ EXPECTED_KEYS = [
     "overall_ok",
     "seamgrim_failed_steps",
     "age3_failed_criteria",
+    "age4_failed_criteria",
     "oi_failed_packs",
     "report_path",
     "generated_at_utc",
@@ -73,7 +74,7 @@ def parse_status_line(path: Path) -> tuple[dict[str, str] | None, str]:
         return None, f"invalid status: {parsed.get('status')}"
     if parsed.get("overall_ok") not in {"0", "1"}:
         return None, f"invalid overall_ok: {parsed.get('overall_ok')}"
-    for key in ("seamgrim_failed_steps", "age3_failed_criteria", "oi_failed_packs"):
+    for key in ("seamgrim_failed_steps", "age3_failed_criteria", "age4_failed_criteria", "oi_failed_packs"):
         try:
             int(parsed.get(key, "0"))
         except ValueError:
@@ -87,6 +88,7 @@ def compact_line(parsed: dict[str, str]) -> str:
         f"overall_ok={parsed.get('overall_ok', '0')} "
         f"seamgrim_failed={parsed.get('seamgrim_failed_steps', '-1')} "
         f"age3_failed={parsed.get('age3_failed_criteria', '-1')} "
+        f"age4_failed={parsed.get('age4_failed_criteria', '-1')} "
         f"oi_failed={parsed.get('oi_failed_packs', '-1')} "
         f"reason={parsed.get('reason', '-')}"
     )

@@ -40,6 +40,7 @@ def build_line(report_path: Path, payload: dict | None) -> tuple[str, bool]:
             "overall_ok=0",
             "seamgrim_failed_steps=-1",
             "age3_failed_criteria=-1",
+            "age4_failed_criteria=-1",
             "oi_failed_packs=-1",
             f"report_path={q(report_path)}",
             f"generated_at_utc={q('-')}",
@@ -50,9 +51,11 @@ def build_line(report_path: Path, payload: dict | None) -> tuple[str, bool]:
     overall_ok = bool(payload.get("overall_ok", False))
     seamgrim = payload.get("seamgrim") if isinstance(payload.get("seamgrim"), dict) else None
     age3 = payload.get("age3") if isinstance(payload.get("age3"), dict) else None
+    age4 = payload.get("age4") if isinstance(payload.get("age4"), dict) else None
     oi = payload.get("oi405_406") if isinstance(payload.get("oi405_406"), dict) else None
     seamgrim_failed = failed_count(seamgrim, "failed_steps")
     age3_failed = failed_count(age3, "failed_criteria")
+    age4_failed = failed_count(age4, "failed_criteria")
     oi_failed = failed_count(oi, "failed_packs")
     reason = "-"
     if not overall_ok:
@@ -65,6 +68,7 @@ def build_line(report_path: Path, payload: dict | None) -> tuple[str, bool]:
         f"overall_ok={int(overall_ok)}",
         f"seamgrim_failed_steps={seamgrim_failed}",
         f"age3_failed_criteria={age3_failed}",
+        f"age4_failed_criteria={age4_failed}",
         f"oi_failed_packs={oi_failed}",
         f"report_path={q(report_path)}",
         f"generated_at_utc={q(str(payload.get('generated_at_utc', '-')))}",
