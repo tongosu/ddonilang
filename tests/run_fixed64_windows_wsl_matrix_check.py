@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import argparse
+import json
+import platform
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
+SCHEMA = "ddn.fixed64.windows_wsl_matrix_check.v1"
 
 
 def run_step(cmd: list[str], *, cwd: Path) -> tuple[int, str, str]:
@@ -48,6 +52,11 @@ def print_failed(name: str, stdout: str, stderr: str) -> None:
         print(stderr, end="" if stderr.endswith("\n") else "\n", file=sys.stderr)
 
 
+def write_report(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Windows+WSL(Linux)에서 fixed64 probe를 실행하고 matrix 일치를 검증한다."
@@ -65,12 +74,48 @@ def main() -> int:
         action="store_true",
         help="WSL 미탐지 시 실패 처리",
     )
+    parser.add_argument(
+        "--report-out",
+        default="",
+        help="detjson 출력 경로(기본: build/reports/fixed64_windows_wsl_matrix_check.detjson)",
+    )
     args = parser.parse_args()
 
     report_dir = ROOT / "build" / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_windows = report_dir / "fixed64_cross_platform_probe_windows.detjson"
     report_linux = report_dir / "fixed64_cross_platform_probe_linux.detjson"
+    report_out = (
+        Path(args.report_out).resolve()
+        if args.report_out.strip()
+        else report_dir / "fixed64_windows_wsl_matrix_check.detjson"
+    )
+    summary: dict[str, object] = {
+        "schema": SCHEMA,
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "ok": False,
+        "status": "fail",
+        "reason": "-",
+        "host_system": platform.system(),
+        "steps": [],
+        "reports": {
+            "windows": str(report_windows),
+            "linux": str(report_linux),
+        },
+        "wsl": {
+            "detected": False,
+            "distro": "",
+        },
+        "darwin_report": "",
+    }
+
+    if platform.system().lower() != "windows":
+        summary["ok"] = True
+        summary["status"] = "skip_non_windows"
+        summary["reason"] = "host is not windows"
+        write_report(report_out, summary)
+        print(f"[fixed64-win-wsl] skip non-windows host report={report_out}")
+        return 0
 
     rc, stdout, stderr = run_step(
         [
@@ -81,16 +126,26 @@ def main() -> int:
         ],
         cwd=ROOT,
     )
+    summary["steps"].append({"name": "windows_probe", "rc": rc})
     if rc != 0:
+        summary["reason"] = "windows probe failed"
+        write_report(report_out, summary)
         print_failed("windows probe", stdout, stderr)
         return rc
 
     distro = args.wsl_distro.strip() or detect_wsl_distro()
+    summary["wsl"] = {"detected": bool(distro), "distro": distro}
     if not distro:
         message = "[fixed64-win-wsl] WSL distro not found"
         if args.require_wsl:
+            summary["reason"] = "wsl distro not found"
+            write_report(report_out, summary)
             print(message, file=sys.stderr)
             return 1
+        summary["ok"] = True
+        summary["status"] = "pass_windows_only"
+        summary["reason"] = "wsl distro not found"
+        write_report(report_out, summary)
         print(message)
         print(
             "[fixed64-win-wsl] skipped linux probe; windows report only: "
@@ -108,7 +163,10 @@ def main() -> int:
         ["wsl", "-d", distro, "--", "bash", "-lc", linux_cmd],
         cwd=ROOT,
     )
+    summary["steps"].append({"name": "linux_probe", "rc": rc})
     if rc != 0:
+        summary["reason"] = "linux probe failed"
+        write_report(report_out, summary)
         print_failed("linux probe", stdout, stderr)
         return rc
 
@@ -125,11 +183,15 @@ def main() -> int:
         ],
         cwd=ROOT,
     )
+    summary["steps"].append({"name": "matrix_check_windows_linux", "rc": rc})
     if rc != 0:
+        summary["reason"] = "matrix check windows/linux failed"
+        write_report(report_out, summary)
         print_failed("matrix check", stdout, stderr)
         return rc
 
     darwin_report = args.darwin_report.strip()
+    summary["darwin_report"] = str(Path(darwin_report).resolve()) if darwin_report else ""
     if darwin_report:
         rc, stdout, stderr = run_step(
             [
@@ -146,9 +208,16 @@ def main() -> int:
             ],
             cwd=ROOT,
         )
+        summary["steps"].append({"name": "matrix_check_windows_linux_darwin", "rc": rc})
         if rc != 0:
+            summary["reason"] = "matrix check with darwin failed"
+            write_report(report_out, summary)
             print_failed("matrix check (with darwin)", stdout, stderr)
             return rc
+        summary["ok"] = True
+        summary["status"] = "pass_3way"
+        summary["reason"] = "-"
+        write_report(report_out, summary)
         print(
             "[fixed64-win-wsl] ok-3way "
             f"distro={distro} darwin={Path(darwin_report).resolve()}"
@@ -162,6 +231,10 @@ def main() -> int:
         "--report-out build/reports/fixed64_cross_platform_probe_darwin.detjson"
     )
 
+    summary["ok"] = True
+    summary["status"] = "pass_pending_darwin"
+    summary["reason"] = "darwin report is not provided"
+    write_report(report_out, summary)
     print(
         "[fixed64-win-wsl] ok "
         f"distro={distro} windows={report_windows} linux={report_linux}"
