@@ -18,6 +18,7 @@ PASS_REQUIRED_KEYS = (
     "ci_fail_triage_hint",
     "ci_fail_triage_exists",
     "age3_status",
+    "age4_status",
 )
 
 
@@ -101,6 +102,7 @@ def main() -> int:
             "ci_gate_badge": str(reports.get("ci_gate_badge_json", "")).strip(),
             "ci_fail_triage_hint": str(reports.get("ci_fail_triage_json", "")).strip(),
             "age3_status": str(reports.get("age3_close_status_json", "")).strip(),
+            "age4_status": str(reports.get("age4_close", "")).strip(),
         }
         for key, expected in compare_map.items():
             if not expected:

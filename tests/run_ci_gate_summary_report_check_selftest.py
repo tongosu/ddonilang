@@ -50,7 +50,8 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
     brief = case_dir / "ci_fail_brief.txt"
     triage = case_dir / "ci_fail_triage.detjson"
     age3_status = case_dir / "age3_close_status.detjson"
-    for path in (summary_line, result, badge, brief, triage, age3_status):
+    age4_status = case_dir / "age4_close_report.detjson"
+    for path in (summary_line, result, badge, brief, triage, age3_status, age4_status):
         write_text(path, "{}")
     write_json(
         index_path,
@@ -62,6 +63,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
                 "ci_gate_badge_json": str(badge),
                 "ci_fail_triage_json": str(triage),
                 "age3_close_status_json": str(age3_status),
+                "age4_close": str(age4_status),
             },
         },
     )
@@ -77,6 +79,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
         f"[ci-gate-summary] ci_fail_triage_hint={triage}",
         "[ci-gate-summary] ci_fail_triage_exists=1",
         f"[ci-gate-summary] age3_status={age3_status}",
+        f"[ci-gate-summary] age4_status={age4_status}",
     ]
     write_text(summary_path, "\n".join(lines))
     return summary_path, index_path

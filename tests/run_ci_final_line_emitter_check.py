@@ -71,6 +71,7 @@ def build_case(
                     f"[ci-gate-summary] ci_fail_brief_hint={report_dir / f'{prefix}.ci_fail_brief.txt'}",
                     "[ci-gate-summary] ci_fail_brief_exists=0",
                     f"[ci-gate-summary] age3_status={report_dir / f'{prefix}.age3_close_status.detjson'}",
+                    f"[ci-gate-summary] age4_status={report_dir / f'{prefix}.age4_close_report.detjson'}",
                 ]
             ),
         )
@@ -120,6 +121,7 @@ def build_case(
                 "summary_line": str(summary_path),
                 "ci_gate_result_json": str(result_path),
                 "aggregate": str(aggregate_path),
+                "age4_close": str(report_dir / f"{prefix}.age4_close_report.detjson"),
             },
             "steps": [
                 {
