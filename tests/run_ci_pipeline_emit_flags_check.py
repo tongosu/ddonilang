@@ -49,6 +49,10 @@ def main() -> int:
         "--step-log-dir build/reports",
         "--step-log-failed-only",
     ]
+    fixed64_threeway_tokens = [
+        "DDN_REQUIRE_FIXED64_3WAY",
+        "--require-fixed64-3way",
+    ]
     emit_tokens = [
         "tools/scripts/emit_ci_final_line.py",
         "--print-artifacts",
@@ -77,6 +81,7 @@ def main() -> int:
     ]
 
     require_tokens(gitlab_text, "gitlab.aggregate", aggregate_tokens, errors)
+    require_tokens(gitlab_text, "gitlab.fixed64_threeway", fixed64_threeway_tokens, errors)
     require_tokens(gitlab_text, "gitlab.sanity", sanity_tokens, errors)
     require_tokens(gitlab_text, "gitlab.emit", emit_tokens, errors)
     require_tokens(gitlab_text, "gitlab.emit.require", emit_require_tokens, errors)
@@ -94,6 +99,7 @@ def main() -> int:
     )
 
     require_tokens(azure_text, "azure.aggregate", aggregate_tokens, errors)
+    require_tokens(azure_text, "azure.fixed64_threeway", fixed64_threeway_tokens, errors)
     require_tokens(azure_text, "azure.sanity", sanity_tokens, errors)
     require_tokens(azure_text, "azure.emit", emit_tokens, errors)
     require_tokens(azure_text, "azure.emit.require", emit_require_tokens, errors)

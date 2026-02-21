@@ -34,9 +34,13 @@ steps:
     displayName: core tests
   - script: |
       rc=0
-      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+      fixed64_threeway_flag=""
+      if [ "${DDN_REQUIRE_FIXED64_3WAY:-0}" = "1" ]; then
+        fixed64_threeway_flag="--require-fixed64-3way"
+      fi
+      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only $fixed64_threeway_flag || rc=$?
       if [ "$rc" -ne 0 ]; then
-        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only $fixed64_threeway_flag || rc=$?
       fi
       python3 tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || python tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || true
       python3 tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || python tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || rc=$?
