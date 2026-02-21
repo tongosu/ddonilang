@@ -1237,6 +1237,13 @@ def main() -> int:
         ]
         return run_and_record("ci_gate_summary_report_selftest", cmd)
 
+    def check_ci_aggregate_gate_age4_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_aggregate_gate_age4_diagnostics_check.py",
+        ]
+        return run_and_record("ci_aggregate_gate_age4_diagnostics_check", cmd)
+
     def check_ci_aggregate_status_line_selftest() -> int:
         cmd = [
             py,
@@ -1362,6 +1369,7 @@ def main() -> int:
         check_ci_final_line_emitter()
         check_ci_pipeline_emit_flags()
         check_ci_backup_hygiene_selftest()
+        check_ci_aggregate_gate_age4_diagnostics()
         check_ci_aggregate_status_line_selftest()
         check_ci_gate_summary_report_selftest()
         check_ci_combine_reports_age4_selftest()
@@ -1763,6 +1771,12 @@ def main() -> int:
     ci_emit_artifacts_selftest_rc = check_ci_emit_artifacts_selftest()
     if args.fast_fail and ci_emit_artifacts_selftest_rc != 0:
         return fail_and_exit(ci_emit_artifacts_selftest_rc, "[ci-gate] fast-fail: ci emit artifacts selftest failed")
+    ci_aggregate_gate_age4_diagnostics_rc = check_ci_aggregate_gate_age4_diagnostics()
+    if args.fast_fail and ci_aggregate_gate_age4_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_aggregate_gate_age4_diagnostics_rc,
+            "[ci-gate] fast-fail: ci aggregate gate age4 diagnostics check failed",
+        )
     ci_gate_summary_report_selftest_rc = check_ci_gate_summary_report_selftest()
     if args.fast_fail and ci_gate_summary_report_selftest_rc != 0:
         return fail_and_exit(
@@ -1824,6 +1838,7 @@ def main() -> int:
             and ci_emit_artifacts_generate_rc == 0
             and ci_emit_artifacts_required_rc == 0
             and ci_emit_artifacts_selftest_rc == 0
+            and ci_aggregate_gate_age4_diagnostics_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
             and ci_aggregate_status_line_selftest_rc == 0
             and ci_combine_reports_age4_selftest_rc == 0
@@ -1904,6 +1919,7 @@ def main() -> int:
         or ci_emit_artifacts_generate_rc != 0
         or ci_emit_artifacts_required_rc != 0
         or ci_emit_artifacts_selftest_rc != 0
+        or ci_aggregate_gate_age4_diagnostics_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
