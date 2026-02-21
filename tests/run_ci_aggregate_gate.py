@@ -38,6 +38,19 @@ def sanitize_step_name(value: str) -> str:
     return sanitized or "step"
 
 
+def default_report_dir() -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate)
+            except OSError:
+                continue
+    return "build/reports"
+
+
 def report_path(report_dir: Path, base_name: str, prefix: str) -> Path:
     if not prefix:
         return report_dir / base_name
@@ -370,7 +383,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run seamgrim+OI close gates and enforce aggregate result")
     parser.add_argument(
         "--report-dir",
-        default="build/reports",
+        default=default_report_dir(),
         help="directory for seamgrim/oi/aggregate reports",
     )
     parser.add_argument(

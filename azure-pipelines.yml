@@ -35,9 +35,15 @@ steps:
   - script: |
       rc=0
       if [ "${DDN_ENABLE_DARWIN_PROBE:-0}" = "1" ]; then
-        python3 tests/run_fixed64_darwin_probe_artifact.py --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
-        if [ "$rc" -ne 0 ]; then
-          python tests/run_fixed64_darwin_probe_artifact.py --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+        host="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        if [ "$host" != "darwin" ]; then
+          echo "[ci-fixed64-darwin] DDN_ENABLE_DARWIN_PROBE=1 requires darwin agent; current=$host" >&2
+          rc=2
+        else
+          python3 tests/run_fixed64_darwin_probe_artifact.py --require-darwin --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            python tests/run_fixed64_darwin_probe_artifact.py --require-darwin --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+          fi
         fi
       fi
       exit "$rc"

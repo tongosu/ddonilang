@@ -75,11 +75,24 @@ def write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def default_report_dir() -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate)
+            except OSError:
+                continue
+    return "build/reports"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="fixed64 3-way 입력(darwin probe report) 후보를 찾아 build/reports로 스테이징한다."
+        description="fixed64 3-way 입력(darwin probe report) 후보를 찾아 보고서 디렉터리로 스테이징한다."
     )
-    parser.add_argument("--report-dir", default="build/reports", help="보고서 디렉터리")
+    parser.add_argument("--report-dir", default=default_report_dir(), help="보고서 디렉터리")
     parser.add_argument(
         "--darwin-report-env",
         default="DDN_DARWIN_PROBE_REPORT",

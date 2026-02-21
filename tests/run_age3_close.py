@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -24,6 +25,19 @@ def clip(text: str, limit: int = 140) -> str:
     if len(normalized) <= limit:
         return normalized
     return normalized[:limit] + "..."
+
+
+def default_report_path(file_name: str) -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate / file_name)
+            except OSError:
+                continue
+    return f"build/reports/{file_name}"
 
 
 def run_seamgrim_gate(root: Path, seamgrim_report: Path, ui_report: Path) -> int:
@@ -173,17 +187,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Evaluate AGE3 close criteria from seamgrim reports")
     parser.add_argument(
         "--seamgrim-report",
-        default="build/reports/seamgrim_ci_gate_report.json",
+        default=default_report_path("seamgrim_ci_gate_report.json"),
         help="path to seamgrim.ci_gate.v1 report",
     )
     parser.add_argument(
         "--ui-age3-report",
-        default="build/reports/seamgrim_ui_age3_gate_report.detjson",
+        default=default_report_path("seamgrim_ui_age3_gate_report.detjson"),
         help="path to seamgrim.ui_age3_gate.v1 report",
     )
     parser.add_argument(
         "--report-out",
-        default="build/reports/age3_close_report.detjson",
+        default=default_report_path("age3_close_report.detjson"),
         help="output age3 close report path",
     )
     parser.add_argument(

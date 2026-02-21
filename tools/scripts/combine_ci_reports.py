@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,6 +32,19 @@ def clip(text: str, limit: int = 140) -> str:
     if len(normalized) <= limit:
         return normalized
     return normalized[:limit] + "..."
+
+
+def default_report_path(file_name: str) -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate / file_name)
+            except OSError:
+                continue
+    return f"build/reports/{file_name}"
 
 
 def seamgrim_summary(doc: dict | None, path: Path) -> dict[str, object]:
@@ -166,17 +180,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Combine seamgrim/oi close reports into one detjson report")
     parser.add_argument(
         "--seamgrim-report",
-        default="build/reports/seamgrim_ci_gate_report.json",
+        default=default_report_path("seamgrim_ci_gate_report.json"),
         help="path to seamgrim ci gate report",
     )
     parser.add_argument(
         "--oi-report",
-        default="build/reports/oi405_406_close_report.detjson",
+        default=default_report_path("oi405_406_close_report.detjson"),
         help="path to oi405/406 close report",
     )
     parser.add_argument(
         "--age3-report",
-        default="build/reports/age3_close_report.detjson",
+        default=default_report_path("age3_close_report.detjson"),
         help="path to age3 close report",
     )
     parser.add_argument(
@@ -186,7 +200,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--age4-report",
-        default="build/reports/age4_close_report.detjson",
+        default=default_report_path("age4_close_report.detjson"),
         help="path to age4 close report",
     )
     parser.add_argument(
@@ -196,22 +210,22 @@ def main() -> int:
     )
     parser.add_argument(
         "--age3-status",
-        default="build/reports/age3_close_status.detjson",
+        default=default_report_path("age3_close_status.detjson"),
         help="optional path to age3 close status json (link metadata)",
     )
     parser.add_argument(
         "--age3-status-line",
-        default="build/reports/age3_close_status_line.txt",
+        default=default_report_path("age3_close_status_line.txt"),
         help="optional path to one-line age3 status text (link metadata)",
     )
     parser.add_argument(
         "--age3-badge",
-        default="build/reports/age3_close_badge.detjson",
+        default=default_report_path("age3_close_badge.detjson"),
         help="optional path to age3 close badge json (link metadata)",
     )
     parser.add_argument(
         "--out",
-        default="build/reports/ci_aggregate_report.detjson",
+        default=default_report_path("ci_aggregate_report.detjson"),
         help="output aggregate report path",
     )
     parser.add_argument(

@@ -41,6 +41,19 @@ def clip(text: str, limit: int = 140) -> str:
     return normalized[:limit] + "..."
 
 
+def default_report_path(file_name: str) -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate / file_name)
+            except OSError:
+                continue
+    return f"build/reports/{file_name}"
+
+
 def load_json(path: Path) -> dict | None:
     if not path.exists():
         return None
@@ -308,12 +321,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Evaluate AGE4 close criteria from pack gates + task DoD")
     parser.add_argument(
         "--report-out",
-        default="build/reports/age4_close_report.detjson",
+        default=default_report_path("age4_close_report.detjson"),
         help="output age4 close report path",
     )
     parser.add_argument(
         "--pack-report-out",
-        default="build/reports/age4_close_pack_report.detjson",
+        default=default_report_path("age4_close_pack_report.detjson"),
         help="path for ddn.pack.golden.report.v1 produced by run_pack_golden",
     )
     parser.add_argument(

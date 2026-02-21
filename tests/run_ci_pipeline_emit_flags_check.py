@@ -52,6 +52,7 @@ def main() -> int:
     fixed64_threeway_tokens = [
         "DDN_ENABLE_DARWIN_PROBE",
         "tests/run_fixed64_darwin_probe_artifact.py",
+        "--require-darwin",
         "fixed64_darwin_probe_artifact.detjson",
         "tools/scripts/resolve_fixed64_threeway_inputs.py",
         "--json-out build/reports/fixed64_threeway_inputs.detjson",
@@ -60,6 +61,14 @@ def main() -> int:
         "DDN_REQUIRE_FIXED64_3WAY",
         "--require-fixed64-3way",
         "fixed64_cross_platform_probe_darwin.detjson",
+    ]
+    azure_darwin_guard_tokens = [
+        "[ci-fixed64-darwin] DDN_ENABLE_DARWIN_PROBE=1 requires darwin agent",
+        "uname -s",
+    ]
+    gitlab_darwin_guard_tokens = [
+        "[ci-fixed64-darwin] DDN_ENABLE_DARWIN_PROBE=1 requires darwin agent",
+        "uname -s",
     ]
     emit_tokens = [
         "tools/scripts/emit_ci_final_line.py",
@@ -90,6 +99,7 @@ def main() -> int:
 
     require_tokens(gitlab_text, "gitlab.aggregate", aggregate_tokens, errors)
     require_tokens(gitlab_text, "gitlab.fixed64_threeway", fixed64_threeway_tokens, errors)
+    require_tokens(gitlab_text, "gitlab.darwin_guard", gitlab_darwin_guard_tokens, errors)
     require_tokens(gitlab_text, "gitlab.sanity", sanity_tokens, errors)
     require_tokens(gitlab_text, "gitlab.emit", emit_tokens, errors)
     require_tokens(gitlab_text, "gitlab.emit.require", emit_require_tokens, errors)
@@ -108,6 +118,7 @@ def main() -> int:
 
     require_tokens(azure_text, "azure.aggregate", aggregate_tokens, errors)
     require_tokens(azure_text, "azure.fixed64_threeway", fixed64_threeway_tokens, errors)
+    require_tokens(azure_text, "azure.darwin_guard", azure_darwin_guard_tokens, errors)
     require_tokens(azure_text, "azure.sanity", sanity_tokens, errors)
     require_tokens(azure_text, "azure.emit", emit_tokens, errors)
     require_tokens(azure_text, "azure.emit.require", emit_require_tokens, errors)

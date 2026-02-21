@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -393,6 +394,19 @@ def print_result_meta(index_doc: dict) -> None:
     print(f"[ci-final-meta] badge_status={badge_status} badge_color={color}")
 
 
+def default_report_dir() -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate)
+            except OSError:
+                continue
+    return "build/reports"
+
+
 def parse_summary_report(path: Path) -> tuple[str | None, dict[str, str], list[tuple[str, str]]]:
     try:
         text = path.read_text(encoding="utf-8-sig")
@@ -704,8 +718,8 @@ def line_from_index(index_doc: dict) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Emit single final CI status line from aggregate gate reports")
-    parser.add_argument("--report-dir", default="build/reports", help="report directory")
-    parser.add_argument("--index-pattern", default="*.ci_gate_report_index.detjson", help="index file glob")
+    parser.add_argument("--report-dir", default=default_report_dir(), help="report directory")
+    parser.add_argument("--index-pattern", default="*ci_gate_report_index.detjson", help="index file glob")
     parser.add_argument("--prefix", default="", help="optional expected report prefix")
     parser.add_argument("--print-artifacts", action="store_true", help="print key artifact paths and existence")
     parser.add_argument(

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -31,10 +32,23 @@ def load_json(path: Path) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def default_report_dir() -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate)
+            except OSError:
+                continue
+    return "build/reports"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="macOS에서 fixed64 darwin probe 아티팩트를 생성한다.")
     parser.add_argument("--python", default=sys.executable, help="python executable")
-    parser.add_argument("--report-dir", default="build/reports", help="report root directory")
+    parser.add_argument("--report-dir", default=default_report_dir(), help="report root directory")
     parser.add_argument(
         "--out-dir",
         default="",

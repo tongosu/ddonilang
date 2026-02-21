@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -196,10 +197,23 @@ def validate_triage_artifact_row(name: str, row: dict) -> str | None:
     return None
 
 
+def default_report_dir() -> str:
+    preferred = Path("I:/home/urihanl/ddn/codex/build/reports")
+    fallback = Path("C:/ddn/codex/build/reports")
+    if os.name == "nt":
+        for candidate in (preferred, fallback):
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate)
+            except OSError:
+                continue
+    return "build/reports"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate emitter outputs (brief/triage) against report index")
-    parser.add_argument("--report-dir", default="build/reports", help="report directory")
-    parser.add_argument("--index-pattern", default="*.ci_gate_report_index.detjson", help="index file glob")
+    parser.add_argument("--report-dir", default=default_report_dir(), help="report directory")
+    parser.add_argument("--index-pattern", default="*ci_gate_report_index.detjson", help="index file glob")
     parser.add_argument("--prefix", default="", help="optional report prefix")
     parser.add_argument("--require-brief", action="store_true", help="require ci_fail_brief_txt artifact")
     parser.add_argument("--require-triage", action="store_true", help="require ci_fail_triage_json artifact")
