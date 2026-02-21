@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -16,6 +17,11 @@ REPORT_SCHEMA = "ddn.fixed64.cross_platform_probe.v1"
 
 
 def resolve_build_root() -> Path:
+    system = platform.system().lower()
+    if system not in {"windows", "win32"}:
+        local = ROOT / "build"
+        local.mkdir(parents=True, exist_ok=True)
+        return local
     preferred = Path("I:/home/urihanl/ddn/codex/build")
     fallback = Path("C:/ddn/codex/build")
     local = ROOT / "build"
@@ -59,6 +65,11 @@ def load_json(path: Path) -> dict | None:
     return payload if isinstance(payload, dict) else None
 
 
+def resolve_linux_target_dir() -> Path:
+    home = Path.home()
+    return (home / ".cache" / "ddn-cargo-target" / "fixed64-probe").resolve()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Fixed64 raw_i64 결정성 벡터를 실행/기록하고 OS 간 결과를 비교한다."
@@ -85,10 +96,18 @@ def main() -> int:
     report_out.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [args.cargo, "run", "-q", "-p", "ddonirang-core", "--example", "fixed64_determinism_vector"]
+    env = os.environ.copy()
+    if platform.system().lower() == "linux":
+        raw_target = env.get("CARGO_TARGET_DIR", "").strip()
+        if not raw_target or ":" in raw_target:
+            target_dir = resolve_linux_target_dir()
+            target_dir.mkdir(parents=True, exist_ok=True)
+            env["CARGO_TARGET_DIR"] = str(target_dir)
     try:
         proc = subprocess.run(
             cmd,
             cwd=ROOT,
+            env=env,
             capture_output=True,
             text=True,
             encoding="utf-8",

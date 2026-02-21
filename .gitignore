@@ -8,6 +8,7 @@ docs/
 /3.ddn
 /ddn.cmd
 target/
+target-wsl/
 **/__pycache__/
 *.pyc
 *.pyo
