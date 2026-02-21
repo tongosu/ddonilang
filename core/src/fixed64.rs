@@ -130,6 +130,33 @@ impl Fixed64 {
     pub fn from_f64_lossy(value: f64) -> Self { // FIXED64_LINT_ALLOW
         Self::from_raw_i64((value * Self::SCALE_F64) as i64)
     }
+
+    // SSOT/Gate0 raw_i64 결정성 벡터 기준값(v1)
+    pub const DETERMINISM_VECTOR_V1_EXPECTED: [i64; 7] = [
+        0x0000_0001_8000_0000,
+        0x0000_0000_8000_0000,
+        -0x0000_0000_8000_0000i64,
+        0x0000_0000_8000_0000,
+        0x0000_0002_0000_0000,
+        0x0000_0000_8000_0000,
+        0x0000_0000_0000_0000,
+    ];
+
+    // 크로스 플랫폼 비교용 raw_i64 결정성 벡터 생성(v1)
+    pub fn determinism_vector_v1() -> [i64; 7] {
+        let a = Fixed64::from_raw_i64(0x0000_0001_0000_0000); // 1.0
+        let b = Fixed64::from_raw_i64(0x0000_0000_8000_0000); // 0.5
+        let c = Fixed64::NEG_ONE; // -1.0
+        [
+            (a + b).raw_i64(),
+            (a - b).raw_i64(),
+            (b - a).raw_i64(),
+            (a * b).raw_i64(),
+            a.try_div(b).expect("determinism_vector_v1 a/b").raw_i64(),
+            b.try_div(a).expect("determinism_vector_v1 b/a").raw_i64(),
+            (c + a).raw_i64(),
+        ]
+    }
 }
 
 #[inline]
@@ -284,28 +311,8 @@ mod tests {
 
     #[test]
     fn determinism_vector_matches() {
-        let a = Fixed64::from_raw_i64(0x0000_0001_0000_0000); // 1.0
-        let b = Fixed64::from_raw_i64(0x0000_0000_8000_0000); // 0.5
-        let c = Fixed64::NEG_ONE; // -1.0
-
-        let results = [
-            (a + b).raw_i64(),
-            (a - b).raw_i64(),
-            (b - a).raw_i64(),
-            (a * b).raw_i64(),
-            a.try_div(b).unwrap().raw_i64(),
-            b.try_div(a).unwrap().raw_i64(),
-            (c + a).raw_i64(),
-        ];
-        let expected = [
-            0x0000_0001_8000_0000,
-            0x0000_0000_8000_0000,
-            -0x0000_0000_8000_0000i64,
-            0x0000_0000_8000_0000,
-            0x0000_0002_0000_0000,
-            0x0000_0000_8000_0000,
-            0x0000_0000_0000_0000,
-        ];
+        let results = Fixed64::determinism_vector_v1();
+        let expected = Fixed64::DETERMINISM_VECTOR_V1_EXPECTED;
         assert_eq!(results, expected);
     }
 
