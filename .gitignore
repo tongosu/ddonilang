@@ -1,3 +1,9 @@
 build/
 out/
 docs/
+*.before_age3_promote.bak.ddn
+/AGENTS.md
+/README_*.md
+/PR_CHECKLIST_v*.md
+/3.ddn
+/ddn.cmd
