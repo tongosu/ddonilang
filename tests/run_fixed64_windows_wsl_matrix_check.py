@@ -70,6 +70,11 @@ def main() -> int:
         help="macOS에서 생성한 probe report 경로(옵션). 지정 시 windows+linux+darwin 3-way 검증 수행",
     )
     parser.add_argument(
+        "--require-darwin",
+        action="store_true",
+        help="darwin report가 없으면 실패 처리",
+    )
+    parser.add_argument(
         "--require-wsl",
         action="store_true",
         help="WSL 미탐지 시 실패 처리",
@@ -101,6 +106,7 @@ def main() -> int:
         "reports": {
             "windows": str(report_windows),
             "linux": str(report_linux),
+            "darwin": "",
         },
         "wsl": {
             "detected": False,
@@ -190,9 +196,30 @@ def main() -> int:
         print_failed("matrix check", stdout, stderr)
         return rc
 
-    darwin_report = args.darwin_report.strip()
-    summary["darwin_report"] = str(Path(darwin_report).resolve()) if darwin_report else ""
-    if darwin_report:
+    darwin_report_input = args.darwin_report.strip()
+    darwin_path: Path | None = None
+    if darwin_report_input:
+        darwin_path = Path(darwin_report_input).resolve()
+    else:
+        auto_darwin = report_dir / "fixed64_cross_platform_probe_darwin.detjson"
+        if auto_darwin.exists():
+            darwin_path = auto_darwin.resolve()
+    summary["reports"]["darwin"] = str(darwin_path) if darwin_path is not None else ""
+    summary["darwin_report"] = str(darwin_path) if darwin_path is not None else ""
+
+    if args.require_darwin and darwin_path is None:
+        summary["reason"] = "darwin report is required but missing"
+        write_report(report_out, summary)
+        print("[fixed64-win-wsl] darwin report required but missing", file=sys.stderr)
+        return 1
+
+    if darwin_path is not None and not darwin_path.exists():
+        summary["reason"] = "darwin report path does not exist"
+        write_report(report_out, summary)
+        print(f"[fixed64-win-wsl] darwin report missing: {darwin_path}", file=sys.stderr)
+        return 1
+
+    if darwin_path is not None:
         rc, stdout, stderr = run_step(
             [
                 args.python,
@@ -202,7 +229,7 @@ def main() -> int:
                 "--report",
                 str(report_linux),
                 "--report",
-                str(Path(darwin_report).resolve()),
+                str(darwin_path),
                 "--require-systems",
                 "windows,linux,darwin",
             ],
@@ -220,7 +247,7 @@ def main() -> int:
         write_report(report_out, summary)
         print(
             "[fixed64-win-wsl] ok-3way "
-            f"distro={distro} darwin={Path(darwin_report).resolve()}"
+            f"distro={distro} darwin={darwin_path}"
         )
         return 0
 

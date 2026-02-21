@@ -69,6 +69,37 @@ def main() -> int:
         print("[fixed64-win-wsl-selftest] unexpected skip on windows", file=sys.stderr)
         return 1
 
+    if host == "windows":
+        missing_report = ROOT / "build" / "reports" / "fixed64_cross_platform_probe_darwin_missing_for_selftest.detjson"
+        missing_check_report = ROOT / "build" / "reports" / "fixed64_windows_wsl_matrix_selftest_missing_darwin.detjson"
+        negative_cmd = [
+            py,
+            "tests/run_fixed64_windows_wsl_matrix_check.py",
+            "--report-out",
+            str(missing_check_report),
+            "--require-darwin",
+            "--darwin-report",
+            str(missing_report),
+        ]
+        negative = subprocess.run(
+            negative_cmd,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if negative.returncode == 0:
+            print("[fixed64-win-wsl-selftest] expected failure for missing darwin report", file=sys.stderr)
+            return 1
+        negative_payload = load_json(missing_check_report)
+        if not isinstance(negative_payload, dict):
+            print("[fixed64-win-wsl-selftest] missing negative report payload", file=sys.stderr)
+            return 1
+        if bool(negative_payload.get("ok", True)):
+            print("[fixed64-win-wsl-selftest] negative report ok should be false", file=sys.stderr)
+            return 1
+
     print(f"[fixed64-win-wsl-selftest] ok status={status} report={report}")
     return 0
 
