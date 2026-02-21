@@ -38,6 +38,48 @@ import { createWasmVm } from "./runtime/index.js";
 
 const $ = (id) => document.getElementById(id);
 
+function readSpacePrimitiveSourceFromQuery() {
+  try {
+    const raw = new URLSearchParams(window.location.search).get("space2d_source");
+    if (raw == null) return null;
+    const value = String(raw).trim().toLowerCase();
+    if (["auto", "drawlist", "shapes", "both", "none"].includes(value)) return value;
+  } catch (_) {
+    // ignore query parse failures and fallback
+  }
+  return null;
+}
+
+function normalizeSpacePrimitiveSource(raw) {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (["auto", "drawlist", "shapes", "both", "none"].includes(value)) return value;
+  return "auto";
+}
+
+const SPACE2D_SOURCE_STORAGE_KEY = "seamgrim.wasm_smoke.space2d_source.v1";
+
+function loadSpacePrimitiveSource() {
+  const queryMode = readSpacePrimitiveSourceFromQuery();
+  if (queryMode) return queryMode;
+  try {
+    const raw = localStorage.getItem(SPACE2D_SOURCE_STORAGE_KEY);
+    if (!raw) return "auto";
+    return normalizeSpacePrimitiveSource(raw);
+  } catch (_) {
+    return "auto";
+  }
+}
+
+function saveSpacePrimitiveSource(value) {
+  try {
+    localStorage.setItem(SPACE2D_SOURCE_STORAGE_KEY, normalizeSpacePrimitiveSource(value));
+  } catch (_) {
+    // ignore storage errors
+  }
+}
+
+let spacePrimitiveSource = loadSpacePrimitiveSource();
+
 let loopActive = false;
 let latestGraph = null;
 let latestSpace2d = null;
@@ -62,6 +104,7 @@ const graphCanvas = $("graph-canvas");
 const gridToggle = $("graph-show-grid");
 const axisToggle = $("graph-show-axis");
 const space2dAutoFitToggle = $("space2d-auto-fit");
+const space2dSourceModeSelect = $("space2d-source-mode");
 const space2dResetViewBtn = $("space2d-reset-view");
 const lensEnableToggle = $("lens-enable");
 const lensXSelect = $("lens-x-key");
@@ -114,6 +157,19 @@ function setSpace2dAutoFit(enabled) {
   if (space2dAutoFitToggle) {
     space2dAutoFitToggle.checked = space2dView.autoFit;
   }
+}
+
+function syncSpace2dSourceModeControl() {
+  if (!space2dSourceModeSelect) return;
+  space2dSourceModeSelect.value = normalizeSpacePrimitiveSource(spacePrimitiveSource);
+}
+
+function setSpacePrimitiveSource(nextValue, { save = true, render = true } = {}) {
+  const normalized = normalizeSpacePrimitiveSource(nextValue);
+  spacePrimitiveSource = normalized;
+  syncSpace2dSourceModeControl();
+  if (save) saveSpacePrimitiveSource(normalized);
+  if (render) renderGraphOrSpace2d(latestGraph, latestSpace2d, latestLensGraph);
 }
 
 function resetSpace2dView({ forceAutoFit = false } = {}) {
@@ -427,6 +483,7 @@ function renderGraphOrSpace2d(graph, space2d, lensGraph = null) {
     graph,
     space2d,
     lensGraph,
+    spacePrimitiveSource,
     viewState: space2dView,
     showGraphGrid: gridToggle?.checked ?? true,
     showGraphAxis: axisToggle?.checked ?? true,
@@ -520,6 +577,7 @@ if (window.location.protocol === "file:") {
 }
 
 setSpace2dAutoFit(true);
+syncSpace2dSourceModeControl();
 if (graphCanvas) graphCanvas.style.touchAction = "none";
 bindSpace2dInteractions();
 loadLensPresets();
@@ -577,6 +635,11 @@ if (space2dAutoFitToggle) {
   space2dAutoFitToggle.addEventListener("change", () => {
     setSpace2dAutoFit(space2dAutoFitToggle.checked);
     renderGraphOrSpace2d(latestGraph, latestSpace2d, latestLensGraph);
+  });
+}
+if (space2dSourceModeSelect) {
+  space2dSourceModeSelect.addEventListener("change", () => {
+    setSpacePrimitiveSource(space2dSourceModeSelect.value, { save: true, render: true });
   });
 }
 if (space2dResetViewBtn) {

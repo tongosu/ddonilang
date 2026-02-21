@@ -948,10 +948,158 @@ export function renderGraphCanvas2d({
   return true;
 }
 
+function normalizeSpace2dPrimitiveSource(source) {
+  const raw = String(source ?? "auto").trim().toLowerCase();
+  if (raw === "drawlist") return "drawlist";
+  if (raw === "shapes") return "shapes";
+  if (raw === "both") return "both";
+  if (raw === "none") return "none";
+  return "auto";
+}
+
+function normalizeSpace2dKind(kind) {
+  const raw = String(kind ?? "").trim().toLowerCase();
+  if (raw === "poly") return "polygon";
+  return raw;
+}
+
+function normalizeSpace2dPointList(points) {
+  if (!Array.isArray(points)) return [];
+  const out = [];
+  points.forEach((item) => {
+    if (Array.isArray(item) && item.length >= 2) {
+      const x = Number(item[0]);
+      const y = Number(item[1]);
+      if (Number.isFinite(x) && Number.isFinite(y)) out.push({ x, y });
+      return;
+    }
+    if (!item || typeof item !== "object") return;
+    const x = Number(item.x ?? item[0]);
+    const y = Number(item.y ?? item[1]);
+    if (Number.isFinite(x) && Number.isFinite(y)) out.push({ x, y });
+  });
+  return out;
+}
+
+function resolveSpace2dPoint(item) {
+  if (!item || typeof item !== "object") return null;
+  const x = Number(item.x ?? item.cx ?? item[0]);
+  const y = Number(item.y ?? item.cy ?? item[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function resolveSpace2dLine(item) {
+  if (!item || typeof item !== "object") return null;
+  const x1 = Number(item.x1);
+  const y1 = Number(item.y1);
+  const x2 = Number(item.x2);
+  const y2 = Number(item.y2);
+  if (![x1, y1, x2, y2].every(Number.isFinite)) return null;
+  return { x1, y1, x2, y2 };
+}
+
+function resolveSpace2dRect(item) {
+  if (!item || typeof item !== "object") return null;
+  const x = Number(item.x ?? item.x0);
+  const y = Number(item.y ?? item.y0);
+  const w = Number(item.w ?? item.width);
+  const h = Number(item.h ?? item.height);
+  if ([x, y, w, h].every(Number.isFinite)) {
+    return {
+      x1: x,
+      y1: y,
+      x2: x + w,
+      y2: y + h,
+    };
+  }
+  const x1 = Number(item.x1);
+  const y1 = Number(item.y1);
+  const x2 = Number(item.x2);
+  const y2 = Number(item.y2);
+  if ([x1, y1, x2, y2].every(Number.isFinite)) {
+    return { x1, y1, x2, y2 };
+  }
+  return null;
+}
+
+function resolveSpace2dCircle(item) {
+  if (!item || typeof item !== "object") return null;
+  const x = Number(item.x ?? item.cx);
+  const y = Number(item.y ?? item.cy);
+  const r = Number(item.r);
+  if (![x, y, r].every(Number.isFinite)) return null;
+  return { x, y, r };
+}
+
+function resolveSpace2dCurvePoints(item) {
+  if (!item || typeof item !== "object") return [];
+  return normalizeSpace2dPointList(item.points ?? item.coords ?? item.vertices ?? item.samples);
+}
+
+function resolveSpace2dFillPolygon(item) {
+  if (!item || typeof item !== "object") return [];
+  return normalizeSpace2dPointList(item.points ?? item.coords ?? item.vertices);
+}
+
+function collectSpace2dRangePoints(item) {
+  if (!item || typeof item !== "object") return [];
+  const kind = normalizeSpace2dKind(item.kind);
+  if (kind === "line" || kind === "arrow") {
+    const line = resolveSpace2dLine(item);
+    if (!line) return [];
+    return [
+      { x: line.x1, y: line.y1 },
+      { x: line.x2, y: line.y2 },
+    ];
+  }
+  if (kind === "circle") {
+    const circle = resolveSpace2dCircle(item);
+    if (!circle) return [];
+    return [
+      { x: circle.x - circle.r, y: circle.y - circle.r },
+      { x: circle.x + circle.r, y: circle.y + circle.r },
+    ];
+  }
+  if (kind === "rect") {
+    const rect = resolveSpace2dRect(item);
+    if (!rect) return [];
+    return [
+      { x: rect.x1, y: rect.y1 },
+      { x: rect.x2, y: rect.y2 },
+    ];
+  }
+  if (kind === "point" || kind === "text") {
+    const point = resolveSpace2dPoint(item);
+    return point ? [point] : [];
+  }
+  if (kind === "curve" || kind === "polyline" || kind === "polygon") {
+    return resolveSpace2dCurvePoints(item);
+  }
+  if (kind === "fill") {
+    return resolveSpace2dFillPolygon(item);
+  }
+  return [];
+}
+
+function selectSpace2dPrimitiveItems({
+  drawlist,
+  shapes,
+  hasShapesField,
+  sourceMode,
+}) {
+  if (sourceMode === "drawlist") return drawlist;
+  if (sourceMode === "shapes") return shapes;
+  if (sourceMode === "both") return [...shapes, ...drawlist];
+  if (sourceMode === "none") return [];
+  return hasShapesField ? shapes : drawlist;
+}
+
 export function renderSpace2dCanvas2d({
   canvas,
   space2d,
   viewState = null,
+  primitiveSource = "auto",
   showGrid = false,
   showAxis = false,
   pad = 28,
@@ -967,40 +1115,18 @@ export function renderSpace2dCanvas2d({
   }
   const points = normalizeRenderPoints(space2d?.points ?? []);
   const drawlist = Array.isArray(space2d?.drawlist) ? space2d.drawlist : [];
-  const shapes = Array.isArray(space2d?.shapes) ? space2d.shapes : drawlist;
+  const hasShapesField = Array.isArray(space2d?.shapes);
+  const shapes = hasShapesField ? space2d.shapes : [];
+  const sourceMode = normalizeSpace2dPrimitiveSource(primitiveSource);
+  const items = selectSpace2dPrimitiveItems({
+    drawlist,
+    shapes,
+    hasShapesField,
+    sourceMode,
+  });
   const rangePoints = [...points];
-  shapes.forEach((shape) => {
-    if (!shape) return;
-    if (shape.kind === "line") {
-      rangePoints.push({ x: Number(shape.x1), y: Number(shape.y1) });
-      rangePoints.push({ x: Number(shape.x2), y: Number(shape.y2) });
-    } else if (shape.kind === "arrow") {
-      rangePoints.push({ x: Number(shape.x1), y: Number(shape.y1) });
-      rangePoints.push({ x: Number(shape.x2), y: Number(shape.y2) });
-    } else if (shape.kind === "circle") {
-      const cx = Number(shape.x ?? shape.cx);
-      const cy = Number(shape.y ?? shape.cy);
-      const r = Number(shape.r);
-      if ([cx, cy, r].every(Number.isFinite)) {
-        rangePoints.push({ x: cx - r, y: cy - r });
-        rangePoints.push({ x: cx + r, y: cy + r });
-      }
-    } else if (shape.kind === "rect") {
-      const x = Number(shape.x ?? shape.x0);
-      const y = Number(shape.y ?? shape.y0);
-      const rw = Number(shape.w ?? shape.width);
-      const rh = Number(shape.h ?? shape.height);
-      if ([x, y, rw, rh].every(Number.isFinite)) {
-        rangePoints.push({ x, y });
-        rangePoints.push({ x: x + rw, y: y + rh });
-      }
-    } else if (shape.kind === "text" || shape.kind === "point") {
-      const x = Number(shape.x);
-      const y = Number(shape.y);
-      if ([x, y].every(Number.isFinite)) {
-        rangePoints.push({ x, y });
-      }
-    }
+  items.forEach((item) => {
+    rangePoints.push(...collectSpace2dRangePoints(item));
   });
   if (!rangePoints.length) {
     drawCanvasPlaceholder({ ctx, text: noPointsText });
@@ -1018,6 +1144,22 @@ export function renderSpace2dCanvas2d({
     yMin = Math.min(...rangePoints.map((p) => p.y));
     yMax = Math.max(...rangePoints.map((p) => p.y));
   }
+  const autoFit = Boolean(viewState?.autoFit ?? true);
+  const customRange = viewState?.range ?? null;
+  const customXMin = Number(customRange?.xMin ?? customRange?.x_min);
+  const customXMax = Number(customRange?.xMax ?? customRange?.x_max);
+  const customYMin = Number(customRange?.yMin ?? customRange?.y_min);
+  const customYMax = Number(customRange?.yMax ?? customRange?.y_max);
+  const hasCustomRange =
+    [customXMin, customXMax, customYMin, customYMax].every(Number.isFinite) &&
+    customXMax > customXMin &&
+    customYMax > customYMin;
+  if (!autoFit && hasCustomRange) {
+    xMin = customXMin;
+    xMax = customXMax;
+    yMin = customYMin;
+    yMax = customYMax;
+  }
   if (xMax === xMin) xMax = xMin + 1;
   if (yMax === yMin) yMax = yMin + 1;
 
@@ -1025,7 +1167,6 @@ export function renderSpace2dCanvas2d({
   const scaleY = (h - pad * 2) / (yMax - yMin);
   const centerX = (xMin + xMax) / 2;
   const centerY = (yMin + yMax) / 2;
-  const autoFit = Boolean(viewState?.autoFit ?? true);
   const zoomRaw = Number(viewState?.zoom);
   const zoom = autoFit ? 1 : (Number.isFinite(zoomRaw) ? zoomRaw : 1);
   const panPxRaw = Number(viewState?.panPx);
@@ -1090,8 +1231,9 @@ export function renderSpace2dCanvas2d({
   });
 
   ctx.strokeStyle = "#a78bfa";
-  shapes.forEach((shape) => {
-    if (!shape) return;
+  items.forEach((shape) => {
+    if (!shape || typeof shape !== "object") return;
+    const kind = normalizeSpace2dKind(shape.kind);
     const style = String(shape.style ?? "solid").toLowerCase();
     if (style === "dashed") ctx.setLineDash([6, 4]);
     else if (style === "dotted") ctx.setLineDash([2, 4]);
@@ -1109,20 +1251,24 @@ export function renderSpace2dCanvas2d({
     ctx.fillStyle = drawColor;
     ctx.lineWidth = width;
 
-    if (shape.kind === "line") {
-      const x1 = mapX(Number(shape.x1));
-      const y1 = mapY(Number(shape.y1));
-      const x2 = mapX(Number(shape.x2));
-      const y2 = mapY(Number(shape.y2));
+    if (kind === "line") {
+      const line = resolveSpace2dLine(shape);
+      if (!line) return;
+      const x1 = mapX(line.x1);
+      const y1 = mapY(line.y1);
+      const x2 = mapX(line.x2);
+      const y2 = mapY(line.y2);
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.stroke();
-    } else if (shape.kind === "arrow") {
-      const x1 = mapX(Number(shape.x1));
-      const y1 = mapY(Number(shape.y1));
-      const x2 = mapX(Number(shape.x2));
-      const y2 = mapY(Number(shape.y2));
+    } else if (kind === "arrow") {
+      const line = resolveSpace2dLine(shape);
+      if (!line) return;
+      const x1 = mapX(line.x1);
+      const y1 = mapY(line.y1);
+      const x2 = mapX(line.x2);
+      const y2 = mapY(line.y2);
       if (![x1, y1, x2, y2].every(Number.isFinite)) return;
       const headSizeRaw = Number(shape.head_size);
       const headSize = Number.isFinite(headSizeRaw) ? Math.max(4, headSizeRaw) : 8;
@@ -1159,27 +1305,22 @@ export function renderSpace2dCanvas2d({
         ctx.fillStyle = drawColor;
         ctx.fillText(labelText, x2 + ox, y2 + oy);
       }
-    } else if (shape.kind === "circle") {
-      const cx = Number(shape.x ?? shape.cx);
-      const cy = Number(shape.y ?? shape.cy);
-      const r = Number(shape.r);
-      if (![cx, cy, r].every(Number.isFinite)) return;
-      const x = mapX(cx);
-      const y = mapY(cy);
-      const rr = Math.max(1, Math.abs(r * Math.min(scaleX, scaleY) * zoom));
+    } else if (kind === "circle") {
+      const circle = resolveSpace2dCircle(shape);
+      if (!circle) return;
+      const x = mapX(circle.x);
+      const y = mapY(circle.y);
+      const rr = Math.max(1, Math.abs(circle.r * Math.min(scaleX, scaleY) * zoom));
       ctx.beginPath();
       ctx.arc(x, y, rr, 0, Math.PI * 2);
       ctx.stroke();
-    } else if (shape.kind === "rect") {
-      const x = Number(shape.x ?? shape.x0);
-      const y = Number(shape.y ?? shape.y0);
-      const rw = Number(shape.w ?? shape.width);
-      const rh = Number(shape.h ?? shape.height);
-      if (![x, y, rw, rh].every(Number.isFinite)) return;
-      const x1 = mapX(x);
-      const y1 = mapY(y);
-      const x2 = mapX(x + rw);
-      const y2 = mapY(y + rh);
+    } else if (kind === "rect") {
+      const rect = resolveSpace2dRect(shape);
+      if (!rect) return;
+      const x1 = mapX(rect.x1);
+      const y1 = mapY(rect.y1);
+      const x2 = mapX(rect.x2);
+      const y2 = mapY(rect.y2);
       const x0 = Math.min(x1, x2);
       const y0 = Math.min(y1, y2);
       const w0 = Math.abs(x2 - x1);
@@ -1192,28 +1333,61 @@ export function renderSpace2dCanvas2d({
       }
       ctx.strokeStyle = String(stroke);
       ctx.strokeRect(x0, y0, w0, h0);
-    } else if (shape.kind === "text") {
-      const x = Number(shape.x);
-      const y = Number(shape.y);
-      if (![x, y].every(Number.isFinite)) return;
+    } else if (kind === "text") {
+      const point = resolveSpace2dPoint(shape);
+      if (!point) return;
       const text = shape.text ?? shape.label ?? "";
       if (!text) return;
-      const x0 = mapX(x);
-      const y0 = mapY(y);
+      const x0 = mapX(point.x);
+      const y0 = mapY(point.y);
       const size = Number(shape.size);
       const fontSize = Number.isFinite(size) ? Math.max(8, size) : 11;
       ctx.fillStyle = String(shape.color ?? "#e2e8f0");
       ctx.font = `${fontSize}px 'IBM Plex Mono', ui-monospace`;
       ctx.fillText(String(text), x0, y0);
-    } else if (shape.kind === "point") {
-      const x = Number(shape.x);
-      const y = Number(shape.y);
-      if (![x, y].every(Number.isFinite)) return;
-      const px = mapX(x);
-      const py = mapY(y);
+    } else if (kind === "point") {
+      const point = resolveSpace2dPoint(shape);
+      if (!point) return;
+      const px = mapX(point.x);
+      const py = mapY(point.y);
       ctx.beginPath();
       ctx.arc(px, py, 2, 0, Math.PI * 2);
       ctx.fill();
+    } else if (kind === "curve" || kind === "polyline" || kind === "polygon") {
+      const list = resolveSpace2dCurvePoints(shape);
+      if (list.length < 2) return;
+      ctx.beginPath();
+      list.forEach((pt, idx) => {
+        const x = mapX(pt.x);
+        const y = mapY(pt.y);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      const shouldClose = kind === "polygon";
+      const fill = shape.fill ?? shape.fill_color ?? null;
+      if (shouldClose) ctx.closePath();
+      if (fill && shouldClose) {
+        ctx.fillStyle = String(fill);
+        ctx.fill();
+      }
+      ctx.stroke();
+    } else if (kind === "fill") {
+      const polygon = resolveSpace2dFillPolygon(shape);
+      if (polygon.length < 3) return;
+      ctx.beginPath();
+      polygon.forEach((pt, idx) => {
+        const x = mapX(pt.x);
+        const y = mapY(pt.y);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = String(shape.fill ?? shape.fill_color ?? "rgba(167,139,250,0.25)");
+      ctx.fill();
+      if (shape.stroke || shape.color) {
+        ctx.strokeStyle = String(shape.stroke ?? shape.color);
+        ctx.stroke();
+      }
     }
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
@@ -1235,6 +1409,7 @@ export function renderGraphOrSpace2dCanvas({
   space2d,
   lensGraph = null,
   viewState = null,
+  spacePrimitiveSource = "auto",
   showGraphGrid = true,
   showGraphAxis = true,
   showSpaceGrid = false,
@@ -1256,6 +1431,7 @@ export function renderGraphOrSpace2dCanvas({
       canvas,
       space2d,
       viewState,
+      primitiveSource: spacePrimitiveSource,
       showGrid: showSpaceGrid,
       showAxis: showSpaceAxis,
     });
@@ -1274,6 +1450,7 @@ export function renderGraphOrSpace2dCanvas({
     canvas,
     space2d,
     viewState,
+    primitiveSource: spacePrimitiveSource,
     showGrid: showSpaceGrid,
     showAxis: showSpaceAxis,
   });

@@ -399,6 +399,9 @@
         <li><code>#보개/2D.Rect</code> &mdash; 사각형 (x, y, w, h, 채움색)</li>
         <li><code>#보개/2D.Circle</code> &mdash; 원 (cx, cy, r, 채움색)</li>
         <li><code>#보개/2D.Line</code> &mdash; 선 (x1, y1, x2, y2, 색)</li>
+        <li><code>#보개/2D.Arrow</code> &mdash; 화살표 (x1, y1, x2, y2, 색)</li>
+        <li><code>#보개/2D.Curve</code> &mdash; 곡선 (points)</li>
+        <li><code>#보개/2D.Fill</code> &mdash; 채움 (points 또는 curve+baseline)</li>
         <li><code>#보개/2D.Text</code> &mdash; 글 (x, y, text, 색)</li>
       </ul>
     </div>
@@ -474,6 +477,15 @@
           <label class="toggle"><input id="graph-show-grid" type="checkbox" checked />grid</label>
           <label class="toggle"><input id="patch-prefer" type="checkbox" />patch 우선</label>
           <label class="toggle"><input id="space2d-auto-fit" type="checkbox" checked />2D auto-fit</label>
+          <label class="inline-input">2D source
+            <select id="space2d-source-mode">
+              <option value="auto" selected>auto</option>
+              <option value="drawlist">drawlist</option>
+              <option value="shapes">shapes</option>
+              <option value="both">both</option>
+              <option value="none">none</option>
+            </select>
+          </label>
           <button id="space2d-reset-view" class="ghost">2D 뷰 리셋</button>
         </div>
         <div class="input-row">

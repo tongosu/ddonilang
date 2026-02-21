@@ -84,6 +84,11 @@ def main() -> int:
         action="store_true",
         help="skip seamgrim wasm wrapper smoke (tests/seamgrim_wasm_wrapper_runner.mjs)",
     )
+    parser.add_argument(
+        "--skip-space2d-source-gate",
+        action="store_true",
+        help="skip seamgrim playground/wasm_smoke space2d source UI gate",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -140,6 +145,20 @@ def main() -> int:
         if result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip() or "wasm wrapper runner failed"
             failures.append(f"{wrapper_runner}: {detail}")
+
+    if not args.skip_space2d_source_gate:
+        space2d_gate = root / "tests" / "run_seamgrim_space2d_source_ui_gate.py"
+        result = subprocess.run(
+            [sys.executable, str(space2d_gate)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "space2d source ui gate failed"
+            failures.append(f"{space2d_gate}: {detail}")
 
     if failures:
         for item in failures:

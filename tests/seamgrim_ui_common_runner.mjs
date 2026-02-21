@@ -52,6 +52,9 @@ function createFakeCanvas2d() {
   const calls = {
     fillText: [],
     arc: 0,
+    lineTo: 0,
+    fill: 0,
+    stroke: 0,
   };
   const ctx = {
     fillStyle: "",
@@ -64,9 +67,15 @@ function createFakeCanvas2d() {
     beginPath() {},
     closePath() {},
     moveTo() {},
-    lineTo() {},
-    stroke() {},
-    fill() {},
+    lineTo() {
+      calls.lineTo += 1;
+    },
+    stroke() {
+      calls.stroke += 1;
+    },
+    fill() {
+      calls.fill += 1;
+    },
     setLineDash() {},
     arc() {
       calls.arc += 1;
@@ -1260,6 +1269,76 @@ async function main() {
     showAxis: true,
   });
   assert(spaceRendered === true, "render space2d canvas: rendered");
+  const primitiveLineToBefore = renderCanvas.calls.lineTo;
+  const primitiveFillBefore = renderCanvas.calls.fill;
+  const primitiveRendered = renderSpace2dCanvas2d({
+    canvas: renderCanvas,
+    space2d: {
+      points: [{ x: 0, y: 0 }],
+      drawlist: [
+        { kind: "line", x1: -1, y1: -1, x2: 1, y2: 1 },
+        { kind: "circle", x: 0, y: 0, r: 0.5 },
+        { kind: "arrow", x1: -1, y1: 1, x2: 1, y2: 1 },
+        { kind: "text", x: 0, y: 0.8, text: "TXT" },
+        {
+          kind: "curve",
+          points: [
+            { x: -1, y: -0.5 },
+            { x: 0, y: 0.2 },
+            { x: 1, y: 0.6 },
+          ],
+        },
+        {
+          kind: "fill",
+          points: [
+            { x: -0.8, y: -0.2 },
+            { x: 0, y: -0.6 },
+            { x: 0.8, y: -0.2 },
+          ],
+          fill: "#44cc88aa",
+        },
+      ],
+    },
+    primitiveSource: "drawlist",
+    viewState: { autoFit: true, zoom: 1, panPx: 0, panPy: 0 },
+    showGrid: false,
+    showAxis: false,
+  });
+  assert(primitiveRendered === true, "render primitives minset: rendered");
+  assert(renderCanvas.calls.arc > 0, "render primitives minset: circle");
+  assert(renderCanvas.calls.fillText.includes("TXT"), "render primitives minset: text");
+  assert(renderCanvas.calls.lineTo > primitiveLineToBefore, "render primitives minset: line/arrow/curve/fill");
+  assert(renderCanvas.calls.fill > primitiveFillBefore, "render primitives minset: fill");
+  const drawlistTextStart = renderCanvas.calls.fillText.length;
+  const drawlistSourceRendered = renderSpace2dCanvas2d({
+    canvas: renderCanvas,
+    space2d: {
+      points: [{ x: 0, y: 0 }],
+      shapes: [{ kind: "text", x: 0, y: 0, text: "SHAPE_TXT" }],
+      drawlist: [{ kind: "text", x: 0, y: 0, text: "DRAW_TXT" }],
+    },
+    primitiveSource: "drawlist",
+    viewState: { autoFit: true, zoom: 1, panPx: 0, panPy: 0 },
+  });
+  assert(drawlistSourceRendered === true, "render source mode: drawlist");
+  const drawlistTexts = renderCanvas.calls.fillText.slice(drawlistTextStart);
+  assert(drawlistTexts.includes("DRAW_TXT"), "render source mode: drawlist text rendered");
+  assert(!drawlistTexts.includes("SHAPE_TXT"), "render source mode: drawlist ignores shapes");
+  const shapeTextStart = renderCanvas.calls.fillText.length;
+  const shapeSourceRendered = renderSpace2dCanvas2d({
+    canvas: renderCanvas,
+    space2d: {
+      points: [{ x: 0, y: 0 }],
+      shapes: [{ kind: "text", x: 0, y: 0, text: "SHAPE_TXT" }],
+      drawlist: [{ kind: "text", x: 0, y: 0, text: "DRAW_TXT" }],
+    },
+    primitiveSource: "shapes",
+    viewState: { autoFit: true, zoom: 1, panPx: 0, panPy: 0 },
+  });
+  assert(shapeSourceRendered === true, "render source mode: shapes");
+  const shapeTexts = renderCanvas.calls.fillText.slice(shapeTextStart);
+  assert(shapeTexts.includes("SHAPE_TXT"), "render source mode: shape text rendered");
+  assert(!shapeTexts.includes("DRAW_TXT"), "render source mode: shapes ignores drawlist");
   const route0 = renderGraphOrSpace2dCanvas({
     canvas: renderCanvas,
     graph: { series: [] },
@@ -1274,6 +1353,22 @@ async function main() {
     graphPreference: "prefer_graph",
   });
   assert(route1 === "graph", "render route: prefer graph");
+  const routeTextStart = renderCanvas.calls.fillText.length;
+  const route2 = renderGraphOrSpace2dCanvas({
+    canvas: renderCanvas,
+    graph: { series: [] },
+    space2d: {
+      points: [{ x: 0, y: 0 }],
+      shapes: [{ kind: "text", x: 0, y: 0, text: "ROUTE_SHAPE" }],
+      drawlist: [{ kind: "text", x: 0, y: 0, text: "ROUTE_DRAW" }],
+    },
+    graphPreference: "prefer_non_empty_graph",
+    spacePrimitiveSource: "drawlist",
+  });
+  assert(route2 === "space2d", "render route: space primitive source");
+  const routeTexts = renderCanvas.calls.fillText.slice(routeTextStart);
+  assert(routeTexts.includes("ROUTE_DRAW"), "render route: drawlist passthrough");
+  assert(!routeTexts.includes("ROUTE_SHAPE"), "render route: shape bypass");
 
   const graphLensState = {
     enabled: true,

@@ -26,6 +26,7 @@ import {
   refreshLensPresetSelectElement,
   saveLensPresetToState,
   saveLensPresetState,
+  renderSpace2dCanvas2d,
   renderObservationChannelList,
   resetObservationLensTimeline,
   syncWasmSettingsControlsFromState,
@@ -56,6 +57,7 @@ const state = {
   viewConfig: null,
   contractView: "plain",
   workspaceMode: "basic",
+  screenMode: "explore",
   activeView: "view-graph",
   viewCombo: false,
   viewComboLayout: "horizontal",
@@ -77,6 +79,7 @@ const state = {
     lastClientY: 0,
     lastRender: null,
   },
+  space2dRenderMode: "legacy",
   structureLayout: null,
   tableView: {
     pageSize: 50,
@@ -110,6 +113,8 @@ const state = {
       subject: "all",
       query: "",
       schema: "all",
+      rewriteOnly: false,
+      template: "all",
     },
     activeId: null,
     meta: null,
@@ -3751,6 +3756,16 @@ function collectPointsFromShapes(shapes) {
       }
       return;
     }
+    if (kind === "curve") {
+      const list = normalizePointList(shape.points ?? shape.coords ?? shape.vertices ?? shape.samples ?? shape.점들);
+      points.push(...list);
+      return;
+    }
+    if (kind === "fill") {
+      const polygon = normalizePointList(shape.points ?? shape.coords ?? shape.vertices ?? shape.점들);
+      points.push(...polygon);
+      return;
+    }
     if (Number.isFinite(shape.x) && Number.isFinite(shape.y)) {
       points.push({ x: shape.x, y: shape.y });
     }
@@ -3764,6 +3779,8 @@ function normalizeDrawKind(item) {
   if (["line", "선", "segment"].includes(key)) return "line";
   if (["circle", "원"].includes(key)) return "circle";
   if (["point", "점"].includes(key)) return "point";
+  if (["curve", "곡선"].includes(key)) return "curve";
+  if (["fill", "채움", "area", "filled"].includes(key)) return "fill";
   if (["polyline", "선들", "lines"].includes(key)) return "polyline";
   if (["rect", "rectangle", "사각형"].includes(key)) return "rect";
   if (["polygon", "다각형"].includes(key)) return "polygon";
@@ -3802,6 +3819,39 @@ function normalizePointList(raw) {
   return raw
     .map((entry) => readPointCandidate(entry))
     .filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y));
+}
+
+function resolveCurvePoints(item) {
+  const fromPointList = normalizePointList(
+    item.points ?? item.coords ?? item.vertices ?? item.samples ?? item.점들 ?? item.좌표,
+  );
+  if (fromPointList.length) return fromPointList;
+  const xs = item.xs ?? item.x_values ?? item.x목록 ?? item.x;
+  const ys = item.ys ?? item.y_values ?? item.y목록 ?? item.y;
+  if (!Array.isArray(xs) || !Array.isArray(ys) || xs.length !== ys.length) return [];
+  const points = [];
+  for (let i = 0; i < xs.length; i += 1) {
+    const x = Number(xs[i]);
+    const y = Number(ys[i]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    points.push({ x, y });
+  }
+  return points;
+}
+
+function resolveFillPolygon(item, progress = 1) {
+  const explicit = normalizePointList(item.points ?? item.coords ?? item.vertices ?? item.점들 ?? item.좌표);
+  if (explicit.length >= 3) {
+    const list = progress < 1 ? slicePointsByProgress(explicit, progress) : explicit;
+    return list.length >= 3 ? list : [];
+  }
+  const curve = resolveCurvePoints(item);
+  if (curve.length < 2) return [];
+  const list = progress < 1 ? slicePointsByProgress(curve, progress) : curve;
+  if (list.length < 2) return [];
+  const baseline = Number(item.baseline ?? item.base_y ?? item.y0 ?? item.기준값 ?? 0);
+  if (!Number.isFinite(baseline)) return [];
+  return [...list, { x: list[list.length - 1].x, y: baseline }, { x: list[0].x, y: baseline }];
 }
 
 function resolveLineEndpoints(item) {
@@ -3905,6 +3955,14 @@ function collectPointsFromDrawlist(items) {
     if (kind === "polyline" || kind === "polygon") {
       const list = normalizePointList(item.points ?? item.coords ?? item.vertices ?? item.점들 ?? item.좌표);
       points.push(...list);
+      return;
+    }
+    if (kind === "curve") {
+      points.push(...resolveCurvePoints(item));
+      return;
+    }
+    if (kind === "fill") {
+      points.push(...resolveFillPolygon(item, 1));
       return;
     }
     if (kind === "rect") {
@@ -4015,6 +4073,42 @@ function getSpace2dViewConfigFromControls() {
     }
   }
   return { auto, range, panX, panY, zoom };
+}
+
+function normalizeSpace2dRenderMode(raw) {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (["legacy", "auto", "drawlist", "shapes", "both", "none"].includes(value)) {
+    return value;
+  }
+  return "legacy";
+}
+
+function readSpace2dRenderModeFromQuery() {
+  try {
+    const raw = new URLSearchParams(window.location.search).get("space2d_source");
+    if (raw == null) return null;
+    const queryMode = normalizeSpace2dRenderMode(raw);
+    if (queryMode === "legacy") return "auto";
+    return queryMode;
+  } catch (_) {
+    return null;
+  }
+}
+
+function syncSpace2dRenderModeControlValue() {
+  const select = $("space2d-render-mode");
+  if (!select) return;
+  select.value = normalizeSpace2dRenderMode(state.space2dRenderMode);
+}
+
+function updateSpace2dRenderModeFromControls() {
+  const select = $("space2d-render-mode");
+  const next = normalizeSpace2dRenderMode(select?.value);
+  if (next === state.space2dRenderMode) return;
+  state.space2dRenderMode = next;
+  saveWasmSettings();
+  render2dView();
+  renderInspector();
 }
 
 function getViewConfigFromData(graph, runs) {
@@ -4633,15 +4727,22 @@ function render2dView() {
     state.space2dView.lastRender = null;
     return;
   }
-  if (summary) {
-    const label = useRuns
-      ? (getActiveRun()?.label ?? "run")
-      : (state.space2d?.meta?.title ?? "space2d");
-    const stats = [`points ${allPoints.length}`];
-    if (shapeList.length) stats.push(`shapes ${shapeList.length}`);
-    if (drawItems.length) stats.push(`draw ${drawItems.length}`);
-    summary.textContent = `2D 데이터: ${label} · ${stats.join(" / ")}`;
-  }
+  const summaryLabel = useRuns
+    ? (getActiveRun()?.label ?? "run")
+    : (state.space2d?.meta?.title ?? "space2d");
+  const summaryStats = [`points ${allPoints.length}`];
+  if (shapeList.length) summaryStats.push(`shapes ${shapeList.length}`);
+  if (drawItems.length) summaryStats.push(`draw ${drawItems.length}`);
+  const setSpace2dSummary = (rendererInfo) => {
+    if (!summary) return;
+    const fullText = `2D 데이터: ${summaryLabel} · ${summaryStats.join(" / ")} · ${rendererInfo}`;
+    summary.title = fullText;
+    if (state.workspaceMode === "basic") {
+      summary.textContent = `2D 데이터: ${summaryLabel} · ${rendererInfo}`;
+      return;
+    }
+    summary.textContent = fullText;
+  };
 
   const pad = 40;
   let range = computeRangeFromPoints(rangePoints);
@@ -4704,6 +4805,46 @@ function render2dView() {
   const viewConfig = state.viewConfig ?? {};
   const showGrid = viewConfig.showGrid ?? true;
   const showAxis = viewConfig.showAxis ?? true;
+  const renderMode = normalizeSpace2dRenderMode(state.space2dRenderMode);
+  const hasSceneShapeEffects =
+    !useRuns &&
+    (shapeList.some((shape) => getSceneProgressForShape(shape) < 1) ||
+      shapeList.some((shape) => getSceneShapeFactor(shape) < 1));
+  const hasSceneDrawEffects =
+    !useRuns &&
+    drawItems.some((item) => {
+      const tokenized = {
+        token: item?.token ?? item?.토큰,
+        id: item?.id ?? item?.name ?? item?.label,
+        label: item?.label,
+      };
+      return getSceneProgressForShape(tokenized) < 1 || getSceneShapeFactor(tokenized) < 1;
+    });
+  const legacyNeedsOverlay = renderMode === "legacy" && (hasSceneShapeEffects || hasSceneDrawEffects);
+  const useCommonRenderer = !useRuns && (renderMode !== "legacy" || !legacyNeedsOverlay);
+  if (useCommonRenderer) {
+    const manualRange = state.space2dView.auto ? null : state.space2dView.range;
+    const primitiveSource =
+      renderMode === "legacy" ? (hasDrawlist ? "drawlist" : "shapes") : renderMode;
+    const reason = renderMode === "legacy" ? "legacy-static-auto-upgrade" : `mode=${renderMode}`;
+    setSpace2dSummary(`renderer common(${primitiveSource}) · reason=${reason}`);
+    renderSpace2dCanvas2d({
+      canvas,
+      space2d: state.space2d,
+      primitiveSource,
+      viewState: {
+        autoFit: Boolean(state.space2dView.auto ?? true),
+        range: manualRange ?? null,
+        zoom: Number(state.space2dView.zoom ?? 1),
+        panPx: Number(state.space2dView.panX ?? 0),
+        panPy: Number(state.space2dView.panY ?? 0),
+      },
+      showGrid,
+      showAxis,
+      pad,
+    });
+    return;
+  }
 
   if (showGrid) {
     const gridCount = 5;
@@ -4847,6 +4988,47 @@ function render2dView() {
         ctx.restore();
         return;
       }
+      if (kind === "curve") {
+        const list = normalizePointList(shape.points ?? shape.coords ?? shape.vertices ?? shape.samples ?? shape.점들);
+        if (list.length < 2) return;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = shape.stroke ?? shape.color ?? "#60a5fa";
+        ctx.lineWidth = Math.max(1, (Number(shape.width) || 0.01) * scale);
+        ctx.beginPath();
+        list.forEach((p, idx) => {
+          const x = mapX(p.x);
+          const y = mapY(p.y);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+      if (kind === "fill") {
+        const polygon = normalizePointList(shape.points ?? shape.coords ?? shape.vertices ?? shape.점들);
+        if (polygon.length < 3) return;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        polygon.forEach((p, idx) => {
+          const x = mapX(p.x);
+          const y = mapY(p.y);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = shape.fill ?? "rgba(96,165,250,0.2)";
+        ctx.fill();
+        if (shape.stroke || shape.color) {
+          ctx.strokeStyle = shape.stroke ?? shape.color;
+          ctx.lineWidth = Math.max(1, (Number(shape.width) || 0.01) * scale);
+          ctx.stroke();
+        }
+        ctx.restore();
+        return;
+      }
     });
   }
 
@@ -4983,6 +5165,53 @@ function render2dView() {
         ctx.restore();
         return;
       }
+      if (kind === "curve") {
+        const listRaw = resolveCurvePoints(item);
+        const list = progress < 1 ? slicePointsByProgress(listRaw, progress) : listRaw;
+        if (list.length < 2) return;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        list.forEach((p, idx) => {
+          const x = mapX(p.x);
+          const y = mapY(p.y);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+      if (kind === "fill") {
+        const polygon = resolveFillPolygon(item, progress);
+        if (polygon.length < 3) return;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        polygon.forEach((p, idx) => {
+          const x = mapX(p.x);
+          const y = mapY(p.y);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        if (fill) {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        } else {
+          ctx.fillStyle = "rgba(248,250,252,0.18)";
+          ctx.fill();
+        }
+        if (item.stroke || item.color || item.색) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = lineWidth;
+          ctx.stroke();
+        }
+        ctx.restore();
+        return;
+      }
       if (kind === "rect") {
         const rect = resolveRect(item);
         if (!rect) return;
@@ -5064,6 +5293,8 @@ function render2dView() {
       }
     });
   }
+  const legacyReason = useRuns ? "run-series-active" : "scene-overlay-active";
+  setSpace2dSummary(`renderer legacy · reason=${legacyReason}`);
 }
 
 function renderStructureSelection() {
@@ -7051,6 +7282,7 @@ function exportSession() {
       panX: state.space2dView.panX,
       panY: state.space2dView.panY,
       zoom: state.space2dView.zoom,
+      render_mode: normalizeSpace2dRenderMode(state.space2dRenderMode),
     },
     wasm_lens: {
       enabled: Boolean(state.wasm.lens.enabled),
@@ -7179,6 +7411,10 @@ async function loadSession() {
         ...data.space2d_view,
         range: data.space2d_view.range ?? state.space2dView.range,
       };
+      state.space2dRenderMode = normalizeSpace2dRenderMode(
+        data.space2d_view.render_mode ?? state.space2dRenderMode,
+      );
+      syncSpace2dRenderModeControlValue();
       syncSpace2dViewControlValues();
     }
     if (data.wasm_lens && typeof data.wasm_lens === "object") {
@@ -7724,6 +7960,32 @@ function setWorkspaceMode(mode, options = {}) {
   }
 }
 
+function setScreenMode(mode, options = {}) {
+  const normalized = mode === "run" ? "run" : "explore";
+  const ensureTab = options.ensureTab !== false;
+  state.screenMode = normalized;
+
+  const exploreBtn = $("screen-mode-explore");
+  const runBtn = $("screen-mode-run");
+  exploreBtn?.classList.toggle("active", normalized === "explore");
+  runBtn?.classList.toggle("active", normalized === "run");
+
+  const layout = $("main-layout");
+  layout?.classList.toggle("layout-explore", normalized === "explore");
+  layout?.classList.toggle("layout-run", normalized === "run");
+
+  setWorkspaceMode("basic", { ensureTab: false });
+  if (!ensureTab) return;
+
+  if (normalized === "explore") {
+    const lessonTab = getMainTabButton("lesson-tab");
+    lessonTab?.click();
+    return;
+  }
+  const runTab = getMainTabButton("run-tab");
+  runTab?.click();
+}
+
 function initTabs() {
   document.querySelectorAll(".tab-group").forEach((group) => {
     const tabs = ownedTabsInGroup(group);
@@ -7775,6 +8037,186 @@ async function loadLessonSchemaStatus() {
   }
 }
 
+function summarizeSeedText(markdown) {
+  if (!markdown) return "";
+  const lines = normalizeNewlines(markdown)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return "";
+  const first = lines[0].replace(/^#+\s*/, "").trim();
+  return first || "";
+}
+
+async function loadSeedLessonCatalogEntries() {
+  try {
+    const res = await fetch("/seed_lessons_v1/seed_manifest.detjson");
+    if (!res.ok) return [];
+    const manifest = await res.json();
+    const seeds = Array.isArray(manifest?.seeds) ? manifest.seeds : [];
+    const entries = [];
+    for (const seed of seeds) {
+      const seedId = String(seed?.seed_id ?? "").trim();
+      if (!seedId) continue;
+      const ddnPath = String(seed?.lesson_ddn ?? "").trim();
+      if (!ddnPath) continue;
+      const ddnRes = await fetch(`/${ddnPath}`);
+      if (!ddnRes.ok) continue;
+      const ddnText = await ddnRes.text();
+      const textPath = String(seed?.text_md ?? "").trim();
+      let summary = "";
+      if (textPath) {
+        try {
+          const textRes = await fetch(`/${textPath}`);
+          if (textRes.ok) {
+            summary = summarizeSeedText(await textRes.text());
+          }
+        } catch (_) {
+          // optional file
+        }
+      }
+      const rawSubject = String(seed?.subject ?? "").toLowerCase();
+      const subject = rawSubject === "economy" ? "econ" : rawSubject || "unknown";
+      entries.push({
+        id: seedId,
+        title: `[Seed] ${seedId}`,
+        description: summary || "AGE4 교과 재작성 seed",
+        required_views: ["graph", "2d"],
+        source: "seed_v1",
+        grade: "seed",
+        subject,
+        level: "advanced",
+        goals: summary ? [summary] : [],
+        template_id: String(seed?.template_id ?? "").trim() || "seed_template_v1",
+        ddn: ddnText,
+      });
+    }
+    return entries;
+  } catch (_) {
+    return [];
+  }
+}
+
+function appendSeedLessonEntries(seedLessons) {
+  if (!Array.isArray(seedLessons) || !seedLessons.length) return;
+  const existing = new Set(state.lessons.list.map((lesson) => lesson?.id).filter(Boolean));
+  const toAdd = seedLessons.filter((lesson) => lesson?.id && !existing.has(lesson.id));
+  if (!toAdd.length) return;
+  state.lessons.list = state.lessons.list.concat(toAdd);
+
+  const groupId = "grade-seed";
+  const subjectId = "subject-seed";
+  const seedIds = toAdd.map((lesson) => lesson.id);
+  if (!Array.isArray(state.lessons.groups)) state.lessons.groups = [];
+  const topGroup = state.lessons.groups.find((group) => group?.id === groupId);
+  if (!topGroup) {
+    state.lessons.groups.push({
+      id: groupId,
+      title: "Seed 재작성",
+      children: [{ id: subjectId, title: "AGE4 Golden Seed", lessons: seedIds }],
+    });
+    return;
+  }
+  if (!Array.isArray(topGroup.children)) topGroup.children = [];
+  let subjectGroup = topGroup.children.find((group) => group?.id === subjectId);
+  if (!subjectGroup) {
+    subjectGroup = { id: subjectId, title: "AGE4 Golden Seed", lessons: [] };
+    topGroup.children.push(subjectGroup);
+  }
+  if (!Array.isArray(subjectGroup.lessons)) subjectGroup.lessons = [];
+  const lessonSet = new Set(subjectGroup.lessons.filter((id) => typeof id === "string"));
+  seedIds.forEach((id) => {
+    if (!lessonSet.has(id)) {
+      subjectGroup.lessons.push(id);
+      lessonSet.add(id);
+    }
+  });
+}
+
+async function loadRewriteLessonCatalogEntries() {
+  try {
+    const res = await fetch("/lessons_rewrite_v1/rewrite_manifest.detjson");
+    if (!res.ok) return [];
+    const manifest = await res.json();
+    const rows = Array.isArray(manifest?.generated) ? manifest.generated : [];
+    const entries = [];
+    for (const row of rows) {
+      const baseId = String(row?.lesson_id ?? "").trim();
+      const ddnPath = String(row?.generated_lesson_ddn ?? "").trim();
+      if (!baseId || !ddnPath) continue;
+      const ddnRes = await fetch(`/${ddnPath}`);
+      if (!ddnRes.ok) continue;
+      const ddnText = await ddnRes.text();
+      let summary = "";
+      const textPath = String(row?.generated_text_md ?? "").trim();
+      if (textPath) {
+        try {
+          const textRes = await fetch(`/${textPath}`);
+          if (textRes.ok) {
+            summary = summarizeSeedText(await textRes.text());
+          }
+        } catch (_) {
+          // optional file
+        }
+      }
+      const rawSubject = String(row?.subject ?? "").toLowerCase();
+      const subject = rawSubject === "economy" ? "econ" : rawSubject || "unknown";
+      entries.push({
+        id: `rewrite_v1:${baseId}`,
+        title: `[Rewrite] ${baseId}`,
+        description: summary || "AGE4 배치 재작성 lesson",
+        required_views: ["graph", "2d"],
+        source: "rewrite_v1",
+        grade: "rewrite",
+        subject,
+        level: "advanced",
+        goals: summary ? [summary] : [],
+        template_id: String(row?.template_id ?? "").trim() || "generic_series_v1",
+        ddn: ddnText,
+      });
+    }
+    return entries;
+  } catch (_) {
+    return [];
+  }
+}
+
+function appendRewriteLessonEntries(rewriteLessons) {
+  if (!Array.isArray(rewriteLessons) || !rewriteLessons.length) return;
+  const existing = new Set(state.lessons.list.map((lesson) => lesson?.id).filter(Boolean));
+  const toAdd = rewriteLessons.filter((lesson) => lesson?.id && !existing.has(lesson.id));
+  if (!toAdd.length) return;
+  state.lessons.list = state.lessons.list.concat(toAdd);
+
+  const groupId = "grade-rewrite";
+  const subjectId = "subject-rewrite";
+  const rewriteIds = toAdd.map((lesson) => lesson.id);
+  if (!Array.isArray(state.lessons.groups)) state.lessons.groups = [];
+  const topGroup = state.lessons.groups.find((group) => group?.id === groupId);
+  if (!topGroup) {
+    state.lessons.groups.push({
+      id: groupId,
+      title: "재작성 배치(V1)",
+      children: [{ id: subjectId, title: "AGE4 Batch Rewrite", lessons: rewriteIds }],
+    });
+    return;
+  }
+  if (!Array.isArray(topGroup.children)) topGroup.children = [];
+  let subjectGroup = topGroup.children.find((group) => group?.id === subjectId);
+  if (!subjectGroup) {
+    subjectGroup = { id: subjectId, title: "AGE4 Batch Rewrite", lessons: [] };
+    topGroup.children.push(subjectGroup);
+  }
+  if (!Array.isArray(subjectGroup.lessons)) subjectGroup.lessons = [];
+  const lessonSet = new Set(subjectGroup.lessons.filter((id) => typeof id === "string"));
+  rewriteIds.forEach((id) => {
+    if (!lessonSet.has(id)) {
+      subjectGroup.lessons.push(id);
+      lessonSet.add(id);
+    }
+  });
+}
+
 async function loadLessonCatalog() {
   try {
     const response = await fetch("/lessons/index.json");
@@ -7782,6 +8224,10 @@ async function loadLessonCatalog() {
     const data = await response.json();
     state.lessons.list = data.lessons ?? [];
     state.lessons.groups = data.groups ?? [];
+    const seedLessons = await loadSeedLessonCatalogEntries();
+    appendSeedLessonEntries(seedLessons);
+    const rewriteLessons = await loadRewriteLessonCatalogEntries();
+    appendRewriteLessonEntries(rewriteLessons);
     await loadLessonSchemaStatus();
     renderLessonFilters();
     renderLessonList();
@@ -7820,6 +8266,10 @@ async function loadLessonCatalog() {
         ],
       },
     ];
+    const seedLessons = await loadSeedLessonCatalogEntries();
+    appendSeedLessonEntries(seedLessons);
+    const rewriteLessons = await loadRewriteLessonCatalogEntries();
+    appendRewriteLessonEntries(rewriteLessons);
     await loadLessonSchemaStatus();
     renderLessonFilters();
     renderLessonList();
@@ -7845,9 +8295,15 @@ function renderLessonList() {
     const gradeFilter = state.lessons.filter.grade ?? "all";
     const subjectFilter = state.lessons.filter.subject ?? "all";
     const schemaFilter = state.lessons.filter.schema ?? "all";
+    const rewriteOnly = Boolean(state.lessons.filter.rewriteOnly);
+    const templateFilter = state.lessons.filter.template ?? "all";
     const query = (state.lessons.filter.query ?? "").trim().toLowerCase();
     if (gradeFilter !== "all" && gradeFilter !== grade) return false;
     if (subjectFilter !== "all" && subjectFilter !== subject) return false;
+    if (rewriteOnly && (lesson.source ?? "") !== "rewrite_v1") return false;
+    if (templateFilter !== "all") {
+      if (String(lesson.template_id ?? "") !== templateFilter) return false;
+    }
     if (schemaFilter !== "all") {
       const status = state.lessons.schemaStatus?.[lesson.id] ?? null;
       if (schemaFilter === "preview" && !status?.has_preview) return false;
@@ -7931,7 +8387,7 @@ function renderLessonList() {
       grade: { middle: "중등", high: "고등", college: "대학" },
       subject: { math: "수학", physics: "물리", econ: "경제" },
       level: { intro: "입문", intermediate: "중급", advanced: "심화" },
-      source: { ssot: "교과" },
+      source: { ssot: "교과", seed_v1: "Seed", rewrite_v1: "Rewrite" },
     };
     badgeDefs.forEach((badge) => {
       if (!badge.value) return;
@@ -7959,6 +8415,12 @@ function renderLessonList() {
       goals.className = "lesson-goals";
       goals.textContent = `목표: ${lesson.goals.join(" · ")}`;
       item.appendChild(goals);
+    }
+    if (lesson.template_id) {
+      const tpl = document.createElement("div");
+      tpl.className = "lesson-goals";
+      tpl.textContent = `template: ${lesson.template_id}`;
+      item.appendChild(tpl);
     }
     item.addEventListener("click", () => selectLesson(lesson));
     container.appendChild(item);
@@ -8043,12 +8505,16 @@ function renderLessonFilters() {
   const gradeSelect = $("lesson-grade-filter");
   const subjectSelect = $("lesson-subject-filter");
   const schemaSelect = $("lesson-schema-filter");
+  const rewriteOnlyCheckbox = $("lesson-rewrite-only");
+  const templateSelect = $("lesson-template-filter");
   const searchInput = $("lesson-search");
   if (!gradeSelect || !subjectSelect) return;
   const gradeLabels = {
     middle: "중등",
     high: "고등",
     college: "대학",
+    seed: "Seed",
+    rewrite: "재작성",
   };
   const subjectLabels = {
     math: "수학",
@@ -8057,9 +8523,11 @@ function renderLessonFilters() {
   };
   const grades = new Set();
   const subjects = new Set();
+  const templates = new Set();
   state.lessons.list.forEach((lesson) => {
     if (lesson.grade) grades.add(lesson.grade);
     if (lesson.subject) subjects.add(lesson.subject);
+    if (lesson.template_id) templates.add(String(lesson.template_id));
   });
   const ingestGroup = (group, level = 0) => {
     if (!group) return;
@@ -8112,7 +8580,11 @@ function renderLessonFilters() {
     });
     schemaSelect.value = state.lessons.filter.schema ?? "all";
   }
+  if (templateSelect) {
+    buildOptions(templateSelect, templates, state.lessons.filter.template ?? "all", {});
+  }
   if (searchInput) searchInput.value = state.lessons.filter.query ?? "";
+  if (rewriteOnlyCheckbox) rewriteOnlyCheckbox.checked = Boolean(state.lessons.filter.rewriteOnly);
 }
 
 async function fetchFirstOkText(urls) {
@@ -8206,10 +8678,8 @@ async function selectLesson(lesson) {
   applyLessonAutoView(views, loaded);
   await maybeAutoRunLesson(ddnText);
   renderLessonList();
-  // 교과 로드 후 DDN 탭으로 자동 전환
-  setWorkspaceMode("basic");
-  const ddnTab = document.querySelector('.main-tabs .tab[data-tab="ddn-tab"]');
-  if (ddnTab) ddnTab.click();
+  // 교과 로드 후 실행 화면으로 전환
+  setScreenMode("run");
 }
 
 function parseToml(text) {
@@ -8601,6 +9071,20 @@ if (lessonSchemaFilter) {
     renderLessonList();
   });
 }
+const lessonTemplateFilter = $("lesson-template-filter");
+if (lessonTemplateFilter) {
+  lessonTemplateFilter.addEventListener("change", (event) => {
+    state.lessons.filter.template = event.target.value || "all";
+    renderLessonList();
+  });
+}
+const lessonRewriteOnly = $("lesson-rewrite-only");
+if (lessonRewriteOnly) {
+  lessonRewriteOnly.addEventListener("change", (event) => {
+    state.lessons.filter.rewriteOnly = Boolean(event.target.checked);
+    renderLessonList();
+  });
+}
 
 $("ddn-run").addEventListener("click", runDdnBridge);
 $("ddn-export").addEventListener("click", exportDdnText);
@@ -8836,6 +9320,10 @@ if (space2dResetViewBtn) {
     render2dView();
     renderInspector();
   });
+}
+const space2dRenderModeSelect = $("space2d-render-mode");
+if (space2dRenderModeSelect) {
+  space2dRenderModeSelect.addEventListener("change", updateSpace2dRenderModeFromControls);
 }
 
 $("toggle-grid").addEventListener("change", updateGraphViewFromControls);
@@ -9087,6 +9575,7 @@ function getWasmSettingsPayload() {
     lensYKey: String(state.wasm.lens.yKey ?? ""),
     lensY2Key: String(state.wasm.lens.y2Key ?? ""),
     lensPresetId: String(state.wasm.lens.presetId ?? "custom"),
+    space2dRenderMode: normalizeSpace2dRenderMode(state.space2dRenderMode),
   };
 }
 
@@ -9147,6 +9636,9 @@ function applyWasmSettings(payload) {
   }
   if (typeof payload.lensPresetId === "string") {
     state.wasm.lens.presetId = payload.lensPresetId;
+  }
+  if (typeof payload.space2dRenderMode === "string") {
+    state.space2dRenderMode = normalizeSpace2dRenderMode(payload.space2dRenderMode);
   }
   syncWasmKeyMapFromRaw();
   state.wasm.schemaMap = parseSchemaMap(state.wasm.schemaMapRaw);
@@ -9313,10 +9805,24 @@ workspaceModeBasicBtn?.addEventListener("click", () => {
 workspaceModeAdvancedBtn?.addEventListener("click", () => {
   setWorkspaceMode("advanced");
 });
+const screenModeExploreBtn = $("screen-mode-explore");
+const screenModeRunBtn = $("screen-mode-run");
+screenModeExploreBtn?.addEventListener("click", () => {
+  setScreenMode("explore");
+});
+screenModeRunBtn?.addEventListener("click", () => {
+  setScreenMode("run");
+});
 setWorkspaceMode("basic", { ensureTab: false });
+setScreenMode("explore", { ensureTab: true });
 setActiveView("view-graph");
 updateViewInputsEnabled();
 updateSpace2dInputsEnabled();
+const querySpace2dRenderMode = readSpace2dRenderModeFromQuery();
+if (querySpace2dRenderMode) {
+  state.space2dRenderMode = querySpace2dRenderMode;
+}
+syncSpace2dRenderModeControlValue();
 updateAxisLabels();
 applyTimeModeUi();
 syncTimeCursorRange();

@@ -38,6 +38,48 @@ import { createWasmVm } from "./runtime/index.js";
 
 const $ = (id) => document.getElementById(id);
 
+function readSpacePrimitiveSourceFromQuery() {
+  try {
+    const raw = new URLSearchParams(window.location.search).get("space2d_source");
+    if (raw == null) return null;
+    const value = String(raw).trim().toLowerCase();
+    if (["auto", "drawlist", "shapes", "both", "none"].includes(value)) return value;
+  } catch (_) {
+    // ignore query parse failures and fallback
+  }
+  return null;
+}
+
+function normalizeSpacePrimitiveSource(raw) {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (["auto", "drawlist", "shapes", "both", "none"].includes(value)) return value;
+  return "auto";
+}
+
+const SPACE2D_SOURCE_STORAGE_KEY = "seamgrim.playground.space2d_source.v1";
+
+function loadSpacePrimitiveSource() {
+  const queryMode = readSpacePrimitiveSourceFromQuery();
+  if (queryMode) return queryMode;
+  try {
+    const raw = localStorage.getItem(SPACE2D_SOURCE_STORAGE_KEY);
+    if (!raw) return "auto";
+    return normalizeSpacePrimitiveSource(raw);
+  } catch (_) {
+    return "auto";
+  }
+}
+
+function saveSpacePrimitiveSource(value) {
+  try {
+    localStorage.setItem(SPACE2D_SOURCE_STORAGE_KEY, normalizeSpacePrimitiveSource(value));
+  } catch (_) {
+    // ignore storage errors
+  }
+}
+
+let spacePrimitiveSource = loadSpacePrimitiveSource();
+
 // ??????????????????????????????????????????????
 // Sample manifest (extend this for curriculum)
 // ??????????????????????????????????????????????
@@ -185,6 +227,7 @@ const paramApplyBtn = $("param-apply");
 const paramApplyStatus = $("param-apply-status");
 const channelListBox = $("channel-list");
 const space2dAutoFitToggle = $("space2d-auto-fit");
+const space2dSourceModeSelect = $("space2d-source-mode");
 const space2dResetViewBtn = $("space2d-reset-view");
 const lensEnableToggle = $("lens-enable");
 const lensXSelect = $("lens-x-key");
@@ -246,6 +289,19 @@ function setSpace2dAutoFit(enabled) {
   if (space2dAutoFitToggle) {
     space2dAutoFitToggle.checked = space2dView.autoFit;
   }
+}
+
+function syncSpace2dSourceModeControl() {
+  if (!space2dSourceModeSelect) return;
+  space2dSourceModeSelect.value = normalizeSpacePrimitiveSource(spacePrimitiveSource);
+}
+
+function setSpacePrimitiveSource(nextValue, { save = true, render = true } = {}) {
+  const normalized = normalizeSpacePrimitiveSource(nextValue);
+  spacePrimitiveSource = normalized;
+  syncSpace2dSourceModeControl();
+  if (save) saveSpacePrimitiveSource(normalized);
+  if (render) renderGraphOrSpace2d(latestGraph, latestSpace2d, latestLensGraph);
 }
 
 function resetSpace2dView({ forceAutoFit = false } = {}) {
@@ -490,6 +546,7 @@ function saveSession(state) {
     schema: "seamgrim.session.v0",
     ts: new Date().toISOString(),
     ddn_text: sourceEl?.value ?? "",
+    space2d_source: normalizeSpacePrimitiveSource(spacePrimitiveSource),
     last_state_hash: state?.state_hash ?? null,
     last_view_hash: state?.view_hash ?? null,
     lens: currentLensPreset(),
@@ -525,6 +582,9 @@ function scheduleSave(state) {
 
 function applyRestoredSession(session) {
   if (!session || typeof session !== "object") return;
+  if (typeof session.space2d_source === "string") {
+    setSpacePrimitiveSource(session.space2d_source, { save: false, render: false });
+  }
   if (typeof session.ddn_text === "string" && session.ddn_text.trim()) {
     const sourceEl = $("ddn-source");
     if (sourceEl) sourceEl.value = session.ddn_text;
@@ -643,6 +703,7 @@ function renderGraphOrSpace2d(graph, space2d, lensGraph = null) {
     graph,
     space2d,
     lensGraph,
+    spacePrimitiveSource,
     viewState: space2dView,
     showGraphGrid: gridToggle?.checked ?? true,
     showGraphAxis: axisToggle?.checked ?? true,
@@ -775,6 +836,7 @@ async function loadSampleById(id) {
 // ??????????????????????????????????????????????
 function setupEvents() {
   setSpace2dAutoFit(true);
+  syncSpace2dSourceModeControl();
   if (graphCanvas) graphCanvas.style.touchAction = "none";
   bindSpace2dInteractions();
   loadLensPresets();
@@ -897,6 +959,10 @@ function setupEvents() {
   space2dAutoFitToggle?.addEventListener("change", () => {
     setSpace2dAutoFit(space2dAutoFitToggle.checked);
     renderGraphOrSpace2d(latestGraph, latestSpace2d, latestLensGraph);
+  });
+  space2dSourceModeSelect?.addEventListener("change", () => {
+    setSpacePrimitiveSource(space2dSourceModeSelect.value, { save: true, render: true });
+    scheduleSave(lastState);
   });
   space2dResetViewBtn?.addEventListener("click", () => {
     resetSpace2dView({ forceAutoFit: true });

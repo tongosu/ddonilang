@@ -175,6 +175,25 @@ def main() -> int:
                 "syncWasmSettingsControlsFromState({",
             ],
         ),
+        run_token_check(
+            "space2d_render_mode_persistence",
+            html_text,
+            js_text,
+            [
+                'id="space2d-render-mode"',
+                'value="legacy"',
+                'value="drawlist"',
+                'value="shapes"',
+            ],
+            [
+                'space2dRenderMode: "legacy",',
+                "function readSpace2dRenderModeFromQuery()",
+                "state.space2dRenderMode = querySpace2dRenderMode;",
+                "space2dRenderMode: normalizeSpace2dRenderMode(state.space2dRenderMode),",
+                'if (typeof payload.space2dRenderMode === "string")',
+                "data.space2d_view.render_mode",
+            ],
+        ),
     ]
 
     failed = [row for row in checks if not row["ok"]]

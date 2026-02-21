@@ -192,6 +192,15 @@
         <label class="toggle"><input id="graph-show-grid" type="checkbox" checked />grid 표시</label>
         <label class="toggle"><input id="patch-prefer" type="checkbox" />patch 우선</label>
         <label class="toggle"><input id="space2d-auto-fit" type="checkbox" checked />2D auto-fit</label>
+        <label class="inline">2D source
+          <select id="space2d-source-mode">
+            <option value="auto" selected>auto</option>
+            <option value="drawlist">drawlist</option>
+            <option value="shapes">shapes</option>
+            <option value="both">both</option>
+            <option value="none">none</option>
+          </select>
+        </label>
         <button id="space2d-reset-view" class="ghost">2D 뷰 리셋</button>
       </div>
       <div class="row">

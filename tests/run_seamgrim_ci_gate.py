@@ -65,6 +65,14 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "age3_feature_missing", "target": "age3_ui", "detail": line})
             elif line.startswith("age3 ui gate failed:"):
                 out.append({"kind": "age3_gate_failed", "target": "age3_ui", "detail": line})
+    elif name == "space2d_source_ui_gate":
+        for line in lines:
+            if line.startswith("missing ui file:"):
+                out.append({"kind": "space2d_ui_file_missing", "target": "playground_or_smoke_ui", "detail": line})
+            elif line.startswith("check="):
+                out.append({"kind": "space2d_feature_missing", "target": "space2d_source_ui", "detail": line})
+            elif line.startswith("space2d source ui gate failed:"):
+                out.append({"kind": "space2d_gate_failed", "target": "space2d_source_ui", "detail": line})
     elif name == "export_graph_preprocess":
         for line in lines:
             if line.startswith("seamgrim export_graph preprocess check failed:"):
@@ -192,6 +200,13 @@ def main() -> int:
             root,
             "ui_age3_gate",
             ui_age3_cmd,
+        )
+    )
+    steps.append(
+        run_step(
+            root,
+            "space2d_source_ui_gate",
+            [py, "tests/run_seamgrim_space2d_source_ui_gate.py"],
         )
     )
 

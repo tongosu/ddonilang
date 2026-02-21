@@ -83,6 +83,58 @@ body {
   flex-wrap: wrap;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.screen-mode {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.screen-mode-btn {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  background: #f6f1e8;
+}
+
+.screen-mode-btn.active {
+  color: #fff;
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+
+.age-slot-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.age-slot {
+  border: 1px dashed rgba(38, 70, 83, 0.35);
+  background: rgba(38, 70, 83, 0.06);
+  color: rgba(38, 70, 83, 0.75);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: var(--sans);
+  cursor: not-allowed;
+}
+
+.age-slot:disabled {
+  opacity: 1;
+}
+
 .status span {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -96,6 +148,38 @@ body {
   gap: 20px;
   flex: 1;
   min-height: 0;
+}
+
+.layout.layout-explore {
+  grid-template-columns: 1fr;
+}
+
+.layout.layout-explore .view-panel {
+  display: none;
+}
+
+.layout.layout-explore .main-tabs .tab:not([data-tab="lesson-tab"]) {
+  display: none;
+}
+
+.layout.layout-explore .main-tabs .tab-body:not(#lesson-tab) {
+  display: none !important;
+}
+
+.layout.layout-explore .lesson-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.layout.layout-explore .lesson-item {
+  min-height: 132px;
+}
+
+.layout.layout-run .main-tabs .tab:not([data-tab="run-tab"]) {
+  display: none;
+}
+
+.layout.layout-run .main-tabs .tab-body:not(#run-tab) {
+  display: none !important;
 }
 
 .log-dock {

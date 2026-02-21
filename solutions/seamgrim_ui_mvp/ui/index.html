@@ -17,14 +17,25 @@
           <div class="subtitle">DDN-first · 교과 연계 · View Dock</div>
         </div>
       </div>
-      <div class="status">
-        <span id="input-hash">input_hash: -</span>
-        <span id="result-hash">result_hash: -</span>
-        <span id="run-status">run: -</span>
+      <div class="topbar-right">
+        <div class="screen-mode" role="tablist" aria-label="화면 모드">
+          <button id="screen-mode-explore" class="screen-mode-btn active" type="button">탐색 화면</button>
+          <button id="screen-mode-run" class="screen-mode-btn" type="button">실행 화면</button>
+        </div>
+        <div class="status">
+          <span id="input-hash">input_hash: -</span>
+          <span id="result-hash">result_hash: -</span>
+          <span id="run-status">run: -</span>
+        </div>
+        <div class="age-slot-group" aria-label="AGE5 slots">
+          <button class="age-slot" type="button" disabled title="AGE5에서 활성화">A 실시간 입력</button>
+          <button class="age-slot" type="button" disabled title="AGE5에서 활성화">B 꾸러미 브라우저</button>
+          <button class="age-slot" type="button" disabled title="AGE5에서 활성화">C 3D 렌더</button>
+        </div>
       </div>
     </header>
 
-    <main class="layout layout-split">
+    <main id="main-layout" class="layout layout-split layout-explore">
       <section class="panel tabs-panel">
         <h2>입력/관리</h2>
         <div class="workspace-mode" role="tablist" aria-label="작업 모드">
@@ -69,6 +80,16 @@
                     <option value="legacy">레거시</option>
                     <option value="mixed">혼합</option>
                     <option value="unknown">미확인</option>
+                  </select>
+                </label>
+                <label class="field checkbox">
+                  <input id="lesson-rewrite-only" type="checkbox" />
+                  <span>Rewrite만 보기</span>
+                </label>
+                <label class="field">
+                  <span>템플릿</span>
+                  <select id="lesson-template-filter">
+                    <option value="all" selected>전체</option>
                   </select>
                 </label>
               </div>
@@ -459,6 +480,17 @@
               <div class="dock-group" data-view="2d">
                 <div class="dock-title">2D 보개</div>
                 <div id="space2d-summary" class="hint">2D 데이터: -</div>
+                <label class="field">
+                  <span>렌더 경로</span>
+                  <select id="space2d-render-mode">
+                    <option value="legacy" selected>legacy(기존)</option>
+                    <option value="auto">common(auto)</option>
+                    <option value="drawlist">common(drawlist)</option>
+                    <option value="shapes">common(shapes)</option>
+                    <option value="both">common(both)</option>
+                    <option value="none">common(none)</option>
+                  </select>
+                </label>
                 <label class="field checkbox">
                   <input id="space2d-auto" type="checkbox" checked />
                   <span>자동 범위</span>

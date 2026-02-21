@@ -49,6 +49,16 @@ def main() -> int:
         print("diagnostics check failed: ui_age3_gate age3_feature_missing")
         return 1
 
+    space2d_diag = mod.extract_diagnostics(
+        "space2d_source_ui_gate",
+        "check=playground_space2d_source_persistence missing=html:id=\"space2d-source-mode\"",
+        "",
+        False,
+    )
+    if not space2d_diag or space2d_diag[0].get("kind") != "space2d_feature_missing":
+        print("diagnostics check failed: space2d_source_ui_gate space2d_feature_missing")
+        return 1
+
     generic_diag = mod.extract_diagnostics("unknown", "line1\nline2", "", False)
     if not generic_diag or generic_diag[0].get("kind") != "generic_error":
         print("diagnostics check failed: generic_error fallback")
