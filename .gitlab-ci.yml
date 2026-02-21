@@ -10,9 +10,9 @@ ci-sanity:
     - apt-get update && apt-get install -y python3
     - |
       rc=0
-      python3 tests/run_ci_sanity_gate.py || rc=$?
+      python3 tests/run_ci_sanity_gate.py --json-out build/reports/ci_sanity_gate.detjson || rc=$?
       if [ "$rc" -ne 0 ]; then
-        python tests/run_ci_sanity_gate.py || rc=$?
+        python tests/run_ci_sanity_gate.py --json-out build/reports/ci_sanity_gate.detjson || rc=$?
       fi
       exit "$rc"
 

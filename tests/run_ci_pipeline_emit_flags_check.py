@@ -73,6 +73,7 @@ def main() -> int:
     ]
     sanity_tokens = [
         "tests/run_ci_sanity_gate.py",
+        "--json-out build/reports/ci_sanity_gate.detjson",
     ]
 
     require_tokens(gitlab_text, "gitlab.aggregate", aggregate_tokens, errors)
