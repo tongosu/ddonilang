@@ -1,28 +1,28 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use ddonirang_core::{
-    ArithmeticFaultKind, ExprTrace, FaultContext, Fixed64, InputSnapshot, ResourceHandle, Signal,
-    SourceSpan, UnitDim, UnitError, UnitValue, unit_spec_from_symbol,
-};
-use libm;
-use ddonirang_core::signals::DiagEvent;
 use crate::gate0_registry;
 use crate::preprocess::{preprocess_source_for_parse, split_file_meta, FileMeta};
 use ddonirang_core::platform::{
     EntityId, NuriWorld, Origin, Patch, PatchOp, ResourceMapEntry, ResourceValue,
+};
+use ddonirang_core::signals::DiagEvent;
+use ddonirang_core::{
+    unit_spec_from_symbol, ArithmeticFaultKind, ExprTrace, FaultContext, Fixed64, InputSnapshot,
+    ResourceHandle, Signal, SourceSpan, UnitDim, UnitError, UnitValue,
+};
+use ddonirang_lang::runtime::{
+    input_just_pressed, input_pressed, list_add, list_len, list_nth, list_remove, list_set,
+    map_get, map_key_canon, string_concat, string_contains, string_ends, string_join, string_len,
+    string_split, string_starts, string_to_number, InputState, LambdaValue, MapEntry, RuntimeError,
+    Value,
 };
 use ddonirang_lang::{
     canonicalize, parse_with_mode, AtSuffix, Body, CanonProgram, Expr, ExprKind, Formula,
     FormulaDialect, Literal, ParamPin, ParseError, ParseMode, SeedDef, SeedKind, Stmt,
     TemplateFormat, TemplatePart, TypeRef,
 };
-use ddonirang_lang::runtime::{
-    input_just_pressed, input_pressed, list_add, list_len, list_nth, list_remove, list_set,
-    map_get, map_key_canon,
-    string_concat, string_contains, string_ends, string_join, string_len, string_split, string_starts,
-    string_to_number, InputState, LambdaValue, MapEntry, RuntimeError, Value,
-};
+use libm;
 
 static LAMBDA_SEQ: AtomicU64 = AtomicU64::new(1);
 static DEFAULT_PARSE_MODE: AtomicU64 = AtomicU64::new(1);
@@ -73,8 +73,7 @@ impl DdnProgram {
         let cleaned = preprocess_source_for_parse(&meta_parse.stripped)?;
         let mut program = parse_with_mode(&cleaned, file_path, mode)
             .map_err(|e| format_parse_error(&cleaned, &e))?;
-        let _report =
-            canonicalize(&mut program).map_err(|e| format_parse_error(&cleaned, &e))?;
+        let _report = canonicalize(&mut program).map_err(|e| format_parse_error(&cleaned, &e))?;
         let mut functions = HashMap::new();
         let tails = ["기", "고", "면"];
         for item in &program.items {
@@ -133,8 +132,10 @@ impl DdnRunner {
             input.rng_seed,
             input.tick_id,
         );
-        ctx.resources
-            .insert("입력키".to_string(), Value::String(input.last_key_name.clone()));
+        ctx.resources.insert(
+            "입력키".to_string(),
+            Value::String(input.last_key_name.clone()),
+        );
         let update = if let Some(update) = ctx.program.functions.get(&self.update_name) {
             update
         } else if self.update_name == "매마디" {
@@ -143,7 +144,10 @@ impl DdnRunner {
                 .get("매틱")
                 .ok_or_else(|| format!("업데이트 함수 '{}'를 찾을 수 없습니다", self.update_name))?
         } else {
-            return Err(format!("업데이트 함수 '{}'를 찾을 수 없습니다", self.update_name));
+            return Err(format!(
+                "업데이트 함수 '{}'를 찾을 수 없습니다",
+                self.update_name
+            ));
         };
         ctx.eval_seed(update, Vec::new())
             .map_err(|err| err.to_string())?;
@@ -208,7 +212,11 @@ impl EvalError {
         match self {
             EvalError::Message(message) => message.clone(),
             EvalError::UnitMismatch { left, right } => {
-                format!("단위 차원이 다릅니다: {} vs {}", left.format(), right.format())
+                format!(
+                    "단위 차원이 다릅니다: {} vs {}",
+                    left.format(),
+                    right.format()
+                )
             }
             EvalError::DivisionByZero => "0으로 나눌 수 없습니다".to_string(),
         }
@@ -319,7 +327,9 @@ impl<'a> EvalContext<'a> {
                 FlowControl::Continue => None,
                 FlowControl::Return(value) => Some(value),
                 FlowControl::Break(_) => {
-                    return Err("멈추기는 반복 안에서만 사용할 수 있습니다".to_string().into())
+                    return Err("멈추기는 반복 안에서만 사용할 수 있습니다"
+                        .to_string()
+                        .into())
                 }
             };
             if matches!(seed.seed_kind, SeedKind::Umjikssi) {
@@ -348,7 +358,11 @@ impl<'a> EvalContext<'a> {
                 } else {
                     detail.expected
                 };
-                Err(type_mismatch_error(&param.pin_name, &expected, &detail.actual))
+                Err(type_mismatch_error(
+                    &param.pin_name,
+                    &expected,
+                    &detail.actual,
+                ))
             }
         }
     }
@@ -380,7 +394,9 @@ impl<'a> EvalContext<'a> {
     ) -> Result<Value, EvalError> {
         match self.eval_body_for_value_inner(locals, body)? {
             ThunkResult::Value(v) | ThunkResult::Return(v) => Ok(v),
-            ThunkResult::Break(_) => Err("멈추기는 반복 안에서만 사용할 수 있습니다".to_string().into()),
+            ThunkResult::Break(_) => Err("멈추기는 반복 안에서만 사용할 수 있습니다"
+                .to_string()
+                .into()),
         }
     }
 
@@ -415,25 +431,26 @@ impl<'a> EvalContext<'a> {
             return Ok(ThunkResult::Value(Value::None));
         }
         match stmt {
-            Stmt::DeclBlock { .. } => {
-                match self.eval_stmt(locals, stmt)? {
-                    FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
-                    FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
-                    FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
-                }
-            }
-            Stmt::Mutate { .. } => {
-                match self.eval_stmt(locals, stmt)? {
-                    FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
-                    FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
-                    FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
-                }
-            }
+            Stmt::DeclBlock { .. } => match self.eval_stmt(locals, stmt)? {
+                FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
+                FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
+                FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
+            },
+            Stmt::Mutate { .. } => match self.eval_stmt(locals, stmt)? {
+                FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
+                FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
+                FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
+            },
             Stmt::Expr { expr, .. } => Ok(ThunkResult::Value(self.eval_expr(locals, expr)?)),
             Stmt::MetaBlock { .. } => Ok(ThunkResult::Value(Value::None)),
             Stmt::Pragma { .. } => Ok(ThunkResult::Value(Value::None)),
             Stmt::Return { value, .. } => Ok(ThunkResult::Return(self.eval_expr(locals, value)?)),
-            Stmt::If { condition, then_body, else_body, .. } => {
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 let cond = self.eval_expr(locals, condition)?;
                 if is_truthy(&cond)? {
                     self.eval_body_for_value_inner(locals, then_body)
@@ -454,7 +471,11 @@ impl<'a> EvalContext<'a> {
                 }
                 out
             }
-            Stmt::Choose { branches, else_body, .. } => {
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
                 for branch in branches {
                     let cond = self.eval_expr(locals, &branch.condition)?;
                     if is_truthy(&cond)? {
@@ -473,7 +494,9 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(ThunkResult::Value(Value::None))
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 loop {
                     let cond = self.eval_expr(locals, condition)?;
                     if !is_truthy(&cond)? {
@@ -487,7 +510,12 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(ThunkResult::Value(Value::None))
             }
-            Stmt::ForEach { item, iterable, body, .. } => {
+            Stmt::ForEach {
+                item,
+                iterable,
+                body,
+                ..
+            } => {
                 let iter_value = self.eval_expr(locals, iterable)?;
                 let items = match iter_value {
                     Value::List(items) => items,
@@ -496,7 +524,11 @@ impl<'a> EvalContext<'a> {
                         .into_values()
                         .map(|entry| Value::List(vec![entry.key, entry.value]))
                         .collect(),
-                    _ => return Err("순회 대상은 차림/모음/짝맞춤이어야 합니다".to_string().into()),
+                    _ => {
+                        return Err("순회 대상은 차림/모음/짝맞춤이어야 합니다"
+                            .to_string()
+                            .into())
+                    }
                 };
                 let prev = locals.get(item).cloned();
                 for value in items {
@@ -522,7 +554,14 @@ impl<'a> EvalContext<'a> {
                 Ok(ThunkResult::Value(Value::None))
             }
             Stmt::Break { span, .. } => Ok(ThunkResult::Break(*span)),
-            Stmt::Contract { kind, mode, condition, then_body, else_body, .. } => {
+            Stmt::Contract {
+                kind,
+                mode,
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 let cond_value = self.eval_expr(locals, condition)?;
                 let ok = is_truthy(&cond_value)?;
                 match kind {
@@ -536,7 +575,9 @@ impl<'a> EvalContext<'a> {
                         } else {
                             match self.eval_body(locals, else_body)? {
                                 FlowControl::Continue => {}
-                                FlowControl::Return(value) => return Ok(ThunkResult::Return(value)),
+                                FlowControl::Return(value) => {
+                                    return Ok(ThunkResult::Return(value))
+                                }
                                 FlowControl::Break(span) => return Ok(ThunkResult::Break(span)),
                             }
                             self.emit_contract_violation(
@@ -552,7 +593,9 @@ impl<'a> EvalContext<'a> {
                         if !ok {
                             match self.eval_body(locals, else_body)? {
                                 FlowControl::Continue => {}
-                                FlowControl::Return(value) => return Ok(ThunkResult::Return(value)),
+                                FlowControl::Return(value) => {
+                                    return Ok(ThunkResult::Return(value))
+                                }
                                 FlowControl::Break(span) => return Ok(ThunkResult::Break(span)),
                             }
                             let cond_value = self.eval_expr(locals, condition)?;
@@ -574,17 +617,19 @@ impl<'a> EvalContext<'a> {
                     }
                 }
             }
-            Stmt::Guard { .. } => {
-                match self.eval_stmt(locals, stmt)? {
-                    FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
-                    FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
-                    FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
-                }
-            }
+            Stmt::Guard { .. } => match self.eval_stmt(locals, stmt)? {
+                FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
+                FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
+                FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
+            },
         }
     }
 
-    fn eval_stmt(&mut self, locals: &mut HashMap<String, Value>, stmt: &Stmt) -> Result<FlowControl, EvalError> {
+    fn eval_stmt(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        stmt: &Stmt,
+    ) -> Result<FlowControl, EvalError> {
         if self.aborted {
             return Ok(FlowControl::Continue);
         }
@@ -620,7 +665,11 @@ impl<'a> EvalContext<'a> {
                             Err(err) => return Err(err),
                         }
                     } else if matches!(item.kind, ddonirang_lang::DeclKind::Butbak) {
-                        return Err(format!("채비에서 '=' 항목은 초기값이 필요합니다: {}", item.name).into());
+                        return Err(format!(
+                            "채비에서 '=' 항목은 초기값이 필요합니다: {}",
+                            item.name
+                        )
+                        .into());
                     } else {
                         Value::None
                     };
@@ -677,7 +726,8 @@ impl<'a> EvalContext<'a> {
                             match self.set_resource(name, val) {
                                 Ok(()) => {}
                                 Err(EvalError::UnitMismatch { left, right }) => {
-                                    let trace = Some(self.arith_trace(value, "arith:UNIT_MISMATCH"));
+                                    let trace =
+                                        Some(self.arith_trace(value, "arith:UNIT_MISMATCH"));
                                     let source_span = self.source_span_for_expr(value);
                                     self.emit_unit_mismatch(
                                         left,
@@ -735,7 +785,12 @@ impl<'a> EvalContext<'a> {
                 let val = self.eval_expr(locals, value)?;
                 Ok(FlowControl::Return(val))
             }
-            Stmt::If { condition, then_body, else_body, .. } => {
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 let cond = self.eval_expr(locals, condition)?;
                 if is_truthy(&cond)? {
                     return Ok(self.eval_body(locals, then_body)?);
@@ -755,7 +810,11 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(out)
             }
-            Stmt::Choose { branches, else_body, .. } => {
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
                 for branch in branches {
                     let cond = self.eval_expr(locals, &branch.condition)?;
                     if is_truthy(&cond)? {
@@ -774,7 +833,9 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(FlowControl::Continue)
             }
-            Stmt::While { condition, body, .. } => {
+            Stmt::While {
+                condition, body, ..
+            } => {
                 loop {
                     let cond = self.eval_expr(locals, condition)?;
                     if !is_truthy(&cond)? {
@@ -788,7 +849,12 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(FlowControl::Continue)
             }
-            Stmt::ForEach { item, iterable, body, .. } => {
+            Stmt::ForEach {
+                item,
+                iterable,
+                body,
+                ..
+            } => {
                 let iter_value = self.eval_expr(locals, iterable)?;
                 let items = match iter_value {
                     Value::List(items) => items,
@@ -797,7 +863,11 @@ impl<'a> EvalContext<'a> {
                         .into_values()
                         .map(|entry| Value::List(vec![entry.key, entry.value]))
                         .collect(),
-                    _ => return Err("순회 대상은 차림/모음/짝맞춤이어야 합니다".to_string().into()),
+                    _ => {
+                        return Err("순회 대상은 차림/모음/짝맞춤이어야 합니다"
+                            .to_string()
+                            .into())
+                    }
                 };
                 let prev = locals.get(item).cloned();
                 for value in items {
@@ -823,7 +893,14 @@ impl<'a> EvalContext<'a> {
                 Ok(FlowControl::Continue)
             }
             Stmt::Break { span, .. } => Ok(FlowControl::Break(*span)),
-            Stmt::Contract { kind, mode, condition, then_body, else_body, .. } => {
+            Stmt::Contract {
+                kind,
+                mode,
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 let cond_value = self.eval_expr(locals, condition)?;
                 let ok = is_truthy(&cond_value)?;
                 match kind {
@@ -871,7 +948,9 @@ impl<'a> EvalContext<'a> {
                     }
                 }
             }
-            Stmt::Guard { condition, body, .. } => {
+            Stmt::Guard {
+                condition, body, ..
+            } => {
                 let cond_value = self.eval_expr(locals, condition)?;
                 if is_truthy(&cond_value)? {
                     self.guard_rejected = true;
@@ -884,7 +963,11 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    fn eval_expr(&mut self, locals: &mut HashMap<String, Value>, expr: &Expr) -> Result<Value, EvalError> {
+    fn eval_expr(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        expr: &Expr,
+    ) -> Result<Value, EvalError> {
         match &expr.kind {
             ExprKind::Literal(Literal::Resource(path)) => {
                 let handle = gate0_registry::resolve_asset_handle(path)?;
@@ -954,7 +1037,9 @@ impl<'a> EvalContext<'a> {
             ExprKind::Thunk(_) => Err("Thunk는 즉시 평가 표지가 필요합니다".to_string().into()),
             ExprKind::Eval { thunk, mode } => {
                 let ExprKind::Thunk(body) = &thunk.kind else {
-                    return Err("평가 표지는 안은문장에만 붙일 수 있습니다".to_string().into());
+                    return Err("평가 표지는 안은문장에만 붙일 수 있습니다"
+                        .to_string()
+                        .into());
                 };
                 match mode {
                     ddonirang_lang::ThunkEvalMode::Value => {
@@ -1048,7 +1133,11 @@ impl<'a> EvalContext<'a> {
         Ok(Value::Pack(map))
     }
 
-    fn eval_pipe(&mut self, locals: &mut HashMap<String, Value>, stages: &[Expr]) -> Result<Value, EvalError> {
+    fn eval_pipe(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        stages: &[Expr],
+    ) -> Result<Value, EvalError> {
         self.flow_stack.push(None);
         let idx = self.flow_stack.len() - 1;
         for stage in stages {
@@ -1142,7 +1231,9 @@ impl<'a> EvalContext<'a> {
                     return Err("짝맞춤.바꾼값은 인자 3개를 받습니다".to_string().into());
                 }
                 let Value::Map(map) = &args[0] else {
-                    return Err("짝맞춤.바꾼값은 짝맞춤 인자가 필요합니다".to_string().into());
+                    return Err("짝맞춤.바꾼값은 짝맞춤 인자가 필요합니다"
+                        .to_string()
+                        .into());
                 };
                 let mut entries = map.clone();
                 entries.insert(
@@ -1161,11 +1252,7 @@ impl<'a> EvalContext<'a> {
                 let Value::Pack(pack) = &args[0] else {
                     return Err("키목록은 묶음 인자를 받습니다".to_string().into());
                 };
-                let keys = pack
-                    .keys()
-                    .cloned()
-                    .map(Value::String)
-                    .collect::<Vec<_>>();
+                let keys = pack.keys().cloned().map(Value::String).collect::<Vec<_>>();
                 Ok(Value::List(keys))
             }
             "값목록" => {
@@ -1216,7 +1303,10 @@ impl<'a> EvalContext<'a> {
                 let Value::Pack(pack) = &args[1] else {
                     return Err("풀기는 묶음 주입 인자가 필요합니다".to_string().into());
                 };
-                if matches!(formula.dialect, FormulaDialect::Latex | FormulaDialect::Other(_)) {
+                if matches!(
+                    formula.dialect,
+                    FormulaDialect::Latex | FormulaDialect::Other(_)
+                ) {
                     return Err("FATAL:FORMULA_DIALECT_UNSUPPORTED".to_string().into());
                 }
                 let parsed = parse_formula_value(formula)?;
@@ -1224,7 +1314,9 @@ impl<'a> EvalContext<'a> {
                 let provided: BTreeSet<String> = pack.keys().cloned().collect();
                 let missing: Vec<String> = required.difference(&provided).cloned().collect();
                 if !missing.is_empty() {
-                    return Err(format!("풀기: 주입 키가 누락되었습니다: {}", missing.join(", ")).into());
+                    return Err(
+                        format!("풀기: 주입 키가 누락되었습니다: {}", missing.join(", ")).into(),
+                    );
                 }
                 let extra: Vec<String> = provided.difference(&required).cloned().collect();
                 if !extra.is_empty() {
@@ -1287,7 +1379,10 @@ impl<'a> EvalContext<'a> {
                                 right: end.dim,
                             }));
                         }
-                        let step = UnitValue { value: Fixed64::from_i64(1), dim: start.dim };
+                        let step = UnitValue {
+                            value: Fixed64::from_i64(1),
+                            dim: start.dim,
+                        };
                         (start, end, step)
                     }
                     3 => {
@@ -1320,12 +1415,18 @@ impl<'a> EvalContext<'a> {
                 let step_value = step.value;
                 if step_value.raw_i64() > 0 {
                     while current.raw_i64() <= end.value.raw_i64() {
-                        items.push(unit_value_to_value(UnitValue { value: current, dim: start.dim }));
+                        items.push(unit_value_to_value(UnitValue {
+                            value: current,
+                            dim: start.dim,
+                        }));
                         current = current.saturating_add(step_value);
                     }
                 } else {
                     while current.raw_i64() >= end.value.raw_i64() {
-                        items.push(unit_value_to_value(UnitValue { value: current, dim: start.dim }));
+                        items.push(unit_value_to_value(UnitValue {
+                            value: current,
+                            dim: start.dim,
+                        }));
                         current = current.saturating_add(step_value);
                     }
                 }
@@ -1356,18 +1457,27 @@ impl<'a> EvalContext<'a> {
                     return Err("끝포함은 0 또는 1이어야 합니다".to_string().into());
                 }
                 let include_end = flag == one;
-                let step = UnitValue { value: Fixed64::from_i64(1), dim: start.dim };
+                let step = UnitValue {
+                    value: Fixed64::from_i64(1),
+                    dim: start.dim,
+                };
                 let mut items = Vec::new();
                 let mut current = start.value;
                 if start.value.raw_i64() <= end.value.raw_i64() {
                     if include_end {
                         while current.raw_i64() <= end.value.raw_i64() {
-                            items.push(unit_value_to_value(UnitValue { value: current, dim: start.dim }));
+                            items.push(unit_value_to_value(UnitValue {
+                                value: current,
+                                dim: start.dim,
+                            }));
                             current = current.saturating_add(step.value);
                         }
                     } else {
                         while current.raw_i64() < end.value.raw_i64() {
-                            items.push(unit_value_to_value(UnitValue { value: current, dim: start.dim }));
+                            items.push(unit_value_to_value(UnitValue {
+                                value: current,
+                                dim: start.dim,
+                            }));
                             current = current.saturating_add(step.value);
                         }
                     }
@@ -1435,7 +1545,9 @@ impl<'a> EvalContext<'a> {
                 let Value::String(pattern) = &args[1] else {
                     return Err("찾기는 글 인자를 받습니다".to_string().into());
                 };
-                let idx = text.find(pattern).map(|byte_idx| text[..byte_idx].chars().count() as i64);
+                let idx = text
+                    .find(pattern)
+                    .map(|byte_idx| text[..byte_idx].chars().count() as i64);
                 Ok(Value::Fixed64(Fixed64::from_i64(idx.unwrap_or(-1))))
             }
             "첫번째" => {
@@ -1676,7 +1788,9 @@ impl<'a> EvalContext<'a> {
                         out.extend(right.clone());
                         Ok(Value::List(out))
                     }
-                    _ => Err("붙이기는 차림/글 조합 또는 차림/차림 조합만 지원합니다".to_string().into()),
+                    _ => Err("붙이기는 차림/글 조합 또는 차림/차림 조합만 지원합니다"
+                        .to_string()
+                        .into()),
                 }
             }
             "포함하나" => {
@@ -1737,7 +1851,10 @@ impl<'a> EvalContext<'a> {
                 }
                 let qty = unit_value_from_value(&args[0])?;
                 let value = fixed64_floor(qty.value);
-                Ok(unit_value_to_value(UnitValue { value, dim: qty.dim }))
+                Ok(unit_value_to_value(UnitValue {
+                    value,
+                    dim: qty.dim,
+                }))
             }
             "천장" => {
                 if args.len() != 1 {
@@ -1745,7 +1862,10 @@ impl<'a> EvalContext<'a> {
                 }
                 let qty = unit_value_from_value(&args[0])?;
                 let value = fixed64_ceil(qty.value);
-                Ok(unit_value_to_value(UnitValue { value, dim: qty.dim }))
+                Ok(unit_value_to_value(UnitValue {
+                    value,
+                    dim: qty.dim,
+                }))
             }
             "반올림" => {
                 if args.len() != 1 {
@@ -1753,7 +1873,10 @@ impl<'a> EvalContext<'a> {
                 }
                 let qty = unit_value_from_value(&args[0])?;
                 let value = fixed64_round_even(qty.value);
-                Ok(unit_value_to_value(UnitValue { value, dim: qty.dim }))
+                Ok(unit_value_to_value(UnitValue {
+                    value,
+                    dim: qty.dim,
+                }))
             }
             "합계" => {
                 if args.len() != 1 {
@@ -1791,13 +1914,85 @@ impl<'a> EvalContext<'a> {
                 let avg = total.div_scalar(count).map_err(unit_error)?;
                 Ok(unit_value_to_value(avg))
             }
+            "지니" | "지니계수" => {
+                let values = expect_numeric_list_arg(&args, "지니")?;
+                if values.is_empty() {
+                    return Ok(Value::None);
+                }
+                let mut total = Fixed64::ZERO;
+                for value in &values {
+                    if value.value.raw_i64() < 0 {
+                        return Err("지니 입력은 음수가 될 수 없습니다".to_string().into());
+                    }
+                    total = total.saturating_add(value.value);
+                }
+                if total.raw_i64() == 0 {
+                    return Ok(Value::Fixed64(Fixed64::ZERO));
+                }
+                let mut pair_sum = Fixed64::ZERO;
+                for i in 0..values.len() {
+                    for j in (i + 1)..values.len() {
+                        let diff = values[i].value.saturating_sub(values[j].value);
+                        pair_sum = pair_sum.saturating_add(fixed64_abs(diff));
+                    }
+                }
+                let count = Fixed64::from_i64(values.len() as i64);
+                let denom = count.saturating_mul(total);
+                let gini = pair_sum
+                    .try_div(denom)
+                    .map_err(|_| "지니 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                Ok(Value::Fixed64(gini))
+            }
+            "분위수" | "백분위수" => {
+                let (mut values, p, mode) = expect_quantile_args(&args)?;
+                if values.is_empty() {
+                    return Ok(Value::None);
+                }
+                if values.len() == 1 {
+                    return Ok(unit_value_to_value(values[0]));
+                }
+                values.sort_by(|a, b| a.value.raw_i64().cmp(&b.value.raw_i64()));
+                match mode {
+                    PercentileMode::Linear => {
+                        let max_index = Fixed64::from_i64((values.len() - 1) as i64);
+                        let pos = p.saturating_mul(max_index);
+                        let low = fixed64_floor(pos);
+                        let high = fixed64_ceil(pos);
+                        let low_idx = fixed64_to_nonnegative_index(low)?;
+                        let high_idx = fixed64_to_nonnegative_index(high)?;
+                        if low_idx >= values.len() || high_idx >= values.len() {
+                            return Err("분위수 인덱스가 범위를 벗어났습니다".to_string().into());
+                        }
+                        if low_idx == high_idx {
+                            return Ok(unit_value_to_value(values[low_idx]));
+                        }
+                        let frac = pos.saturating_sub(low);
+                        let base = values[low_idx];
+                        let next = values[high_idx];
+                        let delta = next.value.saturating_sub(base.value);
+                        let step = delta.saturating_mul(frac);
+                        let interpolated = UnitValue {
+                            value: base.value.saturating_add(step),
+                            dim: base.dim,
+                        };
+                        Ok(unit_value_to_value(interpolated))
+                    }
+                    PercentileMode::NearestRank => {
+                        let idx = nearest_rank_index(p, values.len())?;
+                        Ok(unit_value_to_value(values[idx]))
+                    }
+                }
+            }
             "abs" => {
                 if args.len() != 1 {
                     return Err("abs는 인자 1개를 받습니다".to_string().into());
                 }
                 let qty = unit_value_from_value(&args[0])?;
                 let value = fixed64_abs(qty.value);
-                Ok(unit_value_to_value(UnitValue { value, dim: qty.dim }))
+                Ok(unit_value_to_value(UnitValue {
+                    value,
+                    dim: qty.dim,
+                }))
             }
             "min" => {
                 if args.len() != 2 {
@@ -1811,7 +2006,11 @@ impl<'a> EvalContext<'a> {
                         right: right.dim,
                     }));
                 }
-                let out = if left.value <= right.value { left } else { right };
+                let out = if left.value <= right.value {
+                    left
+                } else {
+                    right
+                };
                 Ok(unit_value_to_value(out))
             }
             "max" => {
@@ -1826,7 +2025,11 @@ impl<'a> EvalContext<'a> {
                         right: right.dim,
                     }));
                 }
-                let out = if left.value >= right.value { left } else { right };
+                let out = if left.value >= right.value {
+                    left
+                } else {
+                    right
+                };
                 Ok(unit_value_to_value(out))
             }
             "clamp" => {
@@ -1902,7 +2105,9 @@ impl<'a> EvalContext<'a> {
                     return Err("자원은 인자 1개를 받습니다".to_string().into());
                 }
                 match &args[0] {
-                    Value::String(path) => Ok(Value::ResourceHandle(ResourceHandle::from_path(path))),
+                    Value::String(path) => {
+                        Ok(Value::ResourceHandle(ResourceHandle::from_path(path)))
+                    }
                     Value::ResourceHandle(handle) => Ok(Value::ResourceHandle(*handle)),
                     _ => Err("자원은 글 인자를 받습니다".to_string().into()),
                 }
@@ -1934,7 +2139,9 @@ impl<'a> EvalContext<'a> {
                 let min = value_to_i64(&args[0])?;
                 let max = value_to_i64(&args[1])?;
                 if min > max {
-                    return Err("무작위정수의 최소/최대가 올바르지 않습니다".to_string().into());
+                    return Err("무작위정수의 최소/최대가 올바르지 않습니다"
+                        .to_string()
+                        .into());
                 }
                 let range = (max - min + 1) as u64;
                 let value = (self.next_rng_u64() % range) as i64 + min;
@@ -2102,18 +2309,12 @@ impl<'a> EvalContext<'a> {
         message: String,
     ) {
         let (reason, sub_reason, contract_kind, tag) = match kind {
-            ddonirang_lang::ContractKind::Pre => (
-                "CONTRACT_PRE",
-                "PRE_VIOLATION",
-                "pre",
-                "contract:pre",
-            ),
-            ddonirang_lang::ContractKind::Post => (
-                "CONTRACT_POST",
-                "POST_VIOLATION",
-                "post",
-                "contract:post",
-            ),
+            ddonirang_lang::ContractKind::Pre => {
+                ("CONTRACT_PRE", "PRE_VIOLATION", "pre", "contract:pre")
+            }
+            ddonirang_lang::ContractKind::Post => {
+                ("CONTRACT_POST", "POST_VIOLATION", "post", "contract:post")
+            }
         };
         let origin = self
             .current_seed_name
@@ -2251,7 +2452,8 @@ impl<'a> EvalContext<'a> {
                         value: v,
                     });
                     let unit_value = UnitValue::from_spec(v, spec);
-                    self.resources.insert(name.to_string(), Value::Unit(unit_value));
+                    self.resources
+                        .insert(name.to_string(), Value::Unit(unit_value));
                 } else {
                     self.patch_ops.push(PatchOp::SetResourceFixed64 {
                         tag: name.to_string(),
@@ -2279,9 +2481,12 @@ impl<'a> EvalContext<'a> {
                         tag: name.to_string(),
                         value: unit.value,
                     });
-                    self.resources.insert(name.to_string(), Value::Fixed64(unit.value));
+                    self.resources
+                        .insert(name.to_string(), Value::Fixed64(unit.value));
                 } else {
-                    return Err("단위가 있는 값은 단위 태그 자원에만 저장할 수 있습니다".to_string().into());
+                    return Err("단위가 있는 값은 단위 태그 자원에만 저장할 수 있습니다"
+                        .to_string()
+                        .into());
                 }
             }
             Value::String(s) => {
@@ -2324,7 +2529,9 @@ impl<'a> EvalContext<'a> {
                 self.resources.insert(name.to_string(), value);
             }
             Value::Formula(_) => return Err("수식은 자원에 대입할 수 없습니다".to_string().into()),
-            Value::Template(_) => return Err("글무늬는 자원에 대입할 수 없습니다".to_string().into()),
+            Value::Template(_) => {
+                return Err("글무늬는 자원에 대입할 수 없습니다".to_string().into())
+            }
             Value::Lambda(_) => return Err("씨앗은 자원에 대입할 수 없습니다".to_string().into()),
         }
         Ok(())
@@ -2346,9 +2553,15 @@ fn literal_to_value(lit: &Literal) -> Value {
 fn values_equal(left: &Value, right: &Value) -> bool {
     match (left, right) {
         (Value::Fixed64(a), Value::Fixed64(b)) => a.raw_i64() == b.raw_i64(),
-        (Value::Fixed64(a), Value::Unit(b)) if b.is_dimensionless() => a.raw_i64() == b.value.raw_i64(),
-        (Value::Unit(a), Value::Fixed64(b)) if a.is_dimensionless() => a.value.raw_i64() == b.raw_i64(),
-        (Value::Unit(a), Value::Unit(b)) => a.dim == b.dim && a.value.raw_i64() == b.value.raw_i64(),
+        (Value::Fixed64(a), Value::Unit(b)) if b.is_dimensionless() => {
+            a.raw_i64() == b.value.raw_i64()
+        }
+        (Value::Unit(a), Value::Fixed64(b)) if a.is_dimensionless() => {
+            a.value.raw_i64() == b.raw_i64()
+        }
+        (Value::Unit(a), Value::Unit(b)) => {
+            a.dim == b.dim && a.value.raw_i64() == b.value.raw_i64()
+        }
         (Value::String(a), Value::String(b)) => a == b,
         (Value::Bool(a), Value::Bool(b)) => a == b,
         (Value::ResourceHandle(a), Value::ResourceHandle(b)) => a == b,
@@ -2394,8 +2607,12 @@ fn value_cmp(left: &Value, right: &Value) -> std::cmp::Ordering {
             }
             a.value.raw_i64().cmp(&b.value.raw_i64())
         }
-        (Value::Fixed64(a), Value::Unit(b)) if b.is_dimensionless() => a.raw_i64().cmp(&b.value.raw_i64()),
-        (Value::Unit(a), Value::Fixed64(b)) if a.is_dimensionless() => a.value.raw_i64().cmp(&b.raw_i64()),
+        (Value::Fixed64(a), Value::Unit(b)) if b.is_dimensionless() => {
+            a.raw_i64().cmp(&b.value.raw_i64())
+        }
+        (Value::Unit(a), Value::Fixed64(b)) if a.is_dimensionless() => {
+            a.value.raw_i64().cmp(&b.raw_i64())
+        }
         (Value::String(a), Value::String(b)) => a.cmp(b),
         (Value::ResourceHandle(a), Value::ResourceHandle(b)) => a.cmp(b),
         (Value::Formula(a), Value::Formula(b)) => a.raw.cmp(&b.raw),
@@ -2444,7 +2661,10 @@ fn parse_resource_unit_tag(tag: &str) -> Option<ddonirang_core::UnitSpec> {
 
 fn unit_value_from_value(value: &Value) -> Result<UnitValue, EvalError> {
     match value {
-        Value::Fixed64(v) => Ok(UnitValue { value: *v, dim: UnitDim::NONE }),
+        Value::Fixed64(v) => Ok(UnitValue {
+            value: *v,
+            dim: UnitDim::NONE,
+        }),
         Value::Unit(unit) => Ok(*unit),
         _ => Err("수치가 필요합니다".to_string().into()),
     }
@@ -2452,7 +2672,10 @@ fn unit_value_from_value(value: &Value) -> Result<UnitValue, EvalError> {
 
 fn numeric_value(value: &Value) -> Option<UnitValue> {
     match value {
-        Value::Fixed64(v) => Some(UnitValue { value: *v, dim: UnitDim::NONE }),
+        Value::Fixed64(v) => Some(UnitValue {
+            value: *v,
+            dim: UnitDim::NONE,
+        }),
         Value::Unit(unit) => Some(*unit),
         _ => None,
     }
@@ -2509,6 +2732,103 @@ fn fixed64_abs(value: Fixed64) -> Fixed64 {
     let raw = value.raw_i64();
     let abs = if raw == i64::MIN { i64::MAX } else { raw.abs() };
     Fixed64::from_raw_i64(abs)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PercentileMode {
+    Linear,
+    NearestRank,
+}
+
+fn expect_numeric_list_arg(args: &[Value], func_name: &str) -> Result<Vec<UnitValue>, EvalError> {
+    if args.len() != 1 {
+        return Err(format!("{func_name}는 인자 1개를 받습니다")
+            .to_string()
+            .into());
+    }
+    let Value::List(items) = &args[0] else {
+        return Err(format!("{func_name}는 차림 인자를 받습니다")
+            .to_string()
+            .into());
+    };
+    let mut values = Vec::with_capacity(items.len());
+    for item in items {
+        values.push(unit_value_from_value(item)?);
+    }
+    if let Some(head) = values.first() {
+        for item in values.iter().skip(1) {
+            if item.dim != head.dim {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: head.dim,
+                    right: item.dim,
+                }));
+            }
+        }
+    }
+    Ok(values)
+}
+
+fn expect_quantile_args(
+    args: &[Value],
+) -> Result<(Vec<UnitValue>, Fixed64, PercentileMode), EvalError> {
+    if args.len() != 2 && args.len() != 3 {
+        return Err("분위수는 인자 2개 또는 3개를 받습니다".to_string().into());
+    }
+    let values = expect_numeric_list_arg(&args[..1], "분위수")?;
+    let percentile = unit_value_from_value(&args[1])?;
+    if !percentile.is_dimensionless() {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: percentile.dim,
+            right: UnitDim::NONE,
+        }));
+    }
+    if percentile.value.raw_i64() < 0 || percentile.value.raw_i64() > Fixed64::ONE.raw_i64() {
+        return Err("분위수 p는 0..1 범위여야 합니다".to_string().into());
+    }
+    let mode = if args.len() == 3 {
+        parse_percentile_mode(&args[2])?
+    } else {
+        PercentileMode::Linear
+    };
+    Ok((values, percentile.value, mode))
+}
+
+fn parse_percentile_mode(value: &Value) -> Result<PercentileMode, EvalError> {
+    let Value::String(mode) = value else {
+        return Err("분위수 mode는 글이어야 합니다".to_string().into());
+    };
+    match mode.trim() {
+        "선형보간" => Ok(PercentileMode::Linear),
+        "최근순위" => Ok(PercentileMode::NearestRank),
+        _ => Err("분위수 mode는 선형보간 또는 최근순위여야 합니다"
+            .to_string()
+            .into()),
+    }
+}
+
+fn fixed64_to_nonnegative_index(value: Fixed64) -> Result<usize, EvalError> {
+    if value.raw_i64() < 0 || value.frac_part() != 0 {
+        return Err("분위수 인덱스는 0 이상의 정수여야 합니다"
+            .to_string()
+            .into());
+    }
+    Ok(value.int_part() as usize)
+}
+
+fn nearest_rank_index(p: Fixed64, len: usize) -> Result<usize, EvalError> {
+    if len == 0 {
+        return Err("분위수 입력 목록이 비어 있습니다".to_string().into());
+    }
+    let p_raw = p.raw_i64() as i128;
+    let n = len as i128;
+    let scale = Fixed64::ONE_RAW as i128;
+    let rank = if p_raw <= 0 {
+        1
+    } else {
+        ((p_raw * n) + (scale - 1)) / scale
+    };
+    let clamped_rank = rank.clamp(1, n);
+    Ok((clamped_rank - 1) as usize)
 }
 
 fn fixed64_sqrt(value: Fixed64) -> Option<Fixed64> {
@@ -2887,7 +3207,10 @@ fn resolve_template_value<'a>(
     Ok(current)
 }
 
-fn format_template_value(value: &Value, format: Option<&TemplateFormat>) -> Result<String, EvalError> {
+fn format_template_value(
+    value: &Value,
+    format: Option<&TemplateFormat>,
+) -> Result<String, EvalError> {
     let Some(format) = format else {
         if matches!(value, Value::None) {
             return Err("채우기: 자리표시자 값이 없습니다".to_string().into());
@@ -2897,7 +3220,9 @@ fn format_template_value(value: &Value, format: Option<&TemplateFormat>) -> Resu
     let (number, suffix) = match value {
         Value::Fixed64(v) => {
             if format.unit.is_some() {
-                return Err("글무늬 포맷 단위는 단위 값에만 적용됩니다".to_string().into());
+                return Err("글무늬 포맷 단위는 단위 값에만 적용됩니다"
+                    .to_string()
+                    .into());
             }
             (*v, None)
         }
@@ -3011,9 +3336,19 @@ struct FormulaAnalysis {
 enum FormulaExpr {
     Number(UnitValue),
     Var(String),
-    Func { name: String, args: Vec<FormulaExpr> },
-    Unary { op: FormulaOp, expr: Box<FormulaExpr> },
-    Binary { op: FormulaOp, left: Box<FormulaExpr>, right: Box<FormulaExpr> },
+    Func {
+        name: String,
+        args: Vec<FormulaExpr>,
+    },
+    Unary {
+        op: FormulaOp,
+        expr: Box<FormulaExpr>,
+    },
+    Binary {
+        op: FormulaOp,
+        left: Box<FormulaExpr>,
+        right: Box<FormulaExpr>,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3343,7 +3678,10 @@ fn format_formula_expr(expr: &FormulaExpr, parent_prec: u8) -> String {
                 .join(", ");
             format!("{}({})", name, rendered)
         }
-        FormulaExpr::Unary { op: FormulaOp::Sub, expr } => {
+        FormulaExpr::Unary {
+            op: FormulaOp::Sub,
+            expr,
+        } => {
             let inner = format_formula_expr(expr, 3);
             format!("-{}", inner)
         }
@@ -3413,7 +3751,9 @@ fn parse_formula_transform_arg(
             ..FormulaTransformOptions::default()
         }),
         Value::Pack(pack) => parse_formula_transform_pack(pack, label),
-        _ => Err(EvalError::Message("string variable or pack options".to_string())),
+        _ => Err(EvalError::Message(
+            "string variable or pack options".to_string(),
+        )),
     }
 }
 
@@ -3543,8 +3883,7 @@ fn transform_formula_value(
     }
     if call_name == "int" && options.order.is_some() {
         return Err(EvalError::Message(
-            "E_CALC_TRANSFORM_UNSUPPORTED_OPTION: 적분하기는 차수를 지원하지 않습니다"
-                .to_string(),
+            "E_CALC_TRANSFORM_UNSUPPORTED_OPTION: 적분하기는 차수를 지원하지 않습니다".to_string(),
         ));
     }
 
@@ -3577,7 +3916,11 @@ fn transform_formula_value(
     })
 }
 
-fn diff_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) -> Result<FormulaExpr, EvalError> {
+fn diff_formula_expr(
+    expr: &FormulaExpr,
+    var: &str,
+    label: &'static str,
+) -> Result<FormulaExpr, EvalError> {
     use FormulaExpr::*;
     use FormulaOp::*;
 
@@ -3592,27 +3935,53 @@ fn diff_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) -> Resu
         }
         Unary { op: Sub, expr } => unary_sub(diff_formula_expr(expr, var, label)?),
         Unary { expr, .. } => diff_formula_expr(expr, var, label)?,
-        Binary { op: Add, left, right } => add(
+        Binary {
+            op: Add,
+            left,
+            right,
+        } => add(
             diff_formula_expr(left, var, label)?,
             diff_formula_expr(right, var, label)?,
         ),
-        Binary { op: Sub, left, right } => sub(
+        Binary {
+            op: Sub,
+            left,
+            right,
+        } => sub(
             diff_formula_expr(left, var, label)?,
             diff_formula_expr(right, var, label)?,
         ),
-        Binary { op: Mul, left, right } => {
+        Binary {
+            op: Mul,
+            left,
+            right,
+        } => {
             let dl = diff_formula_expr(left, var, label)?;
             let dr = diff_formula_expr(right, var, label)?;
-            add(mul(dl, right.as_ref().clone()), mul(left.as_ref().clone(), dr))
+            add(
+                mul(dl, right.as_ref().clone()),
+                mul(left.as_ref().clone(), dr),
+            )
         }
-        Binary { op: Div, left, right } => {
+        Binary {
+            op: Div,
+            left,
+            right,
+        } => {
             let dl = diff_formula_expr(left, var, label)?;
             let dr = diff_formula_expr(right, var, label)?;
-            let num = sub(mul(dl, right.as_ref().clone()), mul(left.as_ref().clone(), dr));
+            let num = sub(
+                mul(dl, right.as_ref().clone()),
+                mul(left.as_ref().clone(), dr),
+            );
             let denom = pow(right.as_ref().clone(), num_i(2));
             div(num, denom)
         }
-        Binary { op: Pow, left, right } => {
+        Binary {
+            op: Pow,
+            left,
+            right,
+        } => {
             if let Some(exp) = number_as_int(right) {
                 if exp == 0 {
                     num_zero()
@@ -3677,7 +4046,11 @@ fn diff_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) -> Resu
     Ok(d)
 }
 
-fn integrate_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) -> Result<FormulaExpr, EvalError> {
+fn integrate_formula_expr(
+    expr: &FormulaExpr,
+    var: &str,
+    label: &'static str,
+) -> Result<FormulaExpr, EvalError> {
     use FormulaExpr::*;
     use FormulaOp::*;
 
@@ -3696,19 +4069,37 @@ fn integrate_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) ->
         }
         Unary { op: Sub, expr } => unary_sub(integrate_formula_expr(expr, var, label)?),
         Unary { expr, .. } => integrate_formula_expr(expr, var, label)?,
-        Binary { op: Add, left, right } => add(
+        Binary {
+            op: Add,
+            left,
+            right,
+        } => add(
             integrate_formula_expr(left, var, label)?,
             integrate_formula_expr(right, var, label)?,
         ),
-        Binary { op: Sub, left, right } => sub(
+        Binary {
+            op: Sub,
+            left,
+            right,
+        } => sub(
             integrate_formula_expr(left, var, label)?,
             integrate_formula_expr(right, var, label)?,
         ),
-        Binary { op: Mul, left, right } => {
+        Binary {
+            op: Mul,
+            left,
+            right,
+        } => {
             if !expr_contains_var(left, var) {
-                mul(left.as_ref().clone(), integrate_formula_expr(right, var, label)?)
+                mul(
+                    left.as_ref().clone(),
+                    integrate_formula_expr(right, var, label)?,
+                )
             } else if !expr_contains_var(right, var) {
-                mul(right.as_ref().clone(), integrate_formula_expr(left, var, label)?)
+                mul(
+                    right.as_ref().clone(),
+                    integrate_formula_expr(left, var, label)?,
+                )
             } else if let Some(exp) = detect_var_power(expr, var) {
                 let next = exp + 1;
                 let num = pow(Var(var.to_string()), num_i(next));
@@ -3720,7 +4111,11 @@ fn integrate_formula_expr(expr: &FormulaExpr, var: &str, label: &'static str) ->
                 )));
             }
         }
-        Binary { op: Pow, left, right } => {
+        Binary {
+            op: Pow,
+            left,
+            right,
+        } => {
             if let (FormulaExpr::Var(name), Some(exp)) = (&**left, number_as_int(right)) {
                 if name == var && exp != -1 {
                     let next = exp + 1;
@@ -3774,14 +4169,20 @@ fn expr_contains_var(expr: &FormulaExpr, var: &str) -> bool {
         FormulaExpr::Number(_) => false,
         FormulaExpr::Func { args, .. } => args.iter().any(|arg| expr_contains_var(arg, var)),
         FormulaExpr::Unary { expr, .. } => expr_contains_var(expr, var),
-        FormulaExpr::Binary { left, right, .. } => expr_contains_var(left, var) || expr_contains_var(right, var),
+        FormulaExpr::Binary { left, right, .. } => {
+            expr_contains_var(left, var) || expr_contains_var(right, var)
+        }
     }
 }
 
 fn detect_var_power(expr: &FormulaExpr, var: &str) -> Option<i64> {
     match expr {
         FormulaExpr::Var(name) if name == var => Some(1),
-        FormulaExpr::Binary { op: FormulaOp::Pow, left, right } => {
+        FormulaExpr::Binary {
+            op: FormulaOp::Pow,
+            left,
+            right,
+        } => {
             if let FormulaExpr::Var(name) = &**left {
                 if name == var {
                     return number_as_int(right);
@@ -3789,8 +4190,13 @@ fn detect_var_power(expr: &FormulaExpr, var: &str) -> Option<i64> {
             }
             None
         }
-        FormulaExpr::Binary { op: FormulaOp::Mul, left, right } => {
-            if let (Some(a), Some(b)) = (detect_var_power(left, var), detect_var_power(right, var)) {
+        FormulaExpr::Binary {
+            op: FormulaOp::Mul,
+            left,
+            right,
+        } => {
+            if let (Some(a), Some(b)) = (detect_var_power(left, var), detect_var_power(right, var))
+            {
                 return Some(a + b);
             }
             if let (Some(a), FormulaExpr::Var(name)) = (detect_var_power(left, var), &**right) {
@@ -3823,85 +4229,150 @@ fn number_as_int(expr: &FormulaExpr) -> Option<i64> {
 }
 
 fn num_zero() -> FormulaExpr {
-    FormulaExpr::Number(UnitValue { value: Fixed64::from_i64(0), dim: UnitDim::NONE })
+    FormulaExpr::Number(UnitValue {
+        value: Fixed64::from_i64(0),
+        dim: UnitDim::NONE,
+    })
 }
 
 fn num_one() -> FormulaExpr {
-    FormulaExpr::Number(UnitValue { value: Fixed64::from_i64(1), dim: UnitDim::NONE })
+    FormulaExpr::Number(UnitValue {
+        value: Fixed64::from_i64(1),
+        dim: UnitDim::NONE,
+    })
 }
 
 fn num_i(value: i64) -> FormulaExpr {
-    FormulaExpr::Number(UnitValue { value: Fixed64::from_i64(value), dim: UnitDim::NONE })
+    FormulaExpr::Number(UnitValue {
+        value: Fixed64::from_i64(value),
+        dim: UnitDim::NONE,
+    })
 }
 
 fn num_ln10() -> FormulaExpr {
-    FormulaExpr::Number(UnitValue { value: Fixed64::from_f64_lossy(libm::log(10.0)), dim: UnitDim::NONE })
+    FormulaExpr::Number(UnitValue {
+        value: Fixed64::from_f64_lossy(libm::log(10.0)),
+        dim: UnitDim::NONE,
+    })
 }
 
 fn num_ln2() -> FormulaExpr {
-    FormulaExpr::Number(UnitValue { value: Fixed64::from_f64_lossy(libm::log(2.0)), dim: UnitDim::NONE })
+    FormulaExpr::Number(UnitValue {
+        value: Fixed64::from_f64_lossy(libm::log(2.0)),
+        dim: UnitDim::NONE,
+    })
 }
 
 fn func(name: &str, args: Vec<FormulaExpr>) -> FormulaExpr {
-    FormulaExpr::Func { name: name.to_string(), args }
+    FormulaExpr::Func {
+        name: name.to_string(),
+        args,
+    }
 }
 
 fn unary_sub(expr: FormulaExpr) -> FormulaExpr {
-    FormulaExpr::Unary { op: FormulaOp::Sub, expr: Box::new(expr) }
+    FormulaExpr::Unary {
+        op: FormulaOp::Sub,
+        expr: Box::new(expr),
+    }
 }
 
 fn add(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
-    if is_zero(&left) { return right; }
-    if is_zero(&right) { return left; }
+    if is_zero(&left) {
+        return right;
+    }
+    if is_zero(&right) {
+        return left;
+    }
     if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
         if let Ok(out) = l.add(r) {
             return FormulaExpr::Number(out);
         }
     }
-    FormulaExpr::Binary { op: FormulaOp::Add, left: Box::new(left), right: Box::new(right) }
+    FormulaExpr::Binary {
+        op: FormulaOp::Add,
+        left: Box::new(left),
+        right: Box::new(right),
+    }
 }
 
 fn sub(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
-    if is_zero(&right) { return left; }
+    if is_zero(&right) {
+        return left;
+    }
     if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
         if let Ok(out) = l.sub(r) {
             return FormulaExpr::Number(out);
         }
     }
-    FormulaExpr::Binary { op: FormulaOp::Sub, left: Box::new(left), right: Box::new(right) }
+    FormulaExpr::Binary {
+        op: FormulaOp::Sub,
+        left: Box::new(left),
+        right: Box::new(right),
+    }
 }
 
 fn mul(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
-    if is_zero(&left) || is_zero(&right) { return num_zero(); }
-    if is_one(&left) { return right; }
-    if is_one(&right) { return left; }
+    if is_zero(&left) || is_zero(&right) {
+        return num_zero();
+    }
+    if is_one(&left) {
+        return right;
+    }
+    if is_one(&right) {
+        return left;
+    }
     if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
         return FormulaExpr::Number(l.mul(r));
     }
-    FormulaExpr::Binary { op: FormulaOp::Mul, left: Box::new(left), right: Box::new(right) }
+    FormulaExpr::Binary {
+        op: FormulaOp::Mul,
+        left: Box::new(left),
+        right: Box::new(right),
+    }
 }
 
 fn div(left: FormulaExpr, right: FormulaExpr) -> FormulaExpr {
-    if is_zero(&left) { return num_zero(); }
-    if is_one(&right) { return left; }
+    if is_zero(&left) {
+        return num_zero();
+    }
+    if is_one(&right) {
+        return left;
+    }
     if let (Some(l), Some(r)) = (as_number(&left), as_number(&right)) {
         if let Ok(out) = l.div(r) {
             return FormulaExpr::Number(out);
         }
     }
-    FormulaExpr::Binary { op: FormulaOp::Div, left: Box::new(left), right: Box::new(right) }
+    FormulaExpr::Binary {
+        op: FormulaOp::Div,
+        left: Box::new(left),
+        right: Box::new(right),
+    }
 }
 
 fn pow(base: FormulaExpr, exp: FormulaExpr) -> FormulaExpr {
     if let Some(e) = number_as_int(&exp) {
-        if e == 0 { return num_one(); }
-        if e == 1 { return base; }
+        if e == 0 {
+            return num_one();
+        }
+        if e == 1 {
+            return base;
+        }
     }
-    FormulaExpr::Binary { op: FormulaOp::Pow, left: Box::new(base), right: Box::new(exp) }
+    FormulaExpr::Binary {
+        op: FormulaOp::Pow,
+        left: Box::new(base),
+        right: Box::new(exp),
+    }
 }
 
 fn as_number(expr: &FormulaExpr) -> Option<UnitValue> {
-    if let FormulaExpr::Number(value) = expr { Some(*value) } else { None }
+    if let FormulaExpr::Number(value) = expr {
+        Some(*value)
+    } else {
+        None
+    }
 }
 
 fn is_zero(expr: &FormulaExpr) -> bool {
@@ -4051,7 +4522,9 @@ where
     I: Iterator<Item = char>,
 {
     let Some(first) = chars.next() else {
-        return Err(EvalError::Message("FATAL:FORMULA_TOKEN_INVALID".to_string()));
+        return Err(EvalError::Message(
+            "FATAL:FORMULA_TOKEN_INVALID".to_string(),
+        ));
     };
     let mut ident = String::new();
     ident.push(first);
@@ -4063,9 +4536,7 @@ where
                 continue;
             }
             if next == '_' {
-                return Err(EvalError::Message(
-                    "FATAL:FORMULA_ASCII1_VAR".to_string(),
-                ));
+                return Err(EvalError::Message("FATAL:FORMULA_ASCII1_VAR".to_string()));
             }
             break;
         }
@@ -4125,7 +4596,10 @@ fn eval_formula_expr(
                     dim: UnitDim::NONE,
                 });
             }
-            Err(EvalError::Message(format!("풀기: 키 '{}'가 없습니다", name)))
+            Err(EvalError::Message(format!(
+                "풀기: 키 '{}'가 없습니다",
+                name
+            )))
         }
         FormulaExpr::Func { name, args } => {
             let mut evaluated = Vec::with_capacity(args.len());
@@ -4293,7 +4767,13 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
             let args = expect_args(1)?;
             let arg = args[0];
             let raw = arg.value.raw_i64();
-            let sign = if raw > 0 { 1 } else if raw < 0 { -1 } else { 0 };
+            let sign = if raw > 0 {
+                1
+            } else if raw < 0 {
+                -1
+            } else {
+                0
+            };
             return Ok(UnitValue {
                 value: Fixed64::from_i64(sign),
                 dim: UnitDim::NONE,
@@ -4449,7 +4929,11 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
                 }));
             }
             let pick = if name == "min" {
-                if a.value <= b.value { a } else { b }
+                if a.value <= b.value {
+                    a
+                } else {
+                    b
+                }
             } else if a.value >= b.value {
                 a
             } else {
@@ -4511,20 +4995,14 @@ fn eval_formula_func(name: &str, args: Vec<UnitValue>) -> Result<UnitValue, Eval
 
 fn eval_formula_pow(base: UnitValue, exponent: UnitValue) -> Result<UnitValue, EvalError> {
     if exponent.dim != UnitDim::NONE {
-        return Err(EvalError::Message(
-            "FATAL:FORMULA_POW_INVALID".to_string(),
-        ));
+        return Err(EvalError::Message("FATAL:FORMULA_POW_INVALID".to_string()));
     }
     if exponent.value.frac_part() != 0 {
-        return Err(EvalError::Message(
-            "FATAL:FORMULA_POW_INVALID".to_string(),
-        ));
+        return Err(EvalError::Message("FATAL:FORMULA_POW_INVALID".to_string()));
     }
     let exp = exponent.value.int_part();
     if exp < 0 {
-        return Err(EvalError::Message(
-            "FATAL:FORMULA_POW_INVALID".to_string(),
-        ));
+        return Err(EvalError::Message("FATAL:FORMULA_POW_INVALID".to_string()));
     }
     if exp == 0 {
         return Ok(UnitValue {
@@ -4755,11 +5233,7 @@ fn check_applied_type(
     }
 }
 
-fn check_unit_type(
-    value: &Value,
-    base: &str,
-    unit: &str,
-) -> Result<(), TypeMismatchDetail> {
+fn check_unit_type(value: &Value, base: &str, unit: &str) -> Result<(), TypeMismatchDetail> {
     let canonical_base = canonical_type_name(base);
     if canonical_base != "수" {
         return Err(type_mismatch_detail(&canonical_base, value));
@@ -4836,7 +5310,10 @@ fn format_parse_error(source: &str, err: &ParseError) -> String {
         .unwrap_or(source.len());
     let line_text = &source[line_start..line_end];
     let caret = " ".repeat(col.saturating_sub(1)) + "^";
-    format!("파싱 실패: {} ({}:{})\n{}\n{}", err.message, line, col, line_text, caret)
+    format!(
+        "파싱 실패: {} ({}:{})\n{}\n{}",
+        err.message, line, col, line_text, caret
+    )
 }
 
 fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
@@ -4862,6 +5339,7 @@ fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ddonirang_lang::runtime::Value as RuntimeValue;
 
     fn empty_input() -> InputSnapshot {
         InputSnapshot {
@@ -4874,6 +5352,14 @@ mod tests {
             ai_injections: Vec::new(),
             net_events: Vec::new(),
             rng_seed: 0,
+        }
+    }
+
+    fn extract_fixed(resources: &HashMap<String, RuntimeValue>, key: &str) -> Fixed64 {
+        match resources.get(key) {
+            Some(RuntimeValue::Fixed64(value)) => *value,
+            Some(other) => panic!("{} must be Fixed64, got {:?}", key, other),
+            None => panic!("{} missing", key),
         }
     }
 
@@ -4910,6 +5396,67 @@ mod tests {
         };
         assert!(
             err.contains("FATAL:MAP_KEY_MISSING:b"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn gini_and_quantile_builtins_support_aliases() {
+        let script = r#"
+매틱:움직씨 = {
+    값목록 <- (1, 2, 3, 4) 차림.
+    지니1 <- (값목록) 지니.
+    지니2 <- (값목록) 지니계수.
+    분위1 <- (값목록, 0.75, "선형보간") 분위수.
+    분위2 <- (값목록, 0.75, "최근순위") 백분위수.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stats.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["지니1", "지니2", "분위1", "분위2"] {
+            defaults.insert(key.to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(
+            extract_fixed(&output.resources, "지니1"),
+            Fixed64::from_f64_lossy(0.25)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "지니2"),
+            Fixed64::from_f64_lossy(0.25)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "분위1"),
+            Fixed64::from_f64_lossy(3.25)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "분위2"),
+            Fixed64::from_i64(3)
+        );
+    }
+
+    #[test]
+    fn quantile_rejects_unknown_mode() {
+        let script = r#"
+매틱:움직씨 = {
+    값목록 <- (1, 2, 3, 4) 차림.
+    분위 <- (값목록, 0.5, "linear") 분위수.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stats_bad_mode.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let err = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("unknown mode must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.contains("분위수 mode는 선형보간 또는 최근순위여야 합니다"),
             "unexpected error: {err}"
         );
     }

@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_04_resonance_amplitude_vs_omega/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:d7ed360ac9c293af840046fe8c5356a9e4bba34f5b8dd3c3ff0be98a89d4942d"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:f2554bcc7001d322dcd8c7cdb19bdf4d3bd9b48ccc90957e6a6e4e03c53a0c5e"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

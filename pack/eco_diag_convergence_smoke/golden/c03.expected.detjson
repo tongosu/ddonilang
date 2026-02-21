@@ -1,0 +1,1 @@
+{"schema":"ddn.diagnostic_report.v0","seed":42,"tick":1,"diagnostics":[{"tick":0,"name":"SFC 항등식","lhs":1000,"rhs":1000,"delta":0,"threshold":0.0099999997,"result":"수렴"}]}

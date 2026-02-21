@@ -106,8 +106,7 @@ pub fn build_schema(source: &str, file_path: &str) -> Result<DdnSchema, String> 
 pub fn write_schema(path: &str, schema: &DdnSchema) -> Result<String, String> {
     let json =
         serde_json::to_string_pretty(schema).map_err(|e| format!("SCHEMA_JSON_INVALID: {}", e))?;
-    fs::write(path, json.as_bytes())
-        .map_err(|e| format!("SCHEMA_WRITE_FAILED: {}", e))?;
+    fs::write(path, json.as_bytes()).map_err(|e| format!("SCHEMA_WRITE_FAILED: {}", e))?;
     Ok(blake3::hash(json.as_bytes()).to_hex().to_string())
 }
 
@@ -169,8 +168,8 @@ fn load_units_registry() -> Result<Vec<String>, String> {
     if !path.exists() {
         return Err("SCHEMA_UNIT_REGISTRY_MISSING: ddn.units.json".to_string());
     }
-    let raw = fs::read_to_string(path)
-        .map_err(|e| format!("SCHEMA_UNIT_REGISTRY_INVALID: {}", e))?;
+    let raw =
+        fs::read_to_string(path).map_err(|e| format!("SCHEMA_UNIT_REGISTRY_INVALID: {}", e))?;
     let registry: UnitsRegistry =
         serde_json::from_str(&raw).map_err(|e| format!("SCHEMA_UNIT_REGISTRY_INVALID: {}", e))?;
     if let Some(version) = &registry.version {
@@ -189,8 +188,8 @@ fn load_asset_manifest_summary() -> Result<AssetManifestSummary, String> {
     if !path.exists() {
         return Err("SCHEMA_ASSET_MANIFEST_MISSING: ddn.asset.json".to_string());
     }
-    let raw = fs::read_to_string(path)
-        .map_err(|e| format!("SCHEMA_ASSET_MANIFEST_INVALID: {}", e))?;
+    let raw =
+        fs::read_to_string(path).map_err(|e| format!("SCHEMA_ASSET_MANIFEST_INVALID: {}", e))?;
     let manifest: AssetManifest =
         serde_json::from_str(&raw).map_err(|e| format!("SCHEMA_ASSET_MANIFEST_INVALID: {}", e))?;
     Ok(AssetManifestSummary {

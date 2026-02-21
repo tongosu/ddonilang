@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_arithmetic_sequence/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:e57f9063dccfc81487e9c929f9c38a15d988644435ff6577a87a6266ed5c30b9"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:20b1c35fe29b570f710922fa61efdd9f7239e544767ad1e02e8dcb67481336ee"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

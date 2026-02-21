@@ -1,0 +1,80 @@
+{
+  "schema": "seamgrim.rewrite.sample_manifest.v1",
+  "seed": 20260221,
+  "per_subject": 4,
+  "count": 12,
+  "samples": [
+    {
+      "lesson_id": "elem_econ_store_stock",
+      "subject": "economy",
+      "smoke_file": "smoke_elem_econ_store_stock.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_store_stock/lesson.ddn"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_03_dwl_vs_tax",
+      "subject": "economy",
+      "smoke_file": "smoke_ssot_edu_econ_e002_03_dwl_vs_tax.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_03_dwl_vs_tax/lesson.ddn"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_01_budget_line_xy",
+      "subject": "economy",
+      "smoke_file": "smoke_ssot_edu_econ_e007_01_budget_line_xy.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_01_budget_line_xy/lesson.ddn"
+    },
+    {
+      "lesson_id": "ssot_edu_s3_supply_demand_tax",
+      "subject": "economy",
+      "smoke_file": "smoke_ssot_edu_s3_supply_demand_tax.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_s3_supply_demand_tax/lesson.ddn"
+    },
+    {
+      "lesson_id": "elem_math_symmetry_reflection",
+      "subject": "math",
+      "smoke_file": "smoke_elem_math_symmetry_reflection.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_symmetry_reflection/lesson.ddn"
+    },
+    {
+      "lesson_id": "college_math_series",
+      "subject": "math",
+      "smoke_file": "smoke_college_math_series.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_series/lesson.ddn"
+    },
+    {
+      "lesson_id": "elem_math_parabola_basic",
+      "subject": "math",
+      "smoke_file": "smoke_elem_math_parabola_basic.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_parabola_basic/lesson.ddn"
+    },
+    {
+      "lesson_id": "elem_math_speed_distance",
+      "subject": "math",
+      "smoke_file": "smoke_elem_math_speed_distance.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_speed_distance/lesson.ddn"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_04_rc_charging_Vc_t",
+      "subject": "physics",
+      "smoke_file": "smoke_ssot_edu_phys_p004_04_rc_charging_vc_t.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_04_rc_charging_Vc_t/lesson.ddn"
+    },
+    {
+      "lesson_id": "elem_science_simple_circuit",
+      "subject": "physics",
+      "smoke_file": "smoke_elem_science_simple_circuit.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_simple_circuit/lesson.ddn"
+    },
+    {
+      "lesson_id": "elem_science_magnet_distance",
+      "subject": "physics",
+      "smoke_file": "smoke_elem_science_magnet_distance.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_magnet_distance/lesson.ddn"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_05_impulse_vt_step",
+      "subject": "physics",
+      "smoke_file": "smoke_ssot_edu_phys_p002_05_impulse_vt_step.v1.json",
+      "ddn_file": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_05_impulse_vt_step/lesson.ddn"
+    }
+  ]
+}

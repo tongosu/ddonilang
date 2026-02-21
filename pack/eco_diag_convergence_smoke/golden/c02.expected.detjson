@@ -1,0 +1,1 @@
+{"schema":"ddn.diagnostic_report.v0","seed":42,"tick":1,"diagnostics":[{"tick":0,"name":"거시↔미시 균형가격","lhs":100,"rhs":108.6999999999,"delta":8.6999999999,"threshold":0.0499999998,"result":"발산","error_code":"E_ECO_DIVERGENCE_DETECTED"}]}

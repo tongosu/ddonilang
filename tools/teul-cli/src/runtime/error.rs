@@ -90,6 +90,20 @@ pub enum RuntimeError {
         message: String,
         span: Span,
     },
+    EcoDivergenceDetected {
+        tick: u64,
+        name: String,
+        delta: String,
+        threshold: String,
+        span: Span,
+    },
+    SfcIdentityViolation {
+        tick: u64,
+        name: String,
+        delta: String,
+        threshold: String,
+        span: Span,
+    },
 }
 
 impl RuntimeError {
@@ -118,6 +132,8 @@ impl RuntimeError {
             RuntimeError::OpenReplayInvalid { .. } => "E_OPEN_LOG_PARSE",
             RuntimeError::OpenLogTamper { .. } => "E_OPEN_LOG_TAMPER",
             RuntimeError::OpenIo { .. } => "E_OPEN_IO",
+            RuntimeError::EcoDivergenceDetected { .. } => "E_ECO_DIVERGENCE_DETECTED",
+            RuntimeError::SfcIdentityViolation { .. } => "E_SFC_IDENTITY_VIOLATION",
         }
     }
 }

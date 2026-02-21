@@ -21,7 +21,9 @@ struct DetMathEntry {
 
 pub fn default_manifest_path() -> PathBuf {
     let base = Path::new(env!("CARGO_MANIFEST_DIR"));
-    base.join("assets").join("detmath").join("dtm_manifest.json")
+    base.join("assets")
+        .join("detmath")
+        .join("dtm_manifest.json")
 }
 
 pub fn ensure_detmath_assets() -> Result<(), String> {
@@ -50,8 +52,8 @@ pub fn ensure_detmath_assets_at(manifest_path: &Path) -> Result<(), String> {
 fn load_manifest(path: &Path) -> Result<DetMathManifest, String> {
     let text = fs::read_to_string(path)
         .map_err(|e| format!("DetMath 매니페스트를 읽을 수 없습니다: {path:?} ({e})"))?;
-    let manifest: DetMathManifest = serde_json::from_str(&text)
-        .map_err(|e| format!("DetMath 매니페스트 파싱 실패: {e}"))?;
+    let manifest: DetMathManifest =
+        serde_json::from_str(&text).map_err(|e| format!("DetMath 매니페스트 파싱 실패: {e}"))?;
     if manifest.version != MANIFEST_VERSION {
         return Err(format!(
             "DetMath 매니페스트 버전 불일치: {} (expected {})",

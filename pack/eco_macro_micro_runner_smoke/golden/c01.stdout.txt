@@ -1,0 +1,1 @@
+eco_runner_report=pack/eco_macro_micro_runner_smoke/cases/c01_converge_all/report.detjson

@@ -1,0 +1,42 @@
+{
+  "schema": "ddn.macro_micro_runner.v0",
+  "seed": 42,
+  "ticks": 4,
+  "shock": {
+    "type": "세율_인상",
+    "target": "세율",
+    "delta": 0.2,
+    "at_tick": 3,
+    "scope": "양쪽"
+  },
+  "models": {
+    "거시": "macro.ddn",
+    "미시": "micro.ddn"
+  },
+  "diagnostics": [
+    {
+      "name": "기억=1",
+      "lhs": "거시.균형가격",
+      "rhs": "미시.가격_m1",
+      "threshold": 0.5
+    },
+    {
+      "name": "기억=3",
+      "lhs": "거시.균형가격",
+      "rhs": "미시.가격_m3",
+      "threshold": 0.5
+    },
+    {
+      "name": "기억=5",
+      "lhs": "거시.균형가격",
+      "rhs": "미시.가격_m5",
+      "threshold": 0.5
+    },
+    {
+      "name": "기억=10",
+      "lhs": "거시.균형가격",
+      "rhs": "미시.가격_m10",
+      "threshold": 0.5
+    }
+  ]
+}

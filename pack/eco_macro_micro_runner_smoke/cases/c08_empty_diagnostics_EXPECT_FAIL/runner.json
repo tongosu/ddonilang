@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.macro_micro_runner.v0",
+  "seed": 42,
+  "ticks": 3,
+  "models": {
+    "거시": "../c01_converge_all/macro.ddn",
+    "미시": "../c01_converge_all/micro.ddn"
+  },
+  "diagnostics": []
+}

@@ -15,6 +15,7 @@ pub mod detjson;
 pub mod diag;
 pub mod docset;
 pub mod dotbogi;
+pub mod eco;
 pub mod edu;
 pub mod eval;
 pub mod gaji;

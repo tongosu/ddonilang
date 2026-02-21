@@ -1,0 +1,1 @@
+{"schema":"ddn.diagnostic_report.v0","seed":42,"tick":1,"diagnostics":[{"tick":0,"name":"SFC 항등식","lhs":1000,"rhs":987.2999999998,"delta":12.7000000001,"threshold":0.0099999997,"result":"발산","error_code":"E_SFC_IDENTITY_VIOLATION"}]}

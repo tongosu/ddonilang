@@ -757,6 +757,13 @@ impl Parser {
         if trimmed.is_empty() {
             return (String::new(), String::new());
         }
+        if let Some(open_idx) = trimmed.find('(') {
+            if trimmed.ends_with(')') && open_idx < trimmed.len() - 1 {
+                let name = trimmed[..open_idx].trim();
+                let args = &trimmed[open_idx + 1..trimmed.len() - 1];
+                return (name.to_string(), args.trim().to_string());
+            }
+        }
         if let Some((name, rest)) = trimmed.split_once(':') {
             return (name.trim().to_string(), rest.trim().to_string());
         }
@@ -2709,6 +2716,18 @@ mod tests {
         let program = Parser::parse_with_default_root(tokens, "살림").expect("pragma parsed");
         assert_eq!(program.stmts.len(), 1);
         assert!(matches!(program.stmts[0], Stmt::Pragma { .. }));
+    }
+
+    #[test]
+    fn parse_pragma_with_parenthesized_spaces_keeps_full_args() {
+        let source = "#진단(a ≈ b, 허용오차=0.1, 이름=\"검사\")\n";
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("pragma parsed");
+        let Some(Stmt::Pragma { name, args, .. }) = program.stmts.first() else {
+            panic!("first stmt must be pragma");
+        };
+        assert_eq!(name, "진단");
+        assert_eq!(args, "a ≈ b, 허용오차=0.1, 이름=\"검사\"");
     }
 
     #[test]

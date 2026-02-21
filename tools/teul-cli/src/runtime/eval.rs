@@ -29,6 +29,8 @@ pub struct Evaluator {
     bogae_requested_tick: bool,
     aborted: bool,
     contract_diags: Vec<ContractDiag>,
+    diagnostics: Vec<DiagnosticRecord>,
+    diagnostic_failures: Vec<DiagnosticFailure>,
     rng_state: Cell<u64>,
     current_madi: Cell<u64>,
     open_source: String,
@@ -37,11 +39,63 @@ pub struct Evaluator {
     user_seeds: BTreeMap<String, UserSeed>,
 }
 
+#[derive(Clone, Debug)]
+pub struct DiagnosticRecord {
+    pub tick: u64,
+    pub name: String,
+    pub lhs: String,
+    pub rhs: String,
+    pub delta: String,
+    pub threshold: String,
+    pub result: String,
+    pub error_code: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DiagnosticFailure {
+    pub code: String,
+    pub tick: u64,
+    pub name: String,
+    pub delta: String,
+    pub threshold: String,
+    pub span: crate::lang::span::Span,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum FlowControl {
     Continue,
     Break(crate::lang::span::Span),
     Return(Value, crate::lang::span::Span),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DiagnosticOp {
+    Approx,
+    Eq,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+
+impl DiagnosticOp {
+    fn as_str(self) -> &'static str {
+        match self {
+            DiagnosticOp::Approx => "≈",
+            DiagnosticOp::Eq => "=",
+            DiagnosticOp::Lt => "<",
+            DiagnosticOp::Le => "<=",
+            DiagnosticOp::Gt => ">",
+            DiagnosticOp::Ge => ">=",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DiagnosticCondition {
+    lhs_raw: String,
+    rhs_raw: String,
+    op: DiagnosticOp,
 }
 
 static LAMBDA_SEQ: AtomicU64 = AtomicU64::new(1);
@@ -111,6 +165,8 @@ impl Evaluator {
             bogae_requested_tick: false,
             aborted: false,
             contract_diags: Vec::new(),
+            diagnostics: Vec::new(),
+            diagnostic_failures: Vec::new(),
             rng_state: Cell::new(seed),
             current_madi: Cell::new(0),
             open_source,
@@ -264,6 +320,8 @@ impl Evaluator {
             trace: self.trace,
             bogae_requested: self.bogae_requested,
             contract_diags: self.contract_diags,
+            diagnostics: self.diagnostics,
+            diagnostic_failures: self.diagnostic_failures,
         })
     }
 
@@ -309,7 +367,10 @@ impl Evaluator {
                 );
                 Ok(FlowControl::Continue)
             }
-            Stmt::Pragma { .. } => Ok(FlowControl::Continue),
+            Stmt::Pragma { name, args, span } => {
+                self.eval_pragma(name, args, *span)?;
+                Ok(FlowControl::Continue)
+            }
             Stmt::Assign { target, value, .. } => {
                 if let Some(root) = target.segments.first() {
                     if root == "샘" {
@@ -557,6 +618,154 @@ impl Evaluator {
                 }
                 Ok(FlowControl::Continue)
             }
+        }
+    }
+
+    fn eval_pragma(
+        &mut self,
+        name: &str,
+        args: &str,
+        span: crate::lang::span::Span,
+    ) -> Result<(), RuntimeError> {
+        let (pragma_name, pragma_args) = parse_pragma_invocation(name, args);
+        if pragma_name != "진단" {
+            return Ok(());
+        }
+        self.eval_diagnostic_pragma(&pragma_args, span)
+    }
+
+    fn eval_diagnostic_pragma(
+        &mut self,
+        args: &str,
+        span: crate::lang::span::Span,
+    ) -> Result<(), RuntimeError> {
+        let parts = split_top_level_args(args);
+        if parts.is_empty() {
+            return Err(RuntimeError::Pack {
+                message: "#진단 인자가 비었습니다".to_string(),
+                span,
+            });
+        }
+
+        let condition = parse_diagnostic_condition(&parts[0], span)?;
+        let mut threshold: Option<Fixed64> = None;
+        let mut custom_name: Option<String> = None;
+        let mut error_code_override: Option<String> = None;
+
+        for part in parts.iter().skip(1) {
+            let Some((raw_key, raw_value)) = split_option_pair(part) else {
+                continue;
+            };
+            let key = raw_key.trim();
+            let value = raw_value.trim();
+            match key {
+                "허용오차" | "threshold" => {
+                    let Some(parsed) = Fixed64::parse_literal(value) else {
+                        return Err(RuntimeError::Pack {
+                            message: format!("#진단 허용오차 파싱 실패: {}", value),
+                            span,
+                        });
+                    };
+                    threshold = Some(parsed);
+                }
+                "이름" | "name" => {
+                    custom_name = Some(parse_string_option(value));
+                }
+                "오류코드" | "error_code" => {
+                    let parsed = parse_string_option(value);
+                    if !is_supported_diagnostic_error_code(&parsed) {
+                        return Err(RuntimeError::Pack {
+                            message: format!(
+                                "#진단 오류코드는 E_ECO_DIVERGENCE_DETECTED 또는 E_SFC_IDENTITY_VIOLATION만 허용됩니다: {}",
+                                parsed
+                            ),
+                            span,
+                        });
+                    }
+                    error_code_override = Some(parsed);
+                }
+                _ => {}
+            }
+        }
+
+        let threshold = match condition.op {
+            DiagnosticOp::Approx => threshold.unwrap_or(Fixed64::zero()),
+            DiagnosticOp::Eq => threshold.unwrap_or(Fixed64::zero()),
+            _ => threshold.unwrap_or(Fixed64::zero()),
+        };
+        let lhs = self.resolve_diagnostic_value(&condition.lhs_raw, span)?;
+        let rhs = self.resolve_diagnostic_value(&condition.rhs_raw, span)?;
+        let delta = fixed64_abs(lhs.saturating_sub(rhs));
+        let passed = match condition.op {
+            DiagnosticOp::Approx => delta.raw() <= threshold.raw(),
+            DiagnosticOp::Eq => delta.raw() <= threshold.raw(),
+            DiagnosticOp::Lt => lhs.raw() < rhs.raw(),
+            DiagnosticOp::Le => lhs.raw() <= rhs.raw(),
+            DiagnosticOp::Gt => lhs.raw() > rhs.raw(),
+            DiagnosticOp::Ge => lhs.raw() >= rhs.raw(),
+        };
+        let name = custom_name.unwrap_or_else(|| {
+            format!(
+                "{} {} {}",
+                condition.lhs_raw,
+                condition.op.as_str(),
+                condition.rhs_raw
+            )
+        });
+        let failure_code = if passed {
+            None
+        } else {
+            Some(infer_diagnostic_failure_code(
+                error_code_override.as_deref(),
+                &name,
+                &condition,
+            ))
+        };
+
+        self.diagnostics.push(DiagnosticRecord {
+            tick: self.current_madi.get(),
+            name: name.clone(),
+            lhs: lhs.format(),
+            rhs: rhs.format(),
+            delta: delta.format(),
+            threshold: threshold.format(),
+            result: if passed {
+                "수렴".to_string()
+            } else {
+                "발산".to_string()
+            },
+            error_code: failure_code.clone(),
+        });
+
+        if let Some(code) = failure_code {
+            self.diagnostic_failures.push(DiagnosticFailure {
+                code,
+                tick: self.current_madi.get(),
+                name,
+                delta: delta.format(),
+                threshold: threshold.format(),
+                span,
+            });
+        }
+        Ok(())
+    }
+
+    fn resolve_diagnostic_value(
+        &self,
+        raw: &str,
+        span: crate::lang::span::Span,
+    ) -> Result<Fixed64, RuntimeError> {
+        let trimmed = raw.trim();
+        if let Some(number) = Fixed64::parse_literal(trimmed) {
+            return Ok(number);
+        }
+        let key = normalize_diag_state_key(trimmed);
+        let Some(value) = self.state.get(&Key::new(key.clone())) else {
+            return Err(RuntimeError::Undefined { path: key, span });
+        };
+        match value {
+            Value::Num(quantity) => Ok(quantity.raw),
+            _ => Err(type_mismatch_detail("number", value, span)),
         }
     }
 
@@ -1054,6 +1263,80 @@ impl Evaluator {
                     .checked_div(count)
                     .ok_or(RuntimeError::MathDivZero { span })?;
                 Ok(Value::Num(Quantity::new(avg_raw, total.dim)))
+            }
+            "지니" => {
+                let values = expect_quantity_list(values, span)?;
+                if values.is_empty() {
+                    return Ok(Value::None);
+                }
+                let mut total = Fixed64::zero();
+                for value in &values {
+                    if value.raw.raw() < 0 {
+                        return Err(RuntimeError::MathDomain {
+                            message: "지니 입력은 음수가 될 수 없습니다",
+                            span,
+                        });
+                    }
+                    total = total.saturating_add(value.raw);
+                }
+                if total.raw() == 0 {
+                    return Ok(Value::Num(Quantity::new(Fixed64::zero(), UnitDim::zero())));
+                }
+                let mut pair_sum = Fixed64::zero();
+                for i in 0..values.len() {
+                    for j in (i + 1)..values.len() {
+                        let diff = values[i].raw.saturating_sub(values[j].raw);
+                        pair_sum = pair_sum.saturating_add(fixed64_abs(diff));
+                    }
+                }
+                let count = Fixed64::from_int(values.len() as i64);
+                let gini = pair_sum
+                    .checked_div(count.saturating_mul(total))
+                    .ok_or(RuntimeError::MathDivZero { span })?;
+                Ok(Value::Num(Quantity::new(gini, UnitDim::zero())))
+            }
+            "분위수" => {
+                let (list, p, mode) = expect_list_and_percentile(values, span)?;
+                if list.is_empty() {
+                    return Ok(Value::None);
+                }
+                if list.len() == 1 {
+                    return Ok(Value::Num(list[0].clone()));
+                }
+                let mut sorted = list;
+                sorted.sort_by(|a, b| a.raw.raw().cmp(&b.raw.raw()));
+                match mode {
+                    PercentileMode::Linear => {
+                        let max_index = Fixed64::from_int((sorted.len() - 1) as i64);
+                        let pos = p.saturating_mul(max_index);
+                        let low = fixed64_floor(pos);
+                        let high = fixed64_ceil(pos);
+                        let low_index = fixed64_to_nonnegative_index(low, span)?;
+                        let high_index = fixed64_to_nonnegative_index(high, span)?;
+                        if low_index >= sorted.len() || high_index >= sorted.len() {
+                            return Err(RuntimeError::MathDomain {
+                                message: "분위수 인덱스가 범위를 벗어났습니다",
+                                span,
+                            });
+                        }
+                        if low_index == high_index {
+                            return Ok(Value::Num(sorted[low_index].clone()));
+                        }
+                        let frac = pos.saturating_sub(low);
+                        let base = sorted[low_index].clone();
+                        let next = sorted[high_index].clone();
+                        let delta = next.raw.saturating_sub(base.raw);
+                        let step = delta.saturating_mul(frac);
+                        Ok(Value::Num(Quantity::new(
+                            base.raw.saturating_add(step),
+                            base.dim,
+                        )))
+                    }
+                    PercentileMode::NearestRank => {
+                        let index = nearest_rank_index(p, sorted.len(), span)?;
+                        Ok(Value::Num(sorted[index].clone()))
+                    }
+                }
             }
             "길이" => match values {
                 [Value::Str(text)] => {
@@ -2202,11 +2485,13 @@ impl Evaluator {
                 | "토막내기"
                 | "펼치기"
                 | "평균"
+                | "분위수"
                 | "포함하나"
                 | "표준.범위"
                 | "풀기"
                 | "합계"
                 | "합치기"
+                | "지니"
         )
     }
 
@@ -2689,6 +2974,202 @@ impl Evaluator {
     }
 }
 
+fn parse_pragma_invocation(name: &str, args: &str) -> (String, String) {
+    let trimmed_name = name.trim();
+    let trimmed_args = args.trim();
+    if !trimmed_args.is_empty() {
+        return (
+            trimmed_name.to_string(),
+            trim_outer_parens(trimmed_args).to_string(),
+        );
+    }
+    if let Some(open) = trimmed_name.find('(') {
+        if trimmed_name.ends_with(')') && open < trimmed_name.len() - 1 {
+            let head = trimmed_name[..open].trim();
+            let body = &trimmed_name[open + 1..trimmed_name.len() - 1];
+            return (head.to_string(), body.trim().to_string());
+        }
+    }
+    (trimmed_name.to_string(), trimmed_args.to_string())
+}
+
+fn trim_outer_parens(text: &str) -> &str {
+    let trimmed = text.trim();
+    if trimmed.starts_with('(') && trimmed.ends_with(')') && trimmed.len() >= 2 {
+        &trimmed[1..trimmed.len() - 1]
+    } else {
+        trimmed
+    }
+}
+
+fn split_top_level_args(text: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut depth = 0i32;
+    let mut in_quote = false;
+    let mut escaped = false;
+    let chars: Vec<char> = text.chars().collect();
+    for (idx, ch) in chars.iter().enumerate() {
+        if in_quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match ch {
+                '\\' => escaped = true,
+                '"' => in_quote = false,
+                _ => {}
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_quote = true,
+            '(' | '{' | '[' => depth += 1,
+            ')' | '}' | ']' => depth -= 1,
+            ',' if depth == 0 => {
+                let part: String = chars[start..idx].iter().collect();
+                let trimmed = part.trim();
+                if !trimmed.is_empty() {
+                    parts.push(trimmed.to_string());
+                }
+                start = idx + 1;
+            }
+            _ => {}
+        }
+    }
+    if start < chars.len() {
+        let part: String = chars[start..].iter().collect();
+        let trimmed = part.trim();
+        if !trimmed.is_empty() {
+            parts.push(trimmed.to_string());
+        }
+    }
+    parts
+}
+
+fn split_option_pair(text: &str) -> Option<(&str, &str)> {
+    let mut in_quote = false;
+    let mut escaped = false;
+    for (idx, ch) in text.char_indices() {
+        if in_quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            match ch {
+                '\\' => escaped = true,
+                '"' => in_quote = false,
+                _ => {}
+            }
+            continue;
+        }
+        if ch == '"' {
+            in_quote = true;
+            continue;
+        }
+        if ch == '=' {
+            return Some((&text[..idx], &text[idx + 1..]));
+        }
+    }
+    None
+}
+
+fn parse_string_option(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
+        return trimmed[1..trimmed.len() - 1].replace("\\\"", "\"");
+    }
+    trimmed.to_string()
+}
+
+fn parse_diagnostic_condition(
+    text: &str,
+    span: crate::lang::span::Span,
+) -> Result<DiagnosticCondition, RuntimeError> {
+    let trimmed = text.trim();
+    let operators = [
+        ("≈", DiagnosticOp::Approx),
+        ("<=", DiagnosticOp::Le),
+        (">=", DiagnosticOp::Ge),
+        ("=", DiagnosticOp::Eq),
+        ("<", DiagnosticOp::Lt),
+        (">", DiagnosticOp::Gt),
+    ];
+    for (token, op) in operators {
+        if let Some((lhs, rhs)) = trimmed.split_once(token) {
+            let lhs = lhs.trim();
+            let rhs = rhs.trim();
+            if lhs.is_empty() || rhs.is_empty() {
+                break;
+            }
+            return Ok(DiagnosticCondition {
+                lhs_raw: lhs.to_string(),
+                rhs_raw: rhs.to_string(),
+                op,
+            });
+        }
+    }
+    Err(RuntimeError::Pack {
+        message: format!("#진단 조건 해석 실패: {}", text),
+        span,
+    })
+}
+
+fn normalize_diag_state_key(input: &str) -> String {
+    let trimmed = input.trim();
+    if let Some(rest) = trimmed.strip_prefix("살림.") {
+        return rest.to_string();
+    }
+    if let Some(rest) = trimmed.strip_prefix("바탕.") {
+        return rest.to_string();
+    }
+    trimmed.to_string()
+}
+
+fn infer_diagnostic_failure_code(
+    override_code: Option<&str>,
+    name: &str,
+    condition: &DiagnosticCondition,
+) -> String {
+    if let Some(code) = override_code {
+        let trimmed = code.trim();
+        if is_supported_diagnostic_error_code(trimmed) {
+            return trimmed.to_string();
+        }
+    }
+    if matches!(condition.op, DiagnosticOp::Eq) && is_sfc_condition(name, condition) {
+        "E_SFC_IDENTITY_VIOLATION".to_string()
+    } else {
+        "E_ECO_DIVERGENCE_DETECTED".to_string()
+    }
+}
+
+fn is_sfc_condition(name: &str, condition: &DiagnosticCondition) -> bool {
+    let upper_name = name.to_ascii_uppercase();
+    if upper_name.contains("SFC") {
+        return true;
+    }
+    let lhs = condition.lhs_raw.as_str();
+    let rhs = condition.rhs_raw.as_str();
+    (lhs.contains("총수입") && rhs.contains("총지출"))
+        || (lhs.contains("총지출") && rhs.contains("총수입"))
+}
+
+fn fixed64_abs(value: Fixed64) -> Fixed64 {
+    if value.raw() < 0 {
+        Fixed64::from_raw(value.raw().saturating_neg())
+    } else {
+        value
+    }
+}
+
+fn is_supported_diagnostic_error_code(code: &str) -> bool {
+    matches!(
+        code.trim(),
+        "E_ECO_DIVERGENCE_DETECTED" | "E_SFC_IDENTITY_VIOLATION"
+    )
+}
+
 fn no_op_before_tick(_: u64, _: &mut State) -> Result<(), RuntimeError> {
     Ok(())
 }
@@ -2702,6 +3183,8 @@ pub struct EvalOutput {
     pub trace: Trace,
     pub bogae_requested: bool,
     pub contract_diags: Vec<ContractDiag>,
+    pub diagnostics: Vec<DiagnosticRecord>,
+    pub diagnostic_failures: Vec<DiagnosticFailure>,
 }
 
 fn map_formula_error(err: FormulaError, span: crate::lang::span::Span) -> RuntimeError {
@@ -3142,6 +3625,115 @@ fn expect_list(values: &[Value], span: crate::lang::span::Span) -> Result<ListVa
         Value::List(list) => Ok(list.clone()),
         value => Err(type_mismatch_detail("list", value, span)),
     }
+}
+
+fn expect_quantity_list(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<Vec<Quantity>, RuntimeError> {
+    let list = expect_list(values, span)?;
+    let mut out = Vec::with_capacity(list.items.len());
+    for item in &list.items {
+        out.push(expect_quantity_value(item, span)?);
+    }
+    if let Some(head) = out.first() {
+        for item in out.iter().skip(1) {
+            ensure_same_dim(head, item, span)?;
+        }
+    }
+    Ok(out)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PercentileMode {
+    Linear,
+    NearestRank,
+}
+
+fn expect_list_and_percentile(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(Vec<Quantity>, Fixed64, PercentileMode), RuntimeError> {
+    if values.len() != 2 && values.len() != 3 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "list, percentile, mode?",
+            span,
+        });
+    }
+    let list = expect_quantity_list(&values[0..1], span)?;
+    let percentile = expect_quantity_value(&values[1], span)?;
+    if !percentile.dim.is_dimensionless() {
+        return Err(RuntimeError::UnitMismatch { span });
+    }
+    let zero = Fixed64::zero();
+    let one = Fixed64::one();
+    if percentile.raw.raw() < zero.raw() || percentile.raw.raw() > one.raw() {
+        return Err(RuntimeError::MathDomain {
+            message: "분위수 p는 0..1 범위여야 합니다",
+            span,
+        });
+    }
+    let mode = if values.len() == 3 {
+        parse_percentile_mode(&values[2], span)?
+    } else {
+        PercentileMode::Linear
+    };
+    Ok((list, percentile.raw, mode))
+}
+
+fn fixed64_to_nonnegative_index(
+    value: Fixed64,
+    span: crate::lang::span::Span,
+) -> Result<usize, RuntimeError> {
+    let raw = value.raw();
+    if raw < 0 || (raw & ((1_i64 << Fixed64::SCALE_BITS) - 1)) != 0 {
+        return Err(RuntimeError::MathDomain {
+            message: "분위수 인덱스는 0 이상의 정수여야 합니다",
+            span,
+        });
+    }
+    Ok((raw >> Fixed64::SCALE_BITS) as usize)
+}
+
+fn parse_percentile_mode(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<PercentileMode, RuntimeError> {
+    let text = match value {
+        Value::Str(text) => text.trim().to_string(),
+        other => return Err(type_mismatch_detail("string mode", other, span)),
+    };
+    match text.as_str() {
+        "선형보간" => Ok(PercentileMode::Linear),
+        "최근순위" => Ok(PercentileMode::NearestRank),
+        _ => Err(RuntimeError::MathDomain {
+            message: "분위수 mode는 선형보간 또는 최근순위여야 합니다",
+            span,
+        }),
+    }
+}
+
+fn nearest_rank_index(
+    p: Fixed64,
+    len: usize,
+    span: crate::lang::span::Span,
+) -> Result<usize, RuntimeError> {
+    if len == 0 {
+        return Err(RuntimeError::MathDomain {
+            message: "분위수 입력 목록이 비어 있습니다",
+            span,
+        });
+    }
+    let p_raw = p.raw() as i128;
+    let scale = Fixed64::SCALE as i128;
+    let n = len as i128;
+    let rank = if p_raw <= 0 {
+        1
+    } else {
+        ((p_raw * n) + (scale - 1)) / scale
+    };
+    let clamped_rank = rank.clamp(1, n);
+    Ok((clamped_rank - 1) as usize)
 }
 
 fn expect_list_and_item(
@@ -4342,5 +4934,91 @@ fn is_truthy(value: &Value, span: crate::lang::span::Span) -> Result<bool, Runti
             expected: "condition",
             span,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lang::lexer::Lexer;
+    use crate::lang::parser::Parser;
+
+    fn run_source_once(source: &str) -> Result<EvalOutput, RuntimeError> {
+        let tokens = Lexer::tokenize(source).expect("lex");
+        let default_root = Parser::default_root_for_source(source);
+        let program = Parser::parse_with_default_root(tokens, default_root).expect("parse");
+        let evaluator = Evaluator::with_state_and_seed(State::new(), 42);
+        evaluator.run_with_ticks(&program, 1)
+    }
+
+    fn state_num(output: &EvalOutput, key: &str) -> Fixed64 {
+        let value = output
+            .state
+            .get(&Key::new(key.to_string()))
+            .expect("state key");
+        match value {
+            Value::Num(quantity) => quantity.raw,
+            other => panic!("expected number, got {}", other.display()),
+        }
+    }
+
+    fn fixed(text: &str) -> Fixed64 {
+        Fixed64::parse_literal(text).expect("fixed literal")
+    }
+
+    fn assert_fixed_close(actual: Fixed64, expected: Fixed64, max_raw_diff: i64) {
+        let diff = (actual.raw() - expected.raw()).abs();
+        assert!(
+            diff <= max_raw_diff,
+            "fixed mismatch actual={} expected={} diff={}",
+            actual.format(),
+            expected.format(),
+            diff
+        );
+    }
+
+    #[test]
+    fn quantile_linear_and_nearest_rank_modes_are_deterministic() {
+        let source = r#"
+값목록 <- [20, 25, 30, 35, 40].
+선형 <- (값목록, 0.9, "선형보간") 분위수.
+최근 <- (값목록, 0.9, "최근순위") 분위수.
+"#;
+        let output = run_source_once(source).expect("run");
+        assert_fixed_close(state_num(&output, "선형"), fixed("37.9999999981"), 2);
+        assert_eq!(state_num(&output, "최근"), fixed("40"));
+    }
+
+    #[test]
+    fn quantile_mode_invalid_returns_math_domain() {
+        let source = r#"
+값목록 <- [1, 2, 3].
+분위 <- (값목록, 0.5, "linear") 분위수.
+"#;
+        let err = match run_source_once(source) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_MATH_DOMAIN");
+    }
+
+    #[test]
+    fn gini_zero_sum_and_negative_guard() {
+        let ok_source = r#"
+값목록 <- [0, 0, 0, 0].
+지니값 <- (값목록) 지니.
+"#;
+        let ok = run_source_once(ok_source).expect("run zero sum");
+        assert_eq!(state_num(&ok, "지니값"), fixed("0"));
+
+        let bad_source = r#"
+값목록 <- [1, -2, 3].
+지니값 <- (값목록) 지니.
+"#;
+        let err = match run_source_once(bad_source) {
+            Ok(_) => panic!("negative must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_MATH_DOMAIN");
     }
 }

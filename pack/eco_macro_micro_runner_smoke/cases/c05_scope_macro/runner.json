@@ -1,0 +1,24 @@
+{
+  "schema": "ddn.macro_micro_runner.v0",
+  "seed": 42,
+  "ticks": 4,
+  "shock": {
+    "type": "세율_인상",
+    "target": "세율",
+    "delta": 0.1,
+    "at_tick": 2,
+    "scope": "거시"
+  },
+  "models": {
+    "거시": "../c02_diverge_shock/macro.ddn",
+    "미시": "../c02_diverge_shock/micro.ddn"
+  },
+  "diagnostics": [
+    {
+      "name": "거시만 충격",
+      "lhs": "거시.균형가격",
+      "rhs": "미시.평균가격",
+      "threshold": 4.0
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_05_newton_cooling_Tt_discrete/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:9b416cb9660a88807f8e4e90c10e7419e8154a04000bdedff802ac2d1b7ae6f8"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:5746cfe98898f406ba24ea294936114f9532be45cbda03bc285ee60f2b143669"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

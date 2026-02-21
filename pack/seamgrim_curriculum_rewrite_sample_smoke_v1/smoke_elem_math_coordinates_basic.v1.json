@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_coordinates_basic/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:bc83669276ee0a228bb6edc4706b355d149abd88985eabe06c6c583b19bc6000"
+    },
+    {
+      "tick": 8,
+      "state_hash": "blake3:91fe96fd694cfc5291e72219ccb10accfd8f9457d11a7d538d7c5deb56ea6b62"
+    }
+  ],
+  "max_ticks": 8,
+  "timeout_ms": 30000
+}

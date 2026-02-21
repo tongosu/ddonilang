@@ -1,0 +1,1 @@
+eco_network_flow_report=pack/eco_network_flow_smoke/cases/c05_eco_cmd_sfc_pass/report.detjson

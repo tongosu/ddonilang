@@ -1,0 +1,29 @@
+#이름: physics_pendulum_seed_v1
+#설명: 소각 근사 진자 시뮬레이션 seed
+#control: g:수=9.8 [1..20] step=0.1; L:수=1 [0.2..3] step=0.1; theta0:수=0.5 [-1.2..1.2] step=0.05; omega0:수=0 [-3..3] step=0.05; dt:수=0.02 [0.005..0.1] step=0.005; t_max:수=8 [1..20] step=0.5
+
+g <- 9.8.
+L <- 1.
+theta0 <- 0.5.
+omega0 <- 0.
+dt <- 0.02.
+t_max <- 8.
+
+(시작)할때 {
+  t <- 0.
+  theta <- theta0.
+  omega <- omega0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    alpha <- 0 - (g / L) * theta.
+    omega <- omega + alpha * dt.
+    theta <- theta + omega * dt.
+    t <- t + dt.
+
+    t 보여주기.
+    theta 보여주기.
+    omega 보여주기.
+  }.
+}.

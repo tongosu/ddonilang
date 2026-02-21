@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.macro_micro_runner.v0",
+  "seed": 42,
+  "ticks": 0,
+  "models": {
+    "거시": "../c01_converge_all/macro.ddn",
+    "미시": "../c01_converge_all/micro.ddn"
+  },
+  "diagnostics": [
+    {
+      "name": "거시↔미시 균형가격",
+      "lhs": "거시.균형가격",
+      "rhs": "미시.평균가격",
+      "threshold": 0.1
+    }
+  ]
+}

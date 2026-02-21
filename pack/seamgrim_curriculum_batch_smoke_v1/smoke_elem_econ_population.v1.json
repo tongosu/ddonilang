@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_population/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:97989a9b699737c0b88f5e5f9c1d9bd27978910f61494f4512e3c961001c393f"
+    },
+    {
+      "tick": 15,
+      "state_hash": "blake3:4f1f419926c23fb2594b05e64273b6c03b2e2aede42566b4e5aaa3898acc21f1"
+    }
+  ],
+  "max_ticks": 15,
+  "timeout_ms": 30000
+}

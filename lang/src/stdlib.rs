@@ -20,6 +20,8 @@ pub fn canonicalize_stdlib_alias(name: &str) -> &str {
         "거듭제곱" => "powi",
         "최댓값" => "max",
         "최솟값" => "min",
+        "지니계수" => "지니",
+        "백분위수" => "분위수",
         "쓸감" => "자원",
         "겹차림.형상" => "텐서.형상",
         "겹차림.자료" => "텐서.자료",
@@ -330,6 +332,16 @@ pub fn math_function_sigs() -> Vec<FunctionSig> {
             params: &["차림"],
             ret: "수?",
         },
+        FunctionSig {
+            name: "지니",
+            params: &["차림<수>"],
+            ret: "수?",
+        },
+        FunctionSig {
+            name: "분위수",
+            params: &["차림<수>", "p(0..1)", "mode?"],
+            ret: "수?",
+        },
     ]
 }
 
@@ -437,6 +449,8 @@ mod tests {
         assert!(sigs.iter().any(|s| s.name == "정렬"));
         assert!(sigs.iter().any(|s| s.name == "포함하나"));
         assert!(sigs.iter().any(|s| s.name == "숫자로"));
+        assert!(sigs.iter().any(|s| s.name == "지니"));
+        assert!(sigs.iter().any(|s| s.name == "분위수"));
     }
 
     #[test]
@@ -446,6 +460,8 @@ mod tests {
         assert_eq!(canonicalize_stdlib_alias("번째"), "차림.값");
         assert_eq!(canonicalize_stdlib_alias("절댓값"), "abs");
         assert_eq!(canonicalize_stdlib_alias("최솟값"), "min");
+        assert_eq!(canonicalize_stdlib_alias("지니계수"), "지니");
+        assert_eq!(canonicalize_stdlib_alias("백분위수"), "분위수");
         assert_eq!(canonicalize_stdlib_alias("쓸감"), "자원");
         assert_eq!(canonicalize_stdlib_alias("겹차림.형상"), "텐서.형상");
         assert_eq!(canonicalize_stdlib_alias("겹차림.자료"), "텐서.자료");

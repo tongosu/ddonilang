@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_linear/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:68f79c8530bf173da8c342b358ed1b68e34a6d73d13832ea1af41f9b92daa940"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:a066b5ed34662f66afb2396f99aaef91d54b037bd49bbe92520d9bda3a96b3aa"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

@@ -1,0 +1,29 @@
+#이름: college_math_series_rewrite_v1
+#설명: 급수 근사
+#control: a0:수=1 [-20..20] step=0.5; d:수=2 [-10..10] step=0.5; r:수=1.1 [0.2..3] step=0.05; blend:수=0.5 [0..1] step=0.05; n_max:수=20 [5..80] step=1
+
+a0 <- 1.
+d <- 2.
+r <- 1.1.
+blend <- 0.5.
+n_max <- 20.
+
+(시작)할때 {
+  n <- 0.
+  a_n <- a0.
+  sum <- 0.
+}.
+
+(매마디)마다 {
+  { n <= n_max }인것 일때 {
+    arith <- a0 + d * n.
+    geom <- a0 * (1 + (r - 1) * n).
+    a_n <- arith * (1 - blend) + geom * blend.
+    sum <- sum + a_n.
+    n <- n + 1.
+
+    n 보여주기.
+    a_n 보여주기.
+    sum 보여주기.
+  }.
+}.

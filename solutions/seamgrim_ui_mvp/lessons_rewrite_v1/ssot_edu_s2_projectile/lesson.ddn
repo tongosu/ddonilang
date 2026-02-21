@@ -1,0 +1,35 @@
+#이름: ssot_edu_s2_projectile_rewrite_v1
+#설명: 학습지 (S2)
+#control: x0:수=1 [0.2..5] step=0.1; y0:수=0 [-5..5] step=0.1; vx0:수=0 [-5..5] step=0.1; vy0:수=1 [0.1..5] step=0.1; mu:수=1 [0.2..10] step=0.1; dt:수=0.02 [0.005..0.1] step=0.005; t_max:수=8 [1..30] step=0.5
+
+x0 <- 1.
+y0 <- 0.
+vx0 <- 0.
+vy0 <- 1.
+mu <- 1.
+dt <- 0.02.
+t_max <- 8.
+
+(시작)할때 {
+  t <- 0.
+  x <- x0.
+  y <- y0.
+  vx <- vx0.
+  vy <- vy0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    r2 <- x * x + y * y + 0.0001.
+    ax <- 0 - mu * x / r2.
+    ay <- 0 - mu * y / r2.
+    vx <- vx + ax * dt.
+    vy <- vy + ay * dt.
+    x <- x + vx * dt.
+    y <- y + vy * dt.
+    t <- t + dt.
+
+    x 보여주기.
+    y 보여주기.
+  }.
+}.

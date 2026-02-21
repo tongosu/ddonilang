@@ -1,0 +1,24 @@
+{
+  "schema": "ddn.macro_micro_runner.v0",
+  "seed": 42,
+  "ticks": 3,
+  "shock": {
+    "type": "세율_인상",
+    "target": "세율",
+    "delta": 0.1,
+    "at_tick": 2,
+    "scope": "invalid_scope"
+  },
+  "models": {
+    "거시": "../c01_converge_all/macro.ddn",
+    "미시": "../c01_converge_all/micro.ddn"
+  },
+  "diagnostics": [
+    {
+      "name": "거시↔미시 균형가격",
+      "lhs": "거시.균형가격",
+      "rhs": "미시.평균가격",
+      "threshold": 5.0
+    }
+  ]
+}

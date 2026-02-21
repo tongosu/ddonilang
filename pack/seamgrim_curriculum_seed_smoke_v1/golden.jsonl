@@ -1,0 +1,3 @@
+{"smoke_golden": "smoke_physics_pendulum.v1.json", "exit_code": 0}
+{"smoke_golden": "smoke_math_quadratic_integral.v1.json", "exit_code": 0}
+{"smoke_golden": "smoke_econ_supply_demand.v1.json", "exit_code": 0}

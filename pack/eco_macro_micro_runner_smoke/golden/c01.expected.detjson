@@ -1,0 +1,1 @@
+{"results":[{"convergence_after_shock":true,"convergence_before_shock":true,"divergence_tick":null,"name":"거시↔미시 균형가격"}],"schema":"ddn.runner_report.v0","seed":42,"shock_tick":null,"ticks":4}

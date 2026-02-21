@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_probability_dice/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:794a457fc5e31d36a01b2d1f817a189c7d41bd203838bfc82005b2becc3c147e"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:aca3a1a4f30b210409f7ad0e72ea51184e71e8c95614e2f1496e1d0f87368fbc"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

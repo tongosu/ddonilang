@@ -1,0 +1,1 @@
+{"schema":"ddn.diagnostic_report.v0","seed":42,"tick":1,"diagnostics":[{"tick":0,"name":"gini_nonzero","lhs":0.2666666666,"rhs":0.2666666663,"delta":0.0000000002,"threshold":0.0000999998,"result":"수렴"}]}

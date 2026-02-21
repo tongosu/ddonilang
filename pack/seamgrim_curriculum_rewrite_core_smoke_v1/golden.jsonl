@@ -1,0 +1,6 @@
+{"smoke_golden": "smoke_college_econ_growth.v1.json", "exit_code": 0}
+{"smoke_golden": "smoke_college_econ_utility.v1.json", "exit_code": 0}
+{"smoke_golden": "smoke_college_math_linear.v1.json", "exit_code": 0}
+{"smoke_golden": "smoke_college_math_matrix.v1.json", "exit_code": 0}
+{"smoke_golden": "smoke_college_physics_harmonic.v1.json", "exit_code": 0}
+{"smoke_golden": "smoke_college_physics_orbit.v1.json", "exit_code": 0}

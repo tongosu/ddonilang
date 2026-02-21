@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_ratio_proportion/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:bc83669276ee0a228bb6edc4706b355d149abd88985eabe06c6c583b19bc6000"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:1a7a631ff29ac4a01c1e290a60aed59d28efef2930b64d09fce99e604942e6fb"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

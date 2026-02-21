@@ -1,0 +1,26 @@
+#이름: elem_econ_saving_goal_rewrite_v1
+#설명: economy 교과 재작성
+#control: income:수=100 [20..500] step=1; consume_rate:수=0.7 [0..1] step=0.01; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
+
+income <- 100.
+consume_rate <- 0.7.
+dt <- 1.
+t_max <- 20.
+
+(시작)할때 {
+  t <- 0.
+  saving <- 0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    spend <- income * consume_rate.
+    save_delta <- income - spend.
+    saving <- saving + save_delta.
+    t <- t + dt.
+
+    t 보여주기.
+    spend 보여주기.
+    saving 보여주기.
+  }.
+}.

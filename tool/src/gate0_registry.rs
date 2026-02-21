@@ -67,7 +67,9 @@ fn ensure_asset_registry_default() -> Result<(), String> {
     } else {
         let legacy_path = Path::new("ddn.resource.json");
         if legacy_path.exists() {
-            eprintln!("경고: ddn.resource.json은 레거시 별칭입니다. ddn.asset.json으로 교체하세요.");
+            eprintln!(
+                "경고: ddn.resource.json은 레거시 별칭입니다. ddn.asset.json으로 교체하세요."
+            );
             legacy_path
         } else {
             return Err("RESOURCE_REGISTRY_MISSING: ddn.asset.json".to_string());
@@ -84,8 +86,8 @@ fn load_asset_registry(manifest_path: &Path, strict_hash: bool) -> Result<AssetR
     if !manifest_path.exists() {
         return Err("RESOURCE_REGISTRY_MISSING: ddn.asset.json".to_string());
     }
-    let raw = fs::read_to_string(manifest_path)
-        .map_err(|e| format!("ASSET_MANIFEST_INVALID: {}", e))?;
+    let raw =
+        fs::read_to_string(manifest_path).map_err(|e| format!("ASSET_MANIFEST_INVALID: {}", e))?;
     let manifest: AssetManifest =
         serde_json::from_str(&raw).map_err(|e| format!("ASSET_MANIFEST_INVALID: {}", e))?;
 
@@ -121,11 +123,8 @@ fn load_asset_registry(manifest_path: &Path, strict_hash: bool) -> Result<AssetR
         }
         last_path = Some(normalized.clone());
         let handle = parse_handle(&entry.handle)?;
-        let expected = ddonirang_core::asset_handle_from_bundle_path(
-            &manifest.bundle_id,
-            &normalized,
-        )
-        .raw();
+        let expected =
+            ddonirang_core::asset_handle_from_bundle_path(&manifest.bundle_id, &normalized).raw();
         if handle != expected {
             return Err(format!(
                 "ASSET_MANIFEST_INVALID: handle mismatch for {}",
@@ -134,22 +133,15 @@ fn load_asset_registry(manifest_path: &Path, strict_hash: bool) -> Result<AssetR
         }
         if strict_hash {
             let full_path = manifest_dir.join(&normalized);
-            let data = fs::read(&full_path).map_err(|_| {
-                format!("RESOURCE_HASH_MISMATCH: missing {}", normalized)
-            })?;
+            let data = fs::read(&full_path)
+                .map_err(|_| format!("RESOURCE_HASH_MISMATCH: missing {}", normalized))?;
             let actual_hash = hash(&data).to_hex().to_string();
             if !hash_eq(&entry.hash, &actual_hash) {
-                return Err(format!(
-                    "RESOURCE_HASH_MISMATCH: {}",
-                    normalized
-                ));
+                return Err(format!("RESOURCE_HASH_MISMATCH: {}", normalized));
             }
             let actual_size = data.len() as u64;
             if entry.size != actual_size {
-                return Err(format!(
-                    "RESOURCE_HASH_MISMATCH: {}",
-                    normalized
-                ));
+                return Err(format!("RESOURCE_HASH_MISMATCH: {}", normalized));
             }
         }
         entries.insert(normalized, AssetEntry { handle });
@@ -163,8 +155,7 @@ fn ensure_units_registry_default() -> Result<(), String> {
     if !path.exists() {
         return Err("UNIT_REGISTRY_MISSING: ddn.units.json".to_string());
     }
-    let raw = fs::read_to_string(path)
-        .map_err(|e| format!("UNIT_REGISTRY_INVALID: {}", e))?;
+    let raw = fs::read_to_string(path).map_err(|e| format!("UNIT_REGISTRY_INVALID: {}", e))?;
     let registry: UnitsRegistry =
         serde_json::from_str(&raw).map_err(|e| format!("UNIT_REGISTRY_INVALID: {}", e))?;
     if let Some(version) = &registry.version {

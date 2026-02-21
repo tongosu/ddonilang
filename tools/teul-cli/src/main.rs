@@ -85,6 +85,8 @@ pub(crate) enum Commands {
         state_file: Vec<PathBuf>,
         #[arg(long = "diag-jsonl", alias = "diag")]
         diag_jsonl: Option<PathBuf>,
+        #[arg(long = "diag-report-out")]
+        diag_report_out: Option<PathBuf>,
         #[arg(long = "enable-repro")]
         enable_repro: bool,
         #[arg(long = "repro-json")]
@@ -253,6 +255,10 @@ pub(crate) enum Commands {
     Dotbogi {
         #[command(subcommand)]
         command: DotbogiCommands,
+    },
+    Eco {
+        #[command(subcommand)]
+        command: EcoCommands,
     },
     Ai {
         #[command(subcommand)]
@@ -438,6 +444,35 @@ enum DotbogiCommands {
         after_state_out: Option<PathBuf>,
         #[arg(long = "report-out")]
         report_out: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum EcoCommands {
+    MacroMicro {
+        input: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    NetworkFlow {
+        input: PathBuf,
+        #[arg(long = "madi", default_value_t = 1)]
+        madi: u64,
+        #[arg(long, default_value = "0x0")]
+        seed: String,
+        #[arg(long, default_value = "0.01")]
+        threshold: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    AbmSpatial {
+        input: PathBuf,
+        #[arg(long = "madi", default_value_t = 1)]
+        madi: u64,
+        #[arg(long, default_value = "0x0")]
+        seed: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
     },
 }
 
@@ -1092,6 +1127,7 @@ pub(crate) struct RunCommandArgs {
     pub(crate) state: Vec<String>,
     pub(crate) state_file: Vec<PathBuf>,
     pub(crate) diag_jsonl: Option<PathBuf>,
+    pub(crate) diag_report_out: Option<PathBuf>,
     pub(crate) enable_repro: bool,
     pub(crate) repro_json: Option<PathBuf>,
     pub(crate) run_manifest: Option<PathBuf>,
@@ -1141,6 +1177,7 @@ pub(crate) fn execute_run_command(
         state,
         state_file,
         diag_jsonl,
+        diag_report_out,
         enable_repro,
         repro_json,
         run_manifest,
@@ -1256,6 +1293,7 @@ pub(crate) fn execute_run_command(
     let run_command = run_command_override.or_else(|| Some(build_command_string()));
     let options = cli::run::RunOptions {
         diag_jsonl,
+        diag_report_out,
         repro_json,
         trace_json,
         geoul_out,
@@ -1305,6 +1343,7 @@ fn main() {
             state,
             state_file,
             diag_jsonl,
+            diag_report_out,
             enable_repro,
             repro_json,
             run_manifest,
@@ -1349,6 +1388,7 @@ fn main() {
                 state,
                 state_file,
                 diag_jsonl,
+                diag_report_out,
                 enable_repro,
                 repro_json,
                 run_manifest,
@@ -1660,6 +1700,70 @@ fn main() {
                     report_out: report_out.as_deref(),
                 };
                 if let Err(err) = cli::dotbogi::run_case(options) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Eco { command } => match command {
+            EcoCommands::MacroMicro { input, out } => {
+                if let Err(err) = cli::eco::run_macro_micro(&input, out.as_deref()) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            EcoCommands::NetworkFlow {
+                input,
+                madi,
+                seed,
+                threshold,
+                out,
+            } => {
+                let parsed_seed = match parse_seed(&seed) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        eprintln!("E_ECO_NETWORK_FLOW_SEED {}", err);
+                        std::process::exit(1);
+                    }
+                };
+                let parsed_threshold =
+                    match crate::core::fixed64::Fixed64::parse_literal(&threshold) {
+                        Some(value) => value,
+                        None => {
+                            eprintln!(
+                                "E_ECO_NETWORK_FLOW_THRESHOLD threshold 파싱 실패: {}",
+                                threshold
+                            );
+                            std::process::exit(1);
+                        }
+                    };
+                if let Err(err) = cli::eco::run_network_flow(
+                    &input,
+                    madi,
+                    parsed_seed,
+                    parsed_threshold,
+                    out.as_deref(),
+                ) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            EcoCommands::AbmSpatial {
+                input,
+                madi,
+                seed,
+                out,
+            } => {
+                let parsed_seed = match parse_seed(&seed) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        eprintln!("E_ECO_ABM_SPATIAL_SEED {}", err);
+                        std::process::exit(1);
+                    }
+                };
+                if let Err(err) =
+                    cli::eco::run_abm_spatial(&input, madi, parsed_seed, out.as_deref())
+                {
                     eprintln!("{}", err);
                     std::process::exit(1);
                 }
@@ -2643,6 +2747,52 @@ mod tests {
         }
     }
 
+    fn run_parsed_eco(args: &[String]) -> Result<(), String> {
+        let cli = Cli::try_parse_from(args).map_err(|e| e.to_string())?;
+        match cli.command {
+            Commands::Eco { command } => match command {
+                EcoCommands::MacroMicro { input, out } => {
+                    cli::eco::run_macro_micro(&input, out.as_deref())
+                }
+                EcoCommands::NetworkFlow {
+                    input,
+                    madi,
+                    seed,
+                    threshold,
+                    out,
+                } => {
+                    let parsed_seed = parse_seed(&seed)
+                        .map_err(|err| format!("E_ECO_NETWORK_FLOW_SEED {}", err))?;
+                    let parsed_threshold = crate::core::fixed64::Fixed64::parse_literal(&threshold)
+                        .ok_or_else(|| {
+                            format!(
+                                "E_ECO_NETWORK_FLOW_THRESHOLD threshold 파싱 실패: {}",
+                                threshold
+                            )
+                        })?;
+                    cli::eco::run_network_flow(
+                        &input,
+                        madi,
+                        parsed_seed,
+                        parsed_threshold,
+                        out.as_deref(),
+                    )
+                }
+                EcoCommands::AbmSpatial {
+                    input,
+                    madi,
+                    seed,
+                    out,
+                } => {
+                    let parsed_seed = parse_seed(&seed)
+                        .map_err(|err| format!("E_ECO_ABM_SPATIAL_SEED {}", err))?;
+                    cli::eco::run_abm_spatial(&input, madi, parsed_seed, out.as_deref())
+                }
+            },
+            _ => Err("expected eco command".to_string()),
+        }
+    }
+
     fn read_audit_rows(path: &Path) -> Vec<Value> {
         let text = fs::read_to_string(path).expect("read audit rows");
         text.lines()
@@ -2796,6 +2946,364 @@ mod tests {
         ];
         let err = run_parsed_dotbogi(&args).expect_err("write forbidden must fail");
         assert!(err.contains("E_DOTBOGI_STATE_WRITE_FORBIDDEN"));
+    }
+
+    #[test]
+    fn eco_macro_micro_main_cli_runs_and_writes_report() {
+        let root = temp_dir("main_eco_macro_micro_ok");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        let runner = root.join("runner.json");
+        let report_out = root.join("runner.report.detjson");
+        fs::write(&macro_model, "(매마디)마다 { 값 <- 1. }.\n").expect("write macro");
+        fs::write(&micro_model, "(매마디)마다 { 값 <- 2. }.\n").expect("write micro");
+        let spec = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 42,
+            "ticks": 3,
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy(),
+            },
+            "diagnostics": [
+                { "name": "거시↔미시 값", "lhs": "거시.값", "rhs": "미시.값", "threshold": 0.1 }
+            ]
+        });
+        fs::write(
+            &runner,
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&spec).expect("runner json")
+            ),
+        )
+        .expect("write runner");
+
+        run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "macro-micro".to_string(),
+            runner.to_string_lossy().to_string(),
+            "--out".to_string(),
+            report_out.to_string_lossy().to_string(),
+        ])
+        .expect("eco run");
+
+        let report: Value =
+            serde_json::from_str(&fs::read_to_string(&report_out).expect("read report"))
+                .expect("parse report");
+        assert_eq!(
+            report.get("schema").and_then(|v| v.as_str()),
+            Some("ddn.runner_report.v0")
+        );
+        let rows = report
+            .get("results")
+            .and_then(|v| v.as_array())
+            .expect("results");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].get("divergence_tick").and_then(|v| v.as_u64()),
+            Some(1)
+        );
+        assert_eq!(
+            rows[0].get("error_code").and_then(|v| v.as_str()),
+            Some("E_ECO_DIVERGENCE_DETECTED")
+        );
+    }
+
+    #[test]
+    fn eco_macro_micro_main_cli_rejects_invalid_scope() {
+        let root = temp_dir("main_eco_macro_micro_invalid_scope");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        let runner = root.join("runner.json");
+        let report_out = root.join("runner.report.detjson");
+        fs::write(&macro_model, "(매마디)마다 { 값 <- 1. }.\n").expect("write macro");
+        fs::write(&micro_model, "(매마디)마다 { 값 <- 1. }.\n").expect("write micro");
+        let spec = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 42,
+            "ticks": 3,
+            "shock": {
+                "type": "세율_인상",
+                "target": "세율",
+                "delta": 0.1,
+                "at_tick": 2,
+                "scope": "invalid_scope"
+            },
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy(),
+            },
+            "diagnostics": [
+                { "name": "거시↔미시 값", "lhs": "거시.값", "rhs": "미시.값", "threshold": 0.1 }
+            ]
+        });
+        fs::write(
+            &runner,
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&spec).expect("runner json")
+            ),
+        )
+        .expect("write runner");
+
+        let err = run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "macro-micro".to_string(),
+            runner.to_string_lossy().to_string(),
+            "--out".to_string(),
+            report_out.to_string_lossy().to_string(),
+        ])
+        .expect_err("invalid scope must fail");
+        assert!(err.contains("E_ECO_RUNNER_SHOCK"));
+    }
+
+    #[test]
+    fn eco_macro_micro_main_cli_accepts_macro_and_micro_scope() {
+        let root = temp_dir("main_eco_macro_micro_scope_ok");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        fs::write(
+            &macro_model,
+            "(시작)할때 { 세율 <- 0. }.\n(매마디)마다 { 균형가격 <- (100 + 세율 * 50). }.\n",
+        )
+        .expect("write macro");
+        fs::write(
+            &micro_model,
+            "(시작)할때 { 세율 <- 0. }.\n(매마디)마다 { 평균가격 <- (100 + 세율 * 200). }.\n",
+        )
+        .expect("write micro");
+
+        for (scope, expected_scope) in [("거시", "거시"), ("미시", "미시")] {
+            let runner = root.join(format!("runner_{}.json", expected_scope));
+            let report_out = root.join(format!("report_{}.detjson", expected_scope));
+            let spec = serde_json::json!({
+                "schema": "ddn.macro_micro_runner.v0",
+                "seed": 42,
+                "ticks": 3,
+                "shock": {
+                    "type": "세율_인상",
+                    "target": "세율",
+                    "delta": 0.1,
+                    "at_tick": 2,
+                    "scope": scope
+                },
+                "models": {
+                    "거시": macro_model.to_string_lossy(),
+                    "미시": micro_model.to_string_lossy(),
+                },
+                "diagnostics": [
+                    { "name": "거시↔미시 값", "lhs": "거시.균형가격", "rhs": "미시.평균가격", "threshold": 0.1 }
+                ]
+            });
+            fs::write(
+                &runner,
+                format!(
+                    "{}\n",
+                    serde_json::to_string_pretty(&spec).expect("runner json")
+                ),
+            )
+            .expect("write runner");
+
+            run_parsed_eco(&[
+                "teul-cli".to_string(),
+                "eco".to_string(),
+                "macro-micro".to_string(),
+                runner.to_string_lossy().to_string(),
+                "--out".to_string(),
+                report_out.to_string_lossy().to_string(),
+            ])
+            .expect("scope run");
+
+            let report: Value =
+                serde_json::from_str(&fs::read_to_string(&report_out).expect("read report"))
+                    .expect("parse report");
+            assert_eq!(
+                report.get("shock_scope").and_then(|v| v.as_str()),
+                Some(expected_scope)
+            );
+        }
+    }
+
+    #[test]
+    fn eco_macro_micro_main_cli_rejects_zero_ticks_and_empty_diagnostics() {
+        let root = temp_dir("main_eco_macro_micro_invalid_contract");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        fs::write(&macro_model, "(매마디)마다 { 값 <- 1. }.\n").expect("write macro");
+        fs::write(&micro_model, "(매마디)마다 { 값 <- 1. }.\n").expect("write micro");
+
+        let runner_ticks = root.join("runner_ticks.json");
+        let spec_ticks = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 42,
+            "ticks": 0,
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy(),
+            },
+            "diagnostics": [
+                { "name": "거시↔미시 값", "lhs": "거시.값", "rhs": "미시.값", "threshold": 0.1 }
+            ]
+        });
+        fs::write(
+            &runner_ticks,
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&spec_ticks).expect("runner json")
+            ),
+        )
+        .expect("write runner ticks");
+        let err_ticks = run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "macro-micro".to_string(),
+            runner_ticks.to_string_lossy().to_string(),
+        ])
+        .expect_err("ticks=0 must fail");
+        assert!(err_ticks.contains("E_ECO_RUNNER_TICKS"));
+
+        let runner_diag = root.join("runner_diag.json");
+        let spec_diag = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 42,
+            "ticks": 3,
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy(),
+            },
+            "diagnostics": []
+        });
+        fs::write(
+            &runner_diag,
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&spec_diag).expect("runner json")
+            ),
+        )
+        .expect("write runner diag");
+        let err_diag = run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "macro-micro".to_string(),
+            runner_diag.to_string_lossy().to_string(),
+        ])
+        .expect_err("empty diagnostics must fail");
+        assert!(err_diag.contains("E_ECO_RUNNER_DIAG"));
+    }
+
+    #[test]
+    fn eco_network_flow_main_cli_returns_fixed_error() {
+        let root = temp_dir("main_eco_network_flow_fail");
+        let model = root.join("network.ddn");
+        let report_out = root.join("network.report.detjson");
+        fs::write(
+            &model,
+            "(매마디)마다 {\n  임금 <- 70.\n  이전소득 <- 10.\n  소비 <- 65.\n  세금 <- 10.\n}.\n",
+        )
+        .expect("write model");
+
+        let err = run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "network-flow".to_string(),
+            model.to_string_lossy().to_string(),
+            "--madi".to_string(),
+            "1".to_string(),
+            "--seed".to_string(),
+            "0x2a".to_string(),
+            "--threshold".to_string(),
+            "0.01".to_string(),
+            "--out".to_string(),
+            report_out.to_string_lossy().to_string(),
+        ])
+        .expect_err("must fail");
+        assert_eq!(err, "E_SFC_IDENTITY_VIOLATION");
+
+        let report: Value =
+            serde_json::from_str(&fs::read_to_string(&report_out).expect("read report"))
+                .expect("parse report");
+        assert_eq!(
+            report.get("schema").and_then(|v| v.as_str()),
+            Some("ddn.eco.network_flow_report.v0")
+        );
+        assert_eq!(
+            report.get("error_code").and_then(|v| v.as_str()),
+            Some("E_SFC_IDENTITY_VIOLATION")
+        );
+    }
+
+    #[test]
+    fn eco_abm_spatial_main_cli_runs_and_writes_report() {
+        let root = temp_dir("main_eco_abm_spatial_ok");
+        let model = root.join("abm.ddn");
+        let report_out = root.join("abm.report.detjson");
+        fs::write(&model, "(매마디)마다 { 부목록 <- [1, 1, 1, 1]. }.\n").expect("write model");
+
+        run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "abm-spatial".to_string(),
+            model.to_string_lossy().to_string(),
+            "--madi".to_string(),
+            "1".to_string(),
+            "--seed".to_string(),
+            "0x1".to_string(),
+            "--out".to_string(),
+            report_out.to_string_lossy().to_string(),
+        ])
+        .expect("abm command");
+
+        let report: Value =
+            serde_json::from_str(&fs::read_to_string(&report_out).expect("read report"))
+                .expect("parse report");
+        assert_eq!(
+            report.get("schema").and_then(|v| v.as_str()),
+            Some("ddn.eco.abm_spatial_report.v0")
+        );
+        assert_eq!(report.get("gini").and_then(|v| v.as_str()), Some("0"));
+        assert_eq!(report.get("agent_count").and_then(|v| v.as_u64()), Some(4));
+    }
+
+    #[test]
+    fn eco_network_flow_main_cli_rejects_invalid_threshold() {
+        let root = temp_dir("main_eco_network_flow_bad_threshold");
+        let model = root.join("network.ddn");
+        fs::write(
+            &model,
+            "(매마디)마다 {\n  총수입 <- 100.\n  총지출 <- 100.\n}.\n",
+        )
+        .expect("write model");
+
+        let err = run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "network-flow".to_string(),
+            model.to_string_lossy().to_string(),
+            "--threshold".to_string(),
+            "abc".to_string(),
+        ])
+        .expect_err("must fail");
+        assert!(err.contains("E_ECO_NETWORK_FLOW_THRESHOLD"));
+    }
+
+    #[test]
+    fn eco_abm_spatial_main_cli_rejects_invalid_seed() {
+        let root = temp_dir("main_eco_abm_spatial_bad_seed");
+        let model = root.join("abm.ddn");
+        fs::write(&model, "(매마디)마다 { 부목록 <- [1, 2]. }.\n").expect("write model");
+
+        let err = run_parsed_eco(&[
+            "teul-cli".to_string(),
+            "eco".to_string(),
+            "abm-spatial".to_string(),
+            model.to_string_lossy().to_string(),
+            "--seed".to_string(),
+            "bad_seed".to_string(),
+        ])
+        .expect_err("must fail");
+        assert!(err.contains("E_ECO_ABM_SPATIAL_SEED"));
     }
 
     #[test]

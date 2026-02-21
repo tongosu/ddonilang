@@ -1,0 +1,1 @@
+{"schema":"ddn.diagnostic_report.v0","seed":42,"tick":1,"diagnostics":[{"tick":0,"name":"지니계수 경계","lhs":0.1333333333,"rhs":0.1999999999,"delta":0.0666666666,"threshold":0,"result":"수렴"},{"tick":0,"name":"상위10% 경계","lhs":37.9999999981,"rhs":40,"delta":2.0000000018,"threshold":0,"result":"수렴"}]}

@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_store_stock/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:e6a29ba99ed017ee51f0473b50b1baac504426a95d91a4a9901d408bfb4a7a35"
+    },
+    {
+      "tick": 15,
+      "state_hash": "blake3:3ac1919c86cba78ab2823bf1d0880cfb90a30235f6d53c56ea043823fb7abae8"
+    }
+  ],
+  "max_ticks": 15,
+  "timeout_ms": 30000
+}

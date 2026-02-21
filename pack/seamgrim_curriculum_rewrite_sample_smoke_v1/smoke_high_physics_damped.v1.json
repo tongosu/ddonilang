@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_physics_damped/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:d7ed360ac9c293af840046fe8c5356a9e4bba34f5b8dd3c3ff0be98a89d4942d"
+    },
+    {
+      "tick": 8,
+      "state_hash": "blake3:6d8014cf8dac4e16f30171e3f1144db7b4e227660e6c338f33a7befb16246528"
+    }
+  ],
+  "max_ticks": 8,
+  "timeout_ms": 30000
+}

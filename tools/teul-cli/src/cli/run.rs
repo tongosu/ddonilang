@@ -44,8 +44,8 @@ use crate::lang::ast::{ContractKind, ContractMode, Program, Stmt};
 use crate::lang::lexer::{LexError, Lexer};
 use crate::lang::parser::{ParseError, ParseMode, Parser};
 use crate::runtime::{
-    ContractDiag, EvalOutput, Evaluator, OpenDiagConfig, OpenMode, OpenPolicy, OpenRuntime,
-    RuntimeError,
+    ContractDiag, DiagnosticFailure, DiagnosticRecord, EvalOutput, Evaluator, OpenDiagConfig,
+    OpenMode, OpenPolicy, OpenRuntime, RuntimeError,
 };
 use ddonirang_core::gogae3::{
     compute_w24_state_hash, compute_w25_state_hash, compute_w26_state_hash, compute_w27_state_hash,
@@ -163,6 +163,7 @@ pub fn parse_artifact_pins(values: &[String]) -> Result<Vec<ArtifactPin>, String
 
 pub struct RunOptions {
     pub diag_jsonl: Option<PathBuf>,
+    pub diag_report_out: Option<PathBuf>,
     pub repro_json: Option<PathBuf>,
     pub trace_json: Option<PathBuf>,
     pub geoul_out: Option<PathBuf>,
@@ -2587,6 +2588,38 @@ pub fn run_file_with_emitter(
             emit.err(&format!("E_DIAG_WRITE {}", write_err));
         }
     }
+    if let Some(report_path) = options.diag_report_out.as_ref() {
+        if let Err(write_err) =
+            write_diagnostic_report(report_path, seed, ticks_run, &output.diagnostics)
+        {
+            let run_err = RunError::Io {
+                path: report_path.clone(),
+                message: format!("E_DIAG_REPORT_WRITE {}", write_err),
+            };
+            if let Some(diag_path) = diag_jsonl.as_ref() {
+                if let Err(diag_write_err) =
+                    write_diag_jsonl(diag_path, &file_label, &run_err, diag_append)
+                {
+                    emit.err(&format!("E_DIAG_WRITE {}", diag_write_err));
+                }
+            }
+            if let Some(repro_path) = options.repro_json.as_ref() {
+                if let Err(repro_write_err) = write_repro_json(
+                    repro_path,
+                    &file_label,
+                    &run_err,
+                    seed,
+                    madi_arg,
+                    options.until_gameover,
+                    &options.gameover_key,
+                ) {
+                    emit.err(&format!("E_REPRO_WRITE {}", repro_write_err));
+                }
+            }
+            return Err(run_err.format(&file_label));
+        }
+    }
+    let diagnostic_failure = output.diagnostic_failures.first().cloned();
 
     let geoul_summary = if let Some(writer) = geoul_writer.into_inner() {
         let out_dir = geoul_out_dir.unwrap_or_else(|| crate::cli::paths::build_dir().join("geoul"));
@@ -2603,6 +2636,29 @@ pub fn run_file_with_emitter(
         writer
             .finish()
             .map_err(|err| format!("E_GEOUL_RECORD_FINISH {} {}", path.display(), err))?;
+    }
+    if let Some(failure) = diagnostic_failure {
+        let run_err = RunError::Runtime(diagnostic_failure_to_runtime_error(&failure));
+        if let Some(diag_path) = diag_jsonl.as_ref() {
+            if let Err(write_err) = write_diag_jsonl(diag_path, &file_label, &run_err, diag_append)
+            {
+                emit.err(&format!("E_DIAG_WRITE {}", write_err));
+            }
+        }
+        if let Some(repro_path) = options.repro_json.as_ref() {
+            if let Err(write_err) = write_repro_json(
+                repro_path,
+                &file_label,
+                &run_err,
+                seed,
+                madi_arg,
+                options.until_gameover,
+                &options.gameover_key,
+            ) {
+                emit.err(&format!("E_REPRO_WRITE {}", write_err));
+            }
+        }
+        return Err(run_err.format(&file_label));
     }
 
     let mut state_hash = hash::state_hash(&output.state);
@@ -3156,6 +3212,8 @@ fn runtime_line(err: &RuntimeError) -> usize {
         RuntimeError::OpenReplayInvalid { span, .. } => span.start_line,
         RuntimeError::OpenLogTamper { span, .. } => span.start_line,
         RuntimeError::OpenIo { span, .. } => span.start_line,
+        RuntimeError::EcoDivergenceDetected { span, .. } => span.start_line,
+        RuntimeError::SfcIdentityViolation { span, .. } => span.start_line,
     }
 }
 
@@ -3184,6 +3242,8 @@ fn runtime_col(err: &RuntimeError) -> usize {
         RuntimeError::OpenReplayInvalid { span, .. } => span.start_col,
         RuntimeError::OpenLogTamper { span, .. } => span.start_col,
         RuntimeError::OpenIo { span, .. } => span.start_col,
+        RuntimeError::EcoDivergenceDetected { span, .. } => span.start_col,
+        RuntimeError::SfcIdentityViolation { span, .. } => span.start_col,
     }
 }
 
@@ -3238,6 +3298,26 @@ fn runtime_message(err: &RuntimeError) -> String {
         }
         RuntimeError::OpenLogTamper { message, .. } => format!("열림 로그 변조: {}", message),
         RuntimeError::OpenIo { message, .. } => message.clone(),
+        RuntimeError::EcoDivergenceDetected {
+            tick,
+            name,
+            delta,
+            threshold,
+            ..
+        } => format!(
+            "경제 진단 발산: {} (tick={}, delta={} > threshold={})",
+            name, tick, delta, threshold
+        ),
+        RuntimeError::SfcIdentityViolation {
+            tick,
+            name,
+            delta,
+            threshold,
+            ..
+        } => format!(
+            "SFC 항등식 위반: {} (tick={}, delta={} > threshold={})",
+            name, tick, delta, threshold
+        ),
     }
 }
 
@@ -3362,8 +3442,86 @@ fn diag_extra_fields(err: &RunError) -> Option<String> {
             ",\"rule_id\":\"cmd_cap\",\"reason\":\"cmd_count_exceeds_cap\",\"cmd_count\":{},\"cap\":{}",
             cmd_count, cap
         )),
+        RunError::Runtime(RuntimeError::EcoDivergenceDetected { delta, threshold, .. }) => {
+            Some(format!(
+                ",\"rule_id\":\"eco_diag\",\"reason\":\"divergence_detected\",\"delta\":{},\"threshold\":{}",
+                delta, threshold
+            ))
+        }
+        RunError::Runtime(RuntimeError::SfcIdentityViolation { delta, threshold, .. }) => {
+            Some(format!(
+                ",\"rule_id\":\"sfc_identity\",\"reason\":\"identity_violation\",\"delta\":{},\"threshold\":{}",
+                delta, threshold
+            ))
+        }
         _ => None,
     }
+}
+
+fn diagnostic_failure_to_runtime_error(failure: &DiagnosticFailure) -> RuntimeError {
+    match failure.code.as_str() {
+        "E_SFC_IDENTITY_VIOLATION" => RuntimeError::SfcIdentityViolation {
+            tick: failure.tick,
+            name: failure.name.clone(),
+            delta: failure.delta.clone(),
+            threshold: failure.threshold.clone(),
+            span: failure.span,
+        },
+        _ => RuntimeError::EcoDivergenceDetected {
+            tick: failure.tick,
+            name: failure.name.clone(),
+            delta: failure.delta.clone(),
+            threshold: failure.threshold.clone(),
+            span: failure.span,
+        },
+    }
+}
+
+fn write_diagnostic_report(
+    path: &Path,
+    seed: u64,
+    tick: u64,
+    diagnostics: &[DiagnosticRecord],
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let mut out = String::new();
+    out.push_str("{\"schema\":\"ddn.diagnostic_report.v0\",\"seed\":");
+    out.push_str(&seed.to_string());
+    out.push_str(",\"tick\":");
+    out.push_str(&tick.to_string());
+    out.push_str(",\"diagnostics\":[");
+    for (idx, diag) in diagnostics.iter().enumerate() {
+        if idx > 0 {
+            out.push(',');
+        }
+        out.push('{');
+        out.push_str("\"tick\":");
+        out.push_str(&diag.tick.to_string());
+        out.push(',');
+        out.push_str("\"name\":\"");
+        out.push_str(&escape_json(&diag.name));
+        out.push_str("\",\"lhs\":");
+        out.push_str(&diag.lhs);
+        out.push_str(",\"rhs\":");
+        out.push_str(&diag.rhs);
+        out.push_str(",\"delta\":");
+        out.push_str(&diag.delta);
+        out.push_str(",\"threshold\":");
+        out.push_str(&diag.threshold);
+        out.push_str(",\"result\":\"");
+        out.push_str(&escape_json(&diag.result));
+        out.push('"');
+        if let Some(error_code) = diag.error_code.as_ref() {
+            out.push_str(",\"error_code\":\"");
+            out.push_str(&escape_json(error_code));
+            out.push('"');
+        }
+        out.push('}');
+    }
+    out.push_str("]}\n");
+    fs::write(path, out).map_err(|e| e.to_string())
 }
 
 fn append_cmd_policy_diag(
@@ -3585,4 +3743,51 @@ fn open_in_browser(path: &Path) -> Result<(), String> {
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lang::span::Span;
+
+    #[test]
+    fn diagnostic_failure_maps_to_sfc_runtime_error() {
+        let failure = DiagnosticFailure {
+            code: "E_SFC_IDENTITY_VIOLATION".to_string(),
+            tick: 9,
+            name: "SFC 항등식".to_string(),
+            delta: "2".to_string(),
+            threshold: "0.01".to_string(),
+            span: Span::new(3, 1, 3, 20),
+        };
+        let err = diagnostic_failure_to_runtime_error(&failure);
+        assert_eq!(err.code(), "E_SFC_IDENTITY_VIOLATION");
+    }
+
+    #[test]
+    fn write_diagnostic_report_serializes_v0_schema() {
+        let mut path = std::env::temp_dir();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        path.push(format!("teul_diag_report_{nonce}.detjson"));
+        let diagnostics = vec![DiagnosticRecord {
+            tick: 3,
+            name: "거시↔미시".to_string(),
+            lhs: "1".to_string(),
+            rhs: "1".to_string(),
+            delta: "0".to_string(),
+            threshold: "0.01".to_string(),
+            result: "수렴".to_string(),
+            error_code: None,
+        }];
+        write_diagnostic_report(&path, 42, 7, &diagnostics).expect("write report");
+        let text = fs::read_to_string(&path).expect("read report");
+        assert!(text.contains("\"schema\":\"ddn.diagnostic_report.v0\""));
+        assert!(text.contains("\"seed\":42"));
+        assert!(text.contains("\"tick\":7"));
+        assert!(text.contains("\"tick\":3"));
+        let _ = fs::remove_file(path);
+    }
 }

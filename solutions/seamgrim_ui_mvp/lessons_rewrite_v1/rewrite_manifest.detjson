@@ -1,0 +1,1615 @@
+{
+  "schema": "seamgrim.curriculum.rewrite_manifest.v1",
+  "plan": "build/reports/seamgrim_generation_plan_latest.detjson",
+  "count": 201,
+  "generated": [
+    {
+      "lesson_id": "college_physics_harmonic",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_physics_harmonic/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_harmonic/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_harmonic/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "college_physics_orbit",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_physics_orbit/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_orbit/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_orbit/text.md",
+      "template_id": "physics_orbit_v1"
+    },
+    {
+      "lesson_id": "college_physics_thermal",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_physics_thermal/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_thermal/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_thermal/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "elem_science_boiling_time",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_boiling_time/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_boiling_time/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_boiling_time/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "elem_science_bulb_brightness",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_bulb_brightness/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_bulb_brightness/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_bulb_brightness/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_daily_temperature",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_daily_temperature/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_daily_temperature/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_daily_temperature/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_day_length",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_day_length/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_day_length/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_day_length/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_evaporation",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_evaporation/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_evaporation/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_evaporation/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_light_intensity",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_light_intensity/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_light_intensity/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_light_intensity/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_light_reflection",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_light_reflection/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_light_reflection/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_light_reflection/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_magnet_distance",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_magnet_distance/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_magnet_distance/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_magnet_distance/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_moon_phase",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_moon_phase/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_moon_phase/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_moon_phase/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_pendulum",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_pendulum/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_pendulum/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_pendulum/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "elem_science_phase_change",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_phase_change/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_phase_change/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_phase_change/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_plant_growth",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_plant_growth/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_plant_growth/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_plant_growth/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_rainfall",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_rainfall/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_rainfall/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_rainfall/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_season_temp",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_season_temp/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_season_temp/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_season_temp/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_shadow_length",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_shadow_length/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_shadow_length/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_shadow_length/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_simple_circuit",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_simple_circuit/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_simple_circuit/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_simple_circuit/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "elem_science_sound_wave",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_sound_wave/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_sound_wave/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_sound_wave/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "elem_science_spring_stretch",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_science_spring_stretch/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_spring_stretch/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_science_spring_stretch/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "high_physics_damped",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_physics_damped/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_physics_damped/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_physics_damped/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "high_physics_energy",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_physics_energy/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_physics_energy/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_physics_energy/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "high_physics_wave",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_physics_wave/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_physics_wave/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_physics_wave/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "physics_circuit",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/physics_circuit/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/physics_circuit/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/physics_circuit/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "physics_motion",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/physics_motion/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/physics_motion/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/physics_motion/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "physics_projectile",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/physics_projectile/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/physics_projectile/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/physics_projectile/text.md",
+      "template_id": "physics_orbit_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_01_uniform_motion_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p001_01_uniform_motion_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_01_uniform_motion_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_01_uniform_motion_xt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_02_uniform_accel_vt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p001_02_uniform_accel_vt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_02_uniform_accel_vt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_02_uniform_accel_vt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_03_uniform_accel_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p001_03_uniform_accel_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_03_uniform_accel_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_03_uniform_accel_xt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_04_free_fall_y_t",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p001_04_free_fall_y_t/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_04_free_fall_y_t/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_04_free_fall_y_t/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p001_05_projectile_xy",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p001_05_projectile_xy/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_05_projectile_xy/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p001_05_projectile_xy/text.md",
+      "template_id": "physics_orbit_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_01_work_Wx",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p002_01_work_Wx/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_01_work_Wx/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_01_work_Wx/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_02_kinetic_energy_Kv",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p002_02_kinetic_energy_Kv/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_02_kinetic_energy_Kv/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_02_kinetic_energy_Kv/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_03_potential_energy_Uh",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p002_03_potential_energy_Uh/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_03_potential_energy_Uh/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_03_potential_energy_Uh/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_04_energy_conservation_Et",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p002_04_energy_conservation_Et/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_04_energy_conservation_Et/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_04_energy_conservation_Et/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p002_05_impulse_vt_step",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p002_05_impulse_vt_step/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_05_impulse_vt_step/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p002_05_impulse_vt_step/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_01_shm_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p003_01_shm_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_01_shm_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_01_shm_xt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_02_damped_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p003_02_damped_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_02_damped_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_02_damped_xt/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_03_resonance_wA",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p003_03_resonance_wA/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_03_resonance_wA/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_03_resonance_wA/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_04_beats_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p003_04_beats_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_04_beats_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_04_beats_xt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p003_05_traveling_wave_yx",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p003_05_traveling_wave_yx/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_05_traveling_wave_yx/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p003_05_traveling_wave_yx/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_01_ohms_law_IV",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p004_01_ohms_law_IV/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_01_ohms_law_IV/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_01_ohms_law_IV/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_02_voltage_divider_Vin_Vout",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p004_02_voltage_divider_Vin_Vout/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_02_voltage_divider_Vin_Vout/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_02_voltage_divider_Vin_Vout/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_03_parallel_resistors_IV",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p004_03_parallel_resistors_IV/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_03_parallel_resistors_IV/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_03_parallel_resistors_IV/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_04_rc_charging_Vc_t",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p004_04_rc_charging_Vc_t/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_04_rc_charging_Vc_t/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_04_rc_charging_Vc_t/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p004_05_rlc_step_Vc_t",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p004_05_rlc_step_Vc_t/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_05_rlc_step_Vc_t/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p004_05_rlc_step_Vc_t/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_01_ideal_gas_PV",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p005_01_ideal_gas_PV/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_01_ideal_gas_PV/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_01_ideal_gas_PV/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_02_charles_law_VT",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p005_02_charles_law_VT/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_02_charles_law_VT/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_02_charles_law_VT/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_03_specific_heat_TQ",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p005_03_specific_heat_TQ/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_03_specific_heat_TQ/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_03_specific_heat_TQ/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_04_heating_curve_TQ_piecewise",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p005_04_heating_curve_TQ_piecewise/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_04_heating_curve_TQ_piecewise/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_04_heating_curve_TQ_piecewise/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p005_05_newton_cooling_Tt_discrete",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p005_05_newton_cooling_Tt_discrete/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_05_newton_cooling_Tt_discrete/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p005_05_newton_cooling_Tt_discrete/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_01_inverse_square_intensity",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p006_01_inverse_square_intensity/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_01_inverse_square_intensity/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_01_inverse_square_intensity/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_02_thin_lens_di_vs_do",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p006_02_thin_lens_di_vs_do/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_02_thin_lens_di_vs_do/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_02_thin_lens_di_vs_do/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_03_magnification_vs_do",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p006_03_magnification_vs_do/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_03_magnification_vs_do/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_03_magnification_vs_do/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_04_photoelectric_ke_vs_frequency/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p006_05_double_slit_fringe_spacing_vs_d/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_01_underdamped_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p011_01_underdamped_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_01_underdamped_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_01_underdamped_xt/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_02_critical_damping_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p011_02_critical_damping_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_02_critical_damping_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_02_critical_damping_xt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_03_overdamped_xt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p011_03_overdamped_xt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_03_overdamped_xt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_03_overdamped_xt/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_04_resonance_amplitude_vs_omega",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p011_04_resonance_amplitude_vs_omega/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_04_resonance_amplitude_vs_omega/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_04_resonance_amplitude_vs_omega/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p011_05_amplitude_vs_damping",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p011_05_amplitude_vs_damping/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_05_amplitude_vs_damping/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p011_05_amplitude_vs_damping/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_01_standing_wave_yx_snapshot",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p012_01_standing_wave_yx_snapshot/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_01_standing_wave_yx_snapshot/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_01_standing_wave_yx_snapshot/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_02_standing_wave_intensity_Ix",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p012_02_standing_wave_intensity_Ix/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_02_standing_wave_intensity_Ix/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_02_standing_wave_intensity_Ix/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_03_beats_yt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p012_03_beats_yt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_03_beats_yt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_03_beats_yt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_04_doppler_vs_source_speed",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p012_04_doppler_vs_source_speed/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_04_doppler_vs_source_speed/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_04_doppler_vs_source_speed/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p012_05_fourier_square_wave_yx",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p012_05_fourier_square_wave_yx/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_05_fourier_square_wave_yx/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p012_05_fourier_square_wave_yx/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_01_isothermal_pv_v_p",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p013_01_isothermal_pv_v_p/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_01_isothermal_pv_v_p/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_01_isothermal_pv_v_p/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_02_isothermal_work_v_W",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p013_02_isothermal_work_v_W/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_02_isothermal_work_v_W/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_02_isothermal_work_v_W/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_03_adiabatic_pv_v_p",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p013_03_adiabatic_pv_v_p/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_03_adiabatic_pv_v_p/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_03_adiabatic_pv_v_p/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_04_cooling_t_T",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p013_04_cooling_t_T/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_04_cooling_t_T/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_04_cooling_t_T/text.md",
+      "template_id": "physics_thermal_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p013_05_carnot_Th_eta",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p013_05_carnot_Th_eta/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_05_carnot_Th_eta/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p013_05_carnot_Th_eta/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_01_electric_field_r_E",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p014_01_electric_field_r_E/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_01_electric_field_r_E/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_01_electric_field_r_E/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_02_electric_potential_r_V",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p014_02_electric_potential_r_V/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_02_electric_potential_r_V/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_02_electric_potential_r_V/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_03_rc_discharge_t_V",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p014_03_rc_discharge_t_V/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_03_rc_discharge_t_V/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_03_rc_discharge_t_V/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_04_lc_oscillation_t_Q",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p014_04_lc_oscillation_t_Q/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_04_lc_oscillation_t_Q/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_04_lc_oscillation_t_Q/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p014_05_rlc_resonance_w_I2",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p014_05_rlc_resonance_w_I2/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_05_rlc_resonance_w_I2/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p014_05_rlc_resonance_w_I2/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_01_pendulum_L_T2",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p015_01_pendulum_L_T2/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_01_pendulum_L_T2/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_01_pendulum_L_T2/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_02_spring_m_T2",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p015_02_spring_m_T2/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_02_spring_m_T2/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_02_spring_m_T2/text.md",
+      "template_id": "physics_oscillator_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_03_centripetal_v_a",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p015_03_centripetal_v_a/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_03_centripetal_v_a/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_03_centripetal_v_a/text.md",
+      "template_id": "physics_orbit_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_04_dynamic_pressure_v_q",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p015_04_dynamic_pressure_v_q/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_04_dynamic_pressure_v_q/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_04_dynamic_pressure_v_q/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_01_critical_angle_deg_of_ratio",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p017_01_critical_angle_deg_of_ratio/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_01_critical_angle_deg_of_ratio/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_01_critical_angle_deg_of_ratio/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_02_double_slit_interference",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p017_02_double_slit_interference/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_02_double_slit_interference/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_02_double_slit_interference/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_03_grating_maxima_theta_of_m",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p017_03_grating_maxima_theta_of_m/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_03_grating_maxima_theta_of_m/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_03_grating_maxima_theta_of_m/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_04_thin_film_interference",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p017_04_thin_film_interference/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_04_thin_film_interference/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_04_thin_film_interference/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p017_05_brewster_angle_deg_of_ratio/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_01_radioactive_decay_Nt",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p018_01_radioactive_decay_Nt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_01_radioactive_decay_Nt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_01_radioactive_decay_Nt/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_02_photoelectric_Vs_of_f",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p018_02_photoelectric_Vs_of_f/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_02_photoelectric_Vs_of_f/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_02_photoelectric_Vs_of_f/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_03_debroglie_lambda_of_p",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p018_03_debroglie_lambda_of_p/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_03_debroglie_lambda_of_p/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_03_debroglie_lambda_of_p/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_04_wien_lambda_max_of_T",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p018_04_wien_lambda_max_of_T/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_04_wien_lambda_max_of_T/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_04_wien_lambda_max_of_T/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p018_05_hydrogen_energy_levels",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p018_05_hydrogen_energy_levels/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_05_hydrogen_energy_levels/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p018_05_hydrogen_energy_levels/text.md",
+      "template_id": "physics_motion_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_s2_projectile",
+      "subject": "physics",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_s2_projectile/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_s2_projectile/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_s2_projectile/text.md",
+      "template_id": "physics_orbit_v1"
+    },
+    {
+      "lesson_id": "college_math_linear",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_math_linear/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_linear/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_linear/text.md",
+      "template_id": "math_linear_v1"
+    },
+    {
+      "lesson_id": "college_math_matrix",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_math_matrix/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_matrix/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_matrix/text.md",
+      "template_id": "math_matrix_v1"
+    },
+    {
+      "lesson_id": "college_math_series",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_math_series/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_series/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_math_series/text.md",
+      "template_id": "math_sequence_v1"
+    },
+    {
+      "lesson_id": "elem_math_add_sub_pattern",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_add_sub_pattern/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_add_sub_pattern/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_add_sub_pattern/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_area_square",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_area_square/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_area_square/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_area_square/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_arithmetic_sequence",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_arithmetic_sequence/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_arithmetic_sequence/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_arithmetic_sequence/text.md",
+      "template_id": "math_sequence_v1"
+    },
+    {
+      "lesson_id": "elem_math_coordinates_basic",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_coordinates_basic/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_coordinates_basic/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_coordinates_basic/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_cubic_growth",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_cubic_growth/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_cubic_growth/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_cubic_growth/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_decimal_scale",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_decimal_scale/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_decimal_scale/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_decimal_scale/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_decimal_shift",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_decimal_shift/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_decimal_shift/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_decimal_shift/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_even_numbers",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_even_numbers/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_even_numbers/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_even_numbers/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_fraction_addition",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_fraction_addition/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_addition/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_addition/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_fraction_compare",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_fraction_compare/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_compare/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_compare/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_fraction_line",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_fraction_line/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_line/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_line/text.md",
+      "template_id": "math_linear_v1"
+    },
+    {
+      "lesson_id": "elem_math_fraction_multiplication",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_fraction_multiplication/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_multiplication/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_fraction_multiplication/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_line_intercept",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_line_intercept/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_line_intercept/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_line_intercept/text.md",
+      "template_id": "math_linear_v1"
+    },
+    {
+      "lesson_id": "elem_math_mean_line",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_mean_line/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_mean_line/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_mean_line/text.md",
+      "template_id": "math_linear_v1"
+    },
+    {
+      "lesson_id": "elem_math_multiplication_table",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_multiplication_table/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_multiplication_table/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_multiplication_table/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_number_line",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_number_line/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_number_line/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_number_line/text.md",
+      "template_id": "math_linear_v1"
+    },
+    {
+      "lesson_id": "elem_math_odd_numbers",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_odd_numbers/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_odd_numbers/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_odd_numbers/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_parabola_basic",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_parabola_basic/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_parabola_basic/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_parabola_basic/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_percent_scale",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_percent_scale/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_percent_scale/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_percent_scale/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_percentage_of",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_percentage_of/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_percentage_of/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_percentage_of/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_perimeter_square",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_perimeter_square/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_perimeter_square/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_perimeter_square/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_probability_dice",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_probability_dice/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_probability_dice/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_probability_dice/text.md",
+      "template_id": "math_stats_v1"
+    },
+    {
+      "lesson_id": "elem_math_ratio_proportion",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_ratio_proportion/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_ratio_proportion/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_ratio_proportion/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_rectangle_area",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_rectangle_area/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_rectangle_area/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_rectangle_area/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_scale_map",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_scale_map/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_scale_map/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_scale_map/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_speed_distance",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_speed_distance/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_speed_distance/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_speed_distance/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_symmetry_reflection",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_symmetry_reflection/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_symmetry_reflection/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_symmetry_reflection/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_triangle_area",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_triangle_area/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_triangle_area/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_triangle_area/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_unit_cm_to_mm",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_unit_cm_to_mm/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_unit_cm_to_mm/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_unit_cm_to_mm/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "elem_math_unit_m_to_cm",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_math_unit_m_to_cm/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_unit_m_to_cm/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_math_unit_m_to_cm/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "high_math_derivative",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_math_derivative/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_math_derivative/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_math_derivative/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "high_math_polynomial",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_math_polynomial/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_math_polynomial/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_math_polynomial/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "high_math_quadratic",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_math_quadratic/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_math_quadratic/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_math_quadratic/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "math_line",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/math_line/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/math_line/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/math_line/text.md",
+      "template_id": "math_linear_v1"
+    },
+    {
+      "lesson_id": "math_parabola",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/math_parabola/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/math_parabola/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/math_parabola/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_phys_p015_05_linear_drag_fall_t_v",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_phys_p015_05_linear_drag_fall_t_v/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_05_linear_drag_fall_t_v/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_phys_p015_05_linear_drag_fall_t_v/text.md",
+      "template_id": "math_linear_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_s1_function_graph",
+      "subject": "math",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_s1_function_graph/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_s1_function_graph/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_s1_function_graph/text.md",
+      "template_id": "math_quadratic_integral_v1"
+    },
+    {
+      "lesson_id": "college_econ_growth",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_econ_growth/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_econ_growth/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_econ_growth/text.md",
+      "template_id": "economy_growth_v1"
+    },
+    {
+      "lesson_id": "college_econ_productivity",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_econ_productivity/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_econ_productivity/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_econ_productivity/text.md",
+      "template_id": "economy_growth_v1"
+    },
+    {
+      "lesson_id": "college_econ_utility",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/college_econ_utility/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_econ_utility/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_econ_utility/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "econ_budget_table",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/econ_budget_table/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/econ_budget_table/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/econ_budget_table/text.md",
+      "template_id": "economy_budget_v1"
+    },
+    {
+      "lesson_id": "econ_supply_demand",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/econ_supply_demand/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/econ_supply_demand/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/econ_supply_demand/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "edu_pilot_phys_econ_lesson_phys_01",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/edu_pilot_phys_econ_lesson_phys_01/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/edu_pilot_phys_econ_lesson_phys_01/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/edu_pilot_phys_econ_lesson_phys_01/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_allowance_budget",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_allowance_budget/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_allowance_budget/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_allowance_budget/text.md",
+      "template_id": "economy_budget_v1"
+    },
+    {
+      "lesson_id": "elem_econ_demand_drop",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_demand_drop/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_demand_drop/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_demand_drop/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_discount",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_discount/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_discount/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_discount/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_income_spending",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_income_spending/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_income_spending/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_income_spending/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_population",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_population/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_population/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_population/text.md",
+      "template_id": "economy_growth_v1"
+    },
+    {
+      "lesson_id": "elem_econ_saving_goal",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_saving_goal/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_saving_goal/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_saving_goal/text.md",
+      "template_id": "economy_budget_v1"
+    },
+    {
+      "lesson_id": "elem_econ_store_stock",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_store_stock/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_store_stock/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_store_stock/text.md",
+      "template_id": "economy_stock_flow_v1"
+    },
+    {
+      "lesson_id": "elem_econ_supply_demand_basic",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_supply_demand_basic/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_supply_demand_basic/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_supply_demand_basic/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_supply_drop",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_supply_drop/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_supply_drop/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_supply_drop/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_supply_increase",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_supply_increase/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_supply_increase/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_supply_increase/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_survey_counts",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_survey_counts/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_survey_counts/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_survey_counts/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_tax_price",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_tax_price/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_tax_price/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_tax_price/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "elem_econ_timeline",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_timeline/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_timeline/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_timeline/text.md",
+      "template_id": "economy_growth_v1"
+    },
+    {
+      "lesson_id": "elem_econ_unit_price",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/elem_econ_unit_price/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_unit_price/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/elem_econ_unit_price/text.md",
+      "template_id": "economy_budget_v1"
+    },
+    {
+      "lesson_id": "high_econ_elasticity",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_econ_elasticity/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_econ_elasticity/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_econ_elasticity/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "high_econ_interest",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_econ_interest/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_econ_interest/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_econ_interest/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "high_econ_market",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/high_econ_market/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_econ_market/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/high_econ_market/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_01_demand_curve_PQ",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e001_01_demand_curve_PQ/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_01_demand_curve_PQ/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_01_demand_curve_PQ/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_02_supply_curve_PQ",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e001_02_supply_curve_PQ/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_02_supply_curve_PQ/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_02_supply_curve_PQ/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_03_equilibrium_point_QP",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e001_03_equilibrium_point_QP/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_03_equilibrium_point_QP/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_03_equilibrium_point_QP/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_04_tax_vs_equilibrium_price",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e001_04_tax_vs_equilibrium_price/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_04_tax_vs_equilibrium_price/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_04_tax_vs_equilibrium_price/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e001_05_elasticity_along_demand",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e001_05_elasticity_along_demand/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_05_elasticity_along_demand/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e001_05_elasticity_along_demand/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_01_consumer_surplus_vs_tax",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e002_01_consumer_surplus_vs_tax/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_01_consumer_surplus_vs_tax/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_01_consumer_surplus_vs_tax/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_02_producer_surplus_vs_tax",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e002_02_producer_surplus_vs_tax/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_02_producer_surplus_vs_tax/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_02_producer_surplus_vs_tax/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_03_dwl_vs_tax",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e002_03_dwl_vs_tax/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_03_dwl_vs_tax/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_03_dwl_vs_tax/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_04_shortage_vs_price_ceiling",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e002_04_shortage_vs_price_ceiling/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_04_shortage_vs_price_ceiling/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_04_shortage_vs_price_ceiling/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e002_05_surplus_vs_price_floor",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e002_05_surplus_vs_price_floor/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_05_surplus_vs_price_floor/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e002_05_surplus_vs_price_floor/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_01_budget_line_xy",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e007_01_budget_line_xy/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_01_budget_line_xy/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_01_budget_line_xy/text.md",
+      "template_id": "economy_budget_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_02_indifference_curve_xy",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e007_02_indifference_curve_xy/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_02_indifference_curve_xy/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_02_indifference_curve_xy/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_03_demand_x_vs_px",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e007_03_demand_x_vs_px/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_03_demand_x_vs_px/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_03_demand_x_vs_px/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_04_engel_x_vs_income",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e007_04_engel_x_vs_income/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_04_engel_x_vs_income/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_04_engel_x_vs_income/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e007_05_indirect_utility_ui",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e007_05_indirect_utility_ui/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_05_indirect_utility_ui/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e007_05_indirect_utility_ui/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_01_total_cost_q_tc",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e008_01_total_cost_q_tc/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_01_total_cost_q_tc/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_01_total_cost_q_tc/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_02_average_cost_q_ac",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e008_02_average_cost_q_ac/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_02_average_cost_q_ac/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_02_average_cost_q_ac/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_03_marginal_cost_q_mc",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e008_03_marginal_cost_q_mc/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_03_marginal_cost_q_mc/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_03_marginal_cost_q_mc/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_04_supply_p_q",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e008_04_supply_p_q/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_04_supply_p_q/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_04_supply_p_q/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e008_05_profit_q_pi",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e008_05_profit_q_pi/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_05_profit_q_pi/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e008_05_profit_q_pi/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_01_demand_p_qd",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e009_01_demand_p_qd/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_01_demand_p_qd/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_01_demand_p_qd/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_02_supply_p_qs",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e009_02_supply_p_qs/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_02_supply_p_qs/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_02_supply_p_qs/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_03_equilibrium_a_pstar",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e009_03_equilibrium_a_pstar/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_03_equilibrium_a_pstar/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_03_equilibrium_a_pstar/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_04_tax_incidence_tau_pc",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e009_04_tax_incidence_tau_pc/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_04_tax_incidence_tau_pc/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_04_tax_incidence_tau_pc/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e009_05_dwl_tau",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e009_05_dwl_tau/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_05_dwl_tau/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e009_05_dwl_tau/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_01_inverse_demand_q_p",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e010_01_inverse_demand_q_p/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_01_inverse_demand_q_p/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_01_inverse_demand_q_p/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_02_total_revenue_q_tr",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e010_02_total_revenue_q_tr/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_02_total_revenue_q_tr/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_02_total_revenue_q_tr/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_03_marginal_revenue_q_mr",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e010_03_marginal_revenue_q_mr/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_03_marginal_revenue_q_mr/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_03_marginal_revenue_q_mr/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_04_profit_q_pi",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e010_04_profit_q_pi/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_04_profit_q_pi/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_04_profit_q_pi/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e010_05_monopoly_optimum_a_qm",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e010_05_monopoly_optimum_a_qm/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_05_monopoly_optimum_a_qm/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e010_05_monopoly_optimum_a_qm/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_01_price_elasticity_p_absE",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e011_01_price_elasticity_p_absE/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_01_price_elasticity_p_absE/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_01_price_elasticity_p_absE/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_02_total_revenue_p_TR",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e011_02_total_revenue_p_TR/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_02_total_revenue_p_TR/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_02_total_revenue_p_TR/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_03_lerner_index_e_L",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e011_03_lerner_index_e_L/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_03_lerner_index_e_L/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_03_lerner_index_e_L/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_04_dwl_vs_mc_c_DWL/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e011_05_markup_vs_elasticity_e_mu/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_01_uip_expected_depreciation",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e013_01_uip_expected_depreciation/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_01_uip_expected_depreciation/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_01_uip_expected_depreciation/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_02_real_exchange_rate_qt",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e013_02_real_exchange_rate_qt/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_02_real_exchange_rate_qt/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_02_real_exchange_rate_qt/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_03_ppf_linear_xy",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e013_03_ppf_linear_xy/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_03_ppf_linear_xy/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_03_ppf_linear_xy/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_04_tariff_dwl_of_tau",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e013_04_tariff_dwl_of_tau/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_04_tariff_dwl_of_tau/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_04_tariff_dwl_of_tau/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e013_05_net_exports_NX_of_e",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e013_05_net_exports_NX_of_e/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_05_net_exports_NX_of_e/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e013_05_net_exports_NX_of_e/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_01_labor_demand_Ld_of_w",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e014_01_labor_demand_Ld_of_w/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_01_labor_demand_Ld_of_w/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_01_labor_demand_Ld_of_w/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_02_labor_supply_Ls_of_w",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e014_02_labor_supply_Ls_of_w/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_02_labor_supply_Ls_of_w/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_02_labor_supply_Ls_of_w/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_03_equilibrium_employment_Lstar_of_A/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_econ_e014_05_beveridge_curve_v_of_u",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_econ_e014_05_beveridge_curve_v_of_u/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_05_beveridge_curve_v_of_u/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_econ_e014_05_beveridge_curve_v_of_u/text.md",
+      "template_id": "economy_supply_demand_v1"
+    },
+    {
+      "lesson_id": "ssot_edu_s3_supply_demand_tax",
+      "subject": "economy",
+      "source_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons/ssot_edu_s3_supply_demand_tax/lesson.ddn",
+      "generated_lesson_ddn": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_s3_supply_demand_tax/lesson.ddn",
+      "generated_text_md": "solutions/seamgrim_ui_mvp/lessons_rewrite_v1/ssot_edu_s3_supply_demand_tax/text.md",
+      "template_id": "economy_supply_demand_v1"
+    }
+  ]
+}

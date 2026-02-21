@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:ed1a867226fc064a7301b5e9a9ac85558f807822e982ff8fb72198dc18dfd09e"
+    },
+    {
+      "tick": 5,
+      "state_hash": "blake3:76557d710909b1896a7a4563e502636916d846b37da0a617e318fca8904790e8"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:e8c49d897c99c1e8d7a932e9d5cae1ba039d0340e5d04555459464e529975ff7"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

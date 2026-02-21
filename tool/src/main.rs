@@ -1,42 +1,39 @@
-﻿#![cfg(not(target_arch = "wasm32"))]
+#![cfg(not(target_arch = "wasm32"))]
 
-pub mod lsp;
-pub mod proof;
+mod ai_prompt;
 mod ddn_runtime;
 mod detmath_assets;
 mod gate0_registry;
-mod preprocess;
-mod schema;
-mod ai_prompt;
-mod project_meta;
+pub mod lsp;
 mod paths;
+mod preprocess;
+mod project_meta;
+pub mod proof;
+mod schema;
 
+use crossterm::{cursor, event, execute, terminal};
+use ddn_runtime::{DdnProgram, DdnRunner};
 use ddonirang_core::{
-    EngineLoop, Fixed64, Geoul, InputSnapshot, Nuri, Unit, KEY_A, KEY_D, KEY_S, KEY_W,
     alrim::{AlrimHandler, AlrimLoop, VecAlrimLogger},
     platform::{Bogae, DetNuri, DetSam, InMemoryGeoul, Iyagi, Origin, Patch, PatchOp, Sam},
     resource_tag_with_unit,
     signals::{DiagEvent, Signal, TickId, VecSignalSink},
+    EngineLoop, Fixed64, Geoul, InputSnapshot, Nuri, ResourceValue, Unit, KEY_A, KEY_D, KEY_S,
+    KEY_W,
 };
 use ddonirang_lang::runtime::Value;
 use ddonirang_lang::{canonicalize, normalize, parse_with_mode, NormalizationLevel, ParseMode};
 use ddonirang_lang::{Expr, ExprKind, Literal, SeedDef, SeedKind, Stmt, TopLevelItem};
+use preprocess::{
+    format_file_meta, preprocess_ai_calls, preprocess_source_for_parse, split_file_meta, AiMeta,
+};
+use project_meta::{load_project_policy, FeatureGate, ProjectPolicy};
+use schema::{build_schema, write_schema};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use crossterm::{cursor, event, execute, terminal};
-use ddn_runtime::{DdnProgram, DdnRunner};
-use preprocess::{
-    format_file_meta,
-    preprocess_ai_calls,
-    preprocess_source_for_parse,
-    split_file_meta,
-    AiMeta,
-};
-use schema::{build_schema, write_schema};
-use project_meta::{FeatureGate, load_project_policy, ProjectPolicy};
 
 enum SimpleValue {
     Fixed64(Fixed64),
@@ -129,8 +126,8 @@ fn write_diag_jsonl(events: &[DiagEvent], path: &str) -> Result<(), String> {
     if events.is_empty() {
         return Ok(());
     }
-    let mut file = std::fs::File::create(path)
-        .map_err(|e| format!("diag 파일 생성 실패: {}", e))?;
+    let mut file =
+        std::fs::File::create(path).map_err(|e| format!("diag 파일 생성 실패: {}", e))?;
     for event in events {
         let json = serde_json::to_string(&DiagEventJson {
             kind: "Diag".to_string(),
@@ -237,8 +234,8 @@ fn collect_test_files(path: Option<String>) -> Result<Vec<PathBuf>, String> {
     if let Some(path) = path {
         let path = PathBuf::from(path);
         if path.is_dir() {
-            for entry in std::fs::read_dir(&path)
-                .map_err(|e| format!("테스트 폴더 읽기 실패: {e}"))?
+            for entry in
+                std::fs::read_dir(&path).map_err(|e| format!("테스트 폴더 읽기 실패: {e}"))?
             {
                 let entry = entry.map_err(|e| format!("테스트 폴더 읽기 실패: {e}"))?;
                 let path = entry.path();
@@ -260,8 +257,7 @@ fn collect_test_files(path: Option<String>) -> Result<Vec<PathBuf>, String> {
         if !root.exists() {
             return Err(format!("테스트 폴더가 없습니다: {}", DEFAULT_TEST_DIR));
         }
-        for entry in std::fs::read_dir(&root)
-            .map_err(|e| format!("테스트 폴더 읽기 실패: {e}"))?
+        for entry in std::fs::read_dir(&root).map_err(|e| format!("테스트 폴더 읽기 실패: {e}"))?
         {
             let entry = entry.map_err(|e| format!("테스트 폴더 읽기 실패: {e}"))?;
             let path = entry.path();
@@ -317,9 +313,10 @@ struct TestFailure {
 }
 
 fn run_test_case(test: &GoldenTestFile) -> Result<Option<TestFailure>, String> {
-    let det_expected = test.det_expected.as_ref().ok_or_else(|| {
-        format!("DetTest만 지원합니다: {}", test.name)
-    })?;
+    let det_expected = test
+        .det_expected
+        .as_ref()
+        .ok_or_else(|| format!("DetTest만 지원합니다: {}", test.name))?;
     let expected_error = det_expected.expected_error_contains.as_deref();
     if det_expected.expected_observations.is_some() {
         return Err(format!(
@@ -328,10 +325,7 @@ fn run_test_case(test: &GoldenTestFile) -> Result<Option<TestFailure>, String> {
         ));
     }
     if test.trace_expected.is_some() {
-        return Err(format!(
-            "TraceTest는 Gate0에서 미지원입니다: {}",
-            test.name
-        ));
+        return Err(format!("TraceTest는 Gate0에서 미지원입니다: {}", test.name));
     }
 
     let run = match run_scenario(test) {
@@ -507,8 +501,7 @@ fn write_repro_last(failure: &TestFailure) -> Result<(), String> {
     let repro_dir = repro_path
         .parent()
         .ok_or_else(|| "repro 경로의 상위 폴더를 찾지 못했습니다".to_string())?;
-    std::fs::create_dir_all(repro_dir)
-        .map_err(|e| format!("repro 폴더 생성 실패: {e}"))?;
+    std::fs::create_dir_all(repro_dir).map_err(|e| format!("repro 폴더 생성 실패: {e}"))?;
     let schema_hash = read_schema_hash();
     let sam_sequence_hash = blake3::hash(failure.sam_input.as_bytes())
         .to_hex()
@@ -525,16 +518,12 @@ fn write_repro_last(failure: &TestFailure) -> Result<(), String> {
         rule_id: failure.rule_id.clone(),
         origin: failure.origin.clone(),
         targets: failure.targets.clone(),
-        repro_command: format!(
-            "cargo run -p ddonirang-tool -- test {}",
-            DEFAULT_TEST_DIR
-        ),
+        repro_command: format!("cargo run -p ddonirang-tool -- test {}", DEFAULT_TEST_DIR),
         diag_path: failure.diag_path.clone(),
     };
-    let json = serde_json::to_string_pretty(&report)
-        .map_err(|e| format!("repro 직렬화 실패: {e}"))?;
-    std::fs::write(&repro_path, json)
-        .map_err(|e| format!("repro 저장 실패: {e}"))?;
+    let json =
+        serde_json::to_string_pretty(&report).map_err(|e| format!("repro 직렬화 실패: {e}"))?;
+    std::fs::write(&repro_path, json).map_err(|e| format!("repro 저장 실패: {e}"))?;
     println!("repro_written: {}", repro_path.display());
     Ok(())
 }
@@ -783,7 +772,9 @@ struct LiveBogae {
 
 impl LiveBogae {
     fn new() -> Self {
-        Self { stdout: io::stdout() }
+        Self {
+            stdout: io::stdout(),
+        }
     }
 }
 
@@ -826,7 +817,10 @@ struct ReplaySam {
 
 impl ReplaySam {
     fn new(snapshots: Vec<InputSnapshot>) -> Self {
-        Self { snapshots, index: 0 }
+        Self {
+            snapshots,
+            index: 0,
+        }
     }
 }
 
@@ -950,10 +944,22 @@ impl Iyagi for GridIyagi {
     ) -> Patch {
         Patch {
             ops: vec![
-                PatchOp::SetResourceFixed64 { tag: "맵_w".to_string(), value: Fixed64::from_i64(5) },
-                PatchOp::SetResourceFixed64 { tag: "맵_h".to_string(), value: Fixed64::from_i64(4) },
-                PatchOp::SetResourceFixed64 { tag: "플레이어_x".to_string(), value: Fixed64::from_i64(2) },
-                PatchOp::SetResourceFixed64 { tag: "플레이어_y".to_string(), value: Fixed64::from_i64(1) },
+                PatchOp::SetResourceFixed64 {
+                    tag: "맵_w".to_string(),
+                    value: Fixed64::from_i64(5),
+                },
+                PatchOp::SetResourceFixed64 {
+                    tag: "맵_h".to_string(),
+                    value: Fixed64::from_i64(4),
+                },
+                PatchOp::SetResourceFixed64 {
+                    tag: "플레이어_x".to_string(),
+                    value: Fixed64::from_i64(2),
+                },
+                PatchOp::SetResourceFixed64 {
+                    tag: "플레이어_y".to_string(),
+                    value: Fixed64::from_i64(1),
+                },
             ],
             origin: Origin::system("tool"),
         }
@@ -994,12 +1000,7 @@ impl MazeIyagi {
             for x in 0..self.data.width {
                 let ch = if x == self.player_x && y == self.player_y {
                     'P'
-                } else if self
-                    .data
-                    .coins
-                    .iter()
-                    .any(|(cx, cy)| *cx == x && *cy == y)
-                {
+                } else if self.data.coins.iter().any(|(cx, cy)| *cx == x && *cy == y) {
                     'C'
                 } else {
                     self.data.tiles[y as usize][x as usize]
@@ -1076,18 +1077,49 @@ impl Iyagi for MazeIyagi {
         }
 
         let mut ops = vec![
-            PatchOp::SetResourceFixed64 { tag: "맵_w".to_string(), value: Fixed64::from_i64(self.data.width) },
-            PatchOp::SetResourceFixed64 { tag: "맵_h".to_string(), value: Fixed64::from_i64(self.data.height) },
-            PatchOp::SetResourceFixed64 { tag: "플레이어_x".to_string(), value: Fixed64::from_i64(self.player_x) },
-            PatchOp::SetResourceFixed64 { tag: "플레이어_y".to_string(), value: Fixed64::from_i64(self.player_y) },
-            PatchOp::SetResourceJson { tag: "맵".to_string(), json: self.render_map() },
-            PatchOp::SetResourceFixed64 { tag: "점수".to_string(), value: Fixed64::from_i64(self.score) },
-            PatchOp::SetResourceJson { tag: "목표".to_string(), json: if self.goal_reached { "달성".to_string() } else { "진행중".to_string() } },
-            PatchOp::SetResourceFixed64 { tag: "코인남음".to_string(), value: Fixed64::from_i64(self.data.coins.len() as i64) },
+            PatchOp::SetResourceFixed64 {
+                tag: "맵_w".to_string(),
+                value: Fixed64::from_i64(self.data.width),
+            },
+            PatchOp::SetResourceFixed64 {
+                tag: "맵_h".to_string(),
+                value: Fixed64::from_i64(self.data.height),
+            },
+            PatchOp::SetResourceFixed64 {
+                tag: "플레이어_x".to_string(),
+                value: Fixed64::from_i64(self.player_x),
+            },
+            PatchOp::SetResourceFixed64 {
+                tag: "플레이어_y".to_string(),
+                value: Fixed64::from_i64(self.player_y),
+            },
+            PatchOp::SetResourceJson {
+                tag: "맵".to_string(),
+                json: self.render_map(),
+            },
+            PatchOp::SetResourceFixed64 {
+                tag: "점수".to_string(),
+                value: Fixed64::from_i64(self.score),
+            },
+            PatchOp::SetResourceJson {
+                tag: "목표".to_string(),
+                json: if self.goal_reached {
+                    "달성".to_string()
+                } else {
+                    "진행중".to_string()
+                },
+            },
+            PatchOp::SetResourceFixed64 {
+                tag: "코인남음".to_string(),
+                value: Fixed64::from_i64(self.data.coins.len() as i64),
+            },
         ];
 
         if reached {
-            ops.push(PatchOp::SetResourceJson { tag: "메시지".to_string(), json: "도착".to_string() });
+            ops.push(PatchOp::SetResourceJson {
+                tag: "메시지".to_string(),
+                json: "도착".to_string(),
+            });
         }
 
         Patch {
@@ -1155,10 +1187,22 @@ impl Iyagi for DdnMazeIyagi {
         input: &ddonirang_core::platform::InputSnapshot,
     ) -> Patch {
         let mut defaults = HashMap::new();
-        defaults.insert("맵원본".to_string(), Value::String(self.base_map_text.clone()));
-        defaults.insert("플레이어_x".to_string(), Value::Fixed64(Fixed64::from_i64(self.start_x)));
-        defaults.insert("플레이어_y".to_string(), Value::Fixed64(Fixed64::from_i64(self.start_y)));
-        defaults.insert("입력키".to_string(), Value::String(input.last_key_name.clone()));
+        defaults.insert(
+            "맵원본".to_string(),
+            Value::String(self.base_map_text.clone()),
+        );
+        defaults.insert(
+            "플레이어_x".to_string(),
+            Value::Fixed64(Fixed64::from_i64(self.start_x)),
+        );
+        defaults.insert(
+            "플레이어_y".to_string(),
+            Value::Fixed64(Fixed64::from_i64(self.start_y)),
+        );
+        defaults.insert(
+            "입력키".to_string(),
+            Value::String(input.last_key_name.clone()),
+        );
         defaults.insert("점수".to_string(), Value::Fixed64(Fixed64::from_i64(0)));
         defaults.insert("목표".to_string(), Value::String("진행중".to_string()));
         defaults.insert("메시지".to_string(), Value::String(String::new()));
@@ -1280,9 +1324,18 @@ impl Iyagi for ParabolaIyagi {
 
         Patch {
             ops: vec![
-                PatchOp::SetResourceFixed64 { tag: self.tag_x.clone(), value: self.x },
-                PatchOp::SetResourceFixed64 { tag: self.tag_y.clone(), value: self.y },
-                PatchOp::SetResourceFixed64 { tag: self.tag_t.clone(), value: self.t },
+                PatchOp::SetResourceFixed64 {
+                    tag: self.tag_x.clone(),
+                    value: self.x,
+                },
+                PatchOp::SetResourceFixed64 {
+                    tag: self.tag_y.clone(),
+                    value: self.y,
+                },
+                PatchOp::SetResourceFixed64 {
+                    tag: self.tag_t.clone(),
+                    value: self.t,
+                },
             ],
             origin: Origin::system("tool"),
         }
@@ -1297,7 +1350,11 @@ struct Gate0ScriptIyagi {
 }
 
 impl Gate0ScriptIyagi {
-    fn new(program: DdnProgram, defaults: HashMap<String, Value>, startup_ops: Vec<PatchOp>) -> Self {
+    fn new(
+        program: DdnProgram,
+        defaults: HashMap<String, Value>,
+        startup_ops: Vec<PatchOp>,
+    ) -> Self {
         Self {
             runner: DdnRunner::new(program, "매틱"),
             defaults,
@@ -1343,7 +1400,8 @@ fn run_once_from(file_path: Option<&str>) -> Result<(), String> {
     let mut buf = Vec::new();
     if let Some(path) = file_path {
         let mut f = std::fs::File::open(path).map_err(|e| format!("파일 열기 실패: {e}"))?;
-        f.read_to_end(&mut buf).map_err(|e| format!("파일 읽기 실패: {e}"))?;
+        f.read_to_end(&mut buf)
+            .map_err(|e| format!("파일 읽기 실패: {e}"))?;
     } else {
         io::stdin()
             .read_to_end(&mut buf)
@@ -1457,7 +1515,12 @@ fn run_alrim_demo() -> Result<(), String> {
     let mut logger = VecAlrimLogger::default();
     let mut handler = AlrimEcho;
 
-    loop_.run_tick(0, vec![Signal::Alrim { name: "연쇄" }], &mut handler, &mut logger);
+    loop_.run_tick(
+        0,
+        vec![Signal::Alrim { name: "연쇄" }],
+        &mut handler,
+        &mut logger,
+    );
 
     for entry in &logger.entries {
         println!(
@@ -1611,7 +1674,8 @@ fn read_text_from_context(
 fn read_text_from_path(path: &str) -> Result<String, String> {
     let mut buf = Vec::new();
     let mut f = std::fs::File::open(path).map_err(|e| format!("파일 열기 실패: {e}"))?;
-    f.read_to_end(&mut buf).map_err(|e| format!("파일 읽기 실패: {e}"))?;
+    f.read_to_end(&mut buf)
+        .map_err(|e| format!("파일 읽기 실패: {e}"))?;
     Ok(decode_stdin(&buf))
 }
 
@@ -1622,15 +1686,13 @@ fn read_net_events_detjson(path: &str) -> Result<Vec<ddonirang_core::platform::N
         serde_json::from_str(&text).map_err(|e| format!("입력샘 파싱 실패: {e}"))?;
     if let Some(schema) = snapshot.schema.as_deref() {
         if schema != "ddn.input_snapshot.v1" {
-            return Err(format!(
-                "E_NET_SAM_SCHEMA 입력샘 schema 불일치: {schema}"
-            ));
+            return Err(format!("E_NET_SAM_SCHEMA 입력샘 schema 불일치: {schema}"));
         }
     }
     let mut events = Vec::new();
     for event in snapshot.net_events {
-        let payload_detjson =
-            serde_json::to_string(&event.payload).map_err(|e| format!("입력샘 payload 직렬화 실패: {e}"))?;
+        let payload_detjson = serde_json::to_string(&event.payload)
+            .map_err(|e| format!("입력샘 payload 직렬화 실패: {e}"))?;
         events.push(ddonirang_core::platform::NetEvent {
             sender: event.sender,
             seq: event.seq,
@@ -1672,7 +1734,10 @@ fn format_parse_error_basic(source: &str, err: &ddonirang_lang::ParseError) -> S
         .unwrap_or(source.len());
     let line_text = &source[line_start..line_end];
     let caret = " ".repeat(col.saturating_sub(1)) + "^";
-    format!("파싱 실패: {} ({}:{})\n{}\n{}", err.message, line, col, line_text, caret)
+    format!(
+        "파싱 실패: {} ({}:{})\n{}\n{}",
+        err.message, line, col, line_text, caret
+    )
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1720,9 +1785,7 @@ fn apply_age0_step01_line(
         return Ok(line.to_string());
     }
 
-    let trimmed_len = code_raw
-        .trim_end_matches(|c| c == ' ' || c == '\t')
-        .len();
+    let trimmed_len = code_raw.trim_end_matches(|c| c == ' ' || c == '\t').len();
     let trailing_ws = &code_raw[trimmed_len..];
     let mut code = code_raw[..trimmed_len].to_string();
 
@@ -1891,7 +1954,9 @@ fn remove_type_prefixes(code: &str, line_no: usize) -> Result<String, String> {
                 j += 1;
             }
             if j >= chars.len() {
-                return Err(format!("BRIDGE_TYPE_PREFIX_FAIL: {line_no}행 끝에서 타입 접두 사용"));
+                return Err(format!(
+                    "BRIDGE_TYPE_PREFIX_FAIL: {line_no}행 끝에서 타입 접두 사용"
+                ));
             }
             let next = chars[j];
             if ch == '글' {
@@ -1946,14 +2011,9 @@ fn run_canon(
         None => meta_parse.stripped,
     };
     let cleaned = preprocess_source_for_parse(&source_body)?;
-    let mut program = parse_with_mode(
-        &cleaned,
-        input_path,
-        ddn_runtime::default_parse_mode(),
-    )
-    .map_err(|e| format_parse_error_basic(&cleaned, &e))?;
-    let report =
-        canonicalize(&mut program).map_err(|e| format_parse_error_basic(&cleaned, &e))?;
+    let mut program = parse_with_mode(&cleaned, input_path, ddn_runtime::default_parse_mode())
+        .map_err(|e| format_parse_error_basic(&cleaned, &e))?;
+    let report = canonicalize(&mut program).map_err(|e| format_parse_error_basic(&cleaned, &e))?;
     for warning in report.warnings {
         eprintln!("{}: {}", warning.code, warning.message);
     }
@@ -1966,10 +2026,7 @@ fn run_canon(
         return Err("CANON_CHECK_FAIL: 정본 출력과 입력이 다릅니다".to_string());
     }
     if !meta_parse.dup_keys.is_empty() {
-        eprintln!(
-            "warning: META_DUP_KEY {}",
-            meta_parse.dup_keys.join(", ")
-        );
+        eprintln!("warning: META_DUP_KEY {}", meta_parse.dup_keys.join(", "));
     }
     let mut output = String::new();
     output.push_str(&format_file_meta(&meta_parse.meta));
@@ -2017,7 +2074,12 @@ fn strip_leading_lines(text: &str, count: usize) -> &str {
 fn filter_moves(moves_text: &str) -> Vec<char> {
     moves_text
         .chars()
-        .filter(|c| matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd' | 'i' | 'j' | 'k' | 'l'))
+        .filter(|c| {
+            matches!(
+                c.to_ascii_lowercase(),
+                'w' | 'a' | 's' | 'd' | 'i' | 'j' | 'k' | 'l'
+            )
+        })
         .collect()
 }
 
@@ -2137,7 +2199,11 @@ fn run_maze_file(path: &str, moves_arg: Option<String>) -> Result<(), String> {
     Ok(())
 }
 
-fn run_maze_ddn(map_path: &str, script_path: &str, moves_arg: Option<String>) -> Result<(), String> {
+fn run_maze_ddn(
+    map_path: &str,
+    script_path: &str,
+    moves_arg: Option<String>,
+) -> Result<(), String> {
     ensure_detmath_ready()?;
     let map_text = read_text_from_path(map_path)?;
     let script_text = read_text_from_path(script_path)?;
@@ -2201,13 +2267,7 @@ fn run_maze_ddn_live(map_path: &str, script_path: &str) -> Result<(), String> {
         loop_.sam.last_key_name = key_name;
         last_frame = Some(loop_.tick_once(tick, &mut sink));
         tick += 1;
-        if loop_
-            .nuri
-            .world()
-            .get_resource_json("메시지")
-            .as_deref()
-            == Some("도착")
-        {
+        if loop_.nuri.world().get_resource_json("메시지").as_deref() == Some("도착") {
             break;
         }
     }
@@ -2257,7 +2317,10 @@ fn run_maze_replay(path: &str, moves_arg: Option<String>) -> Result<(), String> 
         .iter()
         .map(|frame| (frame.snapshot.tick_id, frame.state_hash.to_hex()))
         .collect();
-    let snapshots: Vec<InputSnapshot> = recorded.iter().map(|frame| frame.snapshot.clone()).collect();
+    let snapshots: Vec<InputSnapshot> = recorded
+        .iter()
+        .map(|frame| frame.snapshot.clone())
+        .collect();
 
     let sam = ReplaySam::new(snapshots);
     let iyagi = MazeIyagi::new(data, start_x, start_y);
@@ -2550,10 +2613,19 @@ fn run_golden(path: &str) -> Result<(), String> {
             println!("golden_mismatch: {}", scenario.name);
             println!("expected_len: {}", expected.len());
             println!("actual_len: {}", actual.len());
-            if let Some((idx, expected_hash, actual_hash)) =
-                expected.iter().zip(actual.iter()).enumerate().find_map(|(idx, (e, a))| {
-                    if e != a { Some((idx, e, a)) } else { None }
-                })
+            if let Some((idx, expected_hash, actual_hash)) = expected
+                .iter()
+                .zip(actual.iter())
+                .enumerate()
+                .find_map(
+                    |(idx, (e, a))| {
+                        if e != a {
+                            Some((idx, e, a))
+                        } else {
+                            None
+                        }
+                    },
+                )
             {
                 println!("first_mismatch_tick: {}", idx);
                 println!("expected_hash: {}", expected_hash);
@@ -2581,14 +2653,18 @@ fn run_golden_update(path: &str) -> Result<(), String> {
             GoldenScenarioKind::Gate0Fault => compute_gate0_fault_hashes(),
         };
     }
-    let json = serde_json::to_string_pretty(&golden)
-        .map_err(|e| format!("골든 파일 직렬화 실패: {e}"))?;
+    let json =
+        serde_json::to_string_pretty(&golden).map_err(|e| format!("골든 파일 직렬화 실패: {e}"))?;
     std::fs::write(path, json).map_err(|e| format!("골든 파일 저장 실패: {e}"))?;
     println!("golden_written: {}", path);
     Ok(())
 }
 
-fn run_parabola(ticks_arg: Option<String>, vx_arg: Option<String>, vy_arg: Option<String>) -> Result<(), String> {
+fn run_parabola(
+    ticks_arg: Option<String>,
+    vx_arg: Option<String>,
+    vy_arg: Option<String>,
+) -> Result<(), String> {
     ensure_detmath_ready()?;
     let ticks = parse_u64_arg(ticks_arg, 20, "ticks")?;
     let vx = parse_i64_arg(vx_arg, 5, "vx")?;
@@ -2652,13 +2728,7 @@ fn run_maze_live(path: &str) -> Result<(), String> {
         loop_.sam.last_key_name = key_name;
         last_frame = Some(loop_.tick_once(tick, &mut sink));
         tick += 1;
-        if loop_
-            .nuri
-            .world()
-            .get_resource_json("메시지")
-            .as_deref()
-            == Some("도착")
-        {
+        if loop_.nuri.world().get_resource_json("메시지").as_deref() == Some("도착") {
             break;
         }
     }
@@ -2701,14 +2771,18 @@ fn fixed64_ratio(n: i64, d: i64) -> Fixed64 {
 
 fn parse_u64_arg(arg: Option<String>, default: u64, name: &str) -> Result<u64, String> {
     match arg {
-        Some(v) => v.parse::<u64>().map_err(|_| format!("{name}는 정수여야 합니다")),
+        Some(v) => v
+            .parse::<u64>()
+            .map_err(|_| format!("{name}는 정수여야 합니다")),
         None => Ok(default),
     }
 }
 
 fn parse_i64_arg(arg: Option<String>, default: i64, name: &str) -> Result<i64, String> {
     match arg {
-        Some(v) => v.parse::<i64>().map_err(|_| format!("{name}는 정수여야 합니다")),
+        Some(v) => v
+            .parse::<i64>()
+            .map_err(|_| format!("{name}는 정수여야 합니다")),
         None => Ok(default),
     }
 }
@@ -2740,7 +2814,9 @@ fn read_key_for_tick(timeout: Duration) -> Result<(u64, bool, String), String> {
                 }
                 _ => {}
             }
-            if !event::poll(Duration::from_millis(0)).map_err(|e| format!("키 입력 대기 실패: {e}"))? {
+            if !event::poll(Duration::from_millis(0))
+                .map_err(|e| format!("키 입력 대기 실패: {e}"))?
+            {
                 break;
             }
         }
@@ -2878,6 +2954,1053 @@ fn ensure_feature(policy: Option<&ProjectPolicy>, feature: FeatureGate) -> Resul
     Ok(())
 }
 
+#[derive(Debug, Deserialize)]
+struct EcoMacroMicroRunnerInput {
+    schema: Option<String>,
+    #[serde(default)]
+    seed: u64,
+    ticks: u64,
+    #[serde(default)]
+    shock: Option<EcoShockRaw>,
+    models: EcoModelPaths,
+    #[serde(default)]
+    diagnostics: Vec<EcoDiagnosticSpec>,
+    #[serde(default)]
+    report_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EcoShockRaw {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    target: Option<String>,
+    delta: Option<serde_json::Value>,
+    #[serde(rename = "at_tick")]
+    at_tick: Option<u64>,
+    scope: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EcoModelPaths {
+    #[serde(rename = "거시")]
+    macro_model: String,
+    #[serde(rename = "미시")]
+    micro_model: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct EcoDiagnosticSpec {
+    name: String,
+    lhs: String,
+    rhs: String,
+    #[serde(default)]
+    threshold: Option<serde_json::Value>,
+    #[serde(default, rename = "허용오차")]
+    tolerance: Option<serde_json::Value>,
+}
+
+struct EcoModelSnapshot {
+    fixed: BTreeMap<String, Fixed64>,
+    values: BTreeMap<String, ResourceValue>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EcoShockScope {
+    Both,
+    MacroOnly,
+    MicroOnly,
+}
+
+impl EcoShockScope {
+    fn applies_macro(self) -> bool {
+        matches!(self, Self::Both | Self::MacroOnly)
+    }
+
+    fn applies_micro(self) -> bool {
+        matches!(self, Self::Both | Self::MicroOnly)
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Both => "양쪽",
+            Self::MacroOnly => "거시",
+            Self::MicroOnly => "미시",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct EcoShock {
+    kind: Option<String>,
+    target: String,
+    delta: Fixed64,
+    at_tick: u64,
+    scope: EcoShockScope,
+}
+
+fn run_eco_macro_micro(input_path: &str, out_override: Option<&str>) -> Result<(), String> {
+    let text = read_text_from_path(input_path)?;
+    let spec: EcoMacroMicroRunnerInput =
+        serde_json::from_str(&text).map_err(|e| format!("E_ECO_RUNNER_PARSE {}", e))?;
+    if spec.schema.as_deref() != Some("ddn.macro_micro_runner.v0") {
+        return Err(
+            "E_ECO_RUNNER_SCHEMA schema=ddn.macro_micro_runner.v0 이어야 합니다".to_string(),
+        );
+    }
+    if spec.ticks == 0 {
+        return Err("E_ECO_RUNNER_TICKS ticks는 1 이상이어야 합니다".to_string());
+    }
+    if spec.diagnostics.is_empty() {
+        return Err("E_ECO_RUNNER_DIAG diagnostics는 최소 1개 이상이어야 합니다".to_string());
+    }
+
+    let input_file = Path::new(input_path);
+    let base_dir = input_file.parent().unwrap_or_else(|| Path::new("."));
+    let macro_path = resolve_eco_path(base_dir, &spec.models.macro_model);
+    let micro_path = resolve_eco_path(base_dir, &spec.models.micro_model);
+    let macro_source = read_text_from_path(path_to_str(&macro_path)?)?;
+    let micro_source = read_text_from_path(path_to_str(&micro_path)?)?;
+    let shock = parse_eco_shock(spec.shock.as_ref(), spec.ticks)?;
+
+    let mut macro_keys = collect_eco_scope_keys(&spec.diagnostics, true);
+    let mut micro_keys = collect_eco_scope_keys(&spec.diagnostics, false);
+    if let Some(shock) = shock.as_ref() {
+        macro_keys.insert(shock.target.clone());
+        micro_keys.insert(shock.target.clone());
+    }
+
+    let macro_series = run_eco_model_series(
+        &macro_source,
+        spec.seed,
+        spec.ticks,
+        shock.as_ref(),
+        true,
+        &macro_keys,
+    )?;
+    let micro_series = run_eco_model_series(
+        &micro_source,
+        spec.seed,
+        spec.ticks,
+        shock.as_ref(),
+        false,
+        &micro_keys,
+    )?;
+
+    let shock_tick = shock.as_ref().map(|value| value.at_tick);
+    let mut rows = Vec::with_capacity(spec.diagnostics.len());
+    for diag in &spec.diagnostics {
+        let threshold = parse_eco_threshold(diag)?;
+        let mut divergence_tick: Option<u64> = None;
+        let mut max_delta = Fixed64::ZERO;
+        let mut before_ok = true;
+        let mut after_ok = true;
+        let mut before_seen = false;
+        let mut after_seen = false;
+
+        for tick in 1..=spec.ticks {
+            let macro_state = &macro_series[(tick - 1) as usize];
+            let micro_state = &micro_series[(tick - 1) as usize];
+            let lhs = resolve_eco_reference(&diag.lhs, macro_state, micro_state)?;
+            let rhs = resolve_eco_reference(&diag.rhs, macro_state, micro_state)?;
+            let delta = eco_fixed64_abs(lhs.saturating_sub(rhs));
+            if delta.raw_i64() > max_delta.raw_i64() {
+                max_delta = delta;
+            }
+            let converged = delta.raw_i64() <= threshold.raw_i64();
+            if !converged && divergence_tick.is_none() {
+                divergence_tick = Some(tick);
+            }
+            if let Some(shock_tick) = shock_tick {
+                if tick < shock_tick {
+                    before_seen = true;
+                    before_ok &= converged;
+                } else {
+                    after_seen = true;
+                    after_ok &= converged;
+                }
+            } else {
+                before_seen = true;
+                before_ok &= converged;
+                after_seen = true;
+                after_ok &= converged;
+            }
+        }
+
+        if !before_seen {
+            before_ok = true;
+        }
+        if !after_seen {
+            after_ok = true;
+        }
+
+        let mut row = serde_json::Map::new();
+        row.insert(
+            "name".to_string(),
+            serde_json::Value::String(diag.name.clone()),
+        );
+        row.insert(
+            "convergence_before_shock".to_string(),
+            serde_json::Value::Bool(before_ok),
+        );
+        row.insert(
+            "convergence_after_shock".to_string(),
+            serde_json::Value::Bool(after_ok),
+        );
+        match divergence_tick {
+            Some(value) => {
+                row.insert(
+                    "divergence_tick".to_string(),
+                    serde_json::Value::Number(value.into()),
+                );
+                row.insert(
+                    "max_delta".to_string(),
+                    serde_json::Value::String(format_eco_fixed64(max_delta)),
+                );
+                row.insert(
+                    "error_code".to_string(),
+                    serde_json::Value::String(infer_eco_error_code(diag).to_string()),
+                );
+            }
+            None => {
+                row.insert("divergence_tick".to_string(), serde_json::Value::Null);
+            }
+        }
+        rows.push(serde_json::Value::Object(row));
+    }
+
+    let mut report = serde_json::Map::new();
+    report.insert(
+        "schema".to_string(),
+        serde_json::Value::String("ddn.runner_report.v0".to_string()),
+    );
+    report.insert(
+        "seed".to_string(),
+        serde_json::Value::Number(spec.seed.into()),
+    );
+    report.insert(
+        "ticks".to_string(),
+        serde_json::Value::Number(spec.ticks.into()),
+    );
+    report.insert(
+        "shock_tick".to_string(),
+        match shock_tick {
+            Some(value) => serde_json::Value::Number(value.into()),
+            None => serde_json::Value::Null,
+        },
+    );
+    if let Some(shock) = shock.as_ref() {
+        report.insert(
+            "shock_target".to_string(),
+            serde_json::Value::String(shock.target.clone()),
+        );
+        report.insert(
+            "shock_delta".to_string(),
+            serde_json::Value::String(format_eco_fixed64(shock.delta)),
+        );
+        report.insert(
+            "shock_scope".to_string(),
+            serde_json::Value::String(shock.scope.label().to_string()),
+        );
+        if let Some(kind) = shock.kind.as_ref() {
+            report.insert(
+                "shock_type".to_string(),
+                serde_json::Value::String(kind.clone()),
+            );
+        }
+    }
+    report.insert("results".to_string(), serde_json::Value::Array(rows));
+
+    let out_path = resolve_eco_report_path(
+        input_file,
+        spec.report_path.as_deref(),
+        out_override.map(PathBuf::from).as_deref(),
+    );
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("E_ECO_RUNNER_REPORT_DIR {} {}", parent.display(), e))?;
+    }
+    let report_text = serde_json::to_string(&serde_json::Value::Object(report))
+        .map_err(|e| format!("E_ECO_RUNNER_REPORT_JSON {}", e))?;
+    std::fs::write(&out_path, format!("{report_text}\n"))
+        .map_err(|e| format!("E_ECO_RUNNER_REPORT_WRITE {} {}", out_path.display(), e))?;
+    println!("eco_runner_report={}", out_path.display());
+    Ok(())
+}
+
+fn run_eco_model_series(
+    source: &str,
+    seed: u64,
+    ticks: u64,
+    shock: Option<&EcoShock>,
+    is_macro: bool,
+    resource_keys: &BTreeSet<String>,
+) -> Result<Vec<BTreeMap<String, Fixed64>>, String> {
+    let program = DdnProgram::from_source(source, "<eco_runner>")
+        .map_err(|e| format!("E_ECO_RUNNER_MODEL_PARSE {}", e))?;
+    let mut runner = DdnRunner::new(program, "매마디");
+    let mut nuri = DetNuri::new();
+    let mut sink = VecSignalSink::default();
+    let mut defaults: HashMap<String, Value> = HashMap::new();
+    for key in resource_keys {
+        defaults.insert(key.clone(), Value::Fixed64(Fixed64::ZERO));
+    }
+    defaults.insert(
+        "__wasm_start_once".to_string(),
+        Value::Fixed64(Fixed64::ZERO),
+    );
+    let mut out = Vec::with_capacity(ticks as usize);
+
+    for tick in 1..=ticks {
+        if let Some(shock) = shock {
+            if shock.at_tick == tick
+                && ((is_macro && shock.scope.applies_macro())
+                    || (!is_macro && shock.scope.applies_micro()))
+            {
+                apply_eco_shock(&mut nuri, shock, tick.saturating_sub(1), &mut sink);
+            }
+        }
+
+        let input = InputSnapshot {
+            tick_id: tick.saturating_sub(1),
+            dt: Fixed64::from_i64(1),
+            keys_pressed: 0,
+            last_key_name: String::new(),
+            pointer_x_i32: 0,
+            pointer_y_i32: 0,
+            ai_injections: Vec::new(),
+            net_events: Vec::new(),
+            rng_seed: seed,
+        };
+        let output = runner
+            .run_update(nuri.world(), &input, &defaults)
+            .map_err(|e| format!("E_ECO_RUNNER_MODEL_EXEC {}", e))?;
+
+        let mut patch_ops = output.patch.ops;
+        let mut persisted = BTreeMap::new();
+        for (key, value) in output.resources {
+            match value {
+                Value::Fixed64(number) => {
+                    persisted.insert(key, number);
+                }
+                Value::Unit(unit) if unit.is_dimensionless() => {
+                    persisted.insert(key, unit.value);
+                }
+                _ => {}
+            }
+        }
+        for (key, value) in persisted {
+            patch_ops.push(PatchOp::SetResourceFixed64 { tag: key, value });
+        }
+
+        nuri.apply_patch(
+            &Patch {
+                ops: patch_ops,
+                origin: Origin::system("eco_runner"),
+            },
+            input.tick_id,
+            &mut sink,
+        );
+        let snapshot = nuri
+            .world()
+            .resource_fixed64_entries()
+            .into_iter()
+            .collect();
+        out.push(snapshot);
+    }
+
+    Ok(out)
+}
+
+fn apply_eco_shock(nuri: &mut DetNuri, shock: &EcoShock, tick_id: u64, sink: &mut VecSignalSink) {
+    let base = nuri
+        .world()
+        .get_resource_fixed64(&shock.target)
+        .unwrap_or(Fixed64::ZERO);
+    let next = base.saturating_add(shock.delta);
+    nuri.apply_patch(
+        &Patch {
+            ops: vec![PatchOp::SetResourceFixed64 {
+                tag: shock.target.clone(),
+                value: next,
+            }],
+            origin: Origin::system("eco_runner"),
+        },
+        tick_id,
+        sink,
+    );
+}
+
+fn parse_eco_shock(shock: Option<&EcoShockRaw>, ticks: u64) -> Result<Option<EcoShock>, String> {
+    let Some(shock) = shock else {
+        return Ok(None);
+    };
+    let at_tick = shock
+        .at_tick
+        .ok_or_else(|| "E_ECO_RUNNER_SHOCK at_tick이 필요합니다".to_string())?;
+    if at_tick == 0 || at_tick > ticks {
+        return Err(format!(
+            "E_ECO_RUNNER_SHOCK at_tick 범위 오류 at_tick={} ticks={}",
+            at_tick, ticks
+        ));
+    }
+    let target = shock
+        .target
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "E_ECO_RUNNER_SHOCK target이 필요합니다".to_string())?
+        .to_string();
+    let delta = parse_fixed64_from_json("E_ECO_RUNNER_SHOCK delta", shock.delta.as_ref())?;
+    let scope = parse_eco_shock_scope(shock.scope.as_deref())?;
+    Ok(Some(EcoShock {
+        kind: shock.kind.clone(),
+        target,
+        delta,
+        at_tick,
+        scope,
+    }))
+}
+
+fn parse_eco_shock_scope(scope: Option<&str>) -> Result<EcoShockScope, String> {
+    let Some(scope) = scope else {
+        return Ok(EcoShockScope::Both);
+    };
+    match scope.trim() {
+        "" | "양쪽" | "both" | "Both" | "BOTH" => Ok(EcoShockScope::Both),
+        "거시" | "macro" | "Macro" | "MACRO" => Ok(EcoShockScope::MacroOnly),
+        "미시" | "micro" | "Micro" | "MICRO" => Ok(EcoShockScope::MicroOnly),
+        other => Err(format!(
+            "E_ECO_RUNNER_SHOCK scope 지원값이 아닙니다: {}",
+            other
+        )),
+    }
+}
+
+fn parse_eco_threshold(diag: &EcoDiagnosticSpec) -> Result<Fixed64, String> {
+    let value = diag.tolerance.as_ref().or(diag.threshold.as_ref());
+    parse_fixed64_from_json("E_ECO_RUNNER_THRESHOLD", value)
+}
+
+fn parse_fixed64_from_json(
+    prefix: &str,
+    value: Option<&serde_json::Value>,
+) -> Result<Fixed64, String> {
+    let Some(value) = value else {
+        return Ok(Fixed64::ZERO);
+    };
+    match value {
+        serde_json::Value::Number(number) => {
+            parse_fixed64_decimal(&number.to_string()).map_err(|e| format!("{prefix} {}", e))
+        }
+        serde_json::Value::String(text) => {
+            parse_fixed64_decimal(text).map_err(|e| format!("{prefix} {}", e))
+        }
+        _ => Err(format!("{prefix} 값은 숫자/문자열이어야 합니다")),
+    }
+}
+
+fn parse_fixed64_decimal(input: &str) -> Result<Fixed64, String> {
+    let text = input.trim();
+    if text.is_empty() {
+        return Err("빈 문자열".to_string());
+    }
+    if text.contains('e') || text.contains('E') {
+        let parsed = text
+            .parse::<f64>()
+            .map_err(|_| format!("실수 파싱 실패: {}", text))?;
+        return Ok(Fixed64::from_f64_lossy(parsed));
+    }
+
+    let mut sign = 1i128;
+    let mut raw_text = text;
+    if let Some(rest) = raw_text.strip_prefix('-') {
+        sign = -1;
+        raw_text = rest;
+    } else if let Some(rest) = raw_text.strip_prefix('+') {
+        raw_text = rest;
+    }
+    let mut parts = raw_text.splitn(2, '.');
+    let int_part = parts.next().unwrap_or("");
+    let frac_part = parts.next().unwrap_or("");
+
+    let int_value = if int_part.is_empty() {
+        0i128
+    } else {
+        if !int_part.chars().all(|c| c.is_ascii_digit()) {
+            return Err(format!("정수부 형식 오류: {}", input));
+        }
+        int_part
+            .parse::<i128>()
+            .map_err(|_| format!("정수부 변환 실패: {}", input))?
+    };
+    let frac_value = if frac_part.is_empty() {
+        0i128
+    } else {
+        if !frac_part.chars().all(|c| c.is_ascii_digit()) {
+            return Err(format!("소수부 형식 오류: {}", input));
+        }
+        frac_part
+            .parse::<i128>()
+            .map_err(|_| format!("소수부 변환 실패: {}", input))?
+    };
+
+    let scale = 10i128.pow(frac_part.len() as u32);
+    let frac_raw = if frac_part.is_empty() {
+        0i128
+    } else {
+        (frac_value * (1i128 << 32)) / scale
+    };
+    let raw = (int_value << 32) + frac_raw;
+    let signed = raw.saturating_mul(sign);
+    Ok(Fixed64::from_raw_i64(clamp_i128_to_i64(signed)))
+}
+
+fn clamp_i128_to_i64(value: i128) -> i64 {
+    if value > i64::MAX as i128 {
+        i64::MAX
+    } else if value < i64::MIN as i128 {
+        i64::MIN
+    } else {
+        value as i64
+    }
+}
+
+fn resolve_eco_reference(
+    reference: &str,
+    macro_state: &BTreeMap<String, Fixed64>,
+    micro_state: &BTreeMap<String, Fixed64>,
+) -> Result<Fixed64, String> {
+    let trimmed = reference.trim();
+    if let Ok(literal) = parse_fixed64_decimal(trimmed) {
+        return Ok(literal);
+    }
+    let Some((scope, key)) = trimmed.split_once('.') else {
+        return Err(format!(
+            "E_ECO_RUNNER_REF {} 참조는 <거시|미시>.<키> 형식이어야 합니다",
+            trimmed
+        ));
+    };
+    let key = key.trim();
+    if key.is_empty() {
+        return Err(format!("E_ECO_RUNNER_REF {} 키가 비었습니다", trimmed));
+    }
+    let target = match scope.trim() {
+        "거시" | "macro" | "Macro" | "MACRO" => macro_state,
+        "미시" | "micro" | "Micro" | "MICRO" => micro_state,
+        _ => {
+            return Err(format!(
+                "E_ECO_RUNNER_REF {} scope는 거시/미시여야 합니다",
+                trimmed
+            ))
+        }
+    };
+    target
+        .get(key)
+        .copied()
+        .ok_or_else(|| format!("E_ECO_RUNNER_REF {} 키를 찾을 수 없습니다", trimmed))
+}
+
+fn collect_eco_scope_keys(diagnostics: &[EcoDiagnosticSpec], is_macro: bool) -> BTreeSet<String> {
+    let mut keys = BTreeSet::new();
+    for diag in diagnostics {
+        collect_eco_key_from_ref(&diag.lhs, is_macro, &mut keys);
+        collect_eco_key_from_ref(&diag.rhs, is_macro, &mut keys);
+    }
+    keys
+}
+
+fn collect_eco_key_from_ref(reference: &str, is_macro: bool, keys: &mut BTreeSet<String>) {
+    let trimmed = reference.trim();
+    let Some((scope, key)) = trimmed.split_once('.') else {
+        return;
+    };
+    let matches = match scope.trim() {
+        "거시" | "macro" | "Macro" | "MACRO" => is_macro,
+        "미시" | "micro" | "Micro" | "MICRO" => !is_macro,
+        _ => false,
+    };
+    if !matches {
+        return;
+    }
+    let key = key.trim();
+    if key.is_empty() {
+        return;
+    }
+    keys.insert(key.to_string());
+}
+
+fn infer_eco_error_code(diag: &EcoDiagnosticSpec) -> &'static str {
+    let upper = diag.name.to_ascii_uppercase();
+    if upper.contains("SFC")
+        || ((diag.lhs.contains("총수입") && diag.rhs.contains("총지출"))
+            || (diag.lhs.contains("총지출") && diag.rhs.contains("총수입")))
+    {
+        "E_SFC_IDENTITY_VIOLATION"
+    } else {
+        "E_ECO_DIVERGENCE_DETECTED"
+    }
+}
+
+fn eco_fixed64_abs(value: Fixed64) -> Fixed64 {
+    let raw = value.raw_i64();
+    let abs = if raw == i64::MIN { i64::MAX } else { raw.abs() };
+    Fixed64::from_raw_i64(abs)
+}
+
+fn format_eco_fixed64(value: Fixed64) -> String {
+    let raw = value.raw_i64();
+    if raw == 0 {
+        return "0".to_string();
+    }
+    let negative = raw < 0;
+    let abs = if raw == i64::MIN {
+        (i64::MAX as i128) + 1
+    } else {
+        raw.abs() as i128
+    };
+    let int_part = abs >> 32;
+    let mut frac = abs & ((1_i128 << 32) - 1);
+    let mut out = int_part.to_string();
+    if frac != 0 {
+        let mut digits = String::new();
+        for _ in 0..10 {
+            frac *= 10;
+            let digit = (frac >> 32) as u8;
+            frac &= (1_i128 << 32) - 1;
+            digits.push((b'0' + digit) as char);
+        }
+        while digits.ends_with('0') {
+            digits.pop();
+        }
+        if !digits.is_empty() {
+            out.push('.');
+            out.push_str(&digits);
+        }
+    }
+    if negative {
+        out.insert(0, '-');
+    }
+    out
+}
+
+fn resolve_eco_path(base_dir: &Path, value: &str) -> PathBuf {
+    let path = Path::new(value);
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        base_dir.join(path)
+    }
+}
+
+fn resolve_eco_report_path(
+    input_file: &Path,
+    report_path: Option<&str>,
+    out: Option<&Path>,
+) -> PathBuf {
+    if let Some(path) = out {
+        return path.to_path_buf();
+    }
+    if let Some(report_path) = report_path {
+        let path = Path::new(report_path);
+        if path.is_absolute() {
+            return path.to_path_buf();
+        }
+        let base = input_file.parent().unwrap_or_else(|| Path::new("."));
+        return base.join(path);
+    }
+    paths::build_dir()
+        .join("eco")
+        .join("macro_micro_runner.report.detjson")
+}
+
+fn path_to_str(path: &Path) -> Result<&str, String> {
+    path.to_str()
+        .ok_or_else(|| format!("경로 UTF-8 변환 실패: {}", path.display()))
+}
+
+fn run_eco_network_flow(
+    input_path: &str,
+    ticks: u64,
+    seed: u64,
+    threshold: Fixed64,
+    out_override: Option<&str>,
+) -> Result<(), String> {
+    if ticks == 0 {
+        return Err("E_ECO_NETWORK_FLOW ticks는 1 이상이어야 합니다".to_string());
+    }
+    let source = read_text_from_path(input_path)?;
+    let preload: BTreeSet<String> = ["총수입", "총지출", "임금", "이전소득", "소비", "세금"]
+        .into_iter()
+        .map(|value| value.to_string())
+        .collect();
+    let snapshot = run_eco_single_model_snapshot(&source, seed, ticks, &preload)?;
+
+    let lhs = resolve_network_income(&snapshot.fixed)?;
+    let rhs = resolve_network_spending(&snapshot.fixed)?;
+    let delta = eco_fixed64_abs(lhs.saturating_sub(rhs));
+    let converged = delta.raw_i64() <= threshold.raw_i64();
+
+    let mut report = serde_json::Map::new();
+    report.insert(
+        "schema".to_string(),
+        serde_json::Value::String("ddn.eco.network_flow_report.v0".to_string()),
+    );
+    report.insert("seed".to_string(), serde_json::Value::Number(seed.into()));
+    report.insert("ticks".to_string(), serde_json::Value::Number(ticks.into()));
+    report.insert(
+        "lhs".to_string(),
+        serde_json::Value::String(format_eco_fixed64(lhs)),
+    );
+    report.insert(
+        "rhs".to_string(),
+        serde_json::Value::String(format_eco_fixed64(rhs)),
+    );
+    report.insert(
+        "delta".to_string(),
+        serde_json::Value::String(format_eco_fixed64(delta)),
+    );
+    report.insert(
+        "threshold".to_string(),
+        serde_json::Value::String(format_eco_fixed64(threshold)),
+    );
+    report.insert(
+        "result".to_string(),
+        serde_json::Value::String(if converged {
+            "수렴".to_string()
+        } else {
+            "발산".to_string()
+        }),
+    );
+    if !converged {
+        report.insert(
+            "error_code".to_string(),
+            serde_json::Value::String("E_SFC_IDENTITY_VIOLATION".to_string()),
+        );
+    }
+
+    let out = if let Some(path) = out_override {
+        PathBuf::from(path)
+    } else {
+        paths::build_dir()
+            .join("eco")
+            .join("network_flow.report.detjson")
+    };
+    if let Some(parent) = out.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("E_ECO_NETWORK_FLOW_DIR {} {}", parent.display(), e))?;
+    }
+    let text = serde_json::to_string(&serde_json::Value::Object(report))
+        .map_err(|e| format!("E_ECO_NETWORK_FLOW_JSON {}", e))?;
+    std::fs::write(&out, format!("{text}\n"))
+        .map_err(|e| format!("E_ECO_NETWORK_FLOW_WRITE {} {}", out.display(), e))?;
+    println!("eco_network_flow_report={}", out.display());
+
+    if converged {
+        Ok(())
+    } else {
+        Err("E_SFC_IDENTITY_VIOLATION".to_string())
+    }
+}
+
+fn run_eco_abm_spatial(
+    input_path: &str,
+    ticks: u64,
+    seed: u64,
+    out_override: Option<&str>,
+) -> Result<(), String> {
+    if ticks == 0 {
+        return Err("E_ECO_ABM_SPATIAL ticks는 1 이상이어야 합니다".to_string());
+    }
+    let source = read_text_from_path(input_path)?;
+    let preload: BTreeSet<String> = ["지니계수", "평균부", "최대부", "분위90", "부목록"]
+        .into_iter()
+        .map(|value| value.to_string())
+        .collect();
+    let snapshot = run_eco_single_model_snapshot(&source, seed, ticks, &preload)?;
+    let wealth = extract_eco_wealth(&snapshot.values);
+
+    let gini = snapshot
+        .fixed
+        .get("지니계수")
+        .copied()
+        .or_else(|| wealth.as_ref().map(|list| eco_gini(list.as_slice())))
+        .unwrap_or(Fixed64::ZERO);
+    let mean = snapshot
+        .fixed
+        .get("평균부")
+        .copied()
+        .or_else(|| wealth.as_ref().map(|list| eco_mean(list.as_slice())))
+        .unwrap_or(Fixed64::ZERO);
+    let max = snapshot
+        .fixed
+        .get("최대부")
+        .copied()
+        .or_else(|| wealth.as_ref().map(|list| eco_max(list.as_slice())))
+        .unwrap_or(Fixed64::ZERO);
+    let p90 = snapshot
+        .fixed
+        .get("분위90")
+        .copied()
+        .or_else(|| {
+            wealth
+                .as_ref()
+                .map(|list| eco_quantile_linear(list.as_slice(), Fixed64::from_f64_lossy(0.9)))
+        })
+        .unwrap_or(Fixed64::ZERO);
+
+    let mut report = serde_json::Map::new();
+    report.insert(
+        "schema".to_string(),
+        serde_json::Value::String("ddn.eco.abm_spatial_report.v0".to_string()),
+    );
+    report.insert("seed".to_string(), serde_json::Value::Number(seed.into()));
+    report.insert("ticks".to_string(), serde_json::Value::Number(ticks.into()));
+    report.insert(
+        "gini".to_string(),
+        serde_json::Value::String(format_eco_fixed64(gini)),
+    );
+    report.insert(
+        "mean_wealth".to_string(),
+        serde_json::Value::String(format_eco_fixed64(mean)),
+    );
+    report.insert(
+        "max_wealth".to_string(),
+        serde_json::Value::String(format_eco_fixed64(max)),
+    );
+    report.insert(
+        "p90_wealth".to_string(),
+        serde_json::Value::String(format_eco_fixed64(p90)),
+    );
+    if let Some(wealth) = wealth.as_ref() {
+        report.insert(
+            "agent_count".to_string(),
+            serde_json::Value::Number((wealth.len() as u64).into()),
+        );
+    }
+
+    let out = if let Some(path) = out_override {
+        PathBuf::from(path)
+    } else {
+        paths::build_dir()
+            .join("eco")
+            .join("abm_spatial.report.detjson")
+    };
+    if let Some(parent) = out.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("E_ECO_ABM_SPATIAL_DIR {} {}", parent.display(), e))?;
+    }
+    let text = serde_json::to_string(&serde_json::Value::Object(report))
+        .map_err(|e| format!("E_ECO_ABM_SPATIAL_JSON {}", e))?;
+    std::fs::write(&out, format!("{text}\n"))
+        .map_err(|e| format!("E_ECO_ABM_SPATIAL_WRITE {} {}", out.display(), e))?;
+    println!("eco_abm_spatial_report={}", out.display());
+    Ok(())
+}
+
+fn run_eco_single_model_snapshot(
+    source: &str,
+    seed: u64,
+    ticks: u64,
+    resource_keys: &BTreeSet<String>,
+) -> Result<EcoModelSnapshot, String> {
+    let program = DdnProgram::from_source(source, "<eco_single>")
+        .map_err(|e| format!("E_ECO_MODEL_PARSE {}", e))?;
+    let mut runner = DdnRunner::new(program, "매마디");
+    let mut nuri = DetNuri::new();
+    let mut sink = VecSignalSink::default();
+    let mut defaults: HashMap<String, Value> = HashMap::new();
+    for key in resource_keys {
+        defaults.insert(key.clone(), Value::Fixed64(Fixed64::ZERO));
+    }
+    defaults.insert(
+        "__wasm_start_once".to_string(),
+        Value::Fixed64(Fixed64::ZERO),
+    );
+
+    for tick in 1..=ticks {
+        let input = InputSnapshot {
+            tick_id: tick.saturating_sub(1),
+            dt: Fixed64::from_i64(1),
+            keys_pressed: 0,
+            last_key_name: String::new(),
+            pointer_x_i32: 0,
+            pointer_y_i32: 0,
+            ai_injections: Vec::new(),
+            net_events: Vec::new(),
+            rng_seed: seed,
+        };
+        let output = runner
+            .run_update(nuri.world(), &input, &defaults)
+            .map_err(|e| format!("E_ECO_MODEL_EXEC {}", e))?;
+
+        let mut patch_ops = output.patch.ops;
+        let mut persisted = BTreeMap::new();
+        for (key, value) in output.resources {
+            match value {
+                Value::Fixed64(number) => {
+                    persisted.insert(key, number);
+                }
+                Value::Unit(unit) if unit.is_dimensionless() => {
+                    persisted.insert(key, unit.value);
+                }
+                _ => {}
+            }
+        }
+        for (key, value) in persisted {
+            patch_ops.push(PatchOp::SetResourceFixed64 { tag: key, value });
+        }
+        nuri.apply_patch(
+            &Patch {
+                ops: patch_ops,
+                origin: Origin::system("eco"),
+            },
+            input.tick_id,
+            &mut sink,
+        );
+    }
+
+    Ok(EcoModelSnapshot {
+        fixed: nuri
+            .world()
+            .resource_fixed64_entries()
+            .into_iter()
+            .collect(),
+        values: nuri.world().resource_value_entries().into_iter().collect(),
+    })
+}
+
+fn resolve_network_income(fixed: &BTreeMap<String, Fixed64>) -> Result<Fixed64, String> {
+    if let Some(value) = fixed.get("총수입") {
+        return Ok(*value);
+    }
+    let wage = fixed
+        .get("임금")
+        .copied()
+        .ok_or_else(|| "E_ECO_NETWORK_FLOW 총수입 계산 키 누락(임금)".to_string())?;
+    let transfer = fixed
+        .get("이전소득")
+        .copied()
+        .ok_or_else(|| "E_ECO_NETWORK_FLOW 총수입 계산 키 누락(이전소득)".to_string())?;
+    Ok(wage.saturating_add(transfer))
+}
+
+fn resolve_network_spending(fixed: &BTreeMap<String, Fixed64>) -> Result<Fixed64, String> {
+    if let Some(value) = fixed.get("총지출") {
+        return Ok(*value);
+    }
+    let consume = fixed
+        .get("소비")
+        .copied()
+        .ok_or_else(|| "E_ECO_NETWORK_FLOW 총지출 계산 키 누락(소비)".to_string())?;
+    let tax = fixed
+        .get("세금")
+        .copied()
+        .ok_or_else(|| "E_ECO_NETWORK_FLOW 총지출 계산 키 누락(세금)".to_string())?;
+    Ok(consume.saturating_add(tax))
+}
+
+fn extract_eco_wealth(values: &BTreeMap<String, ResourceValue>) -> Option<Vec<Fixed64>> {
+    let ResourceValue::List(items) = values.get("부목록")? else {
+        return None;
+    };
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        match item {
+            ResourceValue::Fixed64(value) => out.push(*value),
+            ResourceValue::Unit(unit) if unit.is_dimensionless() => out.push(unit.value),
+            _ => return None,
+        }
+    }
+    Some(out)
+}
+
+fn eco_mean(values: &[Fixed64]) -> Fixed64 {
+    if values.is_empty() {
+        return Fixed64::ZERO;
+    }
+    let mut total = Fixed64::ZERO;
+    for value in values {
+        total = total.saturating_add(*value);
+    }
+    total
+        .try_div(Fixed64::from_i64(values.len() as i64))
+        .unwrap_or(Fixed64::ZERO)
+}
+
+fn eco_max(values: &[Fixed64]) -> Fixed64 {
+    values.iter().copied().max().unwrap_or(Fixed64::ZERO)
+}
+
+fn eco_gini(values: &[Fixed64]) -> Fixed64 {
+    if values.is_empty() {
+        return Fixed64::ZERO;
+    }
+    let mut total = Fixed64::ZERO;
+    for value in values {
+        if value.raw_i64() < 0 {
+            return Fixed64::ZERO;
+        }
+        total = total.saturating_add(*value);
+    }
+    if total.raw_i64() == 0 {
+        return Fixed64::ZERO;
+    }
+    let mut pair_sum = Fixed64::ZERO;
+    for i in 0..values.len() {
+        for j in (i + 1)..values.len() {
+            pair_sum =
+                pair_sum.saturating_add(eco_fixed64_abs(values[i].saturating_sub(values[j])));
+        }
+    }
+    pair_sum
+        .try_div(Fixed64::from_i64(values.len() as i64).saturating_mul(total))
+        .unwrap_or(Fixed64::ZERO)
+}
+
+fn eco_quantile_linear(values: &[Fixed64], p: Fixed64) -> Fixed64 {
+    if values.is_empty() {
+        return Fixed64::ZERO;
+    }
+    if values.len() == 1 {
+        return values[0];
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort();
+    let max_index = Fixed64::from_i64((sorted.len() - 1) as i64);
+    let pos = p.saturating_mul(max_index);
+    let low = Fixed64::from_i64(pos.int_part());
+    let high = if pos.frac_part() == 0 {
+        low
+    } else {
+        low.saturating_add(Fixed64::from_i64(1))
+    };
+    let low_idx = low.int_part().max(0) as usize;
+    let high_idx = high.int_part().max(0) as usize;
+    if low_idx >= sorted.len() {
+        return *sorted.last().unwrap_or(&Fixed64::ZERO);
+    }
+    if high_idx >= sorted.len() || low_idx == high_idx {
+        return sorted[low_idx];
+    }
+    let frac = pos.saturating_sub(low);
+    let base = sorted[low_idx];
+    let next = sorted[high_idx];
+    base.saturating_add(next.saturating_sub(base).saturating_mul(frac))
+}
+
+fn parse_seed_arg(text: &str) -> Result<u64, String> {
+    let trimmed = text.trim();
+    if let Some(hex) = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+    {
+        return u64::from_str_radix(hex, 16).map_err(|_| format!("seed 파싱 실패: {}", text));
+    }
+    trimmed
+        .parse::<u64>()
+        .map_err(|_| format!("seed 파싱 실패: {}", text))
+}
+
 fn main() {
     let mut raw_args: Vec<String> = std::env::args().skip(1).collect();
     let unsafe_compat = take_flag(&mut raw_args, "--unsafe-compat");
@@ -3002,7 +4125,11 @@ fn main() {
                 return;
             }
             let moves = args.next();
-            if let Err(err) = run_maze_ddn(map_path.as_deref().unwrap(), script_path.as_deref().unwrap(), moves) {
+            if let Err(err) = run_maze_ddn(
+                map_path.as_deref().unwrap(),
+                script_path.as_deref().unwrap(),
+                moves,
+            ) {
                 eprintln!("{err}");
             }
         }
@@ -3014,10 +4141,15 @@ fn main() {
             let map_path = args.next();
             let script_path = args.next();
             if map_path.is_none() || script_path.is_none() {
-                eprintln!("사용법: cargo run -p ddonirang-tool -- run-maze-ddn-live <맵파일> <스크립트>");
+                eprintln!(
+                    "사용법: cargo run -p ddonirang-tool -- run-maze-ddn-live <맵파일> <스크립트>"
+                );
                 return;
             }
-            if let Err(err) = run_maze_ddn_live(map_path.as_deref().unwrap(), script_path.as_deref().unwrap()) {
+            if let Err(err) = run_maze_ddn_live(
+                map_path.as_deref().unwrap(),
+                script_path.as_deref().unwrap(),
+            ) {
                 eprintln!("{err}");
             }
         }
@@ -3048,7 +4180,11 @@ fn main() {
                 return;
             }
             let moves = args.next();
-            if let Err(err) = run_maze_record(path.as_deref().unwrap(), log_path.as_deref().unwrap(), moves) {
+            if let Err(err) = run_maze_record(
+                path.as_deref().unwrap(),
+                log_path.as_deref().unwrap(),
+                moves,
+            ) {
                 eprintln!("{err}");
             }
         }
@@ -3063,7 +4199,9 @@ fn main() {
                 eprintln!("사용법: cargo run -p ddonirang-tool -- run-maze-replay-file <맵파일> <로그파일>");
                 return;
             }
-            if let Err(err) = run_maze_replay_file(path.as_deref().unwrap(), log_path.as_deref().unwrap()) {
+            if let Err(err) =
+                run_maze_replay_file(path.as_deref().unwrap(), log_path.as_deref().unwrap())
+            {
                 eprintln!("{err}");
             }
         }
@@ -3077,7 +4215,9 @@ fn main() {
                 Some("query") => {
                     let query = args.next();
                     if query.is_none() {
-                        eprintln!("사용법: cargo run -p ddonirang-tool -- geoul query <질의> [diag_path]");
+                        eprintln!(
+                            "사용법: cargo run -p ddonirang-tool -- geoul query <질의> [diag_path]"
+                        );
                         return;
                     }
                     let path = args.next();
@@ -3086,7 +4226,9 @@ fn main() {
                     }
                 }
                 _ => {
-                    eprintln!("사용법: cargo run -p ddonirang-tool -- geoul query <질의> [diag_path]");
+                    eprintln!(
+                        "사용법: cargo run -p ddonirang-tool -- geoul query <질의> [diag_path]"
+                    );
                 }
             }
         }
@@ -3107,7 +4249,9 @@ fn main() {
                 eprintln!("{err}");
                 return;
             }
-            let path = args.next().unwrap_or_else(|| DEFAULT_GOLDEN_PATH.to_string());
+            let path = args
+                .next()
+                .unwrap_or_else(|| DEFAULT_GOLDEN_PATH.to_string());
             if let Err(err) = run_golden(&path) {
                 eprintln!("{err}");
             }
@@ -3117,7 +4261,9 @@ fn main() {
                 eprintln!("{err}");
                 return;
             }
-            let path = args.next().unwrap_or_else(|| DEFAULT_GOLDEN_PATH.to_string());
+            let path = args
+                .next()
+                .unwrap_or_else(|| DEFAULT_GOLDEN_PATH.to_string());
             if let Err(err) = run_golden_update(&path) {
                 eprintln!("{err}");
             }
@@ -3147,6 +4293,213 @@ fn main() {
                 return;
             }
             if let Err(err) = run_once_from(path.as_deref()) {
+                eprintln!("{err}");
+            }
+        }
+        Some("eco-macro-micro") => {
+            if let Err(err) = ensure_feature(policy.as_ref(), FeatureGate::ClosedCore) {
+                eprintln!("{err}");
+                return;
+            }
+            let remaining: Vec<String> = args.collect();
+            if remaining.is_empty() {
+                eprintln!(
+                    "사용법: cargo run -p ddonirang-tool -- eco-macro-micro <runner.json> [--out <report.detjson>]"
+                );
+                return;
+            }
+            let mut input: Option<String> = None;
+            let mut out: Option<String> = None;
+            let mut idx = 0usize;
+            while idx < remaining.len() {
+                match remaining[idx].as_str() {
+                    "--out" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!(
+                                "사용법: cargo run -p ddonirang-tool -- eco-macro-micro <runner.json> [--out <report.detjson>]"
+                            );
+                            return;
+                        }
+                        out = Some(remaining[idx].clone());
+                    }
+                    value => {
+                        if input.is_none() {
+                            input = Some(value.to_string());
+                        } else {
+                            eprintln!("알 수 없는 인자: {value}");
+                            return;
+                        }
+                    }
+                }
+                idx += 1;
+            }
+            let Some(input) = input else {
+                eprintln!(
+                    "사용법: cargo run -p ddonirang-tool -- eco-macro-micro <runner.json> [--out <report.detjson>]"
+                );
+                return;
+            };
+            if let Err(err) = run_eco_macro_micro(&input, out.as_deref()) {
+                eprintln!("{err}");
+            }
+        }
+        Some("eco-network-flow") => {
+            if let Err(err) = ensure_feature(policy.as_ref(), FeatureGate::ClosedCore) {
+                eprintln!("{err}");
+                return;
+            }
+            let remaining: Vec<String> = args.collect();
+            if remaining.is_empty() {
+                eprintln!("사용법: cargo run -p ddonirang-tool -- eco-network-flow <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--threshold <수>] [--out <report.detjson>]");
+                return;
+            }
+            let mut input: Option<String> = None;
+            let mut out: Option<String> = None;
+            let mut ticks: u64 = 1;
+            let mut seed: u64 = 0x2a;
+            let mut threshold = Fixed64::from_f64_lossy(0.01);
+            let mut idx = 0usize;
+            while idx < remaining.len() {
+                match remaining[idx].as_str() {
+                    "--out" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!("사용법: cargo run -p ddonirang-tool -- eco-network-flow <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--threshold <수>] [--out <report.detjson>]");
+                            return;
+                        }
+                        out = Some(remaining[idx].clone());
+                    }
+                    "--madi" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!("--madi 값이 필요합니다");
+                            return;
+                        }
+                        match remaining[idx].parse::<u64>() {
+                            Ok(value) if value >= 1 => ticks = value,
+                            _ => {
+                                eprintln!("--madi는 1 이상의 정수여야 합니다");
+                                return;
+                            }
+                        }
+                    }
+                    "--seed" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!("--seed 값이 필요합니다");
+                            return;
+                        }
+                        match parse_seed_arg(&remaining[idx]) {
+                            Ok(value) => seed = value,
+                            Err(err) => {
+                                eprintln!("{err}");
+                                return;
+                            }
+                        }
+                    }
+                    "--threshold" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!("--threshold 값이 필요합니다");
+                            return;
+                        }
+                        match parse_fixed64_decimal(&remaining[idx]) {
+                            Ok(value) => threshold = value,
+                            Err(err) => {
+                                eprintln!("threshold 파싱 실패: {err}");
+                                return;
+                            }
+                        }
+                    }
+                    value => {
+                        if input.is_none() {
+                            input = Some(value.to_string());
+                        } else {
+                            eprintln!("알 수 없는 인자: {value}");
+                            return;
+                        }
+                    }
+                }
+                idx += 1;
+            }
+            let Some(input) = input else {
+                eprintln!("사용법: cargo run -p ddonirang-tool -- eco-network-flow <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--threshold <수>] [--out <report.detjson>]");
+                return;
+            };
+            if let Err(err) = run_eco_network_flow(&input, ticks, seed, threshold, out.as_deref()) {
+                eprintln!("{err}");
+            }
+        }
+        Some("eco-abm-spatial") => {
+            if let Err(err) = ensure_feature(policy.as_ref(), FeatureGate::ClosedCore) {
+                eprintln!("{err}");
+                return;
+            }
+            let remaining: Vec<String> = args.collect();
+            if remaining.is_empty() {
+                eprintln!("사용법: cargo run -p ddonirang-tool -- eco-abm-spatial <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--out <report.detjson>]");
+                return;
+            }
+            let mut input: Option<String> = None;
+            let mut out: Option<String> = None;
+            let mut ticks: u64 = 1;
+            let mut seed: u64 = 0x2a;
+            let mut idx = 0usize;
+            while idx < remaining.len() {
+                match remaining[idx].as_str() {
+                    "--out" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!("사용법: cargo run -p ddonirang-tool -- eco-abm-spatial <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--out <report.detjson>]");
+                            return;
+                        }
+                        out = Some(remaining[idx].clone());
+                    }
+                    "--madi" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!("--madi 값이 필요합니다");
+                            return;
+                        }
+                        match remaining[idx].parse::<u64>() {
+                            Ok(value) if value >= 1 => ticks = value,
+                            _ => {
+                                eprintln!("--madi는 1 이상의 정수여야 합니다");
+                                return;
+                            }
+                        }
+                    }
+                    "--seed" => {
+                        idx += 1;
+                        if idx >= remaining.len() {
+                            eprintln!("--seed 값이 필요합니다");
+                            return;
+                        }
+                        match parse_seed_arg(&remaining[idx]) {
+                            Ok(value) => seed = value,
+                            Err(err) => {
+                                eprintln!("{err}");
+                                return;
+                            }
+                        }
+                    }
+                    value => {
+                        if input.is_none() {
+                            input = Some(value.to_string());
+                        } else {
+                            eprintln!("알 수 없는 인자: {value}");
+                            return;
+                        }
+                    }
+                }
+                idx += 1;
+            }
+            let Some(input) = input else {
+                eprintln!("사용법: cargo run -p ddonirang-tool -- eco-abm-spatial <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--out <report.detjson>]");
+                return;
+            };
+            if let Err(err) = run_eco_abm_spatial(&input, ticks, seed, out.as_deref()) {
                 eprintln!("{err}");
             }
         }
@@ -3229,7 +4582,9 @@ fn main() {
             }
             let input = args.next();
             if input.is_none() {
-                eprintln!("???: cargo run -p ddonirang-tool -- preprocess-ai <??.ddn> [??.gen.ddn]");
+                eprintln!(
+                    "???: cargo run -p ddonirang-tool -- preprocess-ai <??.ddn> [??.gen.ddn]"
+                );
                 return;
             }
             let output = args.next();
@@ -3303,6 +4658,9 @@ fn main() {
             println!("  cargo run -p ddonirang-tool -- run-golden-update [파일]");
             println!("  cargo run -p ddonirang-tool -- run-maze-live <맵파일>");
             println!("  cargo run -p ddonirang-tool -- run-once-file <파일경로>");
+            println!("  cargo run -p ddonirang-tool -- eco-macro-micro <runner.json> [--out <report.detjson>]");
+            println!("  cargo run -p ddonirang-tool -- eco-network-flow <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--threshold <수>] [--out <report.detjson>]");
+            println!("  cargo run -p ddonirang-tool -- eco-abm-spatial <input.ddn> [--madi <N>] [--seed <N|0xHEX>] [--out <report.detjson>]");
             println!("  cargo run -p ddonirang-tool -- canon <file.ddn> --emit ddn [--out <path>] [--bridge age0_step01] [--check]");
             println!("  cargo run -p ddonirang-tool -- geoul query <질의> [diag_path]");
             println!("  cargo run -p ddonirang-tool -- preprocess-ai <??.ddn> [??.gen.ddn]");
@@ -3327,13 +4685,11 @@ fn main() {
             );
             println!(
                 "  cargo run -p ddonirang-tool -- run-maze-ddn {} {} ijkl",
-                DEFAULT_MAZE_MAP_PATH,
-                DEFAULT_MAZE_SCRIPT_PATH
+                DEFAULT_MAZE_MAP_PATH, DEFAULT_MAZE_SCRIPT_PATH
             );
             println!(
                 "  cargo run -p ddonirang-tool -- run-maze-ddn-live {} {}",
-                DEFAULT_MAZE_MAP_PATH,
-                DEFAULT_MAZE_SCRIPT_PATH
+                DEFAULT_MAZE_MAP_PATH, DEFAULT_MAZE_SCRIPT_PATH
             );
             println!(
                 "  cargo run -p ddonirang-tool -- run-maze-replay {} wasd",
@@ -3348,7 +4704,10 @@ fn main() {
                 DEFAULT_MAZE_MAP_PATH, DEFAULT_REPLAY_PATH
             );
             println!("  cargo run -p ddonirang-tool -- run-parabola 20 5 10");
-            println!("  cargo run -p ddonirang-tool -- run-golden {}", DEFAULT_GOLDEN_PATH);
+            println!(
+                "  cargo run -p ddonirang-tool -- run-golden {}",
+                DEFAULT_GOLDEN_PATH
+            );
             println!(
                 "  cargo run -p ddonirang-tool -- run-golden-update {}",
                 DEFAULT_GOLDEN_PATH
@@ -3360,6 +4719,15 @@ fn main() {
             println!(
                 "  cargo run -p ddonirang-tool -- run-once-file {}",
                 DEFAULT_RUN_ONCE_INPUT_PATH
+            );
+            println!(
+                "  cargo run -p ddonirang-tool -- eco-macro-micro pack/eco_macro_micro_runner_smoke/cases/c01_converge_all/runner.json"
+            );
+            println!(
+                "  cargo run -p ddonirang-tool -- eco-network-flow pack/eco_network_flow_smoke/cases/c02_sfc_pass/input.ddn --madi 1"
+            );
+            println!(
+                "  cargo run -p ddonirang-tool -- eco-abm-spatial pack/eco_abm_spatial_smoke/cases/c02_after_10_ticks/input.ddn --madi 10"
             );
             println!("  cargo run -p ddonirang-tool -- geoul query \"#고장\"");
             println!(
@@ -3373,7 +4741,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ddonirang_core::ArithmeticFaultKind;
     use ddonirang_core::gogae3::{
         compute_w24_state_hash, compute_w25_state_hash, compute_w26_state_hash,
         compute_w27_state_hash, compute_w28_state_hash, compute_w29_state_hash,
@@ -3382,8 +4749,20 @@ mod tests {
         W30Params, W31Params, W32Params, W33Params,
     };
     use ddonirang_core::platform::NetEvent;
+    use ddonirang_core::ArithmeticFaultKind;
     use ddonirang_core::{ResourceMapEntry, ResourceValue};
     use std::collections::BTreeMap;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn eco_temp_dir(name: &str) -> std::path::PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("ddn_tool_eco_{}_{}", name, stamp));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        dir
+    }
 
     #[test]
     fn detmath_manifest_is_valid() {
@@ -3398,8 +4777,8 @@ mod tests {
             .join("gogae3_w23_network_sam")
             .join("inputs")
             .join("sample_input_snapshot.detjson");
-        let events = read_net_events_detjson(path.to_str().expect("sample path"))
-            .expect("read detjson");
+        let events =
+            read_net_events_detjson(path.to_str().expect("sample path")).expect("read detjson");
         assert_eq!(events.len(), 3);
         assert_eq!(events[0].sender, "peer-a");
         assert_eq!(events[0].seq, 1);
@@ -3417,8 +4796,8 @@ mod tests {
             .join("gogae3_w23_network_sam")
             .join("inputs")
             .join("sample_input_snapshot_unsorted.detjson");
-        let events = read_net_events_detjson(path.to_str().expect("sample path"))
-            .expect("read detjson");
+        let events =
+            read_net_events_detjson(path.to_str().expect("sample path")).expect("read detjson");
         assert_eq!(events.len(), 3);
         assert_eq!(events[0].sender, "peer-a");
         assert_eq!(events[0].seq, 1);
@@ -3480,7 +4859,6 @@ mod tests {
         format!("blake3:{}", frame.state_hash.to_hex())
     }
 
-
     #[test]
     fn w23_network_sam_state_hash_is_stable() {
         let base = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -3498,8 +4876,8 @@ mod tests {
         let unsorted_events =
             read_net_events_detjson(unsorted_path.to_str().expect("unsorted path"))
                 .expect("read unsorted detjson");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash_sorted = compute_w23_state_hash(sorted_events);
@@ -3535,7 +4913,9 @@ mod tests {
             match key.as_str() {
                 "살림.개체수" | "ㅅ.개체수" => entity_count = Some(value),
                 "살림.컴포넌트수" | "ㅅ.컴포넌트수" => component_count = Some(value),
-                "살림.아키타입_이동" | "ㅅ.아키타입_이동" => archetype_moves = Some(value),
+                "살림.아키타입_이동" | "ㅅ.아키타입_이동" => {
+                    archetype_moves = Some(value)
+                }
                 "살림.성능_캡" | "ㅅ.성능_캡" => perf_cap = Some(value),
                 _ => {}
             }
@@ -3570,7 +4950,9 @@ mod tests {
                 continue;
             };
             match key.as_str() {
-                "살림.쿼리_대상수" | "ㅅ.쿼리_대상수" => query_target_count = Some(value),
+                "살림.쿼리_대상수" | "ㅅ.쿼리_대상수" => {
+                    query_target_count = Some(value)
+                }
                 "살림.쿼리_배치" | "ㅅ.쿼리_배치" => query_batch = Some(value),
                 "살림.스냅샷_고정" | "ㅅ.스냅샷_고정" => snapshot_fixed = Some(value),
                 _ => {}
@@ -3741,7 +5123,9 @@ mod tests {
                 continue;
             };
             match key.as_str() {
-                "살림.반응_패스_최대" | "ㅅ.반응_패스_최대" => reactive_max_pass = Some(value),
+                "살림.반응_패스_최대" | "ㅅ.반응_패스_최대" => {
+                    reactive_max_pass = Some(value)
+                }
                 "살림.알림_연쇄" | "ㅅ.알림_연쇄" => alert_chain = Some(value),
                 "살림.반응_증분" | "ㅅ.반응_증분" => step_value = Some(value),
                 "살림.초기_값" | "ㅅ.초기_값" => initial_value = Some(value),
@@ -3863,9 +5247,15 @@ mod tests {
             };
             match key.as_str() {
                 "살림.차분_개수" | "ㅅ.차분_개수" => diff_count = Some(value),
-                "살림.코드_길이_전" | "ㅅ.코드_길이_전" => code_before_len = Some(value),
-                "살림.코드_길이_후" | "ㅅ.코드_길이_후" => code_after_len = Some(value),
-                "살림.상태_필드_수" | "ㅅ.상태_필드_수" => state_field_count = Some(value),
+                "살림.코드_길이_전" | "ㅅ.코드_길이_전" => {
+                    code_before_len = Some(value)
+                }
+                "살림.코드_길이_후" | "ㅅ.코드_길이_후" => {
+                    code_after_len = Some(value)
+                }
+                "살림.상태_필드_수" | "ㅅ.상태_필드_수" => {
+                    state_field_count = Some(value)
+                }
                 "살림.요약_캡" | "ㅅ.요약_캡" => summary_cap = Some(value),
                 _ => {}
             }
@@ -3910,7 +5300,9 @@ mod tests {
                 "살림.상품수" | "ㅅ.상품수" => item_count = Some(value),
                 "살림.거래수" | "ㅅ.거래수" => trade_count = Some(value),
                 "살림.쿼리_배치" | "ㅅ.쿼리_배치" => query_batch = Some(value),
-                "살림.반응_패스_최대" | "ㅅ.반응_패스_최대" => reactive_max_pass = Some(value),
+                "살림.반응_패스_최대" | "ㅅ.반응_패스_최대" => {
+                    reactive_max_pass = Some(value)
+                }
                 _ => {}
             }
         }
@@ -3952,8 +5344,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w24_params(&input_path).expect("read w24 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash_sorted = format_state_hash(compute_w24_state_hash(&params));
@@ -3974,8 +5366,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w25_params(&input_path).expect("read w25 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w25_state_hash(&params));
@@ -3994,8 +5386,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w26_params(&input_path).expect("read w26 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w26_state_hash(&params));
@@ -4014,8 +5406,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w27_params(&input_path).expect("read w27 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w27_state_hash(&params));
@@ -4034,8 +5426,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w28_params(&input_path).expect("read w28 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w28_state_hash(&params));
@@ -4054,8 +5446,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w29_params(&input_path).expect("read w29 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w29_state_hash(&params));
@@ -4074,8 +5466,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w30_params(&input_path).expect("read w30 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w30_state_hash(&params));
@@ -4094,8 +5486,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w31_params(&input_path).expect("read w31 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w31_state_hash(&params));
@@ -4114,8 +5506,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w32_params(&input_path).expect("read w32 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w32_state_hash(&params));
@@ -4134,8 +5526,8 @@ mod tests {
         let expect_path = base.join("expect").join("state_hash.txt");
 
         let params = read_w33_params(&input_path).expect("read w33 params");
-        let expected = read_text_from_path(expect_path.to_str().expect("expect path"))
-            .expect("read expect");
+        let expected =
+            read_text_from_path(expect_path.to_str().expect("expect path")).expect("read expect");
         let expected = expected.trim();
 
         let hash = format_state_hash(compute_w33_state_hash(&params));
@@ -4143,7 +5535,6 @@ mod tests {
         assert!(!expected.is_empty(), "state_hash.txt is empty");
         assert_eq!(hash, expected);
     }
-
 
     #[test]
     fn tool_div0_emits_signal_and_preserves_value() {
@@ -4223,7 +5614,10 @@ mod tests {
             rng_seed: 0,
         };
         let mut defaults = HashMap::new();
-        defaults.insert("플레이어_x".to_string(), Value::Fixed64(Fixed64::from_i64(1)));
+        defaults.insert(
+            "플레이어_x".to_string(),
+            Value::Fixed64(Fixed64::from_i64(1)),
+        );
         let out = runner
             .run_update(&world, &input, &defaults)
             .expect("run update");
@@ -4239,24 +5633,17 @@ mod tests {
             .join("age1_container_resource");
         let script_path = base.join("input.ddn");
         let script = std::fs::read_to_string(&script_path).expect("read input");
-        let program = DdnProgram::from_source(
-            &script,
-            script_path.to_str().expect("script path"),
-        )
-        .expect("parse ddn");
+        let program = DdnProgram::from_source(&script, script_path.to_str().expect("script path"))
+            .expect("parse ddn");
         let mut runner = DdnRunner::new(program, "매틱");
         let mut nuri = DetNuri::new();
-        nuri
-            .world_mut()
+        nuri.world_mut()
             .set_resource_value("차림".to_string(), ResourceValue::List(Vec::new()));
-        nuri
-            .world_mut()
+        nuri.world_mut()
             .set_resource_value("모음값".to_string(), ResourceValue::Set(BTreeMap::new()));
-        nuri
-            .world_mut()
+        nuri.world_mut()
             .set_resource_value("짝".to_string(), ResourceValue::Map(BTreeMap::new()));
-        nuri
-            .world_mut()
+        nuri.world_mut()
             .set_resource_fixed64("결과".to_string(), Fixed64::ZERO);
         let input = InputSnapshot {
             tick_id: 0,
@@ -4282,10 +5669,7 @@ mod tests {
             ResourceValue::Fixed64(Fixed64::from_i64(2)),
             ResourceValue::Fixed64(Fixed64::from_i64(3)),
         ]);
-        assert_eq!(
-            nuri.world().get_resource_value("차림"),
-            Some(expected_list)
-        );
+        assert_eq!(nuri.world().get_resource_value("차림"), Some(expected_list));
 
         let expected_set = ResourceValue::set_from_values(vec![
             ResourceValue::Fixed64(Fixed64::from_i64(2)),
@@ -4331,8 +5715,7 @@ mod tests {
         let program = DdnProgram::from_source(script, "test.ddn").expect("parse ddn");
         let mut runner = DdnRunner::new(program, "매틱");
         let mut nuri = DetNuri::new();
-        nuri
-            .world_mut()
+        nuri.world_mut()
             .set_resource_fixed64("결과".to_string(), Fixed64::from_i64(7));
         let input = InputSnapshot {
             tick_id: 0,
@@ -4357,12 +5740,10 @@ mod tests {
         let out = runner
             .run_update(nuri.world(), &input, &defaults)
             .expect("run update");
-        assert!(
-            !out.patch.ops.iter().any(|op| matches!(
-                op,
-                PatchOp::SetResourceFixed64 { tag, .. } if tag == "결과"
-            ))
-        );
+        assert!(!out.patch.ops.iter().any(|op| matches!(
+            op,
+            PatchOp::SetResourceFixed64 { tag, .. } if tag == "결과"
+        )));
         let mut sink = VecSignalSink::default();
         nuri.apply_patch(&out.patch, input.tick_id, &mut sink);
         let result = nuri
@@ -4390,8 +5771,7 @@ mod tests {
         let program = DdnProgram::from_source(script, "test.ddn").expect("parse ddn");
         let mut runner = DdnRunner::new(program, "매틱");
         let mut nuri = DetNuri::new();
-        nuri
-            .world_mut()
+        nuri.world_mut()
             .set_resource_fixed64("결과".to_string(), Fixed64::from_i64(0));
         let input = InputSnapshot {
             tick_id: 0,
@@ -4442,8 +5822,7 @@ mod tests {
         let program = DdnProgram::from_source(script, "test.ddn").expect("parse ddn");
         let mut runner = DdnRunner::new(program, "매틱");
         let mut nuri = DetNuri::new();
-        nuri
-            .world_mut()
+        nuri.world_mut()
             .set_resource_fixed64("결과".to_string(), Fixed64::from_i64(0));
         let input = InputSnapshot {
             tick_id: 0,
@@ -4864,7 +6243,12 @@ mod tests {
     (거리=1@s) 이동하기.
 }
 "#,
-                vec!["E_RUNTIME_TYPE_MISMATCH", "핀=거리", "기대=수@m", "실제=수@s"],
+                vec![
+                    "E_RUNTIME_TYPE_MISMATCH",
+                    "핀=거리",
+                    "기대=수@m",
+                    "실제=수@s",
+                ],
             ),
             (
                 "list element mismatch",
@@ -5018,5 +6402,484 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn eco_macro_micro_runner_report_is_deterministic() {
+        let root = eco_temp_dir("deterministic");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        let runner = root.join("runner.json");
+        let out = root.join("runner.report.detjson");
+
+        std::fs::write(&macro_model, "매틱:움직씨 = {\n    균형가격 <- 100.\n}\n")
+            .expect("write macro");
+        std::fs::write(&micro_model, "매틱:움직씨 = {\n    평균가격 <- 102.\n}\n")
+            .expect("write micro");
+        let spec = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 42,
+            "ticks": 4,
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy()
+            },
+            "diagnostics": [
+                { "name": "거시↔미시 값", "lhs": "거시.균형가격", "rhs": "미시.평균가격", "threshold": 5 }
+            ]
+        });
+        std::fs::write(
+            &runner,
+            serde_json::to_string_pretty(&spec).expect("runner json"),
+        )
+        .expect("write runner");
+
+        run_eco_macro_micro(
+            runner.to_str().expect("runner path"),
+            Some(out.to_str().expect("out path")),
+        )
+        .expect("run 1");
+        let first = std::fs::read_to_string(&out).expect("read 1");
+        run_eco_macro_micro(
+            runner.to_str().expect("runner path"),
+            Some(out.to_str().expect("out path")),
+        )
+        .expect("run 2");
+        let second = std::fs::read_to_string(&out).expect("read 2");
+        assert_eq!(first, second, "report must be deterministic");
+
+        let report: serde_json::Value = serde_json::from_str(&first).expect("report json");
+        assert_eq!(
+            report.get("schema").and_then(|value| value.as_str()),
+            Some("ddn.runner_report.v0")
+        );
+        let rows = report
+            .get("results")
+            .and_then(|value| value.as_array())
+            .expect("results");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0]
+                .get("divergence_tick")
+                .and_then(|value| value.as_u64()),
+            None
+        );
+    }
+
+    #[test]
+    fn eco_macro_micro_runner_sfc_error_code_is_fixed() {
+        let root = eco_temp_dir("sfc");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        let runner = root.join("runner.json");
+        let out = root.join("runner.report.detjson");
+
+        std::fs::write(&macro_model, "매틱:움직씨 = {\n    총수입 <- 100.\n}\n")
+            .expect("write macro");
+        std::fs::write(&micro_model, "매틱:움직씨 = {\n    총지출 <- 80.\n}\n")
+            .expect("write micro");
+        let spec = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 7,
+            "ticks": 2,
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy()
+            },
+            "diagnostics": [
+                { "name": "SFC 항등식", "lhs": "거시.총수입", "rhs": "미시.총지출", "threshold": "0.1" }
+            ]
+        });
+        std::fs::write(
+            &runner,
+            serde_json::to_string_pretty(&spec).expect("runner json"),
+        )
+        .expect("write runner");
+
+        run_eco_macro_micro(
+            runner.to_str().expect("runner path"),
+            Some(out.to_str().expect("out path")),
+        )
+        .expect("run");
+        let report_text = std::fs::read_to_string(&out).expect("read report");
+        let report: serde_json::Value = serde_json::from_str(&report_text).expect("report json");
+        let rows = report
+            .get("results")
+            .and_then(|value| value.as_array())
+            .expect("results");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0]
+                .get("divergence_tick")
+                .and_then(|value| value.as_u64()),
+            Some(1)
+        );
+        assert_eq!(
+            rows[0].get("error_code").and_then(|value| value.as_str()),
+            Some("E_SFC_IDENTITY_VIOLATION")
+        );
+    }
+
+    #[test]
+    fn eco_macro_micro_runner_scope_changes_result_deterministically() {
+        let root = eco_temp_dir("scope");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        let runner_macro = root.join("runner_macro.json");
+        let runner_both = root.join("runner_both.json");
+        let out_macro = root.join("runner_macro.report.detjson");
+        let out_both = root.join("runner_both.report.detjson");
+
+        std::fs::write(
+            &macro_model,
+            "매틱:움직씨 = {\n    균형가격 <- (100 + 세율 * 100).\n}\n",
+        )
+        .expect("write macro");
+        std::fs::write(
+            &micro_model,
+            "매틱:움직씨 = {\n    평균가격 <- (100 + 세율 * 100).\n}\n",
+        )
+        .expect("write micro");
+
+        let macro_only = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 99,
+            "ticks": 3,
+            "shock": {
+                "type": "세율_인상",
+                "target": "세율",
+                "delta": 0.1,
+                "at_tick": 2,
+                "scope": "거시"
+            },
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy()
+            },
+            "diagnostics": [
+                { "name": "scope-macro", "lhs": "거시.균형가격", "rhs": "미시.평균가격", "threshold": 0.0 }
+            ]
+        });
+        std::fs::write(
+            &runner_macro,
+            serde_json::to_string_pretty(&macro_only).expect("runner macro"),
+        )
+        .expect("write runner macro");
+
+        let both = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 99,
+            "ticks": 3,
+            "shock": {
+                "type": "세율_인상",
+                "target": "세율",
+                "delta": 0.1,
+                "at_tick": 2,
+                "scope": "양쪽"
+            },
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy()
+            },
+            "diagnostics": [
+                { "name": "scope-both", "lhs": "거시.균형가격", "rhs": "미시.평균가격", "threshold": 0.0 }
+            ]
+        });
+        std::fs::write(
+            &runner_both,
+            serde_json::to_string_pretty(&both).expect("runner both"),
+        )
+        .expect("write runner both");
+
+        run_eco_macro_micro(
+            runner_macro.to_str().expect("runner macro path"),
+            Some(out_macro.to_str().expect("out macro path")),
+        )
+        .expect("run macro scope");
+        run_eco_macro_micro(
+            runner_both.to_str().expect("runner both path"),
+            Some(out_both.to_str().expect("out both path")),
+        )
+        .expect("run both scope");
+
+        let macro_report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out_macro).expect("read macro report"))
+                .expect("macro report json");
+        let both_report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out_both).expect("read both report"))
+                .expect("both report json");
+        let macro_row = macro_report
+            .get("results")
+            .and_then(|value| value.as_array())
+            .and_then(|rows| rows.first())
+            .expect("macro row");
+        let both_row = both_report
+            .get("results")
+            .and_then(|value| value.as_array())
+            .and_then(|rows| rows.first())
+            .expect("both row");
+        assert_eq!(
+            macro_row
+                .get("divergence_tick")
+                .and_then(|value| value.as_u64()),
+            Some(2)
+        );
+        assert_eq!(
+            both_row
+                .get("divergence_tick")
+                .and_then(|value| value.as_u64()),
+            None
+        );
+    }
+
+    #[test]
+    fn eco_macro_micro_runner_matches_pack_case_c02() {
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("pack")
+            .join("eco_macro_micro_runner_smoke");
+        let runner = base
+            .join("cases")
+            .join("c02_diverge_shock")
+            .join("runner.json");
+        let expected_path = base.join("golden").join("c02.expected.detjson");
+        let out = eco_temp_dir("pack_c02").join("runner.report.detjson");
+
+        run_eco_macro_micro(
+            runner.to_str().expect("runner path"),
+            Some(out.to_str().expect("out path")),
+        )
+        .expect("run pack c02");
+
+        let actual: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).expect("read actual"))
+                .expect("actual json");
+        let expected: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(expected_path).expect("read expected"))
+                .expect("expected json");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn eco_macro_micro_runner_matches_pack_case_c03() {
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("pack")
+            .join("eco_macro_micro_runner_smoke");
+        let runner = base
+            .join("cases")
+            .join("c03_memory_sweep")
+            .join("runner.json");
+        let expected_path = base.join("golden").join("c03.expected.detjson");
+        let out = eco_temp_dir("pack_c03").join("runner.report.detjson");
+
+        run_eco_macro_micro(
+            runner.to_str().expect("runner path"),
+            Some(out.to_str().expect("out path")),
+        )
+        .expect("run pack c03");
+
+        let actual: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).expect("read actual"))
+                .expect("actual json");
+        let expected: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(expected_path).expect("read expected"))
+                .expect("expected json");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn eco_macro_micro_runner_rejects_invalid_scope_code() {
+        let root = eco_temp_dir("invalid_scope");
+        let macro_model = root.join("macro.ddn");
+        let micro_model = root.join("micro.ddn");
+        let runner = root.join("runner.json");
+
+        std::fs::write(&macro_model, "매틱:움직씨 = {\n    균형가격 <- 100.\n}\n")
+            .expect("write macro");
+        std::fs::write(&micro_model, "매틱:움직씨 = {\n    평균가격 <- 100.\n}\n")
+            .expect("write micro");
+        let spec = serde_json::json!({
+            "schema": "ddn.macro_micro_runner.v0",
+            "seed": 1,
+            "ticks": 2,
+            "shock": {
+                "type": "세율_인상",
+                "target": "세율",
+                "delta": 0.1,
+                "at_tick": 1,
+                "scope": "unknown"
+            },
+            "models": {
+                "거시": macro_model.to_string_lossy(),
+                "미시": micro_model.to_string_lossy()
+            },
+            "diagnostics": [
+                { "name": "invalid-scope", "lhs": "거시.균형가격", "rhs": "미시.평균가격", "threshold": 0.1 }
+            ]
+        });
+        std::fs::write(
+            &runner,
+            serde_json::to_string_pretty(&spec).expect("runner json"),
+        )
+        .expect("write runner");
+
+        let err = run_eco_macro_micro(runner.to_str().expect("runner path"), None)
+            .expect_err("invalid scope must fail");
+        assert!(err.contains("E_ECO_RUNNER_SHOCK scope 지원값이 아닙니다"));
+    }
+
+    #[test]
+    fn eco_network_flow_report_detects_violation() {
+        let root = eco_temp_dir("network_fail");
+        let script = root.join("input.ddn");
+        let out = root.join("report.detjson");
+        std::fs::write(
+            &script,
+            "매틱:움직씨 = {\n  임금 <- 70.\n  이전소득 <- 10.\n  소비 <- 60.\n  세금 <- 15.\n}.\n",
+        )
+        .expect("write script");
+
+        let err = run_eco_network_flow(
+            script.to_str().expect("script"),
+            1,
+            42,
+            Fixed64::from_f64_lossy(0.01),
+            Some(out.to_str().expect("out")),
+        )
+        .expect_err("must fail");
+        assert!(err.contains("E_SFC_IDENTITY_VIOLATION"));
+
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).expect("read report"))
+                .expect("report json");
+        assert_eq!(
+            report.get("schema").and_then(|value| value.as_str()),
+            Some("ddn.eco.network_flow_report.v0")
+        );
+        assert_eq!(
+            report.get("error_code").and_then(|value| value.as_str()),
+            Some("E_SFC_IDENTITY_VIOLATION")
+        );
+        assert_eq!(
+            report.get("result").and_then(|value| value.as_str()),
+            Some("발산")
+        );
+    }
+
+    #[test]
+    fn eco_network_flow_report_passes_when_balanced() {
+        let root = eco_temp_dir("network_pass");
+        let script = root.join("input.ddn");
+        let out = root.join("report.detjson");
+        std::fs::write(
+            &script,
+            "매틱:움직씨 = {\n  임금 <- 70.\n  이전소득 <- 10.\n  소비 <- 60.\n  세금 <- 20.\n}.\n",
+        )
+        .expect("write script");
+
+        run_eco_network_flow(
+            script.to_str().expect("script"),
+            1,
+            42,
+            Fixed64::from_f64_lossy(0.01),
+            Some(out.to_str().expect("out")),
+        )
+        .expect("must pass");
+
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).expect("read report"))
+                .expect("report json");
+        assert_eq!(
+            report.get("result").and_then(|value| value.as_str()),
+            Some("수렴")
+        );
+        assert!(report.get("error_code").is_none());
+    }
+
+    #[test]
+    fn eco_abm_spatial_report_uses_existing_metrics() {
+        let root = eco_temp_dir("abm_metric");
+        let script = root.join("input.ddn");
+        let out = root.join("report.detjson");
+        std::fs::write(
+            &script,
+            "매틱:움직씨 = {\n  지니계수 <- 0.25.\n  평균부 <- 2.5.\n  최대부 <- 4.\n  분위90 <- 3.7.\n}.\n",
+        )
+        .expect("write script");
+
+        run_eco_abm_spatial(
+            script.to_str().expect("script"),
+            1,
+            42,
+            Some(out.to_str().expect("out")),
+        )
+        .expect("abm report");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).expect("read report"))
+                .expect("report json");
+        assert_eq!(
+            report.get("schema").and_then(|value| value.as_str()),
+            Some("ddn.eco.abm_spatial_report.v0")
+        );
+        assert_eq!(
+            report.get("gini").and_then(|value| value.as_str()),
+            Some("0.25")
+        );
+        assert_eq!(
+            report.get("mean_wealth").and_then(|value| value.as_str()),
+            Some("2.5")
+        );
+        assert_eq!(
+            report.get("max_wealth").and_then(|value| value.as_str()),
+            Some("4")
+        );
+        assert_eq!(
+            report.get("p90_wealth").and_then(|value| value.as_str()),
+            Some("3.6999999999")
+        );
+    }
+
+    #[test]
+    fn eco_abm_spatial_report_computes_from_wealth_list() {
+        let root = eco_temp_dir("abm_list");
+        let script = root.join("input.ddn");
+        let out = root.join("report.detjson");
+        std::fs::write(
+            &script,
+            "매틱:움직씨 = {\n  부목록 <- (1, 2, 3, 4) 차림.\n}.\n",
+        )
+        .expect("write script");
+
+        run_eco_abm_spatial(
+            script.to_str().expect("script"),
+            1,
+            42,
+            Some(out.to_str().expect("out")),
+        )
+        .expect("abm report");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).expect("read report"))
+                .expect("report json");
+        assert_eq!(
+            report.get("agent_count").and_then(|value| value.as_u64()),
+            Some(4)
+        );
+        assert_eq!(
+            report.get("gini").and_then(|value| value.as_str()),
+            Some("0.25")
+        );
+        assert_eq!(
+            report.get("mean_wealth").and_then(|value| value.as_str()),
+            Some("2.5")
+        );
+        assert_eq!(
+            report.get("max_wealth").and_then(|value| value.as_str()),
+            Some("4")
+        );
+        assert_eq!(
+            report.get("p90_wealth").and_then(|value| value.as_str()),
+            Some("3.6999999997")
+        );
     }
 }

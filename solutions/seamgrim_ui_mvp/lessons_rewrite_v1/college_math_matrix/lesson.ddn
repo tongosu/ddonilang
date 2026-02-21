@@ -1,0 +1,28 @@
+#이름: college_math_matrix_rewrite_v1
+#설명: 행렬 기초
+#control: a:수=1 [-10..10] step=0.5; b:수=2 [-10..10] step=0.5; c:수=3 [-10..10] step=0.5; d:수=4 [-10..10] step=0.5; delta:수=0.1 [-2..2] step=0.1; n_max:수=20 [5..80] step=1
+
+a <- 1.
+b <- 2.
+c <- 3.
+d <- 4.
+delta <- 0.1.
+n_max <- 20.
+
+(시작)할때 {
+  n <- 0.
+}.
+
+(매마디)마다 {
+  { n <= n_max }인것 일때 {
+    trace <- a + d.
+    det <- a * d - b * c.
+    n <- n + 1.
+    a <- a + delta.
+    d <- d - delta.
+
+    n 보여주기.
+    trace 보여주기.
+    det 보여주기.
+  }.
+}.

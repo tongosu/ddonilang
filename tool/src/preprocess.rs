@@ -1,5 +1,5 @@
-use std::fs;
 use std::collections::{HashMap, HashSet};
+use std::fs;
 
 #[derive(Debug, Clone, Default)]
 pub struct FileMeta {
@@ -84,7 +84,10 @@ fn expand_colon_blocks(source: &str) -> String {
         let (line, newline) = split_line(chunk);
         let trimmed_end = line.trim_end();
         let trimmed_start = line.trim_start();
-        if trimmed_end.is_empty() || trimmed_start.starts_with('#') || trimmed_start.starts_with("//") {
+        if trimmed_end.is_empty()
+            || trimmed_start.starts_with('#')
+            || trimmed_start.starts_with("//")
+        {
             out.push_str(line);
             out.push_str(newline);
             continue;
@@ -237,7 +240,12 @@ fn extract_hook_blocks(source: &str) -> (String, Vec<String>, Vec<String>) {
                             hook_buf.push_str(newline);
                         }
                         if hook_depth <= 0 {
-                            store_hook_block(&mut start_blocks, &mut every_blocks, hook_kind, &hook_buf);
+                            store_hook_block(
+                                &mut start_blocks,
+                                &mut every_blocks,
+                                hook_kind,
+                                &hook_buf,
+                            );
                             in_hook = false;
                             hook_depth = 0;
                             hook_buf.clear();
@@ -523,9 +531,7 @@ fn rewrite_unary_minus(source: &str) -> String {
 }
 
 fn is_meta_block_header_line(trimmed: &str) -> bool {
-    (trimmed.starts_with("설정:")
-        || trimmed.starts_with("보개:")
-        || trimmed.starts_with("슬기:"))
+    (trimmed.starts_with("설정:") || trimmed.starts_with("보개:") || trimmed.starts_with("슬기:"))
         && trimmed.contains('{')
 }
 
@@ -563,7 +569,8 @@ fn rewrite_unary_minus_line(line: &str) -> String {
                 while num_end < chars.len() {
                     if chars[num_end].is_ascii_digit() {
                         num_end += 1;
-                    } else if chars[num_end] == '.' && !has_dot
+                    } else if chars[num_end] == '.'
+                        && !has_dot
                         && num_end + 1 < chars.len()
                         && chars[num_end + 1].is_ascii_digit()
                     {
@@ -594,7 +601,10 @@ fn is_unary_minus_context(preceding: &str) -> bool {
         return true;
     }
     let last = trimmed.chars().last().unwrap();
-    matches!(last, '(' | ',' | '+' | '-' | '*' | '/' | '=' | '{' | '<' | ':' | '~' | '.')
+    matches!(
+        last,
+        '(' | ',' | '+' | '-' | '*' | '/' | '=' | '{' | '<' | ':' | '~' | '.'
+    )
 }
 
 fn wrap_if_no_seed_def(source: &str) -> String {
@@ -645,8 +655,8 @@ pub fn split_file_meta(source: &str) -> FileMetaParse {
     for chunk in source.split_inclusive('\n') {
         let (line, newline) = split_line(chunk);
         if in_header {
-            let trimmed = line
-                .trim_start_matches(|ch| matches!(ch, ' ' | '\t' | '\r' | '\u{feff}'));
+            let trimmed =
+                line.trim_start_matches(|ch| matches!(ch, ' ' | '\t' | '\r' | '\u{feff}'));
             if let Some((key, value)) = parse_meta_line(trimmed) {
                 if let Some(pos) = entry_pos.get(&key).copied() {
                     entries[pos].value = value;

@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_orbit/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:aedcc0f615fe2655d2a4755b81616c24bc3fe1660a88d119ac6d85e2fa3753c4"
+    },
+    {
+      "tick": 6,
+      "state_hash": "blake3:b8fdefd3da60b202b44f060aaf00f5f84cf17911d6e2c623e7fd686aabf0d703"
+    }
+  ],
+  "max_ticks": 6,
+  "timeout_ms": 30000
+}

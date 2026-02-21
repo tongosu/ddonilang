@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/college_physics_thermal/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:9b416cb9660a88807f8e4e90c10e7419e8154a04000bdedff802ac2d1b7ae6f8"
+    },
+    {
+      "tick": 8,
+      "state_hash": "blake3:19fb8896d02b048e6923155e8e08285b5df7e116bab2cb8066e4b0a6faeefba5"
+    }
+  ],
+  "max_ticks": 8,
+  "timeout_ms": 30000
+}

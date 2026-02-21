@@ -1,0 +1,30 @@
+{
+  "schema": "seamgrim.curriculum.seed_manifest.v1",
+  "version": 1,
+  "seeds": [
+    {
+      "subject": "physics",
+      "seed_id": "physics_pendulum_seed_v1",
+      "lesson_ddn": "solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn",
+      "text_md": "solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/text.md",
+      "template_id": "sim_oscillator_basic_v1",
+      "controls": ["g", "L", "theta0", "omega0", "dt", "t_max"]
+    },
+    {
+      "subject": "math",
+      "seed_id": "math_quadratic_integral_seed_v1",
+      "lesson_ddn": "solutions/seamgrim_ui_mvp/seed_lessons_v1/math_quadratic_integral_seed_v1/lesson.ddn",
+      "text_md": "solutions/seamgrim_ui_mvp/seed_lessons_v1/math_quadratic_integral_seed_v1/text.md",
+      "template_id": "function_integral_scan_v1",
+      "controls": ["a", "b", "c", "x_start", "x_end", "dx"]
+    },
+    {
+      "subject": "economy",
+      "seed_id": "econ_supply_demand_seed_v1",
+      "lesson_ddn": "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_supply_demand_seed_v1/lesson.ddn",
+      "text_md": "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_supply_demand_seed_v1/text.md",
+      "template_id": "price_adjustment_gap_v1",
+      "controls": ["d0", "d1", "s0", "s1", "p0", "k", "dt", "t_max"]
+    }
+  ]
+}

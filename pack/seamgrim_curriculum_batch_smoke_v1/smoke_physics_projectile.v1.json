@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "../../solutions/seamgrim_ui_mvp/lessons_rewrite_v1/physics_projectile/lesson.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:aedcc0f615fe2655d2a4755b81616c24bc3fe1660a88d119ac6d85e2fa3753c4"
+    },
+    {
+      "tick": 10,
+      "state_hash": "blake3:f1ba8db650bbb5f211a3f8dc446480075615483be3abc2521d3addadec692b16"
+    }
+  ],
+  "max_ticks": 10,
+  "timeout_ms": 30000
+}

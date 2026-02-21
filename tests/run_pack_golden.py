@@ -62,6 +62,11 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "gogae9_w91_malmoi_docset",
         pack_root / "geoul_min_schema_v0",
         pack_root / "seamgrim_smoke_golden_v1",
+        pack_root / "seamgrim_curriculum_seed_smoke_v1",
+        pack_root / "seamgrim_curriculum_rewrite_core_smoke_v1",
+        pack_root / "seamgrim_curriculum_batch_smoke_v1",
+        pack_root / "seamgrim_curriculum_rewrite_sample_smoke_v1",
+        pack_root / "seamgrim_state_hash_view_boundary_smoke_v1",
         pack_root / "bogae_api_catalog_v1_basic",
         pack_root / "bogae_api_catalog_v1_graph",
         pack_root / "bogae_api_catalog_v1_game_hud",
@@ -69,6 +74,11 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "dotbogi_ddn_interface_v1_smoke",
         pack_root / "dotbogi_ddn_interface_v1_event_roundtrip",
         pack_root / "dotbogi_ddn_interface_v1_write_forbidden",
+        pack_root / "eco_diag_convergence_smoke",
+        pack_root / "eco_macro_micro_runner_smoke",
+        pack_root / "eco_network_flow_smoke",
+        pack_root / "eco_abm_spatial_smoke",
+        pack_root / "eco_stats_stdlib_smoke",
     ]
     negative_packs = sorted(
         {
@@ -152,8 +162,223 @@ def load_cases(pack_dir: Path) -> list[dict]:
             raise ValueError(f"{golden_path} line {idx}: expected_nuri_lock_hash must be a string")
         if "exit_code" in data and not isinstance(data["exit_code"], int):
             raise ValueError(f"{golden_path} line {idx}: exit_code must be an int")
+        validate_case_mode_exclusivity(golden_path, idx, data)
+        validate_run_case_contract(golden_path, idx, data)
+        validate_eco_case_contract(pack_dir, golden_path, idx, data)
+        validate_dotbogi_case_contract(pack_dir, golden_path, idx, data)
         cases.append(data)
     return cases
+
+
+def validate_case_mode_exclusivity(golden_path: Path, line_no: int, data: dict) -> None:
+    has_smoke = isinstance(data.get("smoke_golden"), str) and bool(str(data.get("smoke_golden")).strip())
+    has_dotbogi = isinstance(data.get("dotbogi_case"), str) and bool(str(data.get("dotbogi_case")).strip())
+    has_graph = ("fixture" in data) or ("expected_graph" in data)
+
+    mode_count = int(has_smoke) + int(has_dotbogi) + int(has_graph)
+    if mode_count > 1:
+        raise ValueError(
+            f"{golden_path} line {line_no}: smoke_golden, dotbogi_case, fixture/expected_graph modes are mutually exclusive"
+        )
+
+    if has_smoke:
+        for key in ("dotbogi_case", "fixture", "expected_graph", "cmd"):
+            if key in data:
+                raise ValueError(
+                    f"{golden_path} line {line_no}: smoke_golden case must not define '{key}'"
+                )
+
+    if has_dotbogi:
+        for key in ("smoke_golden", "fixture", "expected_graph", "cmd", "stdout", "stdout_path", "bogae_hash"):
+            if key in data:
+                raise ValueError(
+                    f"{golden_path} line {line_no}: dotbogi_case must not define '{key}'"
+                )
+
+    if has_graph:
+        if "fixture" not in data or "expected_graph" not in data:
+            raise ValueError(
+                f"{golden_path} line {line_no}: graph case requires both fixture and expected_graph"
+            )
+        for key in ("smoke_golden", "dotbogi_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+            if key in data:
+                raise ValueError(
+                    f"{golden_path} line {line_no}: graph case must not define '{key}'"
+                )
+
+
+def validate_run_case_contract(golden_path: Path, line_no: int, data: dict) -> None:
+    cmd = data.get("cmd")
+    if not isinstance(cmd, list) or not cmd:
+        return
+    argv = [str(item) for item in cmd]
+    if argv[0] != "run":
+        return
+
+    if len(argv) < 2 or argv[1].startswith("-"):
+        raise ValueError(
+            f"{golden_path} line {line_no}: run cmd requires input path as second argument"
+        )
+
+    if "stdout" in data and "stdout_path" in data:
+        raise ValueError(
+            f"{golden_path} line {line_no}: stdout and stdout_path cannot be used together"
+        )
+
+    if ("meta_out" in data) ^ ("expected_meta" in data):
+        raise ValueError(
+            f"{golden_path} line {line_no}: meta_out and expected_meta must be provided together"
+        )
+
+    exit_code = int(data.get("exit_code", 0))
+    expected_error = data.get("expected_error_code")
+    if expected_error is not None:
+        if exit_code == 0:
+            raise ValueError(
+                f"{golden_path} line {line_no}: expected_error_code case must have non-zero exit_code"
+            )
+        if any(key in data for key in ("stdout", "stdout_path", "bogae_hash")):
+            raise ValueError(
+                f"{golden_path} line {line_no}: expected_error_code case must not set stdout/stdout_path/bogae_hash"
+            )
+    else:
+        if exit_code != 0:
+            raise ValueError(
+                f"{golden_path} line {line_no}: non-zero exit_code requires expected_error_code"
+            )
+
+    if "expected_warning_code" in data and "expected_error_code" in data:
+        raise ValueError(
+            f"{golden_path} line {line_no}: expected_warning_code and expected_error_code are mutually exclusive"
+        )
+
+
+def validate_eco_case_contract(pack_dir: Path, golden_path: Path, line_no: int, data: dict) -> None:
+    if not pack_dir.name.startswith("eco_"):
+        return
+    cmd = data.get("cmd")
+    if not isinstance(cmd, list) or not cmd:
+        return
+    argv = [str(item) for item in cmd]
+    if argv[0] != "eco":
+        return
+    if len(argv) < 2:
+        raise ValueError(f"{golden_path} line {line_no}: eco cmd must include subcommand")
+    subcommand = argv[1]
+    if subcommand not in {"macro-micro", "network-flow", "abm-spatial"}:
+        raise ValueError(
+            f"{golden_path} line {line_no}: unsupported eco subcommand '{subcommand}'"
+        )
+
+    expected_error = data.get("expected_error_code")
+    exit_code = int(data.get("exit_code", 0))
+    has_stdout_expectation = ("stdout" in data) or ("stdout_path" in data)
+    has_meta_expectation = ("meta_out" in data) or ("expected_meta" in data)
+
+    if expected_error is not None:
+        if exit_code == 0:
+            raise ValueError(
+                f"{golden_path} line {line_no}: expected_error_code case must have non-zero exit_code"
+            )
+        if has_stdout_expectation:
+            raise ValueError(
+                f"{golden_path} line {line_no}: expected_error_code case must not set stdout/stdout_path"
+            )
+        if ("meta_out" in data) ^ ("expected_meta" in data):
+            raise ValueError(
+                f"{golden_path} line {line_no}: expected_error_code case meta_out/expected_meta must be provided together"
+            )
+    else:
+        if exit_code != 0:
+            raise ValueError(
+                f"{golden_path} line {line_no}: eco success case must use exit_code=0"
+            )
+        if not has_stdout_expectation:
+            raise ValueError(
+                f"{golden_path} line {line_no}: eco success case must set stdout or stdout_path"
+            )
+        if not has_meta_expectation:
+            raise ValueError(
+                f"{golden_path} line {line_no}: eco success case must set meta_out and expected_meta"
+            )
+        if ("meta_out" in data) ^ ("expected_meta" in data):
+            raise ValueError(
+                f"{golden_path} line {line_no}: meta_out and expected_meta must be provided together"
+            )
+
+    def has_flag(flag: str) -> bool:
+        return any(arg == flag or arg.startswith(f"{flag}=") for arg in argv[2:])
+
+    if subcommand == "macro-micro":
+        if len(argv) < 3 or not argv[2].endswith(".json"):
+            raise ValueError(
+                f"{golden_path} line {line_no}: eco macro-micro expects runner.json argument"
+            )
+        if not has_flag("--out"):
+            raise ValueError(
+                f"{golden_path} line {line_no}: eco macro-micro case requires --out"
+            )
+    if subcommand in {"network-flow", "abm-spatial"}:
+        for flag in ("--madi", "--seed", "--out"):
+            if not has_flag(flag):
+                raise ValueError(
+                    f"{golden_path} line {line_no}: eco {subcommand} case requires {flag}"
+                )
+    if subcommand == "network-flow" and not has_flag("--threshold"):
+        raise ValueError(
+            f"{golden_path} line {line_no}: eco network-flow case requires --threshold"
+        )
+
+
+def validate_dotbogi_case_contract(pack_dir: Path, golden_path: Path, line_no: int, data: dict) -> None:
+    if "dotbogi_case" not in data:
+        return
+    dotbogi_case = data.get("dotbogi_case")
+    if not isinstance(dotbogi_case, str) or not dotbogi_case.strip():
+        raise ValueError(f"{golden_path} line {line_no}: dotbogi_case must be non-empty string")
+
+    expected_error = data.get("expected_error_code")
+    expected_output = data.get("expected_dotbogi_output")
+    expected_view_meta_hash = data.get("expected_view_meta_hash")
+    expected_after_state = data.get("expected_after_state")
+    expected_after_state_hash = data.get("expected_after_state_hash")
+    exit_code = int(data.get("exit_code", 0))
+
+    if expected_error is not None:
+        if expected_output is not None:
+            raise ValueError(
+                f"{golden_path} line {line_no}: dotbogi expected_error_code case must not set expected_dotbogi_output"
+            )
+        if expected_view_meta_hash is not None:
+            raise ValueError(
+                f"{golden_path} line {line_no}: dotbogi expected_error_code case must not set expected_view_meta_hash"
+            )
+        if expected_after_state is not None or expected_after_state_hash is not None:
+            raise ValueError(
+                f"{golden_path} line {line_no}: dotbogi expected_error_code case must not set expected_after_state/expected_after_state_hash"
+            )
+        return
+
+    if exit_code != 0:
+        raise ValueError(
+            f"{golden_path} line {line_no}: dotbogi success case must use exit_code=0"
+        )
+    if not isinstance(expected_output, str) or not expected_output.strip():
+        raise ValueError(
+            f"{golden_path} line {line_no}: dotbogi success case must set expected_dotbogi_output"
+        )
+    if expected_view_meta_hash is not None and expected_output is None:
+        raise ValueError(
+            f"{golden_path} line {line_no}: expected_view_meta_hash requires expected_dotbogi_output"
+        )
+    if expected_after_state is not None and expected_output is None:
+        raise ValueError(
+            f"{golden_path} line {line_no}: expected_after_state requires expected_dotbogi_output"
+        )
+    if expected_after_state_hash is not None and expected_after_state is None:
+        raise ValueError(
+            f"{golden_path} line {line_no}: expected_after_state_hash requires expected_after_state"
+        )
 
 
 def parse_age_target_rank(text: str | None) -> int:
@@ -314,6 +539,7 @@ def extract_last_state_hash(lines: list[str]) -> str | None:
 
 def run_smoke_golden_case(
     root: Path,
+    manifest: Path,
     pack_dir: Path,
     case_idx: int,
     case: dict,
@@ -365,7 +591,6 @@ def run_smoke_golden_case(
     if extra_cli and not isinstance(extra_cli, list):
         raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: cli must be a list")
 
-    manifest = root / "tools" / "teul-cli" / "Cargo.toml"
     got_lines: list[str] = []
     stderr_lines: list[str] = []
     rows_for_update: list[dict] = []
@@ -468,6 +693,7 @@ def load_json_doc(path: Path) -> object:
 
 def run_dotbogi_case(
     root: Path,
+    manifest: Path,
     pack_dir: Path,
     case_idx: int,
     case: dict,
@@ -479,7 +705,6 @@ def run_dotbogi_case(
     if not doc_path.exists():
         raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: dotbogi_case not found: {rel}")
     report_path = pack_dir / f".tmp_dotbogi_case_{case_idx}.report.detjson"
-    manifest = root / "tools" / "teul-cli" / "Cargo.toml"
     cmd = [
         "cargo",
         "run",
@@ -783,6 +1008,7 @@ def run_graph_autorender_case(
 
 def run_case(
     root: Path,
+    manifest: Path,
     pack_dir: Path,
     case_idx: int,
     case: dict,
@@ -790,10 +1016,10 @@ def run_case(
 ) -> tuple[bool, list[str], list[str], str, dict]:
     smoke_golden = case.get("smoke_golden")
     if isinstance(smoke_golden, str) and smoke_golden.strip():
-        return run_smoke_golden_case(root, pack_dir, case_idx, case, run_policy)
+        return run_smoke_golden_case(root, manifest, pack_dir, case_idx, case, run_policy)
     dotbogi_case = case.get("dotbogi_case")
     if isinstance(dotbogi_case, str) and dotbogi_case.strip():
-        return run_dotbogi_case(root, pack_dir, case_idx, case)
+        return run_dotbogi_case(root, manifest, pack_dir, case_idx, case)
     if "fixture" in case and "expected_graph" in case:
         return run_graph_autorender_case(root, pack_dir, case_idx, case)
 
@@ -824,7 +1050,6 @@ def run_case(
     else:
         run_path = pack_dir / "input.ddn"
 
-    manifest = root / "tools" / "teul-cli" / "Cargo.toml"
     base_cmd = [
         "cargo",
         "run",
@@ -849,6 +1074,9 @@ def run_case(
     if should_apply_default_trace_tier(command_args, run_policy):
         command_args += ["--trace-tier", str(run_policy["trace_tier"])]
     cmd = base_cmd + command_args
+    if meta_out:
+        meta_out_path = pack_dir / meta_out
+        meta_out_path.unlink(missing_ok=True)
     result = subprocess.run(
         cmd,
         cwd=root,
@@ -874,17 +1102,17 @@ def run_case(
             continue
         stderr_lines.append(normalize_stderr_line(line, root))
     stdout_raw = result.stdout.splitlines()
-    pre_meta_actual: str | None = None
+    actual_meta: str | None = None
     if meta_out:
         meta_out_path = pack_dir / meta_out
         if meta_out_path.exists():
-            pre_meta_actual = meta_out_path.read_text(encoding="utf-8").strip()
+            actual_meta = meta_out_path.read_text(encoding="utf-8").strip()
             meta_out_path.unlink(missing_ok=True)
     pre_artifacts = {
         "stdout_lines": [line for line in stdout_raw if line.strip()],
         "stderr_lines": stderr_lines,
         "exit_code": result.returncode,
-        "actual_meta": pre_meta_actual,
+        "actual_meta": actual_meta,
     }
 
     if expected_error_code is not None:
@@ -914,6 +1142,73 @@ def run_case(
                 "\n".join(stderr_lines),
                 pre_artifacts,
             )
+        if meta_out and expected_meta_path:
+            expected_meta = (pack_dir / expected_meta_path).read_text(encoding="utf-8").strip()
+            if actual_meta is None:
+                return (
+                    False,
+                    ["meta_out missing"],
+                    ["meta_out missing"],
+                    "\n".join(stderr_lines),
+                    pre_artifacts,
+                )
+            if actual_meta != expected_meta:
+                return (
+                    False,
+                    expected_meta.splitlines(),
+                    actual_meta.splitlines(),
+                    "\n".join(stderr_lines),
+                    pre_artifacts,
+                )
+        if (
+            expected_contract is not None
+            or expected_detmath_seal_hash is not None
+            or expected_nuri_lock_hash is not None
+        ):
+            if actual_meta is None:
+                return (
+                    False,
+                    ["meta_out missing for contract/seal/lock check"],
+                    ["meta_out missing"],
+                    "\n".join(stderr_lines),
+                    pre_artifacts,
+                )
+            try:
+                actual_meta_json = json.loads(actual_meta)
+            except json.JSONDecodeError:
+                return (
+                    False,
+                    ["meta_out must be valid JSON for contract/seal/lock check"],
+                    [actual_meta],
+                    "\n".join(stderr_lines),
+                    pre_artifacts,
+                )
+            meta_scope = actual_meta_json.get("meta")
+            if not isinstance(meta_scope, dict):
+                meta_scope = {}
+
+            def pick_meta(key: str):
+                if key in actual_meta_json:
+                    return actual_meta_json.get(key)
+                return meta_scope.get(key)
+
+            checks = [
+                ("contract", expected_contract),
+                ("detmath_seal_hash", expected_detmath_seal_hash),
+                ("nuri_lock_hash", expected_nuri_lock_hash),
+            ]
+            for key, expected_value in checks:
+                if expected_value is None:
+                    continue
+                actual_value = pick_meta(key)
+                if actual_value != expected_value:
+                    return (
+                        False,
+                        [f"{key}={expected_value}"],
+                        [f"{key}={actual_value}"],
+                        "\n".join(stderr_lines),
+                        pre_artifacts,
+                    )
         return True, [f"expected_error_code={expected_error_code}"], combined, "\n".join(stderr_lines), pre_artifacts
 
     if result.returncode != expected_exit:
@@ -940,7 +1235,6 @@ def run_case(
     else:
         expected = case.get("stdout", [])
     expected_bogae_hash = case.get("bogae_hash")
-    actual_meta = pre_meta_actual
     artifacts = {
         "stdout_lines": stdout_lines,
         "stderr_lines": stderr_lines,
@@ -1209,6 +1503,10 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="scan all pack folders with golden.jsonl")
     parser.add_argument("--record", action="store_true", help="record missing expected artifacts")
     parser.add_argument("--update", action="store_true", help="update expected artifacts in-place")
+    parser.add_argument(
+        "--manifest-path",
+        help="cargo manifest path for CLI runner (default: tools/teul-cli/Cargo.toml)",
+    )
     parser.add_argument("--report-out", help="write JSON report to this path")
     args = parser.parse_args()
     if args.record and args.update:
@@ -1216,6 +1514,12 @@ def main() -> int:
         return 2
 
     root = Path(__file__).resolve().parent.parent
+    manifest = Path(args.manifest_path) if args.manifest_path else (root / "tools" / "teul-cli" / "Cargo.toml")
+    if not manifest.is_absolute():
+        manifest = (root / manifest).resolve()
+    if not manifest.exists():
+        print(f"manifest not found: {manifest}", file=sys.stderr)
+        return 2
     packs = iter_packs(root, args.packs, args.all)
     run_policy = load_root_run_policy(root)
 
@@ -1249,7 +1553,9 @@ def main() -> int:
         pack_report["case_count"] = len(cases)
         case_file_changed = False
         for idx, case in enumerate(cases, 1):
-            ok, expected, got, stderr, artifacts = run_case(root, pack_dir, idx, case, run_policy)
+            ok, expected, got, stderr, artifacts = run_case(
+                root, manifest, pack_dir, idx, case, run_policy
+            )
             stderr_lines = [line for line in str(stderr).splitlines() if line.strip()]
             case_report = {
                 "index": idx,

@@ -1,0 +1,1 @@
+{"schema":"ddn.diagnostic_report.v0","seed":42,"tick":1,"diagnostics":[{"tick":0,"name":"상위10% 상한","lhs":37.9999999981,"rhs":30,"delta":7.9999999981,"threshold":0,"result":"발산","error_code":"E_ECO_DIVERGENCE_DETECTED"}]}

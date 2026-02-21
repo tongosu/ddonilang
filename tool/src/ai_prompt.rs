@@ -80,8 +80,7 @@ pub fn run_ai_prompt(args: AiPromptArgs) -> Result<(), String> {
                     .map_err(|e| format!("ai prompt 출력 경로 생성 실패: {e}"))?;
             }
         }
-        fs::write(out_path, &output)
-            .map_err(|e| format!("ai prompt 출력 실패: {e}"))?;
+        fs::write(out_path, &output).map_err(|e| format!("ai prompt 출력 실패: {e}"))?;
         println!("ai_prompt_written: {out_path}");
     } else {
         let mut stdout = io::stdout();
@@ -204,7 +203,10 @@ fn default_bundle_zip_path() -> Option<PathBuf> {
 fn select_ssot(source: &BundleSource, profile: &str) -> Result<SsotSelection, String> {
     let version = resolve_ssot_version(source)?;
     let file_names = profile_file_names(profile, &version)?;
-    Ok(SsotSelection { version, file_names })
+    Ok(SsotSelection {
+        version,
+        file_names,
+    })
 }
 
 fn resolve_ssot_version(source: &BundleSource) -> Result<String, String> {
@@ -240,8 +242,7 @@ fn resolve_ssot_version_from_dir(path: &Path) -> Result<String, String> {
 fn resolve_ssot_version_from_zip(path: &Path) -> Result<String, String> {
     let file = fs::File::open(path)
         .map_err(|e| format!("SSOT 번들 열기 실패: {} ({e})", path.display()))?;
-    let mut archive =
-        ZipArchive::new(file).map_err(|e| format!("SSOT 번들 읽기 실패: {e}"))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("SSOT 번들 읽기 실패: {e}"))?;
     let mut best: Option<String> = None;
     for index in 0..archive.len() {
         let entry_name = archive
@@ -261,7 +262,12 @@ fn resolve_ssot_version_from_zip(path: &Path) -> Result<String, String> {
             best = Some(version);
         }
     }
-    best.ok_or_else(|| format!("SSOT_INDEX 파일을 번들에서 찾을 수 없습니다: {}", path.display()))
+    best.ok_or_else(|| {
+        format!(
+            "SSOT_INDEX 파일을 번들에서 찾을 수 없습니다: {}",
+            path.display()
+        )
+    })
 }
 
 fn profile_file_names(profile: &str, version: &str) -> Result<Vec<String>, String> {
@@ -388,8 +394,7 @@ fn load_profile_files_from_zip(
 ) -> Result<Vec<PromptFile>, String> {
     let file = fs::File::open(zip_path)
         .map_err(|e| format!("SSOT 번들 열기 실패: {} ({e})", zip_path.display()))?;
-    let mut archive =
-        ZipArchive::new(file).map_err(|e| format!("SSOT 번들 읽기 실패: {e}"))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("SSOT 번들 읽기 실패: {e}"))?;
 
     let mut exact_indices = HashMap::new();
     let mut suffix_indices: HashMap<String, Vec<usize>> = HashMap::new();
@@ -446,8 +451,7 @@ fn validate_prompt_bytes(name: &str, bytes: &[u8]) -> Result<(), String> {
     if bytes.contains(&b'\r') {
         return Err(format!("SSOT 파일에 CRLF가 포함되어 있습니다: {name}"));
     }
-    std::str::from_utf8(bytes)
-        .map_err(|_| format!("SSOT 파일이 UTF-8이 아닙니다: {name}"))?;
+    std::str::from_utf8(bytes).map_err(|_| format!("SSOT 파일이 UTF-8이 아닙니다: {name}"))?;
     Ok(())
 }
 
@@ -544,9 +548,7 @@ mod tests {
         let output_str = String::from_utf8(output.clone()).expect("utf8");
         assert!(output_str.starts_with("[또니랑 코드 생성 규약]"));
 
-        let ctx_index = output_str
-            .find("[컨텍스트]\n")
-            .expect("context header");
+        let ctx_index = output_str.find("[컨텍스트]\n").expect("context header");
         let mut lines = output_str[ctx_index..].lines();
         assert_eq!(lines.next(), Some("[컨텍스트]"));
         let expected_version = format!("SSOT_VERSION = {ssot_version}");

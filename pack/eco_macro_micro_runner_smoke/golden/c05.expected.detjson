@@ -1,0 +1,1 @@
+{"results":[{"convergence_after_shock":false,"convergence_before_shock":true,"divergence_tick":2,"error_code":"E_ECO_DIVERGENCE_DETECTED","max_delta":"4.999999993","name":"거시만 충격"}],"schema":"ddn.runner_report.v0","seed":42,"shock_delta":"0.0999999998","shock_scope":"거시","shock_target":"세율","shock_tick":2,"shock_type":"세율_인상","ticks":4}

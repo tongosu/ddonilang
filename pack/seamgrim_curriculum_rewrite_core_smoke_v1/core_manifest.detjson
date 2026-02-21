@@ -1,0 +1,43 @@
+{
+  "schema": "seamgrim.rewrite.core_manifest.v1",
+  "max_per_subject": 2,
+  "count": 6,
+  "samples": [
+    {
+      "lesson_id": "college_econ_growth",
+      "subject": "economy",
+      "template_id": "economy_growth_v1",
+      "smoke_file": "smoke_college_econ_growth.v1.json"
+    },
+    {
+      "lesson_id": "college_econ_utility",
+      "subject": "economy",
+      "template_id": "economy_supply_demand_v1",
+      "smoke_file": "smoke_college_econ_utility.v1.json"
+    },
+    {
+      "lesson_id": "college_math_linear",
+      "subject": "math",
+      "template_id": "math_linear_v1",
+      "smoke_file": "smoke_college_math_linear.v1.json"
+    },
+    {
+      "lesson_id": "college_math_matrix",
+      "subject": "math",
+      "template_id": "math_matrix_v1",
+      "smoke_file": "smoke_college_math_matrix.v1.json"
+    },
+    {
+      "lesson_id": "college_physics_harmonic",
+      "subject": "physics",
+      "template_id": "physics_oscillator_v1",
+      "smoke_file": "smoke_college_physics_harmonic.v1.json"
+    },
+    {
+      "lesson_id": "college_physics_orbit",
+      "subject": "physics",
+      "template_id": "physics_orbit_v1",
+      "smoke_file": "smoke_college_physics_orbit.v1.json"
+    }
+  ]
+}

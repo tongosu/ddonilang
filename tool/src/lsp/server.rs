@@ -1,8 +1,8 @@
 // 또니랑 teul-ide LSP v0.1
 // SSOT TOOLCHAIN v17.0.6 §T3 준수
 
-use ddonirang_lang::*; // lang 크레이트에서 AST 등을 가져옴
 use ddonirang_core::is_known_unit as core_is_known_unit;
+use ddonirang_lang::*; // lang 크레이트에서 AST 등을 가져옴
 /// use ddonirang_core::Fixed64; // core 크레이트에서 Fixed64를 가져옴
 use std::collections::{HashMap, HashSet};
 
@@ -78,9 +78,17 @@ pub struct PinCandidate {
 
 #[derive(Debug, Clone)]
 pub enum DisplayStyle {
-    InlineBadge { text: String, color: BadgeColor },
-    GhostText { text: String },
-    Underline { color: BadgeColor, hover_text: String },
+    InlineBadge {
+        text: String,
+        color: BadgeColor,
+    },
+    GhostText {
+        text: String,
+    },
+    Underline {
+        color: BadgeColor,
+        hover_text: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -97,20 +105,24 @@ impl LspServer {
             Some(d) => d,
             None => return vec![],
         };
-        
+
         let ast = match &doc.ast {
             Some(a) => a,
             None => return vec![],
         };
-        
+
         let mut visualizations = Vec::new();
         for item in &ast.items {
             self.collect_visualizations_from_item(item, &mut visualizations);
         }
         visualizations
     }
-    
-    fn collect_visualizations_from_item(&self, item: &TopLevelItem, visualizations: &mut Vec<PinVisualization>) {
+
+    fn collect_visualizations_from_item(
+        &self,
+        item: &TopLevelItem,
+        visualizations: &mut Vec<PinVisualization>,
+    ) {
         match item {
             TopLevelItem::SeedDef(seed) => {
                 if let Some(body) = &seed.body {
@@ -119,7 +131,7 @@ impl LspServer {
             }
         }
     }
-    
+
     fn collect_from_body(&self, body: &Body, visualizations: &mut Vec<PinVisualization>) {
         for stmt in &body.stmts {
             match stmt {
@@ -136,7 +148,12 @@ impl LspServer {
                     self.collect_from_expr(value, visualizations);
                 }
                 Stmt::Return { value, .. } => self.collect_from_expr(value, visualizations),
-                Stmt::If { condition, then_body, else_body, .. } => {
+                Stmt::If {
+                    condition,
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     self.collect_from_expr(condition, visualizations);
                     self.collect_from_body(then_body, visualizations);
                     if let Some(body) = else_body {
@@ -147,7 +164,11 @@ impl LspServer {
                     self.collect_from_expr(action, visualizations);
                     self.collect_from_body(body, visualizations);
                 }
-                Stmt::Choose { branches, else_body, .. } => {
+                Stmt::Choose {
+                    branches,
+                    else_body,
+                    ..
+                } => {
                     for branch in branches {
                         self.collect_from_expr(&branch.condition, visualizations);
                         self.collect_from_body(&branch.body, visualizations);
@@ -157,7 +178,9 @@ impl LspServer {
                 Stmt::Repeat { body, .. } => {
                     self.collect_from_body(body, visualizations);
                 }
-                Stmt::While { condition, body, .. } => {
+                Stmt::While {
+                    condition, body, ..
+                } => {
                     self.collect_from_expr(condition, visualizations);
                     self.collect_from_body(body, visualizations);
                 }
@@ -166,14 +189,21 @@ impl LspServer {
                     self.collect_from_body(body, visualizations);
                 }
                 Stmt::Break { .. } => {}
-                Stmt::Contract { condition, then_body, else_body, .. } => {
+                Stmt::Contract {
+                    condition,
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     self.collect_from_expr(condition, visualizations);
                     if let Some(body) = then_body {
                         self.collect_from_body(body, visualizations);
                     }
                     self.collect_from_body(else_body, visualizations);
                 }
-                Stmt::Guard { condition, body, .. } => {
+                Stmt::Guard {
+                    condition, body, ..
+                } => {
                     self.collect_from_expr(condition, visualizations);
                     self.collect_from_body(body, visualizations);
                 }
@@ -181,7 +211,7 @@ impl LspServer {
             }
         }
     }
-    
+
     fn collect_from_expr(&self, expr: &Expr, visualizations: &mut Vec<PinVisualization>) {
         match &expr.kind {
             ExprKind::Call { args, func } => {
@@ -218,7 +248,7 @@ impl LspServer {
             _ => {}
         }
     }
-    
+
     fn create_pin_visualization(&self, arg: &ArgBinding, _func: &str) -> PinVisualization {
         let display_style = match (&arg.resolved_pin, &arg.binding_reason) {
             (Some(pin), BindingReason::UserFixed) => DisplayStyle::InlineBadge {
@@ -238,21 +268,31 @@ impl LspServer {
                 color: BadgeColor::Ambiguous,
             },
             _ => DisplayStyle::GhostText {
-                text: format!("/* {} */", arg.resolved_pin.as_ref().unwrap_or(&"?".to_string())),
-            }
+                text: format!(
+                    "/* {} */",
+                    arg.resolved_pin.as_ref().unwrap_or(&"?".to_string())
+                ),
+            },
         };
-        
+
         let candidates = match &arg.binding_reason {
             BindingReason::Ambiguous { candidates } => {
-                candidates.iter().map(|c: &String| PinCandidate { // 타입 명시 추가
-                    pin_id: c.clone(),
-                    confidence: 0.5,
-                    reason: format!("조사 '{}'와 호환", arg.josa.as_ref().unwrap_or(&"".to_string())),
-                }).collect()
+                candidates
+                    .iter()
+                    .map(|c: &String| PinCandidate {
+                        // 타입 명시 추가
+                        pin_id: c.clone(),
+                        confidence: 0.5,
+                        reason: format!(
+                            "조사 '{}'와 호환",
+                            arg.josa.as_ref().unwrap_or(&"".to_string())
+                        ),
+                    })
+                    .collect()
             }
             _ => vec![],
         };
-        
+
         PinVisualization {
             span: arg.span,
             selected_pin: arg.resolved_pin.clone(),
@@ -277,11 +317,21 @@ pub struct Diagnostic {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiagnosticSeverity { Error, Warning, Info, Hint }
+pub enum DiagnosticSeverity {
+    Error,
+    Warning,
+    Info,
+    Hint,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticCode {
-    AmbiguousPin, SpacingError, TypeMismatch, UndefinedSymbol, NoMutatePermission, DeterminismViolation,
+    AmbiguousPin,
+    SpacingError,
+    TypeMismatch,
+    UndefinedSymbol,
+    NoMutatePermission,
+    DeterminismViolation,
     InvalidSuffix,
     CallTailMissingAfterArgs,
     CallTailMissingStmt,
@@ -295,7 +345,12 @@ pub struct CodeFix {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CodeFixKind { QuickFix, Refactor, RebindPin, Canonicalize }
+pub enum CodeFixKind {
+    QuickFix,
+    Refactor,
+    RebindPin,
+    Canonicalize,
+}
 
 #[derive(Debug, Clone)]
 pub struct TextEdit {
@@ -313,16 +368,18 @@ impl LspServer {
             Some(a) => a,
             None => return vec![],
         };
-        
+
         let mut diagnostics = Vec::new();
-        for item in &ast.items { self.check_pin_ambiguity(item, &mut diagnostics); }
+        for item in &ast.items {
+            self.check_pin_ambiguity(item, &mut diagnostics);
+        }
         self.check_spacing(&doc.content, &mut diagnostics);
         self.check_suffix_misuse(&doc.content, &mut diagnostics);
         self.check_call_tail_missing(ast, &mut diagnostics);
         self.check_determinism(ast, &mut diagnostics);
         diagnostics
     }
-    
+
     fn check_pin_ambiguity(&self, _item: &TopLevelItem, _diagnostics: &mut Vec<Diagnostic>) {}
     fn check_spacing(&self, _content: &str, _diagnostics: &mut Vec<Diagnostic>) {}
     fn check_suffix_misuse(&self, content: &str, diagnostics: &mut Vec<Diagnostic>) {
@@ -352,7 +409,9 @@ impl LspServer {
                 idx += 1;
                 continue;
             }
-            let Some((_, next)) = chars.get(idx + 1) else { break; };
+            let Some((_, next)) = chars.get(idx + 1) else {
+                break;
+            };
             if *next == '"' {
                 idx += 1;
                 continue;
@@ -448,7 +507,12 @@ impl LspServer {
                 Stmt::Return { value, .. } => {
                     self.check_call_tail_missing_expr(value, known_seeds, diagnostics);
                 }
-                Stmt::If { condition, then_body, else_body, .. } => {
+                Stmt::If {
+                    condition,
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     self.check_call_tail_missing_expr(condition, known_seeds, diagnostics);
                     self.check_call_tail_missing_body(then_body, known_seeds, diagnostics);
                     if let Some(body) = else_body {
@@ -459,9 +523,17 @@ impl LspServer {
                     self.check_call_tail_missing_expr(action, known_seeds, diagnostics);
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
-                Stmt::Choose { branches, else_body, .. } => {
+                Stmt::Choose {
+                    branches,
+                    else_body,
+                    ..
+                } => {
                     for branch in branches {
-                        self.check_call_tail_missing_expr(&branch.condition, known_seeds, diagnostics);
+                        self.check_call_tail_missing_expr(
+                            &branch.condition,
+                            known_seeds,
+                            diagnostics,
+                        );
                         self.check_call_tail_missing_body(&branch.body, known_seeds, diagnostics);
                     }
                     self.check_call_tail_missing_body(else_body, known_seeds, diagnostics);
@@ -469,7 +541,9 @@ impl LspServer {
                 Stmt::Repeat { body, .. } => {
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
-                Stmt::While { condition, body, .. } => {
+                Stmt::While {
+                    condition, body, ..
+                } => {
                     self.check_call_tail_missing_expr(condition, known_seeds, diagnostics);
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
@@ -477,14 +551,21 @@ impl LspServer {
                     self.check_call_tail_missing_expr(iterable, known_seeds, diagnostics);
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
-                Stmt::Contract { condition, then_body, else_body, .. } => {
+                Stmt::Contract {
+                    condition,
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     self.check_call_tail_missing_expr(condition, known_seeds, diagnostics);
                     if let Some(body) = then_body {
                         self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                     }
                     self.check_call_tail_missing_body(else_body, known_seeds, diagnostics);
                 }
-                Stmt::Guard { condition, body, .. } => {
+                Stmt::Guard {
+                    condition, body, ..
+                } => {
                     self.check_call_tail_missing_expr(condition, known_seeds, diagnostics);
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
@@ -598,9 +679,15 @@ impl LspServer {
 
 impl LspServer {
     pub fn get_rebind_actions(&self, uri: &str, position: usize) -> Vec<CodeFix> {
-        let doc = match self.documents.get(uri) { Some(d) => d, None => return vec![] };
-        let ast = match &doc.ast { Some(a) => a, None => return vec![] };
-        
+        let doc = match self.documents.get(uri) {
+            Some(d) => d,
+            None => return vec![],
+        };
+        let ast = match &doc.ast {
+            Some(a) => a,
+            None => return vec![],
+        };
+
         let arg_binding = self.find_arg_binding_at(ast, position);
         match arg_binding {
             Some(arg) if matches!(arg.binding_reason, BindingReason::Ambiguous { .. }) => {
@@ -609,32 +696,41 @@ impl LspServer {
             _ => vec![],
         }
     }
-    
-    fn find_arg_binding_at(&self, _ast: &CanonProgram, _position: usize) -> Option<&ArgBinding> { None }
-    
-    fn create_rebind_actions(&self, arg: &ArgBinding) -> Vec<CodeFix> {
-        let BindingReason::Ambiguous { candidates } = &arg.binding_reason else { return vec![]; };
-        
-        candidates.iter().map(|pin_id| {
-            let mut new_text = self.extract_text(arg.span);
-            new_text.push(':');
-            new_text.push_str(pin_id);
-            if let Some(josa) = &arg.josa {
-                new_text.push('~');
-                new_text.push_str(josa);
-            }
-            CodeFix {
-                title: format!("'{}' 핀으로 바인딩", pin_id),
-                kind: CodeFixKind::RebindPin,
-                edits: vec![TextEdit {
-                    span: arg.span,
-                    new_text,
-                }],
-            }
-        }).collect()
+
+    fn find_arg_binding_at(&self, _ast: &CanonProgram, _position: usize) -> Option<&ArgBinding> {
+        None
     }
-    
-    fn extract_text(&self, _span: Span) -> String { "".to_string() }
+
+    fn create_rebind_actions(&self, arg: &ArgBinding) -> Vec<CodeFix> {
+        let BindingReason::Ambiguous { candidates } = &arg.binding_reason else {
+            return vec![];
+        };
+
+        candidates
+            .iter()
+            .map(|pin_id| {
+                let mut new_text = self.extract_text(arg.span);
+                new_text.push(':');
+                new_text.push_str(pin_id);
+                if let Some(josa) = &arg.josa {
+                    new_text.push('~');
+                    new_text.push_str(josa);
+                }
+                CodeFix {
+                    title: format!("'{}' 핀으로 바인딩", pin_id),
+                    kind: CodeFixKind::RebindPin,
+                    edits: vec![TextEdit {
+                        span: arg.span,
+                        new_text,
+                    }],
+                }
+            })
+            .collect()
+    }
+
+    fn extract_text(&self, _span: Span) -> String {
+        "".to_string()
+    }
 }
 
 // ============================================================================
@@ -642,10 +738,16 @@ impl LspServer {
 // ============================================================================
 
 #[derive(Debug, Clone, Copy)]
-pub struct LspPosition { pub line: u32, pub character: u32 }
+pub struct LspPosition {
+    pub line: u32,
+    pub character: u32,
+}
 
 #[derive(Debug, Clone, Copy)]
-pub struct LspRange { pub start: LspPosition, pub end: LspPosition }
+pub struct LspRange {
+    pub start: LspPosition,
+    pub end: LspPosition,
+}
 
 /// E0116 해결: ddonirang_lang::Span을 확장하기 위한 트레이트
 pub trait SpanExt {
@@ -656,10 +758,16 @@ impl SpanExt for Span {
     fn to_lsp_range(&self, content: &str) -> LspRange {
         let (start_line, start_char) = offset_to_position(content, self.start);
         let (end_line, end_char) = offset_to_position(content, self.end);
-        
+
         LspRange {
-            start: LspPosition { line: start_line, character: start_char },
-            end: LspPosition { line: end_line, character: end_char },
+            start: LspPosition {
+                line: start_line,
+                character: start_char,
+            },
+            end: LspPosition {
+                line: end_line,
+                character: end_char,
+            },
         }
     }
 }
@@ -669,8 +777,15 @@ fn offset_to_position(content: &str, offset: usize) -> (u32, u32) {
     let mut line = 0u32;
     let mut col = 0u32;
     for (i, ch) in content.char_indices() {
-        if i >= offset { break; }
-        if ch == '\n' { line += 1; col = 0; } else { col += 1; }
+        if i >= offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
     }
     (line, col)
 }
@@ -696,11 +811,10 @@ fn collect_known_seeds(ast: &CanonProgram) -> HashSet<String> {
     known
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_pin_visualization_creation() {
         let arg = ArgBinding {
@@ -713,12 +827,16 @@ mod tests {
                 candidates: vec!["대상".to_string(), "도구".to_string()],
             },
         };
-        
+
         let server = LspServer {
             documents: HashMap::new(),
-            symbol_table: SymbolTable { components: HashMap::new(), functions: HashMap::new(), enums: HashMap::new() },
+            symbol_table: SymbolTable {
+                components: HashMap::new(),
+                functions: HashMap::new(),
+                enums: HashMap::new(),
+            },
         };
-        
+
         let viz = server.create_pin_visualization(&arg, "먹다");
         assert_eq!(viz.candidates.len(), 2);
     }
