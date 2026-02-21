@@ -1251,6 +1251,13 @@ def main() -> int:
         ]
         return run_and_record("ci_builtin_name_sync_check", cmd)
 
+    def check_ci_fixed64_probe_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_fixed64_cross_platform_probe_selftest.py",
+        ]
+        return run_and_record("ci_fixed64_probe_selftest", cmd)
+
     def check_ci_aggregate_status_line_selftest() -> int:
         cmd = [
             py,
@@ -1764,6 +1771,12 @@ def main() -> int:
     ci_builtin_name_sync_rc = check_ci_builtin_name_sync()
     if args.fast_fail and ci_builtin_name_sync_rc != 0:
         return fail_and_exit(ci_builtin_name_sync_rc, "[ci-gate] fast-fail: ci builtin name sync check failed")
+    ci_fixed64_probe_selftest_rc = check_ci_fixed64_probe_selftest()
+    if args.fast_fail and ci_fixed64_probe_selftest_rc != 0:
+        return fail_and_exit(
+            ci_fixed64_probe_selftest_rc,
+            "[ci-gate] fast-fail: ci fixed64 probe selftest failed",
+        )
     ci_backup_hygiene_selftest_rc = check_ci_backup_hygiene_selftest()
     if args.fast_fail and ci_backup_hygiene_selftest_rc != 0:
         return fail_and_exit(
@@ -1845,6 +1858,7 @@ def main() -> int:
             and ci_final_line_emitter_rc == 0
             and ci_pipeline_emit_flags_rc == 0
             and ci_builtin_name_sync_rc == 0
+            and ci_fixed64_probe_selftest_rc == 0
             and ci_backup_hygiene_selftest_rc == 0
             and ci_emit_artifacts_baseline_rc == 0
             and ci_emit_artifacts_generate_rc == 0
@@ -1927,6 +1941,7 @@ def main() -> int:
         or ci_final_line_emitter_rc != 0
         or ci_pipeline_emit_flags_rc != 0
         or ci_builtin_name_sync_rc != 0
+        or ci_fixed64_probe_selftest_rc != 0
         or ci_backup_hygiene_selftest_rc != 0
         or ci_emit_artifacts_baseline_rc != 0
         or ci_emit_artifacts_generate_rc != 0
