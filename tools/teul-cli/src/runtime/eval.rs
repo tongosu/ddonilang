@@ -1084,6 +1084,38 @@ impl Evaluator {
     ) -> Result<Value, RuntimeError> {
         let name = Self::canonicalize_stdlib_alias(name);
         match name {
+            "아님" | "아니다" => {
+                if values.len() != 1 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "condition",
+                        span,
+                    });
+                }
+                let truthy = is_truthy(&values[0], span)?;
+                Ok(Value::Bool(!truthy))
+            }
+            "그리고" => {
+                if values.len() != 2 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "condition, condition",
+                        span,
+                    });
+                }
+                let left_ok = is_truthy(&values[0], span)?;
+                let right_ok = is_truthy(&values[1], span)?;
+                Ok(Value::Bool(left_ok && right_ok))
+            }
+            "또는" => {
+                if values.len() != 2 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "condition, condition",
+                        span,
+                    });
+                }
+                let left_ok = is_truthy(&values[0], span)?;
+                let right_ok = is_truthy(&values[1], span)?;
+                Ok(Value::Bool(left_ok || right_ok))
+            }
             "열림.시각.지금" => {
                 if !values.is_empty() {
                     return Err(RuntimeError::TypeMismatch {
@@ -1778,6 +1810,11 @@ impl Evaluator {
                 let value = expect_any(values, span)?;
                 Ok(Value::Str(value.display()))
             }
+            "채우기" => {
+                let (template, pack) = expect_template_and_pack(values, span)?;
+                let rendered = render_template(&template.body, &pack.fields, span)?;
+                Ok(Value::Str(rendered))
+            }
             "풀기" => {
                 if values.len() != 2 {
                     return Err(RuntimeError::TypeMismatch {
@@ -2418,6 +2455,7 @@ impl Evaluator {
                 | "감정더하기"
                 | "값목록"
                 | "거르기"
+                | "그리고"
                 | "글로"
                 | "글바꾸기"
                 | "글자뽑기"
@@ -2430,6 +2468,7 @@ impl Evaluator {
                 | "되풀이하기"
                 | "뒤집기"
                 | "들어있나"
+                | "또는"
                 | "마지막"
                 | "마지막기억"
                 | "막눌렸나"
@@ -2452,6 +2491,8 @@ impl Evaluator {
                 | "숫자로"
                 | "시작하나"
                 | "쌍목록"
+                | "아님"
+                | "아니다"
                 | "열림.GPU.실행"
                 | "열림.난수"
                 | "열림.난수.뽑기"
@@ -2471,6 +2512,7 @@ impl Evaluator {
                 | "차림"
                 | "차림.값"
                 | "차림.바꾼값"
+                | "채우기"
                 | "찾기"
                 | "찾아보기"
                 | "천장"
@@ -4049,6 +4091,27 @@ fn expect_template_and_text(
     Ok((template, text))
 }
 
+fn expect_template_and_pack(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<(TemplateValue, PackValue), RuntimeError> {
+    if values.len() != 2 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "template and pack",
+            span,
+        });
+    }
+    let template = match &values[0] {
+        Value::Template(value) => value.clone(),
+        value => return Err(type_mismatch_detail("template", value, span)),
+    };
+    let pack = match &values[1] {
+        Value::Pack(value) => value.clone(),
+        value => return Err(type_mismatch_detail("pack", value, span)),
+    };
+    Ok((template, pack))
+}
+
 #[derive(Default)]
 struct FormulaTransformOptions {
     var_name: Option<String>,
@@ -4962,6 +5025,28 @@ mod tests {
         }
     }
 
+    fn state_bool(output: &EvalOutput, key: &str) -> bool {
+        let value = output
+            .state
+            .get(&Key::new(key.to_string()))
+            .expect("state key");
+        match value {
+            Value::Bool(flag) => *flag,
+            other => panic!("expected bool, got {}", other.display()),
+        }
+    }
+
+    fn state_str(output: &EvalOutput, key: &str) -> String {
+        let value = output
+            .state
+            .get(&Key::new(key.to_string()))
+            .expect("state key");
+        match value {
+            Value::Str(text) => text.clone(),
+            other => panic!("expected string, got {}", other.display()),
+        }
+    }
+
     fn fixed(text: &str) -> Fixed64 {
         Fixed64::parse_literal(text).expect("fixed literal")
     }
@@ -5020,5 +5105,30 @@ mod tests {
             Err(err) => err,
         };
         assert_eq!(err.code(), "E_MATH_DOMAIN");
+    }
+
+    #[test]
+    fn logic_builtins_are_callable() {
+        let source = r##"
+원본 <- [참, 거짓].
+거짓만 <- (원본, "#아님") 거르기.
+아님개수 <- (거짓만) 길이.
+그리고값 <- ([참, 거짓], 참, "#그리고") 합치기.
+또는값 <- ([참, 거짓], 거짓, "#또는") 합치기.
+"##;
+        let output = run_source_once(source).expect("run");
+        assert_eq!(state_num(&output, "아님개수"), fixed("1"));
+        assert!(!state_bool(&output, "그리고값"));
+        assert!(state_bool(&output, "또는값"));
+    }
+
+    #[test]
+    fn template_fill_builtin_call_works() {
+        let source = r##"
+주입들 <- [(name="또니", score=7)].
+출력 <- (주입들, 글무늬{"이름:{name} 점수:{score}"}, "#채우기") 합치기.
+"##;
+        let output = run_source_once(source).expect("run");
+        assert_eq!(state_str(&output, "출력"), "이름:또니 점수:7");
     }
 }

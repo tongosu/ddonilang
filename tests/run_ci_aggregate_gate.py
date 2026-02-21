@@ -1244,6 +1244,13 @@ def main() -> int:
         ]
         return run_and_record("ci_aggregate_gate_age4_diagnostics_check", cmd)
 
+    def check_ci_builtin_name_sync() -> int:
+        cmd = [
+            py,
+            "tests/run_builtin_name_sync_check.py",
+        ]
+        return run_and_record("ci_builtin_name_sync_check", cmd)
+
     def check_ci_aggregate_status_line_selftest() -> int:
         cmd = [
             py,
@@ -1368,6 +1375,7 @@ def main() -> int:
         check_ci_gate_outputs_consistency(require_pass=False)
         check_ci_final_line_emitter()
         check_ci_pipeline_emit_flags()
+        check_ci_builtin_name_sync()
         check_ci_backup_hygiene_selftest()
         check_ci_aggregate_gate_age4_diagnostics()
         check_ci_aggregate_status_line_selftest()
@@ -1753,6 +1761,9 @@ def main() -> int:
     ci_pipeline_emit_flags_rc = check_ci_pipeline_emit_flags()
     if args.fast_fail and ci_pipeline_emit_flags_rc != 0:
         return fail_and_exit(ci_pipeline_emit_flags_rc, "[ci-gate] fast-fail: ci pipeline emit flags check failed")
+    ci_builtin_name_sync_rc = check_ci_builtin_name_sync()
+    if args.fast_fail and ci_builtin_name_sync_rc != 0:
+        return fail_and_exit(ci_builtin_name_sync_rc, "[ci-gate] fast-fail: ci builtin name sync check failed")
     ci_backup_hygiene_selftest_rc = check_ci_backup_hygiene_selftest()
     if args.fast_fail and ci_backup_hygiene_selftest_rc != 0:
         return fail_and_exit(
@@ -1833,6 +1844,7 @@ def main() -> int:
             and ci_gate_outputs_consistency_rc == 0
             and ci_final_line_emitter_rc == 0
             and ci_pipeline_emit_flags_rc == 0
+            and ci_builtin_name_sync_rc == 0
             and ci_backup_hygiene_selftest_rc == 0
             and ci_emit_artifacts_baseline_rc == 0
             and ci_emit_artifacts_generate_rc == 0
@@ -1914,6 +1926,7 @@ def main() -> int:
         or ci_gate_outputs_consistency_rc != 0
         or ci_final_line_emitter_rc != 0
         or ci_pipeline_emit_flags_rc != 0
+        or ci_builtin_name_sync_rc != 0
         or ci_backup_hygiene_selftest_rc != 0
         or ci_emit_artifacts_baseline_rc != 0
         or ci_emit_artifacts_generate_rc != 0
