@@ -73,6 +73,9 @@ def build_report(
     seamgrim_ok = bool(seamgrim_doc.get("ok", False)) if isinstance(seamgrim_doc, dict) else False
     schema_gate_ok = find_step_ok(seamgrim_doc, "schema_gate") if isinstance(seamgrim_doc, dict) else False
     ui_gate_step_ok = find_step_ok(seamgrim_doc, "ui_age3_gate") if isinstance(seamgrim_doc, dict) else False
+    space2d_source_ui_gate_ok = (
+        find_step_ok(seamgrim_doc, "space2d_source_ui_gate") if isinstance(seamgrim_doc, dict) else False
+    )
     full_check_ok = find_step_ok(seamgrim_doc, "full_check") if isinstance(seamgrim_doc, dict) else False
     export_pre_ok = find_step_ok(seamgrim_doc, "export_graph_preprocess") if isinstance(seamgrim_doc, dict) else False
     diag_ok = find_step_ok(seamgrim_doc, "ci_gate_diagnostics") if isinstance(seamgrim_doc, dict) else False
@@ -110,6 +113,11 @@ def build_report(
             "name": "ui_age3_gate_step_ok",
             "ok": ui_gate_step_ok,
             "detail": f"step:ui_age3_gate ok={int(ui_gate_step_ok)}",
+        },
+        {
+            "name": "space2d_source_ui_gate_ok",
+            "ok": space2d_source_ui_gate_ok,
+            "detail": f"step:space2d_source_ui_gate ok={int(space2d_source_ui_gate_ok)}",
         },
         {
             "name": "ui_age3_report_ok",
