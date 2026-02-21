@@ -16,7 +16,8 @@ def is_preview_file(path: Path, suffix: str) -> bool:
 
 
 def is_backup_file(path: Path, backup_suffix: str) -> bool:
-    return path.stem.endswith(backup_suffix) or (
+    stem = path.stem
+    return stem.endswith(".bak") or stem.endswith(backup_suffix) or (
         backup_suffix != DEFAULT_BACKUP_SUFFIX and path.stem.endswith(DEFAULT_BACKUP_SUFFIX)
     )
 

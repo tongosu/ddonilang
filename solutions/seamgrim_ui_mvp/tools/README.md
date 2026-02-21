@@ -78,7 +78,7 @@ DDN 출력에서 `seamgrim.table.v0` JSON을 추출합니다. DDN stdout의 `tab
 
 ## lesson_schema_upgrade.py
 레거시 `보여주기.` 구문을 `보임 { ... }.` 블록으로 1차 변환하고, 필요 시 `(매마디)마다 { ... }.` 블록을 주입한 preview 파일을 생성합니다.
-`*.before_age3_promote.bak.ddn` 백업 파일은 자동 제외합니다.
+`*.bak.ddn` 백업 파일은 자동 제외합니다.
 
 실행:
 - 일부 교과 preview 생성:
@@ -100,7 +100,7 @@ DDN 출력에서 `seamgrim.table.v0` JSON을 추출합니다. DDN stdout의 `tab
 
 ## lesson_schema_promote.py
 preview(`*.age3.preview.ddn`)를 source(`lesson.ddn`/`inputs/*.ddn`)로 승격합니다.
-`*.before_age3_promote.bak.ddn` 백업 파일은 승격 대상에서 자동 제외합니다.
+`*.bak.ddn` 백업 파일은 승격 대상에서 자동 제외합니다.
 
 실행:
 - dry-run:
@@ -113,6 +113,23 @@ preview(`*.age3.preview.ddn`)를 source(`lesson.ddn`/`inputs/*.ddn`)로 승격�
   - `python solutions/seamgrim_ui_mvp/tools/lesson_schema_promote.py --include-inputs --fail-on-would-apply`
 - 대상 목록 파일 사용:
   - `python solutions/seamgrim_ui_mvp/tools/lesson_schema_promote.py --paths-file C:/ddn/codex/build/promote_targets.txt`
+
+## 백업 정리(보관/이관)
+승격 과정에서 생성된 `*.bak.ddn` 파일을 lesson 루트 밖 아카이브로 이관합니다.
+
+실행:
+- dry-run:
+  - `python scripts/seamgrim_manage_lesson_backups.py --mode move --name-contains codex_sync_20260221.bak --dry-run`
+  - `python scripts/seamgrim_manage_lesson_backups.py --mode move --name-contains before_age3_promote.bak --dry-run`
+- 실제 이관:
+  - `python scripts/seamgrim_manage_lesson_backups.py --mode move --name-contains codex_sync_20260221.bak`
+  - `python scripts/seamgrim_manage_lesson_backups.py --mode move --name-contains before_age3_promote.bak`
+- 보고서:
+  - `build/reports/seamgrim_backup_manage_*.detjson`
+- 운영 런북:
+  - `docs/context/seamgrim/SEAMGRIM_CI_BACKUP_HYGIENE_RUNBOOK_20260221.md`
+- CI aggregate 자동 적용:
+  - `tests/run_ci_aggregate_gate.py --backup-hygiene`
 
 ## lesson_schema_promote_flow.py
 검증(`upgrade --enforce-age3`) → 승격(promote) → 상태인덱스 갱신을 한 번에 실행합니다.

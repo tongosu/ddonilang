@@ -134,7 +134,8 @@ def is_preview_file(path: Path, preview_suffix: str) -> bool:
 
 
 def is_promote_backup_file(path: Path) -> bool:
-    return path.stem.endswith(DEFAULT_PROMOTE_BACKUP_SUFFIX)
+    stem = path.stem
+    return stem.endswith(".bak") or stem.endswith(DEFAULT_PROMOTE_BACKUP_SUFFIX)
 
 
 def should_skip_target(path: Path, preview_suffix: str) -> bool:
