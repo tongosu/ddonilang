@@ -56,6 +56,11 @@ def main() -> int:
     parser.add_argument("--wsl-python", default="python3", help="WSL Python 실행 파일")
     parser.add_argument("--wsl-distro", default="", help="WSL distro 이름(미지정 시 자동 탐지)")
     parser.add_argument(
+        "--darwin-report",
+        default="",
+        help="macOS에서 생성한 probe report 경로(옵션). 지정 시 windows+linux+darwin 3-way 검증 수행",
+    )
+    parser.add_argument(
         "--require-wsl",
         action="store_true",
         help="WSL 미탐지 시 실패 처리",
@@ -123,6 +128,39 @@ def main() -> int:
     if rc != 0:
         print_failed("matrix check", stdout, stderr)
         return rc
+
+    darwin_report = args.darwin_report.strip()
+    if darwin_report:
+        rc, stdout, stderr = run_step(
+            [
+                args.python,
+                "tests/run_fixed64_cross_platform_matrix_check.py",
+                "--report",
+                str(report_windows),
+                "--report",
+                str(report_linux),
+                "--report",
+                str(Path(darwin_report).resolve()),
+                "--require-systems",
+                "windows,linux,darwin",
+            ],
+            cwd=ROOT,
+        )
+        if rc != 0:
+            print_failed("matrix check (with darwin)", stdout, stderr)
+            return rc
+        print(
+            "[fixed64-win-wsl] ok-3way "
+            f"distro={distro} darwin={Path(darwin_report).resolve()}"
+        )
+        return 0
+
+    print(
+        "[fixed64-win-wsl] pending darwin "
+        "macOS에서 아래를 실행해 report를 전달하면 3-way를 닫을 수 있습니다:\n"
+        "  python3 tests/run_fixed64_cross_platform_probe.py "
+        "--report-out build/reports/fixed64_cross_platform_probe_darwin.detjson"
+    )
 
     print(
         "[fixed64-win-wsl] ok "
