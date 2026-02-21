@@ -1237,6 +1237,13 @@ def main() -> int:
         ]
         return run_and_record("ci_gate_summary_report_selftest", cmd)
 
+    def check_ci_combine_reports_age4_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_combine_reports_age4_selftest.py",
+        ]
+        return run_and_record("ci_combine_reports_age4_selftest", cmd)
+
     def check_ci_final_line_emitter() -> int:
         cmd = [
             py,
@@ -1349,6 +1356,7 @@ def main() -> int:
         check_ci_pipeline_emit_flags()
         check_ci_backup_hygiene_selftest()
         check_ci_gate_summary_report_selftest()
+        check_ci_combine_reports_age4_selftest()
         check_ci_gate_failure_summary_selftest()
         check_ci_emit_artifacts_selftest()
         write_index(False)
@@ -1753,6 +1761,12 @@ def main() -> int:
             ci_gate_summary_report_selftest_rc,
             "[ci-gate] fast-fail: ci gate summary report selftest failed",
         )
+    ci_combine_reports_age4_selftest_rc = check_ci_combine_reports_age4_selftest()
+    if args.fast_fail and ci_combine_reports_age4_selftest_rc != 0:
+        return fail_and_exit(
+            ci_combine_reports_age4_selftest_rc,
+            "[ci-gate] fast-fail: ci combine age4 selftest failed",
+        )
     ci_gate_failure_summary_selftest_rc = check_ci_gate_failure_summary_selftest()
     if args.fast_fail and ci_gate_failure_summary_selftest_rc != 0:
         return fail_and_exit(
@@ -1797,6 +1811,7 @@ def main() -> int:
             and ci_emit_artifacts_required_rc == 0
             and ci_emit_artifacts_selftest_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
+            and ci_combine_reports_age4_selftest_rc == 0
             and ci_gate_failure_summary_selftest_rc == 0
         )
     )
@@ -1875,6 +1890,7 @@ def main() -> int:
         or ci_emit_artifacts_required_rc != 0
         or ci_emit_artifacts_selftest_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
+        or ci_combine_reports_age4_selftest_rc != 0
         or ci_gate_failure_summary_selftest_rc != 0
     ):
         print("[ci-gate] aggregate reported success but sub-step failed", file=sys.stderr)
