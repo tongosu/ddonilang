@@ -9,12 +9,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::diag;
 use blake3;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 pub const VERIFY_DUPLICATE_RESOLUTION_POLICY: &str =
     "non_yanked_then_pin_score_then_normalized_entry_key";
+pub const FEDERATED_SEARCH_RESOLUTION_POLICY_SOURCE_PRIORITY: &str =
+    "source_priority_then_latest_version";
+pub const FEDERATED_SEARCH_RESOLUTION_POLICY_LATEST_VERSION: &str =
+    "latest_version_then_source_priority";
 
 #[derive(Clone, Debug)]
 struct RegistryEntry {
@@ -68,6 +72,41 @@ pub struct DownloadOptions {
     pub cache_dir: Option<PathBuf>,
     pub offline: bool,
     pub allow_http: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum FederatedSearchPolicy {
+    SourcePriority,
+    LatestVersion,
+}
+
+impl FederatedSearchPolicy {
+    fn label(self) -> &'static str {
+        match self {
+            Self::SourcePriority => FEDERATED_SEARCH_RESOLUTION_POLICY_SOURCE_PRIORITY,
+            Self::LatestVersion => FEDERATED_SEARCH_RESOLUTION_POLICY_LATEST_VERSION,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct FederatedSource {
+    source_index: usize,
+    source_path: String,
+    snapshot_id: Option<String>,
+    index_root_hash: Option<String>,
+    trust_root_hash: Option<String>,
+    entries: Vec<RegistryEntry>,
+}
+
+#[derive(Clone, Debug)]
+struct FederatedSearchPick {
+    source_index: usize,
+    source_path: String,
+    snapshot_id: Option<String>,
+    index_root_hash: Option<String>,
+    trust_root_hash: Option<String>,
+    entry: RegistryEntry,
 }
 
 #[derive(Parser, Debug)]
@@ -144,6 +183,18 @@ enum RegistryCommand {
         expect_trust_root_hash: Option<String>,
         #[arg(long = "require-trust-root")]
         require_trust_root: bool,
+    },
+    FederatedSearch {
+        #[arg(long = "index")]
+        indexes: Vec<std::path::PathBuf>,
+        #[arg(long)]
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        #[arg(long = "include-yanked")]
+        include_yanked: bool,
+        #[arg(long = "policy", value_enum, default_value_t = FederatedSearchPolicy::SourcePriority)]
+        policy: FederatedSearchPolicy,
     },
     Download {
         #[arg(long)]
@@ -356,6 +407,13 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
             )?;
             run_search_with_guard(&index, &query, limit, include_yanked, &guard)
         }
+        RegistryCommand::FederatedSearch {
+            indexes,
+            query,
+            limit,
+            include_yanked,
+            policy,
+        } => run_federated_search(&indexes, &query, limit, include_yanked, policy),
         RegistryCommand::Download {
             index,
             lock,
@@ -1318,6 +1376,48 @@ pub fn run_search_with_guard(
     Ok(())
 }
 
+fn run_federated_search(
+    indexes: &[PathBuf],
+    query: &str,
+    limit: usize,
+    include_yanked: bool,
+    policy: FederatedSearchPolicy,
+) -> Result<(), String> {
+    if indexes.len() < 2 {
+        return Err(diag::build_diag(
+            "E_REG_FEDERATION_SOURCE_COUNT",
+            &format!("need>=2 actual={}", indexes.len()),
+            None,
+            Some("--index를 최소 2개 이상 지정하세요.".to_string()),
+        ));
+    }
+
+    let mut sources = Vec::with_capacity(indexes.len());
+    for (source_index, index_path) in indexes.iter().enumerate() {
+        let (entries, meta) = load_entries_and_meta(index_path)?;
+        sources.push(FederatedSource {
+            source_index,
+            source_path: normalize_index_path(index_path),
+            snapshot_id: meta.snapshot_id,
+            index_root_hash: meta.index_root_hash,
+            trust_root_hash: meta.trust_root_hash,
+            entries,
+        });
+    }
+
+    let payload = build_federated_search_response(&sources, query, limit, include_yanked, policy)?;
+    let text = serde_json::to_string_pretty(&payload).map_err(|e| {
+        diag::build_diag(
+            "E_REG_JSON",
+            &format!("federated-search response serialize failed: {}", e),
+            None,
+            Some("federated-search 응답 payload를 점검하세요.".to_string()),
+        )
+    })?;
+    println!("{}", text);
+    Ok(())
+}
+
 pub fn run_download(
     index_path: &Path,
     scope: &str,
@@ -2116,7 +2216,12 @@ fn fetch_download_bytes(
             let bytes = fs::read(&path).map_err(|e| {
                 diag::build_diag(
                     "E_REG_DOWNLOAD_READ",
-                    &format!("download_url={} path={} {}", download_url, path.display(), e),
+                    &format!(
+                        "download_url={} path={} {}",
+                        download_url,
+                        path.display(),
+                        e
+                    ),
                     None,
                     Some("download_url 파일 경로/권한을 확인하세요.".to_string()),
                 )
@@ -2144,7 +2249,10 @@ fn fetch_download_bytes(
     Ok((bytes, source_label))
 }
 
-fn resolve_download_source(index_path: &Path, download_url: &str) -> Result<DownloadSource, String> {
+fn resolve_download_source(
+    index_path: &Path,
+    download_url: &str,
+) -> Result<DownloadSource, String> {
     if let Some(raw) = download_url.strip_prefix("file://") {
         return Ok(DownloadSource::Local(resolve_local_download_path(
             index_path,
@@ -2378,6 +2486,141 @@ fn build_search_response(
         "schema": "ddn.registry.search_result.v1",
         "items": items
     }))
+}
+
+fn build_federated_search_response(
+    sources: &[FederatedSource],
+    query: &str,
+    limit: usize,
+    include_yanked: bool,
+    policy: FederatedSearchPolicy,
+) -> Result<Value, String> {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return Err(diag::build_diag(
+            "E_REG_SEARCH_QUERY",
+            "query가 비어 있습니다.",
+            None,
+            Some("--query <text>를 지정하세요.".to_string()),
+        ));
+    }
+    let mut latest: BTreeMap<(String, String), FederatedSearchPick> = BTreeMap::new();
+    for source in sources {
+        for entry in source
+            .entries
+            .iter()
+            .filter(|e| include_yanked || !e.yanked)
+        {
+            if !format!("{}/{}", entry.scope, entry.name)
+                .to_lowercase()
+                .contains(&q)
+            {
+                continue;
+            }
+            let key = (entry.scope.clone(), entry.name.clone());
+            let candidate = FederatedSearchPick {
+                source_index: source.source_index,
+                source_path: source.source_path.clone(),
+                snapshot_id: source.snapshot_id.clone(),
+                index_root_hash: source.index_root_hash.clone(),
+                trust_root_hash: source.trust_root_hash.clone(),
+                entry: entry.clone(),
+            };
+            match latest.get(&key) {
+                Some(prev) => {
+                    if prefer_federated_candidate(&candidate, prev, policy) {
+                        latest.insert(key, candidate);
+                    }
+                }
+                None => {
+                    latest.insert(key, candidate);
+                }
+            }
+        }
+    }
+    let mut rows: Vec<FederatedSearchPick> = latest.values().cloned().collect();
+    rows.sort_by(|a, b| {
+        a.entry
+            .scope
+            .cmp(&b.entry.scope)
+            .then_with(|| a.entry.name.cmp(&b.entry.name))
+            .then_with(|| compare_versions_desc(&a.entry.version, &b.entry.version))
+            .then_with(|| a.source_index.cmp(&b.source_index))
+            .then_with(|| a.source_path.cmp(&b.source_path))
+    });
+    if limit > 0 && rows.len() > limit {
+        rows.truncate(limit);
+    }
+
+    let items: Vec<Value> = rows
+        .iter()
+        .map(|row| {
+            json!({
+                "scope": row.entry.scope,
+                "name": row.entry.name,
+                "latest_version": row.entry.version,
+                "contract": row.entry.contract,
+                "summary": row.entry.summary.clone().unwrap_or_else(|| format!("{}/{}", row.entry.scope, row.entry.name)),
+                "yanked": row.entry.yanked,
+                "source_index": row.source_index,
+                "source_path": row.source_path,
+                "source_snapshot_id": row.snapshot_id,
+                "source_index_root_hash": row.index_root_hash,
+                "source_trust_root_hash": row.trust_root_hash,
+            })
+        })
+        .collect();
+    Ok(json!({
+        "schema": "ddn.registry.federated_search_result.v1",
+        "source_count": sources.len(),
+        "resolution_policy": policy.label(),
+        "items": items
+    }))
+}
+
+fn prefer_federated_candidate(
+    candidate: &FederatedSearchPick,
+    current: &FederatedSearchPick,
+    policy: FederatedSearchPolicy,
+) -> bool {
+    let version_order = compare_versions_desc(&candidate.entry.version, &current.entry.version);
+    match policy {
+        FederatedSearchPolicy::SourcePriority => {
+            if candidate.source_index != current.source_index {
+                return candidate.source_index < current.source_index;
+            }
+            if version_order != Ordering::Equal {
+                return version_order == Ordering::Less;
+            }
+        }
+        FederatedSearchPolicy::LatestVersion => {
+            if version_order != Ordering::Equal {
+                return version_order == Ordering::Less;
+            }
+            if candidate.source_index != current.source_index {
+                return candidate.source_index < current.source_index;
+            }
+        }
+    }
+    let rank_candidate = duplicate_entry_rank(&candidate.entry);
+    let rank_current = duplicate_entry_rank(&current.entry);
+    if rank_candidate != rank_current {
+        return rank_candidate < rank_current;
+    }
+    candidate.source_path < current.source_path
+}
+
+fn normalize_index_path(path: &Path) -> String {
+    let raw = path
+        .canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .replace('\\', "/");
+    if cfg!(windows) {
+        raw.to_ascii_lowercase()
+    } else {
+        raw
+    }
 }
 
 fn version_json(entry: &RegistryEntry) -> Value {
@@ -3734,6 +3977,146 @@ mod tests {
     }
 
     #[test]
+    fn federated_search_source_priority_prefers_first_source() {
+        let source_a = FederatedSource {
+            source_index: 0,
+            source_path: "a/index.json".to_string(),
+            snapshot_id: Some("snap-a".to_string()),
+            index_root_hash: Some("sha256:a".to_string()),
+            trust_root_hash: Some("sha256:ta".to_string()),
+            entries: vec![RegistryEntry {
+                scope: "표준".to_string(),
+                name: "역학".to_string(),
+                version: "1.0.0".to_string(),
+                archive_sha256: None,
+                contract: None,
+                detmath_seal_hash: None,
+                min_runtime: None,
+                dependencies: None,
+                download_url: None,
+                published_at: None,
+                summary: Some("A".to_string()),
+                yanked: false,
+                yanked_at: None,
+                yank_reason_code: None,
+                yank_note: None,
+            }],
+        };
+        let source_b = FederatedSource {
+            source_index: 1,
+            source_path: "b/index.json".to_string(),
+            snapshot_id: Some("snap-b".to_string()),
+            index_root_hash: Some("sha256:b".to_string()),
+            trust_root_hash: Some("sha256:tb".to_string()),
+            entries: vec![RegistryEntry {
+                scope: "표준".to_string(),
+                name: "역학".to_string(),
+                version: "9.9.9".to_string(),
+                archive_sha256: None,
+                contract: None,
+                detmath_seal_hash: None,
+                min_runtime: None,
+                dependencies: None,
+                download_url: None,
+                published_at: None,
+                summary: Some("B".to_string()),
+                yanked: false,
+                yanked_at: None,
+                yank_reason_code: None,
+                yank_note: None,
+            }],
+        };
+
+        let out = build_federated_search_response(
+            &[source_a, source_b],
+            "역",
+            20,
+            false,
+            FederatedSearchPolicy::SourcePriority,
+        )
+        .expect("federated-search");
+        let items = out.get("items").and_then(|v| v.as_array()).expect("items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].get("summary").and_then(|v| v.as_str()), Some("A"));
+        assert_eq!(
+            items[0].get("source_index").and_then(|v| v.as_u64()),
+            Some(0)
+        );
+        assert_eq!(
+            items[0].get("source_snapshot_id").and_then(|v| v.as_str()),
+            Some("snap-a")
+        );
+    }
+
+    #[test]
+    fn federated_search_latest_version_prefers_higher_version() {
+        let source_a = FederatedSource {
+            source_index: 0,
+            source_path: "a/index.json".to_string(),
+            snapshot_id: None,
+            index_root_hash: None,
+            trust_root_hash: None,
+            entries: vec![RegistryEntry {
+                scope: "표준".to_string(),
+                name: "역학".to_string(),
+                version: "1.0.0".to_string(),
+                archive_sha256: None,
+                contract: None,
+                detmath_seal_hash: None,
+                min_runtime: None,
+                dependencies: None,
+                download_url: None,
+                published_at: None,
+                summary: Some("A".to_string()),
+                yanked: false,
+                yanked_at: None,
+                yank_reason_code: None,
+                yank_note: None,
+            }],
+        };
+        let source_b = FederatedSource {
+            source_index: 1,
+            source_path: "b/index.json".to_string(),
+            snapshot_id: None,
+            index_root_hash: None,
+            trust_root_hash: None,
+            entries: vec![RegistryEntry {
+                scope: "표준".to_string(),
+                name: "역학".to_string(),
+                version: "2.0.0".to_string(),
+                archive_sha256: None,
+                contract: None,
+                detmath_seal_hash: None,
+                min_runtime: None,
+                dependencies: None,
+                download_url: None,
+                published_at: None,
+                summary: Some("B".to_string()),
+                yanked: false,
+                yanked_at: None,
+                yank_reason_code: None,
+                yank_note: None,
+            }],
+        };
+
+        let out = build_federated_search_response(
+            &[source_a, source_b],
+            "역",
+            20,
+            false,
+            FederatedSearchPolicy::LatestVersion,
+        )
+        .expect("federated-search");
+        let items = out.get("items").and_then(|v| v.as_array()).expect("items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].get("summary").and_then(|v| v.as_str()), Some("B"));
+        assert_eq!(
+            items[0].get("source_index").and_then(|v| v.as_u64()),
+            Some(1)
+        );
+    }
+
+    #[test]
     fn snapshot_schema_loads_entries() {
         let root = json!({
             "schema": "ddn.registry.snapshot.v1",
@@ -4179,6 +4562,65 @@ mod tests {
         ];
         let err = run_cli(&args).expect_err("empty query must fail");
         assert_diag_with_fix(&err, "E_REG_SEARCH_QUERY");
+    }
+
+    #[test]
+    fn run_cli_federated_search_requires_two_indexes() {
+        let root = temp_dir("cli_federated_search_need_two");
+        let index = root.join("index.json");
+        write_snapshot(&index, &sample_entries()).expect("write snapshot");
+
+        let args = vec![
+            "federated-search".to_string(),
+            "--index".to_string(),
+            index.to_string_lossy().to_string(),
+            "--query".to_string(),
+            "역".to_string(),
+        ];
+        let err = run_cli(&args).expect_err("must fail on single source");
+        assert_diag_with_fix(&err, "E_REG_FEDERATION_SOURCE_COUNT");
+    }
+
+    #[test]
+    fn run_cli_federated_search_executes() {
+        let root = temp_dir("cli_federated_search_ok");
+        let index_a = root.join("index_a.json");
+        let index_b = root.join("index_b.json");
+        write_snapshot(&index_a, &sample_entries()).expect("write snapshot a");
+
+        let mut entries_b = sample_entries();
+        entries_b.retain(|entry| !(entry.scope == "표준" && entry.name == "역학"));
+        entries_b.push(RegistryEntry {
+            scope: "표준".to_string(),
+            name: "역학".to_string(),
+            version: "99.0.0".to_string(),
+            archive_sha256: None,
+            contract: Some("D-STRICT".to_string()),
+            detmath_seal_hash: None,
+            min_runtime: None,
+            dependencies: None,
+            download_url: None,
+            published_at: None,
+            summary: Some("연합 역학".to_string()),
+            yanked: false,
+            yanked_at: None,
+            yank_reason_code: None,
+            yank_note: None,
+        });
+        write_snapshot(&index_b, &entries_b).expect("write snapshot b");
+
+        let args = vec![
+            "federated-search".to_string(),
+            "--index".to_string(),
+            index_a.to_string_lossy().to_string(),
+            "--index".to_string(),
+            index_b.to_string_lossy().to_string(),
+            "--query".to_string(),
+            "역".to_string(),
+            "--policy".to_string(),
+            "latest-version".to_string(),
+        ];
+        run_cli(&args).expect("federated-search ok");
     }
 
     #[test]
