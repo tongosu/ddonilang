@@ -1308,6 +1308,13 @@ def main() -> int:
         ]
         return run_and_record("ci_fixed64_threeway_inputs_selftest", cmd)
 
+    def check_ci_fixed64_darwin_probe_artifact_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_fixed64_darwin_probe_artifact_selftest.py",
+        ]
+        return run_and_record("ci_fixed64_darwin_probe_artifact_selftest", cmd)
+
     def check_ci_fixed64_threeway_gate(require_darwin: bool) -> int:
         cmd = [
             py,
@@ -1858,6 +1865,12 @@ def main() -> int:
             ci_fixed64_threeway_inputs_selftest_rc,
             "[ci-gate] fast-fail: ci fixed64 threeway inputs selftest failed",
         )
+    ci_fixed64_darwin_probe_artifact_selftest_rc = check_ci_fixed64_darwin_probe_artifact_selftest()
+    if args.fast_fail and ci_fixed64_darwin_probe_artifact_selftest_rc != 0:
+        return fail_and_exit(
+            ci_fixed64_darwin_probe_artifact_selftest_rc,
+            "[ci-gate] fast-fail: ci fixed64 darwin probe artifact selftest failed",
+        )
     ci_fixed64_threeway_gate_rc = check_ci_fixed64_threeway_gate(require_darwin=args.require_fixed64_3way)
     if args.fast_fail and ci_fixed64_threeway_gate_rc != 0:
         return fail_and_exit(
@@ -1954,6 +1967,7 @@ def main() -> int:
             and ci_fixed64_probe_selftest_rc == 0
             and ci_fixed64_win_wsl_matrix_selftest_rc == 0
             and ci_fixed64_threeway_inputs_selftest_rc == 0
+            and ci_fixed64_darwin_probe_artifact_selftest_rc == 0
             and ci_fixed64_threeway_gate_rc == 0
             and ci_fixed64_threeway_gate_selftest_rc == 0
             and ci_backup_hygiene_selftest_rc == 0
@@ -2042,6 +2056,7 @@ def main() -> int:
         or ci_fixed64_probe_selftest_rc != 0
         or ci_fixed64_win_wsl_matrix_selftest_rc != 0
         or ci_fixed64_threeway_inputs_selftest_rc != 0
+        or ci_fixed64_darwin_probe_artifact_selftest_rc != 0
         or ci_fixed64_threeway_gate_rc != 0
         or ci_fixed64_threeway_gate_selftest_rc != 0
         or ci_backup_hygiene_selftest_rc != 0

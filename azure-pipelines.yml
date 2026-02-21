@@ -34,6 +34,16 @@ steps:
     displayName: core tests
   - script: |
       rc=0
+      if [ "${DDN_ENABLE_DARWIN_PROBE:-0}" = "1" ]; then
+        python3 tests/run_fixed64_darwin_probe_artifact.py --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+        if [ "$rc" -ne 0 ]; then
+          python tests/run_fixed64_darwin_probe_artifact.py --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+        fi
+      fi
+      exit "$rc"
+    displayName: darwin probe artifact (optional)
+  - script: |
+      rc=0
       fixed64_threeway_flag=""
       python3 tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid || rc=$?
       if [ "$rc" -ne 0 ]; then

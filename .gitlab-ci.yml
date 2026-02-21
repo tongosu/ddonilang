@@ -16,10 +16,31 @@ ci-sanity:
       fi
       exit "$rc"
 
+darwin-probe:
+  stage: precheck
+  rules:
+    - if: '$DDN_ENABLE_DARWIN_PROBE == "1"'
+  script:
+    - |
+      rc=0
+      python3 tests/run_fixed64_darwin_probe_artifact.py --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tests/run_fixed64_darwin_probe_artifact.py --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+      fi
+      exit "$rc"
+  artifacts:
+    when: always
+    paths:
+      - build/reports/fixed64_darwin_probe_artifact.detjson
+      - build/reports/darwin_probe/*.detjson
+
 core-tests:
   stage: test
   needs:
-    - ci-sanity
+    - job: ci-sanity
+    - job: darwin-probe
+      optional: true
+      artifacts: true
   script:
     - apt-get update && apt-get install -y python3
     - python3 tools/scripts/check_utf8.py || python tools/scripts/check_utf8.py
@@ -59,3 +80,4 @@ core-tests:
       - build/reports/*.ci_gate_step_*.stderr.txt
       - build/reports/*.ci_fail_brief.txt
       - build/reports/*.ci_fail_triage.detjson
+      - build/reports/darwin_probe/*.detjson

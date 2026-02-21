@@ -51,8 +51,10 @@ def build_candidates(report_dir: Path, env_path: str, extras: list[str]) -> list
         [
             str(report_dir / DARWIN_REPORT_NAME),
             str(report_dir / "darwin" / DARWIN_REPORT_NAME),
+            str(report_dir / "darwin_probe" / DARWIN_REPORT_NAME),
             f"build/reports/{DARWIN_REPORT_NAME}",
             f"build/reports/darwin/{DARWIN_REPORT_NAME}",
+            f"build/reports/darwin_probe/{DARWIN_REPORT_NAME}",
             f"darwin_probe/{DARWIN_REPORT_NAME}",
         ]
     )

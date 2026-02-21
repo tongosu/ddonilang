@@ -50,6 +50,9 @@ def main() -> int:
         "--step-log-failed-only",
     ]
     fixed64_threeway_tokens = [
+        "DDN_ENABLE_DARWIN_PROBE",
+        "tests/run_fixed64_darwin_probe_artifact.py",
+        "fixed64_darwin_probe_artifact.detjson",
         "tools/scripts/resolve_fixed64_threeway_inputs.py",
         "--json-out build/reports/fixed64_threeway_inputs.detjson",
         "--strict-invalid",
