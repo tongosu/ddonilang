@@ -1,10 +1,25 @@
 image: rust:1.75
 
 stages:
+  - precheck
   - test
+
+ci-sanity:
+  stage: precheck
+  script:
+    - apt-get update && apt-get install -y python3
+    - |
+      rc=0
+      python3 tests/run_ci_sanity_gate.py || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tests/run_ci_sanity_gate.py || rc=$?
+      fi
+      exit "$rc"
 
 core-tests:
   stage: test
+  needs:
+    - ci-sanity
   script:
     - apt-get update && apt-get install -y python3
     - python3 tools/scripts/check_utf8.py || python tools/scripts/check_utf8.py
@@ -12,9 +27,9 @@ core-tests:
     - cargo test -p ddonirang-core
     - |
       rc=0
-      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --auto-prefix-env CI_PIPELINE_ID,CI_JOB_ID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env CI_PIPELINE_ID,CI_JOB_ID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
       if [ "$rc" -ne 0 ]; then
-        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --auto-prefix-env CI_PIPELINE_ID,CI_JOB_ID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
+        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env CI_PIPELINE_ID,CI_JOB_ID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only || rc=$?
       fi
       python3 tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || python tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || true
       python3 tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || python tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || rc=$?

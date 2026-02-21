@@ -571,6 +571,11 @@ def main() -> int:
         default="ci_fail_triage.detjson",
         help="base file name for ci failure triage json when --ci-fail-triage-json is empty",
     )
+    parser.add_argument(
+        "--backup-hygiene",
+        action="store_true",
+        help="run lesson backup hygiene step before seamgrim gate (move *.bak.ddn + verify empty)",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -606,10 +611,14 @@ def main() -> int:
     oi_close_base_name = "oi405_406_close_report.detjson"
     oi_pack_base_name = "oi405_406_pack_report.detjson"
     aggregate_base_name = "ci_aggregate_report.detjson"
+    backup_hygiene_move_base_name = "seamgrim_backup_hygiene_move.detjson"
+    backup_hygiene_verify_base_name = "seamgrim_backup_hygiene_verify.detjson"
     report_base_names = [
         seamgrim_base_name,
         seamgrim_ui_age3_base_name,
         age3_close_base_name,
+        backup_hygiene_move_base_name,
+        backup_hygiene_verify_base_name,
         args.age3_summary_base_name,
         args.age3_status_base_name,
         args.age3_status_line_base_name,
@@ -649,6 +658,8 @@ def main() -> int:
     seamgrim_report = report_path(report_dir, seamgrim_base_name, prefix)
     seamgrim_ui_age3_report = report_path(report_dir, seamgrim_ui_age3_base_name, prefix)
     age3_close_report = report_path(report_dir, age3_close_base_name, prefix)
+    backup_hygiene_move_report = report_path(report_dir, backup_hygiene_move_base_name, prefix)
+    backup_hygiene_verify_report = report_path(report_dir, backup_hygiene_verify_base_name, prefix)
     explicit_age3_summary_md = args.age3_summary_md.strip()
     if explicit_age3_summary_md:
         age3_close_summary_md = Path(explicit_age3_summary_md)
@@ -766,6 +777,8 @@ def main() -> int:
         if step_log_dir is not None:
             print(f" - step_log_dir={step_log_dir}")
             print(f" - step_log_failed_only={int(bool(args.step_log_failed_only))}")
+        print(f" - backup_hygiene_move={backup_hygiene_move_report}")
+        print(f" - backup_hygiene_verify={backup_hygiene_verify_report}")
     run_core_tests = bool(args.core_tests)
     steps_log: list[dict[str, object]] = []
 
@@ -820,6 +833,8 @@ def main() -> int:
                 "seamgrim": str(seamgrim_report),
                 "seamgrim_ui_age3": str(seamgrim_ui_age3_report),
                 "age3_close": str(age3_close_report),
+                "backup_hygiene_move": str(backup_hygiene_move_report),
+                "backup_hygiene_verify": str(backup_hygiene_verify_report),
                 "age3_close_summary_md": str(age3_close_summary_md),
                 "age3_close_status_json": str(age3_close_status_json),
                 "age3_close_status_line": str(age3_close_status_line),
@@ -846,6 +861,33 @@ def main() -> int:
         index_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if announce:
             print(f"[ci-gate] report_index={index_path}")
+
+    def run_backup_hygiene_move() -> int:
+        return run_and_record(
+            "backup_hygiene_move",
+            [
+                py,
+                "scripts/seamgrim_manage_lesson_backups.py",
+                "--mode",
+                "move",
+                "--json-out",
+                str(backup_hygiene_move_report),
+            ],
+        )
+
+    def run_backup_hygiene_verify() -> int:
+        return run_and_record(
+            "backup_hygiene_verify",
+            [
+                py,
+                "scripts/seamgrim_manage_lesson_backups.py",
+                "--mode",
+                "list",
+                "--fail-on-targets",
+                "--json-out",
+                str(backup_hygiene_verify_report),
+            ],
+        )
 
     def render_age3_summary() -> int:
         return run_and_record(
@@ -1187,6 +1229,13 @@ def main() -> int:
         ]
         return run_and_record("ci_pipeline_emit_flags_check", cmd)
 
+    def check_ci_backup_hygiene_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_backup_hygiene_selftest.py",
+        ]
+        return run_and_record("ci_backup_hygiene_selftest", cmd)
+
     def check_ci_emit_artifacts_baseline() -> int:
         cmd = [
             py,
@@ -1276,6 +1325,7 @@ def main() -> int:
         check_ci_gate_outputs_consistency(require_pass=False)
         check_ci_final_line_emitter()
         check_ci_pipeline_emit_flags()
+        check_ci_backup_hygiene_selftest()
         check_ci_gate_summary_report_selftest()
         check_ci_gate_failure_summary_selftest()
         check_ci_emit_artifacts_selftest()
@@ -1330,6 +1380,16 @@ def main() -> int:
         )
         if args.fast_fail and core_all_rc != 0:
             return fail_and_exit(core_all_rc, "[ci-gate] fast-fail: core tests failed")
+
+    backup_hygiene_move_rc = 0
+    backup_hygiene_verify_rc = 0
+    if args.backup_hygiene:
+        backup_hygiene_move_rc = run_backup_hygiene_move()
+        if args.fast_fail and backup_hygiene_move_rc != 0:
+            return fail_and_exit(backup_hygiene_move_rc, "[ci-gate] fast-fail: backup hygiene move failed")
+        backup_hygiene_verify_rc = run_backup_hygiene_verify()
+        if args.fast_fail and backup_hygiene_verify_rc != 0:
+            return fail_and_exit(backup_hygiene_verify_rc, "[ci-gate] fast-fail: backup hygiene verify failed")
 
     seamgrim_rc = run_and_record(
         "seamgrim_ci_gate",
@@ -1478,7 +1538,9 @@ def main() -> int:
     # combine 단계에서 index 링크를 바로 참조할 수 있도록 선기록.
     write_index(
         bool(
-            seamgrim_rc == 0
+            backup_hygiene_move_rc == 0
+            and backup_hygiene_verify_rc == 0
+            and seamgrim_rc == 0
             and age3_rc == 0
             and age3_status_rc == 0
             and age3_status_line_rc == 0
@@ -1542,6 +1604,8 @@ def main() -> int:
     write_index(
         bool(
             combine_rc == 0
+            and backup_hygiene_move_rc == 0
+            and backup_hygiene_verify_rc == 0
             and seamgrim_rc == 0
             and age3_rc == 0
             and age3_status_rc == 0
@@ -1594,6 +1658,12 @@ def main() -> int:
     ci_pipeline_emit_flags_rc = check_ci_pipeline_emit_flags()
     if args.fast_fail and ci_pipeline_emit_flags_rc != 0:
         return fail_and_exit(ci_pipeline_emit_flags_rc, "[ci-gate] fast-fail: ci pipeline emit flags check failed")
+    ci_backup_hygiene_selftest_rc = check_ci_backup_hygiene_selftest()
+    if args.fast_fail and ci_backup_hygiene_selftest_rc != 0:
+        return fail_and_exit(
+            ci_backup_hygiene_selftest_rc,
+            "[ci-gate] fast-fail: ci backup hygiene selftest failed",
+        )
     ci_emit_artifacts_baseline_rc = check_ci_emit_artifacts_baseline()
     if args.fast_fail and ci_emit_artifacts_baseline_rc != 0:
         return fail_and_exit(ci_emit_artifacts_baseline_rc, "[ci-gate] fast-fail: ci emit artifacts baseline check failed")
@@ -1622,6 +1692,8 @@ def main() -> int:
     write_index(
         bool(
             combine_rc == 0
+            and backup_hygiene_move_rc == 0
+            and backup_hygiene_verify_rc == 0
             and seamgrim_rc == 0
             and age3_rc == 0
             and age3_status_rc == 0
@@ -1647,6 +1719,7 @@ def main() -> int:
             and ci_gate_outputs_consistency_rc == 0
             and ci_final_line_emitter_rc == 0
             and ci_pipeline_emit_flags_rc == 0
+            and ci_backup_hygiene_selftest_rc == 0
             and ci_emit_artifacts_baseline_rc == 0
             and ci_emit_artifacts_generate_rc == 0
             and ci_emit_artifacts_required_rc == 0
@@ -1688,7 +1761,9 @@ def main() -> int:
         print(f"[ci-gate-summary-line] {summary_compact}")
         return combine_rc
     if (
-        seamgrim_rc != 0
+        backup_hygiene_move_rc != 0
+        or backup_hygiene_verify_rc != 0
+        or seamgrim_rc != 0
         or age3_rc != 0
         or age3_status_rc != 0
         or age3_status_line_rc != 0
@@ -1713,6 +1788,7 @@ def main() -> int:
         or ci_gate_outputs_consistency_rc != 0
         or ci_final_line_emitter_rc != 0
         or ci_pipeline_emit_flags_rc != 0
+        or ci_backup_hygiene_selftest_rc != 0
         or ci_emit_artifacts_baseline_rc != 0
         or ci_emit_artifacts_generate_rc != 0
         or ci_emit_artifacts_required_rc != 0

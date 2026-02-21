@@ -43,6 +43,7 @@ def main() -> int:
 
     aggregate_tokens = [
         "tests/run_ci_aggregate_gate.py",
+        "--backup-hygiene",
         "--quiet-success-logs",
         "--compact-step-logs",
         "--step-log-dir build/reports",
@@ -70,8 +71,12 @@ def main() -> int:
         "--require-brief",
         "--require-triage",
     ]
+    sanity_tokens = [
+        "tests/run_ci_sanity_gate.py",
+    ]
 
     require_tokens(gitlab_text, "gitlab.aggregate", aggregate_tokens, errors)
+    require_tokens(gitlab_text, "gitlab.sanity", sanity_tokens, errors)
     require_tokens(gitlab_text, "gitlab.emit", emit_tokens, errors)
     require_tokens(gitlab_text, "gitlab.emit.require", emit_require_tokens, errors)
     require_tokens(gitlab_text, "gitlab.emit.artifacts_check", emit_artifacts_check_tokens, errors)
@@ -88,6 +93,7 @@ def main() -> int:
     )
 
     require_tokens(azure_text, "azure.aggregate", aggregate_tokens, errors)
+    require_tokens(azure_text, "azure.sanity", sanity_tokens, errors)
     require_tokens(azure_text, "azure.emit", emit_tokens, errors)
     require_tokens(azure_text, "azure.emit.require", emit_require_tokens, errors)
     require_tokens(azure_text, "azure.emit.artifacts_check", emit_artifacts_check_tokens, errors)
