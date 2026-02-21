@@ -52,7 +52,14 @@ def make_probe(system: str, ok: bool = True) -> dict:
     }
 
 
-def run_script(report_dir: Path, env_path: str, json_out: Path, strict_invalid: bool = False) -> int:
+def run_script(
+    report_dir: Path,
+    env_path: str,
+    json_out: Path,
+    strict_invalid: bool = False,
+    require_when_env: bool = False,
+    enable_darwin_mode: bool = False,
+) -> int:
     cmd = [
         sys.executable,
         "tools/scripts/resolve_fixed64_threeway_inputs.py",
@@ -65,8 +72,14 @@ def run_script(report_dir: Path, env_path: str, json_out: Path, strict_invalid: 
     ]
     if strict_invalid:
         cmd.append("--strict-invalid")
+    if require_when_env:
+        cmd.extend(["--require-when-env", "DDN_ENABLE_DARWIN_PROBE"])
     env = os.environ.copy()
     env["DDN_DARWIN_PROBE_REPORT"] = env_path
+    if enable_darwin_mode:
+        env["DDN_ENABLE_DARWIN_PROBE"] = "1"
+    else:
+        env["DDN_ENABLE_DARWIN_PROBE"] = "0"
     proc = subprocess.run(
         cmd,
         cwd=ROOT,
@@ -122,6 +135,24 @@ def main() -> int:
         invalid_doc = load_json(json_out)
         if not isinstance(invalid_doc, dict) or str(invalid_doc.get("status", "")) != "invalid":
             print("[fixed64-3way-inputs-selftest] invalid status mismatch", file=sys.stderr)
+            return 1
+
+        # 4) require-when-env + missing => fail
+        staged_target.unlink(missing_ok=True)
+        rc_required_missing = run_script(
+            report_dir,
+            str(base / "missing_required.detjson"),
+            json_out,
+            strict_invalid=True,
+            require_when_env=True,
+            enable_darwin_mode=True,
+        )
+        if rc_required_missing == 0:
+            print("[fixed64-3way-inputs-selftest] required missing should fail", file=sys.stderr)
+            return 1
+        required_doc = load_json(json_out)
+        if not isinstance(required_doc, dict) or str(required_doc.get("status", "")) != "missing_required":
+            print("[fixed64-3way-inputs-selftest] required missing status mismatch", file=sys.stderr)
             return 1
 
     print("[fixed64-3way-inputs-selftest] ok")

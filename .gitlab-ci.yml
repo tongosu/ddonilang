@@ -49,19 +49,15 @@ core-tests:
     - |
       rc=0
       fixed64_threeway_flag=""
-      python3 tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid || rc=$?
+      python3 tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid --require-when-env DDN_ENABLE_DARWIN_PROBE || rc=$?
       if [ "$rc" -ne 0 ]; then
-        python tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid || rc=$?
+        python tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid --require-when-env DDN_ENABLE_DARWIN_PROBE || rc=$?
       fi
       if [ "${DDN_REQUIRE_FIXED64_3WAY:-0}" = "1" ]; then
         fixed64_threeway_flag="--require-fixed64-3way"
       fi
       if [ "${DDN_ENABLE_DARWIN_PROBE:-0}" = "1" ]; then
         fixed64_threeway_flag="--require-fixed64-3way"
-        if [ ! -f build/reports/fixed64_cross_platform_probe_darwin.detjson ]; then
-          echo "[ci-fixed64-3way] darwin probe missing while DDN_ENABLE_DARWIN_PROBE=1" >&2
-          rc=2
-        fi
       fi
       if [ -f build/reports/fixed64_cross_platform_probe_darwin.detjson ]; then
         fixed64_threeway_flag="--require-fixed64-3way"

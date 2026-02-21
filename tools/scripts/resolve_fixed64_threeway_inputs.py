@@ -101,6 +101,11 @@ def main() -> int:
         action="store_true",
         help="후보 파일이 있는데 형식이 잘못된 경우 실패",
     )
+    parser.add_argument(
+        "--require-when-env",
+        default="",
+        help="해당 환경변수 값이 1/true/on/yes면 staged 결과를 강제(require)",
+    )
     args = parser.parse_args()
 
     report_dir = Path(args.report_dir).resolve()
@@ -147,6 +152,18 @@ def main() -> int:
         payload["ok"] = False
         payload["status"] = "invalid"
         payload["reason"] = "invalid candidate report"
+
+    require_env_key = args.require_when_env.strip()
+    require_enabled = False
+    if require_env_key:
+        raw = str(os.environ.get(require_env_key, "")).strip().lower()
+        require_enabled = raw in {"1", "true", "on", "yes"}
+        payload["require_env_key"] = require_env_key
+        payload["require_env_enabled"] = require_enabled
+        if require_enabled and str(payload.get("status", "")) != "staged":
+            payload["ok"] = False
+            payload["status"] = "missing_required"
+            payload["reason"] = f"required by env: {require_env_key}"
 
     if args.json_out.strip():
         write_json(Path(args.json_out).resolve(), payload)

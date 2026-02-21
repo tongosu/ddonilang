@@ -56,9 +56,9 @@ def main() -> int:
         "tools/scripts/resolve_fixed64_threeway_inputs.py",
         "--json-out build/reports/fixed64_threeway_inputs.detjson",
         "--strict-invalid",
+        "--require-when-env DDN_ENABLE_DARWIN_PROBE",
         "DDN_REQUIRE_FIXED64_3WAY",
         "--require-fixed64-3way",
-        "[ci-fixed64-3way] darwin probe missing while DDN_ENABLE_DARWIN_PROBE=1",
         "fixed64_cross_platform_probe_darwin.detjson",
     ]
     emit_tokens = [
