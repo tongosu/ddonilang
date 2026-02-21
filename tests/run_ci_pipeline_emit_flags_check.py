@@ -58,6 +58,7 @@ def main() -> int:
         "--strict-invalid",
         "DDN_REQUIRE_FIXED64_3WAY",
         "--require-fixed64-3way",
+        "[ci-fixed64-3way] darwin probe missing while DDN_ENABLE_DARWIN_PROBE=1",
         "fixed64_cross_platform_probe_darwin.detjson",
     ]
     emit_tokens = [
