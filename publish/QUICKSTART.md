@@ -26,3 +26,7 @@ cargo build --release
 
 실행 예시
 - `target/release/ddonirang-tool -- run-once`
+
+## 관련 문서
+- 문서 인덱스: `publish/INDEX.md`
+- CI 안정화 노트(2026-02-23): `publish/CI_AGGREGATE_GATE_FIX_NOTE_20260223.md`
