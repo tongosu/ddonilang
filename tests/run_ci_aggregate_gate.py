@@ -10,6 +10,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+def safe_print(text: str, *, end: str = "\n", file=None) -> None:
+    stream = file or sys.stdout
+    data = str(text)
+    try:
+        print(data, end=end, file=stream)
+        return
+    except UnicodeEncodeError:
+        pass
+    encoded = data.encode(getattr(stream, "encoding", None) or "utf-8", errors="replace")
+    decoded = encoded.decode(getattr(stream, "encoding", None) or "utf-8", errors="replace")
+    print(decoded, end=end, file=stream)
+
+
 def sanitize_report_prefix(value: str) -> str:
     raw = value.strip()
     if not raw:
@@ -95,6 +108,7 @@ def print_report_paths(
     seamgrim_ui_age3_report: Path,
     age3_close_report: Path,
     age4_close_report: Path,
+    age5_close_report: Path,
     age4_pack_report: Path,
     age3_close_summary_md: Path,
     age3_close_status_json: Path,
@@ -121,6 +135,7 @@ def print_report_paths(
     print(f" - seamgrim_ui_age3={seamgrim_ui_age3_report}")
     print(f" - age3_close={age3_close_report}")
     print(f" - age4_close={age4_close_report}")
+    print(f" - age5_close={age5_close_report}")
     print(f" - age4_pack={age4_pack_report}")
     print(f" - age3_close_summary_md={age3_close_summary_md}")
     print(f" - age3_close_status_json={age3_close_status_json}")
@@ -206,9 +221,9 @@ def run_step(
             print(f"[ci-gate] step={name} output_suppressed=1 line_count={line_count}")
     else:
         if proc.stdout:
-            print(proc.stdout, end="")
+            safe_print(proc.stdout, end="")
         if proc.stderr:
-            print(proc.stderr, end="", file=sys.stderr)
+            safe_print(proc.stderr, end="", file=sys.stderr)
     print(f"[ci-gate] step={name} exit={proc.returncode}")
     return {
         "returncode": int(proc.returncode),
@@ -300,6 +315,7 @@ def print_failure_block(
     seamgrim_report: Path,
     age3_close_report: Path,
     age4_close_report: Path,
+    age5_close_report: Path,
     oi_report: Path,
     aggregate_report: Path,
     max_digest: int = 3,
@@ -347,6 +363,13 @@ def print_failure_block(
         if isinstance(failed, list) and failed:
             top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
             lines.append(f"[ci-gate-summary] age4_digest={top}")
+
+    age5_doc = load_payload(age5_close_report)
+    if isinstance(age5_doc, dict):
+        failed = age5_doc.get("failure_digest")
+        if isinstance(failed, list) and failed:
+            top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
+            lines.append(f"[ci-gate-summary] age5_digest={top}")
 
     oi_doc = load_payload(oi_report)
     if isinstance(oi_doc, dict):
@@ -630,6 +653,11 @@ def main() -> int:
         action="store_true",
         help="require fixed64 3way(windows/linux/darwin) gate; if darwin report missing, fail",
     )
+    parser.add_argument(
+        "--require-age5",
+        action="store_true",
+        help="require age5 close report to pass at aggregate combine stage",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -663,6 +691,7 @@ def main() -> int:
     seamgrim_ui_age3_base_name = "seamgrim_ui_age3_gate_report.detjson"
     age3_close_base_name = "age3_close_report.detjson"
     age4_close_base_name = "age4_close_report.detjson"
+    age5_close_base_name = "age5_close_report.detjson"
     age4_pack_base_name = "age4_close_pack_report.detjson"
     oi_close_base_name = "oi405_406_close_report.detjson"
     oi_pack_base_name = "oi405_406_pack_report.detjson"
@@ -675,6 +704,7 @@ def main() -> int:
         seamgrim_ui_age3_base_name,
         age3_close_base_name,
         age4_close_base_name,
+        age5_close_base_name,
         age4_pack_base_name,
         backup_hygiene_move_base_name,
         backup_hygiene_verify_base_name,
@@ -719,6 +749,7 @@ def main() -> int:
     seamgrim_ui_age3_report = report_path(report_dir, seamgrim_ui_age3_base_name, prefix)
     age3_close_report = report_path(report_dir, age3_close_base_name, prefix)
     age4_close_report = report_path(report_dir, age4_close_base_name, prefix)
+    age5_close_report = report_path(report_dir, age5_close_base_name, prefix)
     age4_pack_report = report_path(report_dir, age4_pack_base_name, prefix)
     backup_hygiene_move_report = report_path(report_dir, backup_hygiene_move_base_name, prefix)
     backup_hygiene_verify_report = report_path(report_dir, backup_hygiene_verify_base_name, prefix)
@@ -817,6 +848,7 @@ def main() -> int:
             seamgrim_ui_age3_report,
             age3_close_report,
             age4_close_report,
+            age5_close_report,
             age4_pack_report,
             age3_close_summary_md,
             age3_close_status_json,
@@ -900,6 +932,7 @@ def main() -> int:
                 "seamgrim_ui_age3": str(seamgrim_ui_age3_report),
                 "age3_close": str(age3_close_report),
                 "age4_close": str(age4_close_report),
+                "age5_close": str(age5_close_report),
                 "age4_pack": str(age4_pack_report),
                 "backup_hygiene_move": str(backup_hygiene_move_report),
                 "backup_hygiene_verify": str(backup_hygiene_verify_report),
@@ -1291,6 +1324,13 @@ def main() -> int:
         ]
         return run_and_record("ci_aggregate_gate_age4_diagnostics_check", cmd)
 
+    def check_ci_aggregate_gate_age5_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_aggregate_gate_age5_diagnostics_check.py",
+        ]
+        return run_and_record("ci_aggregate_gate_age5_diagnostics_check", cmd)
+
     def check_ci_builtin_name_sync() -> int:
         cmd = [
             py,
@@ -1357,6 +1397,20 @@ def main() -> int:
             "tests/run_ci_combine_reports_age4_selftest.py",
         ]
         return run_and_record("ci_combine_reports_age4_selftest", cmd)
+
+    def check_ci_combine_reports_age5_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_combine_reports_age5_selftest.py",
+        ]
+        return run_and_record("ci_combine_reports_age5_selftest", cmd)
+
+    def check_ci_pack_golden_overlay_compare_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_pack_golden_overlay_compare_selftest.py",
+        ]
+        return run_and_record("ci_pack_golden_overlay_compare_selftest", cmd)
 
     def check_ci_final_line_emitter() -> int:
         cmd = [
@@ -1443,6 +1497,38 @@ def main() -> int:
         ]
         return run_and_record("ci_gate_failure_summary_selftest", cmd)
 
+    def write_emit_artifacts_summary_preview() -> None:
+        result_doc = load_payload(ci_gate_result_json)
+        status = ""
+        if isinstance(result_doc, dict):
+            status = str(result_doc.get("status", "")).strip().lower()
+        if status == "pass":
+            preview_lines = [
+                "[ci-gate-summary] PASS",
+                "[ci-gate-summary] failed_steps=(none)",
+                f"[ci-gate-summary] report_index={index_report_path}",
+                f"[ci-gate-summary] summary_line={summary_line_path}",
+                f"[ci-gate-summary] ci_gate_result={ci_gate_result_json}",
+                f"[ci-gate-summary] ci_gate_badge={ci_gate_badge_json}",
+            ]
+        else:
+            preview_lines = print_failure_block(
+                steps_log,
+                seamgrim_report,
+                age3_close_report,
+                age4_close_report,
+                age5_close_report,
+                oi_report,
+                aggregate_report,
+            )
+            if not preview_lines:
+                preview_lines = [
+                    "[ci-gate-summary] FAIL",
+                    "[ci-gate-summary] failed_steps=summary_preview_fallback",
+                    "[ci-gate-summary] failed_step_detail=summary_preview_fallback rc=1 cmd=summary_preview",
+                ]
+        write_summary(summary_path, preview_lines)
+
     def fail_and_exit(exit_code: int, message: str) -> int:
         print(message, file=sys.stderr)
         render_age3_status()
@@ -1471,9 +1557,12 @@ def main() -> int:
         check_ci_builtin_name_sync()
         check_ci_backup_hygiene_selftest()
         check_ci_aggregate_gate_age4_diagnostics()
+        check_ci_aggregate_gate_age5_diagnostics()
         check_ci_aggregate_status_line_selftest()
         check_ci_gate_summary_report_selftest()
         check_ci_combine_reports_age4_selftest()
+        check_ci_combine_reports_age5_selftest()
+        check_ci_pack_golden_overlay_compare_selftest()
         check_ci_gate_failure_summary_selftest()
         check_ci_emit_artifacts_selftest()
         write_index(False)
@@ -1483,11 +1572,13 @@ def main() -> int:
             seamgrim_report,
             age3_close_report,
             age4_close_report,
+            age5_close_report,
             oi_report,
             aggregate_report,
         )
         lines.append(f"[ci-gate-summary] age3_status={age3_close_status_json}")
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
+        lines.append(f"[ci-gate-summary] age5_status={age5_close_report}")
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] age3_status_line={age3_close_status_line}")
         lines.append(f"[ci-gate-summary] age3_badge={age3_close_badge_json}")
@@ -1646,6 +1737,29 @@ def main() -> int:
         )
         return fail_and_exit(age4_rc, "[ci-gate] fast-fail: AGE4 close gate failed")
 
+    age5_rc = run_and_record(
+        "age5_close",
+        [
+            py,
+            "tests/run_age5_close.py",
+            "--report-out",
+            str(age5_close_report),
+        ],
+    )
+    if args.fast_fail and age5_rc != 0:
+        run_and_record(
+            "age5_close_digest",
+            [
+                py,
+                "tools/scripts/print_age5_close_digest.py",
+                str(age5_close_report),
+                "--top",
+                "6",
+                "--only-failed",
+            ],
+        )
+        return fail_and_exit(age5_rc, "[ci-gate] fast-fail: AGE5 close gate failed")
+
     oi_rc = run_and_record(
         "oi405_406_close",
         [
@@ -1715,6 +1829,17 @@ def main() -> int:
         ],
     )
     run_and_record(
+        "age5_close_digest",
+        [
+            py,
+            "tools/scripts/print_age5_close_digest.py",
+            str(age5_close_report),
+            "--top",
+            "6",
+            "--only-failed",
+        ],
+    )
+    run_and_record(
         "oi405_406_digest",
         [
             py,
@@ -1742,39 +1867,42 @@ def main() -> int:
             and age3_badge_check_rc == 0
             and age3_summary_rc == 0
             and age4_rc == 0
+            and age5_rc == 0
             and oi_rc == 0
         ),
         announce=False,
     )
-    combine_rc = run_and_record(
-        "aggregate_combine",
-        [
-            py,
-            "tools/scripts/combine_ci_reports.py",
-            "--print-summary",
-            "--fail-on-bad",
-            "--require-age3",
-            "--require-age4",
-            "--seamgrim-report",
-            str(seamgrim_report),
-            "--age3-report",
-            str(age3_close_report),
-            "--age4-report",
-            str(age4_close_report),
-            "--age3-status",
-            str(age3_close_status_json),
-            "--age3-status-line",
-            str(age3_close_status_line),
-            "--age3-badge",
-            str(age3_close_badge_json),
-            "--oi-report",
-            str(oi_report),
-            "--out",
-            str(aggregate_report),
-            "--index-report-path",
-            str(index_report_path),
-        ]
-    )
+    combine_cmd = [
+        py,
+        "tools/scripts/combine_ci_reports.py",
+        "--print-summary",
+        "--fail-on-bad",
+        "--require-age3",
+        "--require-age4",
+        "--seamgrim-report",
+        str(seamgrim_report),
+        "--age3-report",
+        str(age3_close_report),
+        "--age4-report",
+        str(age4_close_report),
+        "--age5-report",
+        str(age5_close_report),
+        "--age3-status",
+        str(age3_close_status_json),
+        "--age3-status-line",
+        str(age3_close_status_line),
+        "--age3-badge",
+        str(age3_close_badge_json),
+        "--oi-report",
+        str(oi_report),
+        "--out",
+        str(aggregate_report),
+        "--index-report-path",
+        str(index_report_path),
+    ]
+    if args.require_age5:
+        combine_cmd.append("--require-age5")
+    combine_rc = run_and_record("aggregate_combine", combine_cmd)
     run_and_record(
         "aggregate_digest",
         [
@@ -1812,6 +1940,7 @@ def main() -> int:
             and age3_badge_check_rc == 0
             and age3_summary_rc == 0
             and age4_rc == 0
+            and age5_rc == 0
             and oi_rc == 0
             and aggregate_status_line_rc == 0
             and aggregate_status_line_parse_rc == 0
@@ -1900,6 +2029,7 @@ def main() -> int:
             ci_backup_hygiene_selftest_rc,
             "[ci-gate] fast-fail: ci backup hygiene selftest failed",
         )
+    write_emit_artifacts_summary_preview()
     ci_emit_artifacts_baseline_rc = check_ci_emit_artifacts_baseline()
     if args.fast_fail and ci_emit_artifacts_baseline_rc != 0:
         return fail_and_exit(ci_emit_artifacts_baseline_rc, "[ci-gate] fast-fail: ci emit artifacts baseline check failed")
@@ -1918,6 +2048,12 @@ def main() -> int:
             ci_aggregate_gate_age4_diagnostics_rc,
             "[ci-gate] fast-fail: ci aggregate gate age4 diagnostics check failed",
         )
+    ci_aggregate_gate_age5_diagnostics_rc = check_ci_aggregate_gate_age5_diagnostics()
+    if args.fast_fail and ci_aggregate_gate_age5_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_aggregate_gate_age5_diagnostics_rc,
+            "[ci-gate] fast-fail: ci aggregate gate age5 diagnostics check failed",
+        )
     ci_gate_summary_report_selftest_rc = check_ci_gate_summary_report_selftest()
     if args.fast_fail and ci_gate_summary_report_selftest_rc != 0:
         return fail_and_exit(
@@ -1935,6 +2071,18 @@ def main() -> int:
         return fail_and_exit(
             ci_combine_reports_age4_selftest_rc,
             "[ci-gate] fast-fail: ci combine age4 selftest failed",
+        )
+    ci_combine_reports_age5_selftest_rc = check_ci_combine_reports_age5_selftest()
+    if args.fast_fail and ci_combine_reports_age5_selftest_rc != 0:
+        return fail_and_exit(
+            ci_combine_reports_age5_selftest_rc,
+            "[ci-gate] fast-fail: ci combine age5 selftest failed",
+        )
+    ci_pack_golden_overlay_compare_selftest_rc = check_ci_pack_golden_overlay_compare_selftest()
+    if args.fast_fail and ci_pack_golden_overlay_compare_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pack_golden_overlay_compare_selftest_rc,
+            "[ci-gate] fast-fail: ci pack golden overlay compare selftest failed",
         )
     ci_gate_failure_summary_selftest_rc = check_ci_gate_failure_summary_selftest()
     if args.fast_fail and ci_gate_failure_summary_selftest_rc != 0:
@@ -1958,6 +2106,7 @@ def main() -> int:
             and age3_badge_check_rc == 0
             and age3_summary_rc == 0
             and age4_rc == 0
+            and age5_rc == 0
             and oi_rc == 0
             and aggregate_status_line_rc == 0
             and aggregate_status_line_parse_rc == 0
@@ -1987,9 +2136,12 @@ def main() -> int:
             and ci_emit_artifacts_required_rc == 0
             and ci_emit_artifacts_selftest_rc == 0
             and ci_aggregate_gate_age4_diagnostics_rc == 0
+            and ci_aggregate_gate_age5_diagnostics_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
             and ci_aggregate_status_line_selftest_rc == 0
             and ci_combine_reports_age4_selftest_rc == 0
+            and ci_combine_reports_age5_selftest_rc == 0
+            and ci_pack_golden_overlay_compare_selftest_rc == 0
             and ci_gate_failure_summary_selftest_rc == 0
         )
     )
@@ -2000,10 +2152,12 @@ def main() -> int:
             seamgrim_report,
             age3_close_report,
             age4_close_report,
+            age5_close_report,
             oi_report,
             aggregate_report,
         )
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
+        lines.append(f"[ci-gate-summary] age5_status={age5_close_report}")
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
@@ -2047,6 +2201,7 @@ def main() -> int:
         or age3_badge_check_rc != 0
         or age3_summary_rc != 0
         or age4_rc != 0
+        or age5_rc != 0
         or oi_rc != 0
         or aggregate_status_line_rc != 0
         or aggregate_status_line_parse_rc != 0
@@ -2076,9 +2231,12 @@ def main() -> int:
         or ci_emit_artifacts_required_rc != 0
         or ci_emit_artifacts_selftest_rc != 0
         or ci_aggregate_gate_age4_diagnostics_rc != 0
+        or ci_aggregate_gate_age5_diagnostics_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
+        or ci_combine_reports_age5_selftest_rc != 0
+        or ci_pack_golden_overlay_compare_selftest_rc != 0
         or ci_gate_failure_summary_selftest_rc != 0
     ):
         print("[ci-gate] aggregate reported success but sub-step failed", file=sys.stderr)
@@ -2087,10 +2245,12 @@ def main() -> int:
             seamgrim_report,
             age3_close_report,
             age4_close_report,
+            age5_close_report,
             oi_report,
             aggregate_report,
         )
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
+        lines.append(f"[ci-gate-summary] age5_status={age5_close_report}")
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
@@ -2128,6 +2288,7 @@ def main() -> int:
             f"[ci-gate-summary] report_index={index_report_path}",
             f"[ci-gate-summary] age3_status={age3_close_status_json}",
             f"[ci-gate-summary] age4_status={age4_close_report}",
+            f"[ci-gate-summary] age5_status={age5_close_report}",
             f"[ci-gate-summary] age3_status_line={age3_close_status_line}",
             f"[ci-gate-summary] age3_badge={age3_close_badge_json}",
             f"[ci-gate-summary] age3_status_compact={read_compact_line(age3_close_status_line)}",
@@ -2162,6 +2323,7 @@ def main() -> int:
             f"[ci-gate-summary] ci_fail_triage_exists={int(ci_fail_triage_json.exists())}",
             f"[ci-gate-summary] age3_status={age3_close_status_json}",
             f"[ci-gate-summary] age4_status={age4_close_report}",
+            f"[ci-gate-summary] age5_status={age5_close_report}",
         ]
     append_fixed64_threeway_summary_lines(pass_lines, fixed64_threeway_gate_report)
     for line in pass_lines:
