@@ -23,3 +23,4 @@
 | `publish/ddonirang_grammar_full.md` | 문법 총정리(정본 요약) | 문법 총정리 갱신 시 |
 | `publish/RELEASE_NOTES_20260211.md` | 릴리스 요약/변경점 | 릴리스 시 |
 | `publish/GITHUB_RELEASE_DRAFT_20260211.md` | GitHub 릴리스 초안 | 릴리스 시 |
+| `publish/CI_AGGREGATE_GATE_FIX_NOTE_20260223.md` | CI 집계 게이트 안정화 작업 기록 | CI 파이프라인 안정화 변경 시 |
