@@ -158,6 +158,13 @@ Ddonilang aims to turn study into experiments, not just games.
 
 ---
 
+## Additional docs
+
+- Document index: `publish/INDEX.md`
+- CI stabilization note (2026-02-23): `publish/CI_AGGREGATE_GATE_FIX_NOTE_20260223.md`
+
+---
+
 ## Contributing
 
 Contributions are welcome.
