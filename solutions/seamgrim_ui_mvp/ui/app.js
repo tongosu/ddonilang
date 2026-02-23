@@ -78,17 +78,14 @@ function buildPathCandidates(path) {
     ? normalized
     : `${PROJECT_PREFIX}${normalized}`;
 
-  const candidates = [
-    normalized,
-    `/${normalized}`,
-    `./${normalized}`,
-    stripped,
-    `/${stripped}`,
-    `./${stripped}`,
-    prefixed,
-    `/${prefixed}`,
-    `./${prefixed}`,
-  ].filter(Boolean);
+  // ddn_exec_server 기본 정적 루트(/lessons, /seed_lessons_v1, /lessons_rewrite_v1)를 먼저 시도한다.
+  // 프로젝트 프리픽스 경로는 그 다음에 시도해 404 노이즈를 줄인다.
+  const direct = [stripped, `/${stripped}`, `./${stripped}`].filter(Boolean);
+  const project = [prefixed, `/${prefixed}`, `./${prefixed}`].filter(Boolean);
+  const raw = [normalized, `/${normalized}`, `./${normalized}`].filter(Boolean);
+  const candidates = normalized.startsWith(PROJECT_PREFIX)
+    ? [...direct, ...raw, ...project]
+    : [...raw, ...direct, ...project];
 
   return Array.from(new Set(candidates));
 }
@@ -260,6 +257,11 @@ async function loadCatalogLessons() {
   });
 
   const lessons = Array.from(merged.values()).sort((a, b) => String(a.title).localeCompare(String(b.title), "ko"));
+  if (lessons.length === 0) {
+    throw new Error(
+      "교과 카탈로그를 찾지 못했습니다. ddn_exec_server.py(8787)로 실행했는지 확인하세요.",
+    );
+  }
   lessons.forEach((lesson) => {
     appState.lessonsById.set(lesson.id, lesson);
   });

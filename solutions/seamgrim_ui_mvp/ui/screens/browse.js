@@ -66,6 +66,7 @@ export class BrowseScreen {
 
     this.lessons = [];
     this.searchResults = [];
+    this.federatedLoadState = "idle";
     this.activeTab = "official";
 
     this.filter = {
@@ -282,6 +283,9 @@ export class BrowseScreen {
   }
 
   async loadFederatedResults() {
+    if (this.federatedLoadState === "loaded" || this.federatedLoadState === "unavailable") {
+      return;
+    }
     const candidates = [
       "build/reports/seamgrim_lesson_inventory.json",
       "../build/reports/seamgrim_lesson_inventory.json",
@@ -310,12 +314,14 @@ export class BrowseScreen {
           textCandidates: Array.isArray(row.text_path) ? row.text_path : [row.text_path].filter(Boolean),
           metaCandidates: Array.isArray(row.meta_path) ? row.meta_path : [row.meta_path].filter(Boolean),
         })).filter((item) => item.id);
+        this.federatedLoadState = "loaded";
         return;
       } catch (_) {
         // ignore and continue candidate loop
       }
     }
     this.searchResults = [];
+    this.federatedLoadState = "unavailable";
   }
 
   currentPool() {

@@ -31,6 +31,7 @@ SEED_LESSON_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "seed_lessons_v1"
 REWRITE_LESSON_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "lessons_rewrite_v1"
 SCHEMA_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "schema"
 SAMPLES_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "samples"
+PROJECT_HTTP_PREFIX = "/solutions/seamgrim_ui_mvp"
 SPACE2D_MARKERS = {"space2d", "2d", "공간", "공간2d"}
 SPACE2D_SHAPE_MARKERS = {"space2d.shape", "space2d_shape", "shape2d"}
 SPACE2D_SHAPE_KEYS = {
@@ -398,11 +399,21 @@ class DdnExecHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        path = parsed.path
-        if path == "/health" or path == "/api/health":
+        raw_path = parsed.path
+        if raw_path == "/health" or raw_path == "/api/health":
             json_response(self, 200, {"ok": True, "service": "ddn_exec_server"})
             return
-        if path == "/" or path == "/index.html":
+        if raw_path == "/favicon.ico":
+            self.send_response(204)
+            self.end_headers()
+            return
+
+        path = raw_path
+        if path.startswith(PROJECT_HTTP_PREFIX):
+            stripped = path[len(PROJECT_HTTP_PREFIX):]
+            path = stripped if stripped else "/"
+
+        if path in ("/", "/index.html", "/ui", "/ui/"):
             send_file(self, UI_DIR / "index.html")
             return
         if path.startswith("/lessons/"):
@@ -430,7 +441,12 @@ class DdnExecHandler(BaseHTTPRequestHandler):
             if SAMPLES_DIR in sample_path.parents or sample_path == SAMPLES_DIR:
                 send_file(self, sample_path)
                 return
-        file_path = (UI_DIR / path.lstrip("/")).resolve()
+        ui_relative = path
+        if ui_relative.startswith("/ui/"):
+            ui_relative = ui_relative[len("/ui/"):]
+        else:
+            ui_relative = ui_relative.lstrip("/")
+        file_path = (UI_DIR / ui_relative).resolve()
         if UI_DIR in file_path.parents:
             send_file(self, file_path)
             return
