@@ -468,12 +468,12 @@ solutions/seamgrim_ui_mvp/
 │   ├── styles.css     # 스타일
 │   └── app.js         # 앱 로직 (6000+ 줄)
 ├── tools/
-│   ├── bridge_server.py   # DDN 실행 브리지 (HTTP → teul-cli)
+│   ├── ddn_exec_server.py   # DDN 실행 서버 (HTTP → teul-cli)
 │   ├── export_graph.py    # DDN → seamgrim.graph.v0 JSON
 │   ├── export_space2d.py  # DDN → seamgrim.space2d.v0 JSON
 │   ├── export_text.py     # DDN → seamgrim.text.v0 JSON
 │   ├── export_table.py    # DDN → seamgrim.table.v0 JSON
-│   ├── bridge_check.py    # 브리지 서버 점검
+│   ├── ddn_exec_server_check.py    # DDN 실행 서버 점검
 │   └── lesson_pack_check.py  # 교과 팩 검증
 ├── samples/               # 샘플 DDN 파일
 └── docs/
@@ -487,14 +487,14 @@ solutions/seamgrim_ui_mvp/
 | **교과** | 교과(lesson) 팩 선택, 주제 브라우징 |
 | **DDN** | DDN 편집기 + 실행/내보내기/불러오기 |
 | **실행/시간** | 시간 샘플링, 타임라인 뷰, 파라미터 조정 |
-| **도구** | 브리지 설정, 프리셋, 비교 모드, 인스펙터, 로그 |
+| **도구** | 실행 서버 설정, 프리셋, 비교 모드, 인스펙터, 로그 |
 
-### 9-3. 브리지 서버
+### 9-3. DDN 실행 서버
 
 브라우저 UI에서 DDN을 실행하기 위한 **로컬 HTTP 서버**(포트 8787)입니다.
 
 ```
-[브라우저 UI] --POST /api/run--> [bridge_server.py]
+[브라우저 UI] --POST /api/run--> [ddn_exec_server.py]
                                     ↓
                               [teul-cli run <file.ddn>]
                                     ↓
@@ -577,7 +577,7 @@ codex/
 - 표준 라이브러리: 글/차림/텐서/수학/입력/RNG/묶음/템플릿/수식 내장 함수
 - 도구: teul-cli 40+ 서브커맨드, LSP, 보개 번들, 에셋 매니페스트
 - 검증: 193개 팩 테스트, 골든 비교, 리플레이
-- 시각화: 셈그림 웹 UI (4탭 구성, 브리지 서버, 4종 출력 스키마)
+- 시각화: 셈그림 웹 UI (4탭 구성, DDN 실행 서버, 4종 출력 스키마)
 - 데모: 미로, 테트리스
 
 ### 미구현/진행 중

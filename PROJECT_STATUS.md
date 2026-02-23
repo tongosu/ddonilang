@@ -4,19 +4,68 @@
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
 ## 최근 문서 갱신
+- 탐색 화면의 기본 정렬을 `최근 실행순`으로 전환해 최근에 확인한 교과가 목록 상단에 오도록 조정했다.
+- 실행 스냅샷에 `lastRunHash`를 저장하고, 탐색 카드/실행 상단 요약에 축약 hash를 함께 표시하도록 보강했다.
+- 탐색 카드에 최근 실행 배지 색상(최근성공/출력없음/최근실패/미실행)을 추가해 실행 가능 상태를 빠르게 판별할 수 있게 했다.
+- 탐색 필터에 `정렬: 최근 실행순`을 추가해 마지막 실행 시간이 최신인 교과를 우선 배치할 수 있게 했다.
+- 탐색 필터에 `최근 실행(성공/실패/미실행)`을 추가해 교과 실행 이력을 기준으로 카드 목록을 바로 좁힐 수 있게 했다.
+- 실행 화면 상단 바에 `최근 실행 요약` 라벨을 추가해 현재 교과의 마지막 실행 결과를 화면 고정 정보로 노출했다.
+- 탐색 카드에 교과별 `최근 실행` 힌트를 추가해 보개 출력/무출력/실패를 선택 전에 확인할 수 있게 했다.
+- `run` prefs 교과 항목에 실행 요약(`lastRunKind`, `lastRunChannels`, `lastRunAt`, `lastRunStatus`)을 저장하도록 확장했다.
+- 실행 실패 시 `kind=error` 스냅샷을 남기고, 교과 전환 시 런타임 스냅샷 캐시를 초기화해 카드 상태 오염을 막았다.
+- 실행 화면 표시 상태와 WASM 루프를 연결해 `run` 화면에서만 RAF 스텝 루프가 동작하고, `browse/editor` 전환 시 자동 정지하도록 정리했다.
+- `ui/screens/run.js`에 런타임 출력 진단 상태를 추가해 무출력 상황을 `채널/보개 출력 유무` 기준으로 즉시 식별할 수 있게 했다.
+- `setStatus("실행 상태: WASM 실행 중")` 토큰은 UI AGE3 게이트 호환성을 위해 유지한 채, 상세 진단 문구가 뒤이어 반영되도록 구성했다.
+- 범위 프리셋을 1슬롯에서 3슬롯(1/2/3)으로 확장하고, 교과별로 선택 슬롯/슬롯별 보개·그래프 범위를 로컬에 저장·복원하도록 구현했다.
+- 탐색 카드에 실행 상태 힌트(축잠금 ON/OFF + 수동축 x/y)를 표시해 교과 선택 전에 현재 축 모드를 확인할 수 있게 했다.
+- run prefs 저장 시 `seamgrim:run-prefs-changed` 이벤트를 발행하고 browse 화면이 즉시 재렌더링되도록 연결했다.
+- `tests/run_seamgrim_ui_age3_gate.py`에 `bogae-preset-slot`/`graph-preset-slot` 토큰을 추가하고 seamgrim CI 게이트 재검증 PASS.
+- 실행 화면 그래프 툴바에 `기본축 고정 ON/OFF` 토글을 추가해 교과 기본축 고정과 수동 축 선택을 즉시 전환할 수 있게 했다.
+- `run` 상태를 로컬 저장소(`seamgrim.ui.run_prefs.v1`)에 저장해 교과별 x/y 선택축과 보개/그래프 저장 범위 프리셋을 재접속 시 자동 복원하도록 보강했다.
+- `dotbogi` 선택자 잠금 상태에서 x/y 드롭다운을 비활성화하고, 잠금 해제 시 수동 선택이 저장되도록 세션 경계를 정리했다.
+- `tests/run_seamgrim_ui_age3_gate.py`에 `btn-axis-lock` 토큰을 추가하고 seamgrim UI/CI 게이트 재검증 PASS.
+- 실행 화면 그래프 툴바에 `x축 선택`을 추가해 시간 자동 추정 외에도 임의 변수축으로 그래프를 볼 수 있게 했다(`index` 폴백 포함).
+- `control_parser`에 기본 x축 메타(`#기본관찰x/#기본관측x`, `default_x*`)와 채비 라인 힌트(`기본관찰x`) 파싱을 추가했다.
+- y/x 드롭다운에서 기본축 후보를 `(기본)`으로 표시하도록 개선해 현재 교과의 권장 축을 즉시 인지할 수 있게 했다.
+- `run` 로드 경로에 `defaultXAxisKey` 적용을 연결했고, 공용 러너 + seamgrim UI/CI 게이트 전체 재검증 PASS.
+- DDN 메타의 `#기본관찰/#기본관측`(alias: `default_obs` 등)을 `defaultAxisKey`로 파싱해 그래프 y축 기본 변수를 교과별로 고정할 수 있게 했다.
+- `dotbogi`에 preferred y축 키 적용 로직을 추가해 `기본관찰 우선 -> 없으면 첫 관찰변수` 규칙으로 선택되도록 정리했다.
+- 채비 변수 선언 꼬리의 기본관찰 힌트(예: `// 기본관찰`)도 파싱해 기본 y축 후보로 사용하도록 보강했다.
+- 관련 회귀 검증(`tests/seamgrim_ui_common_runner.mjs`)과 seamgrim UI/CI 게이트 전체 재검증 PASS.
+- `control_parser`에서 `상수/수 계열 -> 슬라이더`, `변수 계열 -> 그래프 축 후보(axisKeys)` 규칙을 강제해 채비 역할을 분리했다.
+- `#control` 명시가 있는 경우 채비 자동 추론보다 우선하도록 슬라이더 스펙 우선순위를 고정했다.
+- 실행 화면에 범위 프리셋 1슬롯(`보개 저장/불러오기`, `축 저장/불러오기`)을 추가해 수업 재현성을 높였다.
+- `tests/seamgrim_ui_common_runner.mjs`에 control 파서 회귀 검증을 추가했고, seamgrim 게이트(AGE3/UI/CI) 전체 재검증 PASS.
+- 실행 화면에 보개/그래프 수치 범위 입력(적용/리셋) UI를 추가해 축·시뮬 뷰를 고정한 상태에서 재현 가능한 관찰이 가능해졌다.
+- `ui/components/dotbogi.js`, `ui/components/bogae.js`에 수동 축/범위 API(`get/set/reset`)를 추가하고, 마우스·키보드 조작 후 입력칸이 자동 동기화되도록 콜백을 연결했다.
+- `ui/screens/run.js`에 수치 범위 검증(x_max>x_min, y_max>y_min)과 적용 실패 상태 메시지를 추가해 무반응처럼 보이는 케이스를 줄였다.
+- `python tests/run_seamgrim_ui_age3_gate.py`, `python tests/run_seamgrim_space2d_source_ui_gate.py`, `node tests/seamgrim_ui_common_runner.mjs`, `python tests/run_seamgrim_ci_gate.py --json-out build/reports/seamgrim_ci_gate_latest.detjson` 재검증 PASS.
+- `ui/app.js`에 catalog 경로 선호 캐시를 추가해 성공한 root/project 경로를 우선 재사용하고 반복 404 로그를 줄였다.
+- 선택형 Nginx 역프록시 템플릿(`solutions/seamgrim_ui_mvp/deploy/nginx/seamgrim.conf`)을 추가해 wasm MIME(`application/wasm`) 고정을 명시했다.
+- `tests/run_seamgrim_deploy_artifacts_check.py`에 nginx 템플릿/문서 토큰 검증을 추가해 배포 산출물 체크를 강화했다.
+- `ddn_exec_server_check.py` 점검 범위를 확장해 lesson/seed/rewrite manifest 접근, 대표 DDN 자산 접근, wasm MIME(`application/wasm`)까지 검증하도록 강화했다.
+- 셈그림 CI 게이트에 `ddn_exec_server_check` 실실행 단계를 추가하고 진단 self-check를 확장했다.
+- 셈그림 UI의 교과/seed/rewrite/샘플 로딩 경로에 `/` 및 `/solutions/seamgrim_ui_mvp/` 이중 폴백을 추가해 실행 방식별 404를 줄였다.
+- `tests/run_seamgrim_lesson_path_fallback_check.py`를 추가하고 셈그림 CI 게이트에 `lesson_path_fallback` 단계를 연결했다.
+- GitHub 브랜치 보호 설정 파일(`.github/branch-protection/main.required_checks.json`)과 적용 스크립트(`tools/scripts/apply_github_branch_protection.py`)를 추가해 `seamgrim-gate` 필수 체크를 자동 적용할 수 있게 했다.
+- 셈그림 CI 게이트에 워크플로우/브랜치보호 계약 검증(`tests/run_seamgrim_workflow_contract_check.py`, `workflow_contract` step)을 추가해 job/context 드리프트를 차단했다.
+- `.github/workflows/seamgrim-ci.yml` PR path 필터에 `.github/branch-protection/**`를 추가했다.
+- 셈그림 DDN 실행 서버용 Docker 배포 산출물(`deploy/Dockerfile`, `deploy/docker-compose.yml`)과 health/base-url 점검을 추가했다.
+- 셈그림 CI 게이트에 deploy 아티팩트 정합 점검(`run_seamgrim_deploy_artifacts_check.py`) 단계를 추가했다.
+- GitHub Actions 워크플로우(`.github/workflows/seamgrim-ci.yml`)를 추가해 PR에서 deploy 아티팩트 + seamgrim CI 게이트를 자동 실행하도록 구성했다.
 - 셈그림 UI MVP/stdlib 범위 상세 보고서를 확장하고, 교과과정 통합 마스터코스 제안서를 추가했다.
 - stdlib_range_basics에 단위 불일치 오류 골든 케이스를 추가했다.
-- stdlib 범위 pack에 단위 범위 케이스를 추가하고, 브리지 체크에서 UI 마크업 확인을 포함했다.
+- stdlib 범위 pack에 단위 범위 케이스를 추가하고, DDN 실행 서버 체크에서 UI 마크업 확인을 포함했다.
 - stdlib_range_basics에 범위 간격 0 오류 골든 케이스를 추가했다.
 - stdlib 범위 기본 pack(stdlib_range_basics)을 추가하고 골든/문서 커버리지를 보강했다.
-- 셈그림 UI에 DDN 생성 버튼을 추가하고 브리지 자동 점검 스크립트(bridge_check.py), stdlib 범위 문서 표(impl/alias) 및 ddonirang_mastercourse 계획을 보강했다.
+- 셈그림 UI에 DDN 생성 버튼을 추가하고 DDN 실행 서버 자동 점검 스크립트(ddn_exec_server_check.py), stdlib 범위 문서 표(impl/alias) 및 ddonirang_mastercourse 계획을 보강했다.
 - AGENTS 지침에 build/out 경로를 시작 시 생성하고 I: 경로 우선, 없으면 C: fallback하도록 명시했다.
 - stdlib `범위`(2~3인자, 단위 정합/증가·감소/포함 범위) 함수를 teul-cli/tool 런타임과 lang stdlib 시그니처에 추가하고, 셈그림 샘플/자동 DDN 생성에 반영했다.
 - 샘/거울 최소 스키마를 SSOT에 반영하기 위한 관리자 요청 노트(`docs/notes/SSOT_SAM_GEOUL_SCHEMA_REQUEST_20260130.md`)를 추가했다.
 - 셈그림 UI에서 수식/변수와 DDN 편집을 탭으로 분리하고, DDN 샘플을 에 대해/차림 기반으로 간소화했다.
-- 셈그림 UI MVP에 수식→DDN 자동 생성→런타임 브리지 실행을 연결하고, 샘/거울 스키마(v0) 이름 정합 및 UI 검증/요약 로직을 보강했다.
+- 셈그림 UI MVP에 수식→DDN 자동 생성→런타임 실행 서버 연동을 연결하고, 샘/거울 스키마(v0) 이름 정합 및 UI 검증/요약 로직을 보강했다.
 - 범위 리터럴/범위 생성 최소 스펙 제안서를 추가하고 SSOT ALL 합본(`docs/context/all/ssot_*_ALL.md`)을 갱신했다.
-- 셈그림 UI MVP 제안/설계 문서, UI 스켈레톤/그래프·스냅샷 JSON 및 샘/거울 로드(검증 요약/요약 카드) + 스냅샷 다중 오버레이(자동 색상/라벨 규칙) + DDN 브리지 실행, seamgrim_line_graph D-PACK(2케이스), seamgrim_ui_mvp 솔루션/변환툴/스냅샷·샘·거울 스키마와 SSOT 제안서를 추가했다.
+- 셈그림 UI MVP 제안/설계 문서, UI 스켈레톤/그래프·스냅샷 JSON 및 샘/거울 로드(검증 요약/요약 카드) + 스냅샷 다중 오버레이(자동 색상/라벨 규칙) + DDN 실행 서버 연동, seamgrim_line_graph D-PACK(2케이스), seamgrim_ui_mvp 솔루션/변환툴/스냅샷·샘·거울 스키마와 SSOT 제안서를 추가했다.
 - W77 gogae7 대표 데모 D-PACK을 추가하고 bogae_hash 골든을 고정했다.
 - W76 detbin 캐시(동일 프레임)와 cache hit/miss 로그를 추가했다.
 - W75 docs/ssot/walks 갱신은 SSOT 관리자 작업으로 요청만 기록했다.
@@ -642,6 +691,3 @@
 
 ## 추가로 넣으면 좋은 것
 - 필요 시 보완: 설계/결정 문서의 최신화 및 누락된 한계 사항 추가.
-
-
-

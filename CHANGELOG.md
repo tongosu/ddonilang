@@ -1,19 +1,70 @@
 # CHANGELOG.md
 
 ## Unreleased
+- Changed browse default sort mode to `최근 실행순` (`filter.sort = recent`).
+- Added `lastRunHash` persistence in run prefs and hash display on both browse card run hint and run topbar summary.
+- Added browse card run-status badge colors (`최근성공/출력없음/최근실패/미실행`) for faster scan of lesson execution readiness.
+- Added browse sort option `정렬: 최근 실행순` (`filter-sort=recent`) based on per-lesson `lastRunAt`.
+- Added browse run-result filter (`filter-run-status`) with `성공/실패/미실행` options based on per-lesson run snapshots.
+- Added run topbar recent summary label (`run-last-summary`) to keep latest lesson execution outcome visible during run.
+- Added per-lesson run snapshot persistence (`lastRunKind`, `lastRunChannels`, `lastRunAt`, `lastRunStatus`) in `run.js` run prefs.
+- Added browse-card recent-run hint (`최근 실행: ...`) so each lesson card shows latest execution readiness (space2d output/obs-only/empty/error).
+- Added run failure snapshot capture (`kind=error`) and lesson-switch runtime snapshot reset to avoid cross-lesson stale hints.
+- Added run-screen visibility lifecycle control so the WASM RAF loop only runs on the `run` screen and auto-pauses on `browse`/`editor`.
+- Added runtime output diagnostics in `ui/screens/run.js`:
+  - `WASM 실행됨 · 출력 없음 (채널=0 · 보개 없음)`
+  - `WASM 실행됨 · 보개 출력 없음 (채널=N · 그래프/표 확인)`
+  - `WASM 실행 중 · 보개 출력 · 채널=N`
+- Kept `run_wasm_single_path` gate token compatibility by preserving `this.setStatus("실행 상태: WASM 실행 중")` in restart success path.
+- Added 3-slot range preset support for both Bogae and Graph (`slot 1/2/3` selectors + per-slot save/load) with legacy slot-1 fallback compatibility.
+- Added browse-card run-state hint from local prefs (`축잠금 ON` / `축잠금 OFF · x:... y:...`) and live refresh via `seamgrim:run-prefs-changed` event.
+- Added persistent per-lesson run UI prefs for preset slot selections (`selectedBogaePresetSlot`, `selectedGraphPresetSlot`).
+- Added UI gate tokens for preset slot selectors (`bogae-preset-slot`, `graph-preset-slot`).
+- Added preferred-axis lock toggle in run graph toolbar (`btn-axis-lock`) to switch between lesson-default axis lock and manual X/Y axis selection.
+- Added localStorage-backed run UI session restore (`seamgrim.ui.run_prefs.v1`) for per-lesson selected axes and saved range presets (graph/bogae).
+- Added Dotbogi axis APIs for session persistence (`getSelectedAxes`, `setSelectedAxes`, `setPreferredAxisLock`) and disabled selectors while axis lock is ON.
+- Added UI gate token for axis lock control (`btn-axis-lock`) in `tests/run_seamgrim_ui_age3_gate.py`.
+- Added X-axis selector to Dotbogi graph toolbar (`select-x-axis`) with `index` fallback and variable-based X plotting.
+- Added default X-axis preference parsing in `control_parser` (`#기본관찰x/#기본관측x` and `default_x*` aliases), plus inline `기본관찰x` hints in `채비` variable declarations.
+- Added preferred-axis labeling in dropdowns: preferred Y/X keys are shown as `(<key> (기본))` in selectors.
+- Wired lesson load path to apply both preferred axes (`defaultAxisKey`, `defaultXAxisKey`) from parsed DDN metadata.
+- Added default Y-axis preference wiring for Dotbogi: `#기본관찰`/`#기본관측` (and `default_obs` aliases) now set `defaultAxisKey` via `control_parser` and are applied on lesson load.
+- Added `DotbogiPanel.setPreferredYKey()` and selection fallback policy: preferred variable first, then first observable key.
+- Added parser support for inline default-observation hints on variable declarations in `채비` blocks and regression checks in `tests/seamgrim_ui_common_runner.mjs`.
+- Enforced control parsing split in `ui/components/control_parser.js`: only constant-like `채비/#control` entries become sliders, while variable-like entries are emitted as axis keys.
+- Applied explicit `#control` precedence over `채비` auto-inference for slider specs (DDN self-contained control contract alignment).
+- Added parser regression assertions in `tests/seamgrim_ui_common_runner.mjs` for constant/variable separation and `#control` priority.
+- Added one-slot range presets in run UI (`보개 저장/불러오기`, `축 저장/불러오기`) and wired them in `ui/screens/run.js`.
+- Added graph/bogae numeric range controls in the run screen (`index.html`, `styles.css`) with apply/reset actions for fixed axis/view testing.
+- Extended `ui/components/dotbogi.js` with explicit axis APIs (`getCurrentAxis`, `setAxis`, `resetAxis`) and axis normalization for manual range application.
+- Extended `ui/components/bogae.js` with range APIs (`getCurrentRange`, `setRange`) and range-change callbacks to keep UI controls synchronized.
+- Wired `ui/screens/run.js` to synchronize range inputs with mouse/keyboard zoom-pan state, validate numeric range input, and apply/reset graph/bogae ranges without server fallback.
+- Reduced noisy lesson asset 404s by adding catalog path preference caching in `ui/app.js` (reuse last successful root/project path).
+- Added optional Nginx reverse-proxy deploy template (`deploy/nginx/seamgrim.conf`) with explicit `application/wasm` MIME handling.
+- Extended `tests/run_seamgrim_deploy_artifacts_check.py` to enforce nginx template presence/tokens and deploy README nginx guidance.
+- Strengthened `ddn_exec_server_check.py` with runtime checks for lesson/seed/rewrite manifest accessibility, representative lesson asset fetches, and WASM MIME validation (`application/wasm`).
+- Added `ddn_exec_server_check` execution step to `tests/run_seamgrim_ci_gate.py` and extended diagnostics self-check coverage.
+- Hardened Seamgrim UI lesson/sample path loading with catalog fallback resolution (`/…` <-> `/solutions/seamgrim_ui_mvp/…`) to prevent manifest/asset 404s across server layouts.
+- Added `tests/run_seamgrim_lesson_path_fallback_check.py` and wired `lesson_path_fallback` into `tests/run_seamgrim_ci_gate.py`.
+- Added GitHub branch-protection config (`.github/branch-protection/main.required_checks.json`) and automation script (`tools/scripts/apply_github_branch_protection.py`) for enforcing `seamgrim-gate` required checks.
+- Added `tests/run_seamgrim_workflow_contract_check.py` and wired a new `workflow_contract` step into `tests/run_seamgrim_ci_gate.py` to lock workflow job/context drift.
+- Extended `.github/workflows/seamgrim-ci.yml` path filters to include `.github/branch-protection/**`.
+- Added Docker deploy artifacts for Seamgrim DDN exec server (`deploy/Dockerfile`, `deploy/docker-compose.yml`) and health/base-url checks.
+- Added `tests/run_seamgrim_deploy_artifacts_check.py` and wired `deploy_artifacts` into `run_seamgrim_ci_gate.py`.
+- Added GitHub Actions workflow `.github/workflows/seamgrim-ci.yml` to run `deploy_artifacts` + `seamgrim_ci_gate` on pull requests.
 - Expanded the Seamgrim (셈그림) UI MVP report and added a mastercourse curriculum proposal.
 - Added a stdlib_range_basics unit-mismatch error golden case.
-- Added a unit-annotated range case to stdlib_range_basics and extended bridge_check to validate the UI markup.
+- Added a unit-annotated range case to stdlib_range_basics and extended ddn_exec_server_check to validate the UI markup.
 - Added an error-case golden for stdlib_range_basics (step=0) to lock the runtime failure message.
 - Added pack/stdlib_range_basics golden coverage for the stdlib range helper and updated default pack runner/coverage table.
-- Added a Seamgrim (셈그림) UI DDN sync button, a local bridge check script, stdlib range entries in status tables, and the ddonirang_mastercourse plan scaffold.
+- Added a Seamgrim (셈그림) UI DDN sync button, a DDN exec server check script, stdlib range entries in status tables, and the ddonirang_mastercourse plan scaffold.
 - Clarified AGENTS guidance to create build/out dirs on startup, preferring I: paths with C: fallbacks.
 - Added stdlib `범위` (2~3 args, unit-safe inclusive range with step) to teul-cli/tool runtimes and lang stdlib signatures, and updated Seamgrim samples/auto DDN generation to use it.
 - Added SSOT admin request note for sam/geoul minimal schema adoption.
 - Split Seamgrim (셈그림) UI input into formula/DDN tabs and simplified the DDN samples with list iteration.
-- Wired Seamgrim (셈그림) UI MVP formula panel to runtime bridge (auto DDN), clarified sam/geoul v0 schema aliases, and strengthened UI validation/summaries.
+- Wired Seamgrim (셈그림) UI MVP formula panel to runtime DDN exec server (auto DDN), clarified sam/geoul v0 schema aliases, and strengthened UI validation/summaries.
 - Added a range literal/minimal range spec proposal and regenerated ssot_*_ALL.md aggregates.
-- Added Seamgrim (셈그림) UI MVP proposal/design docs, UI skeleton with DDN editor + local bridge run, graph/snapshot import/export + sam/geoul validation + multi overlay compare + summary cards + overlay rules, a seamgrim_line_graph D-PACK (two cases), and a seamgrim_ui_mvp solution + export/bridge tools + snapshot/sam/geoul schemas + sam/geoul SSOT proposal.
+- Added Seamgrim (셈그림) UI MVP proposal/design docs, UI skeleton with DDN editor + DDN exec server run, graph/snapshot import/export + sam/geoul validation + multi overlay compare + summary cards + overlay rules, a seamgrim_line_graph D-PACK (two cases), and a seamgrim_ui_mvp solution + export tools + snapshot/sam/geoul schemas + sam/geoul SSOT proposal.
 - Added W77 gogae7 demo pack coverage (bogae_hash golden).
 - Added W76 detbin cache (hit/miss log) and pack coverage.
 - Added W74 pack runner support for `bogae_hash` as a first-class field and pack coverage.
