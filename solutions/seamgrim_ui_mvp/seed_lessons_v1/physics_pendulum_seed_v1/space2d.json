@@ -1,0 +1,46 @@
+{
+  "schema": "seamgrim.space2d.v0",
+  "meta": {
+    "title": "진자 시뮬레이션",
+    "source": "seed-static"
+  },
+  "camera": {
+    "x_min": -1.4,
+    "x_max": 1.4,
+    "y_min": -1.4,
+    "y_max": 0.4
+  },
+  "points": [
+    {
+      "x": 0.479426,
+      "y": -0.877583
+    }
+  ],
+  "shapes": [
+    {
+      "kind": "line",
+      "x1": 0.0,
+      "y1": 0.0,
+      "x2": 0.479426,
+      "y2": -0.877583,
+      "stroke": "#60a5fa",
+      "width": 0.018
+    },
+    {
+      "kind": "circle",
+      "x": 0.479426,
+      "y": -0.877583,
+      "r": 0.08,
+      "fill": "#f97316",
+      "stroke": "#fb923c",
+      "width": 0.018
+    },
+    {
+      "kind": "point",
+      "x": 0.0,
+      "y": 0.0,
+      "size": 0.04,
+      "color": "#f8fafc"
+    }
+  ]
+}
