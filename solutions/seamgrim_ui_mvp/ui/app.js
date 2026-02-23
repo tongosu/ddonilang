@@ -78,16 +78,10 @@ function buildPathCandidates(path) {
     ? normalized
     : `${PROJECT_PREFIX}${normalized}`;
 
-  // ddn_exec_server 기본 정적 루트(/lessons, /seed_lessons_v1, /lessons_rewrite_v1)를 먼저 시도한다.
-  // 프로젝트 프리픽스 경로는 그 다음에 시도해 404 노이즈를 줄인다.
-  const direct = [stripped, `/${stripped}`, `./${stripped}`].filter(Boolean);
-  const project = [prefixed, `/${prefixed}`, `./${prefixed}`].filter(Boolean);
-  const raw = [normalized, `/${normalized}`, `./${normalized}`].filter(Boolean);
-  const candidates = normalized.startsWith(PROJECT_PREFIX)
-    ? [...direct, ...raw, ...project]
-    : [...raw, ...direct, ...project];
-
-  return Array.from(new Set(candidates));
+  // 404 노이즈를 줄이기 위해 절대 경로 후보만 최소 집합으로 유지한다.
+  const primary = `/${stripped}`;
+  const secondary = `/${prefixed}`;
+  return primary === secondary ? [primary] : [primary, secondary];
 }
 
 async function fetchFirstOk(urls, parseAs = "text") {
