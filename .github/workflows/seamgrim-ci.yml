@@ -1,0 +1,64 @@
+name: Seamgrim CI Gate
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/seamgrim-ci.yml"
+      - ".github/branch-protection/**"
+      - "solutions/seamgrim_ui_mvp/**"
+      - "tests/**"
+      - "tools/**"
+      - "core/**"
+      - "lang/**"
+  workflow_dispatch:
+
+concurrency:
+  group: seamgrim-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  seamgrim-gate:
+    name: seamgrim-gate
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust Build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            tools/teul-cli -> target
+
+      - name: Build teul-cli
+        run: cargo build --manifest-path tools/teul-cli/Cargo.toml
+
+      - name: Export TEUL_CLI_BIN
+        shell: pwsh
+        run: |
+          $bin = Join-Path $PWD "tools/teul-cli/target/debug/teul-cli.exe"
+          if (!(Test-Path $bin)) {
+            throw "teul-cli binary not found: $bin"
+          }
+          "TEUL_CLI_BIN=$bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Deploy Artifacts Check
+        run: python tests/run_seamgrim_deploy_artifacts_check.py
+
+      - name: Seamgrim CI Gate
+        run: python tests/run_seamgrim_ci_gate.py --print-drilldown

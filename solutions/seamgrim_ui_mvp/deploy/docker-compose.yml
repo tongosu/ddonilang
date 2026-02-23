@@ -1,0 +1,13 @@
+services:
+  ddn-exec-server:
+    container_name: ddn-exec-server
+    build:
+      context: ../../..
+      dockerfile: solutions/seamgrim_ui_mvp/deploy/Dockerfile
+    ports:
+      - "${DDN_EXEC_SERVER_PORT:-8787}:8787"
+    environment:
+      DDN_EXEC_SERVER_HOST: "0.0.0.0"
+      DDN_EXEC_SERVER_PORT: "8787"
+      TEUL_CLI_WORKER: "${TEUL_CLI_WORKER:-0}"
+    restart: unless-stopped

@@ -1,0 +1,48 @@
+{
+  "schema": "ddn.seamgrim.overlay_session_case.v1",
+  "case_id": "c04_disable_on_baseline_missing",
+  "title": "baseline 누락 시 compare 비활성화",
+  "session_in": {
+    "schema": "seamgrim.session.v0",
+    "runs": [
+      {
+        "id": "run-var",
+        "label": "variant only",
+        "visible": true,
+        "layer_index": 1,
+        "compare_role": "variant",
+        "graph": {
+          "schema": "seamgrim.graph.v0",
+          "meta": {
+            "graph_kind": "xy",
+            "axis_x_kind": "length",
+            "axis_x_unit": "m",
+            "axis_y_kind": "period",
+            "axis_y_unit": "s"
+          },
+          "series": [
+            {
+              "id": "pendulum_curve",
+              "points": [
+                { "x": 1.0, "y": 2.0 }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "compare": {
+      "enabled": true,
+      "baseline_id": "run-base",
+      "variant_id": "run-var"
+    }
+  },
+  "expect": {
+    "enabled": false,
+    "baseline_id": null,
+    "variant_id": null,
+    "dropped_variant": false,
+    "drop_code": "baseline_missing",
+    "block_reason_contains": "baseline 실행"
+  }
+}

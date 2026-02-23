@@ -1,0 +1,66 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c65_yunit_mismatch_over_series_mismatch_with_y_fallback",
+  "title": "y_unit 불일치 우선( series_mismatch + y_unit fallback 후보 )",
+  "baseline": {
+    "seriesId": "pendulum_curve",
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 2.82
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variant": {
+    "seriesId": "pendulum_curve_alt",
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "y_unit": " ms "
+      },
+      "series": [
+        {
+          "id": "pendulum_curve_alt",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.8
+            },
+            {
+              "x": 2.0,
+              "y": 4.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "overlay_ok": false,
+    "code": "mismatch_yUnit",
+    "reason_contains": "y축 unit"
+  }
+}

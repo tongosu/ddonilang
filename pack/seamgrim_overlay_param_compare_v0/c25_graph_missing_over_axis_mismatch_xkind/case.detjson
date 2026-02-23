@@ -1,0 +1,44 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c25_graph_missing_over_axis_mismatch_xkind",
+  "title": "graph_missing 우선(축 종류 불일치 후보보다 우선)",
+  "baseline": {
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 2.82
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variant": {
+    "graph": null,
+    "meta": {
+      "graph_kind": "xy",
+      "axis_x_kind": "time"
+    }
+  },
+  "expect": {
+    "overlay_ok": false,
+    "code": "graph_missing",
+    "reason_contains": "그래프 데이터"
+  }
+}

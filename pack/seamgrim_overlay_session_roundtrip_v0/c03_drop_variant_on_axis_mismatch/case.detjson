@@ -1,0 +1,73 @@
+{
+  "schema": "ddn.seamgrim.overlay_session_case.v1",
+  "case_id": "c03_drop_variant_on_axis_mismatch",
+  "title": "축 불일치 시 variant 해제",
+  "session_in": {
+    "schema": "seamgrim.session.v0",
+    "runs": [
+      {
+        "id": "run-base",
+        "label": "baseline",
+        "visible": true,
+        "layer_index": 0,
+        "compare_role": "baseline",
+        "graph": {
+          "schema": "seamgrim.graph.v0",
+          "meta": {
+            "graph_kind": "xy",
+            "axis_x_kind": "length",
+            "axis_x_unit": "m",
+            "axis_y_kind": "period",
+            "axis_y_unit": "s"
+          },
+          "series": [
+            {
+              "id": "pendulum_curve",
+              "points": [
+                { "x": 1.0, "y": 2.0 }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "run-var",
+        "label": "variant",
+        "visible": true,
+        "layer_index": 1,
+        "compare_role": "variant",
+        "graph": {
+          "schema": "seamgrim.graph.v0",
+          "meta": {
+            "graph_kind": "xy",
+            "axis_x_kind": "length",
+            "axis_x_unit": "cm",
+            "axis_y_kind": "period",
+            "axis_y_unit": "s"
+          },
+          "series": [
+            {
+              "id": "pendulum_curve_alt",
+              "points": [
+                { "x": 100.0, "y": 2.2 }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "compare": {
+      "enabled": true,
+      "baseline_id": "run-base",
+      "variant_id": "run-var"
+    }
+  },
+  "expect": {
+    "enabled": true,
+    "baseline_id": "run-base",
+    "variant_id": null,
+    "dropped_variant": true,
+    "drop_code": "mismatch_xUnit",
+    "block_reason_contains": "x축 unit"
+  }
+}

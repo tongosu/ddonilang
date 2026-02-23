@@ -1,11 +1,20 @@
-﻿# Seamgrim UI MVP
+# Seamgrim UI MVP
 
 정적 HTML/CSS/JS로 구성된 셈그림 UI MVP 스켈레톤입니다.
 
+> 2026-02-23 재건 노트  
+> UI는 `index.html` 단일 진입점의 `탐색 -> DDN 편집 -> 실행` 3화면 구조로 재작성되었습니다.  
+> `playground.html`, `wasm_smoke.html` 및 비교/세션 오버레이 모듈은 제거되었습니다.
+> 아래 문서의 기존 AGE3 practical 상세는 일부 레거시 설명을 포함할 수 있으며, 최신 동선은 `index.html` 기준입니다.
+
 ## 사용
-- 로컬 브리지 실행: `python solutions/seamgrim_ui_mvp/tools/bridge_server.py`
-- 브라우저에서 `http://localhost:8787/` 접속 (또는 파일 직접 열고 브리지 URL 입력)
-- WASM 스모크 페이지: `http://localhost:8787/wasm_smoke.html`
+- 실행 서버 시작(단일 진입점): `python solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py`
+- 배포 바인딩 예시: `python solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py --host 0.0.0.0 --port 8787`
+- Docker 시작: `docker compose -f solutions/seamgrim_ui_mvp/deploy/docker-compose.yml up --build -d`
+- 브라우저에서 `http://localhost:8787/` 접속
+- UI는 교과/샘플 경로를 `/...`와 `/solutions/seamgrim_ui_mvp/...` 순서로 자동 폴백합니다(실행 서버/정적 루트 차이 완화).
+- 고급 Playground 바로 진입: `http://localhost:8787/?advanced=playground`
+- 고급 Smoke 바로 진입: `http://localhost:8787/?advanced=smoke`
 - AGE3 교과 스키마 게이트: `python tests/run_seamgrim_lesson_schema_gate.py`
 - AGE3 승격 완료까지 강제: `python tests/run_seamgrim_lesson_schema_gate.py --require-promoted`
 - AGE3 UI 게이트(R3-A/B/C 최소 기능): `python tests/run_seamgrim_ui_age3_gate.py`
@@ -60,9 +69,43 @@
 - 저장물 3종: graph/snapshot/session 내보내기/불러오기
 - 미디어 내보내기: WebM/GIF 녹화(그래프/2D/구조 캔버스)
 - 입력원 레지스트리: DDN/수식/lesson 입력원 요약 + 세션 저장/복원
-- 검증/인스펙터: DDN 메타, 해시/bridge_check, 스키마 요약
+- 검증/인스펙터: DDN 메타, 해시/run_server_check, 스키마 요약
 - 샘/거울 파일 로드(요약 카드)
 - 보개 확장: 그래프/2D/표/글/구조 뷰 로드 및 표시
+
+## 실용 모드(메인 UI)
+- 메인 `index.html`은 실용 모드로 운영합니다.
+- 기본 동선: `교과 선택 -> DDN 로드 -> WASM 자동 실행`
+- 시작 시 마지막 선택 교과를 자동 복원하고, 없으면 우선순위 교과를 자동 선택해 바로 실행합니다.
+- 교과 목록에서 practical 우선순위 최상단 후보는 `추천 1순위` 배지로 표시되며, 배지 클릭으로 즉시 실행할 수 있습니다.
+- 교과 탭 상단 `추천 실행 (Alt+R)` 버튼으로도 동일하게 추천 교과 즉시 실행이 가능합니다.
+- 실행/시간 탭의 `진자 데모 시작 (Alt+1)` 버튼으로 `physics_pendulum_seed_v1`를 즉시 실행할 수 있습니다.
+- 진자 데모 시작/프리셋 적용 시 그래프 축(x=0..t_max, y=±theta 범위)과 2D 카메라가 고정 범위로 자동 설정됩니다.
+- 실행/시간 탭의 `시나리오 다음 단계 (Alt+4)` 버튼으로 `기본 -> 줄 길이 증가 -> 중력 감소` 순서를 반복 적용할 수 있습니다.
+- 실행/시간 탭의 `시나리오 자동재생 시작 (Alt+5)` 버튼으로 단계 시연을 자동 순환할 수 있으며, 간격(ms)을 조절할 수 있습니다.
+- 실행/시간 탭의 `프리셋` 버튼(기본/줄 길이 증가/중력 감소)으로 진자 조종값을 즉시 바꿔 재실행할 수 있습니다.
+- 단축키 `Alt+R`로 현재 기준 추천 교과를 즉시 실행할 수 있습니다. (입력 필드 포커스 중에는 동작하지 않음)
+- 단축키 `Alt+1`로 진자 데모를 어디서든 즉시 시작할 수 있습니다. (입력 필드 포커스 중에는 동작하지 않음)
+- 단축키 `Alt+2`/`Alt+3`로 진자 프리셋(줄 길이 증가/중력 감소)을 빠르게 적용할 수 있습니다.
+- 단축키 `Alt+4`로 진자 시나리오 다음 단계를 빠르게 진행할 수 있습니다.
+- 단축키 `Alt+5`로 진자 시나리오 자동재생 시작/정지를 전환할 수 있습니다.
+- 단축키 `Ctrl+K`(macOS는 `Cmd+K`)로 교과 탭 검색창에 즉시 포커스할 수 있습니다.
+- 단축키 `Shift+방향키`와 `Shift++/-`로 그래프 pan/zoom을 키보드로 조작할 수 있습니다.
+- 단축키 `Ctrl+Shift+방향키`(macOS는 `Cmd+Shift+방향키`)와 `Ctrl+Shift++/-`(`Cmd+Shift++/-`)로 2D 보개 pan/zoom을 키보드로 조작할 수 있습니다.
+- 교과 필터(학년/과목/검색/상태/템플릿/Rewrite)는 브라우저 로컬 저장소에 자동 저장되어 재접속 시 복원됩니다.
+- 교과 탭 상단 `필터 초기화 (Esc)` 버튼 또는 `Esc` 단축키로 저장된 필터를 기본값으로 즉시 되돌릴 수 있습니다.
+- `?` 또는 `F1` 단축키(입력 필드 외), `단축키 (?/F1)` 버튼으로 practical 단축키 도움말 팝오버를 열고 닫을 수 있습니다.
+- 도움말 팝오버에는 최근 감지된 단축키와 감지 시각(HH:MM:SS)이 실시간으로 표시됩니다.
+- 도움말 팝오버에는 최근 감지 단축키 히스토리 5개가 최신순으로 표시됩니다.
+- 도움말 팝오버의 `초기화 (Shift+Esc)` 버튼 또는 `Shift+Esc` 단축키로 최근 감지 단축키/시각 표시를 `-`로 리셋할 수 있습니다.
+- `Ctrl`/`Cmd` 수정키 입력이 반복되는데 조합 단축키가 감지되지 않으면 도움말 하단에 `Ctrl/Cmd 미감지` 경고 배지가 표시됩니다.
+- `Ctrl/Cmd 미감지` 배지를 클릭하면 점검 가이드가 열리며 `Ctrl/Cmd+K`, `Ctrl/Cmd+Enter`, `Ctrl/Cmd+S`를 순서대로 테스트할 수 있습니다.
+- 점검 가이드는 각 단축키 테스트 결과를 자동으로 `대기/성공/실패` 상태와 시각으로 표시합니다.
+- 점검 가이드의 `전체 재점검` 버튼으로 3개 체크 상태를 `대기`로 일괄 초기화할 수 있습니다.
+- 브라우저/OS 기본 단축키가 우선되는 환경에서는 일부 단축키가 동작하지 않을 수 있습니다(도움말 팝오버에 안내 표시).
+- 단축키 도움말 팝오버의 열림/닫힘 상태도 로컬 저장소에 유지되어 재접속 시 복원됩니다.
+- 실행 탭과 상단 `고급 메뉴`에서 `Playground`/`Smoke`로 진입할 수 있습니다.
+- `playground.html`, `wasm_smoke.html`는 레거시 링크 호환용 리다이렉트 셸이며, 실제 동작은 모두 `index.html`에서 수행합니다.
 
 ## WASM 매핑
 WASM patch 모드에서 `set_resource_fixed64`와 `set_resource_value`를 UI에 직접 반영할 수 있습니다.
@@ -127,4 +170,6 @@ seamgrim.structure.v0=structure
 - 교과 탭의 “뷰 자동 이동” 토글로 로딩 후 뷰 전환을 제어합니다.
 
 ## 주의
-- 브리지 서버를 켜지 않으면 “DDN 실행”이 실패합니다. (로컬 미리보기는 사용하지 않습니다.)
+- 메인 `index.html`은 practical 모드에서 실행 서버 호출 없이 WASM 실행을 우선합니다.
+- 실행 서버 의존 기능(비교/내보내기/검증/고급 도구)은 `index.html` 고급 메뉴의 `Smoke` 모드에서 사용합니다.
+- 실행 서버 URL은 실행 탭(`run-server-url`)과 도구 탭(`bridge-url`) 입력이 자동 동기화되며, 브라우저 로컬 저장소에 유지됩니다.

@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.github.branch_protection.v1",
+  "branch": "main",
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "seamgrim-gate"
+    ]
+  },
+  "required_conversation_resolution": true
+}

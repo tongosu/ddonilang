@@ -1,0 +1,63 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c42_xunit_mismatch_over_series_missing_reverse_with_axis_unit_fallback",
+  "title": "x_unit 불일치 우선(역방향 + series_missing + axis_unit fallback)",
+  "baseline": {
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 2.82
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variant": {
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_unit": "cm",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.8
+            },
+            {
+              "x": 2.0,
+              "y": 4.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "overlay_ok": false,
+    "code": "mismatch_xUnit",
+    "reason_contains": "x축 unit"
+  }
+}

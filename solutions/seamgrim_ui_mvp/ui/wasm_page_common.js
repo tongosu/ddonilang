@@ -2285,17 +2285,40 @@ export function stepWasmClientParsed({
   if (!client || typeof client !== "object") {
     throw new Error(`${errorPrefix}: client가 필요합니다.`);
   }
-  if (typeof client.stepOneWithInputParsed !== "function") {
-    throw new Error(`${errorPrefix}: stepOneWithInputParsed API가 없습니다.`);
-  }
   const normalizedInput = normalizeWasmStepInput(input);
-  const state = client.stepOneWithInputParsed(
-    normalizedInput.keys,
-    normalizedInput.lastKey,
-    normalizedInput.px,
-    normalizedInput.py,
-    normalizedInput.dt,
-  );
+  const hasWithInput = typeof client.stepOneWithInputParsed === "function";
+  const hasStepOne = typeof client.stepOneParsed === "function";
+  if (!hasWithInput && !hasStepOne) {
+    throw new Error(`${errorPrefix}: stepOneWithInputParsed/stepOneParsed API가 없습니다.`);
+  }
+  if (hasWithInput) {
+    try {
+      const state = client.stepOneWithInputParsed(
+        normalizedInput.keys,
+        normalizedInput.lastKey,
+        normalizedInput.px,
+        normalizedInput.py,
+        normalizedInput.dt,
+      );
+      return { state, input: normalizedInput };
+    } catch (withInputErr) {
+      if (!hasStepOne) {
+        throw new Error(
+          `${errorPrefix}: stepOneWithInputParsed 실패 (${String(withInputErr?.message ?? withInputErr)})`,
+        );
+      }
+      const state = client.stepOneParsed();
+      return {
+        state,
+        input: normalizedInput,
+        fallback: {
+          mode: "step_one",
+          reason: String(withInputErr?.message ?? withInputErr),
+        },
+      };
+    }
+  }
+  const state = client.stepOneParsed();
   return { state, input: normalizedInput };
 }
 

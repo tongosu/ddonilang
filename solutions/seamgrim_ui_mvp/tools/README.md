@@ -14,25 +14,40 @@ DDN 출력(숫자 x/y 라인) → `seamgrim.graph.v0` JSON으로 변환합니다
 그래프 출력은 키 정렬/소수 4자리 반올림으로 결정성을 유지합니다.
 legacy `붙박이마련`/`그릇채비`/`채비` 블록은 실행 전 `이름 <- 값.` 대입으로 정규화해 파싱 실패를 줄입니다.
 
-## bridge_server.py
-UI에서 입력한 DDN을 **로컬에서 실행**하고 결과 그래프를 반환하는 브리지 서버입니다.
+## ddn_exec_server.py
+UI에서 입력한 DDN을 **서버에서 실행**하고 결과 그래프를 반환하는 DDN 실행 서버입니다.
 
 실행:
-- `python solutions/seamgrim_ui_mvp/tools/bridge_server.py`
+- `python solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py`
 - 브라우저에서 `http://localhost:8787/` 접속
+- 공개/배포 바인딩 예시: `python solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py --host 0.0.0.0 --port 8787`
+- 환경변수로도 지정 가능: `DDN_EXEC_SERVER_HOST`, `DDN_EXEC_SERVER_PORT`
+- 헬스체크: `GET /api/health` (또는 `/health`)
  - (옵션) `TEUL_CLI_WORKER=1` 설정 시 `teul-cli worker`(DetJson-RPC) 경로를 사용
 
-UI에서 “DDN 실행(브리지)” 버튼을 누르면 `/api/run`으로 전송되어 결과 그래프가 로드됩니다.
-수식/범위 패널의 “DDN 실행”은 수식/범위를 DDN으로 자동 생성해 브리지로 실행합니다.
-“로컬 미리보기”는 브리지 없이 JS로 계산한 결과를 그립니다.
+Docker 배포:
+- `docker compose -f solutions/seamgrim_ui_mvp/deploy/docker-compose.yml up --build -d`
+- 종료: `docker compose -f solutions/seamgrim_ui_mvp/deploy/docker-compose.yml down`
+- 로그: `docker compose -f solutions/seamgrim_ui_mvp/deploy/docker-compose.yml logs -f ddn-exec-server`
 
-## bridge_check.py
-브리지 서버 기동/응답을 자동 점검합니다.
+UI에서 “DDN 실행” 버튼을 누르면 `/api/run`으로 전송되어 결과 그래프가 로드됩니다.
+수식/범위 패널의 “DDN 실행”은 수식/범위를 DDN으로 자동 생성해 실행 서버로 실행합니다.
+“로컬 미리보기”는 서버 호출 없이 JS로 계산한 결과를 그립니다.
+
+## ddn_exec_server_check.py
+DDN 실행 서버 기동/응답을 자동 점검합니다.
 
 실행:
-- `python solutions/seamgrim_ui_mvp/tools/bridge_check.py`
+- `python solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py`
+- 대상 서버 지정: `python solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py --base-url http://server:8787`
 
-내부적으로 서버를 필요 시 기동하고 샘플 DDN을 `/api/run`에 요청합니다.
+기본(base-url이 localhost/127.0.0.1)에서는 서버를 필요 시 자동 기동하고 샘플 DDN을 `/api/run`에 요청합니다.
+원격 base-url을 지정하면 서버 자동 기동 없이 대상 서버 연결 상태만 점검합니다.
+점검 항목:
+- `/lessons/index.json`, `/seed_lessons_v1/seed_manifest.detjson`, `/lessons_rewrite_v1/rewrite_manifest.detjson` 접근/구조
+- 대표 lesson/seed/rewrite DDN 파일 접근 가능 여부
+- `ddonirang_tool_bg.wasm` 응답 MIME (`application/wasm`)
+- `/api/run` 실행 결과의 source/result hash 정합
 
 ## export_space2d.py
 

@@ -38,6 +38,7 @@ def main() -> int:
                 "seamgrim": {"ok": True, "failed_steps": []},
                 "age3": {"ok": True, "failed_criteria": []},
                 "age4": {"ok": True, "failed_criteria": []},
+                "age5": {"ok": True, "failed_criteria": []},
                 "oi405_406": {"ok": True, "failed_packs": []},
                 "failure_digest": [],
             },
@@ -73,6 +74,8 @@ def main() -> int:
             return fail(f"parse failed: out={parse.stdout} err={parse.stderr}")
         if "age4_failed=0" not in parse.stdout:
             return fail(f"parse compact line missing age4_failed: out={parse.stdout}")
+        if "age5_failed=0" not in parse.stdout:
+            return fail(f"parse compact line missing age5_failed: out={parse.stdout}")
 
         check = run_cmd(
             [
@@ -88,9 +91,9 @@ def main() -> int:
         if check.returncode != 0:
             return fail(f"check failed: out={check.stdout} err={check.stderr}")
 
-        # negative: age4 key dropped from status line must fail validation
+        # negative: age5 key dropped from status line must fail validation
         line = status_line.read_text(encoding="utf-8").strip()
-        broken_line = line.replace(" age4_failed_criteria=0", "")
+        broken_line = line.replace(" age5_failed_criteria=0", "")
         status_line.write_text(broken_line + "\n", encoding="utf-8")
         broken = run_cmd(
             [

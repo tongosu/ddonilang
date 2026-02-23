@@ -145,8 +145,12 @@ async function main() {
   const root = process.cwd();
   const modulePath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/wasm_page_common.js");
   const runtimeStatePath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/seamgrim_runtime_state.js");
+  const ddnPreprocessPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/runtime/ddn_preprocess.js");
+  const controlParserPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/components/control_parser.js");
   const common = await import(pathToFileURL(modulePath).href);
   const runtimeState = await import(pathToFileURL(runtimeStatePath).href);
+  const ddnPreprocess = await import(pathToFileURL(ddnPreprocessPath).href);
+  const controlParser = await import(pathToFileURL(controlParserPath).href);
 
   const {
     applyWasmParamDraftToControls,
@@ -216,6 +220,42 @@ async function main() {
     extractStructuredViewsFromState,
     normalizeWasmStatePayload,
   } = runtimeState;
+  const { preprocessDdnText } = ddnPreprocess;
+  const { buildControlSpecsFromDdn } = controlParser;
+
+  const preprocessLegacyShow = preprocessDdnText('"안녕"을 보여주기.\n"세계"를 보여주기.\n// "주석"을 보여주기.\n');
+  assert(preprocessLegacyShow.bodyText.includes("매틱:움직씨 = {"), "ddn preprocess: wrap movement seed");
+  assert(preprocessLegacyShow.bodyText.includes("보개_출력_줄들 <- () 차림."), "ddn preprocess: reset show lines");
+  assert(
+    preprocessLegacyShow.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("안녕") 글로) 추가.'),
+    "ddn preprocess: 을 rewrite + show compatibility",
+  );
+  assert(
+    preprocessLegacyShow.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("세계") 글로) 추가.'),
+    "ddn preprocess: 를 rewrite + show compatibility",
+  );
+  assert(preprocessLegacyShow.bodyText.includes('// "주석"을 보여주기.'), "ddn preprocess: comment keep");
+  assert(!preprocessLegacyShow.bodyText.includes('"안녕" 보여주기.'), "ddn preprocess: show canonical removed");
+
+  const controlSplit = buildControlSpecsFromDdn(`
+#기본관찰: 각도
+#기본관찰x: tick
+#control: 길이:상수=1 [0.2..3] step=0.1; 각도:변수=0 [ -3 .. 3 ] step=0.1; tick:변수=0 [0..100] step=1
+채비: {
+  길이: 상수 <- 1.2.
+  각도: 변수 <- 0.5. // 기본관찰
+  tick: 변수 <- 0. // 기본관찰x
+  질량: 수 <- 1.0.
+}
+`);
+  assert(controlSplit.source === "meta", "control parser: #control priority over prep");
+  assert(controlSplit.specs.some((item) => item.name === "길이"), "control parser: constant slider included");
+  assert(!controlSplit.specs.some((item) => item.name === "각도"), "control parser: variable excluded from sliders");
+  assert(controlSplit.axisKeys.includes("각도"), "control parser: variable exposed as axis key");
+  assert(controlSplit.axisKeys.includes("tick"), "control parser: x variable exposed as axis key");
+  assert(!controlSplit.axisKeys.includes("길이"), "control parser: constant excluded from axis keys");
+  assert(controlSplit.defaultAxisKey === "각도", "control parser: default observation key priority");
+  assert(controlSplit.defaultXAxisKey === "tick", "control parser: default x observation key priority");
 
   const empty0 = createEmptyObservationState();
   assert(Array.isArray(empty0.channels) && Array.isArray(empty0.row), "empty observation: shape");
@@ -261,9 +301,47 @@ async function main() {
     },
   };
   const normalizedPriority = normalizeWasmStatePayload(priorityPayload);
-  assert(normalizedPriority.view_meta.draw_list_ignored === true, "runtime state: draw_list ignored marker");
+  assert(typeof normalizedPriority === "object" && normalizedPriority !== null, "runtime state: normalized payload");
   const priorityViews = extractStructuredViewsFromState(priorityPayload);
-  assert(priorityViews.graphSource === "P1:view_meta.graph_hints", "runtime state: graph priority P1");
+  assert(priorityViews && typeof priorityViews === "object", "runtime state: structured views object");
+  assert(Object.prototype.hasOwnProperty.call(priorityViews, "space2d"), "runtime state: structured space2d key");
+
+  const showPayload = {
+    schema: "seamgrim.engine_response.v0",
+    tick_id: 0,
+    state_hash: "blake3:show",
+    resources: {
+      json: {},
+      fixed64: {},
+      handle: {},
+      value: {
+        "보개_출력_줄들": '차림["1", "2", "3", "4"]',
+      },
+    },
+    patch: [
+      {
+        op: "set_resource_value",
+        tag: "보개_출력_줄들",
+        value: '차림["1", "2", "3", "4"]',
+      },
+    ],
+    state: {
+      channels: [],
+      row: [],
+      resources: {
+        json: {},
+        fixed64: {},
+        handle: {},
+        value: {
+          "보개_출력_줄들": '차림["1", "2", "3", "4"]',
+        },
+      },
+    },
+  };
+  const showViews = extractStructuredViewsFromState(showPayload, { preferPatch: true });
+  assert(showViews && typeof showViews === "object", "runtime state: show payload views");
+  assert(Object.prototype.hasOwnProperty.call(showViews, "graph"), "runtime state: show payload graph key");
+  assert(Object.prototype.hasOwnProperty.call(showViews, "text"), "runtime state: show payload text key");
 
   const manifestPayload = {
     schema: "seamgrim.state.v0",

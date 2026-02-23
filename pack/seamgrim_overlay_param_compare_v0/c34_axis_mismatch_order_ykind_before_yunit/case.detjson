@@ -1,0 +1,64 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c34_axis_mismatch_order_ykind_before_yunit",
+  "title": "다중 축 불일치 시 y_kind 우선 차단",
+  "baseline": {
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 2.82
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variant": {
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "time",
+        "axis_y_unit": "ms"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2000.0
+            },
+            {
+              "x": 2.0,
+              "y": 2820.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "overlay_ok": false,
+    "code": "mismatch_yKind",
+    "reason_contains": "y축 kind"
+  }
+}

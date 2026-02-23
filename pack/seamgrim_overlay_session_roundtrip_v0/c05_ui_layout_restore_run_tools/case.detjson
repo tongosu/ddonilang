@@ -1,0 +1,33 @@
+{
+  "schema": "ddn.seamgrim.overlay_session_case.v1",
+  "case_id": "c05_ui_layout_restore_run_tools",
+  "title": "ui_layout run/advanced/tools/view-2d 복원",
+  "session_in": {
+    "schema": "seamgrim.session.v0",
+    "ui_layout": {
+      "screen_mode": "run",
+      "workspace_mode": "advanced",
+      "main_tab": "tools-tab",
+      "active_view": "view-2d"
+    },
+    "runs": [],
+    "compare": {
+      "enabled": false,
+      "baseline_id": null,
+      "variant_id": null
+    }
+  },
+  "expect": {
+    "enabled": false,
+    "baseline_id": null,
+    "variant_id": null,
+    "dropped_variant": false,
+    "drop_code": "",
+    "ui_layout": {
+      "screen_mode": "run",
+      "workspace_mode": "advanced",
+      "main_tab": "tools-tab",
+      "active_view": "view-2d"
+    }
+  }
+}

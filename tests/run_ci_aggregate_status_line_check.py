@@ -16,6 +16,7 @@ EXPECTED_KEYS = [
     "seamgrim_failed_steps",
     "age3_failed_criteria",
     "age4_failed_criteria",
+    "age5_failed_criteria",
     "oi_failed_packs",
     "report_path",
     "generated_at_utc",
@@ -88,7 +89,7 @@ def main() -> int:
         print("status-line overall_ok invalid", file=sys.stderr)
         return 1
 
-    for key in ("seamgrim_failed_steps", "age3_failed_criteria", "age4_failed_criteria", "oi_failed_packs"):
+    for key in ("seamgrim_failed_steps", "age3_failed_criteria", "age4_failed_criteria", "age5_failed_criteria", "oi_failed_packs"):
         try:
             int(parsed.get(key, "0"))
         except ValueError:
@@ -112,11 +113,13 @@ def main() -> int:
     seamgrim = report.get("seamgrim") if isinstance(report.get("seamgrim"), dict) else {}
     age3 = report.get("age3") if isinstance(report.get("age3"), dict) else {}
     age4 = report.get("age4") if isinstance(report.get("age4"), dict) else {}
+    age5 = report.get("age5") if isinstance(report.get("age5"), dict) else {}
     oi = report.get("oi405_406") if isinstance(report.get("oi405_406"), dict) else {}
     expected_counts = {
         "seamgrim_failed_steps": len(seamgrim.get("failed_steps", [])) if isinstance(seamgrim.get("failed_steps"), list) else 0,
         "age3_failed_criteria": len(age3.get("failed_criteria", [])) if isinstance(age3.get("failed_criteria"), list) else 0,
         "age4_failed_criteria": len(age4.get("failed_criteria", [])) if isinstance(age4.get("failed_criteria"), list) else 0,
+        "age5_failed_criteria": len(age5.get("failed_criteria", [])) if isinstance(age5.get("failed_criteria"), list) else 0,
         "oi_failed_packs": len(oi.get("failed_packs", [])) if isinstance(oi.get("failed_packs"), list) else 0,
     }
     for key, expected in expected_counts.items():
@@ -137,6 +140,7 @@ def main() -> int:
         f"seamgrim_failed={parsed.get('seamgrim_failed_steps')} "
         f"age3_failed={parsed.get('age3_failed_criteria')} "
         f"age4_failed={parsed.get('age4_failed_criteria')} "
+        f"age5_failed={parsed.get('age5_failed_criteria')} "
         f"oi_failed={parsed.get('oi_failed_packs')}"
     )
     return 0

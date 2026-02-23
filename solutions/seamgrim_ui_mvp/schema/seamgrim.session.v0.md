@@ -18,6 +18,11 @@
 - `time`: 시간 샘플링 설정
 - `view`: 표시 범위/뷰포트 설정
 - `view_combo`: 그래프+2D 레이아웃 설정
+- `ui_layout`: UI 레이아웃 상태(화면/탭 복원)
+  - `screen_mode`: `explore | run`
+  - `workspace_mode`: `basic | advanced`
+  - `main_tab`: `lesson-tab | ddn-tab | run-tab | tools-tab`
+  - `active_view`: `view-graph | view-2d | view-table | view-text | view-structure`
 - `table_view`: 표 표시 설정
 - `structure_view`: 구조 표시 설정
 - `view_meta`(선택): 뷰 힌트/레이아웃 메타 슬롯
@@ -33,3 +38,16 @@
   - `enabled`: 비교 모드 여부
   - `baseline_id`: 기준 run ID
   - `variant_id`: 비교 run ID
+  - 복원 검증 규칙:
+    - `runs[].compare_role`가 있으면 `compare.baseline_id/variant_id`보다 우선한다.
+    - `baseline_id == variant_id`인 경우 `variant`는 자동 해제한다.
+    - `graph_kind`, `x_kind`, `x_unit`, `y_kind`, `y_unit`, `series_id`가 baseline/variant에서 모두 같아야 비교를 유지한다.
+    - 불일치 시 variant는 비교쌍에서 해제되고(표시 OFF), UI 상태에 차단 사유를 노출한다.
+- `ui_layout` 복원 규칙:
+  - 미지정/잘못된 값은 기본값(`explore/basic/lesson-tab/view-graph`)으로 복원한다.
+  - `workspace_mode=advanced`일 때 `main_tab`은 `tools-tab`으로 고정된다.
+  - `workspace_mode=basic`일 때 `main_tab=tools-tab`은 `lesson-tab`으로 폴백된다.
+- `view_combo` 복원 규칙:
+  - 미지정/잘못된 값은 기본값(`enabled=false`, `layout=horizontal`, `overlay_order=graph`)으로 복원한다.
+  - `layout` 허용값: `horizontal | vertical | overlay`
+  - `overlay_order` 허용값: `graph | space2d`

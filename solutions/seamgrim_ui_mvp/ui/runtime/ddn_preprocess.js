@@ -7,6 +7,13 @@ const KNOWN_KINDS = new Set([
   "가져오기",
   "내보내기",
 ]);
+const SHOW_OBJECT_PARTICLE_RE = /^(\s*)(.+?)\s*[을를]\s+보여주기\.\s*(\/\/.*)?$/;
+const SHOW_STATEMENT_RE = /^(\s*)(.+?)\s+보여주기\.\s*(\/\/.*)?$/;
+const MOVEMENT_SEED_OPEN_RE = /^(\s*).+:\s*움직씨\s*=\s*\{\s*$/;
+const SHOW_OUTPUT_LINES_TAG = "보개_출력_줄들";
+const LEGACY_ON_START_RE = /^\s*\(시작\)할때\s*\{\s*$/;
+const LEGACY_ON_TICK_RE = /^\s*\(매마디\)마다\s*\{\s*$/;
+const MOVEMENT_SEED_ANY_RE = /:\s*움직씨\s*=\s*\{/;
 
 function normalizeText(text) {
   return String(text ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -117,10 +124,142 @@ export function preprocessDdnText(ddnText) {
     }
   });
 
+  const normalizedShow = rewriteShowObjectParticles(bodyLines.join("\n"));
+  const normalizedLifecycle = rewriteLegacyLifecycleBlocksForWasm(normalizedShow);
+  const bodyText = rewriteShowStatementsForWasm(normalizedLifecycle);
+
   return {
-    bodyText: bodyLines.join("\n"),
+    bodyText,
     pragmas,
     diags,
   };
 }
 
+function countBraceDelta(line) {
+  let delta = 0;
+  const src = String(line ?? "");
+  for (const ch of src) {
+    if (ch === "{") delta += 1;
+    if (ch === "}") delta -= 1;
+  }
+  return delta;
+}
+
+function findBlockCloseIndex(lines, openIndex) {
+  let depth = 0;
+  for (let i = openIndex; i < lines.length; i += 1) {
+    depth += countBraceDelta(lines[i]);
+    if (depth === 0 && i > openIndex) return i;
+  }
+  return -1;
+}
+
+function indentLines(lines, prefix) {
+  return lines.map((line) => `${prefix}${String(line ?? "").trimStart()}`);
+}
+
+function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
+  const lines = normalizeText(bodyText).split("\n");
+  if (lines.some((line) => MOVEMENT_SEED_ANY_RE.test(line))) {
+    return bodyText;
+  }
+
+  const startOpen = lines.findIndex((line) => LEGACY_ON_START_RE.test(line));
+  const tickOpen = lines.findIndex((line) => LEGACY_ON_TICK_RE.test(line));
+  if (tickOpen < 0) {
+    return bodyText;
+  }
+
+  const startClose = startOpen >= 0 ? findBlockCloseIndex(lines, startOpen) : -1;
+  const tickClose = findBlockCloseIndex(lines, tickOpen);
+  if (tickClose < 0 || (startOpen >= 0 && startClose < 0)) {
+    return bodyText;
+  }
+
+  const startRange = startOpen >= 0 ? [startOpen, startClose] : null;
+  const tickRange = [tickOpen, tickClose];
+  const isRemoved = (index) => {
+    if (startRange && index >= startRange[0] && index <= startRange[1]) return true;
+    if (index >= tickRange[0] && index <= tickRange[1]) return true;
+    return false;
+  };
+
+  const outerLines = lines.filter((_, index) => !isRemoved(index));
+  while (outerLines.length && !outerLines[outerLines.length - 1].trim()) {
+    outerLines.pop();
+  }
+
+  const startBody = startOpen >= 0 ? lines.slice(startOpen + 1, startClose) : [];
+  const tickBody = lines.slice(tickOpen + 1, tickClose);
+
+  const out = [];
+  out.push("매틱:움직씨 = {");
+  if (startOpen >= 0) {
+    out.push(...indentLines(outerLines, "    "));
+    out.push(...indentLines(startBody, "    "));
+  } else {
+    out.push(...indentLines(outerLines, "  "));
+  }
+  out.push(...indentLines(tickBody, "  "));
+  out.push("}.");
+
+  return out.join("\n");
+}
+
+function rewriteShowObjectParticles(bodyText) {
+  const lines = normalizeText(bodyText).split("\n");
+  const out = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("//")) return line;
+    const match = line.match(SHOW_OBJECT_PARTICLE_RE);
+    if (!match) return line;
+    const indent = match[1] ?? "";
+    const expr = String(match[2] ?? "").trimEnd();
+    const comment = String(match[3] ?? "").trim();
+    return `${indent}${expr} 보여주기.${comment ? ` ${comment}` : ""}`;
+  });
+  return out.join("\n");
+}
+
+function rewriteShowStatementsForWasm(bodyText) {
+  const lines = normalizeText(bodyText).split("\n");
+  let hasShow = false;
+  const rewritten = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("//")) return line;
+    const match = line.match(SHOW_STATEMENT_RE);
+    if (!match) return line;
+    hasShow = true;
+    const indent = match[1] ?? "";
+    const expr = String(match[2] ?? "").trimEnd();
+    const comment = String(match[3] ?? "").trim();
+    return `${indent}${SHOW_OUTPUT_LINES_TAG} <- (${SHOW_OUTPUT_LINES_TAG}, (${expr}) 글로) 추가.${comment ? ` ${comment}` : ""}`;
+  });
+  if (!hasShow) return rewritten.join("\n");
+
+  let insertedReset = false;
+  const withReset = [];
+  rewritten.forEach((line) => {
+    withReset.push(line);
+    if (insertedReset) return;
+    const open = line.match(MOVEMENT_SEED_OPEN_RE);
+    if (!open) return;
+    const indent = open[1] ?? "";
+    withReset.push(`${indent}  ${SHOW_OUTPUT_LINES_TAG} <- () 차림.`);
+    insertedReset = true;
+  });
+  if (insertedReset) return withReset.join("\n");
+
+  const wrapped = [];
+  wrapped.push("매틱:움직씨 = {");
+  wrapped.push(`  ${SHOW_OUTPUT_LINES_TAG} <- () 차림.`);
+  rewritten.forEach((line) => {
+    if (!line.trim()) {
+      wrapped.push("");
+      return;
+    }
+    wrapped.push(`  ${line}`);
+  });
+  wrapped.push("}.");
+  return wrapped.join("\n");
+}

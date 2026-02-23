@@ -1,0 +1,8 @@
+{"overlay_session_case":"c01_role_priority_restore_ok/case.detjson"}
+{"overlay_session_case":"c02_compare_id_fallback_when_role_missing/case.detjson"}
+{"overlay_session_case":"c03_drop_variant_on_axis_mismatch/case.detjson"}
+{"overlay_session_case":"c04_disable_on_baseline_missing/case.detjson"}
+{"overlay_session_case":"c05_ui_layout_restore_run_tools/case.detjson"}
+{"overlay_session_case":"c06_ui_layout_invalid_fallback/case.detjson"}
+{"overlay_session_case":"c07_ui_layout_view_combo_cross_restore/case.detjson"}
+{"overlay_session_case":"c08_ui_layout_view_combo_cross_fallback/case.detjson"}

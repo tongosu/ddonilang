@@ -442,10 +442,17 @@ def strip_bogae_scene_blocks(input_text: str) -> tuple[str, int]:
 def normalize_inline_statements(input_text: str) -> str:
     out: list[str] = []
     in_string = False
+    in_line_comment = False
     escape = False
     i = 0
     while i < len(input_text):
         ch = input_text[i]
+        if in_line_comment:
+            out.append(ch)
+            if ch == "\n":
+                in_line_comment = False
+            i += 1
+            continue
         if in_string:
             out.append(ch)
             if escape:
@@ -455,6 +462,12 @@ def normalize_inline_statements(input_text: str) -> str:
             elif ch == '"':
                 in_string = False
             i += 1
+            continue
+        if ch == "/" and i + 1 < len(input_text) and input_text[i + 1] == "/":
+            in_line_comment = True
+            out.append(ch)
+            out.append(input_text[i + 1])
+            i += 2
             continue
         if ch == '"':
             in_string = True
@@ -561,9 +574,103 @@ def normalize_int_cast(input_text: str) -> str:
     return re.sub(r"\)\s*정수로\.", ").", input_text)
 
 
+def rewrite_legacy_formula_assignments(input_text: str) -> str:
+    """legacy `a = (#ascii1) 수식{...}` 를 strict 대입(`<-)`으로 변환한다."""
+    lines = input_text.splitlines()
+    out: list[str] = []
+    pattern = re.compile(r"^(\s*[^=\n]+?)\s*=\s*(\(\s*#[^\)]+\)\s*수식\s*\{.*)$")
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+            out.append(line)
+            continue
+        match = pattern.match(line)
+        if not match:
+            out.append(line)
+            continue
+        lhs = match.group(1).rstrip()
+        rhs = match.group(2).lstrip()
+        if "<-" in lhs or "->" in lhs:
+            out.append(line)
+            continue
+        out.append(f"{lhs} <- {rhs}")
+    return "\n".join(out)
+
+
+def rewrite_legacy_boim_blocks(input_text: str) -> str:
+    """legacy `보임 { key: expr. }.` 블록을 `expr 보여주기.` 목록으로 변환한다."""
+    lines = input_text.splitlines()
+    out: list[str] = []
+    idx = 0
+    header = re.compile(r"^(\s*)보임\s*\{\s*$")
+    item = re.compile(r"^[^:]+:\s*(.+)\.\s*$")
+    while idx < len(lines):
+        line = lines[idx]
+        match = header.match(line)
+        if not match:
+            out.append(line)
+            idx += 1
+            continue
+
+        indent = match.group(1)
+        cursor = idx + 1
+        emits: list[str] = []
+        convertible = True
+        closed = False
+        while cursor < len(lines):
+            raw = lines[cursor]
+            stripped = raw.strip()
+            if stripped in ("}.", "}"):
+                closed = True
+                break
+            if not stripped or stripped.startswith("//"):
+                cursor += 1
+                continue
+            row = item.match(stripped)
+            if not row:
+                convertible = False
+                break
+            expr = row.group(1).strip()
+            emits.append(f"{indent}  {expr} 보여주기.")
+            cursor += 1
+
+        if not closed or not convertible:
+            out.append(line)
+            idx += 1
+            continue
+
+        out.extend(emits)
+        idx = cursor + 1
+    return "\n".join(out)
+
+
+def rewrite_show_object_particle(input_text: str) -> str:
+    """`...을 보여주기.` / `...를 보여주기.` 를 `... 보여주기.` 로 정규화한다."""
+    lines = input_text.splitlines()
+    out: list[str] = []
+    pattern = re.compile(r"^(\s*)(.+?)\s*[을를]\s+보여주기\.\s*(//.*)?$")
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+            out.append(line)
+            continue
+        match = pattern.match(line)
+        if not match:
+            out.append(line)
+            continue
+        indent = match.group(1) or ""
+        expr = (match.group(2) or "").rstrip()
+        comment = (match.group(3) or "").strip()
+        out.append(f"{indent}{expr} 보여주기.{(' ' + comment) if comment else ''}")
+    return "\n".join(out)
+
+
 def preprocess_ddn_for_teul(input_text: str, strip_draw: bool = True) -> str:
     text, _ = strip_bogae_scene_blocks(input_text)
     text = flatten_storage_blocks(text)
+    text = rewrite_legacy_formula_assignments(text)
+    text = rewrite_legacy_boim_blocks(text)
+    text = rewrite_show_object_particle(text)
     text = normalize_inline_calls(text)
     text = normalize_pow_half(text)
     if strip_draw:

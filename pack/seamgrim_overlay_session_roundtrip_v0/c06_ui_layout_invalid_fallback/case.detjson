@@ -1,0 +1,33 @@
+{
+  "schema": "ddn.seamgrim.overlay_session_case.v1",
+  "case_id": "c06_ui_layout_invalid_fallback",
+  "title": "ui_layout 비정상값 기본 폴백",
+  "session_in": {
+    "schema": "seamgrim.session.v0",
+    "ui_layout": {
+      "screen_mode": "unknown",
+      "workspace_mode": "basic",
+      "main_tab": "tools-tab",
+      "active_view": "view-unknown"
+    },
+    "runs": [],
+    "compare": {
+      "enabled": false,
+      "baseline_id": null,
+      "variant_id": null
+    }
+  },
+  "expect": {
+    "enabled": false,
+    "baseline_id": null,
+    "variant_id": null,
+    "dropped_variant": false,
+    "drop_code": "",
+    "ui_layout": {
+      "screen_mode": "explore",
+      "workspace_mode": "basic",
+      "main_tab": "lesson-tab",
+      "active_view": "view-graph"
+    }
+  }
+}

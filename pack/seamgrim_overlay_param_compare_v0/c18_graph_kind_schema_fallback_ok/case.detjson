@@ -1,0 +1,61 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c18_graph_kind_schema_fallback_ok",
+  "title": "graph.schema fallback 정규화 동등 허용",
+  "baseline": {
+    "graph": {
+      "schema": " seamgrim.graph.v0 ",
+      "meta": {
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 2.82
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variant": {
+    "graph": {
+      "schema": "SEAMGRIM.GRAPH.V0",
+      "meta": {
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.8
+            },
+            {
+              "x": 2.0,
+              "y": 4.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "overlay_ok": true,
+    "code": "ok"
+  }
+}

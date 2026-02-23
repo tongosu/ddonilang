@@ -53,6 +53,7 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / DIALECT_SMOKE_PACK,
         pack_root / DIALECT_BUILTIN_EQUIV_PACK,
         pack_root / "lang_range_literal_v0",
+        pack_root / "lang_regex_literal_v1",
         pack_root / "gogae8_w81_reward_v1",
         pack_root / "gogae8_w82_seulgi_train_v2",
         pack_root / "gogae8_w83_edu_accuracy_v1",
@@ -69,6 +70,8 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "seamgrim_curriculum_batch_smoke_v1",
         pack_root / "seamgrim_curriculum_rewrite_sample_smoke_v1",
         pack_root / "seamgrim_state_hash_view_boundary_smoke_v1",
+        pack_root / "seamgrim_overlay_param_compare_v0",
+        pack_root / "seamgrim_overlay_session_roundtrip_v0",
         pack_root / "bogae_api_catalog_v1_basic",
         pack_root / "bogae_api_catalog_v1_graph",
         pack_root / "bogae_api_catalog_v1_game_hud",
@@ -118,9 +121,17 @@ def load_cases(pack_dir: Path) -> list[dict]:
         )
         has_graph_expectation = "fixture" in data and "expected_graph" in data
         has_dotbogi_expectation = "dotbogi_case" in data
-        if not has_core_expectation and not has_graph_expectation and not has_dotbogi_expectation:
+        has_overlay_compare_expectation = "overlay_compare_case" in data
+        has_overlay_session_expectation = "overlay_session_case" in data
+        if (
+            not has_core_expectation
+            and not has_graph_expectation
+            and not has_dotbogi_expectation
+            and not has_overlay_compare_expectation
+            and not has_overlay_session_expectation
+        ):
             raise ValueError(
-                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, smoke_golden, fixture/expected_graph, or dotbogi_case"
+                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, smoke_golden, fixture/expected_graph, dotbogi_case, overlay_compare_case, or overlay_session_case"
             )
         if "stdout" in data and not isinstance(data["stdout"], list):
             raise ValueError(f"{golden_path} line {idx}: stdout must be a list")
@@ -148,6 +159,10 @@ def load_cases(pack_dir: Path) -> list[dict]:
             raise ValueError(f"{golden_path} line {idx}: expected_graph must be a string")
         if "dotbogi_case" in data and not isinstance(data["dotbogi_case"], str):
             raise ValueError(f"{golden_path} line {idx}: dotbogi_case must be a string")
+        if "overlay_compare_case" in data and not isinstance(data["overlay_compare_case"], str):
+            raise ValueError(f"{golden_path} line {idx}: overlay_compare_case must be a string")
+        if "overlay_session_case" in data and not isinstance(data["overlay_session_case"], str):
+            raise ValueError(f"{golden_path} line {idx}: overlay_session_case must be a string")
         if "expected_dotbogi_output" in data and not isinstance(data["expected_dotbogi_output"], str):
             raise ValueError(f"{golden_path} line {idx}: expected_dotbogi_output must be a string")
         if "expected_view_meta_hash" in data and not isinstance(data["expected_view_meta_hash"], str):
@@ -168,6 +183,8 @@ def load_cases(pack_dir: Path) -> list[dict]:
         validate_run_case_contract(golden_path, idx, data)
         validate_eco_case_contract(pack_dir, golden_path, idx, data)
         validate_dotbogi_case_contract(pack_dir, golden_path, idx, data)
+        validate_overlay_compare_case_contract(pack_dir, golden_path, idx, data)
+        validate_overlay_session_case_contract(pack_dir, golden_path, idx, data)
         cases.append(data)
     return cases
 
@@ -176,11 +193,17 @@ def validate_case_mode_exclusivity(golden_path: Path, line_no: int, data: dict) 
     has_smoke = isinstance(data.get("smoke_golden"), str) and bool(str(data.get("smoke_golden")).strip())
     has_dotbogi = isinstance(data.get("dotbogi_case"), str) and bool(str(data.get("dotbogi_case")).strip())
     has_graph = ("fixture" in data) or ("expected_graph" in data)
+    has_overlay_compare = isinstance(data.get("overlay_compare_case"), str) and bool(
+        str(data.get("overlay_compare_case")).strip()
+    )
+    has_overlay_session = isinstance(data.get("overlay_session_case"), str) and bool(
+        str(data.get("overlay_session_case")).strip()
+    )
 
-    mode_count = int(has_smoke) + int(has_dotbogi) + int(has_graph)
+    mode_count = int(has_smoke) + int(has_dotbogi) + int(has_graph) + int(has_overlay_compare) + int(has_overlay_session)
     if mode_count > 1:
         raise ValueError(
-            f"{golden_path} line {line_no}: smoke_golden, dotbogi_case, fixture/expected_graph modes are mutually exclusive"
+            f"{golden_path} line {line_no}: smoke_golden, dotbogi_case, fixture/expected_graph, overlay_compare_case, overlay_session_case modes are mutually exclusive"
         )
 
     if has_smoke:
@@ -202,10 +225,24 @@ def validate_case_mode_exclusivity(golden_path: Path, line_no: int, data: dict) 
             raise ValueError(
                 f"{golden_path} line {line_no}: graph case requires both fixture and expected_graph"
             )
-        for key in ("smoke_golden", "dotbogi_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+        for key in ("smoke_golden", "dotbogi_case", "overlay_compare_case", "overlay_session_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
             if key in data:
                 raise ValueError(
                     f"{golden_path} line {line_no}: graph case must not define '{key}'"
+                )
+
+    if has_overlay_compare:
+        for key in ("smoke_golden", "dotbogi_case", "fixture", "expected_graph", "overlay_session_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+            if key in data:
+                raise ValueError(
+                    f"{golden_path} line {line_no}: overlay_compare_case must not define '{key}'"
+                )
+
+    if has_overlay_session:
+        for key in ("smoke_golden", "dotbogi_case", "fixture", "expected_graph", "overlay_compare_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+            if key in data:
+                raise ValueError(
+                    f"{golden_path} line {line_no}: overlay_session_case must not define '{key}'"
                 )
 
 
@@ -381,6 +418,66 @@ def validate_dotbogi_case_contract(pack_dir: Path, golden_path: Path, line_no: i
         raise ValueError(
             f"{golden_path} line {line_no}: expected_after_state_hash requires expected_after_state"
         )
+
+
+def validate_overlay_compare_case_contract(pack_dir: Path, golden_path: Path, line_no: int, data: dict) -> None:
+    if "overlay_compare_case" not in data:
+        return
+    rel = data.get("overlay_compare_case")
+    if not isinstance(rel, str) or not rel.strip():
+        raise ValueError(f"{golden_path} line {line_no}: overlay_compare_case must be non-empty string")
+    if "exit_code" in data and int(data.get("exit_code", 0)) != 0:
+        raise ValueError(f"{golden_path} line {line_no}: overlay_compare_case supports exit_code=0 only")
+
+
+def validate_overlay_session_case_contract(pack_dir: Path, golden_path: Path, line_no: int, data: dict) -> None:
+    if "overlay_session_case" not in data:
+        return
+    rel = data.get("overlay_session_case")
+    if not isinstance(rel, str) or not rel.strip():
+        raise ValueError(f"{golden_path} line {line_no}: overlay_session_case must be non-empty string")
+    if "exit_code" in data and int(data.get("exit_code", 0)) != 0:
+        raise ValueError(f"{golden_path} line {line_no}: overlay_session_case supports exit_code=0 only")
+    case_path = (pack_dir / rel).resolve()
+    if not case_path.exists():
+        raise ValueError(f"{golden_path} line {line_no}: overlay_session_case file not found: {rel}")
+    try:
+        case_doc = json.loads(case_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{golden_path} line {line_no}: overlay_session_case JSON parse failed: {rel}: {exc}") from exc
+    if not isinstance(case_doc, dict):
+        raise ValueError(f"{golden_path} line {line_no}: overlay_session_case doc must be object: {rel}")
+    if str(case_doc.get("schema", "")) != "ddn.seamgrim.overlay_session_case.v1":
+        raise ValueError(
+            f"{golden_path} line {line_no}: overlay_session_case schema must be ddn.seamgrim.overlay_session_case.v1: {rel}"
+        )
+    expect = case_doc.get("expect")
+    if not isinstance(expect, dict):
+        raise ValueError(f"{golden_path} line {line_no}: overlay_session_case expect must be object: {rel}")
+    expected_view_combo = expect.get("view_combo")
+    if expected_view_combo is not None:
+        if not isinstance(expected_view_combo, dict):
+            raise ValueError(f"{golden_path} line {line_no}: expect.view_combo must be object: {rel}")
+        if "enabled" not in expected_view_combo:
+            raise ValueError(f"{golden_path} line {line_no}: expect.view_combo.enabled is required: {rel}")
+        if not isinstance(expected_view_combo.get("enabled"), bool):
+            raise ValueError(f"{golden_path} line {line_no}: expect.view_combo.enabled must be bool: {rel}")
+        layout = expected_view_combo.get("layout")
+        if not isinstance(layout, str) or not layout:
+            raise ValueError(f"{golden_path} line {line_no}: expect.view_combo.layout must be non-empty string: {rel}")
+        if layout not in {"horizontal", "vertical", "overlay"}:
+            raise ValueError(
+                f"{golden_path} line {line_no}: expect.view_combo.layout must be one of horizontal|vertical|overlay: {rel}"
+            )
+        overlay_order = expected_view_combo.get("overlay_order")
+        if not isinstance(overlay_order, str) or not overlay_order:
+            raise ValueError(
+                f"{golden_path} line {line_no}: expect.view_combo.overlay_order must be non-empty string: {rel}"
+            )
+        if overlay_order not in {"graph", "space2d"}:
+            raise ValueError(
+                f"{golden_path} line {line_no}: expect.view_combo.overlay_order must be one of graph|space2d: {rel}"
+            )
 
 
 def parse_age_target_rank(text: str | None) -> int:
@@ -941,6 +1038,225 @@ def run_dotbogi_case(
     )
 
 
+def run_overlay_compare_case(
+    root: Path,
+    pack_dir: Path,
+    case_idx: int,
+    case: dict,
+) -> tuple[bool, list[str], list[str], str, dict]:
+    rel = str(case.get("overlay_compare_case", "")).strip()
+    if not rel:
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: overlay_compare_case must be non-empty string")
+    case_path = (pack_dir / rel).resolve()
+    if not case_path.exists():
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: overlay_compare_case not found: {rel}")
+
+    runner = root / "tests" / "seamgrim_overlay_compare_pack_runner.mjs"
+    report_path = pack_dir / f".tmp_overlay_compare_case_{case_idx}.report.detjson"
+    report_path.unlink(missing_ok=True)
+    cmd = [
+        "node",
+        "--no-warnings",
+        str(runner),
+        "--pack-root",
+        str(pack_dir),
+        "--case-file",
+        rel,
+        "--json-out",
+        str(report_path),
+        "--quiet",
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    stderr_lines = [
+        normalize_stderr_line(line, root)
+        for line in result.stderr.splitlines()
+        if line.strip()
+    ]
+    stdout_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    report_doc = None
+    if report_path.exists():
+        try:
+            report_doc = json.loads(report_path.read_text(encoding="utf-8"))
+        except Exception:
+            report_doc = None
+        report_path.unlink(missing_ok=True)
+
+    if not isinstance(report_doc, dict):
+        expected = ["overlay_compare runner report json"]
+        got = [f"exit_code={result.returncode}"]
+        return (
+            False,
+            expected,
+            got,
+            "\n".join(stderr_lines + stdout_lines),
+            {
+                "stdout_lines": stdout_lines,
+                "stderr_lines": stderr_lines,
+                "exit_code": result.returncode,
+                "actual_meta": None,
+            },
+        )
+
+    rows = report_doc.get("cases")
+    row = rows[0] if isinstance(rows, list) and rows else {}
+    actual = row.get("actual") if isinstance(row, dict) else {}
+    expected_ok = bool(row.get("expected_ok", False)) if isinstance(row, dict) else False
+    expected_code = str(row.get("expected_code", "") or "-") if isinstance(row, dict) else "-"
+    reason_contains = str(row.get("reason_contains", "") or "") if isinstance(row, dict) else ""
+    actual_ok = bool(actual.get("ok", False)) if isinstance(actual, dict) else False
+    actual_code = str(actual.get("code", "") or "-") if isinstance(actual, dict) else "-"
+    actual_reason = str(actual.get("reason", "") or "") if isinstance(actual, dict) else ""
+
+    expected_lines = [
+        f"overlay_ok={int(expected_ok)}",
+        f"overlay_code={expected_code}",
+    ]
+    got_lines = [
+        f"overlay_ok={int(actual_ok)}",
+        f"overlay_code={actual_code}",
+    ]
+    if reason_contains:
+        expected_lines.append(f"reason_contains={reason_contains}")
+        got_lines.append(f"reason={actual_reason}")
+
+    ok = result.returncode == 0 and bool(report_doc.get("ok", False)) and bool(row.get("ok", False))
+    return (
+        ok,
+        expected_lines,
+        got_lines,
+        "\n".join(stderr_lines + stdout_lines),
+        {
+            "stdout_lines": got_lines,
+            "stderr_lines": stderr_lines,
+            "exit_code": result.returncode,
+            "actual_meta": None,
+            "overlay_compare_case_report": report_doc,
+            "overlay_compare_case_path": str(case_path),
+        },
+    )
+
+
+def run_overlay_session_case(
+    root: Path,
+    pack_dir: Path,
+    case_idx: int,
+    case: dict,
+) -> tuple[bool, list[str], list[str], str, dict]:
+    rel = str(case.get("overlay_session_case", "")).strip()
+    if not rel:
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: overlay_session_case must be non-empty string")
+    case_path = (pack_dir / rel).resolve()
+    if not case_path.exists():
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: overlay_session_case not found: {rel}")
+
+    runner = root / "tests" / "seamgrim_overlay_session_pack_runner.mjs"
+    report_path = pack_dir / f".tmp_overlay_session_case_{case_idx}.report.detjson"
+    report_path.unlink(missing_ok=True)
+    cmd = [
+        "node",
+        "--no-warnings",
+        str(runner),
+        "--pack-root",
+        str(pack_dir),
+        "--case-file",
+        rel,
+        "--json-out",
+        str(report_path),
+        "--quiet",
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    stderr_lines = [
+        normalize_stderr_line(line, root)
+        for line in result.stderr.splitlines()
+        if line.strip()
+    ]
+    stdout_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    report_doc = None
+    if report_path.exists():
+        try:
+            report_doc = json.loads(report_path.read_text(encoding="utf-8"))
+        except Exception:
+            report_doc = None
+        report_path.unlink(missing_ok=True)
+
+    if not isinstance(report_doc, dict):
+        expected = ["overlay_session runner report json"]
+        got = [f"exit_code={result.returncode}"]
+        return (
+            False,
+            expected,
+            got,
+            "\n".join(stderr_lines + stdout_lines),
+            {
+                "stdout_lines": stdout_lines,
+                "stderr_lines": stderr_lines,
+                "exit_code": result.returncode,
+                "actual_meta": None,
+            },
+        )
+
+    rows = report_doc.get("cases")
+    row = rows[0] if isinstance(rows, list) and rows else {}
+    expected_obj = row.get("expected") if isinstance(row, dict) else {}
+    actual_obj = row.get("actual") if isinstance(row, dict) else {}
+    expected_enabled = int(bool(expected_obj.get("enabled", False))) if isinstance(expected_obj, dict) else 0
+    expected_baseline = str(expected_obj.get("baselineId", "-") or "-") if isinstance(expected_obj, dict) else "-"
+    expected_variant = str(expected_obj.get("variantId", "-") or "-") if isinstance(expected_obj, dict) else "-"
+    expected_drop_code = str(expected_obj.get("dropCode", "-") or "-") if isinstance(expected_obj, dict) else "-"
+    actual_enabled = int(bool(actual_obj.get("enabled", False))) if isinstance(actual_obj, dict) else 0
+    actual_baseline = str(actual_obj.get("baselineId", "-") or "-") if isinstance(actual_obj, dict) else "-"
+    actual_variant = str(actual_obj.get("variantId", "-") or "-") if isinstance(actual_obj, dict) else "-"
+    actual_drop_code = str(actual_obj.get("dropCode", "-") or "-") if isinstance(actual_obj, dict) else "-"
+    actual_reason = str(actual_obj.get("blockReason", "") or "") if isinstance(actual_obj, dict) else ""
+
+    expected_lines = [
+        f"enabled={expected_enabled}",
+        f"baseline_id={expected_baseline}",
+        f"variant_id={expected_variant}",
+        f"drop_code={expected_drop_code}",
+    ]
+    got_lines = [
+        f"enabled={actual_enabled}",
+        f"baseline_id={actual_baseline}",
+        f"variant_id={actual_variant}",
+        f"drop_code={actual_drop_code}",
+    ]
+    if actual_reason:
+        got_lines.append(f"block_reason={actual_reason}")
+
+    ok = result.returncode == 0 and bool(report_doc.get("ok", False)) and bool(row.get("ok", False))
+    return (
+        ok,
+        expected_lines,
+        got_lines,
+        "\n".join(stderr_lines + stdout_lines),
+        {
+            "stdout_lines": got_lines,
+            "stderr_lines": stderr_lines,
+            "exit_code": result.returncode,
+            "actual_meta": None,
+            "overlay_session_case_report": report_doc,
+            "overlay_session_case_path": str(case_path),
+        },
+    )
+
+
 def run_graph_autorender_case(
     root: Path,
     pack_dir: Path,
@@ -1022,6 +1338,12 @@ def run_case(
     dotbogi_case = case.get("dotbogi_case")
     if isinstance(dotbogi_case, str) and dotbogi_case.strip():
         return run_dotbogi_case(root, manifest, pack_dir, case_idx, case)
+    overlay_compare_case = case.get("overlay_compare_case")
+    if isinstance(overlay_compare_case, str) and overlay_compare_case.strip():
+        return run_overlay_compare_case(root, pack_dir, case_idx, case)
+    overlay_session_case = case.get("overlay_session_case")
+    if isinstance(overlay_session_case, str) and overlay_session_case.strip():
+        return run_overlay_session_case(root, pack_dir, case_idx, case)
     if "fixture" in case and "expected_graph" in case:
         return run_graph_autorender_case(root, pack_dir, case_idx, case)
 

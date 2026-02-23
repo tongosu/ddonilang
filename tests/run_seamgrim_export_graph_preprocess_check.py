@@ -74,12 +74,27 @@ def test_preprocess_problem_pack(module, root: Path) -> None:
         raise AssertionError("draw block lines not stripped")
 
 
+def test_rewrite_show_object_particle(module) -> None:
+    source = """
+"안녕"을 보여주기.
+"세계"를 보여주기.
+// "주석"을 보여주기.
+"""
+    out = module.preprocess_ddn_for_teul(source, strip_draw=False)
+    assert_contains_line(out, r'^\s*"안녕" 보여주기\.\s*$', "show particle 을 rewrite")
+    assert_contains_line(out, r'^\s*"세계" 보여주기\.\s*$', "show particle 를 rewrite")
+    assert_contains_line(out, r'^\s*// "주석"을 보여주기\.\s*$', "comment line keep")
+    if '"안녕"을 보여주기.' in out or '"세계"를 보여주기.' in out:
+        raise AssertionError("show particle token left")
+
+
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
     try:
         module = load_export_graph_module(root)
         test_flatten_storage_blocks(module)
         test_preprocess_problem_pack(module, root)
+        test_rewrite_show_object_particle(module)
     except Exception as exc:
         return fail(f"seamgrim export_graph preprocess check failed: {exc}")
     print("seamgrim export_graph preprocess check ok")

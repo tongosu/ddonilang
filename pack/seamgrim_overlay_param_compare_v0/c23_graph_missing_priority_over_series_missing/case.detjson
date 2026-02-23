@@ -1,0 +1,37 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c23_graph_missing_priority_over_series_missing",
+  "title": "graph_missing 우선 차단( series_missing 혼합 )",
+  "baseline": {
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 2.82
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variant": {},
+  "expect": {
+    "overlay_ok": false,
+    "code": "graph_missing",
+    "reason_contains": "그래프 데이터"
+  }
+}

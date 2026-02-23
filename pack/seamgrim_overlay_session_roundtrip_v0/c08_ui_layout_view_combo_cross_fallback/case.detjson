@@ -1,0 +1,43 @@
+{
+  "schema": "ddn.seamgrim.overlay_session_case.v1",
+  "case_id": "c08_ui_layout_view_combo_cross_fallback",
+  "title": "ui_layout + view_combo 교차 비정상값 폴백",
+  "session_in": {
+    "schema": "seamgrim.session.v0",
+    "ui_layout": {
+      "screen_mode": "run",
+      "workspace_mode": "advanced",
+      "main_tab": "ddn-tab",
+      "active_view": "view-unknown"
+    },
+    "view_combo": {
+      "enabled": true,
+      "layout": "diagonal",
+      "overlay_order": "backward"
+    },
+    "runs": [],
+    "compare": {
+      "enabled": false,
+      "baseline_id": null,
+      "variant_id": null
+    }
+  },
+  "expect": {
+    "enabled": false,
+    "baseline_id": null,
+    "variant_id": null,
+    "dropped_variant": false,
+    "drop_code": "",
+    "ui_layout": {
+      "screen_mode": "run",
+      "workspace_mode": "advanced",
+      "main_tab": "tools-tab",
+      "active_view": "view-graph"
+    },
+    "view_combo": {
+      "enabled": true,
+      "layout": "horizontal",
+      "overlay_order": "graph"
+    }
+  }
+}

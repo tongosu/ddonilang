@@ -1,884 +1,181 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="data:," />
-  <title>Seamgrim UI MVP</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="page">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark">SG</div>
-        <div class="brand-text">
-          <div class="title">Seamgrim UI MVP</div>
-          <div class="subtitle">DDN-first · 교과 연계 · View Dock</div>
-        </div>
-      </div>
-      <div class="topbar-right">
-        <div class="screen-mode" role="tablist" aria-label="화면 모드">
-          <button id="screen-mode-explore" class="screen-mode-btn active" type="button">탐색 화면</button>
-          <button id="screen-mode-run" class="screen-mode-btn" type="button">실행 화면</button>
-        </div>
-        <div class="status">
-          <span id="input-hash">input_hash: -</span>
-          <span id="result-hash">result_hash: -</span>
-          <span id="run-status">run: -</span>
-        </div>
-        <div class="age-slot-group" aria-label="AGE5 slots">
-          <button class="age-slot" type="button" disabled title="AGE5에서 활성화">A 실시간 입력</button>
-          <button class="age-slot" type="button" disabled title="AGE5에서 활성화">B 꾸러미 브라우저</button>
-          <button class="age-slot" type="button" disabled title="AGE5에서 활성화">C 3D 렌더</button>
-        </div>
-      </div>
-    </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>셈그림</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="screen-browse" class="screen">
+        <header class="topbar">
+          <span class="brand">셈그림</span>
+          <button id="btn-advanced-browse" class="ghost" type="button">⚙</button>
+        </header>
 
-    <main id="main-layout" class="layout layout-split layout-explore">
-      <section class="panel tabs-panel">
-        <h2>입력/관리</h2>
-        <div class="workspace-mode" role="tablist" aria-label="작업 모드">
-          <button id="workspace-mode-basic" class="mode-tab active" type="button">기본</button>
-          <button id="workspace-mode-advanced" class="mode-tab" type="button">고급</button>
+        <div class="browse-tabs">
+          <button class="browse-tab active" data-tab="official" type="button">★ 공식 교과</button>
+          <button class="browse-tab" data-tab="search" type="button">🔍 검색</button>
+          <button class="browse-tab" type="button" disabled title="AGE5">커뮤니티</button>
+          <button id="btn-create" class="btn-primary" type="button">+ 만들기</button>
         </div>
-        <div class="tab-group main-tabs">
-          <div class="tabs">
-            <button class="tab active" data-tab="lesson-tab">교과</button>
-            <button class="tab" data-tab="ddn-tab">DDN</button>
-            <button class="tab" data-tab="run-tab">실행/시간</button>
-            <button class="tab" data-tab="tools-tab">도구</button>
+
+        <div class="browse-filters">
+          <select id="filter-grade">
+            <option value="">학년: 전체</option>
+          </select>
+          <select id="filter-subject">
+            <option value="">과목: 전체</option>
+          </select>
+          <select id="filter-run-status">
+            <option value="">최근 실행: 전체</option>
+            <option value="success">최근 실행: 성공</option>
+            <option value="error">최근 실행: 실패</option>
+            <option value="none">최근 실행: 미실행</option>
+          </select>
+          <select id="filter-sort">
+            <option value="recent">정렬: 최근 실행순</option>
+            <option value="default">정렬: 기본</option>
+          </select>
+          <input id="filter-query" type="text" placeholder="검색어 입력..." />
+        </div>
+
+        <div id="lesson-card-grid" class="card-grid"></div>
+      </section>
+
+      <section id="screen-editor" class="screen hidden">
+        <header class="topbar">
+          <button id="btn-back-to-browse" class="ghost" type="button">← 탐색</button>
+          <span class="screen-title" id="editor-title">DDN 편집</span>
+          <div class="editor-actions">
+            <button id="btn-run-from-editor" class="btn-primary" type="button">▶ 실행</button>
+            <button id="btn-save-ddn" class="ghost" type="button">↓ 저장</button>
+            <button id="btn-advanced-editor" class="ghost" type="button">⚙</button>
           </div>
+        </header>
 
-          <!-- 탭1: 교과 -->
-          <div class="tab-body" id="lesson-tab">
-            <div class="lesson-grid">
-              <div class="lesson-filters">
-                <label class="field">
-                  <span>학년</span>
-                  <select id="lesson-grade-filter">
-                    <option value="all" selected>전체</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>과목</span>
-                  <select id="lesson-subject-filter">
-                    <option value="all" selected>전체</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>검색</span>
-                  <input id="lesson-search" type="text" placeholder="교과/설명 검색" />
-                </label>
-                <label class="field">
-                  <span>DDN 상태</span>
-                  <select id="lesson-schema-filter">
-                    <option value="all" selected>전체</option>
-                    <option value="preview">preview 가능</option>
-                    <option value="age3_target">AGE3 목표형</option>
-                    <option value="modern_partial">전환중(보임)</option>
-                    <option value="legacy">레거시</option>
-                    <option value="mixed">혼합</option>
-                    <option value="unknown">미확인</option>
-                  </select>
-                </label>
-                <label class="field checkbox">
-                  <input id="lesson-rewrite-only" type="checkbox" />
-                  <span>Rewrite만 보기</span>
-                </label>
-                <label class="field">
-                  <span>템플릿</span>
-                  <select id="lesson-template-filter">
-                    <option value="all" selected>전체</option>
-                  </select>
-                </label>
+        <div id="ddn-editor-area">
+          <textarea id="ddn-textarea" spellcheck="false"></textarea>
+        </div>
+
+        <div id="editor-smoke-result" class="hint"></div>
+      </section>
+
+      <section id="screen-run" class="screen hidden">
+        <header class="topbar run-topbar">
+          <button id="btn-back-run" class="ghost" type="button">← 탐색</button>
+          <button id="btn-edit-ddn" class="ghost" type="button">✏ DDN</button>
+          <span id="run-lesson-title" class="lesson-title-display">-</span>
+          <span id="run-last-summary" class="run-last-summary">최근 실행: 기록 없음</span>
+          <button id="btn-overlay-toggle" class="ghost" type="button">설명</button>
+          <button id="btn-advanced-run" class="ghost" type="button">⚙</button>
+        </header>
+
+        <div class="run-layout">
+          <div class="bogae-area">
+            <canvas id="canvas-bogae"></canvas>
+            <div id="overlay-description" class="overlay-desc hidden"></div>
+            <div class="bogae-range-controls">
+              <div class="range-grid">
+                <label>x_min <input id="bogae-x-min" type="number" step="any" /></label>
+                <label>x_max <input id="bogae-x-max" type="number" step="any" /></label>
+                <label>y_min <input id="bogae-y-min" type="number" step="any" /></label>
+                <label>y_max <input id="bogae-y-max" type="number" step="any" /></label>
               </div>
-              <div class="hint" id="lesson-schema-summary">스키마 요약: -</div>
-              <div class="lesson-list" id="lesson-list"></div>
-              <div class="lesson-card">
-                <div class="lesson-title" id="lesson-title">교과를 선택하세요</div>
-                <div class="lesson-desc" id="lesson-desc">-</div>
-                <div class="lesson-meta" id="lesson-meta">required_views: -</div>
-                <div class="hint" id="lesson-schema-status">스키마: -</div>
-                <div class="hint" id="lesson-ddn-source">DDN 소스: -</div>
-                <label class="field checkbox">
-                  <input id="lesson-use-age3-preview" type="checkbox" checked />
-                  <span>AGE3 preview 우선 사용</span>
+              <div class="range-actions">
+                <label class="preset-slot">
+                  슬롯
+                  <select id="bogae-preset-slot">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                  </select>
                 </label>
-                <div class="actions-inline">
-                  <button id="lesson-apply" class="ghost">lesson.ddn 로드</button>
-                  <button id="lesson-reset" class="ghost">Reset to lesson</button>
-                </div>
-                <label class="field checkbox">
-                  <input id="lesson-auto-view" type="checkbox" checked />
-                  <span>교과 로드 시 뷰 자동 이동</span>
-                </label>
-                <label class="field checkbox">
-                  <input id="lesson-auto-run" type="checkbox" checked />
-                  <span>교과 로드 시 DDN 자동 실행(브리지)</span>
-                </label>
-                <div class="hint">교과 선택 시 meta.toml + lesson.ddn를 로드합니다.</div>
+                <button id="btn-bogae-range-apply" class="ghost" type="button">보개 적용</button>
+                <button id="btn-bogae-range-reset" class="ghost" type="button">보개 리셋</button>
+                <button id="btn-bogae-range-save" class="ghost" type="button">보개 저장</button>
+                <button id="btn-bogae-range-load" class="ghost" type="button">보개 불러오기</button>
               </div>
+            </div>
+            <div class="bogae-zoom-controls">
+              <button id="btn-zoom-in" type="button">+</button>
+              <button id="btn-zoom-out" type="button">-</button>
+              <button id="btn-zoom-reset" type="button">⌂</button>
             </div>
           </div>
 
-          <!-- 탭2: DDN (핵심 편집) -->
-          <div class="tab-body hidden" id="ddn-tab">
-            <label class="field">
-              <span>DDN 텍스트 (정본 실행 소스)</span>
-              <textarea id="ddn-editor" rows="14"></textarea>
-            </label>
-            <div class="actions-inline">
-              <button id="ddn-run">DDN 실행(브리지)</button>
-              <button id="ddn-export" class="ghost">DDN 내보내기</button>
-              <label class="file">
-                <input id="ddn-import-file" type="file" accept=".ddn,.txt" />
-                DDN 불러오기
-              </label>
-              <button id="ddn-import" class="ghost">불러오기</button>
-            </div>
-            <div class="ddn-section">
-              <div class="section-title">DDN 컨트롤(#control)</div>
-              <label class="field checkbox">
-                <input id="ddn-control-auto-run" type="checkbox" checked />
-                <span>컨트롤 변경 시 자동 실행</span>
-              </label>
-              <div id="ddn-control-status" class="hint">control meta: -</div>
-              <div id="ddn-control-list" class="control-list">control 메타가 없습니다.</div>
-            </div>
-            <div class="ddn-section">
-              <div class="section-title">WASM 실행</div>
-              <label class="field checkbox">
-                <input id="wasm-enabled" type="checkbox" checked />
-                <span>WASM 루프 사용</span>
-              </label>
-              <label class="field">
-                <span>언어 모드</span>
-                <select id="wasm-lang-mode">
-                  <option value="compat">compat</option>
-                  <option value="strict">strict</option>
-                </select>
-              </label>
-              <label class="field checkbox">
-                <input id="wasm-input-enabled" type="checkbox" checked />
-                <span>키/포인터 입력 반영</span>
-              </label>
-              <div class="grid grid-2">
-                <label class="field">
-                  <span>샘플 선택</span>
-                  <select id="wasm-sample-select"></select>
-                </label>
-                <label class="field">
-                  <span>&nbsp;</span>
-                  <button id="wasm-sample-load" class="ghost">샘플 로드</button>
-                </label>
-              </div>
-              <div class="grid">
-                <label class="field">
-                  <span>FPS 제한</span>
-                  <input id="wasm-fps-limit" type="number" value="30" step="1" />
-                </label>
-                <label class="field">
-                  <span>dt 최대(s)</span>
-                  <input id="wasm-dt-max" type="number" value="0.1" step="0.01" />
-                </label>
-              </div>
-              <label class="field checkbox">
-                <input id="wasm-fixed-dt-enabled" type="checkbox" />
-                <span>fixed dt 사용</span>
-              </label>
-              <label class="field">
-                <span>fixed dt(s)</span>
-                <input id="wasm-fixed-dt" type="number" value="0.0333" step="0.001" />
-              </label>
-              <label class="field checkbox">
-                <input id="wasm-patch-mode" type="checkbox" checked />
-                <span>patch 기반 부분 업데이트</span>
-              </label>
-              <label class="field">
-                <span>입력 프리셋</span>
-                <select id="wasm-key-preset"></select>
-              </label>
-              <div class="section-title">입력 맵핑(키 이름)</div>
-              <div class="grid">
-                <label class="field">
-                  <span>위(Up)</span>
-                  <input id="wasm-key-up" type="text" value="w,ArrowUp" />
-                </label>
-                <label class="field">
-                  <span>왼쪽(Left)</span>
-                  <input id="wasm-key-left" type="text" value="a,ArrowLeft" />
-                </label>
-                <label class="field">
-                  <span>아래(Down)</span>
-                  <input id="wasm-key-down" type="text" value="s,ArrowDown" />
-                </label>
-                <label class="field">
-                  <span>오른쪽(Right)</span>
-                  <input id="wasm-key-right" type="text" value="d,ArrowRight" />
-                </label>
-              </div>
-              <div class="section-title">스키마 프리셋</div>
-              <div class="grid grid-2">
-                <label class="field">
-                  <span>프리셋 선택</span>
-                  <select id="wasm-schema-preset"></select>
-                </label>
-                <label class="field">
-                  <span>프리셋 이름</span>
-                  <input id="wasm-schema-preset-name" type="text" placeholder="preset 이름" />
-                </label>
-              </div>
-              <div class="actions-inline">
-                <button id="wasm-schema-save" class="ghost">프리셋 저장</button>
-                <button id="wasm-schema-delete" class="ghost">프리셋 삭제</button>
-              </div>
-              <label class="field">
-                <span>커스텀 스키마 매핑 (schema=graph|space2d|table|text|structure)</span>
-                <textarea id="wasm-schema-map" rows="3" placeholder="my.schema.graph=graph"></textarea>
-              </label>
-              <label class="field">
-                <span>fixed64 → graph/2d 매핑 (target=tag)</span>
-                <textarea id="wasm-fixed64-map" rows="3" placeholder="graph.view.x_min=axis_x_min"></textarea>
-              </label>
-              <div class="section-title">WASM 파라미터 주입</div>
-              <div class="grid grid-2">
-                <label class="field">
-                  <span>param key</span>
-                  <input id="wasm-param-key" type="text" placeholder="변수명" />
-                </label>
-                <label class="field">
-                  <span>mode</span>
-                  <select id="wasm-param-mode">
-                    <option value="scalar">scalar(set_param)</option>
-                    <option value="fixed64_raw">fixed64_raw(set_param_fixed64)</option>
-                  </select>
-                </label>
-              </div>
-              <label class="field">
-                <span>value</span>
-                <input id="wasm-param-input" type="text" placeholder="10 / true / &quot;글&quot; / raw_i64" />
-              </label>
-              <div class="actions-inline">
-                <button id="wasm-param-apply" class="ghost">파라미터 적용</button>
-              </div>
-              <div id="wasm-param-status" class="hint">param: -</div>
-              <div class="actions-inline">
-                <button id="wasm-reload" class="ghost">WASM 로직 갱신</button>
-                <button id="wasm-stop" class="ghost">WASM 정지</button>
-                <button id="wasm-settings-save" class="ghost">설정 저장</button>
-                <button id="wasm-settings-load" class="ghost">설정 불러오기</button>
-              </div>
-              <div id="wasm-status" class="hint">wasm: -</div>
-            </div>
-          </div>
-
-          <!-- 탭3: 실행/시간 (반복 조작) -->
-          <div class="tab-body hidden" id="run-tab">
-            <div class="ddn-section">
-              <div class="section-title">시간 샘플링</div>
-              <label class="field checkbox">
-                <input id="time-enabled" type="checkbox" />
-                <span>시간 샘플링 사용</span>
-              </label>
-              <div class="grid">
-                <label class="field">
-                  <span>t 최소</span>
-                  <input id="t-min" type="number" value="0" step="0.1" />
-                </label>
-                <label class="field">
-                  <span>t 최대</span>
-                  <input id="t-max" type="number" value="5" step="0.1" />
-                </label>
-                <label class="field">
-                  <span>dt</span>
-                  <input id="t-step" type="number" value="0.5" step="0.1" />
-                </label>
-              </div>
-              <div id="ddn-time-status" class="hint">t 범위: -</div>
+          <div class="dotbogi-panel">
+            <div class="panel-tabs">
+              <button class="panel-tab active" data-view="graph" type="button">그래프</button>
+              <button class="panel-tab" data-view="table" type="button">표</button>
+              <button class="panel-tab" data-view="text" type="button">설명</button>
             </div>
 
-            <div class="dock-group" data-view="graph">
-              <div class="dock-title">시간(보기)</div>
-              <div class="grid grid-2">
-                <label class="field">
-                  <span>t 현재</span>
-                  <input id="t-now" type="number" value="0" step="0.1" />
-                </label>
-                <label class="field">
-                  <span>속도(ms)</span>
-                  <input id="t-interval" type="number" value="300" step="50" />
-                </label>
+            <div id="dotbogi-graph" class="panel-content active">
+              <div class="graph-toolbar">
+                <label for="select-x-axis">x축</label>
+                <select id="select-x-axis"></select>
+                <label for="select-y-axis">y축</label>
+                <select id="select-y-axis"></select>
+                <button id="btn-axis-lock" class="ghost" type="button">기본축 고정: ON</button>
+                <button id="btn-graph-reset" class="ghost" type="button">축 리셋</button>
               </div>
-              <label class="field">
-                <span>t 커서</span>
-                <input id="t-cursor" type="range" min="0" max="1" value="0" step="0.1" />
-              </label>
-              <label class="field checkbox">
-                <input id="time-loop" type="checkbox" checked />
-                <span>루프</span>
-              </label>
-              <div class="actions-inline">
-                <button id="time-play" class="ghost">▶︎ 재생</button>
-                <button id="time-stop" class="ghost">⏸ 정지</button>
-                <button id="time-step" class="ghost">⏭ 한칸</button>
-              </div>
-              <div class="progress-block">
-                <div class="progress-meta">
-                  <span id="ddn-frame-status">DDN 프레임: -</span>
-                  <button id="ddn-frame-stop" class="ghost" disabled>중단</button>
+              <div class="graph-range-controls">
+                <div class="range-grid">
+                  <label>x_min <input id="graph-x-min" type="number" step="any" /></label>
+                  <label>x_max <input id="graph-x-max" type="number" step="any" /></label>
+                  <label>y_min <input id="graph-y-min" type="number" step="any" /></label>
+                  <label>y_max <input id="graph-y-max" type="number" step="any" /></label>
                 </div>
-                <div class="progress-bar">
-                  <span id="ddn-frame-progress"></span>
-                </div>
-              </div>
-              <div class="timeline">
-                <div class="timeline-track" id="timeline-track">
-                  <div class="timeline-marks" id="timeline-marks"></div>
-                  <span class="timeline-playhead" id="timeline-playhead"></span>
-                </div>
-                <div class="timeline-meta" id="timeline-meta">t 타임라인: -</div>
-              </div>
-            </div>
-
-            <div id="view-dock-tab">
-            <div class="dock-summary" id="view-dock-summary">현재 뷰: 그래프 · 실행: 0</div>
-            <div id="view-dock-empty" class="dock-empty hidden">현재 보개에는 뷰도크 항목이 없습니다.</div>
-            <div class="view-dock">
-              <div class="dock-group" data-view="graph">
-                <div class="dock-title">레이어/업데이트</div>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span>update</span>
-                    <select id="update-mode">
-                      <option value="replace" selected>replace</option>
-                      <option value="append">append</option>
+                <div class="range-actions">
+                  <label class="preset-slot">
+                    슬롯
+                    <select id="graph-preset-slot">
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
                     </select>
                   </label>
-                  <label class="field">
-                    <span>tick(선택)</span>
-                    <input id="update-tick" type="number" step="1" placeholder="auto" />
-                  </label>
-                </div>
-                <div class="overlay-actions">
-                  <span id="overlay-label">레이어(0)</span>
-                  <button id="clear-overlay" class="ghost">레이어 해제</button>
-                </div>
-                <div id="overlay-list" class="overlay-list"></div>
-              </div>
-
-              <div class="dock-group" data-view="graph">
-                <div class="dock-title">뷰포트</div>
-                <label class="field checkbox">
-                  <input id="view-auto" type="checkbox" checked />
-                  <span>자동 범위</span>
-                </label>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span><span class="axis-label">x</span> 최소</span>
-                    <input id="view-x-min" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                  <label class="field">
-                    <span><span class="axis-label">x</span> 최대</span>
-                    <input id="view-x-max" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                  <label class="field">
-                    <span>y 최소</span>
-                    <input id="view-y-min" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                  <label class="field">
-                    <span>y 최대</span>
-                    <input id="view-y-max" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                </div>
-                <div class="grid">
-                  <label class="field">
-                    <span>pan x</span>
-                    <input id="pan-x" type="number" value="0" step="0.5" />
-                  </label>
-                  <label class="field">
-                    <span>pan y</span>
-                    <input id="pan-y" type="number" value="0" step="0.5" />
-                  </label>
-                  <label class="field">
-                    <span>zoom</span>
-                    <input id="zoom" type="number" value="1" step="0.1" />
-                  </label>
-                </div>
-                <div class="grid grid-2">
-                  <label class="field checkbox">
-                    <input id="toggle-grid" type="checkbox" checked />
-                    <span>그리드</span>
-                  </label>
-                  <label class="field checkbox">
-                    <input id="toggle-axis" type="checkbox" checked />
-                    <span>축 표시</span>
-                  </label>
+                  <button id="btn-graph-range-apply" class="ghost" type="button">축 적용</button>
+                  <button id="btn-graph-range-reset" class="ghost" type="button">축 자동</button>
+                  <button id="btn-graph-range-save" class="ghost" type="button">축 저장</button>
+                  <button id="btn-graph-range-load" class="ghost" type="button">축 불러오기</button>
                 </div>
               </div>
-
-              <div class="dock-group" data-view="graph">
-                <div class="dock-title">WASM 관찰 렌즈</div>
-                <div id="wasm-channel-summary" class="hint">관찰 채널: -</div>
-                <label class="field checkbox">
-                  <input id="wasm-lens-enable" type="checkbox" />
-                  <span>렌즈 그래프 사용</span>
-                </label>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span>x 채널</span>
-                    <select id="wasm-lens-x-key"></select>
-                  </label>
-                  <label class="field">
-                    <span>y 채널</span>
-                    <select id="wasm-lens-y-key"></select>
-                  </label>
-                </div>
-                <label class="field">
-                  <span>y2 채널(선택)</span>
-                  <select id="wasm-lens-y2-key"></select>
-                </label>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span>렌즈 프리셋</span>
-                    <select id="wasm-lens-preset"></select>
-                  </label>
-                  <label class="field">
-                    <span>프리셋 이름</span>
-                    <input id="wasm-lens-preset-name" type="text" placeholder="preset 이름" />
-                  </label>
-                </div>
-                <div class="actions-inline">
-                  <button id="wasm-lens-preset-save" class="ghost">렌즈 저장</button>
-                  <button id="wasm-lens-preset-delete" class="ghost">렌즈 삭제</button>
-                </div>
-                <label class="field">
-                  <span>관찰 채널 목록</span>
-                  <textarea id="wasm-channel-list" rows="8" readonly>-</textarea>
-                </label>
-              </div>
-
-              <div class="dock-group" data-view="table">
-                <div class="dock-title">표 옵션</div>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span>페이지 크기</span>
-                    <input id="table-page-size" type="number" value="50" step="10" />
-                  </label>
-                  <label class="field">
-                    <span>소수점</span>
-                    <input id="table-precision" type="number" value="3" step="1" />
-                  </label>
-                </div>
-                <div class="actions-inline">
-                  <button id="table-prev" class="ghost">◀ 이전</button>
-                  <span id="table-page-info">1 / 1</span>
-                  <button id="table-next" class="ghost">다음 ▶</button>
-                </div>
-              </div>
-
-              <div class="dock-group" data-view="2d">
-                <div class="dock-title">2D 보개</div>
-                <div id="space2d-summary" class="hint">2D 데이터: -</div>
-                <label class="field">
-                  <span>렌더 경로</span>
-                  <select id="space2d-render-mode">
-                    <option value="legacy" selected>legacy(기존)</option>
-                    <option value="auto">common(auto)</option>
-                    <option value="drawlist">common(drawlist)</option>
-                    <option value="shapes">common(shapes)</option>
-                    <option value="both">common(both)</option>
-                    <option value="none">common(none)</option>
-                  </select>
-                </label>
-                <label class="field checkbox">
-                  <input id="space2d-auto" type="checkbox" checked />
-                  <span>자동 범위</span>
-                </label>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span><span class="axis-label">x</span> 최소</span>
-                    <input id="space2d-x-min" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                  <label class="field">
-                    <span><span class="axis-label">x</span> 최대</span>
-                    <input id="space2d-x-max" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                  <label class="field">
-                    <span>y 최소</span>
-                    <input id="space2d-y-min" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                  <label class="field">
-                    <span>y 최대</span>
-                    <input id="space2d-y-max" type="number" step="0.5" placeholder="auto" />
-                  </label>
-                </div>
-                <div class="grid">
-                  <label class="field">
-                    <span>pan x</span>
-                    <input id="space2d-pan-x" type="number" value="0" step="0.5" />
-                  </label>
-                  <label class="field">
-                    <span>pan y</span>
-                    <input id="space2d-pan-y" type="number" value="0" step="0.5" />
-                  </label>
-                  <label class="field">
-                    <span>zoom</span>
-                    <input id="space2d-zoom" type="number" value="1" step="0.1" />
-                  </label>
-                </div>
-                <div class="actions-inline">
-                  <button id="space2d-reset-view" class="ghost">2D 뷰 리셋</button>
-                </div>
-              </div>
-
-              <div class="dock-group" data-view="structure">
-                <div class="dock-title">구조 옵션</div>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span>레이아웃</span>
-                    <select id="structure-layout">
-                      <option value="circle" selected>circle</option>
-                      <option value="dag">dag</option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    <span>노드 크기</span>
-                    <input id="structure-node-size" type="number" value="10" step="1" />
-                  </label>
-                </div>
-                <div class="grid grid-2">
-                  <label class="field checkbox">
-                    <input id="structure-show-labels" type="checkbox" checked />
-                    <span>라벨 표시</span>
-                  </label>
-                </div>
-              </div>
+              <canvas id="canvas-graph"></canvas>
             </div>
+
+            <div id="dotbogi-table" class="panel-content hidden">
+              <table id="data-table"></table>
+            </div>
+
+            <div id="dotbogi-text" class="panel-content hidden">
+              <div id="text-content" class="text-content"></div>
+            </div>
+
+            <div id="slider-panel" class="slider-panel">
+              <div id="slider-status" class="hint">control: -</div>
+              <div id="slider-list"></div>
+              <button id="btn-restart" class="btn-primary" type="button">▶ 재실행</button>
             </div>
           </div>
+        </div>
 
-          <!-- 탭4: 도구 (드물게 사용) -->
-          <div class="tab-body hidden" id="tools-tab">
-            <div class="ddn-section">
-              <div class="section-title">브리지 설정</div>
-              <label class="field">
-                <span>브리지 URL</span>
-                <input id="bridge-url" type="text" value="http://localhost:8787" />
-              </label>
-              <div class="hint">브리지 서버 실행: `python solutions/seamgrim_ui_mvp/tools/bridge_server.py`</div>
-            </div>
-
-            <div class="ddn-section">
-              <div class="section-title">DDN 프리셋</div>
-              <div class="actions-inline">
-                <button id="ddn-save" class="ghost">프리셋 저장</button>
-                <button id="ddn-export-presets" class="ghost">프리셋 내보내기</button>
-                <label class="file">
-                  <input id="ddn-preset-file" type="file" accept=".json" />
-                  프리셋 불러오기
-                </label>
-                <button id="ddn-import-presets" class="ghost">불러오기</button>
-              </div>
-              <ul id="ddn-preset-list"></ul>
-            </div>
-
-            <div class="ddn-section">
-              <div class="section-title">비교(2겹)</div>
-              <label class="field checkbox">
-                <input id="compare-enabled" type="checkbox" />
-                <span>baseline+variant 비교</span>
-              </label>
-              <div class="actions-inline">
-                <button id="compare-freeze" class="ghost">baseline 고정</button>
-                <button id="compare-run" class="ghost">variant 실행</button>
-              </div>
-              <div class="grid grid-2">
-                <label class="field">
-                  <span>before/after 간격(ms)</span>
-                  <input id="compare-interval" type="number" value="800" min="120" max="5000" step="20" />
-                </label>
-                <label class="field">
-                  <span>&nbsp;</span>
-                  <div class="actions-inline">
-                    <button id="compare-play" class="ghost">before/after 재생</button>
-                    <button id="compare-stop" class="ghost" disabled>재생 중지</button>
-                  </div>
-                </label>
-              </div>
-              <div id="compare-status" class="hint">비교 모드: 꺼짐</div>
-            </div>
-
-            <div class="ddn-section">
-              <div class="section-title">파일 불러오기/내보내기</div>
-              <div class="ddn-section">
-                <div class="section-title">미디어 내보내기</div>
-                <div class="grid grid-2">
-                  <label class="field">
-                    <span>포맷</span>
-                    <select id="media-export-format">
-                      <option value="webm" selected>WebM</option>
-                      <option value="gif">GIF</option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    <span>FPS</span>
-                    <input id="media-export-fps" type="number" value="30" min="1" max="120" step="1" />
-                  </label>
-                </div>
-                <label class="field">
-                  <span>길이(초, 0=수동 중지)</span>
-                  <input id="media-export-duration" type="number" value="6" min="0" max="120" step="1" />
-                </label>
-                <div class="actions-inline">
-                  <button id="media-export-start" class="ghost">녹화 시작</button>
-                  <button id="media-export-stop" class="ghost" disabled>녹화 중지</button>
-                </div>
-                <div id="media-export-status" class="hint">내보내기 상태: 대기</div>
-              </div>
-
-              <div class="importer-grid">
-                <div class="importer">
-                  <label class="file">
-                    <input id="graph-file" type="file" accept=".json" />
-                    그래프(JSON)
-                  </label>
-                  <button id="load-graph">불러오기</button>
-                  <button id="export-graph" class="ghost">내보내기</button>
-                </div>
-                <div class="importer">
-                  <label class="file">
-                    <input id="snapshot-file" type="file" accept=".json" />
-                    스냅샷(JSON)
-                  </label>
-                  <button id="load-snapshots">불러오기</button>
-                  <button id="export-snapshots" class="ghost">내보내기</button>
-                </div>
-                <div class="importer">
-                  <label class="file">
-                    <input id="session-file" type="file" accept=".json" />
-                    세션(JSON)
-                  </label>
-                  <button id="load-session">불러오기</button>
-                  <button id="export-session" class="ghost">내보내기</button>
-                </div>
-                <div class="importer">
-                  <label class="file">
-                    <input id="table-file" type="file" accept=".json,.csv" />
-                    표(JSON/CSV)
-                  </label>
-                  <button id="load-table">불러오기</button>
-                </div>
-                <div class="importer">
-                  <label class="file">
-                    <input id="text-file" type="file" accept=".md,.txt,.json" />
-                    문서(MD)
-                  </label>
-                  <button id="load-text">불러오기</button>
-                </div>
-                <div class="importer">
-                  <label class="file">
-                    <input id="structure-file" type="file" accept=".json" />
-                    구조(JSON)
-                  </label>
-                  <button id="load-structure">불러오기</button>
-                </div>
-                <div class="importer">
-                  <label class="file">
-                    <input id="space2d-file" type="file" accept=".json" />
-                    2D(JSON)
-                  </label>
-                  <button id="load-space2d">불러오기</button>
-                </div>
-              </div>
-              <div class="summary-grid">
-                <div class="summary-card" id="sam-summary">sam: 미로드</div>
-                <div class="summary-card" id="geoul-summary">geoul: 미로드</div>
-              </div>
-              <div class="importer">
-                <label class="file">
-                  <input id="sam-file" type="file" accept=".json,.jsonl,.ddn,.txt" />
-                  샘 파일
-                </label>
-                <button id="load-sam">불러오기</button>
-                <label class="file">
-                  <input id="geoul-file" type="file" accept=".json,.jsonl,.ddn,.txt" />
-                  거울 파일
-                </label>
-                <button id="load-geoul">불러오기</button>
-              </div>
-            </div>
-
-            <div class="ddn-section">
-              <div class="section-title">인스펙터</div>
-              <div class="inspector-grid">
-                <div class="inspector-card">
-                  <div class="card-title">DDN 메타</div>
-                  <div id="ddn-meta-name">이름: -</div>
-                  <div id="ddn-meta-desc">설명: -</div>
-                </div>
-                <div class="inspector-card">
-                  <div class="card-title">해시/검증</div>
-                  <div id="inspector-input-hash">input_hash: -</div>
-                  <div id="inspector-result-hash">result_hash: -</div>
-                  <div id="bridge-check" class="status-pill">bridge_check: -</div>
-                </div>
-                <div class="inspector-card">
-                  <div class="card-title">스키마</div>
-                  <div id="schema-graph">graph: -</div>
-                  <div id="schema-snapshot">snapshot: -</div>
-                  <div id="schema-session">session: -</div>
-                </div>
-                <div class="inspector-card">
-                  <div class="card-title">입력원</div>
-                  <div id="input-selected">selected: -</div>
-                  <div id="input-registry" class="input-registry">-</div>
-                </div>
-                <div class="inspector-card">
-                  <div class="card-title">실행 목록</div>
-                  <div id="run-list" class="run-list"></div>
-                </div>
-                <div class="inspector-card">
-                  <div class="card-title">구조 선택</div>
-                  <div id="structure-selection">선택 없음</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="contract">
-              <div class="contract-header">
-                <span>보개 계약 인스펙터</span>
-                <div class="contract-controls">
-                  <button class="contract-toggle active" data-contract-view="plain">요약</button>
-                  <button class="contract-toggle" data-contract-view="ddn">DDN</button>
-                  <span id="contract-status" class="contract-badge">-</span>
-                </div>
-              </div>
-              <div id="contract-summary" class="contract-summary">스키마를 불러오면 상세가 표시됩니다.</div>
-              <div id="contract-fields" class="contract-fields"></div>
-              <pre id="contract-ddn" class="contract-ddn hidden"></pre>
-            </div>
-
-            <div class="tab-group sub-tabs">
-              <div class="tabs">
-                <button class="tab active" data-tab="result">결과</button>
-                <button class="tab" data-tab="scene">씬</button>
-                <button class="tab" data-tab="snapshots">스냅샷</button>
-              </div>
-              <div class="tab-body" id="result">
-                <pre id="result-json">{}</pre>
-              </div>
-              <div class="tab-body hidden" id="scene">
-                <pre id="scene-json">{}</pre>
-              </div>
-              <div class="tab-body hidden" id="snapshots">
-                <div class="actions-inline">
-                  <button id="snapshot-save">스냅샷 저장</button>
-                </div>
-                <ul id="snapshot-list"></ul>
-              </div>
-            </div>
-
-            <section class="log-dock" id="log-dock">
-              <div class="log-dock-header">
-                <strong>로그</strong>
-                <div class="log-dock-actions">
-                  <span class="log-dock-hint">최신 메시지</span>
-                  <button class="ghost log-dock-toggle" id="log-dock-toggle" type="button">접기</button>
-                </div>
-              </div>
-              <div class="log-dock-body">
-                <ul id="log-list-fixed"></ul>
-                <div class="log-empty" id="log-empty-fixed">로그 없음</div>
-              </div>
-            </section>
-          </div>
-
+        <div class="statusbar">
+          <span id="run-status">실행 상태: 대기</span>
+          <span id="run-hash">state_hash: -</span>
         </div>
       </section>
 
-      <section class="panel view-panel">
-        <div class="tab-group view-group">
-          <div class="view-header">
-            <h2>뷰</h2>
-            <div class="tabs">
-              <button class="tab active" data-tab="view-graph">그래프</button>
-              <button class="tab" data-tab="view-2d">공간(2D)</button>
-              <button class="tab" data-tab="view-table">표</button>
-              <button class="tab" data-tab="view-text">글</button>
-              <button class="tab" data-tab="view-structure">구조</button>
-            </div>
-            <div class="view-combo-controls">
-              <label class="field checkbox view-combo-toggle">
-                <input id="view-combo-toggle" type="checkbox" />
-                <span>그래프+2D</span>
-              </label>
-              <label class="field view-combo-layout hidden" id="view-combo-layout-group">
-                <select id="view-combo-layout">
-                  <option value="horizontal">좌우</option>
-                  <option value="vertical">상하</option>
-                  <option value="overlay">겹침</option>
-                </select>
-              </label>
-              <label class="field view-combo-overlay-order hidden" id="view-combo-overlay-order-group">
-                <select id="view-combo-overlay-order">
-                  <option value="graph">그래프 위</option>
-                  <option value="2d">2D 위</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          <div class="tab-body view-pane" id="view-graph">
-            <canvas id="canvas" width="560" height="360"></canvas>
-            <div class="view-overlay caption-overlay hidden" id="graph-caption"></div>
-            <div class="legend">
-              <span class="dot"></span>
-              <span>점열</span>
-              <span class="line"></span>
-              <span>연결선</span>
-            </div>
-          </div>
-          <div class="tab-body view-pane hidden" id="view-2d">
-            <canvas id="canvas-2d" width="560" height="360"></canvas>
-            <div class="view-overlay caption-overlay hidden" id="space2d-caption"></div>
-            <div class="legend">
-              <span class="dot"></span>
-              <span>점열</span>
-              <span class="line"></span>
-              <span>연결선</span>
-            </div>
-          </div>
-          <div class="tab-body view-pane hidden" id="view-table">
-            <div class="table-wrap">
-              <table id="data-table">
-                <thead></thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="tab-body view-pane hidden" id="view-text">
-            <div id="text-content" class="text-content">문서를 불러오면 여기에 표시됩니다.</div>
-          </div>
-          <div class="tab-body view-pane hidden" id="view-structure">
-            <canvas id="structure-canvas" width="560" height="360"></canvas>
-            <div class="legend">
-              <span class="dot"></span>
-              <span>노드</span>
-              <span class="line"></span>
-              <span>간선</span>
-            </div>
-          </div>
-        </div>
+      <div id="advanced-menu" class="advanced-menu hidden">
+        <button id="advanced-smoke" type="button">Smoke 검증</button>
+        <button type="button" class="age-slot" disabled>A 실시간 입력</button>
+        <button type="button" class="age-slot" disabled>B 꾸러미 브라우저</button>
+        <button type="button" class="age-slot" disabled>C 3D 렌더</button>
+      </div>
+    </div>
 
-        <div class="view-caption-box hidden" id="view-caption-box">
-          <div class="view-caption-title">자막/해설</div>
-          <div class="view-caption-body" id="view-caption-body"></div>
-        </div>
-
-      </section>
-    </main>
-  </div>
-
-  <script type="module" src="app.js"></script>
-</body>
+    <script type="module" src="./app.js"></script>
+  </body>
 </html>

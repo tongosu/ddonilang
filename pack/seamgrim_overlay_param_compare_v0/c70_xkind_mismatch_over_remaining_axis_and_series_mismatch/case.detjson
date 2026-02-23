@@ -1,0 +1,66 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c70_xkind_mismatch_over_remaining_axis_and_series_mismatch",
+  "title": "x_kind 불일치 우선( graph_kind 동등 + x/y축 나머지 + series_mismatch 동시 )",
+  "baseline": {
+    "seriesId": "pendulum_curve",
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "period",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.0
+            },
+            {
+              "x": 2.0,
+              "y": 2.82
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "variant": {
+    "seriesId": "pendulum_curve_alt",
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "time",
+        "axis_unit": "cm",
+        "y_kind": "frequency",
+        "y_unit": " ms "
+      },
+      "series": [
+        {
+          "id": "pendulum_curve_alt",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.8
+            },
+            {
+              "x": 2.0,
+              "y": 4.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "overlay_ok": false,
+    "code": "mismatch_xKind",
+    "reason_contains": "x축 kind"
+  }
+}

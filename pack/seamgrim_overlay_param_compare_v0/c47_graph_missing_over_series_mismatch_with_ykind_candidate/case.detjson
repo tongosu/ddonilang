@@ -1,0 +1,42 @@
+{
+  "schema": "ddn.seamgrim.overlay_compare_case.v1",
+  "case_id": "c47_graph_missing_over_series_mismatch_with_ykind_candidate",
+  "title": "graph_missing 우선( series_mismatch + y_kind 불일치 후보 )",
+  "baseline": {
+    "seriesId": "pendulum_curve",
+    "graph": null
+  },
+  "variant": {
+    "seriesId": "pendulum_curve_alt",
+    "graph": {
+      "schema": "seamgrim.graph.v0",
+      "meta": {
+        "graph_kind": "xy",
+        "axis_x_kind": "length",
+        "axis_x_unit": "m",
+        "axis_y_kind": "frequency",
+        "axis_y_unit": "s"
+      },
+      "series": [
+        {
+          "id": "pendulum_curve_alt",
+          "points": [
+            {
+              "x": 1.0,
+              "y": 2.8
+            },
+            {
+              "x": 2.0,
+              "y": 4.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expect": {
+    "overlay_ok": false,
+    "code": "graph_missing",
+    "reason_contains": "그래프 데이터"
+  }
+}
