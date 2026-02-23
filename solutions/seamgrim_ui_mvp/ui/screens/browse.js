@@ -291,8 +291,22 @@ export class BrowseScreen {
       "../build/reports/seamgrim_lesson_inventory.json",
       "../../build/reports/seamgrim_lesson_inventory.json",
     ];
-
+    const uniqueCandidates = [];
+    const seen = new Set();
     for (const candidate of candidates) {
+      try {
+        const resolved = new URL(candidate, window.location.href).href;
+        if (seen.has(resolved)) continue;
+        seen.add(resolved);
+        uniqueCandidates.push(resolved);
+      } catch (_) {
+        if (seen.has(candidate)) continue;
+        seen.add(candidate);
+        uniqueCandidates.push(candidate);
+      }
+    }
+
+    for (const candidate of uniqueCandidates) {
       try {
         const response = await fetch(candidate);
         if (!response.ok) continue;

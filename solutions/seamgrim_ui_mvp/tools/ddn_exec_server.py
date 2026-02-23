@@ -441,6 +441,12 @@ class DdnExecHandler(BaseHTTPRequestHandler):
             if SAMPLES_DIR in sample_path.parents or sample_path == SAMPLES_DIR:
                 send_file(self, sample_path)
                 return
+        if path.startswith("/build/reports/"):
+            report_root = (resolve_build_dir() / "reports").resolve()
+            report_path = (report_root / path[len("/build/reports/"):]).resolve()
+            if report_root in report_path.parents or report_path == report_root:
+                send_file(self, report_path)
+                return
         ui_relative = path
         if ui_relative.startswith("/ui/"):
             ui_relative = ui_relative[len("/ui/"):]
