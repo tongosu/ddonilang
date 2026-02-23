@@ -11,6 +11,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+def safe_print(text: str) -> None:
+    data = str(text)
+    try:
+        print(data)
+        return
+    except UnicodeEncodeError:
+        pass
+    encoded = data.encode(sys.stdout.encoding or "utf-8", errors="replace")
+    print(encoded.decode(sys.stdout.encoding or "utf-8", errors="replace"))
+
+
 def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[dict[str, str]]:
     lines = [line.strip() for line in (stdout + "\n" + stderr).splitlines() if line.strip()]
     out: list[dict[str, str]] = []
@@ -73,10 +84,102 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "space2d_feature_missing", "target": "space2d_source_ui", "detail": line})
             elif line.startswith("space2d source ui gate failed:"):
                 out.append({"kind": "space2d_gate_failed", "target": "space2d_source_ui", "detail": line})
+    elif name == "lesson_path_fallback":
+        for line in lines:
+            if line.startswith("missing ui js:"):
+                out.append({"kind": "ui_js_missing", "target": "ui/app.js", "detail": line})
+            elif line.startswith("check="):
+                out.append({"kind": "lesson_path_fallback_missing", "target": "lesson_path_fallback", "detail": line})
+            elif line.startswith("seamgrim lesson path fallback check failed:"):
+                out.append({"kind": "lesson_path_fallback_failed", "target": "lesson_path_fallback", "detail": line})
+    elif name == "overlay_compare_pack":
+        for line in lines:
+            if line.startswith("missing pack root:"):
+                out.append({"kind": "overlay_pack_root_missing", "target": "overlay_compare_pack", "detail": line})
+            elif line.startswith("missing pack case:"):
+                out.append({"kind": "overlay_pack_case_missing", "target": "overlay_compare_pack", "detail": line})
+            elif line.startswith("check="):
+                out.append({"kind": "overlay_compare_case_failed", "target": "overlay_compare_pack", "detail": line})
+            elif line.startswith("[FAIL] pack="):
+                out.append({"kind": "overlay_compare_case_failed", "target": "overlay_compare_pack", "detail": line})
+            elif line.startswith("overlay compare pack failed:"):
+                out.append({"kind": "overlay_compare_pack_failed", "target": "overlay_compare_pack", "detail": line})
+    elif name == "overlay_session_pack":
+        for line in lines:
+            if line.startswith("missing pack root:"):
+                out.append({"kind": "overlay_session_pack_root_missing", "target": "overlay_session_pack", "detail": line})
+            elif line.startswith("missing pack case:"):
+                out.append({"kind": "overlay_session_pack_case_missing", "target": "overlay_session_pack", "detail": line})
+            elif line.startswith("check="):
+                out.append({"kind": "overlay_session_case_failed", "target": "overlay_session_pack", "detail": line})
+            elif line.startswith("[FAIL] pack="):
+                out.append({"kind": "overlay_session_case_failed", "target": "overlay_session_pack", "detail": line})
+            elif line.startswith("overlay session pack failed:"):
+                out.append({"kind": "overlay_session_pack_failed", "target": "overlay_session_pack", "detail": line})
+    elif name == "overlay_session_contract":
+        for line in lines:
+            if line.startswith("overlay session contract failed"):
+                out.append({"kind": "overlay_session_contract_failed", "target": "overlay_session_contract", "detail": line})
+            elif line.startswith("[overlay-session-contract]"):
+                out.append({"kind": "overlay_session_contract_log", "target": "overlay_session_contract", "detail": line})
+    elif name == "age5_close":
+        for line in lines:
+            if line.startswith("[age5-close] overall_ok=0"):
+                out.append({"kind": "age5_close_failed", "target": "age5_close", "detail": line})
+            elif line.startswith(" - ") and "ok=0" in line:
+                out.append({"kind": "age5_criteria_failed", "target": "age5_close", "detail": line})
     elif name == "export_graph_preprocess":
         for line in lines:
             if line.startswith("seamgrim export_graph preprocess check failed:"):
                 out.append({"kind": "preprocess_check_failed", "target": "export_graph", "detail": line})
+    elif name == "deploy_artifacts":
+        for line in lines:
+            if line.startswith("missing deploy file:"):
+                out.append({"kind": "deploy_file_missing", "target": "deploy_artifacts", "detail": line})
+            elif line.startswith("check="):
+                out.append({"kind": "deploy_artifact_mismatch", "target": "deploy_artifacts", "detail": line})
+            elif line.startswith("seamgrim deploy artifacts check failed:"):
+                out.append({"kind": "deploy_check_failed", "target": "deploy_artifacts", "detail": line})
+    elif name == "ddn_exec_server_check":
+        for line in lines:
+            if line.startswith("check="):
+                out.append({"kind": "ddn_exec_server_check_failed", "target": "ddn_exec_server_check", "detail": line})
+            elif line.startswith("ddn exec server failed to start"):
+                out.append({"kind": "ddn_exec_server_start_failed", "target": "ddn_exec_server_check", "detail": line})
+    elif name == "workflow_contract":
+        for line in lines:
+            if line.startswith("missing workflow file:"):
+                out.append({"kind": "workflow_file_missing", "target": "workflow_contract", "detail": line})
+            elif line.startswith("missing branch protection file:"):
+                out.append(
+                    {"kind": "branch_protection_file_missing", "target": "workflow_contract", "detail": line}
+                )
+            elif line.startswith("check="):
+                out.append({"kind": "workflow_contract_mismatch", "target": "workflow_contract", "detail": line})
+            elif line.startswith("seamgrim workflow contract check failed:"):
+                out.append({"kind": "workflow_contract_failed", "target": "workflow_contract", "detail": line})
+    elif name == "formula_compat":
+        for line in lines:
+            if line.startswith("missing target root:"):
+                out.append({"kind": "formula_scope_root_missing", "target": "seamgrim_formula", "detail": line})
+            elif line.startswith("no lesson files found under target:"):
+                out.append({"kind": "formula_scope_files_missing", "target": "seamgrim_formula", "detail": line})
+            elif line.startswith("check="):
+                out.append({"kind": "formula_incompat", "target": "seamgrim_formula", "detail": line})
+            elif line.startswith("seamgrim formula compat check failed:"):
+                out.append({"kind": "formula_compat_failed", "target": "seamgrim_formula", "detail": line})
+    elif name == "schema_realign_formula_compat":
+        for line in lines:
+            if line.startswith("schema realign compat check failed:"):
+                out.append(
+                    {"kind": "schema_realign_formula_compat_failed", "target": "lesson_schema_realign", "detail": line}
+                )
+    elif name == "schema_upgrade_formula_compat":
+        for line in lines:
+            if line.startswith("schema upgrade formula compat check failed:"):
+                out.append(
+                    {"kind": "schema_upgrade_formula_compat_failed", "target": "lesson_schema_upgrade", "detail": line}
+                )
 
     if not out and not ok:
         for line in lines[:5]:
@@ -136,9 +239,9 @@ def run_step(root: Path, name: str, cmd: list[str]) -> dict[str, object]:
 
     print(f"[{name}] {'ok' if ok else 'fail'} ({elapsed_ms}ms)")
     if stdout:
-        print(stdout)
+        safe_print(stdout)
     if stderr:
-        print(stderr)
+        safe_print(stderr)
     diagnostics = extract_diagnostics(name, stdout, stderr, ok)
 
     return {
@@ -167,6 +270,16 @@ def main() -> int:
     )
     parser.add_argument("--json-out", help="write gate result json")
     parser.add_argument(
+        "--with-overlay-checks",
+        action="store_true",
+        help="include removed overlay/session legacy checks",
+    )
+    parser.add_argument(
+        "--with-age5-close",
+        action="store_true",
+        help="include age5 close check",
+    )
+    parser.add_argument(
         "--ui-age3-json-out",
         help="optional path to write ui age3 gate report json",
     )
@@ -187,11 +300,39 @@ def main() -> int:
             [py, "tests/run_seamgrim_ci_gate_diagnostics_check.py"],
         )
     )
+    steps.append(
+        run_step(
+            root,
+            "workflow_contract",
+            [py, "tests/run_seamgrim_workflow_contract_check.py"],
+        )
+    )
 
     schema_cmd = [py, "tests/run_seamgrim_lesson_schema_gate.py"]
     if args.require_promoted:
         schema_cmd.append("--require-promoted")
     steps.append(run_step(root, "schema_gate", schema_cmd))
+    steps.append(
+        run_step(
+            root,
+            "schema_realign_formula_compat",
+            [py, "tests/run_seamgrim_lesson_schema_realign_formula_compat_check.py"],
+        )
+    )
+    steps.append(
+        run_step(
+            root,
+            "schema_upgrade_formula_compat",
+            [py, "tests/run_seamgrim_lesson_schema_upgrade_formula_compat_check.py"],
+        )
+    )
+    steps.append(
+        run_step(
+            root,
+            "formula_compat",
+            [py, "tests/run_seamgrim_formula_compat_check.py"],
+        )
+    )
     ui_age3_cmd = [py, "tests/run_seamgrim_ui_age3_gate.py"]
     if args.ui_age3_json_out:
         ui_age3_cmd.extend(["--json-out", args.ui_age3_json_out])
@@ -209,12 +350,70 @@ def main() -> int:
             [py, "tests/run_seamgrim_space2d_source_ui_gate.py"],
         )
     )
+    steps.append(
+        run_step(
+            root,
+            "lesson_path_fallback",
+            [py, "tests/run_seamgrim_lesson_path_fallback_check.py"],
+        )
+    )
+    if args.with_overlay_checks:
+        steps.append(
+            run_step(
+                root,
+                "overlay_compare_pack",
+                [py, "tests/run_seamgrim_overlay_compare_pack.py"],
+            )
+        )
+        steps.append(
+            run_step(
+                root,
+                "overlay_session_pack",
+                [py, "tests/run_seamgrim_overlay_session_pack.py"],
+            )
+        )
+        steps.append(
+            run_step(
+                root,
+                "overlay_session_contract",
+                [py, "tests/run_seamgrim_overlay_session_contract.py"],
+            )
+        )
+    if args.with_age5_close:
+        steps.append(
+            run_step(
+                root,
+                "age5_close",
+                [py, "tests/run_age5_close.py"],
+            )
+        )
 
     steps.append(
         run_step(
             root,
             "export_graph_preprocess",
             [py, "tests/run_seamgrim_export_graph_preprocess_check.py"],
+        )
+    )
+    steps.append(
+        run_step(
+            root,
+            "deploy_artifacts",
+            [py, "tests/run_seamgrim_deploy_artifacts_check.py"],
+        )
+    )
+    steps.append(
+        run_step(
+            root,
+            "ddn_exec_server_check",
+            [
+                py,
+                "solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py",
+                "--base-url",
+                "http://127.0.0.1:18787",
+                "--timeout-sec",
+                "15",
+            ],
         )
     )
 

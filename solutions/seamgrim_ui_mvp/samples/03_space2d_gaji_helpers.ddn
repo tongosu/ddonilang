@@ -36,8 +36,8 @@ pivot <- (x=0.0, y=0.0) 값꾸러미.
 
 (tick) t목록에 대해: {
   t <- tick * dt.
-  x <- (t=t) (#ascii1) 수식{ cos(t) }.
-  y <- (t=t) (#ascii1) 수식{ sin(t) }.
+  x <- (t) cos.
+  y <- (t) sin.
 
   pos <- (x=x, y=y) 값꾸러미.
 

@@ -17,6 +17,13 @@ LEGACY_SHOW_RE = re.compile(r"보여주기\s*\.")
 VIEW_BLOCK_RE = re.compile(r"\b보임\s*\{")
 MAMADI_RE = re.compile(r"\(\s*매마디\s*\)\s*마다")
 MATIK_RE = re.compile(r"\b매틱\s*:")
+INLINE_FORMULA_INJECT_RE = re.compile(
+    r"^(\s*)([A-Za-z_가-힣][A-Za-z0-9_가-힣.]*)\s*<-\s*\((.*?)\)\s*(\(#\w+\))\s*수식\{(.*)\}\s*\.\s*$"
+)
+CALL_STYLE_RE = re.compile(r"\b(sin|cos|tan|sqrt|abs|log|exp)\s*\(\s*([^)]+?)\s*\)")
+DECIMAL_EXP_RE = re.compile(r"\^\s*[-+]?(?:\d+\.\d+|\.\d+)")
+NUMBER_LITERAL_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
+IDENT_DOTTED_RE = re.compile(r"^[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*$")
 
 
 def expand_multi_show_lines(lines: list[str]) -> list[str]:
@@ -127,6 +134,120 @@ def inject_mamadi_block(text: str, require_view_block: bool = True) -> tuple[str
     if text.endswith("\n"):
         converted += "\n"
     return converted, True
+
+
+def split_top_level_commas(text: str) -> list[str]:
+    parts: list[str] = []
+    start = 0
+    depth = 0
+    for idx, ch in enumerate(text):
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            parts.append(text[start:idx].strip())
+            start = idx + 1
+    tail = text[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def parse_named_args(args_text: str) -> dict[str, str] | None:
+    mapping: dict[str, str] = {}
+    for token in split_top_level_commas(args_text):
+        if "=" not in token:
+            return None
+        key, value = token.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or not value or not IDENT_DOTTED_RE.fullmatch(key):
+            return None
+        mapping[key] = value
+    return mapping
+
+
+def as_runtime_atom(text: str) -> str:
+    token = text.strip()
+    if IDENT_DOTTED_RE.fullmatch(token) or NUMBER_LITERAL_RE.fullmatch(token):
+        return token
+    return f"({token})"
+
+
+def substitute_named_args(expr: str, mapping: dict[str, str]) -> str:
+    updated = expr
+    for key in sorted(mapping.keys(), key=len, reverse=True):
+        val = as_runtime_atom(mapping[key])
+        updated = re.sub(
+            rf"(?<![0-9A-Za-z_가-힣.]){re.escape(key)}(?![0-9A-Za-z_가-힣.])",
+            val,
+            updated,
+        )
+    return updated
+
+
+def rewrite_formula_expr_for_runtime(expr: str, mapping: dict[str, str]) -> str | None:
+    updated = substitute_named_args(expr, mapping)
+    updated = re.sub(r"\)\s*\^\s*0\.5", ") sqrt", updated)
+    updated = re.sub(r"([A-Za-z0-9_가-힣\.]+)\s*\^\s*0\.5", r"\1 sqrt", updated)
+
+    rewrites = 0
+    while True:
+        match = CALL_STYLE_RE.search(updated)
+        if not match:
+            break
+        fn, arg = match.groups()
+        replacement = f"(({arg.strip()}) {fn})"
+        updated = updated[: match.start()] + replacement + updated[match.end() :]
+        rewrites += 1
+        if rewrites > 64:
+            return None
+
+    if DECIMAL_EXP_RE.search(updated):
+        return None
+    if CALL_STYLE_RE.search(updated):
+        return None
+    return updated.strip()
+
+
+def rewrite_inline_formula_compat_in_text(text: str) -> tuple[str, dict[str, int]]:
+    lines = text.splitlines()
+    out: list[str] = []
+    rewritten = 0
+    skipped = 0
+
+    for line in lines:
+        match = INLINE_FORMULA_INJECT_RE.match(line)
+        if not match:
+            out.append(line)
+            continue
+        indent, lhs, args, _tag, expr = match.groups()
+        if not (CALL_STYLE_RE.search(expr) or DECIMAL_EXP_RE.search(expr)):
+            out.append(line)
+            continue
+
+        mapping = parse_named_args(args)
+        if mapping is None:
+            out.append(line)
+            skipped += 1
+            continue
+        runtime_expr = rewrite_formula_expr_for_runtime(expr, mapping)
+        if runtime_expr is None:
+            out.append(line)
+            skipped += 1
+            continue
+
+        out.append(f"{indent}{lhs} <- {runtime_expr}.")
+        rewritten += 1
+
+    converted = "\n".join(out)
+    if text.endswith("\n"):
+        converted += "\n"
+    return converted, {
+        "formula_compat_rewritten": rewritten,
+        "formula_compat_skipped": skipped,
+    }
 
 
 def is_preview_file(path: Path, preview_suffix: str) -> bool:
@@ -316,6 +437,11 @@ def main() -> int:
         help="매마디 블록이 없고 보임 블록이 있는 파일에 (매마디)마다 { ... }. 를 자동 주입합니다.",
     )
     parser.add_argument(
+        "--rewrite-formula-compat",
+        action="store_true",
+        help="inline 수식에서 call-style/sqrt 지수(0.5)를 런타임 식으로 직접 치환합니다.",
+    )
+    parser.add_argument(
         "--prefer-existing-preview",
         action="store_true",
         help="preview 파일이 있으면 변환 결과 대신 preview 본문을 검증/요약 기준으로 사용합니다.",
@@ -365,6 +491,9 @@ def main() -> int:
         preview_file = preview_path(path, args.preview_suffix)
         src = path.read_text(encoding="utf-8")
         converted, stats = convert_show_to_view_block(src)
+        formula_stats = {"formula_compat_rewritten": 0, "formula_compat_skipped": 0}
+        if args.rewrite_formula_compat:
+            converted, formula_stats = rewrite_inline_formula_compat_in_text(converted)
         converted, mamadi_injected = (
             inject_mamadi_block(converted)
             if args.inject_mamadi
@@ -392,6 +521,7 @@ def main() -> int:
                 "path": str(path.relative_to(ROOT)),
                 "changed": is_changed,
                 **stats,
+                **formula_stats,
                 "profile_before": classify_schema_profile(src),
                 "profile_after": classify_schema_profile(converted),
                 "profile_effective": classify_schema_profile(effective_text),
@@ -407,6 +537,7 @@ def main() -> int:
     print(
         f"targets={len(targets)} changed={changed} write_preview={int(args.write_preview)} "
         f"inject_mamadi={int(args.inject_mamadi)} prefer_existing_preview={int(args.prefer_existing_preview)} "
+        f"rewrite_formula_compat={int(args.rewrite_formula_compat)} "
         f"enforce_age3={int(args.enforce_age3)} failed={failed}"
     )
     if not args.quiet:
@@ -415,7 +546,9 @@ def main() -> int:
                 continue
             print(
                 f"[changed] {row['path']} "
-                f"show={row['show_lines_replaced']} blocks={row['view_blocks_created']}"
+                f"show={row['show_lines_replaced']} blocks={row['view_blocks_created']} "
+                f"formula_compat={row['formula_compat_rewritten']} "
+                f"formula_compat_skip={row['formula_compat_skipped']}"
             )
             if row["violations"]:
                 print(f"  [violation] {','.join(row['violations'])}")
@@ -436,6 +569,7 @@ def main() -> int:
             "changed": changed,
             "write_preview": bool(args.write_preview),
             "inject_mamadi": bool(args.inject_mamadi),
+            "rewrite_formula_compat": bool(args.rewrite_formula_compat),
             "prefer_existing_preview": bool(args.prefer_existing_preview),
             "enforce_age3": bool(args.enforce_age3),
             "failed": failed,

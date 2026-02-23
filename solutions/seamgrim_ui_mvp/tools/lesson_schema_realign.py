@@ -26,6 +26,9 @@ INLINE_COND_BLOCK_RE = re.compile(
     r"^(\s*)(\{.+\}\s*인것\s*(?:일때|동안))\s*\{\s*(.+?)\s*\}\s*\.\s*$"
 )
 CALL_STYLE_RE = re.compile(r"\b(sin|cos|tan|sqrt|abs|log|exp)\s*\(\s*([^)]+?)\s*\)")
+DECIMAL_EXP_RE = re.compile(r"\^\s*[-+]?(?:\d+\.\d+|\.\d+)")
+NUMBER_LITERAL_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
+IDENT_RE = re.compile(r"^[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*$")
 
 
 @dataclass
@@ -35,6 +38,8 @@ class TransformStats:
     show_lines_added: int = 0
     eq_assign_replaced: int = 0
     inline_formula_rewritten: int = 0
+    inline_formula_compat_rewritten: int = 0
+    inline_formula_compat_skipped: int = 0
     inline_block_terminated: int = 0
     call_style_rewritten: int = 0
 
@@ -44,6 +49,7 @@ class TransformStats:
             or self.show_lines_added > 0
             or self.eq_assign_replaced > 0
             or self.inline_formula_rewritten > 0
+            or self.inline_formula_compat_rewritten > 0
             or self.inline_block_terminated > 0
             or self.call_style_rewritten > 0
         )
@@ -152,7 +158,90 @@ def convert_plain_eq_assign(lines: list[str], stats: TransformStats) -> list[str
     return out
 
 
-def rewrite_inline_formula_inject(lines: list[str], stats: TransformStats) -> list[str]:
+def split_top_level_commas(text: str) -> list[str]:
+    parts: list[str] = []
+    start = 0
+    depth = 0
+    for idx, ch in enumerate(text):
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            parts.append(text[start:idx].strip())
+            start = idx + 1
+    tail = text[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def parse_named_args(args_text: str) -> dict[str, str] | None:
+    mapping: dict[str, str] = {}
+    for token in split_top_level_commas(args_text):
+        if "=" not in token:
+            return None
+        key, value = token.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or not value or not IDENT_RE.fullmatch(key):
+            return None
+        mapping[key] = value
+    return mapping
+
+
+def as_runtime_atom(text: str) -> str:
+    token = text.strip()
+    if IDENT_RE.fullmatch(token) or NUMBER_LITERAL_RE.fullmatch(token):
+        return token
+    return f"({token})"
+
+
+def substitute_named_args(expr: str, mapping: dict[str, str]) -> str:
+    updated = expr
+    for key in sorted(mapping.keys(), key=len, reverse=True):
+        val = as_runtime_atom(mapping[key])
+        updated = re.sub(
+            rf"(?<![0-9A-Za-z_가-힣.]){re.escape(key)}(?![0-9A-Za-z_가-힣.])",
+            val,
+            updated,
+        )
+    return updated
+
+
+def rewrite_formula_expr_for_runtime(expr: str, mapping: dict[str, str], stats: TransformStats) -> str | None:
+    # 1) 인자 이름 바인딩 적용 (wn -> omegaN 등)
+    updated = substitute_named_args(expr, mapping)
+    # 2) ^0.5 를 postfix sqrt로 변환
+    updated = re.sub(r"\)\s*\^\s*0\.5", ") sqrt", updated)
+    updated = re.sub(r"([A-Za-z0-9_가-힣\.]+)\s*\^\s*0\.5", r"\1 sqrt", updated)
+
+    rewrites = 0
+    while True:
+        match = CALL_STYLE_RE.search(updated)
+        if not match:
+            break
+        fn, arg = match.groups()
+        replacement = f"(({arg.strip()}) {fn})"
+        updated = updated[: match.start()] + replacement + updated[match.end() :]
+        rewrites += 1
+        if rewrites > 64:
+            return None
+    if rewrites:
+        stats.call_style_rewritten += rewrites
+
+    # 3) 아직 소수 지수가 남아있으면 런타임 비호환으로 간주
+    if DECIMAL_EXP_RE.search(updated):
+        return None
+    # 4) 남은 call-style 함수호출이 있으면 변환 실패
+    if CALL_STYLE_RE.search(updated):
+        return None
+    return updated.strip()
+
+
+def rewrite_inline_formula_inject(
+    lines: list[str], stats: TransformStats, rewrite_formula_compat: bool
+) -> list[str]:
     out: list[str] = []
     temp_index = 0
     for line in lines:
@@ -161,6 +250,15 @@ def rewrite_inline_formula_inject(lines: list[str], stats: TransformStats) -> li
             out.append(line)
             continue
         indent, lhs, args, tag, expr = match.groups()
+        if rewrite_formula_compat and (CALL_STYLE_RE.search(expr) or DECIMAL_EXP_RE.search(expr)):
+            mapping = parse_named_args(args)
+            if mapping is not None:
+                runtime_expr = rewrite_formula_expr_for_runtime(expr, mapping, stats)
+                if runtime_expr is not None:
+                    out.append(f"{indent}{lhs} <- {runtime_expr}.")
+                    stats.inline_formula_compat_rewritten += 1
+                    continue
+            stats.inline_formula_compat_skipped += 1
         temp_index += 1
         temp_name = f"__seamgrim_tmp_formula_{temp_index}"
         out.append(f"{indent}{temp_name} <- {tag} 수식{{{expr}}}.")
@@ -205,12 +303,12 @@ def rewrite_call_style_functions(lines: list[str], stats: TransformStats) -> lis
     return out
 
 
-def transform_text(text: str) -> tuple[str, TransformStats]:
+def transform_text(text: str, rewrite_formula_compat: bool) -> tuple[str, TransformStats]:
     stats = TransformStats()
     lines = text.splitlines()
     lines = convert_boim_blocks(lines, stats)
     lines = convert_plain_eq_assign(lines, stats)
-    lines = rewrite_inline_formula_inject(lines, stats)
+    lines = rewrite_inline_formula_inject(lines, stats, rewrite_formula_compat=rewrite_formula_compat)
     lines = normalize_inline_block_terminator(lines, stats)
     lines = rewrite_call_style_functions(lines, stats)
     converted = "\n".join(lines)
@@ -249,6 +347,11 @@ def main() -> int:
         default=30,
         help="콘솔에 표시할 changed 파일 수(기본 30)",
     )
+    parser.add_argument(
+        "--rewrite-formula-compat",
+        action="store_true",
+        help="inline 수식에서 call-style/sqrt 지수(0.5)를 런타임 식으로 직접 치환합니다.",
+    )
     args = parser.parse_args()
 
     if not LESSONS_ROOT.exists():
@@ -264,7 +367,7 @@ def main() -> int:
     changed = 0
     for path in targets:
         src = path.read_text(encoding="utf-8")
-        converted, stats = transform_text(src)
+        converted, stats = transform_text(src, rewrite_formula_compat=args.rewrite_formula_compat)
         is_changed = converted != src
         if is_changed and args.apply:
             path.write_text(converted, encoding="utf-8")
@@ -275,6 +378,8 @@ def main() -> int:
         total.show_lines_added += stats.show_lines_added
         total.eq_assign_replaced += stats.eq_assign_replaced
         total.inline_formula_rewritten += stats.inline_formula_rewritten
+        total.inline_formula_compat_rewritten += stats.inline_formula_compat_rewritten
+        total.inline_formula_compat_skipped += stats.inline_formula_compat_skipped
         total.inline_block_terminated += stats.inline_block_terminated
         total.call_style_rewritten += stats.call_style_rewritten
         rows.append(
@@ -286,6 +391,8 @@ def main() -> int:
                 "show_lines_added": stats.show_lines_added,
                 "eq_assign_replaced": stats.eq_assign_replaced,
                 "inline_formula_rewritten": stats.inline_formula_rewritten,
+                "inline_formula_compat_rewritten": stats.inline_formula_compat_rewritten,
+                "inline_formula_compat_skipped": stats.inline_formula_compat_skipped,
                 "inline_block_terminated": stats.inline_block_terminated,
                 "call_style_rewritten": stats.call_style_rewritten,
             }
@@ -296,6 +403,8 @@ def main() -> int:
         f"boim_replaced={total.boim_blocks_replaced} boim_skipped={total.boim_blocks_skipped} "
         f"show_added={total.show_lines_added} eq_replaced={total.eq_assign_replaced} "
         f"inline_formula_rewritten={total.inline_formula_rewritten} "
+        f"inline_formula_compat_rewritten={total.inline_formula_compat_rewritten} "
+        f"inline_formula_compat_skipped={total.inline_formula_compat_skipped} "
         f"inline_block_terminated={total.inline_block_terminated} "
         f"call_style_rewritten={total.call_style_rewritten}"
     )
@@ -311,6 +420,8 @@ def main() -> int:
             f"[changed] {row['path']} boim={row['boim_blocks_replaced']} "
             f"show+={row['show_lines_added']} eq={row['eq_assign_replaced']} "
             f"inline={row['inline_formula_rewritten']} "
+            f"inline_compat={row['inline_formula_compat_rewritten']} "
+            f"inline_compat_skip={row['inline_formula_compat_skipped']} "
             f"inline_dot={row['inline_block_terminated']} "
             f"call={row['call_style_rewritten']}"
         )
@@ -329,6 +440,8 @@ def main() -> int:
                 "show_lines_added": total.show_lines_added,
                 "eq_assign_replaced": total.eq_assign_replaced,
                 "inline_formula_rewritten": total.inline_formula_rewritten,
+                "inline_formula_compat_rewritten": total.inline_formula_compat_rewritten,
+                "inline_formula_compat_skipped": total.inline_formula_compat_skipped,
                 "inline_block_terminated": total.inline_block_terminated,
                 "call_style_rewritten": total.call_style_rewritten,
             },

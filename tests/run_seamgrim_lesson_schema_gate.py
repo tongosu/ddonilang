@@ -64,6 +64,7 @@ def main() -> int:
             str(upgrade_tool),
             "--include-inputs",
             "--inject-mamadi",
+            "--rewrite-formula-compat",
             "--prefer-existing-preview",
             "--enforce-age3",
             "--quiet",
