@@ -135,6 +135,27 @@ function parseTomlMeta(text) {
   return out;
 }
 
+function prioritizeLessonCandidates(candidates, source) {
+  const list = Array.isArray(candidates) ? candidates.filter(Boolean).map((item) => String(item)) : [];
+  if (list.length <= 1) return list;
+  const mode = String(source ?? "").trim().toLowerCase();
+  const rankOf = (path) => {
+    const normalized = normalizePath(path);
+    if (mode === "rewrite") {
+      if (normalized.includes("lessons_rewrite_v1/")) return 0;
+      if (normalized.includes("lessons/")) return 1;
+      return 2;
+    }
+    if (mode === "seed") {
+      if (normalized.includes("seed_lessons_v1/")) return 0;
+      if (normalized.includes("lessons/")) return 1;
+      return 2;
+    }
+    return 0;
+  };
+  return [...list].sort((a, b) => rankOf(a) - rankOf(b));
+}
+
 function toLessonEntry(base) {
   const id = String(base.id ?? "").trim();
   if (!id) return null;
@@ -265,6 +286,10 @@ async function loadCatalogLessons() {
 async function loadLessonById(lessonId) {
   const base = appState.lessonsById.get(lessonId);
   if (!base) throw new Error(`교과를 찾지 못했습니다: ${lessonId}`);
+
+  base.ddnCandidates = prioritizeLessonCandidates(base.ddnCandidates, base.source);
+  base.textCandidates = prioritizeLessonCandidates(base.textCandidates, base.source);
+  base.metaCandidates = prioritizeLessonCandidates(base.metaCandidates, base.source);
 
   const ddnText = await fetchText(base.ddnCandidates);
   if (!ddnText) {
