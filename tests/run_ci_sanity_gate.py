@@ -65,6 +65,11 @@ def main() -> int:
             [py, "tests/run_ci_pipeline_emit_flags_check.py"],
             "E_CI_SANITY_PIPELINE_FLAGS_FAIL",
         ),
+        (
+            "pipeline_emit_flags_selftest",
+            [py, "tests/run_ci_pipeline_emit_flags_check_selftest.py"],
+            "E_CI_SANITY_PIPELINE_FLAGS_SELFTEST_FAIL",
+        ),
     ]
 
     rows: list[dict[str, object]] = []

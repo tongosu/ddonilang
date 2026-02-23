@@ -1,6 +1,100 @@
 # CHANGELOG.md
 
 ## Unreleased
+- Added `tests/run_ci_sync_readiness_check_selftest.py`.
+  - Verifies quick-mode (`--skip-aggregate`) pass path and JSON payload contract for `run_ci_sync_readiness_check.py`.
+  - Verifies `--json-out` custom output path handling.
+- Added `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`.
+  - Locks aggregate gate wiring for:
+    - `ci_sync_readiness_selftest`
+    - `ci_aggregate_gate_sync_diagnostics_check`
+- Integrated sync-readiness selftest/diagnostics into aggregate gate.
+  - `tests/run_ci_aggregate_gate.py` now runs:
+    - `ci_sync_readiness_selftest`
+    - `ci_aggregate_gate_sync_diagnostics_check`
+  - Fast-fail / overall / sub-step failure conditions include both rc values.
+- Added `tests/run_ci_sync_readiness_check.py` for one-command pre-sync verification.
+  - Runs pipeline flag checks, their selftest, sanity diagnostics, sanity gate, and aggregate gate (unless `--skip-aggregate`).
+  - Emits one-line status (`ci_sync_readiness_status=...`) and writes `ddn.ci.sync_readiness.v1` JSON report.
+- Added `tests/run_ci_sanity_gate_diagnostics_check.py` to lock sanity-gate pipeline flag selftest wiring.
+  - Verifies `run_ci_sanity_gate.py` keeps:
+    - `pipeline_emit_flags_selftest`
+    - `tests/run_ci_pipeline_emit_flags_check_selftest.py`
+    - `E_CI_SANITY_PIPELINE_FLAGS_SELFTEST_FAIL`
+- Integrated sanity-gate diagnostics into aggregate gate.
+  - `tests/run_ci_aggregate_gate.py` now runs `ci_sanity_gate_diagnostics_check`.
+  - Fast-fail / overall / sub-step failure conditions include the new diagnostics rc.
+- Added `tests/run_ci_pipeline_emit_flags_check_selftest.py`.
+  - Covers pass/fail scenarios for pipeline flag checker:
+    - baseline pass
+    - per-line required token missing
+    - per-line forbidden token present
+    - missing aggregate invocation line
+- Wired pipeline flag checker selftest into CI gates.
+  - `tests/run_ci_sanity_gate.py`: added `pipeline_emit_flags_selftest` step.
+  - `tests/run_ci_aggregate_gate.py`: added `ci_pipeline_emit_flags_selftest` step (fast-fail/overall/sub-step failure wiring).
+- Improved `tests/run_ci_pipeline_emit_flags_check.py` aggregate verification granularity.
+  - Switched aggregate checks from whole-file token scan to per-invocation-line checks for `tests/run_ci_aggregate_gate.py`.
+  - Required/forbidden checklist flags are now enforced on each aggregate command line.
+- Added forbidden checklist-toggle guard in `tests/run_ci_pipeline_emit_flags_check.py`.
+  - CI pipeline config now fails self-check if either token appears:
+    - `--skip-5min-checklist`
+    - `--with-5min-checklist`
+  - This locks pipeline behavior to default checklist ON + explicit lightweight skips only.
+- Pinned aggregate CI invocations to lightweight checklist mode in both pipeline configs.
+  - Added `--checklist-skip-seed-cli --checklist-skip-ui-common` to
+    - `.gitlab-ci.yml`
+    - `azure-pipelines.yml`
+- Updated `tests/run_ci_pipeline_emit_flags_check.py` to require both checklist skip flags so pipeline drift is caught by CI self-check.
+- Switched `tests/run_ci_aggregate_gate.py` 5-minute checklist behavior to default ON.
+  - Added `--skip-5min-checklist` as the explicit opt-out switch.
+  - Kept `--with-5min-checklist` as a deprecated compatibility flag.
+  - Aligned summary emission to use `include_5min_checklist` consistently.
+- Extended `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` to lock default-ON checklist tokens (`--skip-5min-checklist`, `include_5min_checklist`).
+- Updated pendulum smoke golden hashes in `pack/seamgrim_curriculum_seed_smoke_v1/smoke_physics_pendulum.v1.json` to match the current tick-based seed runtime.
+- Fixed AGE4 close blocker caused by stale seed smoke expected hashes (`seamgrim_curriculum_seed_smoke_v1` now passes).
+- Refined aggregate runtime-checklist summary semantics in `tests/run_ci_aggregate_gate.py`:
+  - when rewrite fallback item is not present (e.g., `--checklist-skip-seed-cli`), summary now reports `rewrite_status=not_executed` and `rewrite_ok=na`
+  - added checklist report artifact path (`seamgrim_5min_checklist_report.detjson`) and automatic `--checklist-json-out` passthrough
+- Added `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` and wired it into aggregate gate diagnostics flow.
+- Extended aggregate CI summary to surface runtime checklist details explicitly.
+  - `tests/run_ci_aggregate_gate.py` now emits:
+    - `seamgrim_5min_checklist`
+    - `seamgrim_5min_checklist_ok`
+    - `seamgrim_runtime_5min_rewrite_motion_projectile`
+    - `seamgrim_runtime_5min_rewrite_elapsed_ms`
+    - `seamgrim_runtime_5min_rewrite_status`
+  - Added checklist report artifact path (`seamgrim_5min_checklist_report.detjson`) to aggregate report index.
+  - Wired `--checklist-json-out` passthrough when `--with-5min-checklist` is enabled.
+  - Added `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` and integrated it into aggregate gate self-check flow.
+- Added `tests/run_seamgrim_motion_projectile_fallback_check.py` to lock observation-based bogae fallback coverage for rewrite physics lessons.
+  - validates run-screen fallback tokens for `x/y` and `x`-only observation synthesis in `ui/screens/run.js`
+  - runs `lessons_rewrite_v1/physics_motion` and `lessons_rewrite_v1/physics_projectile` via `teul-cli run --madi` and checks numeric progression sanity
+- Wired the new step into `tests/run_seamgrim_runtime_5min_check.py` as `rewrite_motion_projectile_fallback`.
+- Added checklist label mapping for the new fallback step in `tests/run_seamgrim_5min_checklist.py`.
+- Converted `physics_pendulum_seed_v1` from batch `동안` integration to tick-by-tick (`매마디 1스텝`) integration.
+- Updated `solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn`:
+  - initialize `t/theta/omega/energy` in `(시작)할때`
+  - advance one Euler step per tick under `t <= t_max`
+  - emit `(t,theta)/(t,omega)/(t,energy)` every tick
+  - added explicit assignments outside `채비` for direct `teul-cli run` compatibility
+- Added optional `madi` passthrough for server-side execution:
+  - `solutions/seamgrim_ui_mvp/tools/export_graph.py`: `run_teul_cli(..., madi=None)`
+  - `solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py`: `/api/run` accepts payload `madi`
+  - `solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py`: pendulum validation run uses `madi=420`
+- Reworked `tests/run_seamgrim_seed_pendulum_export_check.py` to validate real runtime progression via `teul-cli run --madi`.
+- Added observation-based bogae fallback in run screen for pendulum-like lessons when native `space2d` output is absent.
+- Updated `solutions/seamgrim_ui_mvp/ui/screens/run.js`:
+  - synthesize minimal pendulum `seamgrim.space2d.v0` from observation keys (`theta`, optional `L`)
+  - extend observation fallback to `x/y` (and `x`-only) lessons with a minimal point+axis `space2d` scene
+  - keep native `views.space2d` precedence when available
+  - align runtime snapshot status with synthesized `space2d`
+- Added explicit pendulum simulation guarantees to Seamgrim runtime validation flows.
+- Updated `solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py` to execute `physics_pendulum_seed_v1` via `/api/run` and validate output sanity (point count, x-span, sign span).
+- Added `tests/run_seamgrim_seed_pendulum_export_check.py` (new) to smoke-check pendulum seed graph export output.
+- Added `seed_physics_pendulum_export` step to `tests/run_seamgrim_runtime_5min_check.py` (default non-skip path).
+- Added checklist label mapping for the new pendulum step in `tests/run_seamgrim_5min_checklist.py`.
+- Hardened `ddn_exec_server_check.py` path-candidate probing to swallow non-HTTP probe exceptions in fallback paths.
 - Changed browse default sort mode to `최근 실행순` (`filter.sort = recent`).
 - Added `lastRunHash` persistence in run prefs and hash display on both browse card run hint and run topbar summary.
 - Added browse card run-status badge colors (`최근성공/출력없음/최근실패/미실행`) for faster scan of lesson execution readiness.

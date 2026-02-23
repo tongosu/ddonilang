@@ -24,6 +24,40 @@ def require_tokens(text: str, label: str, tokens: list[str], errors: list[str]) 
             errors.append(f"{label}: missing token {token}")
 
 
+def forbid_tokens(text: str, label: str, tokens: list[str], errors: list[str]) -> None:
+    for token in tokens:
+        if token in text:
+            errors.append(f"{label}: forbidden token {token}")
+
+
+def extract_aggregate_command_lines(text: str) -> list[str]:
+    rows: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if "tests/run_ci_aggregate_gate.py" in line:
+            rows.append(line)
+    return rows
+
+
+def require_tokens_in_all_lines(lines: list[str], label: str, tokens: list[str], errors: list[str]) -> None:
+    if not lines:
+        errors.append(f"{label}: missing aggregate gate invocation line")
+        return
+    for idx, line in enumerate(lines, start=1):
+        for token in tokens:
+            if token not in line:
+                errors.append(f"{label}: line#{idx} missing token {token}")
+
+
+def forbid_tokens_in_all_lines(lines: list[str], label: str, tokens: list[str], errors: list[str]) -> None:
+    if not lines:
+        return
+    for idx, line in enumerate(lines, start=1):
+        for token in tokens:
+            if token in line:
+                errors.append(f"{label}: line#{idx} forbidden token {token}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check CI pipeline scripts keep required aggregate/emitter flags")
     parser.add_argument("--gitlab", default=".gitlab-ci.yml", help="path to .gitlab-ci.yml")
@@ -48,6 +82,8 @@ def main() -> int:
         "--compact-step-logs",
         "--step-log-dir build/reports",
         "--step-log-failed-only",
+        "--checklist-skip-seed-cli",
+        "--checklist-skip-ui-common",
     ]
     fixed64_threeway_tokens = [
         "DDN_ENABLE_DARWIN_PROBE",
@@ -96,8 +132,14 @@ def main() -> int:
         "tests/run_ci_sanity_gate.py",
         "--json-out build/reports/ci_sanity_gate.detjson",
     ]
+    checklist_forbidden_tokens = [
+        "--skip-5min-checklist",
+        "--with-5min-checklist",
+    ]
 
-    require_tokens(gitlab_text, "gitlab.aggregate", aggregate_tokens, errors)
+    gitlab_aggregate_lines = extract_aggregate_command_lines(gitlab_text)
+    require_tokens_in_all_lines(gitlab_aggregate_lines, "gitlab.aggregate", aggregate_tokens, errors)
+    forbid_tokens_in_all_lines(gitlab_aggregate_lines, "gitlab.aggregate", checklist_forbidden_tokens, errors)
     require_tokens(gitlab_text, "gitlab.fixed64_threeway", fixed64_threeway_tokens, errors)
     require_tokens(gitlab_text, "gitlab.darwin_guard", gitlab_darwin_guard_tokens, errors)
     require_tokens(gitlab_text, "gitlab.sanity", sanity_tokens, errors)
@@ -116,7 +158,9 @@ def main() -> int:
         errors,
     )
 
-    require_tokens(azure_text, "azure.aggregate", aggregate_tokens, errors)
+    azure_aggregate_lines = extract_aggregate_command_lines(azure_text)
+    require_tokens_in_all_lines(azure_aggregate_lines, "azure.aggregate", aggregate_tokens, errors)
+    forbid_tokens_in_all_lines(azure_aggregate_lines, "azure.aggregate", checklist_forbidden_tokens, errors)
     require_tokens(azure_text, "azure.fixed64_threeway", fixed64_threeway_tokens, errors)
     require_tokens(azure_text, "azure.darwin_guard", azure_darwin_guard_tokens, errors)
     require_tokens(azure_text, "azure.sanity", sanity_tokens, errors)

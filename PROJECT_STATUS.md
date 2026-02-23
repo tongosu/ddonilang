@@ -4,6 +4,101 @@
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
 ## 최근 문서 갱신
+- `tests/run_ci_sync_readiness_check_selftest.py`를 추가해 원클릭 동기화 점검 스크립트 회귀를 자동 검증하도록 보강했다.
+  - quick 모드(`--skip-aggregate`) PASS 및 JSON 스키마/step 목록/step 개수 검증
+  - `--json-out` 커스텀 경로 출력 검증
+- `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`를 추가해
+  aggregate 게이트에 sync readiness selftest/diagnostics 연결이 유지되는지 검사하도록 고정했다.
+- `tests/run_ci_aggregate_gate.py`에 아래 단계를 추가했다.
+  - `ci_sync_readiness_selftest`
+  - `ci_aggregate_gate_sync_diagnostics_check`
+  - fast-fail / overall_ok / sub-step failed 판정 연동 완료
+- `tests/run_ci_sync_readiness_check.py`를 추가해 동기화 직전 점검을 1회 명령으로 실행할 수 있게 했다.
+  - 포함 단계:
+    - `run_ci_pipeline_emit_flags_check.py`
+    - `run_ci_pipeline_emit_flags_check_selftest.py`
+    - `run_ci_sanity_gate_diagnostics_check.py`
+    - `run_ci_sanity_gate.py`
+    - `run_ci_aggregate_gate.py` (기본 포함, `--skip-aggregate`로 제외 가능)
+  - 결과를 `ddn.ci.sync_readiness.v1` JSON으로 저장
+  - 출력: `ci_sync_readiness_status=...` one-line 상태
+- `tests/run_ci_sanity_gate_diagnostics_check.py`를 추가해 `run_ci_sanity_gate.py`의
+  파이프라인 플래그 selftest 연동 토큰 회귀를 자동 차단했다.
+  - 검증 토큰: `pipeline_emit_flags_selftest`, `tests/run_ci_pipeline_emit_flags_check_selftest.py`, `E_CI_SANITY_PIPELINE_FLAGS_SELFTEST_FAIL`
+- `tests/run_ci_aggregate_gate.py`에 `ci_sanity_gate_diagnostics_check` 단계를 추가했다.
+  - fast-fail / overall_ok / sub-step failed 판정에 반영
+- `tests/run_ci_pipeline_emit_flags_check_selftest.py`를 추가해 파이프라인 플래그 검사기의 회귀를 자동 검증하도록 보강했다.
+  - baseline 통과, 필수 토큰 누락 실패, 금지 토큰 실패, aggregate 호출 라인 미존재 실패 케이스를 포함
+- `tests/run_ci_sanity_gate.py`에 `pipeline_emit_flags_selftest` 단계를 추가했다.
+  - precheck 단계에서 플래그 검사기 자체의 회귀까지 함께 차단
+- `tests/run_ci_aggregate_gate.py`에 `ci_pipeline_emit_flags_selftest` 단계를 추가했다.
+  - fast-fail/overall/sub-step 실패 판정에 반영
+- `tests/run_ci_pipeline_emit_flags_check.py`의 aggregate 플래그 검증을 파일 전체 문자열 검사에서
+  `run_ci_aggregate_gate.py` 실행 라인 단위 검사로 강화했다.
+  - 각 aggregate 실행 라인마다 필수 플래그 누락/금지 플래그 포함 여부를 개별 판정
+  - 목적: 주석/문서 문자열로 인한 오탐을 줄이고 실제 실행 커맨드 드리프트만 정확히 검출
+- `tests/run_ci_pipeline_emit_flags_check.py`에 5분 체크리스트 정책 금지 플래그 가드를 추가했다.
+  - 금지 토큰:
+    - `--skip-5min-checklist`
+    - `--with-5min-checklist`
+  - 목적: 파이프라인이 기본 ON 정책을 우회하거나 중복 토글하는 회귀를 CI self-check에서 즉시 차단
+- CI 파이프라인의 aggregate 게이트 실행 플래그를 체크리스트 경량 경로로 고정했다.
+  - `.gitlab-ci.yml`, `azure-pipelines.yml`의 `run_ci_aggregate_gate.py` 호출에
+    - `--checklist-skip-seed-cli`
+    - `--checklist-skip-ui-common`
+    를 공통 추가
+  - `tests/run_ci_pipeline_emit_flags_check.py`에 두 토큰을 필수 검증으로 추가해 회귀를 차단
+- `tests/run_ci_aggregate_gate.py`의 5분 체크리스트 정책을 기본 ON으로 전환했다.
+  - 신규 옵션: `--skip-5min-checklist` (기본 ON 비활성화 전용)
+  - `--with-5min-checklist`는 하위호환용(deprecated)으로 유지
+  - 집계 요약 라인에서도 `include_5min_checklist` 경로를 사용하도록 정렬
+- `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py`에 기본 ON 정책 토큰(`--skip-5min-checklist`, `include_5min_checklist`) 검증을 추가했다.
+- `seamgrim_curriculum_seed_smoke_v1`의 진자 스모크 골든 해시를 틱 기반 진자 seed 최신 상태로 갱신했다.
+  - 파일: `pack/seamgrim_curriculum_seed_smoke_v1/smoke_physics_pendulum.v1.json`
+  - 결과: `python tests/run_pack_golden.py seamgrim_curriculum_seed_smoke_v1` PASS, `python tests/run_age4_close.py` PASS
+- CI 집계 요약의 5분 체크리스트 표시를 보강했다.
+  - `tests/run_ci_aggregate_gate.py`가 `--with-5min-checklist` 실행 시 `--checklist-json-out`을 자동 전달
+  - summary에 `seamgrim_runtime_5min_rewrite_motion_projectile` 계열 라인을 추가
+  - seed 스킵 실행(`--checklist-skip-seed-cli`)에서는 rewrite 상태를 `not_executed`/`na`로 명시해 실패로 오해되지 않도록 정리
+- 신규 `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py`를 추가해 위 토큰/연결의 회귀를 차단했다.
+- CI 집계 요약(`run_ci_aggregate_gate.py`)에 5분 체크리스트 결과를 명시적으로 반영했다.
+  - `seamgrim_5min_checklist` 리포트 경로를 집계 아티팩트/인덱스에 추가
+  - `rewrite_motion_projectile_fallback` 단계 상태를 요약 라인으로 출력:
+    - `seamgrim_runtime_5min_rewrite_motion_projectile`
+    - `seamgrim_runtime_5min_rewrite_elapsed_ms`
+    - `seamgrim_runtime_5min_rewrite_status`
+  - aggregate가 `--with-5min-checklist`로 실행될 때 `--checklist-json-out`을 자동 전달하도록 연결
+  - 신규 진단 selfcheck `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` 추가 및 aggregate 기본 단계에 편입
+- 5분 런타임 체크리스트에 `physics_motion`/`physics_projectile` 보개 폴백 검증 단계를 추가했다.
+- 신규 `tests/run_seamgrim_motion_projectile_fallback_check.py`:
+  - `run.js`에 `x/y`(및 `x` 단독) 관측값 기반 `space2d` 폴백 토큰이 존재하는지 검사
+  - `lessons_rewrite_v1/physics_motion`, `lessons_rewrite_v1/physics_projectile`를 `teul-cli run --madi`로 실행해 시계열 출력 최소 조건을 검증
+- `tests/run_seamgrim_runtime_5min_check.py`에 `rewrite_motion_projectile_fallback` 단계를 연결했고,
+  `tests/run_seamgrim_5min_checklist.py` 라벨(`Rewrite 운동/포물선 보개 폴백 점검`)을 추가했다.
+- `physics_pendulum_seed_v1`를 `동안` 일괄 계산형에서 `매마디 1스텝` 틱 전이형으로 전환했다.
+- 적용 파일: `solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn`
+  - `시작`에서 상태(`t/theta/omega/energy`) 초기화
+  - `매마디`에서 `t <= t_max` 조건 하 1스텝 오일러 적분
+  - 관찰 채널은 매 틱 `(t,theta)/(t,omega)/(t,energy)` 출력
+  - `teul-cli run` 직접 실행 호환을 위해 채비 외 명시 대입 블록 추가
+- `ddn_exec_server` 실행 API에 `madi`(옵션) 입력을 추가해 다중 틱 실행 검증을 지원했다.
+  - 적용 파일:
+    - `solutions/seamgrim_ui_mvp/tools/export_graph.py` (`run_teul_cli(..., madi=...)`)
+    - `solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py` (`/api/run` payload `madi` 전달)
+    - `solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py` (진자 검증 시 `madi=420`)
+- `tests/run_seamgrim_seed_pendulum_export_check.py`를 런타임 기반 검증으로 전환했다.
+  - `teul-cli run --madi` 실행 결과에서 `theta` 시계열 길이/시간축 범위/부호 변화/단조 시간축을 검사
+- `run` 화면에서 보개(`space2d`)가 비어 있을 때 관찰값 기반 최소 진자 장면을 자동 합성해 표시하도록 보강했다.
+- 적용 파일: `solutions/seamgrim_ui_mvp/ui/screens/run.js`
+  - `theta`(+ 선택적 `L`) 관찰값이 있으면 line/circle/point로 진자 2D 장면을 합성
+  - `x/y`(또는 `x` 단독) 관찰값만 있는 교과도 점/축 기반 최소 2D 장면을 합성해 보개를 비우지 않도록 확장
+  - 원본 `views.space2d`가 있으면 기존 출력을 우선 사용
+  - 런타임 요약(`kind/channels`)은 합성된 space2d까지 반영해 `보개 출력` 상태가 일관되게 저장되도록 정렬
+- 5분 검증 시나리오에 "진자 시뮬레이션 실행 보증" 단계를 추가했다.
+- `solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py`에서 `physics_pendulum_seed_v1`를 `/api/run`으로 실제 실행해 점/축 범위 최소 조건을 검사하도록 보강했다.
+- 신규 `tests/run_seamgrim_seed_pendulum_export_check.py`를 추가해 `export_graph.py` 기반 진자 seed 그래프 출력 smoke 검증을 고정했다.
+- `tests/run_seamgrim_runtime_5min_check.py`에 `seed_physics_pendulum_export` 단계를 추가했고, `tests/run_seamgrim_5min_checklist.py`에 체크리스트 라벨(`Seed 진자 시뮬 실행`)을 반영했다.
+- `ddn_exec_server_check.py`의 경로 폴백 조회에서 비정상 예외가 상위로 전파되지 않도록 예외 안전 처리(`fetch_first_ok_text`)를 보강했다.
 - 탐색 화면의 기본 정렬을 `최근 실행순`으로 전환해 최근에 확인한 교과가 목록 상단에 오도록 조정했다.
 - 실행 스냅샷에 `lastRunHash`를 저장하고, 탐색 카드/실행 상단 요약에 축약 hash를 함께 표시하도록 보강했다.
 - 탐색 카드에 최근 실행 배지 색상(최근성공/출력없음/최근실패/미실행)을 추가해 실행 가능 상태를 빠르게 판별할 수 있게 했다.

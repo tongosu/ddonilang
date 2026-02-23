@@ -106,6 +106,11 @@ def cleanup_prefixed_step_logs(step_log_dir: Path, prefix: str, dry_run: bool) -
 def print_report_paths(
     seamgrim_report: Path,
     seamgrim_ui_age3_report: Path,
+    seamgrim_phase3_cleanup_report: Path,
+    seamgrim_browse_selection_report: Path,
+    seamgrim_runtime_5min_report: Path,
+    seamgrim_runtime_5min_browse_selection_report: Path,
+    seamgrim_5min_checklist_report: Path,
     age3_close_report: Path,
     age4_close_report: Path,
     age5_close_report: Path,
@@ -133,6 +138,11 @@ def print_report_paths(
     print("[ci-gate] reports")
     print(f" - seamgrim={seamgrim_report}")
     print(f" - seamgrim_ui_age3={seamgrim_ui_age3_report}")
+    print(f" - seamgrim_phase3_cleanup={seamgrim_phase3_cleanup_report}")
+    print(f" - seamgrim_browse_selection={seamgrim_browse_selection_report}")
+    print(f" - seamgrim_runtime_5min={seamgrim_runtime_5min_report}")
+    print(f" - seamgrim_runtime_5min_browse_selection={seamgrim_runtime_5min_browse_selection_report}")
+    print(f" - seamgrim_5min_checklist={seamgrim_5min_checklist_report}")
     print(f" - age3_close={age3_close_report}")
     print(f" - age4_close={age4_close_report}")
     print(f" - age5_close={age5_close_report}")
@@ -308,6 +318,81 @@ def resolve_summary_compact(
         final_status_parse_path,
         fallback=read_compact_line(final_status_line_path),
     )
+
+
+def append_runtime_5min_summary_lines(
+    lines: list[str],
+    with_runtime_5min: bool,
+    runtime_5min_report: Path,
+    runtime_5min_browse_selection_report: Path,
+) -> None:
+    if not with_runtime_5min:
+        return
+    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min={runtime_5min_report}")
+    lines.append(
+        "[ci-gate-summary] seamgrim_runtime_5min_browse_selection="
+        f"{runtime_5min_browse_selection_report}"
+    )
+
+
+def load_runtime_5min_checklist_snapshot(report_path: Path) -> dict[str, str]:
+    doc = load_payload(report_path)
+    if not isinstance(doc, dict):
+        return {
+            "ok": "0",
+            "rewrite_ok": "na",
+            "rewrite_elapsed_ms": "-",
+            "rewrite_status": "missing_report",
+        }
+    ok_text = "1" if bool(doc.get("ok", False)) else "0"
+    items = doc.get("items")
+    if not isinstance(items, list):
+        return {
+            "ok": ok_text,
+            "rewrite_ok": "na",
+            "rewrite_elapsed_ms": "-",
+            "rewrite_status": "items_missing",
+        }
+    rewrite_row = None
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("name", "")).strip() == "rewrite_motion_projectile_fallback":
+            rewrite_row = row
+            break
+    if not isinstance(rewrite_row, dict):
+        return {
+            "ok": ok_text,
+            "rewrite_ok": "na",
+            "rewrite_elapsed_ms": "-",
+            "rewrite_status": "not_executed",
+        }
+    elapsed_raw = rewrite_row.get("elapsed_ms")
+    try:
+        elapsed_text = str(max(0, int(elapsed_raw)))
+    except Exception:
+        elapsed_text = "-"
+    return {
+        "ok": ok_text,
+        "rewrite_ok": "1" if bool(rewrite_row.get("ok", False)) else "0",
+        "rewrite_elapsed_ms": elapsed_text,
+        "rewrite_status": "ok" if bool(rewrite_row.get("ok", False)) else "failed",
+    }
+
+
+def append_runtime_5min_checklist_summary_lines(
+    lines: list[str],
+    with_5min_checklist: bool,
+    checklist_report: Path,
+) -> None:
+    if not with_5min_checklist:
+        return
+    snap = load_runtime_5min_checklist_snapshot(checklist_report)
+    lines.append(f"[ci-gate-summary] seamgrim_5min_checklist={checklist_report}")
+    lines.append(f"[ci-gate-summary] seamgrim_5min_checklist_ok={snap['ok']}")
+    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min_rewrite_motion_projectile={snap['rewrite_ok']}")
+    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min_rewrite_elapsed_ms={snap['rewrite_elapsed_ms']}")
+    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min_rewrite_status={snap['rewrite_status']}")
 
 
 def print_failure_block(
@@ -658,7 +743,46 @@ def main() -> int:
         action="store_true",
         help="require age5 close report to pass at aggregate combine stage",
     )
+    parser.add_argument(
+        "--with-runtime-5min",
+        action="store_true",
+        help="pass through runtime 5min seamgrim check to run_seamgrim_ci_gate.py",
+    )
+    parser.add_argument(
+        "--runtime-5min-skip-seed-cli",
+        action="store_true",
+        help="with --with-runtime-5min, skip seed teul-cli runs in runtime scenario",
+    )
+    parser.add_argument(
+        "--with-5min-checklist",
+        action="store_true",
+        help="(deprecated) 5-minute checklist is enabled by default; use --skip-5min-checklist to disable",
+    )
+    parser.add_argument(
+        "--skip-5min-checklist",
+        action="store_true",
+        help="disable 5-minute checklist wrapper passthrough to run_seamgrim_ci_gate.py",
+    )
+    parser.add_argument(
+        "--checklist-skip-seed-cli",
+        action="store_true",
+        help="when checklist is enabled, skip seed teul-cli runs in checklist runtime",
+    )
+    parser.add_argument(
+        "--checklist-skip-ui-common",
+        action="store_true",
+        help="when checklist is enabled, skip ui common runner in checklist runtime",
+    )
+    parser.add_argument(
+        "--browse-selection-strict",
+        action="store_true",
+        help="pass through browse selection strict report validation to run_seamgrim_ci_gate.py",
+    )
     args = parser.parse_args()
+    if args.skip_5min_checklist and args.with_5min_checklist:
+        print("[ci-gate] --with-5min-checklist and --skip-5min-checklist cannot be used together", file=sys.stderr)
+        return 2
+    include_5min_checklist = not bool(args.skip_5min_checklist)
 
     root = Path(__file__).resolve().parent.parent
     py = sys.executable
@@ -689,6 +813,11 @@ def main() -> int:
 
     seamgrim_base_name = "seamgrim_ci_gate_report.json"
     seamgrim_ui_age3_base_name = "seamgrim_ui_age3_gate_report.detjson"
+    seamgrim_phase3_cleanup_base_name = "seamgrim_phase3_cleanup_gate_report.detjson"
+    seamgrim_browse_selection_base_name = "seamgrim_browse_selection_flow_report.detjson"
+    seamgrim_runtime_5min_base_name = "seamgrim_runtime_5min_report.detjson"
+    seamgrim_runtime_5min_browse_selection_base_name = "seamgrim_runtime_5min_browse_selection_flow_report.detjson"
+    seamgrim_5min_checklist_base_name = "seamgrim_5min_checklist_report.detjson"
     age3_close_base_name = "age3_close_report.detjson"
     age4_close_base_name = "age4_close_report.detjson"
     age5_close_base_name = "age5_close_report.detjson"
@@ -702,6 +831,11 @@ def main() -> int:
     report_base_names = [
         seamgrim_base_name,
         seamgrim_ui_age3_base_name,
+        seamgrim_phase3_cleanup_base_name,
+        seamgrim_browse_selection_base_name,
+        seamgrim_runtime_5min_base_name,
+        seamgrim_runtime_5min_browse_selection_base_name,
+        seamgrim_5min_checklist_base_name,
         age3_close_base_name,
         age4_close_base_name,
         age5_close_base_name,
@@ -747,6 +881,15 @@ def main() -> int:
 
     seamgrim_report = report_path(report_dir, seamgrim_base_name, prefix)
     seamgrim_ui_age3_report = report_path(report_dir, seamgrim_ui_age3_base_name, prefix)
+    seamgrim_phase3_cleanup_report = report_path(report_dir, seamgrim_phase3_cleanup_base_name, prefix)
+    seamgrim_browse_selection_report = report_path(report_dir, seamgrim_browse_selection_base_name, prefix)
+    seamgrim_runtime_5min_report = report_path(report_dir, seamgrim_runtime_5min_base_name, prefix)
+    seamgrim_runtime_5min_browse_selection_report = report_path(
+        report_dir,
+        seamgrim_runtime_5min_browse_selection_base_name,
+        prefix,
+    )
+    seamgrim_5min_checklist_report = report_path(report_dir, seamgrim_5min_checklist_base_name, prefix)
     age3_close_report = report_path(report_dir, age3_close_base_name, prefix)
     age4_close_report = report_path(report_dir, age4_close_base_name, prefix)
     age5_close_report = report_path(report_dir, age5_close_base_name, prefix)
@@ -846,6 +989,11 @@ def main() -> int:
         print_report_paths(
             seamgrim_report,
             seamgrim_ui_age3_report,
+            seamgrim_phase3_cleanup_report,
+            seamgrim_browse_selection_report,
+            seamgrim_runtime_5min_report,
+            seamgrim_runtime_5min_browse_selection_report,
+            seamgrim_5min_checklist_report,
             age3_close_report,
             age4_close_report,
             age5_close_report,
@@ -930,6 +1078,11 @@ def main() -> int:
             "reports": {
                 "seamgrim": str(seamgrim_report),
                 "seamgrim_ui_age3": str(seamgrim_ui_age3_report),
+                "seamgrim_phase3_cleanup": str(seamgrim_phase3_cleanup_report),
+                "seamgrim_browse_selection": str(seamgrim_browse_selection_report),
+                "seamgrim_runtime_5min": str(seamgrim_runtime_5min_report),
+                "seamgrim_runtime_5min_browse_selection": str(seamgrim_runtime_5min_browse_selection_report),
+                "seamgrim_5min_checklist": str(seamgrim_5min_checklist_report),
                 "age3_close": str(age3_close_report),
                 "age4_close": str(age4_close_report),
                 "age5_close": str(age5_close_report),
@@ -1331,6 +1484,34 @@ def main() -> int:
         ]
         return run_and_record("ci_aggregate_gate_age5_diagnostics_check", cmd)
 
+    def check_ci_aggregate_gate_phase3_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_aggregate_gate_phase3_diagnostics_check.py",
+        ]
+        return run_and_record("ci_aggregate_gate_phase3_diagnostics_check", cmd)
+
+    def check_ci_aggregate_gate_runtime5_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py",
+        ]
+        return run_and_record("ci_aggregate_gate_runtime5_diagnostics_check", cmd)
+
+    def check_ci_aggregate_gate_sync_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_aggregate_gate_sync_diagnostics_check.py",
+        ]
+        return run_and_record("ci_aggregate_gate_sync_diagnostics_check", cmd)
+
+    def check_ci_sanity_gate_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_sanity_gate_diagnostics_check.py",
+        ]
+        return run_and_record("ci_sanity_gate_diagnostics_check", cmd)
+
     def check_ci_builtin_name_sync() -> int:
         cmd = [
             py,
@@ -1412,6 +1593,20 @@ def main() -> int:
         ]
         return run_and_record("ci_pack_golden_overlay_compare_selftest", cmd)
 
+    def check_seamgrim_browse_selection_report_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_browse_selection_report_check_selftest.py",
+        ]
+        return run_and_record("seamgrim_browse_selection_report_selftest", cmd)
+
+    def check_seamgrim_5min_checklist_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_5min_checklist_selftest.py",
+        ]
+        return run_and_record("seamgrim_5min_checklist_selftest", cmd)
+
     def check_ci_final_line_emitter() -> int:
         cmd = [
             py,
@@ -1425,6 +1620,20 @@ def main() -> int:
             "tests/run_ci_pipeline_emit_flags_check.py",
         ]
         return run_and_record("ci_pipeline_emit_flags_check", cmd)
+
+    def check_ci_pipeline_emit_flags_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_pipeline_emit_flags_check_selftest.py",
+        ]
+        return run_and_record("ci_pipeline_emit_flags_selftest", cmd)
+
+    def check_ci_sync_readiness_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_sync_readiness_check_selftest.py",
+        ]
+        return run_and_record("ci_sync_readiness_selftest", cmd)
 
     def check_ci_backup_hygiene_selftest() -> int:
         cmd = [
@@ -1554,15 +1763,23 @@ def main() -> int:
         check_ci_gate_outputs_consistency(require_pass=False)
         check_ci_final_line_emitter()
         check_ci_pipeline_emit_flags()
+        check_ci_pipeline_emit_flags_selftest()
+        check_ci_sync_readiness_selftest()
         check_ci_builtin_name_sync()
         check_ci_backup_hygiene_selftest()
         check_ci_aggregate_gate_age4_diagnostics()
         check_ci_aggregate_gate_age5_diagnostics()
+        check_ci_aggregate_gate_phase3_diagnostics()
+        check_ci_aggregate_gate_runtime5_diagnostics()
+        check_ci_aggregate_gate_sync_diagnostics()
+        check_ci_sanity_gate_diagnostics()
         check_ci_aggregate_status_line_selftest()
         check_ci_gate_summary_report_selftest()
         check_ci_combine_reports_age4_selftest()
         check_ci_combine_reports_age5_selftest()
         check_ci_pack_golden_overlay_compare_selftest()
+        check_seamgrim_browse_selection_report_selftest()
+        check_seamgrim_5min_checklist_selftest()
         check_ci_gate_failure_summary_selftest()
         check_ci_emit_artifacts_selftest()
         write_index(False)
@@ -1579,6 +1796,18 @@ def main() -> int:
         lines.append(f"[ci-gate-summary] age3_status={age3_close_status_json}")
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
         lines.append(f"[ci-gate-summary] age5_status={age5_close_report}")
+        lines.append(f"[ci-gate-summary] seamgrim_phase3_cleanup={seamgrim_phase3_cleanup_report}")
+        append_runtime_5min_summary_lines(
+            lines,
+            bool(args.with_runtime_5min),
+            seamgrim_runtime_5min_report,
+            seamgrim_runtime_5min_browse_selection_report,
+        )
+        append_runtime_5min_checklist_summary_lines(
+            lines,
+            include_5min_checklist,
+            seamgrim_5min_checklist_report,
+        )
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] age3_status_line={age3_close_status_line}")
         lines.append(f"[ci-gate-summary] age3_badge={age3_close_badge_json}")
@@ -1638,19 +1867,47 @@ def main() -> int:
         if args.fast_fail and backup_hygiene_verify_rc != 0:
             return fail_and_exit(backup_hygiene_verify_rc, "[ci-gate] fast-fail: backup hygiene verify failed")
 
+    seamgrim_cmd = [
+        py,
+        "tests/run_seamgrim_ci_gate.py",
+        "--strict-graph",
+        "--require-promoted",
+        "--print-drilldown",
+        "--json-out",
+        str(seamgrim_report),
+        "--ui-age3-json-out",
+        str(seamgrim_ui_age3_report),
+        "--phase3-cleanup-json-out",
+        str(seamgrim_phase3_cleanup_report),
+        "--browse-selection-json-out",
+        str(seamgrim_browse_selection_report),
+    ]
+    if args.browse_selection_strict:
+        seamgrim_cmd.append("--browse-selection-strict")
+    if args.with_runtime_5min:
+        seamgrim_cmd.extend(
+            [
+                "--with-runtime-5min",
+                "--runtime-5min-base-url",
+                "http://127.0.0.1:18787",
+                "--runtime-5min-json-out",
+                str(seamgrim_runtime_5min_report),
+                "--runtime-5min-browse-selection-json-out",
+                str(seamgrim_runtime_5min_browse_selection_report),
+            ]
+        )
+        if args.runtime_5min_skip_seed_cli:
+            seamgrim_cmd.append("--runtime-5min-skip-seed-cli")
+    if include_5min_checklist:
+        seamgrim_cmd.append("--with-5min-checklist")
+        seamgrim_cmd.extend(["--checklist-json-out", str(seamgrim_5min_checklist_report)])
+        if args.checklist_skip_seed_cli:
+            seamgrim_cmd.append("--checklist-skip-seed-cli")
+        if args.checklist_skip_ui_common:
+            seamgrim_cmd.append("--checklist-skip-ui-common")
     seamgrim_rc = run_and_record(
         "seamgrim_ci_gate",
-        [
-            py,
-            "tests/run_seamgrim_ci_gate.py",
-            "--strict-graph",
-            "--require-promoted",
-            "--print-drilldown",
-            "--json-out",
-            str(seamgrim_report),
-            "--ui-age3-json-out",
-            str(seamgrim_ui_age3_report),
-        ],
+        seamgrim_cmd,
     )
     if args.fast_fail and seamgrim_rc != 0:
         run_and_record(
@@ -1984,6 +2241,18 @@ def main() -> int:
     ci_pipeline_emit_flags_rc = check_ci_pipeline_emit_flags()
     if args.fast_fail and ci_pipeline_emit_flags_rc != 0:
         return fail_and_exit(ci_pipeline_emit_flags_rc, "[ci-gate] fast-fail: ci pipeline emit flags check failed")
+    ci_pipeline_emit_flags_selftest_rc = check_ci_pipeline_emit_flags_selftest()
+    if args.fast_fail and ci_pipeline_emit_flags_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pipeline_emit_flags_selftest_rc,
+            "[ci-gate] fast-fail: ci pipeline emit flags selftest failed",
+        )
+    ci_sync_readiness_selftest_rc = check_ci_sync_readiness_selftest()
+    if args.fast_fail and ci_sync_readiness_selftest_rc != 0:
+        return fail_and_exit(
+            ci_sync_readiness_selftest_rc,
+            "[ci-gate] fast-fail: ci sync readiness selftest failed",
+        )
     ci_builtin_name_sync_rc = check_ci_builtin_name_sync()
     if args.fast_fail and ci_builtin_name_sync_rc != 0:
         return fail_and_exit(ci_builtin_name_sync_rc, "[ci-gate] fast-fail: ci builtin name sync check failed")
@@ -2054,6 +2323,30 @@ def main() -> int:
             ci_aggregate_gate_age5_diagnostics_rc,
             "[ci-gate] fast-fail: ci aggregate gate age5 diagnostics check failed",
         )
+    ci_aggregate_gate_phase3_diagnostics_rc = check_ci_aggregate_gate_phase3_diagnostics()
+    if args.fast_fail and ci_aggregate_gate_phase3_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_aggregate_gate_phase3_diagnostics_rc,
+            "[ci-gate] fast-fail: ci aggregate gate phase3 diagnostics check failed",
+        )
+    ci_aggregate_gate_runtime5_diagnostics_rc = check_ci_aggregate_gate_runtime5_diagnostics()
+    if args.fast_fail and ci_aggregate_gate_runtime5_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_aggregate_gate_runtime5_diagnostics_rc,
+            "[ci-gate] fast-fail: ci aggregate gate runtime5 diagnostics check failed",
+        )
+    ci_aggregate_gate_sync_diagnostics_rc = check_ci_aggregate_gate_sync_diagnostics()
+    if args.fast_fail and ci_aggregate_gate_sync_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_aggregate_gate_sync_diagnostics_rc,
+            "[ci-gate] fast-fail: ci aggregate gate sync diagnostics check failed",
+        )
+    ci_sanity_gate_diagnostics_rc = check_ci_sanity_gate_diagnostics()
+    if args.fast_fail and ci_sanity_gate_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_sanity_gate_diagnostics_rc,
+            "[ci-gate] fast-fail: ci sanity gate diagnostics check failed",
+        )
     ci_gate_summary_report_selftest_rc = check_ci_gate_summary_report_selftest()
     if args.fast_fail and ci_gate_summary_report_selftest_rc != 0:
         return fail_and_exit(
@@ -2083,6 +2376,18 @@ def main() -> int:
         return fail_and_exit(
             ci_pack_golden_overlay_compare_selftest_rc,
             "[ci-gate] fast-fail: ci pack golden overlay compare selftest failed",
+        )
+    seamgrim_browse_selection_report_selftest_rc = check_seamgrim_browse_selection_report_selftest()
+    if args.fast_fail and seamgrim_browse_selection_report_selftest_rc != 0:
+        return fail_and_exit(
+            seamgrim_browse_selection_report_selftest_rc,
+            "[ci-gate] fast-fail: seamgrim browse selection report selftest failed",
+        )
+    seamgrim_5min_checklist_selftest_rc = check_seamgrim_5min_checklist_selftest()
+    if args.fast_fail and seamgrim_5min_checklist_selftest_rc != 0:
+        return fail_and_exit(
+            seamgrim_5min_checklist_selftest_rc,
+            "[ci-gate] fast-fail: seamgrim 5min checklist selftest failed",
         )
     ci_gate_failure_summary_selftest_rc = check_ci_gate_failure_summary_selftest()
     if args.fast_fail and ci_gate_failure_summary_selftest_rc != 0:
@@ -2123,6 +2428,8 @@ def main() -> int:
             and ci_gate_outputs_consistency_rc == 0
             and ci_final_line_emitter_rc == 0
             and ci_pipeline_emit_flags_rc == 0
+            and ci_pipeline_emit_flags_selftest_rc == 0
+            and ci_sync_readiness_selftest_rc == 0
             and ci_builtin_name_sync_rc == 0
             and ci_fixed64_probe_selftest_rc == 0
             and ci_fixed64_win_wsl_matrix_selftest_rc == 0
@@ -2137,11 +2444,17 @@ def main() -> int:
             and ci_emit_artifacts_selftest_rc == 0
             and ci_aggregate_gate_age4_diagnostics_rc == 0
             and ci_aggregate_gate_age5_diagnostics_rc == 0
+            and ci_aggregate_gate_phase3_diagnostics_rc == 0
+            and ci_aggregate_gate_runtime5_diagnostics_rc == 0
+            and ci_aggregate_gate_sync_diagnostics_rc == 0
+            and ci_sanity_gate_diagnostics_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
             and ci_aggregate_status_line_selftest_rc == 0
             and ci_combine_reports_age4_selftest_rc == 0
             and ci_combine_reports_age5_selftest_rc == 0
             and ci_pack_golden_overlay_compare_selftest_rc == 0
+            and seamgrim_browse_selection_report_selftest_rc == 0
+            and seamgrim_5min_checklist_selftest_rc == 0
             and ci_gate_failure_summary_selftest_rc == 0
         )
     )
@@ -2158,6 +2471,18 @@ def main() -> int:
         )
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
         lines.append(f"[ci-gate-summary] age5_status={age5_close_report}")
+        lines.append(f"[ci-gate-summary] seamgrim_phase3_cleanup={seamgrim_phase3_cleanup_report}")
+        append_runtime_5min_summary_lines(
+            lines,
+            bool(args.with_runtime_5min),
+            seamgrim_runtime_5min_report,
+            seamgrim_runtime_5min_browse_selection_report,
+        )
+        append_runtime_5min_checklist_summary_lines(
+            lines,
+            include_5min_checklist,
+            seamgrim_5min_checklist_report,
+        )
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
@@ -2218,6 +2543,8 @@ def main() -> int:
         or ci_gate_outputs_consistency_rc != 0
         or ci_final_line_emitter_rc != 0
         or ci_pipeline_emit_flags_rc != 0
+        or ci_pipeline_emit_flags_selftest_rc != 0
+        or ci_sync_readiness_selftest_rc != 0
         or ci_builtin_name_sync_rc != 0
         or ci_fixed64_probe_selftest_rc != 0
         or ci_fixed64_win_wsl_matrix_selftest_rc != 0
@@ -2232,11 +2559,17 @@ def main() -> int:
         or ci_emit_artifacts_selftest_rc != 0
         or ci_aggregate_gate_age4_diagnostics_rc != 0
         or ci_aggregate_gate_age5_diagnostics_rc != 0
+        or ci_aggregate_gate_phase3_diagnostics_rc != 0
+        or ci_aggregate_gate_runtime5_diagnostics_rc != 0
+        or ci_aggregate_gate_sync_diagnostics_rc != 0
+        or ci_sanity_gate_diagnostics_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
         or ci_combine_reports_age5_selftest_rc != 0
         or ci_pack_golden_overlay_compare_selftest_rc != 0
+        or seamgrim_browse_selection_report_selftest_rc != 0
+        or seamgrim_5min_checklist_selftest_rc != 0
         or ci_gate_failure_summary_selftest_rc != 0
     ):
         print("[ci-gate] aggregate reported success but sub-step failed", file=sys.stderr)
@@ -2251,6 +2584,18 @@ def main() -> int:
         )
         lines.append(f"[ci-gate-summary] age4_status={age4_close_report}")
         lines.append(f"[ci-gate-summary] age5_status={age5_close_report}")
+        lines.append(f"[ci-gate-summary] seamgrim_phase3_cleanup={seamgrim_phase3_cleanup_report}")
+        append_runtime_5min_summary_lines(
+            lines,
+            bool(args.with_runtime_5min),
+            seamgrim_runtime_5min_report,
+            seamgrim_runtime_5min_browse_selection_report,
+        )
+        append_runtime_5min_checklist_summary_lines(
+            lines,
+            include_5min_checklist,
+            seamgrim_5min_checklist_report,
+        )
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
@@ -2289,6 +2634,7 @@ def main() -> int:
             f"[ci-gate-summary] age3_status={age3_close_status_json}",
             f"[ci-gate-summary] age4_status={age4_close_report}",
             f"[ci-gate-summary] age5_status={age5_close_report}",
+            f"[ci-gate-summary] seamgrim_phase3_cleanup={seamgrim_phase3_cleanup_report}",
             f"[ci-gate-summary] age3_status_line={age3_close_status_line}",
             f"[ci-gate-summary] age3_badge={age3_close_badge_json}",
             f"[ci-gate-summary] age3_status_compact={read_compact_line(age3_close_status_line)}",
@@ -2309,6 +2655,17 @@ def main() -> int:
             f"[ci-gate-summary] final_status_compact={read_compact_line(final_status_line)}",
             f"[ci-gate-summary] age3_summary={age3_close_summary_md}",
         ]
+        append_runtime_5min_summary_lines(
+            pass_lines,
+            bool(args.with_runtime_5min),
+            seamgrim_runtime_5min_report,
+            seamgrim_runtime_5min_browse_selection_report,
+        )
+        append_runtime_5min_checklist_summary_lines(
+            pass_lines,
+            include_5min_checklist,
+            seamgrim_5min_checklist_report,
+        )
     else:
         pass_lines = [
             "[ci-gate-summary] PASS",
@@ -2324,7 +2681,19 @@ def main() -> int:
             f"[ci-gate-summary] age3_status={age3_close_status_json}",
             f"[ci-gate-summary] age4_status={age4_close_report}",
             f"[ci-gate-summary] age5_status={age5_close_report}",
+            f"[ci-gate-summary] seamgrim_phase3_cleanup={seamgrim_phase3_cleanup_report}",
         ]
+        append_runtime_5min_summary_lines(
+            pass_lines,
+            bool(args.with_runtime_5min),
+            seamgrim_runtime_5min_report,
+            seamgrim_runtime_5min_browse_selection_report,
+        )
+        append_runtime_5min_checklist_summary_lines(
+            pass_lines,
+            include_5min_checklist,
+            seamgrim_5min_checklist_report,
+        )
     append_fixed64_threeway_summary_lines(pass_lines, fixed64_threeway_gate_report)
     for line in pass_lines:
         print(line)
