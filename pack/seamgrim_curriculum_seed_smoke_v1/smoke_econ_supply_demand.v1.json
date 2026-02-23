@@ -5,7 +5,7 @@
   "checkpoints": [
     {
       "tick": 0,
-      "state_hash": "blake3:b77f8265b9ea3c64ce03b4eb248de920226a8cc257ad25b5e1ee6856995c8cc0"
+      "state_hash": "blake3:34316515b1f95c924b4431292ff5abbca78e88db4c3d86767847cb553d92e8e1"
     },
     {
       "tick": 20,
