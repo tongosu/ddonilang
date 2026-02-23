@@ -1224,6 +1224,18 @@ impl Parser {
                         ExprKind::Literal(Literal::None),
                     ));
                 }
+                if n == "정규식" && self.check(&TokenKind::LBrace) {
+                    let brace = self.current();
+                    if brace.span.start != t.span.end {
+                        return Err(self.error("Gate0: 정규식{ 는 붙여쓰기만 허용됩니다"));
+                    }
+                    let (regex, span) = self.parse_regex_literal_block(self.to_ast_span(t.span))?;
+                    return Ok(Expr::new(
+                        self.next_id(),
+                        span,
+                        ExprKind::Literal(Literal::Regex(regex)),
+                    ));
+                }
                 let mut e = Expr::new(
                     self.next_id(),
                     self.to_ast_span(t.span),
@@ -2725,6 +2737,53 @@ impl Parser {
             .merge(&self.to_ast_span(formula_token.span));
         let formula = self.parse_formula_block(raw, span, Some(tag), true)?;
         Ok(Expr::new(self.next_id(), span, ExprKind::Formula(formula)))
+    }
+
+    fn parse_regex_literal_block(
+        &mut self,
+        ident_span: Span,
+    ) -> Result<(RegexLiteral, Span), ParseError> {
+        let open = self.expect(&TokenKind::LBrace, "{")?;
+        let pattern_token = self.current().clone();
+        let pattern = match &pattern_token.kind {
+            TokenKind::StringLit(value) => value.clone(),
+            _ => {
+                return Err(ParseError {
+                    span: self.to_ast_span(pattern_token.span),
+                    message: "정규식 본문은 첫째 인자로 문자열 패턴이 필요합니다".to_string(),
+                })
+            }
+        };
+        self.advance();
+
+        let mut flags = String::new();
+        if self.check(&TokenKind::Comma) {
+            self.advance();
+            let flags_token = self.current().clone();
+            flags = match &flags_token.kind {
+                TokenKind::StringLit(value) => value.clone(),
+                _ => {
+                    return Err(ParseError {
+                        span: self.to_ast_span(flags_token.span),
+                        message: "정규식 둘째 인자는 문자열 깃발이어야 합니다".to_string(),
+                    })
+                }
+            };
+            self.advance();
+        }
+
+        if self.check(&TokenKind::Comma) {
+            return Err(ParseError {
+                span: self.current_span(),
+                message: "정규식은 패턴과 깃발만 허용됩니다".to_string(),
+            });
+        }
+
+        let close = self.expect(&TokenKind::RBrace, "}")?;
+        let span = ident_span
+            .merge(&self.to_ast_span(open.span))
+            .merge(&self.to_ast_span(close.span));
+        Ok((RegexLiteral { pattern, flags }, span))
     }
 
     fn parse_template_block(

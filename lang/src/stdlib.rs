@@ -122,6 +122,31 @@ pub fn string_function_sigs() -> Vec<FunctionSig> {
     ]
 }
 
+pub fn regex_function_sigs() -> Vec<FunctionSig> {
+    vec![
+        FunctionSig {
+            name: "정규맞추기",
+            params: &["대상", "패턴"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "정규찾기",
+            params: &["대상", "패턴"],
+            ret: "글?",
+        },
+        FunctionSig {
+            name: "정규바꾸기",
+            params: &["대상", "패턴", "바꿈"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "정규나누기",
+            params: &["대상", "패턴"],
+            ret: "차림<글>",
+        },
+    ]
+}
+
 pub fn list_function_sigs() -> Vec<FunctionSig> {
     vec![
         FunctionSig {
@@ -423,6 +448,7 @@ pub fn logic_function_sigs() -> Vec<FunctionSig> {
 pub fn minimal_stdlib_sigs() -> Vec<FunctionSig> {
     let mut out = Vec::new();
     out.extend(string_function_sigs());
+    out.extend(regex_function_sigs());
     out.extend(list_function_sigs());
     out.extend(container_function_sigs());
     out.extend(input_function_sigs());

@@ -350,8 +350,15 @@ pub enum Literal {
     String(String),
     Bool(bool),
     Atom(String),
+    Regex(RegexLiteral),
     Resource(String),
     None,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegexLiteral {
+    pub pattern: String,
+    pub flags: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

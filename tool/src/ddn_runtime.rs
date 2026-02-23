@@ -18,14 +18,17 @@ use ddonirang_lang::runtime::{
     Value,
 };
 use ddonirang_lang::{
-    canonicalize, parse_with_mode, AtSuffix, Body, CanonProgram, Expr, ExprKind, Formula,
-    FormulaDialect, Literal, ParamPin, ParseError, ParseMode, SeedDef, SeedKind, Stmt,
+    age_not_available_error, canonicalize, parse_with_mode, AgeTarget, AtSuffix, Body, CanonProgram,
+    Expr, ExprKind, Formula, FormulaDialect, Literal, ParamPin, ParseError, ParseMode, RegexLiteral,
+    SeedDef, SeedKind, Stmt, TopLevelItem,
     TemplateFormat, TemplatePart, TypeRef,
 };
 use libm;
+use regex::RegexBuilder;
 
 static LAMBDA_SEQ: AtomicU64 = AtomicU64::new(1);
 static DEFAULT_PARSE_MODE: AtomicU64 = AtomicU64::new(1);
+static DEFAULT_AGE_TARGET: AtomicU64 = AtomicU64::new(3);
 
 fn next_lambda_id() -> u64 {
     LAMBDA_SEQ.fetch_add(1, Ordering::Relaxed)
@@ -42,12 +45,47 @@ fn decode_parse_mode(value: u64) -> ParseMode {
     ParseMode::Strict
 }
 
+fn encode_age_target(age: AgeTarget) -> u64 {
+    match age {
+        AgeTarget::Age0 => 0,
+        AgeTarget::Age1 => 1,
+        AgeTarget::Age2 => 2,
+        AgeTarget::Age3 => 3,
+        AgeTarget::Age4 => 4,
+        AgeTarget::Age5 => 5,
+        AgeTarget::Age6 => 6,
+        AgeTarget::Age7 => 7,
+    }
+}
+
+fn decode_age_target(value: u64) -> AgeTarget {
+    match value {
+        0 => AgeTarget::Age0,
+        1 => AgeTarget::Age1,
+        2 => AgeTarget::Age2,
+        3 => AgeTarget::Age3,
+        4 => AgeTarget::Age4,
+        5 => AgeTarget::Age5,
+        6 => AgeTarget::Age6,
+        7 => AgeTarget::Age7,
+        _ => AgeTarget::Age3,
+    }
+}
+
 pub fn default_parse_mode() -> ParseMode {
     decode_parse_mode(DEFAULT_PARSE_MODE.load(Ordering::Relaxed))
 }
 
 pub fn set_default_parse_mode(mode: ParseMode) {
     DEFAULT_PARSE_MODE.store(encode_parse_mode(mode), Ordering::Relaxed);
+}
+
+pub fn default_age_target() -> AgeTarget {
+    decode_age_target(DEFAULT_AGE_TARGET.load(Ordering::Relaxed))
+}
+
+pub fn set_default_age_target(age: AgeTarget) {
+    DEFAULT_AGE_TARGET.store(encode_age_target(age), Ordering::Relaxed);
 }
 
 #[derive(Clone)]
@@ -74,6 +112,7 @@ impl DdnProgram {
         let mut program = parse_with_mode(&cleaned, file_path, mode)
             .map_err(|e| format_parse_error(&cleaned, &e))?;
         let _report = canonicalize(&mut program).map_err(|e| format_parse_error(&cleaned, &e))?;
+        enforce_regex_age_gate(&program, default_age_target())?;
         let mut functions = HashMap::new();
         let tails = ["기", "고", "면"];
         for item in &program.items {
@@ -92,6 +131,153 @@ impl DdnProgram {
             functions,
             file_meta: meta_parse.meta,
         })
+    }
+}
+
+fn enforce_regex_age_gate(program: &CanonProgram, age_target: AgeTarget) -> Result<(), String> {
+    if age_target >= AgeTarget::Age3 {
+        return Ok(());
+    }
+    if let Some(feature) = detect_regex_feature(program) {
+        return Err(age_not_available_error(feature, AgeTarget::Age3, age_target));
+    }
+    Ok(())
+}
+
+fn detect_regex_feature(program: &CanonProgram) -> Option<&'static str> {
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        if let Some(body) = &seed.body {
+            if let Some(feature) = body_regex_feature(body) {
+                return Some(feature);
+            }
+        }
+    }
+    None
+}
+
+fn body_regex_feature(body: &Body) -> Option<&'static str> {
+    for stmt in &body.stmts {
+        if let Some(feature) = stmt_regex_feature(stmt) {
+            return Some(feature);
+        }
+    }
+    None
+}
+
+fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
+    match stmt {
+        Stmt::DeclBlock { items, .. } => {
+            for item in items {
+                if let Some(value) = &item.value {
+                    if let Some(feature) = expr_regex_feature(value) {
+                        return Some(feature);
+                    }
+                }
+            }
+            None
+        }
+        Stmt::Mutate { target, value, .. } => {
+            expr_regex_feature(target).or_else(|| expr_regex_feature(value))
+        }
+        Stmt::Expr { expr, .. } => expr_regex_feature(expr),
+        Stmt::Return { value, .. } => expr_regex_feature(value),
+        Stmt::If {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => expr_regex_feature(condition)
+            .or_else(|| body_regex_feature(then_body))
+            .or_else(|| else_body.as_ref().and_then(body_regex_feature)),
+        Stmt::Try { action, body, .. } => {
+            expr_regex_feature(action).or_else(|| body_regex_feature(body))
+        }
+        Stmt::Choose {
+            branches, else_body, ..
+        } => {
+            for branch in branches {
+                if let Some(feature) = expr_regex_feature(&branch.condition) {
+                    return Some(feature);
+                }
+                if let Some(feature) = body_regex_feature(&branch.body) {
+                    return Some(feature);
+                }
+            }
+            body_regex_feature(else_body)
+        }
+        Stmt::Repeat { body, .. } => body_regex_feature(body),
+        Stmt::While {
+            condition, body, ..
+        } => expr_regex_feature(condition).or_else(|| body_regex_feature(body)),
+        Stmt::ForEach { iterable, body, .. } => {
+            expr_regex_feature(iterable).or_else(|| body_regex_feature(body))
+        }
+        Stmt::Contract {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => expr_regex_feature(condition)
+            .or_else(|| then_body.as_ref().and_then(body_regex_feature))
+            .or_else(|| body_regex_feature(else_body)),
+        Stmt::Guard {
+            condition, body, ..
+        } => expr_regex_feature(condition).or_else(|| body_regex_feature(body)),
+        Stmt::MetaBlock { .. } | Stmt::Pragma { .. } | Stmt::Break { .. } => None,
+    }
+}
+
+fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
+    match &expr.kind {
+        ExprKind::Literal(Literal::Regex(_)) => Some("regex_literal"),
+        ExprKind::Literal(_) | ExprKind::Var(_) | ExprKind::FlowValue | ExprKind::Formula(_)
+        | ExprKind::Template(_) => None,
+        ExprKind::FieldAccess { target, .. } => expr_regex_feature(target),
+        ExprKind::SeedLiteral { body, .. } => expr_regex_feature(body),
+        ExprKind::Call { args, func } => {
+            if matches!(func.as_str(), "정규맞추기" | "정규찾기" | "정규바꾸기" | "정규나누기")
+            {
+                return Some("regex_api");
+            }
+            for arg in args {
+                if let Some(feature) = expr_regex_feature(&arg.expr) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Infix { left, right, .. } => {
+            expr_regex_feature(left).or_else(|| expr_regex_feature(right))
+        }
+        ExprKind::Suffix { value, .. } => expr_regex_feature(value),
+        ExprKind::Thunk(body) => body_regex_feature(body),
+        ExprKind::Eval { thunk, .. } => expr_regex_feature(thunk),
+        ExprKind::Pipe { stages } => {
+            for stage in stages {
+                if let Some(feature) = expr_regex_feature(stage) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Pack { fields } => {
+            for (_, value) in fields {
+                if let Some(feature) = expr_regex_feature(value) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::TemplateRender { inject, .. } | ExprKind::FormulaEval { inject, .. } => {
+            for (_, value) in inject {
+                if let Some(feature) = expr_regex_feature(value) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Nuance { expr, .. } => expr_regex_feature(expr),
     }
 }
 
@@ -1550,6 +1736,69 @@ impl<'a> EvalContext<'a> {
                     .map(|byte_idx| text[..byte_idx].chars().count() as i64);
                 Ok(Value::Fixed64(Fixed64::from_i64(idx.unwrap_or(-1))))
             }
+            "정규맞추기" => {
+                if args.len() != 2 {
+                    return Err("정규맞추기는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::String(text) = &args[0] else {
+                    return Err("정규맞추기 첫 인자는 글이어야 합니다".to_string().into());
+                };
+                let Value::Regex(regex) = &args[1] else {
+                    return Err("정규맞추기 둘째 인자는 정규식이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                Ok(Value::Bool(regex_is_full_match(text, regex)?))
+            }
+            "정규찾기" => {
+                if args.len() != 2 {
+                    return Err("정규찾기는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::String(text) = &args[0] else {
+                    return Err("정규찾기 첫 인자는 글이어야 합니다".to_string().into());
+                };
+                let Value::Regex(regex) = &args[1] else {
+                    return Err("정규찾기 둘째 인자는 정규식이어야 합니다".to_string().into());
+                };
+                let matched = regex_find_first(text, regex)?;
+                Ok(matched.map(Value::String).unwrap_or(Value::None))
+            }
+            "정규바꾸기" => {
+                if args.len() != 3 {
+                    return Err("정규바꾸기는 인자 3개를 받습니다".to_string().into());
+                }
+                let Value::String(text) = &args[0] else {
+                    return Err("정규바꾸기 첫 인자는 글이어야 합니다".to_string().into());
+                };
+                let Value::Regex(regex) = &args[1] else {
+                    return Err("정규바꾸기 둘째 인자는 정규식이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                let Value::String(replacement) = &args[2] else {
+                    return Err("정규바꾸기 셋째 인자는 글이어야 합니다".to_string().into());
+                };
+                Ok(Value::String(regex_replace_all(text, regex, replacement)?))
+            }
+            "정규나누기" => {
+                if args.len() != 2 {
+                    return Err("정규나누기는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::String(text) = &args[0] else {
+                    return Err("정규나누기 첫 인자는 글이어야 합니다".to_string().into());
+                };
+                let Value::Regex(regex) = &args[1] else {
+                    return Err("정규나누기 둘째 인자는 정규식이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                Ok(Value::List(
+                    regex_split(text, regex)?
+                        .into_iter()
+                        .map(Value::String)
+                        .collect(),
+                ))
+            }
             "첫번째" => {
                 if args.len() != 1 {
                     return Err("첫번째는 인자 1개를 받습니다".to_string().into());
@@ -2532,6 +2781,7 @@ impl<'a> EvalContext<'a> {
             Value::Template(_) => {
                 return Err("글무늬는 자원에 대입할 수 없습니다".to_string().into())
             }
+            Value::Regex(_) => return Err("정규식은 자원에 대입할 수 없습니다".to_string().into()),
             Value::Lambda(_) => return Err("씨앗은 자원에 대입할 수 없습니다".to_string().into()),
         }
         Ok(())
@@ -2545,9 +2795,94 @@ fn literal_to_value(lit: &Literal) -> Value {
         Literal::String(s) => Value::String(s.clone()),
         Literal::Bool(b) => Value::Bool(*b),
         Literal::Atom(a) => Value::String(a.clone()),
+        Literal::Regex(regex) => Value::Regex(regex.clone()),
         Literal::Resource(path) => Value::ResourceHandle(ResourceHandle::from_path(path)),
         Literal::None => Value::None,
     }
+}
+
+fn build_regex(regex: &RegexLiteral) -> Result<regex::Regex, EvalError> {
+    validate_regex_flags(&regex.flags)?;
+    let mut builder = RegexBuilder::new(&regex.pattern);
+    for ch in regex.flags.chars() {
+        match ch {
+            'i' => builder.case_insensitive(true),
+            'm' => builder.multi_line(true),
+            's' => builder.dot_matches_new_line(true),
+            _ => {
+                return Err(
+                    format!("E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'", regex.flags).into(),
+                )
+            }
+        };
+    }
+    builder
+        .build()
+        .map_err(|e| format!("E_REGEX_PATTERN_INVALID: {}", e).into())
+}
+
+fn build_regex_full_match(regex: &RegexLiteral) -> Result<regex::Regex, EvalError> {
+    validate_regex_flags(&regex.flags)?;
+    let wrapped = format!(r"\A(?:{})\z", regex.pattern);
+    let mut builder = RegexBuilder::new(&wrapped);
+    for ch in regex.flags.chars() {
+        match ch {
+            'i' => builder.case_insensitive(true),
+            'm' => builder.multi_line(true),
+            's' => builder.dot_matches_new_line(true),
+            _ => {
+                return Err(
+                    format!("E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'", regex.flags).into(),
+                )
+            }
+        };
+    }
+    builder
+        .build()
+        .map_err(|e| format!("E_REGEX_PATTERN_INVALID: {}", e).into())
+}
+
+fn validate_regex_flags(flags: &str) -> Result<(), EvalError> {
+    let mut seen_i = false;
+    let mut seen_m = false;
+    let mut seen_s = false;
+    for ch in flags.chars() {
+        match ch {
+            'i' if !seen_i => seen_i = true,
+            'm' if !seen_m => seen_m = true,
+            's' if !seen_s => seen_s = true,
+            _ => {
+                return Err(
+                    format!("E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'", flags).into(),
+                )
+            }
+        }
+    }
+    Ok(())
+}
+
+fn regex_is_full_match(text: &str, regex: &RegexLiteral) -> Result<bool, EvalError> {
+    let re = build_regex_full_match(regex)?;
+    Ok(re.is_match(text))
+}
+
+fn regex_find_first(text: &str, regex: &RegexLiteral) -> Result<Option<String>, EvalError> {
+    let re = build_regex(regex)?;
+    Ok(re.find(text).map(|m| m.as_str().to_string()))
+}
+
+fn regex_replace_all(
+    text: &str,
+    regex: &RegexLiteral,
+    replacement: &str,
+) -> Result<String, EvalError> {
+    let re = build_regex(regex)?;
+    Ok(re.replace_all(text, replacement).to_string())
+}
+
+fn regex_split(text: &str, regex: &RegexLiteral) -> Result<Vec<String>, EvalError> {
+    let re = build_regex(regex)?;
+    Ok(re.split(text).map(ToString::to_string).collect())
 }
 
 fn values_equal(left: &Value, right: &Value) -> bool {
@@ -2569,6 +2904,7 @@ fn values_equal(left: &Value, right: &Value) -> bool {
         (Value::Pack(a), Value::Pack(b)) => a == b,
         (Value::Formula(a), Value::Formula(b)) => a == b,
         (Value::Template(a), Value::Template(b)) => a.raw == b.raw && a.tag == b.tag,
+        (Value::Regex(a), Value::Regex(b)) => a == b,
         (Value::Lambda(a), Value::Lambda(b)) => a.id == b.id,
         _ => false,
     }
@@ -2583,11 +2919,12 @@ fn value_rank(value: &Value) -> u8 {
         Value::ResourceHandle(_) => 4,
         Value::Formula(_) => 5,
         Value::Template(_) => 6,
-        Value::Lambda(_) => 7,
-        Value::Pack(_) => 8,
-        Value::List(_) => 9,
-        Value::Set(_) => 10,
-        Value::Map(_) => 11,
+        Value::Regex(_) => 7,
+        Value::Lambda(_) => 8,
+        Value::Pack(_) => 9,
+        Value::List(_) => 10,
+        Value::Set(_) => 11,
+        Value::Map(_) => 12,
     }
 }
 
@@ -2617,6 +2954,9 @@ fn value_cmp(left: &Value, right: &Value) -> std::cmp::Ordering {
         (Value::ResourceHandle(a), Value::ResourceHandle(b)) => a.cmp(b),
         (Value::Formula(a), Value::Formula(b)) => a.raw.cmp(&b.raw),
         (Value::Template(a), Value::Template(b)) => a.raw.cmp(&b.raw),
+        (Value::Regex(a), Value::Regex(b)) => {
+            a.pattern.cmp(&b.pattern).then_with(|| a.flags.cmp(&b.flags))
+        }
         (Value::Lambda(a), Value::Lambda(b)) => a.id.cmp(&b.id),
         _ => value_canon(left).cmp(&value_canon(right)),
     }
@@ -2950,6 +3290,13 @@ fn value_to_string(value: &Value) -> String {
         }
         Value::Formula(formula) => formula.raw.clone(),
         Value::Template(template) => template.raw.clone(),
+        Value::Regex(regex) => {
+            if regex.flags.is_empty() {
+                format!("정규식{{\"{}\"}}", regex.pattern)
+            } else {
+                format!("정규식{{\"{}\", \"{}\"}}", regex.pattern, regex.flags)
+            }
+        }
         Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
     }
 }
@@ -3008,6 +3355,7 @@ fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> 
         }
         Value::Formula(_) => Err("수식은 자원에 대입할 수 없습니다".to_string().into()),
         Value::Template(_) => Err("글무늬는 자원에 대입할 수 없습니다".to_string().into()),
+        Value::Regex(_) => Err("정규식은 자원에 대입할 수 없습니다".to_string().into()),
         Value::Lambda(_) => Err("씨앗은 자원에 대입할 수 없습니다".to_string().into()),
     }
 }
@@ -3137,6 +3485,13 @@ fn value_canon(value: &Value) -> String {
         }
         Value::Formula(formula) => formula.raw.clone(),
         Value::Template(template) => template.raw.clone(),
+        Value::Regex(regex) => {
+            if regex.flags.is_empty() {
+                format!("정규식{{\"{}\"}}", regex.pattern)
+            } else {
+                format!("정규식{{\"{}\", \"{}\"}}", regex.pattern, regex.flags)
+            }
+        }
         Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
     }
 }
@@ -5032,6 +5387,7 @@ fn is_truthy(value: &Value) -> Result<bool, EvalError> {
         Value::Pack(_) => Err("묶음은 조건식에 사용할 수 없습니다".to_string().into()),
         Value::Formula(_) => Err("수식은 조건식에 사용할 수 없습니다".to_string().into()),
         Value::Template(_) => Err("글무늬는 조건식에 사용할 수 없습니다".to_string().into()),
+        Value::Regex(_) => Err("정규식은 조건식에 사용할 수 없습니다".to_string().into()),
         Value::Lambda(_) => Err("씨앗은 조건식에 사용할 수 없습니다".to_string().into()),
     }
 }
@@ -5141,6 +5497,10 @@ fn check_named_type(value: &Value, name: &str) -> Result<(), TypeMismatchDetail>
         },
         "글무늬값" => match value {
             Value::Template(_) => Ok(()),
+            _ => Err(type_mismatch_detail(&canonical, value)),
+        },
+        "정규식" => match value {
+            Value::Regex(_) => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
         },
         _ => Err(type_mismatch_detail(&canonical, value)),
@@ -5284,6 +5644,7 @@ fn value_type_name(value: &Value) -> String {
         Value::Pack(_) => "묶음".to_string(),
         Value::Formula(_) => "수식값".to_string(),
         Value::Template(_) => "글무늬값".to_string(),
+        Value::Regex(_) => "정규식".to_string(),
         Value::Lambda(_) => "씨앗".to_string(),
     }
 }
@@ -5340,6 +5701,9 @@ fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
 mod tests {
     use super::*;
     use ddonirang_lang::runtime::Value as RuntimeValue;
+    use std::sync::Mutex;
+
+    static AGE_TARGET_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn empty_input() -> InputSnapshot {
         InputSnapshot {
@@ -5459,5 +5823,72 @@ mod tests {
             err.contains("분위수 mode는 선형보간 또는 최근순위여야 합니다"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn regex_builtins_run_deterministically() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let script = r#"
+매틱:움직씨 = {
+    패턴 <- 정규식{"^[A-Z]{2}[0-9]+$", "i"}.
+    맞음 <- ("ab12", 패턴) 정규맞추기.
+    첫매치 <- ("x12y34", 정규식{"[0-9]+"}) 정규찾기.
+    바꿈 <- ("a1b2", 정규식{"[0-9]+"}, "_") 정규바꾸기.
+    조각 <- ("a1b22c", 정규식{"[0-9]+"}) 정규나누기.
+    조각수 <- (조각) 길이.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age3);
+        let program = DdnProgram::from_source(script, "regex.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("맞음".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("첫매치".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("바꿈".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("조각수".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("맞음") {
+            Some(RuntimeValue::Bool(value)) => assert!(*value),
+            other => panic!("맞음 must be bool, got {:?}", other),
+        }
+        match output.resources.get("첫매치") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "12"),
+            other => panic!("첫매치 must be string, got {:?}", other),
+        }
+        match output.resources.get("바꿈") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "a_b_"),
+            other => panic!("바꿈 must be string, got {:?}", other),
+        }
+        assert_eq!(
+            extract_fixed(&output.resources, "조각수"),
+            Fixed64::from_i64(3)
+        );
+    }
+
+    #[test]
+    fn regex_is_age3_feature_gated() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let script = r#"
+매틱:움직씨 = {
+    패턴 <- 정규식{"[0-9]+"}.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age2);
+        let err = match DdnProgram::from_source(script, "regex_age2.ddn") {
+            Ok(_) => panic!("age gate"),
+            Err(err) => err,
+        };
+        set_default_age_target(old_age);
+        assert!(
+            err.contains("E_AGE_NOT_AVAILABLE"),
+            "expected age gate code, got {err}"
+        );
+        assert!(err.contains("regex_literal"), "expected regex feature, got {err}");
     }
 }

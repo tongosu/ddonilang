@@ -1049,6 +1049,45 @@ Test:셈씨 = {
     }
 
     #[test]
+    fn test_regex_literal_parses() {
+        let source = r#"
+Test:셈씨 = {
+    패턴 <- 정규식{"^[A-Z]{2}[0-9]+$", "i"}.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("regex parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("Test body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Literal(Literal::Regex(regex)) = &value.kind else {
+            panic!("regex literal expected");
+        };
+        assert_eq!(regex.pattern, "^[A-Z]{2}[0-9]+$");
+        assert_eq!(regex.flags, "i");
+    }
+
+    #[test]
+    fn test_regex_literal_requires_attached_block() {
+        let source = r#"
+Test:셈씨 = {
+    패턴 <- 정규식 {"^[A-Z]{2}[0-9]+$"}.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("regex block spacing");
+        assert!(err.message.contains("정규식{"));
+    }
+
+    #[test]
     fn test_template_pipe_fill_is_rejected() {
         let source = r#"
 Test:셈씨 = {

@@ -479,6 +479,19 @@ impl Normalizer {
                 self.write("#");
                 self.write(a);
             }
+            Literal::Regex(regex) => {
+                self.write("정규식{");
+                self.write("\"");
+                self.write(&regex.pattern);
+                self.write("\"");
+                if !regex.flags.is_empty() {
+                    self.write(", ");
+                    self.write("\"");
+                    self.write(&regex.flags);
+                    self.write("\"");
+                }
+                self.write("}");
+            }
             Literal::String(s) => {
                 self.write("\"");
                 self.write(s);

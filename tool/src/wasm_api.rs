@@ -21,6 +21,7 @@ const SPACE2D_SCHEMA: &str = "seamgrim.space2d.v0";
 const BOGAE_DRAWLIST_TAG: &str = "보개_그림판_목록";
 const BOGAE_WIDTH_TAG: &str = "보개_그림판_가로";
 const BOGAE_HEIGHT_TAG: &str = "보개_그림판_세로";
+const BOGAE_SHOW_LINES_TAG: &str = "보개_출력_줄들";
 const GRAPH_SCHEMA: &str = "seamgrim.graph.v0";
 const DEFAULT_VIEW_PREFIXES: &[&str] = &["보개_", "__view_"];
 const GRAPH_POINTS_TAGS: &[(&str, &str, &str)] = &[
@@ -1634,6 +1635,7 @@ fn handle_to_string(handle: ResourceHandle) -> String {
 
 fn seed_bogae_defaults(defaults: &mut HashMap<String, Value>) {
     defaults.insert(BOGAE_DRAWLIST_TAG.to_string(), Value::List(Vec::new()));
+    defaults.insert(BOGAE_SHOW_LINES_TAG.to_string(), Value::List(Vec::new()));
     defaults.insert(
         BOGAE_WIDTH_TAG.to_string(),
         Value::Fixed64(Fixed64::from_i64(0)),

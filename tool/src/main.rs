@@ -4050,6 +4050,9 @@ fn main() {
     } else {
         None
     };
+    if let Some(policy) = policy.as_ref() {
+        ddn_runtime::set_default_age_target(policy.age_target);
+    }
 
     match cmd.as_deref() {
         Some("run-once") => {

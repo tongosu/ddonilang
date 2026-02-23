@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Formula, Template};
+use crate::ast::{Expr, Formula, RegexLiteral, Template};
 use ddonirang_core::{
     is_key_just_pressed, is_key_pressed, Fixed64, ResourceHandle, UnitDim, UnitValue,
 };
@@ -38,6 +38,7 @@ pub enum Value {
     Pack(BTreeMap<String, Value>),
     Formula(Formula),
     Template(Template),
+    Regex(RegexLiteral),
     Lambda(LambdaValue),
 }
 
@@ -213,6 +214,13 @@ pub fn map_key_canon(value: &Value) -> String {
         }
         Value::Formula(formula) => formula.raw.clone(),
         Value::Template(template) => template.raw.clone(),
+        Value::Regex(regex) => {
+            if regex.flags.is_empty() {
+                format!("정규식{{\"{}\"}}", regex.pattern)
+            } else {
+                format!("정규식{{\"{}\", \"{}\"}}", regex.pattern, regex.flags)
+            }
+        }
         Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
     }
 }
