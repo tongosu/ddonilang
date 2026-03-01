@@ -7,7 +7,7 @@ use crate::lang::ast::{
 };
 use crate::lang::span::Span;
 use crate::lang::token::{Token, TokenKind};
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -85,6 +85,7 @@ pub struct Parser {
     default_root: String,
     root_hide: bool,
     declared_scopes: Vec<HashSet<String>>,
+    pending_stmts: VecDeque<Stmt>,
 }
 
 impl Parser {
@@ -111,6 +112,7 @@ impl Parser {
             default_root: default_root.to_string(),
             root_hide: default_root == "바탕",
             declared_scopes: vec![HashSet::new()],
+            pending_stmts: VecDeque::new(),
         };
         let mut stmts = Vec::new();
         parser.skip_newlines();
@@ -252,6 +254,10 @@ impl Parser {
     fn parse_stmt_internal(&mut self, allow_rbrace: bool) -> Result<Option<Stmt>, ParseError> {
         self.skip_newlines();
 
+        if let Some(stmt) = self.pending_stmts.pop_front() {
+            return Ok(Some(stmt));
+        }
+
         if allow_rbrace && self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
             return Ok(None);
         }
@@ -325,6 +331,16 @@ impl Parser {
 
         if self.is_bogae_draw_stmt() {
             return Ok(Some(self.parse_bogae_draw_stmt()?));
+        }
+        if self.is_bogae_shape_block_start() {
+            let mut lowered = self.parse_bogae_shape_block_stmt()?;
+            if let Some(first) = lowered.first().cloned() {
+                for stmt in lowered.drain(1..) {
+                    self.pending_stmts.push_back(stmt);
+                }
+                return Ok(Some(first));
+            }
+            return Ok(None);
         }
 
         if self.peek_kind_is(|k| {
@@ -538,6 +554,252 @@ impl Parser {
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
         Ok(Stmt::BogaeDraw { span })
+    }
+
+    fn is_bogae_shape_block_start(&self) -> bool {
+        if !self.peek_kind_is(
+            |k| matches!(k, TokenKind::Ident(name) if name == "모양" || name == "보개"),
+        ) {
+            return false;
+        }
+        self.peek_kind_n_is(1, |k| matches!(k, TokenKind::LBrace))
+            || (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon))
+                && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace)))
+    }
+
+    fn parse_bogae_shape_block_stmt(&mut self) -> Result<Vec<Stmt>, ParseError> {
+        let head = self.advance();
+        let block_start = head.span;
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+
+        let mut primitives: Vec<(String, Vec<ArgBinding>, Span)> = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
+            }
+
+            let token = self.advance();
+            let kind = match token.kind {
+                TokenKind::Ident(name) if name == "선" || name == "원" || name == "점" => name,
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "'선' or '원' or '점'",
+                        found: other,
+                        span: token.span,
+                    });
+                }
+            };
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'('",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            let mut args = Vec::new();
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+                loop {
+                    args.push(self.parse_call_arg()?);
+                    if self.peek_kind_is(|k| matches!(k, TokenKind::Comma)) {
+                        self.advance();
+                        continue;
+                    }
+                    break;
+                }
+            }
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+                return Err(ParseError::ExpectedRParen {
+                    span: self.peek().span,
+                });
+            }
+            let rparen_span = self.advance().span;
+            self.consume_terminator()?;
+            primitives.push((kind, args, token.span.merge(rparen_span)));
+        }
+
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end = self.advance().span;
+        self.consume_terminator()?;
+
+        let span = block_start.merge(end);
+        Ok(self.lower_bogae_shape_primitives(&primitives, span))
+    }
+
+    fn lower_bogae_shape_primitives(
+        &self,
+        primitives: &[(String, Vec<ArgBinding>, Span)],
+        span: Span,
+    ) -> Vec<Stmt> {
+        let mut out = Vec::new();
+        out.push(Self::show_str_stmt("space2d", span));
+        for (kind, args, shape_span) in primitives {
+            out.push(Self::show_str_stmt("space2d.shape", *shape_span));
+            match kind.as_str() {
+                "선" => {
+                    out.push(Self::show_str_stmt("line", *shape_span));
+                    let x1 = self.pick_shape_arg_expr(args, &["x1"], 0);
+                    let y1 = self.pick_shape_arg_expr(args, &["y1"], 1);
+                    let x2 = self.pick_shape_arg_expr(args, &["x2"], 2);
+                    let y2 = self.pick_shape_arg_expr(args, &["y2"], 3);
+                    let stroke = self.pick_shape_arg_expr(args, &["색", "stroke"], usize::MAX);
+                    let width = self.pick_shape_arg_expr(args, &["굵기", "width"], usize::MAX);
+                    Self::push_shape_kv(&mut out, "x1", x1.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(&mut out, "y1", y1.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(&mut out, "x2", x2.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(&mut out, "y2", y2.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(
+                        &mut out,
+                        "stroke",
+                        stroke.unwrap_or_else(|| Self::str_expr("#9ca3af", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "width",
+                        width.unwrap_or_else(|| Self::num_expr("0.02", *shape_span)),
+                        *shape_span,
+                    );
+                }
+                "원" => {
+                    out.push(Self::show_str_stmt("circle", *shape_span));
+                    let x = self.pick_shape_arg_expr(args, &["x", "cx"], 0);
+                    let y = self.pick_shape_arg_expr(args, &["y", "cy"], 1);
+                    let r = self.pick_shape_arg_expr(args, &["r", "반지름"], 2);
+                    let fill = self.pick_shape_arg_expr(args, &["색", "fill"], usize::MAX);
+                    let stroke = self.pick_shape_arg_expr(args, &["선색", "stroke"], usize::MAX);
+                    let width = self.pick_shape_arg_expr(args, &["굵기", "width"], usize::MAX);
+                    Self::push_shape_kv(&mut out, "x", x.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(&mut out, "y", y.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(
+                        &mut out,
+                        "r",
+                        r.unwrap_or_else(|| Self::num_expr("0.08", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "fill",
+                        fill.unwrap_or_else(|| Self::str_expr("#38bdf8", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "stroke",
+                        stroke.unwrap_or_else(|| Self::str_expr("#0ea5e9", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "width",
+                        width.unwrap_or_else(|| Self::num_expr("0.02", *shape_span)),
+                        *shape_span,
+                    );
+                }
+                _ => {
+                    out.push(Self::show_str_stmt("point", *shape_span));
+                    let x = self.pick_shape_arg_expr(args, &["x", "cx"], 0);
+                    let y = self.pick_shape_arg_expr(args, &["y", "cy"], 1);
+                    let size = self.pick_shape_arg_expr(args, &["크기", "size", "r"], 2);
+                    let color = self.pick_shape_arg_expr(args, &["색", "color"], usize::MAX);
+                    Self::push_shape_kv(&mut out, "x", x.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(&mut out, "y", y.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(
+                        &mut out,
+                        "size",
+                        size.unwrap_or_else(|| Self::num_expr("0.05", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "color",
+                        color.unwrap_or_else(|| Self::str_expr("#22c55e", *shape_span)),
+                        *shape_span,
+                    );
+                }
+            }
+        }
+        out
+    }
+
+    fn pick_shape_arg_expr(
+        &self,
+        args: &[ArgBinding],
+        pin_names: &[&str],
+        positional_index: usize,
+    ) -> Option<Expr> {
+        for pin in pin_names {
+            if let Some(hit) = args
+                .iter()
+                .find(|arg| arg.resolved_pin.as_deref() == Some(*pin))
+            {
+                return Some(hit.expr.clone());
+            }
+        }
+        if positional_index == usize::MAX {
+            return None;
+        }
+        let mut seen = 0usize;
+        for arg in args {
+            if arg.resolved_pin.is_some() {
+                continue;
+            }
+            if seen == positional_index {
+                return Some(arg.expr.clone());
+            }
+            seen += 1;
+        }
+        None
+    }
+
+    fn push_shape_kv(out: &mut Vec<Stmt>, key: &str, value: Expr, span: Span) {
+        out.push(Self::show_str_stmt(key, span));
+        out.push(Self::show_expr_stmt(value));
+    }
+
+    fn show_str_stmt(text: &str, span: Span) -> Stmt {
+        let expr = Expr::Literal(Literal::Str(text.to_string()), span);
+        Stmt::Show { value: expr, span }
+    }
+
+    fn show_expr_stmt(value: Expr) -> Stmt {
+        let span = value.span();
+        Stmt::Show { value, span }
+    }
+
+    fn str_expr(text: &str, span: Span) -> Expr {
+        Expr::Literal(Literal::Str(text.to_string()), span)
+    }
+
+    fn num_expr(text: &str, span: Span) -> Expr {
+        let raw = Fixed64::parse_literal(text)
+            .unwrap_or_else(|| Fixed64::from_int(0))
+            .raw();
+        Expr::Literal(
+            Literal::Num(NumberLiteral { raw, unit: None }),
+            span,
+        )
     }
 
     fn peek_decl_block_kind(&self) -> Option<DeclKind> {
@@ -1019,7 +1281,9 @@ impl Parser {
         let mut stmts = Vec::new();
         loop {
             self.skip_newlines();
-            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            if self.pending_stmts.is_empty()
+                && self.peek_kind_is(|k| matches!(k, TokenKind::RBrace))
+            {
                 break;
             }
             if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
@@ -2817,5 +3081,40 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    #[test]
+    fn parse_moyang_shape_block_lowers_to_show_stmts() {
+        let source = r##"
+매틱:움직씨 = {
+  bob_x <- 1.
+  bob_y <- -1.
+  모양: {
+    선(0, 0, bob_x, bob_y, 색="#9ca3af", 굵기=0.02).
+    원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
+    점(0, 0, 크기=0.045, 색="#f59e0b").
+  }.
+}.
+"##;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::SeedDef { body, .. }) = program.stmts.first() else {
+            panic!("seed def expected");
+        };
+        let mut show_strings = Vec::new();
+        for stmt in body {
+            if let Stmt::Show {
+                value: Expr::Literal(Literal::Str(text), _),
+                ..
+            } = stmt
+            {
+                show_strings.push(text.clone());
+            }
+        }
+        assert!(show_strings.contains(&"space2d".to_string()));
+        assert!(show_strings.contains(&"space2d.shape".to_string()));
+        assert!(show_strings.contains(&"line".to_string()));
+        assert!(show_strings.contains(&"circle".to_string()));
+        assert!(show_strings.contains(&"point".to_string()));
     }
 }

@@ -72,6 +72,202 @@ def resolve_build_dir() -> Path:
     return target
 
 
+def _read_json_file(path: Path) -> dict | None:
+    try:
+        if not path.exists():
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return payload if isinstance(payload, dict) else None
+    except Exception:
+        return None
+
+
+def _normalize_subject(raw: object) -> str:
+    subject = str(raw or "").strip().lower()
+    if subject == "economy":
+        return "econ"
+    return subject
+
+
+def _lesson_paths(prefix: str, lesson_id: str) -> tuple[str, str, str]:
+    base = f"solutions/seamgrim_ui_mvp/{prefix}/{lesson_id}"
+    return (
+        f"{base}/lesson.ddn",
+        f"{base}/text.md",
+        f"{base}/meta.toml",
+    )
+
+
+def _to_string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    single = str(value or "").strip()
+    return [single] if single else []
+
+
+def _project_path_to_fs(path: str) -> Path | None:
+    normalized = str(path or "").strip().replace("\\", "/")
+    if not normalized:
+        return None
+    if normalized.startswith("http://") or normalized.startswith("https://"):
+        return None
+    normalized = normalized.lstrip("/")
+    if normalized.startswith("solutions/seamgrim_ui_mvp/"):
+        return (ROOT / normalized).resolve()
+    if normalized.startswith("lessons/"):
+        return (LESSON_DIR / normalized[len("lessons/"):]).resolve()
+    if normalized.startswith("seed_lessons_v1/"):
+        return (SEED_LESSON_DIR / normalized[len("seed_lessons_v1/"):]).resolve()
+    if normalized.startswith("lessons_rewrite_v1/"):
+        return (REWRITE_LESSON_DIR / normalized[len("lessons_rewrite_v1/"):]).resolve()
+    return (ROOT / normalized).resolve()
+
+
+def _existing_meta_candidates(candidates: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in candidates:
+        candidate = str(raw or "").strip()
+        if not candidate or candidate in seen:
+            continue
+        if candidate.startswith("http://") or candidate.startswith("https://"):
+            seen.add(candidate)
+            out.append(candidate)
+            continue
+        fs_path = _project_path_to_fs(candidate)
+        if fs_path is None or not fs_path.exists():
+            continue
+        seen.add(candidate)
+        out.append(candidate)
+    return out
+
+
+def _read_row_meta_candidates(row: dict) -> list[str]:
+    out: list[str] = []
+    out.extend(_to_string_list(row.get("meta_path")))
+    out.extend(_to_string_list(row.get("metaCandidates")))
+    out.extend(_to_string_list(row.get("meta_toml")))
+    return out
+
+
+def _merge_inventory_row(rows_by_id: dict[str, dict], next_row: dict):
+    lesson_id = str(next_row.get("id", "")).strip()
+    if not lesson_id:
+        return
+    current = rows_by_id.get(lesson_id)
+    if current is None:
+        rows_by_id[lesson_id] = next_row
+        return
+    merged = {
+        **current,
+        **next_row,
+        "ddn_path": sorted(set([*(current.get("ddn_path") or []), *(next_row.get("ddn_path") or [])])),
+        "text_path": sorted(set([*(current.get("text_path") or []), *(next_row.get("text_path") or [])])),
+        "meta_path": sorted(set([*(current.get("meta_path") or []), *(next_row.get("meta_path") or [])])),
+    }
+    rows_by_id[lesson_id] = merged
+
+
+def build_lesson_inventory_payload() -> dict:
+    rows_by_id: dict[str, dict] = {}
+
+    index_payload = _read_json_file(LESSON_DIR / "index.json") or {}
+    index_rows = index_payload.get("lessons")
+    if isinstance(index_rows, list):
+        for row in index_rows:
+            if not isinstance(row, dict):
+                continue
+            lesson_id = str(row.get("id", "")).strip()
+            if not lesson_id:
+                continue
+            ddn_path, text_path, meta_path = _lesson_paths("lessons", lesson_id)
+            meta_candidates = _existing_meta_candidates([*_read_row_meta_candidates(row), meta_path])
+            _merge_inventory_row(
+                rows_by_id,
+                {
+                    "id": lesson_id,
+                    "title": str(row.get("title") or lesson_id),
+                    "description": str(row.get("description") or ""),
+                    "grade": str(row.get("grade") or ""),
+                    "subject": _normalize_subject(row.get("subject")),
+                    "quality": "experimental",
+                    "source": "official",
+                    "ddn_path": [ddn_path],
+                    "text_path": [text_path],
+                    "meta_path": meta_candidates,
+                },
+            )
+
+    seed_payload = _read_json_file(SEED_LESSON_DIR / "seed_manifest.detjson") or {}
+    seed_rows = seed_payload.get("seeds")
+    if isinstance(seed_rows, list):
+        for row in seed_rows:
+            if not isinstance(row, dict):
+                continue
+            lesson_id = str(row.get("seed_id", "")).strip()
+            if not lesson_id:
+                continue
+            fallback_ddn, fallback_text, fallback_meta = _lesson_paths("seed_lessons_v1", lesson_id)
+            ddn_path = str(row.get("lesson_ddn") or "").strip() or fallback_ddn
+            text_path = str(row.get("text_md") or "").strip() or fallback_text
+            meta_candidates = _existing_meta_candidates([*_read_row_meta_candidates(row), fallback_meta])
+            _merge_inventory_row(
+                rows_by_id,
+                {
+                    "id": lesson_id,
+                    "title": lesson_id,
+                    "description": "Seed lesson",
+                    "grade": "all",
+                    "subject": _normalize_subject(row.get("subject")),
+                    "quality": "recommended",
+                    "source": "seed",
+                    "ddn_path": [ddn_path, fallback_ddn],
+                    "text_path": [text_path, fallback_text],
+                    "meta_path": meta_candidates,
+                },
+            )
+
+    rewrite_payload = _read_json_file(REWRITE_LESSON_DIR / "rewrite_manifest.detjson") or {}
+    rewrite_rows = rewrite_payload.get("generated")
+    if isinstance(rewrite_rows, list):
+        for row in rewrite_rows:
+            if not isinstance(row, dict):
+                continue
+            lesson_id = str(row.get("lesson_id", "")).strip()
+            if not lesson_id:
+                continue
+            fallback_ddn, fallback_text, fallback_meta = _lesson_paths("lessons_rewrite_v1", lesson_id)
+            ddn_path = str(row.get("generated_lesson_ddn") or "").strip() or fallback_ddn
+            text_path = str(row.get("generated_text_md") or "").strip() or fallback_text
+            meta_candidates = _existing_meta_candidates([*_read_row_meta_candidates(row), fallback_meta])
+            _merge_inventory_row(
+                rows_by_id,
+                {
+                    "id": lesson_id,
+                    "title": lesson_id,
+                    "description": "Rewrite v1",
+                    "grade": "all",
+                    "subject": _normalize_subject(row.get("subject")),
+                    "quality": "reviewed",
+                    "source": "rewrite",
+                    "ddn_path": [ddn_path, fallback_ddn],
+                    "text_path": [text_path, fallback_text],
+                    "meta_path": meta_candidates,
+                },
+            )
+
+    lessons = sorted(
+        rows_by_id.values(),
+        key=lambda item: (str(item.get("title", "")).lower(), str(item.get("id", "")).lower()),
+    )
+    return {
+        "ok": True,
+        "schema": "seamgrim.lesson_inventory.v2",
+        "count": len(lessons),
+        "lessons": lessons,
+    }
+
+
 def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict):
     body = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
     handler.send_response(status)
@@ -403,6 +599,12 @@ class DdnExecHandler(BaseHTTPRequestHandler):
         if raw_path == "/health" or raw_path == "/api/health":
             json_response(self, 200, {"ok": True, "service": "ddn_exec_server"})
             return
+        if raw_path in ("/api/lessons/inventory", "/api/lesson-inventory"):
+            try:
+                json_response(self, 200, build_lesson_inventory_payload())
+            except Exception as exc:
+                json_response(self, 500, {"ok": False, "error": str(exc)})
+            return
         if raw_path == "/favicon.ico":
             self.send_response(204)
             self.end_headers()
@@ -470,6 +672,15 @@ class DdnExecHandler(BaseHTTPRequestHandler):
             payload = json.loads(body)
             ddn_text = payload.get("ddn_text")
             label = payload.get("label")
+            madi_raw = payload.get("madi")
+            madi = None
+            if madi_raw is not None:
+                try:
+                    parsed_madi = int(madi_raw)
+                    if parsed_madi > 0:
+                        madi = parsed_madi
+                except Exception:
+                    madi = None
             if not isinstance(ddn_text, str) or not ddn_text.strip():
                 json_response(self, 400, {"ok": False, "error": "ddn_text required"})
                 return
@@ -482,7 +693,7 @@ class DdnExecHandler(BaseHTTPRequestHandler):
             meta = extract_meta(ddn_text)
             series_labels = extract_series_labels(ddn_text)
             source_hash = hash_text(normalize_ddn_for_hash(ddn_text))
-            lines = run_teul_cli(ROOT, temp_path)
+            lines = run_teul_cli(ROOT, temp_path, madi=madi)
             points = parse_points(lines, series_labels)
             space2d_points = parse_space2d_points(lines)
             space2d_shapes = parse_space2d_shapes(lines)

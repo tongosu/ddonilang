@@ -1,0 +1,44 @@
+#이름: seamgrim_ui_mvp_pendulum_bogae_block_ui
+#설명: UI 전처리기에서 보개 { 선/원/점 } 블록을 space2d.shape로 변환하는 예시
+
+채비: {
+  g:수 <- 9.8.
+  L:수 <- 1.
+  theta0:수 <- 0.5.
+  omega0:수 <- 0.
+  damp:수 <- 0.02.
+  dt:수 <- 0.02.
+  t_max:수 <- 8.
+}.
+#기본관찰x: t
+#기본관찰: theta
+
+(시작)할때 {
+  t <- 0.
+  theta <- theta0.
+  omega <- omega0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    alpha <- -(g / L) * ((theta) sin) - damp * omega.
+    omega <- omega + alpha * dt.
+    theta <- theta + omega * dt.
+    bob_x <- L * ((theta) sin).
+    bob_y <- -L * ((theta) cos).
+
+    보개 {
+      선(0, 0, bob_x, bob_y, 색="#9ca3af", 굵기=0.02).
+      원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
+      점(0, 0, 크기=0.045, 색="#f59e0b").
+    }.
+
+    무리 <- "series:theta".
+    무리 보여주기.
+    t 보여주기.
+    theta 보여주기.
+
+    t <- t + dt.
+  }.
+}.
+

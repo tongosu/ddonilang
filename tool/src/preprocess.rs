@@ -531,7 +531,12 @@ fn rewrite_unary_minus(source: &str) -> String {
 }
 
 fn is_meta_block_header_line(trimmed: &str) -> bool {
-    (trimmed.starts_with("설정:") || trimmed.starts_with("보개:") || trimmed.starts_with("슬기:"))
+    (trimmed.starts_with("설정:")
+        || trimmed.starts_with("보개:")
+        || trimmed.starts_with("보개 {")
+        || trimmed.starts_with("모양:")
+        || trimmed.starts_with("모양 {")
+        || trimmed.starts_with("슬기:"))
         && trimmed.contains('{')
 }
 

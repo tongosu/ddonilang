@@ -32,18 +32,6 @@ function splitMetaHeader(text) {
   return { meta, body: lines.slice(idx).join("\n") };
 }
 
-function findControlMeta(meta) {
-  if (!meta || typeof meta !== "object") return "";
-  return (
-    meta["control"] ??
-    meta["조종"] ??
-    meta["조절"] ??
-    meta["CONTROL"] ??
-    meta["Control"] ??
-    ""
-  );
-}
-
 function findDefaultObservationMeta(meta) {
   if (!meta || typeof meta !== "object") return "";
   return (
@@ -135,87 +123,6 @@ function isConstantLikeType(type) {
   return constTypes.some((token) => normalized.includes(token));
 }
 
-function parseMetaSpec(raw) {
-  if (!raw) return null;
-  const match = raw.match(
-    /^\s*([A-Za-z0-9_가-힣]+)\s*(?::\s*([A-Za-z0-9_가-힣]+))?\s*=\s*([+-]?\d+(?:\.\d+)?)\s*(.*)$/u,
-  );
-  if (!match) return null;
-  const name = match[1];
-  const type = match[2] || "수";
-  const value = Number(match[3]);
-  if (!Number.isFinite(value)) return null;
-  const rest = match[4] ?? "";
-
-  let min = null;
-  let max = null;
-  let step = null;
-  let unit = "";
-
-  const rangeMatch = rest.match(/\[\s*([+-]?\d+(?:\.\d+)?)\s*\.\.\s*([+-]?\d+(?:\.\d+)?)\s*\]/);
-  if (rangeMatch) {
-    const a = Number(rangeMatch[1]);
-    const b = Number(rangeMatch[2]);
-    if (Number.isFinite(a) && Number.isFinite(b)) {
-      min = Math.min(a, b);
-      max = Math.max(a, b);
-    }
-  }
-  const stepMatch = rest.match(/step\s*=\s*([+-]?\d+(?:\.\d+)?)/i);
-  if (stepMatch) {
-    const parsed = Number(stepMatch[1]);
-    if (Number.isFinite(parsed) && parsed > 0) step = parsed;
-  }
-  const unitMatch = rest.match(/unit\s*=\s*([^\s\]]+)/i);
-  if (unitMatch) unit = unitMatch[1];
-
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    const inferred = inferBounds(value);
-    min = inferred.min;
-    max = inferred.max;
-    if (!Number.isFinite(step) || step <= 0) step = inferred.step;
-  }
-  if (!Number.isFinite(step) || step <= 0) {
-    step = inferStepFromValue(value);
-  }
-
-  return {
-    id: name,
-    name,
-    type,
-    value,
-    min,
-    max,
-    step,
-    unit,
-    source: "meta",
-  };
-}
-
-export function parseControlMetaLine(line) {
-  if (!line) return [];
-  return line
-    .split(";")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => parseMetaSpec(entry))
-    .filter(Boolean);
-}
-
-function collectAxisKeysFromSpecs(specs = []) {
-  const seen = new Set();
-  const out = [];
-  specs.forEach((spec) => {
-    const name = String(spec?.name ?? "").trim();
-    const type = String(spec?.type ?? "").trim();
-    if (!name || !isVariableType(type)) return;
-    if (seen.has(name)) return;
-    seen.add(name);
-    out.push(name);
-  });
-  return out;
-}
-
 function parseRangeAnnotation(text) {
   const match = String(text ?? "").match(/범위\s*\(\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)(?:\s*,\s*([+-]?\d+(?:\.\d+)?))?\s*\)/u);
   if (!match) return null;
@@ -230,13 +137,43 @@ function parseRangeAnnotation(text) {
   };
 }
 
+function splitLineBodyAndComment(line) {
+  const text = String(line ?? "");
+  const idx = text.indexOf("//");
+  if (idx < 0) {
+    return { body: text, tail: "" };
+  }
+  return {
+    body: text.slice(0, idx),
+    tail: text.slice(idx + 2).trim(),
+  };
+}
+
+function parsePrepAssignmentLine(line) {
+  const match = String(line ?? "").match(
+    /^\s*([A-Za-z0-9_가-힣]+)\s*(?::\s*([A-Za-z0-9_가-힣]+))?\s*(?:<-|=)\s*(.+)$/u,
+  );
+  if (!match) return null;
+  const name = String(match[1] ?? "").trim();
+  const rawType = String(match[2] ?? "수").trim() || "수";
+  const rhsAndTail = String(match[3] ?? "");
+  const { body, tail } = splitLineBodyAndComment(rhsAndTail);
+  let rhs = String(body ?? "").trim();
+  if (rhs.endsWith(".")) {
+    rhs = rhs.slice(0, -1).trim();
+  }
+  return {
+    name,
+    rawType,
+    rhs,
+    tail: String(tail ?? "").trim(),
+  };
+}
+
 export function parsePrepBlockAssignments(text) {
   const lines = normalizeNewlines(text).split("\n");
-  const blockStartPattern = /^\s*(그릇채비|채비|씨앗)\s*:?\s*\{/u;
-  const assignArrowPattern =
-    /^\s*([A-Za-z0-9_가-힣]+)\s*(?::\s*([A-Za-z0-9_가-힣]+))?\s*<-\s*([^\.]+)\.?\s*(.*)$/u;
-  const assignEqualPattern =
-    /^\s*([A-Za-z0-9_가-힣]+)\s*(?::\s*([A-Za-z0-9_가-힣]+))?\s*=\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)\s*(.*)$/iu;
+  // Sim-core policy: UI 노출(슬라이더/축 후보)은 채비 선언면에서만 읽는다.
+  const blockStartPattern = /^\s*(그릇채비|붙박이마련|붙박이채비|채비)\s*:?\s*\{/u;
   const numericPattern = /^\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)\s*$/i;
 
   let inBlock = false;
@@ -261,21 +198,12 @@ export function parsePrepBlockAssignments(text) {
     if (!inBlock) return;
 
     if (trimmed && !trimmed.startsWith("//")) {
-      let match = textLine.match(assignArrowPattern);
-      let rhs = "";
-      let tail = "";
-      if (match) {
-        rhs = String(match[3] ?? "").trim();
-        tail = String(match[4] ?? "").trim();
-      } else {
-        match = textLine.match(assignEqualPattern);
-        rhs = String(match?.[3] ?? "").trim();
-        tail = String(match?.[4] ?? "").trim();
-      }
-
-      if (match) {
-        const name = String(match[1] ?? "").trim();
-        const rawType = String(match[2] ?? "수").trim() || "수";
+      const parsed = parsePrepAssignmentLine(textLine);
+      if (parsed) {
+        const name = parsed.name;
+        const rawType = parsed.rawType;
+        const rhs = parsed.rhs;
+        const tail = parsed.tail;
         if (name && isVariableType(rawType) && !axisSeen.has(name)) {
           axisSeen.add(name);
           axisKeys.push(name);
@@ -326,45 +254,15 @@ export function parsePrepBlockAssignments(text) {
   };
 }
 
-function mergeSpecs(preferredSpecs, metaSpecs) {
-  const primary = Array.isArray(preferredSpecs) ? preferredSpecs : [];
-  const meta = Array.isArray(metaSpecs) ? metaSpecs : [];
-  if (!primary.length) return meta;
-  if (!meta.length) return primary;
-
-  const metaByName = new Map(meta.map((spec) => [String(spec?.name ?? ""), spec]));
-  return primary.map((spec) => {
-    const found = metaByName.get(String(spec?.name ?? ""));
-    if (!found) return spec;
-    return {
-      ...spec,
-      min: Number.isFinite(found.min) ? found.min : spec.min,
-      max: Number.isFinite(found.max) ? found.max : spec.max,
-      step: Number.isFinite(found.step) ? found.step : spec.step,
-      unit: String(found.unit ?? spec.unit ?? ""),
-      type: String(found.type ?? spec.type ?? "수"),
-      source: "prep+meta",
-    };
-  });
-}
-
 export function buildControlSpecsFromDdn(ddnText) {
   const { meta } = splitMetaHeader(ddnText);
-  const metaRaw = findControlMeta(meta);
   const defaultObsRaw = findDefaultObservationMeta(meta);
   const defaultObsXRaw = findDefaultObservationXMeta(meta);
-  const metaSpecs = parseControlMetaLine(metaRaw).filter((spec) => isConstantLikeType(spec?.type));
-  const metaAxisKeys = collectAxisKeysFromSpecs(parseControlMetaLine(metaRaw));
   const prep = parsePrepBlockAssignments(ddnText);
   const prepSpecs = Array.isArray(prep.numericAssignments) ? prep.numericAssignments : [];
-  const specs = metaSpecs.length ? metaSpecs : prepSpecs;
-  const source = metaSpecs.length ? "meta" : prepSpecs.length ? "prep" : "none";
-  const axisKeys = Array.from(
-    new Set([
-      ...(Array.isArray(prep.axisKeys) ? prep.axisKeys : []),
-      ...metaAxisKeys,
-    ]),
-  );
+  const specs = prepSpecs;
+  const source = prepSpecs.length ? "prep" : "none";
+  const axisKeys = Array.from(new Set(Array.isArray(prep.axisKeys) ? prep.axisKeys : []));
   const preferredMetaAxis = pickFirstIdentifier(defaultObsRaw);
   const preferredPrepAxis = pickFirstIdentifier(prep.defaultAxisKey);
   const preferredMetaXAxis = pickFirstIdentifier(defaultObsXRaw);
@@ -409,12 +307,12 @@ export function applyControlValuesToDdnText(text, values = {}) {
       `^(\\s*${escapeRegExp(key)}\\s*(?::\\s*[^<=]+)?\\s*(?:<-|=)\\s*)([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:e[+-]?\\d+)?)(.*)$`,
       "iu",
     );
+    // 새 문법 전환 후 채비/실행 블록에 같은 키가 반복될 수 있어 모든 매치를 갱신한다.
     for (let i = 0; i < nextLines.length; i += 1) {
       const line = nextLines[i];
       const match = line.match(pattern);
       if (!match) continue;
       nextLines[i] = `${match[1]}${formatNumber(value)}${match[3]}`;
-      break;
     }
   });
 

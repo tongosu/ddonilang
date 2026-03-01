@@ -80,4 +80,3 @@ export function canOverlayCompareRuns(baseline, variant) {
     reason: "",
   };
 }
-

@@ -1,5 +1,3 @@
-#이름: high_physics_damped
-#설명: y = a t - b t^2
 
 (매마디)마다 {
   운동 = (#ascii1) 수식{ y = a t - b t^2 }.

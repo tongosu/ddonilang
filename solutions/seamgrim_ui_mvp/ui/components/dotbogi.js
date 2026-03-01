@@ -1,5 +1,4 @@
 ﻿import { renderGraphCanvas2d } from "../wasm_page_common.js";
-import { markdownToHtml } from "./markdown.js";
 
 function finite(value) {
   const n = Number(value);
@@ -28,9 +27,36 @@ function cloneAxis(axis) {
 }
 
 const INDEX_X_KEY = "__index__";
+const INTERNAL_AXIS_HIDDEN_KEYS = new Set([
+  "__wasm_start_once",
+  "__wasm_legacy_on_start_done__",
+]);
+const INTERNAL_AXIS_HIDDEN_PREFIXES = ["__wasm_"];
 
 function normalizeKey(raw) {
   return String(raw ?? "").trim().toLowerCase();
+}
+
+function isHiddenInternalAxisKey(rawKey) {
+  const key = String(rawKey ?? "").trim();
+  if (!key) return true;
+  if (INTERNAL_AXIS_HIDDEN_KEYS.has(key)) return true;
+  return INTERNAL_AXIS_HIDDEN_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+function isSelectableAxisKey(rawKey) {
+  const key = String(rawKey ?? "").trim();
+  if (!key) return false;
+  if (key === INDEX_X_KEY) return false;
+  return !isHiddenInternalAxisKey(key);
+}
+
+function normalizeObservationChannelKey(channel, index) {
+  if (typeof channel === "string") return channel.trim();
+  if (!channel || typeof channel !== "object") return "";
+  const direct = String(channel.key ?? "").trim();
+  if (direct) return direct;
+  return String(channel.name ?? channel.id ?? channel.label ?? channel.token ?? "").trim();
 }
 
 function pickXAxisByTimeHeuristic(sample, index) {
@@ -57,46 +83,17 @@ function pickDefaultTimeKey(keys = []) {
   return "";
 }
 
-function buildObservationTableRows(timeline, limit = 20) {
-  const rows = Array.isArray(timeline) ? timeline.slice(-limit) : [];
-  if (!rows.length) return { columns: [], rows: [] };
-  const columnSet = new Set(["index"]);
-  rows.forEach((sample) => {
-    Object.keys(sample.values ?? {}).forEach((key) => columnSet.add(key));
-  });
-  const columns = Array.from(columnSet);
-  const mappedRows = rows.map((sample, index) => {
-    const row = { index: Number(sample.index ?? index) };
-    columns.forEach((column) => {
-      if (column === "index") return;
-      row[column] = sample.values?.[column];
-    });
-    return row;
-  });
-  return { columns, rows: mappedRows };
-}
-
 export class DotbogiPanel {
   constructor({
     graphCanvas,
-    tableEl,
-    textEl,
     xAxisSelect,
     yAxisSelect,
-    tabButtons = [],
-    graphResetBtn = null,
     onAxisChange = null,
   } = {}) {
     this.graphCanvas = graphCanvas;
-    this.tableEl = tableEl;
-    this.textEl = textEl;
     this.xAxisSelect = xAxisSelect;
     this.yAxisSelect = yAxisSelect;
-    this.tabButtons = Array.isArray(tabButtons) ? tabButtons : [];
-    this.graphResetBtn = graphResetBtn;
     this.onAxisChange = typeof onAxisChange === "function" ? onAxisChange : null;
-
-    this.activeTab = "graph";
     this.seedKeys = [];
     this.observableKeys = [];
     this.timeline = [];
@@ -105,7 +102,6 @@ export class DotbogiPanel {
     this.selectedYKey = "";
     this.preferredXKey = "";
     this.preferredYKey = "";
-    this.preferredAxisLock = true;
     this.lockInitialAxis = true;
     this.initialAxisLocked = false;
     this.graphView = {
@@ -127,12 +123,6 @@ export class DotbogiPanel {
   }
 
   bind() {
-    this.tabButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        this.switchTab(String(button.dataset.view ?? "graph"));
-      });
-    });
-
     this.yAxisSelect?.addEventListener("change", () => {
       this.selectedYKey = String(this.yAxisSelect.value ?? "");
       this.graphView.autoFit = true;
@@ -146,10 +136,6 @@ export class DotbogiPanel {
       this.graphView.axis = null;
       this.initialAxisLocked = false;
       this.renderGraph();
-    });
-
-    this.graphResetBtn?.addEventListener("click", () => {
-      this.resetAxis();
     });
 
     this.graphCanvas?.addEventListener("wheel", (event) => {
@@ -242,19 +228,6 @@ export class DotbogiPanel {
     this.renderGraph();
   }
 
-  switchTab(view) {
-    this.activeTab = view;
-    document.querySelectorAll(".panel-tab").forEach((button) => {
-      button.classList.toggle("active", String(button.dataset.view) === view);
-    });
-    document.querySelectorAll(".panel-content").forEach((content) => {
-      const id = String(content.id || "");
-      const on = id === `dotbogi-${view}`;
-      content.classList.toggle("active", on);
-      content.classList.toggle("hidden", !on);
-    });
-  }
-
   setSeedKeys(keys = []) {
     this.seedKeys = Array.isArray(keys) ? keys.map((v) => String(v ?? "").trim()).filter(Boolean) : [];
   }
@@ -280,43 +253,10 @@ export class DotbogiPanel {
     this.renderGraph();
   }
 
-  isPreferredAxisLock() {
-    return this.preferredAxisLock;
-  }
-
-  setPreferredAxisLock(locked) {
-    this.preferredAxisLock = Boolean(locked);
-    if (this.xAxisSelect) this.xAxisSelect.disabled = this.preferredAxisLock;
-    if (this.yAxisSelect) this.yAxisSelect.disabled = this.preferredAxisLock;
-    if (this.preferredAxisLock) {
-      let changed = false;
-      if (this.preferredXKey && this.observableKeys.includes(this.preferredXKey)) {
-        this.selectedXKey = this.preferredXKey;
-        changed = true;
-      }
-      if (this.preferredYKey && this.observableKeys.includes(this.preferredYKey)) {
-        this.selectedYKey = this.preferredYKey;
-        changed = true;
-      }
-      this.syncXAxisSelect();
-      this.syncYAxisSelect();
-      if (changed) {
-        this.resetAxis();
-        return;
-      }
-    }
-    this.renderGraph();
-  }
-
   setPreferredXKey(key) {
     this.preferredXKey = String(key ?? "").trim();
     if (!this.preferredXKey) return;
     if (!this.observableKeys.includes(this.preferredXKey)) return;
-    if (!this.preferredAxisLock) {
-      this.syncXAxisSelect();
-      this.renderGraph();
-      return;
-    }
     this.selectedXKey = this.preferredXKey;
     this.syncXAxisSelect();
     this.resetAxis();
@@ -326,34 +266,36 @@ export class DotbogiPanel {
     this.preferredYKey = String(key ?? "").trim();
     if (!this.preferredYKey) return;
     if (!this.observableKeys.includes(this.preferredYKey)) return;
-    if (!this.preferredAxisLock) {
-      this.syncYAxisSelect();
-      this.renderGraph();
-      return;
-    }
     this.selectedYKey = this.preferredYKey;
     this.syncYAxisSelect();
     this.resetAxis();
   }
 
-  setText(markdown) {
-    if (!this.textEl) return;
-    this.textEl.innerHTML = markdownToHtml(markdown);
-  }
-
-  clearTimeline() {
+  clearTimeline({ preserveAxes = false, preserveView = false } = {}) {
     this.timeline = [];
-    this.selectedXKey = INDEX_X_KEY;
-    this.selectedYKey = "";
-    this.graphView.autoFit = true;
-    this.graphView.axis = null;
-    this.initialAxisLocked = false;
+    if (!preserveAxes) {
+      this.selectedXKey = INDEX_X_KEY;
+      this.selectedYKey = "";
+      this.observableKeys = [];
+      this.syncXAxisSelect();
+      this.syncYAxisSelect();
+    }
+    if (!preserveView) {
+      this.graphView.autoFit = true;
+      this.graphView.axis = null;
+      this.initialAxisLocked = false;
+    }
     this.renderGraph();
-    this.renderTable();
   }
 
   appendObservation(observation) {
-    const values = observation && typeof observation.values === "object" ? observation.values : {};
+    const valuesSource =
+      observation && typeof observation.all_values === "object"
+        ? observation.all_values
+        : observation && typeof observation.values === "object"
+          ? observation.values
+          : {};
+    const values = valuesSource && typeof valuesSource === "object" ? valuesSource : {};
     const nextIndex = this.timeline.length;
     this.timeline.push({ index: nextIndex, values: { ...values } });
     if (this.timeline.length > this.maxPoints) {
@@ -364,20 +306,22 @@ export class DotbogiPanel {
     }
 
     const observationKeys = Array.isArray(observation?.channels)
-      ? observation.channels.map((item) => String(item?.key ?? "").trim()).filter(Boolean)
-      : Object.keys(values);
-    this.observableKeys = Array.from(new Set([...observationKeys, ...this.seedKeys].filter(Boolean)));
+      ? observation.channels.map((item, index) => normalizeObservationChannelKey(item, index)).filter(isSelectableAxisKey)
+      : Object.keys(values).map((key) => String(key ?? "").trim()).filter(isSelectableAxisKey);
+    const valueKeys = Object.keys(values).map((key) => String(key ?? "").trim()).filter(isSelectableAxisKey);
+    const seedKeys = this.seedKeys.filter(isSelectableAxisKey);
+    this.observableKeys = Array.from(new Set([...observationKeys, ...valueKeys, ...seedKeys].filter(isSelectableAxisKey)));
 
-    if (!this.selectedXKey || (this.selectedXKey !== INDEX_X_KEY && !this.observableKeys.includes(this.selectedXKey))) {
-      if (this.preferredAxisLock && this.preferredXKey && this.observableKeys.includes(this.preferredXKey)) {
+    if (!this.selectedXKey) {
+      if (this.preferredXKey && this.observableKeys.includes(this.preferredXKey)) {
         this.selectedXKey = this.preferredXKey;
       } else {
         const timeKey = pickDefaultTimeKey(this.observableKeys);
         this.selectedXKey = timeKey || INDEX_X_KEY;
       }
     }
-    if (!this.selectedYKey || !this.observableKeys.includes(this.selectedYKey)) {
-      if (this.preferredAxisLock && this.preferredYKey && this.observableKeys.includes(this.preferredYKey)) {
+    if (!this.selectedYKey) {
+      if (this.preferredYKey && this.observableKeys.includes(this.preferredYKey)) {
         this.selectedYKey = this.preferredYKey;
       } else {
         this.selectedYKey = this.observableKeys[0] ?? "";
@@ -386,12 +330,11 @@ export class DotbogiPanel {
     this.syncXAxisSelect();
     this.syncYAxisSelect();
     this.renderGraph();
-    this.renderTable();
   }
 
   syncXAxisSelect() {
     if (!this.xAxisSelect) return;
-    const previous = String(this.xAxisSelect.value ?? this.selectedXKey ?? INDEX_X_KEY).trim();
+    const previous = String(this.xAxisSelect.value ?? "").trim();
     this.xAxisSelect.innerHTML = "";
 
     const indexOption = document.createElement("option");
@@ -406,17 +349,28 @@ export class DotbogiPanel {
       this.xAxisSelect.appendChild(option);
     });
 
-    if (previous === INDEX_X_KEY || this.observableKeys.includes(previous)) {
-      this.xAxisSelect.value = previous;
-      this.selectedXKey = previous;
-      return;
+    const current = String(this.selectedXKey ?? "").trim();
+    const hasCurrentOption = current === INDEX_X_KEY || this.observableKeys.includes(current);
+    if (current && current !== INDEX_X_KEY && !hasCurrentOption) {
+      const stickyOption = document.createElement("option");
+      stickyOption.value = current;
+      stickyOption.textContent = `${current} (유지)`;
+      this.xAxisSelect.appendChild(stickyOption);
     }
-    this.xAxisSelect.value = this.selectedXKey || INDEX_X_KEY;
+
+    let next = INDEX_X_KEY;
+    if (previous && (previous === INDEX_X_KEY || this.observableKeys.includes(previous))) {
+      next = previous;
+    } else if (current) {
+      next = current;
+    }
+    this.selectedXKey = next;
+    this.xAxisSelect.value = next;
   }
 
   syncYAxisSelect() {
     if (!this.yAxisSelect) return;
-    const previous = String(this.yAxisSelect.value ?? this.selectedYKey ?? "").trim();
+    const previous = String(this.yAxisSelect.value ?? "").trim();
     this.yAxisSelect.innerHTML = "";
     this.observableKeys.forEach((key) => {
       const option = document.createElement("option");
@@ -424,12 +378,24 @@ export class DotbogiPanel {
       option.textContent = this.preferredYKey && key === this.preferredYKey ? `${key} (기본)` : key;
       this.yAxisSelect.appendChild(option);
     });
-    if (this.observableKeys.includes(previous)) {
-      this.yAxisSelect.value = previous;
-      this.selectedYKey = previous;
-      return;
+
+    const current = String(this.selectedYKey ?? "").trim();
+    const hasCurrentOption = this.observableKeys.includes(current);
+    if (current && !hasCurrentOption) {
+      const stickyOption = document.createElement("option");
+      stickyOption.value = current;
+      stickyOption.textContent = `${current} (유지)`;
+      this.yAxisSelect.appendChild(stickyOption);
     }
-    this.yAxisSelect.value = this.selectedYKey;
+
+    let next = "";
+    if (previous && this.observableKeys.includes(previous)) {
+      next = previous;
+    } else if (current) {
+      next = current;
+    }
+    this.selectedYKey = next;
+    this.yAxisSelect.value = next;
   }
 
   buildSeriesPoints() {
@@ -548,33 +514,4 @@ export class DotbogiPanel {
     this.renderGraph();
   }
 
-  renderTable(tableView = null) {
-    if (!this.tableEl) return;
-
-    const normalizedTable = tableView && Array.isArray(tableView.columns) && Array.isArray(tableView.rows)
-      ? tableView
-      : buildObservationTableRows(this.timeline, 20);
-
-    if (!normalizedTable.columns.length) {
-      this.tableEl.innerHTML = "";
-      return;
-    }
-
-    const thead = `
-      <thead>
-        <tr>${normalizedTable.columns.map((column) => `<th>${column}</th>`).join("")}</tr>
-      </thead>
-    `;
-
-    const bodyRows = normalizedTable.rows.map((row) => {
-      const cols = normalizedTable.columns.map((column) => {
-        const value = row?.[column];
-        const text = Number.isFinite(Number(value)) ? Number(value).toFixed(4) : String(value ?? "");
-        return `<td>${text}</td>`;
-      });
-      return `<tr>${cols.join("")}</tr>`;
-    });
-
-    this.tableEl.innerHTML = `${thead}<tbody>${bodyRows.join("")}</tbody>`;
-  }
 }

@@ -1,4 +1,4 @@
-import { canOverlayCompareRuns } from "./overlay_compare_contract.js";
+import { canOverlayCompareRuns } from "./overlay_compare_contract.mjs";
 
 function asTextId(value) {
   const text = String(value ?? "").trim();
@@ -212,4 +212,3 @@ export function buildSessionViewComboPayload(combo) {
     overlay_order: row.overlayOrder,
   };
 }
-

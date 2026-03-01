@@ -1,10 +1,11 @@
-#이름: 진자_한편의장면
-#설명: 좌=진자(2d), 우=θ(t) 그래프(graph), 중=수식/자막(text), 하단=ViewDock
 #교과: 물리-진자
 #필수보개: 2d, graph, text
 #layout_preset: 좌2d_우graph_중text_하단dock
 #physics_backend: calc
-#control: L:수=1.0 [0.2..3.0] step=0.01 unit=m; theta0:수=0.6 [-1.57..1.57] step=0.01 unit=rad
+채비: {
+  L:수 <- 1.0. // 범위(0.2, 3.0, 0.01)
+  theta0:수 <- 0.6. // 범위(-1.57, 1.57, 0.01)
+}.
 
 (매마디)마다 {
   붙박이마련: {

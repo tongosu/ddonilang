@@ -52,8 +52,20 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
     age3_status = case_dir / "age3_close_status.detjson"
     age4_status = case_dir / "age4_close_report.detjson"
     age5_status = case_dir / "age5_close_report.detjson"
+    phase3_cleanup = case_dir / "seamgrim_phase3_cleanup_gate_report.detjson"
     fixed64_threeway_report = case_dir / "fixed64_cross_platform_threeway_gate.detjson"
-    for path in (summary_line, result, badge, brief, triage, age3_status, age4_status, age5_status, fixed64_threeway_report):
+    for path in (
+        summary_line,
+        result,
+        badge,
+        brief,
+        triage,
+        age3_status,
+        age4_status,
+        age5_status,
+        phase3_cleanup,
+        fixed64_threeway_report,
+    ):
         write_text(path, "{}")
     write_json(
         index_path,
@@ -67,6 +79,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
                 "age3_close_status_json": str(age3_status),
                 "age4_close": str(age4_status),
                 "age5_close": str(age5_status),
+                "seamgrim_phase3_cleanup": str(phase3_cleanup),
                 "fixed64_threeway_gate": str(fixed64_threeway_report),
             },
         },
@@ -85,6 +98,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
         f"[ci-gate-summary] age3_status={age3_status}",
         f"[ci-gate-summary] age4_status={age4_status}",
         f"[ci-gate-summary] age5_status={age5_status}",
+        f"[ci-gate-summary] seamgrim_phase3_cleanup={phase3_cleanup}",
         f"[ci-gate-summary] fixed64_threeway_report={fixed64_threeway_report}",
         "[ci-gate-summary] fixed64_threeway_status=pending_darwin",
         "[ci-gate-summary] fixed64_threeway_ok=1",

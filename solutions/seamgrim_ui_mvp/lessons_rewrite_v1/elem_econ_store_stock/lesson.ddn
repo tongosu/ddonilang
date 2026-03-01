@@ -1,6 +1,10 @@
-#이름: elem_econ_store_stock_rewrite_v1
-#설명: economy 교과 재작성
-#control: stock0:수=100 [0..500] step=1; inflow:수=20 [0..200] step=1; out_rate:수=0.15 [0..1] step=0.01; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
+채비: {
+  stock0:수 <- 100. // 범위(0, 500, 1)
+  inflow:수 <- 20. // 범위(0, 200, 1)
+  out_rate:수 <- 0.15. // 범위(0, 1, 0.01)
+  dt:수 <- 1. // 범위(1, 1, 1)
+  t_max:수 <- 20. // 범위(5, 80, 1)
+}.
 
 stock0 <- 100.
 inflow <- 20.

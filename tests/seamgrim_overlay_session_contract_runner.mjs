@@ -35,7 +35,7 @@ function buildRun(id, overrides = {}) {
 
 async function main() {
   const root = process.cwd();
-  const modulePath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/overlay_session_contract.js");
+  const modulePath = path.resolve(root, "tests/contracts/overlay_session_contract.mjs");
   const contract = await import(pathToFileURL(modulePath).href);
   const {
     buildOverlaySessionRunsPayload,

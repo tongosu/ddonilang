@@ -13,11 +13,20 @@
 - Docker 시작: `docker compose -f solutions/seamgrim_ui_mvp/deploy/docker-compose.yml up --build -d`
 - 브라우저에서 `http://localhost:8787/` 접속
 - UI는 교과/샘플 경로를 `/...`와 `/solutions/seamgrim_ui_mvp/...` 순서로 자동 폴백합니다(실행 서버/정적 루트 차이 완화).
+- 연합 검색은 기본적으로 `/api/lessons/inventory`만 조회합니다(불필요한 `build/reports/*.json` 404 방지).
+- 파일 인벤토리 폴백이 필요하면 `index.html` 로드 전에 `window.SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK = true;` 와 `window.SEAMGRIM_FEDERATED_FILE_CANDIDATES = ["build/reports/seamgrim_lesson_inventory.json"];` 를 함께 지정합니다.
+- 실행 화면은 기본적으로 sim-core 정책(`시뮬 중심 + 축 선택 + 교과 오버레이`)으로 동작합니다. 해제가 필요하면 `window.SEAMGRIM_SIM_CORE_POLICY = false`를 설정합니다.
+- 현재 돋보기는 그래프 전용입니다(표/설명 탭 제거). 설명은 보개 오버레이(`#overlay-description`)로만 제공합니다.
+- x/y축 선택 UI는 항상 활성화되어 있어 사용자가 바로 바꿀 수 있습니다.
+- 보개 범위 입력/프리셋 UI는 제거되었고, 보개 뷰 조작은 키보드 단축키 경로만 유지합니다.
 - 고급 Playground 바로 진입: `http://localhost:8787/?advanced=playground`
 - 고급 Smoke 바로 진입: `http://localhost:8787/?advanced=smoke`
 - AGE3 교과 스키마 게이트: `python tests/run_seamgrim_lesson_schema_gate.py`
 - AGE3 승격 완료까지 강제: `python tests/run_seamgrim_lesson_schema_gate.py --require-promoted`
 - AGE3 UI 게이트(R3-A/B/C 최소 기능): `python tests/run_seamgrim_ui_age3_gate.py`
+- sim-core 계약 게이트: `python tests/run_seamgrim_sim_core_contract_gate.py`
+- 5분 검증 체크리스트(사람 읽기형): `python tests/run_seamgrim_5min_checklist.py --base-url http://127.0.0.1:8787 --skip-seed-cli`
+- CI 게이트에서 체크리스트 포함 실행: `python tests/run_seamgrim_ci_gate.py --browse-selection-strict --with-5min-checklist --checklist-skip-seed-cli --checklist-skip-ui-common`
 - AGE3 완료 리포트 생성: `python tests/run_age3_close.py --run-seamgrim --report-out build/reports/age3_close_report.detjson`
 - AGE3 완료 상태 JSON 생성: `python tools/scripts/render_age3_close_status.py build/reports/age3_close_report.detjson --out build/reports/age3_close_status.detjson --fail-on-bad`
 - AGE3 완료 상태 1줄 텍스트 생성: `python tools/scripts/render_age3_close_status_line.py build/reports/age3_close_status.detjson --out build/reports/age3_close_status_line.txt --fail-on-bad`
@@ -105,7 +114,16 @@
 - 브라우저/OS 기본 단축키가 우선되는 환경에서는 일부 단축키가 동작하지 않을 수 있습니다(도움말 팝오버에 안내 표시).
 - 단축키 도움말 팝오버의 열림/닫힘 상태도 로컬 저장소에 유지되어 재접속 시 복원됩니다.
 - 실행 탭과 상단 `고급 메뉴`에서 `Playground`/`Smoke`로 진입할 수 있습니다.
-- `playground.html`, `wasm_smoke.html`는 레거시 링크 호환용 리다이렉트 셸이며, 실제 동작은 모두 `index.html`에서 수행합니다.
+- `playground.html`, `wasm_smoke.html` 레거시 파일은 제거되었고, 동작 진입점은 `index.html` 하나만 유지합니다.
+- UI 전처리기(실행 화면 경로)에서 `보개 { ... }`/`모양 { ... }` 블록의 `선(...)`, `원(...)`, `점(...)`을 `space2d.shape` 출력으로 자동 변환합니다.
+  - 현재 범위는 블록 내부가 위 3개 프리미티브로만 구성된 경우입니다.
+  - 예제: `solutions/seamgrim_ui_mvp/samples/05_pendulum_bogae_block_ui.ddn`
+  - 권장 패턴:
+    - `채비`는 조절값 기본값/범위 선언만 담당
+    - `(시작)할때`는 시뮬 상태(`t`, `theta`, `omega` 등) 초기화만 담당
+    - 관찰 출력은 소스에서 `보임 { ... }`로 작성하고, 런타임이 내부적으로 표시 이벤트로 변환
+  - `모양`은 "도형 선언 블록"입니다. 사용자는 `선/원/점`만 쓰고, `space2d.shape` 키를 직접 다루지 않아도 됩니다.
+  - 즉, 교과/seed 원문에서는 `보여주기`를 직접 쓸 필요가 없습니다(`보임/모양` 사용).
 
 ## WASM 매핑
 WASM patch 모드에서 `set_resource_fixed64`와 `set_resource_value`를 UI에 직접 반영할 수 있습니다.

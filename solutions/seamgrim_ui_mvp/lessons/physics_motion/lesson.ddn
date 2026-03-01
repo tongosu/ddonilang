@@ -1,6 +1,5 @@
 (매마디)마다 {
   ﻿#이름: lesson_physics_motion
-  #설명: 등가속도 y = 0.5 t^2 + 2 t + 1
 
   운동 = (#ascii1) 수식{ y = a t^2 + b t + c }.
 

@@ -49,6 +49,40 @@ DDN 실행 서버 기동/응답을 자동 점검합니다.
 - `ddonirang_tool_bg.wasm` 응답 MIME (`application/wasm`)
 - `/api/run` 실행 결과의 source/result hash 정합
 
+## tests/run_seamgrim_runtime_5min_check.py
+현재 구현에서 5분 내 재현 가능한 런타임 검증 시나리오를 한 번에 실행합니다.
+
+실행:
+- `python tests/run_seamgrim_runtime_5min_check.py`
+- 서버 대상 지정: `python tests/run_seamgrim_runtime_5min_check.py --base-url http://127.0.0.1:8787`
+- 리포트 저장: `python tests/run_seamgrim_runtime_5min_check.py --json-out C:/ddn/codex/build/reports/seamgrim_runtime_5min_latest.detjson`
+- browse 선택 리포트 포함: `python tests/run_seamgrim_runtime_5min_check.py --browse-selection-json-out C:/ddn/codex/build/reports/seamgrim_browse_selection_flow_latest.detjson`
+- browse strict: `python tests/run_seamgrim_runtime_5min_check.py --browse-selection-strict`  
+  (리포트 경로를 주지 않으면 `build/reports/seamgrim_browse_selection_flow_runtime.detjson` 자동 사용)
+- CI gate에서 일반/런타임 browse 리포트 분리:
+  - `python tests/run_seamgrim_ci_gate.py --with-runtime-5min --browse-selection-json-out C:/ddn/codex/build/reports/seamgrim_browse_selection_flow_latest.detjson --runtime-5min-browse-selection-json-out C:/ddn/codex/build/reports/seamgrim_runtime_5min_browse_selection_flow_latest.detjson`
+
+기본 점검 항목:
+- seed 교과 2종(teul-cli 직접 실행): 재고-가격 피드백, SIR 감염 전이
+- `ddn_exec_server_check.py` (카탈로그/인벤토리 API/wasm MIME/실행 hash)
+- `run_seamgrim_lesson_path_fallback_check.py`
+- `run_seamgrim_browse_selection_flow_check.py` (Search 탭 카드 클릭 payload 회귀)
+- `tests/seamgrim_ui_common_runner.mjs`
+
+## tests/run_seamgrim_browse_selection_flow_check.py
+Search 탭의 카드 클릭에서 `onLessonSelect(payload)` 경로를 검증합니다.
+
+실행:
+- `python tests/run_seamgrim_browse_selection_flow_check.py`
+- 리포트 저장: `python tests/run_seamgrim_browse_selection_flow_check.py --json-out C:/ddn/codex/build/reports/seamgrim_browse_selection_flow_latest.detjson`
+
+## tests/run_seamgrim_browse_selection_report_check.py
+`run_seamgrim_browse_selection_flow_check.py --json-out ...` 결과 파일의 존재/스키마/성공 상태를 검증합니다.
+
+실행:
+- `python tests/run_seamgrim_browse_selection_report_check.py --report C:/ddn/codex/build/reports/seamgrim_browse_selection_flow_latest.detjson`
+- 실패 허용 검증(구조만 확인): `python tests/run_seamgrim_browse_selection_report_check.py --report ... --allow-fail`
+
 ## export_space2d.py
 
 DDN 출력에서 `seamgrim.space2d.v0` JSON을 추출합니다. DDN stdout의 `space2d`/`공간` 마커와 shape 블록을 파싱합니다.

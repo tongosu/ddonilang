@@ -1,5 +1,3 @@
-#이름: college_econ_utility
-#설명: y = a x^2 + b x
 
 (매마디)마다 {
   효용 = (#ascii1) 수식{ y = a x^2 + b x }.

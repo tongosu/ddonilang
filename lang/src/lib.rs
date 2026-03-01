@@ -1187,6 +1187,61 @@ Test:셈씨 = {
     }
 
     #[test]
+    fn test_bogae_block_without_colon_parses() {
+        let source = r#"
+테스트:셈씨 = {
+    보개 { 선(0, 0, 1, 1). }.
+    1 돌려줘.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("bogae block parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        match &body.stmts[0] {
+            Stmt::MetaBlock { kind, entries, .. } => {
+                assert!(matches!(kind, MetaBlockKind::Bogae));
+                assert_eq!(entries.len(), 1);
+            }
+            other => panic!("meta block expected, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_moyang_block_with_colon_parses_as_bogae_meta() {
+        let source = r#"
+테스트:셈씨 = {
+    모양: { 점(0, 0, 크기=0.1). }.
+    1 돌려줘.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("moyang block parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        match &body.stmts[0] {
+            Stmt::MetaBlock { kind, entries, .. } => {
+                assert!(matches!(kind, MetaBlockKind::Bogae));
+                assert_eq!(entries.len(), 1);
+                assert!(entries[0].contains("점"));
+            }
+            other => panic!("meta block expected, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_setting_bogae_alias_is_rejected() {
         let source = r#"
 테스트:셈씨 = {

@@ -34,8 +34,6 @@ export class SliderPanel {
     if (this.statusEl) {
       if (parsed.source === "prep") {
         this.statusEl.textContent = `control 채비: ${this.specs.length}개`;
-      } else if (parsed.source === "meta") {
-        this.statusEl.textContent = `control meta: ${this.specs.length}개`;
       } else {
         this.statusEl.textContent = "control: -";
       }

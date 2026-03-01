@@ -199,24 +199,35 @@ impl Normalizer {
                 self.write_stmt_terminator(stmt);
             }
             Stmt::MetaBlock { kind, entries, .. } => {
-                let name = match kind {
-                    MetaBlockKind::Setting => "설정",
-                    MetaBlockKind::Bogae => "보개",
-                    MetaBlockKind::Seulgi => "슬기",
-                };
-                self.write(name);
-                self.write(": ");
-                self.write("{\n");
-                self.indent += 1;
-                for entry in entries {
+                if matches!(kind, MetaBlockKind::BogeaMadang) {
+                    // opaque 블록: { } 원본 텍스트를 그대로 재출력
+                    self.write("보개마당 {");
+                    if let Some(raw) = entries.first() {
+                        self.write(raw);
+                    }
+                    self.write("}");
+                    self.write_stmt_terminator(stmt);
+                } else {
+                    let name = match kind {
+                        MetaBlockKind::Setting => "설정",
+                        MetaBlockKind::Bogae => "보개",
+                        MetaBlockKind::Seulgi => "슬기",
+                        MetaBlockKind::BogeaMadang => unreachable!(),
+                    };
+                    self.write(name);
+                    self.write(": ");
+                    self.write("{\n");
+                    self.indent += 1;
+                    for entry in entries {
+                        self.write_indent();
+                        self.write(entry);
+                        self.write(".\n");
+                    }
+                    self.indent -= 1;
                     self.write_indent();
-                    self.write(entry);
-                    self.write(".\n");
+                    self.write("}");
+                    self.write_stmt_terminator(stmt);
                 }
-                self.indent -= 1;
-                self.write_indent();
-                self.write("}");
-                self.write_stmt_terminator(stmt);
             }
             Stmt::Pragma { name, args, .. } => {
                 self.write("#");

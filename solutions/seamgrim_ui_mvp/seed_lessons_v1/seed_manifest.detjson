@@ -3,12 +3,28 @@
   "version": 1,
   "seeds": [
     {
+      "subject": "economy",
+      "seed_id": "econ_inventory_price_feedback_seed_v1",
+      "lesson_ddn": "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_inventory_price_feedback_seed_v1/lesson.ddn",
+      "text_md": "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_inventory_price_feedback_seed_v1/text.md",
+      "template_id": "inventory_price_feedback_v1",
+      "controls": ["p0", "stock0", "stock_target", "demand_base", "demand_slope", "supply_base", "supply_slope", "price_k", "stock_k", "dt", "t_max"]
+    },
+    {
+      "subject": "biology",
+      "seed_id": "bio_sir_transition_seed_v1",
+      "lesson_ddn": "solutions/seamgrim_ui_mvp/seed_lessons_v1/bio_sir_transition_seed_v1/lesson.ddn",
+      "text_md": "solutions/seamgrim_ui_mvp/seed_lessons_v1/bio_sir_transition_seed_v1/text.md",
+      "template_id": "sir_transition_v1",
+      "controls": ["S0", "I0", "beta", "gamma", "dt", "t_max"]
+    },
+    {
       "subject": "physics",
       "seed_id": "physics_pendulum_seed_v1",
       "lesson_ddn": "solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn",
       "text_md": "solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/text.md",
       "template_id": "sim_oscillator_basic_v1",
-      "controls": ["g", "L", "theta0", "omega0", "dt", "t_max"]
+      "controls": ["g", "L", "m", "theta0", "omega0", "damp", "dt", "t_max"]
     },
     {
       "subject": "math",

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>셈그림</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -27,6 +28,12 @@
           </select>
           <select id="filter-subject">
             <option value="">과목: 전체</option>
+          </select>
+          <select id="filter-quality">
+            <option value="">품질: 전체</option>
+            <option value="recommended">품질: 추천</option>
+            <option value="reviewed">품질: 검수완료</option>
+            <option value="experimental">품질: 실험용</option>
           </select>
           <select id="filter-run-status">
             <option value="">최근 실행: 전체</option>
@@ -76,82 +83,17 @@
           <div class="bogae-area">
             <canvas id="canvas-bogae"></canvas>
             <div id="overlay-description" class="overlay-desc hidden"></div>
-            <div class="bogae-range-controls">
-              <div class="range-grid">
-                <label>x_min <input id="bogae-x-min" type="number" step="any" /></label>
-                <label>x_max <input id="bogae-x-max" type="number" step="any" /></label>
-                <label>y_min <input id="bogae-y-min" type="number" step="any" /></label>
-                <label>y_max <input id="bogae-y-max" type="number" step="any" /></label>
-              </div>
-              <div class="range-actions">
-                <label class="preset-slot">
-                  슬롯
-                  <select id="bogae-preset-slot">
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                  </select>
-                </label>
-                <button id="btn-bogae-range-apply" class="ghost" type="button">보개 적용</button>
-                <button id="btn-bogae-range-reset" class="ghost" type="button">보개 리셋</button>
-                <button id="btn-bogae-range-save" class="ghost" type="button">보개 저장</button>
-                <button id="btn-bogae-range-load" class="ghost" type="button">보개 불러오기</button>
-              </div>
-            </div>
-            <div class="bogae-zoom-controls">
-              <button id="btn-zoom-in" type="button">+</button>
-              <button id="btn-zoom-out" type="button">-</button>
-              <button id="btn-zoom-reset" type="button">⌂</button>
-            </div>
           </div>
 
           <div class="dotbogi-panel">
-            <div class="panel-tabs">
-              <button class="panel-tab active" data-view="graph" type="button">그래프</button>
-              <button class="panel-tab" data-view="table" type="button">표</button>
-              <button class="panel-tab" data-view="text" type="button">설명</button>
-            </div>
-
-            <div id="dotbogi-graph" class="panel-content active">
+            <div id="dotbogi-graph" class="panel-content">
               <div class="graph-toolbar">
                 <label for="select-x-axis">x축</label>
                 <select id="select-x-axis"></select>
                 <label for="select-y-axis">y축</label>
                 <select id="select-y-axis"></select>
-                <button id="btn-axis-lock" class="ghost" type="button">기본축 고정: ON</button>
-                <button id="btn-graph-reset" class="ghost" type="button">축 리셋</button>
-              </div>
-              <div class="graph-range-controls">
-                <div class="range-grid">
-                  <label>x_min <input id="graph-x-min" type="number" step="any" /></label>
-                  <label>x_max <input id="graph-x-max" type="number" step="any" /></label>
-                  <label>y_min <input id="graph-y-min" type="number" step="any" /></label>
-                  <label>y_max <input id="graph-y-max" type="number" step="any" /></label>
-                </div>
-                <div class="range-actions">
-                  <label class="preset-slot">
-                    슬롯
-                    <select id="graph-preset-slot">
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                      <option value="3">3</option>
-                    </select>
-                  </label>
-                  <button id="btn-graph-range-apply" class="ghost" type="button">축 적용</button>
-                  <button id="btn-graph-range-reset" class="ghost" type="button">축 자동</button>
-                  <button id="btn-graph-range-save" class="ghost" type="button">축 저장</button>
-                  <button id="btn-graph-range-load" class="ghost" type="button">축 불러오기</button>
-                </div>
               </div>
               <canvas id="canvas-graph"></canvas>
-            </div>
-
-            <div id="dotbogi-table" class="panel-content hidden">
-              <table id="data-table"></table>
-            </div>
-
-            <div id="dotbogi-text" class="panel-content hidden">
-              <div id="text-content" class="text-content"></div>
             </div>
 
             <div id="slider-panel" class="slider-panel">
@@ -162,10 +104,6 @@
           </div>
         </div>
 
-        <div class="statusbar">
-          <span id="run-status">실행 상태: 대기</span>
-          <span id="run-hash">state_hash: -</span>
-        </div>
       </section>
 
       <div id="advanced-menu" class="advanced-menu hidden">

@@ -147,7 +147,7 @@ async function main() {
   const root = process.cwd();
   const args = parseArgs(process.argv.slice(2));
   const packRoot = path.resolve(root, args.packRoot);
-  const contractPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/overlay_session_contract.js");
+  const contractPath = path.resolve(root, "tests/contracts/overlay_session_contract.mjs");
   const contract = await import(pathToFileURL(contractPath).href);
   const {
     resolveOverlayCompareFromSession,

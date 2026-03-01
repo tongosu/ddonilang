@@ -1,5 +1,3 @@
-#이름: high_econ_interest
-#설명: y = p + r t
 
 (매마디)마다 {
   이자 = (#ascii1) 수식{ y = p + r t }.

@@ -13296,7 +13296,7 @@ SSOT 문법을 “설명”으로만 두지 않고, 실제로 *움직이게* 만
 `cargo run` 기반 실행은 빌드 체크 오버헤드로 인해 “DDN 실행”보다 느릴 수 있으므로,
 Gate0에서도 기본값은 **빌드된 `teul-cli` 바이너리 직접 호출**로 둔다.
 
-- [ ] `bridge_server.py` 기본 실행 경로가 `cargo run ... -- run <file.ddn>`가 아니라, **`teul-cli` 바이너리 직접 호출**이다.
+- [ ] `ddn_exec_server.py` 기본 실행 경로가 `cargo run ... -- run <file.ddn>`가 아니라, **`teul-cli` 바이너리 직접 호출**이다.
 - [ ] `TEUL_CLI_BIN`(환경변수)로 바이너리 경로를 지정할 수 있다.
 - [ ] 바이너리 탐색/선택 규칙이 `SSOT_TOOLCHAIN §TC0.3.2`의 결정적 알고리즘을 따른다.
 - [ ] (Gate0 한정) 바이너리가 없을 때만 `cargo run` 폴백이 가능하며,

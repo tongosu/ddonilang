@@ -219,14 +219,25 @@ def _get_worker_client(root: Path) -> _WorkerClient:
     return _worker_client
 
 
-def run_teul_cli(root: Path, input_path: Path) -> list[str]:
+def run_teul_cli(root: Path, input_path: Path, madi: int | None = None) -> list[str]:
     use_worker = os.environ.get("TEUL_CLI_WORKER", "").strip().lower() in ("1", "true", "yes")
-    if use_worker:
+    requested_madi = None
+    if madi is not None:
+        try:
+            parsed_madi = int(madi)
+            if parsed_madi > 0:
+                requested_madi = parsed_madi
+        except Exception:
+            requested_madi = None
+
+    if use_worker and requested_madi is None:
         client = _get_worker_client(root)
         return client.run_file(input_path)
 
     teul_cli = _resolve_teul_cli_bin(root)
     cmd = [str(teul_cli), "run", str(input_path)]
+    if requested_madi is not None:
+        cmd.extend(["--madi", str(requested_madi)])
     result = subprocess.run(
         cmd,
         cwd=root,
@@ -514,7 +525,7 @@ def flatten_storage_blocks(input_text: str) -> str:
     depth = 0
     block_head = re.compile(r"^\s*(?:붙박이마련|그릇채비|채비)\s*:\s*\{\s*$")
     decl = re.compile(
-        r"^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*:\s*[^.=<>]+(?:<-|=)\s*(.+?)\s*\.\s*$"
+        r"^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*:\s*[^.=<>]+(?:<-|=)\s*(.+?)\s*\.\s*(?://.*)?$"
     )
 
     for line in lines:
@@ -644,6 +655,211 @@ def rewrite_legacy_boim_blocks(input_text: str) -> str:
     return "\n".join(out)
 
 
+def _strip_line_comment(line: str) -> str:
+    quote = ""
+    idx = 0
+    while idx < len(line) - 1:
+        ch = line[idx]
+        if quote:
+            if ch == quote and (idx == 0 or line[idx - 1] != "\\"):
+                quote = ""
+            idx += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            idx += 1
+            continue
+        if ch == "/" and line[idx + 1] == "/":
+            return line[:idx]
+        idx += 1
+    return line
+
+
+def _split_top_level_args(text: str) -> list[str]:
+    src = str(text or "").strip()
+    if not src:
+        return []
+    out: list[str] = []
+    start = 0
+    depth = 0
+    quote = ""
+    for idx, ch in enumerate(src):
+        if quote:
+            if ch == quote and (idx == 0 or src[idx - 1] != "\\"):
+                quote = ""
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            continue
+        if ch in ("(", "[", "{"):
+            depth += 1
+            continue
+        if ch in (")", "]", "}"):
+            depth = max(0, depth - 1)
+            continue
+        if ch == "," and depth == 0:
+            token = src[start:idx].strip()
+            if token:
+                out.append(token)
+            start = idx + 1
+    tail = src[start:].strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
+def _parse_shape_args(arg_text: str) -> dict:
+    positionals: list[str] = []
+    named: dict[str, str] = {}
+    for token in _split_top_level_args(arg_text):
+        if "=" not in token:
+            positionals.append(token.strip())
+            continue
+        key, value = token.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key:
+            named[key] = value
+        elif value:
+            positionals.append(value)
+    return {"positionals": positionals, "named": named}
+
+
+def _pick_shape_arg(args: dict, keys: list[object], fallback: str) -> str:
+    positionals = args.get("positionals") or []
+    named = args.get("named") or {}
+    for key in keys:
+        if isinstance(key, int):
+            if 0 <= key < len(positionals):
+                value = str(positionals[key]).strip()
+                if value:
+                    return value
+            continue
+        value = str(named.get(str(key), "")).strip()
+        if value:
+            return value
+    return str(fallback or "").strip()
+
+
+def _build_shape_show_lines(kind: str, args: dict, indent: str) -> list[str]:
+    if kind == "점":
+        x = _pick_shape_arg(args, ["x", "cx", 0], "0")
+        y = _pick_shape_arg(args, ["y", "cy", 1], "0")
+        size = _pick_shape_arg(args, ["크기", "size", "r", 2], "0.05")
+        color = _pick_shape_arg(args, ["색", "color"], '"#22c55e"')
+        return [
+            f'{indent}"space2d.shape" 보여주기.',
+            f'{indent}"point" 보여주기.',
+            f'{indent}"x" 보여주기.',
+            f"{indent}{x} 보여주기.",
+            f'{indent}"y" 보여주기.',
+            f"{indent}{y} 보여주기.",
+            f'{indent}"size" 보여주기.',
+            f"{indent}{size} 보여주기.",
+            f'{indent}"color" 보여주기.',
+            f"{indent}{color} 보여주기.",
+        ]
+
+    if kind == "선":
+        x1 = _pick_shape_arg(args, ["x1", 0], "0")
+        y1 = _pick_shape_arg(args, ["y1", 1], "0")
+        x2 = _pick_shape_arg(args, ["x2", 2], "0")
+        y2 = _pick_shape_arg(args, ["y2", 3], "0")
+        stroke = _pick_shape_arg(args, ["색", "stroke"], '"#9ca3af"')
+        width = _pick_shape_arg(args, ["굵기", "width"], "0.02")
+        return [
+            f'{indent}"space2d.shape" 보여주기.',
+            f'{indent}"line" 보여주기.',
+            f'{indent}"x1" 보여주기.',
+            f"{indent}{x1} 보여주기.",
+            f'{indent}"y1" 보여주기.',
+            f"{indent}{y1} 보여주기.",
+            f'{indent}"x2" 보여주기.',
+            f"{indent}{x2} 보여주기.",
+            f'{indent}"y2" 보여주기.',
+            f"{indent}{y2} 보여주기.",
+            f'{indent}"stroke" 보여주기.',
+            f"{indent}{stroke} 보여주기.",
+            f'{indent}"width" 보여주기.',
+            f"{indent}{width} 보여주기.",
+        ]
+
+    x = _pick_shape_arg(args, ["x", "cx", 0], "0")
+    y = _pick_shape_arg(args, ["y", "cy", 1], "0")
+    r = _pick_shape_arg(args, ["r", "반지름", 2], "0.08")
+    fill = _pick_shape_arg(args, ["색", "fill"], '"#38bdf8"')
+    stroke = _pick_shape_arg(args, ["선색", "stroke"], '"#0ea5e9"')
+    width = _pick_shape_arg(args, ["굵기", "width"], "0.02")
+    return [
+        f'{indent}"space2d.shape" 보여주기.',
+        f'{indent}"circle" 보여주기.',
+        f'{indent}"x" 보여주기.',
+        f"{indent}{x} 보여주기.",
+        f'{indent}"y" 보여주기.',
+        f"{indent}{y} 보여주기.",
+        f'{indent}"r" 보여주기.',
+        f"{indent}{r} 보여주기.",
+        f'{indent}"fill" 보여주기.',
+        f"{indent}{fill} 보여주기.",
+        f'{indent}"stroke" 보여주기.',
+        f"{indent}{stroke} 보여주기.",
+        f'{indent}"width" 보여주기.',
+        f"{indent}{width} 보여주기.",
+    ]
+
+
+def rewrite_bogae_shape_blocks(input_text: str) -> str:
+    lines = input_text.splitlines()
+    out: list[str] = []
+    idx = 0
+    header = re.compile(r"^(\s*)(보개|모양)\s*:?\s*\{\s*(//.*)?$")
+    item = re.compile(r"^(점|선|원)\s*\((.*)\)\s*\.\s*$")
+
+    while idx < len(lines):
+        line = lines[idx]
+        match = header.match(line)
+        if not match:
+            out.append(line)
+            idx += 1
+            continue
+
+        indent = f"{match.group(1)}  "
+        cursor = idx + 1
+        primitives: list[tuple[str, dict]] = []
+        closed = False
+        convertible = True
+        while cursor < len(lines):
+            raw = lines[cursor]
+            stripped = raw.strip()
+            if stripped in ("}.", "}"):
+                closed = True
+                break
+            payload = _strip_line_comment(raw).strip()
+            if not payload:
+                cursor += 1
+                continue
+            row = item.match(payload)
+            if not row:
+                convertible = False
+                break
+            kind = str(row.group(1) or "").strip()
+            args = _parse_shape_args(str(row.group(2) or ""))
+            primitives.append((kind, args))
+            cursor += 1
+
+        if not closed or not convertible or not primitives:
+            out.append(line)
+            idx += 1
+            continue
+
+        emits = [f'{indent}"space2d" 보여주기.']
+        for kind, args in primitives:
+            emits.extend(_build_shape_show_lines(kind, args, indent))
+        out.extend(emits)
+        idx = cursor + 1
+    return "\n".join(out)
+
+
 def rewrite_show_object_particle(input_text: str) -> str:
     """`...을 보여주기.` / `...를 보여주기.` 를 `... 보여주기.` 로 정규화한다."""
     lines = input_text.splitlines()
@@ -670,6 +886,7 @@ def preprocess_ddn_for_teul(input_text: str, strip_draw: bool = True) -> str:
     text = flatten_storage_blocks(text)
     text = rewrite_legacy_formula_assignments(text)
     text = rewrite_legacy_boim_blocks(text)
+    text = rewrite_bogae_shape_blocks(text)
     text = rewrite_show_object_particle(text)
     text = normalize_inline_calls(text)
     text = normalize_pow_half(text)

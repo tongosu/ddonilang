@@ -20,6 +20,7 @@ PASS_REQUIRED_KEYS = (
     "age3_status",
     "age4_status",
     "age5_status",
+    "seamgrim_phase3_cleanup",
     "fixed64_threeway_report",
     "fixed64_threeway_status",
     "fixed64_threeway_ok",
@@ -108,6 +109,7 @@ def main() -> int:
             "age3_status": str(reports.get("age3_close_status_json", "")).strip(),
             "age4_status": str(reports.get("age4_close", "")).strip(),
             "age5_status": str(reports.get("age5_close", "")).strip(),
+            "seamgrim_phase3_cleanup": str(reports.get("seamgrim_phase3_cleanup", "")).strip(),
             "fixed64_threeway_report": str(reports.get("fixed64_threeway_gate", "")).strip(),
         }
         for key, expected in compare_map.items():

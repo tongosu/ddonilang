@@ -1,5 +1,3 @@
-#이름: college_physics_orbit
-#설명: 단순 궤적 근사
 
 (매마디)마다 {
   수평 = (#ascii1) 수식{ x = v t }.

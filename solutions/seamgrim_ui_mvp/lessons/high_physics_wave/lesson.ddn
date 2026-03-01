@@ -1,5 +1,3 @@
-#이름: high_physics_wave
-#설명: y = a t^2 + b t
 
 (매마디)마다 {
   파동 = (#ascii1) 수식{ y = a t^2 + b t }.

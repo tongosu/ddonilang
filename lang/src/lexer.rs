@@ -14,6 +14,7 @@ pub enum TokenKind {
     Pragma(String),
     TemplateBlock(String),
     FormulaBlock(String),
+    BogeaMadangBlock(String),
     KwImeumssi,
     KwUmjikssi,
     KwGallaessi,
@@ -40,6 +41,7 @@ pub enum TokenKind {
     KwBojanghago,
     KwHaeseo,
     KwNeuljikeobogo,
+    KwBoyeojugi,
     Josa(String),
     At,
     Question,
@@ -370,6 +372,9 @@ impl<'a> Lexer<'a> {
         if text == "수식" && self.peek_char() == Some('{') {
             return self.read_formula_block(start);
         }
+        if (text == "보개마당" || text == "보개장면") && self.peek_char() == Some('{') {
+            return self.read_bogae_madang_block(start);
+        }
         let mut lexeme = text.to_string();
         if let Some(canon) = self.dialect.canonicalize_keyword(text) {
             lexeme = canon.to_string();
@@ -635,6 +640,37 @@ impl<'a> Lexer<'a> {
         Err(LexError::new(start, "글무늬 블록이 닫히지 않았습니다"))
     }
 
+    fn read_bogae_madang_block(&mut self, start: usize) -> Result<Token, LexError> {
+        self.advance(); // consume '{'
+        let mut depth = 1usize;
+        let mut body = String::new();
+        while let Some(ch) = self.peek_char() {
+            if ch == '{' {
+                depth += 1;
+                body.push(ch);
+                self.advance();
+                continue;
+            }
+            if ch == '}' {
+                depth = depth.saturating_sub(1);
+                self.advance();
+                if depth == 0 {
+                    let end = self.pos;
+                    return Ok(Token {
+                        kind: TokenKind::BogeaMadangBlock(body),
+                        span: Span::new(start, end),
+                        raw: self.source[start..end].to_string(),
+                    });
+                }
+                body.push('}');
+                continue;
+            }
+            body.push(ch);
+            self.advance();
+        }
+        Err(LexError::new(start, "보개마당 블록이 닫히지 않았습니다"))
+    }
+
     fn read_formula_block(&mut self, start: usize) -> Result<Token, LexError> {
         self.advance(); // consume '{'
         let mut depth = 1usize;
@@ -853,6 +889,7 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
         "다짐하고" | "보장하고" => Some(TokenKind::KwBojanghago),
         "해서" => Some(TokenKind::KwHaeseo),
         "늘지켜보고" => Some(TokenKind::KwNeuljikeobogo),
+        "보여주기" => Some(TokenKind::KwBoyeojugi),
         _ => None,
     }
 }

@@ -71,6 +71,10 @@ impl Parser {
                     ),
                 });
             }
+            if matches!(self.current().kind, TokenKind::BogeaMadangBlock(_)) {
+                let _ = self.parse_bogae_madang_block_stmt()?;
+                continue;
+            }
             if self.peek_meta_block_kind().is_some() {
                 let _ = self.parse_meta_block_stmt()?;
                 continue;
@@ -329,6 +333,9 @@ impl Parser {
                 message: "길잡이말(#...)은 더 이상 허용하지 않습니다. 설정:/보개:/슬기: 블록을 사용하세요".to_string(),
             });
         }
+        if matches!(self.current().kind, TokenKind::BogeaMadangBlock(_)) {
+            return self.parse_bogae_madang_block_stmt();
+        }
         if self.peek_meta_block_kind().is_some() {
             return self.parse_meta_block_stmt();
         }
@@ -495,6 +502,16 @@ impl Parser {
             let value = self.parse_expr()?;
             let mood = self.consume_stmt_terminator()?;
             self.build_mutate_stmt_from_assignment(s, e, value, mood)
+        } else if self.check(&TokenKind::KwBoyeojugi) {
+            // 보여주기: teul-cli 출력 키워드. WASM에서는 no-op Stmt::Expr로 처리한다.
+            self.advance();
+            let mood = self.consume_stmt_terminator()?;
+            Ok(Stmt::Expr {
+                id: self.next_id(),
+                span: s.merge(&self.previous_span()),
+                mood,
+                expr: e,
+            })
         } else if self.check(&TokenKind::KwDollyeojwo) {
             self.advance();
             let mood = self.consume_stmt_terminator()?;
@@ -530,7 +547,7 @@ impl Parser {
         };
         let kind = match name {
             "설정" => MetaBlockKind::Setting,
-            "보개" => MetaBlockKind::Bogae,
+            "보개" | "모양" => MetaBlockKind::Bogae,
             "슬기" => MetaBlockKind::Seulgi,
             _ => return None,
         };
@@ -539,6 +556,11 @@ impl Parser {
                 return Some(kind);
             }
             return None;
+        }
+        if matches!(kind, MetaBlockKind::Bogae)
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::LBrace))
+        {
+            return Some(kind);
         }
         None
     }
@@ -549,7 +571,11 @@ impl Parser {
             .peek_meta_block_kind()
             .ok_or_else(|| self.error("설정/보개/슬기 블록"))?;
         self.advance();
-        self.expect(&TokenKind::Colon, ":")?;
+        if self.check(&TokenKind::Colon) {
+            self.advance();
+        } else if !matches!(kind, MetaBlockKind::Bogae) {
+            return Err(self.error(":"));
+        }
         self.expect(&TokenKind::LBrace, "{")?;
 
         let mut entries = Vec::new();
@@ -578,6 +604,23 @@ impl Parser {
             mood,
             kind,
             entries,
+        })
+    }
+
+    fn parse_bogae_madang_block_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start = self.current_span();
+        let token = self.advance();
+        let raw = match &token.kind {
+            TokenKind::BogeaMadangBlock(s) => s.clone(),
+            _ => unreachable!(),
+        };
+        let mood = self.consume_optional_terminator()?;
+        Ok(Stmt::MetaBlock {
+            id: self.next_id(),
+            span: start.merge(&self.previous_span()),
+            mood,
+            kind: MetaBlockKind::BogeaMadang,
+            entries: vec![raw],
         })
     }
 

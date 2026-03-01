@@ -3,6 +3,8 @@ const QUALITY_BADGE = Object.freeze({
   reviewed: { label: "✓ 검수완료", cls: "badge-reviewed" },
   experimental: { label: "실험용", cls: "badge-experimental" },
 });
+const DEFAULT_FEDERATED_API_CANDIDATES = Object.freeze(["/api/lessons/inventory"]);
+const DEFAULT_FEDERATED_FILE_CANDIDATES = Object.freeze([]);
 const RUN_UI_PREFS_STORAGE_KEY = "seamgrim.ui.run_prefs.v1";
 const BROWSE_UI_PREFS_STORAGE_KEY = "seamgrim.ui.browse_prefs.v1";
 
@@ -38,6 +40,24 @@ function normalizeGrade(grade) {
   return String(grade ?? "").trim().toLowerCase();
 }
 
+function normalizeQuality(quality) {
+  const raw = String(quality ?? "").trim().toLowerCase();
+  return QUALITY_BADGE[raw] ? raw : "experimental";
+}
+
+function normalizeCandidateList(value, fallback = []) {
+  const rows = Array.isArray(value) ? value : Array.isArray(fallback) ? fallback : [];
+  const seen = new Set();
+  const out = [];
+  rows.forEach((row) => {
+    const candidate = String(row ?? "").trim();
+    if (!candidate || seen.has(candidate)) return;
+    seen.add(candidate);
+    out.push(candidate);
+  });
+  return out;
+}
+
 function lessonMatchesQuery(lesson, query) {
   if (!query) return true;
   const hay = [lesson.id, lesson.title, lesson.subject, lesson.description, lesson.source]
@@ -58,7 +78,14 @@ function formatRecentTimeLabel(isoText) {
 }
 
 export class BrowseScreen {
-  constructor({ root, onLessonSelect, onCreate, onOpenAdvanced } = {}) {
+  constructor({
+    root,
+    onLessonSelect,
+    onCreate,
+    onOpenAdvanced,
+    federatedApiCandidates,
+    federatedFileCandidates,
+  } = {}) {
     this.root = root;
     this.onLessonSelect = typeof onLessonSelect === "function" ? onLessonSelect : async () => {};
     this.onCreate = typeof onCreate === "function" ? onCreate : () => {};
@@ -68,16 +95,24 @@ export class BrowseScreen {
     this.searchResults = [];
     this.federatedLoadState = "idle";
     this.activeTab = "official";
+    this.federatedApiCandidates = normalizeCandidateList(
+      federatedApiCandidates,
+      DEFAULT_FEDERATED_API_CANDIDATES,
+    );
+    this.federatedFileCandidates = normalizeCandidateList(
+      federatedFileCandidates,
+      DEFAULT_FEDERATED_FILE_CANDIDATES,
+    );
 
     this.filter = {
       grade: "",
       subject: "",
+      quality: "",
       runStatus: "",
       sort: "recent",
       query: "",
     };
     this.runUiPrefs = {
-      axisLock: true,
       lessons: {},
     };
   }
@@ -86,6 +121,7 @@ export class BrowseScreen {
     this.tabButtons = Array.from(this.root.querySelectorAll(".browse-tab[data-tab]"));
     this.gradeSelect = this.root.querySelector("#filter-grade");
     this.subjectSelect = this.root.querySelector("#filter-subject");
+    this.qualitySelect = this.root.querySelector("#filter-quality");
     this.runStatusSelect = this.root.querySelector("#filter-run-status");
     this.sortSelect = this.root.querySelector("#filter-sort");
     this.queryInput = this.root.querySelector("#filter-query");
@@ -118,6 +154,10 @@ export class BrowseScreen {
     });
     this.subjectSelect?.addEventListener("change", () => {
       this.filter.subject = String(this.subjectSelect.value ?? "");
+      this.render();
+    });
+    this.qualitySelect?.addEventListener("change", () => {
+      this.filter.quality = String(this.qualitySelect.value ?? "");
       this.render();
     });
     this.runStatusSelect?.addEventListener("change", () => {
@@ -174,24 +214,21 @@ export class BrowseScreen {
       const raw = window?.localStorage?.getItem(RUN_UI_PREFS_STORAGE_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
       this.runUiPrefs = {
-        axisLock: Boolean(parsed?.axisLock ?? true),
         lessons: parsed?.lessons && typeof parsed.lessons === "object" ? parsed.lessons : {},
       };
     } catch (_) {
-      this.runUiPrefs = { axisLock: true, lessons: {} };
+      this.runUiPrefs = { lessons: {} };
     }
   }
 
   buildCardStateHint(lessonId) {
-    const locked = Boolean(this.runUiPrefs?.axisLock ?? true);
-    if (locked) return "축잠금 ON";
     const pref = this.runUiPrefs?.lessons?.[String(lessonId ?? "").trim()];
     const x = String(pref?.selectedXKey ?? "").trim();
     const y = String(pref?.selectedYKey ?? "").trim();
     if (x || y) {
-      return `축잠금 OFF · x:${x || "-"} y:${y || "-"}`;
+      return `축선택 · x:${x || "-"} y:${y || "-"}`;
     }
-    return "축잠금 OFF";
+    return "축선택 · 기본";
   }
 
   buildCardRunHint(lessonId) {
@@ -211,8 +248,6 @@ export class BrowseScreen {
       label = "최근 실행: 출력 없음";
     } else if (kind === "error") {
       label = "최근 실행: 실패";
-    } else if (String(pref.lastRunStatus ?? "").trim()) {
-      label = `최근 실행: ${String(pref.lastRunStatus).trim()}`;
     } else {
       label = "최근 실행: 기록 없음";
     }
@@ -262,7 +297,7 @@ export class BrowseScreen {
           ...lesson,
           subject: normalizeSubject(lesson.subject),
           grade: normalizeGrade(lesson.grade),
-          quality: String(lesson.quality ?? "experimental"),
+          quality: normalizeQuality(lesson.quality),
         }))
       : [];
     this.rebuildFilterOptions();
@@ -280,20 +315,92 @@ export class BrowseScreen {
       this.subjectSelect.innerHTML = ['<option value="">과목: 전체</option>', ...subjects.map((subject) => `<option value="${subject}">${subject}</option>`)].join("");
       this.subjectSelect.value = this.filter.subject;
     }
+    if (this.qualitySelect) {
+      const qualityLabels = {
+        recommended: "추천",
+        reviewed: "검수완료",
+        experimental: "실험용",
+      };
+      const qualities = Array.from(
+        new Set(this.lessons.map((lesson) => normalizeQuality(lesson.quality)).filter(Boolean)),
+      ).sort();
+      this.qualitySelect.innerHTML = [
+        '<option value="">품질: 전체</option>',
+        ...qualities.map((quality) => {
+          const label = qualityLabels[quality] ?? quality;
+          return `<option value="${quality}">품질: ${label}</option>`;
+        }),
+      ].join("");
+      this.qualitySelect.value = this.filter.quality;
+    }
+  }
+
+  toFederatedLessonItems(payload) {
+    const rows = Array.isArray(payload?.lessons)
+      ? payload.lessons
+      : Array.isArray(payload)
+        ? payload
+        : [];
+    return rows
+      .map((row) => {
+        const id = String(row?.id ?? row?.lesson_id ?? "").trim();
+        if (!id) return null;
+        const ddnPath = []
+          .concat(row?.ddn_path ?? [])
+          .concat(row?.ddnCandidates ?? [])
+          .concat(row?.lesson_ddn_path ?? [])
+          .filter(Boolean);
+        const textPath = []
+          .concat(row?.text_path ?? [])
+          .concat(row?.textCandidates ?? [])
+          .concat(row?.text_md_path ?? [])
+          .filter(Boolean);
+        const metaPath = []
+          .concat(row?.meta_path ?? [])
+          .concat(row?.metaCandidates ?? [])
+          .filter(Boolean);
+        return {
+          id,
+          title: String(row?.title ?? row?.name ?? row?.lesson_id ?? id).trim(),
+          description: String(row?.description ?? ""),
+          grade: normalizeGrade(row?.grade),
+          subject: normalizeSubject(row?.subject),
+          quality: normalizeQuality(row?.quality),
+          source: String(row?.source ?? "federated"),
+          ddnCandidates: Array.from(new Set(ddnPath.map((item) => String(item)))),
+          textCandidates: Array.from(new Set(textPath.map((item) => String(item)))),
+          metaCandidates: Array.from(new Set(metaPath.map((item) => String(item)))),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async tryLoadFederatedCandidate(candidate) {
+    try {
+      const response = await fetch(candidate, { cache: "no-cache" });
+      if (!response.ok) return false;
+      const json = await response.json();
+      this.searchResults = this.toFederatedLessonItems(json);
+      this.federatedLoadState = "loaded";
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   async loadFederatedResults() {
     if (this.federatedLoadState === "loaded" || this.federatedLoadState === "unavailable") {
       return;
     }
-    const candidates = [
-      "build/reports/seamgrim_lesson_inventory.json",
-      "../build/reports/seamgrim_lesson_inventory.json",
-      "../../build/reports/seamgrim_lesson_inventory.json",
-    ];
+    for (const candidate of this.federatedApiCandidates) {
+      if (await this.tryLoadFederatedCandidate(candidate)) {
+        return;
+      }
+    }
+
     const uniqueCandidates = [];
     const seen = new Set();
-    for (const candidate of candidates) {
+    for (const candidate of this.federatedFileCandidates) {
       try {
         const resolved = new URL(candidate, window.location.href).href;
         if (seen.has(resolved)) continue;
@@ -307,31 +414,8 @@ export class BrowseScreen {
     }
 
     for (const candidate of uniqueCandidates) {
-      try {
-        const response = await fetch(candidate);
-        if (!response.ok) continue;
-        const json = await response.json();
-        const items = Array.isArray(json?.lessons)
-          ? json.lessons
-          : Array.isArray(json)
-            ? json
-            : [];
-        this.searchResults = items.map((row) => ({
-          id: String(row.id ?? row.lesson_id ?? "").trim(),
-          title: String(row.title ?? row.name ?? row.lesson_id ?? "").trim(),
-          description: String(row.description ?? ""),
-          grade: normalizeGrade(row.grade),
-          subject: normalizeSubject(row.subject),
-          quality: String(row.quality ?? "experimental"),
-          source: "federated",
-          ddnCandidates: Array.isArray(row.ddn_path) ? row.ddn_path : [row.ddn_path].filter(Boolean),
-          textCandidates: Array.isArray(row.text_path) ? row.text_path : [row.text_path].filter(Boolean),
-          metaCandidates: Array.isArray(row.meta_path) ? row.meta_path : [row.meta_path].filter(Boolean),
-        })).filter((item) => item.id);
-        this.federatedLoadState = "loaded";
+      if (await this.tryLoadFederatedCandidate(candidate)) {
         return;
-      } catch (_) {
-        // ignore and continue candidate loop
       }
     }
     this.searchResults = [];
@@ -345,6 +429,8 @@ export class BrowseScreen {
   filteredLessons() {
     const grade = normalizeGrade(this.filter.grade);
     const subject = normalizeSubject(this.filter.subject);
+    const quality = normalizeQuality(this.filter.quality || "experimental");
+    const hasQualityFilter = String(this.filter.quality ?? "").trim().length > 0;
     const runStatus = String(this.filter.runStatus ?? "").trim();
     const sortMode = String(this.filter.sort ?? "recent").trim();
     const query = String(this.filter.query ?? "").trim().toLowerCase();
@@ -352,6 +438,7 @@ export class BrowseScreen {
     const filtered = this.currentPool().filter((lesson) => {
       if (grade && normalizeGrade(lesson.grade) !== grade) return false;
       if (subject && normalizeSubject(lesson.subject) !== subject) return false;
+      if (hasQualityFilter && normalizeQuality(lesson.quality) !== quality) return false;
       if (runStatus) {
         const kind = this.getLessonLastRunKind(lesson.id);
         const isNone = kind === "none";
@@ -418,7 +505,7 @@ export class BrowseScreen {
       }, 900);
     });
     card.addEventListener("click", () => {
-      void this.onLessonSelect(lesson.id);
+      void this.onLessonSelect(lesson);
     });
     return card;
   }

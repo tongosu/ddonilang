@@ -18,10 +18,10 @@ use ddonirang_lang::runtime::{
     Value,
 };
 use ddonirang_lang::{
-    age_not_available_error, canonicalize, parse_with_mode, AgeTarget, AtSuffix, Body, CanonProgram,
-    Expr, ExprKind, Formula, FormulaDialect, Literal, ParamPin, ParseError, ParseMode, RegexLiteral,
-    SeedDef, SeedKind, Stmt, TopLevelItem,
-    TemplateFormat, TemplatePart, TypeRef,
+    age_not_available_error, canonicalize, parse_with_mode, AgeTarget, AtSuffix, Body,
+    CanonProgram, Expr, ExprKind, Formula, FormulaDialect, Literal, ParamPin, ParseError,
+    ParseMode, RegexLiteral, SeedDef, SeedKind, Stmt, TemplateFormat, TemplatePart, TopLevelItem,
+    TypeRef,
 };
 use libm;
 use regex::RegexBuilder;
@@ -139,7 +139,11 @@ fn enforce_regex_age_gate(program: &CanonProgram, age_target: AgeTarget) -> Resu
         return Ok(());
     }
     if let Some(feature) = detect_regex_feature(program) {
-        return Err(age_not_available_error(feature, AgeTarget::Age3, age_target));
+        return Err(age_not_available_error(
+            feature,
+            AgeTarget::Age3,
+            age_target,
+        ));
     }
     Ok(())
 }
@@ -194,7 +198,9 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
             expr_regex_feature(action).or_else(|| body_regex_feature(body))
         }
         Stmt::Choose {
-            branches, else_body, ..
+            branches,
+            else_body,
+            ..
         } => {
             for branch in branches {
                 if let Some(feature) = expr_regex_feature(&branch.condition) {
@@ -231,13 +237,18 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
 fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
         ExprKind::Literal(Literal::Regex(_)) => Some("regex_literal"),
-        ExprKind::Literal(_) | ExprKind::Var(_) | ExprKind::FlowValue | ExprKind::Formula(_)
+        ExprKind::Literal(_)
+        | ExprKind::Var(_)
+        | ExprKind::FlowValue
+        | ExprKind::Formula(_)
         | ExprKind::Template(_) => None,
         ExprKind::FieldAccess { target, .. } => expr_regex_feature(target),
         ExprKind::SeedLiteral { body, .. } => expr_regex_feature(body),
         ExprKind::Call { args, func } => {
-            if matches!(func.as_str(), "정규맞추기" | "정규찾기" | "정규바꾸기" | "정규나누기")
-            {
+            if matches!(
+                func.as_str(),
+                "정규맞추기" | "정규찾기" | "정규바꾸기" | "정규나누기"
+            ) {
                 return Some("regex_api");
             }
             for arg in args {
@@ -385,6 +396,20 @@ enum EvalError {
     Message(String),
     UnitMismatch { left: UnitDim, right: UnitDim },
     DivisionByZero,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BogaeShapeKind {
+    Line,
+    Circle,
+    Point,
+}
+
+#[derive(Debug, Clone)]
+struct BogaeShapeCall {
+    kind: BogaeShapeKind,
+    positional: Vec<String>,
+    named: BTreeMap<String, String>,
 }
 
 #[derive(Debug)]
@@ -628,7 +653,11 @@ impl<'a> EvalContext<'a> {
                 FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
             },
             Stmt::Expr { expr, .. } => Ok(ThunkResult::Value(self.eval_expr(locals, expr)?)),
-            Stmt::MetaBlock { .. } => Ok(ThunkResult::Value(Value::None)),
+            Stmt::MetaBlock { .. } => match self.eval_stmt(locals, stmt)? {
+                FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
+                FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
+                FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
+            },
             Stmt::Pragma { .. } => Ok(ThunkResult::Value(Value::None)),
             Stmt::Return { value, .. } => Ok(ThunkResult::Return(self.eval_expr(locals, value)?)),
             Stmt::If {
@@ -906,7 +935,7 @@ impl<'a> EvalContext<'a> {
                 };
                 match &target.kind {
                     ExprKind::Var(name) => {
-                        if locals.contains_key(name) || !self.resource_exists(name) {
+                        if locals.contains_key(name) {
                             locals.insert(name.clone(), val);
                         } else {
                             match self.set_resource(name, val) {
@@ -965,7 +994,12 @@ impl<'a> EvalContext<'a> {
                 };
                 Ok(FlowControl::Continue)
             }
-            Stmt::MetaBlock { .. } => Ok(FlowControl::Continue),
+            Stmt::MetaBlock { kind, entries, .. } => {
+                if matches!(kind, ddonirang_lang::MetaBlockKind::Bogae) {
+                    self.apply_bogae_meta_block(locals, entries)?;
+                }
+                Ok(FlowControl::Continue)
+            }
             Stmt::Pragma { .. } => Ok(FlowControl::Continue),
             Stmt::Return { value, .. } => {
                 let val = self.eval_expr(locals, value)?;
@@ -1281,6 +1315,177 @@ impl<'a> EvalContext<'a> {
             }
             ExprKind::Nuance { expr, .. } => self.eval_expr(locals, expr),
         }
+    }
+
+    fn apply_bogae_meta_block(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        entries: &[String],
+    ) -> Result<(), EvalError> {
+        let mut draw_items = Vec::new();
+        for entry in entries {
+            if let Some(draw_item) = self.bogae_entry_to_draw_item(locals, entry) {
+                draw_items.push(draw_item);
+            }
+        }
+        if draw_items.is_empty() {
+            return Ok(());
+        }
+        self.set_resource("보개_그림판_목록", Value::List(draw_items))
+    }
+
+    fn bogae_entry_to_draw_item(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        entry: &str,
+    ) -> Option<Value> {
+        let shape = parse_bogae_shape_call(entry)?;
+        let mut read_arg = |keys: &[&str], idx: usize, default: Value| -> Value {
+            let token = bogae_pick_arg(&shape, keys, idx);
+            token
+                .and_then(|text| self.parse_bogae_value_token(locals, text))
+                .unwrap_or(default)
+        };
+        let mut map = BTreeMap::new();
+        let mut put = |key: &str, value: Value| {
+            let key_value = Value::String(key.to_string());
+            map.insert(
+                map_key_canon(&key_value),
+                MapEntry {
+                    key: key_value,
+                    value,
+                },
+            );
+        };
+
+        match shape.kind {
+            BogaeShapeKind::Line => {
+                put("kind", Value::String("line".to_string()));
+                put("x1", read_arg(&["x1"], 0, Value::Fixed64(Fixed64::ZERO)));
+                put("y1", read_arg(&["y1"], 1, Value::Fixed64(Fixed64::ZERO)));
+                put("x2", read_arg(&["x2"], 2, Value::Fixed64(Fixed64::ZERO)));
+                put("y2", read_arg(&["y2"], 3, Value::Fixed64(Fixed64::ZERO)));
+                put(
+                    "stroke",
+                    read_arg(
+                        &["색", "선색", "stroke", "color"],
+                        usize::MAX,
+                        Value::String("#9ca3af".to_string()),
+                    ),
+                );
+                put(
+                    "width",
+                    read_arg(
+                        &["굵기", "width"],
+                        usize::MAX,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                    ),
+                );
+            }
+            BogaeShapeKind::Circle => {
+                put("kind", Value::String("circle".to_string()));
+                put(
+                    "x",
+                    read_arg(&["x", "cx"], 0, Value::Fixed64(Fixed64::ZERO)),
+                );
+                put(
+                    "y",
+                    read_arg(&["y", "cy"], 1, Value::Fixed64(Fixed64::ZERO)),
+                );
+                put(
+                    "r",
+                    read_arg(
+                        &["r", "반지름"],
+                        2,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.08)),
+                    ),
+                );
+                put(
+                    "fill",
+                    read_arg(
+                        &["색", "fill"],
+                        usize::MAX,
+                        Value::String("#38bdf8".to_string()),
+                    ),
+                );
+                put(
+                    "stroke",
+                    read_arg(
+                        &["선색", "stroke", "color"],
+                        usize::MAX,
+                        Value::String("#0ea5e9".to_string()),
+                    ),
+                );
+                put(
+                    "width",
+                    read_arg(
+                        &["굵기", "width"],
+                        usize::MAX,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                    ),
+                );
+            }
+            BogaeShapeKind::Point => {
+                put("kind", Value::String("point".to_string()));
+                put(
+                    "x",
+                    read_arg(&["x", "cx"], 0, Value::Fixed64(Fixed64::ZERO)),
+                );
+                put(
+                    "y",
+                    read_arg(&["y", "cy"], 1, Value::Fixed64(Fixed64::ZERO)),
+                );
+                put(
+                    "size",
+                    read_arg(
+                        &["크기", "size", "r"],
+                        2,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.045)),
+                    ),
+                );
+                put(
+                    "color",
+                    read_arg(
+                        &["색", "color"],
+                        usize::MAX,
+                        Value::String("#f59e0b".to_string()),
+                    ),
+                );
+            }
+        }
+        Some(Value::Map(map))
+    }
+
+    fn parse_bogae_value_token(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        token: &str,
+    ) -> Option<Value> {
+        let text = token.trim();
+        if text.is_empty() {
+            return None;
+        }
+        if let Some(unquoted) = strip_wrapping_quotes(text) {
+            return Some(Value::String(unquoted));
+        }
+        if text == "참" {
+            return Some(Value::Bool(true));
+        }
+        if text == "거짓" {
+            return Some(Value::Bool(false));
+        }
+        if let Ok(num) = text.parse::<f64>() {
+            if num.is_finite() {
+                return Some(Value::Fixed64(Fixed64::from_f64_lossy(num)));
+            }
+        }
+        if text.starts_with('#') {
+            return Some(Value::String(text.to_string()));
+        }
+        if let Some(value) = locals.get(text) {
+            return Some(value.clone());
+        }
+        self.get_resource(text)
     }
 
     fn eval_callable(&mut self, callable: &Value, args: Vec<Value>) -> Result<Value, EvalError> {
@@ -1758,7 +1963,9 @@ impl<'a> EvalContext<'a> {
                     return Err("정규찾기 첫 인자는 글이어야 합니다".to_string().into());
                 };
                 let Value::Regex(regex) = &args[1] else {
-                    return Err("정규찾기 둘째 인자는 정규식이어야 합니다".to_string().into());
+                    return Err("정규찾기 둘째 인자는 정규식이어야 합니다"
+                        .to_string()
+                        .into());
                 };
                 let matched = regex_find_first(text, regex)?;
                 Ok(matched.map(Value::String).unwrap_or(Value::None))
@@ -2325,6 +2532,53 @@ impl<'a> EvalContext<'a> {
                 };
                 Ok(unit_value_to_value(UnitValue { value, dim }))
             }
+            "sin" | "cos" | "tan" => {
+                if args.len() != 1 {
+                    return Err(format!("{}는 인자 1개를 받습니다", func).into());
+                }
+                let qty = unit_value_from_value(&args[0])?;
+                if !(qty.is_dimensionless() || qty.dim == UnitDim::ANGLE) {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: qty.dim,
+                        right: UnitDim::ANGLE,
+                    }));
+                }
+                let angle = fixed64_to_f64(qty.value);
+                let out = match func {
+                    "sin" => libm::sin(angle),
+                    "cos" => libm::cos(angle),
+                    _ => libm::tan(angle),
+                };
+                Ok(Value::Fixed64(Fixed64::from_f64_lossy(out)))
+            }
+            "asin" | "acos" | "atan" => {
+                if args.len() != 1 {
+                    return Err(format!("{}는 인자 1개를 받습니다", func).into());
+                }
+                let qty = unit_value_from_value(&args[0])?;
+                if !qty.is_dimensionless() {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: qty.dim,
+                        right: UnitDim::NONE,
+                    }));
+                }
+                let val = fixed64_to_f64(qty.value);
+                let out = match func {
+                    "asin" => libm::asin(val),
+                    "acos" => libm::acos(val),
+                    _ => libm::atan(val),
+                };
+                Ok(Value::Fixed64(Fixed64::from_f64_lossy(out)))
+            }
+            "atan2" => {
+                if args.len() != 2 {
+                    return Err("atan2는 인자 2개를 받습니다".to_string().into());
+                }
+                let y = unit_value_from_value(&args[0])?;
+                let x = unit_value_from_value(&args[1])?;
+                let out = libm::atan2(fixed64_to_f64(y.value), fixed64_to_f64(x.value));
+                Ok(Value::Fixed64(Fixed64::from_f64_lossy(out)))
+            }
             "powi" => {
                 if args.len() != 2 {
                     return Err("powi는 인자 2개를 받습니다".to_string().into());
@@ -2810,9 +3064,11 @@ fn build_regex(regex: &RegexLiteral) -> Result<regex::Regex, EvalError> {
             'm' => builder.multi_line(true),
             's' => builder.dot_matches_new_line(true),
             _ => {
-                return Err(
-                    format!("E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'", regex.flags).into(),
+                return Err(format!(
+                    "E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'",
+                    regex.flags
                 )
+                .into())
             }
         };
     }
@@ -2831,9 +3087,11 @@ fn build_regex_full_match(regex: &RegexLiteral) -> Result<regex::Regex, EvalErro
             'm' => builder.multi_line(true),
             's' => builder.dot_matches_new_line(true),
             _ => {
-                return Err(
-                    format!("E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'", regex.flags).into(),
+                return Err(format!(
+                    "E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'",
+                    regex.flags
                 )
+                .into())
             }
         };
     }
@@ -2852,9 +3110,7 @@ fn validate_regex_flags(flags: &str) -> Result<(), EvalError> {
             'm' if !seen_m => seen_m = true,
             's' if !seen_s => seen_s = true,
             _ => {
-                return Err(
-                    format!("E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'", flags).into(),
-                )
+                return Err(format!("E_REGEX_FLAGS_INVALID: 지원하지 않는 깃발 '{}'", flags).into())
             }
         }
     }
@@ -2954,9 +3210,10 @@ fn value_cmp(left: &Value, right: &Value) -> std::cmp::Ordering {
         (Value::ResourceHandle(a), Value::ResourceHandle(b)) => a.cmp(b),
         (Value::Formula(a), Value::Formula(b)) => a.raw.cmp(&b.raw),
         (Value::Template(a), Value::Template(b)) => a.raw.cmp(&b.raw),
-        (Value::Regex(a), Value::Regex(b)) => {
-            a.pattern.cmp(&b.pattern).then_with(|| a.flags.cmp(&b.flags))
-        }
+        (Value::Regex(a), Value::Regex(b)) => a
+            .pattern
+            .cmp(&b.pattern)
+            .then_with(|| a.flags.cmp(&b.flags)),
         (Value::Lambda(a), Value::Lambda(b)) => a.id.cmp(&b.id),
         _ => value_canon(left).cmp(&value_canon(right)),
     }
@@ -5392,6 +5649,147 @@ fn is_truthy(value: &Value) -> Result<bool, EvalError> {
     }
 }
 
+fn parse_bogae_shape_call(entry: &str) -> Option<BogaeShapeCall> {
+    let raw = entry.trim().trim_end_matches('.').trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let open = raw.find('(')?;
+    let close = raw.rfind(')')?;
+    if close <= open || !raw[close + 1..].trim().is_empty() {
+        return None;
+    }
+    let name = raw[..open].trim();
+    let kind = match name {
+        "선" | "line" => BogaeShapeKind::Line,
+        "원" | "circle" => BogaeShapeKind::Circle,
+        "점" | "point" => BogaeShapeKind::Point,
+        _ => return None,
+    };
+
+    let mut positional = Vec::new();
+    let mut named = BTreeMap::new();
+    for token in split_top_level_args(&raw[open + 1..close]) {
+        if let Some((key, value)) = split_named_arg(&token) {
+            let lower = key.to_lowercase();
+            named.insert(key, value.clone());
+            if !lower.is_empty() {
+                named.insert(lower, value);
+            }
+        } else {
+            positional.push(token);
+        }
+    }
+
+    Some(BogaeShapeCall {
+        kind,
+        positional,
+        named,
+    })
+}
+
+fn bogae_pick_arg<'a>(shape: &'a BogaeShapeCall, keys: &[&str], idx: usize) -> Option<&'a str> {
+    for key in keys {
+        if let Some(value) = shape.named.get(*key) {
+            return Some(value.as_str());
+        }
+        let lower = key.to_lowercase();
+        if let Some(value) = shape.named.get(&lower) {
+            return Some(value.as_str());
+        }
+    }
+    if idx == usize::MAX {
+        return None;
+    }
+    shape.positional.get(idx).map(|value| value.as_str())
+}
+
+fn split_top_level_args(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut depth = 0i32;
+    let mut quote: Option<char> = None;
+    let chars: Vec<char> = text.chars().collect();
+    let mut i = 0usize;
+    while i < chars.len() {
+        let ch = chars[i];
+        if let Some(active) = quote {
+            if ch == active && (i == 0 || chars[i - 1] != '\\') {
+                quote = None;
+            }
+            i += 1;
+            continue;
+        }
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+            }
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                let token: String = chars[start..i].iter().collect();
+                let trimmed = token.trim();
+                if !trimmed.is_empty() {
+                    out.push(trimmed.to_string());
+                }
+                start = i + 1;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    let token: String = chars[start..].iter().collect();
+    let trimmed = token.trim();
+    if !trimmed.is_empty() {
+        out.push(trimmed.to_string());
+    }
+    out
+}
+
+fn split_named_arg(token: &str) -> Option<(String, String)> {
+    let chars: Vec<char> = token.chars().collect();
+    let mut depth = 0i32;
+    let mut quote: Option<char> = None;
+    for (i, ch) in chars.iter().enumerate() {
+        if let Some(active) = quote {
+            if *ch == active && (i == 0 || chars[i - 1] != '\\') {
+                quote = None;
+            }
+            continue;
+        }
+        match *ch {
+            '"' | '\'' => quote = Some(*ch),
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth -= 1,
+            '=' if depth == 0 => {
+                let key: String = chars[..i].iter().collect();
+                let value: String = chars[i + 1..].iter().collect();
+                let key = key.trim().to_string();
+                let value = value.trim().to_string();
+                if key.is_empty() || value.is_empty() {
+                    return None;
+                }
+                return Some((key, value));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn strip_wrapping_quotes(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.len() < 2 {
+        return None;
+    }
+    if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+        || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+    {
+        return Some(trimmed[1..trimmed.len() - 1].to_string());
+    }
+    None
+}
+
 fn runtime_error(err: RuntimeError) -> EvalError {
     EvalError::Message(runtime_error_message(err))
 }
@@ -5728,6 +6126,40 @@ mod tests {
     }
 
     #[test]
+    fn bogae_shape_block_emits_drawlist() {
+        let script = r##"
+매틱:움직씨 = {
+    bob_x <- 0.5.
+    bob_y <- -0.8.
+    모양: {
+        선(0, 0, bob_x, bob_y, 색="#9ca3af", 굵기=0.02).
+        원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
+        점(0, 0, 크기=0.045, 색="#f59e0b").
+    }.
+}
+"##;
+        let program = DdnProgram::from_source(script, "bogae_shape.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let output = runner
+            .run_update(&world, &empty_input(), &HashMap::new())
+            .expect("run update");
+        let drawlist = output.resources.get("보개_그림판_목록");
+        let Some(RuntimeValue::List(items)) = drawlist else {
+            panic!("보개_그림판_목록 must be list, got {:?}", drawlist);
+        };
+        assert_eq!(items.len(), 3);
+        let RuntimeValue::Map(first) = &items[0] else {
+            panic!("첫 도형은 map 이어야 합니다");
+        };
+        let first_kind = first
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "kind"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(first_kind, Some(RuntimeValue::String("line".to_string())));
+    }
+
+    #[test]
     fn map_dot_access_existing_key_runs() {
         let script = r#"
 매틱:움직씨 = {
@@ -5889,6 +6321,9 @@ mod tests {
             err.contains("E_AGE_NOT_AVAILABLE"),
             "expected age gate code, got {err}"
         );
-        assert!(err.contains("regex_literal"), "expected regex feature, got {err}");
+        assert!(
+            err.contains("regex_literal"),
+            "expected regex feature, got {err}"
+        );
     }
 }

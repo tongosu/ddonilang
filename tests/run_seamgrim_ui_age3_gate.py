@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,10 +29,49 @@ def run_token_check(name: str, text_by_label: dict[str, str], required: dict[str
     }
 
 
+def run_overlay_handler_boundary_check(name: str, run_text: str) -> dict:
+    pattern = re.compile(
+        r'#btn-overlay-toggle"\)\?\.addEventListener\("click",\s*\(\)\s*=>\s*\{(?P<body>.*?)\}\);',
+        re.DOTALL,
+    )
+    match = pattern.search(run_text)
+    if not match:
+        return {
+            "name": name,
+            "ok": False,
+            "missing": ["run:overlay_toggle_handler_not_found"],
+        }
+
+    body = str(match.group("body") or "")
+    required = [
+        "this.overlay.toggle()",
+    ]
+    forbidden = [
+        "this.restart(",
+        "this.setHash(",
+        "applyWasmLogicAndDispatchState(",
+        "stepWasmClientParsed(",
+    ]
+
+    missing: list[str] = []
+    for token in required:
+        if token not in body:
+            missing.append(f"run:overlay_handler_missing:{token}")
+    for token in forbidden:
+        if token in body:
+            missing.append(f"run:overlay_handler_forbidden:{token}")
+    return {
+        "name": name,
+        "ok": len(missing) == 0,
+        "missing": missing,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gate: Seamgrim UI rebuilt structure presence")
     parser.add_argument("--index-html", default="solutions/seamgrim_ui_mvp/ui/index.html")
     parser.add_argument("--app-js", default="solutions/seamgrim_ui_mvp/ui/app.js")
+    parser.add_argument("--browse-js", default="solutions/seamgrim_ui_mvp/ui/screens/browse.js")
     parser.add_argument("--run-js", default="solutions/seamgrim_ui_mvp/ui/screens/run.js")
     parser.add_argument("--slider-js", default="solutions/seamgrim_ui_mvp/ui/components/slider_panel.js")
     parser.add_argument("--json-out", help="optional json output path")
@@ -41,6 +81,7 @@ def main() -> int:
     paths = {
         "html": root / args.index_html,
         "app": root / args.app_js,
+        "browse": root / args.browse_js,
         "run": root / args.run_js,
         "slider": root / args.slider_js,
     }
@@ -61,9 +102,11 @@ def main() -> int:
                     'id="screen-browse"',
                     'id="screen-editor"',
                     'id="screen-run"',
+                    'rel="icon"',
                     'id="btn-create"',
                     'id="btn-run-from-editor"',
                     'id="btn-restart"',
+                    'id="filter-quality"',
                 ],
             },
         ),
@@ -78,9 +121,7 @@ def main() -> int:
                     'id="canvas-bogae"',
                     'id="canvas-graph"',
                     'id="select-x-axis"',
-                    'id="btn-axis-lock"',
-                    'id="bogae-preset-slot"',
-                    'id="graph-preset-slot"',
+                    'id="select-y-axis"',
                 ],
             },
         ),
@@ -100,6 +141,52 @@ def main() -> int:
             },
         ),
         run_token_check(
+            "browse_selection_payload_flow",
+            text_by_label,
+            {
+                "app": [
+                    "function ensureLessonEntryFromSelection(selection)",
+                    "onLessonSelect: async (selection) => {",
+                    "const lessonId = ensureLessonEntryFromSelection(selection);",
+                ],
+                "browse": [
+                    "toFederatedLessonItems(payload)",
+                    "void this.onLessonSelect(lesson);",
+                ],
+            },
+        ),
+        run_token_check(
+            "browse_quality_filter_flow",
+            text_by_label,
+            {
+                "browse": [
+                    "function normalizeQuality(quality)",
+                    "this.qualitySelect = this.root.querySelector(\"#filter-quality\")",
+                    "this.filter.quality = String(this.qualitySelect.value ?? \"\")",
+                    "hasQualityFilter",
+                    "normalizeQuality(lesson.quality) !== quality",
+                ],
+            },
+        ),
+        run_token_check(
+            "browse_inventory_source_policy",
+            text_by_label,
+            {
+                "browse": [
+                    'const DEFAULT_FEDERATED_API_CANDIDATES = Object.freeze(["/api/lessons/inventory"]);',
+                    "const DEFAULT_FEDERATED_FILE_CANDIDATES = Object.freeze([]);",
+                    "for (const candidate of this.federatedApiCandidates)",
+                    "for (const candidate of this.federatedFileCandidates)",
+                ],
+                "app": [
+                    'const inventoryApi = await fetchFirstOk(["/api/lessons/inventory", "/api/lesson-inventory"], "json");',
+                    'const allowFederatedFileFallback = readWindowBoolean("SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK", false);',
+                    'const federatedFileCandidates = allowFederatedFileFallback',
+                    "if (merged.size === 0)",
+                ],
+            },
+        ),
+        run_token_check(
             "run_wasm_single_path",
             text_by_label,
             {
@@ -107,9 +194,13 @@ def main() -> int:
                     "applyWasmLogicAndDispatchState",
                     "stepWasmClientParsed",
                     "this.setHash(hash)",
-                    "this.setStatus(\"실행 상태: WASM 실행 중\")",
+                    "this.updateRuntimeStatus({ observation, views })",
                 ],
             },
+        ),
+        run_overlay_handler_boundary_check(
+            "overlay_statehash_boundary",
+            text_by_label["run"],
         ),
         run_token_check(
             "slider_from_ddn_prep",

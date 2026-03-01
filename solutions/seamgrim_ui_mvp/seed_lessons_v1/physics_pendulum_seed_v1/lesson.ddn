@@ -1,49 +1,53 @@
-#이름: physics_pendulum_seed_v1
-#설명: 소각 근사 진자 시뮬레이션 seed (현재 실행 문법 호환)
-#control: g:수=9.8 [1..20] step=0.1; L:수=1 [0.2..3] step=0.1; theta0:수=0.5 [-1.2..1.2] step=0.05; omega0:수=0 [-3..3] step=0.05; dt:수=0.02 [0.005..0.1] step=0.005; t_max:수=8 [1..20] step=0.5
-#기본관찰: theta
 #기본관찰x: t
-#
-# 5+1 매핑(호환):
-# - 채비 {}      -> #control + 기본관찰 메타
-# - 씨앗 {}      -> (시작)할때
-# - 매마디마다 {} -> (매마디)마다
-# - 수식 {}      -> (#ascii) 수식{...}
-# - 모양 {}      -> 보여주기 채널(그래프/표 입력)
-# - 보개마당 {}   -> 아래 #보개마당_* 메타(파서 무해)
-#
-#보개마당_도입: 진자 각도(theta)와 각속도(omega)의 시간 변화를 함께 본다.
-#보개마당_관찰: L, g 슬라이더를 바꿔 주기와 진폭 변화를 관찰한다.
-#보개마당_정리: T = 2π√(L/g) 관계를 실험으로 확인한다.
-
-g <- 9.8.
-L <- 1.
-theta0 <- 0.5.
-omega0 <- 0.
-dt <- 0.02.
-t_max <- 8.
-omegaN <- ((g / L) sqrt).
+#기본관찰: theta
+채비: {
+  g:수 <- 9.8. // 범위(1, 20, 0.1)
+  L:수 <- 1. // 범위(0.2, 3, 0.1)
+  m:수 <- 1. // 범위(0.2, 5, 0.1)
+  theta0:수 <- 0.5. // 범위(-1.2, 1.2, 0.05)
+  omega0:수 <- 0. // 범위(-3, 3, 0.05)
+  damp:수 <- 0.02. // 범위(0, 0.2, 0.005)
+  dt:수 <- 0.02. // 범위(0.005, 0.1, 0.005)
+  t_max:수 <- 8. // 범위(1, 20, 0.5)
+}.
 
 (시작)할때 {
-  프레임수 <- 0.
   t <- 0.
   theta <- theta0.
   omega <- omega0.
 }.
 
 (매마디)마다 {
-  t <- 프레임수 * dt.
-  { t > t_max }인것 일때 {
-    프레임수 <- 0.
-    t <- 0.
+  { t <= t_max }인것 일때 {
+    alpha <- -(g / L) * ((theta) sin) - damp * omega.
+    omega <- omega + alpha * dt.
+    theta <- theta + omega * dt.
   }.
-  theta <- theta0 * ((omegaN * t) cos).
-  omega <- -theta0 * omegaN * ((omegaN * t) sin).
 
-  # 관찰 채널: (t,theta), (t,omega)
-  t 보여주기.
-  theta 보여주기.
-  t 보여주기.
-  omega 보여주기.
-  프레임수 <- (프레임수 + 1).
+  speed <- L * omega.
+  energy <- 0.5 * m * speed * speed + m * g * L * (1 - ((theta) cos)).
+  bob_x <- L * ((theta) sin).
+  bob_y <- -L * ((theta) cos).
+
+  모양: {
+    선(0, 0, bob_x, bob_y, 색="#9ca3af", 굵기=0.02).
+    원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
+    점(0, 0, 크기=0.045, 색="#f59e0b").
+  }.
+
+  보임 {
+    무리: "series:theta".
+    t: t.
+    theta: theta.
+    무리: "series:omega".
+    t: t.
+    omega: omega.
+    무리: "series:energy".
+    t: t.
+    energy: energy.
+  }.
+
+  { t <= t_max }인것 일때 {
+    t <- t + dt.
+  }.
 }.

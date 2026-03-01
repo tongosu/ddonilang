@@ -1,5 +1,3 @@
-#이름: college_math_series
-#설명: y = a x^3 + b x^2
 
 (매마디)마다 {
   함수 = (#ascii1) 수식{ y = a x^3 + b x^2 }.

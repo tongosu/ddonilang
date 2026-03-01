@@ -9,53 +9,9 @@ import { Bogae } from "../components/bogae.js";
 import { DotbogiPanel } from "../components/dotbogi.js";
 import { SliderPanel } from "../components/slider_panel.js";
 import { OverlayDescription } from "../components/overlay.js";
+import { preprocessDdnText } from "../runtime/ddn_preprocess.js";
 
 const RUN_UI_PREFS_STORAGE_KEY = "seamgrim.ui.run_prefs.v1";
-const PRESET_SLOT_KEYS = Object.freeze(["1", "2", "3"]);
-
-function finiteNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function normalizeRange(range) {
-  if (!range || typeof range !== "object") return null;
-  const xMin = finiteNumber(range.x_min ?? range.xMin);
-  const xMax = finiteNumber(range.x_max ?? range.xMax);
-  const yMin = finiteNumber(range.y_min ?? range.yMin);
-  const yMax = finiteNumber(range.y_max ?? range.yMax);
-  if ([xMin, xMax, yMin, yMax].some((value) => value === null)) return null;
-  if (xMax <= xMin || yMax <= yMin) return null;
-  return { x_min: xMin, x_max: xMax, y_min: yMin, y_max: yMax };
-}
-
-function formatRangeValue(value) {
-  const n = finiteNumber(value);
-  if (n === null) return "";
-  return String(Math.round(n * 1_000_000) / 1_000_000);
-}
-
-function normalizePresetSlot(value) {
-  const key = String(value ?? "").trim();
-  return PRESET_SLOT_KEYS.includes(key) ? key : PRESET_SLOT_KEYS[0];
-}
-
-function createEmptyRangeSlotMap() {
-  return {
-    1: null,
-    2: null,
-    3: null,
-  };
-}
-
-function normalizeRangeSlotMap(raw) {
-  const base = createEmptyRangeSlotMap();
-  if (!raw || typeof raw !== "object") return base;
-  PRESET_SLOT_KEYS.forEach((slot) => {
-    base[slot] = normalizeRange(raw[slot] ?? raw[Number(slot)]);
-  });
-  return base;
-}
 
 function readStorageJson(key, fallback) {
   try {
@@ -78,47 +34,456 @@ function writeStorageJson(key, value) {
   }
 }
 
+function deriveRunKindAndChannels({ observation = null, hasSpace2d = false } = {}) {
+  const channels = Array.isArray(observation?.channels) ? observation.channels.length : 0;
+  if (!hasSpace2d && channels <= 0) {
+    return { kind: "empty", channels };
+  }
+  if (!hasSpace2d) {
+    return { kind: "obs_only", channels };
+  }
+  return { kind: "space2d", channels };
+}
+
+function hasSpace2dDrawable(space2d) {
+  if (!space2d || typeof space2d !== "object") return false;
+  const shapes = Array.isArray(space2d.shapes) ? space2d.shapes.length : 0;
+  const points = Array.isArray(space2d.points) ? space2d.points.length : 0;
+  const drawlist = Array.isArray(space2d.drawlist) ? space2d.drawlist.length : 0;
+  return shapes > 0 || points > 0 || drawlist > 0;
+}
+
+function parseFiniteNumericValue(raw, depth = 0) {
+  if (depth > 2) return null;
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw : null;
+  }
+  if (typeof raw === "string") {
+    const text = raw.trim();
+    if (!text) return null;
+    const num = Number(text);
+    return Number.isFinite(num) ? num : null;
+  }
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const hit = parseFiniteNumericValue(item, depth + 1);
+      if (hit !== null) return hit;
+    }
+    return null;
+  }
+  if (typeof raw === "object") {
+    const fields = ["value", "num", "number", "raw", "f64", "i64", "fixed64", "scalar"];
+    for (const field of fields) {
+      if (!Object.prototype.hasOwnProperty.call(raw, field)) continue;
+      const hit = parseFiniteNumericValue(raw[field], depth + 1);
+      if (hit !== null) return hit;
+    }
+  }
+  return null;
+}
+
+function readObservationChannelKey(channel) {
+  if (typeof channel === "string") return channel.trim();
+  if (!channel || typeof channel !== "object") return "";
+  const direct = String(channel.key ?? "").trim();
+  if (direct) return direct;
+  return String(channel.name ?? channel.id ?? channel.label ?? channel.token ?? "").trim();
+}
+
+function readObservationValueEntries(observation) {
+  const valuesSource = observation && typeof observation.all_values === "object"
+    ? observation.all_values
+    : observation && typeof observation.values === "object"
+      ? observation.values
+      : {};
+  const values = valuesSource && typeof valuesSource === "object" ? valuesSource : {};
+  const directEntries = Object.entries(values);
+  if (directEntries.length > 0) return directEntries;
+
+  const channels = Array.isArray(observation?.channels) ? observation.channels : [];
+  const row = Array.isArray(observation?.row) ? observation.row : [];
+  if (!channels.length || !row.length) return [];
+
+  const out = [];
+  channels.forEach((channel, index) => {
+    const key = readObservationChannelKey(channel);
+    if (!key) return;
+    out.push([key, row[index]]);
+  });
+  return out;
+}
+
+function isTimeLikeObservationKey(rawKey) {
+  const key = String(rawKey ?? "").trim().toLowerCase();
+  if (!key) return false;
+  return key === "t" || key === "time" || key === "tick" || key === "frame" || key === "프레임수" || key === "시간";
+}
+
+function readFallbackAngleFromObservation(observation) {
+  const entries = readObservationValueEntries(observation);
+  if (!entries.length) return null;
+
+  const aliases = ["theta", "각도", "angle", "rad"];
+  for (const [key, raw] of entries) {
+    const normalized = String(key ?? "").trim().toLowerCase();
+    if (!normalized) continue;
+    if (!aliases.some((alias) => normalized.includes(alias))) continue;
+    const num = parseFiniteNumericValue(raw);
+    if (num !== null) return num;
+  }
+  return null;
+}
+
+function readNumericObservationValue(observation, keys = []) {
+  const entries = readObservationValueEntries(observation);
+  for (const key of keys) {
+    const target = String(key ?? "").trim();
+    if (!target) continue;
+    const direct = entries.find(([entryKey]) => String(entryKey ?? "").trim() === target);
+    const lower = direct
+      ? null
+      : entries.find(([entryKey]) => String(entryKey ?? "").trim().toLowerCase() === target.toLowerCase());
+    const hit = direct ?? lower ?? null;
+    if (!hit) continue;
+    const num = parseFiniteNumericValue(hit[1]);
+    if (num !== null) return num;
+  }
+  return null;
+}
+
+function finiteNumber(raw) {
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatStatusNumber(raw, digits = 3) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return "";
+  return Number(n.toFixed(digits)).toString();
+}
+
+function readGraphSeriesId(series) {
+  if (!series || typeof series !== "object") return "";
+  return String(series.id ?? series.name ?? series.label ?? "").trim();
+}
+
+function readLatestPointFromSeries(series) {
+  if (!series || typeof series !== "object") return null;
+  const points = Array.isArray(series.points) ? series.points : [];
+  for (let i = points.length - 1; i >= 0; i -= 1) {
+    const row = points[i];
+    const x = finiteNumber(row?.x);
+    const y = finiteNumber(row?.y);
+    if (x === null || y === null) continue;
+    return { x, y };
+  }
+  return null;
+}
+
+function isPendulumSeriesId(seriesId) {
+  const normalized = String(seriesId ?? "").trim().toLowerCase();
+  if (!normalized) return false;
+  return ["theta", "각도", "angle", "rad"].some((token) => normalized.includes(token));
+}
+
+function readPreferredGraphSeries(graph) {
+  const seriesList = Array.isArray(graph?.series) ? graph.series : [];
+  if (!seriesList.length) return null;
+
+  const pendulumHit = seriesList.find((series) => isPendulumSeriesId(readGraphSeriesId(series)));
+  if (pendulumHit) return pendulumHit;
+
+  return seriesList.find((series) => readLatestPointFromSeries(series)) ?? null;
+}
+
+export function synthesizePendulumSpace2dFromObservation(observation) {
+  const thetaRaw = readNumericObservationValue(observation, ["theta", "각도", "theta_rad"]);
+  const theta = thetaRaw === null ? readFallbackAngleFromObservation(observation) : thetaRaw;
+  if (theta === null) return null;
+
+  const lengthRaw = readNumericObservationValue(observation, ["L", "length", "len", "길이"]);
+  const length = Math.max(0.2, Math.min(5, Number.isFinite(lengthRaw) ? lengthRaw : 1));
+  const bx = length * Math.sin(theta);
+  const by = -length * Math.cos(theta);
+  const span = length + 0.35;
+
+  return {
+    schema: "seamgrim.space2d.v0",
+    meta: {
+      title: "pendulum-observation-fallback",
+      source: "observation",
+    },
+    camera: {
+      x_min: -span,
+      x_max: span,
+      y_min: -(length + 0.6),
+      y_max: 0.6,
+    },
+    points: [{ x: bx, y: by }],
+    shapes: [
+      { kind: "line", x1: 0, y1: 0, x2: bx, y2: by, stroke: "#9ca3af", width: 0.02 },
+      { kind: "circle", x: bx, y: by, r: 0.08, fill: "#38bdf8", stroke: "#0ea5e9", width: 0.02 },
+      { kind: "point", x: 0, y: 0, size: 0.045, color: "#f59e0b" },
+    ],
+  };
+}
+
+export function synthesizePointSpace2dFromObservation(observation) {
+  const x = readNumericObservationValue(observation, ["x", "x_pos", "pos_x", "px", "위치x"]);
+  const y = readNumericObservationValue(observation, ["y", "y_pos", "pos_y", "py", "위치y"]);
+  if (x === null && y === null) return null;
+
+  const px = x === null ? 0 : x;
+  const py = y === null ? 0 : y;
+  const xMin = Math.min(0, px) - 1;
+  const xMax = Math.max(0, px) + 1;
+  const yMin = Math.min(0, py) - 1;
+  const yMax = Math.max(0, py) + 1;
+
+  return {
+    schema: "seamgrim.space2d.v0",
+    meta: {
+      title: y === null ? "x-observation-fallback" : "xy-observation-fallback",
+      source: "observation",
+    },
+    camera: {
+      x_min: xMin,
+      x_max: xMax,
+      y_min: yMin,
+      y_max: yMax,
+    },
+    points: [{ x: px, y: py }],
+    shapes: [
+      { kind: "line", x1: xMin, y1: 0, x2: xMax, y2: 0, stroke: "#4b5563", width: 0.01 },
+      { kind: "line", x1: 0, y1: yMin, x2: 0, y2: yMax, stroke: "#374151", width: 0.01 },
+      { kind: "circle", x: px, y: py, r: 0.07, fill: "#22c55e", stroke: "#16a34a", width: 0.02 },
+    ],
+  };
+}
+
+export function synthesizeSpace2dFromGraph(graph, observation = null) {
+  const hitSeries = readPreferredGraphSeries(graph);
+  if (!hitSeries) return null;
+  const point = readLatestPointFromSeries(hitSeries);
+  if (!point) return null;
+
+  const seriesId = readGraphSeriesId(hitSeries);
+  if (isPendulumSeriesId(seriesId)) {
+    const theta = point.y;
+    const lengthRaw = readNumericObservationValue(observation, ["L", "length", "len", "길이"]);
+    const length = Math.max(0.2, Math.min(5, Number.isFinite(lengthRaw) ? lengthRaw : 1));
+    const bx = length * Math.sin(theta);
+    const by = -length * Math.cos(theta);
+    const span = length + 0.35;
+    return {
+      schema: "seamgrim.space2d.v0",
+      meta: {
+        title: "pendulum-graph-fallback",
+        source: "graph",
+      },
+      camera: {
+        x_min: -span,
+        x_max: span,
+        y_min: -(length + 0.6),
+        y_max: 0.6,
+      },
+      points: [{ x: bx, y: by }],
+      shapes: [
+        { kind: "line", x1: 0, y1: 0, x2: bx, y2: by, stroke: "#9ca3af", width: 0.02 },
+        { kind: "circle", x: bx, y: by, r: 0.08, fill: "#38bdf8", stroke: "#0ea5e9", width: 0.02 },
+        { kind: "point", x: 0, y: 0, size: 0.045, color: "#f59e0b" },
+      ],
+    };
+  }
+
+  const axis = graph && typeof graph === "object" ? graph.axis : null;
+  const xMin = finiteNumber(axis?.x_min) ?? Math.min(0, point.x) - 1;
+  const xMax = finiteNumber(axis?.x_max) ?? Math.max(0, point.x) + 1;
+  const yMin = finiteNumber(axis?.y_min) ?? Math.min(0, point.y) - 1;
+  const yMax = finiteNumber(axis?.y_max) ?? Math.max(0, point.y) + 1;
+  return {
+    schema: "seamgrim.space2d.v0",
+    meta: {
+      title: "graph-point-fallback",
+      source: "graph",
+    },
+    camera: {
+      x_min: xMin,
+      x_max: xMax,
+      y_min: yMin,
+      y_max: yMax,
+    },
+    points: [{ x: point.x, y: point.y }],
+    shapes: [
+      { kind: "line", x1: xMin, y1: 0, x2: xMax, y2: 0, stroke: "#4b5563", width: 0.01 },
+      { kind: "line", x1: 0, y1: yMin, x2: 0, y2: yMax, stroke: "#374151", width: 0.01 },
+      { kind: "circle", x: point.x, y: point.y, r: 0.07, fill: "#22c55e", stroke: "#16a34a", width: 0.02 },
+    ],
+  };
+}
+
+function synthesizePendulumSpace2dFromGraph(graph, observation = null) {
+  const candidate = synthesizeSpace2dFromGraph(graph, observation);
+  const title = String(candidate?.meta?.title ?? "").trim();
+  if (!candidate || !title.startsWith("pendulum-")) return null;
+  return candidate;
+}
+
+export function synthesizeSpace2dFromObservation(observation) {
+  return (
+    synthesizePendulumSpace2dFromObservation(observation) ??
+    synthesizePointSpace2dFromObservation(observation)
+  );
+}
+
+function formatRecentTimeLabel(isoText) {
+  const ms = Date.parse(String(isoText ?? ""));
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const month = String(d.getMonth() + 1);
+  const day = String(d.getDate());
+  const hour = String(d.getHours()).padStart(2, "0");
+  const minute = String(d.getMinutes()).padStart(2, "0");
+  return `${month}/${day} ${hour}:${minute}`;
+}
+
+function buildRunSummaryText(pref) {
+  if (!pref || typeof pref !== "object") return "최근 실행: 기록 없음";
+  const kind = String(pref.lastRunKind ?? "").trim();
+  const channels = Math.max(0, Number.isFinite(Number(pref.lastRunChannels)) ? Math.trunc(Number(pref.lastRunChannels)) : 0);
+  const timeLabel = formatRecentTimeLabel(pref.lastRunAt);
+  const hash = String(pref.lastRunHash ?? "").trim();
+  const shortHash = hash && hash !== "-" ? hash.slice(0, 12) : "";
+  let label = "";
+  if (kind === "space2d") {
+    label = `최근 실행: 보개 출력 · 채널=${channels}`;
+  } else if (kind === "obs_only") {
+    label = `최근 실행: 보개 없음 · 채널=${channels}`;
+  } else if (kind === "empty") {
+    label = "최근 실행: 출력 없음";
+  } else if (kind === "error") {
+    label = "최근 실행: 실패";
+  } else {
+    label = "최근 실행: 기록 없음";
+  }
+  if (shortHash) {
+    label = `${label} · hash:${shortHash}`;
+  }
+  return timeLabel ? `${label} · ${timeLabel}` : label;
+}
+
+function extractRuntimeDerived(stateJson) {
+  if (!stateJson) return null;
+  return {
+    observation: extractObservationChannelsFromState(stateJson),
+    views: extractStructuredViewsFromState(stateJson, { preferPatch: false }),
+  };
+}
+
+function buildObservationFromGraph(graph) {
+  const seriesList = Array.isArray(graph?.series) ? graph.series : [];
+  if (!seriesList.length) return null;
+  const first = seriesList.find((series) => Array.isArray(series?.points) && series.points.length > 0) ?? null;
+  if (!first) return null;
+  const points = Array.isArray(first.points) ? first.points : [];
+  const last = points[points.length - 1];
+  const x = finiteNumber(last?.x);
+  const y = finiteNumber(last?.y);
+  if (x === null || y === null) return null;
+  const yKey = String(first?.id ?? first?.label ?? "y").trim() || "y";
+  return {
+    channels: [
+      { key: "x", dtype: "number", role: "state" },
+      { key: yKey, dtype: "number", role: "state" },
+    ],
+    row: [x, y],
+    values: {
+      x,
+      [yKey]: y,
+    },
+    all_values: {
+      x,
+      [yKey]: y,
+    },
+  };
+}
+
+function buildServerPlaybackPlan(graph) {
+  const series = Array.isArray(graph?.series) ? graph.series : [];
+  const first = series.find((row) => Array.isArray(row?.points) && row.points.length > 1) ?? null;
+  if (!first) return null;
+  const seriesId = String(first?.id ?? first?.label ?? "y").trim() || "y";
+  const frames = [];
+  const points = Array.isArray(first.points) ? first.points : [];
+  points.forEach((row) => {
+    const x = finiteNumber(row?.x);
+    const y = finiteNumber(row?.y);
+    if (x === null || y === null) return;
+    frames.push({ x, y });
+  });
+  if (frames.length < 2) return null;
+  return {
+    seriesId,
+    frames,
+    axis: graph?.axis ?? null,
+  };
+}
+
+function readOverlayMarkdownFromViewText(textView) {
+  if (!textView || typeof textView !== "object") return "";
+  const markdown = String(textView.markdown ?? textView.text ?? "").trim();
+  return markdown;
+}
+
 export class RunScreen {
-  constructor({ root, wasmState, onBack, onEditDdn, onOpenAdvanced } = {}) {
+  constructor({ root, wasmState, onBack, onEditDdn, onOpenAdvanced, allowShapeFallback = false } = {}) {
     this.root = root;
     this.wasmState = wasmState;
     this.onBack = typeof onBack === "function" ? onBack : () => {};
     this.onEditDdn = typeof onEditDdn === "function" ? onEditDdn : () => {};
     this.onOpenAdvanced = typeof onOpenAdvanced === "function" ? onOpenAdvanced : () => {};
+    this.allowShapeFallback = Boolean(allowShapeFallback);
 
     this.lesson = null;
     this.baseDdn = "";
     this.currentDdn = "";
     this.lastState = null;
+    this.lastRuntimeDerived = null;
 
     this.loopActive = false;
     this.screenVisible = false;
     this.loop = null;
     this.viewPanStep = 0.08;
-    this.lastRuntimeStatus = "";
     this.lastRuntimeHash = "-";
     this.lastRuntimeSnapshotKey = "";
+    this.lastExecPathHint = "";
+    this.lastSpace2dMode = "none";
+    this.lastRuntimeHintText = "";
+    this.lastOverlayMarkdown = "";
+    this.serverPlayback = null;
     this.boundKeyHandler = (event) => {
       this.handleViewHotkeys(event);
     };
-    this.savedBogaeRanges = createEmptyRangeSlotMap();
-    this.savedGraphAxes = createEmptyRangeSlotMap();
-    this.selectedBogaePresetSlot = PRESET_SLOT_KEYS[0];
-    this.selectedGraphPresetSlot = PRESET_SLOT_KEYS[0];
     this.uiPrefs = {
-      axisLock: true,
       lessons: {},
     };
+  }
+
+  isSimCorePolicyEnabled() {
+    try {
+      return Boolean(document?.body?.classList?.contains("policy-sim-core"));
+    } catch (_) {
+      return false;
+    }
   }
 
   init() {
     this.titleEl = this.root.querySelector("#run-lesson-title");
     this.lastSummaryEl = this.root.querySelector("#run-last-summary");
-    this.statusEl = this.root.querySelector("#run-status");
-    this.hashEl = this.root.querySelector("#run-hash");
+    this.runtimeStatusEl = this.root.querySelector("#slider-status");
 
     this.uiPrefs = {
-      axisLock: true,
       lessons: {},
       ...readStorageJson(RUN_UI_PREFS_STORAGE_KEY, {}),
     };
@@ -128,38 +493,13 @@ export class RunScreen {
 
     this.bogae = new Bogae({
       canvas: this.root.querySelector("#canvas-bogae"),
-      onRangeChange: () => {
-        this.syncRangeInputs();
-      },
     });
     this.dotbogi = new DotbogiPanel({
       graphCanvas: this.root.querySelector("#canvas-graph"),
-      tableEl: this.root.querySelector("#data-table"),
-      textEl: this.root.querySelector("#text-content"),
       xAxisSelect: this.root.querySelector("#select-x-axis"),
       yAxisSelect: this.root.querySelector("#select-y-axis"),
-      tabButtons: Array.from(this.root.querySelectorAll(".panel-tab")),
-      graphResetBtn: this.root.querySelector("#btn-graph-reset"),
-      onAxisChange: () => {
-        this.syncRangeInputs();
-      },
     });
-    this.dotbogi.setPreferredAxisLock(Boolean(this.uiPrefs.axisLock ?? true));
     this.overlay = new OverlayDescription(this.root.querySelector("#overlay-description"));
-    this.bogaeRangeInputs = {
-      xMin: this.root.querySelector("#bogae-x-min"),
-      xMax: this.root.querySelector("#bogae-x-max"),
-      yMin: this.root.querySelector("#bogae-y-min"),
-      yMax: this.root.querySelector("#bogae-y-max"),
-    };
-    this.graphRangeInputs = {
-      xMin: this.root.querySelector("#graph-x-min"),
-      xMax: this.root.querySelector("#graph-x-max"),
-      yMin: this.root.querySelector("#graph-y-min"),
-      yMax: this.root.querySelector("#graph-y-max"),
-    };
-    this.bogaePresetSlotSelect = this.root.querySelector("#bogae-preset-slot");
-    this.graphPresetSlotSelect = this.root.querySelector("#graph-preset-slot");
 
     this.sliderPanel = new SliderPanel({
       container: this.root.querySelector("#slider-list"),
@@ -181,8 +521,7 @@ export class RunScreen {
     });
 
     this.root.querySelector("#btn-overlay-toggle")?.addEventListener("click", () => {
-      const visible = this.overlay.toggle();
-      this.setStatus(visible ? "실행 상태: 설명 오버레이 ON" : "실행 상태: 설명 오버레이 OFF");
+      this.overlay.toggle();
     });
 
     this.root.querySelector("#btn-advanced-run")?.addEventListener("click", () => {
@@ -191,57 +530,6 @@ export class RunScreen {
 
     this.root.querySelector("#btn-restart")?.addEventListener("click", () => {
       void this.restart();
-    });
-
-    this.root.querySelector("#btn-zoom-in")?.addEventListener("click", () => {
-      this.bogae.zoomIn();
-    });
-    this.root.querySelector("#btn-zoom-out")?.addEventListener("click", () => {
-      this.bogae.zoomOut();
-    });
-    this.root.querySelector("#btn-zoom-reset")?.addEventListener("click", () => {
-      this.bogae.resetView();
-    });
-    this.root.querySelector("#btn-bogae-range-apply")?.addEventListener("click", () => {
-      this.applyBogaeRangeFromInputs();
-    });
-    this.root.querySelector("#btn-bogae-range-reset")?.addEventListener("click", () => {
-      this.bogae.resetView();
-      this.setStatus("실행 상태: 보개 범위를 자동 맞춤으로 되돌렸습니다.");
-      this.syncRangeInputs({ force: true });
-    });
-    this.root.querySelector("#btn-bogae-range-save")?.addEventListener("click", () => {
-      this.saveBogaeRangePreset();
-    });
-    this.root.querySelector("#btn-bogae-range-load")?.addEventListener("click", () => {
-      this.loadBogaeRangePreset();
-    });
-    this.bogaePresetSlotSelect?.addEventListener("change", () => {
-      this.selectedBogaePresetSlot = normalizePresetSlot(this.bogaePresetSlotSelect.value);
-      this.bogaePresetSlotSelect.value = this.selectedBogaePresetSlot;
-      this.saveCurrentLessonUiPrefs();
-    });
-    this.root.querySelector("#btn-graph-range-apply")?.addEventListener("click", () => {
-      this.applyGraphAxisFromInputs();
-    });
-    this.root.querySelector("#btn-graph-range-reset")?.addEventListener("click", () => {
-      this.dotbogi.resetAxis();
-      this.setStatus("실행 상태: 그래프 축을 자동 범위로 되돌렸습니다.");
-      this.syncRangeInputs({ force: true });
-    });
-    this.root.querySelector("#btn-graph-range-save")?.addEventListener("click", () => {
-      this.saveGraphAxisPreset();
-    });
-    this.root.querySelector("#btn-graph-range-load")?.addEventListener("click", () => {
-      this.loadGraphAxisPreset();
-    });
-    this.graphPresetSlotSelect?.addEventListener("change", () => {
-      this.selectedGraphPresetSlot = normalizePresetSlot(this.graphPresetSlotSelect.value);
-      this.graphPresetSlotSelect.value = this.selectedGraphPresetSlot;
-      this.saveCurrentLessonUiPrefs();
-    });
-    this.root.querySelector("#btn-axis-lock")?.addEventListener("click", () => {
-      this.setAxisLock(!this.dotbogi.isPreferredAxisLock(), { persist: true, withStatus: true });
     });
     this.root.querySelector("#select-x-axis")?.addEventListener("change", () => {
       this.saveCurrentLessonUiPrefs();
@@ -260,13 +548,10 @@ export class RunScreen {
         this.stepFrame();
       },
       onError: (err) => {
-        this.setStatus(`실행 상태: 루프 오류 (${String(err?.message ?? err)})`);
+        // runtime loop errors are surfaced through diagnostics/gates.
       },
     });
     window.addEventListener("keydown", this.boundKeyHandler);
-    this.syncPresetSlotSelectors();
-    this.updateAxisLockButton();
-    this.syncRangeInputs({ force: true });
   }
 
   persistUiPrefs() {
@@ -290,51 +575,12 @@ export class RunScreen {
     return this.uiPrefs.lessons[id] ?? null;
   }
 
-  updateAxisLockButton() {
-    const button = this.root?.querySelector("#btn-axis-lock");
-    if (!button) return;
-    const locked = this.dotbogi?.isPreferredAxisLock?.() ?? true;
-    button.textContent = `기본축 고정: ${locked ? "ON" : "OFF"}`;
-    button.classList.toggle("active", locked);
-    button.title = locked
-      ? "교과 기본 x/y축을 고정합니다."
-      : "x/y축을 수동으로 선택할 수 있습니다.";
-  }
-
-  setAxisLock(locked, { persist = true, withStatus = false } = {}) {
-    const next = Boolean(locked);
-    this.dotbogi?.setPreferredAxisLock(next);
-    this.updateAxisLockButton();
-    if (persist) {
-      this.uiPrefs.axisLock = next;
-      this.saveCurrentLessonUiPrefs();
-    }
-    if (withStatus) {
-      this.setStatus(next ? "실행 상태: 기본축 고정 ON" : "실행 상태: 기본축 고정 OFF");
-    }
-  }
-
   restoreLessonUiPrefs(lessonId) {
     const pref = this.getLessonUiPref(lessonId, { create: false });
-    this.savedBogaeRanges = normalizeRangeSlotMap(pref?.savedBogaeRanges);
-    this.savedGraphAxes = normalizeRangeSlotMap(pref?.savedGraphAxes);
-    if (!this.savedBogaeRanges[PRESET_SLOT_KEYS[0]]) {
-      this.savedBogaeRanges[PRESET_SLOT_KEYS[0]] = normalizeRange(pref?.savedBogaeRange);
-    }
-    if (!this.savedGraphAxes[PRESET_SLOT_KEYS[0]]) {
-      this.savedGraphAxes[PRESET_SLOT_KEYS[0]] = normalizeRange(pref?.savedGraphAxis);
-    }
-
-    this.selectedBogaePresetSlot = normalizePresetSlot(pref?.selectedBogaePresetSlot);
-    this.selectedGraphPresetSlot = normalizePresetSlot(pref?.selectedGraphPresetSlot);
-    this.syncPresetSlotSelectors();
-
-    if (!this.dotbogi?.isPreferredAxisLock()) {
-      this.dotbogi.setSelectedAxes({
-        xKey: String(pref?.selectedXKey ?? ""),
-        yKey: String(pref?.selectedYKey ?? ""),
-      });
-    }
+    this.dotbogi.setSelectedAxes({
+      xKey: String(pref?.selectedXKey ?? ""),
+      yKey: String(pref?.selectedYKey ?? ""),
+    });
   }
 
   saveCurrentLessonUiPrefs() {
@@ -344,145 +590,7 @@ export class RunScreen {
     const selected = this.dotbogi?.getSelectedAxes?.() ?? {};
     pref.selectedXKey = String(selected.xKey ?? "");
     pref.selectedYKey = String(selected.yKey ?? "");
-    pref.selectedBogaePresetSlot = normalizePresetSlot(this.selectedBogaePresetSlot);
-    pref.selectedGraphPresetSlot = normalizePresetSlot(this.selectedGraphPresetSlot);
-    pref.savedBogaeRanges = normalizeRangeSlotMap(this.savedBogaeRanges);
-    pref.savedGraphAxes = normalizeRangeSlotMap(this.savedGraphAxes);
-    pref.savedBogaeRange = normalizeRange(this.savedBogaeRanges[PRESET_SLOT_KEYS[0]]);
-    pref.savedGraphAxis = normalizeRange(this.savedGraphAxes[PRESET_SLOT_KEYS[0]]);
     this.persistUiPrefs();
-  }
-
-  syncPresetSlotSelectors() {
-    if (this.bogaePresetSlotSelect) {
-      this.bogaePresetSlotSelect.value = normalizePresetSlot(this.selectedBogaePresetSlot);
-      this.selectedBogaePresetSlot = this.bogaePresetSlotSelect.value;
-    }
-    if (this.graphPresetSlotSelect) {
-      this.graphPresetSlotSelect.value = normalizePresetSlot(this.selectedGraphPresetSlot);
-      this.selectedGraphPresetSlot = this.graphPresetSlotSelect.value;
-    }
-  }
-
-  isInputFocused(input) {
-    return Boolean(input && document.activeElement === input);
-  }
-
-  readRangeInputs(inputs) {
-    const xMin = finiteNumber(inputs?.xMin?.value);
-    const xMax = finiteNumber(inputs?.xMax?.value);
-    const yMin = finiteNumber(inputs?.yMin?.value);
-    const yMax = finiteNumber(inputs?.yMax?.value);
-    if ([xMin, xMax, yMin, yMax].some((value) => value === null)) return null;
-    return normalizeRange({ x_min: xMin, x_max: xMax, y_min: yMin, y_max: yMax });
-  }
-
-  writeRangeInputs(inputs, range, { force = false } = {}) {
-    const normalized = normalizeRange(range);
-    const rows = [
-      [inputs?.xMin, normalized?.x_min],
-      [inputs?.xMax, normalized?.x_max],
-      [inputs?.yMin, normalized?.y_min],
-      [inputs?.yMax, normalized?.y_max],
-    ];
-    rows.forEach(([input, value]) => {
-      if (!input) return;
-      if (!force && this.isInputFocused(input)) return;
-      input.value = normalized ? formatRangeValue(value) : "";
-    });
-  }
-
-  syncRangeInputs({ force = false } = {}) {
-    this.writeRangeInputs(this.bogaeRangeInputs, this.bogae?.getCurrentRange(), { force });
-    this.writeRangeInputs(this.graphRangeInputs, this.dotbogi?.getCurrentAxis(), { force });
-  }
-
-  applyBogaeRangeFromInputs() {
-    const range = this.readRangeInputs(this.bogaeRangeInputs);
-    if (!range) {
-      this.setStatus("실행 상태: 보개 범위 값이 유효하지 않습니다. (x_max>x_min, y_max>y_min)");
-      return;
-    }
-    const ok = this.bogae.setRange(range);
-    if (!ok) {
-      this.setStatus("실행 상태: 보개 범위 적용 실패");
-      return;
-    }
-    this.setStatus("실행 상태: 보개 범위를 적용했습니다.");
-    this.syncRangeInputs({ force: true });
-  }
-
-  applyGraphAxisFromInputs() {
-    const axis = this.readRangeInputs(this.graphRangeInputs);
-    if (!axis) {
-      this.setStatus("실행 상태: 그래프 축 값이 유효하지 않습니다. (x_max>x_min, y_max>y_min)");
-      return;
-    }
-    const ok = this.dotbogi.setAxis(axis);
-    if (!ok) {
-      this.setStatus("실행 상태: 그래프 축 적용 실패");
-      return;
-    }
-    this.setStatus("실행 상태: 그래프 축 범위를 적용했습니다.");
-    this.syncRangeInputs({ force: true });
-  }
-
-  saveBogaeRangePreset() {
-    const current = normalizeRange(this.bogae?.getCurrentRange());
-    if (!current) {
-      this.setStatus("실행 상태: 저장할 보개 범위가 없습니다.");
-      return;
-    }
-    const slot = normalizePresetSlot(this.selectedBogaePresetSlot);
-    this.savedBogaeRanges[slot] = { ...current };
-    this.saveCurrentLessonUiPrefs();
-    this.setStatus(`실행 상태: 보개 범위를 슬롯 ${slot}에 저장했습니다.`);
-  }
-
-  loadBogaeRangePreset() {
-    const slot = normalizePresetSlot(this.selectedBogaePresetSlot);
-    const saved = normalizeRange(this.savedBogaeRanges[slot]);
-    if (!saved) {
-      this.setStatus(`실행 상태: 슬롯 ${slot}에 저장된 보개 범위가 없습니다.`);
-      return;
-    }
-    const ok = this.bogae.setRange(saved);
-    if (!ok) {
-      this.setStatus("실행 상태: 저장된 보개 범위 적용 실패");
-      return;
-    }
-    this.setStatus(`실행 상태: 슬롯 ${slot} 보개 범위를 불러왔습니다.`);
-    this.saveCurrentLessonUiPrefs();
-    this.syncRangeInputs({ force: true });
-  }
-
-  saveGraphAxisPreset() {
-    const current = normalizeRange(this.dotbogi?.getCurrentAxis());
-    if (!current) {
-      this.setStatus("실행 상태: 저장할 그래프 축 범위가 없습니다.");
-      return;
-    }
-    const slot = normalizePresetSlot(this.selectedGraphPresetSlot);
-    this.savedGraphAxes[slot] = { ...current };
-    this.saveCurrentLessonUiPrefs();
-    this.setStatus(`실행 상태: 그래프 축 범위를 슬롯 ${slot}에 저장했습니다.`);
-  }
-
-  loadGraphAxisPreset() {
-    const slot = normalizePresetSlot(this.selectedGraphPresetSlot);
-    const saved = normalizeRange(this.savedGraphAxes[slot]);
-    if (!saved) {
-      this.setStatus(`실행 상태: 슬롯 ${slot}에 저장된 그래프 축 범위가 없습니다.`);
-      return;
-    }
-    const ok = this.dotbogi.setAxis(saved);
-    if (!ok) {
-      this.setStatus("실행 상태: 저장된 그래프 축 범위 적용 실패");
-      return;
-    }
-    this.setStatus(`실행 상태: 슬롯 ${slot} 그래프 축 범위를 불러왔습니다.`);
-    this.saveCurrentLessonUiPrefs();
-    this.syncRangeInputs({ force: true });
   }
 
   isEditableTarget(target) {
@@ -569,107 +677,270 @@ export class RunScreen {
     }
   }
 
-  setStatus(message) {
-    if (!this.statusEl) return;
-    this.statusEl.textContent = String(message ?? "");
-  }
-
   setHash(hashText) {
     this.lastRuntimeHash = String(hashText ?? "-");
-    if (!this.hashEl) return;
-    this.hashEl.textContent = `state_hash: ${String(hashText ?? "-")}`;
-  }
-
-  formatRecentTimeLabel(isoText) {
-    const ms = Date.parse(String(isoText ?? ""));
-    if (!Number.isFinite(ms)) return "";
-    const d = new Date(ms);
-    const month = String(d.getMonth() + 1);
-    const day = String(d.getDate());
-    const hour = String(d.getHours()).padStart(2, "0");
-    const minute = String(d.getMinutes()).padStart(2, "0");
-    return `${month}/${day} ${hour}:${minute}`;
-  }
-
-  buildRunSummaryText(pref) {
-    if (!pref || typeof pref !== "object") return "최근 실행: 기록 없음";
-    const kind = String(pref.lastRunKind ?? "").trim();
-    const channels = Math.max(0, Number.isFinite(Number(pref.lastRunChannels)) ? Math.trunc(Number(pref.lastRunChannels)) : 0);
-    const timeLabel = this.formatRecentTimeLabel(pref.lastRunAt);
-    const hash = String(pref.lastRunHash ?? "").trim();
-    const shortHash = hash && hash !== "-" ? hash.slice(0, 12) : "";
-    let label = "";
-    if (kind === "space2d") {
-      label = `최근 실행: 보개 출력 · 채널=${channels}`;
-    } else if (kind === "obs_only") {
-      label = `최근 실행: 보개 없음 · 채널=${channels}`;
-    } else if (kind === "empty") {
-      label = "최근 실행: 출력 없음";
-    } else if (kind === "error") {
-      label = "최근 실행: 실패";
-    } else if (String(pref.lastRunStatus ?? "").trim()) {
-      label = `최근 실행: ${String(pref.lastRunStatus).trim()}`;
-    } else {
-      label = "최근 실행: 기록 없음";
-    }
-    if (shortHash) {
-      label = `${label} · hash:${shortHash}`;
-    }
-    return timeLabel ? `${label} · ${timeLabel}` : label;
   }
 
   updateRunSummaryFromPrefs() {
     if (!this.lastSummaryEl) return;
     const lessonId = String(this.lesson?.id ?? "").trim();
     const pref = lessonId ? this.getLessonUiPref(lessonId, { create: false }) : null;
-    this.lastSummaryEl.textContent = this.buildRunSummaryText(pref);
+    this.lastSummaryEl.textContent = buildRunSummaryText(pref);
   }
 
   loadLesson(lesson) {
     this.lesson = lesson;
     this.baseDdn = String(lesson?.ddnText ?? "");
     this.currentDdn = this.baseDdn;
-    this.lastRuntimeStatus = "";
     this.lastRuntimeHash = "-";
     this.lastRuntimeSnapshotKey = "";
+    this.lastRuntimeDerived = null;
+    this.lastExecPathHint = "";
+    this.lastSpace2dMode = "none";
+    this.lastRuntimeHintText = "";
+    this.lastOverlayMarkdown = "";
+    this.serverPlayback = null;
 
     if (this.titleEl) {
       this.titleEl.textContent = lesson?.title || lesson?.id || "-";
     }
 
-    this.overlay.setContent(lesson?.textMd || "");
-    this.overlay.hide();
+    this.lastOverlayMarkdown = String(lesson?.textMd ?? "");
+    this.overlay.setContent(this.lastOverlayMarkdown);
+    if (this.isSimCorePolicyEnabled()) {
+      this.overlay.show();
+    } else {
+      this.overlay.hide();
+    }
     const parsed = this.sliderPanel.parseFromDdn(this.baseDdn, { preserveValues: false });
     this.dotbogi.setSeedKeys(parsed.axisKeys);
     this.dotbogi.setPreferredXKey(parsed.defaultXAxisKey);
     this.dotbogi.setPreferredYKey(parsed.defaultAxisKey);
     this.dotbogi.clearTimeline();
     this.restoreLessonUiPrefs(lesson?.id);
-    this.dotbogi.setText(lesson?.textMd || "");
     this.bogae.resetView();
-    this.updateAxisLockButton();
     this.saveCurrentLessonUiPrefs();
     this.updateRunSummaryFromPrefs();
-    this.syncRangeInputs({ force: true });
+    this.updateRuntimeHint();
     this.setHash("-");
     void this.restart();
+  }
+
+  updateRuntimeHint(execPathText = "", runtimeDerived = null) {
+    if (!this.runtimeStatusEl) return;
+    const nextPath = String(execPathText ?? "").trim();
+    if (nextPath) {
+      this.lastExecPathHint = nextPath;
+    }
+
+    const controlCount = Array.isArray(this.sliderPanel?.specs) ? this.sliderPanel.specs.length : 0;
+    const segments = [controlCount > 0 ? `control 채비: ${controlCount}개` : "control: -"];
+    if (this.lastExecPathHint) {
+      segments.push(this.lastExecPathHint);
+    }
+
+    const mode = String(this.lastSpace2dMode ?? "none").trim().toLowerCase();
+    const shapeModeLabel = mode === "native" ? "native" : mode === "fallback" ? "fallback" : "none";
+    segments.push(`보개: ${shapeModeLabel}`);
+
+    const obs = runtimeDerived?.observation ?? this.lastRuntimeDerived?.observation ?? null;
+    const t = readNumericObservationValue(obs, ["t", "time", "tick", "프레임수", "시간"]);
+    const theta = readNumericObservationValue(obs, ["theta", "각도", "theta_rad", "angle", "rad"]);
+    const omega = readNumericObservationValue(obs, ["omega", "각속도", "angular_velocity"]);
+    const obsParts = [];
+    const tText = formatStatusNumber(t);
+    if (tText) obsParts.push(`t=${tText}`);
+    const thetaText = formatStatusNumber(theta);
+    if (thetaText) obsParts.push(`theta=${thetaText}`);
+    const omegaText = formatStatusNumber(omega);
+    if (omegaText) obsParts.push(`omega=${omegaText}`);
+    if (obsParts.length) {
+      segments.push(obsParts.join(" "));
+    }
+
+    const nextText = segments.join(" · ");
+    if (nextText === this.lastRuntimeHintText) return;
+    this.lastRuntimeHintText = nextText;
+    this.runtimeStatusEl.textContent = nextText;
+  }
+
+  async runViaExecServer(ddnText) {
+    const payload = {
+      ddn_text: String(ddnText ?? ""),
+      madi: 420,
+    };
+    try {
+      const response = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-cache",
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (!data || data.ok !== true) return null;
+      const views = {
+        graph: data.graph ?? null,
+        space2d: data.space2d ?? null,
+        text: data.text ?? null,
+        table: data.table ?? null,
+        structure: data.structure ?? null,
+      };
+      const observation = buildObservationFromGraph(data.graph);
+      const serverPlayback = buildServerPlaybackPlan(data.graph);
+      return { observation, views, serverPlayback };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  collectServerPlaybackExtraValues() {
+    const raw = this.sliderPanel?.getValues?.() ?? {};
+    if (!raw || typeof raw !== "object") return {};
+    const out = {};
+    const length = parseFiniteNumericValue(raw.L);
+    if (length !== null) {
+      out.L = length;
+    }
+    return out;
+  }
+
+  startServerPlayback(derived) {
+    const plan = derived?.serverPlayback;
+    if (!plan || !Array.isArray(plan.frames) || plan.frames.length < 2) {
+      this.serverPlayback = null;
+      return false;
+    }
+    this.serverPlayback = {
+      seriesId: String(plan.seriesId ?? "y"),
+      frames: plan.frames.map((row) => ({ x: Number(row.x), y: Number(row.y) })),
+      axis: plan.axis ?? null,
+      index: 0,
+    };
+    return true;
+  }
+
+  stepServerPlaybackFrame({ forceView = false } = {}) {
+    const plan = this.serverPlayback;
+    if (!plan || !Array.isArray(plan.frames) || plan.frames.length <= 1) return false;
+    const size = plan.frames.length;
+    const index = Math.max(0, Math.min(size - 1, Number(plan.index) || 0));
+    const point = plan.frames[index];
+    const extra = this.collectServerPlaybackExtraValues();
+    const values = {
+      x: point.x,
+      [plan.seriesId]: point.y,
+      ...extra,
+    };
+    const channels = [
+      { key: "x", dtype: "number", role: "state" },
+      { key: plan.seriesId, dtype: "number", role: "state" },
+    ];
+    if (Object.prototype.hasOwnProperty.call(extra, "L")) {
+      channels.push({ key: "L", dtype: "number", role: "param" });
+    }
+    const row = channels.map((channel) => values[channel.key]);
+    const seriesPoints = plan.frames.slice(0, index + 1).map((row0) => ({ x: row0.x, y: row0.y }));
+    const graph = {
+      axis: plan.axis ?? null,
+      series: [{ id: plan.seriesId, points: seriesPoints }],
+    };
+    const observation = {
+      channels,
+      row,
+      values,
+      all_values: values,
+    };
+    this.applyRuntimeDerived(
+      {
+        observation,
+        views: {
+          graph,
+          space2d: null,
+          text: null,
+          table: null,
+          structure: null,
+        },
+      },
+      { forceView },
+    );
+    plan.index = (index + 1) % size;
+    this.setHash(`server-fallback:${index}`);
+    return true;
   }
 
   getEffectiveDdn() {
     return applyControlValuesToDdnText(this.baseDdn, this.sliderPanel.getValues());
   }
 
+  getEffectiveWasmSource(rawText = null) {
+    const raw = rawText === null || rawText === undefined ? this.getEffectiveDdn() : String(rawText);
+    try {
+      const pre = preprocessDdnText(raw);
+      const body = String(pre?.bodyText ?? "");
+      return body.trim() ? body : raw;
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  getStepInput() {
+    const fps = Math.max(1, Number(this.wasmState?.fpsLimit ?? 30) || 30);
+    const dtMaxRaw = Number(this.wasmState?.dtMax ?? 0.1);
+    const dtMax = Number.isFinite(dtMaxRaw) && dtMaxRaw > 0 ? dtMaxRaw : 0.1;
+    const baseDt = 1 / fps;
+    let dt = Math.min(baseDt, dtMax);
+    if (!Number.isFinite(dt) || dt <= 0) {
+      dt = baseDt;
+    }
+    if (!Number.isFinite(dt) || dt <= 0) {
+      dt = 1 / 30;
+    }
+    return { dt, keys: 0, lastKey: "", px: 0, py: 0 };
+  }
+
+  resolveSteppedState(client, steppedState) {
+    let nextState = steppedState;
+    try {
+      const steppedViews = extractStructuredViewsFromState(nextState);
+      if (!hasSpace2dDrawable(steppedViews?.space2d) && typeof client.getStateParsed === "function") {
+        const fullState = client.getStateParsed();
+        const fullViews = extractStructuredViewsFromState(fullState);
+        if (hasSpace2dDrawable(fullViews?.space2d)) {
+          nextState = fullState;
+        }
+      }
+    } catch (_) {
+      // keep stepped state when enrichment fails
+    }
+    return nextState;
+  }
+
+  stepClientOne(client) {
+    if (!client || typeof client !== "object") {
+      return { state: null };
+    }
+    // 실행 화면은 키/포인터 입력을 쓰지 않으므로, 가능하면 입력 없는 step API를 우선한다.
+    if (typeof client.stepOneParsed === "function") {
+      return { state: client.stepOneParsed(), input: null, mode: "step_one" };
+    }
+    return stepWasmClientParsed({
+      client,
+      input: this.getStepInput(),
+    });
+  }
+
   async restart() {
-    const ddnText = this.getEffectiveDdn();
-    this.currentDdn = ddnText;
-    this.dotbogi.clearTimeline();
-    this.setStatus("실행 상태: WASM 로딩 중...");
+    const rawDdnText = this.getEffectiveDdn();
+    const wasmDdnText = this.getEffectiveWasmSource(rawDdnText);
+    this.currentDdn = rawDdnText;
+    this.dotbogi.clearTimeline({ preserveAxes: true, preserveView: true });
 
     try {
       const ensureWasm = (source) => this.wasmState.loader.ensure(source);
       const tryRunWithMode = async (mode) =>
         applyWasmLogicAndDispatchState({
-          sourceText: ddnText,
+          sourceText: wasmDdnText,
           ensureWasm,
           mode,
         });
@@ -685,33 +956,84 @@ export class RunScreen {
       }
 
       this.wasmState.client = result.client;
-      this.lastState = result.state;
-      this.consumeState(result.state);
-      this.startLoop();
+      this.serverPlayback = null;
+      let initialState = result.state;
+      // 재실행은 로직 갱신뿐 아니라 시뮬 상태를 초기 프레임으로 되돌려야 한다.
+      if (typeof result.client?.resetParsed === "function") {
+        try {
+          result.client.resetParsed(true);
+          if (typeof result.client?.getStateParsed === "function") {
+            initialState = result.client.getStateParsed();
+          }
+        } catch (_) {
+          // reset 실패 시 로직 갱신 상태를 그대로 사용
+        }
+      }
+      this.lastState = initialState;
       const hash = typeof result.client?.getStateHash === "function" ? result.client.getStateHash() : "-";
       this.setHash(hash);
-      this.setStatus("실행 상태: WASM 실행 중");
-      const observation = extractObservationChannelsFromState(result.state);
-      const views = extractStructuredViewsFromState(result.state, { preferPatch: false });
-      this.updateRuntimeStatus({ observation, views, force: true });
-      this.syncRangeInputs({ force: true });
+      this.lastExecPathHint = `실행 경로: wasm(${String(this.wasmState?.langMode ?? "strict")})`;
+      this.applyRuntimeState(initialState, { forceView: true });
+      if (this.lastSpace2dMode === "none" && result.client) {
+        for (let i = 0; i < 3; i += 1) {
+          const stepped = this.stepClientOne(result.client);
+          const nextState = this.resolveSteppedState(result.client, stepped.state);
+          this.lastState = nextState;
+          const stepHash = typeof result.client?.getStateHash === "function" ? result.client.getStateHash() : "-";
+          this.setHash(stepHash);
+          this.applyRuntimeState(nextState, { forceView: true });
+          if (this.lastSpace2dMode !== "none") break;
+        }
+      }
+      this.updateRuntimeHint();
+      this.syncLoopState();
       return true;
     } catch (err) {
-      this.stopLoop();
-      this.setStatus(`실행 상태: WASM 실행 실패 (${String(err?.message ?? err)})`);
+      console.error("[RunScreen.restart] wasm execution failed", err);
+      // server fallback은 wasm 내부 변환본이 아닌 원본 DDN(슬라이더 반영본)으로 실행한다.
+      const serverDerived = await this.runViaExecServer(rawDdnText);
+      if (serverDerived) {
+        this.wasmState.client = null;
+        this.lastState = null;
+        this.lastRuntimeDerived = serverDerived;
+        this.setHash("server-fallback");
+        this.lastExecPathHint = "실행 경로: server-fallback";
+        this.startServerPlayback(serverDerived);
+        this.applyRuntimeDerived(serverDerived, { forceView: true });
+        this.updateRuntimeStatus(serverDerived);
+        this.updateRuntimeHint();
+        this.syncLoopState();
+        return true;
+      }
+      this.haltLoop();
       this.setHash("-");
-      this.saveRuntimeSnapshot({ kind: "error", channels: 0, hasSpace2d: false });
+      this.lastRuntimeDerived = null;
+      this.lastExecPathHint = "실행 실패: wasm/server 모두 실패";
+      this.lastSpace2dMode = "none";
+      this.updateRuntimeHint();
+      this.saveRuntimeSnapshot({ kind: "error", channels: 0 });
       return false;
     }
   }
 
   startLoop() {
-    if (!this.loop) return;
-    if (!this.screenVisible) return;
-    this.loop.start();
+    this.syncLoopState();
   }
 
   stopLoop() {
+    this.haltLoop();
+  }
+
+  syncLoopState() {
+    if (!this.loop) return;
+    if (this.screenVisible) {
+      this.loop.start();
+      return;
+    }
+    this.loop.stop();
+  }
+
+  haltLoop() {
     if (!this.loop) return;
     this.loop.stop();
   }
@@ -719,109 +1041,109 @@ export class RunScreen {
   stepFrame() {
     if (!this.screenVisible) return;
     const client = this.wasmState?.client;
-    if (!client) return;
-    const fps = Math.max(1, Number(this.wasmState?.fpsLimit ?? 30) || 30);
-    const dtMax = Number(this.wasmState?.dtMax ?? 0.1);
-    const dt = Math.max(0, Math.min(1 / fps, Number.isFinite(dtMax) ? dtMax : 0.1));
+    if (!client) {
+      this.stepServerPlaybackFrame();
+      return;
+    }
 
     try {
-      const stepped = stepWasmClientParsed({
-        client,
-        input: { dt, keys: 0, lastKey: "", px: 0, py: 0 },
-      });
-      this.lastState = stepped.state;
-      this.consumeState(stepped.state);
+      const stepped = this.stepClientOne(client);
+      const nextState = this.resolveSteppedState(client, stepped.state);
+      this.lastState = nextState;
       const hash = typeof client.getStateHash === "function" ? client.getStateHash() : "-";
       this.setHash(hash);
+      this.applyRuntimeState(nextState);
     } catch (err) {
-      this.stopLoop();
-      this.setStatus(`실행 상태: 스텝 실패 (${String(err?.message ?? err)})`);
+      console.error("[RunScreen.stepFrame] wasm step failed", err);
+      this.haltLoop();
     }
   }
 
-  consumeState(stateJson) {
-    if (!stateJson) return;
-    const observation = extractObservationChannelsFromState(stateJson);
-    const views = extractStructuredViewsFromState(stateJson, { preferPatch: false });
+  applyRuntimeState(stateJson, { forceView = false } = {}) {
+    const derived = extractRuntimeDerived(stateJson);
+    if (!derived) return;
+    const prevDerived = this.lastRuntimeDerived;
+    const applied = this.applyRuntimeDerived(derived, { forceView, prevDerived });
+    this.lastRuntimeDerived = applied ?? derived;
+  }
 
-    this.dotbogi.appendObservation(observation);
-    if (views?.table && typeof views.table === "object") {
-      this.dotbogi.renderTable(views.table);
-    }
-    if (views?.text && typeof views.text === "object") {
-      const textBody = Array.isArray(views.text.lines)
-        ? views.text.lines.join("\n")
-        : String(views.text.markdown ?? views.text.text ?? "");
-      if (textBody.trim()) {
-        this.dotbogi.setText(textBody);
-      }
-    }
+  applyRuntimeDerived(derived, { forceView = false, prevDerived = null } = {}) {
+    if (!derived || typeof derived !== "object") return;
+    const observation = derived.observation ?? null;
+    let views = derived.views ?? null;
+    const prevSpace2d = hasSpace2dDrawable(prevDerived?.views?.space2d)
+      ? prevDerived.views.space2d
+      : null;
+    const nativeSpace2d = views?.space2d ?? null;
+    const hasNativeSpace2d = hasSpace2dDrawable(nativeSpace2d);
+    const allowShapeFallback = Boolean(this.allowShapeFallback);
+    // strict 모드에서도 진자(theta) 케이스는 최소 보개를 보장한다.
+    const pendulumFallback = synthesizePendulumSpace2dFromObservation(observation) ??
+      synthesizePendulumSpace2dFromGraph(views?.graph, observation);
+    const fallbackSpace2d = hasNativeSpace2d
+      ? null
+      : allowShapeFallback
+        ? synthesizeSpace2dFromObservation(observation) ??
+          synthesizeSpace2dFromGraph(views?.graph, observation)
+        : pendulumFallback;
+    const space2d = hasNativeSpace2d ? nativeSpace2d : (fallbackSpace2d ?? prevSpace2d);
 
-    this.bogae.render(views?.space2d ?? null);
+    this.lastSpace2dMode = hasNativeSpace2d ? "native" : space2d ? "fallback" : "none";
+    this.updateRuntimeHint("", { observation, views });
+
+    if (space2d && (!views || views.space2d !== space2d)) {
+      views = {
+        ...(views && typeof views === "object" ? views : {}),
+        space2d,
+      };
+    }
+    const runtimeOverlayMarkdown = readOverlayMarkdownFromViewText(views?.text);
+    if (runtimeOverlayMarkdown && runtimeOverlayMarkdown !== this.lastOverlayMarkdown) {
+      this.lastOverlayMarkdown = runtimeOverlayMarkdown;
+      this.overlay.setContent(runtimeOverlayMarkdown);
+    }
+    const shouldUpdateView = forceView || this.screenVisible;
+
+    if (shouldUpdateView) {
+      this.dotbogi.appendObservation(observation);
+      this.bogae.render(space2d ?? null);
+    }
     this.updateRuntimeStatus({ observation, views });
-    this.syncRangeInputs();
+    return { observation, views };
   }
 
   setScreenVisible(visible) {
     const next = Boolean(visible);
     if (this.screenVisible === next) return;
     this.screenVisible = next;
-    if (!next) {
-      this.stopLoop();
-      return;
-    }
-    this.startLoop();
-    if (this.lastState) {
-      const observation = extractObservationChannelsFromState(this.lastState);
-      const views = extractStructuredViewsFromState(this.lastState, { preferPatch: false });
-      this.updateRuntimeStatus({ observation, views, force: true });
+    this.syncLoopState();
+    if (!next) return;
+    if (this.lastRuntimeDerived) {
+      this.applyRuntimeDerived(this.lastRuntimeDerived, { forceView: true });
+    } else if (this.lastState) {
+      this.applyRuntimeState(this.lastState, { forceView: true });
     }
   }
 
-  hasSpace2dDrawable(space2d) {
-    if (!space2d || typeof space2d !== "object") return false;
-    const shapes = Array.isArray(space2d.shapes) ? space2d.shapes.length : 0;
-    const points = Array.isArray(space2d.points) ? space2d.points.length : 0;
-    const drawlist = Array.isArray(space2d.drawlist) ? space2d.drawlist.length : 0;
-    return shapes > 0 || points > 0 || drawlist > 0;
+  updateRuntimeStatus({ observation = null, views = null } = {}) {
+    const hasSpace2d = hasSpace2dDrawable(views?.space2d);
+    const { kind, channels } = deriveRunKindAndChannels({ observation, hasSpace2d });
+    this.saveRuntimeSnapshot({ kind, channels });
   }
 
-  updateRuntimeStatus({ observation = null, views = null, force = false } = {}) {
-    const channels = Array.isArray(observation?.channels) ? observation.channels.length : 0;
-    const hasSpace2d = this.hasSpace2dDrawable(views?.space2d);
-    let next = "";
-    let kind = "empty";
-    if (!hasSpace2d && channels <= 0) {
-      next = "실행 상태: WASM 실행됨 · 출력 없음 (채널=0 · 보개 없음)";
-      kind = "empty";
-    } else if (!hasSpace2d) {
-      next = `실행 상태: WASM 실행됨 · 보개 출력 없음 (채널=${channels} · 그래프/표 확인)`;
-      kind = "obs_only";
-    } else {
-      next = `실행 상태: WASM 실행 중 · 보개 출력 · 채널=${channels}`;
-      kind = "space2d";
-    }
-    if (!force && next === this.lastRuntimeStatus) return;
-    this.lastRuntimeStatus = next;
-    this.setStatus(next);
-    this.saveRuntimeSnapshot({ kind, channels, hasSpace2d });
-  }
-
-  saveRuntimeSnapshot({ kind = "empty", channels = 0, hasSpace2d = false } = {}) {
+  saveRuntimeSnapshot({ kind = "empty", channels = 0 } = {}) {
     const lessonId = String(this.lesson?.id ?? "").trim();
     if (!lessonId) return;
     const normalizedKind = String(kind ?? "empty").trim() || "empty";
     const normalizedChannels = Math.max(0, Number.isFinite(Number(channels)) ? Math.trunc(Number(channels)) : 0);
-    const snapshotKey = `${lessonId}:${normalizedKind}:${normalizedChannels}:${hasSpace2d ? 1 : 0}`;
+    const snapshotKey = `${lessonId}:${normalizedKind}:${normalizedChannels}`;
     if (snapshotKey === this.lastRuntimeSnapshotKey) return;
     this.lastRuntimeSnapshotKey = snapshotKey;
 
     const pref = this.getLessonUiPref(lessonId, { create: true });
     pref.lastRunKind = normalizedKind;
     pref.lastRunChannels = normalizedChannels;
-    pref.lastRunHasSpace2d = Boolean(hasSpace2d);
     pref.lastRunAt = new Date().toISOString();
-    pref.lastRunStatus = String(this.lastRuntimeStatus ?? "");
     pref.lastRunHash = String(this.lastRuntimeHash ?? "-");
     this.persistUiPrefs();
     this.updateRunSummaryFromPrefs();

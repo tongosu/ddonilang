@@ -2,15 +2,9 @@ import { createWasmLoader, applyWasmLogicAndDispatchState } from "./wasm_page_co
 import { BrowseScreen } from "./screens/browse.js";
 import { EditorScreen, saveDdnToFile } from "./screens/editor.js";
 import { RunScreen } from "./screens/run.js";
-import {
-  buildOverlaySessionRunsPayload,
-  buildOverlayCompareSessionPayload,
-  resolveOverlayCompareFromSession,
-  buildSessionViewComboPayload,
-  resolveSessionViewComboFromPayload,
-} from "./overlay_session_contract.js";
 
 const PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/";
+const SIM_CORE_POLICY_CLASS = "policy-sim-core";
 
 const appState = {
   currentLesson: null,
@@ -29,6 +23,48 @@ const appState = {
 
 function byId(id) {
   return document.getElementById(id);
+}
+
+function readWindowStringArray(key, fallback = []) {
+  try {
+    const value = window?.[key];
+    if (!Array.isArray(value)) return fallback;
+    const out = [];
+    const seen = new Set();
+    value.forEach((item) => {
+      const row = String(item ?? "").trim();
+      if (!row || seen.has(row)) return;
+      seen.add(row);
+      out.push(row);
+    });
+    return out;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function readWindowBoolean(key, fallback = false) {
+  try {
+    const value = window?.[key];
+    if (typeof value === "boolean") return value;
+    const text = String(value ?? "").trim().toLowerCase();
+    if (!text) return fallback;
+    if (text === "1" || text === "true" || text === "yes" || text === "on") return true;
+    if (text === "0" || text === "false" || text === "no" || text === "off") return false;
+    return fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function applySimCorePolicy() {
+  const enabled = readWindowBoolean("SEAMGRIM_SIM_CORE_POLICY", true);
+  try {
+    document?.body?.classList?.toggle(SIM_CORE_POLICY_CLASS, enabled);
+  } catch (_) {
+    // ignore class toggle errors
+  }
+  return enabled;
 }
 
 function setScreen(name) {
@@ -60,6 +96,16 @@ function normalizePath(path) {
     .trim();
 }
 
+function isProjectPrefixedHost() {
+  try {
+    const pathname = String(window?.location?.pathname ?? "").trim();
+    if (!pathname) return false;
+    return pathname.includes(`/${PROJECT_PREFIX}`) || pathname.startsWith(`/${PROJECT_PREFIX.slice(0, -1)}`);
+  } catch (_) {
+    return false;
+  }
+}
+
 function normalizeSubject(raw) {
   const subject = String(raw ?? "").trim().toLowerCase();
   if (subject === "economy") return "econ";
@@ -81,7 +127,8 @@ function buildPathCandidates(path) {
   // 404 노이즈를 줄이기 위해 절대 경로 후보만 최소 집합으로 유지한다.
   const primary = `/${stripped}`;
   const secondary = `/${prefixed}`;
-  return primary === secondary ? [primary] : [primary, secondary];
+  if (primary === secondary) return [primary];
+  return isProjectPrefixedHost() ? [secondary, primary] : [primary, secondary];
 }
 
 async function fetchFirstOk(urls, parseAs = "text") {
@@ -199,77 +246,169 @@ function lessonPathsFromId(prefix, lessonId) {
   };
 }
 
+function sourceToLessonPrefix(source) {
+  const normalized = String(source ?? "").trim().toLowerCase();
+  if (normalized === "seed") return "solutions/seamgrim_ui_mvp/seed_lessons_v1";
+  if (normalized === "rewrite") return "solutions/seamgrim_ui_mvp/lessons_rewrite_v1";
+  return "solutions/seamgrim_ui_mvp/lessons";
+}
+
+function toStringArray(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  }
+  const single = String(value ?? "").trim();
+  return single ? [single] : [];
+}
+
+function resolveSelectionCandidates(selection, keys) {
+  const out = [];
+  keys.forEach((key) => {
+    out.push(...toStringArray(selection?.[key]));
+  });
+  return Array.from(new Set(out));
+}
+
+function ensureLessonEntryFromSelection(selection) {
+  if (typeof selection === "string") {
+    return String(selection).trim();
+  }
+  if (!selection || typeof selection !== "object") {
+    return "";
+  }
+  const id = String(selection.id ?? selection.lesson_id ?? "").trim();
+  if (!id) return "";
+
+  const source = String(selection.source ?? "federated");
+  const fallback = lessonPathsFromId(sourceToLessonPrefix(source), id);
+  const ddnCandidates = resolveSelectionCandidates(selection, ["ddnCandidates", "ddn_path", "lesson_ddn_path"]);
+  const textCandidates = resolveSelectionCandidates(selection, ["textCandidates", "text_path", "text_md_path"]);
+  const metaCandidates = resolveSelectionCandidates(selection, ["metaCandidates", "meta_path"]);
+
+  const nextEntry = toLessonEntry({
+    id,
+    title: selection.title,
+    description: selection.description,
+    grade: selection.grade,
+    subject: selection.subject,
+    quality: selection.quality,
+    source,
+    ddnCandidates: ddnCandidates.length ? ddnCandidates : [fallback.ddn],
+    textCandidates: textCandidates.length ? textCandidates : [fallback.text],
+    // meta.toml is optional; do not synthesize fallback paths that trigger noisy 404s.
+    metaCandidates,
+  });
+  mergeLessonEntry(appState.lessonsById, nextEntry);
+  return id;
+}
+
+function mergeCatalogFromInventoryPayload(merged, payload) {
+  const rows = Array.isArray(payload?.lessons) ? payload.lessons : [];
+  rows.forEach((row) => {
+    const id = String(row?.id ?? row?.lesson_id ?? "").trim();
+    if (!id) return;
+    const source = String(row?.source ?? "official").trim() || "official";
+    const fallback = lessonPathsFromId(sourceToLessonPrefix(source), id);
+    const ddnCandidates = resolveSelectionCandidates(row, ["ddnCandidates", "ddn_path", "lesson_ddn_path"]);
+    const textCandidates = resolveSelectionCandidates(row, ["textCandidates", "text_path", "text_md_path"]);
+    const metaCandidates = resolveSelectionCandidates(row, ["metaCandidates", "meta_path"]);
+    mergeLessonEntry(
+      merged,
+      toLessonEntry({
+        id,
+        title: row?.title ?? row?.name ?? id,
+        description: row?.description ?? "",
+        grade: row?.grade ?? "all",
+        subject: row?.subject ?? "",
+        quality: row?.quality ?? "experimental",
+        source,
+        ddnCandidates: ddnCandidates.length ? ddnCandidates : [fallback.ddn],
+        textCandidates: textCandidates.length ? textCandidates : [fallback.text],
+        metaCandidates,
+      }),
+    );
+  });
+}
+
 async function loadCatalogLessons() {
   const merged = new Map();
 
-  const indexJson = await fetchJson("solutions/seamgrim_ui_mvp/lessons/index.json");
-  const indexLessons = Array.isArray(indexJson?.lessons) ? indexJson.lessons : [];
-  indexLessons.forEach((row) => {
-    const id = String(row.id ?? "").trim();
-    if (!id) return;
-    const paths = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons", id);
-    mergeLessonEntry(
-      merged,
-      toLessonEntry({
-        id,
-        title: row.title,
-        description: row.description,
-        grade: row.grade,
-        subject: row.subject,
-        quality: "experimental",
-        source: "official",
-        ddnCandidates: [paths.ddn],
-        textCandidates: [paths.text],
-        metaCandidates: [paths.meta],
-      }),
-    );
-  });
+  const inventoryApi = await fetchFirstOk(["/api/lessons/inventory", "/api/lesson-inventory"], "json");
+  if (inventoryApi.ok) {
+    mergeCatalogFromInventoryPayload(merged, inventoryApi.data);
+  }
 
-  const seedManifest = await fetchJson("solutions/seamgrim_ui_mvp/seed_lessons_v1/seed_manifest.detjson");
-  const seeds = Array.isArray(seedManifest?.seeds) ? seedManifest.seeds : [];
-  seeds.forEach((seed) => {
-    const id = String(seed.seed_id ?? "").trim();
-    if (!id) return;
-    const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/seed_lessons_v1", id);
-    mergeLessonEntry(
-      merged,
-      toLessonEntry({
-        id,
-        title: id,
-        description: "Seed lesson",
-        grade: "all",
-        subject: seed.subject,
-        quality: "recommended",
-        source: "seed",
-        ddnCandidates: [seed.lesson_ddn, fallback.ddn],
-        textCandidates: [seed.text_md, fallback.text],
-        metaCandidates: [fallback.meta],
-      }),
-    );
-  });
+  if (merged.size === 0) {
+    const indexJson = await fetchJson("solutions/seamgrim_ui_mvp/lessons/index.json");
+    const indexLessons = Array.isArray(indexJson?.lessons) ? indexJson.lessons : [];
+    indexLessons.forEach((row) => {
+      const id = String(row.id ?? "").trim();
+      if (!id) return;
+      const paths = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons", id);
+      const rowMetaCandidates = resolveSelectionCandidates(row, ["metaCandidates", "meta_path"]);
+      mergeLessonEntry(
+        merged,
+        toLessonEntry({
+          id,
+          title: row.title,
+          description: row.description,
+          grade: row.grade,
+          subject: row.subject,
+          quality: "experimental",
+          source: "official",
+          ddnCandidates: [paths.ddn],
+          textCandidates: [paths.text],
+          metaCandidates: rowMetaCandidates,
+        }),
+      );
+    });
 
-  const rewriteManifest = await fetchJson("solutions/seamgrim_ui_mvp/lessons_rewrite_v1/rewrite_manifest.detjson");
-  const generated = Array.isArray(rewriteManifest?.generated) ? rewriteManifest.generated : [];
-  generated.forEach((row) => {
-    const id = String(row.lesson_id ?? "").trim();
-    if (!id) return;
-    const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons_rewrite_v1", id);
-    mergeLessonEntry(
-      merged,
-      toLessonEntry({
-        id,
-        title: id,
-        description: "Rewrite v1",
-        grade: "all",
-        subject: row.subject,
-        quality: "reviewed",
-        source: "rewrite",
-        ddnCandidates: [row.generated_lesson_ddn, fallback.ddn],
-        textCandidates: [row.generated_text_md, fallback.text],
-        metaCandidates: [fallback.meta],
-      }),
-    );
-  });
+    const seedManifest = await fetchJson("solutions/seamgrim_ui_mvp/seed_lessons_v1/seed_manifest.detjson");
+    const seeds = Array.isArray(seedManifest?.seeds) ? seedManifest.seeds : [];
+    seeds.forEach((seed) => {
+      const id = String(seed.seed_id ?? "").trim();
+      if (!id) return;
+      const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/seed_lessons_v1", id);
+      mergeLessonEntry(
+        merged,
+        toLessonEntry({
+          id,
+          title: id,
+          description: "Seed lesson",
+          grade: "all",
+          subject: seed.subject,
+          quality: "recommended",
+          source: "seed",
+          ddnCandidates: [seed.lesson_ddn, fallback.ddn],
+          textCandidates: [seed.text_md, fallback.text],
+          metaCandidates: resolveSelectionCandidates(seed, ["metaCandidates", "meta_path", "meta_toml"]),
+        }),
+      );
+    });
+
+    const rewriteManifest = await fetchJson("solutions/seamgrim_ui_mvp/lessons_rewrite_v1/rewrite_manifest.detjson");
+    const generated = Array.isArray(rewriteManifest?.generated) ? rewriteManifest.generated : [];
+    generated.forEach((row) => {
+      const id = String(row.lesson_id ?? "").trim();
+      if (!id) return;
+      const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons_rewrite_v1", id);
+      mergeLessonEntry(
+        merged,
+        toLessonEntry({
+          id,
+          title: id,
+          description: "Rewrite v1",
+          grade: "all",
+          subject: row.subject,
+          quality: "reviewed",
+          source: "rewrite",
+          ddnCandidates: [row.generated_lesson_ddn, fallback.ddn],
+          textCandidates: [row.generated_text_md, fallback.text],
+          metaCandidates: resolveSelectionCandidates(row, ["metaCandidates", "meta_path", "meta_toml"]),
+        }),
+      );
+    });
+  }
 
   const lessons = Array.from(merged.values()).sort((a, b) => String(a.title).localeCompare(String(b.title), "ko"));
   if (lessons.length === 0) {
@@ -352,36 +491,9 @@ function createAdvancedMenu({ onSmoke }) {
   };
 }
 
-function buildSessionContractScaffold() {
-  const runs = buildOverlaySessionRunsPayload([]);
-  const compare = buildOverlayCompareSessionPayload({
-    enabled: false,
-    baselineId: null,
-    variantId: null,
-  });
-  const compareResolved = resolveOverlayCompareFromSession({
-    runs: [],
-    compare,
-  });
-  return {
-    runs,
-    compare,
-    compareResolved,
-    view_combo: buildSessionViewComboPayload({
-      enabled: false,
-      layout: "horizontal",
-      overlayOrder: "graph",
-    }),
-    viewComboResolved: resolveSessionViewComboFromPayload({
-      enabled: false,
-      layout: "horizontal",
-      overlay_order: "graph",
-    }),
-  };
-}
-
 async function main() {
-  buildSessionContractScaffold();
+  applySimCorePolicy();
+
   appState.wasm.loader = createWasmLoader({
     cacheBust: Date.now(),
     modulePath: "./wasm/ddonirang_tool.js",
@@ -390,9 +502,24 @@ async function main() {
     clearStatusError: () => {},
   });
 
+  const federatedApiCandidates = readWindowStringArray("SEAMGRIM_FEDERATED_API_CANDIDATES", [
+    "/api/lessons/inventory",
+  ]);
+  const allowFederatedFileFallback = readWindowBoolean("SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK", false);
+  const allowShapeFallback = readWindowBoolean("SEAMGRIM_ENABLE_SHAPE_FALLBACK", false);
+  const federatedFileCandidates = allowFederatedFileFallback
+    ? readWindowStringArray("SEAMGRIM_FEDERATED_FILE_CANDIDATES", [])
+    : [];
+
   const browseScreen = new BrowseScreen({
     root: byId("screen-browse"),
-    onLessonSelect: async (lessonId) => {
+    federatedApiCandidates,
+    federatedFileCandidates,
+    onLessonSelect: async (selection) => {
+      const lessonId = ensureLessonEntryFromSelection(selection);
+      if (!lessonId) {
+        throw new Error("교과를 찾지 못했습니다: invalid lesson selection");
+      }
       const lesson = await loadLessonById(lessonId);
       runScreen.loadLesson(lesson);
       setScreen("run");
@@ -438,6 +565,7 @@ async function main() {
   const runScreen = new RunScreen({
     root: byId("screen-run"),
     wasmState: appState.wasm,
+    allowShapeFallback,
     onBack: () => {
       setScreen("browse");
     },

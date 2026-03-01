@@ -1,0 +1,4 @@
+{"input_path":"input.ddn","cli":["--age-target","AGE3"],"stdout":["참","12","a_b_","차림[a, b, c]","없음"]}
+{"input_path":"flags_invalid.ddn","cli":["--age-target","AGE3"],"expected_error_code":"E_REGEX_FLAGS_INVALID","exit_code":1}
+{"input_path":"pattern_invalid.ddn","cli":["--age-target","AGE3"],"expected_error_code":"E_REGEX_PATTERN_INVALID","exit_code":1}
+{"input_path":"age_gate.ddn","expected_error_code":"E_AGE_NOT_AVAILABLE","exit_code":1}

@@ -821,8 +821,29 @@ function setupCanvasBase(canvas, bgColor = "#0b1020") {
   if (!canvas || typeof canvas.getContext !== "function") return null;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  const w = Number(canvas.width) || 0;
-  const h = Number(canvas.height) || 0;
+  const cssWidth =
+    Number(canvas.clientWidth) ||
+    Number(canvas.getBoundingClientRect?.().width) ||
+    Number(canvas.width) ||
+    0;
+  const cssHeight =
+    Number(canvas.clientHeight) ||
+    Number(canvas.getBoundingClientRect?.().height) ||
+    Number(canvas.height) ||
+    0;
+  const dprRaw = typeof window !== "undefined" ? Number(window.devicePixelRatio) : 1;
+  const dpr = Number.isFinite(dprRaw) && dprRaw > 0 ? dprRaw : 1;
+  const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
+  const pixelHeight = Math.max(1, Math.round(cssHeight * dpr));
+  if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+  if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+
+  if (typeof ctx.setTransform === "function") {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  const w = Math.max(1, Math.round(cssWidth));
+  const h = Math.max(1, Math.round(cssHeight));
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, w, h);
@@ -841,6 +862,61 @@ function drawCanvasPlaceholder({
   ctx.fillStyle = color;
   ctx.font = font;
   ctx.fillText(String(text ?? "-"), x, y);
+}
+
+function computeNiceTickStep(minValue, maxValue, targetTicks = 6) {
+  const min = Number(minValue);
+  const max = Number(maxValue);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return 1;
+  const tickCount = Math.max(2, Math.trunc(Number(targetTicks) || 0));
+  const rawStep = (max - min) / tickCount;
+  const exponent = Math.floor(Math.log10(rawStep));
+  const magnitude = 10 ** exponent;
+  const normalized = rawStep / magnitude;
+  let nice = 10;
+  if (normalized <= 1) nice = 1;
+  else if (normalized <= 2) nice = 2;
+  else if (normalized <= 5) nice = 5;
+  return nice * magnitude;
+}
+
+function buildNiceTicks(minValue, maxValue, targetTicks = 6) {
+  const min = Number(minValue);
+  const max = Number(maxValue);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return [];
+  const step = computeNiceTickStep(min, max, targetTicks);
+  if (!Number.isFinite(step) || step <= 0) return [];
+  const start = Math.ceil(min / step) * step;
+  const out = [];
+  const maxTicks = 64;
+  for (let value = start, i = 0; value <= max + step * 0.5 && i < maxTicks; value += step, i += 1) {
+    const rounded = Number((Math.round((value / step) * 1e6) / 1e6 * step).toPrecision(14));
+    out.push(rounded);
+  }
+  if (!out.length) {
+    out.push(min, max);
+  }
+  return out;
+}
+
+function inferTickStep(ticks, fallbackRange) {
+  if (Array.isArray(ticks) && ticks.length >= 2) {
+    const step = Math.abs(Number(ticks[1]) - Number(ticks[0]));
+    if (Number.isFinite(step) && step > 0) return step;
+  }
+  const range = Math.abs(Number(fallbackRange));
+  if (Number.isFinite(range) && range > 0) return range / 5;
+  return 1;
+}
+
+function formatGraphTickLabel(value, step = 1) {
+  const numeric = Number(value);
+  const stepNum = Math.abs(Number(step));
+  if (!Number.isFinite(numeric)) return "-";
+  if (!Number.isFinite(stepNum) || stepNum <= 0) return Number(numeric.toFixed(2)).toString();
+  const exponent = Math.floor(Math.log10(stepNum));
+  const digits = Math.max(0, Math.min(8, -exponent));
+  return Number(numeric.toFixed(digits)).toString();
 }
 
 export function renderGraphCanvas2d({
@@ -883,22 +959,28 @@ export function renderGraphCanvas2d({
   if (yMax === yMin) yMax = yMin + 1;
   const scaleX = (w - pad * 2) / (xMax - xMin);
   const scaleY = (h - pad * 2) / (yMax - yMin);
+  const xTicks = buildNiceTicks(xMin, xMax, 5);
+  const yTicks = buildNiceTicks(yMin, yMax, 5);
+  const xTickStep = inferTickStep(xTicks, xMax - xMin);
+  const yTickStep = inferTickStep(yTicks, yMax - yMin);
 
   if (showGrid) {
     ctx.strokeStyle = "rgba(148,163,184,0.15)";
     ctx.lineWidth = 1;
-    for (let i = 1; i <= 4; i += 1) {
-      const gx = pad + ((w - pad * 2) * i) / 5;
-      const gy = pad + ((h - pad * 2) * i) / 5;
+    xTicks.forEach((tick) => {
+      const gx = pad + (tick - xMin) * scaleX;
       ctx.beginPath();
       ctx.moveTo(gx, pad);
       ctx.lineTo(gx, h - pad);
       ctx.stroke();
+    });
+    yTicks.forEach((tick) => {
+      const gy = h - pad - (tick - yMin) * scaleY;
       ctx.beginPath();
       ctx.moveTo(pad, gy);
       ctx.lineTo(w - pad, gy);
       ctx.stroke();
-    }
+    });
   }
   if (showAxis) {
     ctx.strokeStyle = "#1f2a44";
@@ -922,6 +1004,29 @@ export function renderGraphCanvas2d({
       ctx.lineTo(w - pad, y0);
       ctx.stroke();
     }
+
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "11px 'IBM Plex Mono', ui-monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    xTicks.forEach((tick) => {
+      const x = pad + (tick - xMin) * scaleX;
+      ctx.beginPath();
+      ctx.moveTo(x, h - pad);
+      ctx.lineTo(x, h - pad + 4);
+      ctx.stroke();
+      ctx.fillText(formatGraphTickLabel(tick, xTickStep), x, h - pad + 6);
+    });
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    yTicks.forEach((tick) => {
+      const y = h - pad - (tick - yMin) * scaleY;
+      ctx.beginPath();
+      ctx.moveTo(pad - 4, y);
+      ctx.lineTo(pad, y);
+      ctx.stroke();
+      ctx.fillText(formatGraphTickLabel(tick, yTickStep), pad - 6, y);
+    });
   }
 
   const activePalette = Array.isArray(palette) && palette.length
@@ -1082,16 +1187,24 @@ function collectSpace2dRangePoints(item) {
   return [];
 }
 
-function selectSpace2dPrimitiveItems({
+export function selectSpace2dPrimitiveItems({
   drawlist,
   shapes,
   hasShapesField,
   sourceMode,
 }) {
-  if (sourceMode === "drawlist") return drawlist;
-  if (sourceMode === "shapes") return shapes;
+  if (sourceMode === "drawlist") {
+    if (drawlist.length > 0) return drawlist;
+    return shapes;
+  }
+  if (sourceMode === "shapes") {
+    if (shapes.length > 0) return shapes;
+    return drawlist;
+  }
   if (sourceMode === "both") return [...shapes, ...drawlist];
   if (sourceMode === "none") return [];
+  if (hasShapesField && shapes.length > 0) return shapes;
+  if (drawlist.length > 0) return drawlist;
   return hasShapesField ? shapes : drawlist;
 }
 
@@ -1165,6 +1278,8 @@ export function renderSpace2dCanvas2d({
 
   const scaleX = (w - pad * 2) / (xMax - xMin);
   const scaleY = (h - pad * 2) / (yMax - yMin);
+  // Preserve aspect ratio to prevent stretched 2D output.
+  const scale = Math.min(scaleX, scaleY);
   const centerX = (xMin + xMax) / 2;
   const centerY = (yMin + yMax) / 2;
   const zoomRaw = Number(viewState?.zoom);
@@ -1173,8 +1288,8 @@ export function renderSpace2dCanvas2d({
   const panPyRaw = Number(viewState?.panPy);
   const panPx = autoFit ? 0 : (Number.isFinite(panPxRaw) ? panPxRaw : 0);
   const panPy = autoFit ? 0 : (Number.isFinite(panPyRaw) ? panPyRaw : 0);
-  const mapX = (x) => (w / 2) + panPx + ((x - centerX) * scaleX * zoom);
-  const mapY = (y) => (h / 2) + panPy - ((y - centerY) * scaleY * zoom);
+  const mapX = (x) => (w / 2) + panPx + ((x - centerX) * scale * zoom);
+  const mapY = (y) => (h / 2) + panPy - ((y - centerY) * scale * zoom);
 
   ctx.strokeStyle = "#1f2a44";
   ctx.lineWidth = 1;
@@ -1310,7 +1425,7 @@ export function renderSpace2dCanvas2d({
       if (!circle) return;
       const x = mapX(circle.x);
       const y = mapY(circle.y);
-      const rr = Math.max(1, Math.abs(circle.r * Math.min(scaleX, scaleY) * zoom));
+      const rr = Math.max(1, Math.abs(circle.r * scale * zoom));
       ctx.beginPath();
       ctx.arc(x, y, rr, 0, Math.PI * 2);
       ctx.stroke();
@@ -2485,12 +2600,16 @@ export function updateWasmClientLogic({
     throw new Error("updateWasmClientLogic: client가 필요합니다.");
   }
   const body = String(sourceBody ?? "");
+  const preparedBody =
+    typeof client.prepareSourceText === "function"
+      ? String(client.prepareSourceText(body) ?? "")
+      : body;
   if (mode !== null && mode !== undefined && typeof client.updateLogicWithMode === "function") {
-    client.updateLogicWithMode(body, String(mode));
+    client.updateLogicWithMode(preparedBody, String(mode));
     return;
   }
   if (typeof client.updateLogic === "function") {
-    client.updateLogic(body);
+    client.updateLogic(preparedBody);
     return;
   }
   throw new Error("updateWasmClientLogic: update API가 없습니다.");
@@ -2696,20 +2815,29 @@ export function createWasmLoader({
     const wrapper = await import(withCacheBust(wrapperPath));
     const needsSource = DdnWasmVm.length > 0;
     const sourceText = stripMetaHeader(source);
-    const cleaned = sourceText.trim();
-
-    if (typeof wasmModule.wasm_preprocess_source === "function") {
-      try {
-        lastPreprocessed = wasmModule.wasm_preprocess_source(sourceText);
-      } catch (err) {
-        lastPreprocessed = `preprocess error: ${String(err?.message ?? err)}`;
+    const prepareSourceText = (rawSource) => {
+      const text = String(rawSource ?? "");
+      if (typeof wasmModule.wasm_preprocess_source !== "function") {
+        lastPreprocessed = text;
+        return text;
       }
-    }
+      try {
+        const prepared = String(wasmModule.wasm_preprocess_source(text) ?? text);
+        lastPreprocessed = prepared;
+        return prepared;
+      } catch (err) {
+        lastPreprocessed = text;
+        return text;
+      }
+    };
+    const preparedSource = prepareSourceText(sourceText);
+    const cleaned = preparedSource.trim();
 
     let vm;
     if (needsSource && !cleaned) {
       vm = new DdnWasmVm(fallbackSource);
       vmClient = new wrapper.DdnWasmVmClient(vm);
+      vmClient.prepareSourceText = prepareSourceText;
       if (typeof setStatus === "function") {
         const lines =
           typeof formatFallbackStatus === "function"
@@ -2722,6 +2850,7 @@ export function createWasmLoader({
 
     vm = needsSource ? new DdnWasmVm(cleaned) : new DdnWasmVm();
     vmClient = new wrapper.DdnWasmVmClient(vm);
+    vmClient.prepareSourceText = prepareSourceText;
     if (!needsSource && cleaned) {
       vmClient.updateLogic(cleaned);
     }

@@ -5,8 +5,8 @@ use ddonirang_core::platform::{
     DetNuri, InputSnapshot, Patch, PatchOp, ResourceMapEntry, ResourceValue,
 };
 use ddonirang_core::{Fixed64, Nuri, ResourceHandle, SeulgiIntent, SeulgiPacket};
-use ddonirang_lang::ParseMode;
 use ddonirang_lang::runtime::Value;
+use ddonirang_lang::ParseMode;
 use serde_json::{json, Map, Value as JsonValue};
 use wasm_bindgen::prelude::*;
 
@@ -248,8 +248,13 @@ impl DdnWasmVm {
                 "수/참거짓/글 스칼라만 전달해 주세요.",
             )
         })?;
-        apply_param_value(self.world.world_mut(), key, &parsed)
-            .map_err(|err| wasm_error("PARAM_APPLY_FAILED", &err, "대상 변수 이름과 타입을 확인해 주세요."))?;
+        apply_param_value(self.world.world_mut(), key, &parsed).map_err(|err| {
+            wasm_error(
+                "PARAM_APPLY_FAILED",
+                &err,
+                "대상 변수 이름과 타입을 확인해 주세요.",
+            )
+        })?;
         self.param_overrides.insert(key.to_string(), parsed);
 
         let payload = json!({
@@ -270,8 +275,13 @@ impl DdnWasmVm {
             ));
         }
         let parsed = Value::Fixed64(Fixed64::from_raw_i64(raw_i64));
-        apply_param_value(self.world.world_mut(), key, &parsed)
-            .map_err(|err| wasm_error("PARAM_APPLY_FAILED", &err, "대상 변수 이름과 타입을 확인해 주세요."))?;
+        apply_param_value(self.world.world_mut(), key, &parsed).map_err(|err| {
+            wasm_error(
+                "PARAM_APPLY_FAILED",
+                &err,
+                "대상 변수 이름과 타입을 확인해 주세요.",
+            )
+        })?;
         self.param_overrides.insert(key.to_string(), parsed);
         let payload = json!({
             "ok": true,
@@ -307,8 +317,13 @@ impl DdnWasmVm {
             )
         })?;
         let value = Value::Fixed64(Fixed64::from_raw_i64(parsed));
-        apply_param_value(self.world.world_mut(), key, &value)
-            .map_err(|err| wasm_error("PARAM_APPLY_FAILED", &err, "대상 변수 이름과 타입을 확인해 주세요."))?;
+        apply_param_value(self.world.world_mut(), key, &value).map_err(|err| {
+            wasm_error(
+                "PARAM_APPLY_FAILED",
+                &err,
+                "대상 변수 이름과 타입을 확인해 주세요.",
+            )
+        })?;
         self.param_overrides.insert(key.to_string(), value);
         let payload = json!({
             "ok": true,
@@ -775,7 +790,9 @@ impl StreamMeta {
     }
 }
 
-fn collect_stream_sidecars(world: &ddonirang_core::platform::NuriWorld) -> HashMap<String, StreamMeta> {
+fn collect_stream_sidecars(
+    world: &ddonirang_core::platform::NuriWorld,
+) -> HashMap<String, StreamMeta> {
     let mut out: HashMap<String, StreamMeta> = HashMap::new();
     for (tag, value) in world.resource_fixed64_entries() {
         let Some((base, kind)) = parse_stream_sidecar_tag(&tag) else {
@@ -872,11 +889,17 @@ fn extract_ring_buffer(value: &ResourceValue, sidecar: Option<&StreamMeta>) -> O
         ResourceValue::List(items) => {
             let side = sidecar.copied().unwrap_or_default();
             let mut buffer = items.iter().map(resource_value_to_json).collect::<Vec<_>>();
-            let capacity = side.capacity.unwrap_or(items.len() as u64).max(items.len() as u64);
+            let capacity = side
+                .capacity
+                .unwrap_or(items.len() as u64)
+                .max(items.len() as u64);
             if buffer.len() < capacity as usize {
                 buffer.resize(capacity as usize, JsonValue::Null);
             }
-            let len = side.len.unwrap_or(items.len() as u64).min(buffer.len() as u64);
+            let len = side
+                .len
+                .unwrap_or(items.len() as u64)
+                .min(buffer.len() as u64);
             let head = if buffer.is_empty() {
                 0
             } else {
@@ -903,9 +926,9 @@ fn extract_ring_buffer(value: &ResourceValue, sidecar: Option<&StreamMeta>) -> O
                 match key.as_str() {
                     "buffer" | "버퍼" => {
                         buffer_json = match &entry.value {
-                            ResourceValue::List(items) => Some(
-                                items.iter().map(resource_value_to_json).collect::<Vec<_>>(),
-                            ),
+                            ResourceValue::List(items) => {
+                                Some(items.iter().map(resource_value_to_json).collect::<Vec<_>>())
+                            }
                             other => Some(vec![resource_value_to_json(other)]),
                         };
                     }
@@ -1052,7 +1075,6 @@ mod tests {
         assert!(codes.contains(&"STATE_HASH_MISMATCH"));
         assert!(codes.contains(&"VIEW_HASH_MISMATCH"));
     }
-
 }
 
 fn serialize_param_overrides(params: &BTreeMap<String, Value>) -> JsonValue {
@@ -1142,8 +1164,8 @@ fn restore_world_resources(
 
     if let Some(JsonValue::Object(fixed_map)) = root.get("fixed64") {
         for (tag, value) in fixed_map {
-            let parsed = json_to_fixed64(value)
-                .ok_or_else(|| format!("fixed64[{tag}] 파싱 실패"))?;
+            let parsed =
+                json_to_fixed64(value).ok_or_else(|| format!("fixed64[{tag}] 파싱 실패"))?;
             world.set_resource_fixed64(tag.clone(), parsed);
         }
     }
@@ -1182,7 +1204,9 @@ fn json_to_fixed64(value: &JsonValue) -> Option<Fixed64> {
 fn parse_handle_string(text: &str) -> Result<u64, String> {
     let trimmed = text.trim();
     let without_handle = trimmed.strip_prefix("handle:").unwrap_or(trimmed);
-    let hex = without_handle.strip_prefix("자원#").unwrap_or(without_handle);
+    let hex = without_handle
+        .strip_prefix("자원#")
+        .unwrap_or(without_handle);
     u64::from_str_radix(hex, 16).map_err(|_| format!("handle 파싱 실패: {text}"))
 }
 
@@ -1193,7 +1217,9 @@ fn resource_value_to_detjson(value: &ResourceValue) -> JsonValue {
         ResourceValue::Fixed64(v) => json!({ "type": "fixed64", "value": fixed64_to_f64(*v) }),
         ResourceValue::Unit(v) => json!({ "type": "fixed64", "value": fixed64_to_f64(v.value) }),
         ResourceValue::String(v) => json!({ "type": "string", "value": v }),
-        ResourceValue::ResourceHandle(v) => json!({ "type": "handle", "value": handle_to_string(*v) }),
+        ResourceValue::ResourceHandle(v) => {
+            json!({ "type": "handle", "value": handle_to_string(*v) })
+        }
         ResourceValue::List(items) => json!({
             "type": "list",
             "items": items.iter().map(resource_value_to_detjson).collect::<Vec<_>>(),
@@ -1221,10 +1247,7 @@ fn resource_value_from_detjson(payload: &JsonValue) -> Result<ResourceValue, Str
     let JsonValue::Object(obj) = payload else {
         return Err("value_det 형식 오류(object 아님)".to_string());
     };
-    let kind = obj
-        .get("type")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
+    let kind = obj.get("type").and_then(|v| v.as_str()).unwrap_or_default();
     match kind {
         "none" => Ok(ResourceValue::None),
         "bool" => Ok(ResourceValue::Bool(
@@ -1322,23 +1345,14 @@ fn restore_input_state(vm: &mut DdnWasmVm, payload: &JsonValue) {
     let JsonValue::Object(obj) = payload else {
         return;
     };
-    vm.input_keys_pressed = obj
-        .get("keys_pressed")
-        .and_then(json_to_u64)
-        .unwrap_or(0);
+    vm.input_keys_pressed = obj.get("keys_pressed").and_then(json_to_u64).unwrap_or(0);
     vm.input_last_key_name = obj
         .get("last_key_name")
         .and_then(|v| v.as_str())
         .unwrap_or_default()
         .to_string();
-    vm.input_pointer_x_i32 = obj
-        .get("pointer_x_i32")
-        .and_then(json_to_i32)
-        .unwrap_or(0);
-    vm.input_pointer_y_i32 = obj
-        .get("pointer_y_i32")
-        .and_then(json_to_i32)
-        .unwrap_or(0);
+    vm.input_pointer_x_i32 = obj.get("pointer_x_i32").and_then(json_to_i32).unwrap_or(0);
+    vm.input_pointer_y_i32 = obj.get("pointer_y_i32").and_then(json_to_i32).unwrap_or(0);
     vm.rng_seed = obj
         .get("rng_base_seed")
         .and_then(json_to_u64)
@@ -1415,13 +1429,17 @@ fn serialize_patch(patch: &Patch) -> JsonValue {
                 items.push(json!({ "op": "set_resource_json", "tag": tag, "value": json }));
             }
             PatchOp::SetResourceFixed64 { tag, value } => {
-                items.push(json!({ "op": "set_resource_fixed64", "tag": tag, "value": value.to_string() }));
+                items.push(
+                    json!({ "op": "set_resource_fixed64", "tag": tag, "value": value.to_string() }),
+                );
             }
             PatchOp::SetResourceHandle { tag, handle } => {
                 items.push(json!({ "op": "set_resource_handle", "tag": tag, "value": handle_to_string(*handle) }));
             }
             PatchOp::SetResourceValue { tag, value } => {
-                items.push(json!({ "op": "set_resource_value", "tag": tag, "value": value.canon_key() }));
+                items.push(
+                    json!({ "op": "set_resource_value", "tag": tag, "value": value.canon_key() }),
+                );
             }
             PatchOp::DivAssignResourceFixed64 { tag, rhs, .. } => {
                 items.push(json!({ "op": "div_assign_resource_fixed64", "tag": tag, "value": rhs.to_string() }));
@@ -1433,10 +1451,14 @@ fn serialize_patch(patch: &Patch) -> JsonValue {
                 items.push(json!({ "op": "remove_component", "entity": entity.0, "tag": tag.0 }));
             }
             PatchOp::EmitSignal { signal, targets } => {
-                items.push(json!({ "op": "emit_signal", "signal": signal.name(), "targets": targets }));
+                items.push(
+                    json!({ "op": "emit_signal", "signal": signal.name(), "targets": targets }),
+                );
             }
             PatchOp::GuardViolation { entity, rule_id } => {
-                items.push(json!({ "op": "guard_violation", "entity": entity.0, "rule_id": rule_id }));
+                items.push(
+                    json!({ "op": "guard_violation", "entity": entity.0, "rule_id": rule_id }),
+                );
             }
         }
     }
@@ -1449,10 +1471,7 @@ fn collect_columns_and_row(
     let mut table: BTreeMap<String, (String, JsonValue)> = BTreeMap::new();
 
     for (tag, value) in world.resource_fixed64_entries() {
-        table.insert(
-            tag,
-            ("num".to_string(), json!(fixed64_to_f64(value))),
-        );
+        table.insert(tag, ("num".to_string(), json!(fixed64_to_f64(value))));
     }
 
     for (tag, value) in world.resource_json_entries() {
@@ -1615,10 +1634,7 @@ fn apply_param_value(
             Ok(())
         }
         Value::Bool(v) => {
-            world.set_resource_json(
-                key.to_string(),
-                if *v { "참" } else { "거짓" }.to_string(),
-            );
+            world.set_resource_json(key.to_string(), if *v { "참" } else { "거짓" }.to_string());
             Ok(())
         }
         Value::String(v) => {
@@ -1644,22 +1660,13 @@ fn seed_bogae_defaults(defaults: &mut HashMap<String, Value>) {
         BOGAE_HEIGHT_TAG.to_string(),
         Value::Fixed64(Fixed64::from_i64(0)),
     );
-    defaults.insert(
-        "프레임수".to_string(),
-        Value::Fixed64(Fixed64::from_i64(0)),
-    );
+    defaults.insert("프레임수".to_string(), Value::Fixed64(Fixed64::from_i64(0)));
     defaults.insert(
         "__wasm_start_once".to_string(),
         Value::Fixed64(Fixed64::from_i64(0)),
     );
-    defaults.insert(
-        "회전_x".to_string(),
-        Value::Fixed64(Fixed64::from_i64(0)),
-    );
-    defaults.insert(
-        "회전_y".to_string(),
-        Value::Fixed64(Fixed64::from_i64(0)),
-    );
+    defaults.insert("회전_x".to_string(), Value::Fixed64(Fixed64::from_i64(0)));
+    defaults.insert("회전_y".to_string(), Value::Fixed64(Fixed64::from_i64(0)));
 }
 
 fn derive_space2d_from_bogae(world: &ddonirang_core::platform::NuriWorld) -> Option<String> {
@@ -1730,10 +1737,7 @@ fn derive_graph_from_points(world: &ddonirang_core::platform::NuriWorld) -> Opti
                 y_max = y_max.max(*y);
             }
         }
-        let point_list: Vec<JsonValue> = points
-            .into_iter()
-            .map(|(x, y)| json!([x, y]))
-            .collect();
+        let point_list: Vec<JsonValue> = points.into_iter().map(|(x, y)| json!([x, y])).collect();
         series.push(json!({
             "id": *id,
             "label": *label,
@@ -1746,7 +1750,10 @@ fn derive_graph_from_points(world: &ddonirang_core::platform::NuriWorld) -> Opti
     }
 
     let mut graph = Map::new();
-    graph.insert("schema".to_string(), JsonValue::String(GRAPH_SCHEMA.to_string()));
+    graph.insert(
+        "schema".to_string(),
+        JsonValue::String(GRAPH_SCHEMA.to_string()),
+    );
     graph.insert("series".to_string(), JsonValue::Array(series));
     if x_min.is_finite() && x_max.is_finite() && y_min.is_finite() && y_max.is_finite() {
         graph.insert(
@@ -1883,7 +1890,9 @@ fn resource_value_to_json(value: &ResourceValue) -> JsonValue {
         ResourceValue::Unit(v) => json!(fixed64_to_f64(v.value)),
         ResourceValue::String(s) => JsonValue::String(s.clone()),
         ResourceValue::ResourceHandle(handle) => JsonValue::String(handle_to_string(*handle)),
-        ResourceValue::List(items) => JsonValue::Array(items.iter().map(resource_value_to_json).collect()),
+        ResourceValue::List(items) => {
+            JsonValue::Array(items.iter().map(resource_value_to_json).collect())
+        }
         ResourceValue::Set(items) => {
             JsonValue::Array(items.values().map(resource_value_to_json).collect())
         }

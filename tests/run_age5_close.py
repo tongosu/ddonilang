@@ -371,12 +371,23 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
     missing_s6_module_tokens = [
         token for token in S6_SESSION_CONTRACT_MODULE_TOKENS if token not in overlay_session_contract_text
     ]
-    s6_overlay_session_contract_ok = len(missing_s6_app_tokens) == 0 and len(missing_s6_module_tokens) == 0
+    s6_session_app_wired = len(missing_s6_app_tokens) == 0
+    s6_session_app_retired = len(missing_s6_app_tokens) == len(S6_SESSION_CONTRACT_APP_TOKENS)
+    s6_session_module_ready = len(missing_s6_module_tokens) == 0
+    s6_overlay_session_contract_ok = (s6_session_app_wired and s6_session_module_ready) or s6_session_app_retired
+    s6_session_mode = (
+        "wired"
+        if s6_session_app_wired and s6_session_module_ready
+        else "retired"
+        if s6_session_app_retired
+        else "partial"
+    )
     criteria.append(
         {
             "name": "s6_overlay_session_contract_wired",
             "ok": s6_overlay_session_contract_ok,
-            "detail": "app_missing={} module_missing={} app_path={} module_path={}".format(
+            "detail": "mode={} app_missing={} module_missing={} app_path={} module_path={}".format(
+                s6_session_mode,
                 len(missing_s6_app_tokens),
                 len(missing_s6_module_tokens),
                 AGE5_APP_UI_PATH,
@@ -386,12 +397,13 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
     )
     if not s6_overlay_session_contract_ok:
         failure_digest.append(
-            "s6_overlay_session_contract_wired: app_missing={} module_missing={}".format(
+            "s6_overlay_session_contract_wired: mode={} app_missing={} module_missing={}".format(
+                s6_session_mode,
                 sample_items(missing_s6_app_tokens),
                 sample_items(missing_s6_module_tokens),
             )
         )
-        pending_items.append("S6 overlay session contract 모듈과 app.js 연결 토큰 유지")
+        pending_items.append("S6 overlay session contract: wired 또는 retired 상태로 일관성 유지")
 
     missing_s6_view_combo_app_tokens = [
         token for token in S6_VIEW_COMBO_CONTRACT_APP_TOKENS if token not in app_ui_text
@@ -399,14 +411,25 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
     missing_s6_view_combo_module_tokens = [
         token for token in S6_VIEW_COMBO_CONTRACT_MODULE_TOKENS if token not in overlay_session_contract_text
     ]
+    s6_view_combo_app_wired = len(missing_s6_view_combo_app_tokens) == 0
+    s6_view_combo_app_retired = len(missing_s6_view_combo_app_tokens) == len(S6_VIEW_COMBO_CONTRACT_APP_TOKENS)
+    s6_view_combo_module_ready = len(missing_s6_view_combo_module_tokens) == 0
     s6_view_combo_contract_ok = (
-        len(missing_s6_view_combo_app_tokens) == 0 and len(missing_s6_view_combo_module_tokens) == 0
+        (s6_view_combo_app_wired and s6_view_combo_module_ready) or s6_view_combo_app_retired
+    )
+    s6_view_combo_mode = (
+        "wired"
+        if s6_view_combo_app_wired and s6_view_combo_module_ready
+        else "retired"
+        if s6_view_combo_app_retired
+        else "partial"
     )
     criteria.append(
         {
             "name": "s6_view_combo_session_contract_wired",
             "ok": s6_view_combo_contract_ok,
-            "detail": "app_missing={} module_missing={} app_path={} module_path={}".format(
+            "detail": "mode={} app_missing={} module_missing={} app_path={} module_path={}".format(
+                s6_view_combo_mode,
                 len(missing_s6_view_combo_app_tokens),
                 len(missing_s6_view_combo_module_tokens),
                 AGE5_APP_UI_PATH,
@@ -416,12 +439,13 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
     )
     if not s6_view_combo_contract_ok:
         failure_digest.append(
-            "s6_view_combo_session_contract_wired: app_missing={} module_missing={}".format(
+            "s6_view_combo_session_contract_wired: mode={} app_missing={} module_missing={}".format(
+                s6_view_combo_mode,
                 sample_items(missing_s6_view_combo_app_tokens),
                 sample_items(missing_s6_view_combo_module_tokens),
             )
         )
-        pending_items.append("S6 view_combo session contract 모듈과 app.js 연결 토큰 유지")
+        pending_items.append("S6 view_combo session contract: wired 또는 retired 상태로 일관성 유지")
 
     missing_s6_session_pack_cases = [
         str(path) for path in S6_SESSION_PACK_CASE_FILES if not (root / path).exists()

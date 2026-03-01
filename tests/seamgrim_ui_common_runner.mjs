@@ -237,10 +237,102 @@ async function main() {
   assert(preprocessLegacyShow.bodyText.includes('// "주석"을 보여주기.'), "ddn preprocess: comment keep");
   assert(!preprocessLegacyShow.bodyText.includes('"안녕" 보여주기.'), "ddn preprocess: show canonical removed");
 
+  const preprocessBogaeBlock = preprocessDdnText(`
+매틱:움직씨 = {
+  모양: {
+    선(0, 0, bob_x, bob_y, 색="#9ca3af", 굵기=0.02).
+    원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
+    점(0, 0, 크기=0.045, 색="#f59e0b").
+  }.
+}.
+`);
+  assert(!preprocessBogaeBlock.bodyText.includes("보개 {"), "ddn preprocess: bogae block removed");
+  assert(!preprocessBogaeBlock.bodyText.includes("모양"), "ddn preprocess: moyang block removed");
+  assert(
+    preprocessBogaeBlock.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("space2d") 글로) 추가.'),
+    "ddn preprocess: bogae block emits space2d marker",
+  );
+  assert(
+    preprocessBogaeBlock.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("space2d.shape") 글로) 추가.'),
+    "ddn preprocess: bogae block emits shape marker",
+  );
+  assert(
+    preprocessBogaeBlock.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("line") 글로) 추가.'),
+    "ddn preprocess: bogae block emits line kind",
+  );
+  assert(
+    preprocessBogaeBlock.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("circle") 글로) 추가.'),
+    "ddn preprocess: bogae block emits circle kind",
+  );
+  assert(
+    preprocessBogaeBlock.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("point") 글로) 추가.'),
+    "ddn preprocess: bogae block emits point kind",
+  );
+
+  const preprocessBogaeMadang = preprocessDdnText(`
+보개마당 {
+  토막(이름="도입", 마디=0..60) {
+    자막(글="줄길이를 늘리면 주기가 길어진다.", 자리=(0.0, 0.86)).
+  }.
+}.
+`);
+  assert(!preprocessBogaeMadang.bodyText.includes("보개마당 {"), "ddn preprocess: bogae madang block removed");
+  assert(
+    preprocessBogaeMadang.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("text.overlay") 글로) 추가.'),
+    "ddn preprocess: bogae madang emits text overlay marker",
+  );
+  assert(
+    preprocessBogaeMadang.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("markdown") 글로) 추가.'),
+    "ddn preprocess: bogae madang emits markdown key",
+  );
+  assert(
+    preprocessBogaeMadang.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("줄길이를 늘리면 주기가 길어진다.") 글로) 추가.'),
+    "ddn preprocess: bogae madang emits subtitle text",
+  );
+
+  const preprocessLegacyLifecycle = preprocessDdnText(`
+채비: {
+  길이:수 <- 1.
+}.
+(시작)할때 {
+  t <- 0.
+  theta <- 0.5.
+}.
+(매마디)마다 {
+  t <- t + 0.1.
+  t 보여주기.
+}.
+`);
+  const lifecycleBody = preprocessLegacyLifecycle.bodyText;
+  const lifecycleChabiPos = lifecycleBody.indexOf("채비:");
+  const lifecycleMovementPos = lifecycleBody.indexOf("매틱:움직씨 = {");
+  const lifecycleStartGuardPos = lifecycleBody.indexOf("{ __wasm_start_once <= 0 }인것 일때 {");
+  const lifecycleStartInitPos = lifecycleBody.indexOf("t <- 0.");
+  const lifecycleResetPos = lifecycleBody.indexOf("보개_출력_줄들 <- () 차림.");
+  assert(
+    lifecycleChabiPos >= 0 && lifecycleMovementPos > lifecycleChabiPos,
+    "ddn preprocess: keep top-level decls outside movement",
+  );
+  assert(
+    !lifecycleBody.includes("(시작)할때") && !lifecycleBody.includes("(매마디)마다"),
+    "ddn preprocess: legacy lifecycle hooks rewritten into movement",
+  );
+  assert(
+    lifecycleStartGuardPos >= 0 && lifecycleStartInitPos > lifecycleStartGuardPos,
+    "ddn preprocess: place start body inside wasm start-once guard",
+  );
+  assert(
+    !lifecycleBody.includes("내부시작완료"),
+    "ddn preprocess: remove legacy synthetic guard key",
+  );
+  assert(
+    lifecycleResetPos > lifecycleMovementPos,
+    "ddn preprocess: inject output reset inside movement seed",
+  );
+
   const controlSplit = buildControlSpecsFromDdn(`
 #기본관찰: 각도
 #기본관찰x: tick
-#control: 길이:상수=1 [0.2..3] step=0.1; 각도:변수=0 [ -3 .. 3 ] step=0.1; tick:변수=0 [0..100] step=1
 채비: {
   길이: 상수 <- 1.2.
   각도: 변수 <- 0.5. // 기본관찰
@@ -248,7 +340,7 @@ async function main() {
   질량: 수 <- 1.0.
 }
 `);
-  assert(controlSplit.source === "meta", "control parser: #control priority over prep");
+  assert(controlSplit.source === "prep", "control parser: prep(채비) source");
   assert(controlSplit.specs.some((item) => item.name === "길이"), "control parser: constant slider included");
   assert(!controlSplit.specs.some((item) => item.name === "각도"), "control parser: variable excluded from sliders");
   assert(controlSplit.axisKeys.includes("각도"), "control parser: variable exposed as axis key");
@@ -256,6 +348,36 @@ async function main() {
   assert(!controlSplit.axisKeys.includes("길이"), "control parser: constant excluded from axis keys");
   assert(controlSplit.defaultAxisKey === "각도", "control parser: default observation key priority");
   assert(controlSplit.defaultXAxisKey === "tick", "control parser: default x observation key priority");
+
+  const controlDecimalDefaults = buildControlSpecsFromDdn(`
+채비: {
+  g:수 <- 9.8. // 범위(1, 20, 0.1)
+  theta0:수 <- 0.5. // 범위(-1.2, 1.2, 0.05)
+  dt:수 <- 0.02. // 범위(0.005, 0.1, 0.005)
+}
+`);
+  const gSpec = controlDecimalDefaults.specs.find((item) => item.name === "g");
+  const theta0Spec = controlDecimalDefaults.specs.find((item) => item.name === "theta0");
+  const dtSpec = controlDecimalDefaults.specs.find((item) => item.name === "dt");
+  assert(gSpec && Math.abs(gSpec.value - 9.8) < 1e-9, "control parser: decimal default g");
+  assert(theta0Spec && Math.abs(theta0Spec.value - 0.5) < 1e-9, "control parser: decimal default theta0");
+  assert(dtSpec && Math.abs(dtSpec.value - 0.02) < 1e-9, "control parser: decimal default dt");
+
+  const controlPolicySeedIgnore = buildControlSpecsFromDdn(`
+채비: {
+  길이:상수 <- 1.2.
+  각도:변수 <- 0.5.
+}
+씨앗: {
+  감춰진축:변수 <- 7.
+}
+`);
+  assert(controlPolicySeedIgnore.axisKeys.includes("각도"), "control policy: 채비 변수 axis include");
+  assert(!controlPolicySeedIgnore.axisKeys.includes("감춰진축"), "control policy: 씨앗 변수 axis exclude");
+  assert(
+    !controlPolicySeedIgnore.specs.some((item) => item.name === "감춰진축"),
+    "control policy: 씨앗 변수 slider exclude",
+  );
 
   const empty0 = createEmptyObservationState();
   assert(Array.isArray(empty0.channels) && Array.isArray(empty0.row), "empty observation: shape");
@@ -343,13 +465,107 @@ async function main() {
   assert(Object.prototype.hasOwnProperty.call(showViews, "graph"), "runtime state: show payload graph key");
   assert(Object.prototype.hasOwnProperty.call(showViews, "text"), "runtime state: show payload text key");
 
+  const outputLinesPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [
+      JSON.stringify([
+        "space2d",
+        "space2d.shape",
+        "line",
+        "x1",
+        "0",
+        "y1",
+        "0",
+        "x2",
+        "1",
+        "y2",
+        "1",
+        "stroke",
+        "#9ca3af",
+        "width",
+        "0.02",
+      ]),
+    ],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputLineViews = extractStructuredViewsFromState(outputLinesPayload, { preferPatch: false });
+  assert(outputLineViews?.space2d && typeof outputLineViews.space2d === "object", "output lines: space2d extracted");
+  assert(Array.isArray(outputLineViews.space2d.shapes), "output lines: shapes array");
+  assert(outputLineViews.space2d.shapes.length === 1, "output lines: shape count");
+  assert(outputLineViews.space2d.shapes[0].kind === "line", "output lines: line kind");
+
+  const outputLinesLegacyPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: ['차림["space2d","space2d.shape","point","x","0.25","y","-0.5","size","0.08","color","#22c55e"]'],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputLineLegacyViews = extractStructuredViewsFromState(outputLinesLegacyPayload, { preferPatch: false });
+  assert(outputLineLegacyViews?.space2d && typeof outputLineLegacyViews.space2d === "object", "output lines legacy: space2d extracted");
+  assert(Array.isArray(outputLineLegacyViews.space2d.shapes), "output lines legacy: shapes array");
+  assert(outputLineLegacyViews.space2d.shapes.length === 1, "output lines legacy: shape count");
+  assert(outputLineLegacyViews.space2d.shapes[0].kind === "point", "output lines legacy: point kind");
+
+  const outputLinesLegacyNegativeWrapPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: ['차림["space2d","space2d.shape","line","x1","0","y1","0","x2","-1.970185","y2","-1.000444","stroke","#9ca3af","width","0.02"]'],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputLineLegacyNegativeWrapViews = extractStructuredViewsFromState(outputLinesLegacyNegativeWrapPayload, { preferPatch: false });
+  assert(outputLineLegacyNegativeWrapViews?.space2d && typeof outputLineLegacyNegativeWrapViews.space2d === "object", "output lines legacy negative wrap: space2d extracted");
+  const wrappedLine = outputLineLegacyNegativeWrapViews.space2d.shapes?.[0];
+  assert(wrappedLine?.kind === "line", "output lines legacy negative wrap: line kind");
+  assert(Math.abs(Number(wrappedLine?.x2) - (-0.029815)) < 1e-4, "output lines legacy negative wrap: x2 decoded");
+  assert(Math.abs(Number(wrappedLine?.y2) - (-0.999556)) < 1e-4, "output lines legacy negative wrap: y2 decoded");
+
+  const outputLinesResourcePayload = {
+    schema: "seamgrim.state.v0",
+    channels: [],
+    row: [],
+    resources: {
+      json: {},
+      fixed64: {},
+      handle: {},
+      value: {
+        "보개_출력_줄들": '차림["space2d","space2d.shape","circle","x","0","y","0","r","0.5","fill","#38bdf8"]',
+      },
+    },
+    patch: [
+      {
+        op: "set_resource_value",
+        tag: "보개_출력_줄들",
+        value: '차림["space2d","space2d.shape","circle","x","0","y","0","r","0.5","fill","#38bdf8"]',
+      },
+    ],
+  };
+  const outputLineResourceViews = extractStructuredViewsFromState(outputLinesResourcePayload, { preferPatch: false });
+  assert(outputLineResourceViews?.space2d && typeof outputLineResourceViews.space2d === "object", "output lines resource: space2d extracted");
+  assert(Array.isArray(outputLineResourceViews.space2d.shapes), "output lines resource: shapes array");
+  assert(outputLineResourceViews.space2d.shapes.length === 1, "output lines resource: shape count");
+  assert(outputLineResourceViews.space2d.shapes[0].kind === "circle", "output lines resource: circle kind");
+
+  const outputLinesTextPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["text.overlay", "markdown", "도입 설명", "x", "0.0", "y", "0.86"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputLineTextViews = extractStructuredViewsFromState(outputLinesTextPayload, { preferPatch: false });
+  assert(outputLineTextViews?.text && typeof outputLineTextViews.text === "object", "output lines text: text extracted");
+  assert(outputLineTextViews.text.markdown === "도입 설명", "output lines text: markdown value");
+  assert(Math.abs(Number(outputLineTextViews.text.x) - 0.0) < 1e-9, "output lines text: x parsed");
+  assert(Math.abs(Number(outputLineTextViews.text.y) - 0.86) < 1e-9, "output lines text: y parsed");
+
   const manifestPayload = {
     schema: "seamgrim.state.v0",
     channels: [
       { key: "x", dtype: "number", role: "state" },
       { key: "y", dtype: "number", role: "state" },
+      { key: "theta", dtype: "number", role: "state" },
     ],
-    row: [10, 20],
+    row: [10, 20, 0.33],
     resources: { json: {}, fixed64: {}, handle: {}, value: {} },
     observation_manifest: {
       schema: "ddn.observation_manifest.v0",
@@ -364,6 +580,31 @@ async function main() {
   assert(manifestObservation.channels.length === 2, "manifest channels: count");
   assert(manifestObservation.channels[0].key === "y", "manifest channels: manifest order");
   assert(manifestObservation.row[0] === 20, "manifest row: value mapped by key");
+  assert(manifestObservation.values.theta === undefined, "manifest values: hidden key absent");
+  assert(manifestObservation.all_values.theta === 0.33, "manifest values: hidden key preserved");
+
+  const stringChannelPayload = {
+    schema: "seamgrim.state.v0",
+    channels: ["t", "theta"],
+    row: [0.02, 0.51],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const stringChannelObservation = extractObservationChannelsFromState(stringChannelPayload);
+  assert(stringChannelObservation.channels[0].key === "t", "string channels: key normalize");
+  assert(stringChannelObservation.values.theta === 0.51, "string channels: values map");
+
+  const nameChannelPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [
+      { name: "time", dtype: "number", role: "state" },
+      { name: "angle", dtype: "number", role: "state" },
+    ],
+    row: [0.04, 0.48],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const nameChannelObservation = extractObservationChannelsFromState(nameChannelPayload);
+  assert(nameChannelObservation.channels[1].key === "angle", "name channels: key fallback");
+  assert(nameChannelObservation.values.time === 0.04, "name channels: values map");
 
   const lensBase = createObservationLensState({ maxPoints: 240, includeRuns: true, lastFrameToken: null });
   assert(lensBase.maxPoints === 240, "lens state: maxPoints");

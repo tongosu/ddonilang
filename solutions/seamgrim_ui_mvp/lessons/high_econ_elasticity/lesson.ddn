@@ -1,5 +1,3 @@
-#이름: high_econ_elasticity
-#설명: y = a x^2 + b
 
 (매마디)마다 {
   탄력 = (#ascii1) 수식{ y = a x^2 + b }.

@@ -12,6 +12,87 @@ function finiteRangeFromCamera(space2d) {
   return null;
 }
 
+function pushFinitePoint(out, x, y) {
+  const nx = Number(x);
+  const ny = Number(y);
+  if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
+  out.push({ x: nx, y: ny });
+}
+
+function collectRangePointsFromPrimitive(out, item) {
+  if (!item || typeof item !== "object") return;
+  const kind = String(item.kind ?? "").trim().toLowerCase();
+  if (!kind) return;
+
+  if (kind === "line" || kind === "arrow") {
+    pushFinitePoint(out, item.x1, item.y1);
+    pushFinitePoint(out, item.x2, item.y2);
+    return;
+  }
+  if (kind === "circle") {
+    const x = Number(item.x ?? item.cx);
+    const y = Number(item.y ?? item.cy);
+    const r = Math.abs(Number(item.r));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    pushFinitePoint(out, x, y);
+    if (Number.isFinite(r) && r > 0) {
+      pushFinitePoint(out, x - r, y - r);
+      pushFinitePoint(out, x + r, y + r);
+    }
+    return;
+  }
+  if (kind === "point" || kind === "text") {
+    pushFinitePoint(out, item.x, item.y);
+    return;
+  }
+  if (kind === "rect") {
+    pushFinitePoint(out, item.x1, item.y1);
+    pushFinitePoint(out, item.x2, item.y2);
+    return;
+  }
+  if (kind === "curve" || kind === "polyline" || kind === "polygon" || kind === "fill") {
+    const points = Array.isArray(item.points) ? item.points : [];
+    points.forEach((pt) => {
+      pushFinitePoint(out, pt?.x, pt?.y);
+    });
+  }
+}
+
+function finiteRangeFromSpace2d(space2d) {
+  if (!space2d || typeof space2d !== "object") return null;
+  const points = [];
+  const basePoints = Array.isArray(space2d.points) ? space2d.points : [];
+  basePoints.forEach((pt) => {
+    pushFinitePoint(points, pt?.x, pt?.y);
+  });
+  const shapes = Array.isArray(space2d.shapes) ? space2d.shapes : [];
+  shapes.forEach((item) => collectRangePointsFromPrimitive(points, item));
+  const drawlist = Array.isArray(space2d.drawlist) ? space2d.drawlist : [];
+  drawlist.forEach((item) => collectRangePointsFromPrimitive(points, item));
+
+  if (!points.length) return null;
+  let xMin = Infinity;
+  let xMax = -Infinity;
+  let yMin = Infinity;
+  let yMax = -Infinity;
+  points.forEach((pt) => {
+    xMin = Math.min(xMin, pt.x);
+    xMax = Math.max(xMax, pt.x);
+    yMin = Math.min(yMin, pt.y);
+    yMax = Math.max(yMax, pt.y);
+  });
+  if (![xMin, xMax, yMin, yMax].every(Number.isFinite)) return null;
+  if (xMax <= xMin) {
+    xMin -= 1;
+    xMax += 1;
+  }
+  if (yMax <= yMin) {
+    yMin -= 1;
+    yMax += 1;
+  }
+  return { x_min: xMin, x_max: xMax, y_min: yMin, y_max: yMax };
+}
+
 function normalizeRange(range) {
   if (!range) return null;
   const xMin = Number(range.x_min ?? range.xMin);
@@ -196,7 +277,8 @@ export class Bogae {
   render(space2dData) {
     this.lastSpace2d = space2dData ?? this.lastSpace2d;
     const cameraRange = finiteRangeFromCamera(this.lastSpace2d);
-    if (cameraRange) this.lastAutoRange = cameraRange;
+    const inferredRange = cameraRange ?? finiteRangeFromSpace2d(this.lastSpace2d);
+    if (inferredRange) this.lastAutoRange = inferredRange;
 
     if (
       this.lockInitialRange &&

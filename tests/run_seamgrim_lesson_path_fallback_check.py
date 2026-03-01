@@ -14,14 +14,21 @@ def has_all_patterns(text: str, patterns: list[str]) -> tuple[bool, str]:
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
     app_path = root / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+    browse_path = root / "solutions" / "seamgrim_ui_mvp" / "ui" / "screens" / "browse.js"
     if not app_path.exists():
         print(f"missing ui js: {app_path.relative_to(root).as_posix()}")
         return 1
+    if not browse_path.exists():
+        print(f"missing browse js: {browse_path.relative_to(root).as_posix()}")
+        return 1
 
     text = app_path.read_text(encoding="utf-8")
+    browse_text = browse_path.read_text(encoding="utf-8")
     required_tokens = [
         'const PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/";',
+        "function isProjectPrefixedHost()",
         "function buildPathCandidates(path)",
+        "return isProjectPrefixedHost() ? [secondary, primary] : [primary, secondary];",
         "async function fetchFirstOk(urls, parseAs = \"text\")",
         "async function fetchJson(path)",
         "async function fetchText(pathCandidates)",
@@ -32,10 +39,22 @@ def main() -> int:
         "const ddnText = await fetchText(base.ddnCandidates);",
         "const textMd = (await fetchText(base.textCandidates)) ?? \"\";",
         "const metaRaw = await fetchText(base.metaCandidates);",
+        "function ensureLessonEntryFromSelection(selection)",
+        "resolveSelectionCandidates(selection, [\"ddnCandidates\", \"ddn_path\", \"lesson_ddn_path\"])",
+        "onLessonSelect: async (selection) => {",
+        "const lessonId = ensureLessonEntryFromSelection(selection);",
     ]
     ok, missing = has_all_patterns(text, required_tokens)
     if not ok:
         print(f"check=lesson_path_fallback_tokens missing={missing}")
+        return 1
+
+    browse_tokens = [
+        "void this.onLessonSelect(lesson);",
+    ]
+    ok_browse, missing_browse = has_all_patterns(browse_text, browse_tokens)
+    if not ok_browse:
+        print(f"check=lesson_path_fallback_tokens missing=browse:{missing_browse}")
         return 1
 
     print("seamgrim lesson path fallback check ok")

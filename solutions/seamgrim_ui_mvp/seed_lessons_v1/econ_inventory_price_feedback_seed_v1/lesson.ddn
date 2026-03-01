@@ -1,0 +1,81 @@
+채비: {
+  p0:수 <- 12. // 범위(1, 80, 0.5)
+  stock0:수 <- 120. // 범위(10, 500, 5)
+  stock_target:수 <- 120. // 범위(10, 500, 5)
+  demand_base:수 <- 36. // 범위(5, 120, 1)
+  demand_slope:수 <- 1.0. // 범위(0.1, 3.0, 0.05)
+  supply_base:수 <- 18. // 범위(1, 100, 1)
+  supply_slope:수 <- 0.8. // 범위(0.1, 3.0, 0.05)
+  price_k:수 <- 0.08. // 범위(0.01, 0.5, 0.01)
+  stock_k:수 <- 0.02. // 범위(0, 0.2, 0.005)
+  dt:수 <- 0.1. // 범위(0.02, 0.5, 0.01)
+  t_max:수 <- 40. // 범위(5, 120, 1)
+}.
+#기본관찰: price
+#기본관찰x: t
+
+p0 <- 12.
+stock0 <- 120.
+stock_target <- 120.
+demand_base <- 36.
+demand_slope <- 1.0.
+supply_base <- 18.
+supply_slope <- 0.8.
+price_k <- 0.08.
+stock_k <- 0.02.
+dt <- 0.1.
+t_max <- 40.
+
+(시작)할때 {
+  t <- 0.
+  price <- p0.
+  stock <- stock0.
+  demand <- 0.
+  supply <- 0.
+  gap <- 0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    demand <- demand_base - demand_slope * price.
+    supply <- supply_base + supply_slope * price.
+    gap <- demand - supply.
+    stock <- stock + (supply - demand) * dt.
+    price <- price + price_k * gap * dt + stock_k * (stock_target - stock) * dt.
+
+    { price < 0.1 }인것 일때 {
+      price <- 0.1.
+    }.
+    { stock < 0 }인것 일때 {
+      stock <- 0.
+    }.
+
+    t <- t + dt.
+
+    # 관찰 채널: (t,price), (t,stock), (t,demand), (t,supply), (t,gap)
+    무리 <- "series:price".
+    무리 보여주기.
+    t 보여주기.
+    price 보여주기.
+    무리 <- "series:stock".
+    무리 보여주기.
+    t 보여주기.
+    stock 보여주기.
+    무리 <- "series:demand".
+    무리 보여주기.
+    t 보여주기.
+    demand 보여주기.
+    무리 <- "series:supply".
+    무리 보여주기.
+    t 보여주기.
+    supply 보여주기.
+    무리 <- "series:gap".
+    무리 보여주기.
+    t 보여주기.
+    gap 보여주기.
+
+    모양: {
+      점(t, price, 크기=0.05, 색="#22c55e").
+    }.
+  }.
+}.

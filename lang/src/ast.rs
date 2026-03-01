@@ -95,6 +95,9 @@ pub enum MetaBlockKind {
     Setting,
     Bogae,
     Seulgi,
+    /// view-only 연출 블록 (Manim식 보개마당). state_hash 제외.
+    /// entries[0] = { } 안의 원본 텍스트 그대로(opaque).
+    BogeaMadang,
 }
 
 #[derive(Debug, Clone)]

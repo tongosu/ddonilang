@@ -1,26 +1,54 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _ci_aggregate_diag_lib import (
+    append_fixed64_threeway_summary_lines,
+    append_runtime_5min_checklist_summary_lines,
+    append_runtime_5min_summary_lines,
+    append_seamgrim_focus_summary_lines,
+    clip_line,
+    load_payload,
+    print_report_paths,
+    read_compact_from_parse,
+    read_compact_line,
+    resolve_summary_compact,
+    print_failure_block,
+    write_summary,
+    write_summary_line,
+    write_control_exposure_failure_report,
+)
+from _ci_aggregate_runner_lib import run_step, sanitize_step_name
 
-def safe_print(text: str, *, end: str = "\n", file=None) -> None:
-    stream = file or sys.stdout
-    data = str(text)
-    try:
-        print(data, end=end, file=stream)
-        return
-    except UnicodeEncodeError:
-        pass
-    encoded = data.encode(getattr(stream, "encoding", None) or "utf-8", errors="replace")
-    decoded = encoded.decode(getattr(stream, "encoding", None) or "utf-8", errors="replace")
-    print(decoded, end=end, file=stream)
+# Keep explicit summary-token contracts in this file so static diagnostics checks
+# can validate aggregate-gate surface invariants after helper modularization.
+RUNTIME5_SUMMARY_TOKEN_CONTRACT = [
+    "[ci-gate-summary] seamgrim_5min_checklist=",
+    "[ci-gate-summary] seamgrim_runtime_5min_rewrite_motion_projectile=",
+]
+
+SEAMGRIM_SUMMARY_TOKEN_CONTRACT = [
+    "[ci-gate-summary] seamgrim_control_exposure_policy_report=",
+    "[ci-gate-summary] seamgrim_control_exposure_policy_status=",
+    "[ci-gate-summary] seamgrim_seed_meta_files_status=",
+    "[ci-gate-summary] seamgrim_seed_overlay_quality_status=",
+    "[ci-gate-summary] seamgrim_rewrite_overlay_quality_status=",
+    "[ci-gate-summary] seamgrim_rewrite_overlay_quality_report=",
+    "[ci-gate-summary] seamgrim_rewrite_overlay_quality_top=",
+    "[ci-gate-summary] seamgrim_pendulum_surface_contract_status=",
+    "[ci-gate-summary] seamgrim_seed_pendulum_export_status=",
+    "[ci-gate-summary] seamgrim_pendulum_runtime_visual_status=",
+    "[ci-gate-summary] seamgrim_seed_runtime_visual_pack_status=",
+    "[ci-gate-summary] seamgrim_runtime_fallback_metrics_status=",
+    "[ci-gate-summary] seamgrim_runtime_fallback_policy_status=",
+    "[ci-gate-summary] seamgrim_pendulum_bogae_shape_status=",
+]
 
 
 def sanitize_report_prefix(value: str) -> str:
@@ -35,20 +63,6 @@ def sanitize_report_prefix(value: str) -> str:
             out_chars.append("_")
     sanitized = "".join(out_chars).strip("._-")
     return sanitized
-
-
-def sanitize_step_name(value: str) -> str:
-    raw = str(value).strip()
-    if not raw:
-        return "step"
-    out_chars: list[str] = []
-    for ch in raw:
-        if ch.isalnum() or ch in ("-", "_", "."):
-            out_chars.append(ch)
-        else:
-            out_chars.append("_")
-    sanitized = "".join(out_chars).strip("._-")
-    return sanitized or "step"
 
 
 def default_report_dir() -> str:
@@ -101,388 +115,6 @@ def cleanup_prefixed_step_logs(step_log_dir: Path, prefix: str, dry_run: bool) -
             print(f"[ci-gate] clean removed={target}")
         count += 1
     return count
-
-
-def print_report_paths(
-    seamgrim_report: Path,
-    seamgrim_ui_age3_report: Path,
-    seamgrim_phase3_cleanup_report: Path,
-    seamgrim_browse_selection_report: Path,
-    seamgrim_runtime_5min_report: Path,
-    seamgrim_runtime_5min_browse_selection_report: Path,
-    seamgrim_5min_checklist_report: Path,
-    age3_close_report: Path,
-    age4_close_report: Path,
-    age5_close_report: Path,
-    age4_pack_report: Path,
-    age3_close_summary_md: Path,
-    age3_close_status_json: Path,
-    age3_close_status_line: Path,
-    age3_close_badge_json: Path,
-    aggregate_status_line: Path,
-    aggregate_status_parse_json: Path,
-    final_status_line: Path,
-    final_status_parse_json: Path,
-    summary_line_path: Path,
-    ci_gate_result_json: Path,
-    ci_gate_result_parse_json: Path,
-    ci_gate_result_line_path: Path,
-    ci_gate_badge_json: Path,
-    ci_fail_brief_txt: Path,
-    ci_fail_triage_json: Path,
-    oi_report: Path,
-    oi_pack_report: Path,
-    aggregate_report: Path,
-    summary_path: Path,
-) -> None:
-    print("[ci-gate] reports")
-    print(f" - seamgrim={seamgrim_report}")
-    print(f" - seamgrim_ui_age3={seamgrim_ui_age3_report}")
-    print(f" - seamgrim_phase3_cleanup={seamgrim_phase3_cleanup_report}")
-    print(f" - seamgrim_browse_selection={seamgrim_browse_selection_report}")
-    print(f" - seamgrim_runtime_5min={seamgrim_runtime_5min_report}")
-    print(f" - seamgrim_runtime_5min_browse_selection={seamgrim_runtime_5min_browse_selection_report}")
-    print(f" - seamgrim_5min_checklist={seamgrim_5min_checklist_report}")
-    print(f" - age3_close={age3_close_report}")
-    print(f" - age4_close={age4_close_report}")
-    print(f" - age5_close={age5_close_report}")
-    print(f" - age4_pack={age4_pack_report}")
-    print(f" - age3_close_summary_md={age3_close_summary_md}")
-    print(f" - age3_close_status_json={age3_close_status_json}")
-    print(f" - age3_close_status_line={age3_close_status_line}")
-    print(f" - age3_close_badge_json={age3_close_badge_json}")
-    print(f" - aggregate_status_line={aggregate_status_line}")
-    print(f" - aggregate_status_parse_json={aggregate_status_parse_json}")
-    print(f" - final_status_line={final_status_line}")
-    print(f" - final_status_parse_json={final_status_parse_json}")
-    print(f" - summary_line={summary_line_path}")
-    print(f" - ci_gate_result_json={ci_gate_result_json}")
-    print(f" - ci_gate_result_parse_json={ci_gate_result_parse_json}")
-    print(f" - ci_gate_result_line={ci_gate_result_line_path}")
-    print(f" - ci_gate_badge_json={ci_gate_badge_json}")
-    print(f" - ci_fail_brief_txt={ci_fail_brief_txt}")
-    print(f" - ci_fail_triage_json={ci_fail_triage_json}")
-    print(f" - oi_close={oi_report}")
-    print(f" - oi_pack={oi_pack_report}")
-    print(f" - aggregate={aggregate_report}")
-    print(f" - summary={summary_path}")
-
-
-def output_line_count(stdout: str, stderr: str) -> int:
-    return len(stdout.splitlines()) + len(stderr.splitlines())
-
-
-def run_step(
-    root: Path,
-    name: str,
-    cmd: list[str],
-    quiet_success_logs: bool,
-    compact_step_logs: bool,
-    step_log_failed_only: bool,
-    stdout_log_path: Path | None = None,
-    stderr_log_path: Path | None = None,
-) -> dict[str, object]:
-    if stdout_log_path is not None:
-        stdout_log_path.parent.mkdir(parents=True, exist_ok=True)
-    if stderr_log_path is not None:
-        stderr_log_path.parent.mkdir(parents=True, exist_ok=True)
-    if compact_step_logs:
-        print(f"[ci-gate] step={name} start")
-    else:
-        print(f"[ci-gate] step={name} cmd={' '.join(cmd)}")
-    try:
-        proc = subprocess.run(
-            cmd,
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except OSError as exc:
-        err_text = f"[ci-gate] step={name} launch_error={exc}\n"
-        print(err_text.rstrip(), file=sys.stderr)
-        if compact_step_logs:
-            print(f"[ci-gate] step={name} cmd={' '.join(cmd)}")
-        if stderr_log_path is not None:
-            stderr_log_path.write_text(err_text, encoding="utf-8")
-        print(f"[ci-gate] step={name} exit=127")
-        return {
-            "returncode": 127,
-            "stdout_line_count": 0,
-            "stderr_line_count": 1,
-            "stdout_log_path": "",
-            "stderr_log_path": str(stderr_log_path) if stderr_log_path is not None else "",
-        }
-    should_write_step_logs = not step_log_failed_only or proc.returncode != 0
-    written_stdout_path = ""
-    written_stderr_path = ""
-    if should_write_step_logs and stdout_log_path is not None:
-        stdout_log_path.write_text(proc.stdout or "", encoding="utf-8")
-        written_stdout_path = str(stdout_log_path)
-    if should_write_step_logs and stderr_log_path is not None:
-        stderr_log_path.write_text(proc.stderr or "", encoding="utf-8")
-        written_stderr_path = str(stderr_log_path)
-    if compact_step_logs and proc.returncode != 0:
-        print(f"[ci-gate] step={name} cmd={' '.join(cmd)}")
-    if quiet_success_logs and proc.returncode == 0:
-        line_count = output_line_count(proc.stdout or "", proc.stderr or "")
-        if line_count > 0 and not compact_step_logs:
-            print(f"[ci-gate] step={name} output_suppressed=1 line_count={line_count}")
-    else:
-        if proc.stdout:
-            safe_print(proc.stdout, end="")
-        if proc.stderr:
-            safe_print(proc.stderr, end="", file=sys.stderr)
-    print(f"[ci-gate] step={name} exit={proc.returncode}")
-    return {
-        "returncode": int(proc.returncode),
-        "stdout_line_count": len((proc.stdout or "").splitlines()),
-        "stderr_line_count": len((proc.stderr or "").splitlines()),
-        "stdout_log_path": written_stdout_path,
-        "stderr_log_path": written_stderr_path,
-    }
-
-
-def load_payload(path: Path) -> dict | None:
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    return data if isinstance(data, dict) else None
-
-
-def clip_line(text: str, limit: int = 140) -> str:
-    normalized = " ".join(text.split())
-    if len(normalized) <= limit:
-        return normalized
-    return normalized[:limit] + "..."
-
-
-def read_compact_line(path: Path, limit: int = 220) -> str:
-    try:
-        text = path.read_text(encoding="utf-8").strip()
-    except Exception:
-        return "-"
-    if not text:
-        return "-"
-    return clip_line(text, limit)
-
-
-def read_compact_from_parse(parse_path: Path, fallback: str) -> str:
-    payload = load_payload(parse_path)
-    if isinstance(payload, dict):
-        compact = str(payload.get("compact_line", "")).strip()
-        if compact:
-            return clip_line(compact, 220)
-    return fallback
-
-
-def load_fixed64_threeway_snapshot(report_path: Path) -> dict[str, str]:
-    doc = load_payload(report_path)
-    if not isinstance(doc, dict):
-        return {
-            "status": "missing_report",
-            "ok": "0",
-            "reason": "report missing or invalid",
-        }
-    status = str(doc.get("status", "")).strip() or "unknown"
-    ok_text = "1" if bool(doc.get("ok", False)) else "0"
-    reason = clip_line(str(doc.get("reason", "-")).strip() or "-", 200)
-    return {
-        "status": status,
-        "ok": ok_text,
-        "reason": reason,
-    }
-
-
-def append_fixed64_threeway_summary_lines(lines: list[str], report_path: Path) -> None:
-    snap = load_fixed64_threeway_snapshot(report_path)
-    lines.append(f"[ci-gate-summary] fixed64_threeway_report={report_path}")
-    lines.append(f"[ci-gate-summary] fixed64_threeway_status={snap['status']}")
-    lines.append(f"[ci-gate-summary] fixed64_threeway_ok={snap['ok']}")
-    lines.append(f"[ci-gate-summary] fixed64_threeway_reason={snap['reason']}")
-
-
-def resolve_summary_compact(
-    ci_gate_result_line_path: Path,
-    final_status_parse_path: Path,
-    final_status_line_path: Path,
-) -> str:
-    line = read_compact_line(ci_gate_result_line_path)
-    if line != "-":
-        return line
-    return read_compact_from_parse(
-        final_status_parse_path,
-        fallback=read_compact_line(final_status_line_path),
-    )
-
-
-def append_runtime_5min_summary_lines(
-    lines: list[str],
-    with_runtime_5min: bool,
-    runtime_5min_report: Path,
-    runtime_5min_browse_selection_report: Path,
-) -> None:
-    if not with_runtime_5min:
-        return
-    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min={runtime_5min_report}")
-    lines.append(
-        "[ci-gate-summary] seamgrim_runtime_5min_browse_selection="
-        f"{runtime_5min_browse_selection_report}"
-    )
-
-
-def load_runtime_5min_checklist_snapshot(report_path: Path) -> dict[str, str]:
-    doc = load_payload(report_path)
-    if not isinstance(doc, dict):
-        return {
-            "ok": "0",
-            "rewrite_ok": "na",
-            "rewrite_elapsed_ms": "-",
-            "rewrite_status": "missing_report",
-        }
-    ok_text = "1" if bool(doc.get("ok", False)) else "0"
-    items = doc.get("items")
-    if not isinstance(items, list):
-        return {
-            "ok": ok_text,
-            "rewrite_ok": "na",
-            "rewrite_elapsed_ms": "-",
-            "rewrite_status": "items_missing",
-        }
-    rewrite_row = None
-    for row in items:
-        if not isinstance(row, dict):
-            continue
-        if str(row.get("name", "")).strip() == "rewrite_motion_projectile_fallback":
-            rewrite_row = row
-            break
-    if not isinstance(rewrite_row, dict):
-        return {
-            "ok": ok_text,
-            "rewrite_ok": "na",
-            "rewrite_elapsed_ms": "-",
-            "rewrite_status": "not_executed",
-        }
-    elapsed_raw = rewrite_row.get("elapsed_ms")
-    try:
-        elapsed_text = str(max(0, int(elapsed_raw)))
-    except Exception:
-        elapsed_text = "-"
-    return {
-        "ok": ok_text,
-        "rewrite_ok": "1" if bool(rewrite_row.get("ok", False)) else "0",
-        "rewrite_elapsed_ms": elapsed_text,
-        "rewrite_status": "ok" if bool(rewrite_row.get("ok", False)) else "failed",
-    }
-
-
-def append_runtime_5min_checklist_summary_lines(
-    lines: list[str],
-    with_5min_checklist: bool,
-    checklist_report: Path,
-) -> None:
-    if not with_5min_checklist:
-        return
-    snap = load_runtime_5min_checklist_snapshot(checklist_report)
-    lines.append(f"[ci-gate-summary] seamgrim_5min_checklist={checklist_report}")
-    lines.append(f"[ci-gate-summary] seamgrim_5min_checklist_ok={snap['ok']}")
-    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min_rewrite_motion_projectile={snap['rewrite_ok']}")
-    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min_rewrite_elapsed_ms={snap['rewrite_elapsed_ms']}")
-    lines.append(f"[ci-gate-summary] seamgrim_runtime_5min_rewrite_status={snap['rewrite_status']}")
-
-
-def print_failure_block(
-    steps_log: list[dict[str, object]],
-    seamgrim_report: Path,
-    age3_close_report: Path,
-    age4_close_report: Path,
-    age5_close_report: Path,
-    oi_report: Path,
-    aggregate_report: Path,
-    max_digest: int = 3,
-    max_step_details: int = 3,
-) -> list[str]:
-    failed_steps = [str(row.get("name", "-")) for row in steps_log if not bool(row.get("ok", False))]
-    if not failed_steps:
-        return []
-    lines = [
-        "[ci-gate-summary] FAIL",
-        f"[ci-gate-summary] failed_steps={','.join(failed_steps)}",
-    ]
-    detailed_rows = [row for row in steps_log if not bool(row.get("ok", False))]
-    for row in detailed_rows[:max_step_details]:
-        name = str(row.get("name", "-"))
-        rc = int(row.get("returncode", -1))
-        cmd = row.get("cmd")
-        cmd_text = " ".join(str(token) for token in cmd) if isinstance(cmd, list) else "-"
-        stdout_log = str(row.get("stdout_log_path", "")).strip()
-        stderr_log = str(row.get("stderr_log_path", "")).strip()
-        lines.append(f"[ci-gate-summary] failed_step_detail={name} rc={rc} cmd={clip_line(cmd_text, 160)}")
-        if stdout_log or stderr_log:
-            lines.append(
-                f"[ci-gate-summary] failed_step_logs={name} "
-                f"stdout={stdout_log or '-'} stderr={stderr_log or '-'}"
-            )
-
-    seamgrim_doc = load_payload(seamgrim_report)
-    if isinstance(seamgrim_doc, dict):
-        failed = seamgrim_doc.get("failure_digest")
-        if isinstance(failed, list) and failed:
-            top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
-            lines.append(f"[ci-gate-summary] seamgrim_digest={top}")
-
-    age3_doc = load_payload(age3_close_report)
-    if isinstance(age3_doc, dict):
-        failed = age3_doc.get("failure_digest")
-        if isinstance(failed, list) and failed:
-            top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
-            lines.append(f"[ci-gate-summary] age3_digest={top}")
-
-    age4_doc = load_payload(age4_close_report)
-    if isinstance(age4_doc, dict):
-        failed = age4_doc.get("failure_digest")
-        if isinstance(failed, list) and failed:
-            top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
-            lines.append(f"[ci-gate-summary] age4_digest={top}")
-
-    age5_doc = load_payload(age5_close_report)
-    if isinstance(age5_doc, dict):
-        failed = age5_doc.get("failure_digest")
-        if isinstance(failed, list) and failed:
-            top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
-            lines.append(f"[ci-gate-summary] age5_digest={top}")
-
-    oi_doc = load_payload(oi_report)
-    if isinstance(oi_doc, dict):
-        failed = oi_doc.get("failure_digest")
-        if isinstance(failed, list) and failed:
-            top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
-            lines.append(f"[ci-gate-summary] oi_digest={top}")
-
-    aggregate_doc = load_payload(aggregate_report)
-    if isinstance(aggregate_doc, dict):
-        failed = aggregate_doc.get("failure_digest")
-        if isinstance(failed, list) and failed:
-            top = " | ".join(clip_line(str(line)) for line in failed[:max_digest])
-            lines.append(f"[ci-gate-summary] aggregate_digest={top}")
-    return lines
-
-
-def write_summary(path: Path, lines: list[str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    body = "\n".join(lines).rstrip() + "\n"
-    path.write_text(body, encoding="utf-8")
-    print(f"[ci-gate] summary_report={path}")
-
-
-def write_summary_line(path: Path, line: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(line.rstrip() + "\n", encoding="utf-8")
-    print(f"[ci-gate] summary_line_report={path}")
 
 
 def main() -> int:
@@ -818,6 +450,8 @@ def main() -> int:
     seamgrim_runtime_5min_base_name = "seamgrim_runtime_5min_report.detjson"
     seamgrim_runtime_5min_browse_selection_base_name = "seamgrim_runtime_5min_browse_selection_flow_report.detjson"
     seamgrim_5min_checklist_base_name = "seamgrim_5min_checklist_report.detjson"
+    seamgrim_control_exposure_failures_base_name = "seamgrim_control_exposure_failures.detjson"
+    seamgrim_rewrite_overlay_quality_base_name = "seamgrim_rewrite_overlay_quality_report.detjson"
     age3_close_base_name = "age3_close_report.detjson"
     age4_close_base_name = "age4_close_report.detjson"
     age5_close_base_name = "age5_close_report.detjson"
@@ -836,6 +470,8 @@ def main() -> int:
         seamgrim_runtime_5min_base_name,
         seamgrim_runtime_5min_browse_selection_base_name,
         seamgrim_5min_checklist_base_name,
+        seamgrim_control_exposure_failures_base_name,
+        seamgrim_rewrite_overlay_quality_base_name,
         age3_close_base_name,
         age4_close_base_name,
         age5_close_base_name,
@@ -890,6 +526,16 @@ def main() -> int:
         prefix,
     )
     seamgrim_5min_checklist_report = report_path(report_dir, seamgrim_5min_checklist_base_name, prefix)
+    seamgrim_control_exposure_failures_report = report_path(
+        report_dir,
+        seamgrim_control_exposure_failures_base_name,
+        prefix,
+    )
+    seamgrim_rewrite_overlay_quality_report = report_path(
+        report_dir,
+        seamgrim_rewrite_overlay_quality_base_name,
+        prefix,
+    )
     age3_close_report = report_path(report_dir, age3_close_base_name, prefix)
     age4_close_report = report_path(report_dir, age4_close_base_name, prefix)
     age5_close_report = report_path(report_dir, age5_close_base_name, prefix)
@@ -985,6 +631,10 @@ def main() -> int:
         ci_fail_triage_json = Path(explicit_ci_fail_triage_json)
     else:
         ci_fail_triage_json = report_path(report_dir, args.ci_fail_triage_base_name, prefix)
+    control_exposure_snapshot = write_control_exposure_failure_report(
+        seamgrim_control_exposure_failures_report,
+        seamgrim_report,
+    )
     if args.print_report_paths:
         print_report_paths(
             seamgrim_report,
@@ -994,6 +644,8 @@ def main() -> int:
             seamgrim_runtime_5min_report,
             seamgrim_runtime_5min_browse_selection_report,
             seamgrim_5min_checklist_report,
+            seamgrim_control_exposure_failures_report,
+            seamgrim_rewrite_overlay_quality_report,
             age3_close_report,
             age4_close_report,
             age5_close_report,
@@ -1083,6 +735,8 @@ def main() -> int:
                 "seamgrim_runtime_5min": str(seamgrim_runtime_5min_report),
                 "seamgrim_runtime_5min_browse_selection": str(seamgrim_runtime_5min_browse_selection_report),
                 "seamgrim_5min_checklist": str(seamgrim_5min_checklist_report),
+                "seamgrim_control_exposure_failures": str(seamgrim_control_exposure_failures_report),
+                "seamgrim_rewrite_overlay_quality": str(seamgrim_rewrite_overlay_quality_report),
                 "age3_close": str(age3_close_report),
                 "age4_close": str(age4_close_report),
                 "age5_close": str(age5_close_report),
@@ -1498,6 +1152,13 @@ def main() -> int:
         ]
         return run_and_record("ci_aggregate_gate_runtime5_diagnostics_check", cmd)
 
+    def check_ci_aggregate_gate_seamgrim_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_aggregate_gate_seamgrim_diagnostics_check.py",
+        ]
+        return run_and_record("ci_aggregate_gate_seamgrim_diagnostics_check", cmd)
+
     def check_ci_aggregate_gate_sync_diagnostics() -> int:
         cmd = [
             py,
@@ -1740,6 +1401,11 @@ def main() -> int:
 
     def fail_and_exit(exit_code: int, message: str) -> int:
         print(message, file=sys.stderr)
+        nonlocal control_exposure_snapshot
+        control_exposure_snapshot = write_control_exposure_failure_report(
+            seamgrim_control_exposure_failures_report,
+            seamgrim_report,
+        )
         render_age3_status()
         render_age3_status_line()
         render_age3_badge()
@@ -1771,6 +1437,7 @@ def main() -> int:
         check_ci_aggregate_gate_age5_diagnostics()
         check_ci_aggregate_gate_phase3_diagnostics()
         check_ci_aggregate_gate_runtime5_diagnostics()
+        check_ci_aggregate_gate_seamgrim_diagnostics()
         check_ci_aggregate_gate_sync_diagnostics()
         check_ci_sanity_gate_diagnostics()
         check_ci_aggregate_status_line_selftest()
@@ -1807,6 +1474,13 @@ def main() -> int:
             lines,
             include_5min_checklist,
             seamgrim_5min_checklist_report,
+        )
+        control_exposure_snapshot = append_seamgrim_focus_summary_lines(
+            lines,
+            seamgrim_report,
+            seamgrim_control_exposure_failures_report,
+            seamgrim_rewrite_overlay_quality_report,
+            control_exposure_snapshot,
         )
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] age3_status_line={age3_close_status_line}")
@@ -1881,6 +1555,8 @@ def main() -> int:
         str(seamgrim_phase3_cleanup_report),
         "--browse-selection-json-out",
         str(seamgrim_browse_selection_report),
+        "--rewrite-overlay-json-out",
+        str(seamgrim_rewrite_overlay_quality_report),
     ]
     if args.browse_selection_strict:
         seamgrim_cmd.append("--browse-selection-strict")
@@ -1908,6 +1584,10 @@ def main() -> int:
     seamgrim_rc = run_and_record(
         "seamgrim_ci_gate",
         seamgrim_cmd,
+    )
+    control_exposure_snapshot = write_control_exposure_failure_report(
+        seamgrim_control_exposure_failures_report,
+        seamgrim_report,
     )
     if args.fast_fail and seamgrim_rc != 0:
         run_and_record(
@@ -2335,6 +2015,12 @@ def main() -> int:
             ci_aggregate_gate_runtime5_diagnostics_rc,
             "[ci-gate] fast-fail: ci aggregate gate runtime5 diagnostics check failed",
         )
+    ci_aggregate_gate_seamgrim_diagnostics_rc = check_ci_aggregate_gate_seamgrim_diagnostics()
+    if args.fast_fail and ci_aggregate_gate_seamgrim_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_aggregate_gate_seamgrim_diagnostics_rc,
+            "[ci-gate] fast-fail: ci aggregate gate seamgrim diagnostics check failed",
+        )
     ci_aggregate_gate_sync_diagnostics_rc = check_ci_aggregate_gate_sync_diagnostics()
     if args.fast_fail and ci_aggregate_gate_sync_diagnostics_rc != 0:
         return fail_and_exit(
@@ -2446,6 +2132,7 @@ def main() -> int:
             and ci_aggregate_gate_age5_diagnostics_rc == 0
             and ci_aggregate_gate_phase3_diagnostics_rc == 0
             and ci_aggregate_gate_runtime5_diagnostics_rc == 0
+            and ci_aggregate_gate_seamgrim_diagnostics_rc == 0
             and ci_aggregate_gate_sync_diagnostics_rc == 0
             and ci_sanity_gate_diagnostics_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
@@ -2482,6 +2169,13 @@ def main() -> int:
             lines,
             include_5min_checklist,
             seamgrim_5min_checklist_report,
+        )
+        control_exposure_snapshot = append_seamgrim_focus_summary_lines(
+            lines,
+            seamgrim_report,
+            seamgrim_control_exposure_failures_report,
+            seamgrim_rewrite_overlay_quality_report,
+            control_exposure_snapshot,
         )
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
@@ -2561,6 +2255,7 @@ def main() -> int:
         or ci_aggregate_gate_age5_diagnostics_rc != 0
         or ci_aggregate_gate_phase3_diagnostics_rc != 0
         or ci_aggregate_gate_runtime5_diagnostics_rc != 0
+        or ci_aggregate_gate_seamgrim_diagnostics_rc != 0
         or ci_aggregate_gate_sync_diagnostics_rc != 0
         or ci_sanity_gate_diagnostics_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
@@ -2595,6 +2290,13 @@ def main() -> int:
             lines,
             include_5min_checklist,
             seamgrim_5min_checklist_report,
+        )
+        control_exposure_snapshot = append_seamgrim_focus_summary_lines(
+            lines,
+            seamgrim_report,
+            seamgrim_control_exposure_failures_report,
+            seamgrim_rewrite_overlay_quality_report,
+            control_exposure_snapshot,
         )
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
@@ -2694,6 +2396,13 @@ def main() -> int:
             include_5min_checklist,
             seamgrim_5min_checklist_report,
         )
+    control_exposure_snapshot = append_seamgrim_focus_summary_lines(
+        pass_lines,
+        seamgrim_report,
+        seamgrim_control_exposure_failures_report,
+        seamgrim_rewrite_overlay_quality_report,
+        control_exposure_snapshot,
+    )
     append_fixed64_threeway_summary_lines(pass_lines, fixed64_threeway_gate_report)
     for line in pass_lines:
         print(line)
@@ -2717,3 +2426,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

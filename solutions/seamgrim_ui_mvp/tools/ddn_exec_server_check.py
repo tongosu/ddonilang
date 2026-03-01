@@ -52,8 +52,16 @@ def wait_for_server(base_url: str, timeout_sec: float = 5.0) -> bool:
     return False
 
 
-def post_run(base_url: str, ddn_text: str) -> dict:
-    payload = json.dumps({"ddn_text": ddn_text}).encode("utf-8")
+def post_run(base_url: str, ddn_text: str, madi: int | None = None) -> dict:
+    req: dict[str, object] = {"ddn_text": ddn_text}
+    if madi is not None:
+        try:
+            parsed = int(madi)
+            if parsed > 0:
+                req["madi"] = parsed
+        except Exception:
+            pass
+    payload = json.dumps(req).encode("utf-8")
     req = Request(
         f"{base_url}/api/run",
         data=payload,
@@ -62,6 +70,49 @@ def post_run(base_url: str, ddn_text: str) -> dict:
     with urlopen(req, timeout=5.0) as resp:
         body = resp.read().decode("utf-8")
     return json.loads(body)
+
+
+def validate_seed_pendulum_payload(payload: dict) -> tuple[bool, str]:
+    if not isinstance(payload, dict) or not payload.get("ok"):
+        return False, f"run_api_failed:{payload.get('error') if isinstance(payload, dict) else 'invalid_payload'}"
+    graph = payload.get("graph")
+    if not isinstance(graph, dict):
+        return False, "graph_missing"
+    series = graph.get("series")
+    if not isinstance(series, list) or not series:
+        return False, "series_missing"
+    first = series[0] if isinstance(series[0], dict) else {}
+    points = first.get("points")
+    if not isinstance(points, list) or not points:
+        return False, "points_missing"
+
+    xy: list[tuple[float, float]] = []
+    for row in points:
+        if not isinstance(row, dict):
+            continue
+        try:
+            x = float(row.get("x"))
+            y = float(row.get("y"))
+        except (TypeError, ValueError):
+            continue
+        xy.append((x, y))
+
+    if len(xy) < 150:
+        return False, f"points_too_few:{len(xy)}"
+    unique_x = {x for x, _ in xy}
+    if len(unique_x) < 80:
+        return False, f"unique_x_too_few:{len(unique_x)}"
+    min_x = min(unique_x)
+    max_x = max(unique_x)
+    if min_x > 0.0:
+        return False, f"x_min_positive:{min_x}"
+    if max_x < 4.0:
+        return False, f"x_max_too_small:{max_x}"
+    ys = [y for _, y in xy]
+    if max(ys) <= 0.0 or min(ys) >= 0.0:
+        return False, "y_sign_span_missing"
+
+    return True, ""
 
 
 def fetch_index(base_url: str) -> str:
@@ -116,6 +167,8 @@ def fetch_first_ok_text(base_url: str, paths: list[str]) -> tuple[str, str, str]
         except HTTPError:
             continue
         except URLError:
+            continue
+        except Exception:
             continue
     return None
 
@@ -185,6 +238,19 @@ def main(argv: list[str] | None = None) -> int:
             print("check=index_markup_missing detail=title_or_canvas")
             return 1
 
+        inventory_loaded = fetch_first_ok_json(
+            base_url,
+            ["/api/lessons/inventory", "/api/lesson-inventory"],
+        )
+        if not inventory_loaded:
+            print("check=lesson_inventory_api_unreachable detail=/api/lessons/inventory")
+            return 1
+        _, inventory_payload = inventory_loaded
+        inventory_rows = inventory_payload.get("lessons")
+        if not isinstance(inventory_rows, list) or not inventory_rows:
+            print("check=lesson_inventory_api_invalid detail=lessons list empty")
+            return 1
+
         index_loaded = fetch_first_ok_json(base_url, build_catalog_candidate_paths("/lessons/index.json"))
         if not index_loaded:
             print("check=lessons_index_unreachable detail=/lessons/index.json")
@@ -232,6 +298,32 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         if not fetch_first_ok_text(base_url, build_catalog_candidate_paths(seed_ddn_path)):
             print(f"check=seed_lesson_unreachable detail=path={seed_ddn_path}")
+            return 1
+
+        pendulum_seed_row = next(
+            (
+                row
+                for row in seed_rows
+                if isinstance(row, dict) and str(row.get("seed_id", "")).strip() == "physics_pendulum_seed_v1"
+            ),
+            None,
+        )
+        if pendulum_seed_row is None:
+            print("check=seed_manifest_invalid detail=physics_pendulum_seed_v1 missing")
+            return 1
+        pendulum_ddn_path = str(pendulum_seed_row.get("lesson_ddn", "")).strip()
+        if not pendulum_ddn_path:
+            print("check=seed_manifest_invalid detail=physics_pendulum_seed_v1 lesson_ddn missing")
+            return 1
+        pendulum_loaded = fetch_first_ok_text(base_url, build_catalog_candidate_paths(pendulum_ddn_path))
+        if not pendulum_loaded:
+            print(f"check=seed_pendulum_unreachable detail=path={pendulum_ddn_path}")
+            return 1
+        _, pendulum_ddn_text, _ = pendulum_loaded
+        pendulum_payload = post_run(base_url, pendulum_ddn_text, madi=420)
+        pendulum_ok, pendulum_detail = validate_seed_pendulum_payload(pendulum_payload)
+        if not pendulum_ok:
+            print(f"check=seed_pendulum_run_invalid detail={pendulum_detail}")
             return 1
 
         rewrite_manifest_loaded = fetch_first_ok_json(
