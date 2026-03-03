@@ -70,6 +70,7 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
 
     summary = case_dir / "ci_gate_summary.txt"
     summary_line = case_dir / "ci_gate_summary_line.txt"
+    final_status_line = case_dir / "ci_gate_final_status_line.txt"
     final_status_parse = case_dir / "ci_gate_final_status_line_parse.detjson"
     result = case_dir / "ci_gate_result.detjson"
     badge = case_dir / "ci_gate_badge.detjson"
@@ -82,11 +83,12 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
 
     write_text(summary, "[ci-gate-summary] PASS")
     write_text(summary_line, "status=pass reason=ok failed_steps=0")
+    write_text(final_status_line, "schema=ddn.ci.final_status.v1 status=pass reason=ok failed_steps=0 aggregate_status=pass overall_ok=1")
     write_json(
         final_status_parse,
         {
             "schema": "ddn.ci.status_line.parse.v1",
-            "status_line_path": str(case_dir / "ci_gate_final_status_line.txt"),
+            "status_line_path": str(final_status_line),
             "parsed": {
                 "status": "pass",
                 "reason": "ok",
@@ -322,6 +324,64 @@ def main() -> int:
             return fail("final parse parsed missing case must fail")
         if f"fail code={CODES['FINAL_PARSE_PARSED_MISSING']}" not in final_parse_parsed_missing_proc.stderr:
             return fail(f"final parse parsed missing code mismatch: err={final_parse_parsed_missing_proc.stderr}")
+
+        final_parse_status_line_path_missing_index = build_index_case(root, "final_parse_status_line_path_missing")
+        final_parse_status_line_path_missing_doc = json.loads(
+            final_parse_status_line_path_missing_index.read_text(encoding="utf-8")
+        )
+        final_parse_status_line_path_missing_report = Path(
+            str(final_parse_status_line_path_missing_doc["reports"]["final_status_parse_json"])
+        )
+        final_parse_status_line_path_missing_payload = json.loads(
+            final_parse_status_line_path_missing_report.read_text(encoding="utf-8")
+        )
+        final_parse_status_line_path_missing_payload["status_line_path"] = ""
+        write_json(final_parse_status_line_path_missing_report, final_parse_status_line_path_missing_payload)
+        final_parse_status_line_path_missing_proc = run_check(
+            final_parse_status_line_path_missing_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_status_line_path_missing_proc.returncode == 0:
+            return fail("final parse status_line_path missing case must fail")
+        if (
+            f"fail code={CODES['FINAL_PARSE_STATUS_LINE_PATH_MISSING']}"
+            not in final_parse_status_line_path_missing_proc.stderr
+        ):
+            return fail(
+                "final parse status_line_path missing code mismatch: "
+                f"err={final_parse_status_line_path_missing_proc.stderr}"
+            )
+
+        final_parse_status_line_path_not_found_index = build_index_case(root, "final_parse_status_line_path_not_found")
+        final_parse_status_line_path_not_found_doc = json.loads(
+            final_parse_status_line_path_not_found_index.read_text(encoding="utf-8")
+        )
+        final_parse_status_line_path_not_found_report = Path(
+            str(final_parse_status_line_path_not_found_doc["reports"]["final_status_parse_json"])
+        )
+        final_parse_status_line_path_not_found_payload = json.loads(
+            final_parse_status_line_path_not_found_report.read_text(encoding="utf-8")
+        )
+        final_parse_status_line_path_not_found_payload["status_line_path"] = str(root / "missing" / "ci_gate_final_status_line.txt")
+        write_json(final_parse_status_line_path_not_found_report, final_parse_status_line_path_not_found_payload)
+        final_parse_status_line_path_not_found_proc = run_check(
+            final_parse_status_line_path_not_found_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_status_line_path_not_found_proc.returncode == 0:
+            return fail("final parse status_line_path not found case must fail")
+        if (
+            f"fail code={CODES['FINAL_PARSE_STATUS_LINE_PATH_NOT_FOUND']}"
+            not in final_parse_status_line_path_not_found_proc.stderr
+        ):
+            return fail(
+                "final parse status_line_path not found code mismatch: "
+                f"err={final_parse_status_line_path_not_found_proc.stderr}"
+            )
 
         final_parse_status_mismatch_index = build_index_case(root, "final_parse_status_mismatch")
         final_parse_status_mismatch_doc = json.loads(final_parse_status_mismatch_index.read_text(encoding="utf-8"))

@@ -229,6 +229,15 @@ def main() -> int:
     final_parse_parsed = final_parse_doc.get("parsed")
     if not isinstance(final_parse_parsed, dict):
         return fail("final_status_parse parsed missing", CODES["FINAL_PARSE_PARSED_MISSING"])
+    final_parse_status_line_path_raw = str(final_parse_doc.get("status_line_path", "")).strip()
+    if not final_parse_status_line_path_raw:
+        return fail("final_status_parse status_line_path missing", CODES["FINAL_PARSE_STATUS_LINE_PATH_MISSING"])
+    final_parse_status_line_path = Path(final_parse_status_line_path_raw.replace("\\", "/"))
+    if not final_parse_status_line_path.exists():
+        return fail(
+            f"final_status_parse status_line_path not found: {final_parse_status_line_path}",
+            CODES["FINAL_PARSE_STATUS_LINE_PATH_NOT_FOUND"],
+        )
     expected_final_parse_status = "pass" if index_overall_ok else "fail"
     final_parse_status = str(final_parse_parsed.get("status", "")).strip()
     if final_parse_status != expected_final_parse_status:
