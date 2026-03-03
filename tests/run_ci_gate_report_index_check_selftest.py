@@ -81,7 +81,16 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
 
     write_text(summary, "[ci-gate-summary] PASS")
     write_text(summary_line, "status=pass reason=ok failed_steps=0")
-    write_json(result, {"schema": "ddn.ci.gate_result.v1", "status": "pass", "reason": "ok", "failed_steps": 0})
+    write_json(
+        result,
+        {
+            "schema": "ddn.ci.gate_result.v1",
+            "status": "pass",
+            "reason": "ok",
+            "overall_ok": True,
+            "failed_steps": 0,
+        },
+    )
     write_json(badge, {"schema": "ddn.ci.gate_badge.v1", "status": "pass", "label": "ci:pass"})
     write_text(brief, "status=pass reason=ok failed_steps_count=0")
     write_json(triage, {"schema": "ddn.ci.fail_triage.v1", "status": "pass", "reason": "ok"})
@@ -118,6 +127,7 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
         {
             "schema": "ddn.ci.aggregate_gate.index.v1",
             "ci_sanity_profile": sanity_profile,
+            "overall_ok": True,
             "reports": {
                 "summary": str(summary),
                 "summary_line": str(summary_line),
@@ -309,6 +319,36 @@ def main() -> int:
         if f"fail code={CODES['PROFILE_MISMATCH']}" not in profile_mismatch_proc.stderr:
             return fail(f"profile mismatch code mismatch: err={profile_mismatch_proc.stderr}")
 
+        index_overall_ok_type_index = build_index_case(root, "index_overall_ok_type")
+        index_overall_ok_type_doc = json.loads(index_overall_ok_type_index.read_text(encoding="utf-8"))
+        index_overall_ok_type_doc["overall_ok"] = "true"
+        write_json(index_overall_ok_type_index, index_overall_ok_type_doc)
+        index_overall_ok_type_proc = run_check(
+            index_overall_ok_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if index_overall_ok_type_proc.returncode == 0:
+            return fail("index overall_ok type case must fail")
+        if f"fail code={CODES['INDEX_OVERALL_OK_TYPE']}" not in index_overall_ok_type_proc.stderr:
+            return fail(f"index overall_ok type code mismatch: err={index_overall_ok_type_proc.stderr}")
+
+        index_overall_ok_steps_mismatch_index = build_index_case(root, "index_overall_ok_steps_mismatch")
+        index_overall_ok_steps_mismatch_doc = json.loads(index_overall_ok_steps_mismatch_index.read_text(encoding="utf-8"))
+        index_overall_ok_steps_mismatch_doc["overall_ok"] = False
+        write_json(index_overall_ok_steps_mismatch_index, index_overall_ok_steps_mismatch_doc)
+        index_overall_ok_steps_mismatch_proc = run_check(
+            index_overall_ok_steps_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if index_overall_ok_steps_mismatch_proc.returncode == 0:
+            return fail("index overall_ok steps mismatch case must fail")
+        if f"fail code={CODES['INDEX_OVERALL_OK_STEPS_MISMATCH']}" not in index_overall_ok_steps_mismatch_proc.stderr:
+            return fail(f"index overall_ok steps mismatch code mismatch: err={index_overall_ok_steps_mismatch_proc.stderr}")
+
         sanity_profile_mismatch_index = build_index_case(root, "sanity_profile_mismatch")
         sanity_profile_mismatch_doc = json.loads(sanity_profile_mismatch_index.read_text(encoding="utf-8"))
         sanity_report = Path(str(sanity_profile_mismatch_doc["reports"]["ci_sanity_gate"]))
@@ -342,6 +382,91 @@ def main() -> int:
             return fail("sync profile mismatch case must fail")
         if f"fail code={CODES['SYNC_PROFILE_MISMATCH']}" not in sync_profile_mismatch_proc.stderr:
             return fail(f"sync profile mismatch code mismatch: err={sync_profile_mismatch_proc.stderr}")
+
+        result_overall_ok_type_index = build_index_case(root, "result_overall_ok_type")
+        result_overall_ok_type_doc = json.loads(result_overall_ok_type_index.read_text(encoding="utf-8"))
+        result_overall_ok_type_report = Path(str(result_overall_ok_type_doc["reports"]["ci_gate_result_json"]))
+        result_overall_ok_type_result = json.loads(result_overall_ok_type_report.read_text(encoding="utf-8"))
+        result_overall_ok_type_result["overall_ok"] = "true"
+        write_json(result_overall_ok_type_report, result_overall_ok_type_result)
+        result_overall_ok_type_proc = run_check(
+            result_overall_ok_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_overall_ok_type_proc.returncode == 0:
+            return fail("result overall_ok type case must fail")
+        if f"fail code={CODES['RESULT_OVERALL_OK_TYPE']}" not in result_overall_ok_type_proc.stderr:
+            return fail(f"result overall_ok type code mismatch: err={result_overall_ok_type_proc.stderr}")
+
+        result_overall_ok_mismatch_index = build_index_case(root, "result_overall_ok_mismatch")
+        result_overall_ok_mismatch_doc = json.loads(result_overall_ok_mismatch_index.read_text(encoding="utf-8"))
+        result_overall_ok_mismatch_report = Path(str(result_overall_ok_mismatch_doc["reports"]["ci_gate_result_json"]))
+        result_overall_ok_mismatch_result = json.loads(result_overall_ok_mismatch_report.read_text(encoding="utf-8"))
+        result_overall_ok_mismatch_result["overall_ok"] = False
+        write_json(result_overall_ok_mismatch_report, result_overall_ok_mismatch_result)
+        result_overall_ok_mismatch_proc = run_check(
+            result_overall_ok_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_overall_ok_mismatch_proc.returncode == 0:
+            return fail("result overall_ok mismatch case must fail")
+        if f"fail code={CODES['RESULT_OVERALL_OK_MISMATCH']}" not in result_overall_ok_mismatch_proc.stderr:
+            return fail(f"result overall_ok mismatch code mismatch: err={result_overall_ok_mismatch_proc.stderr}")
+
+        result_failed_steps_type_index = build_index_case(root, "result_failed_steps_type")
+        result_failed_steps_type_doc = json.loads(result_failed_steps_type_index.read_text(encoding="utf-8"))
+        result_failed_steps_type_report = Path(str(result_failed_steps_type_doc["reports"]["ci_gate_result_json"]))
+        result_failed_steps_type_result = json.loads(result_failed_steps_type_report.read_text(encoding="utf-8"))
+        result_failed_steps_type_result["failed_steps"] = "0"
+        write_json(result_failed_steps_type_report, result_failed_steps_type_result)
+        result_failed_steps_type_proc = run_check(
+            result_failed_steps_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_failed_steps_type_proc.returncode == 0:
+            return fail("result failed_steps type case must fail")
+        if f"fail code={CODES['RESULT_FAILED_STEPS_TYPE']}" not in result_failed_steps_type_proc.stderr:
+            return fail(f"result failed_steps type code mismatch: err={result_failed_steps_type_proc.stderr}")
+
+        result_failed_steps_mismatch_index = build_index_case(root, "result_failed_steps_mismatch")
+        result_failed_steps_mismatch_doc = json.loads(result_failed_steps_mismatch_index.read_text(encoding="utf-8"))
+        result_failed_steps_mismatch_report = Path(str(result_failed_steps_mismatch_doc["reports"]["ci_gate_result_json"]))
+        result_failed_steps_mismatch_result = json.loads(result_failed_steps_mismatch_report.read_text(encoding="utf-8"))
+        result_failed_steps_mismatch_result["failed_steps"] = 1
+        write_json(result_failed_steps_mismatch_report, result_failed_steps_mismatch_result)
+        result_failed_steps_mismatch_proc = run_check(
+            result_failed_steps_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_failed_steps_mismatch_proc.returncode == 0:
+            return fail("result failed_steps mismatch case must fail")
+        if f"fail code={CODES['RESULT_FAILED_STEPS_MISMATCH']}" not in result_failed_steps_mismatch_proc.stderr:
+            return fail(f"result failed_steps mismatch code mismatch: err={result_failed_steps_mismatch_proc.stderr}")
+
+        result_status_mismatch_index = build_index_case(root, "result_status_mismatch")
+        result_status_mismatch_doc = json.loads(result_status_mismatch_index.read_text(encoding="utf-8"))
+        result_status_mismatch_report = Path(str(result_status_mismatch_doc["reports"]["ci_gate_result_json"]))
+        result_status_mismatch_result = json.loads(result_status_mismatch_report.read_text(encoding="utf-8"))
+        result_status_mismatch_result["status"] = "fail"
+        write_json(result_status_mismatch_report, result_status_mismatch_result)
+        result_status_mismatch_proc = run_check(
+            result_status_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_status_mismatch_proc.returncode == 0:
+            return fail("result status mismatch case must fail")
+        if f"fail code={CODES['RESULT_STATUS_MISMATCH']}" not in result_status_mismatch_proc.stderr:
+            return fail(f"result status mismatch code mismatch: err={result_status_mismatch_proc.stderr}")
 
         cmd_empty_index = build_index_case(root, "cmd_empty")
         cmd_empty_doc = json.loads(cmd_empty_index.read_text(encoding="utf-8"))

@@ -132,7 +132,11 @@ def main() -> int:
         return fail("index.steps is missing", CODES["STEPS_MISSING"])
     if not isinstance(steps, list):
         return fail("index.steps must be list", CODES["STEPS_TYPE"])
+    index_overall_ok = index_doc.get("overall_ok")
+    if not isinstance(index_overall_ok, bool):
+        return fail("index.overall_ok must be bool", CODES["INDEX_OVERALL_OK_TYPE"])
     seen_step_names: set[str] = set()
+    failed_step_count = 0
     for idx, row in enumerate(steps):
         if not isinstance(row, dict):
             return fail(f"index.steps[{idx}] must be object", CODES["STEP_ROW_TYPE"])
@@ -145,6 +149,8 @@ def main() -> int:
         ok_value = row.get("ok")
         if not isinstance(ok_value, bool):
             return fail(f"index.steps[{idx}].ok must be bool", CODES["STEP_OK_TYPE"])
+        if not bool(ok_value):
+            failed_step_count += 1
         rc = None
         try:
             rc = int(row.get("returncode"))
@@ -166,6 +172,12 @@ def main() -> int:
                     f"index.steps[{idx}].cmd[*] must be non-empty string",
                     CODES["STEP_CMD_ITEM_TYPE"],
                 )
+    expected_index_overall_ok = failed_step_count == 0
+    if index_overall_ok != expected_index_overall_ok:
+        return fail(
+            f"index.overall_ok mismatch expected={expected_index_overall_ok} from steps failed_step_count={failed_step_count}",
+            CODES["INDEX_OVERALL_OK_STEPS_MISMATCH"],
+        )
 
     for key in REQUIRED_REPORT_PATH_KEYS:
         path = resolve_report_path(index_doc, key)
@@ -212,6 +224,32 @@ def main() -> int:
         return fail(
             f"ci_sync_readiness sanity_profile mismatch index={index_profile} actual={sync_profile}",
             CODES["SYNC_PROFILE_MISMATCH"],
+        )
+
+    result_doc = artifact_docs["ci_gate_result_json"]
+    result_overall_ok = result_doc.get("overall_ok")
+    if not isinstance(result_overall_ok, bool):
+        return fail("ci_gate_result overall_ok must be bool", CODES["RESULT_OVERALL_OK_TYPE"])
+    if result_overall_ok != index_overall_ok:
+        return fail(
+            f"ci_gate_result overall_ok mismatch index={index_overall_ok} actual={result_overall_ok}",
+            CODES["RESULT_OVERALL_OK_MISMATCH"],
+        )
+    result_failed_steps_raw = result_doc.get("failed_steps")
+    if not isinstance(result_failed_steps_raw, int) or isinstance(result_failed_steps_raw, bool):
+        return fail("ci_gate_result failed_steps must be int", CODES["RESULT_FAILED_STEPS_TYPE"])
+    result_failed_steps = int(result_failed_steps_raw)
+    if result_failed_steps != failed_step_count:
+        return fail(
+            f"ci_gate_result failed_steps mismatch expected={failed_step_count} actual={result_failed_steps}",
+            CODES["RESULT_FAILED_STEPS_MISMATCH"],
+        )
+    result_status = str(result_doc.get("status", "")).strip()
+    expected_result_status = "pass" if index_overall_ok else "fail"
+    if result_status != expected_result_status:
+        return fail(
+            f"ci_gate_result status mismatch expected={expected_result_status} actual={result_status}",
+            CODES["RESULT_STATUS_MISMATCH"],
         )
 
     required_steps: list[str] = []
