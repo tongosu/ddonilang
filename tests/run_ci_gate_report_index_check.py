@@ -29,6 +29,23 @@ ARTIFACT_SCHEMA_MAP = {
     "seamgrim_wasm_cli_diag_parity": "ddn.seamgrim.wasm_cli_diag_parity.v1",
 }
 
+VALID_SANITY_PROFILES = ("full", "core_lang", "seamgrim")
+PROFILE_REQUIRED_STEPS_COMMON = (
+    "ci_profile_split_contract_check",
+    "ci_sanity_gate",
+    "ci_sync_readiness_report_generate",
+    "ci_sync_readiness_report_check",
+    "ci_gate_report_index_selftest",
+    "ci_gate_report_index_diagnostics_check",
+)
+PROFILE_REQUIRED_STEPS_CORE_LANG = ()
+PROFILE_REQUIRED_STEPS_SEAMGRIM = (
+    "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_runtime5_passthrough_check",
+    "seamgrim_ci_gate_guideblock_step_check",
+    "seamgrim_wasm_cli_diag_parity_check",
+)
+
 
 def fail(msg: str, code: str) -> int:
     print(f"[ci-gate-report-index-check] fail code={code} msg={msg}", file=sys.stderr)
@@ -55,6 +72,14 @@ def resolve_report_path(index_doc: dict, key: str) -> Path | None:
     return Path(raw.replace("\\", "/"))
 
 
+def resolve_profile_required_steps(profile: str) -> tuple[str, ...]:
+    if profile == "core_lang":
+        return PROFILE_REQUIRED_STEPS_COMMON + PROFILE_REQUIRED_STEPS_CORE_LANG
+    if profile == "seamgrim":
+        return PROFILE_REQUIRED_STEPS_COMMON + PROFILE_REQUIRED_STEPS_SEAMGRIM
+    return PROFILE_REQUIRED_STEPS_COMMON + PROFILE_REQUIRED_STEPS_SEAMGRIM
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate aggregate gate report-index schema and report paths")
     parser.add_argument("--index", required=True, help="path to ci_gate_report_index.detjson")
@@ -63,6 +88,17 @@ def main() -> int:
         action="append",
         default=[],
         help="required step name in index.steps (can be repeated)",
+    )
+    parser.add_argument(
+        "--sanity-profile",
+        choices=VALID_SANITY_PROFILES,
+        default="full",
+        help="sanity profile for implicit required-step contract",
+    )
+    parser.add_argument(
+        "--enforce-profile-step-contract",
+        action="store_true",
+        help="enforce implicit required steps by --sanity-profile",
     )
     args = parser.parse_args()
 
@@ -132,8 +168,18 @@ def main() -> int:
                 CODES["ARTIFACT_SCHEMA_MISMATCH"],
             )
 
-    required_steps = [str(item).strip() for item in args.required_step if str(item).strip()]
-    missing_required_steps = [name for name in required_steps if name not in seen_step_names]
+    required_steps: list[str] = []
+    if bool(args.enforce_profile_step_contract):
+        required_steps.extend(resolve_profile_required_steps(str(args.sanity_profile).strip()))
+    required_steps.extend([str(item).strip() for item in args.required_step if str(item).strip()])
+    deduped_required_steps: list[str] = []
+    seen_required_steps: set[str] = set()
+    for step_name in required_steps:
+        if not step_name or step_name in seen_required_steps:
+            continue
+        seen_required_steps.add(step_name)
+        deduped_required_steps.append(step_name)
+    missing_required_steps = [name for name in deduped_required_steps if name not in seen_step_names]
     if missing_required_steps:
         return fail(
             f"missing required index step(s): {','.join(missing_required_steps)}",

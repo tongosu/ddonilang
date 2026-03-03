@@ -1174,14 +1174,25 @@ def main() -> int:
         ]
         return run_and_record("ci_gate_summary_report_selftest", cmd)
 
-    report_index_required_steps = [
+    report_index_required_steps_common = [
         "ci_sanity_gate",
         "ci_sync_readiness_report_generate",
         "ci_sync_readiness_report_check",
-        "seamgrim_wasm_cli_diag_parity_check",
         "ci_gate_report_index_selftest",
         "ci_gate_report_index_diagnostics_check",
     ]
+    report_index_required_steps_seamgrim = [
+        "seamgrim_wasm_cli_diag_parity_check",
+    ]
+
+    def resolve_report_index_required_steps(sanity_profile: str) -> list[str]:
+        if sanity_profile == "core_lang":
+            return list(report_index_required_steps_common)
+        if sanity_profile == "seamgrim":
+            return list(report_index_required_steps_common + report_index_required_steps_seamgrim)
+        return list(report_index_required_steps_common + report_index_required_steps_seamgrim)
+
+    report_index_required_steps = resolve_report_index_required_steps(args.ci_sanity_profile)
 
     def check_ci_gate_report_index(require_step_contract: bool) -> int:
         cmd = [
@@ -1189,8 +1200,11 @@ def main() -> int:
             "tests/run_ci_gate_report_index_check.py",
             "--index",
             str(index_report_path),
+            "--sanity-profile",
+            args.ci_sanity_profile,
         ]
         if require_step_contract:
+            cmd.append("--enforce-profile-step-contract")
             for step_name in report_index_required_steps:
                 cmd.extend(["--required-step", step_name])
         return run_and_record("ci_gate_report_index_check", cmd)
