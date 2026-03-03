@@ -13,6 +13,7 @@ INDEX_SCHEMA = "ddn.ci.aggregate_gate.index.v1"
 REQUIRED_REPORT_PATH_KEYS = (
     "summary",
     "summary_line",
+    "final_status_parse_json",
     "ci_gate_result_json",
     "ci_gate_badge_json",
     "ci_fail_brief_txt",
@@ -70,6 +71,20 @@ def resolve_report_path(index_doc: dict, key: str) -> Path | None:
     if not raw:
         return None
     return Path(raw.replace("\\", "/"))
+
+
+def read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except Exception:
+        return ""
+
+
+def normalize_path_text(raw: str) -> str:
+    value = str(raw).strip()
+    if not value:
+        return ""
+    return str(Path(value.replace("\\", "/")))
 
 
 def resolve_profile_required_steps(profile: str) -> tuple[str, ...]:
@@ -179,12 +194,14 @@ def main() -> int:
             CODES["INDEX_OVERALL_OK_STEPS_MISMATCH"],
         )
 
+    resolved_report_paths: dict[str, Path] = {}
     for key in REQUIRED_REPORT_PATH_KEYS:
         path = resolve_report_path(index_doc, key)
         if path is None:
             return fail(f"missing index reports key/path: {key}", CODES["REPORT_KEY_MISSING"])
         if not path.exists():
             return fail(f"missing report path for {key}: {path}", CODES["REPORT_PATH_MISSING"])
+        resolved_report_paths[key] = path
 
     artifact_docs: dict[str, dict] = {}
     for key, expected_schema in ARTIFACT_SCHEMA_MAP.items():
@@ -250,6 +267,34 @@ def main() -> int:
         return fail(
             f"ci_gate_result status mismatch expected={expected_result_status} actual={result_status}",
             CODES["RESULT_STATUS_MISMATCH"],
+        )
+    result_summary_line_path = normalize_path_text(str(result_doc.get("summary_line_path", "")).strip())
+    expected_summary_line_path = str(resolved_report_paths["summary_line"])
+    if result_summary_line_path != expected_summary_line_path:
+        return fail(
+            f"ci_gate_result summary_line_path mismatch expected={expected_summary_line_path} actual={result_summary_line_path}",
+            CODES["RESULT_SUMMARY_LINE_PATH_MISMATCH"],
+        )
+    expected_summary_line = read_text(resolved_report_paths["summary_line"])
+    result_summary_line = str(result_doc.get("summary_line", "")).strip()
+    if result_summary_line != expected_summary_line:
+        return fail(
+            "ci_gate_result summary_line mismatch",
+            CODES["RESULT_SUMMARY_LINE_MISMATCH"],
+        )
+    result_gate_index_path = normalize_path_text(str(result_doc.get("gate_index_path", "")).strip())
+    expected_gate_index_path = str(index_path)
+    if result_gate_index_path != expected_gate_index_path:
+        return fail(
+            f"ci_gate_result gate_index_path mismatch expected={expected_gate_index_path} actual={result_gate_index_path}",
+            CODES["RESULT_GATE_INDEX_PATH_MISMATCH"],
+        )
+    result_final_status_parse_path = normalize_path_text(str(result_doc.get("final_status_parse_path", "")).strip())
+    expected_final_status_parse_path = str(resolved_report_paths["final_status_parse_json"])
+    if result_final_status_parse_path != expected_final_status_parse_path:
+        return fail(
+            "ci_gate_result final_status_parse_path mismatch",
+            CODES["RESULT_FINAL_STATUS_PARSE_PATH_MISMATCH"],
         )
 
     required_steps: list[str] = []

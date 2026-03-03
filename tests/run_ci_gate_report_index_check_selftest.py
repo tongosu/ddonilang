@@ -70,6 +70,7 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
 
     summary = case_dir / "ci_gate_summary.txt"
     summary_line = case_dir / "ci_gate_summary_line.txt"
+    final_status_parse = case_dir / "ci_gate_final_status_line_parse.detjson"
     result = case_dir / "ci_gate_result.detjson"
     badge = case_dir / "ci_gate_badge.detjson"
     brief = case_dir / "ci_fail_brief.txt"
@@ -82,6 +83,20 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
     write_text(summary, "[ci-gate-summary] PASS")
     write_text(summary_line, "status=pass reason=ok failed_steps=0")
     write_json(
+        final_status_parse,
+        {
+            "schema": "ddn.ci.status_line.parse.v1",
+            "status_line_path": str(case_dir / "ci_gate_final_status_line.txt"),
+            "parsed": {
+                "status": "pass",
+                "reason": "ok",
+                "failed_steps": "0",
+                "aggregate_status": "pass",
+                "overall_ok": "1",
+            },
+        },
+    )
+    write_json(
         result,
         {
             "schema": "ddn.ci.gate_result.v1",
@@ -89,6 +104,10 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
             "reason": "ok",
             "overall_ok": True,
             "failed_steps": 0,
+            "summary_line_path": str(summary_line),
+            "summary_line": summary_line.read_text(encoding="utf-8").strip(),
+            "final_status_parse_path": str(final_status_parse),
+            "gate_index_path": str(index),
         },
     )
     write_json(badge, {"schema": "ddn.ci.gate_badge.v1", "status": "pass", "label": "ci:pass"})
@@ -131,6 +150,7 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
             "reports": {
                 "summary": str(summary),
                 "summary_line": str(summary_line),
+                "final_status_parse_json": str(final_status_parse),
                 "ci_gate_result_json": str(result),
                 "ci_gate_badge_json": str(badge),
                 "ci_fail_brief_txt": str(brief),
@@ -467,6 +487,98 @@ def main() -> int:
             return fail("result status mismatch case must fail")
         if f"fail code={CODES['RESULT_STATUS_MISMATCH']}" not in result_status_mismatch_proc.stderr:
             return fail(f"result status mismatch code mismatch: err={result_status_mismatch_proc.stderr}")
+
+        result_summary_line_path_mismatch_index = build_index_case(root, "result_summary_line_path_mismatch")
+        result_summary_line_path_mismatch_doc = json.loads(result_summary_line_path_mismatch_index.read_text(encoding="utf-8"))
+        result_summary_line_path_mismatch_report = Path(
+            str(result_summary_line_path_mismatch_doc["reports"]["ci_gate_result_json"])
+        )
+        result_summary_line_path_mismatch_result = json.loads(
+            result_summary_line_path_mismatch_report.read_text(encoding="utf-8")
+        )
+        result_summary_line_path_mismatch_result["summary_line_path"] = str(root / "mismatch" / "summary_line.txt")
+        write_json(result_summary_line_path_mismatch_report, result_summary_line_path_mismatch_result)
+        result_summary_line_path_mismatch_proc = run_check(
+            result_summary_line_path_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_summary_line_path_mismatch_proc.returncode == 0:
+            return fail("result summary_line_path mismatch case must fail")
+        if f"fail code={CODES['RESULT_SUMMARY_LINE_PATH_MISMATCH']}" not in result_summary_line_path_mismatch_proc.stderr:
+            return fail(
+                f"result summary_line_path mismatch code mismatch: err={result_summary_line_path_mismatch_proc.stderr}"
+            )
+
+        result_summary_line_mismatch_index = build_index_case(root, "result_summary_line_mismatch")
+        result_summary_line_mismatch_doc = json.loads(result_summary_line_mismatch_index.read_text(encoding="utf-8"))
+        result_summary_line_mismatch_report = Path(str(result_summary_line_mismatch_doc["reports"]["ci_gate_result_json"]))
+        result_summary_line_mismatch_result = json.loads(result_summary_line_mismatch_report.read_text(encoding="utf-8"))
+        result_summary_line_mismatch_result["summary_line"] = "status=fail reason=mismatch failed_steps=1"
+        write_json(result_summary_line_mismatch_report, result_summary_line_mismatch_result)
+        result_summary_line_mismatch_proc = run_check(
+            result_summary_line_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_summary_line_mismatch_proc.returncode == 0:
+            return fail("result summary_line mismatch case must fail")
+        if f"fail code={CODES['RESULT_SUMMARY_LINE_MISMATCH']}" not in result_summary_line_mismatch_proc.stderr:
+            return fail(f"result summary_line mismatch code mismatch: err={result_summary_line_mismatch_proc.stderr}")
+
+        result_gate_index_path_mismatch_index = build_index_case(root, "result_gate_index_path_mismatch")
+        result_gate_index_path_mismatch_doc = json.loads(result_gate_index_path_mismatch_index.read_text(encoding="utf-8"))
+        result_gate_index_path_mismatch_report = Path(
+            str(result_gate_index_path_mismatch_doc["reports"]["ci_gate_result_json"])
+        )
+        result_gate_index_path_mismatch_result = json.loads(result_gate_index_path_mismatch_report.read_text(encoding="utf-8"))
+        result_gate_index_path_mismatch_result["gate_index_path"] = str(root / "mismatch" / "ci_gate_report_index.detjson")
+        write_json(result_gate_index_path_mismatch_report, result_gate_index_path_mismatch_result)
+        result_gate_index_path_mismatch_proc = run_check(
+            result_gate_index_path_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_gate_index_path_mismatch_proc.returncode == 0:
+            return fail("result gate_index_path mismatch case must fail")
+        if f"fail code={CODES['RESULT_GATE_INDEX_PATH_MISMATCH']}" not in result_gate_index_path_mismatch_proc.stderr:
+            return fail(
+                f"result gate_index_path mismatch code mismatch: err={result_gate_index_path_mismatch_proc.stderr}"
+            )
+
+        result_final_status_parse_path_mismatch_index = build_index_case(root, "result_final_status_parse_path_mismatch")
+        result_final_status_parse_path_mismatch_doc = json.loads(
+            result_final_status_parse_path_mismatch_index.read_text(encoding="utf-8")
+        )
+        result_final_status_parse_path_mismatch_report = Path(
+            str(result_final_status_parse_path_mismatch_doc["reports"]["ci_gate_result_json"])
+        )
+        result_final_status_parse_path_mismatch_result = json.loads(
+            result_final_status_parse_path_mismatch_report.read_text(encoding="utf-8")
+        )
+        result_final_status_parse_path_mismatch_result["final_status_parse_path"] = str(
+            root / "mismatch" / "ci_gate_final_status_line_parse.detjson"
+        )
+        write_json(result_final_status_parse_path_mismatch_report, result_final_status_parse_path_mismatch_result)
+        result_final_status_parse_path_mismatch_proc = run_check(
+            result_final_status_parse_path_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_final_status_parse_path_mismatch_proc.returncode == 0:
+            return fail("result final_status_parse_path mismatch case must fail")
+        if (
+            f"fail code={CODES['RESULT_FINAL_STATUS_PARSE_PATH_MISMATCH']}"
+            not in result_final_status_parse_path_mismatch_proc.stderr
+        ):
+            return fail(
+                "result final_status_parse_path mismatch code mismatch: "
+                f"err={result_final_status_parse_path_mismatch_proc.stderr}"
+            )
 
         cmd_empty_index = build_index_case(root, "cmd_empty")
         cmd_empty_doc = json.loads(cmd_empty_index.read_text(encoding="utf-8"))
