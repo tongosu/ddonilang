@@ -346,6 +346,7 @@ def load_ci_sanity_snapshot(report_path: Path) -> dict[str, str]:
             "ok": "0",
             "code": "-",
             "step": "-",
+            "profile": "full",
             "msg": "ci sanity report missing or invalid",
             "step_count": "0",
             "failed_steps": "0",
@@ -357,6 +358,7 @@ def load_ci_sanity_snapshot(report_path: Path) -> dict[str, str]:
     status = str(doc.get("status", "")).strip() or "unknown"
     code = str(doc.get("code", "")).strip() or "-"
     step = str(doc.get("step", "")).strip() or "-"
+    profile = str(doc.get("profile", "")).strip() or "full"
     msg = clip_line(str(doc.get("msg", "")).strip() or "-", 200)
     steps = doc.get("steps")
     def read_step_ok(step_name: str) -> str:
@@ -394,6 +396,7 @@ def load_ci_sanity_snapshot(report_path: Path) -> dict[str, str]:
         "ok": "1" if status == "pass" else "0",
         "code": code,
         "step": step,
+        "profile": profile,
         "msg": msg,
         "step_count": str(max(0, int(step_count))),
         "failed_steps": str(max(0, int(failed_steps))),
@@ -411,6 +414,7 @@ def append_ci_sanity_summary_lines(lines: list[str], report_path: Path) -> None:
     lines.append(f"[ci-gate-summary] ci_sanity_gate_ok={snap['ok']}")
     lines.append(f"[ci-gate-summary] ci_sanity_gate_code={snap['code']}")
     lines.append(f"[ci-gate-summary] ci_sanity_gate_step={snap['step']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_profile={snap['profile']}")
     lines.append(f"[ci-gate-summary] ci_sanity_gate_msg={snap['msg']}")
     lines.append(f"[ci-gate-summary] ci_sanity_gate_step_count={snap['step_count']}")
     lines.append(f"[ci-gate-summary] ci_sanity_gate_failed_steps={snap['failed_steps']}")
@@ -431,12 +435,14 @@ def load_ci_sync_readiness_snapshot(report_path: Path) -> dict[str, str]:
             "ok": "0",
             "code": "-",
             "step": "-",
+            "sanity_profile": "full",
             "msg": "ci sync readiness report missing or invalid",
             "step_count": "0",
         }
     status = str(doc.get("status", "")).strip() or "unknown"
     code = str(doc.get("code", "")).strip() or "-"
     step = str(doc.get("step", "")).strip() or "-"
+    sanity_profile = str(doc.get("sanity_profile", "")).strip() or "full"
     msg = clip_line(str(doc.get("msg", "")).strip() or "-", 200)
     steps = doc.get("steps")
     if isinstance(steps, list):
@@ -448,6 +454,7 @@ def load_ci_sync_readiness_snapshot(report_path: Path) -> dict[str, str]:
         "ok": "1" if status == "pass" else "0",
         "code": code,
         "step": step,
+        "sanity_profile": sanity_profile,
         "msg": msg,
         "step_count": str(max(0, int(step_count))),
     }
@@ -460,6 +467,7 @@ def append_ci_sync_readiness_summary_lines(lines: list[str], report_path: Path) 
     lines.append(f"[ci-gate-summary] ci_sync_readiness_ok={snap['ok']}")
     lines.append(f"[ci-gate-summary] ci_sync_readiness_code={snap['code']}")
     lines.append(f"[ci-gate-summary] ci_sync_readiness_step={snap['step']}")
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_sanity_profile={snap['sanity_profile']}")
     lines.append(f"[ci-gate-summary] ci_sync_readiness_msg={snap['msg']}")
     lines.append(f"[ci-gate-summary] ci_sync_readiness_step_count={snap['step_count']}")
 

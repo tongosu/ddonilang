@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from _ci_aggregate_diag_lib import (
+    append_ci_sanity_summary_lines,
+    append_ci_sync_readiness_summary_lines,
     append_fixed64_threeway_summary_lines,
     append_runtime_5min_checklist_summary_lines,
     append_runtime_5min_summary_lines,
@@ -39,6 +41,7 @@ SEAMGRIM_SUMMARY_TOKEN_CONTRACT = [
     "[ci-gate-summary] seamgrim_seed_meta_files_status=",
     "[ci-gate-summary] seamgrim_seed_overlay_quality_status=",
     "[ci-gate-summary] seamgrim_rewrite_overlay_quality_status=",
+    "[ci-gate-summary] seamgrim_guideblock_keys_pack_status=",
     "[ci-gate-summary] seamgrim_rewrite_overlay_quality_report=",
     "[ci-gate-summary] seamgrim_rewrite_overlay_quality_top=",
     "[ci-gate-summary] seamgrim_pendulum_surface_contract_status=",
@@ -48,6 +51,21 @@ SEAMGRIM_SUMMARY_TOKEN_CONTRACT = [
     "[ci-gate-summary] seamgrim_runtime_fallback_metrics_status=",
     "[ci-gate-summary] seamgrim_runtime_fallback_policy_status=",
     "[ci-gate-summary] seamgrim_pendulum_bogae_shape_status=",
+    "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok=",
+]
+
+SANITY_SUMMARY_TOKEN_CONTRACT = [
+    "[ci-gate-summary] ci_sanity_gate_report=",
+    "[ci-gate-summary] ci_sanity_gate_status=",
+    "[ci-gate-summary] ci_sanity_gate_code=",
+    "[ci-gate-summary] ci_sanity_gate_profile=",
+]
+
+SYNC_SUMMARY_TOKEN_CONTRACT = [
+    "[ci-gate-summary] ci_sync_readiness_report=",
+    "[ci-gate-summary] ci_sync_readiness_status=",
+    "[ci-gate-summary] ci_sync_readiness_code=",
+    "[ci-gate-summary] ci_sync_readiness_sanity_profile=",
 ]
 
 
@@ -144,6 +162,12 @@ def main() -> int:
         "--report-prefix",
         default="",
         help="optional prefix for report file names (safe chars only)",
+    )
+    parser.add_argument(
+        "--ci-sanity-profile",
+        choices=("full", "core_lang", "seamgrim"),
+        default="full",
+        help="profile passed to ci sanity gate and sync-readiness contract checks",
     )
     parser.add_argument(
         "--auto-prefix-env",
@@ -386,6 +410,11 @@ def main() -> int:
         help="with --with-runtime-5min, skip seed teul-cli runs in runtime scenario",
     )
     parser.add_argument(
+        "--runtime-5min-skip-ui-common",
+        action="store_true",
+        help="with --with-runtime-5min, skip ui common/aux ui runners in runtime scenario",
+    )
+    parser.add_argument(
         "--with-5min-checklist",
         action="store_true",
         help="(deprecated) 5-minute checklist is enabled by default; use --skip-5min-checklist to disable",
@@ -459,6 +488,8 @@ def main() -> int:
     oi_close_base_name = "oi405_406_close_report.detjson"
     oi_pack_base_name = "oi405_406_pack_report.detjson"
     aggregate_base_name = "ci_aggregate_report.detjson"
+    ci_sanity_gate_base_name = "ci_sanity_gate.detjson"
+    ci_sync_readiness_base_name = "ci_sync_readiness.detjson"
     backup_hygiene_move_base_name = "seamgrim_backup_hygiene_move.detjson"
     backup_hygiene_verify_base_name = "seamgrim_backup_hygiene_verify.detjson"
     fixed64_threeway_gate_base_name = "fixed64_cross_platform_threeway_gate.detjson"
@@ -496,6 +527,8 @@ def main() -> int:
         oi_close_base_name,
         oi_pack_base_name,
         aggregate_base_name,
+        ci_sanity_gate_base_name,
+        ci_sync_readiness_base_name,
         args.report_index_base_name,
         args.summary_base_name,
         args.summary_line_base_name,
@@ -586,6 +619,8 @@ def main() -> int:
     oi_report = report_path(report_dir, oi_close_base_name, prefix)
     oi_pack_report = report_path(report_dir, oi_pack_base_name, prefix)
     aggregate_report = report_path(report_dir, aggregate_base_name, prefix)
+    ci_sanity_gate_report = report_path(report_dir, ci_sanity_gate_base_name, prefix)
+    ci_sync_readiness_report = report_path(report_dir, ci_sync_readiness_base_name, prefix)
     explicit_index_json = args.report_index_json.strip()
     if explicit_index_json:
         index_report_path = Path(explicit_index_json)
@@ -668,6 +703,8 @@ def main() -> int:
             oi_report,
             oi_pack_report,
             aggregate_report,
+            ci_sanity_gate_report,
+            ci_sync_readiness_report,
             summary_path,
         )
         print(f" - index={index_report_path}")
@@ -725,6 +762,7 @@ def main() -> int:
             "report_prefix": prefix,
             "report_prefix_source": prefix_source if prefix else "",
             "report_dir": str(report_dir),
+            "ci_sanity_profile": args.ci_sanity_profile,
             "step_log_dir": str(step_log_dir) if step_log_dir is not None else "",
             "step_log_failed_only": bool(args.step_log_failed_only),
             "reports": {
@@ -763,6 +801,8 @@ def main() -> int:
                 "oi_close": str(oi_report),
                 "oi_pack": str(oi_pack_report),
                 "aggregate": str(aggregate_report),
+                "ci_sanity_gate": str(ci_sanity_gate_report),
+                "ci_sync_readiness": str(ci_sync_readiness_report),
             },
             "steps": steps_log,
             "overall_ok": bool(overall_ok),
@@ -1166,12 +1206,30 @@ def main() -> int:
         ]
         return run_and_record("ci_aggregate_gate_sync_diagnostics_check", cmd)
 
+    def check_ci_aggregate_gate_sanity_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_aggregate_gate_sanity_diagnostics_check.py",
+        ]
+        return run_and_record("ci_aggregate_gate_sanity_diagnostics_check", cmd)
+
     def check_ci_sanity_gate_diagnostics() -> int:
         cmd = [
             py,
             "tests/run_ci_sanity_gate_diagnostics_check.py",
         ]
         return run_and_record("ci_sanity_gate_diagnostics_check", cmd)
+
+    def check_ci_sanity_gate() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_sanity_gate.py",
+            "--profile",
+            args.ci_sanity_profile,
+            "--json-out",
+            str(ci_sanity_gate_report),
+        ]
+        return run_and_record("ci_sanity_gate", cmd)
 
     def check_ci_builtin_name_sync() -> int:
         cmd = [
@@ -1254,6 +1312,48 @@ def main() -> int:
         ]
         return run_and_record("ci_pack_golden_overlay_compare_selftest", cmd)
 
+    def check_ci_pack_golden_overlay_session_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_pack_golden_overlay_session_selftest.py",
+        ]
+        return run_and_record("ci_pack_golden_overlay_session_selftest", cmd)
+
+    def check_ci_pack_golden_guideblock_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_pack_golden_guideblock_selftest.py",
+        ]
+        return run_and_record("ci_pack_golden_guideblock_selftest", cmd)
+
+    def check_ci_pack_golden_age5_surface_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_pack_golden_age5_surface_selftest.py",
+        ]
+        return run_and_record("ci_pack_golden_age5_surface_selftest", cmd)
+
+    def check_ci_pack_golden_exec_policy_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_pack_golden_exec_policy_selftest.py",
+        ]
+        return run_and_record("ci_pack_golden_exec_policy_selftest", cmd)
+
+    def check_ci_pack_golden_jjaim_flatten_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_pack_golden_jjaim_flatten_selftest.py",
+        ]
+        return run_and_record("ci_pack_golden_jjaim_flatten_selftest", cmd)
+
+    def check_ci_pack_golden_event_model_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_pack_golden_event_model_selftest.py",
+        ]
+        return run_and_record("ci_pack_golden_event_model_selftest", cmd)
+
     def check_seamgrim_browse_selection_report_selftest() -> int:
         cmd = [
             py,
@@ -1267,6 +1367,13 @@ def main() -> int:
             "tests/run_seamgrim_5min_checklist_selftest.py",
         ]
         return run_and_record("seamgrim_5min_checklist_selftest", cmd)
+
+    def check_seamgrim_wasm_cli_diag_parity() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_wasm_cli_diag_parity_check.py",
+        ]
+        return run_and_record("seamgrim_wasm_cli_diag_parity_check", cmd)
 
     def check_ci_final_line_emitter() -> int:
         cmd = [
@@ -1289,12 +1396,76 @@ def main() -> int:
         ]
         return run_and_record("ci_pipeline_emit_flags_selftest", cmd)
 
+    def check_seamgrim_ci_gate_runtime5_passthrough() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_ci_gate_runtime5_passthrough_check.py",
+        ]
+        return run_and_record("seamgrim_ci_gate_runtime5_passthrough_check", cmd)
+
+    def check_seamgrim_ci_gate_seed_meta_step() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_ci_gate_seed_meta_step_check.py",
+        ]
+        return run_and_record("seamgrim_ci_gate_seed_meta_step_check", cmd)
+
+    def check_seamgrim_ci_gate_guideblock_step() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_ci_gate_guideblock_step_check.py",
+        ]
+        return run_and_record("seamgrim_ci_gate_guideblock_step_check", cmd)
+
     def check_ci_sync_readiness_selftest() -> int:
         cmd = [
             py,
             "tests/run_ci_sync_readiness_check_selftest.py",
         ]
         return run_and_record("ci_sync_readiness_selftest", cmd)
+
+    def check_ci_sync_readiness_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_sync_readiness_diagnostics_check.py",
+        ]
+        return run_and_record("ci_sync_readiness_diagnostics_check", cmd)
+
+    def check_ci_sync_readiness_report_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_sync_readiness_report_check_selftest.py",
+        ]
+        return run_and_record("ci_sync_readiness_report_selftest", cmd)
+
+    def run_ci_sync_readiness_report_generate() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_sync_readiness_check.py",
+            "--report-dir",
+            str(report_dir),
+            "--report-prefix",
+            prefix if prefix else "aggregate_sync_readiness",
+            "--sanity-profile",
+            args.ci_sanity_profile,
+            "--json-out",
+            str(ci_sync_readiness_report),
+            "--validate-only-sanity-json",
+            str(ci_sanity_gate_report),
+        ]
+        return run_and_record("ci_sync_readiness_report_generate", cmd)
+
+    def check_ci_sync_readiness_report_check() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_sync_readiness_report_check.py",
+            "--report",
+            str(ci_sync_readiness_report),
+            "--sanity-profile",
+            args.ci_sanity_profile,
+            "--require-pass",
+        ]
+        return run_and_record("ci_sync_readiness_report_check", cmd)
 
     def check_ci_backup_hygiene_selftest() -> int:
         cmd = [
@@ -1360,6 +1531,13 @@ def main() -> int:
         ]
         return run_and_record("ci_emit_artifacts_selftest", cmd)
 
+    def check_ci_emit_artifacts_sanity_contract() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_emit_artifacts_sanity_contract_check.py",
+        ]
+        return run_and_record("ci_emit_artifacts_sanity_contract_check", cmd)
+
     def check_ci_gate_failure_summary_selftest() -> int:
         cmd = [
             py,
@@ -1380,6 +1558,13 @@ def main() -> int:
                 f"[ci-gate-summary] summary_line={summary_line_path}",
                 f"[ci-gate-summary] ci_gate_result={ci_gate_result_json}",
                 f"[ci-gate-summary] ci_gate_badge={ci_gate_badge_json}",
+                "[ci-gate-summary] ci_pack_golden_overlay_compare_selftest_ok=1",
+                "[ci-gate-summary] ci_pack_golden_overlay_session_selftest_ok=1",
+                "[ci-gate-summary] ci_pack_golden_guideblock_selftest_ok=1",
+                "[ci-gate-summary] ci_pack_golden_age5_surface_selftest_ok=1",
+                "[ci-gate-summary] ci_pack_golden_exec_policy_selftest_ok=1",
+                "[ci-gate-summary] ci_pack_golden_jjaim_flatten_selftest_ok=1",
+                "[ci-gate-summary] ci_pack_golden_event_model_selftest_ok=1",
             ]
         else:
             preview_lines = print_failure_block(
@@ -1430,7 +1615,15 @@ def main() -> int:
         check_ci_final_line_emitter()
         check_ci_pipeline_emit_flags()
         check_ci_pipeline_emit_flags_selftest()
+        check_seamgrim_ci_gate_runtime5_passthrough()
+        check_seamgrim_ci_gate_seed_meta_step()
+        check_seamgrim_ci_gate_guideblock_step()
+        check_ci_sanity_gate()
         check_ci_sync_readiness_selftest()
+        check_ci_sync_readiness_diagnostics()
+        check_ci_sync_readiness_report_selftest()
+        run_ci_sync_readiness_report_generate()
+        check_ci_sync_readiness_report_check()
         check_ci_builtin_name_sync()
         check_ci_backup_hygiene_selftest()
         check_ci_aggregate_gate_age4_diagnostics()
@@ -1439,16 +1632,25 @@ def main() -> int:
         check_ci_aggregate_gate_runtime5_diagnostics()
         check_ci_aggregate_gate_seamgrim_diagnostics()
         check_ci_aggregate_gate_sync_diagnostics()
+        check_ci_aggregate_gate_sanity_diagnostics()
         check_ci_sanity_gate_diagnostics()
         check_ci_aggregate_status_line_selftest()
         check_ci_gate_summary_report_selftest()
         check_ci_combine_reports_age4_selftest()
         check_ci_combine_reports_age5_selftest()
         check_ci_pack_golden_overlay_compare_selftest()
+        check_ci_pack_golden_overlay_session_selftest()
+        check_ci_pack_golden_guideblock_selftest()
+        check_ci_pack_golden_age5_surface_selftest()
+        check_ci_pack_golden_exec_policy_selftest()
+        check_ci_pack_golden_jjaim_flatten_selftest()
+        check_ci_pack_golden_event_model_selftest()
+        check_seamgrim_wasm_cli_diag_parity()
         check_seamgrim_browse_selection_report_selftest()
         check_seamgrim_5min_checklist_selftest()
         check_ci_gate_failure_summary_selftest()
         check_ci_emit_artifacts_selftest()
+        check_ci_emit_artifacts_sanity_contract()
         write_index(False)
         check_ci_emit_artifacts_baseline()
         lines = print_failure_block(
@@ -1482,6 +1684,8 @@ def main() -> int:
             seamgrim_rewrite_overlay_quality_report,
             control_exposure_snapshot,
         )
+        append_ci_sanity_summary_lines(lines, ci_sanity_gate_report)
+        append_ci_sync_readiness_summary_lines(lines, ci_sync_readiness_report)
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] age3_status_line={age3_close_status_line}")
         lines.append(f"[ci-gate-summary] age3_badge={age3_close_badge_json}")
@@ -1574,6 +1778,8 @@ def main() -> int:
         )
         if args.runtime_5min_skip_seed_cli:
             seamgrim_cmd.append("--runtime-5min-skip-seed-cli")
+        if args.runtime_5min_skip_ui_common:
+            seamgrim_cmd.append("--runtime-5min-skip-ui-common")
     if include_5min_checklist:
         seamgrim_cmd.append("--with-5min-checklist")
         seamgrim_cmd.extend(["--checklist-json-out", str(seamgrim_5min_checklist_report)])
@@ -1679,6 +1885,7 @@ def main() -> int:
         [
             py,
             "tests/run_age5_close.py",
+            "--strict",
             "--report-out",
             str(age5_close_report),
         ],
@@ -1927,11 +2134,59 @@ def main() -> int:
             ci_pipeline_emit_flags_selftest_rc,
             "[ci-gate] fast-fail: ci pipeline emit flags selftest failed",
         )
+    seamgrim_ci_gate_runtime5_passthrough_rc = check_seamgrim_ci_gate_runtime5_passthrough()
+    if args.fast_fail and seamgrim_ci_gate_runtime5_passthrough_rc != 0:
+        return fail_and_exit(
+            seamgrim_ci_gate_runtime5_passthrough_rc,
+            "[ci-gate] fast-fail: seamgrim ci gate runtime5 passthrough check failed",
+        )
+    seamgrim_ci_gate_seed_meta_step_rc = check_seamgrim_ci_gate_seed_meta_step()
+    if args.fast_fail and seamgrim_ci_gate_seed_meta_step_rc != 0:
+        return fail_and_exit(
+            seamgrim_ci_gate_seed_meta_step_rc,
+            "[ci-gate] fast-fail: seamgrim ci gate seed-meta step check failed",
+        )
+    seamgrim_ci_gate_guideblock_step_rc = check_seamgrim_ci_gate_guideblock_step()
+    if args.fast_fail and seamgrim_ci_gate_guideblock_step_rc != 0:
+        return fail_and_exit(
+            seamgrim_ci_gate_guideblock_step_rc,
+            "[ci-gate] fast-fail: seamgrim ci gate guideblock step check failed",
+        )
+    ci_sanity_gate_rc = check_ci_sanity_gate()
+    if args.fast_fail and ci_sanity_gate_rc != 0:
+        return fail_and_exit(
+            ci_sanity_gate_rc,
+            "[ci-gate] fast-fail: ci sanity gate execution failed",
+        )
     ci_sync_readiness_selftest_rc = check_ci_sync_readiness_selftest()
     if args.fast_fail and ci_sync_readiness_selftest_rc != 0:
         return fail_and_exit(
             ci_sync_readiness_selftest_rc,
             "[ci-gate] fast-fail: ci sync readiness selftest failed",
+        )
+    ci_sync_readiness_diagnostics_rc = check_ci_sync_readiness_diagnostics()
+    if args.fast_fail and ci_sync_readiness_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_sync_readiness_diagnostics_rc,
+            "[ci-gate] fast-fail: ci sync readiness diagnostics check failed",
+        )
+    ci_sync_readiness_report_selftest_rc = check_ci_sync_readiness_report_selftest()
+    if args.fast_fail and ci_sync_readiness_report_selftest_rc != 0:
+        return fail_and_exit(
+            ci_sync_readiness_report_selftest_rc,
+            "[ci-gate] fast-fail: ci sync readiness report selftest failed",
+        )
+    ci_sync_readiness_report_generate_rc = run_ci_sync_readiness_report_generate()
+    if args.fast_fail and ci_sync_readiness_report_generate_rc != 0:
+        return fail_and_exit(
+            ci_sync_readiness_report_generate_rc,
+            "[ci-gate] fast-fail: ci sync readiness report generation failed",
+        )
+    ci_sync_readiness_report_check_rc = check_ci_sync_readiness_report_check()
+    if args.fast_fail and ci_sync_readiness_report_check_rc != 0:
+        return fail_and_exit(
+            ci_sync_readiness_report_check_rc,
+            "[ci-gate] fast-fail: ci sync readiness report check failed",
         )
     ci_builtin_name_sync_rc = check_ci_builtin_name_sync()
     if args.fast_fail and ci_builtin_name_sync_rc != 0:
@@ -1991,6 +2246,12 @@ def main() -> int:
     ci_emit_artifacts_selftest_rc = check_ci_emit_artifacts_selftest()
     if args.fast_fail and ci_emit_artifacts_selftest_rc != 0:
         return fail_and_exit(ci_emit_artifacts_selftest_rc, "[ci-gate] fast-fail: ci emit artifacts selftest failed")
+    ci_emit_artifacts_sanity_contract_rc = check_ci_emit_artifacts_sanity_contract()
+    if args.fast_fail and ci_emit_artifacts_sanity_contract_rc != 0:
+        return fail_and_exit(
+            ci_emit_artifacts_sanity_contract_rc,
+            "[ci-gate] fast-fail: ci emit artifacts sanity contract check failed",
+        )
     ci_aggregate_gate_age4_diagnostics_rc = check_ci_aggregate_gate_age4_diagnostics()
     if args.fast_fail and ci_aggregate_gate_age4_diagnostics_rc != 0:
         return fail_and_exit(
@@ -2027,6 +2288,12 @@ def main() -> int:
             ci_aggregate_gate_sync_diagnostics_rc,
             "[ci-gate] fast-fail: ci aggregate gate sync diagnostics check failed",
         )
+    ci_aggregate_gate_sanity_diagnostics_rc = check_ci_aggregate_gate_sanity_diagnostics()
+    if args.fast_fail and ci_aggregate_gate_sanity_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_aggregate_gate_sanity_diagnostics_rc,
+            "[ci-gate] fast-fail: ci aggregate gate sanity diagnostics check failed",
+        )
     ci_sanity_gate_diagnostics_rc = check_ci_sanity_gate_diagnostics()
     if args.fast_fail and ci_sanity_gate_diagnostics_rc != 0:
         return fail_and_exit(
@@ -2062,6 +2329,48 @@ def main() -> int:
         return fail_and_exit(
             ci_pack_golden_overlay_compare_selftest_rc,
             "[ci-gate] fast-fail: ci pack golden overlay compare selftest failed",
+        )
+    ci_pack_golden_overlay_session_selftest_rc = check_ci_pack_golden_overlay_session_selftest()
+    if args.fast_fail and ci_pack_golden_overlay_session_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pack_golden_overlay_session_selftest_rc,
+            "[ci-gate] fast-fail: ci pack golden overlay session selftest failed",
+        )
+    ci_pack_golden_guideblock_selftest_rc = check_ci_pack_golden_guideblock_selftest()
+    if args.fast_fail and ci_pack_golden_guideblock_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pack_golden_guideblock_selftest_rc,
+            "[ci-gate] fast-fail: ci pack golden guideblock selftest failed",
+        )
+    ci_pack_golden_age5_surface_selftest_rc = check_ci_pack_golden_age5_surface_selftest()
+    if args.fast_fail and ci_pack_golden_age5_surface_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pack_golden_age5_surface_selftest_rc,
+            "[ci-gate] fast-fail: ci pack golden age5 surface selftest failed",
+        )
+    ci_pack_golden_exec_policy_selftest_rc = check_ci_pack_golden_exec_policy_selftest()
+    if args.fast_fail and ci_pack_golden_exec_policy_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pack_golden_exec_policy_selftest_rc,
+            "[ci-gate] fast-fail: ci pack golden exec policy selftest failed",
+        )
+    ci_pack_golden_jjaim_flatten_selftest_rc = check_ci_pack_golden_jjaim_flatten_selftest()
+    if args.fast_fail and ci_pack_golden_jjaim_flatten_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pack_golden_jjaim_flatten_selftest_rc,
+            "[ci-gate] fast-fail: ci pack golden jjaim flatten selftest failed",
+        )
+    ci_pack_golden_event_model_selftest_rc = check_ci_pack_golden_event_model_selftest()
+    if args.fast_fail and ci_pack_golden_event_model_selftest_rc != 0:
+        return fail_and_exit(
+            ci_pack_golden_event_model_selftest_rc,
+            "[ci-gate] fast-fail: ci pack golden event model selftest failed",
+        )
+    seamgrim_wasm_cli_diag_parity_rc = check_seamgrim_wasm_cli_diag_parity()
+    if args.fast_fail and seamgrim_wasm_cli_diag_parity_rc != 0:
+        return fail_and_exit(
+            seamgrim_wasm_cli_diag_parity_rc,
+            "[ci-gate] fast-fail: seamgrim wasm/cli diag parity check failed",
         )
     seamgrim_browse_selection_report_selftest_rc = check_seamgrim_browse_selection_report_selftest()
     if args.fast_fail and seamgrim_browse_selection_report_selftest_rc != 0:
@@ -2115,7 +2424,15 @@ def main() -> int:
             and ci_final_line_emitter_rc == 0
             and ci_pipeline_emit_flags_rc == 0
             and ci_pipeline_emit_flags_selftest_rc == 0
+            and seamgrim_ci_gate_runtime5_passthrough_rc == 0
+            and seamgrim_ci_gate_seed_meta_step_rc == 0
+            and seamgrim_ci_gate_guideblock_step_rc == 0
+            and ci_sanity_gate_rc == 0
             and ci_sync_readiness_selftest_rc == 0
+            and ci_sync_readiness_diagnostics_rc == 0
+            and ci_sync_readiness_report_selftest_rc == 0
+            and ci_sync_readiness_report_generate_rc == 0
+            and ci_sync_readiness_report_check_rc == 0
             and ci_builtin_name_sync_rc == 0
             and ci_fixed64_probe_selftest_rc == 0
             and ci_fixed64_win_wsl_matrix_selftest_rc == 0
@@ -2128,18 +2445,27 @@ def main() -> int:
             and ci_emit_artifacts_generate_rc == 0
             and ci_emit_artifacts_required_rc == 0
             and ci_emit_artifacts_selftest_rc == 0
+            and ci_emit_artifacts_sanity_contract_rc == 0
             and ci_aggregate_gate_age4_diagnostics_rc == 0
             and ci_aggregate_gate_age5_diagnostics_rc == 0
             and ci_aggregate_gate_phase3_diagnostics_rc == 0
             and ci_aggregate_gate_runtime5_diagnostics_rc == 0
             and ci_aggregate_gate_seamgrim_diagnostics_rc == 0
             and ci_aggregate_gate_sync_diagnostics_rc == 0
+            and ci_aggregate_gate_sanity_diagnostics_rc == 0
             and ci_sanity_gate_diagnostics_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
             and ci_aggregate_status_line_selftest_rc == 0
             and ci_combine_reports_age4_selftest_rc == 0
             and ci_combine_reports_age5_selftest_rc == 0
             and ci_pack_golden_overlay_compare_selftest_rc == 0
+            and ci_pack_golden_overlay_session_selftest_rc == 0
+            and ci_pack_golden_guideblock_selftest_rc == 0
+            and ci_pack_golden_age5_surface_selftest_rc == 0
+            and ci_pack_golden_exec_policy_selftest_rc == 0
+            and ci_pack_golden_jjaim_flatten_selftest_rc == 0
+            and ci_pack_golden_event_model_selftest_rc == 0
+            and seamgrim_wasm_cli_diag_parity_rc == 0
             and seamgrim_browse_selection_report_selftest_rc == 0
             and seamgrim_5min_checklist_selftest_rc == 0
             and ci_gate_failure_summary_selftest_rc == 0
@@ -2177,6 +2503,8 @@ def main() -> int:
             seamgrim_rewrite_overlay_quality_report,
             control_exposure_snapshot,
         )
+        append_ci_sanity_summary_lines(lines, ci_sanity_gate_report)
+        append_ci_sync_readiness_summary_lines(lines, ci_sync_readiness_report)
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
@@ -2238,7 +2566,15 @@ def main() -> int:
         or ci_final_line_emitter_rc != 0
         or ci_pipeline_emit_flags_rc != 0
         or ci_pipeline_emit_flags_selftest_rc != 0
+        or seamgrim_ci_gate_runtime5_passthrough_rc != 0
+        or seamgrim_ci_gate_seed_meta_step_rc != 0
+        or seamgrim_ci_gate_guideblock_step_rc != 0
+        or ci_sanity_gate_rc != 0
         or ci_sync_readiness_selftest_rc != 0
+        or ci_sync_readiness_diagnostics_rc != 0
+        or ci_sync_readiness_report_selftest_rc != 0
+        or ci_sync_readiness_report_generate_rc != 0
+        or ci_sync_readiness_report_check_rc != 0
         or ci_builtin_name_sync_rc != 0
         or ci_fixed64_probe_selftest_rc != 0
         or ci_fixed64_win_wsl_matrix_selftest_rc != 0
@@ -2251,18 +2587,27 @@ def main() -> int:
         or ci_emit_artifacts_generate_rc != 0
         or ci_emit_artifacts_required_rc != 0
         or ci_emit_artifacts_selftest_rc != 0
+        or ci_emit_artifacts_sanity_contract_rc != 0
         or ci_aggregate_gate_age4_diagnostics_rc != 0
         or ci_aggregate_gate_age5_diagnostics_rc != 0
         or ci_aggregate_gate_phase3_diagnostics_rc != 0
         or ci_aggregate_gate_runtime5_diagnostics_rc != 0
         or ci_aggregate_gate_seamgrim_diagnostics_rc != 0
         or ci_aggregate_gate_sync_diagnostics_rc != 0
+        or ci_aggregate_gate_sanity_diagnostics_rc != 0
         or ci_sanity_gate_diagnostics_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
         or ci_combine_reports_age5_selftest_rc != 0
         or ci_pack_golden_overlay_compare_selftest_rc != 0
+        or ci_pack_golden_overlay_session_selftest_rc != 0
+        or ci_pack_golden_guideblock_selftest_rc != 0
+        or ci_pack_golden_age5_surface_selftest_rc != 0
+        or ci_pack_golden_exec_policy_selftest_rc != 0
+        or ci_pack_golden_jjaim_flatten_selftest_rc != 0
+        or ci_pack_golden_event_model_selftest_rc != 0
+        or seamgrim_wasm_cli_diag_parity_rc != 0
         or seamgrim_browse_selection_report_selftest_rc != 0
         or seamgrim_5min_checklist_selftest_rc != 0
         or ci_gate_failure_summary_selftest_rc != 0
@@ -2298,6 +2643,8 @@ def main() -> int:
             seamgrim_rewrite_overlay_quality_report,
             control_exposure_snapshot,
         )
+        append_ci_sanity_summary_lines(lines, ci_sanity_gate_report)
+        append_ci_sync_readiness_summary_lines(lines, ci_sync_readiness_report)
         append_fixed64_threeway_summary_lines(lines, fixed64_threeway_gate_report)
         lines.append(f"[ci-gate-summary] aggregate_status_line={aggregate_status_line}")
         lines.append(f"[ci-gate-summary] aggregate_status_parse={aggregate_status_parse_json}")
@@ -2354,6 +2701,14 @@ def main() -> int:
             f"[ci-gate-summary] ci_fail_brief_exists={int(ci_fail_brief_txt.exists())}",
             f"[ci-gate-summary] ci_fail_triage_hint={ci_fail_triage_json}",
             f"[ci-gate-summary] ci_fail_triage_exists={int(ci_fail_triage_json.exists())}",
+            f"[ci-gate-summary] ci_pack_golden_overlay_compare_selftest_ok={int(ci_pack_golden_overlay_compare_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_overlay_session_selftest_ok={int(ci_pack_golden_overlay_session_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_guideblock_selftest_ok={int(ci_pack_golden_guideblock_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_age5_surface_selftest_ok={int(ci_pack_golden_age5_surface_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_exec_policy_selftest_ok={int(ci_pack_golden_exec_policy_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_jjaim_flatten_selftest_ok={int(ci_pack_golden_jjaim_flatten_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_event_model_selftest_ok={int(ci_pack_golden_event_model_selftest_rc == 0)}",
+            f"[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok={int(seamgrim_wasm_cli_diag_parity_rc == 0)}",
             f"[ci-gate-summary] final_status_compact={read_compact_line(final_status_line)}",
             f"[ci-gate-summary] age3_summary={age3_close_summary_md}",
         ]
@@ -2380,6 +2735,14 @@ def main() -> int:
             f"[ci-gate-summary] ci_fail_brief_exists={int(ci_fail_brief_txt.exists())}",
             f"[ci-gate-summary] ci_fail_triage_hint={ci_fail_triage_json}",
             f"[ci-gate-summary] ci_fail_triage_exists={int(ci_fail_triage_json.exists())}",
+            f"[ci-gate-summary] ci_pack_golden_overlay_compare_selftest_ok={int(ci_pack_golden_overlay_compare_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_overlay_session_selftest_ok={int(ci_pack_golden_overlay_session_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_guideblock_selftest_ok={int(ci_pack_golden_guideblock_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_age5_surface_selftest_ok={int(ci_pack_golden_age5_surface_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_exec_policy_selftest_ok={int(ci_pack_golden_exec_policy_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_jjaim_flatten_selftest_ok={int(ci_pack_golden_jjaim_flatten_selftest_rc == 0)}",
+            f"[ci-gate-summary] ci_pack_golden_event_model_selftest_ok={int(ci_pack_golden_event_model_selftest_rc == 0)}",
+            f"[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok={int(seamgrim_wasm_cli_diag_parity_rc == 0)}",
             f"[ci-gate-summary] age3_status={age3_close_status_json}",
             f"[ci-gate-summary] age4_status={age4_close_report}",
             f"[ci-gate-summary] age5_status={age5_close_report}",
@@ -2403,6 +2766,8 @@ def main() -> int:
         seamgrim_rewrite_overlay_quality_report,
         control_exposure_snapshot,
     )
+    append_ci_sanity_summary_lines(pass_lines, ci_sanity_gate_report)
+    append_ci_sync_readiness_summary_lines(pass_lines, ci_sync_readiness_report)
     append_fixed64_threeway_summary_lines(pass_lines, fixed64_threeway_gate_report)
     for line in pass_lines:
         print(line)

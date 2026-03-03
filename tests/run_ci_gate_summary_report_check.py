@@ -26,6 +26,7 @@ PASS_REQUIRED_KEYS = (
     "ci_sanity_gate_ok",
     "ci_sanity_gate_code",
     "ci_sanity_gate_step",
+    "ci_sanity_gate_profile",
     "ci_sanity_gate_msg",
     "ci_sanity_gate_step_count",
     "ci_sanity_gate_failed_steps",
@@ -38,6 +39,7 @@ PASS_REQUIRED_KEYS = (
     "ci_sync_readiness_ok",
     "ci_sync_readiness_code",
     "ci_sync_readiness_step",
+    "ci_sync_readiness_sanity_profile",
     "ci_sync_readiness_msg",
     "ci_sync_readiness_step_count",
     "fixed64_threeway_report",
@@ -47,6 +49,7 @@ PASS_REQUIRED_KEYS = (
     "ci_pack_golden_overlay_session_selftest_ok",
 )
 MIN_REQUIRED_CI_SANITY_STEPS = 14
+VALID_SANITY_PROFILES = {"full", "core_lang", "seamgrim"}
 
 
 def load_json(path: Path) -> dict | None:
@@ -195,6 +198,12 @@ def main() -> int:
                 f"PASS summary requires ci_sanity_gate_code=OK, got={ci_sanity_code}",
                 code=CODES["PASS_KEY_MISSING"],
             )
+        ci_sanity_profile = kv.get("ci_sanity_gate_profile", "").strip() or "full"
+        if ci_sanity_profile not in VALID_SANITY_PROFILES:
+            return fail(
+                f"invalid ci_sanity_gate_profile={ci_sanity_profile}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
         ci_sanity_failed_steps = kv.get("ci_sanity_gate_failed_steps", "").strip()
         if ci_sanity_failed_steps != "0":
             return fail(
@@ -208,7 +217,7 @@ def main() -> int:
                 f"{ci_sanity_interface_boundary_ok}",
                 code=CODES["PASS_KEY_MISSING"],
             )
-        if ci_sanity_interface_boundary_ok != "1":
+        if ci_sanity_profile in {"full", "seamgrim"} and ci_sanity_interface_boundary_ok != "1":
             return fail(
                 "PASS summary requires ci_sanity_seamgrim_interface_boundary_ok=1",
                 code=CODES["PASS_KEY_MISSING"],
@@ -220,7 +229,7 @@ def main() -> int:
                 f"{ci_sanity_wired_ok}",
                 code=CODES["PASS_KEY_MISSING"],
             )
-        if ci_sanity_wired_ok != "1":
+        if ci_sanity_profile in {"full", "seamgrim"} and ci_sanity_wired_ok != "1":
             return fail(
                 "PASS summary requires ci_sanity_overlay_session_wired_consistency_ok=1",
                 code=CODES["PASS_KEY_MISSING"],
@@ -232,7 +241,7 @@ def main() -> int:
                 f"{ci_sanity_session_parity_ok}",
                 code=CODES["PASS_KEY_MISSING"],
             )
-        if ci_sanity_session_parity_ok != "1":
+        if ci_sanity_profile in {"full", "seamgrim"} and ci_sanity_session_parity_ok != "1":
             return fail(
                 "PASS summary requires ci_sanity_overlay_session_diag_parity_ok=1",
                 code=CODES["PASS_KEY_MISSING"],
@@ -244,7 +253,7 @@ def main() -> int:
                 f"{ci_sanity_compare_parity_ok}",
                 code=CODES["PASS_KEY_MISSING"],
             )
-        if ci_sanity_compare_parity_ok != "1":
+        if ci_sanity_profile in {"full", "seamgrim"} and ci_sanity_compare_parity_ok != "1":
             return fail(
                 "PASS summary requires ci_sanity_overlay_compare_diag_parity_ok=1",
                 code=CODES["PASS_KEY_MISSING"],
@@ -259,7 +268,7 @@ def main() -> int:
                 f"PASS summary requires ci_sanity_gate_step_count>0, got={ci_sanity_step_count_num}",
                 code=CODES["PASS_KEY_MISSING"],
             )
-        if ci_sanity_step_count_num < MIN_REQUIRED_CI_SANITY_STEPS:
+        if ci_sanity_profile == "full" and ci_sanity_step_count_num < MIN_REQUIRED_CI_SANITY_STEPS:
             return fail(
                 "PASS summary requires ci_sanity_gate_step_count>="
                 f"{MIN_REQUIRED_CI_SANITY_STEPS}, got={ci_sanity_step_count_num}",
@@ -287,6 +296,18 @@ def main() -> int:
         if ci_sync_step != "all":
             return fail(
                 f"PASS summary requires ci_sync_readiness_step=all, got={ci_sync_step}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sync_sanity_profile = kv.get("ci_sync_readiness_sanity_profile", "").strip() or "full"
+        if ci_sync_sanity_profile not in VALID_SANITY_PROFILES:
+            return fail(
+                f"ci_sync_readiness_sanity_profile invalid: {ci_sync_sanity_profile}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if ci_sync_sanity_profile != ci_sanity_profile:
+            return fail(
+                "ci_sync_readiness_sanity_profile mismatch "
+                f"summary={ci_sync_sanity_profile} sanity={ci_sanity_profile}",
                 code=CODES["PASS_KEY_MISSING"],
             )
         ci_sync_step_count = kv.get("ci_sync_readiness_step_count", "").strip()

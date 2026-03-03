@@ -40,6 +40,46 @@ SANITY_REQUIRED_PASS_STEPS = (
     "seamgrim_wasm_cli_diag_parity_check",
 )
 
+SANITY_REQUIRED_PASS_STEPS_CORE_LANG = (
+    "backup_hygiene_selftest",
+    "pipeline_emit_flags_check",
+    "pipeline_emit_flags_selftest",
+    "ci_profile_split_contract_check",
+    "age5_close_pack_contract_selftest",
+    "ci_pack_golden_age5_surface_selftest",
+    "ci_pack_golden_guideblock_selftest",
+    "ci_pack_golden_exec_policy_selftest",
+    "ci_pack_golden_jjaim_flatten_selftest",
+    "ci_pack_golden_event_model_selftest",
+    "w92_aot_pack_check",
+    "w93_universe_pack_check",
+    "w94_social_pack_check",
+    "w95_cert_pack_check",
+    "w96_somssi_pack_check",
+    "w97_self_heal_pack_check",
+)
+
+SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = (
+    "ci_profile_split_contract_check",
+    "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_runtime5_passthrough_check",
+    "seamgrim_interface_boundary_contract_check",
+    "seamgrim_overlay_session_wired_consistency_check",
+    "seamgrim_overlay_session_diag_parity_check",
+    "seamgrim_overlay_compare_diag_parity_check",
+    "seamgrim_wasm_cli_diag_parity_check",
+)
+
+VALID_SANITY_PROFILES = ("full", "core_lang", "seamgrim")
+
+
+def resolve_required_sanity_steps(profile: str) -> tuple[str, ...]:
+    if profile == "core_lang":
+        return SANITY_REQUIRED_PASS_STEPS_CORE_LANG
+    if profile == "seamgrim":
+        return SANITY_REQUIRED_PASS_STEPS_SEAMGRIM
+    return SANITY_REQUIRED_PASS_STEPS
+
 
 def clip(text: str, limit: int = 180) -> str:
     normalized = " ".join(str(text).split())
@@ -75,47 +115,72 @@ def load_json(path: Path) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
-def validate_sanity_contract(path: Path) -> tuple[bool, str]:
+def validate_sanity_contract(path: Path, expected_profile: str = "full") -> tuple[bool, str, str]:
     doc = load_json(path)
     if not isinstance(doc, dict):
-        return False, f"invalid sanity json: {path}"
+        return False, f"invalid sanity json: {path}", expected_profile if expected_profile in VALID_SANITY_PROFILES else "full"
     if str(doc.get("schema", "")).strip() != "ddn.ci.sanity_gate.v1":
-        return False, f"sanity schema mismatch: {doc.get('schema')}"
+        return (
+            False,
+            f"sanity schema mismatch: {doc.get('schema')}",
+            expected_profile if expected_profile in VALID_SANITY_PROFILES else "full",
+        )
     if str(doc.get("status", "")).strip() != "pass":
-        return False, f"sanity status mismatch: {doc.get('status')}"
+        return (
+            False,
+            f"sanity status mismatch: {doc.get('status')}",
+            expected_profile if expected_profile in VALID_SANITY_PROFILES else "full",
+        )
     if str(doc.get("code", "")).strip() != "OK":
-        return False, f"sanity code mismatch: {doc.get('code')}"
+        return (
+            False,
+            f"sanity code mismatch: {doc.get('code')}",
+            expected_profile if expected_profile in VALID_SANITY_PROFILES else "full",
+        )
     if str(doc.get("step", "")).strip() != "all":
-        return False, f"sanity step mismatch: {doc.get('step')}"
+        return (
+            False,
+            f"sanity step mismatch: {doc.get('step')}",
+            expected_profile if expected_profile in VALID_SANITY_PROFILES else "full",
+        )
+
+    profile = str(doc.get("profile", "")).strip()
+    if not profile:
+        profile = expected_profile if expected_profile in VALID_SANITY_PROFILES else "full"
+    if profile not in VALID_SANITY_PROFILES:
+        return False, f"sanity profile invalid: {profile}", profile
+    if expected_profile in VALID_SANITY_PROFILES and profile != expected_profile:
+        return False, f"sanity profile mismatch expected={expected_profile} actual={profile}", profile
 
     steps = doc.get("steps")
     if not isinstance(steps, list):
-        return False, "sanity steps must be list"
-    if len(steps) < len(SANITY_REQUIRED_PASS_STEPS):
-        return False, f"sanity step_count too small: {len(steps)}"
+        return False, "sanity steps must be list", profile
+    required_steps = resolve_required_sanity_steps(profile)
+    if len(steps) < len(required_steps):
+        return False, f"sanity step_count too small: {len(steps)} profile={profile}", profile
 
     step_index: dict[str, dict] = {}
     for row in steps:
         if not isinstance(row, dict):
-            return False, "sanity steps contains non-object row"
+            return False, "sanity steps contains non-object row", profile
         name = str(row.get("step", "")).strip()
         if name:
             step_index[name] = row
 
-    for required_step in SANITY_REQUIRED_PASS_STEPS:
+    for required_step in required_steps:
         row = step_index.get(required_step)
         if row is None:
-            return False, f"sanity required step missing: {required_step}"
+            return False, f"sanity required step missing: {required_step}", profile
         if not bool(row.get("ok", False)):
-            return False, f"sanity required step not ok: {required_step}"
+            return False, f"sanity required step not ok: {required_step}", profile
         try:
             rc = int(row.get("returncode", -1))
         except Exception:
             rc = -1
         if rc != 0:
-            return False, f"sanity required step rc!=0: {required_step} rc={row.get('returncode')}"
+            return False, f"sanity required step rc!=0: {required_step} rc={row.get('returncode')}", profile
 
-    return True, "ok"
+    return True, "ok", profile
 
 
 def first_message(stdout: str, stderr: str) -> str:
@@ -134,6 +199,12 @@ def main() -> int:
     parser.add_argument("--report-prefix", default="dev_sync_readiness", help="report prefix for aggregate gate")
     parser.add_argument("--json-out", default="", help="optional path for sync-readiness report json")
     parser.add_argument(
+        "--sanity-profile",
+        choices=VALID_SANITY_PROFILES,
+        default="full",
+        help="sanity gate profile to validate/propagate (default: full)",
+    )
+    parser.add_argument(
         "--validate-only-sanity-json",
         default="",
         help="validate-only mode: skip step execution and validate the given ci_sanity_gate json path",
@@ -149,6 +220,7 @@ def main() -> int:
     report_dir = Path(args.report_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     prefix = args.report_prefix.strip() or "dev_sync_readiness"
+    sanity_profile = args.sanity_profile.strip() or "full"
     sanity_json = report_dir / f"{prefix}.ci_sanity_gate.detjson"
     validate_only_sanity_json = args.validate_only_sanity_json.strip()
 
@@ -158,6 +230,7 @@ def main() -> int:
     status_step = "all"
     status_msg = "-"
     started = datetime.now(timezone.utc).isoformat()
+    detected_sanity_profile = sanity_profile
     if validate_only_sanity_json:
         validate_path = Path(validate_only_sanity_json)
         tick = time.perf_counter()
@@ -168,8 +241,12 @@ def main() -> int:
             status_step = "validate_only"
             status_msg = contract_msg
             contract_ok = False
+            detected_sanity_profile = sanity_profile
         else:
-            contract_ok, contract_msg = validate_sanity_contract(validate_path)
+            contract_ok, contract_msg, detected_sanity_profile = validate_sanity_contract(
+                validate_path,
+                expected_profile=sanity_profile,
+            )
             if not contract_ok:
                 all_ok = False
                 status_code = SYNC_READINESS_SANITY_CONTRACT_FAIL
@@ -192,7 +269,10 @@ def main() -> int:
             ("pipeline_emit_flags_check", [py, "tests/run_ci_pipeline_emit_flags_check.py"]),
             ("pipeline_emit_flags_selftest", [py, "tests/run_ci_pipeline_emit_flags_check_selftest.py"]),
             ("sanity_gate_diagnostics_check", [py, "tests/run_ci_sanity_gate_diagnostics_check.py"]),
-            ("sanity_gate", [py, "tests/run_ci_sanity_gate.py", "--json-out", str(sanity_json)]),
+            (
+                "sanity_gate",
+                [py, "tests/run_ci_sanity_gate.py", "--profile", sanity_profile, "--json-out", str(sanity_json)],
+            ),
         ]
         if not args.skip_aggregate:
             steps.append(
@@ -252,7 +332,10 @@ def main() -> int:
         total_elapsed_ms = sum(int(row.get("elapsed_ms", 0)) for row in rows)
         if all_ok:
             tick = time.perf_counter()
-            contract_ok, contract_msg = validate_sanity_contract(sanity_json)
+            contract_ok, contract_msg, detected_sanity_profile = validate_sanity_contract(
+                sanity_json,
+                expected_profile=sanity_profile,
+            )
             contract_elapsed_ms = int((time.perf_counter() - tick) * 1000)
             contract_row = {
                 "name": "sanity_gate_contract",
@@ -284,6 +367,7 @@ def main() -> int:
         "msg": status_msg if not all_ok else "-",
         "report_dir": str(report_dir),
         "report_prefix": prefix,
+        "sanity_profile": detected_sanity_profile,
         "skip_aggregate": bool(args.skip_aggregate),
         "validate_only_sanity_json": validate_only_sanity_json,
         "steps": rows,
@@ -298,6 +382,7 @@ def main() -> int:
     print(
         f'ci_sync_readiness_status={status} ok={1 if all_ok else 0} '
         f'code={status_code if not all_ok else SYNC_READINESS_OK} '
+        f'sanity_profile={detected_sanity_profile} '
         f'step={status_step if not all_ok else "all"} msg={msg_json} '
         f'steps={len(rows)} total_elapsed_ms={total_elapsed_ms} report="{out_path}"'
     )

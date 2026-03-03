@@ -21,6 +21,11 @@ def main() -> int:
 
     required_emit_check_tokens = [
         "SANITY_REQUIRED_PASS_STEPS",
+        "SANITY_REQUIRED_PASS_STEPS_CORE_LANG",
+        "SANITY_REQUIRED_PASS_STEPS_SEAMGRIM",
+        "resolve_required_sanity_steps(",
+        "VALID_SANITY_PROFILES",
+        "sanity_profile",
         '"ci_profile_split_contract_check"',
         '"seamgrim_overlay_session_diag_parity_check"',
         '"seamgrim_overlay_compare_diag_parity_check"',
@@ -79,6 +84,8 @@ def main() -> int:
         "broken_sync_readiness_status_unsupported",
         "broken_sync_readiness_status_mismatch",
         "broken_sync_readiness_pass_fields",
+        '"profile": "full"',
+        '"sanity_profile": "full"',
         "misssync",
         "badsyncschema",
         "badsyncstatus",

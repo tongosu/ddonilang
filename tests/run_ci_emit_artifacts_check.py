@@ -40,6 +40,43 @@ SANITY_REQUIRED_PASS_STEPS = (
     "w97_self_heal_pack_check",
     "seamgrim_wasm_cli_diag_parity_check",
 )
+SANITY_REQUIRED_PASS_STEPS_CORE_LANG = (
+    "backup_hygiene_selftest",
+    "pipeline_emit_flags_check",
+    "pipeline_emit_flags_selftest",
+    "ci_profile_split_contract_check",
+    "age5_close_pack_contract_selftest",
+    "ci_pack_golden_age5_surface_selftest",
+    "ci_pack_golden_guideblock_selftest",
+    "ci_pack_golden_exec_policy_selftest",
+    "ci_pack_golden_jjaim_flatten_selftest",
+    "ci_pack_golden_event_model_selftest",
+    "w92_aot_pack_check",
+    "w93_universe_pack_check",
+    "w94_social_pack_check",
+    "w95_cert_pack_check",
+    "w96_somssi_pack_check",
+    "w97_self_heal_pack_check",
+)
+SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = (
+    "ci_profile_split_contract_check",
+    "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_runtime5_passthrough_check",
+    "seamgrim_interface_boundary_contract_check",
+    "seamgrim_overlay_session_wired_consistency_check",
+    "seamgrim_overlay_session_diag_parity_check",
+    "seamgrim_overlay_compare_diag_parity_check",
+    "seamgrim_wasm_cli_diag_parity_check",
+)
+VALID_SANITY_PROFILES = {"full", "core_lang", "seamgrim"}
+
+
+def resolve_required_sanity_steps(profile: str) -> tuple[str, ...]:
+    if profile == "core_lang":
+        return SANITY_REQUIRED_PASS_STEPS_CORE_LANG
+    if profile == "seamgrim":
+        return SANITY_REQUIRED_PASS_STEPS_SEAMGRIM
+    return SANITY_REQUIRED_PASS_STEPS
 
 
 def fail(msg: str, code: str = "E_CHECK") -> int:
@@ -407,6 +444,9 @@ def main() -> int:
     sanity_status = str(sanity_doc.get("status", "")).strip() or "unknown"
     if sanity_status not in ("pass", "fail"):
         return fail(f"unsupported ci_sanity_gate status: {sanity_status}", code=CODES["SANITY_STATUS_UNSUPPORTED"])
+    sanity_profile = str(sanity_doc.get("profile", "")).strip() or "full"
+    if sanity_profile not in VALID_SANITY_PROFILES:
+        return fail(f"unsupported ci_sanity_gate profile: {sanity_profile}", code=CODES["SANITY_STATUS_UNSUPPORTED"])
     sanity_steps = sanity_doc.get("steps")
     if not isinstance(sanity_steps, list):
         return fail("ci_sanity_gate steps must be list", code=CODES["SANITY_STEPS_TYPE"])
@@ -438,7 +478,7 @@ def main() -> int:
                 f"ci_sanity_gate pass requires step=all, got {sanity_step}",
                 code=CODES["SANITY_STATUS_MISMATCH"],
             )
-        for required_step in SANITY_REQUIRED_PASS_STEPS:
+        for required_step in resolve_required_sanity_steps(sanity_profile):
             row = sanity_step_index.get(required_step)
             if row is None:
                 return fail(
@@ -499,6 +539,18 @@ def main() -> int:
         if sync_code != "OK" or sync_step != "all":
             return fail(
                 f"ci_sync_readiness pass fields invalid code={sync_code} step={sync_step}",
+                code=CODES["SYNC_READINESS_PASS_STATUS_FIELDS"],
+            )
+        sync_sanity_profile = str(sync_readiness_doc.get("sanity_profile", "")).strip() or "full"
+        if sync_sanity_profile not in VALID_SANITY_PROFILES:
+            return fail(
+                f"ci_sync_readiness sanity_profile invalid: {sync_sanity_profile}",
+                code=CODES["SYNC_READINESS_PASS_STATUS_FIELDS"],
+            )
+        if sync_sanity_profile != sanity_profile:
+            return fail(
+                "ci_sync_readiness sanity_profile mismatch "
+                f"sync={sync_sanity_profile} sanity={sanity_profile}",
                 code=CODES["SYNC_READINESS_PASS_STATUS_FIELDS"],
             )
 
