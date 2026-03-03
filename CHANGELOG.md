@@ -1,6 +1,675 @@
 # CHANGELOG.md
 
 ## Unreleased
+- Closed Task 4/5 for CI snapshot/report flow.
+  - Task 4 (snapshot report lock):
+    - revalidated profile chain:
+      - `python tests/run_ci_profile_split_contract_check.py` PASS
+      - `python tests/run_ci_profile_core_lang_gate.py` PASS
+      - `python tests/run_ci_profile_seamgrim_gate.py` PASS
+    - revalidated full profile snapshot artifact:
+      - `python tests/run_ci_sync_readiness_check.py --skip-aggregate --sanity-profile full --report-prefix dev_sync_readiness_full_snapshot --json-out build/reports/dev_sync_readiness_full_snapshot.ci_sync_readiness.detjson` PASS
+      - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness_full_snapshot.ci_sync_readiness.detjson --require-pass --sanity-profile full` PASS
+      - `python tests/run_ci_sync_readiness_report_check_selftest.py` PASS
+  - Task 5 (documentation close):
+    - finalized status/changelog record for snapshot lock and profile-chain verification.
+- Added `guideblock_keys_basics` D-PACK and parity runner for OI-417 key-dictionary validation.
+  - Added:
+    - `pack/guideblock_keys_basics/`
+      - `golden.jsonl`
+      - `README.md`
+      - `c01_hash_header_alias/{input.ddn,case.detjson}`
+      - `c02_guideblock_alias/{input.ddn,case.detjson}`
+      - `c03_mixed_precedence/{input.ddn,case.detjson}`
+    - `tests/seamgrim_guideblock_tool_parse.py`
+      - Python(tool) parser adapter for `export_graph.parse_guide_meta_header`
+    - `tests/seamgrim_guideblock_keys_pack_runner.mjs`
+      - case runner (`schema=ddn.seamgrim.guideblock_case.v1`)
+      - validates:
+        - expected canonical meta keys
+        - expected body prefix
+        - JS(UI) parser vs Python(tool) parser parity
+    - `tests/run_seamgrim_guideblock_keys_pack_check.py`
+      - CI-friendly wrapper for guideblock pack runner
+  - Updated:
+    - `tests/run_seamgrim_runtime_5min_check.py`
+      - added runtime step: `guideblock_keys_pack_check`
+    - `tests/run_seamgrim_5min_checklist.py`
+      - added checklist label for `guideblock_keys_pack_check`
+  - Verification:
+    - `python tests/run_seamgrim_guideblock_keys_pack_check.py` PASS
+    - `python tests/run_seamgrim_export_graph_preprocess_check.py` PASS
+    - `node tests/seamgrim_ui_common_runner.mjs` PASS
+    - `python tests/run_seamgrim_runtime_5min_check.py --skip-seed-cli --json-out build/reports/dev_runtime_5min_with_ui.detjson` PASS
+    - `python tests/run_seamgrim_5min_checklist.py --from-runtime-report build/reports/dev_runtime_5min_with_ui.detjson` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+- Added guideblock meta parsing (`설정/보개/슬기`) to UI/tool meta extraction for OI-417 alignment.
+  - Updated:
+    - `solutions/seamgrim_ui_mvp/ui/components/guide_meta.js`
+      - `parseGuideMetaHeader` now accepts top-of-file guide blocks:
+        - `설정 { ... }`
+        - `보개 { ... }`
+        - `슬기 { ... }`
+      - block fields are canonicalized with the existing alias dictionary (`GUIDE_META_ALIASES`)
+    - `solutions/seamgrim_ui_mvp/tools/export_graph.py`
+      - `parse_guide_meta_header` now accepts the same guide-block surface and key canonicalization
+    - `tests/seamgrim_ui_common_runner.mjs`
+      - added block-form alias regression:
+        - `title/설명/default-series/x-axis` -> `name/desc/default_observation/default_observation_x`
+    - `tests/run_seamgrim_export_graph_preprocess_check.py`
+      - added `test_meta_guideblock_dictionary`
+  - Verification:
+    - `node tests/seamgrim_ui_common_runner.mjs` PASS
+    - `python tests/run_seamgrim_export_graph_preprocess_check.py` PASS
+- Added `canon --emit exec-policy-map-json` for OI-416 language/tool-axis mapping output.
+  - Updated:
+    - `tools/teul-cli/src/canon.rs`
+      - `CanonOutput` now carries `exec_policy_map_json`
+      - added deterministic map extraction/serialization:
+        - schema: `ddn.exec_policy_effect_map.v1`
+        - language axis: 실행모드/효과정책(유효값/중복 블록 gate 오류 포함)
+        - tool axis: open 모드(`deny|record|replay`) 및 우선순위(`cli > open_policy > default_deny`)
+        - cross-axis: open 모드별 효과 경계 결과(`E_EFFECT_IN_STRICT_MODE`, `E_EFFECT_IN_ISOLATED_MODE`, `E_OPEN_DENIED`, `record/replay`)
+    - `tools/teul-cli/src/cli/canon.rs`
+      - `EmitKind::ExecPolicyMapJson` added
+      - `write_emit` supports `exec-policy-map-json` output
+    - `tests/run_pack_golden.py`
+      - default pack list now includes `seamgrim_exec_policy_effect_map_v1`
+  - Added:
+    - `pack/seamgrim_exec_policy_effect_map_v1/`
+      - `c01_general_allowed/input.ddn`
+      - `c01_general_allowed/expected_exec_policy_map.json`
+      - `c02_strict_forces_isolated/input.ddn`
+      - `c02_strict_forces_isolated/expected_exec_policy_map.json`
+      - `c03_duplicate_exec_policy_blocks/input.ddn`
+      - `c03_duplicate_exec_policy_blocks/expected_exec_policy_map.json`
+      - `golden.jsonl`
+      - `README.md`
+  - Verification:
+    - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+    - `python tests/run_pack_golden.py seamgrim_exec_policy_effect_map_v1` PASS
+    - `python tests/run_pack_golden.py seamgrim_exec_policy_effect_diag_v1 seamgrim_exec_policy_effect_map_v1 seamgrim_event_model_ir_v1 seamgrim_guseong_flatten_ir_v1 seamgrim_event_surface_canon_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1 seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+- Added `canon --emit alrim-plan-json` for minimal AGE5 event-model IR output.
+  - Updated:
+    - `tools/teul-cli/src/canon.rs`
+      - `CanonOutput` now carries `alrim_plan_json`
+      - added deterministic event handler plan extraction:
+        - schema: `ddn.alrim_event_plan.v1`
+        - fields: `handlers[].{order,kind,scope,body_canon}`
+    - `tools/teul-cli/src/cli/canon.rs`
+      - `EmitKind::AlrimPlanJson` added
+      - `write_emit` supports `alrim-plan-json` output
+    - `tests/run_pack_golden.py`
+      - default pack list now includes `seamgrim_event_model_ir_v1`
+  - Added:
+    - `pack/seamgrim_event_model_ir_v1/`
+      - `c01_basic/input.ddn`
+      - `c01_basic/expected_alrim_plan.json`
+      - `golden.jsonl`
+      - `README.md`
+  - Verification:
+    - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+    - `python tests/run_pack_golden.py seamgrim_event_model_ir_v1` PASS
+    - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_guseong_flatten_ir_v1 seamgrim_event_surface_canon_v1 seamgrim_event_model_ir_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+- Added `canon --emit guseong-flat-json` to expose deterministic `짜임 flatten` planning output.
+  - Updated:
+    - `tools/teul-cli/src/canon.rs`
+      - `CanonOutput` now carries `guseong_flat_json`
+      - `GuseongFlattenPlan` expanded to include:
+        - `topo_order`
+        - `instances` (`name`, `type_name`)
+        - `links` (`dst_instance`, `dst_port`, `src_instance`, `src_port`)
+      - flatten plan JSON schema fixed as `ddn.guseong_flatten_plan.v1`
+    - `tools/teul-cli/src/cli/canon.rs`
+      - `EmitKind::GuseongFlatJson` added
+      - `write_emit` now supports flat-plan JSON output
+    - `tests/run_pack_golden.py`
+      - default pack list now includes `seamgrim_guseong_flatten_ir_v1`
+  - Added:
+    - `pack/seamgrim_guseong_flatten_ir_v1/`
+      - `c01_basic/input.ddn`
+      - `c01_basic/expected_flat.json`
+      - `golden.jsonl`
+      - `README.md`
+  - Verification:
+    - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+    - `python tests/run_pack_golden.py seamgrim_guseong_flatten_ir_v1` PASS
+    - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_guseong_flatten_ir_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+- Added positive golden case for valid tuple-port projection in `짜임 flatten` diagnostics pack.
+  - Updated:
+    - `pack/seamgrim_guseong_flatten_diag_v1/c21_tuple_projection_valid_success/input.ddn`
+    - `pack/seamgrim_guseong_flatten_diag_v1/c21_tuple_projection_valid_success/expected_canon.ddn`
+    - `pack/seamgrim_guseong_flatten_diag_v1/golden.jsonl`
+      - added `c21_tuple_projection_valid_success`
+  - Verification:
+    - `python tests/run_pack_golden.py seamgrim_guseong_flatten_diag_v1` PASS
+    - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+- Added numeric dot-segment handling (`.0`, `.1`) to parser+runtime member/path traversal.
+  - Updated:
+    - `tools/teul-cli/src/lang/parser.rs`
+      - `parse_path`/`parse_postfix` now accept integer dot-segments
+      - fractional dot-segment rejected at parse stage (`E_PARSE_UNEXPECTED_TOKEN`)
+      - added parser tests:
+        - `parse_numeric_dot_segment_as_field_access`
+        - `parse_numeric_dot_segment_rejects_fraction`
+        - `parse_path_allows_numeric_dot_segment`
+    - `tools/teul-cli/src/runtime/eval.rs`
+      - `Expr::FieldAccess`/`eval_path` now share `eval_member_access`
+      - list target + numeric segment lookup support
+      - non-numeric segment guard: `E_PACK` (`차림 인덱스는 숫자(.0/.1)만 허용`)
+      - added unit tests:
+        - `list_dot_index_path_access_works`
+        - `list_dot_index_requires_numeric_segment`
+  - Verification:
+    - `cargo test --manifest-path tools/teul-cli/Cargo.toml parse_numeric_dot_segment -- --nocapture` PASS
+    - `cargo test --manifest-path tools/teul-cli/Cargo.toml parse_path_allows_numeric_dot_segment -- --nocapture` PASS
+    - `cargo test --manifest-path tools/teul-cli/Cargo.toml list_dot_index -- --nocapture` PASS
+    - `cargo run --quiet --manifest-path tools/teul-cli/Cargo.toml -- run build/tmp_runtime_list_index.ddn --ticks 1` => `22`
+    - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+    - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+- Extended `짜임` flatten diagnostics to cover scalar output tuple-access path (c19).
+  - Updated:
+    - `tools/teul-cli/src/canon.rs`
+      - parser now accepts numeric dot-segments in path/field access (e.g. `a.끝점.0`)
+      - added tuple-index guard on dot-segment parsing:
+        - non-integer index after dot -> `E_CANON_TUPLE_INDEX_INVALID`
+    - `pack/seamgrim_guseong_flatten_diag_v1/golden.jsonl`
+      - added `c19_tuple_access_on_scalar_output_EXPECT_FAIL`
+      - expected error: `E_GUSEONG_TUPLE_ACCESS_ON_SCALAR`
+  - Verification:
+    - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+    - `python tests/run_pack_golden.py seamgrim_guseong_flatten_diag_v1` PASS
+    - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- canon pack/seamgrim_guseong_flatten_diag_v1/c19_tuple_access_on_scalar_output_EXPECT_FAIL/input.ddn` -> `E_GUSEONG_TUPLE_ACCESS_ON_SCALAR`
+    - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+- Started AGE5 1~6 continuation pass and added W92 AOT pack contract baseline.
+  - Added:
+    - `tests/run_w92_aot_pack_check.py`
+      - validates `pack/gogae9_w92_aot_compiler_v2` contract files/schemas/case-id parity/speedup floor
+    - `pack/gogae9_w92_aot_compiler_v2/intent.md`
+    - `pack/gogae9_w92_aot_compiler_v2/bench_cases.json`
+    - `pack/gogae9_w92_aot_compiler_v2/golden.detjson`
+    - `pack/gogae9_w92_aot_compiler_v2/golden.jsonl`
+    - `pack/gogae9_w92_aot_compiler_v2/inputs/c01_interp_aot_hash_parity/input.ddn`
+    - `pack/gogae9_w92_aot_compiler_v2/inputs/c01_interp_aot_hash_parity/expected_canon.ddn`
+  - Updated:
+    - `pack/gogae9_w92_aot_compiler_v2/README.md`
+      - moved from draft TODO to executable baseline contract
+    - `tests/run_pack_golden.py`
+      - default pack set now includes `gogae9_w92_aot_compiler_v2`
+  - Verification:
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_sync_readiness_check.py --skip-aggregate --json-out build/reports/dev_sync_readiness.detjson` PASS
+    - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+    - `python tests/run_w92_aot_pack_check.py --pack pack/gogae9_w92_aot_compiler_v2` PASS
+    - `python tests/run_pack_golden.py gogae9_w92_aot_compiler_v2` PASS
+    - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+- Hardened aggregate-sanity diagnostics check to guard parity summary contracts across multiple files.
+  - Updated:
+    - `tests/run_ci_aggregate_gate_sanity_diagnostics_check.py`
+      - migrated from single-file token check to multi-file token map:
+        - `tests/run_ci_aggregate_gate.py`
+        - `tests/_ci_aggregate_diag_lib.py`
+        - `tests/run_ci_gate_summary_report_check.py`
+      - requires parity-summary keys and PASS invariant messages
+  - Verification:
+    - `python -m py_compile tests/run_ci_aggregate_gate_sanity_diagnostics_check.py tests/_ci_aggregate_diag_lib.py tests/run_ci_gate_summary_report_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sanity_diagnostics_check.py` PASS
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --skip-core-tests --report-prefix dev_age5_sanity_diag_guard --clean-prefixed-reports --quiet-success-logs --compact-step-logs` PASS
+- Exposed ci-sanity overlay/session parity triplet on PASS summary and enforced PASS invariants.
+  - Updated:
+    - `tests/_ci_aggregate_diag_lib.py`
+      - `append_ci_sanity_summary_lines` now emits:
+        - `ci_sanity_overlay_session_wired_consistency_ok`
+        - `ci_sanity_overlay_session_diag_parity_ok`
+        - `ci_sanity_overlay_compare_diag_parity_ok`
+    - `tests/run_ci_gate_summary_report_check.py`
+      - PASS-required keys now include the three parity keys
+      - PASS invariants require each parity key to be `1`
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - PASS fixture synchronized with parity keys
+      - added negative regression for `ci_sanity_overlay_compare_diag_parity_ok=0`
+  - Verification:
+    - `python -m py_compile tests/_ci_aggregate_diag_lib.py tests/run_ci_gate_summary_report_check.py tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_sanity_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --skip-core-tests --report-prefix dev_age5_sanity_parity_surface --clean-prefixed-reports --quiet-success-logs --compact-step-logs` PASS
+    - `python tests/run_ci_aggregate_gate.py --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --report-prefix dev_age5_core_followup --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- Promoted `ci_sync_readiness` to aggregate PASS summary surface and locked summary/report contracts.
+  - Updated:
+    - `tests/_ci_aggregate_diag_lib.py`
+      - added `load_ci_sync_readiness_snapshot` and `append_ci_sync_readiness_summary_lines`
+      - synchronized `print_report_paths(...)` signature with `ci_sync_readiness_report`
+    - `tests/run_ci_aggregate_gate.py`
+      - summary now emits `ci_sync_readiness_report/status/ok/code/step/msg/step_count`
+      - report-path emission call now includes `ci_sync_readiness_report`
+    - `tests/run_ci_gate_summary_report_check.py`
+      - PASS-required keys include sync-readiness summary fields
+      - PASS invariants enforce `status=pass`, `ok=1`, `code=OK`, `step=all`, `step_count>0`
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - pass fixture synchronized with sync-readiness summary fields
+      - negative regressions added for missing sync key and low sync step-count
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - required tokens extended for sync summary helper/keys
+  - Verification:
+    - `python -m py_compile tests/_ci_aggregate_diag_lib.py tests/run_ci_aggregate_gate.py tests/run_ci_gate_summary_report_check.py tests/run_ci_gate_summary_report_check_selftest.py tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sanity_diagnostics_check.py` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_aggregate_gate.py --skip-core-tests --report-prefix dev_age5_finish_sync --clean-prefixed-reports --quiet-success-logs --compact-step-logs` PASS
+- Added `ci_sync_readiness` artifact contract enforcement in emit-artifacts checks.
+  - Updated:
+    - `tests/run_ci_emit_artifacts_check.py`
+      - validates `reports.ci_sync_readiness` presence, json/schema/status contract, and PASS fields (`code=OK`, `step=all`)
+    - `tests/ci_check_error_codes.py`
+      - added:
+        - `E_SYNC_READINESS_PATH_MISSING`
+        - `E_SYNC_READINESS_JSON_INVALID`
+        - `E_SYNC_READINESS_SCHEMA_MISMATCH`
+        - `E_SYNC_READINESS_STATUS_UNSUPPORTED`
+        - `E_SYNC_READINESS_STATUS_MISMATCH`
+        - `E_SYNC_READINESS_PASS_STATUS_FIELDS`
+    - `tests/run_ci_emit_artifacts_check_selftest.py`
+      - added negative cases for missing/schema/status/pass-field regressions on sync-readiness artifact
+    - `tests/run_ci_emit_artifacts_sanity_contract_check.py`
+      - static token contract now requires sync-readiness validation wiring and codes
+  - Verification:
+    - `python -m py_compile tests/ci_check_error_codes.py tests/run_ci_emit_artifacts_check.py tests/run_ci_emit_artifacts_check_selftest.py tests/run_ci_emit_artifacts_sanity_contract_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_sanity_contract_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_sync_emit_artifacts_20260302 --skip-core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common` PASS
+- Hardened sync-readiness report code contracts and wired aggregate to validate generated report artifacts directly.
+  - Updated:
+    - `tests/ci_check_error_codes.py`
+      - added `SYNC_READINESS_REPORT_CODES`
+    - `tests/run_ci_sync_readiness_report_check.py`
+      - switched to centralized `SYNC_READINESS_REPORT_CODES` lookups
+    - `tests/run_ci_sync_readiness_report_check_selftest.py`
+      - now asserts exact `fail code=...` for negative report cases
+    - `tests/run_ci_sync_readiness_diagnostics_check.py`
+      - static required tokens aligned to code-map based report checker/selftest
+    - `tests/run_ci_aggregate_gate.py`
+      - added `ci_sync_readiness_report_generate` and `ci_sync_readiness_report_check`
+      - aggregate now generates `ci_sync_readiness.detjson` and immediately validates it with `run_ci_sync_readiness_report_check.py --require-pass`
+      - included new steps in fast-fail/overall/sub-step/fail diagnostics conditions
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - now requires tokens for generated-report check wiring
+  - Verification:
+    - `python -m py_compile tests/ci_check_error_codes.py tests/run_ci_sync_readiness_report_check.py tests/run_ci_sync_readiness_report_check_selftest.py tests/run_ci_sync_readiness_diagnostics_check.py tests/run_ci_aggregate_gate_sync_diagnostics_check.py tests/run_ci_aggregate_gate.py` PASS
+    - `python tests/run_ci_sync_readiness_report_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_sync_direct_check_20260302 --skip-core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common` PASS
+- Added dedicated sync-readiness report contract checker and selftest, wired into aggregate CI.
+  - Added:
+    - `tests/run_ci_sync_readiness_report_check.py`
+      - validates `ddn.ci.sync_readiness.v1` payload contract:
+        - status/ok/code/step/msg consistency
+        - steps/steps_count consistency
+        - mandatory `sanity_gate_contract` row
+        - validate-only shape invariants
+        - pass non-validate base-step prefix invariants
+    - `tests/run_ci_sync_readiness_report_check_selftest.py`
+      - verifies real pass reports and validate-only pass report
+      - includes negative regressions:
+        - pass code corruption
+        - missing `sanity_gate_contract` row
+        - invalid validate-only steps shape
+  - Updated:
+    - `tests/run_ci_sync_readiness_diagnostics_check.py`
+      - includes report checker/selftest token contracts
+    - `tests/run_ci_aggregate_gate.py`
+      - new step `ci_sync_readiness_report_selftest`
+      - included in fast-fail, overall pass criteria, sub-step failure criteria, and fail-path diagnostics run
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - now requires tokens for `ci_sync_readiness_report_selftest`
+  - Verification:
+    - `python -m py_compile tests/run_ci_sync_readiness_report_check.py tests/run_ci_sync_readiness_report_check_selftest.py tests/run_ci_sync_readiness_diagnostics_check.py tests/run_ci_aggregate_gate_sync_diagnostics_check.py tests/run_ci_aggregate_gate.py` PASS
+    - `python tests/run_ci_sync_readiness_report_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_report_20260302` PASS
+- Standardized sync-readiness result surface and added validate-only contract mode.
+  - Updated:
+    - `tests/run_ci_sync_readiness_check.py`
+      - result now emits and stores `status/code/step/msg`
+      - added failure codes:
+        - `E_SYNC_READINESS_STEP_FAIL`
+        - `E_SYNC_READINESS_SANITY_CONTRACT_FAIL`
+        - `E_SYNC_READINESS_VALIDATE_ONLY_PATH_MISSING`
+      - new option: `--validate-only-sanity-json` (contract-only validation path)
+    - `tests/run_ci_sync_readiness_check_selftest.py`
+      - validates pass-path `status/code/step`
+      - added validate-only pass/fail cases:
+        - broken sanity contract -> `E_SYNC_READINESS_SANITY_CONTRACT_FAIL`
+        - missing path -> `E_SYNC_READINESS_VALIDATE_ONLY_PATH_MISSING`
+    - `tests/run_ci_sync_readiness_diagnostics_check.py`
+      - extended static token checks for new codes/option/selftest cases
+  - Verification:
+    - `python -m py_compile tests/run_ci_sync_readiness_check.py tests/run_ci_sync_readiness_check_selftest.py tests/run_ci_sync_readiness_diagnostics_check.py tests/run_ci_aggregate_gate_sync_diagnostics_check.py tests/run_ci_aggregate_gate.py` PASS
+    - `python tests/run_ci_sync_readiness_diagnostics_check.py` PASS
+    - `python tests/run_ci_sync_readiness_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_sync_readiness_check.py --report-dir I:/home/urihanl/ddn/codex/build/reports --report-prefix dev_sync_readiness_codes_20260302 --skip-aggregate` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_codes_20260302` PASS
+- Added sync-readiness static diagnostics check and wired it into aggregate CI.
+  - Added:
+    - `tests/run_ci_sync_readiness_diagnostics_check.py`
+      - validates sync-readiness contract tokens:
+        - `SANITY_REQUIRED_PASS_STEPS` (9 required entries)
+        - `validate_sanity_contract`
+        - `sanity_gate_contract` stage
+        - selftest step-count/token expectations
+  - Updated:
+    - `tests/run_ci_aggregate_gate.py`
+      - new step: `ci_sync_readiness_diagnostics_check`
+      - included in fast-fail, overall pass criteria, sub-step failure criteria, and fail-path diagnostics run
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - now requires aggregate tokens for the new sync-readiness diagnostics step/function/script
+  - Verification:
+    - `python -m py_compile tests/run_ci_sync_readiness_diagnostics_check.py tests/run_ci_aggregate_gate_sync_diagnostics_check.py tests/run_ci_aggregate_gate.py` PASS
+    - `python tests/run_ci_sync_readiness_diagnostics_check.py` PASS
+    - `python tests/run_ci_sync_readiness_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_diag_20260302` PASS
+- Added `ci_sanity_gate` contract validation into sync-readiness flow.
+  - Updated:
+    - `tests/run_ci_sync_readiness_check.py`
+      - added internal `sanity_gate_contract` step after sanity execution
+      - validates:
+        - schema `ddn.ci.sanity_gate.v1`
+        - `status=pass`, `code=OK`, `step=all`
+        - required sanity pass steps (9) present and all `ok=1/rc=0`
+    - `tests/run_ci_sync_readiness_check_selftest.py`
+      - expected step count updated from `4` to `5`
+      - added `sanity_gate_contract` presence/ok assertions
+  - Verification:
+    - `python -m py_compile tests/run_ci_sync_readiness_check.py tests/run_ci_sync_readiness_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_check.py --report-dir I:/home/urihanl/ddn/codex/build/reports --report-prefix dev_sync_readiness_contract_20260302 --skip-aggregate` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_contract_20260302` PASS
+- Hardened PASS summary contract to prevent CI sanity-step count regressions.
+  - Updated:
+    - `tests/run_ci_gate_summary_report_check.py`
+      - enforces `ci_sanity_gate_step_count >= 9` on PASS summaries
+      - added `MIN_REQUIRED_CI_SANITY_STEPS = 9`
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - PASS fixture synced to step_count `9`
+      - added failing selftest for low step count (`ci_sanity_gate_step_count=1`)
+  - Verification:
+    - `python -m py_compile tests/run_ci_gate_summary_report_check.py tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_gate_summary_report_check.py --summary I:/home/urihanl/ddn/codex/build/reports/dev_age5_continue_wired_contract_20260302.ci_gate_summary.txt --index I:/home/urihanl/ddn/codex/build/reports/dev_age5_continue_wired_contract_20260302.ci_gate_report_index.detjson --require-pass` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_summary_guard_20260302` PASS
+- Added `overlay_session_wired_consistency` as a required CI sanity/emit contract step.
+  - Updated:
+    - `tests/run_ci_sanity_gate.py`
+      - added `seamgrim_overlay_session_wired_consistency_check`
+      - fail code: `E_CI_SANITY_OVERLAY_SESSION_WIRED_CONSISTENCY_FAIL`
+    - `tests/run_ci_sanity_gate_diagnostics_check.py`
+      - added required tokens for the new sanity step/code
+    - `tests/run_ci_emit_artifacts_check.py`
+      - extended `SANITY_REQUIRED_PASS_STEPS` with wired consistency step
+    - `tests/run_ci_emit_artifacts_check_selftest.py`
+      - PASS sanity fixture now includes wired consistency step
+      - added negative cases:
+        - `badsanitywiredmissing` -> `E_SANITY_REQUIRED_STEP_MISSING`
+        - `badsanitywiredfailed` -> `E_SANITY_REQUIRED_STEP_FAILED`
+    - `tests/run_ci_emit_artifacts_sanity_contract_check.py`
+      - static-contract tokens now require wired consistency step/cases
+  - Verification:
+    - `python tests/run_seamgrim_overlay_session_wired_consistency_check.py` PASS
+    - `python tests/run_ci_sanity_gate_diagnostics_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_sanity_contract_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_sanity_gate.py --json-out I:/home/urihanl/ddn/codex/build/reports/dev_age5_continue_wired_sanity.ci_sanity_gate.detjson` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_wired_contract_20260302` PASS
+- Exposed overlay compare/session selftest status in PASS summary and hardened summary checks.
+  - Updated:
+    - `tests/run_ci_aggregate_gate.py`
+      - PASS summary now emits:
+        - `ci_pack_golden_overlay_compare_selftest_ok`
+        - `ci_pack_golden_overlay_session_selftest_ok`
+    - `tests/run_ci_gate_summary_report_check.py`
+      - requires the two keys for PASS summaries
+      - validates both values are `0|1`, and enforces `1` on PASS
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - updated PASS fixture lines with new keys
+    - `tests/run_ci_aggregate_gate_age5_diagnostics_check.py`
+      - requires summary token presence for the two new keys
+  - Verification:
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_age5_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_task235_summary --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- Wired overlay-session pack selftest into aggregate AGE5 diagnostics path.
+  - Updated:
+    - `tests/run_ci_aggregate_gate.py`
+      - added `ci_pack_golden_overlay_session_selftest` step
+      - included session selftest rc in fast-fail/overall-substep checks
+    - `tests/run_ci_aggregate_gate_age5_diagnostics_check.py`
+      - now requires:
+        - `ci_pack_golden_overlay_session_selftest`
+        - `tests/run_pack_golden_overlay_session_selftest.py`
+  - Verification:
+    - `python tests/run_pack_golden_overlay_session_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_age5_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_task235_followup --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- Completed AGE5 recommended sequence (1 -> 4 -> 2/3) for overlay/session close criteria hardening.
+  - Updated:
+    - `tests/run_age5_close.py`
+      - keeps strict close (`--strict`) behavior for wired-only S6 contracts
+      - adds S6 session pack golden mapping/order criteria:
+        - `s6_session_pack_golden_case_map_match`
+        - `s6_session_pack_golden_case_order_stable`
+      - syncs session pack minimum/case-range messaging to `c01~c09` and `>=9`
+    - `tests/_seamgrim_ci_diag_lib.py`
+      - adds diagnostics parsing for `overlay_session_wired_consistency`
+      - makes `age5_close` failure parsing compatible with strict status-line format
+    - `tests/run_seamgrim_ci_gate_diagnostics_check.py`
+      - adds regression fixtures for:
+        - `overlay_session_wired_consistency` token-missing diagnostics
+        - strict-form age5 close status line
+  - Verification:
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_overlay_session_pack.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-overlay-checks --with-age5-close --json-out build/reports/dev_age5_task235.seamgrim_ci_gate_report.json` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_task235 --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+    - `python tests/run_seamgrim_wasm_smoke.py` PASS
+- Locked event-surface hardcut on the `run` execution path (not only `canon`) for `"KIND"라는 소식이 오면 ...`.
+  - Updated:
+    - `pack/seamgrim_event_surface_canon_v1/golden.jsonl`
+      - added `run` case expecting `E_EVENT_SURFACE_ALIAS_FORBIDDEN` on `c06_kind_noun_alias_EXPECT_FAIL`
+  - Verification:
+    - `python tests/run_pack_golden.py seamgrim_event_surface_canon_v1` PASS
+    - `python tests/run_pack_golden.py block_header_no_colon seamgrim_event_surface_canon_v1` PASS
+    - `python tests/run_seamgrim_wasm_smoke.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_continue --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- Hardened `ci_emit_artifacts_check` with mandatory `ci_sanity_gate` contract validation.
+  - Updated:
+    - `tests/ci_check_error_codes.py`
+      - added `E_SANITY_*` error codes for artifact-contract failures
+    - `tests/run_ci_emit_artifacts_check.py`
+      - requires `reports.ci_sanity_gate`
+      - validates `ddn.ci.sanity_gate.v1` schema/status/steps consistency
+      - enforces `result_status=pass => ci_sanity_gate.status=pass`
+    - `tests/run_ci_emit_artifacts_check_selftest.py`
+      - expanded fixtures with `ci_sanity_gate` report and negative cases:
+        - missing sanity path
+        - sanity schema mismatch
+        - sanity status mismatch
+  - Verification:
+    - `python -m py_compile tests/ci_check_error_codes.py tests/run_ci_emit_artifacts_check.py tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_emit_artifacts_check.py --report-dir build/reports --prefix dev_summary_guard_r2 --require-brief --require-triage` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_emit_sanity_contract --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_emit_sanity_contract_core --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- Integrated `seed_meta_files` as a real Seamgrim CI step to remove aggregate `step_missing` fallback.
+  - Updated:
+    - `tests/run_seamgrim_ci_gate.py`
+      - added `seed_meta_files` step (`tests/run_seamgrim_seed_meta_files_check.py`)
+  - Verification:
+    - `python -m py_compile tests/run_seamgrim_ci_gate.py` PASS
+    - `python tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --strict-graph --require-promoted --with-5min-checklist --checklist-skip-seed-cli --checklist-skip-ui-common --json-out build/reports/dev_seedmeta.seamgrim_ci_gate_report.json` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_seedmeta_followup --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+      - summary now reports `seamgrim_seed_meta_files_status=ok`
+- Restored aggregate CI pass after SSOT-aligned schema/seed updates.
+  - Updated:
+    - `tools/teul-cli/src/runtime/eval.rs`
+      - added missing canonical builtins in `is_builtin_name`: `tan`, `asin`, `acos`, `atan`, `atan2`
+    - `solutions/seamgrim_ui_mvp/lessons/**/lesson.ddn` and matching `lesson.age3.preview.ddn`
+      - removed legacy `#이름/#설명` meta headers from primary lesson sources
+    - `solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn`
+      - restored prep-block surface contract (`채비 {}`) and aligned start initialization
+    - `pack/seamgrim_curriculum_seed_smoke_v1/smoke_*.v1.json`
+      - refreshed expected state hashes to current deterministic runtime outputs
+  - Verification:
+    - `python tests/run_builtin_name_sync_check.py` PASS
+    - `python tests/run_seamgrim_lesson_schema_gate.py --require-promoted` PASS
+    - `python tests/run_seamgrim_new_grammar_no_legacy_control_meta_check.py` PASS
+    - `python tests/run_pack_golden.py seamgrim_curriculum_seed_smoke_v1` PASS
+    - `python tests/run_age4_close.py --report-out build/reports/dev_runtime5_ui_skip.age4_close_report.detjson --pack-report-out build/reports/dev_runtime5_ui_skip.age4_close_pack_report.detjson` PASS
+    - `python tests/run_seamgrim_ci_gate.py --strict-graph --require-promoted --print-drilldown --with-5min-checklist --checklist-skip-seed-cli --checklist-skip-ui-common --json-out build/reports/dev_runtime5_ui_skip.seamgrim_ci_gate_report.json --ui-age3-json-out build/reports/dev_runtime5_ui_skip.seamgrim_ui_age3_gate_report.detjson --phase3-cleanup-json-out build/reports/dev_runtime5_ui_skip.seamgrim_phase3_cleanup_gate_report.detjson --browse-selection-json-out build/reports/dev_runtime5_ui_skip.seamgrim_browse_selection_flow_report.detjson --rewrite-overlay-json-out build/reports/dev_runtime5_ui_skip.seamgrim_rewrite_overlay_quality_report.detjson --checklist-json-out build/reports/dev_runtime5_ui_skip.seamgrim_5min_checklist_report.detjson` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_runtime5_ui_skip --skip-core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- Hardened runtime5 diagnostics/token selftests for the new UI-skip passthrough.
+  - Updated:
+    - `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py`
+      - now requires `--runtime-5min-skip-ui-common` token path in aggregate gate source
+    - `tests/run_ci_pipeline_emit_flags_check_selftest.py`
+      - added missing-token failure case for `--runtime-5min-skip-ui-common`
+  - Verification:
+    - `python -m py_compile tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py tests/run_ci_pipeline_emit_flags_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` PASS
+    - `python tests/run_ci_pipeline_emit_flags_check_selftest.py` PASS
+    - `python tests/run_ci_pipeline_emit_flags_check.py` PASS
+    - `python tests/run_ci_sanity_gate_diagnostics_check.py` PASS
+- Improved runtime-5min diagnostics parsing for sub-step failure lines.
+  - Updated:
+    - `tests/_seamgrim_ci_diag_lib.py`
+      - runtime_5min now recognizes `[<step>] fail (<ms>ms)` as `runtime_5min_subcheck_failed`
+    - `tests/run_seamgrim_ci_gate_diagnostics_check.py`
+      - added regression case for runtime_5min subcheck line (`ui_pendulum_runner`)
+  - Verification:
+    - `python -m py_compile tests/_seamgrim_ci_diag_lib.py tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-runtime-5min --runtime-5min-base-url http://127.0.0.1:8787 --runtime-5min-skip-seed-cli --runtime-5min-skip-ui-common --with-5min-checklist --checklist-from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson --checklist-base-url http://127.0.0.1:8787` PASS
+- Wired runtime-5min UI-skip into CI pipeline invocations and flag checks.
+  - Updated:
+    - `.gitlab-ci.yml`, `azure-pipelines.yml`
+      - aggregate gate invocations now include `--runtime-5min-skip-ui-common`
+    - `tests/run_ci_pipeline_emit_flags_check.py`
+      - requires `--runtime-5min-skip-ui-common` in each aggregate invocation line
+    - `tests/run_ci_pipeline_emit_flags_check_selftest.py`
+      - baseline aggregate command includes the new required token
+  - Verification:
+    - `python tests/run_ci_pipeline_emit_flags_check.py` PASS
+    - `python tests/run_ci_pipeline_emit_flags_check_selftest.py` PASS
+    - `python tests/run_ci_sanity_gate_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` PASS
+- Added runtime-5min UI-skip passthrough options in CI gate wrappers.
+  - Updated:
+    - `tests/run_seamgrim_ci_gate.py`
+      - new option: `--runtime-5min-skip-ui-common`
+      - forwards to `run_seamgrim_runtime_5min_check.py --skip-ui-common`
+      - records `runtime_5min_skip_ui_common` in output json
+    - `tests/run_ci_aggregate_gate.py`
+      - new option: `--runtime-5min-skip-ui-common`
+      - forwards option into `run_seamgrim_ci_gate.py` call
+  - Verification:
+    - `python -m py_compile tests/run_seamgrim_ci_gate.py tests/run_ci_aggregate_gate.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-runtime-5min --runtime-5min-base-url http://127.0.0.1:8787 --runtime-5min-skip-seed-cli --runtime-5min-skip-ui-common --with-5min-checklist --checklist-from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson --checklist-base-url http://127.0.0.1:8787` PASS
+    - `python tests/run_ci_aggregate_gate.py --help` includes `--runtime-5min-skip-ui-common`
+- Extended Seamgrim wasm smoke and checklist output stability.
+  - Updated:
+    - `tests/run_seamgrim_wasm_smoke.py`
+      - now runs:
+        - `tests/seamgrim_pendulum_bogae_runner.mjs`
+        - `tests/seamgrim_wasm_vm_runtime_runner.mjs`
+      - added skip flags:
+        - `--skip-ui-pendulum`
+        - `--skip-vm-runtime`
+    - `tests/run_seamgrim_5min_checklist.py`
+      - added `force_utf8_stdio()` to keep checklist stdout/stderr in UTF-8
+      - reduces Korean text mojibake when captured by `run_seamgrim_ci_gate.py`
+  - Verification:
+    - `python tests/run_seamgrim_wasm_smoke.py seamgrim_wasm_v0_smoke --skip-space2d-source-gate` PASS
+    - `python tests/run_seamgrim_wasm_smoke.py --skip-space2d-source-gate` PASS
+    - `python tests/run_seamgrim_5min_checklist.py --from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-runtime-5min --runtime-5min-base-url http://127.0.0.1:8787 --runtime-5min-skip-seed-cli --with-5min-checklist --checklist-base-url http://127.0.0.1:8787 --checklist-skip-seed-cli --print-drilldown` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-5min-checklist --checklist-from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson --checklist-base-url http://127.0.0.1:8787` PASS
+- Locked wasm parse-warning UI/runtime regressions with dedicated runners and checklist integration.
+  - Added:
+    - `tests/seamgrim_wasm_vm_runtime_runner.mjs`
+      - verifies `WasmVmHandle` parse warning retention/debug exposure/reset
+  - Updated:
+    - `tests/seamgrim_pendulum_bogae_runner.mjs`
+      - validates run-screen status hint parse-warning summary show/hide
+    - `tests/run_seamgrim_runtime_5min_check.py`
+      - includes `ui_pendulum_runner` and `wasm_vm_runtime_runner` in non-skip UI path
+    - `tests/run_seamgrim_5min_checklist.py`
+      - adds labels for the two new runtime steps
+  - Verification:
+    - `node tests/seamgrim_wasm_vm_runtime_runner.mjs` PASS
+    - `node tests/seamgrim_pendulum_bogae_runner.mjs` PASS
+    - `node tests/seamgrim_ui_common_runner.mjs` PASS
+    - `python -m py_compile tests/run_seamgrim_runtime_5min_check.py tests/run_seamgrim_5min_checklist.py` PASS
+    - `python tests/run_seamgrim_runtime_5min_check.py --base-url http://127.0.0.1:8787 --skip-seed-cli --json-out build/reports/seamgrim_runtime_5min_report.with_ui.detjson` PASS
+    - `python tests/run_seamgrim_5min_checklist.py --from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson` PASS
+    - `python tests/run_seamgrim_5min_checklist_selftest.py` PASS
+- Surfaced wasm parse warnings through Seamgrim run UI/runtime.
+  - Updated:
+    - `solutions/seamgrim_ui_mvp/ui/wasm_page_common.js`
+      - added `readWasmClientParseWarnings()`
+      - `applyWasmLogicFromSource()` now returns `parseWarnings`
+    - `solutions/seamgrim_ui_mvp/ui/screens/run.js`
+      - runtime hint now includes parse warning summary
+      - parse warning state is synchronized across wasm restart/fallback/failure paths
+    - `solutions/seamgrim_ui_mvp/ui/runtime/wasm_vm_runtime.js`
+      - tracks `lastParseWarnings`
+      - exposes `getParseWarnings()` and adds warnings in `getDebugInfo()`
+    - `solutions/seamgrim_ui_mvp/ui/app.js`
+      - smoke success output includes parse warning count
+    - `tests/seamgrim_ui_common_runner.mjs`
+      - added parse warning passthrough regression checks
+  - Verification:
+    - `node tests/seamgrim_ui_common_runner.mjs` PASS
+    - `node tests/seamgrim_wasm_wrapper_runner.mjs` PASS
+    - `node tests/seamgrim_pendulum_bogae_runner.mjs` PASS
+    - `python tests/run_pack_golden.py block_header_no_colon seamgrim_event_surface_canon_v1` PASS
+- Added block-header colon deprecation warning propagation across `lang/tool/wasm`.
+  - Updated `lang/src/canonicalizer.rs`:
+    - emits `W_BLOCK_HEADER_COLON_DEPRECATED` when colon-form block headers are detected
+    - covers declaration/meta/repeat/while/foreach header surfaces
+  - Updated `tool/src/ddn_runtime.rs`:
+    - `DdnProgram` now retains canonicalization warnings (`parse_warnings`)
+  - Updated `tool/src/main.rs`:
+    - DDN load path now prints parse warnings to stderr
+      (`warning: CODE [start..end] message`)
+  - Updated `tool/src/wasm_api.rs`:
+    - added `get_parse_warnings()` export
+  - Updated Seamgrim wasm wrapper/types:
+    - `solutions/seamgrim_ui_mvp/ui/wasm_ddn_wrapper.{ts,js}`: `parseWarningsParsed()`
+    - `solutions/seamgrim_ui_mvp/ui/wasm_ddn_types.d.ts`: parse warning types/API
+  - Expanded `pack/block_header_no_colon`:
+    - added repeat/foreach/while colon-form regression cases
+  - Verification:
+    - `cargo test -p ddonirang-lang --lib` PASS
+    - `cargo test -p ddonirang-tool ddn_runtime::tests::parse_warnings_include_block_header_colon_deprecation` PASS
+    - `cargo check -p ddonirang-tool --features wasm` PASS
+    - `node tests/seamgrim_wasm_wrapper_runner.mjs` PASS
+    - `python tests/run_pack_golden.py block_header_no_colon seamgrim_event_surface_canon_v1` PASS
 - Added `tests/run_ci_sync_readiness_check_selftest.py`.
   - Verifies quick-mode (`--skip-aggregate`) pass path and JSON payload contract for `run_ci_sync_readiness_check.py`.
   - Verifies `--json-out` custom output path handling.

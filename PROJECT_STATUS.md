@@ -3,7 +3,628 @@
 ## 목적
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
+## 2026-03-03 추가 진행 (Task 4/5 마감: sync-readiness 스냅샷 고정 + 문서 반영)
+- Task 4: `ci_sync_readiness` 스냅샷 리포트 고정을 프로파일 기준으로 재검증했다.
+  - 검증:
+    - `python tests/run_ci_profile_split_contract_check.py` PASS
+    - `python tests/run_ci_profile_core_lang_gate.py` PASS
+    - `python tests/run_ci_profile_seamgrim_gate.py` PASS
+    - `python tests/run_ci_sync_readiness_check.py --skip-aggregate --sanity-profile full --report-prefix dev_sync_readiness_full_snapshot --json-out build/reports/dev_sync_readiness_full_snapshot.ci_sync_readiness.detjson` PASS
+    - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness_full_snapshot.ci_sync_readiness.detjson --require-pass --sanity-profile full` PASS
+    - `python tests/run_ci_sync_readiness_report_check_selftest.py` PASS
+- Task 5: 위 결과를 기준으로 상태/변경 문서(`PROJECT_STATUS.md`, `CHANGELOG.md`)를 마감 반영했다.
+
+## 2026-03-03 추가 진행 (OI-417 본격화: guideblock_keys_basics D-PACK + 파서 동등성)
+- `guideblock_keys_basics` 팩과 전용 러너를 추가해 guideblock 키 사전(설정/보개/슬기) 검증을 D-PACK 형태로 고정했다.
+  - 추가:
+    - `pack/guideblock_keys_basics/` (3케이스: 헤더 alias/블록 alias/혼합 우선순위)
+    - `tests/seamgrim_guideblock_tool_parse.py`
+    - `tests/seamgrim_guideblock_keys_pack_runner.mjs`
+    - `tests/run_seamgrim_guideblock_keys_pack_check.py`
+  - 검증 규칙:
+    - expected canonical meta(`name/desc/default_observation/default_observation_x`)
+    - expected body prefix
+    - JS(UI) 파서(`parseGuideMetaHeader`) vs Python(tool) 파서(`parse_guide_meta_header`) parity
+- 런타임 5분 체크에도 guideblock pack 검증을 편입했다.
+  - 수정:
+    - `tests/run_seamgrim_runtime_5min_check.py` (`guideblock_keys_pack_check` step 추가)
+    - `tests/run_seamgrim_5min_checklist.py` (라벨 추가)
+- 검증:
+  - `python tests/run_seamgrim_guideblock_keys_pack_check.py` PASS
+  - `python tests/run_seamgrim_export_graph_preprocess_check.py` PASS
+  - `node tests/seamgrim_ui_common_runner.mjs` PASS
+  - `python tests/run_seamgrim_runtime_5min_check.py --skip-seed-cli --json-out build/reports/dev_runtime_5min_with_ui.detjson` PASS
+  - `python tests/run_seamgrim_5min_checklist.py --from-runtime-report build/reports/dev_runtime_5min_with_ui.detjson` PASS
+  - `python tests/run_age5_close.py --strict` PASS
+
+## 2026-03-03 추가 진행 (OI-417 연계: guideblock 메타 키 사전 블록형 파싱)
+- `설정/보개/슬기` 블록형 메타를 UI/도구 공통 파서가 읽도록 확장했다.
+  - 수정:
+    - `solutions/seamgrim_ui_mvp/ui/components/guide_meta.js`
+      - `parseGuideMetaHeader`에 guideblock 시작 감지(`설정|보개|슬기`)
+      - 블록 내부 `key: value.` 필드를 기존 alias 사전으로 정본 키 매핑
+    - `solutions/seamgrim_ui_mvp/tools/export_graph.py`
+      - `parse_guide_meta_header`에 동일한 guideblock 파싱/매핑 로직 반영
+    - `tests/seamgrim_ui_common_runner.mjs`
+      - block형 메타 회귀 테스트 추가
+    - `tests/run_seamgrim_export_graph_preprocess_check.py`
+      - `test_meta_guideblock_dictionary` 추가
+- 검증:
+  - `node tests/seamgrim_ui_common_runner.mjs` PASS
+  - `python tests/run_seamgrim_export_graph_preprocess_check.py` PASS
+
+## 2026-03-03 추가 진행 (AGE5 6번 증분: 실행정책/효과 경계 매핑 IR 산출)
+- `teul-cli canon`에 `--emit exec-policy-map-json`을 추가해 OI-416의 언어 축/도구 축 결합 결과를 JSON으로 고정 산출하도록 확장했다.
+  - 수정:
+    - `tools/teul-cli/src/canon.rs`
+      - `CanonOutput.exec_policy_map_json` 추가
+      - 실행정책 블록 파싱 기반 매핑 수집/직렬화 추가:
+        - `schema=ddn.exec_policy_effect_map.v1`
+        - language axis: `block_count`, `exec_mode/effect_policy` raw+effective, `strict_effect_ignored`, `would_fail_code`
+        - tool axis: `open_mode_values`, `effective_open_mode_resolution_order`
+        - open 모드별 결합 결과: strict/isolated/deny/record/replay 경로 고정
+    - `tools/teul-cli/src/cli/canon.rs`
+      - `EmitKind::ExecPolicyMapJson` 추가 및 emit 분기 구현
+    - `tests/run_pack_golden.py`
+      - 기본 팩 목록에 `seamgrim_exec_policy_effect_map_v1` 편입
+  - 추가:
+    - `pack/seamgrim_exec_policy_effect_map_v1/`
+      - `c01_general_allowed`, `c02_strict_forces_isolated`, `c03_duplicate_exec_policy_blocks`
+      - 각 케이스의 기대 JSON + `golden.jsonl` + `README.md`
+- 검증:
+  - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+  - `python tests/run_pack_golden.py seamgrim_exec_policy_effect_map_v1` PASS
+  - `python tests/run_pack_golden.py seamgrim_exec_policy_effect_diag_v1 seamgrim_exec_policy_effect_map_v1 seamgrim_event_model_ir_v1 seamgrim_guseong_flatten_ir_v1 seamgrim_event_surface_canon_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1 seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1` PASS
+  - `python tests/run_age5_close.py --strict` PASS
+  - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+
+## 2026-03-03 추가 진행 (AGE5 5번 증분: 이벤트 모델 최소 IR 산출)
+- `teul-cli canon`에 `--emit alrim-plan-json`을 추가해 이벤트 반응 계획을 JSON으로 산출하도록 확장했다.
+  - 수정:
+    - `tools/teul-cli/src/canon.rs`
+      - `CanonOutput.alrim_plan_json` 추가
+      - 이벤트 핸들러 계획 수집/직렬화 추가:
+        - `schema=ddn.alrim_event_plan.v1`
+        - `handlers[].order/kind/scope/body_canon`
+    - `tools/teul-cli/src/cli/canon.rs`
+      - `EmitKind::AlrimPlanJson` 추가 및 emit 분기 구현
+    - `tests/run_pack_golden.py`
+      - 기본 팩 목록에 `seamgrim_event_model_ir_v1` 편입
+  - 추가:
+    - `pack/seamgrim_event_model_ir_v1/` (c01 입력/기대 JSON/골든/README)
+- 검증:
+  - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+  - `python tests/run_pack_golden.py seamgrim_event_model_ir_v1` PASS
+  - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_guseong_flatten_ir_v1 seamgrim_event_surface_canon_v1 seamgrim_event_model_ir_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+  - `python tests/run_age5_close.py --strict` PASS
+  - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+
+## 2026-03-03 추가 진행 (AGE5 4번 증분: flatten JSON 산출 경로 추가)
+- `teul-cli canon`에 `--emit guseong-flat-json`를 추가해 `짜임 flatten` 계획을 결정적으로 출력하도록 확장했다.
+  - 수정:
+    - `tools/teul-cli/src/canon.rs`
+      - `CanonOutput`에 `guseong_flat_json` 필드 추가
+      - flatten 계획 산출에 `instances[]`, `links[]` 포함
+      - 고정 스키마: `ddn.guseong_flatten_plan.v1`
+    - `tools/teul-cli/src/cli/canon.rs`
+      - `EmitKind::GuseongFlatJson` 추가 및 emit 분기 구현
+    - `tests/run_pack_golden.py`
+      - 기본 팩 목록에 `seamgrim_guseong_flatten_ir_v1` 편입
+  - 추가:
+    - `pack/seamgrim_guseong_flatten_ir_v1/` (c01 입력/기대 JSON/골든/README)
+- 검증:
+  - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+  - `python tests/run_pack_golden.py seamgrim_guseong_flatten_ir_v1` PASS
+  - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_guseong_flatten_ir_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+  - `python tests/run_age5_close.py --strict` PASS
+  - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+
+## 2026-03-03 추가 진행 (AGE5 2번 증분 후속2: 튜플 투영 양성 골든 보강)
+- `pack/seamgrim_guseong_flatten_diag_v1`에 유효 튜플 투영 성공 케이스를 추가했다.
+  - 추가:
+    - `c21_tuple_projection_valid_success/input.ddn`
+    - `c21_tuple_projection_valid_success/expected_canon.ddn`
+  - 수정:
+    - `golden.jsonl`에 `c21_tuple_projection_valid_success` 엔트리 추가
+  - 목적:
+    - `.0/.1` 튜플 포트 투영 규칙이 “오류 케이스(c17~c20)”뿐 아니라 “정상 케이스(c21)”도 함께 고정되도록 보강
+- 검증:
+  - `python tests/run_pack_golden.py seamgrim_guseong_flatten_diag_v1` PASS
+  - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+  - `python tests/run_age5_close.py --strict` PASS
+  - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+
+## 2026-03-03 추가 진행 (AGE5 2번 증분 후속: 런타임 list dot-index 접근 연결)
+- `tools/teul-cli/src/lang/parser.rs`
+  - `parse_path`/`parse_postfix`가 정수 dot 세그먼트(`.0/.1`)를 허용하도록 확장
+  - 분수 dot 세그먼트(`.1.5`)는 파서 단계에서 차단 (`E_PARSE_UNEXPECTED_TOKEN`)
+  - 테스트 추가:
+    - `parse_numeric_dot_segment_as_field_access`
+    - `parse_numeric_dot_segment_rejects_fraction`
+    - `parse_path_allows_numeric_dot_segment`
+- `tools/teul-cli/src/runtime/eval.rs`
+  - `Expr::FieldAccess`와 `eval_path`를 공통 `eval_member_access`로 통합
+  - `List` 대상 점 접근(`.0/.1`)을 런타임에서도 허용
+  - 비숫자 세그먼트는 `E_PACK`로 차단(`차림 인덱스는 숫자(.0/.1)만 허용`)
+  - 단위 테스트 추가:
+    - `list_dot_index_path_access_works`
+    - `list_dot_index_requires_numeric_segment`
+- 검증:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml parse_numeric_dot_segment -- --nocapture` PASS
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml parse_path_allows_numeric_dot_segment -- --nocapture` PASS
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml list_dot_index -- --nocapture` PASS
+  - `cargo run --quiet --manifest-path tools/teul-cli/Cargo.toml -- run build/tmp_runtime_list_index.ddn --ticks 1` 실행 시 `22` 확인
+  - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+  - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+  - `python tests/run_age5_close.py --strict` PASS
+  - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+
+## 2026-03-03 추가 진행 (AGE5 2번 증분: 짜임 flatten scalar tuple-access 진단 확장)
+- `짜임` flatten 진단 pack에서 누락되어 있던 `c19`(스칼라 출력 포트에 `.0` 접근) 케이스를 활성화했다.
+  - 수정:
+    - `tools/teul-cli/src/canon.rs`
+      - 경로/필드 파싱에서 숫자 dot 세그먼트(`.0`, `.1` 등) 허용
+      - 점 접근 인덱스가 정수가 아니면 `E_CANON_TUPLE_INDEX_INVALID`로 차단
+    - `pack/seamgrim_guseong_flatten_diag_v1/golden.jsonl`
+      - `c19_tuple_access_on_scalar_output_EXPECT_FAIL` 추가
+      - 기대 코드: `E_GUSEONG_TUPLE_ACCESS_ON_SCALAR`
+- 검증:
+  - `cargo check --manifest-path tools/teul-cli/Cargo.toml` PASS
+  - `python tests/run_pack_golden.py seamgrim_guseong_flatten_diag_v1` PASS
+  - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- canon pack/seamgrim_guseong_flatten_diag_v1/c19_tuple_access_on_scalar_output_EXPECT_FAIL/input.ddn` 실행 시 `E_GUSEONG_TUPLE_ACCESS_ON_SCALAR` 확인
+  - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+
+## 2026-03-03 추가 진행 (AGE5 1~6 착수 + W92 최소 계약 편입)
+- AGE5 마감 게이트 재검증:
+  - `python tests/run_age5_close.py --strict` PASS (`criteria=19`, `failed=0`)
+  - `python tests/run_ci_sync_readiness_check.py --skip-aggregate --json-out build/reports/dev_sync_readiness.detjson` PASS
+  - `python tests/run_ci_sync_readiness_report_check.py --report build/reports/dev_sync_readiness.detjson --require-pass` PASS
+- OI-414/415/416/418 회귀 묶음 재검증:
+  - `python tests/run_pack_golden.py seamgrim_jjaim_block_stub_canon_v1 seamgrim_guseong_flatten_diag_v1 seamgrim_event_surface_canon_v1 seamgrim_exec_policy_effect_diag_v1 block_header_no_colon seamgrim_bogae_madang_alias_v1 seamgrim_moyang_template_instance_view_boundary_v1` PASS
+- W92 착수:
+  - `pack/gogae9_w92_aot_compiler_v2`를 실행 가능한 최소 계약 pack으로 전환
+    - 추가: `intent.md`, `bench_cases.json`, `golden.detjson`, `golden.jsonl`, 입력/정본 골든
+  - 신규 검증기 `tests/run_w92_aot_pack_check.py` 추가
+    - bench/golden 스키마, case-id 정합, speedup floor(`>=20.0`) 확인
+  - `tests/run_pack_golden.py` 기본 목록에 `gogae9_w92_aot_compiler_v2` 편입
+  - 검증:
+    - `python tests/run_w92_aot_pack_check.py --pack pack/gogae9_w92_aot_compiler_v2` PASS
+    - `python tests/run_pack_golden.py gogae9_w92_aot_compiler_v2` PASS
+
 ## 최근 문서 갱신
+- aggregate sanity diagnostics 정적 체크를 다중 파일 계약으로 확장해 parity 요약 키 회귀를 사전 차단했다.
+  - 수정:
+    - `tests/run_ci_aggregate_gate_sanity_diagnostics_check.py`
+      - 단일 대상(`run_ci_aggregate_gate.py`) 토큰 체크에서 다중 대상 토큰 체크로 확장:
+        - `tests/run_ci_aggregate_gate.py`
+        - `tests/_ci_aggregate_diag_lib.py`
+        - `tests/run_ci_gate_summary_report_check.py`
+      - parity 요약 키/강제 메시지 토큰을 필수 계약으로 추가
+  - 검증:
+    - `python -m py_compile tests/run_ci_aggregate_gate_sanity_diagnostics_check.py tests/_ci_aggregate_diag_lib.py tests/run_ci_gate_summary_report_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sanity_diagnostics_check.py` PASS
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --skip-core-tests --report-prefix dev_age5_sanity_diag_guard --clean-prefixed-reports --quiet-success-logs --compact-step-logs` PASS
+- aggregate PASS summary에 `ci_sanity`의 overlay/session parity 3종 상태를 직접 노출하고 PASS 불변식으로 고정했다.
+  - 수정:
+    - `tests/_ci_aggregate_diag_lib.py`
+      - `ci_sanity_gate` 보고서의 아래 step 결과를 summary key로 노출:
+        - `ci_sanity_overlay_session_wired_consistency_ok`
+        - `ci_sanity_overlay_session_diag_parity_ok`
+        - `ci_sanity_overlay_compare_diag_parity_ok`
+    - `tests/run_ci_gate_summary_report_check.py`
+      - PASS 필수 키에 parity 3종 key 추가
+      - PASS일 때 각 key가 `1`인지 강제
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - PASS fixture parity 3종 key 반영
+      - 음수 케이스(`ci_sanity_overlay_compare_diag_parity_ok=0`) 추가
+  - 검증:
+    - `python -m py_compile tests/_ci_aggregate_diag_lib.py tests/run_ci_gate_summary_report_check.py tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_sanity_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --skip-core-tests --report-prefix dev_age5_sanity_parity_surface --clean-prefixed-reports --quiet-success-logs --compact-step-logs` PASS
+    - `python tests/run_ci_aggregate_gate.py --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --report-prefix dev_age5_core_followup --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- aggregate PASS summary에 `ci_sync_readiness` 표면을 고정해 sync 상태가 요약/검증/진단에서 일관되게 노출되도록 마감했다.
+  - 수정:
+    - `tests/_ci_aggregate_diag_lib.py`
+      - `load_ci_sync_readiness_snapshot`, `append_ci_sync_readiness_summary_lines` 추가
+      - `print_report_paths`에 `ci_sync_readiness_report` 경로 인자를 추가
+    - `tests/run_ci_aggregate_gate.py`
+      - PASS/FAIL summary 경로에서 `ci_sync_readiness_*` 요약 라인(`status/ok/code/step/msg/step_count`) 출력 추가
+      - report-path 출력 호출을 `ci_sync_readiness_report` 인자와 동기화
+    - `tests/run_ci_gate_summary_report_check.py`
+      - PASS 필수 키에 `ci_sync_readiness_report/status/ok/code/step/msg/step_count` 추가
+      - PASS 불변식(`status=pass`, `ok=1`, `code=OK`, `step=all`, `step_count>0`) 추가
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - PASS fixture에 sync_readiness summary 키를 추가
+      - 음수 케이스(키 누락, `step_count` 저하) 추가
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - sync summary helper/표면 키 토큰 계약 추가
+  - 검증:
+    - `python -m py_compile tests/_ci_aggregate_diag_lib.py tests/run_ci_aggregate_gate.py tests/run_ci_gate_summary_report_check.py tests/run_ci_gate_summary_report_check_selftest.py tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sanity_diagnostics_check.py` PASS
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_ci_aggregate_gate.py --skip-core-tests --report-prefix dev_age5_finish_sync --clean-prefixed-reports --quiet-success-logs --compact-step-logs` PASS
+- emit_artifacts 계약에 `ci_sync_readiness` 아티팩트 검증을 추가해 aggregate 직접검증 경로를 회귀 방지했다.
+  - 수정:
+    - `tests/run_ci_emit_artifacts_check.py`
+      - `reports.ci_sync_readiness` 존재/JSON/스키마(`ddn.ci.sync_readiness.v1`)/상태 일관성 검증 추가
+      - PASS 시 `code=OK`, `step=all` 고정 검증 추가
+    - `tests/ci_check_error_codes.py`
+      - 신규 코드 추가:
+        - `SYNC_READINESS_PATH_MISSING`
+        - `SYNC_READINESS_JSON_INVALID`
+        - `SYNC_READINESS_SCHEMA_MISMATCH`
+        - `SYNC_READINESS_STATUS_UNSUPPORTED`
+        - `SYNC_READINESS_STATUS_MISMATCH`
+        - `SYNC_READINESS_PASS_STATUS_FIELDS`
+    - `tests/run_ci_emit_artifacts_check_selftest.py`
+      - sync_readiness 음수 케이스 추가:
+        - 미존재 / 스키마 오류 / status unsupported / status mismatch / pass fields 불일치
+    - `tests/run_ci_emit_artifacts_sanity_contract_check.py`
+      - emit/seltest/code-map 정적 토큰 계약에 sync_readiness 항목 추가
+  - 검증:
+    - `python -m py_compile tests/ci_check_error_codes.py tests/run_ci_emit_artifacts_check.py tests/run_ci_emit_artifacts_check_selftest.py tests/run_ci_emit_artifacts_sanity_contract_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_sanity_contract_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_sync_emit_artifacts_20260302 --skip-core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common` PASS
+- sync_readiness report 에러코드 단일출처를 고정하고, aggregate에서 생성 리포트를 직접 검증하도록 배선했다.
+  - 수정:
+    - `tests/ci_check_error_codes.py`
+      - `SYNC_READINESS_REPORT_CODES` 그룹 추가
+    - `tests/run_ci_sync_readiness_report_check.py`
+      - 하드코딩 에러코드를 제거하고 `SYNC_READINESS_REPORT_CODES`를 사용
+    - `tests/run_ci_sync_readiness_report_check_selftest.py`
+      - 음수 케이스를 `returncode != 0`뿐 아니라 `fail code=...` 문자열까지 검증하도록 강화
+    - `tests/run_ci_sync_readiness_diagnostics_check.py`
+      - report_check/report_selftest 토큰 계약을 코드맵 기반 표현으로 동기화
+    - `tests/run_ci_aggregate_gate.py`
+      - 신규 단계 추가:
+        - `ci_sync_readiness_report_generate`
+        - `ci_sync_readiness_report_check`
+      - `ci_sync_readiness.detjson`를 aggregate 산출물/인덱스에 편입
+      - fast-fail/overall/sub-step/fail-path 진단 조건에 신규 단계 반영
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - 신규 aggregate 단계/함수/스크립트 토큰 계약 추가
+  - 검증:
+    - `python -m py_compile tests/ci_check_error_codes.py tests/run_ci_sync_readiness_report_check.py tests/run_ci_sync_readiness_report_check_selftest.py tests/run_ci_sync_readiness_diagnostics_check.py tests/run_ci_aggregate_gate_sync_diagnostics_check.py tests/run_ci_aggregate_gate.py` PASS
+    - `python tests/run_ci_sync_readiness_report_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_sync_direct_check_20260302 --skip-core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common` PASS
+- sync_readiness 결과 JSON에 대한 전용 계약 검증기와 selftest를 추가하고 aggregate 필수 단계로 편입했다.
+  - 수정:
+    - `tests/run_ci_sync_readiness_report_check.py` 추가
+      - `ddn.ci.sync_readiness.v1` 계약 검증:
+        - `status/ok/code/step/msg` 일관성
+        - `steps/steps_count` 일치
+        - `sanity_gate_contract` 단계 존재
+        - validate-only 모드의 단일 단계 형태 강제
+    - `tests/run_ci_sync_readiness_report_check_selftest.py` 추가
+      - PASS/validate-only PASS 및 음수 케이스(코드 깨짐/contract row 누락/validate-only 형태 깨짐) 검증
+    - `tests/run_ci_sync_readiness_diagnostics_check.py`
+      - report check/selftest 토큰 계약 추가
+    - `tests/run_ci_aggregate_gate.py`
+      - 신규 단계 `ci_sync_readiness_report_selftest` 추가
+      - fast-fail/overall/sub-step/fail-path 진단 실행 조건 반영
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - 신규 단계/스크립트 토큰 계약 추가
+  - 검증:
+    - `python tests/run_ci_sync_readiness_report_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_report_20260302` PASS
+- sync_readiness 결과 표면을 `status/code/step/msg`로 고정하고 validate-only 모드를 추가했다.
+  - 수정:
+    - `tests/run_ci_sync_readiness_check.py`
+      - 실패 코드 도입:
+        - `E_SYNC_READINESS_STEP_FAIL`
+        - `E_SYNC_READINESS_SANITY_CONTRACT_FAIL`
+        - `E_SYNC_READINESS_VALIDATE_ONLY_PATH_MISSING`
+      - 신규 옵션 `--validate-only-sanity-json` 추가
+      - 결과 JSON/출력 라인에 `code`, `step`, `msg` 필드 고정
+    - `tests/run_ci_sync_readiness_check_selftest.py`
+      - PASS 경로의 `status/code/step` 검증 추가
+      - validate-only 정상/실패(계약 위반, 경로 누락) 케이스 추가
+    - `tests/run_ci_sync_readiness_diagnostics_check.py`
+      - 신규 코드/옵션/셀프테스트 토큰 계약 추가
+  - 검증:
+    - `python tests/run_ci_sync_readiness_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_check.py --report-dir I:/home/urihanl/ddn/codex/build/reports --report-prefix dev_sync_readiness_codes_20260302 --skip-aggregate` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_codes_20260302` PASS
+- sync_readiness 정적 진단 체크를 신설하고 aggregate 필수 단계로 편입했다.
+  - 수정:
+    - `tests/run_ci_sync_readiness_diagnostics_check.py` 추가
+      - `run_ci_sync_readiness_check.py`의 sanity 계약 토큰과 selftest 토큰을 정적 검증
+    - `tests/run_ci_aggregate_gate.py`
+      - 신규 단계 `ci_sync_readiness_diagnostics_check` 추가
+      - fast-fail/overall 성공 판정/sub-step 실패 판정 및 fail 경로 진단 실행에 포함
+    - `tests/run_ci_aggregate_gate_sync_diagnostics_check.py`
+      - 신규 단계/함수/스크립트 토큰 계약 추가
+  - 검증:
+    - `python tests/run_ci_sync_readiness_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_sync_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_diag_20260302` PASS
+- sync_readiness에 `ci_sanity_gate` 계약 검증을 내장해, 실행 성공/계약 불일치 상태를 분리 탐지하도록 강화했다.
+  - 수정:
+    - `tests/run_ci_sync_readiness_check.py`
+      - 내부 계약 검증 단계 `sanity_gate_contract` 추가
+      - 검증 항목:
+        - `ddn.ci.sanity_gate.v1` 스키마
+        - `status=pass`, `code=OK`, `step=all`
+        - 필수 sanity step 9개의 존재/ok/returncode 일치
+    - `tests/run_ci_sync_readiness_check_selftest.py`
+      - 기대 step 수 `4 -> 5`로 갱신
+      - `sanity_gate_contract` 단계명 및 `ok=1` 검증 추가
+  - 검증:
+    - `python tests/run_ci_sync_readiness_check_selftest.py` PASS
+    - `python tests/run_ci_sync_readiness_check.py --report-dir I:/home/urihanl/ddn/codex/build/reports --report-prefix dev_sync_readiness_contract_20260302 --skip-aggregate` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_sync_contract_20260302` PASS
+- PASS summary 검증에서 `ci_sanity_gate_step_count` 하한을 고정해 sanity 스텝 축소 리그레션을 조기 차단했다.
+  - 수정:
+    - `tests/run_ci_gate_summary_report_check.py`
+      - `ci_sanity_gate_step_count` 기준을 `>0`에서 `>=9`로 강화
+      - 상수 추가: `MIN_REQUIRED_CI_SANITY_STEPS = 9`
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - PASS fixture step_count를 `9`로 동기화
+      - step_count 저하(`1`) 음수 케이스 추가
+  - 검증:
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_gate_summary_report_check.py --summary I:/home/urihanl/ddn/codex/build/reports/dev_age5_continue_wired_contract_20260302.ci_gate_summary.txt --index I:/home/urihanl/ddn/codex/build/reports/dev_age5_continue_wired_contract_20260302.ci_gate_report_index.detjson --require-pass` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_summary_guard_20260302` PASS
+- AGE5 sanity/emit 계약에 `overlay_session_wired_consistency` 필수 스텝을 편입해 S6 wired 이탈을 조기 차단했다.
+  - 수정:
+    - `tests/run_ci_sanity_gate.py`
+      - 신규 sanity 단계: `seamgrim_overlay_session_wired_consistency_check`
+      - 실패 코드: `E_CI_SANITY_OVERLAY_SESSION_WIRED_CONSISTENCY_FAIL`
+    - `tests/run_ci_sanity_gate_diagnostics_check.py`
+      - 신규 단계/코드 토큰 계약 추가
+    - `tests/run_ci_emit_artifacts_check.py`
+      - `SANITY_REQUIRED_PASS_STEPS`에 wired consistency 단계 추가
+    - `tests/run_ci_emit_artifacts_check_selftest.py`
+      - PASS fixture에 wired consistency 단계 추가
+      - 음수 케이스 추가:
+        - `badsanitywiredmissing` (`E_SANITY_REQUIRED_STEP_MISSING`)
+        - `badsanitywiredfailed` (`E_SANITY_REQUIRED_STEP_FAILED`)
+    - `tests/run_ci_emit_artifacts_sanity_contract_check.py`
+      - 위 단계/케이스 토큰 정적 계약 검증 추가
+  - 검증:
+    - `python tests/run_seamgrim_overlay_session_wired_consistency_check.py` PASS
+    - `python tests/run_ci_sanity_gate_diagnostics_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_sanity_contract_check.py` PASS
+    - `python tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_sanity_gate.py --json-out I:/home/urihanl/ddn/codex/build/reports/dev_age5_continue_wired_sanity.ci_sanity_gate.detjson` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-prefix dev_age5_continue_wired_contract_20260302` PASS
+- CI 요약 리포트에 overlay compare/session selftest 상태를 명시적으로 노출하도록 보강했다.
+  - 수정:
+    - `tests/run_ci_aggregate_gate.py`
+      - PASS summary에 아래 키 추가:
+        - `ci_pack_golden_overlay_compare_selftest_ok`
+        - `ci_pack_golden_overlay_session_selftest_ok`
+    - `tests/run_ci_gate_summary_report_check.py`
+      - PASS 필수 키에 위 2개를 추가하고 값(`0|1`) 검증 + PASS 시 `1` 강제
+    - `tests/run_ci_gate_summary_report_check_selftest.py`
+      - PASS fixture에 신규 키 2개 반영
+    - `tests/run_ci_aggregate_gate_age5_diagnostics_check.py`
+      - summary 토큰 필수 목록에 신규 키 2개 반영
+  - 검증:
+    - `python tests/run_ci_gate_summary_report_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_age5_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_task235_summary --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- aggregate 게이트 AGE5 진단 경로에 `overlay_session` selftest를 편입했다.
+  - 수정:
+    - `tests/run_ci_aggregate_gate.py`
+      - 신규 단계 추가: `ci_pack_golden_overlay_session_selftest` (`tests/run_pack_golden_overlay_session_selftest.py`)
+      - fast-fail/overall 성공 조건/하위 실패 조건에 session selftest 결과를 반영
+    - `tests/run_ci_aggregate_gate_age5_diagnostics_check.py`
+      - 필수 토큰 목록에 session selftest 단계/스크립트 경로 추가
+  - 검증:
+    - `python tests/run_pack_golden_overlay_session_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_age5_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_task235_followup --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- AGE5 권장 순서(1→4→2/3) 기준으로 S6 session 계약/팩/진단 게이트를 마무리 보강했다.
+  - 수정:
+    - `tests/run_age5_close.py`
+      - strict 모드(`--strict`) 기준 유지
+      - S6 session pack(`pack/seamgrim_overlay_session_roundtrip_v0`)에 `case_map_match`/`case_order_stable` 기준 추가
+      - `c09` 반영 기준으로 최소 케이스/안내 문구를 `9`로 동기화
+    - `tests/_seamgrim_ci_diag_lib.py`
+      - `overlay_session_wired_consistency` 단계 진단 파싱 추가
+      - `age5_close` 진단 파싱을 `strict=... overall_ok=...` 출력 형식까지 허용
+    - `tests/run_seamgrim_ci_gate_diagnostics_check.py`
+      - `overlay_session_wired_consistency` 누락 토큰 진단 회귀 케이스 추가
+      - `age5_close strict` 출력 형식 회귀 케이스로 갱신
+  - 검증:
+    - `python tests/run_age5_close.py --strict` PASS
+    - `python tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_overlay_session_pack.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-overlay-checks --with-age5-close --json-out build/reports/dev_age5_task235.seamgrim_ci_gate_report.json` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_task235 --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+    - `python tests/run_seamgrim_wasm_smoke.py` PASS
+- 이벤트 표면 하드컷을 `canon`뿐 아니라 `run` 경로까지 회귀 고정했다.
+  - 수정:
+    - `pack/seamgrim_event_surface_canon_v1/golden.jsonl`
+      - 케이스 추가: `"KIND"라는 소식이 오면 ...` 입력에 대한 `run` FATAL 기대
+      - 기대 코드: `E_EVENT_SURFACE_ALIAS_FORBIDDEN`
+  - 검증:
+    - `python tests/run_pack_golden.py seamgrim_event_surface_canon_v1` PASS
+    - `python tests/run_pack_golden.py block_header_no_colon seamgrim_event_surface_canon_v1` PASS
+    - `python tests/run_seamgrim_wasm_smoke.py` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_age5_continue --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- `ci_emit_artifacts_check`에 `ci_sanity_gate` 아티팩트 계약 검증을 추가해, index/JSON 계약 누락·불일치를 조기 차단했다.
+  - 수정:
+    - `tests/ci_check_error_codes.py`
+      - `E_SANITY_*` 계열 코드 추가(`PATH_MISSING/JSON_INVALID/SCHEMA_MISMATCH/STATUS_*`)
+    - `tests/run_ci_emit_artifacts_check.py`
+      - `reports.ci_sanity_gate` 필수화
+      - `ddn.ci.sanity_gate.v1` 스키마/상태/steps 일관성 검증
+      - `result_status=pass`일 때 `ci_sanity`도 `pass`여야 통과하도록 불변식 추가
+    - `tests/run_ci_emit_artifacts_check_selftest.py`
+      - `ci_sanity_gate` 정상 fixture 추가
+      - 회귀 케이스 추가: `misssanity`, `badsanityschema`, `badsanitystatus`
+  - 검증:
+    - `python -m py_compile tests/ci_check_error_codes.py tests/run_ci_emit_artifacts_check.py tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_emit_artifacts_check_selftest.py` PASS
+    - `python tests/run_ci_emit_artifacts_check.py --report-dir build/reports --prefix dev_summary_guard_r2 --require-brief --require-triage` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_emit_sanity_contract --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_emit_sanity_contract_core --core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- Seamgrim CI 게이트에 `seed_meta_files` 실검 단계를 편입해 aggregate 요약의 `step_missing`을 제거했다.
+  - 수정:
+    - `tests/run_seamgrim_ci_gate.py`
+      - 신규 단계 추가: `seed_meta_files` (`tests/run_seamgrim_seed_meta_files_check.py`)
+  - 검증:
+    - `python -m py_compile tests/run_seamgrim_ci_gate.py` PASS
+    - `python tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --strict-graph --require-promoted --with-5min-checklist --checklist-skip-seed-cli --checklist-skip-ui-common --json-out build/reports/dev_seedmeta.seamgrim_ci_gate_report.json` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_seedmeta_followup --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+      - summary: `seamgrim_seed_meta_files_status=ok`, `..._ok=1`
+- aggregate 게이트의 실 실패 원인을 정리하고 SSOT 정렬 작업 후 재통과까지 완료했다.
+  - 수정:
+    - `tools/teul-cli/src/runtime/eval.rs`
+      - `is_builtin_name`에 누락 수학 빌트인 추가: `tan`, `asin`, `acos`, `atan`, `atan2`
+    - `solutions/seamgrim_ui_mvp/lessons/**/lesson.ddn` + `lesson.age3.preview.ddn`
+      - 레거시 `#이름/#설명` 헤더 제거(신문법 게이트 정렬)
+    - `solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn`
+      - `채비 {}` 표면 계약 복구 + 시작 훅 초기화 정렬
+    - `pack/seamgrim_curriculum_seed_smoke_v1/smoke_*.v1.json`
+      - 최신 런타임 상태해시로 골든 재고정
+  - 검증:
+    - `python tests/run_builtin_name_sync_check.py` PASS
+    - `python tests/run_seamgrim_lesson_schema_gate.py --require-promoted` PASS
+    - `python tests/run_seamgrim_new_grammar_no_legacy_control_meta_check.py` PASS
+    - `python tests/run_pack_golden.py block_header_no_colon seamgrim_event_surface_canon_v1` PASS
+    - `python tests/run_pack_golden.py seamgrim_curriculum_seed_smoke_v1` PASS
+    - `python tests/run_age4_close.py --report-out build/reports/dev_runtime5_ui_skip.age4_close_report.detjson --pack-report-out build/reports/dev_runtime5_ui_skip.age4_close_pack_report.detjson` PASS
+    - `python tests/run_seamgrim_ci_gate.py --strict-graph --require-promoted --print-drilldown --with-5min-checklist --checklist-skip-seed-cli --checklist-skip-ui-common --json-out build/reports/dev_runtime5_ui_skip.seamgrim_ci_gate_report.json --ui-age3-json-out build/reports/dev_runtime5_ui_skip.seamgrim_ui_age3_gate_report.detjson --phase3-cleanup-json-out build/reports/dev_runtime5_ui_skip.seamgrim_phase3_cleanup_gate_report.detjson --browse-selection-json-out build/reports/dev_runtime5_ui_skip.seamgrim_browse_selection_flow_report.detjson --rewrite-overlay-json-out build/reports/dev_runtime5_ui_skip.seamgrim_rewrite_overlay_quality_report.detjson --checklist-json-out build/reports/dev_runtime5_ui_skip.seamgrim_5min_checklist_report.detjson` PASS
+    - `python tests/run_ci_aggregate_gate.py --report-dir build/reports --report-prefix dev_runtime5_ui_skip --skip-core-tests --fast-fail --backup-hygiene --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common` PASS
+- runtime5/파이프라인 토큰 진단 selftest를 추가 보강했다.
+  - 수정:
+    - `tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py`
+      - `--runtime-5min-skip-ui-common` 관련 토큰(옵션/조건/전달 라인) 필수 검증 추가
+    - `tests/run_ci_pipeline_emit_flags_check_selftest.py`
+      - `--runtime-5min-skip-ui-common` 누락 시 실패해야 하는 회귀 케이스 추가
+  - 검증:
+    - `python -m py_compile tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py tests/run_ci_pipeline_emit_flags_check_selftest.py` PASS
+    - `python tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` PASS
+    - `python tests/run_ci_pipeline_emit_flags_check_selftest.py` PASS
+    - `python tests/run_ci_pipeline_emit_flags_check.py` PASS
+    - `python tests/run_ci_sanity_gate_diagnostics_check.py` PASS
+- `runtime_5min` 서브스텝 실패 라인 진단을 보강했다.
+  - 수정:
+    - `tests/_seamgrim_ci_diag_lib.py`
+      - `runtime_5min` 진단에서 `[<step>] fail (<ms>ms)` 패턴을 `runtime_5min_subcheck_failed`로 인식
+    - `tests/run_seamgrim_ci_gate_diagnostics_check.py`
+      - `runtime_5min_subcheck_failed` 회귀 케이스(`ui_pendulum_runner`) 추가
+  - 검증:
+    - `python -m py_compile tests/_seamgrim_ci_diag_lib.py tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_ci_gate_diagnostics_check.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-runtime-5min --runtime-5min-base-url http://127.0.0.1:8787 --runtime-5min-skip-seed-cli --runtime-5min-skip-ui-common --with-5min-checklist --checklist-from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson --checklist-base-url http://127.0.0.1:8787` PASS
+- CI 파이프라인에 `runtime_5min UI 스킵`을 실제 반영하고 플래그 검증을 고정했다.
+  - 수정:
+    - `.gitlab-ci.yml`, `azure-pipelines.yml`
+      - `tests/run_ci_aggregate_gate.py` 호출에 `--runtime-5min-skip-ui-common` 추가
+    - `tests/run_ci_pipeline_emit_flags_check.py`
+      - aggregate 필수 토큰에 `--runtime-5min-skip-ui-common` 추가
+    - `tests/run_ci_pipeline_emit_flags_check_selftest.py`
+      - baseline aggregate 라인에 신규 토큰 반영
+  - 검증:
+    - `python tests/run_ci_pipeline_emit_flags_check.py` PASS
+    - `python tests/run_ci_pipeline_emit_flags_check_selftest.py` PASS
+    - `python tests/run_ci_sanity_gate_diagnostics_check.py` PASS
+    - `python tests/run_ci_aggregate_gate_runtime5_diagnostics_check.py` PASS
+- CI 게이트에 `runtime_5min UI 러너 스킵` 패스스루를 추가했다.
+  - 수정:
+    - `tests/run_seamgrim_ci_gate.py`
+      - 신규 옵션: `--runtime-5min-skip-ui-common`
+      - `--with-runtime-5min` 경로에서 `run_seamgrim_runtime_5min_check.py --skip-ui-common` 전달
+      - 결과 JSON에 `runtime_5min_skip_ui_common` 필드 추가
+    - `tests/run_ci_aggregate_gate.py`
+      - 신규 옵션: `--runtime-5min-skip-ui-common`
+      - seamgrim 하위 게이트 호출 시 동일 옵션 전달
+  - 검증:
+    - `python -m py_compile tests/run_seamgrim_ci_gate.py tests/run_ci_aggregate_gate.py` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-runtime-5min --runtime-5min-base-url http://127.0.0.1:8787 --runtime-5min-skip-seed-cli --runtime-5min-skip-ui-common --with-5min-checklist --checklist-from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson --checklist-base-url http://127.0.0.1:8787` PASS
+    - `python tests/run_ci_aggregate_gate.py --help` 출력에서 `--runtime-5min-skip-ui-common` 확인 PASS
+- wasm 스모크/체크리스트 경로를 추가 보강했다.
+  - 수정:
+    - `tests/run_seamgrim_wasm_smoke.py`
+      - 신규 러너를 smoke 기본 경로에 편입:
+        - `tests/seamgrim_pendulum_bogae_runner.mjs`
+        - `tests/seamgrim_wasm_vm_runtime_runner.mjs`
+      - 제어 플래그 추가:
+        - `--skip-ui-pendulum`
+        - `--skip-vm-runtime`
+    - `tests/run_seamgrim_5min_checklist.py`
+      - `force_utf8_stdio()` 추가로 stdout/stderr UTF-8 고정
+      - `run_seamgrim_ci_gate.py` 캡처 로그에서 한글 깨짐 완화
+  - 검증:
+    - `python tests/run_seamgrim_wasm_smoke.py seamgrim_wasm_v0_smoke --skip-space2d-source-gate` PASS
+    - `python tests/run_seamgrim_wasm_smoke.py --skip-space2d-source-gate` PASS
+    - `python tests/run_seamgrim_5min_checklist.py --from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-runtime-5min --runtime-5min-base-url http://127.0.0.1:8787 --runtime-5min-skip-seed-cli --with-5min-checklist --checklist-base-url http://127.0.0.1:8787 --checklist-skip-seed-cli --print-drilldown` PASS
+    - `python tests/run_seamgrim_ci_gate.py --with-5min-checklist --checklist-from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson --checklist-base-url http://127.0.0.1:8787` PASS
+- wasm parse warning 회귀를 UI/런타임 테스트와 5분 체크 경로에 고정했다.
+  - 수정:
+    - `tests/seamgrim_wasm_vm_runtime_runner.mjs` 신규
+      - `WasmVmHandle`의 parse warning 보관/노출/초기화(`invalidate`) 검증
+    - `tests/seamgrim_pendulum_bogae_runner.mjs`
+      - `RunScreen` 상태 힌트(`slider-status`)의 문법경고 요약 노출/해제 검증 추가
+    - `tests/run_seamgrim_runtime_5min_check.py`
+      - `ui_pendulum_runner`, `wasm_vm_runtime_runner` 단계 추가
+    - `tests/run_seamgrim_5min_checklist.py`
+      - 신규 단계 라벨 매핑 추가
+  - 검증:
+    - `node tests/seamgrim_wasm_vm_runtime_runner.mjs` PASS
+    - `node tests/seamgrim_pendulum_bogae_runner.mjs` PASS
+    - `node tests/seamgrim_ui_common_runner.mjs` PASS
+    - `python -m py_compile tests/run_seamgrim_runtime_5min_check.py tests/run_seamgrim_5min_checklist.py` PASS
+    - `python tests/run_seamgrim_runtime_5min_check.py --base-url http://127.0.0.1:8787 --skip-seed-cli --json-out build/reports/seamgrim_runtime_5min_report.with_ui.detjson` PASS
+    - `python tests/run_seamgrim_5min_checklist.py --from-runtime-report build/reports/seamgrim_runtime_5min_report.with_ui.detjson` PASS
+    - `python tests/run_seamgrim_5min_checklist_selftest.py` PASS
+- wasm 파서 경고를 실행 UI/런타임까지 전달해 사용자 노출을 마무리했다.
+  - 수정:
+    - `solutions/seamgrim_ui_mvp/ui/wasm_page_common.js`
+      - `readWasmClientParseWarnings()` 추가
+      - `applyWasmLogicFromSource()`가 `parseWarnings`를 반환
+    - `solutions/seamgrim_ui_mvp/ui/screens/run.js`
+      - 실행 힌트(`slider-status`)에 `문법경고: CODE` 요약 노출
+      - wasm 재실행/실패/server fallback에서 경고 상태 동기화
+    - `solutions/seamgrim_ui_mvp/ui/runtime/wasm_vm_runtime.js`
+      - `lastParseWarnings` 추적 + `getParseWarnings()`/`getDebugInfo().parseWarnings` 노출
+    - `solutions/seamgrim_ui_mvp/ui/app.js`
+      - smoke 성공 문구에 `parse_warning=<count>` 노출
+    - `tests/seamgrim_ui_common_runner.mjs`
+      - `applyWasmLogicFromSource`/`applyWasmLogicAndDispatchState` 경고 전달 회귀 검증 추가
+  - 검증:
+    - `node tests/seamgrim_ui_common_runner.mjs` PASS
+    - `node tests/seamgrim_wasm_wrapper_runner.mjs` PASS
+    - `node tests/seamgrim_pendulum_bogae_runner.mjs` PASS
+    - `python tests/run_pack_golden.py block_header_no_colon seamgrim_event_surface_canon_v1` PASS
+- `lang/tool/wasm` 경로에 블록헤더 콜론 경고 전파를 연결했다.
+  - 수정:
+    - `lang/src/canonicalizer.rs`
+      - `W_BLOCK_HEADER_COLON_DEPRECATED` 경고 감지 추가 (`채비/설정/보개/모양/슬기/반복/동안/에 대해`)
+    - `tool/src/ddn_runtime.rs`
+      - `DdnProgram`이 파싱 경고를 보관/조회(`parse_warnings`)하도록 확장
+    - `tool/src/main.rs`
+      - DDN 로딩 공통 경로에서 파싱 경고를 stderr에 출력
+        (`warning: CODE [start..end] message`)
+    - `tool/src/wasm_api.rs`
+      - `get_parse_warnings()` API 추가
+    - `solutions/seamgrim_ui_mvp/ui/wasm_ddn_wrapper.{ts,js}`
+      - `parseWarningsParsed()` 래퍼 메서드 추가
+    - `solutions/seamgrim_ui_mvp/ui/wasm_ddn_types.d.ts`
+      - `get_parse_warnings`/`DdnParseWarning` 타입 추가
+    - `pack/block_header_no_colon`
+      - `반복/에 대해/동안` 콜론 표면 케이스 추가
+  - 검증:
+    - `cargo test -p ddonirang-lang --lib` PASS
+    - `cargo test -p ddonirang-tool ddn_runtime::tests::parse_warnings_include_block_header_colon_deprecation` PASS
+    - `cargo check -p ddonirang-tool --features wasm` PASS
+    - `node tests/seamgrim_wasm_wrapper_runner.mjs` PASS
+    - `python tests/run_pack_golden.py block_header_no_colon seamgrim_event_surface_canon_v1` PASS
 - `tests/run_ci_sync_readiness_check_selftest.py`를 추가해 원클릭 동기화 점검 스크립트 회귀를 자동 검증하도록 보강했다.
   - quick 모드(`--skip-aggregate`) PASS 및 JSON 스키마/step 목록/step 개수 검증
   - `--json-out` 커스텀 경로 출력 검증
