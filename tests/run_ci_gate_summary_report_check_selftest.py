@@ -240,6 +240,24 @@ def main() -> int:
                 f"err={proc_missing_parity_file.stderr}"
             )
 
+        summary_missing_sync_file, index_missing_sync_file = build_pass_case(root, "missing_sync_file")
+        text_missing_sync_file = summary_missing_sync_file.read_text(encoding="utf-8")
+        sync_marker = "[ci-gate-summary] ci_sync_readiness_report="
+        sync_line = next((raw for raw in text_missing_sync_file.splitlines() if raw.startswith(sync_marker)), "")
+        if not sync_line:
+            return fail("missing_sync_file case: ci_sync_readiness_report line missing")
+        sync_file_path = Path(sync_line[len(sync_marker) :].strip())
+        if sync_file_path.exists():
+            sync_file_path.unlink()
+        proc_missing_sync_file = run_check(summary_missing_sync_file, index_missing_sync_file, require_pass=True)
+        if proc_missing_sync_file.returncode == 0:
+            return fail("missing ci_sync_readiness_report file case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_missing_sync_file.stderr:
+            return fail(
+                "missing ci_sync_readiness_report file code mismatch: "
+                f"err={proc_missing_sync_file.stderr}"
+            )
+
         summary_bad_index, index_bad_index = build_pass_case(root, "bad_index")
         bad_text = summary_bad_index.read_text(encoding="utf-8").replace(
             f"[ci-gate-summary] report_index={index_bad_index}",
