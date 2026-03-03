@@ -174,6 +174,7 @@ def main() -> int:
         if not path.exists():
             return fail(f"missing report path for {key}: {path}", CODES["REPORT_PATH_MISSING"])
 
+    artifact_docs: dict[str, dict] = {}
     for key, expected_schema in ARTIFACT_SCHEMA_MAP.items():
         artifact_path = resolve_report_path(index_doc, key)
         if artifact_path is None:
@@ -190,6 +191,28 @@ def main() -> int:
                 f"artifact schema mismatch key={key} schema={actual_schema} expected={expected_schema}",
                 CODES["ARTIFACT_SCHEMA_MISMATCH"],
             )
+        artifact_docs[key] = artifact_doc
+
+    sanity_profile = str(artifact_docs["ci_sanity_gate"].get("profile", "")).strip()
+    if sanity_profile not in VALID_SANITY_PROFILES:
+        return fail(f"invalid sanity profile in ci_sanity_gate: {sanity_profile}", CODES["SANITY_PROFILE_INVALID"])
+    if sanity_profile != index_profile:
+        return fail(
+            f"ci_sanity_gate profile mismatch index={index_profile} actual={sanity_profile}",
+            CODES["SANITY_PROFILE_MISMATCH"],
+        )
+
+    sync_profile = str(artifact_docs["ci_sync_readiness"].get("sanity_profile", "")).strip()
+    if sync_profile not in VALID_SANITY_PROFILES:
+        return fail(
+            f"invalid sanity_profile in ci_sync_readiness: {sync_profile}",
+            CODES["SYNC_PROFILE_INVALID"],
+        )
+    if sync_profile != index_profile:
+        return fail(
+            f"ci_sync_readiness sanity_profile mismatch index={index_profile} actual={sync_profile}",
+            CODES["SYNC_PROFILE_MISMATCH"],
+        )
 
     required_steps: list[str] = []
     if bool(args.enforce_profile_step_contract):

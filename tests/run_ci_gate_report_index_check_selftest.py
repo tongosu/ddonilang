@@ -85,8 +85,29 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
     write_json(badge, {"schema": "ddn.ci.gate_badge.v1", "status": "pass", "label": "ci:pass"})
     write_text(brief, "status=pass reason=ok failed_steps_count=0")
     write_json(triage, {"schema": "ddn.ci.fail_triage.v1", "status": "pass", "reason": "ok"})
-    write_json(sanity, {"schema": "ddn.ci.sanity_gate.v1", "status": "pass", "code": "OK", "step": "all", "steps": []})
-    write_json(sync, {"schema": "ddn.ci.sync_readiness.v1", "status": "pass", "ok": True, "code": "OK", "step": "all", "steps": []})
+    write_json(
+        sanity,
+        {
+            "schema": "ddn.ci.sanity_gate.v1",
+            "status": "pass",
+            "code": "OK",
+            "step": "all",
+            "profile": sanity_profile,
+            "steps": [],
+        },
+    )
+    write_json(
+        sync,
+        {
+            "schema": "ddn.ci.sync_readiness.v1",
+            "status": "pass",
+            "ok": True,
+            "code": "OK",
+            "step": "all",
+            "sanity_profile": sanity_profile,
+            "steps": [],
+        },
+    )
     write_json(
         parity,
         {"schema": "ddn.seamgrim.wasm_cli_diag_parity.v1", "status": "pass", "ok": True, "code": "OK", "step": "all", "steps": []},
@@ -287,6 +308,40 @@ def main() -> int:
             return fail("profile mismatch case must fail")
         if f"fail code={CODES['PROFILE_MISMATCH']}" not in profile_mismatch_proc.stderr:
             return fail(f"profile mismatch code mismatch: err={profile_mismatch_proc.stderr}")
+
+        sanity_profile_mismatch_index = build_index_case(root, "sanity_profile_mismatch")
+        sanity_profile_mismatch_doc = json.loads(sanity_profile_mismatch_index.read_text(encoding="utf-8"))
+        sanity_report = Path(str(sanity_profile_mismatch_doc["reports"]["ci_sanity_gate"]))
+        sanity_report_doc = json.loads(sanity_report.read_text(encoding="utf-8"))
+        sanity_report_doc["profile"] = "seamgrim"
+        write_json(sanity_report, sanity_report_doc)
+        sanity_profile_mismatch_proc = run_check(
+            sanity_profile_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if sanity_profile_mismatch_proc.returncode == 0:
+            return fail("sanity profile mismatch case must fail")
+        if f"fail code={CODES['SANITY_PROFILE_MISMATCH']}" not in sanity_profile_mismatch_proc.stderr:
+            return fail(f"sanity profile mismatch code mismatch: err={sanity_profile_mismatch_proc.stderr}")
+
+        sync_profile_mismatch_index = build_index_case(root, "sync_profile_mismatch")
+        sync_profile_mismatch_doc = json.loads(sync_profile_mismatch_index.read_text(encoding="utf-8"))
+        sync_report = Path(str(sync_profile_mismatch_doc["reports"]["ci_sync_readiness"]))
+        sync_report_doc = json.loads(sync_report.read_text(encoding="utf-8"))
+        sync_report_doc["sanity_profile"] = "seamgrim"
+        write_json(sync_report, sync_report_doc)
+        sync_profile_mismatch_proc = run_check(
+            sync_profile_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if sync_profile_mismatch_proc.returncode == 0:
+            return fail("sync profile mismatch case must fail")
+        if f"fail code={CODES['SYNC_PROFILE_MISMATCH']}" not in sync_profile_mismatch_proc.stderr:
+            return fail(f"sync profile mismatch code mismatch: err={sync_profile_mismatch_proc.stderr}")
 
         cmd_empty_index = build_index_case(root, "cmd_empty")
         cmd_empty_doc = json.loads(cmd_empty_index.read_text(encoding="utf-8"))
