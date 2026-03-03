@@ -316,6 +316,31 @@ CI_SYNC_READINESS_REPORT_PATH_CONTRACT_TOKENS = [
     "out_path = Path(args.json_out)",
 ]
 
+CI_SEAMGRIM_DIAG_PARITY_SCRIPTS = {
+    "wasm_cli": Path("tests/run_seamgrim_wasm_cli_diag_parity_check.py"),
+    "overlay_compare": Path("tests/run_seamgrim_overlay_compare_diag_parity_check.py"),
+    "overlay_session": Path("tests/run_seamgrim_overlay_session_diag_parity_check.py"),
+    "overlay_session_wired": Path("tests/run_seamgrim_overlay_session_wired_consistency_check.py"),
+}
+
+CI_SEAMGRIM_WASM_CLI_DIAG_PARITY_TOKENS = [
+    "W_BLOCK_HEADER_COLON_DEPRECATED",
+    "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+    "BLOCK_HEADER_MIN_CASES = 5",
+    "EVENT_SURFACE_MIN_CASES = 7",
+    "tests/seamgrim_wasm_wrapper_runner.mjs",
+    "tests/seamgrim_wasm_vm_runtime_runner.mjs",
+    "tests/run_pack_golden.py",
+    "block_header_no_colon",
+    "seamgrim_event_surface_canon_v1",
+    "tests/run_seamgrim_overlay_compare_diag_parity_check.py",
+    "tests/run_seamgrim_overlay_session_diag_parity_check.py",
+    "tests/run_seamgrim_overlay_session_wired_consistency_check.py",
+    "overlay compare diag parity check ok",
+    "overlay session diag parity check ok",
+    "overlay session wired consistency check ok",
+]
+
 
 def clip(text: str, limit: int = 140) -> str:
     normalized = " ".join(text.split())
@@ -1214,6 +1239,57 @@ def build_criteria(
             )
         )
         pending_items.append("AGE5 CI sync_readiness check의 report 경로 계약 토큰(--report-prefix/--json-out/out_path) 유지")
+
+    missing_seamgrim_diag_parity_scripts = [
+        f"{name}:{path}"
+        for name, path in CI_SEAMGRIM_DIAG_PARITY_SCRIPTS.items()
+        if not (root / path).exists()
+    ]
+    seamgrim_diag_parity_scripts_ok = len(missing_seamgrim_diag_parity_scripts) == 0
+    criteria.append(
+        {
+            "name": "age5_seamgrim_diag_parity_scripts_present",
+            "ok": seamgrim_diag_parity_scripts_ok,
+            "detail": "missing={} sample={}".format(
+                len(missing_seamgrim_diag_parity_scripts),
+                sample_items(missing_seamgrim_diag_parity_scripts),
+            ),
+        }
+    )
+    if not seamgrim_diag_parity_scripts_ok:
+        failure_digest.append(
+            "age5_seamgrim_diag_parity_scripts_present: missing={}".format(
+                clip(full_items(missing_seamgrim_diag_parity_scripts), 500)
+            )
+        )
+        pending_items.append("AGE5 seamgrim parity 스크립트(wasm/overlay/session/wired) 4종 유지")
+
+    seamgrim_wasm_cli_diag_parity_script = CI_SEAMGRIM_DIAG_PARITY_SCRIPTS["wasm_cli"]
+    seamgrim_wasm_cli_diag_parity_text = load_text(root / seamgrim_wasm_cli_diag_parity_script)
+    missing_seamgrim_wasm_cli_diag_parity_tokens = [
+        token
+        for token in CI_SEAMGRIM_WASM_CLI_DIAG_PARITY_TOKENS
+        if token not in seamgrim_wasm_cli_diag_parity_text
+    ]
+    seamgrim_wasm_cli_diag_parity_tokens_ok = len(missing_seamgrim_wasm_cli_diag_parity_tokens) == 0
+    criteria.append(
+        {
+            "name": "age5_seamgrim_wasm_cli_diag_parity_tokens_present",
+            "ok": seamgrim_wasm_cli_diag_parity_tokens_ok,
+            "detail": "missing={} sample={} path={}".format(
+                len(missing_seamgrim_wasm_cli_diag_parity_tokens),
+                sample_items(missing_seamgrim_wasm_cli_diag_parity_tokens),
+                seamgrim_wasm_cli_diag_parity_script,
+            ),
+        }
+    )
+    if not seamgrim_wasm_cli_diag_parity_tokens_ok:
+        failure_digest.append(
+            "age5_seamgrim_wasm_cli_diag_parity_tokens_present: missing={}".format(
+                clip(full_items(missing_seamgrim_wasm_cli_diag_parity_tokens), 500)
+            )
+        )
+        pending_items.append("AGE5 wasm/cli parity 스크립트에 overlay/session 진단 parity 토큰 유지")
 
     return criteria, failure_digest[:20], pending_items, repair
 

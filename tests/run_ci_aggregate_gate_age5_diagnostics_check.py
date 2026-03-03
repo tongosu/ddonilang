@@ -47,6 +47,10 @@ AGE5_CLOSE_REQUIRED_CRITERIA_TOKENS = [
     "age5_ci_profile_gate_report_path_tokens",
     "CI_SYNC_READINESS_REPORT_PATH_CONTRACT_SCRIPT",
     "age5_ci_sync_readiness_report_path_contract_tokens",
+    "CI_SEAMGRIM_DIAG_PARITY_SCRIPTS",
+    "CI_SEAMGRIM_WASM_CLI_DIAG_PARITY_TOKENS",
+    "age5_seamgrim_diag_parity_scripts_present",
+    "age5_seamgrim_wasm_cli_diag_parity_tokens_present",
     "guideblock_keys_basics",
     "exec_policy_effect_diag",
 ]
@@ -96,6 +100,24 @@ JJAIM_FLATTEN_SELFTEST_REQUIRED_PACK_TOKENS = [
 EVENT_MODEL_SELFTEST_REQUIRED_PACK_TOKENS = [
     "seamgrim_event_surface_canon_v1",
     "seamgrim_event_model_ir_v1",
+]
+
+CI_SEAMGRIM_WASM_CLI_DIAG_PARITY_REQUIRED_TOKENS = [
+    "W_BLOCK_HEADER_COLON_DEPRECATED",
+    "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+    "BLOCK_HEADER_MIN_CASES = 5",
+    "EVENT_SURFACE_MIN_CASES = 7",
+    "tests/seamgrim_wasm_wrapper_runner.mjs",
+    "tests/seamgrim_wasm_vm_runtime_runner.mjs",
+    "tests/run_pack_golden.py",
+    "block_header_no_colon",
+    "seamgrim_event_surface_canon_v1",
+    "tests/run_seamgrim_overlay_compare_diag_parity_check.py",
+    "tests/run_seamgrim_overlay_session_diag_parity_check.py",
+    "tests/run_seamgrim_overlay_session_wired_consistency_check.py",
+    "overlay compare diag parity check ok",
+    "overlay session diag parity check ok",
+    "overlay session wired consistency check ok",
 ]
 
 EXEC_POLICY_MAP_PACK_REQUIRED_CASE_TOKENS = [
@@ -192,6 +214,22 @@ def main() -> int:
         print("aggregate gate age5 diagnostics check failed (age5 close criteria coverage):")
         for token in age5_close_missing[:12]:
             print(f" - missing age5-close token: {token}")
+        return 1
+
+    seamgrim_wasm_cli_diag_parity = root / "tests" / "run_seamgrim_wasm_cli_diag_parity_check.py"
+    if not seamgrim_wasm_cli_diag_parity.exists():
+        print(f"missing target: {seamgrim_wasm_cli_diag_parity}")
+        return 1
+    seamgrim_wasm_cli_diag_parity_text = seamgrim_wasm_cli_diag_parity.read_text(encoding="utf-8")
+    seamgrim_wasm_cli_diag_parity_missing = [
+        token
+        for token in CI_SEAMGRIM_WASM_CLI_DIAG_PARITY_REQUIRED_TOKENS
+        if token not in seamgrim_wasm_cli_diag_parity_text
+    ]
+    if seamgrim_wasm_cli_diag_parity_missing:
+        print("aggregate gate age5 diagnostics check failed (seamgrim wasm/cli parity coverage):")
+        for token in seamgrim_wasm_cli_diag_parity_missing[:12]:
+            print(f" - missing seamgrim-wasm-cli-parity token: {token}")
         return 1
 
     surface_selftest = root / "tests" / "run_pack_golden_age5_surface_selftest.py"
