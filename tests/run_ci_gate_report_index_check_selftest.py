@@ -820,6 +820,23 @@ def main() -> int:
                 f"err={triage_artifact_path_norm_mismatch_proc.stderr}"
             )
 
+        triage_artifact_path_mismatch_index = build_index_case(root, "triage_artifact_path_mismatch")
+        triage_artifact_path_mismatch_doc = json.loads(triage_artifact_path_mismatch_index.read_text(encoding="utf-8"))
+        triage_artifact_path_mismatch_report = Path(str(triage_artifact_path_mismatch_doc["reports"]["ci_fail_triage_json"]))
+        triage_artifact_path_mismatch_triage = json.loads(triage_artifact_path_mismatch_report.read_text(encoding="utf-8"))
+        triage_artifact_path_mismatch_triage["artifacts"]["summary"]["path"] = str(root / "mismatch" / "ci_gate_summary.txt")
+        write_json(triage_artifact_path_mismatch_report, triage_artifact_path_mismatch_triage)
+        triage_artifact_path_mismatch_proc = run_check(
+            triage_artifact_path_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if triage_artifact_path_mismatch_proc.returncode == 0:
+            return fail("triage artifact path mismatch case must fail")
+        if f"fail code={CODES['TRIAGE_ARTIFACT_PATH_MISMATCH']}" not in triage_artifact_path_mismatch_proc.stderr:
+            return fail(f"triage artifact path mismatch code mismatch: err={triage_artifact_path_mismatch_proc.stderr}")
+
         triage_artifact_exists_mismatch_index = build_index_case(root, "triage_artifact_exists_mismatch")
         triage_artifact_exists_mismatch_doc = json.loads(
             triage_artifact_exists_mismatch_index.read_text(encoding="utf-8")

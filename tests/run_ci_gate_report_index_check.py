@@ -370,6 +370,13 @@ def main() -> int:
                 f"ci_fail_triage artifacts missing row key={artifact_key}",
                 CODES["TRIAGE_ARTIFACTS_MISSING"],
             )
+        artifact_path = normalize_path_text(str(artifact_row.get("path", "")).strip())
+        expected_artifact_path = str(resolved_report_paths[artifact_key])
+        if artifact_path != expected_artifact_path:
+            return fail(
+                f"ci_fail_triage artifacts path mismatch key={artifact_key}",
+                CODES["TRIAGE_ARTIFACT_PATH_MISMATCH"],
+            )
         artifact_path_norm = normalize_path_text(str(artifact_row.get("path_norm", "")).strip())
         expected_artifact_path_norm = str(resolved_report_paths[artifact_key])
         if artifact_path_norm != expected_artifact_path_norm:
