@@ -23,7 +23,7 @@ PACK_GOLDEN_PATH = Path("pack/seamgrim_overlay_param_compare_v0/golden.jsonl")
 PACK_MIN_CASE_COUNT = 76
 S6_SESSION_PACK_HINT = "pack/seamgrim_overlay_session_roundtrip_v0"
 S6_SESSION_PACK_GOLDEN_PATH = Path("pack/seamgrim_overlay_session_roundtrip_v0/golden.jsonl")
-S6_SESSION_PACK_MIN_CASE_COUNT = 8
+S6_SESSION_PACK_MIN_CASE_COUNT = 9
 S5_BASELINE_DOD_TOKENS = [
     "- [x] 진자 L 비교 가능.",
     "- [x] 축 불일치 차단.",
@@ -62,6 +62,7 @@ S6_SESSION_PACK_CASE_FILES = [
     Path("pack/seamgrim_overlay_session_roundtrip_v0/c06_ui_layout_invalid_fallback/case.detjson"),
     Path("pack/seamgrim_overlay_session_roundtrip_v0/c07_ui_layout_view_combo_cross_restore/case.detjson"),
     Path("pack/seamgrim_overlay_session_roundtrip_v0/c08_ui_layout_view_combo_cross_fallback/case.detjson"),
+    Path("pack/seamgrim_overlay_session_roundtrip_v0/c09_compare_disabled_with_runs_and_basic_layout/case.detjson"),
 ]
 PACK_CASE_FILES = [
     Path("pack/seamgrim_overlay_param_compare_v0/c01_pendulum_L_compare/case.detjson"),
@@ -140,6 +141,179 @@ PACK_CASE_FILES = [
     Path("pack/seamgrim_overlay_param_compare_v0/c74_yunit_mismatch_over_series_mismatch_reverse_with_full_fallback_chain/case.detjson"),
     Path("pack/seamgrim_overlay_param_compare_v0/c75_graph_missing_over_series_missing_with_full_fallback_chain/case.detjson"),
     Path("pack/seamgrim_overlay_param_compare_v0/c76_graph_missing_over_series_missing_reverse_with_full_fallback_chain/case.detjson"),
+]
+
+AGE5_SURFACE_PACK_CONTRACTS = [
+    {
+        "name": "bogae_madang_alias",
+        "golden": Path("pack/seamgrim_bogae_madang_alias_v1/golden.jsonl"),
+        "min_cases": 2,
+        "tokens": [
+            "c01_alias_warn",
+            "W_BOGAE_MADANG_ALIAS_DEPRECATED",
+            "c02_canonical_no_warn",
+        ],
+    },
+    {
+        "name": "moyang_template_instance_view_boundary",
+        "golden": Path("pack/seamgrim_moyang_template_instance_view_boundary_v1/golden.jsonl"),
+        "min_cases": 5,
+        "tokens": [
+            "smoke_template_instance_a.v1.json",
+            "smoke_template_instance_b.v1.json",
+            "smoke_template_instance_c.v1.json",
+            "input_template_instance_a.ddn",
+            "input_template_instance_b.ddn",
+        ],
+    },
+    {
+        "name": "jjaim_block_stub_canon",
+        "golden": Path("pack/seamgrim_jjaim_block_stub_canon_v1/golden.jsonl"),
+        "min_cases": 6,
+        "tokens": [
+            "c01_guseong_alias",
+            "W_JJAIM_ALIAS_DEPRECATED",
+            "c02_invalid_subblock_EXPECT_FAIL",
+            "E_JJAIM_SUBBLOCK_INVALID",
+            "c06_jjaim_canonical_no_warn",
+        ],
+    },
+    {
+        "name": "guseong_flatten_ir",
+        "golden": Path("pack/seamgrim_guseong_flatten_ir_v1/golden.jsonl"),
+        "min_cases": 2,
+        "tokens": [
+            "c01_basic",
+            "c02_guseong_alias_warn",
+            "W_JJAIM_ALIAS_DEPRECATED",
+        ],
+    },
+    {
+        "name": "event_surface_canon",
+        "golden": Path("pack/seamgrim_event_surface_canon_v1/golden.jsonl"),
+        "min_cases": 7,
+        "tokens": [
+            "c01_canon",
+            "c06_kind_noun_alias_EXPECT_FAIL",
+            "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+        ],
+    },
+    {
+        "name": "event_model_ir",
+        "golden": Path("pack/seamgrim_event_model_ir_v1/golden.jsonl"),
+        "min_cases": 2,
+        "tokens": [
+            "c01_basic",
+            "c02_alias_surface_emit_EXPECT_FAIL",
+            "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+            "alrim-plan-json",
+        ],
+    },
+    {
+        "name": "block_header_no_colon",
+        "golden": Path("pack/block_header_no_colon/golden.jsonl"),
+        "min_cases": 5,
+        "tokens": [
+            "c01_decl_colon_warn",
+            "c05_mixed_colon_no_colon_warn",
+            "W_BLOCK_HEADER_COLON_DEPRECATED",
+        ],
+    },
+    {
+        "name": "exec_policy_effect_map",
+        "golden": Path("pack/seamgrim_exec_policy_effect_map_v1/golden.jsonl"),
+        "min_cases": 6,
+        "tokens": [
+            "c01_general_allowed",
+            "c03_duplicate_exec_policy_blocks",
+            "c06_effect_only_allowed_defaults_strict",
+        ],
+    },
+    {
+        "name": "exec_policy_effect_diag",
+        "golden": Path("pack/seamgrim_exec_policy_effect_diag_v1/golden.jsonl"),
+        "min_cases": 26,
+        "tokens": [
+            "c01_strict_effect_call_EXPECT_FAIL",
+            "E_EFFECT_IN_STRICT_MODE",
+            "c22_strict_effect_policy_ignored_warn",
+            "W_EFFECT_POLICY_IGNORED_IN_STRICT",
+            "c26_effect_block_alias_baggat_EXPECT_FAIL",
+            "E_EFFECT_SURFACE_ALIAS_FORBIDDEN",
+        ],
+    },
+    {
+        "name": "guideblock_keys_basics",
+        "golden": Path("pack/guideblock_keys_basics/golden.jsonl"),
+        "min_cases": 4,
+        "tokens": [
+            "c01_hash_header_alias/case.detjson",
+            "c02_guideblock_alias/case.detjson",
+            "c03_mixed_precedence/case.detjson",
+            "c04_canonical_keys/case.detjson",
+        ],
+    },
+]
+
+CI_PROFILE_GATE_SCRIPTS = {
+    "split": Path("tests/run_ci_profile_split_contract_check.py"),
+    "core_lang": Path("tests/run_ci_profile_core_lang_gate.py"),
+    "seamgrim": Path("tests/run_ci_profile_seamgrim_gate.py"),
+}
+
+CI_PROFILE_CORE_LANG_CHAIN_TOKENS = [
+    "tests/run_ci_sanity_gate.py",
+    "tests/run_ci_sync_readiness_check.py",
+    "tests/run_ci_sync_readiness_report_check.py",
+    "--skip-aggregate",
+    "--sanity-profile",
+    "--require-pass",
+    "ci_sync_readiness_status=pass",
+    "sanity_profile=core_lang",
+    "ci_profile_core_lang_status=pass",
+]
+
+CI_PROFILE_SEAMGRIM_CHAIN_TOKENS = [
+    "tests/run_ci_sanity_gate.py",
+    "tests/run_ci_sync_readiness_check.py",
+    "tests/run_ci_sync_readiness_report_check.py",
+    "--skip-aggregate",
+    "--sanity-profile",
+    "--require-pass",
+    "ci_sync_readiness_status=pass",
+    "sanity_profile=seamgrim",
+    "ci_profile_seamgrim_status=pass",
+]
+
+CI_PROFILE_SPLIT_CONTRACT_TOKENS = [
+    "tests/run_ci_profile_core_lang_gate.py",
+    "tests/run_ci_profile_seamgrim_gate.py",
+    "tests/run_ci_sync_readiness_check.py",
+    "tests/run_ci_sync_readiness_report_check.py",
+    "--skip-aggregate",
+    "--sanity-profile",
+    "--require-pass",
+    "ci_sync_readiness_status=pass",
+    "sanity_profile=core_lang",
+    "sanity_profile=seamgrim",
+]
+
+CI_PROFILE_CORE_LANG_REPORT_PATH_TOKENS = [
+    'prefix = "ci_profile_core_lang"',
+    'report = report_dir / f"{prefix}.ci_sync_readiness.detjson"',
+]
+
+CI_PROFILE_SEAMGRIM_REPORT_PATH_TOKENS = [
+    'prefix = "ci_profile_seamgrim"',
+    'report = report_dir / f"{prefix}.ci_sync_readiness.detjson"',
+]
+
+CI_SYNC_READINESS_REPORT_PATH_CONTRACT_SCRIPT = Path("tests/run_ci_sync_readiness_check.py")
+CI_SYNC_READINESS_REPORT_PATH_CONTRACT_TOKENS = [
+    "--report-prefix",
+    "--json-out",
+    "ci_sync_readiness.detjson",
+    "out_path = Path(args.json_out)",
 ]
 
 
@@ -233,7 +407,7 @@ def count_nonempty_lines(text: str) -> int:
     return sum(1 for line in text.splitlines() if line.strip())
 
 
-def load_overlay_compare_case_refs(path: Path) -> tuple[list[str], list[str]]:
+def load_case_refs(path: Path, key: str) -> tuple[list[str], list[str]]:
     text = load_text(path)
     refs: list[str] = []
     errors: list[str] = []
@@ -246,15 +420,27 @@ def load_overlay_compare_case_refs(path: Path) -> tuple[list[str], list[str]]:
         except Exception:
             errors.append(f"line={idx}: invalid json")
             continue
-        rel = row.get("overlay_compare_case")
+        rel = row.get(key)
         if not isinstance(rel, str) or not rel.strip():
-            errors.append(f"line={idx}: missing overlay_compare_case")
+            errors.append(f"line={idx}: missing {key}")
             continue
         refs.append(rel.strip().replace("\\", "/"))
     return refs, errors
 
 
-def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list[str], dict[str, object]]:
+def load_overlay_compare_case_refs(path: Path) -> tuple[list[str], list[str]]:
+    return load_case_refs(path, "overlay_compare_case")
+
+
+def load_overlay_session_case_refs(path: Path) -> tuple[list[str], list[str]]:
+    return load_case_refs(path, "overlay_session_case")
+
+
+def build_criteria(
+    root: Path,
+    *,
+    strict: bool = False,
+) -> tuple[list[dict[str, object]], list[str], list[str], dict[str, object]]:
     criteria: list[dict[str, object]] = []
     failure_digest: list[str] = []
     pending_items: list[str] = []
@@ -374,7 +560,10 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
     s6_session_app_wired = len(missing_s6_app_tokens) == 0
     s6_session_app_retired = len(missing_s6_app_tokens) == len(S6_SESSION_CONTRACT_APP_TOKENS)
     s6_session_module_ready = len(missing_s6_module_tokens) == 0
-    s6_overlay_session_contract_ok = (s6_session_app_wired and s6_session_module_ready) or s6_session_app_retired
+    if strict:
+        s6_overlay_session_contract_ok = s6_session_app_wired and s6_session_module_ready
+    else:
+        s6_overlay_session_contract_ok = (s6_session_app_wired and s6_session_module_ready) or s6_session_app_retired
     s6_session_mode = (
         "wired"
         if s6_session_app_wired and s6_session_module_ready
@@ -403,7 +592,9 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
                 sample_items(missing_s6_module_tokens),
             )
         )
-        pending_items.append("S6 overlay session contract: wired 또는 retired 상태로 일관성 유지")
+        pending_items.append(
+            "S6 overlay session contract: strict면 wired 필수, non-strict면 wired/retired 중 일관성 유지"
+        )
 
     missing_s6_view_combo_app_tokens = [
         token for token in S6_VIEW_COMBO_CONTRACT_APP_TOKENS if token not in app_ui_text
@@ -414,9 +605,12 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
     s6_view_combo_app_wired = len(missing_s6_view_combo_app_tokens) == 0
     s6_view_combo_app_retired = len(missing_s6_view_combo_app_tokens) == len(S6_VIEW_COMBO_CONTRACT_APP_TOKENS)
     s6_view_combo_module_ready = len(missing_s6_view_combo_module_tokens) == 0
-    s6_view_combo_contract_ok = (
-        (s6_view_combo_app_wired and s6_view_combo_module_ready) or s6_view_combo_app_retired
-    )
+    if strict:
+        s6_view_combo_contract_ok = s6_view_combo_app_wired and s6_view_combo_module_ready
+    else:
+        s6_view_combo_contract_ok = (
+            (s6_view_combo_app_wired and s6_view_combo_module_ready) or s6_view_combo_app_retired
+        )
     s6_view_combo_mode = (
         "wired"
         if s6_view_combo_app_wired and s6_view_combo_module_ready
@@ -445,7 +639,9 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
                 sample_items(missing_s6_view_combo_module_tokens),
             )
         )
-        pending_items.append("S6 view_combo session contract: wired 또는 retired 상태로 일관성 유지")
+        pending_items.append(
+            "S6 view_combo session contract: strict면 wired 필수, non-strict면 wired/retired 중 일관성 유지"
+        )
 
     missing_s6_session_pack_cases = [
         str(path) for path in S6_SESSION_PACK_CASE_FILES if not (root / path).exists()
@@ -462,7 +658,7 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
         failure_digest.append(
             f"s6_session_pack_cases_present: missing={clip(', '.join(missing_s6_session_pack_cases), 200)}"
         )
-        pending_items.append("S6 session roundtrip pack 케이스(c01~c08) 파일 유지")
+        pending_items.append("S6 session roundtrip pack 케이스(c01~c09) 파일 유지")
 
     s6_session_pack_golden_text = load_text(root / S6_SESSION_PACK_GOLDEN_PATH)
     s6_session_pack_golden_case_count = count_nonempty_lines(s6_session_pack_golden_text)
@@ -478,7 +674,145 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
         failure_digest.append(
             f"s6_session_pack_golden_min_cases: count={s6_session_pack_golden_case_count} required>={S6_SESSION_PACK_MIN_CASE_COUNT}"
         )
-        pending_items.append("S6 session roundtrip golden.jsonl 케이스 수를 최소 8개 이상으로 유지")
+        pending_items.append("S6 session roundtrip golden.jsonl 케이스 수를 최소 9개 이상으로 유지")
+
+    s6_session_pack_refs, s6_session_pack_parse_errors = load_overlay_session_case_refs(root / S6_SESSION_PACK_GOLDEN_PATH)
+    s6_pack_root = Path(S6_SESSION_PACK_HINT)
+    expected_s6_refs = [str(path.relative_to(s6_pack_root)).replace("\\", "/") for path in S6_SESSION_PACK_CASE_FILES]
+    s6_repair_hint = build_order_repair_hint(S6_SESSION_PACK_GOLDEN_PATH, expected_s6_refs)
+    s6_repair_cmd_short = build_order_repair_cmd_short(S6_SESSION_PACK_GOLDEN_PATH)
+    s6_repair_cmd = build_order_repair_cmd(S6_SESSION_PACK_GOLDEN_PATH, expected_s6_refs)
+    repair["session_order"] = {
+        "hint": s6_repair_hint,
+        "repair_cmd_short": s6_repair_cmd_short,
+        "repair_cmd": s6_repair_cmd,
+        "expected_case_list_path": str(S6_SESSION_PACK_GOLDEN_PATH),
+        "expected_case_count": len(expected_s6_refs),
+        "expected_case_head_tail": head_tail(expected_s6_refs),
+    }
+    expected_s6_ref_set = set(expected_s6_refs)
+    actual_s6_ref_set = set(s6_session_pack_refs)
+    s6_missing_in_golden = sorted(expected_s6_ref_set - actual_s6_ref_set)
+    s6_unknown_in_golden = sorted(actual_s6_ref_set - expected_s6_ref_set)
+    s6_seen: set[str] = set()
+    s6_duplicate_in_golden: set[str] = set()
+    for ref in s6_session_pack_refs:
+        if ref in s6_seen:
+            s6_duplicate_in_golden.add(ref)
+        s6_seen.add(ref)
+    s6_golden_case_map_ok = (
+        not s6_session_pack_parse_errors
+        and not s6_missing_in_golden
+        and not s6_unknown_in_golden
+        and not s6_duplicate_in_golden
+    )
+    criteria.append(
+        {
+            "name": "s6_session_pack_golden_case_map_match",
+            "ok": s6_golden_case_map_ok,
+            "detail": "parse_errors={} missing={} unknown={} duplicate={} parse_sample={} missing_sample={} unknown_sample={} duplicate_sample={}".format(
+                len(s6_session_pack_parse_errors),
+                len(s6_missing_in_golden),
+                len(s6_unknown_in_golden),
+                len(s6_duplicate_in_golden),
+                sample_items(s6_session_pack_parse_errors),
+                sample_items(s6_missing_in_golden),
+                sample_items(s6_unknown_in_golden),
+                sample_items(sorted(s6_duplicate_in_golden)),
+            ),
+        }
+    )
+    if not s6_golden_case_map_ok:
+        s6_issues: list[str] = []
+        if s6_session_pack_parse_errors:
+            s6_issues.append(f"parse={clip(', '.join(s6_session_pack_parse_errors), 200)}")
+            failure_digest.append(
+                "s6_session_pack_golden_case_map_match.parse: sample={} full={}".format(
+                    sample_items(s6_session_pack_parse_errors),
+                    clip(full_items(s6_session_pack_parse_errors), 600),
+                )
+            )
+        if s6_missing_in_golden:
+            s6_issues.append(f"missing={clip(', '.join(s6_missing_in_golden), 200)}")
+            failure_digest.append(
+                "s6_session_pack_golden_case_map_match.missing: sample={} full={}".format(
+                    sample_items(s6_missing_in_golden),
+                    clip(full_items(s6_missing_in_golden), 600),
+                )
+            )
+        if s6_unknown_in_golden:
+            s6_issues.append(f"unknown={clip(', '.join(s6_unknown_in_golden), 200)}")
+            failure_digest.append(
+                "s6_session_pack_golden_case_map_match.unknown: sample={} full={}".format(
+                    sample_items(s6_unknown_in_golden),
+                    clip(full_items(s6_unknown_in_golden), 600),
+                )
+            )
+        if s6_duplicate_in_golden:
+            s6_issues.append(f"duplicate={clip(', '.join(sorted(s6_duplicate_in_golden)), 200)}")
+            s6_duplicate_sorted = sorted(s6_duplicate_in_golden)
+            failure_digest.append(
+                "s6_session_pack_golden_case_map_match.duplicate: sample={} full={}".format(
+                    sample_items(s6_duplicate_sorted),
+                    clip(full_items(s6_duplicate_sorted), 600),
+                )
+            )
+        failure_digest.append(f"s6_session_pack_golden_case_map_match: {'; '.join(s6_issues)}")
+        pending_items.append("S6 session roundtrip golden.jsonl과 CASE_FILES(c01~c09) 매핑 일치 유지")
+
+    s6_order_mismatch_index = -1
+    if not s6_session_pack_parse_errors:
+        s6_min_len = min(len(expected_s6_refs), len(s6_session_pack_refs))
+        for idx in range(s6_min_len):
+            if expected_s6_refs[idx] != s6_session_pack_refs[idx]:
+                s6_order_mismatch_index = idx
+                break
+        if s6_order_mismatch_index < 0 and len(expected_s6_refs) != len(s6_session_pack_refs):
+            s6_order_mismatch_index = s6_min_len
+    s6_order_ok = (not s6_session_pack_parse_errors) and (s6_order_mismatch_index < 0)
+    s6_expected_at = (
+        expected_s6_refs[s6_order_mismatch_index] if 0 <= s6_order_mismatch_index < len(expected_s6_refs) else "-"
+    )
+    s6_actual_at = (
+        s6_session_pack_refs[s6_order_mismatch_index]
+        if 0 <= s6_order_mismatch_index < len(s6_session_pack_refs)
+        else "-"
+    )
+    criteria.append(
+        {
+            "name": "s6_session_pack_golden_case_order_stable",
+            "ok": s6_order_ok,
+            "detail": "mismatch_index={} expected_at={} actual_at={} expected_window={} actual_window={}".format(
+                (s6_order_mismatch_index + 1) if s6_order_mismatch_index >= 0 else 0,
+                s6_expected_at,
+                s6_actual_at,
+                sample_window(expected_s6_refs, s6_order_mismatch_index),
+                sample_window(s6_session_pack_refs, s6_order_mismatch_index),
+            ),
+        }
+    )
+    if not s6_order_ok:
+        failure_digest.append(
+            "s6_session_pack_golden_case_order_stable: mismatch_index={} expected_at={} actual_at={} expected_window={} actual_window={}".format(
+                (s6_order_mismatch_index + 1) if s6_order_mismatch_index >= 0 else 0,
+                s6_expected_at,
+                s6_actual_at,
+                sample_window(expected_s6_refs, s6_order_mismatch_index),
+                sample_window(s6_session_pack_refs, s6_order_mismatch_index),
+            )
+        )
+        failure_digest.append(
+            "s6_session_pack_golden_case_order_stable.head_tail: expected_{} actual_{}".format(
+                head_tail(expected_s6_refs),
+                head_tail(s6_session_pack_refs),
+            )
+        )
+        failure_digest.append(f"s6_session_pack_golden_case_order_stable.{s6_repair_hint}")
+        failure_digest.append(
+            f"s6_session_pack_golden_case_order_stable.repair_cmd_short: {clip(s6_repair_cmd_short, 700)}"
+        )
+        failure_digest.append(f"s6_session_pack_golden_case_order_stable.repair_cmd: {clip(s6_repair_cmd, 700)}")
+        pending_items.append("S6 session roundtrip golden.jsonl 케이스 순서를 c01~c09 고정 순서로 유지")
 
     missing_pack_cases = [str(path) for path in PACK_CASE_FILES if not (root / path).exists()]
     pack_cases_present_ok = len(missing_pack_cases) == 0
@@ -515,15 +849,13 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
     repair_hint = build_order_repair_hint(PACK_GOLDEN_PATH, expected_refs)
     repair_cmd_short = build_order_repair_cmd_short(PACK_GOLDEN_PATH)
     repair_cmd = build_order_repair_cmd(PACK_GOLDEN_PATH, expected_refs)
-    repair = {
-        "order": {
-            "hint": repair_hint,
-            "repair_cmd_short": repair_cmd_short,
-            "repair_cmd": repair_cmd,
-            "expected_case_list_path": str(PACK_GOLDEN_PATH),
-            "expected_case_count": len(expected_refs),
-            "expected_case_head_tail": head_tail(expected_refs),
-        }
+    repair["order"] = {
+        "hint": repair_hint,
+        "repair_cmd_short": repair_cmd_short,
+        "repair_cmd": repair_cmd,
+        "expected_case_list_path": str(PACK_GOLDEN_PATH),
+        "expected_case_count": len(expected_refs),
+        "expected_case_head_tail": head_tail(expected_refs),
     }
     expected_ref_set = set(expected_refs)
     actual_ref_set = set(pack_golden_refs)
@@ -655,6 +987,234 @@ def build_criteria(root: Path) -> tuple[list[dict[str, object]], list[str], list
         failure_digest.append(f"s5_pack_cases_overlay_ok_token: missing overlay_ok token in {clip(', '.join(invalid_case_tokens), 200)}")
         pending_items.append("S5 pack 케이스에 overlay_ok 기대값 유지")
 
+    missing_surface_golden_paths: list[str] = []
+    underflow_surface_cases: list[str] = []
+    missing_surface_tokens: list[str] = []
+    for contract in AGE5_SURFACE_PACK_CONTRACTS:
+        contract_name = str(contract.get("name", "")).strip() or "unknown"
+        golden_path = contract.get("golden")
+        if not isinstance(golden_path, Path):
+            missing_surface_golden_paths.append(f"{contract_name}:invalid_path")
+            continue
+        full_golden_path = root / golden_path
+        if not full_golden_path.exists():
+            missing_surface_golden_paths.append(f"{contract_name}:{golden_path}")
+            continue
+        golden_text = load_text(full_golden_path)
+        case_count = count_nonempty_lines(golden_text)
+        min_cases = int(contract.get("min_cases", 0))
+        if case_count < min_cases:
+            underflow_surface_cases.append(
+                f"{contract_name}:{case_count}<{min_cases}:{golden_path}"
+            )
+        for token in contract.get("tokens", []):
+            token_text = str(token)
+            if token_text and token_text not in golden_text:
+                missing_surface_tokens.append(f"{contract_name}:{token_text}")
+
+    surface_pack_paths_ok = len(missing_surface_golden_paths) == 0
+    criteria.append(
+        {
+            "name": "age5_surface_pack_contract_paths_present",
+            "ok": surface_pack_paths_ok,
+            "detail": "missing={} sample={}".format(
+                len(missing_surface_golden_paths),
+                sample_items(missing_surface_golden_paths),
+            ),
+        }
+    )
+    if not surface_pack_paths_ok:
+        failure_digest.append(
+            "age5_surface_pack_contract_paths_present: missing={}".format(
+                clip(full_items(missing_surface_golden_paths), 500)
+            )
+        )
+        pending_items.append("AGE5 surface pack golden.jsonl 경로(핵심 8개) 유지")
+
+    surface_pack_min_cases_ok = len(underflow_surface_cases) == 0
+    criteria.append(
+        {
+            "name": "age5_surface_pack_contract_min_cases",
+            "ok": surface_pack_min_cases_ok,
+            "detail": "underflow={} sample={}".format(
+                len(underflow_surface_cases),
+                sample_items(underflow_surface_cases),
+            ),
+        }
+    )
+    if not surface_pack_min_cases_ok:
+        failure_digest.append(
+            "age5_surface_pack_contract_min_cases: underflow={}".format(
+                clip(full_items(underflow_surface_cases), 500)
+            )
+        )
+        pending_items.append("AGE5 surface pack golden 최소 케이스 수 계약 유지")
+
+    surface_pack_tokens_ok = len(missing_surface_tokens) == 0
+    criteria.append(
+        {
+            "name": "age5_surface_pack_contract_tokens_present",
+            "ok": surface_pack_tokens_ok,
+            "detail": "missing={} sample={}".format(
+                len(missing_surface_tokens),
+                sample_items(missing_surface_tokens),
+            ),
+        }
+    )
+    if not surface_pack_tokens_ok:
+        failure_digest.append(
+            "age5_surface_pack_contract_tokens_present: missing={}".format(
+                clip(full_items(missing_surface_tokens), 500)
+            )
+        )
+        pending_items.append("AGE5 surface pack 핵심 토큰(별칭/하드컷/정본 무경고) 유지")
+
+    missing_profile_scripts = [
+        f"{name}:{path}" for name, path in CI_PROFILE_GATE_SCRIPTS.items() if not (root / path).exists()
+    ]
+    profile_scripts_ok = len(missing_profile_scripts) == 0
+    criteria.append(
+        {
+            "name": "age5_ci_profile_gate_scripts_present",
+            "ok": profile_scripts_ok,
+            "detail": "missing={} sample={}".format(
+                len(missing_profile_scripts),
+                sample_items(missing_profile_scripts),
+            ),
+        }
+    )
+    if not profile_scripts_ok:
+        failure_digest.append(
+            "age5_ci_profile_gate_scripts_present: missing={}".format(
+                clip(full_items(missing_profile_scripts), 500)
+            )
+        )
+        pending_items.append("AGE5 CI profile gate 스크립트 3종(split/core_lang/seamgrim) 유지")
+
+    core_profile_text = load_text(root / CI_PROFILE_GATE_SCRIPTS["core_lang"])
+    seamgrim_profile_text = load_text(root / CI_PROFILE_GATE_SCRIPTS["seamgrim"])
+    missing_core_profile_chain_tokens = [
+        token for token in CI_PROFILE_CORE_LANG_CHAIN_TOKENS if token not in core_profile_text
+    ]
+    missing_seamgrim_profile_chain_tokens = [
+        token for token in CI_PROFILE_SEAMGRIM_CHAIN_TOKENS if token not in seamgrim_profile_text
+    ]
+    profile_chain_tokens_ok = (
+        len(missing_core_profile_chain_tokens) == 0 and len(missing_seamgrim_profile_chain_tokens) == 0
+    )
+    criteria.append(
+        {
+            "name": "age5_ci_profile_gate_sync_chain_tokens",
+            "ok": profile_chain_tokens_ok,
+            "detail": "core_missing={} seamgrim_missing={} core_sample={} seamgrim_sample={}".format(
+                len(missing_core_profile_chain_tokens),
+                len(missing_seamgrim_profile_chain_tokens),
+                sample_items(missing_core_profile_chain_tokens),
+                sample_items(missing_seamgrim_profile_chain_tokens),
+            ),
+        }
+    )
+    if not profile_chain_tokens_ok:
+        if missing_core_profile_chain_tokens:
+            failure_digest.append(
+                "age5_ci_profile_gate_sync_chain_tokens.core: missing={}".format(
+                    clip(full_items(missing_core_profile_chain_tokens), 500)
+                )
+            )
+        if missing_seamgrim_profile_chain_tokens:
+            failure_digest.append(
+                "age5_ci_profile_gate_sync_chain_tokens.seamgrim: missing={}".format(
+                    clip(full_items(missing_seamgrim_profile_chain_tokens), 500)
+                )
+            )
+        pending_items.append("AGE5 CI core_lang/seamgrim gate에 sync_readiness 연쇄 검증 토큰 유지")
+
+    split_profile_text = load_text(root / CI_PROFILE_GATE_SCRIPTS["split"])
+    missing_split_contract_tokens = [
+        token for token in CI_PROFILE_SPLIT_CONTRACT_TOKENS if token not in split_profile_text
+    ]
+    split_contract_tokens_ok = len(missing_split_contract_tokens) == 0
+    criteria.append(
+        {
+            "name": "age5_ci_profile_split_contract_tokens_present",
+            "ok": split_contract_tokens_ok,
+            "detail": "missing={} sample={}".format(
+                len(missing_split_contract_tokens),
+                sample_items(missing_split_contract_tokens),
+            ),
+        }
+    )
+    if not split_contract_tokens_ok:
+        failure_digest.append(
+            "age5_ci_profile_split_contract_tokens_present: missing={}".format(
+                clip(full_items(missing_split_contract_tokens), 500)
+            )
+        )
+        pending_items.append("AGE5 CI split contract checker에 profile/sync 토큰 계약 유지")
+
+    missing_core_profile_report_path_tokens = [
+        token for token in CI_PROFILE_CORE_LANG_REPORT_PATH_TOKENS if token not in core_profile_text
+    ]
+    missing_seamgrim_profile_report_path_tokens = [
+        token for token in CI_PROFILE_SEAMGRIM_REPORT_PATH_TOKENS if token not in seamgrim_profile_text
+    ]
+    profile_report_path_tokens_ok = (
+        len(missing_core_profile_report_path_tokens) == 0
+        and len(missing_seamgrim_profile_report_path_tokens) == 0
+    )
+    criteria.append(
+        {
+            "name": "age5_ci_profile_gate_report_path_tokens",
+            "ok": profile_report_path_tokens_ok,
+            "detail": "core_missing={} seamgrim_missing={} core_sample={} seamgrim_sample={}".format(
+                len(missing_core_profile_report_path_tokens),
+                len(missing_seamgrim_profile_report_path_tokens),
+                sample_items(missing_core_profile_report_path_tokens),
+                sample_items(missing_seamgrim_profile_report_path_tokens),
+            ),
+        }
+    )
+    if not profile_report_path_tokens_ok:
+        if missing_core_profile_report_path_tokens:
+            failure_digest.append(
+                "age5_ci_profile_gate_report_path_tokens.core: missing={}".format(
+                    clip(full_items(missing_core_profile_report_path_tokens), 500)
+                )
+            )
+        if missing_seamgrim_profile_report_path_tokens:
+            failure_digest.append(
+                "age5_ci_profile_gate_report_path_tokens.seamgrim: missing={}".format(
+                    clip(full_items(missing_seamgrim_profile_report_path_tokens), 500)
+                )
+            )
+        pending_items.append("AGE5 CI core_lang/seamgrim gate에 sync_readiness report 경로 계약 토큰 유지")
+
+    sync_readiness_contract_text = load_text(root / CI_SYNC_READINESS_REPORT_PATH_CONTRACT_SCRIPT)
+    missing_sync_readiness_report_path_contract_tokens = [
+        token
+        for token in CI_SYNC_READINESS_REPORT_PATH_CONTRACT_TOKENS
+        if token not in sync_readiness_contract_text
+    ]
+    sync_readiness_report_path_contract_ok = len(missing_sync_readiness_report_path_contract_tokens) == 0
+    criteria.append(
+        {
+            "name": "age5_ci_sync_readiness_report_path_contract_tokens",
+            "ok": sync_readiness_report_path_contract_ok,
+            "detail": "missing={} sample={} path={}".format(
+                len(missing_sync_readiness_report_path_contract_tokens),
+                sample_items(missing_sync_readiness_report_path_contract_tokens),
+                CI_SYNC_READINESS_REPORT_PATH_CONTRACT_SCRIPT,
+            ),
+        }
+    )
+    if not sync_readiness_report_path_contract_ok:
+        failure_digest.append(
+            "age5_ci_sync_readiness_report_path_contract_tokens: missing={}".format(
+                clip(full_items(missing_sync_readiness_report_path_contract_tokens), 500)
+            )
+        )
+        pending_items.append("AGE5 CI sync_readiness check의 report 경로 계약 토큰(--report-prefix/--json-out/out_path) 유지")
+
     return criteria, failure_digest[:20], pending_items, repair
 
 
@@ -665,16 +1225,22 @@ def main() -> int:
         default=default_report_path("age5_close_report.detjson"),
         help="output age5 close report path",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="require wired mode for S6 contracts (retired not allowed)",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
     report_out = Path(args.report_out)
-    criteria, failure_digest, pending_items, repair = build_criteria(root)
+    criteria, failure_digest, pending_items, repair = build_criteria(root, strict=bool(args.strict))
 
     overall_ok = all(bool(row.get("ok", False)) for row in criteria)
     report = {
         "schema": "ddn.age5_close_report.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "strict": bool(args.strict),
         "overall_ok": overall_ok,
         "criteria": criteria,
         "paths": {
@@ -688,6 +1254,7 @@ def main() -> int:
             "pack_golden": str(PACK_GOLDEN_PATH),
             "session_pack_hint": S6_SESSION_PACK_HINT,
             "session_pack_golden": str(S6_SESSION_PACK_GOLDEN_PATH),
+            "age5_surface_pack_contracts": [str(item.get("golden")) for item in AGE5_SURFACE_PACK_CONTRACTS],
         },
         "failure_digest": failure_digest[:20],
         "pending_items": pending_items,
@@ -698,7 +1265,10 @@ def main() -> int:
     report_out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     failed = sum(1 for row in criteria if not bool(row.get("ok", False)))
-    print(f"[age5-close] overall_ok={int(overall_ok)} criteria={len(criteria)} failed={failed} report={report_out}")
+    print(
+        f"[age5-close] strict={int(bool(args.strict))} overall_ok={int(overall_ok)} "
+        f"criteria={len(criteria)} failed={failed} report={report_out}"
+    )
     for row in criteria:
         print(f" - {row.get('name')}: ok={int(bool(row.get('ok', False)))}")
     if not overall_ok:

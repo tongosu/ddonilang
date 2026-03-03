@@ -12,8 +12,154 @@ REQUIRED_TOKENS = [
     "--age5-report",
     "ci_pack_golden_overlay_compare_selftest",
     "tests/run_pack_golden_overlay_compare_selftest.py",
+    "ci_pack_golden_overlay_session_selftest",
+    "tests/run_pack_golden_overlay_session_selftest.py",
+    "ci_pack_golden_age5_surface_selftest",
+    "tests/run_pack_golden_age5_surface_selftest.py",
+    "ci_pack_golden_guideblock_selftest",
+    "tests/run_pack_golden_guideblock_selftest.py",
+    "ci_pack_golden_exec_policy_selftest",
+    "tests/run_pack_golden_exec_policy_selftest.py",
+    "ci_pack_golden_jjaim_flatten_selftest",
+    "tests/run_pack_golden_jjaim_flatten_selftest.py",
+    "ci_pack_golden_event_model_selftest",
+    "tests/run_pack_golden_event_model_selftest.py",
+    "[ci-gate-summary] ci_pack_golden_overlay_compare_selftest_ok=",
+    "[ci-gate-summary] ci_pack_golden_overlay_session_selftest_ok=",
+    "[ci-gate-summary] ci_pack_golden_age5_surface_selftest_ok=",
+    "[ci-gate-summary] ci_pack_golden_guideblock_selftest_ok=",
+    "[ci-gate-summary] ci_pack_golden_exec_policy_selftest_ok=",
+    "[ci-gate-summary] ci_pack_golden_jjaim_flatten_selftest_ok=",
+    "[ci-gate-summary] ci_pack_golden_event_model_selftest_ok=",
     "[ci-gate-summary] age5_status=",
     "age5_close_report.detjson",
+]
+
+AGE5_CLOSE_REQUIRED_CRITERIA_TOKENS = [
+    "AGE5_SURFACE_PACK_CONTRACTS",
+    "age5_surface_pack_contract_paths_present",
+    "age5_surface_pack_contract_min_cases",
+    "age5_surface_pack_contract_tokens_present",
+    "CI_PROFILE_GATE_SCRIPTS",
+    "age5_ci_profile_gate_scripts_present",
+    "age5_ci_profile_gate_sync_chain_tokens",
+    "age5_ci_profile_split_contract_tokens_present",
+    "age5_ci_profile_gate_report_path_tokens",
+    "CI_SYNC_READINESS_REPORT_PATH_CONTRACT_SCRIPT",
+    "age5_ci_sync_readiness_report_path_contract_tokens",
+    "guideblock_keys_basics",
+    "exec_policy_effect_diag",
+]
+
+AGE5_SURFACE_SELFTEST_REQUIRED_PACK_TOKENS = [
+    "seamgrim_bogae_madang_alias_v1",
+    "seamgrim_moyang_template_instance_view_boundary_v1",
+    "seamgrim_jjaim_block_stub_canon_v1",
+    "seamgrim_guseong_flatten_ir_v1",
+    "seamgrim_guseong_flatten_diag_v1",
+    "seamgrim_event_model_ir_v1",
+    "seamgrim_event_surface_canon_v1",
+    "block_header_no_colon",
+]
+GUIDEBLOCK_SELFTEST_REQUIRED_PACK_TOKENS = [
+    "guideblock_keys_basics",
+]
+
+MOYANG_TEMPLATE_PACK_REQUIRED_CASE_TOKENS = [
+    "smoke_template_instance_a.v1.json",
+    "smoke_template_instance_b.v1.json",
+    "smoke_template_instance_c.v1.json",
+    "input_template_instance_a.ddn",
+    "input_template_instance_b.ddn",
+]
+
+GUIDEBLOCK_KEYS_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_hash_header_alias/case.detjson",
+    "c02_guideblock_alias/case.detjson",
+    "c03_mixed_precedence/case.detjson",
+    "c04_canonical_keys/case.detjson",
+]
+
+EXEC_POLICY_DIAG_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_strict_effect_call_EXPECT_FAIL",
+    "E_EFFECT_IN_STRICT_MODE",
+    "c22_strict_effect_policy_ignored_warn",
+    "W_EFFECT_POLICY_IGNORED_IN_STRICT",
+    "c26_effect_block_alias_baggat_EXPECT_FAIL",
+    "E_EFFECT_SURFACE_ALIAS_FORBIDDEN",
+]
+
+JJAIM_FLATTEN_SELFTEST_REQUIRED_PACK_TOKENS = [
+    "seamgrim_guseong_flatten_ir_v1",
+    "seamgrim_guseong_flatten_diag_v1",
+]
+EVENT_MODEL_SELFTEST_REQUIRED_PACK_TOKENS = [
+    "seamgrim_event_surface_canon_v1",
+    "seamgrim_event_model_ir_v1",
+]
+
+EXEC_POLICY_MAP_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_general_allowed",
+    "c02_strict_forces_isolated",
+    "c03_duplicate_exec_policy_blocks",
+    "c04_no_policy_defaults",
+    "c05_invalid_effect_enum_gate_error",
+    "c06_effect_only_allowed_defaults_strict",
+]
+
+BLOCK_HEADER_NO_COLON_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_decl_colon_warn",
+    "c02_repeat_foreach_colon_warn",
+    "c03_while_colon_warn",
+    "c04_nested_multi_colon_warn",
+    "c05_mixed_colon_no_colon_warn",
+    "W_BLOCK_HEADER_COLON_DEPRECATED",
+]
+
+JJAIM_FLATTEN_IR_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_basic",
+    "c02_guseong_alias_warn",
+    "W_JJAIM_ALIAS_DEPRECATED",
+]
+JJAIM_FLATTEN_DIAG_PACK_REQUIRED_CASE_TOKENS = [
+    "c14_type_schema_conflict_EXPECT_FAIL",
+    "E_JJAIM_TYPE_SCHEMA_CONFLICT",
+    "c16_type_tag_required_multi_type_EXPECT_FAIL",
+    "E_JJAIM_TYPE_TAG_REQUIRED",
+    "c17_tuple_named_index_EXPECT_FAIL",
+    "c18_tuple_out_of_range_index_EXPECT_FAIL",
+    "E_GUSEONG_TUPLE_INDEX_INVALID",
+    "c19_tuple_access_on_scalar_output_EXPECT_FAIL",
+    "c20_tuple_access_on_scalar_input_EXPECT_FAIL",
+    "E_GUSEONG_TUPLE_ACCESS_ON_SCALAR",
+    "c21_tuple_projection_valid_success",
+]
+
+EVENT_MODEL_IR_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_basic",
+    "c02_alias_surface_emit_EXPECT_FAIL",
+    "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+    "alrim-plan-json",
+]
+
+BOGAE_MADANG_ALIAS_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_alias_warn",
+    "W_BOGAE_MADANG_ALIAS_DEPRECATED",
+    "c02_canonical_no_warn",
+]
+
+JJAIM_BLOCK_STUB_PACK_REQUIRED_CASE_TOKENS = [
+    "c01_guseong_alias",
+    "W_JJAIM_ALIAS_DEPRECATED",
+    "c02_invalid_subblock_EXPECT_FAIL",
+    "E_JJAIM_SUBBLOCK_INVALID",
+    "c03_port_decl_name_only_EXPECT_FAIL",
+    "E_JJAIM_PORT_DECL_INVALID",
+    "c04_port_type_missing_EXPECT_FAIL",
+    "E_JJAIM_PORT_TYPE_MISSING",
+    "c05_port_duplicate_EXPECT_FAIL",
+    "E_JJAIM_PORT_DUP",
+    "c06_jjaim_canonical_no_warn",
 ]
 
 
@@ -30,6 +176,246 @@ def main() -> int:
         print("aggregate gate age5 diagnostics check failed:")
         for token in missing[:12]:
             print(f" - missing token: {token}")
+        return 1
+
+    age5_close_target = root / "tests" / "run_age5_close.py"
+    if not age5_close_target.exists():
+        print(f"missing target: {age5_close_target}")
+        return 1
+    age5_close_text = age5_close_target.read_text(encoding="utf-8")
+    age5_close_missing = [
+        token
+        for token in AGE5_CLOSE_REQUIRED_CRITERIA_TOKENS
+        if token not in age5_close_text
+    ]
+    if age5_close_missing:
+        print("aggregate gate age5 diagnostics check failed (age5 close criteria coverage):")
+        for token in age5_close_missing[:12]:
+            print(f" - missing age5-close token: {token}")
+        return 1
+
+    surface_selftest = root / "tests" / "run_pack_golden_age5_surface_selftest.py"
+    if not surface_selftest.exists():
+        print(f"missing target: {surface_selftest}")
+        return 1
+    surface_text = surface_selftest.read_text(encoding="utf-8")
+    surface_missing = [
+        token
+        for token in AGE5_SURFACE_SELFTEST_REQUIRED_PACK_TOKENS
+        if token not in surface_text
+    ]
+    if surface_missing:
+        print("aggregate gate age5 diagnostics check failed (surface selftest coverage):")
+        for token in surface_missing[:12]:
+            print(f" - missing surface token: {token}")
+        return 1
+
+    guideblock_selftest = root / "tests" / "run_pack_golden_guideblock_selftest.py"
+    if not guideblock_selftest.exists():
+        print(f"missing target: {guideblock_selftest}")
+        return 1
+    guideblock_selftest_text = guideblock_selftest.read_text(encoding="utf-8")
+    guideblock_selftest_missing = [
+        token
+        for token in GUIDEBLOCK_SELFTEST_REQUIRED_PACK_TOKENS
+        if token not in guideblock_selftest_text
+    ]
+    if guideblock_selftest_missing:
+        print("aggregate gate age5 diagnostics check failed (guideblock selftest coverage):")
+        for token in guideblock_selftest_missing[:12]:
+            print(f" - missing guideblock-selftest token: {token}")
+        return 1
+
+    jjaim_flatten_selftest = root / "tests" / "run_pack_golden_jjaim_flatten_selftest.py"
+    if not jjaim_flatten_selftest.exists():
+        print(f"missing target: {jjaim_flatten_selftest}")
+        return 1
+    jjaim_flatten_text = jjaim_flatten_selftest.read_text(encoding="utf-8")
+    jjaim_flatten_missing = [
+        token
+        for token in JJAIM_FLATTEN_SELFTEST_REQUIRED_PACK_TOKENS
+        if token not in jjaim_flatten_text
+    ]
+    if jjaim_flatten_missing:
+        print("aggregate gate age5 diagnostics check failed (jjaim flatten selftest coverage):")
+        for token in jjaim_flatten_missing[:12]:
+            print(f" - missing jjaim flatten token: {token}")
+        return 1
+
+    event_model_selftest = root / "tests" / "run_pack_golden_event_model_selftest.py"
+    if not event_model_selftest.exists():
+        print(f"missing target: {event_model_selftest}")
+        return 1
+    event_model_selftest_text = event_model_selftest.read_text(encoding="utf-8")
+    event_model_selftest_missing = [
+        token
+        for token in EVENT_MODEL_SELFTEST_REQUIRED_PACK_TOKENS
+        if token not in event_model_selftest_text
+    ]
+    if event_model_selftest_missing:
+        print("aggregate gate age5 diagnostics check failed (event model selftest coverage):")
+        for token in event_model_selftest_missing[:12]:
+            print(f" - missing event-model-selftest token: {token}")
+        return 1
+
+    exec_policy_map_pack = root / "pack" / "seamgrim_exec_policy_effect_map_v1" / "golden.jsonl"
+    if not exec_policy_map_pack.exists():
+        print(f"missing target: {exec_policy_map_pack}")
+        return 1
+    exec_policy_map_pack_text = exec_policy_map_pack.read_text(encoding="utf-8")
+    exec_policy_map_missing = [
+        token
+        for token in EXEC_POLICY_MAP_PACK_REQUIRED_CASE_TOKENS
+        if token not in exec_policy_map_pack_text
+    ]
+    if exec_policy_map_missing:
+        print("aggregate gate age5 diagnostics check failed (exec policy map pack coverage):")
+        for token in exec_policy_map_missing[:12]:
+            print(f" - missing exec-policy-map token: {token}")
+        return 1
+
+    block_header_pack = root / "pack" / "block_header_no_colon" / "golden.jsonl"
+    if not block_header_pack.exists():
+        print(f"missing target: {block_header_pack}")
+        return 1
+    block_header_pack_text = block_header_pack.read_text(encoding="utf-8")
+    block_header_missing = [
+        token
+        for token in BLOCK_HEADER_NO_COLON_PACK_REQUIRED_CASE_TOKENS
+        if token not in block_header_pack_text
+    ]
+    if block_header_missing:
+        print("aggregate gate age5 diagnostics check failed (block header pack coverage):")
+        for token in block_header_missing[:12]:
+            print(f" - missing block-header token: {token}")
+        return 1
+
+    jjaim_flatten_ir_pack = root / "pack" / "seamgrim_guseong_flatten_ir_v1" / "golden.jsonl"
+    if not jjaim_flatten_ir_pack.exists():
+        print(f"missing target: {jjaim_flatten_ir_pack}")
+        return 1
+    jjaim_flatten_ir_pack_text = jjaim_flatten_ir_pack.read_text(encoding="utf-8")
+    jjaim_flatten_ir_missing = [
+        token
+        for token in JJAIM_FLATTEN_IR_PACK_REQUIRED_CASE_TOKENS
+        if token not in jjaim_flatten_ir_pack_text
+    ]
+    if jjaim_flatten_ir_missing:
+        print("aggregate gate age5 diagnostics check failed (jjaim flatten ir pack coverage):")
+        for token in jjaim_flatten_ir_missing[:12]:
+            print(f" - missing jjaim-flatten-ir token: {token}")
+        return 1
+
+    jjaim_flatten_diag_pack = root / "pack" / "seamgrim_guseong_flatten_diag_v1" / "golden.jsonl"
+    if not jjaim_flatten_diag_pack.exists():
+        print(f"missing target: {jjaim_flatten_diag_pack}")
+        return 1
+    jjaim_flatten_diag_pack_text = jjaim_flatten_diag_pack.read_text(encoding="utf-8")
+    jjaim_flatten_diag_missing = [
+        token
+        for token in JJAIM_FLATTEN_DIAG_PACK_REQUIRED_CASE_TOKENS
+        if token not in jjaim_flatten_diag_pack_text
+    ]
+    if jjaim_flatten_diag_missing:
+        print("aggregate gate age5 diagnostics check failed (jjaim flatten diag pack coverage):")
+        for token in jjaim_flatten_diag_missing[:12]:
+            print(f" - missing jjaim-flatten-diag token: {token}")
+        return 1
+
+    event_model_ir_pack = root / "pack" / "seamgrim_event_model_ir_v1" / "golden.jsonl"
+    if not event_model_ir_pack.exists():
+        print(f"missing target: {event_model_ir_pack}")
+        return 1
+    event_model_ir_pack_text = event_model_ir_pack.read_text(encoding="utf-8")
+    event_model_ir_missing = [
+        token
+        for token in EVENT_MODEL_IR_PACK_REQUIRED_CASE_TOKENS
+        if token not in event_model_ir_pack_text
+    ]
+    if event_model_ir_missing:
+        print("aggregate gate age5 diagnostics check failed (event model ir pack coverage):")
+        for token in event_model_ir_missing[:12]:
+            print(f" - missing event-model-ir token: {token}")
+        return 1
+
+    moyang_template_pack = root / "pack" / "seamgrim_moyang_template_instance_view_boundary_v1" / "golden.jsonl"
+    if not moyang_template_pack.exists():
+        print(f"missing target: {moyang_template_pack}")
+        return 1
+    moyang_template_pack_text = moyang_template_pack.read_text(encoding="utf-8")
+    moyang_template_missing = [
+        token
+        for token in MOYANG_TEMPLATE_PACK_REQUIRED_CASE_TOKENS
+        if token not in moyang_template_pack_text
+    ]
+    if moyang_template_missing:
+        print("aggregate gate age5 diagnostics check failed (moyang template pack coverage):")
+        for token in moyang_template_missing[:12]:
+            print(f" - missing moyang-template token: {token}")
+        return 1
+
+    guideblock_keys_pack = root / "pack" / "guideblock_keys_basics" / "golden.jsonl"
+    if not guideblock_keys_pack.exists():
+        print(f"missing target: {guideblock_keys_pack}")
+        return 1
+    guideblock_keys_pack_text = guideblock_keys_pack.read_text(encoding="utf-8")
+    guideblock_keys_missing = [
+        token
+        for token in GUIDEBLOCK_KEYS_PACK_REQUIRED_CASE_TOKENS
+        if token not in guideblock_keys_pack_text
+    ]
+    if guideblock_keys_missing:
+        print("aggregate gate age5 diagnostics check failed (guideblock keys pack coverage):")
+        for token in guideblock_keys_missing[:12]:
+            print(f" - missing guideblock token: {token}")
+        return 1
+
+    exec_policy_diag_pack = root / "pack" / "seamgrim_exec_policy_effect_diag_v1" / "golden.jsonl"
+    if not exec_policy_diag_pack.exists():
+        print(f"missing target: {exec_policy_diag_pack}")
+        return 1
+    exec_policy_diag_pack_text = exec_policy_diag_pack.read_text(encoding="utf-8")
+    exec_policy_diag_missing = [
+        token
+        for token in EXEC_POLICY_DIAG_PACK_REQUIRED_CASE_TOKENS
+        if token not in exec_policy_diag_pack_text
+    ]
+    if exec_policy_diag_missing:
+        print("aggregate gate age5 diagnostics check failed (exec policy diag pack coverage):")
+        for token in exec_policy_diag_missing[:12]:
+            print(f" - missing exec-policy-diag token: {token}")
+        return 1
+
+    bogae_madang_alias_pack = root / "pack" / "seamgrim_bogae_madang_alias_v1" / "golden.jsonl"
+    if not bogae_madang_alias_pack.exists():
+        print(f"missing target: {bogae_madang_alias_pack}")
+        return 1
+    bogae_madang_alias_pack_text = bogae_madang_alias_pack.read_text(encoding="utf-8")
+    bogae_madang_alias_missing = [
+        token
+        for token in BOGAE_MADANG_ALIAS_PACK_REQUIRED_CASE_TOKENS
+        if token not in bogae_madang_alias_pack_text
+    ]
+    if bogae_madang_alias_missing:
+        print("aggregate gate age5 diagnostics check failed (bogae-madang alias pack coverage):")
+        for token in bogae_madang_alias_missing[:12]:
+            print(f" - missing bogae-madang token: {token}")
+        return 1
+
+    jjaim_block_stub_pack = root / "pack" / "seamgrim_jjaim_block_stub_canon_v1" / "golden.jsonl"
+    if not jjaim_block_stub_pack.exists():
+        print(f"missing target: {jjaim_block_stub_pack}")
+        return 1
+    jjaim_block_stub_pack_text = jjaim_block_stub_pack.read_text(encoding="utf-8")
+    jjaim_block_stub_missing = [
+        token
+        for token in JJAIM_BLOCK_STUB_PACK_REQUIRED_CASE_TOKENS
+        if token not in jjaim_block_stub_pack_text
+    ]
+    if jjaim_block_stub_missing:
+        print("aggregate gate age5 diagnostics check failed (jjaim block stub pack coverage):")
+        for token in jjaim_block_stub_missing[:12]:
+            print(f" - missing jjaim-block token: {token}")
         return 1
 
     print("ci aggregate gate age5 diagnostics check ok")
