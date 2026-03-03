@@ -150,6 +150,18 @@ def main() -> int:
                     f"{key} mismatch summary={kv.get(key)} index={expected}",
                     code=CODES["SUMMARY_INDEX_PATH_MISMATCH"],
                 )
+        seamgrim_wasm_cli_diag_parity_report = kv.get("seamgrim_wasm_cli_diag_parity_report", "").strip()
+        if not seamgrim_wasm_cli_diag_parity_report:
+            return fail(
+                "missing summary key: seamgrim_wasm_cli_diag_parity_report",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if not Path(seamgrim_wasm_cli_diag_parity_report).exists():
+            return fail(
+                "PASS summary requires existing seamgrim_wasm_cli_diag_parity_report path="
+                f"{seamgrim_wasm_cli_diag_parity_report}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
         fixed64_ok_text = kv.get("fixed64_threeway_ok", "").strip()
         if fixed64_ok_text not in {"0", "1"}:
             return fail(f"fixed64_threeway_ok invalid: {fixed64_ok_text}", code=CODES["PASS_KEY_MISSING"])

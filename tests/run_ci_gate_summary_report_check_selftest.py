@@ -222,6 +222,24 @@ def main() -> int:
         if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_bad_parity_ok.stderr:
             return fail(f"seamgrim_wasm_cli_diag_parity_ok code mismatch: err={proc_bad_parity_ok.stderr}")
 
+        summary_missing_parity_file, index_missing_parity_file = build_pass_case(root, "missing_parity_file")
+        missing_parity_file_text = summary_missing_parity_file.read_text(encoding="utf-8")
+        marker = "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report="
+        line = next((raw for raw in missing_parity_file_text.splitlines() if raw.startswith(marker)), "")
+        if not line:
+            return fail("missing_parity_file case: seamgrim_wasm_cli_diag_parity_report line missing")
+        parity_file_path = Path(line[len(marker) :].strip())
+        if parity_file_path.exists():
+            parity_file_path.unlink()
+        proc_missing_parity_file = run_check(summary_missing_parity_file, index_missing_parity_file, require_pass=True)
+        if proc_missing_parity_file.returncode == 0:
+            return fail("missing seamgrim_wasm_cli_diag_parity_report file case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_missing_parity_file.stderr:
+            return fail(
+                "missing seamgrim_wasm_cli_diag_parity_report file code mismatch: "
+                f"err={proc_missing_parity_file.stderr}"
+            )
+
         summary_bad_index, index_bad_index = build_pass_case(root, "bad_index")
         bad_text = summary_bad_index.read_text(encoding="utf-8").replace(
             f"[ci-gate-summary] report_index={index_bad_index}",
