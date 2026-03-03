@@ -104,6 +104,7 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
             "status": "pass",
             "reason": "ok",
             "overall_ok": True,
+            "aggregate_status": "pass",
             "failed_steps": 0,
             "summary_line_path": str(summary_line),
             "summary_line": summary_line.read_text(encoding="utf-8").strip(),
@@ -384,6 +385,35 @@ def main() -> int:
                 f"final parse overall_ok mismatch code mismatch: err={final_parse_overall_ok_mismatch_proc.stderr}"
             )
 
+        final_parse_aggregate_status_invalid_index = build_index_case(root, "final_parse_aggregate_status_invalid")
+        final_parse_aggregate_status_invalid_doc = json.loads(
+            final_parse_aggregate_status_invalid_index.read_text(encoding="utf-8")
+        )
+        final_parse_aggregate_status_invalid_report = Path(
+            str(final_parse_aggregate_status_invalid_doc["reports"]["final_status_parse_json"])
+        )
+        final_parse_aggregate_status_invalid_payload = json.loads(
+            final_parse_aggregate_status_invalid_report.read_text(encoding="utf-8")
+        )
+        final_parse_aggregate_status_invalid_payload["parsed"]["aggregate_status"] = "unknown"
+        write_json(final_parse_aggregate_status_invalid_report, final_parse_aggregate_status_invalid_payload)
+        final_parse_aggregate_status_invalid_proc = run_check(
+            final_parse_aggregate_status_invalid_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_aggregate_status_invalid_proc.returncode == 0:
+            return fail("final parse aggregate_status invalid case must fail")
+        if (
+            f"fail code={CODES['FINAL_PARSE_AGGREGATE_STATUS_INVALID']}"
+            not in final_parse_aggregate_status_invalid_proc.stderr
+        ):
+            return fail(
+                "final parse aggregate_status invalid code mismatch: "
+                f"err={final_parse_aggregate_status_invalid_proc.stderr}"
+            )
+
         final_parse_failed_steps_type_index = build_index_case(root, "final_parse_failed_steps_type")
         final_parse_failed_steps_type_doc = json.loads(final_parse_failed_steps_type_index.read_text(encoding="utf-8"))
         final_parse_failed_steps_type_report = Path(
@@ -655,6 +685,58 @@ def main() -> int:
             return fail("result status mismatch case must fail")
         if f"fail code={CODES['RESULT_STATUS_MISMATCH']}" not in result_status_mismatch_proc.stderr:
             return fail(f"result status mismatch code mismatch: err={result_status_mismatch_proc.stderr}")
+
+        result_aggregate_status_invalid_index = build_index_case(root, "result_aggregate_status_invalid")
+        result_aggregate_status_invalid_doc = json.loads(result_aggregate_status_invalid_index.read_text(encoding="utf-8"))
+        result_aggregate_status_invalid_report = Path(
+            str(result_aggregate_status_invalid_doc["reports"]["ci_gate_result_json"])
+        )
+        result_aggregate_status_invalid_result = json.loads(result_aggregate_status_invalid_report.read_text(encoding="utf-8"))
+        result_aggregate_status_invalid_result["aggregate_status"] = "unknown"
+        write_json(result_aggregate_status_invalid_report, result_aggregate_status_invalid_result)
+        result_aggregate_status_invalid_proc = run_check(
+            result_aggregate_status_invalid_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_aggregate_status_invalid_proc.returncode == 0:
+            return fail("result aggregate_status invalid case must fail")
+        if (
+            f"fail code={CODES['RESULT_AGGREGATE_STATUS_INVALID']}"
+            not in result_aggregate_status_invalid_proc.stderr
+        ):
+            return fail(
+                f"result aggregate_status invalid code mismatch: err={result_aggregate_status_invalid_proc.stderr}"
+            )
+
+        result_aggregate_status_mismatch_index = build_index_case(root, "result_aggregate_status_mismatch")
+        result_aggregate_status_mismatch_doc = json.loads(
+            result_aggregate_status_mismatch_index.read_text(encoding="utf-8")
+        )
+        result_aggregate_status_mismatch_report = Path(
+            str(result_aggregate_status_mismatch_doc["reports"]["ci_gate_result_json"])
+        )
+        result_aggregate_status_mismatch_result = json.loads(
+            result_aggregate_status_mismatch_report.read_text(encoding="utf-8")
+        )
+        result_aggregate_status_mismatch_result["aggregate_status"] = "fail"
+        write_json(result_aggregate_status_mismatch_report, result_aggregate_status_mismatch_result)
+        result_aggregate_status_mismatch_proc = run_check(
+            result_aggregate_status_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if result_aggregate_status_mismatch_proc.returncode == 0:
+            return fail("result aggregate_status mismatch case must fail")
+        if (
+            f"fail code={CODES['RESULT_AGGREGATE_STATUS_MISMATCH']}"
+            not in result_aggregate_status_mismatch_proc.stderr
+        ):
+            return fail(
+                f"result aggregate_status mismatch code mismatch: err={result_aggregate_status_mismatch_proc.stderr}"
+            )
 
         result_ok_mismatch_index = build_index_case(root, "result_ok_mismatch")
         result_ok_mismatch_doc = json.loads(result_ok_mismatch_index.read_text(encoding="utf-8"))

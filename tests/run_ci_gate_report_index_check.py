@@ -248,6 +248,12 @@ def main() -> int:
             f"final_status_parse overall_ok mismatch expected={int(index_overall_ok)} actual={int(final_parse_overall_ok)}",
             CODES["FINAL_PARSE_OVERALL_OK_MISMATCH"],
         )
+    final_parse_aggregate_status = str(final_parse_parsed.get("aggregate_status", "")).strip()
+    if final_parse_aggregate_status not in {"pass", "fail"}:
+        return fail(
+            f"final_status_parse aggregate_status invalid: {final_parse_aggregate_status}",
+            CODES["FINAL_PARSE_AGGREGATE_STATUS_INVALID"],
+        )
     final_parse_failed_steps_raw = str(final_parse_parsed.get("failed_steps", "")).strip()
     try:
         final_parse_failed_steps = int(final_parse_failed_steps_raw)
@@ -311,7 +317,23 @@ def main() -> int:
             f"ci_gate_result status mismatch expected={expected_result_status} actual={result_status}",
             CODES["RESULT_STATUS_MISMATCH"],
         )
-    expected_result_ok = result_status == "pass" and result_overall_ok and result_failed_steps == 0
+    result_aggregate_status = str(result_doc.get("aggregate_status", "")).strip()
+    if result_aggregate_status not in {"pass", "fail"}:
+        return fail(
+            f"ci_gate_result aggregate_status invalid: {result_aggregate_status}",
+            CODES["RESULT_AGGREGATE_STATUS_INVALID"],
+        )
+    if result_aggregate_status != final_parse_aggregate_status:
+        return fail(
+            f"ci_gate_result aggregate_status mismatch expected={final_parse_aggregate_status} actual={result_aggregate_status}",
+            CODES["RESULT_AGGREGATE_STATUS_MISMATCH"],
+        )
+    expected_result_ok = (
+        result_status == "pass"
+        and result_overall_ok
+        and result_aggregate_status == "pass"
+        and result_failed_steps == 0
+    )
     if result_ok != expected_result_ok:
         return fail(
             f"ci_gate_result ok mismatch expected={int(expected_result_ok)} actual={int(result_ok)}",
