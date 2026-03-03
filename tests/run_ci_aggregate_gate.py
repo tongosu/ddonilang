@@ -60,6 +60,10 @@ SANITY_SUMMARY_TOKEN_CONTRACT = [
     "[ci-gate-summary] ci_sanity_gate_status=",
     "[ci-gate-summary] ci_sanity_gate_code=",
     "[ci-gate-summary] ci_sanity_gate_profile=",
+    "[ci-gate-summary] ci_sanity_pack_golden_lang_consistency_ok=",
+    "[ci-gate-summary] ci_sanity_stdlib_catalog_ok=",
+    "[ci-gate-summary] ci_sanity_stdlib_catalog_selftest_ok=",
+    "[ci-gate-summary] ci_sanity_registry_strict_audit_ok=",
 ]
 
 SYNC_SUMMARY_TOKEN_CONTRACT = [
@@ -1175,6 +1179,8 @@ def main() -> int:
         return run_and_record("ci_gate_summary_report_selftest", cmd)
 
     report_index_required_steps_common = [
+        "ci_profile_split_contract_check",
+        "ci_profile_matrix_gate_selftest",
         "ci_sanity_gate",
         "ci_sync_readiness_report_generate",
         "ci_sync_readiness_report_check",
@@ -1289,6 +1295,20 @@ def main() -> int:
             str(ci_sanity_gate_report),
         ]
         return run_and_record("ci_sanity_gate", cmd)
+
+    def check_ci_profile_split_contract() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_profile_split_contract_check.py",
+        ]
+        return run_and_record("ci_profile_split_contract_check", cmd)
+
+    def check_ci_profile_matrix_gate_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_profile_matrix_gate_selftest.py",
+        ]
+        return run_and_record("ci_profile_matrix_gate_selftest", cmd)
 
     def check_ci_builtin_name_sync() -> int:
         cmd = [
@@ -1626,6 +1646,10 @@ def main() -> int:
                 "[ci-gate-summary] ci_pack_golden_exec_policy_selftest_ok=1",
                 "[ci-gate-summary] ci_pack_golden_jjaim_flatten_selftest_ok=1",
                 "[ci-gate-summary] ci_pack_golden_event_model_selftest_ok=1",
+                "[ci-gate-summary] ci_sanity_pack_golden_lang_consistency_ok=1",
+                "[ci-gate-summary] ci_sanity_stdlib_catalog_ok=1",
+                "[ci-gate-summary] ci_sanity_stdlib_catalog_selftest_ok=1",
+                "[ci-gate-summary] ci_sanity_registry_strict_audit_ok=1",
             ]
         else:
             preview_lines = print_failure_block(
@@ -1677,6 +1701,8 @@ def main() -> int:
         check_ci_final_line_emitter()
         check_ci_pipeline_emit_flags()
         check_ci_pipeline_emit_flags_selftest()
+        check_ci_profile_split_contract()
+        check_ci_profile_matrix_gate_selftest()
         check_seamgrim_ci_gate_runtime5_passthrough()
         check_seamgrim_ci_gate_seed_meta_step()
         check_seamgrim_ci_gate_guideblock_step()
@@ -2199,6 +2225,18 @@ def main() -> int:
             ci_pipeline_emit_flags_selftest_rc,
             "[ci-gate] fast-fail: ci pipeline emit flags selftest failed",
         )
+    ci_profile_split_contract_rc = check_ci_profile_split_contract()
+    if args.fast_fail and ci_profile_split_contract_rc != 0:
+        return fail_and_exit(
+            ci_profile_split_contract_rc,
+            "[ci-gate] fast-fail: ci profile split contract check failed",
+        )
+    ci_profile_matrix_gate_selftest_rc = check_ci_profile_matrix_gate_selftest()
+    if args.fast_fail and ci_profile_matrix_gate_selftest_rc != 0:
+        return fail_and_exit(
+            ci_profile_matrix_gate_selftest_rc,
+            "[ci-gate] fast-fail: ci profile matrix gate selftest failed",
+        )
     seamgrim_ci_gate_runtime5_passthrough_rc = check_seamgrim_ci_gate_runtime5_passthrough()
     if args.fast_fail and seamgrim_ci_gate_runtime5_passthrough_rc != 0:
         return fail_and_exit(
@@ -2501,6 +2539,8 @@ def main() -> int:
             and ci_final_line_emitter_rc == 0
             and ci_pipeline_emit_flags_rc == 0
             and ci_pipeline_emit_flags_selftest_rc == 0
+            and ci_profile_split_contract_rc == 0
+            and ci_profile_matrix_gate_selftest_rc == 0
             and seamgrim_ci_gate_runtime5_passthrough_rc == 0
             and seamgrim_ci_gate_seed_meta_step_rc == 0
             and seamgrim_ci_gate_guideblock_step_rc == 0
@@ -2651,6 +2691,8 @@ def main() -> int:
         or ci_final_line_emitter_rc != 0
         or ci_pipeline_emit_flags_rc != 0
         or ci_pipeline_emit_flags_selftest_rc != 0
+        or ci_profile_split_contract_rc != 0
+        or ci_profile_matrix_gate_selftest_rc != 0
         or seamgrim_ci_gate_runtime5_passthrough_rc != 0
         or seamgrim_ci_gate_seed_meta_step_rc != 0
         or seamgrim_ci_gate_guideblock_step_rc != 0

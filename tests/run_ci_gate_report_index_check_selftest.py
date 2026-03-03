@@ -11,6 +11,7 @@ from ci_check_error_codes import GATE_REPORT_INDEX_CODES as CODES
 
 REQUIRED_STEPS_COMMON = (
     "ci_profile_split_contract_check",
+    "ci_profile_matrix_gate_selftest",
     "ci_sanity_gate",
     "ci_sync_readiness_report_generate",
     "ci_sync_readiness_report_check",
@@ -87,7 +88,7 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
     write_json(
         final_status_parse,
         {
-            "schema": "ddn.ci.status_line.parse.v1",
+            "schema": "ddn.ci.gate_final_status_line_parse.v1",
             "status_line_path": str(final_status_line),
             "parsed": {
                 "status": "pass",
@@ -173,7 +174,13 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
         index,
         {
             "schema": "ddn.ci.aggregate_gate.index.v1",
+            "generated_at_utc": "2026-03-04T00:00:00+00:00",
+            "report_prefix": "",
+            "report_prefix_source": "",
+            "report_dir": str(case_dir),
             "ci_sanity_profile": sanity_profile,
+            "step_log_dir": "",
+            "step_log_failed_only": False,
             "overall_ok": True,
             "reports": {
                 "summary": str(summary),
@@ -193,6 +200,12 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
                     "returncode": 0,
                     "ok": True,
                     "cmd": ["python", "tests/run_ci_profile_split_contract_check.py"],
+                },
+                {
+                    "name": "ci_profile_matrix_gate_selftest",
+                    "returncode": 0,
+                    "ok": True,
+                    "cmd": ["python", "tests/run_ci_profile_matrix_gate_selftest.py"],
                 },
                 {"name": "ci_sanity_gate", "returncode": 0, "ok": True, "cmd": ["python", "tests/run_ci_sanity_gate.py"]},
                 {
@@ -262,6 +275,203 @@ def main() -> int:
         )
         if ok_proc.returncode != 0:
             return fail(f"ok case failed: out={ok_proc.stdout} err={ok_proc.stderr}")
+
+        generated_at_missing_index = build_index_case(root, "generated_at_missing")
+        generated_at_missing_doc = json.loads(generated_at_missing_index.read_text(encoding="utf-8"))
+        generated_at_missing_doc["generated_at_utc"] = ""
+        write_json(generated_at_missing_index, generated_at_missing_doc)
+        generated_at_missing_proc = run_check(
+            generated_at_missing_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if generated_at_missing_proc.returncode == 0:
+            return fail("generated_at missing case must fail")
+        if f"fail code={CODES['GENERATED_AT_MISSING']}" not in generated_at_missing_proc.stderr:
+            return fail(f"generated_at missing code mismatch: err={generated_at_missing_proc.stderr}")
+
+        generated_at_invalid_index = build_index_case(root, "generated_at_invalid")
+        generated_at_invalid_doc = json.loads(generated_at_invalid_index.read_text(encoding="utf-8"))
+        generated_at_invalid_doc["generated_at_utc"] = "not-a-timestamp"
+        write_json(generated_at_invalid_index, generated_at_invalid_doc)
+        generated_at_invalid_proc = run_check(
+            generated_at_invalid_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if generated_at_invalid_proc.returncode == 0:
+            return fail("generated_at invalid case must fail")
+        if f"fail code={CODES['GENERATED_AT_INVALID']}" not in generated_at_invalid_proc.stderr:
+            return fail(f"generated_at invalid code mismatch: err={generated_at_invalid_proc.stderr}")
+
+        report_dir_missing_index = build_index_case(root, "report_dir_missing")
+        report_dir_missing_doc = json.loads(report_dir_missing_index.read_text(encoding="utf-8"))
+        report_dir_missing_doc["report_dir"] = ""
+        write_json(report_dir_missing_index, report_dir_missing_doc)
+        report_dir_missing_proc = run_check(
+            report_dir_missing_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if report_dir_missing_proc.returncode == 0:
+            return fail("report_dir missing case must fail")
+        if f"fail code={CODES['REPORT_DIR_MISSING']}" not in report_dir_missing_proc.stderr:
+            return fail(f"report_dir missing code mismatch: err={report_dir_missing_proc.stderr}")
+
+        report_dir_not_found_index = build_index_case(root, "report_dir_not_found")
+        report_dir_not_found_doc = json.loads(report_dir_not_found_index.read_text(encoding="utf-8"))
+        report_dir_not_found_doc["report_dir"] = str(root / "missing" / "report_dir")
+        write_json(report_dir_not_found_index, report_dir_not_found_doc)
+        report_dir_not_found_proc = run_check(
+            report_dir_not_found_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if report_dir_not_found_proc.returncode == 0:
+            return fail("report_dir not found case must fail")
+        if f"fail code={CODES['REPORT_DIR_NOT_FOUND']}" not in report_dir_not_found_proc.stderr:
+            return fail(f"report_dir not found code mismatch: err={report_dir_not_found_proc.stderr}")
+
+        report_prefix_source_invalid_index = build_index_case(root, "report_prefix_source_invalid")
+        report_prefix_source_invalid_doc = json.loads(report_prefix_source_invalid_index.read_text(encoding="utf-8"))
+        report_prefix_source_invalid_doc["report_prefix"] = "demo"
+        report_prefix_source_invalid_doc["report_prefix_source"] = "manual"
+        write_json(report_prefix_source_invalid_index, report_prefix_source_invalid_doc)
+        report_prefix_source_invalid_proc = run_check(
+            report_prefix_source_invalid_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if report_prefix_source_invalid_proc.returncode == 0:
+            return fail("report_prefix_source invalid case must fail")
+        if f"fail code={CODES['REPORT_PREFIX_SOURCE_INVALID']}" not in report_prefix_source_invalid_proc.stderr:
+            return fail(f"report_prefix_source invalid code mismatch: err={report_prefix_source_invalid_proc.stderr}")
+
+        report_prefix_source_mismatch_index = build_index_case(root, "report_prefix_source_mismatch")
+        report_prefix_source_mismatch_doc = json.loads(report_prefix_source_mismatch_index.read_text(encoding="utf-8"))
+        report_prefix_source_mismatch_doc["report_prefix"] = "demo"
+        report_prefix_source_mismatch_doc["report_prefix_source"] = ""
+        write_json(report_prefix_source_mismatch_index, report_prefix_source_mismatch_doc)
+        report_prefix_source_mismatch_proc = run_check(
+            report_prefix_source_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if report_prefix_source_mismatch_proc.returncode == 0:
+            return fail("report_prefix_source mismatch case must fail")
+        if (
+            f"fail code={CODES['REPORT_PREFIX_SOURCE_MISMATCH']}"
+            not in report_prefix_source_mismatch_proc.stderr
+        ):
+            return fail(f"report_prefix_source mismatch code mismatch: err={report_prefix_source_mismatch_proc.stderr}")
+
+        report_prefix_source_env_empty_index = build_index_case(root, "report_prefix_source_env_empty")
+        report_prefix_source_env_empty_doc = json.loads(report_prefix_source_env_empty_index.read_text(encoding="utf-8"))
+        report_prefix_source_env_empty_doc["report_prefix"] = "demo"
+        report_prefix_source_env_empty_doc["report_prefix_source"] = "env:"
+        write_json(report_prefix_source_env_empty_index, report_prefix_source_env_empty_doc)
+        report_prefix_source_env_empty_proc = run_check(
+            report_prefix_source_env_empty_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if report_prefix_source_env_empty_proc.returncode == 0:
+            return fail("report_prefix_source env-empty case must fail")
+        if f"fail code={CODES['REPORT_PREFIX_SOURCE_INVALID']}" not in report_prefix_source_env_empty_proc.stderr:
+            return fail(
+                f"report_prefix_source env-empty code mismatch: err={report_prefix_source_env_empty_proc.stderr}"
+            )
+
+        report_prefix_source_env_ok_index = build_index_case(root, "report_prefix_source_env_ok")
+        report_prefix_source_env_ok_doc = json.loads(report_prefix_source_env_ok_index.read_text(encoding="utf-8"))
+        report_prefix_source_env_ok_doc["report_prefix"] = "demo"
+        report_prefix_source_env_ok_doc["report_prefix_source"] = "env:CI_REPORT_PREFIX"
+        write_json(report_prefix_source_env_ok_index, report_prefix_source_env_ok_doc)
+        report_prefix_source_env_ok_proc = run_check(
+            report_prefix_source_env_ok_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if report_prefix_source_env_ok_proc.returncode != 0:
+            return fail(
+                "report_prefix_source env-ok case should pass: "
+                f"out={report_prefix_source_env_ok_proc.stdout} err={report_prefix_source_env_ok_proc.stderr}"
+            )
+
+        step_log_dir_type_index = build_index_case(root, "step_log_dir_type")
+        step_log_dir_type_doc = json.loads(step_log_dir_type_index.read_text(encoding="utf-8"))
+        step_log_dir_type_doc["step_log_dir"] = {"bad": "type"}
+        write_json(step_log_dir_type_index, step_log_dir_type_doc)
+        step_log_dir_type_proc = run_check(
+            step_log_dir_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if step_log_dir_type_proc.returncode == 0:
+            return fail("step_log_dir type case must fail")
+        if f"fail code={CODES['STEP_LOG_DIR_TYPE']}" not in step_log_dir_type_proc.stderr:
+            return fail(f"step_log_dir type code mismatch: err={step_log_dir_type_proc.stderr}")
+
+        step_log_failed_only_type_index = build_index_case(root, "step_log_failed_only_type")
+        step_log_failed_only_type_doc = json.loads(step_log_failed_only_type_index.read_text(encoding="utf-8"))
+        step_log_failed_only_type_doc["step_log_failed_only"] = "1"
+        write_json(step_log_failed_only_type_index, step_log_failed_only_type_doc)
+        step_log_failed_only_type_proc = run_check(
+            step_log_failed_only_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if step_log_failed_only_type_proc.returncode == 0:
+            return fail("step_log_failed_only type case must fail")
+        if f"fail code={CODES['STEP_LOG_FAILED_ONLY_TYPE']}" not in step_log_failed_only_type_proc.stderr:
+            return fail(
+                f"step_log_failed_only type code mismatch: err={step_log_failed_only_type_proc.stderr}"
+            )
+
+        step_log_config_mismatch_index = build_index_case(root, "step_log_config_mismatch")
+        step_log_config_mismatch_doc = json.loads(step_log_config_mismatch_index.read_text(encoding="utf-8"))
+        step_log_config_mismatch_doc["step_log_failed_only"] = True
+        step_log_config_mismatch_doc["step_log_dir"] = ""
+        write_json(step_log_config_mismatch_index, step_log_config_mismatch_doc)
+        step_log_config_mismatch_proc = run_check(
+            step_log_config_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if step_log_config_mismatch_proc.returncode == 0:
+            return fail("step_log config mismatch case must fail")
+        if f"fail code={CODES['STEP_LOG_CONFIG_MISMATCH']}" not in step_log_config_mismatch_proc.stderr:
+            return fail(
+                f"step_log config mismatch code mismatch: err={step_log_config_mismatch_proc.stderr}"
+            )
+
+        step_log_dir_not_found_index = build_index_case(root, "step_log_dir_not_found")
+        step_log_dir_not_found_doc = json.loads(step_log_dir_not_found_index.read_text(encoding="utf-8"))
+        step_log_dir_not_found_doc["step_log_dir"] = str(root / "missing" / "step_logs")
+        write_json(step_log_dir_not_found_index, step_log_dir_not_found_doc)
+        step_log_dir_not_found_proc = run_check(
+            step_log_dir_not_found_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if step_log_dir_not_found_proc.returncode == 0:
+            return fail("step_log_dir not found case must fail")
+        if f"fail code={CODES['STEP_LOG_DIR_NOT_FOUND']}" not in step_log_dir_not_found_proc.stderr:
+            return fail(
+                f"step_log_dir not found code mismatch: err={step_log_dir_not_found_proc.stderr}"
+            )
 
         missing_key_index = build_index_case(root, "missing_key")
         missing_key_doc = json.loads(missing_key_index.read_text(encoding="utf-8"))

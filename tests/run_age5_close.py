@@ -258,6 +258,7 @@ AGE5_SURFACE_PACK_CONTRACTS = [
 CI_PROFILE_GATE_SCRIPTS = {
     "split": Path("tests/run_ci_profile_split_contract_check.py"),
     "core_lang": Path("tests/run_ci_profile_core_lang_gate.py"),
+    "full": Path("tests/run_ci_profile_full_gate.py"),
     "seamgrim": Path("tests/run_ci_profile_seamgrim_gate.py"),
 }
 
@@ -285,9 +286,24 @@ CI_PROFILE_SEAMGRIM_CHAIN_TOKENS = [
     "ci_profile_seamgrim_status=pass",
 ]
 
+CI_PROFILE_FULL_CHAIN_TOKENS = [
+    "tests/run_ci_sanity_gate.py",
+    "tests/run_ci_sync_readiness_check.py",
+    "tests/run_ci_sync_readiness_report_check.py",
+    "--skip-aggregate",
+    "--sanity-profile",
+    "--require-pass",
+    "ci_sync_readiness_status=pass",
+    "sanity_profile=full",
+    "ci_profile_full_status=pass",
+]
+
 CI_PROFILE_SPLIT_CONTRACT_TOKENS = [
     "tests/run_ci_profile_core_lang_gate.py",
+    "tests/run_ci_profile_full_gate.py",
     "tests/run_ci_profile_seamgrim_gate.py",
+    "tests/run_ci_profile_matrix_gate.py",
+    "tests/run_ci_profile_matrix_gate_selftest.py",
     "tests/run_ci_sync_readiness_check.py",
     "tests/run_ci_sync_readiness_report_check.py",
     "--skip-aggregate",
@@ -295,7 +311,9 @@ CI_PROFILE_SPLIT_CONTRACT_TOKENS = [
     "--require-pass",
     "ci_sync_readiness_status=pass",
     "sanity_profile=core_lang",
+    "sanity_profile=full",
     "sanity_profile=seamgrim",
+    "ddn.ci.profile_matrix_gate.v1",
 ]
 
 CI_PROFILE_CORE_LANG_REPORT_PATH_TOKENS = [
@@ -305,6 +323,11 @@ CI_PROFILE_CORE_LANG_REPORT_PATH_TOKENS = [
 
 CI_PROFILE_SEAMGRIM_REPORT_PATH_TOKENS = [
     'prefix = "ci_profile_seamgrim"',
+    'report = report_dir / f"{prefix}.ci_sync_readiness.detjson"',
+]
+
+CI_PROFILE_FULL_REPORT_PATH_TOKENS = [
+    'prefix = "ci_profile_full"',
     'report = report_dir / f"{prefix}.ci_sync_readiness.detjson"',
 ]
 
@@ -1253,27 +1276,33 @@ def build_criteria(
                 clip(full_items(missing_profile_scripts), 500)
             )
         )
-        pending_items.append("AGE5 CI profile gate 스크립트 3종(split/core_lang/seamgrim) 유지")
+        pending_items.append("AGE5 CI profile gate 스크립트 4종(split/core_lang/full/seamgrim) 유지")
 
     core_profile_text = load_text(root / CI_PROFILE_GATE_SCRIPTS["core_lang"])
+    full_profile_text = load_text(root / CI_PROFILE_GATE_SCRIPTS["full"])
     seamgrim_profile_text = load_text(root / CI_PROFILE_GATE_SCRIPTS["seamgrim"])
     missing_core_profile_chain_tokens = [
         token for token in CI_PROFILE_CORE_LANG_CHAIN_TOKENS if token not in core_profile_text
     ]
+    missing_full_profile_chain_tokens = [
+        token for token in CI_PROFILE_FULL_CHAIN_TOKENS if token not in full_profile_text
+    ]
     missing_seamgrim_profile_chain_tokens = [
         token for token in CI_PROFILE_SEAMGRIM_CHAIN_TOKENS if token not in seamgrim_profile_text
     ]
-    profile_chain_tokens_ok = (
-        len(missing_core_profile_chain_tokens) == 0 and len(missing_seamgrim_profile_chain_tokens) == 0
-    )
+    profile_chain_tokens_ok = len(missing_core_profile_chain_tokens) == 0 and len(
+        missing_full_profile_chain_tokens
+    ) == 0 and len(missing_seamgrim_profile_chain_tokens) == 0
     criteria.append(
         {
             "name": "age5_ci_profile_gate_sync_chain_tokens",
             "ok": profile_chain_tokens_ok,
-            "detail": "core_missing={} seamgrim_missing={} core_sample={} seamgrim_sample={}".format(
+            "detail": "core_missing={} full_missing={} seamgrim_missing={} core_sample={} full_sample={} seamgrim_sample={}".format(
                 len(missing_core_profile_chain_tokens),
+                len(missing_full_profile_chain_tokens),
                 len(missing_seamgrim_profile_chain_tokens),
                 sample_items(missing_core_profile_chain_tokens),
+                sample_items(missing_full_profile_chain_tokens),
                 sample_items(missing_seamgrim_profile_chain_tokens),
             ),
         }
@@ -1285,13 +1314,19 @@ def build_criteria(
                     clip(full_items(missing_core_profile_chain_tokens), 500)
                 )
             )
+        if missing_full_profile_chain_tokens:
+            failure_digest.append(
+                "age5_ci_profile_gate_sync_chain_tokens.full: missing={}".format(
+                    clip(full_items(missing_full_profile_chain_tokens), 500)
+                )
+            )
         if missing_seamgrim_profile_chain_tokens:
             failure_digest.append(
                 "age5_ci_profile_gate_sync_chain_tokens.seamgrim: missing={}".format(
                     clip(full_items(missing_seamgrim_profile_chain_tokens), 500)
                 )
             )
-        pending_items.append("AGE5 CI core_lang/seamgrim gate에 sync_readiness 연쇄 검증 토큰 유지")
+        pending_items.append("AGE5 CI core_lang/full/seamgrim gate에 sync_readiness 연쇄 검증 토큰 유지")
 
     split_profile_text = load_text(root / CI_PROFILE_GATE_SCRIPTS["split"])
     missing_split_contract_tokens = [
@@ -1319,21 +1354,27 @@ def build_criteria(
     missing_core_profile_report_path_tokens = [
         token for token in CI_PROFILE_CORE_LANG_REPORT_PATH_TOKENS if token not in core_profile_text
     ]
+    missing_full_profile_report_path_tokens = [
+        token for token in CI_PROFILE_FULL_REPORT_PATH_TOKENS if token not in full_profile_text
+    ]
     missing_seamgrim_profile_report_path_tokens = [
         token for token in CI_PROFILE_SEAMGRIM_REPORT_PATH_TOKENS if token not in seamgrim_profile_text
     ]
     profile_report_path_tokens_ok = (
         len(missing_core_profile_report_path_tokens) == 0
+        and len(missing_full_profile_report_path_tokens) == 0
         and len(missing_seamgrim_profile_report_path_tokens) == 0
     )
     criteria.append(
         {
             "name": "age5_ci_profile_gate_report_path_tokens",
             "ok": profile_report_path_tokens_ok,
-            "detail": "core_missing={} seamgrim_missing={} core_sample={} seamgrim_sample={}".format(
+            "detail": "core_missing={} full_missing={} seamgrim_missing={} core_sample={} full_sample={} seamgrim_sample={}".format(
                 len(missing_core_profile_report_path_tokens),
+                len(missing_full_profile_report_path_tokens),
                 len(missing_seamgrim_profile_report_path_tokens),
                 sample_items(missing_core_profile_report_path_tokens),
+                sample_items(missing_full_profile_report_path_tokens),
                 sample_items(missing_seamgrim_profile_report_path_tokens),
             ),
         }
@@ -1345,13 +1386,19 @@ def build_criteria(
                     clip(full_items(missing_core_profile_report_path_tokens), 500)
                 )
             )
+        if missing_full_profile_report_path_tokens:
+            failure_digest.append(
+                "age5_ci_profile_gate_report_path_tokens.full: missing={}".format(
+                    clip(full_items(missing_full_profile_report_path_tokens), 500)
+                )
+            )
         if missing_seamgrim_profile_report_path_tokens:
             failure_digest.append(
                 "age5_ci_profile_gate_report_path_tokens.seamgrim: missing={}".format(
                     clip(full_items(missing_seamgrim_profile_report_path_tokens), 500)
                 )
             )
-        pending_items.append("AGE5 CI core_lang/seamgrim gate에 sync_readiness report 경로 계약 토큰 유지")
+        pending_items.append("AGE5 CI core_lang/full/seamgrim gate에 sync_readiness report 경로 계약 토큰 유지")
 
     sync_readiness_contract_text = load_text(root / CI_SYNC_READINESS_REPORT_PATH_CONTRACT_SCRIPT)
     missing_sync_readiness_report_path_contract_tokens = [

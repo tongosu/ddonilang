@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import sys
 from pathlib import Path
@@ -24,7 +25,10 @@ REQUIRED_REPORT_PATH_KEYS = (
 )
 
 ARTIFACT_SCHEMA_MAP = {
-    "final_status_parse_json": "ddn.ci.status_line.parse.v1",
+    "final_status_parse_json": (
+        "ddn.ci.gate_final_status_line_parse.v1",
+        "ddn.ci.status_line.parse.v1",
+    ),
     "ci_gate_result_json": "ddn.ci.gate_result.v1",
     "ci_gate_badge_json": "ddn.ci.gate_badge.v1",
     "ci_fail_triage_json": "ddn.ci.fail_triage.v1",
@@ -36,6 +40,7 @@ ARTIFACT_SCHEMA_MAP = {
 VALID_SANITY_PROFILES = ("full", "core_lang", "seamgrim")
 PROFILE_REQUIRED_STEPS_COMMON = (
     "ci_profile_split_contract_check",
+    "ci_profile_matrix_gate_selftest",
     "ci_sanity_gate",
     "ci_sync_readiness_report_generate",
     "ci_sync_readiness_report_check",
@@ -90,6 +95,33 @@ def normalize_path_text(raw: str) -> str:
     return str(Path(value.replace("\\", "/")))
 
 
+def parse_status_line_tokens(line: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for part in str(line).strip().split():
+        if "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if key in {"ci_gate_status", "ci_gate_result_status"}:
+            out["status"] = value
+            continue
+        out[key] = value
+    return out
+
+
+def is_compatible_summary_line(result_summary_line: str, expected_summary_line: str) -> bool:
+    result_tokens = parse_status_line_tokens(result_summary_line)
+    expected_tokens = parse_status_line_tokens(expected_summary_line)
+    required_keys = ("status", "overall_ok", "failed_steps", "aggregate_status", "reason")
+    for key in required_keys:
+        if result_tokens.get(key, "") != expected_tokens.get(key, ""):
+            return False
+    return True
+
+
 def resolve_profile_required_steps(profile: str) -> tuple[str, ...]:
     if profile == "core_lang":
         return PROFILE_REQUIRED_STEPS_COMMON + PROFILE_REQUIRED_STEPS_CORE_LANG
@@ -130,6 +162,68 @@ def main() -> int:
         return fail(
             f"index schema mismatch: {index_doc.get('schema')}",
             CODES["INDEX_SCHEMA"],
+        )
+    generated_at_utc = str(index_doc.get("generated_at_utc", "")).strip()
+    if not generated_at_utc:
+        return fail("index.generated_at_utc is missing", CODES["GENERATED_AT_MISSING"])
+    try:
+        dt_text = generated_at_utc[:-1] + "+00:00" if generated_at_utc.endswith("Z") else generated_at_utc
+        datetime.fromisoformat(dt_text)
+    except Exception:
+        return fail(
+            f"index.generated_at_utc invalid isoformat: {generated_at_utc}",
+            CODES["GENERATED_AT_INVALID"],
+        )
+    report_dir_raw = str(index_doc.get("report_dir", "")).strip()
+    if not report_dir_raw:
+        return fail("index.report_dir is missing", CODES["REPORT_DIR_MISSING"])
+    report_dir_path = Path(report_dir_raw.replace("\\", "/"))
+    if not report_dir_path.exists():
+        return fail(f"index.report_dir not found: {report_dir_path}", CODES["REPORT_DIR_NOT_FOUND"])
+    report_prefix = str(index_doc.get("report_prefix", "")).strip()
+    report_prefix_source = str(index_doc.get("report_prefix_source", "")).strip()
+    if report_prefix:
+        if not report_prefix_source:
+            return fail(
+                "index.report_prefix_source missing while report_prefix is set",
+                CODES["REPORT_PREFIX_SOURCE_MISMATCH"],
+            )
+        if report_prefix_source != "arg" and not report_prefix_source.startswith("env:"):
+            return fail(
+                f"index.report_prefix_source invalid: {report_prefix_source}",
+                CODES["REPORT_PREFIX_SOURCE_INVALID"],
+            )
+        if report_prefix_source.startswith("env:") and not report_prefix_source[4:].strip():
+            return fail(
+                f"index.report_prefix_source invalid: {report_prefix_source}",
+                CODES["REPORT_PREFIX_SOURCE_INVALID"],
+            )
+    elif report_prefix_source:
+        return fail(
+            "index.report_prefix_source must be empty when report_prefix is empty",
+            CODES["REPORT_PREFIX_SOURCE_MISMATCH"],
+        )
+    step_log_dir_raw = index_doc.get("step_log_dir", "")
+    if not isinstance(step_log_dir_raw, str):
+        return fail("index.step_log_dir must be string", CODES["STEP_LOG_DIR_TYPE"])
+    step_log_dir = step_log_dir_raw.strip()
+    if step_log_dir:
+        step_log_dir_path = Path(step_log_dir.replace("\\", "/"))
+        if not step_log_dir_path.exists():
+            return fail(
+                f"index.step_log_dir not found: {step_log_dir_path}",
+                CODES["STEP_LOG_DIR_NOT_FOUND"],
+            )
+    step_log_failed_only = index_doc.get("step_log_failed_only")
+    if not isinstance(step_log_failed_only, bool):
+        return fail(
+            "index.step_log_failed_only must be bool",
+            CODES["STEP_LOG_FAILED_ONLY_TYPE"],
+        )
+    if step_log_failed_only and not step_log_dir:
+        return fail(
+            "index.step_log_failed_only=1 requires non-empty step_log_dir",
+            CODES["STEP_LOG_CONFIG_MISMATCH"],
         )
     index_profile = str(index_doc.get("ci_sanity_profile", "")).strip()
     if index_profile not in VALID_SANITY_PROFILES:
@@ -218,9 +312,14 @@ def main() -> int:
                 CODES["ARTIFACT_JSON_INVALID"],
             )
         actual_schema = str(artifact_doc.get("schema", "")).strip()
-        if actual_schema != expected_schema:
+        if isinstance(expected_schema, tuple):
+            expected_schemas = expected_schema
+        else:
+            expected_schemas = (expected_schema,)
+        if actual_schema not in expected_schemas:
             return fail(
-                f"artifact schema mismatch key={key} schema={actual_schema} expected={expected_schema}",
+                "artifact schema mismatch "
+                f"key={key} schema={actual_schema} expected={','.join(expected_schemas)}",
                 CODES["ARTIFACT_SCHEMA_MISMATCH"],
             )
         artifact_docs[key] = artifact_doc
@@ -357,7 +456,10 @@ def main() -> int:
         )
     expected_summary_line = read_text(resolved_report_paths["summary_line"])
     result_summary_line = str(result_doc.get("summary_line", "")).strip()
-    if result_summary_line != expected_summary_line:
+    if result_summary_line != expected_summary_line and not is_compatible_summary_line(
+        result_summary_line,
+        expected_summary_line,
+    ):
         return fail(
             "ci_gate_result summary_line mismatch",
             CODES["RESULT_SUMMARY_LINE_MISMATCH"],
