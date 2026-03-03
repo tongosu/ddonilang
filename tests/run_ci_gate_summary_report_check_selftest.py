@@ -53,6 +53,8 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
     age4_status = case_dir / "age4_close_report.detjson"
     age5_status = case_dir / "age5_close_report.detjson"
     phase3_cleanup = case_dir / "seamgrim_phase3_cleanup_gate_report.detjson"
+    ci_sanity_gate = case_dir / "ci_sanity_gate.detjson"
+    ci_sync_readiness = case_dir / "ci_sync_readiness.detjson"
     fixed64_threeway_report = case_dir / "fixed64_cross_platform_threeway_gate.detjson"
     for path in (
         summary_line,
@@ -64,6 +66,8 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
         age4_status,
         age5_status,
         phase3_cleanup,
+        ci_sanity_gate,
+        ci_sync_readiness,
         fixed64_threeway_report,
     ):
         write_text(path, "{}")
@@ -80,6 +84,8 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
                 "age4_close": str(age4_status),
                 "age5_close": str(age5_status),
                 "seamgrim_phase3_cleanup": str(phase3_cleanup),
+                "ci_sanity_gate": str(ci_sanity_gate),
+                "ci_sync_readiness": str(ci_sync_readiness),
                 "fixed64_threeway_gate": str(fixed64_threeway_report),
             },
         },
@@ -95,10 +101,31 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
         "[ci-gate-summary] ci_fail_brief_exists=1",
         f"[ci-gate-summary] ci_fail_triage_hint={triage}",
         "[ci-gate-summary] ci_fail_triage_exists=1",
+        "[ci-gate-summary] ci_pack_golden_overlay_compare_selftest_ok=1",
+        "[ci-gate-summary] ci_pack_golden_overlay_session_selftest_ok=1",
         f"[ci-gate-summary] age3_status={age3_status}",
         f"[ci-gate-summary] age4_status={age4_status}",
         f"[ci-gate-summary] age5_status={age5_status}",
         f"[ci-gate-summary] seamgrim_phase3_cleanup={phase3_cleanup}",
+        f"[ci-gate-summary] ci_sanity_gate_report={ci_sanity_gate}",
+        "[ci-gate-summary] ci_sanity_gate_status=pass",
+        "[ci-gate-summary] ci_sanity_gate_ok=1",
+        "[ci-gate-summary] ci_sanity_gate_code=OK",
+        "[ci-gate-summary] ci_sanity_gate_step=all",
+        "[ci-gate-summary] ci_sanity_gate_msg=-",
+        "[ci-gate-summary] ci_sanity_gate_step_count=14",
+        "[ci-gate-summary] ci_sanity_gate_failed_steps=0",
+        "[ci-gate-summary] ci_sanity_seamgrim_interface_boundary_ok=1",
+        "[ci-gate-summary] ci_sanity_overlay_session_wired_consistency_ok=1",
+        "[ci-gate-summary] ci_sanity_overlay_session_diag_parity_ok=1",
+        "[ci-gate-summary] ci_sanity_overlay_compare_diag_parity_ok=1",
+        f"[ci-gate-summary] ci_sync_readiness_report={ci_sync_readiness}",
+        "[ci-gate-summary] ci_sync_readiness_status=pass",
+        "[ci-gate-summary] ci_sync_readiness_ok=1",
+        "[ci-gate-summary] ci_sync_readiness_code=OK",
+        "[ci-gate-summary] ci_sync_readiness_step=all",
+        "[ci-gate-summary] ci_sync_readiness_msg=-",
+        "[ci-gate-summary] ci_sync_readiness_step_count=1",
         f"[ci-gate-summary] fixed64_threeway_report={fixed64_threeway_report}",
         "[ci-gate-summary] fixed64_threeway_status=pending_darwin",
         "[ci-gate-summary] fixed64_threeway_ok=1",
@@ -126,6 +153,31 @@ def main() -> int:
         if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_missing_key.stderr:
             return fail(f"missing key code mismatch: err={proc_missing_key.stderr}")
 
+        summary_missing_sanity, index_missing_sanity = build_pass_case(root, "missing_sanity")
+        text_missing_sanity = summary_missing_sanity.read_text(encoding="utf-8")
+        text_missing_sanity = text_missing_sanity.replace(
+            "[ci-gate-summary] ci_sanity_gate_status=pass",
+            "[ci-gate-summary] REMOVED_SANITY_STATUS=pass",
+        )
+        write_text(summary_missing_sanity, text_missing_sanity)
+        proc_missing_sanity = run_check(summary_missing_sanity, index_missing_sanity, require_pass=True)
+        if proc_missing_sanity.returncode == 0:
+            return fail("missing ci_sanity key case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_missing_sanity.stderr:
+            return fail(f"missing ci_sanity key code mismatch: err={proc_missing_sanity.stderr}")
+        summary_missing_sync, index_missing_sync = build_pass_case(root, "missing_sync")
+        text_missing_sync = summary_missing_sync.read_text(encoding="utf-8")
+        text_missing_sync = text_missing_sync.replace(
+            "[ci-gate-summary] ci_sync_readiness_status=pass",
+            "[ci-gate-summary] REMOVED_SYNC_STATUS=pass",
+        )
+        write_text(summary_missing_sync, text_missing_sync)
+        proc_missing_sync = run_check(summary_missing_sync, index_missing_sync, require_pass=True)
+        if proc_missing_sync.returncode == 0:
+            return fail("missing ci_sync key case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_missing_sync.stderr:
+            return fail(f"missing ci_sync key code mismatch: err={proc_missing_sync.stderr}")
+
         summary_bad_index, index_bad_index = build_pass_case(root, "bad_index")
         bad_text = summary_bad_index.read_text(encoding="utf-8").replace(
             f"[ci-gate-summary] report_index={index_bad_index}",
@@ -149,6 +201,40 @@ def main() -> int:
             return fail("brief exists mismatch case must fail")
         if f"fail code={CODES['BRIEF_EXISTS_MISMATCH']}" not in proc_bad_brief.stderr:
             return fail(f"brief exists code mismatch: err={proc_bad_brief.stderr}")
+
+        summary_bad_sanity_steps, index_bad_sanity_steps = build_pass_case(root, "bad_sanity_steps")
+        bad_sanity_steps_text = summary_bad_sanity_steps.read_text(encoding="utf-8").replace(
+            "[ci-gate-summary] ci_sanity_gate_step_count=14",
+            "[ci-gate-summary] ci_sanity_gate_step_count=1",
+        )
+        write_text(summary_bad_sanity_steps, bad_sanity_steps_text)
+        proc_bad_sanity_steps = run_check(summary_bad_sanity_steps, index_bad_sanity_steps, require_pass=True)
+        if proc_bad_sanity_steps.returncode == 0:
+            return fail("low ci_sanity_gate_step_count case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_bad_sanity_steps.stderr:
+            return fail(f"low ci_sanity_gate_step_count code mismatch: err={proc_bad_sanity_steps.stderr}")
+        summary_bad_sync_steps, index_bad_sync_steps = build_pass_case(root, "bad_sync_steps")
+        bad_sync_steps_text = summary_bad_sync_steps.read_text(encoding="utf-8").replace(
+            "[ci-gate-summary] ci_sync_readiness_step_count=1",
+            "[ci-gate-summary] ci_sync_readiness_step_count=0",
+        )
+        write_text(summary_bad_sync_steps, bad_sync_steps_text)
+        proc_bad_sync_steps = run_check(summary_bad_sync_steps, index_bad_sync_steps, require_pass=True)
+        if proc_bad_sync_steps.returncode == 0:
+            return fail("low ci_sync_readiness_step_count case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_bad_sync_steps.stderr:
+            return fail(f"low ci_sync_readiness_step_count code mismatch: err={proc_bad_sync_steps.stderr}")
+        summary_bad_sanity_parity, index_bad_sanity_parity = build_pass_case(root, "bad_sanity_parity")
+        bad_sanity_parity_text = summary_bad_sanity_parity.read_text(encoding="utf-8").replace(
+            "[ci-gate-summary] ci_sanity_overlay_compare_diag_parity_ok=1",
+            "[ci-gate-summary] ci_sanity_overlay_compare_diag_parity_ok=0",
+        )
+        write_text(summary_bad_sanity_parity, bad_sanity_parity_text)
+        proc_bad_sanity_parity = run_check(summary_bad_sanity_parity, index_bad_sanity_parity, require_pass=True)
+        if proc_bad_sanity_parity.returncode == 0:
+            return fail("ci_sanity overlay compare parity key case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_bad_sanity_parity.stderr:
+            return fail(f"ci_sanity overlay compare parity code mismatch: err={proc_bad_sanity_parity.stderr}")
 
     print("[ci-gate-summary-report-selftest] ok")
     return 0

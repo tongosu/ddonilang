@@ -21,10 +21,32 @@ PASS_REQUIRED_KEYS = (
     "age4_status",
     "age5_status",
     "seamgrim_phase3_cleanup",
+    "ci_sanity_gate_report",
+    "ci_sanity_gate_status",
+    "ci_sanity_gate_ok",
+    "ci_sanity_gate_code",
+    "ci_sanity_gate_step",
+    "ci_sanity_gate_msg",
+    "ci_sanity_gate_step_count",
+    "ci_sanity_gate_failed_steps",
+    "ci_sanity_seamgrim_interface_boundary_ok",
+    "ci_sanity_overlay_session_wired_consistency_ok",
+    "ci_sanity_overlay_session_diag_parity_ok",
+    "ci_sanity_overlay_compare_diag_parity_ok",
+    "ci_sync_readiness_report",
+    "ci_sync_readiness_status",
+    "ci_sync_readiness_ok",
+    "ci_sync_readiness_code",
+    "ci_sync_readiness_step",
+    "ci_sync_readiness_msg",
+    "ci_sync_readiness_step_count",
     "fixed64_threeway_report",
     "fixed64_threeway_status",
     "fixed64_threeway_ok",
+    "ci_pack_golden_overlay_compare_selftest_ok",
+    "ci_pack_golden_overlay_session_selftest_ok",
 )
+MIN_REQUIRED_CI_SANITY_STEPS = 14
 
 
 def load_json(path: Path) -> dict | None:
@@ -110,6 +132,8 @@ def main() -> int:
             "age4_status": str(reports.get("age4_close", "")).strip(),
             "age5_status": str(reports.get("age5_close", "")).strip(),
             "seamgrim_phase3_cleanup": str(reports.get("seamgrim_phase3_cleanup", "")).strip(),
+            "ci_sanity_gate_report": str(reports.get("ci_sanity_gate", "")).strip(),
+            "ci_sync_readiness_report": str(reports.get("ci_sync_readiness", "")).strip(),
             "fixed64_threeway_report": str(reports.get("fixed64_threeway_gate", "")).strip(),
         }
         for key, expected in compare_map.items():
@@ -128,6 +152,153 @@ def main() -> int:
         fixed64_status = kv.get("fixed64_threeway_status", "").strip()
         if not fixed64_status:
             return fail("fixed64_threeway_status is empty", code=CODES["PASS_KEY_MISSING"])
+
+        overlay_compare_selftest_ok = kv.get("ci_pack_golden_overlay_compare_selftest_ok", "").strip()
+        if overlay_compare_selftest_ok not in {"0", "1"}:
+            return fail(
+                f"ci_pack_golden_overlay_compare_selftest_ok invalid: {overlay_compare_selftest_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if overlay_compare_selftest_ok != "1":
+            return fail(
+                "PASS summary requires ci_pack_golden_overlay_compare_selftest_ok=1",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+
+        overlay_session_selftest_ok = kv.get("ci_pack_golden_overlay_session_selftest_ok", "").strip()
+        if overlay_session_selftest_ok not in {"0", "1"}:
+            return fail(
+                f"ci_pack_golden_overlay_session_selftest_ok invalid: {overlay_session_selftest_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if overlay_session_selftest_ok != "1":
+            return fail(
+                "PASS summary requires ci_pack_golden_overlay_session_selftest_ok=1",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+
+        ci_sanity_status = kv.get("ci_sanity_gate_status", "").strip()
+        if ci_sanity_status != "pass":
+            return fail(
+                f"PASS summary requires ci_sanity_gate_status=pass, got={ci_sanity_status}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_ok = kv.get("ci_sanity_gate_ok", "").strip()
+        if ci_sanity_ok != "1":
+            return fail(
+                f"PASS summary requires ci_sanity_gate_ok=1, got={ci_sanity_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_code = kv.get("ci_sanity_gate_code", "").strip()
+        if ci_sanity_code != "OK":
+            return fail(
+                f"PASS summary requires ci_sanity_gate_code=OK, got={ci_sanity_code}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_failed_steps = kv.get("ci_sanity_gate_failed_steps", "").strip()
+        if ci_sanity_failed_steps != "0":
+            return fail(
+                "PASS summary requires ci_sanity_gate_failed_steps=0",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_interface_boundary_ok = kv.get("ci_sanity_seamgrim_interface_boundary_ok", "").strip()
+        if ci_sanity_interface_boundary_ok not in {"0", "1"}:
+            return fail(
+                "ci_sanity_seamgrim_interface_boundary_ok invalid: "
+                f"{ci_sanity_interface_boundary_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if ci_sanity_interface_boundary_ok != "1":
+            return fail(
+                "PASS summary requires ci_sanity_seamgrim_interface_boundary_ok=1",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_wired_ok = kv.get("ci_sanity_overlay_session_wired_consistency_ok", "").strip()
+        if ci_sanity_wired_ok not in {"0", "1"}:
+            return fail(
+                "ci_sanity_overlay_session_wired_consistency_ok invalid: "
+                f"{ci_sanity_wired_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if ci_sanity_wired_ok != "1":
+            return fail(
+                "PASS summary requires ci_sanity_overlay_session_wired_consistency_ok=1",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_session_parity_ok = kv.get("ci_sanity_overlay_session_diag_parity_ok", "").strip()
+        if ci_sanity_session_parity_ok not in {"0", "1"}:
+            return fail(
+                "ci_sanity_overlay_session_diag_parity_ok invalid: "
+                f"{ci_sanity_session_parity_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if ci_sanity_session_parity_ok != "1":
+            return fail(
+                "PASS summary requires ci_sanity_overlay_session_diag_parity_ok=1",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_compare_parity_ok = kv.get("ci_sanity_overlay_compare_diag_parity_ok", "").strip()
+        if ci_sanity_compare_parity_ok not in {"0", "1"}:
+            return fail(
+                "ci_sanity_overlay_compare_diag_parity_ok invalid: "
+                f"{ci_sanity_compare_parity_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if ci_sanity_compare_parity_ok != "1":
+            return fail(
+                "PASS summary requires ci_sanity_overlay_compare_diag_parity_ok=1",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sanity_step_count = kv.get("ci_sanity_gate_step_count", "").strip()
+        try:
+            ci_sanity_step_count_num = int(ci_sanity_step_count)
+        except Exception:
+            return fail("ci_sanity_gate_step_count is not an integer", code=CODES["PASS_KEY_MISSING"])
+        if ci_sanity_step_count_num <= 0:
+            return fail(
+                f"PASS summary requires ci_sanity_gate_step_count>0, got={ci_sanity_step_count_num}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if ci_sanity_step_count_num < MIN_REQUIRED_CI_SANITY_STEPS:
+            return fail(
+                "PASS summary requires ci_sanity_gate_step_count>="
+                f"{MIN_REQUIRED_CI_SANITY_STEPS}, got={ci_sanity_step_count_num}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sync_status = kv.get("ci_sync_readiness_status", "").strip()
+        if ci_sync_status != "pass":
+            return fail(
+                f"PASS summary requires ci_sync_readiness_status=pass, got={ci_sync_status}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sync_ok = kv.get("ci_sync_readiness_ok", "").strip()
+        if ci_sync_ok != "1":
+            return fail(
+                f"PASS summary requires ci_sync_readiness_ok=1, got={ci_sync_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sync_code = kv.get("ci_sync_readiness_code", "").strip()
+        if ci_sync_code != "OK":
+            return fail(
+                f"PASS summary requires ci_sync_readiness_code=OK, got={ci_sync_code}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sync_step = kv.get("ci_sync_readiness_step", "").strip()
+        if ci_sync_step != "all":
+            return fail(
+                f"PASS summary requires ci_sync_readiness_step=all, got={ci_sync_step}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        ci_sync_step_count = kv.get("ci_sync_readiness_step_count", "").strip()
+        try:
+            ci_sync_step_count_num = int(ci_sync_step_count)
+        except Exception:
+            return fail("ci_sync_readiness_step_count is not an integer", code=CODES["PASS_KEY_MISSING"])
+        if ci_sync_step_count_num <= 0:
+            return fail(
+                f"PASS summary requires ci_sync_readiness_step_count>0, got={ci_sync_step_count_num}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
 
         hint = kv.get("ci_fail_brief_hint", "").strip()
         if not hint:

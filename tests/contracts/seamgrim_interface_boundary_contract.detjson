@@ -1,0 +1,57 @@
+{
+  "schema": "ddn.seamgrim.interface_boundary_contract.v1",
+  "version": "v1",
+  "files": [
+    {
+      "path": "solutions/seamgrim_ui_mvp/schema/seamgrim.interface_boundary.v1.md",
+      "required_tokens": [
+        "# seamgrim.interface_boundary.v1",
+        "overlay_session_contract.js",
+        "W_BLOCK_HEADER_COLON_DEPRECATED",
+        "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+        "run_seamgrim_wasm_cli_diag_parity_check.py"
+      ]
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/overlay_session_contract.js",
+      "required_tokens": [
+        "export function buildOverlaySessionRunsPayload",
+        "export function buildOverlayCompareSessionPayload",
+        "export function resolveOverlayCompareFromSession",
+        "export function buildSessionUiLayoutPayload",
+        "export function resolveSessionUiLayoutFromPayload",
+        "export function buildSessionViewComboPayload",
+        "export function resolveSessionViewComboFromPayload",
+        "layer_index",
+        "compare_role",
+        "text_doc",
+        "dropCode",
+        "blockReason",
+        "overlay_order"
+      ]
+    },
+    {
+      "path": "solutions/seamgrim_ui_mvp/ui/app.js",
+      "required_tokens": [
+        "./overlay_session_contract.js",
+        "buildOverlaySessionRunsPayload(",
+        "buildOverlayCompareSessionPayload(",
+        "resolveOverlayCompareFromSession(",
+        "buildSessionViewComboPayload(",
+        "resolveSessionViewComboFromPayload(",
+        "schema: \"seamgrim.overlay_session.v1\"",
+        "OVERLAY_SESSION_STORAGE_KEY = \"seamgrim.overlay_session.v1\"",
+        "view_combo: buildSessionViewComboPayload({"
+      ]
+    },
+    {
+      "path": "tests/run_seamgrim_wasm_cli_diag_parity_check.py",
+      "required_tokens": [
+        "WARNING_CODE = \"W_BLOCK_HEADER_COLON_DEPRECATED\"",
+        "EVENT_ALIAS_FORBIDDEN_CODE = \"E_EVENT_SURFACE_ALIAS_FORBIDDEN\"",
+        "block_header_no_colon",
+        "seamgrim_event_surface_canon_v1"
+      ]
+    }
+  ]
+}

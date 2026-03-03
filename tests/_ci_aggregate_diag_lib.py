@@ -235,6 +235,7 @@ def append_seamgrim_focus_summary_lines(
     seed_meta = load_seamgrim_step_snapshot(seamgrim_report, "seed_meta_files")
     seed_overlay_quality = load_seamgrim_step_snapshot(seamgrim_report, "seed_overlay_quality")
     rewrite_overlay_quality = load_seamgrim_step_snapshot(seamgrim_report, "rewrite_overlay_quality")
+    guideblock_keys_pack = load_seamgrim_step_snapshot(seamgrim_report, "guideblock_keys_pack")
     pendulum_surface_contract = load_seamgrim_step_snapshot(seamgrim_report, "pendulum_surface_contract")
     seed_export = load_seamgrim_step_snapshot(seamgrim_report, "seed_pendulum_export")
     pendulum_runtime_visual = load_seamgrim_step_snapshot(seamgrim_report, "pendulum_runtime_visual")
@@ -264,6 +265,12 @@ def append_seamgrim_focus_summary_lines(
         f"[ci-gate-summary] seamgrim_rewrite_overlay_quality_diag_count={rewrite_overlay_quality['diag_count']}"
     )
     lines.append(f"[ci-gate-summary] seamgrim_rewrite_overlay_quality_detail={rewrite_overlay_quality['detail']}")
+    lines.append(f"[ci-gate-summary] seamgrim_guideblock_keys_pack_status={guideblock_keys_pack['status']}")
+    lines.append(f"[ci-gate-summary] seamgrim_guideblock_keys_pack_ok={guideblock_keys_pack['ok']}")
+    lines.append(
+        f"[ci-gate-summary] seamgrim_guideblock_keys_pack_diag_count={guideblock_keys_pack['diag_count']}"
+    )
+    lines.append(f"[ci-gate-summary] seamgrim_guideblock_keys_pack_detail={guideblock_keys_pack['detail']}")
     lines.append(f"[ci-gate-summary] seamgrim_pendulum_surface_contract_status={pendulum_surface_contract['status']}")
     lines.append(f"[ci-gate-summary] seamgrim_pendulum_surface_contract_ok={pendulum_surface_contract['ok']}")
     lines.append(
@@ -329,6 +336,132 @@ def append_fixed64_threeway_summary_lines(lines: list[str], report_path: Path) -
     lines.append(f"[ci-gate-summary] fixed64_threeway_status={snap['status']}")
     lines.append(f"[ci-gate-summary] fixed64_threeway_ok={snap['ok']}")
     lines.append(f"[ci-gate-summary] fixed64_threeway_reason={snap['reason']}")
+
+
+def load_ci_sanity_snapshot(report_path: Path) -> dict[str, str]:
+    doc = load_payload(report_path)
+    if not isinstance(doc, dict):
+        return {
+            "status": "missing_report",
+            "ok": "0",
+            "code": "-",
+            "step": "-",
+            "msg": "ci sanity report missing or invalid",
+            "step_count": "0",
+            "failed_steps": "0",
+            "seamgrim_interface_boundary_ok": "0",
+            "overlay_session_wired_consistency_ok": "0",
+            "overlay_session_diag_parity_ok": "0",
+            "overlay_compare_diag_parity_ok": "0",
+        }
+    status = str(doc.get("status", "")).strip() or "unknown"
+    code = str(doc.get("code", "")).strip() or "-"
+    step = str(doc.get("step", "")).strip() or "-"
+    msg = clip_line(str(doc.get("msg", "")).strip() or "-", 200)
+    steps = doc.get("steps")
+    def read_step_ok(step_name: str) -> str:
+        if not isinstance(steps, list):
+            return "0"
+        for row in steps:
+            if not isinstance(row, dict):
+                continue
+            row_step = str(row.get("step", row.get("name", ""))).strip()
+            if row_step != step_name:
+                continue
+            row_ok = bool(row.get("ok", False))
+            rc_raw = row.get("returncode", 1)
+            try:
+                row_rc_ok = int(rc_raw) == 0
+            except Exception:
+                row_rc_ok = False
+            return "1" if row_ok and row_rc_ok else "0"
+        return "0"
+
+    if isinstance(steps, list):
+        step_count = len(steps)
+        failed_steps = len(
+            [
+                row
+                for row in steps
+                if isinstance(row, dict) and not bool(row.get("ok", False))
+            ]
+        )
+    else:
+        step_count = 0
+        failed_steps = 0
+    return {
+        "status": status,
+        "ok": "1" if status == "pass" else "0",
+        "code": code,
+        "step": step,
+        "msg": msg,
+        "step_count": str(max(0, int(step_count))),
+        "failed_steps": str(max(0, int(failed_steps))),
+        "seamgrim_interface_boundary_ok": read_step_ok("seamgrim_interface_boundary_contract_check"),
+        "overlay_session_wired_consistency_ok": read_step_ok("seamgrim_overlay_session_wired_consistency_check"),
+        "overlay_session_diag_parity_ok": read_step_ok("seamgrim_overlay_session_diag_parity_check"),
+        "overlay_compare_diag_parity_ok": read_step_ok("seamgrim_overlay_compare_diag_parity_check"),
+    }
+
+
+def append_ci_sanity_summary_lines(lines: list[str], report_path: Path) -> None:
+    snap = load_ci_sanity_snapshot(report_path)
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_report={report_path}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_status={snap['status']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_ok={snap['ok']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_code={snap['code']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_step={snap['step']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_msg={snap['msg']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_step_count={snap['step_count']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_gate_failed_steps={snap['failed_steps']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_seamgrim_interface_boundary_ok={snap['seamgrim_interface_boundary_ok']}")
+    lines.append(
+        "[ci-gate-summary] ci_sanity_overlay_session_wired_consistency_ok="
+        f"{snap['overlay_session_wired_consistency_ok']}"
+    )
+    lines.append(f"[ci-gate-summary] ci_sanity_overlay_session_diag_parity_ok={snap['overlay_session_diag_parity_ok']}")
+    lines.append(f"[ci-gate-summary] ci_sanity_overlay_compare_diag_parity_ok={snap['overlay_compare_diag_parity_ok']}")
+
+
+def load_ci_sync_readiness_snapshot(report_path: Path) -> dict[str, str]:
+    doc = load_payload(report_path)
+    if not isinstance(doc, dict):
+        return {
+            "status": "missing_report",
+            "ok": "0",
+            "code": "-",
+            "step": "-",
+            "msg": "ci sync readiness report missing or invalid",
+            "step_count": "0",
+        }
+    status = str(doc.get("status", "")).strip() or "unknown"
+    code = str(doc.get("code", "")).strip() or "-"
+    step = str(doc.get("step", "")).strip() or "-"
+    msg = clip_line(str(doc.get("msg", "")).strip() or "-", 200)
+    steps = doc.get("steps")
+    if isinstance(steps, list):
+        step_count = len(steps)
+    else:
+        step_count = 0
+    return {
+        "status": status,
+        "ok": "1" if status == "pass" else "0",
+        "code": code,
+        "step": step,
+        "msg": msg,
+        "step_count": str(max(0, int(step_count))),
+    }
+
+
+def append_ci_sync_readiness_summary_lines(lines: list[str], report_path: Path) -> None:
+    snap = load_ci_sync_readiness_snapshot(report_path)
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_report={report_path}")
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_status={snap['status']}")
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_ok={snap['ok']}")
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_code={snap['code']}")
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_step={snap['step']}")
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_msg={snap['msg']}")
+    lines.append(f"[ci-gate-summary] ci_sync_readiness_step_count={snap['step_count']}")
 
 
 def resolve_summary_compact(
@@ -527,6 +660,8 @@ def print_report_paths(
     oi_report: Path,
     oi_pack_report: Path,
     aggregate_report: Path,
+    ci_sanity_gate_report: Path,
+    ci_sync_readiness_report: Path,
     summary_path: Path,
 ) -> None:
     print("[ci-gate] reports")
@@ -561,6 +696,8 @@ def print_report_paths(
     print(f" - oi_close={oi_report}")
     print(f" - oi_pack={oi_pack_report}")
     print(f" - aggregate={aggregate_report}")
+    print(f" - ci_sanity_gate={ci_sanity_gate_report}")
+    print(f" - ci_sync_readiness={ci_sync_readiness_report}")
     print(f" - summary={summary_path}")
 
 

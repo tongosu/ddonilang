@@ -31,6 +31,7 @@ def main() -> int:
         "pipeline_emit_flags_selftest",
         "seamgrim_ci_gate_seed_meta_step_check",
         "seamgrim_ci_gate_runtime5_passthrough_check",
+        "seamgrim_interface_boundary_contract_check",
         "seamgrim_overlay_session_wired_consistency_check",
         "seamgrim_overlay_session_diag_parity_check",
         "seamgrim_overlay_compare_diag_parity_check",

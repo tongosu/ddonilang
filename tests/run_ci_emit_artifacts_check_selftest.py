@@ -139,6 +139,12 @@ def build_case(
                     "cmd": ["python", "x.py"],
                 },
                 {
+                    "step": "seamgrim_interface_boundary_contract_check",
+                    "ok": True,
+                    "returncode": 0,
+                    "cmd": ["python", "x.py"],
+                },
+                {
                     "step": "seamgrim_overlay_session_wired_consistency_check",
                     "ok": True,
                     "returncode": 0,
