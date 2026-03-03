@@ -646,6 +646,7 @@ def print_report_paths(
     seamgrim_5min_checklist_report: Path,
     seamgrim_control_exposure_failures_report: Path,
     seamgrim_rewrite_overlay_quality_report: Path,
+    seamgrim_wasm_cli_diag_parity_report: Path,
     age3_close_report: Path,
     age4_close_report: Path,
     age5_close_report: Path,
@@ -682,6 +683,7 @@ def print_report_paths(
     print(f" - seamgrim_5min_checklist={seamgrim_5min_checklist_report}")
     print(f" - seamgrim_control_exposure_failures={seamgrim_control_exposure_failures_report}")
     print(f" - seamgrim_rewrite_overlay_quality={seamgrim_rewrite_overlay_quality_report}")
+    print(f" - seamgrim_wasm_cli_diag_parity={seamgrim_wasm_cli_diag_parity_report}")
     print(f" - age3_close={age3_close_report}")
     print(f" - age4_close={age4_close_report}")
     print(f" - age5_close={age5_close_report}")

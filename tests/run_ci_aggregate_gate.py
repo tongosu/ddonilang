@@ -481,6 +481,7 @@ def main() -> int:
     seamgrim_5min_checklist_base_name = "seamgrim_5min_checklist_report.detjson"
     seamgrim_control_exposure_failures_base_name = "seamgrim_control_exposure_failures.detjson"
     seamgrim_rewrite_overlay_quality_base_name = "seamgrim_rewrite_overlay_quality_report.detjson"
+    seamgrim_wasm_cli_diag_parity_base_name = "seamgrim_wasm_cli_diag_parity_report.detjson"
     age3_close_base_name = "age3_close_report.detjson"
     age4_close_base_name = "age4_close_report.detjson"
     age5_close_base_name = "age5_close_report.detjson"
@@ -503,6 +504,7 @@ def main() -> int:
         seamgrim_5min_checklist_base_name,
         seamgrim_control_exposure_failures_base_name,
         seamgrim_rewrite_overlay_quality_base_name,
+        seamgrim_wasm_cli_diag_parity_base_name,
         age3_close_base_name,
         age4_close_base_name,
         age5_close_base_name,
@@ -567,6 +569,11 @@ def main() -> int:
     seamgrim_rewrite_overlay_quality_report = report_path(
         report_dir,
         seamgrim_rewrite_overlay_quality_base_name,
+        prefix,
+    )
+    seamgrim_wasm_cli_diag_parity_report = report_path(
+        report_dir,
+        seamgrim_wasm_cli_diag_parity_base_name,
         prefix,
     )
     age3_close_report = report_path(report_dir, age3_close_base_name, prefix)
@@ -681,6 +688,7 @@ def main() -> int:
             seamgrim_5min_checklist_report,
             seamgrim_control_exposure_failures_report,
             seamgrim_rewrite_overlay_quality_report,
+            seamgrim_wasm_cli_diag_parity_report,
             age3_close_report,
             age4_close_report,
             age5_close_report,
@@ -775,6 +783,7 @@ def main() -> int:
                 "seamgrim_5min_checklist": str(seamgrim_5min_checklist_report),
                 "seamgrim_control_exposure_failures": str(seamgrim_control_exposure_failures_report),
                 "seamgrim_rewrite_overlay_quality": str(seamgrim_rewrite_overlay_quality_report),
+                "seamgrim_wasm_cli_diag_parity": str(seamgrim_wasm_cli_diag_parity_report),
                 "age3_close": str(age3_close_report),
                 "age4_close": str(age4_close_report),
                 "age5_close": str(age5_close_report),
@@ -1372,6 +1381,8 @@ def main() -> int:
         cmd = [
             py,
             "tests/run_seamgrim_wasm_cli_diag_parity_check.py",
+            "--json-out",
+            str(seamgrim_wasm_cli_diag_parity_report),
         ]
         return run_and_record("seamgrim_wasm_cli_diag_parity_check", cmd)
 

@@ -213,6 +213,79 @@ def main() -> int:
         ) != 0:
             return 1
 
+        bad_missing_parity_json = report_dir / "sync_readiness.bad_missing_parity.detjson"
+        base_sanity_doc = load_json(sanity_json)
+        if expect(isinstance(base_sanity_doc, dict), "base_sanity_doc_should_be_dict") != 0:
+            return 1
+        base_steps = base_sanity_doc.get("steps") if isinstance(base_sanity_doc, dict) else None
+        if expect(isinstance(base_steps, list), "base_sanity_steps_should_be_list") != 0:
+            return 1
+        filtered_steps = [
+            row
+            for row in base_steps
+            if isinstance(row, dict)
+            and str(row.get("step", row.get("name", ""))).strip() != "seamgrim_wasm_cli_diag_parity_check"
+        ]
+        if expect(
+            len(filtered_steps) < len(base_steps),
+            "filtered_steps_should_remove_seamgrim_wasm_cli_diag_parity_check",
+        ) != 0:
+            return 1
+        if len(filtered_steps) + 1 == len(base_steps):
+            filtered_steps.append(
+                {
+                    "step": "dummy_preserve_count",
+                    "ok": True,
+                    "returncode": 0,
+                    "cmd": ["python", "dummy.py"],
+                }
+            )
+        bad_missing_parity_doc = json.loads(json.dumps(base_sanity_doc, ensure_ascii=False))
+        bad_missing_parity_doc["steps"] = filtered_steps
+        write_json(bad_missing_parity_json, bad_missing_parity_doc)
+
+        validate_missing_parity_json = report_dir / "sync_readiness.validate_missing_parity.detjson"
+        validate_missing_parity_cmd = [
+            py,
+            "tests/run_ci_sync_readiness_check.py",
+            "--report-dir",
+            str(report_dir),
+            "--report-prefix",
+            f"{prefix}_validate_missing_parity",
+            "--validate-only-sanity-json",
+            str(bad_missing_parity_json),
+            "--json-out",
+            str(validate_missing_parity_json),
+        ]
+        validate_missing_parity_proc = run(validate_missing_parity_cmd, cwd=root)
+        if expect(
+            validate_missing_parity_proc.returncode != 0,
+            "validate_only_missing_parity_should_fail",
+            validate_missing_parity_proc,
+        ) != 0:
+            return 1
+        validate_missing_parity_doc = load_json(validate_missing_parity_json)
+        if expect(
+            str(validate_missing_parity_doc.get("status", "")) == "fail",
+            "validate_missing_parity_status_should_be_fail",
+        ) != 0:
+            return 1
+        if expect(
+            str(validate_missing_parity_doc.get("code", "")) == "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
+            "validate_missing_parity_code_should_be_sanity_contract_fail",
+        ) != 0:
+            return 1
+        if expect(
+            str(validate_missing_parity_doc.get("step", "")) == "sanity_gate_contract",
+            "validate_missing_parity_step_should_be_sanity_gate_contract",
+        ) != 0:
+            return 1
+        if expect(
+            "seamgrim_wasm_cli_diag_parity_check" in str(validate_missing_parity_doc.get("msg", "")),
+            "validate_missing_parity_msg_should_mention_step",
+        ) != 0:
+            return 1
+
         missing_validate_json = report_dir / "sync_readiness.validate_missing.detjson"
         missing_validate_cmd = [
             py,

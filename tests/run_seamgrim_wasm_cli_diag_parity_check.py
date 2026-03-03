@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 WARNING_CODE = "W_BLOCK_HEADER_COLON_DEPRECATED"
@@ -49,48 +51,162 @@ def load_expected_codes(golden_path: Path, key: str) -> set[str]:
 
 
 def count_cases(golden_path: Path) -> int:
-    count = 0
-    for raw in golden_path.read_text(encoding="utf-8").splitlines():
-        if raw.strip():
-            count += 1
-    return count
+    return sum(1 for raw in golden_path.read_text(encoding="utf-8").splitlines() if raw.strip())
+
+
+def write_report(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Check seamgrim wasm/cli diag parity contracts")
+    parser.add_argument("--json-out", default="", help="optional detjson report path")
+    args = parser.parse_args()
+
     root = Path(__file__).resolve().parent.parent
     py = sys.executable
+    steps: list[dict[str, object]] = []
+    status = "pass"
+    code = "OK"
+    step = "all"
+    msg = "-"
+
+    def record_step(
+        name: str,
+        ok: bool,
+        detail: str,
+        *,
+        returncode: int = 0,
+        cmd: list[str] | None = None,
+        stdout_head: str = "-",
+        stderr_head: str = "-",
+    ) -> None:
+        steps.append(
+            {
+                "name": name,
+                "ok": bool(ok),
+                "returncode": int(returncode),
+                "detail": detail,
+                "cmd": cmd or [],
+                "stdout_head": stdout_head,
+                "stderr_head": stderr_head,
+            }
+        )
+
+    def finalize(exit_code: int) -> int:
+        if args.json_out.strip():
+            payload = {
+                "schema": "ddn.seamgrim.wasm_cli_diag_parity.v1",
+                "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+                "status": status,
+                "ok": status == "pass",
+                "code": code,
+                "step": step,
+                "msg": msg,
+                "steps": steps,
+                "steps_count": len(steps),
+            }
+            write_report(Path(args.json_out), payload)
+        return exit_code
 
     block_header_golden = root / "pack" / "block_header_no_colon" / "golden.jsonl"
     event_surface_golden = root / "pack" / "seamgrim_event_surface_canon_v1" / "golden.jsonl"
-    if not block_header_golden.exists():
-        return fail(f"missing file: {block_header_golden}")
-    if not event_surface_golden.exists():
-        return fail(f"missing file: {event_surface_golden}")
+    for name, path in (
+        ("block_header_golden_exists", block_header_golden),
+        ("event_surface_golden_exists", event_surface_golden),
+    ):
+        if not path.exists():
+            record_step(name, False, f"missing file: {path}")
+            status = "fail"
+            code = "E_SEAMGRIM_WASM_CLI_PARITY_PATH_MISSING"
+            step = name
+            msg = f"missing file: {path}"
+            return finalize(fail(msg))
+        record_step(name, True, f"found: {path}")
 
-    warning_codes = load_expected_codes(block_header_golden, "expected_warning_code")
+    try:
+        warning_codes = load_expected_codes(block_header_golden, "expected_warning_code")
+    except Exception as exc:
+        detail = str(exc)
+        record_step("block_header_warning_codes", False, detail)
+        status = "fail"
+        code = "E_SEAMGRIM_WASM_CLI_PARITY_GOLDEN_PARSE"
+        step = "block_header_warning_codes"
+        msg = detail
+        return finalize(fail(msg))
     if WARNING_CODE not in warning_codes:
-        return fail(f"{WARNING_CODE} missing in {block_header_golden}")
+        detail = f"{WARNING_CODE} missing in {block_header_golden}"
+        record_step("block_header_warning_codes", False, detail)
+        status = "fail"
+        code = "E_SEAMGRIM_WASM_CLI_PARITY_WARNING_CODE_MISSING"
+        step = "block_header_warning_codes"
+        msg = detail
+        return finalize(fail(msg))
     block_case_count = count_cases(block_header_golden)
     if block_case_count < BLOCK_HEADER_MIN_CASES:
-        return fail(f"block header golden case count underflow: {block_case_count}<{BLOCK_HEADER_MIN_CASES}")
+        detail = f"block header golden case count underflow: {block_case_count}<{BLOCK_HEADER_MIN_CASES}"
+        record_step("block_header_case_count", False, detail)
+        status = "fail"
+        code = "E_SEAMGRIM_WASM_CLI_PARITY_CASE_UNDERFLOW"
+        step = "block_header_case_count"
+        msg = detail
+        return finalize(fail(msg))
+    record_step("block_header_contract", True, f"warning={WARNING_CODE} case_count={block_case_count}")
 
-    event_codes = load_expected_codes(event_surface_golden, "expected_error_code")
+    try:
+        event_codes = load_expected_codes(event_surface_golden, "expected_error_code")
+    except Exception as exc:
+        detail = str(exc)
+        record_step("event_surface_error_codes", False, detail)
+        status = "fail"
+        code = "E_SEAMGRIM_WASM_CLI_PARITY_GOLDEN_PARSE"
+        step = "event_surface_error_codes"
+        msg = detail
+        return finalize(fail(msg))
     if EVENT_ALIAS_FORBIDDEN_CODE not in event_codes:
-        return fail(f"{EVENT_ALIAS_FORBIDDEN_CODE} missing in {event_surface_golden}")
+        detail = f"{EVENT_ALIAS_FORBIDDEN_CODE} missing in {event_surface_golden}"
+        record_step("event_surface_error_codes", False, detail)
+        status = "fail"
+        code = "E_SEAMGRIM_WASM_CLI_PARITY_EVENT_CODE_MISSING"
+        step = "event_surface_error_codes"
+        msg = detail
+        return finalize(fail(msg))
     event_case_count = count_cases(event_surface_golden)
     if event_case_count < EVENT_SURFACE_MIN_CASES:
-        return fail(f"event surface golden case count underflow: {event_case_count}<{EVENT_SURFACE_MIN_CASES}")
+        detail = f"event surface golden case count underflow: {event_case_count}<{EVENT_SURFACE_MIN_CASES}"
+        record_step("event_surface_case_count", False, detail)
+        status = "fail"
+        code = "E_SEAMGRIM_WASM_CLI_PARITY_CASE_UNDERFLOW"
+        step = "event_surface_case_count"
+        msg = detail
+        return finalize(fail(msg))
+    record_step("event_surface_contract", True, f"error={EVENT_ALIAS_FORBIDDEN_CODE} case_count={event_case_count}")
 
     wasm_runner_files = (
         root / "tests" / "seamgrim_wasm_wrapper_runner.mjs",
         root / "tests" / "seamgrim_wasm_vm_runtime_runner.mjs",
     )
     for wasm_runner in wasm_runner_files:
+        name = f"wasm_runner_token:{wasm_runner.name}"
         if not wasm_runner.exists():
-            return fail(f"missing file: {wasm_runner}")
+            detail = f"missing file: {wasm_runner}"
+            record_step(name, False, detail)
+            status = "fail"
+            code = "E_SEAMGRIM_WASM_CLI_PARITY_PATH_MISSING"
+            step = name
+            msg = detail
+            return finalize(fail(msg))
         text = wasm_runner.read_text(encoding="utf-8")
         if WARNING_CODE not in text:
-            return fail(f"{WARNING_CODE} missing in {wasm_runner}")
+            detail = f"{WARNING_CODE} missing in {wasm_runner}"
+            record_step(name, False, detail)
+            status = "fail"
+            code = "E_SEAMGRIM_WASM_CLI_PARITY_TOKEN_MISSING"
+            step = name
+            msg = detail
+            return finalize(fail(msg))
+        record_step(name, True, WARNING_CODE)
 
     commands: list[tuple[str, list[str], str]] = [
         (
@@ -132,17 +248,54 @@ def main() -> int:
 
     for step_name, cmd, ok_marker in commands:
         proc = run_cmd(root, cmd)
+        merged = f"{proc.stdout}\n{proc.stderr}"
         if proc.returncode != 0:
-            return fail(
+            detail = (
                 f"{step_name} rc={proc.returncode} cmd={' '.join(cmd)} "
                 f"stdout={proc.stdout.strip()} stderr={proc.stderr.strip()}"
             )
-        merged = f"{proc.stdout}\n{proc.stderr}"
+            record_step(
+                step_name,
+                False,
+                detail,
+                returncode=proc.returncode,
+                cmd=cmd,
+                stdout_head=(proc.stdout or "").strip() or "-",
+                stderr_head=(proc.stderr or "").strip() or "-",
+            )
+            status = "fail"
+            code = "E_SEAMGRIM_WASM_CLI_PARITY_STEP_FAIL"
+            step = step_name
+            msg = detail
+            return finalize(fail(msg))
         if ok_marker not in merged:
-            return fail(f"{step_name} marker missing: {ok_marker}")
+            detail = f"{step_name} marker missing: {ok_marker}"
+            record_step(
+                step_name,
+                False,
+                detail,
+                returncode=proc.returncode,
+                cmd=cmd,
+                stdout_head=(proc.stdout or "").strip() or "-",
+                stderr_head=(proc.stderr or "").strip() or "-",
+            )
+            status = "fail"
+            code = "E_SEAMGRIM_WASM_CLI_PARITY_MARKER_MISSING"
+            step = step_name
+            msg = detail
+            return finalize(fail(msg))
+        record_step(
+            step_name,
+            True,
+            ok_marker,
+            returncode=0,
+            cmd=cmd,
+            stdout_head=(proc.stdout or "").strip() or "-",
+            stderr_head=(proc.stderr or "").strip() or "-",
+        )
 
     print("[seamgrim-wasm-cli-diag-parity] ok")
-    return 0
+    return finalize(0)
 
 
 if __name__ == "__main__":
