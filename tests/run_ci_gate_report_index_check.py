@@ -246,6 +246,9 @@ def main() -> int:
         )
 
     result_doc = artifact_docs["ci_gate_result_json"]
+    result_ok = result_doc.get("ok")
+    if not isinstance(result_ok, bool):
+        return fail("ci_gate_result ok must be bool", CODES["RESULT_OK_TYPE"])
     result_overall_ok = result_doc.get("overall_ok")
     if not isinstance(result_overall_ok, bool):
         return fail("ci_gate_result overall_ok must be bool", CODES["RESULT_OVERALL_OK_TYPE"])
@@ -269,6 +272,12 @@ def main() -> int:
         return fail(
             f"ci_gate_result status mismatch expected={expected_result_status} actual={result_status}",
             CODES["RESULT_STATUS_MISMATCH"],
+        )
+    expected_result_ok = result_status == "pass" and result_overall_ok and result_failed_steps == 0
+    if result_ok != expected_result_ok:
+        return fail(
+            f"ci_gate_result ok mismatch expected={int(expected_result_ok)} actual={int(result_ok)}",
+            CODES["RESULT_OK_MISMATCH"],
         )
     result_summary_line_path = normalize_path_text(str(result_doc.get("summary_line_path", "")).strip())
     expected_summary_line_path = str(resolved_report_paths["summary_line"])
@@ -299,12 +308,6 @@ def main() -> int:
             CODES["RESULT_FINAL_STATUS_PARSE_PATH_MISMATCH"],
         )
 
-    result_ok = result_doc.get("ok")
-    expected_result_ok = result_status == "pass" and result_overall_ok and result_failed_steps == 0
-    if not isinstance(result_ok, bool):
-        expected_result_ok = False
-    else:
-        expected_result_ok = bool(result_ok)
     result_reason = str(result_doc.get("reason", "")).strip() or "-"
 
     badge_doc = artifact_docs["ci_gate_badge_json"]
@@ -321,6 +324,13 @@ def main() -> int:
         return fail(
             f"ci_gate_badge ok mismatch expected={int(bool(expected_result_ok))} actual={int(bool(badge_ok))}",
             CODES["BADGE_OK_MISMATCH"],
+        )
+    badge_result_path = normalize_path_text(str(badge_doc.get("result_path", "")).strip())
+    expected_badge_result_path = str(resolved_report_paths["ci_gate_result_json"])
+    if badge_result_path != expected_badge_result_path:
+        return fail(
+            f"ci_gate_badge result_path mismatch expected={expected_badge_result_path} actual={badge_result_path}",
+            CODES["BADGE_RESULT_PATH_MISMATCH"],
         )
 
     triage_doc = artifact_docs["ci_fail_triage_json"]
@@ -343,6 +353,36 @@ def main() -> int:
             "ci_fail_triage summary_report_path_hint_norm mismatch",
             CODES["TRIAGE_SUMMARY_HINT_NORM_MISMATCH"],
         )
+    triage_artifacts = triage_doc.get("artifacts")
+    if not isinstance(triage_artifacts, dict):
+        return fail("ci_fail_triage artifacts missing", CODES["TRIAGE_ARTIFACTS_MISSING"])
+    triage_artifact_required_keys = (
+        "summary",
+        "ci_gate_result_json",
+        "ci_gate_badge_json",
+        "ci_fail_brief_txt",
+        "ci_fail_triage_json",
+    )
+    for artifact_key in triage_artifact_required_keys:
+        artifact_row = triage_artifacts.get(artifact_key)
+        if not isinstance(artifact_row, dict):
+            return fail(
+                f"ci_fail_triage artifacts missing row key={artifact_key}",
+                CODES["TRIAGE_ARTIFACTS_MISSING"],
+            )
+        artifact_path_norm = normalize_path_text(str(artifact_row.get("path_norm", "")).strip())
+        expected_artifact_path_norm = str(resolved_report_paths[artifact_key])
+        if artifact_path_norm != expected_artifact_path_norm:
+            return fail(
+                f"ci_fail_triage artifacts path_norm mismatch key={artifact_key}",
+                CODES["TRIAGE_ARTIFACT_PATH_NORM_MISMATCH"],
+            )
+        artifact_exists = artifact_row.get("exists")
+        if not isinstance(artifact_exists, bool) or not artifact_exists:
+            return fail(
+                f"ci_fail_triage artifacts exists mismatch key={artifact_key}",
+                CODES["TRIAGE_ARTIFACT_EXISTS_MISMATCH"],
+            )
 
     required_steps: list[str] = []
     if bool(args.enforce_profile_step_contract):
