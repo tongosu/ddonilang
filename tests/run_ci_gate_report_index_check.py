@@ -113,6 +113,15 @@ def main() -> int:
             f"index schema mismatch: {index_doc.get('schema')}",
             CODES["INDEX_SCHEMA"],
         )
+    index_profile = str(index_doc.get("ci_sanity_profile", "")).strip()
+    if index_profile not in VALID_SANITY_PROFILES:
+        return fail(f"invalid ci_sanity_profile: {index_profile}", CODES["PROFILE_INVALID"])
+    expected_profile = str(args.sanity_profile).strip()
+    if expected_profile in VALID_SANITY_PROFILES and index_profile != expected_profile:
+        return fail(
+            f"ci_sanity_profile mismatch expected={expected_profile} actual={index_profile}",
+            CODES["PROFILE_MISMATCH"],
+        )
 
     reports = index_doc.get("reports")
     if not isinstance(reports, dict):
@@ -136,13 +145,27 @@ def main() -> int:
         ok_value = row.get("ok")
         if not isinstance(ok_value, bool):
             return fail(f"index.steps[{idx}].ok must be bool", CODES["STEP_OK_TYPE"])
+        rc = None
         try:
-            int(row.get("returncode"))
+            rc = int(row.get("returncode"))
         except Exception:
             return fail(f"index.steps[{idx}].returncode must be int", CODES["STEP_RC_TYPE"])
+        if bool(ok_value) != (rc == 0):
+            return fail(
+                f"index.steps[{idx}] ok/returncode mismatch ok={ok_value} returncode={rc}",
+                CODES["STEP_OK_RC_MISMATCH"],
+            )
         cmd_value = row.get("cmd")
         if not isinstance(cmd_value, list):
             return fail(f"index.steps[{idx}].cmd must be list", CODES["STEP_CMD_TYPE"])
+        if not cmd_value:
+            return fail(f"index.steps[{idx}].cmd must not be empty", CODES["STEP_CMD_EMPTY"])
+        for part in cmd_value:
+            if not isinstance(part, str) or not part.strip():
+                return fail(
+                    f"index.steps[{idx}].cmd[*] must be non-empty string",
+                    CODES["STEP_CMD_ITEM_TYPE"],
+                )
 
     for key in REQUIRED_REPORT_PATH_KEYS:
         path = resolve_report_path(index_doc, key)

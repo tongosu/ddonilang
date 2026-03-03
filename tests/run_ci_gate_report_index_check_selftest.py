@@ -64,7 +64,7 @@ def run_check(
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
-def build_index_case(root: Path, case_name: str) -> Path:
+def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -> Path:
     case_dir = root / case_name
     case_dir.mkdir(parents=True, exist_ok=True)
 
@@ -96,6 +96,7 @@ def build_index_case(root: Path, case_name: str) -> Path:
         index,
         {
             "schema": "ddn.ci.aggregate_gate.index.v1",
+            "ci_sanity_profile": sanity_profile,
             "reports": {
                 "summary": str(summary),
                 "summary_line": str(summary_line),
@@ -260,7 +261,84 @@ def main() -> int:
         if f"fail code={CODES['STEP_ROW_TYPE']}" not in bad_step_shape_proc.stderr:
             return fail(f"bad step shape code mismatch: err={bad_step_shape_proc.stderr}")
 
-        core_lang_missing_seamgrim_index = build_index_case(root, "core_lang_missing_seamgrim_steps")
+        bad_profile_index = build_index_case(root, "bad_profile")
+        bad_profile_doc = json.loads(bad_profile_index.read_text(encoding="utf-8"))
+        bad_profile_doc["ci_sanity_profile"] = "unknown_profile"
+        write_json(bad_profile_index, bad_profile_doc)
+        bad_profile_proc = run_check(
+            bad_profile_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if bad_profile_proc.returncode == 0:
+            return fail("bad profile case must fail")
+        if f"fail code={CODES['PROFILE_INVALID']}" not in bad_profile_proc.stderr:
+            return fail(f"bad profile code mismatch: err={bad_profile_proc.stderr}")
+
+        profile_mismatch_index = build_index_case(root, "profile_mismatch", sanity_profile="seamgrim")
+        profile_mismatch_proc = run_check(
+            profile_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if profile_mismatch_proc.returncode == 0:
+            return fail("profile mismatch case must fail")
+        if f"fail code={CODES['PROFILE_MISMATCH']}" not in profile_mismatch_proc.stderr:
+            return fail(f"profile mismatch code mismatch: err={profile_mismatch_proc.stderr}")
+
+        cmd_empty_index = build_index_case(root, "cmd_empty")
+        cmd_empty_doc = json.loads(cmd_empty_index.read_text(encoding="utf-8"))
+        cmd_empty_doc["steps"][0]["cmd"] = []
+        write_json(cmd_empty_index, cmd_empty_doc)
+        cmd_empty_proc = run_check(
+            cmd_empty_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if cmd_empty_proc.returncode == 0:
+            return fail("cmd empty case must fail")
+        if f"fail code={CODES['STEP_CMD_EMPTY']}" not in cmd_empty_proc.stderr:
+            return fail(f"cmd empty code mismatch: err={cmd_empty_proc.stderr}")
+
+        cmd_item_type_index = build_index_case(root, "cmd_item_type")
+        cmd_item_type_doc = json.loads(cmd_item_type_index.read_text(encoding="utf-8"))
+        cmd_item_type_doc["steps"][0]["cmd"] = ["python", ""]
+        write_json(cmd_item_type_index, cmd_item_type_doc)
+        cmd_item_type_proc = run_check(
+            cmd_item_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if cmd_item_type_proc.returncode == 0:
+            return fail("cmd item type case must fail")
+        if f"fail code={CODES['STEP_CMD_ITEM_TYPE']}" not in cmd_item_type_proc.stderr:
+            return fail(f"cmd item type code mismatch: err={cmd_item_type_proc.stderr}")
+
+        ok_rc_mismatch_index = build_index_case(root, "ok_rc_mismatch")
+        ok_rc_mismatch_doc = json.loads(ok_rc_mismatch_index.read_text(encoding="utf-8"))
+        ok_rc_mismatch_doc["steps"][0]["ok"] = True
+        ok_rc_mismatch_doc["steps"][0]["returncode"] = 1
+        write_json(ok_rc_mismatch_index, ok_rc_mismatch_doc)
+        ok_rc_mismatch_proc = run_check(
+            ok_rc_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if ok_rc_mismatch_proc.returncode == 0:
+            return fail("ok/rc mismatch case must fail")
+        if f"fail code={CODES['STEP_OK_RC_MISMATCH']}" not in ok_rc_mismatch_proc.stderr:
+            return fail(f"ok/rc mismatch code mismatch: err={ok_rc_mismatch_proc.stderr}")
+
+        core_lang_missing_seamgrim_index = build_index_case(
+            root,
+            "core_lang_missing_seamgrim_steps",
+            sanity_profile="core_lang",
+        )
         core_lang_doc = json.loads(core_lang_missing_seamgrim_index.read_text(encoding="utf-8"))
         core_lang_doc["steps"] = [
             row
@@ -277,7 +355,11 @@ def main() -> int:
         if core_lang_proc.returncode != 0:
             return fail(f"core_lang profile should allow missing seamgrim steps: out={core_lang_proc.stdout} err={core_lang_proc.stderr}")
 
-        seamgrim_missing_index = build_index_case(root, "seamgrim_missing_step")
+        seamgrim_missing_index = build_index_case(
+            root,
+            "seamgrim_missing_step",
+            sanity_profile="seamgrim",
+        )
         seamgrim_doc = json.loads(seamgrim_missing_index.read_text(encoding="utf-8"))
         seamgrim_doc["steps"] = [
             row for row in seamgrim_doc["steps"] if str(row.get("name", "")) != "seamgrim_wasm_cli_diag_parity_check"
