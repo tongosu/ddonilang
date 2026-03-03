@@ -360,6 +360,18 @@ pub(crate) enum Commands {
         #[command(subcommand)]
         command: SwarmCommands,
     },
+    Social {
+        #[command(subcommand)]
+        command: SocialCommands,
+    },
+    Heal {
+        #[command(subcommand)]
+        command: HealCommands,
+    },
+    Cert {
+        #[command(subcommand)]
+        command: CertCommands,
+    },
     Infer {
         #[command(subcommand)]
         command: InferCommands,
@@ -379,6 +391,10 @@ pub(crate) enum Commands {
     Workshop {
         #[command(subcommand)]
         command: WorkshopCommands,
+    },
+    Universe {
+        #[command(subcommand)]
+        command: UniverseCommands,
     },
 }
 
@@ -1043,6 +1059,48 @@ enum SwarmCommands {
 }
 
 #[derive(Subcommand)]
+enum SocialCommands {
+    Simulate {
+        #[arg(long = "input")]
+        input: PathBuf,
+        #[arg(long = "out")]
+        out: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum HealCommands {
+    Run {
+        #[arg(long = "pack")]
+        pack: PathBuf,
+        #[arg(long = "out")]
+        out: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum CertCommands {
+    Keygen {
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        seed: Option<String>,
+    },
+    Sign {
+        #[arg(long = "in")]
+        input: PathBuf,
+        #[arg(long)]
+        key: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    Verify {
+        #[arg(long = "in")]
+        input: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
 enum InferCommands {
     Mlp {
         model: PathBuf,
@@ -1079,6 +1137,22 @@ enum WorkshopCommands {
     Open {
         #[arg(long)]
         workshop: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum UniverseCommands {
+    Pack {
+        #[arg(long = "in")]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    Unpack {
+        #[arg(long = "in")]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
     },
 }
 
@@ -2240,6 +2314,42 @@ fn main() {
                 }
             }
         },
+        Commands::Social { command } => match command {
+            SocialCommands::Simulate { input, out } => {
+                if let Err(err) = cli::social::run_simulate(&input, out.as_deref()) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Heal { command } => match command {
+            HealCommands::Run { pack, out } => {
+                if let Err(err) = cli::heal::run_pack(&pack, out.as_deref()) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Cert { command } => match command {
+            CertCommands::Keygen { out, seed } => {
+                if let Err(err) = cli::cert::run_keygen(&out, seed.as_deref()) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            CertCommands::Sign { input, key, out } => {
+                if let Err(err) = cli::cert::run_sign(&input, &key, &out) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            CertCommands::Verify { input } => {
+                if let Err(err) = cli::cert::run_verify(&input) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
         Commands::Infer { command } => match command {
             InferCommands::Mlp { model, input, out } => {
                 if let Err(err) = cli::infer::run_mlp(&model, &input, out.as_deref()) {
@@ -2288,6 +2398,20 @@ fn main() {
             }
             WorkshopCommands::Open { workshop } => {
                 if let Err(err) = cli::workshop::run_open(&workshop) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Universe { command } => match command {
+            UniverseCommands::Pack { input, out } => {
+                if let Err(err) = cli::universe::run_pack(&input, &out) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            UniverseCommands::Unpack { input, out } => {
+                if let Err(err) = cli::universe::run_unpack(&input, &out) {
                     eprintln!("{}", err);
                     std::process::exit(1);
                 }

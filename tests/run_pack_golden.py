@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,6 +12,49 @@ import time
 
 DIALECT_SMOKE_PACK = "lang_dialect_smoke_v1"
 DIALECT_BUILTIN_EQUIV_PACK = "dialect_builtin_equiv_v1"
+STACK_OVERFLOW_RETRY_MAX = 10
+
+
+def is_stack_overflow_like(proc: subprocess.CompletedProcess[str]) -> bool:
+    payload = f"{proc.stdout or ''}\n{proc.stderr or ''}".lower()
+    if "overflowed its stack" in payload:
+        return True
+    if "memory allocation of" in payload and "failed" in payload:
+        return True
+    # Windows STATUS_STACK_OVERFLOW
+    if int(proc.returncode) == 3221226505:
+        return True
+    return False
+
+
+def run_subprocess_with_stack_retry(
+    cmd: list[str],
+    cwd: Path,
+    timeout: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    env = dict(os.environ)
+    env.setdefault("RUST_MIN_STACK", str(64 * 1024 * 1024))
+    last: subprocess.CompletedProcess[str] | None = None
+    for attempt in range(STACK_OVERFLOW_RETRY_MAX):
+        proc = subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            env=env,
+        )
+        last = proc
+        if proc.returncode == 0:
+            return proc
+        if not is_stack_overflow_like(proc):
+            return proc
+        if attempt < STACK_OVERFLOW_RETRY_MAX - 1:
+            time.sleep(0.2 * (attempt + 1))
+    assert last is not None
+    return last
 
 
 def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
@@ -63,6 +107,11 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "gogae8_w87_eval_suite_v1",
         pack_root / "gogae8_w88_bundle_hash_parity",
         pack_root / "gogae9_w91_malmoi_docset",
+        pack_root / "gogae9_w92_aot_compiler_v2",
+        pack_root / "gogae9_w93_universe_gui",
+        pack_root / "gogae9_w95_cert",
+        pack_root / "gogae9_w96_somssi_hub",
+        pack_root / "gogae9_w97_self_heal",
         pack_root / "geoul_min_schema_v0",
         pack_root / "seamgrim_smoke_golden_v1",
         pack_root / "seamgrim_curriculum_seed_smoke_v1",
@@ -70,6 +119,17 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "seamgrim_curriculum_batch_smoke_v1",
         pack_root / "seamgrim_curriculum_rewrite_sample_smoke_v1",
         pack_root / "seamgrim_state_hash_view_boundary_smoke_v1",
+        pack_root / "seamgrim_bogae_madang_alias_v1",
+        pack_root / "seamgrim_moyang_template_instance_view_boundary_v1",
+        pack_root / "seamgrim_jjaim_block_stub_canon_v1",
+        pack_root / "block_header_no_colon",
+        pack_root / "seamgrim_guseong_flatten_diag_v1",
+        pack_root / "seamgrim_guseong_flatten_ir_v1",
+        pack_root / "seamgrim_event_surface_canon_v1",
+        pack_root / "seamgrim_event_model_ir_v1",
+        pack_root / "seamgrim_exec_policy_effect_diag_v1",
+        pack_root / "seamgrim_exec_policy_effect_map_v1",
+        pack_root / "guideblock_keys_basics",
         pack_root / "seamgrim_overlay_param_compare_v0",
         pack_root / "seamgrim_overlay_session_roundtrip_v0",
         pack_root / "bogae_api_catalog_v1_basic",
@@ -123,15 +183,17 @@ def load_cases(pack_dir: Path) -> list[dict]:
         has_dotbogi_expectation = "dotbogi_case" in data
         has_overlay_compare_expectation = "overlay_compare_case" in data
         has_overlay_session_expectation = "overlay_session_case" in data
+        has_guideblock_expectation = "guideblock_case" in data
         if (
             not has_core_expectation
             and not has_graph_expectation
             and not has_dotbogi_expectation
             and not has_overlay_compare_expectation
             and not has_overlay_session_expectation
+            and not has_guideblock_expectation
         ):
             raise ValueError(
-                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, smoke_golden, fixture/expected_graph, dotbogi_case, overlay_compare_case, or overlay_session_case"
+                f"{golden_path} line {idx}: missing stdout/stdout_path, bogae_hash, expected_error_code, expected_warning_code, smoke_golden, fixture/expected_graph, dotbogi_case, overlay_compare_case, overlay_session_case, or guideblock_case"
             )
         if "stdout" in data and not isinstance(data["stdout"], list):
             raise ValueError(f"{golden_path} line {idx}: stdout must be a list")
@@ -163,6 +225,8 @@ def load_cases(pack_dir: Path) -> list[dict]:
             raise ValueError(f"{golden_path} line {idx}: overlay_compare_case must be a string")
         if "overlay_session_case" in data and not isinstance(data["overlay_session_case"], str):
             raise ValueError(f"{golden_path} line {idx}: overlay_session_case must be a string")
+        if "guideblock_case" in data and not isinstance(data["guideblock_case"], str):
+            raise ValueError(f"{golden_path} line {idx}: guideblock_case must be a string")
         if "expected_dotbogi_output" in data and not isinstance(data["expected_dotbogi_output"], str):
             raise ValueError(f"{golden_path} line {idx}: expected_dotbogi_output must be a string")
         if "expected_view_meta_hash" in data and not isinstance(data["expected_view_meta_hash"], str):
@@ -185,6 +249,7 @@ def load_cases(pack_dir: Path) -> list[dict]:
         validate_dotbogi_case_contract(pack_dir, golden_path, idx, data)
         validate_overlay_compare_case_contract(pack_dir, golden_path, idx, data)
         validate_overlay_session_case_contract(pack_dir, golden_path, idx, data)
+        validate_guideblock_case_contract(pack_dir, golden_path, idx, data)
         cases.append(data)
     return cases
 
@@ -199,11 +264,21 @@ def validate_case_mode_exclusivity(golden_path: Path, line_no: int, data: dict) 
     has_overlay_session = isinstance(data.get("overlay_session_case"), str) and bool(
         str(data.get("overlay_session_case")).strip()
     )
+    has_guideblock = isinstance(data.get("guideblock_case"), str) and bool(
+        str(data.get("guideblock_case")).strip()
+    )
 
-    mode_count = int(has_smoke) + int(has_dotbogi) + int(has_graph) + int(has_overlay_compare) + int(has_overlay_session)
+    mode_count = (
+        int(has_smoke)
+        + int(has_dotbogi)
+        + int(has_graph)
+        + int(has_overlay_compare)
+        + int(has_overlay_session)
+        + int(has_guideblock)
+    )
     if mode_count > 1:
         raise ValueError(
-            f"{golden_path} line {line_no}: smoke_golden, dotbogi_case, fixture/expected_graph, overlay_compare_case, overlay_session_case modes are mutually exclusive"
+            f"{golden_path} line {line_no}: smoke_golden, dotbogi_case, fixture/expected_graph, overlay_compare_case, overlay_session_case, guideblock_case modes are mutually exclusive"
         )
 
     if has_smoke:
@@ -225,24 +300,31 @@ def validate_case_mode_exclusivity(golden_path: Path, line_no: int, data: dict) 
             raise ValueError(
                 f"{golden_path} line {line_no}: graph case requires both fixture and expected_graph"
             )
-        for key in ("smoke_golden", "dotbogi_case", "overlay_compare_case", "overlay_session_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+        for key in ("smoke_golden", "dotbogi_case", "overlay_compare_case", "overlay_session_case", "guideblock_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
             if key in data:
                 raise ValueError(
                     f"{golden_path} line {line_no}: graph case must not define '{key}'"
                 )
 
     if has_overlay_compare:
-        for key in ("smoke_golden", "dotbogi_case", "fixture", "expected_graph", "overlay_session_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+        for key in ("smoke_golden", "dotbogi_case", "fixture", "expected_graph", "overlay_session_case", "guideblock_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
             if key in data:
                 raise ValueError(
                     f"{golden_path} line {line_no}: overlay_compare_case must not define '{key}'"
                 )
 
     if has_overlay_session:
-        for key in ("smoke_golden", "dotbogi_case", "fixture", "expected_graph", "overlay_compare_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+        for key in ("smoke_golden", "dotbogi_case", "fixture", "expected_graph", "overlay_compare_case", "guideblock_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
             if key in data:
                 raise ValueError(
                     f"{golden_path} line {line_no}: overlay_session_case must not define '{key}'"
+                )
+
+    if has_guideblock:
+        for key in ("smoke_golden", "dotbogi_case", "fixture", "expected_graph", "overlay_compare_case", "overlay_session_case", "cmd", "stdout", "stdout_path", "bogae_hash"):
+            if key in data:
+                raise ValueError(
+                    f"{golden_path} line {line_no}: guideblock_case must not define '{key}'"
                 )
 
 
@@ -480,6 +562,46 @@ def validate_overlay_session_case_contract(pack_dir: Path, golden_path: Path, li
             )
 
 
+def validate_guideblock_case_contract(pack_dir: Path, golden_path: Path, line_no: int, data: dict) -> None:
+    if "guideblock_case" not in data:
+        return
+    rel = data.get("guideblock_case")
+    if not isinstance(rel, str) or not rel.strip():
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case must be non-empty string")
+    if "exit_code" in data and int(data.get("exit_code", 0)) != 0:
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case supports exit_code=0 only")
+    case_path = (pack_dir / rel).resolve()
+    if not case_path.exists():
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case file not found: {rel}")
+    try:
+        case_doc = json.loads(case_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case JSON parse failed: {rel}: {exc}") from exc
+    if not isinstance(case_doc, dict):
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case doc must be object: {rel}")
+    if str(case_doc.get("schema", "")) != "ddn.seamgrim.guideblock_case.v1":
+        raise ValueError(
+            f"{golden_path} line {line_no}: guideblock_case schema must be ddn.seamgrim.guideblock_case.v1: {rel}"
+        )
+    input_rel = case_doc.get("input")
+    if not isinstance(input_rel, str) or not input_rel.strip():
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case input must be non-empty string: {rel}")
+    input_path = (case_path.parent / input_rel).resolve()
+    if not input_path.exists():
+        raise ValueError(
+            f"{golden_path} line {line_no}: guideblock_case input file not found: {input_rel} ({rel})"
+        )
+    expect = case_doc.get("expect")
+    if not isinstance(expect, dict):
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case expect must be object: {rel}")
+    if "meta" in expect and not isinstance(expect.get("meta"), dict):
+        raise ValueError(f"{golden_path} line {line_no}: guideblock_case expect.meta must be object: {rel}")
+    if "body_starts_with" in expect and not isinstance(expect.get("body_starts_with"), str):
+        raise ValueError(
+            f"{golden_path} line {line_no}: guideblock_case expect.body_starts_with must be string: {rel}"
+        )
+
+
 def parse_age_target_rank(text: str | None) -> int:
     if not text:
         return 0
@@ -715,13 +837,9 @@ def run_smoke_golden_case(
             str(manifest),
             "--",
         ] + command_args
-        result = subprocess.run(
+        result = run_subprocess_with_stack_retry(
             cmd,
             cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=max(1, timeout_ms) / 1000.0,
         )
         stderr_case = [normalize_stderr_line(line, root) for line in result.stderr.splitlines() if line.strip()]
@@ -817,13 +935,9 @@ def run_dotbogi_case(
         "--report-out",
         str(report_path),
     ]
-    result = subprocess.run(
+    result = run_subprocess_with_stack_retry(
         cmd,
         cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )
     stderr_lines = [
         normalize_stderr_line(line, root)
@@ -1066,13 +1180,9 @@ def run_overlay_compare_case(
         str(report_path),
         "--quiet",
     ]
-    result = subprocess.run(
+    result = run_subprocess_with_stack_retry(
         cmd,
         cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )
     stderr_lines = [
         normalize_stderr_line(line, root)
@@ -1172,13 +1282,9 @@ def run_overlay_session_case(
         str(report_path),
         "--quiet",
     ]
-    result = subprocess.run(
+    result = run_subprocess_with_stack_retry(
         cmd,
         cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )
     stderr_lines = [
         normalize_stderr_line(line, root)
@@ -1257,6 +1363,113 @@ def run_overlay_session_case(
     )
 
 
+def run_guideblock_case(
+    root: Path,
+    pack_dir: Path,
+    case_idx: int,
+    case: dict,
+) -> tuple[bool, list[str], list[str], str, dict]:
+    rel = str(case.get("guideblock_case", "")).strip()
+    if not rel:
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: guideblock_case must be non-empty string")
+    case_path = (pack_dir / rel).resolve()
+    if not case_path.exists():
+        raise ValueError(f"{pack_dir}/golden.jsonl case {case_idx}: guideblock_case not found: {rel}")
+
+    runner = root / "tests" / "seamgrim_guideblock_keys_pack_runner.mjs"
+    report_path = pack_dir / f".tmp_guideblock_case_{case_idx}.report.detjson"
+    report_path.unlink(missing_ok=True)
+    cmd = [
+        "node",
+        "--no-warnings",
+        str(runner),
+        "--pack-root",
+        str(pack_dir),
+        "--case-file",
+        rel,
+        "--json-out",
+        str(report_path),
+        "--quiet",
+    ]
+    result = run_subprocess_with_stack_retry(
+        cmd,
+        cwd=root,
+    )
+    stderr_lines = [
+        normalize_stderr_line(line, root)
+        for line in result.stderr.splitlines()
+        if line.strip()
+    ]
+    stdout_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    report_doc = None
+    if report_path.exists():
+        try:
+            report_doc = json.loads(report_path.read_text(encoding="utf-8"))
+        except Exception:
+            report_doc = None
+        report_path.unlink(missing_ok=True)
+
+    if not isinstance(report_doc, dict):
+        expected = ["guideblock runner report json"]
+        got = [f"exit_code={result.returncode}"]
+        return (
+            False,
+            expected,
+            got,
+            "\n".join(stderr_lines + stdout_lines),
+            {
+                "stdout_lines": stdout_lines,
+                "stderr_lines": stderr_lines,
+                "exit_code": result.returncode,
+                "actual_meta": None,
+            },
+        )
+
+    rows = report_doc.get("cases")
+    row = rows[0] if isinstance(rows, list) and rows else {}
+    detail = str(row.get("detail", "") if isinstance(row, dict) else "").strip()
+    parsed: dict[str, str] = {}
+    for token in detail.split():
+        if "=" not in token:
+            continue
+        key, value = token.split("=", 1)
+        parsed[key.strip()] = value.strip()
+
+    expected_lines = [
+        "expected_meta_ok=1",
+        "expected_body_ok=1",
+        "parity_meta_ok=1",
+        "parity_body_ok=1",
+    ]
+    got_lines = [
+        f"expected_meta_ok={parsed.get('expected_meta_ok', '-')}",
+        f"expected_body_ok={parsed.get('expected_body_ok', '-')}",
+        f"parity_meta_ok={parsed.get('parity_meta_ok', '-')}",
+        f"parity_body_ok={parsed.get('parity_body_ok', '-')}",
+    ]
+    if "mismatch" in parsed:
+        got_lines.append(f"mismatch={parsed['mismatch']}")
+
+    row_ok = bool(row.get("ok", False)) if isinstance(row, dict) else False
+    overall_ok = bool(report_doc.get("ok", False))
+    ok = result.returncode == 0 and overall_ok and row_ok and got_lines[:4] == expected_lines[:4]
+    return (
+        ok,
+        expected_lines,
+        got_lines,
+        "\n".join(stderr_lines + stdout_lines),
+        {
+            "stdout_lines": got_lines,
+            "stderr_lines": stderr_lines,
+            "exit_code": result.returncode,
+            "actual_meta": None,
+            "guideblock_case_report": report_doc,
+            "guideblock_case_path": str(case_path),
+        },
+    )
+
+
 def run_graph_autorender_case(
     root: Path,
     pack_dir: Path,
@@ -1285,13 +1498,9 @@ def run_graph_autorender_case(
         fixture_rel,
         "true" if prefer_patch else "false",
     ]
-    result = subprocess.run(
+    result = run_subprocess_with_stack_retry(
         cmd,
         cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )
     stderr_lines = [line for line in result.stderr.splitlines() if line.strip()]
     if result.returncode != 0:
@@ -1344,6 +1553,9 @@ def run_case(
     overlay_session_case = case.get("overlay_session_case")
     if isinstance(overlay_session_case, str) and overlay_session_case.strip():
         return run_overlay_session_case(root, pack_dir, case_idx, case)
+    guideblock_case = case.get("guideblock_case")
+    if isinstance(guideblock_case, str) and guideblock_case.strip():
+        return run_guideblock_case(root, pack_dir, case_idx, case)
     if "fixture" in case and "expected_graph" in case:
         return run_graph_autorender_case(root, pack_dir, case_idx, case)
 
@@ -1401,18 +1613,19 @@ def run_case(
     if meta_out:
         meta_out_path = pack_dir / meta_out
         meta_out_path.unlink(missing_ok=True)
-    result = subprocess.run(
+    result = run_subprocess_with_stack_retry(
         cmd,
         cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
     )
 
     if temp_path is not None:
         temp_path.unlink(missing_ok=True)
 
+    stderr_raw_lines = [
+        normalize_stderr_line(line, root)
+        for line in result.stderr.splitlines()
+        if line.strip()
+    ]
     stderr_lines = []
     for line in result.stderr.splitlines():
         if not line.strip():
@@ -1637,7 +1850,7 @@ def run_case(
                 artifacts,
             )
     if expected_warning_code is not None:
-        combined = stderr_lines + [line for line in stdout_raw if line.strip()]
+        combined = stderr_raw_lines + [line for line in stdout_raw if line.strip()]
         if not any(expected_warning_code in line for line in combined):
             return (
                 False,

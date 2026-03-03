@@ -15,6 +15,29 @@ INDEX_SCHEMA = "ddn.ci.aggregate_gate.index.v1"
 TRIAGE_SCHEMA = "ddn.ci.fail_triage.v1"
 TOKEN_RE = re.compile(r'([A-Za-z0-9_]+)=("([^"\\]|\\.)*"|[^ \t]+)')
 SUMMARY_VERIFY_CODES_SET = set(SUMMARY_VERIFY_CODES.values())
+SANITY_REQUIRED_PASS_STEPS = (
+    "backup_hygiene_selftest",
+    "pipeline_emit_flags_check",
+    "pipeline_emit_flags_selftest",
+    "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_runtime5_passthrough_check",
+    "seamgrim_overlay_session_wired_consistency_check",
+    "seamgrim_overlay_session_diag_parity_check",
+    "seamgrim_overlay_compare_diag_parity_check",
+    "age5_close_pack_contract_selftest",
+    "ci_pack_golden_age5_surface_selftest",
+    "ci_pack_golden_guideblock_selftest",
+    "ci_pack_golden_exec_policy_selftest",
+    "ci_pack_golden_jjaim_flatten_selftest",
+    "ci_pack_golden_event_model_selftest",
+    "w92_aot_pack_check",
+    "w93_universe_pack_check",
+    "w94_social_pack_check",
+    "w95_cert_pack_check",
+    "w96_somssi_pack_check",
+    "w97_self_heal_pack_check",
+    "seamgrim_wasm_cli_diag_parity_check",
+)
 
 
 def fail(msg: str, code: str = "E_CHECK") -> int:
@@ -96,6 +119,7 @@ def parse_summary_report(path: Path) -> dict | None:
     failed_steps: list[str] = []
     failed_step_details: dict[str, str] = {}
     failed_step_logs: dict[str, dict[str, str]] = {}
+    kv: dict[str, str] = {}
     prefix = "[ci-gate-summary] "
     for raw in lines:
         line = str(raw).strip()
@@ -134,12 +158,38 @@ def parse_summary_report(path: Path) -> dict | None:
                     row["stdout"] = str(tokens.get("stdout", "")).strip()
                     row["stderr"] = str(tokens.get("stderr", "")).strip()
             failed_step_logs[step_id] = row
+            continue
+        if "=" in body:
+            key, value = body.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key:
+                kv[key] = value
     return {
         "status": status,
         "failed_steps": failed_steps,
         "failed_step_details": failed_step_details,
         "failed_step_logs": failed_step_logs,
+        "kv": kv,
     }
+
+
+def read_step_ok(index_doc: dict, step_name: str) -> bool | None:
+    steps = index_doc.get("steps")
+    if not isinstance(steps, list):
+        return None
+    for row in steps:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("name", "")).strip() != step_name:
+            continue
+        if "ok" in row:
+            return bool(row.get("ok", False))
+        try:
+            return int(row.get("returncode", 1)) == 0
+        except Exception:
+            return False
+    return None
 
 
 def select_latest_index(report_dir: Path, pattern: str, prefix: str) -> tuple[Path | None, dict | None]:
@@ -253,6 +303,7 @@ def main() -> int:
     summary_failed_steps: list[str] = []
     summary_failed_step_details: dict[str, str] = {}
     summary_failed_step_logs: dict[str, dict[str, str]] = {}
+    summary_kv: dict[str, str] = {}
     summary_report_exists = bool(summary_path.exists())
     if summary_report_exists:
         summary_report = parse_summary_report(summary_path)
@@ -273,6 +324,13 @@ def main() -> int:
         summary_failed_step_logs = {
             str(k).strip(): dict(v) for k, v in parsed_failed_step_logs.items() if str(k).strip() and isinstance(v, dict)
         }
+        parsed_kv = summary_report.get("kv")
+        if isinstance(parsed_kv, dict):
+            summary_kv = {
+                str(k).strip(): str(v).strip()
+                for k, v in parsed_kv.items()
+                if str(k).strip()
+            }
     if result_status not in ("pass", "fail"):
         return fail(f"unsupported result status: {result_status}", code=CODES["RESULT_STATUS_UNSUPPORTED"])
     if result_status == "pass" and result_failed_steps != 0:
@@ -299,6 +357,30 @@ def main() -> int:
                 return fail("pass summary must not contain failed_step_detail rows")
             if summary_failed_step_logs:
                 return fail("pass summary must not contain failed_step_logs rows")
+            selftest_summary_keys = {
+                "ci_pack_golden_overlay_compare_selftest_ok": "ci_pack_golden_overlay_compare_selftest",
+                "ci_pack_golden_overlay_session_selftest_ok": "ci_pack_golden_overlay_session_selftest",
+            }
+            for key, step_name in selftest_summary_keys.items():
+                value = str(summary_kv.get(key, "")).strip()
+                if not value:
+                    return fail(f"pass summary missing key: {key}", code=CODES["SUMMARY_SELFTEST_KEY_MISSING"])
+                if value not in {"0", "1"}:
+                    return fail(
+                        f"pass summary invalid {key}: {value}",
+                        code=CODES["SUMMARY_SELFTEST_VALUE_INVALID"],
+                    )
+                if value != "1":
+                    return fail(
+                        f"pass summary requires {key}=1, got {value}",
+                        code=CODES["SUMMARY_SELFTEST_EXPECT_PASS"],
+                    )
+                step_ok = read_step_ok(index_doc, step_name)
+                if step_ok is not None and int(value) != int(step_ok):
+                    return fail(
+                        f"summary/index selftest mismatch key={key} summary={value} step_ok={int(step_ok)}",
+                        code=CODES["SUMMARY_SELFTEST_STEP_MISMATCH"],
+                    )
         if result_status == "fail" and not summary_failed_steps:
             return fail("fail summary missing failed_steps")
 
@@ -308,6 +390,115 @@ def main() -> int:
     for key in ("ci_fail_brief_txt", "ci_fail_triage_json"):
         if not str(reports.get(key, "")).strip():
             return fail(f"index missing reports.{key}", code=CODES["INDEX_REPORT_KEY_MISSING"])
+
+    sanity_path = artifact_path(index_doc, "ci_sanity_gate")
+    if sanity_path is None:
+        return fail("index missing reports.ci_sanity_gate", code=CODES["SANITY_PATH_MISSING"])
+    sanity_doc = load_json(sanity_path)
+    if not isinstance(sanity_doc, dict):
+        return fail(f"invalid ci_sanity_gate json: {sanity_path}", code=CODES["SANITY_JSON_INVALID"])
+    if str(sanity_doc.get("schema", "")).strip() != "ddn.ci.sanity_gate.v1":
+        return fail(
+            f"ci_sanity_gate schema mismatch: {sanity_doc.get('schema')}",
+            code=CODES["SANITY_SCHEMA_MISMATCH"],
+        )
+    sanity_status = str(sanity_doc.get("status", "")).strip() or "unknown"
+    if sanity_status not in ("pass", "fail"):
+        return fail(f"unsupported ci_sanity_gate status: {sanity_status}", code=CODES["SANITY_STATUS_UNSUPPORTED"])
+    sanity_steps = sanity_doc.get("steps")
+    if not isinstance(sanity_steps, list):
+        return fail("ci_sanity_gate steps must be list", code=CODES["SANITY_STEPS_TYPE"])
+    sanity_failed_steps = 0
+    sanity_step_index: dict[str, dict] = {}
+    for idx, row in enumerate(sanity_steps):
+        if not isinstance(row, dict):
+            return fail(f"ci_sanity_gate steps[{idx}] must be object", code=CODES["SANITY_STEPS_TYPE"])
+        step_name = str(row.get("step", "")).strip()
+        if step_name:
+            sanity_step_index[step_name] = row
+        if not bool(row.get("ok", False)):
+            sanity_failed_steps += 1
+    if sanity_status == "pass":
+        if sanity_failed_steps != 0:
+            return fail(
+                f"ci_sanity_gate pass requires failed_steps=0, got {sanity_failed_steps}",
+                code=CODES["SANITY_PASS_FAILED_STEPS"],
+            )
+        sanity_code = str(sanity_doc.get("code", "")).strip()
+        if sanity_code != "OK":
+            return fail(
+                f"ci_sanity_gate pass requires code=OK, got {sanity_code}",
+                code=CODES["SANITY_STATUS_MISMATCH"],
+            )
+        sanity_step = str(sanity_doc.get("step", "")).strip()
+        if sanity_step != "all":
+            return fail(
+                f"ci_sanity_gate pass requires step=all, got {sanity_step}",
+                code=CODES["SANITY_STATUS_MISMATCH"],
+            )
+        for required_step in SANITY_REQUIRED_PASS_STEPS:
+            row = sanity_step_index.get(required_step)
+            if row is None:
+                return fail(
+                    f"ci_sanity_gate pass missing required step: {required_step}",
+                    code=CODES["SANITY_REQUIRED_STEP_MISSING"],
+                )
+            if not bool(row.get("ok", False)):
+                return fail(
+                    f"ci_sanity_gate pass step must be ok=1: {required_step}",
+                    code=CODES["SANITY_REQUIRED_STEP_FAILED"],
+                )
+            try:
+                step_rc = int(row.get("returncode", -1))
+            except Exception:
+                step_rc = -1
+            if step_rc != 0:
+                return fail(
+                    f"ci_sanity_gate pass step returncode must be 0: {required_step} rc={row.get('returncode')}",
+                    code=CODES["SANITY_REQUIRED_STEP_FAILED"],
+                )
+    else:
+        if sanity_failed_steps <= 0:
+            return fail(
+                "ci_sanity_gate fail requires at least one failed step",
+                code=CODES["SANITY_FAIL_FAILED_STEPS"],
+            )
+    if result_status == "pass" and sanity_status != "pass":
+        return fail(
+            f"ci_sanity_gate status mismatch result={result_status} sanity={sanity_status}",
+            code=CODES["SANITY_STATUS_MISMATCH"],
+        )
+
+    sync_readiness_path = artifact_path(index_doc, "ci_sync_readiness")
+    if sync_readiness_path is None:
+        return fail("index missing reports.ci_sync_readiness", code=CODES["SYNC_READINESS_PATH_MISSING"])
+    sync_readiness_doc = load_json(sync_readiness_path)
+    if not isinstance(sync_readiness_doc, dict):
+        return fail(f"invalid ci_sync_readiness json: {sync_readiness_path}", code=CODES["SYNC_READINESS_JSON_INVALID"])
+    if str(sync_readiness_doc.get("schema", "")).strip() != "ddn.ci.sync_readiness.v1":
+        return fail(
+            f"ci_sync_readiness schema mismatch: {sync_readiness_doc.get('schema')}",
+            code=CODES["SYNC_READINESS_SCHEMA_MISMATCH"],
+        )
+    sync_readiness_status = str(sync_readiness_doc.get("status", "")).strip() or "unknown"
+    if sync_readiness_status not in ("pass", "fail"):
+        return fail(
+            f"unsupported ci_sync_readiness status: {sync_readiness_status}",
+            code=CODES["SYNC_READINESS_STATUS_UNSUPPORTED"],
+        )
+    if result_status == "pass" and sync_readiness_status != "pass":
+        return fail(
+            f"ci_sync_readiness status mismatch result={result_status} sync={sync_readiness_status}",
+            code=CODES["SYNC_READINESS_STATUS_MISMATCH"],
+        )
+    if sync_readiness_status == "pass":
+        sync_code = str(sync_readiness_doc.get("code", "")).strip()
+        sync_step = str(sync_readiness_doc.get("step", "")).strip()
+        if sync_code != "OK" or sync_step != "all":
+            return fail(
+                f"ci_sync_readiness pass fields invalid code={sync_code} step={sync_step}",
+                code=CODES["SYNC_READINESS_PASS_STATUS_FIELDS"],
+            )
 
     brief_path = artifact_path(index_doc, "ci_fail_brief_txt")
     brief_required = bool(args.require_brief)

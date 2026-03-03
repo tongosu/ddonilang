@@ -1,0 +1,26 @@
+{
+  "schema": "ddn.gogae9.w97.heal_pack_report.v1",
+  "overall_pass": true,
+  "deterministic_heal_report_hash": true,
+  "deterministic_final_state_hash": true,
+  "cases": [
+    {
+      "id": "h01_restore_clock",
+      "recovered": true,
+      "state_hash_equal": true,
+      "expected_final_state_hash": "sha256:a1a7dadc52acaa8620e0bf7e4c36e170f9f442c306ee1799a6f622a31942a61d"
+    },
+    {
+      "id": "h02_restore_scene",
+      "recovered": true,
+      "state_hash_equal": true,
+      "expected_final_state_hash": "sha256:eb389f6ce2f309a5f956d9b771904ef5b4c08a9d9479dd1e9848f4c5b9b4911b"
+    },
+    {
+      "id": "h03_restore_input",
+      "recovered": true,
+      "state_hash_equal": true,
+      "expected_final_state_hash": "sha256:6ac20f0247fdb057900f9cc6e7a559051728529fea400596c8f65288b594d22c"
+    }
+  ]
+}
