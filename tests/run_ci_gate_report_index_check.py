@@ -58,6 +58,12 @@ def resolve_report_path(index_doc: dict, key: str) -> Path | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate aggregate gate report-index schema and report paths")
     parser.add_argument("--index", required=True, help="path to ci_gate_report_index.detjson")
+    parser.add_argument(
+        "--required-step",
+        action="append",
+        default=[],
+        help="required step name in index.steps (can be repeated)",
+    )
     args = parser.parse_args()
 
     index_path = Path(args.index)
@@ -75,6 +81,32 @@ def main() -> int:
     reports = index_doc.get("reports")
     if not isinstance(reports, dict):
         return fail("index.reports is missing", CODES["INDEX_REPORTS_MISSING"])
+
+    steps = index_doc.get("steps")
+    if steps is None:
+        return fail("index.steps is missing", CODES["STEPS_MISSING"])
+    if not isinstance(steps, list):
+        return fail("index.steps must be list", CODES["STEPS_TYPE"])
+    seen_step_names: set[str] = set()
+    for idx, row in enumerate(steps):
+        if not isinstance(row, dict):
+            return fail(f"index.steps[{idx}] must be object", CODES["STEP_ROW_TYPE"])
+        step_name = str(row.get("name", "")).strip()
+        if not step_name:
+            return fail(f"index.steps[{idx}].name missing", CODES["STEP_NAME"])
+        if step_name in seen_step_names:
+            return fail(f"index.steps duplicate name: {step_name}", CODES["STEP_DUP"])
+        seen_step_names.add(step_name)
+        ok_value = row.get("ok")
+        if not isinstance(ok_value, bool):
+            return fail(f"index.steps[{idx}].ok must be bool", CODES["STEP_OK_TYPE"])
+        try:
+            int(row.get("returncode"))
+        except Exception:
+            return fail(f"index.steps[{idx}].returncode must be int", CODES["STEP_RC_TYPE"])
+        cmd_value = row.get("cmd")
+        if not isinstance(cmd_value, list):
+            return fail(f"index.steps[{idx}].cmd must be list", CODES["STEP_CMD_TYPE"])
 
     for key in REQUIRED_REPORT_PATH_KEYS:
         path = resolve_report_path(index_doc, key)
@@ -99,6 +131,14 @@ def main() -> int:
                 f"artifact schema mismatch key={key} schema={actual_schema} expected={expected_schema}",
                 CODES["ARTIFACT_SCHEMA_MISMATCH"],
             )
+
+    required_steps = [str(item).strip() for item in args.required_step if str(item).strip()]
+    missing_required_steps = [name for name in required_steps if name not in seen_step_names]
+    if missing_required_steps:
+        return fail(
+            f"missing required index step(s): {','.join(missing_required_steps)}",
+            CODES["REQUIRED_STEP_MISSING"],
+        )
 
     print(f"[ci-gate-report-index-check] ok index={index_path}")
     return 0

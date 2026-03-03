@@ -325,6 +325,10 @@ CI_GATE_REPORT_INDEX_CONTRACT_TOKENS = [
     "check_ci_gate_report_index",
     "check_ci_gate_report_index_selftest",
     "check_ci_gate_report_index_diagnostics",
+    "report_index_required_steps",
+    "require_step_contract",
+    "--required-step",
+    "check_ci_gate_report_index(require_step_contract=True)",
     "ci_gate_report_index_check",
     "ci_gate_report_index_selftest",
     "ci_gate_report_index_diagnostics_check",
@@ -334,6 +338,12 @@ CI_GATE_REPORT_INDEX_CONTRACT_TOKENS = [
 ]
 CI_GATE_REPORT_INDEX_CHECK_TOKENS = [
     "INDEX_SCHEMA = \"ddn.ci.aggregate_gate.index.v1\"",
+    "--required-step",
+    "index.steps is missing",
+    ".ok must be bool",
+    ".returncode must be int",
+    ".cmd must be list",
+    "missing required index step(s)",
     "\"seamgrim_wasm_cli_diag_parity\"",
     "\"ddn.seamgrim.wasm_cli_diag_parity.v1\"",
     "GATE_REPORT_INDEX_CODES",
@@ -341,6 +351,8 @@ CI_GATE_REPORT_INDEX_CHECK_TOKENS = [
 CI_GATE_REPORT_INDEX_CODE_MAP_TOKENS = [
     "GATE_REPORT_INDEX_CODES",
     "\"INDEX_MISSING\": \"E_GATE_INDEX_MISSING\"",
+    "\"STEP_ROW_TYPE\": \"E_GATE_INDEX_STEP_ROW_TYPE\"",
+    "\"REQUIRED_STEP_MISSING\": \"E_GATE_INDEX_REQUIRED_STEP_MISSING\"",
     "\"ARTIFACT_SCHEMA_MISMATCH\": \"E_GATE_INDEX_ARTIFACT_SCHEMA_MISMATCH\"",
 ]
 

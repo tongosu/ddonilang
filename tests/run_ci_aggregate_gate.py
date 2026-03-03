@@ -1174,13 +1174,25 @@ def main() -> int:
         ]
         return run_and_record("ci_gate_summary_report_selftest", cmd)
 
-    def check_ci_gate_report_index() -> int:
+    report_index_required_steps = [
+        "ci_sanity_gate",
+        "ci_sync_readiness_report_generate",
+        "ci_sync_readiness_report_check",
+        "seamgrim_wasm_cli_diag_parity_check",
+        "ci_gate_report_index_selftest",
+        "ci_gate_report_index_diagnostics_check",
+    ]
+
+    def check_ci_gate_report_index(require_step_contract: bool) -> int:
         cmd = [
             py,
             "tests/run_ci_gate_report_index_check.py",
             "--index",
             str(index_report_path),
         ]
+        if require_step_contract:
+            for step_name in report_index_required_steps:
+                cmd.extend(["--required-step", step_name])
         return run_and_record("ci_gate_report_index_check", cmd)
 
     def check_ci_gate_report_index_selftest() -> int:
@@ -1637,7 +1649,7 @@ def main() -> int:
         parse_aggregate_status_line()
         check_aggregate_status_line(require_pass=False)
         write_index(False, announce=False)
-        check_ci_gate_report_index()
+        check_ci_gate_report_index(require_step_contract=False)
         render_final_status_line(fail_on_bad=False)
         check_final_status_line(require_pass=False)
         parse_final_status_line()
@@ -1690,7 +1702,7 @@ def main() -> int:
         check_ci_emit_artifacts_selftest()
         check_ci_emit_artifacts_sanity_contract()
         write_index(False)
-        check_ci_gate_report_index()
+        check_ci_gate_report_index(require_step_contract=False)
         check_ci_emit_artifacts_baseline()
         lines = print_failure_block(
             steps_log,
@@ -2524,7 +2536,7 @@ def main() -> int:
             and ci_gate_failure_summary_selftest_rc == 0
         )
     )
-    ci_gate_report_index_rc = check_ci_gate_report_index()
+    ci_gate_report_index_rc = check_ci_gate_report_index(require_step_contract=True)
     if args.fast_fail and ci_gate_report_index_rc != 0:
         return fail_and_exit(
             ci_gate_report_index_rc,
