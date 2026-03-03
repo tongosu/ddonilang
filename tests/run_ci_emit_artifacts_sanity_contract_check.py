@@ -21,6 +21,7 @@ def main() -> int:
 
     required_emit_check_tokens = [
         "SANITY_REQUIRED_PASS_STEPS",
+        '"ci_profile_split_contract_check"',
         '"seamgrim_overlay_session_diag_parity_check"',
         '"seamgrim_overlay_compare_diag_parity_check"',
         '"seamgrim_overlay_session_wired_consistency_check"',
@@ -59,6 +60,7 @@ def main() -> int:
         "badsanitywiredfailed",
         "broken_sanity_required_step_missing",
         "broken_sanity_required_step_failed",
+        "ci_profile_split_contract_check",
         "ci_pack_golden_age5_surface_selftest",
         "ci_pack_golden_guideblock_selftest",
         "ci_pack_golden_exec_policy_selftest",

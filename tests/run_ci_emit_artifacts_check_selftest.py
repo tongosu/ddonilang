@@ -131,6 +131,7 @@ def build_case(
                 {"step": "backup_hygiene_selftest", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {"step": "pipeline_emit_flags_check", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {"step": "pipeline_emit_flags_selftest", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
+                {"step": "ci_profile_split_contract_check", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {"step": "seamgrim_ci_gate_seed_meta_step_check", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {
                     "step": "seamgrim_ci_gate_runtime5_passthrough_check",

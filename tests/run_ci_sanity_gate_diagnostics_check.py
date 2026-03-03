@@ -5,11 +5,16 @@ from pathlib import Path
 
 
 REQUIRED_TOKENS = [
+    "--profile",
+    '"full", "core_lang", "seamgrim"',
     "pipeline_emit_flags_check",
     "tests/run_ci_pipeline_emit_flags_check.py",
     "pipeline_emit_flags_selftest",
     "tests/run_ci_pipeline_emit_flags_check_selftest.py",
     "E_CI_SANITY_PIPELINE_FLAGS_SELFTEST_FAIL",
+    "ci_profile_split_contract_check",
+    "tests/run_ci_profile_split_contract_check.py",
+    "E_CI_SANITY_PROFILE_SPLIT_CONTRACT_FAIL",
     "seamgrim_ci_gate_seed_meta_step_check",
     "tests/run_seamgrim_ci_gate_seed_meta_step_check.py",
     "E_CI_SANITY_SEED_META_STEP_FAIL",

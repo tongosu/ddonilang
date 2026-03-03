@@ -29,6 +29,7 @@ def main() -> int:
         "backup_hygiene_selftest",
         "pipeline_emit_flags_check",
         "pipeline_emit_flags_selftest",
+        "ci_profile_split_contract_check",
         "seamgrim_ci_gate_seed_meta_step_check",
         "seamgrim_ci_gate_runtime5_passthrough_check",
         "seamgrim_interface_boundary_contract_check",
