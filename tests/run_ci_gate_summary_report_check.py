@@ -21,6 +21,8 @@ PASS_REQUIRED_KEYS = (
     "age4_status",
     "age5_status",
     "seamgrim_phase3_cleanup",
+    "seamgrim_wasm_cli_diag_parity_report",
+    "seamgrim_wasm_cli_diag_parity_ok",
     "ci_sanity_gate_report",
     "ci_sanity_gate_status",
     "ci_sanity_gate_ok",
@@ -135,6 +137,7 @@ def main() -> int:
             "age4_status": str(reports.get("age4_close", "")).strip(),
             "age5_status": str(reports.get("age5_close", "")).strip(),
             "seamgrim_phase3_cleanup": str(reports.get("seamgrim_phase3_cleanup", "")).strip(),
+            "seamgrim_wasm_cli_diag_parity_report": str(reports.get("seamgrim_wasm_cli_diag_parity", "")).strip(),
             "ci_sanity_gate_report": str(reports.get("ci_sanity_gate", "")).strip(),
             "ci_sync_readiness_report": str(reports.get("ci_sync_readiness", "")).strip(),
             "fixed64_threeway_report": str(reports.get("fixed64_threeway_gate", "")).strip(),
@@ -177,6 +180,18 @@ def main() -> int:
         if overlay_session_selftest_ok != "1":
             return fail(
                 "PASS summary requires ci_pack_golden_overlay_session_selftest_ok=1",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        seamgrim_wasm_cli_diag_parity_ok = kv.get("seamgrim_wasm_cli_diag_parity_ok", "").strip()
+        if seamgrim_wasm_cli_diag_parity_ok not in {"0", "1"}:
+            return fail(
+                "seamgrim_wasm_cli_diag_parity_ok invalid: "
+                f"{seamgrim_wasm_cli_diag_parity_ok}",
+                code=CODES["PASS_KEY_MISSING"],
+            )
+        if seamgrim_wasm_cli_diag_parity_ok != "1":
+            return fail(
+                "PASS summary requires seamgrim_wasm_cli_diag_parity_ok=1",
                 code=CODES["PASS_KEY_MISSING"],
             )
 

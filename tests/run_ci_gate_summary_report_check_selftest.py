@@ -53,6 +53,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
     age4_status = case_dir / "age4_close_report.detjson"
     age5_status = case_dir / "age5_close_report.detjson"
     phase3_cleanup = case_dir / "seamgrim_phase3_cleanup_gate_report.detjson"
+    seamgrim_wasm_cli_diag_parity_report = case_dir / "seamgrim_wasm_cli_diag_parity_report.detjson"
     ci_sanity_gate = case_dir / "ci_sanity_gate.detjson"
     ci_sync_readiness = case_dir / "ci_sync_readiness.detjson"
     fixed64_threeway_report = case_dir / "fixed64_cross_platform_threeway_gate.detjson"
@@ -66,6 +67,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
         age4_status,
         age5_status,
         phase3_cleanup,
+        seamgrim_wasm_cli_diag_parity_report,
         ci_sanity_gate,
         ci_sync_readiness,
         fixed64_threeway_report,
@@ -84,6 +86,7 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
                 "age4_close": str(age4_status),
                 "age5_close": str(age5_status),
                 "seamgrim_phase3_cleanup": str(phase3_cleanup),
+                "seamgrim_wasm_cli_diag_parity": str(seamgrim_wasm_cli_diag_parity_report),
                 "ci_sanity_gate": str(ci_sanity_gate),
                 "ci_sync_readiness": str(ci_sync_readiness),
                 "fixed64_threeway_gate": str(fixed64_threeway_report),
@@ -107,6 +110,8 @@ def build_pass_case(root: Path, name: str) -> tuple[Path, Path]:
         f"[ci-gate-summary] age4_status={age4_status}",
         f"[ci-gate-summary] age5_status={age5_status}",
         f"[ci-gate-summary] seamgrim_phase3_cleanup={phase3_cleanup}",
+        f"[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report={seamgrim_wasm_cli_diag_parity_report}",
+        "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok=1",
         f"[ci-gate-summary] ci_sanity_gate_report={ci_sanity_gate}",
         "[ci-gate-summary] ci_sanity_gate_status=pass",
         "[ci-gate-summary] ci_sanity_gate_ok=1",
@@ -179,6 +184,43 @@ def main() -> int:
             return fail("missing ci_sync key case must fail")
         if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_missing_sync.stderr:
             return fail(f"missing ci_sync key code mismatch: err={proc_missing_sync.stderr}")
+
+        summary_missing_parity_key, index_missing_parity_key = build_pass_case(root, "missing_parity_key")
+        text_missing_parity_key = summary_missing_parity_key.read_text(encoding="utf-8")
+        text_missing_parity_key = text_missing_parity_key.replace(
+            "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report=",
+            "[ci-gate-summary] REMOVED_PARITY_REPORT=",
+        )
+        write_text(summary_missing_parity_key, text_missing_parity_key)
+        proc_missing_parity_key = run_check(summary_missing_parity_key, index_missing_parity_key, require_pass=True)
+        if proc_missing_parity_key.returncode == 0:
+            return fail("missing seamgrim_wasm_cli_diag_parity_report case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_missing_parity_key.stderr:
+            return fail(f"missing seamgrim_wasm_cli_diag_parity_report code mismatch: err={proc_missing_parity_key.stderr}")
+
+        summary_bad_parity_mismatch, index_bad_parity_mismatch = build_pass_case(root, "bad_parity_mismatch")
+        bad_parity_mismatch_text = summary_bad_parity_mismatch.read_text(encoding="utf-8").replace(
+            "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report=",
+            "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report=wrong.detjson #",
+        )
+        write_text(summary_bad_parity_mismatch, bad_parity_mismatch_text)
+        proc_bad_parity_mismatch = run_check(summary_bad_parity_mismatch, index_bad_parity_mismatch, require_pass=True)
+        if proc_bad_parity_mismatch.returncode == 0:
+            return fail("seamgrim_wasm_cli_diag_parity_report mismatch case must fail")
+        if f"fail code={CODES['SUMMARY_INDEX_PATH_MISMATCH']}" not in proc_bad_parity_mismatch.stderr:
+            return fail(f"seamgrim_wasm_cli_diag_parity_report mismatch code mismatch: err={proc_bad_parity_mismatch.stderr}")
+
+        summary_bad_parity_ok, index_bad_parity_ok = build_pass_case(root, "bad_parity_ok")
+        bad_parity_ok_text = summary_bad_parity_ok.read_text(encoding="utf-8").replace(
+            "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok=1",
+            "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok=0",
+        )
+        write_text(summary_bad_parity_ok, bad_parity_ok_text)
+        proc_bad_parity_ok = run_check(summary_bad_parity_ok, index_bad_parity_ok, require_pass=True)
+        if proc_bad_parity_ok.returncode == 0:
+            return fail("seamgrim_wasm_cli_diag_parity_ok=0 case must fail")
+        if f"fail code={CODES['PASS_KEY_MISSING']}" not in proc_bad_parity_ok.stderr:
+            return fail(f"seamgrim_wasm_cli_diag_parity_ok code mismatch: err={proc_bad_parity_ok.stderr}")
 
         summary_bad_index, index_bad_index = build_pass_case(root, "bad_index")
         bad_text = summary_bad_index.read_text(encoding="utf-8").replace(

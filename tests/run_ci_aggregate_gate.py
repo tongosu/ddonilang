@@ -51,6 +51,7 @@ SEAMGRIM_SUMMARY_TOKEN_CONTRACT = [
     "[ci-gate-summary] seamgrim_runtime_fallback_metrics_status=",
     "[ci-gate-summary] seamgrim_runtime_fallback_policy_status=",
     "[ci-gate-summary] seamgrim_pendulum_bogae_shape_status=",
+    "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report=",
     "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok=",
 ]
 
@@ -2719,6 +2720,7 @@ def main() -> int:
             f"[ci-gate-summary] ci_pack_golden_exec_policy_selftest_ok={int(ci_pack_golden_exec_policy_selftest_rc == 0)}",
             f"[ci-gate-summary] ci_pack_golden_jjaim_flatten_selftest_ok={int(ci_pack_golden_jjaim_flatten_selftest_rc == 0)}",
             f"[ci-gate-summary] ci_pack_golden_event_model_selftest_ok={int(ci_pack_golden_event_model_selftest_rc == 0)}",
+            f"[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report={seamgrim_wasm_cli_diag_parity_report}",
             f"[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok={int(seamgrim_wasm_cli_diag_parity_rc == 0)}",
             f"[ci-gate-summary] final_status_compact={read_compact_line(final_status_line)}",
             f"[ci-gate-summary] age3_summary={age3_close_summary_md}",
@@ -2753,6 +2755,7 @@ def main() -> int:
             f"[ci-gate-summary] ci_pack_golden_exec_policy_selftest_ok={int(ci_pack_golden_exec_policy_selftest_rc == 0)}",
             f"[ci-gate-summary] ci_pack_golden_jjaim_flatten_selftest_ok={int(ci_pack_golden_jjaim_flatten_selftest_rc == 0)}",
             f"[ci-gate-summary] ci_pack_golden_event_model_selftest_ok={int(ci_pack_golden_event_model_selftest_rc == 0)}",
+            f"[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report={seamgrim_wasm_cli_diag_parity_report}",
             f"[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok={int(seamgrim_wasm_cli_diag_parity_rc == 0)}",
             f"[ci-gate-summary] age3_status={age3_close_status_json}",
             f"[ci-gate-summary] age4_status={age4_close_report}",

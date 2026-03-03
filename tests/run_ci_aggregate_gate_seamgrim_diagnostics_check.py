@@ -24,6 +24,7 @@ REQUIRED_TOKENS = [
     "[ci-gate-summary] seamgrim_runtime_fallback_metrics_status=",
     "[ci-gate-summary] seamgrim_runtime_fallback_policy_status=",
     "[ci-gate-summary] seamgrim_pendulum_bogae_shape_status=",
+    "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_report=",
     "[ci-gate-summary] seamgrim_wasm_cli_diag_parity_ok=",
     "seamgrim_wasm_cli_diag_parity_base_name",
     "seamgrim_wasm_cli_diag_parity_report",
