@@ -100,6 +100,7 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
         result,
         {
             "schema": "ddn.ci.gate_result.v1",
+            "ok": True,
             "status": "pass",
             "reason": "ok",
             "overall_ok": True,
@@ -110,9 +111,25 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
             "gate_index_path": str(index),
         },
     )
-    write_json(badge, {"schema": "ddn.ci.gate_badge.v1", "status": "pass", "label": "ci:pass"})
+    write_json(
+        badge,
+        {
+            "schema": "ddn.ci.gate_badge.v1",
+            "status": "pass",
+            "ok": True,
+            "label": "ci:pass",
+        },
+    )
     write_text(brief, "status=pass reason=ok failed_steps_count=0")
-    write_json(triage, {"schema": "ddn.ci.fail_triage.v1", "status": "pass", "reason": "ok"})
+    write_json(
+        triage,
+        {
+            "schema": "ddn.ci.fail_triage.v1",
+            "status": "pass",
+            "reason": "ok",
+            "summary_report_path_hint_norm": str(summary),
+        },
+    )
     write_json(
         sanity,
         {
@@ -578,6 +595,122 @@ def main() -> int:
             return fail(
                 "result final_status_parse_path mismatch code mismatch: "
                 f"err={result_final_status_parse_path_mismatch_proc.stderr}"
+            )
+
+        badge_status_mismatch_index = build_index_case(root, "badge_status_mismatch")
+        badge_status_mismatch_doc = json.loads(badge_status_mismatch_index.read_text(encoding="utf-8"))
+        badge_status_mismatch_report = Path(str(badge_status_mismatch_doc["reports"]["ci_gate_badge_json"]))
+        badge_status_mismatch_badge = json.loads(badge_status_mismatch_report.read_text(encoding="utf-8"))
+        badge_status_mismatch_badge["status"] = "fail"
+        write_json(badge_status_mismatch_report, badge_status_mismatch_badge)
+        badge_status_mismatch_proc = run_check(
+            badge_status_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if badge_status_mismatch_proc.returncode == 0:
+            return fail("badge status mismatch case must fail")
+        if f"fail code={CODES['BADGE_STATUS_MISMATCH']}" not in badge_status_mismatch_proc.stderr:
+            return fail(f"badge status mismatch code mismatch: err={badge_status_mismatch_proc.stderr}")
+
+        badge_ok_type_index = build_index_case(root, "badge_ok_type")
+        badge_ok_type_doc = json.loads(badge_ok_type_index.read_text(encoding="utf-8"))
+        badge_ok_type_report = Path(str(badge_ok_type_doc["reports"]["ci_gate_badge_json"]))
+        badge_ok_type_badge = json.loads(badge_ok_type_report.read_text(encoding="utf-8"))
+        badge_ok_type_badge["ok"] = "1"
+        write_json(badge_ok_type_report, badge_ok_type_badge)
+        badge_ok_type_proc = run_check(
+            badge_ok_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if badge_ok_type_proc.returncode == 0:
+            return fail("badge ok type case must fail")
+        if f"fail code={CODES['BADGE_OK_TYPE']}" not in badge_ok_type_proc.stderr:
+            return fail(f"badge ok type code mismatch: err={badge_ok_type_proc.stderr}")
+
+        badge_ok_mismatch_index = build_index_case(root, "badge_ok_mismatch")
+        badge_ok_mismatch_doc = json.loads(badge_ok_mismatch_index.read_text(encoding="utf-8"))
+        badge_ok_mismatch_report = Path(str(badge_ok_mismatch_doc["reports"]["ci_gate_badge_json"]))
+        badge_ok_mismatch_badge = json.loads(badge_ok_mismatch_report.read_text(encoding="utf-8"))
+        badge_ok_mismatch_badge["ok"] = False
+        write_json(badge_ok_mismatch_report, badge_ok_mismatch_badge)
+        badge_ok_mismatch_proc = run_check(
+            badge_ok_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if badge_ok_mismatch_proc.returncode == 0:
+            return fail("badge ok mismatch case must fail")
+        if f"fail code={CODES['BADGE_OK_MISMATCH']}" not in badge_ok_mismatch_proc.stderr:
+            return fail(f"badge ok mismatch code mismatch: err={badge_ok_mismatch_proc.stderr}")
+
+        triage_status_mismatch_index = build_index_case(root, "triage_status_mismatch")
+        triage_status_mismatch_doc = json.loads(triage_status_mismatch_index.read_text(encoding="utf-8"))
+        triage_status_mismatch_report = Path(str(triage_status_mismatch_doc["reports"]["ci_fail_triage_json"]))
+        triage_status_mismatch_triage = json.loads(triage_status_mismatch_report.read_text(encoding="utf-8"))
+        triage_status_mismatch_triage["status"] = "fail"
+        write_json(triage_status_mismatch_report, triage_status_mismatch_triage)
+        triage_status_mismatch_proc = run_check(
+            triage_status_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if triage_status_mismatch_proc.returncode == 0:
+            return fail("triage status mismatch case must fail")
+        if f"fail code={CODES['TRIAGE_STATUS_MISMATCH']}" not in triage_status_mismatch_proc.stderr:
+            return fail(f"triage status mismatch code mismatch: err={triage_status_mismatch_proc.stderr}")
+
+        triage_reason_mismatch_index = build_index_case(root, "triage_reason_mismatch")
+        triage_reason_mismatch_doc = json.loads(triage_reason_mismatch_index.read_text(encoding="utf-8"))
+        triage_reason_mismatch_report = Path(str(triage_reason_mismatch_doc["reports"]["ci_fail_triage_json"]))
+        triage_reason_mismatch_triage = json.loads(triage_reason_mismatch_report.read_text(encoding="utf-8"))
+        triage_reason_mismatch_triage["reason"] = "different_reason"
+        write_json(triage_reason_mismatch_report, triage_reason_mismatch_triage)
+        triage_reason_mismatch_proc = run_check(
+            triage_reason_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if triage_reason_mismatch_proc.returncode == 0:
+            return fail("triage reason mismatch case must fail")
+        if f"fail code={CODES['TRIAGE_REASON_MISMATCH']}" not in triage_reason_mismatch_proc.stderr:
+            return fail(f"triage reason mismatch code mismatch: err={triage_reason_mismatch_proc.stderr}")
+
+        triage_summary_hint_norm_mismatch_index = build_index_case(root, "triage_summary_hint_norm_mismatch")
+        triage_summary_hint_norm_mismatch_doc = json.loads(
+            triage_summary_hint_norm_mismatch_index.read_text(encoding="utf-8")
+        )
+        triage_summary_hint_norm_mismatch_report = Path(
+            str(triage_summary_hint_norm_mismatch_doc["reports"]["ci_fail_triage_json"])
+        )
+        triage_summary_hint_norm_mismatch_triage = json.loads(
+            triage_summary_hint_norm_mismatch_report.read_text(encoding="utf-8")
+        )
+        triage_summary_hint_norm_mismatch_triage["summary_report_path_hint_norm"] = str(
+            root / "mismatch" / "ci_gate_summary.txt"
+        )
+        write_json(triage_summary_hint_norm_mismatch_report, triage_summary_hint_norm_mismatch_triage)
+        triage_summary_hint_norm_mismatch_proc = run_check(
+            triage_summary_hint_norm_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if triage_summary_hint_norm_mismatch_proc.returncode == 0:
+            return fail("triage summary_hint_norm mismatch case must fail")
+        if (
+            f"fail code={CODES['TRIAGE_SUMMARY_HINT_NORM_MISMATCH']}"
+            not in triage_summary_hint_norm_mismatch_proc.stderr
+        ):
+            return fail(
+                "triage summary_hint_norm mismatch code mismatch: "
+                f"err={triage_summary_hint_norm_mismatch_proc.stderr}"
             )
 
         cmd_empty_index = build_index_case(root, "cmd_empty")

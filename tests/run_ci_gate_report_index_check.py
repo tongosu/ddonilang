@@ -25,6 +25,8 @@ REQUIRED_REPORT_PATH_KEYS = (
 
 ARTIFACT_SCHEMA_MAP = {
     "ci_gate_result_json": "ddn.ci.gate_result.v1",
+    "ci_gate_badge_json": "ddn.ci.gate_badge.v1",
+    "ci_fail_triage_json": "ddn.ci.fail_triage.v1",
     "ci_sanity_gate": "ddn.ci.sanity_gate.v1",
     "ci_sync_readiness": "ddn.ci.sync_readiness.v1",
     "seamgrim_wasm_cli_diag_parity": "ddn.seamgrim.wasm_cli_diag_parity.v1",
@@ -295,6 +297,51 @@ def main() -> int:
         return fail(
             "ci_gate_result final_status_parse_path mismatch",
             CODES["RESULT_FINAL_STATUS_PARSE_PATH_MISMATCH"],
+        )
+
+    result_ok = result_doc.get("ok")
+    expected_result_ok = result_status == "pass" and result_overall_ok and result_failed_steps == 0
+    if not isinstance(result_ok, bool):
+        expected_result_ok = False
+    else:
+        expected_result_ok = bool(result_ok)
+    result_reason = str(result_doc.get("reason", "")).strip() or "-"
+
+    badge_doc = artifact_docs["ci_gate_badge_json"]
+    badge_status = str(badge_doc.get("status", "")).strip()
+    if badge_status != result_status:
+        return fail(
+            f"ci_gate_badge status mismatch expected={result_status} actual={badge_status}",
+            CODES["BADGE_STATUS_MISMATCH"],
+        )
+    badge_ok = badge_doc.get("ok")
+    if not isinstance(badge_ok, bool):
+        return fail("ci_gate_badge ok must be bool", CODES["BADGE_OK_TYPE"])
+    if bool(badge_ok) != bool(expected_result_ok):
+        return fail(
+            f"ci_gate_badge ok mismatch expected={int(bool(expected_result_ok))} actual={int(bool(badge_ok))}",
+            CODES["BADGE_OK_MISMATCH"],
+        )
+
+    triage_doc = artifact_docs["ci_fail_triage_json"]
+    triage_status = str(triage_doc.get("status", "")).strip()
+    if triage_status != result_status:
+        return fail(
+            f"ci_fail_triage status mismatch expected={result_status} actual={triage_status}",
+            CODES["TRIAGE_STATUS_MISMATCH"],
+        )
+    triage_reason = str(triage_doc.get("reason", "")).strip() or "-"
+    if triage_reason != result_reason:
+        return fail(
+            f"ci_fail_triage reason mismatch expected={result_reason} actual={triage_reason}",
+            CODES["TRIAGE_REASON_MISMATCH"],
+        )
+    triage_summary_hint_norm = normalize_path_text(str(triage_doc.get("summary_report_path_hint_norm", "")).strip())
+    expected_summary_hint_norm = normalize_path_text(str(resolved_report_paths["summary"]))
+    if triage_summary_hint_norm != expected_summary_hint_norm:
+        return fail(
+            "ci_fail_triage summary_report_path_hint_norm mismatch",
+            CODES["TRIAGE_SUMMARY_HINT_NORM_MISMATCH"],
         )
 
     required_steps: list[str] = []
