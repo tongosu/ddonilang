@@ -316,6 +316,34 @@ CI_SYNC_READINESS_REPORT_PATH_CONTRACT_TOKENS = [
     "out_path = Path(args.json_out)",
 ]
 
+CI_GATE_REPORT_INDEX_CONTRACT_SCRIPT = Path("tests/run_ci_aggregate_gate.py")
+CI_GATE_REPORT_INDEX_CHECK_SCRIPT = Path("tests/run_ci_gate_report_index_check.py")
+CI_GATE_REPORT_INDEX_SELFTEST_SCRIPT = Path("tests/run_ci_gate_report_index_check_selftest.py")
+CI_GATE_REPORT_INDEX_DIAGNOSTICS_SCRIPT = Path("tests/run_ci_gate_report_index_diagnostics_check.py")
+CI_GATE_REPORT_INDEX_CODE_MAP = Path("tests/ci_check_error_codes.py")
+CI_GATE_REPORT_INDEX_CONTRACT_TOKENS = [
+    "check_ci_gate_report_index",
+    "check_ci_gate_report_index_selftest",
+    "check_ci_gate_report_index_diagnostics",
+    "ci_gate_report_index_check",
+    "ci_gate_report_index_selftest",
+    "ci_gate_report_index_diagnostics_check",
+    "tests/run_ci_gate_report_index_check.py",
+    "tests/run_ci_gate_report_index_check_selftest.py",
+    "tests/run_ci_gate_report_index_diagnostics_check.py",
+]
+CI_GATE_REPORT_INDEX_CHECK_TOKENS = [
+    "INDEX_SCHEMA = \"ddn.ci.aggregate_gate.index.v1\"",
+    "\"seamgrim_wasm_cli_diag_parity\"",
+    "\"ddn.seamgrim.wasm_cli_diag_parity.v1\"",
+    "GATE_REPORT_INDEX_CODES",
+]
+CI_GATE_REPORT_INDEX_CODE_MAP_TOKENS = [
+    "GATE_REPORT_INDEX_CODES",
+    "\"INDEX_MISSING\": \"E_GATE_INDEX_MISSING\"",
+    "\"ARTIFACT_SCHEMA_MISMATCH\": \"E_GATE_INDEX_ARTIFACT_SCHEMA_MISMATCH\"",
+]
+
 CI_SEAMGRIM_DIAG_PARITY_SCRIPTS = {
     "wasm_cli": Path("tests/run_seamgrim_wasm_cli_diag_parity_check.py"),
     "overlay_compare": Path("tests/run_seamgrim_overlay_compare_diag_parity_check.py"),
@@ -1239,6 +1267,87 @@ def build_criteria(
             )
         )
         pending_items.append("AGE5 CI sync_readiness check의 report 경로 계약 토큰(--report-prefix/--json-out/out_path) 유지")
+
+    gate_report_index_contract_paths = [
+        CI_GATE_REPORT_INDEX_CONTRACT_SCRIPT,
+        CI_GATE_REPORT_INDEX_CHECK_SCRIPT,
+        CI_GATE_REPORT_INDEX_SELFTEST_SCRIPT,
+        CI_GATE_REPORT_INDEX_DIAGNOSTICS_SCRIPT,
+        CI_GATE_REPORT_INDEX_CODE_MAP,
+    ]
+    missing_gate_report_index_contract_paths = [
+        str(path) for path in gate_report_index_contract_paths if not (root / path).exists()
+    ]
+    gate_report_index_contract_paths_ok = len(missing_gate_report_index_contract_paths) == 0
+    criteria.append(
+        {
+            "name": "age5_ci_gate_report_index_contract_paths_present",
+            "ok": gate_report_index_contract_paths_ok,
+            "detail": "missing={} sample={}".format(
+                len(missing_gate_report_index_contract_paths),
+                sample_items(missing_gate_report_index_contract_paths),
+            ),
+        }
+    )
+    if not gate_report_index_contract_paths_ok:
+        failure_digest.append(
+            "age5_ci_gate_report_index_contract_paths_present: missing={}".format(
+                clip(full_items(missing_gate_report_index_contract_paths), 500)
+            )
+        )
+        pending_items.append("AGE5 CI report-index 계약 스크립트/check/selftest/diagnostics/code-map 파일 유지")
+
+    gate_report_index_contract_text = load_text(root / CI_GATE_REPORT_INDEX_CONTRACT_SCRIPT)
+    gate_report_index_check_text = load_text(root / CI_GATE_REPORT_INDEX_CHECK_SCRIPT)
+    gate_report_index_code_map_text = load_text(root / CI_GATE_REPORT_INDEX_CODE_MAP)
+    missing_gate_report_index_contract_tokens = [
+        token for token in CI_GATE_REPORT_INDEX_CONTRACT_TOKENS if token not in gate_report_index_contract_text
+    ]
+    missing_gate_report_index_check_tokens = [
+        token for token in CI_GATE_REPORT_INDEX_CHECK_TOKENS if token not in gate_report_index_check_text
+    ]
+    missing_gate_report_index_code_map_tokens = [
+        token for token in CI_GATE_REPORT_INDEX_CODE_MAP_TOKENS if token not in gate_report_index_code_map_text
+    ]
+    gate_report_index_contract_tokens_ok = (
+        len(missing_gate_report_index_contract_tokens) == 0
+        and len(missing_gate_report_index_check_tokens) == 0
+        and len(missing_gate_report_index_code_map_tokens) == 0
+    )
+    criteria.append(
+        {
+            "name": "age5_ci_gate_report_index_contract_tokens_present",
+            "ok": gate_report_index_contract_tokens_ok,
+            "detail": "aggregate_missing={} check_missing={} code_map_missing={} aggregate_sample={} check_sample={} code_map_sample={}".format(
+                len(missing_gate_report_index_contract_tokens),
+                len(missing_gate_report_index_check_tokens),
+                len(missing_gate_report_index_code_map_tokens),
+                sample_items(missing_gate_report_index_contract_tokens),
+                sample_items(missing_gate_report_index_check_tokens),
+                sample_items(missing_gate_report_index_code_map_tokens),
+            ),
+        }
+    )
+    if not gate_report_index_contract_tokens_ok:
+        if missing_gate_report_index_contract_tokens:
+            failure_digest.append(
+                "age5_ci_gate_report_index_contract_tokens_present.aggregate: missing={}".format(
+                    clip(full_items(missing_gate_report_index_contract_tokens), 500)
+                )
+            )
+        if missing_gate_report_index_check_tokens:
+            failure_digest.append(
+                "age5_ci_gate_report_index_contract_tokens_present.check: missing={}".format(
+                    clip(full_items(missing_gate_report_index_check_tokens), 500)
+                )
+            )
+        if missing_gate_report_index_code_map_tokens:
+            failure_digest.append(
+                "age5_ci_gate_report_index_contract_tokens_present.code_map: missing={}".format(
+                    clip(full_items(missing_gate_report_index_code_map_tokens), 500)
+                )
+            )
+        pending_items.append("AGE5 CI report-index 계약 토큰(check/selftest/diagnostics + code-map) 유지")
 
     missing_seamgrim_diag_parity_scripts = [
         f"{name}:{path}"

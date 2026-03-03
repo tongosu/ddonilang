@@ -1190,6 +1190,13 @@ def main() -> int:
         ]
         return run_and_record("ci_gate_report_index_selftest", cmd)
 
+    def check_ci_gate_report_index_diagnostics() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_gate_report_index_diagnostics_check.py",
+        ]
+        return run_and_record("ci_gate_report_index_diagnostics_check", cmd)
+
     def check_ci_aggregate_gate_age4_diagnostics() -> int:
         cmd = [
             py,
@@ -1679,6 +1686,7 @@ def main() -> int:
         check_seamgrim_5min_checklist_selftest()
         check_ci_gate_failure_summary_selftest()
         check_ci_gate_report_index_selftest()
+        check_ci_gate_report_index_diagnostics()
         check_ci_emit_artifacts_selftest()
         check_ci_emit_artifacts_sanity_contract()
         write_index(False)
@@ -2343,6 +2351,12 @@ def main() -> int:
             ci_gate_report_index_selftest_rc,
             "[ci-gate] fast-fail: ci gate report-index selftest failed",
         )
+    ci_gate_report_index_diagnostics_rc = check_ci_gate_report_index_diagnostics()
+    if args.fast_fail and ci_gate_report_index_diagnostics_rc != 0:
+        return fail_and_exit(
+            ci_gate_report_index_diagnostics_rc,
+            "[ci-gate] fast-fail: ci gate report-index diagnostics check failed",
+        )
     ci_aggregate_status_line_selftest_rc = check_ci_aggregate_status_line_selftest()
     if args.fast_fail and ci_aggregate_status_line_selftest_rc != 0:
         return fail_and_exit(
@@ -2493,6 +2507,7 @@ def main() -> int:
             and ci_sanity_gate_diagnostics_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
             and ci_gate_report_index_selftest_rc == 0
+            and ci_gate_report_index_diagnostics_rc == 0
             and ci_aggregate_status_line_selftest_rc == 0
             and ci_combine_reports_age4_selftest_rc == 0
             and ci_combine_reports_age5_selftest_rc == 0
@@ -2642,6 +2657,7 @@ def main() -> int:
         or ci_sanity_gate_diagnostics_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
         or ci_gate_report_index_selftest_rc != 0
+        or ci_gate_report_index_diagnostics_rc != 0
         or ci_gate_report_index_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
