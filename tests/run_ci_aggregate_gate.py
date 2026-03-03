@@ -1174,6 +1174,22 @@ def main() -> int:
         ]
         return run_and_record("ci_gate_summary_report_selftest", cmd)
 
+    def check_ci_gate_report_index() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_gate_report_index_check.py",
+            "--index",
+            str(index_report_path),
+        ]
+        return run_and_record("ci_gate_report_index_check", cmd)
+
+    def check_ci_gate_report_index_selftest() -> int:
+        cmd = [
+            py,
+            "tests/run_ci_gate_report_index_check_selftest.py",
+        ]
+        return run_and_record("ci_gate_report_index_selftest", cmd)
+
     def check_ci_aggregate_gate_age4_diagnostics() -> int:
         cmd = [
             py,
@@ -1614,6 +1630,7 @@ def main() -> int:
         parse_aggregate_status_line()
         check_aggregate_status_line(require_pass=False)
         write_index(False, announce=False)
+        check_ci_gate_report_index()
         render_final_status_line(fail_on_bad=False)
         check_final_status_line(require_pass=False)
         parse_final_status_line()
@@ -1661,9 +1678,11 @@ def main() -> int:
         check_seamgrim_browse_selection_report_selftest()
         check_seamgrim_5min_checklist_selftest()
         check_ci_gate_failure_summary_selftest()
+        check_ci_gate_report_index_selftest()
         check_ci_emit_artifacts_selftest()
         check_ci_emit_artifacts_sanity_contract()
         write_index(False)
+        check_ci_gate_report_index()
         check_ci_emit_artifacts_baseline()
         lines = print_failure_block(
             steps_log,
@@ -2318,6 +2337,12 @@ def main() -> int:
             ci_gate_summary_report_selftest_rc,
             "[ci-gate] fast-fail: ci gate summary report selftest failed",
         )
+    ci_gate_report_index_selftest_rc = check_ci_gate_report_index_selftest()
+    if args.fast_fail and ci_gate_report_index_selftest_rc != 0:
+        return fail_and_exit(
+            ci_gate_report_index_selftest_rc,
+            "[ci-gate] fast-fail: ci gate report-index selftest failed",
+        )
     ci_aggregate_status_line_selftest_rc = check_ci_aggregate_status_line_selftest()
     if args.fast_fail and ci_aggregate_status_line_selftest_rc != 0:
         return fail_and_exit(
@@ -2467,6 +2492,7 @@ def main() -> int:
             and ci_aggregate_gate_sanity_diagnostics_rc == 0
             and ci_sanity_gate_diagnostics_rc == 0
             and ci_gate_summary_report_selftest_rc == 0
+            and ci_gate_report_index_selftest_rc == 0
             and ci_aggregate_status_line_selftest_rc == 0
             and ci_combine_reports_age4_selftest_rc == 0
             and ci_combine_reports_age5_selftest_rc == 0
@@ -2483,6 +2509,12 @@ def main() -> int:
             and ci_gate_failure_summary_selftest_rc == 0
         )
     )
+    ci_gate_report_index_rc = check_ci_gate_report_index()
+    if args.fast_fail and ci_gate_report_index_rc != 0:
+        return fail_and_exit(
+            ci_gate_report_index_rc,
+            "[ci-gate] fast-fail: ci gate report-index check failed",
+        )
 
     if combine_rc != 0:
         lines = print_failure_block(
@@ -2609,6 +2641,8 @@ def main() -> int:
         or ci_aggregate_gate_sanity_diagnostics_rc != 0
         or ci_sanity_gate_diagnostics_rc != 0
         or ci_gate_summary_report_selftest_rc != 0
+        or ci_gate_report_index_selftest_rc != 0
+        or ci_gate_report_index_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
         or ci_combine_reports_age5_selftest_rc != 0
