@@ -24,6 +24,7 @@ REQUIRED_REPORT_PATH_KEYS = (
 )
 
 ARTIFACT_SCHEMA_MAP = {
+    "final_status_parse_json": "ddn.ci.status_line.parse.v1",
     "ci_gate_result_json": "ddn.ci.gate_result.v1",
     "ci_gate_badge_json": "ddn.ci.gate_badge.v1",
     "ci_fail_triage_json": "ddn.ci.fail_triage.v1",
@@ -223,6 +224,43 @@ def main() -> int:
                 CODES["ARTIFACT_SCHEMA_MISMATCH"],
             )
         artifact_docs[key] = artifact_doc
+
+    final_parse_doc = artifact_docs["final_status_parse_json"]
+    final_parse_parsed = final_parse_doc.get("parsed")
+    if not isinstance(final_parse_parsed, dict):
+        return fail("final_status_parse parsed missing", CODES["FINAL_PARSE_PARSED_MISSING"])
+    expected_final_parse_status = "pass" if index_overall_ok else "fail"
+    final_parse_status = str(final_parse_parsed.get("status", "")).strip()
+    if final_parse_status != expected_final_parse_status:
+        return fail(
+            f"final_status_parse status mismatch expected={expected_final_parse_status} actual={final_parse_status}",
+            CODES["FINAL_PARSE_STATUS_MISMATCH"],
+        )
+    final_parse_overall_ok_raw = str(final_parse_parsed.get("overall_ok", "")).strip()
+    if final_parse_overall_ok_raw not in {"0", "1"}:
+        return fail(
+            f"final_status_parse overall_ok invalid: {final_parse_overall_ok_raw}",
+            CODES["FINAL_PARSE_OVERALL_OK_INVALID"],
+        )
+    final_parse_overall_ok = final_parse_overall_ok_raw == "1"
+    if final_parse_overall_ok != index_overall_ok:
+        return fail(
+            f"final_status_parse overall_ok mismatch expected={int(index_overall_ok)} actual={int(final_parse_overall_ok)}",
+            CODES["FINAL_PARSE_OVERALL_OK_MISMATCH"],
+        )
+    final_parse_failed_steps_raw = str(final_parse_parsed.get("failed_steps", "")).strip()
+    try:
+        final_parse_failed_steps = int(final_parse_failed_steps_raw)
+    except Exception:
+        return fail(
+            "final_status_parse failed_steps must be int string",
+            CODES["FINAL_PARSE_FAILED_STEPS_TYPE"],
+        )
+    if final_parse_failed_steps != failed_step_count:
+        return fail(
+            f"final_status_parse failed_steps mismatch expected={failed_step_count} actual={final_parse_failed_steps}",
+            CODES["FINAL_PARSE_FAILED_STEPS_MISMATCH"],
+        )
 
     sanity_profile = str(artifact_docs["ci_sanity_gate"].get("profile", "")).strip()
     if sanity_profile not in VALID_SANITY_PROFILES:

@@ -305,6 +305,132 @@ def main() -> int:
         if f"fail code={CODES['ARTIFACT_SCHEMA_MISMATCH']}" not in bad_schema_proc.stderr:
             return fail(f"bad schema code mismatch: err={bad_schema_proc.stderr}")
 
+        final_parse_parsed_missing_index = build_index_case(root, "final_parse_parsed_missing")
+        final_parse_parsed_missing_doc = json.loads(final_parse_parsed_missing_index.read_text(encoding="utf-8"))
+        final_parse_parsed_missing_report = Path(str(final_parse_parsed_missing_doc["reports"]["final_status_parse_json"]))
+        final_parse_parsed_missing_payload = json.loads(final_parse_parsed_missing_report.read_text(encoding="utf-8"))
+        final_parse_parsed_missing_payload["parsed"] = []
+        write_json(final_parse_parsed_missing_report, final_parse_parsed_missing_payload)
+        final_parse_parsed_missing_proc = run_check(
+            final_parse_parsed_missing_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_parsed_missing_proc.returncode == 0:
+            return fail("final parse parsed missing case must fail")
+        if f"fail code={CODES['FINAL_PARSE_PARSED_MISSING']}" not in final_parse_parsed_missing_proc.stderr:
+            return fail(f"final parse parsed missing code mismatch: err={final_parse_parsed_missing_proc.stderr}")
+
+        final_parse_status_mismatch_index = build_index_case(root, "final_parse_status_mismatch")
+        final_parse_status_mismatch_doc = json.loads(final_parse_status_mismatch_index.read_text(encoding="utf-8"))
+        final_parse_status_mismatch_report = Path(str(final_parse_status_mismatch_doc["reports"]["final_status_parse_json"]))
+        final_parse_status_mismatch_payload = json.loads(final_parse_status_mismatch_report.read_text(encoding="utf-8"))
+        final_parse_status_mismatch_payload["parsed"]["status"] = "fail"
+        write_json(final_parse_status_mismatch_report, final_parse_status_mismatch_payload)
+        final_parse_status_mismatch_proc = run_check(
+            final_parse_status_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_status_mismatch_proc.returncode == 0:
+            return fail("final parse status mismatch case must fail")
+        if f"fail code={CODES['FINAL_PARSE_STATUS_MISMATCH']}" not in final_parse_status_mismatch_proc.stderr:
+            return fail(f"final parse status mismatch code mismatch: err={final_parse_status_mismatch_proc.stderr}")
+
+        final_parse_overall_ok_invalid_index = build_index_case(root, "final_parse_overall_ok_invalid")
+        final_parse_overall_ok_invalid_doc = json.loads(final_parse_overall_ok_invalid_index.read_text(encoding="utf-8"))
+        final_parse_overall_ok_invalid_report = Path(
+            str(final_parse_overall_ok_invalid_doc["reports"]["final_status_parse_json"])
+        )
+        final_parse_overall_ok_invalid_payload = json.loads(final_parse_overall_ok_invalid_report.read_text(encoding="utf-8"))
+        final_parse_overall_ok_invalid_payload["parsed"]["overall_ok"] = "true"
+        write_json(final_parse_overall_ok_invalid_report, final_parse_overall_ok_invalid_payload)
+        final_parse_overall_ok_invalid_proc = run_check(
+            final_parse_overall_ok_invalid_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_overall_ok_invalid_proc.returncode == 0:
+            return fail("final parse overall_ok invalid case must fail")
+        if f"fail code={CODES['FINAL_PARSE_OVERALL_OK_INVALID']}" not in final_parse_overall_ok_invalid_proc.stderr:
+            return fail(f"final parse overall_ok invalid code mismatch: err={final_parse_overall_ok_invalid_proc.stderr}")
+
+        final_parse_overall_ok_mismatch_index = build_index_case(root, "final_parse_overall_ok_mismatch")
+        final_parse_overall_ok_mismatch_doc = json.loads(final_parse_overall_ok_mismatch_index.read_text(encoding="utf-8"))
+        final_parse_overall_ok_mismatch_report = Path(
+            str(final_parse_overall_ok_mismatch_doc["reports"]["final_status_parse_json"])
+        )
+        final_parse_overall_ok_mismatch_payload = json.loads(
+            final_parse_overall_ok_mismatch_report.read_text(encoding="utf-8")
+        )
+        final_parse_overall_ok_mismatch_payload["parsed"]["overall_ok"] = "0"
+        write_json(final_parse_overall_ok_mismatch_report, final_parse_overall_ok_mismatch_payload)
+        final_parse_overall_ok_mismatch_proc = run_check(
+            final_parse_overall_ok_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_overall_ok_mismatch_proc.returncode == 0:
+            return fail("final parse overall_ok mismatch case must fail")
+        if (
+            f"fail code={CODES['FINAL_PARSE_OVERALL_OK_MISMATCH']}"
+            not in final_parse_overall_ok_mismatch_proc.stderr
+        ):
+            return fail(
+                f"final parse overall_ok mismatch code mismatch: err={final_parse_overall_ok_mismatch_proc.stderr}"
+            )
+
+        final_parse_failed_steps_type_index = build_index_case(root, "final_parse_failed_steps_type")
+        final_parse_failed_steps_type_doc = json.loads(final_parse_failed_steps_type_index.read_text(encoding="utf-8"))
+        final_parse_failed_steps_type_report = Path(
+            str(final_parse_failed_steps_type_doc["reports"]["final_status_parse_json"])
+        )
+        final_parse_failed_steps_type_payload = json.loads(final_parse_failed_steps_type_report.read_text(encoding="utf-8"))
+        final_parse_failed_steps_type_payload["parsed"]["failed_steps"] = "x"
+        write_json(final_parse_failed_steps_type_report, final_parse_failed_steps_type_payload)
+        final_parse_failed_steps_type_proc = run_check(
+            final_parse_failed_steps_type_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_failed_steps_type_proc.returncode == 0:
+            return fail("final parse failed_steps type case must fail")
+        if f"fail code={CODES['FINAL_PARSE_FAILED_STEPS_TYPE']}" not in final_parse_failed_steps_type_proc.stderr:
+            return fail(f"final parse failed_steps type code mismatch: err={final_parse_failed_steps_type_proc.stderr}")
+
+        final_parse_failed_steps_mismatch_index = build_index_case(root, "final_parse_failed_steps_mismatch")
+        final_parse_failed_steps_mismatch_doc = json.loads(
+            final_parse_failed_steps_mismatch_index.read_text(encoding="utf-8")
+        )
+        final_parse_failed_steps_mismatch_report = Path(
+            str(final_parse_failed_steps_mismatch_doc["reports"]["final_status_parse_json"])
+        )
+        final_parse_failed_steps_mismatch_payload = json.loads(
+            final_parse_failed_steps_mismatch_report.read_text(encoding="utf-8")
+        )
+        final_parse_failed_steps_mismatch_payload["parsed"]["failed_steps"] = "1"
+        write_json(final_parse_failed_steps_mismatch_report, final_parse_failed_steps_mismatch_payload)
+        final_parse_failed_steps_mismatch_proc = run_check(
+            final_parse_failed_steps_mismatch_index,
+            REQUIRED_STEPS_FULL,
+            sanity_profile="full",
+            enforce_profile_step_contract=True,
+        )
+        if final_parse_failed_steps_mismatch_proc.returncode == 0:
+            return fail("final parse failed_steps mismatch case must fail")
+        if (
+            f"fail code={CODES['FINAL_PARSE_FAILED_STEPS_MISMATCH']}"
+            not in final_parse_failed_steps_mismatch_proc.stderr
+        ):
+            return fail(
+                f"final parse failed_steps mismatch code mismatch: err={final_parse_failed_steps_mismatch_proc.stderr}"
+            )
+
         missing_required_step_index = build_index_case(root, "missing_required_step")
         missing_required_step_doc = json.loads(missing_required_step_index.read_text(encoding="utf-8"))
         missing_required_step_doc["steps"] = [
