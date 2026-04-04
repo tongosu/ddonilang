@@ -8,6 +8,7 @@
 // - N3: 완전 정본 (빌드/증명)
 
 use crate::ast::*;
+use std::collections::HashMap;
 
 /// 정규화 레벨
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +28,7 @@ pub struct Normalizer {
     _level: NormalizationLevel,
     indent: usize,
     output: String,
+    call_signatures: HashMap<String, Vec<ParamPin>>,
 }
 
 impl Normalizer {
@@ -35,11 +37,13 @@ impl Normalizer {
             _level: level,
             indent: 0,
             output: String::new(),
+            call_signatures: HashMap::new(),
         }
     }
 
     /// 프로그램 정본화
     pub fn normalize_program(&mut self, program: &CanonProgram) -> String {
+        self.call_signatures = collect_call_signatures(program);
         for item in &program.items {
             self.normalize_top_level_item(item);
             self.write("\n\n");
@@ -164,8 +168,7 @@ impl Normalizer {
     fn normalize_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::DeclBlock { items, .. } => {
-                self.write("채비");
-                self.write(": ");
+                self.write("채비 ");
                 self.write("{\n");
                 self.indent += 1;
                 for item in items {
@@ -188,14 +191,32 @@ impl Normalizer {
                 self.write("}");
                 self.write_stmt_terminator(stmt);
             }
-            Stmt::Mutate { target, value, .. } => {
+            Stmt::Mutate {
+                target,
+                value,
+                deferred,
+                ..
+            } => {
                 self.normalize_expr(target);
                 self.write(" <- ");
                 self.normalize_expr(value);
+                if *deferred {
+                    self.write(" 미루기");
+                }
                 self.write_stmt_terminator(stmt);
             }
             Stmt::Expr { expr, .. } => {
                 self.normalize_expr(expr);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Show { expr, .. } => {
+                self.normalize_expr(expr);
+                self.write(" 보여주기");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Inspect { expr, .. } => {
+                self.normalize_expr(expr);
+                self.write(" 톺아보기");
                 self.write_stmt_terminator(stmt);
             }
             Stmt::MetaBlock { kind, entries, .. } => {
@@ -207,15 +228,24 @@ impl Normalizer {
                     }
                     self.write("}");
                     self.write_stmt_terminator(stmt);
+                } else if matches!(kind, MetaBlockKind::Jjaim) {
+                    // AGE5 최소 수용: 짜임 블록 본문을 opaque로 정본 재출력
+                    self.write("짜임 {");
+                    if let Some(raw) = entries.first() {
+                        self.write(raw);
+                    }
+                    self.write("}");
+                    self.write_stmt_terminator(stmt);
                 } else {
                     let name = match kind {
                         MetaBlockKind::Setting => "설정",
                         MetaBlockKind::Bogae => "보개",
                         MetaBlockKind::Seulgi => "슬기",
                         MetaBlockKind::BogeaMadang => unreachable!(),
+                        MetaBlockKind::Jjaim => unreachable!(),
                     };
                     self.write(name);
-                    self.write(": ");
+                    self.write(" ");
                     self.write("{\n");
                     self.indent += 1;
                     for entry in entries {
@@ -239,7 +269,7 @@ impl Normalizer {
             }
             Stmt::Return { value, .. } => {
                 self.normalize_expr(value);
-                self.write(" 돌려줘");
+                self.write(" 되돌림");
                 self.write_stmt_terminator(stmt);
             }
             Stmt::If {
@@ -281,14 +311,51 @@ impl Normalizer {
                 self.indent -= 1;
             }
             Stmt::Repeat { body, .. } => {
-                self.write("반복: ");
+                self.write("되풀이 ");
                 self.normalize_body(body);
+            }
+            Stmt::BeatBlock { body, .. } => {
+                self.write("덩이 ");
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Hook { kind, body, .. } => {
+                match kind {
+                    HookKind::Start => self.write("(시작)할때 "),
+                    HookKind::End => self.write("(끝)할때 "),
+                    HookKind::EveryMadi => self.write("(매마디)마다 "),
+                    HookKind::EveryNMadi(interval) => {
+                        self.write("(");
+                        self.write(&interval.to_string());
+                        self.write("마디)마다 ");
+                    }
+                }
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::HookWhenBecomes {
+                condition, body, ..
+            } => {
+                self.write("(");
+                self.normalize_expr(condition);
+                self.write(")이 될때 ");
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::HookWhile {
+                condition, body, ..
+            } => {
+                self.write("(");
+                self.normalize_expr(condition);
+                self.write(")인 동안 ");
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
             }
             Stmt::While {
                 condition, body, ..
             } => {
                 self.normalize_expr(condition);
-                self.write(" 동안: ");
+                self.write(" 동안 ");
                 self.normalize_body(body);
             }
             Stmt::ForEach {
@@ -306,7 +373,24 @@ impl Normalizer {
                 }
                 self.write(") ");
                 self.normalize_expr(iterable);
-                self.write("에 대해: ");
+                self.write("에 대해 ");
+                self.normalize_body(body);
+            }
+            Stmt::Quantifier {
+                kind,
+                variable,
+                domain,
+                body,
+                ..
+            } => {
+                self.write(variable);
+                self.write(" 이 ");
+                self.normalize_type(domain);
+                match kind {
+                    QuantifierKind::ForAll => self.write(" 낱낱에 대해 "),
+                    QuantifierKind::Exists => self.write(" 중 하나가 "),
+                    QuantifierKind::ExistsUnique => self.write(" 중 딱 하나가 "),
+                }
                 self.normalize_body(body);
             }
             Stmt::Break { .. } => {
@@ -372,33 +456,10 @@ impl Normalizer {
                 if self.normalize_transform_call(args, func) {
                     return;
                 }
-                // ???? ??: (args) func
-                self.write("(");
-                let mut first = true;
-                for arg in args.iter() {
-                    if matches!(arg.binding_reason, BindingReason::FlowInjected) {
-                        continue;
-                    }
-                    if !first {
-                        self.write(", ");
-                    }
-                    first = false;
-                    if matches!(arg.binding_reason, BindingReason::UserFixed) {
-                        if let Some(pin) = &arg.resolved_pin {
-                            self.write(pin);
-                            self.write("=");
-                        }
-                        self.normalize_expr(&arg.expr);
-                    } else {
-                        self.normalize_expr(&arg.expr);
-                    }
-                    if let Some(josa) = &arg.josa {
-                        self.write("~");
-                        self.write(josa);
-                    }
+                if self.normalize_bound_call(args, func) {
+                    return;
                 }
-                self.write(") ");
-                self.write(func);
+                self.normalize_positional_call(args, func);
             }
             ExprKind::Infix { left, op, right } => {
                 self.normalize_expr(left);
@@ -456,6 +517,12 @@ impl Normalizer {
                 }
                 self.write(")");
             }
+            ExprKind::Assertion(assertion) => {
+                self.write(&assertion.canon);
+            }
+            ExprKind::StateMachine(machine) => {
+                self.normalize_state_machine_literal(machine);
+            }
             ExprKind::Formula(formula) => {
                 self.normalize_formula_literal(formula);
             }
@@ -479,6 +546,113 @@ impl Normalizer {
                 self.normalize_expr(expr);
             }
         }
+    }
+
+    fn normalize_bound_call(&mut self, args: &[ArgBinding], func: &str) -> bool {
+        let rendered = self.render_bound_call_args(args, func);
+        if rendered.is_empty() {
+            return false;
+        }
+        self.write(&rendered.join(" "));
+        self.write(" ");
+        self.write(func);
+        true
+    }
+
+    fn normalize_positional_call(&mut self, args: &[ArgBinding], func: &str) {
+        self.write("(");
+        let mut first = true;
+        for arg in args.iter() {
+            if matches!(arg.binding_reason, BindingReason::FlowInjected) {
+                continue;
+            }
+            if !first {
+                self.write(", ");
+            }
+            first = false;
+            self.normalize_call_arg_fallback(arg, func);
+        }
+        self.write(") ");
+        self.write(func);
+    }
+
+    fn normalize_call_arg_fallback(&mut self, arg: &ArgBinding, func: &str) {
+        if let Some(text) = self.render_bound_arg_text(arg, func) {
+            self.write(&text);
+            return;
+        }
+        self.normalize_expr(&arg.expr);
+        if let Some(josa) = &arg.josa {
+            self.write("~");
+            self.write(josa);
+        }
+    }
+
+    fn render_bound_call_args(&self, args: &[ArgBinding], func: &str) -> Vec<String> {
+        let mut rendered = Vec::new();
+        for arg in args {
+            if matches!(arg.binding_reason, BindingReason::FlowInjected) {
+                continue;
+            }
+            let Some(text) = self.render_bound_arg_text(arg, func) else {
+                return Vec::new();
+            };
+            rendered.push(text);
+        }
+        rendered
+    }
+
+    fn render_bound_arg_text(&self, arg: &ArgBinding, func: &str) -> Option<String> {
+        let expr = self.render_expr_inline(&arg.expr)?;
+        if let Some(josa) = self.preferred_param_josa(func, arg) {
+            return Some(format!("{expr}~{josa}"));
+        }
+        if let Some(pin) = &arg.resolved_pin {
+            return Some(format!("{expr}:{pin}"));
+        }
+        if let Some(josa) = &arg.josa {
+            return Some(format!("{expr}~{josa}"));
+        }
+        None
+    }
+
+    fn preferred_param_josa(&self, func: &str, arg: &ArgBinding) -> Option<&str> {
+        let pin = arg.resolved_pin.as_deref()?;
+        let params = self.call_signatures.get(func)?;
+        let param = params.iter().find(|param| param.pin_name == pin)?;
+        param
+            .josa_list
+            .iter()
+            .find(|candidate| self.is_unique_param_josa(params, pin, candidate))
+            .map(|candidate| candidate.as_str())
+    }
+
+    fn is_unique_param_josa(&self, params: &[ParamPin], pin: &str, josa: &str) -> bool {
+        params.iter().all(|param| {
+            param.pin_name == pin || !param.josa_list.iter().any(|candidate| candidate == josa)
+        })
+    }
+
+    fn can_inline_bound_expr(&self, expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Literal(_) => true,
+            ExprKind::Var(_) => true,
+            ExprKind::FieldAccess { target, .. } => self.can_inline_bound_expr(target),
+            ExprKind::Suffix { value, .. } => self.can_inline_bound_expr(value),
+            ExprKind::Eval { thunk, .. } => self.can_inline_bound_expr(thunk),
+            ExprKind::FlowValue => true,
+            _ => false,
+        }
+    }
+
+    fn render_expr_inline(&self, expr: &Expr) -> Option<String> {
+        if !self.can_inline_bound_expr(expr) {
+            return None;
+        }
+        let mut normalizer = Normalizer::new(self._level);
+        normalizer.call_signatures = self.call_signatures.clone();
+        normalizer.normalize_expr(expr);
+        Some(normalizer.output)
     }
 
     fn normalize_literal(&mut self, lit: &Literal) {
@@ -530,6 +704,42 @@ impl Normalizer {
         }
         self.write("\u{C218}\u{C2DD}{");
         self.write(&formula.raw);
+        self.write("}");
+    }
+
+    fn normalize_state_machine_literal(&mut self, machine: &StateMachine) {
+        self.write("상태머신{\n");
+        self.indent += 1;
+        self.write_indent();
+        self.write(&machine.states.join(", "));
+        self.write(" 으로 이뤄짐.\n");
+        self.write_indent();
+        self.write(&machine.initial);
+        self.write(" 으로 시작.\n");
+        for transition in &machine.transitions {
+            self.write_indent();
+            self.write(&transition.from);
+            self.write(" 에서 ");
+            self.write(&transition.to);
+            self.write(" 으로");
+            if let Some(guard_name) = &transition.guard_name {
+                self.write(" 걸러서 ");
+                self.write(guard_name);
+            }
+            if let Some(action_name) = &transition.action_name {
+                self.write(" 하고 ");
+                self.write(action_name);
+            }
+            self.write(".\n");
+        }
+        for check in &machine.on_transition_checks {
+            self.write_indent();
+            self.write("바뀔때마다 ");
+            self.write(check);
+            self.write(" 살피기.\n");
+        }
+        self.indent -= 1;
+        self.write_indent();
         self.write("}");
     }
 
@@ -616,6 +826,7 @@ impl Normalizer {
             Stmt::DeclBlock { mood, .. } => mood,
             Stmt::Mutate { mood, .. } => mood,
             Stmt::Expr { mood, .. } => mood,
+            Stmt::Show { mood, .. } | Stmt::Inspect { mood, .. } => mood,
             Stmt::MetaBlock { mood, .. } => mood,
             Stmt::Pragma { .. } => return,
             Stmt::Return { mood, .. } => mood,
@@ -623,8 +834,13 @@ impl Normalizer {
             Stmt::Try { mood, .. } => mood,
             Stmt::Choose { mood, .. } => mood,
             Stmt::Repeat { mood, .. } => mood,
+            Stmt::BeatBlock { mood, .. } => mood,
+            Stmt::Hook { mood, .. } => mood,
+            Stmt::HookWhenBecomes { mood, .. } => mood,
+            Stmt::HookWhile { mood, .. } => mood,
             Stmt::While { mood, .. } => mood,
             Stmt::ForEach { mood, .. } => mood,
+            Stmt::Quantifier { mood, .. } => mood,
             Stmt::Break { mood, .. } => mood,
             Stmt::Contract { mood, .. } => mood,
             Stmt::Guard { mood, .. } => mood,
@@ -641,6 +857,21 @@ impl Normalizer {
 pub fn normalize(program: &CanonProgram, level: NormalizationLevel) -> String {
     let mut normalizer = Normalizer::new(level);
     normalizer.normalize_program(program)
+}
+
+fn collect_call_signatures(program: &CanonProgram) -> HashMap<String, Vec<ParamPin>> {
+    let mut out = HashMap::new();
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        out.insert(seed.canonical_name.clone(), seed.params.clone());
+        for tail in ["기", "고", "면", "면서"] {
+            out.insert(
+                format!("{}{}", seed.canonical_name, tail),
+                seed.params.clone(),
+            );
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -680,7 +911,7 @@ mod tests {
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
 
         let expected = r#"(x:수) 증가:셈씨 = {
-    x + 1 돌려줘.
+    x + 1 되돌림.
 }"#;
         assert_eq!(normalized.trim(), expected);
     }
@@ -706,7 +937,7 @@ mod tests {
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
 
         let expected = r#"(속도:수 = 10) 이동:셈씨 = {
-    속도 돌려줘.
+    속도 되돌림.
 }"#;
         assert_eq!(normalized.trim(), expected);
     }
@@ -721,7 +952,7 @@ mod tests {
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
 
         let expected = r#"(대상:수~을~를) 이동:셈씨 = {
-    (대상~을) 이동.
+    대상~을 이동.
 }"#;
         assert_eq!(normalized.trim(), expected);
     }
@@ -744,7 +975,7 @@ mod tests {
 }
 
 질문:셈씨 = {
-    (값) 묻기?
+    값:값 묻기?
 }"#;
         assert_eq!(normalized.trim(), expected);
     }
@@ -761,7 +992,7 @@ mod tests {
 }
 "#;
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
-        assert!(normalized.contains("(2, 도구=1) 이동"));
+        assert!(normalized.contains("2:대상 1:도구 이동"));
     }
 
     #[test]
@@ -801,8 +1032,33 @@ Test:셈씨 = {
 "#;
         let normalized = parse_and_normalize(source, NormalizationLevel::N1);
         let expected = r#"(목록:(글) 차림) 이동:셈씨 = {
-    목록 돌려줘.
+    목록 되돌림.
 }"#;
         assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_block_headers_normalize_without_colon() {
+        let source = r#"
+테스트:움직씨 = {
+    채비: { 값:수 <- 0. }.
+    설정: { 화면: "기본". }.
+    반복: { 멈추기. }.
+    { 값 < 1 }인것 동안: { 멈추기. }.
+    (x) 값목록에 대해: { x 보여주기. }.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        assert!(normalized.contains("채비 {"));
+        assert!(normalized.contains("설정 {"));
+        assert!(normalized.contains("되풀이 {"));
+        assert!(normalized.contains("동안 {"));
+        assert!(normalized.contains("(x) 값목록에 대해 {"));
+
+        assert!(!normalized.contains("채비: {"));
+        assert!(!normalized.contains("설정: {"));
+        assert!(!normalized.contains("반복: {"));
+        assert!(!normalized.contains("동안: {"));
+        assert!(!normalized.contains("에 대해: {"));
     }
 }

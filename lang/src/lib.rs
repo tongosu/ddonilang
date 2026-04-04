@@ -32,7 +32,8 @@ pub use runtime::{
     Value,
 };
 pub use stdlib::{
-    input_function_sigs, list_function_sigs, minimal_stdlib_sigs, string_function_sigs, FunctionSig,
+    canonicalize_type_alias, input_function_sigs, list_function_sigs, minimal_stdlib_sigs,
+    string_function_sigs, FunctionSig,
 };
 pub use surface::{surface_form, SurfaceError};
 
@@ -247,6 +248,128 @@ mod integration_tests {
     }
 
     #[test]
+    fn test_bogae_jangmyeon_alias_is_rejected() {
+        let source = r#"
+테스트:움직씨 = {
+    보개장면 {
+        #자막("테스트").
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("legacy alias");
+        assert!(err.message.contains("보개장면"));
+        assert!(err.message.contains("보개마당"));
+    }
+
+    #[test]
+    fn test_block_header_colon_warns_in_canonicalize_report() {
+        let source = r#"
+테스트:움직씨 = {
+    채비: { 점수:수 <- 0. }.
+    반복: { 멈추기. }.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").unwrap();
+        let report = canonicalize(&mut program).unwrap();
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.code == "W_BLOCK_HEADER_COLON_DEPRECATED"));
+    }
+
+    #[test]
+    fn test_block_header_no_colon_has_no_deprecation_warning() {
+        let source = r#"
+테스트:움직씨 = {
+    채비 { 점수:수 <- 0. }.
+    반복 { 멈추기. }.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").unwrap();
+        let report = canonicalize(&mut program).unwrap();
+        assert!(!report
+            .warnings
+            .iter()
+            .any(|w| w.code == "W_BLOCK_HEADER_COLON_DEPRECATED"));
+    }
+
+    #[test]
+    fn test_beat_block_header_colon_warns_in_canonicalize_report() {
+        let source = r#"
+테스트:움직씨 = {
+    덩이: {
+        살림.x <- 1 미루기.
+    }.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").unwrap();
+        let report = canonicalize(&mut program).unwrap();
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.code == "W_BLOCK_HEADER_COLON_DEPRECATED"));
+    }
+
+    #[test]
+    fn test_bundle_alias_block_header_colon_is_rejected() {
+        let source = r#"
+테스트:움직씨 = {
+    묶음: {
+        살림.x <- 1 미루기.
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("bundle alias must fail");
+        assert_eq!(err.code(), "E_PARSE");
+    }
+
+    #[test]
+    fn test_bogae_madang_with_space_roundtrip_parseable() {
+        let source = r#"
+테스트:움직씨 = {
+    보개마당 {
+        #자막("테스트").
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").unwrap();
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        let reparsed = parse(&normalized, "test_roundtrip.ddoni");
+        assert!(reparsed.is_ok());
+    }
+
+    #[test]
+    fn test_guseong_alias_normalizes_to_jjaim_block() {
+        let source = r#"
+테스트:움직씨 = {
+    구성 {
+        상태 { theta <- 0.8. }.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").unwrap();
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("짜임 {"));
+        assert!(!normalized.contains("구성 {"));
+    }
+
+    #[test]
+    fn test_jjaim_block_roundtrip_parseable() {
+        let source = r#"
+테스트:움직씨 = {
+    짜임 {
+        상태 { theta <- 0.8. }.
+        출력 { 끝점 <- (0.0, 0.0). }.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").unwrap();
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        let reparsed = parse(&normalized, "test_roundtrip.ddoni");
+        assert!(reparsed.is_ok());
+    }
+
+    #[test]
     fn test_string_literal_parsing() {
         let source = r#"
 인사:셈씨 = {
@@ -345,6 +468,42 @@ mod integration_tests {
     }
 
     #[test]
+    fn test_return_alias_normalizes_to_doedollim() {
+        let source = r#"
+(값:수) 테스트:셈씨 = {
+    1 돌려줘.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("1 되돌림."));
+        assert!(!normalized.contains("1 돌려줘."));
+    }
+
+    #[test]
+    fn test_repeat_alias_normalizes_to_doepuli() {
+        let source = r#"
+테스트:움직씨 = {
+    반복: { 멈추기. }.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("되풀이 {"));
+        assert!(!normalized.contains("반복 {"));
+    }
+
+    #[test]
+    fn test_audit_alias_normalizes_to_tolabogi() {
+        let source = r#"
+테스트:움직씨 = {
+    값 감사.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("값 톺아보기."));
+        assert!(!normalized.contains("값 감사."));
+    }
+
+    #[test]
     fn test_default_param_requires_trailing() {
         let source = r#"
 (x:수=1, y:수) 테스트:셈씨 = {
@@ -366,7 +525,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("(10, 1) 더하기"));
+        assert!(normalized.contains("10:x 1:y 더하기"));
     }
 
     #[test]
@@ -381,7 +540,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("(10, 없음) 더하기"));
+        assert!(normalized.contains("10:x 없음:y 더하기"));
     }
 
     #[test]
@@ -396,7 +555,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("(10, 5) 더하기"));
+        assert!(normalized.contains("10:x 5:y 더하기"));
     }
 
     #[test]
@@ -411,7 +570,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("(10, 7) 더하기"));
+        assert!(normalized.contains("10:x 7:y 더하기"));
     }
 
     #[test]
@@ -426,7 +585,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("(3, 1, 2) 합"));
+        assert!(normalized.contains("3:x 1:y 2:z 합"));
     }
 
     #[test]
@@ -441,7 +600,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("(1~을, 3~가) 이동"));
+        assert!(normalized.contains("1~을 3~이 이동"));
     }
 
     #[test]
@@ -456,8 +615,9 @@ mod integration_tests {
 }
 "#;
         let err = parse(source, "test.ddoni").expect_err("expected ambiguity error");
+        assert_eq!(err.code(), "E_PARSE_CALL_JOSA_AMBIGUOUS");
         assert!(err.message.contains("모호합니다"));
-        assert!(err.message.contains("핀=값"));
+        assert!(err.message.contains("값:핀"));
     }
 
     #[test]
@@ -506,7 +666,159 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("(2, 도구=1) 이동"));
+        assert!(normalized.contains("2:대상 1:도구 이동"));
+    }
+
+    #[test]
+    fn test_bare_josa_call_parses() {
+        let source = r#"
+(대상:수~을~를, 주체:수~이~가) 이동:셈씨 = {
+    대상 돌려줘.
+}
+
+테스트:셈씨 = {
+    1~을 3~이 이동.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("1~을 3~이 이동"));
+    }
+
+    #[test]
+    fn test_bare_pin_call_parses() {
+        let source = r#"
+(x:수, y:수) 더하:셈씨 = {
+    x + y 돌려줘.
+}
+
+테스트:셈씨 = {
+    10:x 1:y 더하기.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("10:x 1:y 더하기"));
+    }
+
+    #[test]
+    fn test_canonicalize_normalizes_alias_josa_to_primary_form() {
+        let source = r#"
+(왼:수~을~를, 오른:수~에) 더하:셈씨 = {
+    왼 + 오른 돌려줘.
+}
+
+증명:셈씨 = {
+    (3를, 1에) 더하.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").unwrap();
+        canonicalize(&mut program).unwrap();
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "증명")
+            .expect("증명 seed");
+        let body = seed.body.as_ref().expect("증명 body");
+        let expr = match body.stmts.first().expect("stmt") {
+            Stmt::Expr { expr, .. } => expr,
+            other => panic!("expr stmt expected: {other:?}"),
+        };
+        let ExprKind::Call { args, .. } = &expr.kind else {
+            panic!("call expected");
+        };
+        assert_eq!(args[0].josa.as_deref(), Some("을"));
+        assert_eq!(args[1].josa.as_deref(), Some("에"));
+    }
+
+    #[test]
+    fn test_duplicate_role_josa_rejected_deterministically() {
+        let source = r#"
+(왼:수~을~를, 오른:수~에) 더하:셈씨 = {
+    왼 + 오른 돌려줘.
+}
+
+증명:셈씨 = {
+    (3을, 1을) 더하.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("expected duplicate pin error");
+        assert_eq!(err.code(), "E_PARSE_CALL_PIN_DUPLICATE");
+        assert!(err.message.contains("핀 '왼'에 인자가 중복되었습니다"));
+    }
+
+    #[test]
+    fn test_explicit_particle_reorder_is_success_without_conflict_warning() {
+        let source = r#"
+(왼:수~을~를, 오른:수~에) 더하:셈씨 = {
+    왼 + 오른 돌려줘.
+}
+
+증명:셈씨 = {
+    (1을, 3에) 더하.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").unwrap();
+        let report = canonicalize(&mut program).unwrap();
+        assert!(!report.warnings.iter().any(|w| w.code.contains("CONFLICT")));
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("1~을 3~에 더하"));
+    }
+
+    #[test]
+    fn test_tailed_call_keeps_alias_josa_normalization_without_warning() {
+        let source = r#"
+(왼:수~을~를, 오른:수~에) 더하:셈씨 = {
+    왼 + 오른 돌려줘.
+}
+
+증명:셈씨 = {
+    (3를, 1에) 더하기.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").unwrap();
+        let report = canonicalize(&mut program).unwrap();
+        assert!(report.warnings.is_empty());
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "증명")
+            .expect("증명 seed");
+        let body = seed.body.as_ref().expect("증명 body");
+        let expr = match body.stmts.first().expect("stmt") {
+            Stmt::Expr { expr, .. } => expr,
+            other => panic!("expr stmt expected: {other:?}"),
+        };
+        let ExprKind::Call { args, .. } = &expr.kind else {
+            panic!("call expected");
+        };
+        assert_eq!(args[0].josa.as_deref(), Some("을"));
+        assert_eq!(args[1].josa.as_deref(), Some("에"));
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("3~을 1~에 더하기"));
+    }
+
+    #[test]
+    fn test_fixed_pin_ambiguity_emits_conflict_warning() {
+        let source = r#"
+(시작:수~에서, 끝:수~에서?) 이동:셈씨 = {
+    시작 돌려줘.
+}
+
+증명:셈씨 = {
+    (100@m:시작~에서) 이동하기.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").unwrap();
+        let report = canonicalize(&mut program).unwrap();
+        assert_eq!(report.warnings.len(), 1);
+        assert_eq!(report.warnings[0].code, "W_CALL_JOSA_CONFLICT_FIXED");
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("100@m:처음 없음:끝 이동기"));
     }
 
     #[test]
@@ -586,7 +898,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("값 <- (대상=보드, i=2) 차림.값."));
+        assert!(normalized.contains("값 <- 보드:대상 2:i 차림.값."));
     }
 
     #[test]
@@ -597,7 +909,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("보드 <- (대상=보드, i=2, 값=3) 차림.바꾼값."));
+        assert!(normalized.contains("보드 <- 보드:대상 2:i 3:값 차림.바꾼값."));
     }
 
     #[test]
@@ -620,7 +932,7 @@ mod integration_tests {
 }
 "#;
         let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
-        assert!(normalized.contains("보드 <- (대상=보드, i=2, 값=3) 차림.바꾼값."));
+        assert!(normalized.contains("보드 <- 보드:대상 2:i 3:값 차림.바꾼값."));
     }
 
     #[test]
@@ -631,7 +943,7 @@ mod integration_tests {
 }
 
 테스트:셈씨 = {
-    (거리=100@m~에서) 이동.
+    (100@m:거리~에서) 이동.
 }
 "#;
         let args = first_call_args(source);
@@ -677,7 +989,7 @@ mod integration_tests {
 }
 
 테스트:셈씨 = {
-    (배경=@"그림/주인공.png"~으로) 보기.
+    (@"그림/주인공.png":배경~으로) 보기.
 }
 "#;
         let args = first_call_args(source);
@@ -701,7 +1013,7 @@ mod integration_tests {
 }
 
 테스트:셈씨 = {
-    (거리=100~에서@m) 이동.
+    (100~에서:거리@m) 이동.
 }
 "#;
         let err = parse(source, "test.ddoni").expect_err("order error");
@@ -716,7 +1028,7 @@ mod integration_tests {
 }
 
 테스트:셈씨 = {
-    (거리=100@m~에서~부터) 이동.
+    (100@m:거리~에서~부터) 이동.
 }
 "#;
         let err = parse(source, "test.ddoni").expect_err("tilde error");
@@ -751,7 +1063,7 @@ mod integration_tests {
 }
 "#;
         let err = parse(source, "test.ddoni").expect_err("unit unknown");
-        assert!(err.message.contains("핀 고정은 핀=값"));
+        assert!(err.message.contains("핀 고정은 값:핀"));
     }
 
     #[test]
@@ -762,7 +1074,7 @@ mod integration_tests {
 }
 
 테스트:셈씨 = {
-    (시작=100@m~에서) 이동.
+    (100@m:시작~에서) 이동.
 }
 "#;
         let args = first_call_args(source);
@@ -783,7 +1095,7 @@ mod integration_tests {
 }
 
 테스트:셈씨 = {
-    (끝=100@m~에서) 이동.
+    (100@m:끝~에서) 이동.
 }
 "#;
         let args = first_call_args(source);
@@ -1077,6 +1389,36 @@ Test:셈씨 = {
     }
 
     #[test]
+    fn test_regex_literal_normalizes_flag_order() {
+        let source = r#"
+Test:셈씨 = {
+    패턴 <- 정규식{"a.b", "si"}.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("regex parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("Test body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Literal(Literal::Regex(regex)) = &value.kind else {
+            panic!("regex literal expected");
+        };
+        assert_eq!(regex.flags, "is");
+        let normalized =
+            parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).expect("normalize");
+        assert!(normalized.contains("정규식{\"a.b\", \"is\"}"));
+    }
+
+    #[test]
     fn test_regex_literal_requires_attached_block() {
         let source = r#"
 Test:셈씨 = {
@@ -1085,6 +1427,208 @@ Test:셈씨 = {
 "#;
         let err = parse(source, "test.ddoni").expect_err("regex block spacing");
         assert!(err.message.contains("정규식{"));
+    }
+
+    #[test]
+    fn test_state_machine_literal_parses() {
+        let source = r#"
+Test:셈씨 = {
+    기계 <- 상태머신{
+        빨강, 초록, 노랑 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로.
+        초록 에서 노랑 으로.
+        노랑 에서 빨강 으로.
+        바뀔때마다 전이_안전 살피기.
+    }.
+}
+"#;
+        let program = parse(source, "state_machine.ddoni").expect("state machine parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::StateMachine(machine) = &value.kind else {
+            panic!("state machine literal expected");
+        };
+        assert_eq!(machine.initial, "빨강");
+        assert_eq!(machine.states, vec!["빨강", "초록", "노랑"]);
+        assert_eq!(machine.transitions.len(), 3);
+        assert_eq!(machine.on_transition_checks, vec!["전이_안전"]);
+    }
+
+    #[test]
+    fn test_state_machine_literal_lexes_following_dot_and_stmt() {
+        let source = r#"
+Test:셈씨 = {
+    기계 <- 상태머신{
+        빨강, 초록 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로.
+    }.
+    현재 <- (기계) 처음으로.
+}
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::StateMachineBlock(_))));
+        let state_machine_idx = tokens
+            .iter()
+            .position(|token| matches!(token.kind, TokenKind::StateMachineBlock(_)))
+            .expect("state machine block token");
+        assert!(matches!(tokens[state_machine_idx + 1].kind, TokenKind::Dot));
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "현재")));
+    }
+
+    #[test]
+    fn test_state_machine_literal_allows_following_statements() {
+        let source = r#"
+Test:셈씨 = {
+    기계 <- 상태머신{
+        빨강, 초록, 노랑 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로.
+        초록 에서 노랑 으로.
+        노랑 에서 빨강 으로.
+        바뀔때마다 전이_안전 살피기.
+    }.
+    현재 <- (기계) 처음으로.
+    다음 <- (기계, 현재) 다음으로.
+}
+"#;
+        let program = parse(source, "state_machine.ddoni").expect("parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        assert_eq!(body.stmts.len(), 3);
+    }
+
+    #[test]
+    fn test_state_machine_literal_parses_guard_and_action() {
+        let source = r#"
+Test:셈씨 = {
+    기계 <- 상태머신{
+        빨강, 초록, 파랑 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로 걸러서 전이_조건 하고 기록.
+        빨강 에서 파랑 으로.
+    }.
+}
+"#;
+        let program = parse(source, "state_machine_guard_action.ddoni").expect("parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::StateMachine(machine) = &value.kind else {
+            panic!("state machine literal expected");
+        };
+        assert_eq!(machine.transitions.len(), 2);
+        assert_eq!(machine.transitions[0].from, "빨강");
+        assert_eq!(machine.transitions[0].to, "초록");
+        assert_eq!(
+            machine.transitions[0].guard_name.as_deref(),
+            Some("전이_조건")
+        );
+        assert_eq!(machine.transitions[0].action_name.as_deref(), Some("기록"));
+        assert_eq!(machine.transitions[1].guard_name, None);
+        assert_eq!(machine.transitions[1].action_name, None);
+    }
+
+    #[test]
+    fn test_assertion_literal_parses() {
+        let source = r#"
+Test:셈씨 = {
+    검사 <- 세움{
+        { 거리 > 0 }인것 바탕으로(물림) 아니면 {
+            없음.
+        }.
+    }.
+}
+"#;
+        let program = parse(source, "assertion.ddoni").expect("assertion parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Assertion(assertion) = &value.kind else {
+            panic!("assertion literal expected");
+        };
+        assert!(assertion.body_source.contains("{ 거리 > 0 }인것"));
+        assert!(assertion.canon.starts_with("세움{"));
+        assert!(assertion.canon.contains("거리 > 0"));
+    }
+
+    #[test]
+    fn test_assertion_check_call_parses() {
+        let source = r#"
+Test:셈씨 = {
+    검사 <- 세움{
+        { 거리 > 0 }인것 바탕으로(물림) 아니면 {
+            없음.
+        }.
+    }.
+    결과 <- (거리=3)인 검사 살피기.
+}
+"#;
+        let program = parse(source, "assertion_call.ddoni").expect("assertion call parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        let stmt = &body.stmts[1];
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Call { func, args } = &value.kind else {
+            panic!("call expected");
+        };
+        assert_eq!(func, "살피기");
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[0].resolved_pin.as_deref(), Some("세움"));
+        assert_eq!(args[1].resolved_pin.as_deref(), Some("값들"));
+        assert!(matches!(args[0].expr.kind, ExprKind::Var(_)));
     }
 
     #[test]
@@ -1103,6 +1647,26 @@ Test:셈씨 = {
         let source = r#"
 테스트:셈씨 = {
     채비: { 점수:수 <- 0. }.
+    점수 <- 점수 + 1.
+}
+"#;
+        let program = parse(source, "test.ddoni").unwrap();
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        let body = seed.body.as_ref().unwrap();
+        match &body.stmts[0] {
+            Stmt::DeclBlock { items, .. } => {
+                assert_eq!(items.len(), 1);
+                assert!(matches!(items[0].kind, DeclKind::Gureut));
+            }
+            _ => panic!("decl block expected"),
+        }
+    }
+
+    #[test]
+    fn test_decl_block_without_colon_parses() {
+        let source = r#"
+테스트:셈씨 = {
+    채비 { 점수:수 <- 0. }.
     점수 <- 점수 + 1.
 }
 "#;
@@ -1176,14 +1740,24 @@ Test:셈씨 = {
     }
 
     #[test]
-    fn test_setting_block_without_colon_is_error() {
+    fn test_setting_block_without_colon_parses() {
         let source = r#"
 테스트:셈씨 = {
     설정 { 화면: "기본". }.
     1 돌려줘.
 }
 "#;
-        let _err = parse(source, "test.ddoni").expect_err("setting block without colon");
+        let program = parse(source, "test.ddoni").expect("setting block without colon parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        assert!(matches!(body.stmts[0], Stmt::MetaBlock { .. }));
     }
 
     #[test]
@@ -1263,6 +1837,110 @@ Test:셈씨 = {
 "#;
         let err = parse(source, "test.ddoni").expect_err("legacy boim alias rejected");
         assert!(err.message.contains("문장 종결") || err.message.contains("설정/보개/슬기"));
+    }
+
+    #[test]
+    fn test_foreach_block_without_colon_parses() {
+        let source = r#"
+테스트:셈씨 = {
+    (x) 값목록에 대해 {
+        x 보여주기.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("foreach without colon parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        assert!(matches!(body.stmts[0], Stmt::ForEach { .. }));
+    }
+
+    #[test]
+    fn test_quantifier_statements_parse_and_normalize() {
+        let source = r#"
+증명:셈씨 = {
+    n 이 자연수 낱낱에 대해 {
+        없음.
+    }.
+    x 가 실수 중 하나가 {
+        없음.
+    }.
+    y 가 정수 중 딱 하나가 {
+        없음.
+    }.
+}
+"#;
+        let program = parse(source, "quantifier.ddoni").expect("quantifier parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "증명")
+            .expect("증명 seed");
+        let body = seed.body.as_ref().expect("증명 body");
+        assert!(matches!(
+            body.stmts[0],
+            Stmt::Quantifier {
+                kind: QuantifierKind::ForAll,
+                ..
+            }
+        ));
+        assert!(matches!(
+            body.stmts[1],
+            Stmt::Quantifier {
+                kind: QuantifierKind::Exists,
+                ..
+            }
+        ));
+        assert!(matches!(
+            body.stmts[2],
+            Stmt::Quantifier {
+                kind: QuantifierKind::ExistsUnique,
+                ..
+            }
+        ));
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("n 이 자연수 낱낱에 대해 {"));
+        assert!(normalized.contains("x 이 실수 중 하나가 {"));
+        assert!(normalized.contains("y 이 정수 중 딱 하나가 {"));
+    }
+
+    #[test]
+    fn test_quantifier_rejects_mutation_in_body() {
+        let source = r#"
+증명:셈씨 = {
+    n 이 자연수 낱낱에 대해 {
+        값 <- 1.
+    }.
+}
+"#;
+        let err = parse(source, "quantifier_mutation.ddoni").expect_err("quantifier mutation");
+        assert!(err
+            .message
+            .contains("양화 블록 안에서는 '<-'를 사용할 수 없습니다"));
+    }
+
+    #[test]
+    fn test_quantifier_rejects_show_in_body() {
+        let source = r#"
+증명:셈씨 = {
+    n 이 자연수 중 하나가 {
+        n 보여주기.
+    }.
+}
+"#;
+        let err = parse(source, "quantifier_show.ddoni").expect_err("quantifier show");
+        assert!(err
+            .message
+            .contains("양화 블록 안에서는 '보여주기'를 사용할 수 없습니다"));
     }
 
     #[test]
@@ -1346,5 +2024,328 @@ Test:셈씨 = {
             other => panic!("unexpected type ref: {other:?}"),
         }
         assert_eq!(seed.params[0].josa_list, vec!["을".to_string()]);
+    }
+
+    #[test]
+    fn test_typed_pin_with_numeric_sized_variants_parses() {
+        let source = r#"
+(x:셈수2, y:바른수4) 통과:셈씨 = {
+    x 돌려줘.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("sized variant typed pin parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "통과")
+            .expect("통과 seed");
+        assert_eq!(seed.params.len(), 2);
+        match &seed.params[0].type_ref {
+            TypeRef::Named(name) => assert_eq!(name, "셈수2"),
+            other => panic!("unexpected type ref: {other:?}"),
+        }
+        match &seed.params[1].type_ref {
+            TypeRef::Named(name) => assert_eq!(name, "바른수4"),
+            other => panic!("unexpected type ref: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_numeric_sized_variant_types_canonicalize_to_base_names() {
+        let source = r#"
+테스트:움직씨 = {
+    채비 {
+        값:셈수2 <- 1.5.
+        정:바른수4 <- 7.
+    }.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").expect("parse");
+        let _report = canonicalize(&mut program).expect("canonicalize");
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("값:셈수 <- 1.5."));
+        assert!(normalized.contains("정:바른수 <- 7."));
+        assert!(!normalized.contains("셈수2"));
+        assert!(!normalized.contains("바른수4"));
+    }
+
+    #[test]
+    fn test_numeric_english_alias_types_canonicalize_to_base_names() {
+        let source = r#"
+테스트:움직씨 = {
+    채비 {
+        a:fixed64 <- 1.5.
+        b:int64 <- 7.
+        c:bigint <- ("9") 큰바른수.
+        d:rational <- (1, 3) 나눔수.
+        e:factorized <- (12) 곱수.
+    }.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").expect("parse");
+        let _report = canonicalize(&mut program).expect("canonicalize");
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("a:셈수 <- 1.5."));
+        assert!(normalized.contains("b:바른수 <- 7."));
+        assert!(normalized.contains("c:큰바른수 <- (\"9\") 큰바른수."));
+        assert!(normalized.contains("d:나눔수 <- (1, 3) 나눔수."));
+        assert!(normalized.contains("e:곱수 <- (12) 곱수."));
+        assert!(!normalized.contains("fixed64"));
+        assert!(!normalized.contains("int64"));
+        assert!(!normalized.contains("bigint"));
+        assert!(!normalized.contains("rational"));
+        assert!(!normalized.contains("factorized"));
+    }
+
+    #[test]
+    fn test_bool_and_collection_alias_types_canonicalize_to_base_names() {
+        let source = r#"
+(판단:boolean, 열:list, 집:set, 사전:map, 꾸러미:pack) 통과:셈씨 = {
+    1 돌려줘.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").expect("parse");
+        let _report = canonicalize(&mut program).expect("canonicalize");
+        let normalized = normalize(&program, NormalizationLevel::N1);
+        assert!(normalized.contains("참거짓"));
+        assert!(normalized.contains("차림"));
+        assert!(normalized.contains("모음"));
+        assert!(normalized.contains("짝맞춤"));
+        assert!(normalized.contains("묶음"));
+        assert!(!normalized.contains("boolean"));
+        assert!(!normalized.contains("list"));
+        assert!(!normalized.contains("set"));
+        assert!(!normalized.contains("map"));
+        assert!(!normalized.contains("pack"));
+    }
+
+    #[test]
+    fn test_beat_block_parses_deferred_assignments() {
+        let source = r#"
+테스트:움직씨 = {
+    덩이 {
+        살림.x <- 1 미루기.
+        살림.y <- (살림.x + 1).
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("beat block parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let seed_body = seed.body.as_ref().expect("테스트 body");
+        let Some(Stmt::BeatBlock { body, .. }) = seed_body.stmts.first() else {
+            panic!("beat block expected");
+        };
+        let Some(Stmt::Mutate { deferred, .. }) = body.stmts.first() else {
+            panic!("first mutate expected");
+        };
+        assert!(*deferred);
+        let Some(Stmt::Mutate { deferred, .. }) = body.stmts.get(1) else {
+            panic!("second mutate expected");
+        };
+        assert!(!*deferred);
+    }
+
+    #[test]
+    fn test_legacy_beat_keyword_is_rejected() {
+        let source = r#"
+테스트:움직씨 = {
+    박자 {
+        살림.x <- 1 미루기.
+        살림.y <- (살림.x + 1).
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("legacy beat keyword must fail");
+        assert_eq!(err.code(), "E_PARSE");
+    }
+
+    #[test]
+    fn test_deferred_assignment_outside_beat_is_rejected() {
+        let source = r#"
+테스트:움직씨 = {
+    살림.x <- 1 미루기.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("deferred assignment outside beat");
+        assert_eq!(err.code(), "E_PARSE_DEFERRED_ASSIGN_OUTSIDE_BEAT");
+        assert!(err.message.contains("미루기"));
+        assert!(err.message.contains("덩이"));
+    }
+
+    #[test]
+    fn test_hook_every_madi_parses() {
+        let source = r#"
+테스트:움직씨 = {
+    (매마디)마다 {
+        살림.x <- 1.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("hook parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        let Some(Stmt::Hook { kind, .. }) = body.stmts.first() else {
+            panic!("hook expected");
+        };
+        assert!(matches!(kind, HookKind::EveryMadi));
+    }
+
+    #[test]
+    fn test_hook_every_n_madi_parses() {
+        let source = r#"
+테스트:움직씨 = {
+    (3마디)마다 {
+        살림.x <- 1.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("hook parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        let Some(Stmt::Hook { kind, .. }) = body.stmts.first() else {
+            panic!("hook expected");
+        };
+        assert!(matches!(kind, HookKind::EveryNMadi(3)));
+    }
+
+    #[test]
+    fn test_hook_every_n_madi_zero_is_rejected() {
+        let source = r#"
+테스트:움직씨 = {
+    (0마디)마다 {
+        살림.x <- 1.
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("hook interval zero");
+        assert!(err.message.contains("양의 정수"));
+    }
+
+    #[test]
+    fn test_hook_every_madi_colon_is_rejected() {
+        let source = r#"
+테스트:움직씨 = {
+    (매마디)마다: {
+        살림.x <- 1.
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("hook colon");
+        assert!(err.message.contains("':' 없이"));
+    }
+
+    #[test]
+    fn test_hook_start_and_end_parse() {
+        let source = r#"
+테스트:움직씨 = {
+    (시작)할때 {
+        살림.x <- 1.
+    }.
+    (끝)할때 {
+        살림.y <- 2.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("hook start/end parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        let Some(Stmt::Hook { kind, .. }) = body.stmts.first() else {
+            panic!("start hook expected");
+        };
+        assert!(matches!(kind, HookKind::Start));
+        let Some(Stmt::Hook { kind, .. }) = body.stmts.get(1) else {
+            panic!("end hook expected");
+        };
+        assert!(matches!(kind, HookKind::End));
+    }
+
+    #[test]
+    fn test_hook_start_alias_choeum_normalizes_to_sijak() {
+        let source = r#"
+테스트:움직씨 = {
+    (처음)할때 {
+        살림.x <- 1.
+    }.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1)
+            .expect("normalize start alias");
+        assert!(normalized.contains("(시작)할때 {"));
+        assert!(!normalized.contains("(처음)할때 {"));
+    }
+
+    #[test]
+    fn test_hook_condition_becomes_parses() {
+        let source = r#"
+테스트:움직씨 = {
+    (살림.x > 0)이 될때 {
+        살림.y <- 1.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("condition hook parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        assert!(matches!(body.stmts.first(), Some(Stmt::HookWhenBecomes { .. })));
+    }
+
+    #[test]
+    fn test_hook_condition_while_parses() {
+        let source = r#"
+테스트:움직씨 = {
+    (살림.x > 0)인 동안 {
+        살림.y <- 1.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("condition while hook parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        assert!(matches!(body.stmts.first(), Some(Stmt::HookWhile { .. })));
     }
 }

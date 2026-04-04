@@ -12,9 +12,13 @@ pub enum TokenKind {
     Variable(String),
     Nuance(String),
     Pragma(String),
+    AssertionBlock(String),
     TemplateBlock(String),
     FormulaBlock(String),
+    StateMachineBlock(String),
     BogeaMadangBlock(String),
+    BogeaJangmyeonBlock(String),
+    JjaimBlock(String),
     KwImeumssi,
     KwUmjikssi,
     KwGallaessi,
@@ -33,6 +37,7 @@ pub enum TokenKind {
     KwDaehae,
     KwMeomchugi,
     KwDollyeojwo,
+    KwTolabogi,
     KwAllyeo,
     KwHaebogo,
     KwGoreugi,
@@ -42,6 +47,8 @@ pub enum TokenKind {
     KwHaeseo,
     KwNeuljikeobogo,
     KwBoyeojugi,
+    KwBeat,
+    KwReserve,
     Josa(String),
     At,
     Question,
@@ -366,18 +373,78 @@ impl<'a> Lexer<'a> {
             }
         }
         let text = &self.source[start..self.pos];
-        if text == "글무늬" && self.peek_char() == Some('{') {
-            return self.read_template_block(start);
+        if text == "글무늬" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_template_block(start);
+            }
+            self.pos = checkpoint;
         }
-        if text == "수식" && self.peek_char() == Some('{') {
-            return self.read_formula_block(start);
+        if text == "수식" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_formula_block(start);
+            }
+            self.pos = checkpoint;
         }
-        if (text == "보개마당" || text == "보개장면") && self.peek_char() == Some('{') {
-            return self.read_bogae_madang_block(start);
+        if text == "세움" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_assertion_block(start);
+            }
+            self.pos = checkpoint;
+        }
+        if text == "상태머신" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_state_machine_block(start);
+            }
+            self.pos = checkpoint;
+        }
+        if text == "보개마당" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_bogae_madang_block(start, false);
+            }
+            self.pos = checkpoint;
+        }
+        if text == "보개장면" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_bogae_madang_block(start, true);
+            }
+            self.pos = checkpoint;
+        }
+        if text == "짜임" || text == "구성" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_jjaim_block(start);
+            }
+            self.pos = checkpoint;
         }
         let mut lexeme = text.to_string();
         if let Some(canon) = self.dialect.canonicalize_keyword(text) {
             lexeme = canon.to_string();
+        }
+        if lexeme == "입력키" || lexeme == "찾기" || lexeme == "글바꾸기" {
+            if let Some(suffix) = self.peek_char() {
+                let can_use_suffix = matches!(suffix, '?' | '!')
+                    && !(suffix == '?' && self.peek_ahead(1) == Some('?'))
+                    && !self.peek_ahead(1).map(is_ident_continue).unwrap_or(false)
+                    && !(lexeme == "찾기" && suffix == '!')
+                    && !(lexeme == "글바꾸기" && suffix == '?');
+                if can_use_suffix {
+                    lexeme.push(suffix);
+                    self.advance();
+                }
+            }
         }
         if let Some(kind) = keyword_kind_for(&lexeme) {
             return Ok(Token {
@@ -398,7 +465,7 @@ impl<'a> Lexer<'a> {
                 raw: lexeme,
             });
         }
-        let no_split = ["길이"];
+        let no_split = ["길이", "처음으로", "다음으로"];
         let has_underscore = lexeme.contains('_');
         let next_sig = self.peek_non_ws_char();
         if !has_underscore && self.peek_char() != Some(':') {
@@ -640,7 +707,11 @@ impl<'a> Lexer<'a> {
         Err(LexError::new(start, "글무늬 블록이 닫히지 않았습니다"))
     }
 
-    fn read_bogae_madang_block(&mut self, start: usize) -> Result<Token, LexError> {
+    fn read_bogae_madang_block(
+        &mut self,
+        start: usize,
+        legacy_alias: bool,
+    ) -> Result<Token, LexError> {
         self.advance(); // consume '{'
         let mut depth = 1usize;
         let mut body = String::new();
@@ -657,7 +728,11 @@ impl<'a> Lexer<'a> {
                 if depth == 0 {
                     let end = self.pos;
                     return Ok(Token {
-                        kind: TokenKind::BogeaMadangBlock(body),
+                        kind: if legacy_alias {
+                            TokenKind::BogeaJangmyeonBlock(body)
+                        } else {
+                            TokenKind::BogeaMadangBlock(body)
+                        },
                         span: Span::new(start, end),
                         raw: self.source[start..end].to_string(),
                     });
@@ -702,6 +777,99 @@ impl<'a> Lexer<'a> {
         Err(LexError::new(start, "수식 블록이 닫히지 않았습니다"))
     }
 
+    fn read_assertion_block(&mut self, start: usize) -> Result<Token, LexError> {
+        self.advance(); // consume '{'
+        let mut depth = 1usize;
+        let mut body = String::new();
+        while let Some(ch) = self.peek_char() {
+            if ch == '{' {
+                depth += 1;
+                body.push(ch);
+                self.advance();
+                continue;
+            }
+            if ch == '}' {
+                depth = depth.saturating_sub(1);
+                self.advance();
+                if depth == 0 {
+                    let end = self.pos;
+                    return Ok(Token {
+                        kind: TokenKind::AssertionBlock(body),
+                        span: Span::new(start, end),
+                        raw: self.source[start..end].to_string(),
+                    });
+                }
+                body.push('}');
+                continue;
+            }
+            body.push(ch);
+            self.advance();
+        }
+        Err(LexError::new(start, "세움 블록이 닫히지 않았습니다"))
+    }
+
+    fn read_state_machine_block(&mut self, start: usize) -> Result<Token, LexError> {
+        self.advance(); // consume '{'
+        let mut depth = 1usize;
+        let mut body = String::new();
+        while let Some(ch) = self.peek_char() {
+            if ch == '{' {
+                depth += 1;
+                body.push(ch);
+                self.advance();
+                continue;
+            }
+            if ch == '}' {
+                depth = depth.saturating_sub(1);
+                self.advance();
+                if depth == 0 {
+                    let end = self.pos;
+                    return Ok(Token {
+                        kind: TokenKind::StateMachineBlock(body),
+                        span: Span::new(start, end),
+                        raw: self.source[start..end].to_string(),
+                    });
+                }
+                body.push('}');
+                continue;
+            }
+            body.push(ch);
+            self.advance();
+        }
+        Err(LexError::new(start, "상태머신 블록이 닫히지 않았습니다"))
+    }
+
+    fn read_jjaim_block(&mut self, start: usize) -> Result<Token, LexError> {
+        self.advance(); // consume '{'
+        let mut depth = 1usize;
+        let mut body = String::new();
+        while let Some(ch) = self.peek_char() {
+            if ch == '{' {
+                depth += 1;
+                body.push(ch);
+                self.advance();
+                continue;
+            }
+            if ch == '}' {
+                depth = depth.saturating_sub(1);
+                self.advance();
+                if depth == 0 {
+                    let end = self.pos;
+                    return Ok(Token {
+                        kind: TokenKind::JjaimBlock(body),
+                        span: Span::new(start, end),
+                        raw: self.source[start..end].to_string(),
+                    });
+                }
+                body.push('}');
+                continue;
+            }
+            body.push(ch);
+            self.advance();
+        }
+        Err(LexError::new(start, "짜임 블록이 닫히지 않았습니다"))
+    }
+
     fn read_ascii(&mut self) -> Result<Token, LexError> {
         let start = self.pos;
         while let Some(ch) = self.peek_char() {
@@ -715,6 +883,14 @@ impl<'a> Lexer<'a> {
         let mut lexeme = text.to_string();
         if let Some(canon) = self.dialect.canonicalize_keyword(text) {
             lexeme = canon.to_string();
+        }
+        if lexeme == "짜임" {
+            let checkpoint = self.pos;
+            self.skip_inline_whitespace();
+            if self.peek_char() == Some('{') {
+                return self.read_jjaim_block(start);
+            }
+            self.pos = checkpoint;
         }
         if let Some(kind) = keyword_kind_for(&lexeme) {
             return Ok(Token {
@@ -813,6 +989,16 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn skip_inline_whitespace(&mut self) {
+        while let Some(ch) = self.peek_char() {
+            if matches!(ch, ' ' | '\t' | '\r' | '\u{feff}') {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+    }
+
     fn is_line_directive_start(&self) -> bool {
         let line_start = self.source[..self.pos]
             .rfind('\n')
@@ -862,6 +1048,13 @@ fn is_josa_tail_char(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_' || ch == '-'
 }
 
+fn is_ident_continue(ch: char) -> bool {
+    matches!(
+        ch,
+        '가'..='힣' | 'ㄱ'..='ㅎ' | 'ㅏ'..='ㅣ' | 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'
+    )
+}
+
 fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
     match canon {
         "이름씨" => Some(TokenKind::KwImeumssi),
@@ -882,6 +1075,7 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
         "대해" => Some(TokenKind::KwDaehae),
         "멈추기" => Some(TokenKind::KwMeomchugi),
         "되돌림" | "반환" | "돌려줘" => Some(TokenKind::KwDollyeojwo),
+        "톺아보기" | "감사" => Some(TokenKind::KwTolabogi),
         "해보고" => Some(TokenKind::KwHaebogo),
         "고르기" => Some(TokenKind::KwGoreugi),
         "맞으면" | "이면" => Some(TokenKind::KwMajeumyeon),
@@ -890,6 +1084,8 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
         "해서" => Some(TokenKind::KwHaeseo),
         "늘지켜보고" => Some(TokenKind::KwNeuljikeobogo),
         "보여주기" => Some(TokenKind::KwBoyeojugi),
+        "덩이" => Some(TokenKind::KwBeat),
+        "미루기" => Some(TokenKind::KwReserve),
         _ => None,
     }
 }
@@ -958,6 +1154,24 @@ mod tests {
     }
 
     #[test]
+    fn map_lookup_optional_suffix_is_lexed_as_ident() {
+        let mut lexer = Lexer::new("값 <- ((\"a\", 1) 짝맞춤, \"a\") 찾기?.\n");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "찾기?")));
+    }
+
+    #[test]
+    fn string_replace_strict_suffix_is_lexed_as_ident() {
+        let mut lexer = Lexer::new("값 <- (\"가\", 0, \"나\") 글바꾸기!.\n");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "글바꾸기!")));
+    }
+
+    #[test]
     fn double_arrow_uses_tilde_form() {
         let mut lexer = Lexer::new("왼 ~~> 오른.");
         let tokens = lexer.tokenize().expect("tokenize");
@@ -978,5 +1192,41 @@ mod tests {
         assert!(tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::DoubleArrow)));
+    }
+
+    #[test]
+    fn bogae_madang_block_allows_space_before_lbrace() {
+        let mut lexer = Lexer::new("보개마당 { #자막(\"테스트\"). }.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::BogeaMadangBlock(_))));
+    }
+
+    #[test]
+    fn bogae_jangmyeon_alias_allows_space_before_lbrace() {
+        let mut lexer = Lexer::new("보개장면 { #자막(\"테스트\"). }.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::BogeaJangmyeonBlock(_))));
+    }
+
+    #[test]
+    fn jjaim_block_allows_space_before_lbrace() {
+        let mut lexer = Lexer::new("짜임 { 상태 { x <- 0. }. }.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::JjaimBlock(_))));
+    }
+
+    #[test]
+    fn guseong_alias_block_allows_space_before_lbrace() {
+        let mut lexer = Lexer::new("구성 { 상태 { x <- 0. }. }.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::JjaimBlock(_))));
     }
 }

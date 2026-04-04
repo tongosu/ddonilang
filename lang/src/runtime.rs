@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Formula, RegexLiteral, Template};
+use crate::ast::{Assertion, Expr, Formula, RegexLiteral, StateMachine, Template};
 use ddonirang_core::{
     is_key_just_pressed, is_key_pressed, Fixed64, ResourceHandle, UnitDim, UnitValue,
 };
@@ -36,6 +36,8 @@ pub enum Value {
     Set(BTreeMap<String, Value>),
     Map(BTreeMap<String, MapEntry>),
     Pack(BTreeMap<String, Value>),
+    Assertion(Assertion),
+    StateMachine(StateMachine),
     Formula(Formula),
     Template(Template),
     Regex(RegexLiteral),
@@ -208,6 +210,39 @@ pub fn map_key_canon(value: &Value) -> String {
                 out.push_str(key);
                 out.push('=');
                 out.push_str(&map_key_canon(item));
+            }
+            out.push('}');
+            out
+        }
+        Value::Assertion(assertion) => assertion.canon.clone(),
+        Value::StateMachine(machine) => {
+            let mut out = String::from("상태머신{");
+            out.push_str(&machine.states.join(", "));
+            out.push_str(" 으로 이뤄짐.");
+            out.push(' ');
+            out.push_str(&machine.initial);
+            out.push_str(" 으로 시작.");
+            for transition in &machine.transitions {
+                out.push(' ');
+                out.push_str(&transition.from);
+                out.push_str(" 에서 ");
+                out.push_str(&transition.to);
+                out.push_str(" 으로");
+                if let Some(guard_name) = &transition.guard_name {
+                    out.push_str(" 걸러서 ");
+                    out.push_str(guard_name);
+                }
+                if let Some(action_name) = &transition.action_name {
+                    out.push_str(" 하고 ");
+                    out.push_str(action_name);
+                }
+                out.push('.');
+            }
+            for check in &machine.on_transition_checks {
+                out.push(' ');
+                out.push_str("바뀔때마다 ");
+                out.push_str(check);
+                out.push_str(" 살피기.");
             }
             out.push('}');
             out
