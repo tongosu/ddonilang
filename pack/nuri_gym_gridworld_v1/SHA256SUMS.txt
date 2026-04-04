@@ -1,0 +1,3 @@
+sha256:5ca1cf10627d6dc1263f104b01070269d0abccf75a5c7f4a7b795ab3ed2ed18d  expected/nurigym.dataset.jsonl
+sha256:278a0f25a701c8565bbe9f1b3f998057ce2ae553a5dc95eab8437736edc334da  expected/stdout.txt
+sha256:ae5f182fbe53be199b5966ad0b86320e1567eb445c89e50ad8c0254cafe10f1b  golden.jsonl
