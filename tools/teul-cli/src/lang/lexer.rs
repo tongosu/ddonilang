@@ -7,6 +7,7 @@ use crate::lang::token::{Token, TokenKind};
 pub enum LexError {
     UnterminatedString { line: usize, col: usize },
     UnterminatedTemplate { line: usize, col: usize },
+    UnterminatedAssertion { line: usize, col: usize },
     BadEscape { line: usize, col: usize, ch: char },
     BadIdentStart { line: usize, col: usize },
     UnexpectedChar { line: usize, col: usize, ch: char },
@@ -17,6 +18,7 @@ impl LexError {
         match self {
             LexError::UnterminatedString { .. } => "E_LEX_UNTERM_STRING",
             LexError::UnterminatedTemplate { .. } => "E_LEX_UNTERM_TEMPLATE",
+            LexError::UnterminatedAssertion { .. } => "E_LEX_UNTERM_ASSERTION",
             LexError::BadEscape { .. } => "E_LEX_BAD_ESCAPE",
             LexError::BadIdentStart { .. } => "E_LEX_BAD_IDENT_START",
             LexError::UnexpectedChar { .. } => "E_LEX_UNEXPECTED_CHAR",
@@ -416,10 +418,15 @@ impl Lexer {
 
         if let Some(next) = self.peek() {
             if is_ident_start(next) {
-                return Err(LexError::BadIdentStart {
-                    line: self.line,
-                    col: self.col,
-                });
+                let suffix_ident = self.peek_ident_text().unwrap_or_default();
+                if suffix_ident == "마디" {
+                    // `(N마디)마다` 주기 훅 표면을 위해 숫자 뒤 `마디` 접미를 허용한다.
+                } else {
+                    return Err(LexError::BadIdentStart {
+                        line: self.line,
+                        col: self.col,
+                    });
+                }
             }
         }
 
@@ -433,6 +440,24 @@ impl Lexer {
             TokenKind::Number(value.raw()),
             self.span_from(start_line, start_col),
         ))
+    }
+
+    fn peek_ident_text(&self) -> Option<String> {
+        let mut idx = self.pos;
+        let mut ident = String::new();
+        while let Some(ch) = self.chars.get(idx).copied() {
+            if is_ident_continue(ch) {
+                ident.push(ch);
+                idx += 1;
+            } else {
+                break;
+            }
+        }
+        if ident.is_empty() {
+            None
+        } else {
+            Some(ident)
+        }
     }
 
     fn single_char(&mut self, kind: TokenKind) -> Result<Token, LexError> {
@@ -510,9 +535,25 @@ impl Lexer {
         if ident == "글무늬" && self.peek() == Some('{') {
             return self.read_template_block(start_line, start_col);
         }
+        if ident == "세움" && self.peek() == Some('{') {
+            return self.read_assertion_block(start_line, start_col);
+        }
 
         if let Some(canon) = self.dialect.canonicalize(&ident) {
             ident = canon.to_string();
+        }
+        if ident == "입력키" || ident == "찾기" || ident == "글바꾸기" {
+            if let Some(suffix) = self.peek() {
+                let can_use_suffix = matches!(suffix, '?' | '!')
+                    && !(suffix == '?' && self.peek_next() == Some('?'))
+                    && !self.peek_next().map(is_ident_continue).unwrap_or(false)
+                    && !(ident == "찾기" && suffix == '!')
+                    && !(ident == "글바꾸기" && suffix == '?');
+                if can_use_suffix {
+                    ident.push(suffix);
+                    self.advance();
+                }
+            }
         }
 
         let kind = self.classify_ident(ident);
@@ -572,9 +613,10 @@ impl Lexer {
             "없음" => TokenKind::None,
             "바탕" => TokenKind::Salim,
             "보여주기" => TokenKind::Boyeojugi,
+            "톺아보기" | "감사" => TokenKind::Tolabogi,
             "채우기" => TokenKind::Chaewugi,
             "수식" => TokenKind::Susic,
-            "처음" => TokenKind::Start,
+            "처음" | "시작" => TokenKind::Start,
             "매마디" => TokenKind::EveryMadi,
             "할때" => TokenKind::Halttae,
             "마다" => TokenKind::Mada,
@@ -585,8 +627,10 @@ impl Lexer {
             "바탕으로" => TokenKind::Jeonjehae,
             "다짐하고" => TokenKind::Bojanghago,
             "고르기" => TokenKind::Goreugi,
-            "되풀이" => TokenKind::Repeat,
+            "되풀이" | "반복" => TokenKind::Repeat,
             "동안" => TokenKind::During,
+            "덩이" => TokenKind::Beat,
+            "미루기" => TokenKind::Reserve,
             "대해" => TokenKind::Daehae,
             "멈추기" => TokenKind::Break,
             "그리고" => TokenKind::And,
@@ -598,6 +642,13 @@ impl Lexer {
     fn try_read_sym3_token(&mut self) -> Option<Token> {
         let start_line = self.line;
         let start_col = self.col;
+        if self.match_str("~~>") {
+            self.advance_n(3);
+            return Some(Token::new(
+                TokenKind::SignalArrow,
+                self.span_from(start_line, start_col),
+            ));
+        }
         for token in DialectConfig::sym3_tokens() {
             if token.is_empty() {
                 continue;
@@ -647,6 +698,42 @@ impl Lexer {
             TokenKind::Template(body),
             self.span_from(start_line, start_col),
         ))
+    }
+
+    fn read_assertion_block(
+        &mut self,
+        start_line: usize,
+        start_col: usize,
+    ) -> Result<Token, LexError> {
+        self.advance();
+        let mut depth = 1usize;
+        let mut body = String::new();
+        while let Some(ch) = self.peek() {
+            if ch == '{' {
+                depth += 1;
+                body.push(ch);
+                self.advance();
+                continue;
+            }
+            if ch == '}' {
+                depth = depth.saturating_sub(1);
+                self.advance();
+                if depth == 0 {
+                    return Ok(Token::new(
+                        TokenKind::Assertion(body),
+                        self.span_from(start_line, start_col),
+                    ));
+                }
+                body.push('}');
+                continue;
+            }
+            body.push(ch);
+            self.advance();
+        }
+        Err(LexError::UnterminatedAssertion {
+            line: start_line,
+            col: start_col,
+        })
     }
 
     fn read_string_value(
@@ -892,5 +979,63 @@ mod tests {
         assert!(!tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::Ilttae)));
+    }
+
+    #[test]
+    fn input_key_suffixes_are_lexed_as_ident() {
+        let tokens = Lexer::tokenize("값 <- () 입력키?.\n값2 <- () 입력키!.\n").expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "입력키?")));
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "입력키!")));
+    }
+
+    #[test]
+    fn map_lookup_optional_suffix_is_lexed_as_ident() {
+        let tokens =
+            Lexer::tokenize("값 <- ((\"a\", 1) 짝맞춤, \"a\") 찾기?.\n").expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "찾기?")));
+    }
+
+    #[test]
+    fn string_replace_strict_suffix_is_lexed_as_ident() {
+        let tokens = Lexer::tokenize("값 <- (\"가\", 0, \"나\") 글바꾸기!.\n").expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "글바꾸기!")));
+    }
+
+    #[test]
+    fn number_madi_suffix_is_lexed_for_periodic_hook() {
+        let tokens = Lexer::tokenize("(3마디)마다 { 없음. }.\n").expect("tokenize");
+        assert!(matches!(tokens.first().map(|token| &token.kind), Some(TokenKind::LParen)));
+        assert!(matches!(tokens.get(1).map(|token| &token.kind), Some(TokenKind::Number(_))));
+        assert!(matches!(
+            tokens.get(2).map(|token| &token.kind),
+            Some(TokenKind::Ident(name)) if name == "마디"
+        ));
+    }
+
+    #[test]
+    fn start_hook_aliases_lex_to_start_token() {
+        let tokens = Lexer::tokenize("(시작)할때 { 없음. }.\n(처음)할때 { 없음. }.\n")
+            .expect("tokenize");
+        let start_count = tokens
+            .iter()
+            .filter(|token| matches!(token.kind, TokenKind::Start))
+            .count();
+        assert_eq!(start_count, 2);
+    }
+
+    #[test]
+    fn signal_arrow_is_lexed_as_token() {
+        let tokens = Lexer::tokenize("값 <- 참 ~~> 거짓.\n").expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::SignalArrow)));
     }
 }

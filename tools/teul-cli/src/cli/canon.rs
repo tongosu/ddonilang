@@ -6,6 +6,8 @@ use serde_json::json;
 
 use crate::canon::{self, CanonError};
 use crate::lang::lexer::Lexer;
+use crate::lang::parser::{ParseError, Parser};
+use crate::lang::span::Span;
 use crate::lang::token::TokenKind;
 
 struct LegacyTerm {
@@ -41,6 +43,10 @@ const LEGACY_TERMS: &[LegacyTerm] = &[
 #[clap(rename_all = "kebab-case")]
 pub enum EmitKind {
     Ddn,
+    GuseongFlatJson,
+    AlrimPlanJson,
+    ExecPolicyMapJson,
+    MaegimControlJson,
     FixitsJson,
     Both,
 }
@@ -85,7 +91,16 @@ pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
             maybe_write_fixits(&fixits_json, &args.fixits_json)?;
             maybe_write_diag(&args.diag_jsonl, &diag_ok_line())?;
             maybe_write_meta(&output.meta, &args.meta_out)?;
-            write_emit(path, &args, &fixits_json, &output.ddn)?;
+            write_emit(
+                path,
+                &args,
+                &fixits_json,
+                &output.ddn,
+                &output.guseong_flat_json,
+                &output.alrim_plan_json,
+                &output.exec_policy_map_json,
+                &output.maegim_control_json,
+            )?;
             Ok(())
         }
         Err(err) => {
@@ -130,7 +145,16 @@ fn is_same_path(left: &Path, right: &Path) -> bool {
     }
 }
 
-fn write_emit(path: &Path, args: &CanonArgs, fixits_json: &str, ddn: &str) -> Result<(), String> {
+fn write_emit(
+    path: &Path,
+    args: &CanonArgs,
+    fixits_json: &str,
+    ddn: &str,
+    guseong_flat_json: &str,
+    alrim_plan_json: &str,
+    exec_policy_map_json: &str,
+    maegim_control_json: &str,
+) -> Result<(), String> {
     match args.emit {
         EmitKind::Ddn => {
             if let Some(out_path) = args.out_dir.as_ref() {
@@ -140,6 +164,52 @@ fn write_emit(path: &Path, args: &CanonArgs, fixits_json: &str, ddn: &str) -> Re
                 fs::write(out_path, ddn).map_err(|e| format!("E_CLI_WRITE {}", e))?;
             } else {
                 print!("{}", ddn);
+            }
+            Ok(())
+        }
+        EmitKind::GuseongFlatJson => {
+            if let Some(out_path) = args.out_dir.as_ref() {
+                if let Some(parent) = out_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+                }
+                fs::write(out_path, guseong_flat_json).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+            } else {
+                print!("{}", guseong_flat_json);
+            }
+            Ok(())
+        }
+        EmitKind::AlrimPlanJson => {
+            if let Some(out_path) = args.out_dir.as_ref() {
+                if let Some(parent) = out_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+                }
+                fs::write(out_path, alrim_plan_json).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+            } else {
+                print!("{}", alrim_plan_json);
+            }
+            Ok(())
+        }
+        EmitKind::ExecPolicyMapJson => {
+            if let Some(out_path) = args.out_dir.as_ref() {
+                if let Some(parent) = out_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+                }
+                fs::write(out_path, exec_policy_map_json)
+                    .map_err(|e| format!("E_CLI_WRITE {}", e))?;
+            } else {
+                print!("{}", exec_policy_map_json);
+            }
+            Ok(())
+        }
+        EmitKind::MaegimControlJson => {
+            if let Some(out_path) = args.out_dir.as_ref() {
+                if let Some(parent) = out_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+                }
+                fs::write(out_path, maegim_control_json)
+                    .map_err(|e| format!("E_CLI_WRITE {}", e))?;
+            } else {
+                print!("{}", maegim_control_json);
             }
             Ok(())
         }
@@ -237,8 +307,10 @@ struct FixitEntry {
     end_col: usize,
     code: String,
     message: String,
-    old: String,
-    new: String,
+    suggestion_kind: &'static str,
+    old: Option<String>,
+    new: Option<String>,
+    note: Option<String>,
 }
 
 fn build_fixits_json(source: &str, path: &Path) -> String {
@@ -249,30 +321,12 @@ fn build_fixits_json(source: &str, path: &Path) -> String {
     let file_label = path.to_string_lossy().to_string();
     let mut entries: Vec<FixitEntry> = Vec::new();
 
-    for token in tokens {
-        let TokenKind::Ident(name) = &token.kind else {
-            continue;
-        };
-        let Some(term) = find_legacy_term(name.as_str()) else {
-            continue;
-        };
-        let span = token.span;
-        let end_col = if span.end_line == span.start_line && span.end_col > 0 {
-            span.end_col.saturating_sub(1)
-        } else {
-            span.end_col
-        };
-        entries.push(FixitEntry {
-            file: file_label.clone(),
-            start_line: span.start_line,
-            start_col: span.start_col,
-            end_line: span.end_line,
-            end_col,
-            code: term.code.to_string(),
-            message: format!("레거시 용어를 정본으로 교체하세요: {}", term.canonical),
-            old: term.input.to_string(),
-            new: term.canonical.to_string(),
-        });
+    collect_legacy_term_fixits(&tokens, &file_label, &mut entries);
+    collect_surface_fixits(source, &file_label, &mut entries);
+    if let Err(err) = Parser::parse_with_default_root(tokens, "살림") {
+        if let Some(entry) = build_parse_fixit(source, &file_label, &err) {
+            entries.push(entry);
+        }
     }
 
     entries.sort_by(|a, b| {
@@ -288,6 +342,18 @@ fn build_fixits_json(source: &str, path: &Path) -> String {
     let json_entries: Vec<_> = entries
         .into_iter()
         .map(|entry| {
+            let mut suggestion = json!({
+                "kind": entry.suggestion_kind,
+            });
+            if let Some(old) = entry.old {
+                suggestion["old"] = json!(old);
+            }
+            if let Some(new) = entry.new {
+                suggestion["new"] = json!(new);
+            }
+            if let Some(note) = entry.note {
+                suggestion["note"] = json!(note);
+            }
             json!({
                 "code": entry.code,
                 "message": entry.message,
@@ -298,11 +364,7 @@ fn build_fixits_json(source: &str, path: &Path) -> String {
                     "end_line": entry.end_line,
                     "end_col": entry.end_col
                 },
-                "suggestion": {
-                    "kind": "replace",
-                    "old": entry.old,
-                    "new": entry.new
-                }
+                "suggestion": suggestion
             })
         })
         .collect();
@@ -311,6 +373,393 @@ fn build_fixits_json(source: &str, path: &Path) -> String {
     format!("{}\n", text)
 }
 
+fn collect_legacy_term_fixits(
+    tokens: &[crate::lang::token::Token],
+    file_label: &str,
+    entries: &mut Vec<FixitEntry>,
+) {
+    for token in tokens {
+        let TokenKind::Ident(name) = &token.kind else {
+            continue;
+        };
+        let Some(term) = find_legacy_term(name.as_str()) else {
+            continue;
+        };
+        let span = token.span;
+        entries.push(FixitEntry {
+            file: file_label.to_string(),
+            start_line: span.start_line,
+            start_col: span.start_col,
+            end_line: span.end_line,
+            end_col: normalize_end_col(span),
+            code: term.code.to_string(),
+            message: format!("레거시 용어를 정본으로 교체하세요: {}", term.canonical),
+            suggestion_kind: "replace",
+            old: Some(term.input.to_string()),
+            new: Some(term.canonical.to_string()),
+            note: None,
+        });
+    }
+}
+
+fn collect_surface_fixits(source: &str, file_label: &str, entries: &mut Vec<FixitEntry>) {
+    const DEPRECATED_HEADER_KEYWORDS: &[&str] = &[
+        "채비", "설정", "보개", "모양", "슬기", "반복", "동안", "대해",
+    ];
+    const ALIAS_REWRITES: &[(&str, &str, &str, &str)] = &[
+        (
+            "보개장면",
+            "보개마당",
+            "W_BOGAE_MADANG_ALIAS_DEPRECATED",
+            "`보개장면`은 별칭입니다. 정본 키워드 `보개마당`을 사용하세요",
+        ),
+        (
+            "구성",
+            "짜임",
+            "W_JJAIM_ALIAS_DEPRECATED",
+            "`구성`은 별칭입니다. 정본 키워드 `짜임`을 사용하세요",
+        ),
+    ];
+
+    for (line_idx, line) in source.lines().enumerate() {
+        let line_no = line_idx + 1;
+        let trimmed = line.trim_start();
+        let leading_cols = line.chars().count().saturating_sub(trimmed.chars().count());
+        for keyword in DEPRECATED_HEADER_KEYWORDS {
+            let needle = format!("{keyword}:");
+            if !trimmed.starts_with(&needle) {
+                continue;
+            }
+            let colon_col = leading_cols + keyword.chars().count() + 1;
+            entries.push(FixitEntry {
+                file: file_label.to_string(),
+                start_line: line_no,
+                start_col: colon_col,
+                end_line: line_no,
+                end_col: colon_col,
+                code: "W_BLOCK_HEADER_COLON_DEPRECATED".to_string(),
+                message: format!("블록 헤더의 `{keyword}:` 표기를 `{keyword} {{`로 바꾸세요"),
+                suggestion_kind: "delete",
+                old: Some(":".to_string()),
+                new: None,
+                note: Some("블록 헤더에서는 콜론을 제거하고 공백 뒤 `{`를 사용하세요.".to_string()),
+            });
+            break;
+        }
+
+        for (legacy, canonical, code, message) in ALIAS_REWRITES {
+            for column in find_standalone_keyword_columns(line, legacy) {
+                entries.push(FixitEntry {
+                    file: file_label.to_string(),
+                    start_line: line_no,
+                    start_col: column,
+                    end_line: line_no,
+                    end_col: column + legacy.chars().count().saturating_sub(1),
+                    code: (*code).to_string(),
+                    message: (*message).to_string(),
+                    suggestion_kind: "replace",
+                    old: Some((*legacy).to_string()),
+                    new: Some((*canonical).to_string()),
+                    note: None,
+                });
+            }
+        }
+    }
+}
+
+fn build_parse_fixit(source: &str, file_label: &str, err: &ParseError) -> Option<FixitEntry> {
+    let span = parse_error_span(err);
+    let (suggestion_kind, old, new, note) = match err {
+        ParseError::ExpectedRParen { .. } => (
+            "insert",
+            None,
+            Some(")".to_string()),
+            Some("열린 괄호를 닫아 식을 완결하세요.".to_string()),
+        ),
+        ParseError::ExpectedRBrace { .. } => (
+            "insert",
+            None,
+            Some("}".to_string()),
+            Some("열린 블록을 닫아 문장을 완결하세요.".to_string()),
+        ),
+        ParseError::MaegimRequiresGroupedValue { .. } => {
+            let replacement = build_grouped_maegim_replacement(source, span)?;
+            (
+                "replace",
+                Some(replacement.0),
+                Some(replacement.1),
+                Some("매김 값은 괄호로 감싸서 적어야 합니다.".to_string()),
+            )
+        }
+        ParseError::BlockHeaderColonForbidden { .. } => (
+            "delete",
+            Some(":".to_string()),
+            None,
+            Some("레거시 선언 헤더의 콜론을 제거하고 `채비 {` 형태로 전환하세요.".to_string()),
+        ),
+        ParseError::EventSurfaceAliasForbidden { .. } => (
+            "replace",
+            Some("오면".to_string()),
+            Some("받으면".to_string()),
+            Some("이벤트 반응은 `받으면 (...) { ... }` 형태로 옮기세요.".to_string()),
+        ),
+        ParseError::EffectSurfaceAliasForbidden { .. } => (
+            "replace",
+            None,
+            Some("너머".to_string()),
+            Some("열림/효과/바깥 별칭 대신 정본 블록 `너머 { ... }`를 사용하세요.".to_string()),
+        ),
+        ParseError::RootHideUndeclared { name, .. } if name == "제" => (
+            "replace",
+            Some("제".to_string()),
+            None,
+            Some("`제`는 임자 안에서만 씁니다. 임자 밖에서는 대상 이름을 직접 적으세요.".to_string()),
+        ),
+        ParseError::RootHideUndeclared { name, .. } => (
+            "replace",
+            Some(name.clone()),
+            None,
+            Some("바탕숨김에서는 선언된 이름만 쓸 수 있습니다. 대상을 먼저 선언하거나 경로를 명시하세요.".to_string()),
+        ),
+        ParseError::ExpectedExpr { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("여기에는 값/경로/호출식이 와야 합니다.".to_string()),
+        ),
+        ParseError::ExpectedPath { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("여기에는 `살림.x` 같은 경로식이 와야 합니다.".to_string()),
+        ),
+        ParseError::ExpectedTarget { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("대입 대상은 이름 또는 경로여야 합니다.".to_string()),
+        ),
+        ParseError::UnsupportedCompoundTarget { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("복합 갱신 대상은 단순 이름/경로로 줄이세요.".to_string()),
+        ),
+        ParseError::UnexpectedToken { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("토큰 순서를 다시 확인하고, 문장을 `.` 또는 블록 `}`로 닫으세요.".to_string()),
+        ),
+        ParseError::ExpectedUnit { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("여기에는 유효한 단위식이 와야 합니다. 예: `m`, `s`, `kg`.".to_string()),
+        ),
+        ParseError::ReceiveOutsideImja { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("`받으면` 블록은 `임자` 안으로 옮기세요.".to_string()),
+        ),
+        ParseError::DeferredAssignOutsideBeat { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("미루기 대입은 `덩이 { ... }` 안에서만 허용됩니다.".to_string()),
+        ),
+        ParseError::LifecycleNameDuplicate {
+            name, first_span, ..
+        } => (
+            "replace",
+            Some(name.clone()),
+            Some(propose_lifecycle_rename_candidate(source, name)),
+            Some(format!(
+                "같은 lifecycle 이름이 이미 {}:{}에 선언되었습니다. 이름을 바꿔 중복을 해소하세요.",
+                first_span.start_line, first_span.start_col
+            )),
+        ),
+        ParseError::QuantifierMutationForbidden { .. }
+        | ParseError::QuantifierShowForbidden { .. }
+        | ParseError::QuantifierIoForbidden { .. }
+        | ParseError::ImmediateProofMutationForbidden { .. }
+        | ParseError::ImmediateProofShowForbidden { .. }
+        | ParseError::ImmediateProofIoForbidden { .. }
+        | ParseError::CaseCompletionRequired { .. }
+        | ParseError::CaseElseNotLast { .. }
+        | ParseError::CompatEqualDisabled { .. }
+        | ParseError::InvalidTensor { .. }
+        | ParseError::ImportAliasDuplicate { .. }
+        | ParseError::ImportAliasReserved { .. }
+        | ParseError::ImportPathInvalid { .. }
+        | ParseError::ImportVersionConflict { .. }
+        | ParseError::ExportBlockDuplicate { .. }
+        | ParseError::MaegimStepSplitConflict { .. }
+        | ParseError::CompatMaticEntryDisabled { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some(err.code().to_string()),
+        ),
+    };
+
+    Some(FixitEntry {
+        file: file_label.to_string(),
+        start_line: span.start_line,
+        start_col: span.start_col,
+        end_line: span.end_line,
+        end_col: normalize_end_col(span),
+        code: err.code().to_string(),
+        message: format!("{} fix-it 제안", err.code()),
+        suggestion_kind,
+        old,
+        new,
+        note,
+    })
+}
+
+fn parse_error_span(err: &ParseError) -> Span {
+    match err {
+        ParseError::UnexpectedToken { span, .. }
+        | ParseError::ExpectedExpr { span }
+        | ParseError::ExpectedPath { span }
+        | ParseError::ExpectedTarget { span }
+        | ParseError::RootHideUndeclared { span, .. }
+        | ParseError::UnsupportedCompoundTarget { span }
+        | ParseError::ExpectedRParen { span }
+        | ParseError::ExpectedRBrace { span }
+        | ParseError::ExpectedUnit { span }
+        | ParseError::InvalidTensor { span }
+        | ParseError::CompatEqualDisabled { span }
+        | ParseError::CompatMaticEntryDisabled { span }
+        | ParseError::BlockHeaderColonForbidden { span }
+        | ParseError::EventSurfaceAliasForbidden { span }
+        | ParseError::EffectSurfaceAliasForbidden { span }
+        | ParseError::ImportAliasDuplicate { span }
+        | ParseError::ImportAliasReserved { span }
+        | ParseError::ImportPathInvalid { span }
+        | ParseError::ImportVersionConflict { span }
+        | ParseError::ExportBlockDuplicate { span }
+        | ParseError::LifecycleNameDuplicate { span, .. }
+        | ParseError::ReceiveOutsideImja { span }
+        | ParseError::MaegimRequiresGroupedValue { span }
+        | ParseError::MaegimStepSplitConflict { span }
+        | ParseError::DeferredAssignOutsideBeat { span }
+        | ParseError::QuantifierMutationForbidden { span }
+        | ParseError::QuantifierShowForbidden { span }
+        | ParseError::QuantifierIoForbidden { span }
+        | ParseError::ImmediateProofMutationForbidden { span }
+        | ParseError::ImmediateProofShowForbidden { span }
+        | ParseError::ImmediateProofIoForbidden { span }
+        | ParseError::CaseCompletionRequired { span }
+        | ParseError::CaseElseNotLast { span } => *span,
+    }
+}
+
+fn normalize_end_col(span: Span) -> usize {
+    if span.end_line == span.start_line && span.end_col > 0 {
+        span.end_col.saturating_sub(1)
+    } else {
+        span.end_col
+    }
+}
+
+fn span_snippet(source: &str, span: Span) -> Option<String> {
+    if span.start_line != span.end_line {
+        return None;
+    }
+    let line = source.lines().nth(span.start_line.saturating_sub(1))?;
+    let chars: Vec<char> = line.chars().collect();
+    let start = span.start_col.saturating_sub(1);
+    let end_inclusive = normalize_end_col(span);
+    if start >= chars.len() || end_inclusive == 0 {
+        return None;
+    }
+    let end_exclusive = end_inclusive
+        .saturating_sub(1)
+        .min(chars.len().saturating_sub(1))
+        .saturating_add(1);
+    Some(chars[start..end_exclusive].iter().collect())
+}
+
+fn build_grouped_maegim_replacement(source: &str, span: Span) -> Option<(String, String)> {
+    let line = source.lines().nth(span.start_line.saturating_sub(1))?;
+    let maegim_idx = line.find("매김")?;
+    let equals_idx = line[..maegim_idx].rfind('=')?;
+    let value = line[(equals_idx + 1)..maegim_idx].trim();
+    if value.is_empty() {
+        return None;
+    }
+    Some((value.to_string(), format!("({value})")))
+}
+
+fn find_standalone_keyword_columns(line: &str, needle: &str) -> Vec<usize> {
+    let mut out = Vec::new();
+    for (byte_idx, _) in line.match_indices(needle) {
+        let before = line[..byte_idx].chars().next_back();
+        let after = line[(byte_idx + needle.len())..].chars().next();
+        if before.is_some_and(is_ident_like) || after.is_some_and(is_ident_like) {
+            continue;
+        }
+        let col = line[..byte_idx].chars().count() + 1;
+        out.push(col);
+    }
+    out
+}
+
+fn source_contains_identifier_name(source: &str, name: &str) -> bool {
+    match Lexer::tokenize(source) {
+        Ok(tokens) => tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(text) if text == name)),
+        Err(_) => source.contains(name),
+    }
+}
+
+fn propose_lifecycle_rename_candidate(source: &str, base: &str) -> String {
+    for suffix in 2..=10_000 {
+        let candidate = format!("{base}{suffix}");
+        if !source_contains_identifier_name(source, &candidate) {
+            return candidate;
+        }
+    }
+    format!("{base}_renamed")
+}
+
+fn is_ident_like(ch: char) -> bool {
+    ch.is_alphanumeric() || matches!(ch, '_' | '.')
+}
+
 fn find_legacy_term(name: &str) -> Option<&'static LegacyTerm> {
     LEGACY_TERMS.iter().find(|term| term.input == name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lifecycle_fixit_candidate_uses_next_available_suffix() {
+        let source = r#"
+연습판 = 판 {
+}.
+연습판2 = 판 {
+}.
+연습판3 = 판 {
+}.
+"#;
+        let candidate = propose_lifecycle_rename_candidate(source, "연습판");
+        assert_eq!(candidate, "연습판4");
+    }
+
+    #[test]
+    fn lifecycle_fixit_candidate_defaults_to_suffix_two() {
+        let source = r#"
+연습판 = 판 {
+}.
+"#;
+        let candidate = propose_lifecycle_rename_candidate(source, "연습판");
+        assert_eq!(candidate, "연습판2");
+    }
 }

@@ -1,13 +1,15 @@
 use crate::core::fixed64::Fixed64;
 use crate::core::unit::{UnitExpr, UnitFactor};
 use crate::lang::ast::{
-    ArgBinding, BinaryOp, Binding, BindingReason, ChooseBranch, ContractKind, ContractMode,
-    DeclItem, DeclKind, Expr, FormulaDialect, HookKind, Literal, NumberLiteral, ParamPin, Path,
-    Program, SeedKind, Stmt, UnaryOp,
+    ArgBinding, Assertion, BinaryOp, Binding, BindingReason, ChooseBranch, ContractKind,
+    ContractMode, DeclItem, DeclKind, Expr, FormulaDialect, HookKind, Literal, MaegimSpec,
+    LifecycleUnitKind, ModuleExportItem, ModuleImportItem, NumberLiteral, ParamPin, Path,
+    Program, QuantifierKind, SeedKind, Stmt, UnaryOp,
 };
 use crate::lang::span::Span;
 use crate::lang::token::{Token, TokenKind};
-use std::collections::{HashSet, VecDeque};
+use ddonirang_lang::stdlib;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -48,6 +50,74 @@ pub enum ParseError {
     CompatEqualDisabled {
         span: Span,
     },
+    CompatMaticEntryDisabled {
+        span: Span,
+    },
+    BlockHeaderColonForbidden {
+        span: Span,
+    },
+    EventSurfaceAliasForbidden {
+        span: Span,
+    },
+    EffectSurfaceAliasForbidden {
+        span: Span,
+    },
+    ImportAliasDuplicate {
+        span: Span,
+    },
+    ImportAliasReserved {
+        span: Span,
+    },
+    ImportPathInvalid {
+        span: Span,
+    },
+    ImportVersionConflict {
+        span: Span,
+    },
+    ExportBlockDuplicate {
+        span: Span,
+    },
+    LifecycleNameDuplicate {
+        name: String,
+        span: Span,
+        first_span: Span,
+    },
+    ReceiveOutsideImja {
+        span: Span,
+    },
+    MaegimRequiresGroupedValue {
+        span: Span,
+    },
+    MaegimStepSplitConflict {
+        span: Span,
+    },
+    DeferredAssignOutsideBeat {
+        span: Span,
+    },
+    QuantifierMutationForbidden {
+        span: Span,
+    },
+    QuantifierShowForbidden {
+        span: Span,
+    },
+    QuantifierIoForbidden {
+        span: Span,
+    },
+    ImmediateProofMutationForbidden {
+        span: Span,
+    },
+    ImmediateProofShowForbidden {
+        span: Span,
+    },
+    ImmediateProofIoForbidden {
+        span: Span,
+    },
+    CaseCompletionRequired {
+        span: Span,
+    },
+    CaseElseNotLast {
+        span: Span,
+    },
 }
 
 impl ParseError {
@@ -64,6 +134,36 @@ impl ParseError {
             ParseError::ExpectedUnit { .. } => "E_PARSE_EXPECTED_UNIT",
             ParseError::InvalidTensor { .. } => "E_PARSE_TENSOR_SHAPE",
             ParseError::CompatEqualDisabled { .. } => "E_PARSE_COMPAT_EQUAL_DISABLED",
+            ParseError::CompatMaticEntryDisabled { .. } => "E_LANG_COMPAT_MATIC_ENTRY_DISABLED",
+            ParseError::BlockHeaderColonForbidden { .. } => "E_BLOCK_HEADER_COLON_FORBIDDEN",
+            ParseError::EventSurfaceAliasForbidden { .. } => "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+            ParseError::EffectSurfaceAliasForbidden { .. } => "E_EFFECT_SURFACE_ALIAS_FORBIDDEN",
+            ParseError::ImportAliasDuplicate { .. } => "E_IMPORT_ALIAS_DUPLICATE",
+            ParseError::ImportAliasReserved { .. } => "E_IMPORT_ALIAS_RESERVED",
+            ParseError::ImportPathInvalid { .. } => "E_IMPORT_PATH_INVALID",
+            ParseError::ImportVersionConflict { .. } => "E_IMPORT_VERSION_CONFLICT",
+            ParseError::ExportBlockDuplicate { .. } => "E_EXPORT_BLOCK_DUPLICATE",
+            ParseError::LifecycleNameDuplicate { .. } => "E_PARSE_LIFECYCLE_NAME_DUPLICATE",
+            ParseError::ReceiveOutsideImja { .. } => "E_RECEIVE_OUTSIDE_IMJA",
+            ParseError::MaegimRequiresGroupedValue { .. } => {
+                "E_PARSE_MAEGIM_GROUPED_VALUE_REQUIRED"
+            }
+            ParseError::MaegimStepSplitConflict { .. } => "E_PARSE_MAEGIM_STEP_SPLIT_CONFLICT",
+            ParseError::DeferredAssignOutsideBeat { .. } => "E_PARSE_DEFERRED_ASSIGN_OUTSIDE_BEAT",
+            ParseError::QuantifierMutationForbidden { .. } => {
+                "E_PARSE_QUANTIFIER_MUTATION_FORBIDDEN"
+            }
+            ParseError::QuantifierShowForbidden { .. } => "E_PARSE_QUANTIFIER_SHOW_FORBIDDEN",
+            ParseError::QuantifierIoForbidden { .. } => "E_PARSE_QUANTIFIER_IO_FORBIDDEN",
+            ParseError::ImmediateProofMutationForbidden { .. } => {
+                "E_PARSE_IMMEDIATE_PROOF_MUTATION_FORBIDDEN"
+            }
+            ParseError::ImmediateProofShowForbidden { .. } => {
+                "E_PARSE_IMMEDIATE_PROOF_SHOW_FORBIDDEN"
+            }
+            ParseError::ImmediateProofIoForbidden { .. } => "E_PARSE_IMMEDIATE_PROOF_IO_FORBIDDEN",
+            ParseError::CaseCompletionRequired { .. } => "E_PARSE_CASE_COMPLETION_REQUIRED",
+            ParseError::CaseElseNotLast { .. } => "E_PARSE_CASE_ELSE_NOT_LAST",
         }
     }
 }
@@ -71,6 +171,21 @@ impl ParseError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseMode {
     Strict,
+    StrictCompatMaticEntry,
+}
+
+impl ParseMode {
+    pub fn with_compat_matic_entry(self, enabled: bool) -> Self {
+        if enabled {
+            ParseMode::StrictCompatMaticEntry
+        } else {
+            ParseMode::Strict
+        }
+    }
+
+    pub fn compat_matic_entry_enabled(self) -> bool {
+        matches!(self, ParseMode::StrictCompatMaticEntry)
+    }
 }
 
 struct ArgSuffix {
@@ -84,8 +199,15 @@ pub struct Parser {
     pos: usize,
     default_root: String,
     root_hide: bool,
+    allow_compat_matic_entry: bool,
     declared_scopes: Vec<HashSet<String>>,
     pending_stmts: VecDeque<Stmt>,
+    import_aliases: HashSet<String>,
+    import_package_versions: HashMap<String, String>,
+    seen_export_block: bool,
+    lifecycle_named_units: HashMap<String, Span>,
+    seed_kind_stack: Vec<SeedKind>,
+    beat_depth: usize,
 }
 
 impl Parser {
@@ -104,15 +226,22 @@ impl Parser {
     pub fn parse_with_default_root_mode(
         tokens: Vec<Token>,
         default_root: &str,
-        _mode: ParseMode,
+        mode: ParseMode,
     ) -> Result<Program, ParseError> {
         let mut parser = Parser {
             tokens,
             pos: 0,
             default_root: default_root.to_string(),
             root_hide: default_root == "바탕",
+            allow_compat_matic_entry: mode.compat_matic_entry_enabled(),
             declared_scopes: vec![HashSet::new()],
             pending_stmts: VecDeque::new(),
+            import_aliases: HashSet::new(),
+            import_package_versions: HashMap::new(),
+            seen_export_block: false,
+            lifecycle_named_units: HashMap::new(),
+            seed_kind_stack: Vec::new(),
+            beat_depth: 0,
         };
         let mut stmts = Vec::new();
         parser.skip_newlines();
@@ -147,6 +276,12 @@ impl Parser {
             .iter()
             .rev()
             .any(|scope| scope.contains(name))
+    }
+
+    fn in_imja_seed_body(&self) -> bool {
+        self.seed_kind_stack
+            .last()
+            .is_some_and(|kind| matches!(kind, SeedKind::Named(name) if name == "임자"))
     }
 
     fn ensure_root_declared_for_write(&self, path: &Path) -> Result<(), ParseError> {
@@ -223,20 +358,30 @@ impl Parser {
 
     fn stmt_span(stmt: &Stmt) -> Span {
         match stmt {
-            Stmt::DeclBlock { span, .. }
+            Stmt::ImportBlock { span, .. }
+            | Stmt::ExportBlock { span, .. }
+            | Stmt::DeclBlock { span, .. }
             | Stmt::SeedDef { span, .. }
             | Stmt::Assign { span, .. }
             | Stmt::Expr { span, .. }
+            | Stmt::Receive { span, .. }
+            | Stmt::Send { span, .. }
             | Stmt::Return { span, .. }
             | Stmt::Show { span, .. }
+            | Stmt::Inspect { span, .. }
             | Stmt::Hook { span, .. }
+            | Stmt::HookWhenBecomes { span, .. }
+            | Stmt::HookWhile { span, .. }
             | Stmt::OpenBlock { span, .. }
+            | Stmt::BeatBlock { span, .. }
+            | Stmt::LifecycleBlock { span, .. }
             | Stmt::Repeat { span, .. }
             | Stmt::Break { span, .. }
             | Stmt::Choose { span, .. }
             | Stmt::If { span, .. }
             | Stmt::While { span, .. }
             | Stmt::ForEach { span, .. }
+            | Stmt::Quantifier { span, .. }
             | Stmt::Contract { span, .. }
             | Stmt::Pragma { span, .. }
             | Stmt::BogaeDraw { span, .. } => *span,
@@ -276,27 +421,32 @@ impl Parser {
             let TokenKind::Pragma(raw) = token.kind else {
                 unreachable!("pragma branch must receive pragma token")
             };
-            if Self::is_forbidden_setting_pragma(&raw) {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "길잡이말(#...) 없이 설정:/보개:/슬기: 블록 사용",
-                    found: TokenKind::Pragma(raw),
-                    span,
-                });
-            }
-            let (name, args) = Self::split_pragma_parts(&raw);
-            return Ok(Some(Stmt::Pragma { name, args, span }));
+            return Err(ParseError::UnexpectedToken {
+                expected: "길잡이말(#...)은 더 이상 허용하지 않습니다. 설정:/보개:/슬기: 블록을 사용하세요",
+                found: TokenKind::Pragma(raw),
+                span,
+            });
         }
 
         if !allow_rbrace {
+            if self.is_import_block_start() {
+                return Ok(Some(self.parse_import_block()?));
+            }
+            if self.is_export_block_start() {
+                return Ok(Some(self.parse_export_block()?));
+            }
             if let Some(seed_def) = self.try_parse_seed_def()? {
                 return Ok(Some(seed_def));
             }
         }
 
+        if let Some(stmt) = self.try_parse_immediate_proof_stmt()? {
+            return Ok(Some(stmt));
+        }
+
         if let Some(legacy) = self.peek_legacy_decl_block_name() {
-            return Err(ParseError::UnexpectedToken {
-                expected: "'채비:'",
-                found: TokenKind::Ident(legacy.to_string()),
+            let _ = legacy;
+            return Err(ParseError::BlockHeaderColonForbidden {
                 span: self.peek().span,
             });
         }
@@ -308,9 +458,18 @@ impl Parser {
         if let Some(hook) = self.try_parse_hook()? {
             return Ok(Some(hook));
         }
+        if self.is_lifecycle_block_start() {
+            return Ok(Some(self.parse_lifecycle_block_stmt()));
+        }
 
         if self.is_open_block_start() {
             return Ok(Some(self.parse_open_block_stmt()?));
+        }
+        if self.is_beat_block_start() {
+            return Ok(Some(self.parse_beat_block_stmt()?));
+        }
+        if self.is_execution_policy_block_start() {
+            return Ok(Some(self.parse_execution_policy_block_stmt()?));
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Repeat)) {
@@ -328,6 +487,9 @@ impl Parser {
         if self.is_foreach_start() {
             return Ok(Some(self.parse_foreach_stmt()?));
         }
+        if self.is_quantifier_start() {
+            return Ok(Some(self.parse_quantifier_stmt()?));
+        }
 
         if self.is_bogae_draw_stmt() {
             return Ok(Some(self.parse_bogae_draw_stmt()?));
@@ -341,6 +503,9 @@ impl Parser {
                 return Ok(Some(first));
             }
             return Ok(None);
+        }
+        if self.is_jjaim_block_start() {
+            return Ok(Some(self.parse_jjaim_block_stub_stmt()?));
         }
 
         if self.peek_kind_is(|k| {
@@ -374,16 +539,70 @@ impl Parser {
             });
         }
 
+        if let Some(stmt) = self.try_parse_event_react_stmt()? {
+            return Ok(Some(stmt));
+        }
+
+        if let Some(stmt) = self.try_parse_receive_stmt()? {
+            return Ok(Some(stmt));
+        }
+
         let expr = self.parse_expr()?;
+        let mut sender = None;
+        let mut payload = expr;
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "의")) {
+            self.advance();
+            sender = Some(payload);
+            payload = self.parse_expr()?;
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::SignalArrow)) {
+            let start_span = sender
+                .as_ref()
+                .map(|value| value.span())
+                .unwrap_or_else(|| payload.span());
+            self.advance();
+            let receiver = self.parse_expr()?;
+            let span = start_span.merge(receiver.span());
+            self.consume_terminator()?;
+            return Ok(Some(Stmt::Send {
+                sender,
+                payload,
+                receiver,
+                span,
+            }));
+        }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Ilttae)) {
-            let stmt = self.parse_if_stmt(expr)?;
+            let stmt = self.parse_if_stmt(payload)?;
             return Ok(Some(stmt));
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Jeonjehae | TokenKind::Bojanghago)) {
-            let stmt = self.parse_contract_stmt(expr)?;
+            let stmt = self.parse_contract_stmt(payload)?;
             return Ok(Some(stmt));
+        }
+
+        if let Some(verb_name) = self.peek_lifecycle_transition_verb_name() {
+            let verb_span = self.advance().span;
+            let target_name =
+                Self::lifecycle_target_name_from_expr(&payload).ok_or(ParseError::ExpectedTarget {
+                    span: payload.span(),
+                })?;
+            let span = payload.span().merge(verb_span);
+            self.consume_terminator()?;
+            return Ok(Some(Stmt::Expr {
+                value: Expr::Call {
+                    name: verb_name,
+                    args: vec![self.new_arg_binding(Expr::Literal(
+                        Literal::Str(target_name),
+                        payload.span(),
+                    ))],
+                    span,
+                },
+                span,
+            }));
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::PlusEqual | TokenKind::MinusEqual)) {
@@ -396,6 +615,19 @@ impl Parser {
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+            let save_pos = self.pos;
+            if let Some(name) = Self::lifecycle_target_name_from_expr(&payload) {
+                let name_span = payload.span();
+                self.advance();
+                self.skip_newlines();
+                if self.peek_kind_is(
+                    |k| matches!(k, TokenKind::Ident(kind) if kind == "판" || kind == "마당"),
+                ) {
+                    let stmt = self.parse_lifecycle_block_stmt_named(Some(name), Some(name_span))?;
+                    return Ok(Some(stmt));
+                }
+                self.pos = save_pos;
+            }
             return Err(ParseError::CompatEqualDisabled {
                 span: self.peek().span,
             });
@@ -414,11 +646,24 @@ impl Parser {
             };
             self.advance();
             let value = self.parse_expr()?;
-            let span = expr.span().merge(value.span());
+            let span = payload.span().merge(value.span());
+            let mut deferred = false;
+            let mut deferred_span = None;
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Reserve)) {
+                if self.beat_depth == 0 {
+                    return Err(ParseError::DeferredAssignOutsideBeat {
+                        span: self.peek().span,
+                    });
+                }
+                deferred = true;
+                deferred_span = Some(self.advance().span);
+            }
             self.consume_terminator()?;
             if op.is_some() {
-                let Expr::Path(path) = expr else {
-                    return Err(ParseError::UnsupportedCompoundTarget { span: expr.span() });
+                let Expr::Path(path) = payload else {
+                    return Err(ParseError::UnsupportedCompoundTarget {
+                        span: payload.span(),
+                    });
                 };
                 let left = Expr::Path(path.clone());
                 let binary_span = left.span().merge(value.span());
@@ -432,11 +677,13 @@ impl Parser {
                 return Ok(Some(Stmt::Assign {
                     target: path,
                     value: value_expr,
+                    deferred,
+                    deferred_span,
                     span,
                 }));
             }
 
-            match expr {
+            match payload {
                 Expr::Call {
                     name,
                     args,
@@ -466,26 +713,26 @@ impl Parser {
                     return Ok(Some(Stmt::Assign {
                         target,
                         value: value_call,
+                        deferred,
+                        deferred_span,
                         span,
                     }));
                 }
                 Expr::Path(path) => {
-                    if let Some((target, field)) = Self::split_map_dot_target(&path) {
+                    if let Some((target, key_segments)) = Self::split_map_dot_target(&path) {
                         self.ensure_root_declared_for_write(&target)?;
                         let set_span = path.span.merge(value.span());
-                        let key_expr = Expr::Literal(Literal::Str(field), path.span);
-                        let value_call = Expr::Call {
-                            name: "짝맞춤.바꾼값".to_string(),
-                            args: vec![
-                                self.new_arg_binding(Expr::Path(target.clone())),
-                                self.new_arg_binding(key_expr),
-                                self.new_arg_binding(value),
-                            ],
-                            span: set_span,
-                        };
+                        let value_call = self.build_map_dot_write_expr(
+                            Expr::Path(target.clone()),
+                            &key_segments,
+                            value,
+                            set_span,
+                        );
                         return Ok(Some(Stmt::Assign {
                             target,
                             value: value_call,
+                            deferred,
+                            deferred_span,
                             span,
                         }));
                     }
@@ -493,6 +740,8 @@ impl Parser {
                     return Ok(Some(Stmt::Assign {
                         target: path,
                         value,
+                        deferred,
+                        deferred_span,
                         span,
                     }));
                 }
@@ -500,31 +749,394 @@ impl Parser {
             }
         }
 
-        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "되돌림")) {
-            let end_span = self.advance().span;
-            let span = expr.span().merge(end_span);
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "지키기")) {
+            let guard_span = self.advance().span;
+            let mut call_name = "지키기".to_string();
+            let mut end_span = guard_span;
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "끔")) {
+                end_span = self.advance().span;
+                call_name = "지키기끔".to_string();
+            }
+            let span = payload.span().merge(end_span);
             self.consume_terminator()?;
-            return Ok(Some(Stmt::Return { value: expr, span }));
+            return Ok(Some(Stmt::Expr {
+                value: Expr::Call {
+                    name: call_name,
+                    args: vec![self.new_arg_binding(payload)],
+                    span,
+                },
+                span,
+            }));
+        }
+
+        if self.peek_kind_is(|k| {
+            matches!(
+                k,
+                TokenKind::Ident(name)
+                    if name == "되돌림" || name == "반환" || name == "돌려줘"
+            )
+        }) {
+            let end_span = self.advance().span;
+            let span = payload.span().merge(end_span);
+            self.consume_terminator()?;
+            return Ok(Some(Stmt::Return {
+                value: payload,
+                span,
+            }));
         }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Boyeojugi)) {
             self.advance();
-            let span = expr.span();
+            let span = payload.span();
             self.consume_terminator()?;
-            return Ok(Some(Stmt::Show { value: expr, span }));
+            return Ok(Some(Stmt::Show {
+                value: payload,
+                span,
+            }));
         }
 
-        let span = expr.span();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Tolabogi)) {
+            self.advance();
+            let span = payload.span();
+            self.consume_terminator()?;
+            return Ok(Some(Stmt::Inspect {
+                value: payload,
+                span,
+            }));
+        }
+
+        let span = payload.span();
         self.consume_terminator()?;
-        Ok(Some(Stmt::Expr { value: expr, span }))
+        let payload = Self::rewrite_bare_reset_call(payload);
+        let payload = Self::rewrite_bare_lifecycle_transition_call(payload);
+        Ok(Some(Stmt::Expr {
+            value: payload,
+            span,
+        }))
+    }
+
+    fn path_bare_call_name(path: &Path) -> Option<String> {
+        if path.segments.len() == 1 {
+            return path.segments.first().cloned();
+        }
+        if path.implicit_root
+            && path.segments.len() == 2
+            && matches!(path.segments.first().map(|s| s.as_str()), Some("살림" | "바탕"))
+        {
+            return path.segments.get(1).cloned();
+        }
+        None
+    }
+
+    fn rewrite_bare_reset_call(expr: Expr) -> Expr {
+        let Expr::Path(path) = expr else {
+            return expr;
+        };
+        let call_name = Self::path_bare_call_name(&path);
+        let Some(name) = call_name else {
+            return Expr::Path(path);
+        };
+        if !Self::is_reset_kind_name(&name) {
+            return Expr::Path(path);
+        }
+        Expr::Call {
+            name,
+            args: Vec::new(),
+            span: path.span,
+        }
+    }
+
+    fn is_reset_kind_name(name: &str) -> bool {
+        matches!(name, "마당다시" | "판다시" | "누리다시" | "보개다시" | "모두다시")
+    }
+
+    fn rewrite_bare_lifecycle_transition_call(expr: Expr) -> Expr {
+        let Expr::Path(path) = expr else {
+            return expr;
+        };
+        let call_name = Self::path_bare_call_name(&path);
+        let Some(name) = call_name else {
+            return Expr::Path(path);
+        };
+        if !Self::is_lifecycle_transition_name(&name) {
+            return Expr::Path(path);
+        }
+        Expr::Call {
+            name,
+            args: Vec::new(),
+            span: path.span,
+        }
+    }
+
+    fn is_lifecycle_transition_name(name: &str) -> bool {
+        matches!(name, "시작하기" | "넘어가기" | "불러오기")
+    }
+
+    fn peek_lifecycle_transition_verb_name(&self) -> Option<String> {
+        match &self.peek().kind {
+            TokenKind::Ident(name) if Self::is_lifecycle_transition_name(name) => Some(name.clone()),
+            _ => None,
+        }
+    }
+
+    fn lifecycle_target_name_from_expr(expr: &Expr) -> Option<String> {
+        let Expr::Path(path) = expr else {
+            return None;
+        };
+        if path.segments.is_empty() {
+            return None;
+        }
+        let parts = if path.implicit_root
+            && path.segments.len() >= 2
+            && matches!(path.segments.first().map(|s| s.as_str()), Some("살림" | "바탕"))
+        {
+            &path.segments[1..]
+        } else {
+            &path.segments[..]
+        };
+        if parts.is_empty() {
+            None
+        } else {
+            Some(parts.join("."))
+        }
+    }
+
+    fn try_parse_event_react_stmt(&mut self) -> Result<Option<Stmt>, ParseError> {
+        if self.detect_forbidden_event_alias() {
+            return Err(ParseError::EventSurfaceAliasForbidden {
+                span: self.peek().span,
+            });
+        }
+
+        let TokenKind::String(kind) = self.peek().kind.clone() else {
+            return Ok(None);
+        };
+        if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(text) if text == "라는")) {
+            return Ok(None);
+        }
+        if !self.peek_kind_n_is(
+            2,
+            |k| matches!(k, TokenKind::Ident(text) if Self::is_event_noun_canonical(text)),
+        ) {
+            return Ok(None);
+        }
+        if !self.peek_kind_n_is(3, |k| matches!(k, TokenKind::Ident(text) if text == "오면")) {
+            return Ok(None);
+        }
+
+        let start_span = self.peek().span;
+        self.advance(); // "KIND"
+        self.advance(); // 라는
+        self.advance(); // 알림/알림이
+        self.advance(); // 오면
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+
+        let input_path = Path {
+            segments: vec![self.default_root.clone(), "입력사건".to_string()],
+            span,
+            implicit_root: true,
+        };
+        let condition = Expr::Call {
+            name: "사건.있나".to_string(),
+            args: vec![
+                self.new_arg_binding(Expr::Path(input_path)),
+                self.new_arg_binding(Expr::Literal(Literal::Str(kind), span)),
+            ],
+            span,
+        };
+        Ok(Some(Stmt::If {
+            condition,
+            then_body: body,
+            else_body: None,
+            span,
+        }))
+    }
+
+    fn try_parse_receive_stmt(&mut self) -> Result<Option<Stmt>, ParseError> {
+        let checkpoint = self.pos;
+        let mut binding = None;
+        let mut condition = None;
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            if !self.has_receive_binding_head() {
+                return Ok(None);
+            }
+            self.advance();
+            let TokenKind::Ident(name) = self.peek().kind.clone() else {
+                self.pos = checkpoint;
+                return Ok(None);
+            };
+            self.advance();
+            binding = Some(name);
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+                condition = Some(self.parse_expr()?);
+            }
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+                return Err(ParseError::ExpectedRParen {
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(text) if text == "인")) {
+                self.pos = checkpoint;
+                return Ok(None);
+            }
+            self.advance();
+        }
+
+        let Some(kind) = self.peek_receive_kind_name() else {
+            self.pos = checkpoint;
+            return Ok(None);
+        };
+        let start_span = self.peek().span;
+        self.advance();
+
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(text) if text == "받으면")) {
+            self.pos = checkpoint;
+            return Ok(None);
+        }
+        if !self.in_imja_seed_body() {
+            return Err(ParseError::ReceiveOutsideImja { span: start_span });
+        }
+        self.advance();
+
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Some(Stmt::Receive {
+            kind,
+            binding,
+            condition,
+            body,
+            span,
+        }))
+    }
+
+    fn has_receive_binding_head(&self) -> bool {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            return false;
+        }
+        let mut depth = 0usize;
+        let mut index = self.pos;
+        while let Some(token) = self.tokens.get(index) {
+            match &token.kind {
+                TokenKind::LParen => depth += 1,
+                TokenKind::RParen => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return self.tokens.get(index + 1).is_some_and(
+                            |next| matches!(&next.kind, TokenKind::Ident(text) if text == "인"),
+                        );
+                    }
+                }
+                _ => {}
+            }
+            index += 1;
+        }
+        false
+    }
+
+    fn peek_receive_kind_name(&self) -> Option<Option<String>> {
+        let TokenKind::Ident(text) = &self.peek().kind else {
+            return None;
+        };
+        let kind = Self::strip_object_particle(text)?;
+        if kind == "알림" {
+            Some(None)
+        } else {
+            Some(Some(kind))
+        }
+    }
+
+    fn strip_object_particle(text: &str) -> Option<String> {
+        text.strip_suffix('를')
+            .or_else(|| text.strip_suffix('을'))
+            .map(|raw| raw.to_string())
+    }
+
+    fn detect_forbidden_event_alias(&self) -> bool {
+        match &self.peek().kind {
+            TokenKind::Ident(text) if Self::is_event_noun_any(text) => {
+                self.peek_kind_n_is(1, |k| matches!(k, TokenKind::String(_)))
+            }
+            TokenKind::String(_) => {
+                (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ilttae))
+                    || self.peek_kind_n_is(
+                        1,
+                        |k| matches!(k, TokenKind::Ident(text) if text == "일때"),
+                    ))
+                    || (self.peek_kind_n_is(
+                        1,
+                        |k| matches!(k, TokenKind::Ident(text) if text == "라는"),
+                    ) && self.peek_kind_n_is(
+                        2,
+                        |k| matches!(k, TokenKind::Ident(text) if Self::is_event_noun_alias(text)),
+                    ))
+            }
+            _ => false,
+        }
+    }
+
+    fn is_event_noun_canonical(text: &str) -> bool {
+        matches!(text, "알림" | "알림이" | "알림가")
+    }
+
+    fn is_event_noun_alias(text: &str) -> bool {
+        matches!(
+            text,
+            "소식" | "소식이" | "소식가" | "알람" | "알람이" | "알람가"
+        )
+    }
+
+    fn is_event_noun_any(text: &str) -> bool {
+        Self::is_event_noun_canonical(text) || Self::is_event_noun_alias(text)
     }
 
     fn try_parse_hook(&mut self) -> Result<Option<Stmt>, ParseError> {
         if self.is_hook_start() {
             return Ok(Some(self.parse_hook(HookKind::Start)?));
         }
+        if self.is_hook_end() {
+            return Ok(Some(self.parse_hook(HookKind::End)?));
+        }
         if self.is_hook_every() {
             return Ok(Some(self.parse_hook(HookKind::EveryMadi)?));
+        }
+        if self.is_hook_every_n_madi() {
+            return Ok(Some(self.parse_hook_every_n_madi()?));
+        }
+        if let Some(hook) = self.try_parse_condition_hook()? {
+            return Ok(Some(hook));
         }
         Ok(None)
     }
@@ -536,11 +1148,26 @@ impl Parser {
             && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::Halttae))
     }
 
+    fn is_hook_end(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "끝"))
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::RParen))
+            && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::Halttae))
+    }
+
     fn is_hook_every(&self) -> bool {
         self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
             && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::EveryMadi))
             && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::RParen))
             && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::Mada))
+    }
+
+    fn is_hook_every_n_madi(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Number(_)))
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Ident(name) if name == "마디"))
+            && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::RParen))
+            && self.peek_kind_n_is(4, |k| matches!(k, TokenKind::Mada))
     }
 
     fn is_bogae_draw_stmt(&self) -> bool {
@@ -567,12 +1194,132 @@ impl Parser {
                 && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace)))
     }
 
+    fn is_beat_block_start(&self) -> bool {
+        self.peek_kind_is(Self::is_beat_block_head)
+            && (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::LBrace))
+                || (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon))
+                    && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace))))
+    }
+
+    fn is_beat_block_head(kind: &TokenKind) -> bool {
+        match kind {
+            TokenKind::Beat => true,
+            _ => false,
+        }
+    }
+
+    fn is_lifecycle_block_start(&self) -> bool {
+        if !self.peek_kind_is(
+            |k| matches!(k, TokenKind::Ident(name) if name == "판" || name == "마당"),
+        ) {
+            return false;
+        }
+        self.peek_kind_n_is(1, |k| matches!(k, TokenKind::LBrace))
+            || (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon))
+                && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace)))
+    }
+
+    fn parse_beat_block_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        self.beat_depth += 1;
+        let body_result = self.parse_block();
+        self.beat_depth = self.beat_depth.saturating_sub(1);
+        let body = body_result?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::BeatBlock { body, span })
+    }
+
+    fn parse_lifecycle_block_stmt(&mut self) -> Stmt {
+        self.parse_lifecycle_block_stmt_named(None, None)
+            .expect("lifecycle block start already validated")
+    }
+
+    fn parse_lifecycle_block_stmt_named(
+        &mut self,
+        name: Option<String>,
+        name_span: Option<Span>,
+    ) -> Result<Stmt, ParseError> {
+        let head = self.advance();
+        let kind = match &head.kind {
+            TokenKind::Ident(name) if name == "판" => LifecycleUnitKind::Pan,
+            TokenKind::Ident(name) if name == "마당" => LifecycleUnitKind::Madang,
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'판' or '마당'",
+                    found: other.clone(),
+                    span: head.span,
+                })
+            }
+        };
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = name_span.unwrap_or(head.span).merge(end_span);
+        if let Some(name) = &name {
+            if let Some(first_span) = self.lifecycle_named_units.get(name) {
+                return Err(ParseError::LifecycleNameDuplicate {
+                    name: name.clone(),
+                    span: name_span.unwrap_or(head.span),
+                    first_span: *first_span,
+                });
+            }
+            self.lifecycle_named_units
+                .insert(name.clone(), name_span.unwrap_or(head.span));
+        }
+        self.consume_terminator()?;
+        Ok(Stmt::LifecycleBlock {
+            name,
+            kind,
+            body,
+            span,
+        })
+    }
+
     fn parse_bogae_shape_block_stmt(&mut self) -> Result<Vec<Stmt>, ParseError> {
         let head = self.advance();
         let block_start = head.span;
 
+        self.skip_newlines();
         if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
             self.advance();
+            self.skip_newlines();
         }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
@@ -647,6 +1394,64 @@ impl Parser {
         Ok(self.lower_bogae_shape_primitives(&primitives, span))
     }
 
+    fn is_jjaim_block_start(&self) -> bool {
+        if !self.peek_kind_is(
+            |k| matches!(k, TokenKind::Ident(name) if name == "짜임" || name == "구성"),
+        ) {
+            return false;
+        }
+        self.peek_kind_n_is(1, |k| matches!(k, TokenKind::LBrace))
+            || (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon))
+                && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace)))
+    }
+
+    fn parse_jjaim_block_stub_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let head_span = self.advance().span;
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+
+        let mut depth = 0usize;
+        let mut end_span = head_span;
+        while !self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+            let token = self.advance();
+            end_span = token.span;
+            match token.kind {
+                TokenKind::LBrace => depth += 1,
+                TokenKind::RBrace => {
+                    if depth == 0 {
+                        break;
+                    }
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if depth != 0 {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        self.consume_terminator()?;
+        let span = head_span.merge(end_span);
+        Ok(Stmt::Expr {
+            value: Expr::Literal(Literal::None, span),
+            span,
+        })
+    }
+
     fn lower_bogae_shape_primitives(
         &self,
         primitives: &[(String, Vec<ArgBinding>, Span)],
@@ -665,10 +1470,30 @@ impl Parser {
                     let y2 = self.pick_shape_arg_expr(args, &["y2"], 3);
                     let stroke = self.pick_shape_arg_expr(args, &["색", "stroke"], usize::MAX);
                     let width = self.pick_shape_arg_expr(args, &["굵기", "width"], usize::MAX);
-                    Self::push_shape_kv(&mut out, "x1", x1.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
-                    Self::push_shape_kv(&mut out, "y1", y1.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
-                    Self::push_shape_kv(&mut out, "x2", x2.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
-                    Self::push_shape_kv(&mut out, "y2", y2.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(
+                        &mut out,
+                        "x1",
+                        x1.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "y1",
+                        y1.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "x2",
+                        x2.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "y2",
+                        y2.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
                     Self::push_shape_kv(
                         &mut out,
                         "stroke",
@@ -690,8 +1515,18 @@ impl Parser {
                     let fill = self.pick_shape_arg_expr(args, &["색", "fill"], usize::MAX);
                     let stroke = self.pick_shape_arg_expr(args, &["선색", "stroke"], usize::MAX);
                     let width = self.pick_shape_arg_expr(args, &["굵기", "width"], usize::MAX);
-                    Self::push_shape_kv(&mut out, "x", x.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
-                    Self::push_shape_kv(&mut out, "y", y.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(
+                        &mut out,
+                        "x",
+                        x.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "y",
+                        y.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
                     Self::push_shape_kv(
                         &mut out,
                         "r",
@@ -723,8 +1558,18 @@ impl Parser {
                     let y = self.pick_shape_arg_expr(args, &["y", "cy"], 1);
                     let size = self.pick_shape_arg_expr(args, &["크기", "size", "r"], 2);
                     let color = self.pick_shape_arg_expr(args, &["색", "color"], usize::MAX);
-                    Self::push_shape_kv(&mut out, "x", x.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
-                    Self::push_shape_kv(&mut out, "y", y.unwrap_or_else(|| Self::num_expr("0", *shape_span)), *shape_span);
+                    Self::push_shape_kv(
+                        &mut out,
+                        "x",
+                        x.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
+                    Self::push_shape_kv(
+                        &mut out,
+                        "y",
+                        y.unwrap_or_else(|| Self::num_expr("0", *shape_span)),
+                        *shape_span,
+                    );
                     Self::push_shape_kv(
                         &mut out,
                         "size",
@@ -796,20 +1641,17 @@ impl Parser {
         let raw = Fixed64::parse_literal(text)
             .unwrap_or_else(|| Fixed64::from_int(0))
             .raw();
-        Expr::Literal(
-            Literal::Num(NumberLiteral { raw, unit: None }),
-            span,
-        )
+        Expr::Literal(Literal::Num(NumberLiteral { raw, unit: None }), span)
     }
 
     fn peek_decl_block_kind(&self) -> Option<DeclKind> {
-        if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon)) {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "채비")) {
             return None;
         }
-        match &self.peek().kind {
-            TokenKind::Ident(name) if name == "채비" => Some(DeclKind::Gureut),
-            _ => None,
+        if self.peek_next_non_newline_is(|k| matches!(k, TokenKind::LBrace | TokenKind::Colon)) {
+            return Some(DeclKind::Gureut);
         }
+        None
     }
 
     fn peek_legacy_decl_block_name(&self) -> Option<&'static str> {
@@ -826,6 +1668,272 @@ impl Parser {
         }
     }
 
+    fn is_import_block_start(&self) -> bool {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "쓰임")) {
+            return false;
+        }
+        self.peek_next_non_newline_is(|k| matches!(k, TokenKind::LBrace | TokenKind::Colon))
+    }
+
+    fn is_export_block_start(&self) -> bool {
+        if !self.peek_kind_is(
+            |k| matches!(k, TokenKind::Ident(name) if name == "드러냄" || name == "공개"),
+        ) {
+            return false;
+        }
+        self.peek_next_non_newline_is(|k| matches!(k, TokenKind::LBrace | TokenKind::Colon))
+    }
+
+    fn parse_import_block(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+
+        let mut items = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
+            }
+
+            let alias_token = self.peek().clone();
+            let alias = match &alias_token.kind {
+                TokenKind::Ident(text) => {
+                    self.advance();
+                    text.clone()
+                }
+                TokenKind::Salim => {
+                    self.advance();
+                    "살림".to_string()
+                }
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "모듈 별명",
+                        found: alias_token.kind,
+                        span: alias_token.span,
+                    })
+                }
+            };
+
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "':'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+
+            let path_token = self.peek().clone();
+            let path = match &path_token.kind {
+                TokenKind::String(text) => {
+                    self.advance();
+                    text.clone()
+                }
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "모듈 경로 문자열",
+                        found: path_token.kind,
+                        span: path_token.span,
+                    })
+                }
+            };
+
+            if Self::is_reserved_import_alias(&alias) {
+                return Err(ParseError::ImportAliasReserved {
+                    span: alias_token.span,
+                });
+            }
+            if !self.import_aliases.insert(alias.clone()) {
+                return Err(ParseError::ImportAliasDuplicate {
+                    span: alias_token.span,
+                });
+            }
+            let (package_id, version) =
+                Self::parse_import_path_spec(&path).ok_or(ParseError::ImportPathInvalid {
+                    span: path_token.span,
+                })?;
+            if let Some(version) = version {
+                if let Some(prev) = self.import_package_versions.get(&package_id) {
+                    if prev != &version {
+                        return Err(ParseError::ImportVersionConflict {
+                            span: path_token.span,
+                        });
+                    }
+                } else {
+                    self.import_package_versions.insert(package_id, version);
+                }
+            }
+
+            let item_span = alias_token.span.merge(path_token.span);
+            self.consume_terminator()?;
+            items.push(ModuleImportItem {
+                alias,
+                path,
+                span: item_span,
+            });
+        }
+
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok(Stmt::ImportBlock { items, span })
+    }
+
+    fn parse_export_block(&mut self) -> Result<Stmt, ParseError> {
+        if self.seen_export_block {
+            return Err(ParseError::ExportBlockDuplicate {
+                span: self.peek().span,
+            });
+        }
+        let start_span = self.advance().span;
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+
+        let mut items = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
+            }
+
+            let external_token = self.peek().clone();
+            let external_name = match &external_token.kind {
+                TokenKind::Ident(text) => {
+                    self.advance();
+                    text.clone()
+                }
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "내보낼 이름",
+                        found: external_token.kind,
+                        span: external_token.span,
+                    })
+                }
+            };
+
+            let (internal_name, end_span) = if self.peek_kind_is(|k| matches!(k, TokenKind::Colon))
+            {
+                self.advance();
+                let internal_token = self.peek().clone();
+                let internal_name = match &internal_token.kind {
+                    TokenKind::Ident(text) => {
+                        self.advance();
+                        text.clone()
+                    }
+                    _ => {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: "내부 이름",
+                            found: internal_token.kind,
+                            span: internal_token.span,
+                        })
+                    }
+                };
+                (internal_name, internal_token.span)
+            } else {
+                (external_name.clone(), external_token.span)
+            };
+
+            let item_span = external_token.span.merge(end_span);
+            self.consume_terminator()?;
+            items.push(ModuleExportItem {
+                external_name,
+                internal_name,
+                span: item_span,
+            });
+        }
+
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        self.seen_export_block = true;
+        Ok(Stmt::ExportBlock { items, span })
+    }
+
+    fn is_reserved_import_alias(alias: &str) -> bool {
+        matches!(
+            alias,
+            "살림"
+                | "바탕"
+                | "샘"
+                | "채비"
+                | "쓰임"
+                | "드러냄"
+                | "공개"
+                | "매틱"
+                | "매마디"
+                | "실행정책"
+        )
+    }
+
+    fn parse_import_path_spec(path: &str) -> Option<(String, Option<String>)> {
+        if path.is_empty() || path.contains("://") {
+            return None;
+        }
+        if path.starts_with("./") {
+            if path.len() <= 2 || path.contains('@') {
+                return None;
+            }
+            return Some((path.to_string(), None));
+        }
+        let (package, version) = if let Some((left, right)) = path.rsplit_once('@') {
+            if left.is_empty() || right.is_empty() {
+                return None;
+            }
+            (left, Some(right.to_string()))
+        } else {
+            (path, None)
+        };
+        let mut parts = package.split('/');
+        let scope = parts.next()?;
+        if !matches!(scope, "표준" | "나눔" | "내" | "벌림") {
+            return None;
+        }
+        let mut has_name = false;
+        for part in parts {
+            if part.is_empty() || part == "." || part == ".." {
+                return None;
+            }
+            has_name = true;
+        }
+        if !has_name {
+            return None;
+        }
+        Some((package.to_string(), version))
+    }
+
     fn parse_decl_block(&mut self, _kind: DeclKind) -> Result<Stmt, ParseError> {
         let start_span = self.advance().span;
         let TokenKind::Ident(keyword) = &self.tokens[self.pos - 1].kind else {
@@ -833,12 +1941,16 @@ impl Parser {
         };
         if keyword != "채비" {
             return Err(ParseError::UnexpectedToken {
-                expected: "'채비:'",
+                expected: "'채비 {'",
                 found: TokenKind::Ident(keyword.clone()),
                 span: start_span,
             });
         }
-        self.advance(); // colon
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
                 expected: "'{'",
@@ -900,19 +2012,28 @@ impl Parser {
             };
 
             let mut value = None;
+            let mut maegim = None;
             let mut item_kind = DeclKind::Gureut;
             let mut end_span = type_token.span;
             if self.peek_kind_is(|k| matches!(k, TokenKind::Arrow)) {
                 self.advance();
-                let expr = self.parse_expr()?;
+                let (expr, item_maegim) = self.parse_decl_item_value_and_maegim()?;
                 end_span = end_span.merge(expr.span());
+                if let Some(spec) = &item_maegim {
+                    end_span = end_span.merge(spec.span);
+                }
                 value = Some(expr);
+                maegim = item_maegim;
             } else if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
                 item_kind = DeclKind::Butbak;
                 self.advance();
-                let expr = self.parse_expr()?;
+                let (expr, item_maegim) = self.parse_decl_item_value_and_maegim()?;
                 end_span = end_span.merge(expr.span());
+                if let Some(spec) = &item_maegim {
+                    end_span = end_span.merge(spec.span);
+                }
                 value = Some(expr);
+                maegim = item_maegim;
             }
 
             let item_span = name_token.span.merge(end_span);
@@ -925,6 +2046,7 @@ impl Parser {
                 kind: item_kind,
                 type_name,
                 value,
+                maegim,
                 span: item_span,
             });
         }
@@ -934,6 +2056,188 @@ impl Parser {
         self.consume_terminator()?;
 
         Ok(Stmt::DeclBlock { items, span })
+    }
+
+    fn parse_decl_item_value_and_maegim(
+        &mut self,
+    ) -> Result<(Expr, Option<MaegimSpec>), ParseError> {
+        if self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            let checkpoint = self.pos;
+            if let Ok(grouped) = self.try_parse_grouped_expr_for_maegim() {
+                if self.peek_maegim_keyword() {
+                    let maegim = self.parse_maegim_spec()?;
+                    return Ok((grouped, Some(maegim)));
+                }
+            }
+            self.pos = checkpoint;
+        }
+
+        let expr = self.parse_expr()?;
+        if self.peek_maegim_keyword() {
+            return Err(ParseError::MaegimRequiresGroupedValue {
+                span: self.peek().span,
+            });
+        }
+        Ok((expr, None))
+    }
+
+    fn try_parse_grouped_expr_for_maegim(&mut self) -> Result<Expr, ParseError> {
+        let start_span = self.advance().span;
+        let expr = self.parse_expr()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        Ok(match expr {
+            Expr::Literal(literal, _) => Expr::Literal(literal, span),
+            Expr::Path(mut path) => {
+                path.span = span;
+                Expr::Path(path)
+            }
+            Expr::FieldAccess { target, field, .. } => Expr::FieldAccess {
+                target,
+                field,
+                span,
+            },
+            Expr::Atom { text, .. } => Expr::Atom { text, span },
+            Expr::Unary { op, expr, .. } => Expr::Unary { op, expr, span },
+            Expr::Binary {
+                left, op, right, ..
+            } => Expr::Binary {
+                left,
+                op,
+                right,
+                span,
+            },
+            Expr::SeedLiteral { param, body, .. } => Expr::SeedLiteral { param, body, span },
+            Expr::Call { name, args, .. } => Expr::Call { name, args, span },
+            Expr::Formula { dialect, body, .. } => Expr::Formula {
+                dialect,
+                body,
+                span,
+            },
+            Expr::Assertion { assertion, .. } => Expr::Assertion { assertion, span },
+            Expr::FormulaEval {
+                dialect,
+                body,
+                bindings,
+                ..
+            } => Expr::FormulaEval {
+                dialect,
+                body,
+                bindings,
+                span,
+            },
+            Expr::Template { body, .. } => Expr::Template { body, span },
+            Expr::TemplateFill {
+                template, bindings, ..
+            } => Expr::TemplateFill {
+                template,
+                bindings,
+                span,
+            },
+            Expr::Pack { bindings, .. } => Expr::Pack { bindings, span },
+            Expr::FormulaFill {
+                formula, bindings, ..
+            } => Expr::FormulaFill {
+                formula,
+                bindings,
+                span,
+            },
+        })
+    }
+
+    fn peek_maegim_keyword(&self) -> bool {
+        self.peek_kind_is(
+            |k| matches!(k, TokenKind::Ident(name) if name == "조건" || name == "매김"),
+        )
+    }
+
+    fn parse_maegim_spec(&mut self) -> Result<MaegimSpec, ParseError> {
+        let start_token = self.peek().clone();
+        let keyword_span = self.advance().span;
+        let TokenKind::Ident(keyword) = start_token.kind else {
+            unreachable!("maegim branch must start with identifier")
+        };
+        if keyword != "조건" && keyword != "매김" {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'조건 {' 또는 '매김 {'",
+                found: TokenKind::Ident(keyword),
+                span: keyword_span,
+            });
+        }
+        self.skip_newlines();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+
+        let mut fields = Vec::new();
+        let mut has_step = false;
+        let mut has_split_count = false;
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
+            }
+
+            let name_token = self.peek().clone();
+            let name = match &name_token.kind {
+                TokenKind::Ident(text) => {
+                    self.advance();
+                    text.clone()
+                }
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "매김 항목 이름",
+                        found: name_token.kind,
+                        span: name_token.span,
+                    })
+                }
+            };
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "':'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            let value = self.parse_expr()?;
+            let field_span = name_token.span.merge(value.span());
+            if name == "간격" {
+                has_step = true;
+            } else if name == "분할수" {
+                has_split_count = true;
+            }
+            if has_step && has_split_count {
+                return Err(ParseError::MaegimStepSplitConflict { span: field_span });
+            }
+            self.consume_terminator()?;
+            fields.push(Binding {
+                name,
+                value,
+                span: field_span,
+            });
+        }
+
+        let end_span = self.advance().span;
+        Ok(MaegimSpec {
+            fields,
+            span: keyword_span.merge(end_span),
+        })
     }
 
     fn parse_hook(&mut self, kind: HookKind) -> Result<Stmt, ParseError> {
@@ -946,6 +2250,148 @@ impl Parser {
         }
         self.advance();
         self.advance();
+        self.parse_hook_tail(start_span, kind)
+    }
+
+    fn try_parse_condition_hook(&mut self) -> Result<Option<Stmt>, ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            return Ok(None);
+        }
+        let checkpoint = self.pos;
+        let start_span = self.advance().span;
+        let condition = self.parse_expr()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            self.pos = checkpoint;
+            return Ok(None);
+        }
+        self.advance();
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "이" || name == "가"))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "될때"))
+        {
+            self.advance();
+            self.advance();
+            let (body, span) = self.parse_hook_body_and_span(start_span)?;
+            return Ok(Some(Stmt::HookWhenBecomes {
+                condition,
+                body,
+                span,
+            }));
+        }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "인"))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::During))
+        {
+            self.advance();
+            self.advance();
+            let (body, span) = self.parse_hook_body_and_span(start_span)?;
+            return Ok(Some(Stmt::HookWhile {
+                condition,
+                body,
+                span,
+            }));
+        }
+
+        self.pos = checkpoint;
+        Ok(None)
+    }
+
+    fn parse_hook_every_n_madi(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        let number_token = self.advance();
+        let interval = match number_token.kind {
+            TokenKind::Number(value) => {
+                let segment = Self::parse_nonnegative_index_segment(value, number_token.span)?;
+                let interval = segment.parse::<u64>().map_err(|_| ParseError::UnexpectedToken {
+                    expected: "양의 정수 마디 간격",
+                    found: TokenKind::Number(value),
+                    span: number_token.span,
+                })?;
+                if interval == 0 {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "양의 정수 마디 간격",
+                        found: TokenKind::Number(value),
+                        span: number_token.span,
+                    });
+                }
+                interval
+            }
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "양의 정수 마디 간격",
+                    found: other,
+                    span: number_token.span,
+                })
+            }
+        };
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "마디")) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'마디'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
+            return Err(ParseError::ExpectedRParen {
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        self.advance();
+        self.parse_hook_tail(start_span, HookKind::EveryNMadi(interval))
+    }
+
+    fn parse_hook_tail(&mut self, start_span: Span, kind: HookKind) -> Result<Stmt, ParseError> {
+        let (body, span) = self.parse_hook_body_and_span(start_span)?;
+        Ok(Stmt::Hook { kind, body, span })
+    }
+
+    fn parse_hook_body_and_span(&mut self, start_span: Span) -> Result<(Vec<Stmt>, Span), ParseError> {
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            return Err(ParseError::BlockHeaderColonForbidden {
+                span: self.peek().span,
+            });
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.consume_terminator()?;
+        Ok((body, span))
+    }
+
+    fn is_open_block_start(&self) -> bool {
+        if !self.peek_kind_is(
+            |k| matches!(k, TokenKind::Ident(name) if Self::is_open_block_keyword(name)),
+        ) {
+            return false;
+        }
+        self.peek_next_non_newline_is(|k| matches!(k, TokenKind::LBrace))
+            || (self.peek_next_non_newline_is(|k| matches!(k, TokenKind::Colon))
+                && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace)))
+    }
+
+    fn parse_open_block_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_token = self.advance();
+        if !matches!(&start_token.kind, TokenKind::Ident(name) if name == "너머") {
+            return Err(ParseError::EffectSurfaceAliasForbidden {
+                span: start_token.span,
+            });
+        }
+        let start_span = start_token.span;
         self.skip_newlines();
         if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
             self.advance();
@@ -968,19 +2414,23 @@ impl Parser {
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
-        Ok(Stmt::Hook { kind, body, span })
+        Ok(Stmt::OpenBlock { body, span })
     }
 
-    fn is_open_block_start(&self) -> bool {
-        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "열림")) {
-            return false;
-        }
-        self.peek_next_non_newline_is(|k| matches!(k, TokenKind::LBrace))
+    fn is_execution_policy_block_start(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "실행정책"))
+            && (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::LBrace))
+                || (self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Colon))
+                    && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace))))
     }
 
-    fn parse_open_block_stmt(&mut self) -> Result<Stmt, ParseError> {
+    fn parse_execution_policy_block_stmt(&mut self) -> Result<Stmt, ParseError> {
         let start_span = self.advance().span;
         self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
                 expected: "'{'",
@@ -989,63 +2439,79 @@ impl Parser {
             });
         }
         self.advance();
-        let body = self.parse_block()?;
-        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-            return Err(ParseError::ExpectedRBrace {
-                span: self.peek().span,
-            });
+
+        let mut fields: Vec<(String, String)> = Vec::new();
+        loop {
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                break;
+            }
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(ParseError::ExpectedRBrace {
+                    span: self.peek().span,
+                });
+            }
+
+            let key_token = self.advance();
+            let key = match key_token.kind {
+                TokenKind::Ident(name) => name,
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "policy key",
+                        found: other,
+                        span: key_token.span,
+                    })
+                }
+            };
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "':'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            let value_token = self.advance();
+            let value = match value_token.kind {
+                TokenKind::Ident(name) => name,
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "policy enum",
+                        found: other,
+                        span: value_token.span,
+                    })
+                }
+            };
+            fields.push((key, value));
+            self.consume_terminator()?;
         }
+
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
-        Ok(Stmt::OpenBlock { body, span })
+        let args = fields
+            .into_iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<_>>()
+            .join(",");
+        Ok(Stmt::Pragma {
+            name: "실행정책".to_string(),
+            args,
+            span,
+        })
     }
 
-    fn is_forbidden_setting_pragma(raw: &str) -> bool {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            return false;
-        }
-        let head = trimmed
-            .split(|ch: char| ch == ':' || ch == '(' || ch.is_whitespace())
-            .next()
-            .unwrap_or("")
-            .trim();
-        matches!(head, "설정" | "보개" | "슬기" | "설정보개")
-    }
-
-    fn split_pragma_parts(raw: &str) -> (String, String) {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            return (String::new(), String::new());
-        }
-        if let Some(open_idx) = trimmed.find('(') {
-            if trimmed.ends_with(')') && open_idx < trimmed.len() - 1 {
-                let name = trimmed[..open_idx].trim();
-                let args = &trimmed[open_idx + 1..trimmed.len() - 1];
-                return (name.to_string(), args.trim().to_string());
-            }
-        }
-        if let Some((name, rest)) = trimmed.split_once(':') {
-            return (name.trim().to_string(), rest.trim().to_string());
-        }
-        if let Some(idx) = trimmed.find(|ch: char| ch.is_whitespace()) {
-            let (name, rest) = trimmed.split_at(idx);
-            return (name.trim().to_string(), rest.trim().to_string());
-        }
-        (trimmed.to_string(), String::new())
+    fn is_open_block_keyword(name: &str) -> bool {
+        matches!(name, "열림" | "너머" | "효과" | "바깥")
     }
 
     fn parse_repeat_stmt(&mut self) -> Result<Stmt, ParseError> {
         let start_span = self.advance().span;
-        if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
-            return Err(ParseError::UnexpectedToken {
-                expected: "':'",
-                found: self.peek().kind.clone(),
-                span: self.peek().span,
-            });
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
         }
-        self.advance();
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
                 expected: "'{'",
@@ -1075,14 +2541,11 @@ impl Parser {
     fn parse_while_stmt(&mut self, condition: Expr) -> Result<Stmt, ParseError> {
         let start_span = condition.span();
         self.advance();
-        if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
-            return Err(ParseError::UnexpectedToken {
-                expected: "':'",
-                found: self.peek().kind.clone(),
-                span: self.peek().span,
-            });
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
         }
-        self.advance();
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
                 expected: "'{'",
@@ -1155,7 +2618,7 @@ impl Parser {
                     return self
                         .tokens
                         .get(idx + 1)
-                        .map(|tok| matches!(tok.kind, TokenKind::Colon))
+                        .map(|tok| matches!(tok.kind, TokenKind::LBrace | TokenKind::Colon))
                         .unwrap_or(false);
                 }
                 TokenKind::Ident(name) if depth == 0 && name == "모두" => {
@@ -1209,14 +2672,11 @@ impl Parser {
                     }
                 }
             }
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "':'",
-                    found: self.peek().kind.clone(),
-                    span: self.peek().span,
-                });
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                self.advance();
+                self.skip_newlines();
             }
-            self.advance();
         }
         if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
             return Err(ParseError::UnexpectedToken {
@@ -1241,6 +2701,651 @@ impl Parser {
             body,
             span,
         })
+    }
+
+    fn is_quantifier_start(&self) -> bool {
+        matches!(self.peek().kind, TokenKind::Ident(_))
+            && self.peek_kind_n_is(1, |k| {
+                matches!(k, TokenKind::Josa(name) if matches!(name.as_str(), "이" | "가"))
+                    || matches!(k, TokenKind::Ident(name) if matches!(name.as_str(), "이" | "가"))
+            })
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Ident(_) | TokenKind::Salim))
+            && (self.peek_kind_n_is(
+                3,
+                |k| matches!(k, TokenKind::Ident(name) if name == "낱낱" || name == "낱낱에"),
+            ) || self
+                .peek_kind_n_is(3, |k| matches!(k, TokenKind::Ident(name) if name == "중")))
+    }
+
+    fn parse_quantifier_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.peek().span;
+        let variable_token = self.advance();
+        let variable = match variable_token.kind {
+            TokenKind::Ident(name) => name,
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "양화 변수",
+                    found: other,
+                    span: variable_token.span,
+                })
+            }
+        };
+        let subject_token = self.advance();
+        let subject = match subject_token.kind {
+            TokenKind::Josa(name) | TokenKind::Ident(name) => name,
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'이' 또는 '가'",
+                    found: other,
+                    span: subject_token.span,
+                })
+            }
+        };
+        if subject != "이" && subject != "가" {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'이' 또는 '가'",
+                found: TokenKind::Josa(subject),
+                span: subject_token.span,
+            });
+        }
+        let domain_token = self.advance();
+        let domain = match domain_token.kind {
+            TokenKind::Ident(name) => name,
+            TokenKind::Salim => "살림".to_string(),
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "양화 영역 이름",
+                    found: other,
+                    span: domain_token.span,
+                })
+            }
+        };
+        let kind = self.parse_quantifier_kind()?;
+        self.skip_newlines();
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            self.skip_newlines();
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        self.enter_scope();
+        self.declare_name(&variable);
+        let body = match self.parse_block() {
+            Ok(body) => body,
+            Err(err) => {
+                self.exit_scope();
+                return Err(err);
+            }
+        };
+        self.exit_scope();
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        self.validate_quantifier_body(&body, span)?;
+        self.consume_terminator()?;
+        Ok(Stmt::Quantifier {
+            kind,
+            variable,
+            domain,
+            body,
+            span,
+        })
+    }
+
+    fn parse_quantifier_kind(&mut self) -> Result<QuantifierKind, ParseError> {
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "낱낱")) {
+            self.advance();
+            let josa = self.advance();
+            if !matches!(josa.kind, TokenKind::Josa(ref name) if name == "에")
+                && !matches!(josa.kind, TokenKind::Ident(ref name) if name == "에")
+            {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'낱낱에 대해'",
+                    found: josa.kind,
+                    span: josa.span,
+                });
+            }
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Daehae)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'대해'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            return Ok(QuantifierKind::ForAll);
+        }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "낱낱에")) {
+            self.advance();
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Daehae)) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'대해'",
+                    found: self.peek().kind.clone(),
+                    span: self.peek().span,
+                });
+            }
+            self.advance();
+            return Ok(QuantifierKind::ForAll);
+        }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "중")) {
+            self.advance();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "딱")) {
+                self.advance();
+                let one = self.advance();
+                if !matches!(one.kind, TokenKind::Ident(ref name) if name == "하나" || name == "하나가")
+                {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "'중 딱 하나가'",
+                        found: one.kind,
+                        span: one.span,
+                    });
+                }
+                if !matches!(one.kind, TokenKind::Ident(ref name) if name == "하나가") {
+                    let subject = self.advance();
+                    if !matches!(subject.kind, TokenKind::Josa(ref name) if name == "가")
+                        && !matches!(subject.kind, TokenKind::Ident(ref name) if name == "가")
+                    {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: "'중 딱 하나가'",
+                            found: subject.kind,
+                            span: subject.span,
+                        });
+                    }
+                }
+                return Ok(QuantifierKind::ExistsUnique);
+            }
+            let one = self.advance();
+            if !matches!(one.kind, TokenKind::Ident(ref name) if name == "하나" || name == "하나가")
+            {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'중 하나가'",
+                    found: one.kind,
+                    span: one.span,
+                });
+            }
+            if !matches!(one.kind, TokenKind::Ident(ref name) if name == "하나가") {
+                let subject = self.advance();
+                if !matches!(subject.kind, TokenKind::Josa(ref name) if name == "가")
+                    && !matches!(subject.kind, TokenKind::Ident(ref name) if name == "가")
+                {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "'중 하나가'",
+                        found: subject.kind,
+                        span: subject.span,
+                    });
+                }
+            }
+            return Ok(QuantifierKind::Exists);
+        }
+        Err(ParseError::UnexpectedToken {
+            expected: "'낱낱에 대해' 또는 '중 하나가' 또는 '중 딱 하나가'",
+            found: self.peek().kind.clone(),
+            span: self.peek().span,
+        })
+    }
+
+    fn validate_quantifier_body(&self, body: &[Stmt], span: Span) -> Result<(), ParseError> {
+        if self.body_has_mutation(body) {
+            return Err(ParseError::QuantifierMutationForbidden { span });
+        }
+        if self.body_has_show(body) {
+            return Err(ParseError::QuantifierShowForbidden { span });
+        }
+        if self.body_has_io(body) {
+            return Err(ParseError::QuantifierIoForbidden { span });
+        }
+        Ok(())
+    }
+
+    fn validate_immediate_proof_body(&self, body: &[Stmt], span: Span) -> Result<(), ParseError> {
+        if self.body_has_mutation(body) {
+            return Err(ParseError::ImmediateProofMutationForbidden { span });
+        }
+        if self.body_has_show(body) {
+            return Err(ParseError::ImmediateProofShowForbidden { span });
+        }
+        if self.body_has_forbidden_io(body, true) {
+            return Err(ParseError::ImmediateProofIoForbidden { span });
+        }
+        Ok(())
+    }
+
+    fn body_has_mutation(&self, body: &[Stmt]) -> bool {
+        body.iter().any(|stmt| self.stmt_has_mutation(stmt))
+    }
+
+    fn stmt_has_mutation(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Assign { .. } => true,
+            Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
+                item.value
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_mutation(expr))
+            }),
+            Stmt::Expr { value, .. }
+            | Stmt::Return { value, .. }
+            | Stmt::Show { value, .. }
+            | Stmt::Inspect { value, .. } => self.expr_has_mutation(value),
+            Stmt::Receive {
+                condition, body, ..
+            } => {
+                condition
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_mutation(expr))
+                    || self.body_has_mutation(body)
+            }
+            Stmt::Send {
+                sender,
+                payload,
+                receiver,
+                ..
+            } => {
+                sender
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_mutation(expr))
+                    || self.expr_has_mutation(payload)
+                    || self.expr_has_mutation(receiver)
+            }
+            Stmt::SeedDef { body, .. }
+            | Stmt::Hook { body, .. }
+            | Stmt::OpenBlock { body, .. }
+            | Stmt::BeatBlock { body, .. }
+            | Stmt::LifecycleBlock { body, .. }
+            | Stmt::Repeat { body, .. }
+            | Stmt::ForEach { body, .. }
+            | Stmt::Quantifier { body, .. } => self.body_has_mutation(body),
+            Stmt::HookWhenBecomes {
+                condition, body, ..
+            }
+            | Stmt::HookWhile {
+                condition, body, ..
+            } => self.expr_has_mutation(condition) || self.body_has_mutation(body),
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.expr_has_mutation(condition)
+                    || self.body_has_mutation(then_body)
+                    || else_body
+                        .as_ref()
+                        .is_some_and(|body| self.body_has_mutation(body))
+            }
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
+                branches.iter().any(|branch| {
+                    self.expr_has_mutation(&branch.condition)
+                        || self.body_has_mutation(&branch.body)
+                }) || else_body
+                    .as_ref()
+                    .is_some_and(|body| self.body_has_mutation(body))
+            }
+            Stmt::While {
+                condition, body, ..
+            } => self.expr_has_mutation(condition) || self.body_has_mutation(body),
+            Stmt::Contract {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.expr_has_mutation(condition)
+                    || then_body
+                        .as_ref()
+                        .is_some_and(|body| self.body_has_mutation(body))
+                    || self.body_has_mutation(else_body)
+            }
+            Stmt::ImportBlock { .. }
+            | Stmt::ExportBlock { .. }
+            | Stmt::Break { .. }
+            | Stmt::Pragma { .. }
+            | Stmt::BogaeDraw { .. } => false,
+        }
+    }
+
+    fn expr_has_mutation(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Unary { expr, .. } => self.expr_has_mutation(expr),
+            Expr::Binary { left, right, .. } => {
+                self.expr_has_mutation(left) || self.expr_has_mutation(right)
+            }
+            Expr::FieldAccess { target, .. } => self.expr_has_mutation(target),
+            Expr::SeedLiteral { body, .. } => self.expr_has_mutation(body),
+            Expr::Call { args, .. } => args.iter().any(|arg| self.expr_has_mutation(&arg.expr)),
+            Expr::TemplateFill {
+                template, bindings, ..
+            } => {
+                self.expr_has_mutation(template)
+                    || bindings
+                        .iter()
+                        .any(|binding| self.expr_has_mutation(&binding.value))
+            }
+            Expr::Pack { bindings, .. } | Expr::FormulaEval { bindings, .. } => bindings
+                .iter()
+                .any(|binding| self.expr_has_mutation(&binding.value)),
+            Expr::FormulaFill {
+                formula, bindings, ..
+            } => {
+                self.expr_has_mutation(formula)
+                    || bindings
+                        .iter()
+                        .any(|binding| self.expr_has_mutation(&binding.value))
+            }
+            Expr::Literal(_, _)
+            | Expr::Path(_)
+            | Expr::Atom { .. }
+            | Expr::Assertion { .. }
+            | Expr::Formula { .. }
+            | Expr::Template { .. } => false,
+        }
+    }
+
+    fn body_has_show(&self, body: &[Stmt]) -> bool {
+        body.iter().any(|stmt| self.stmt_has_show(stmt))
+    }
+
+    fn stmt_has_show(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Show { .. } | Stmt::Inspect { .. } => true,
+            Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
+                item.value
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_show(expr))
+            }),
+            Stmt::Assign { value, .. } | Stmt::Expr { value, .. } | Stmt::Return { value, .. } => {
+                self.expr_has_show(value)
+            }
+            Stmt::Receive {
+                condition, body, ..
+            } => {
+                condition
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_show(expr))
+                    || self.body_has_show(body)
+            }
+            Stmt::Send {
+                sender,
+                payload,
+                receiver,
+                ..
+            } => {
+                sender.as_ref().is_some_and(|expr| self.expr_has_show(expr))
+                    || self.expr_has_show(payload)
+                    || self.expr_has_show(receiver)
+            }
+            Stmt::SeedDef { body, .. }
+            | Stmt::Hook { body, .. }
+            | Stmt::OpenBlock { body, .. }
+            | Stmt::BeatBlock { body, .. }
+            | Stmt::LifecycleBlock { body, .. }
+            | Stmt::Repeat { body, .. }
+            | Stmt::ForEach { body, .. }
+            | Stmt::Quantifier { body, .. } => self.body_has_show(body),
+            Stmt::HookWhenBecomes {
+                condition, body, ..
+            }
+            | Stmt::HookWhile {
+                condition, body, ..
+            } => self.expr_has_show(condition) || self.body_has_show(body),
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.expr_has_show(condition)
+                    || self.body_has_show(then_body)
+                    || else_body
+                        .as_ref()
+                        .is_some_and(|body| self.body_has_show(body))
+            }
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
+                branches.iter().any(|branch| {
+                    self.expr_has_show(&branch.condition) || self.body_has_show(&branch.body)
+                }) || else_body
+                    .as_ref()
+                    .is_some_and(|body| self.body_has_show(body))
+            }
+            Stmt::While {
+                condition, body, ..
+            } => self.expr_has_show(condition) || self.body_has_show(body),
+            Stmt::Contract {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.expr_has_show(condition)
+                    || then_body
+                        .as_ref()
+                        .is_some_and(|body| self.body_has_show(body))
+                    || self.body_has_show(else_body)
+            }
+            Stmt::ImportBlock { .. }
+            | Stmt::ExportBlock { .. }
+            | Stmt::Break { .. }
+            | Stmt::Pragma { .. }
+            | Stmt::BogaeDraw { .. } => false,
+        }
+    }
+
+    fn expr_has_show(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Unary { expr, .. } => self.expr_has_show(expr),
+            Expr::Binary { left, right, .. } => {
+                self.expr_has_show(left) || self.expr_has_show(right)
+            }
+            Expr::FieldAccess { target, .. } => self.expr_has_show(target),
+            Expr::SeedLiteral { body, .. } => self.expr_has_show(body),
+            Expr::Call { args, .. } => args.iter().any(|arg| self.expr_has_show(&arg.expr)),
+            Expr::TemplateFill {
+                template, bindings, ..
+            } => {
+                self.expr_has_show(template)
+                    || bindings
+                        .iter()
+                        .any(|binding| self.expr_has_show(&binding.value))
+            }
+            Expr::Pack { bindings, .. } | Expr::FormulaEval { bindings, .. } => bindings
+                .iter()
+                .any(|binding| self.expr_has_show(&binding.value)),
+            Expr::FormulaFill {
+                formula, bindings, ..
+            } => {
+                self.expr_has_show(formula)
+                    || bindings
+                        .iter()
+                        .any(|binding| self.expr_has_show(&binding.value))
+            }
+            Expr::Literal(_, _)
+            | Expr::Path(_)
+            | Expr::Atom { .. }
+            | Expr::Assertion { .. }
+            | Expr::Formula { .. }
+            | Expr::Template { .. } => false,
+        }
+    }
+
+    fn body_has_io(&self, body: &[Stmt]) -> bool {
+        self.body_has_forbidden_io(body, false)
+    }
+
+    fn body_has_forbidden_io(&self, body: &[Stmt], allow_solver_hooks: bool) -> bool {
+        body.iter()
+            .any(|stmt| self.stmt_has_forbidden_io(stmt, allow_solver_hooks))
+    }
+
+    fn stmt_has_forbidden_io(&self, stmt: &Stmt, allow_solver_hooks: bool) -> bool {
+        match stmt {
+            Stmt::OpenBlock { .. } => true,
+            Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
+                item.value
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_forbidden_io(expr, allow_solver_hooks))
+                    || item.maegim.as_ref().is_some_and(|spec| {
+                        spec.fields.iter().any(|field| {
+                            self.expr_has_forbidden_io(&field.value, allow_solver_hooks)
+                        })
+                    })
+            }),
+            Stmt::Assign { value, .. } | Stmt::Expr { value, .. } | Stmt::Return { value, .. } => {
+                self.expr_has_forbidden_io(value, allow_solver_hooks)
+            }
+            Stmt::Receive {
+                condition, body, ..
+            } => {
+                condition
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_forbidden_io(expr, allow_solver_hooks))
+                    || self.body_has_forbidden_io(body, allow_solver_hooks)
+            }
+            Stmt::Send {
+                sender,
+                payload,
+                receiver,
+                ..
+            } => {
+                sender
+                    .as_ref()
+                    .is_some_and(|expr| self.expr_has_forbidden_io(expr, allow_solver_hooks))
+                    || self.expr_has_forbidden_io(payload, allow_solver_hooks)
+                    || self.expr_has_forbidden_io(receiver, allow_solver_hooks)
+            }
+            Stmt::SeedDef { body, .. }
+            | Stmt::Hook { body, .. }
+            | Stmt::BeatBlock { body, .. }
+            | Stmt::LifecycleBlock { body, .. }
+            | Stmt::Repeat { body, .. }
+            | Stmt::ForEach { body, .. }
+            | Stmt::Quantifier { body, .. } => self.body_has_forbidden_io(body, allow_solver_hooks),
+            Stmt::HookWhenBecomes {
+                condition, body, ..
+            }
+            | Stmt::HookWhile {
+                condition, body, ..
+            } => {
+                self.expr_has_forbidden_io(condition, allow_solver_hooks)
+                    || self.body_has_forbidden_io(body, allow_solver_hooks)
+            }
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.expr_has_forbidden_io(condition, allow_solver_hooks)
+                    || self.body_has_forbidden_io(then_body, allow_solver_hooks)
+                    || else_body
+                        .as_ref()
+                        .is_some_and(|body| self.body_has_forbidden_io(body, allow_solver_hooks))
+            }
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
+                branches.iter().any(|branch| {
+                    self.expr_has_forbidden_io(&branch.condition, allow_solver_hooks)
+                        || self.body_has_forbidden_io(&branch.body, allow_solver_hooks)
+                }) || else_body
+                    .as_ref()
+                    .is_some_and(|body| self.body_has_forbidden_io(body, allow_solver_hooks))
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                self.expr_has_forbidden_io(condition, allow_solver_hooks)
+                    || self.body_has_forbidden_io(body, allow_solver_hooks)
+            }
+            Stmt::Contract {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.expr_has_forbidden_io(condition, allow_solver_hooks)
+                    || then_body
+                        .as_ref()
+                        .is_some_and(|body| self.body_has_forbidden_io(body, allow_solver_hooks))
+                    || self.body_has_forbidden_io(else_body, allow_solver_hooks)
+            }
+            Stmt::ImportBlock { .. }
+            | Stmt::ExportBlock { .. }
+            | Stmt::Show { .. }
+            | Stmt::Inspect { .. }
+            | Stmt::Break { .. }
+            | Stmt::Pragma { .. }
+            | Stmt::BogaeDraw { .. } => false,
+        }
+    }
+
+    fn expr_has_forbidden_io(&self, expr: &Expr, allow_solver_hooks: bool) -> bool {
+        match expr {
+            Expr::Call { name, args, .. } => {
+                let canon = stdlib::canonicalize_stdlib_alias(name);
+                let is_solver_hook = matches!(canon, "열림.풀이.확인" | "반례찾기" | "해찾기");
+                (canon.starts_with("열림.") && !(allow_solver_hooks && is_solver_hook))
+                    || matches!(
+                        canon,
+                        "입력키" | "입력키?" | "입력키!" | "눌렸나" | "막눌렸나"
+                    )
+                    || args
+                        .iter()
+                        .any(|arg| self.expr_has_forbidden_io(&arg.expr, allow_solver_hooks))
+            }
+            Expr::Unary { expr, .. } => self.expr_has_forbidden_io(expr, allow_solver_hooks),
+            Expr::Binary { left, right, .. } => {
+                self.expr_has_forbidden_io(left, allow_solver_hooks)
+                    || self.expr_has_forbidden_io(right, allow_solver_hooks)
+            }
+            Expr::FieldAccess { target, .. } => {
+                self.expr_has_forbidden_io(target, allow_solver_hooks)
+            }
+            Expr::SeedLiteral { body, .. } => self.expr_has_forbidden_io(body, allow_solver_hooks),
+            Expr::TemplateFill {
+                template, bindings, ..
+            } => {
+                self.expr_has_forbidden_io(template, allow_solver_hooks)
+                    || bindings.iter().any(|binding| {
+                        self.expr_has_forbidden_io(&binding.value, allow_solver_hooks)
+                    })
+            }
+            Expr::Pack { bindings, .. } | Expr::FormulaEval { bindings, .. } => bindings
+                .iter()
+                .any(|binding| self.expr_has_forbidden_io(&binding.value, allow_solver_hooks)),
+            Expr::FormulaFill {
+                formula, bindings, ..
+            } => {
+                self.expr_has_forbidden_io(formula, allow_solver_hooks)
+                    || bindings.iter().any(|binding| {
+                        self.expr_has_forbidden_io(&binding.value, allow_solver_hooks)
+                    })
+            }
+            Expr::Literal(_, _)
+            | Expr::Path(_)
+            | Expr::Atom { .. }
+            | Expr::Assertion { .. }
+            | Expr::Formula { .. }
+            | Expr::Template { .. } => false,
+        }
     }
 
     fn parse_foreach_var(&mut self) -> Result<String, ParseError> {
@@ -1332,6 +3437,8 @@ impl Parser {
             }
         };
 
+        let aliases = self.parse_seed_aliases(&name)?;
+
         if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
             self.pos = start_pos;
             return Ok(None);
@@ -1343,11 +3450,7 @@ impl Parser {
                 self.advance();
                 if let Some(kind) = SeedKind::from_name(&kind_name) {
                     kind
-                } else {
-                    if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
-                        self.pos = start_pos;
-                        return Ok(None);
-                    }
+                } else if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
                     self.advance();
                     let kind_token = self.peek().clone();
                     let kind_name = match kind_token.kind {
@@ -1365,6 +3468,11 @@ impl Parser {
                         return Ok(None);
                     };
                     kind
+                } else if self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+                    SeedKind::Named(kind_name)
+                } else {
+                    self.pos = start_pos;
+                    return Ok(None);
                 }
             }
             _ => {
@@ -1372,6 +3480,13 @@ impl Parser {
                 return Ok(None);
             }
         };
+
+        if name == "매틱" && matches!(kind, SeedKind::Umjikssi) && !self.allow_compat_matic_entry
+        {
+            return Err(ParseError::CompatMaticEntryDisabled {
+                span: name_token.span,
+            });
+        }
 
         if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
             self.advance();
@@ -1397,7 +3512,10 @@ impl Parser {
             });
         }
         self.advance();
-        let body = self.parse_block()?;
+        self.seed_kind_stack.push(kind.clone());
+        let body = self.parse_block();
+        self.seed_kind_stack.pop();
+        let body = body?;
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
             return Err(ParseError::ExpectedRBrace {
                 span: self.peek().span,
@@ -1406,13 +3524,116 @@ impl Parser {
         let end_span = self.advance().span;
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
-        Ok(Some(Stmt::SeedDef {
-            name,
-            params,
-            kind,
+        let primary = Stmt::SeedDef {
+            name: name.clone(),
+            params: params.clone(),
+            kind: kind.clone(),
+            body: body.clone(),
+            span,
+        };
+        for alias in aliases {
+            self.pending_stmts.push_back(Stmt::SeedDef {
+                name: alias,
+                params: params.clone(),
+                kind: kind.clone(),
+                body: body.clone(),
+                span,
+            });
+        }
+        Ok(Some(primary))
+    }
+
+    fn try_parse_immediate_proof_stmt(&mut self) -> Result<Option<Stmt>, ParseError> {
+        let start_pos = self.pos;
+        let name_token = self.peek().clone();
+        let TokenKind::Ident(name) = name_token.kind.clone() else {
+            return Ok(None);
+        };
+        if !self.peek_kind_n_is(
+            1,
+            |k| matches!(k, TokenKind::Ident(text) if text == "밝히기"),
+        ) {
+            return Ok(None);
+        }
+        if !self.peek_kind_n_is(2, |k| matches!(k, TokenKind::LBrace)) {
+            return Ok(None);
+        }
+
+        self.advance();
+        self.advance();
+        self.advance();
+        self.seed_kind_stack.push(SeedKind::Balhigi);
+        let body = self.parse_block();
+        self.seed_kind_stack.pop();
+        let body = body?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            self.pos = start_pos;
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = name_token.span.merge(end_span);
+        self.consume_terminator()?;
+        self.validate_immediate_proof_body(&body, span)?;
+
+        let primary = Stmt::SeedDef {
+            name: name.clone(),
+            params: Vec::new(),
+            kind: SeedKind::Balhigi,
             body,
             span,
-        }))
+        };
+        self.pending_stmts.push_back(Stmt::Expr {
+            value: Expr::Call {
+                name,
+                args: Vec::new(),
+                span,
+            },
+            span,
+        });
+        Ok(Some(primary))
+    }
+
+    fn parse_seed_aliases(&mut self, primary_name: &str) -> Result<Vec<String>, ParseError> {
+        let mut aliases: Vec<String> = Vec::new();
+        loop {
+            let token = self.peek().clone();
+            let TokenKind::Ident(raw_alias) = token.kind.clone() else {
+                break;
+            };
+            let Some(stripped) = raw_alias.strip_prefix('~') else {
+                break;
+            };
+            if stripped.is_empty() || !Self::is_seed_alias_ident(stripped) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "'~별명' (예: ~막으)",
+                    found: TokenKind::Ident(raw_alias),
+                    span: token.span,
+                });
+            }
+            if stripped == primary_name || aliases.iter().any(|alias| alias == stripped) {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "중복되지 않는 씨앗 별명",
+                    found: TokenKind::Ident(format!("~{}", stripped)),
+                    span: token.span,
+                });
+            }
+            self.advance();
+            aliases.push(stripped.to_string());
+        }
+        Ok(aliases)
+    }
+
+    fn is_seed_alias_ident(name: &str) -> bool {
+        let mut chars = name.chars();
+        let Some(first) = chars.next() else {
+            return false;
+        };
+        if !(first == '_' || first.is_alphabetic()) {
+            return false;
+        }
+        chars.all(|ch| ch == '_' || ch.is_alphabetic() || ch.is_ascii_digit())
     }
 
     fn parse_seed_params(&mut self) -> Result<Vec<ParamPin>, ParseError> {
@@ -1505,89 +3726,277 @@ impl Parser {
         self.advance();
         let mut branches = Vec::new();
         let mut else_body: Option<Vec<Stmt>> = None;
+        let mut exhaustive = false;
         let mut end_span = start_span;
 
         loop {
             self.skip_newlines();
-            if self.peek_kind_is(|k| matches!(k, TokenKind::Aniramyeon)) {
-                self.advance();
-                if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: "':'",
-                        found: self.peek().kind.clone(),
-                        span: self.peek().span,
-                    });
-                }
-                self.advance();
-                if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: "'{'",
-                        found: self.peek().kind.clone(),
-                        span: self.peek().span,
-                    });
-                }
-                self.advance();
-                let body = self.parse_block()?;
-                if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-                    return Err(ParseError::ExpectedRBrace {
-                        span: self.peek().span,
-                    });
-                }
-                end_span = self.advance().span;
+            if self
+                .peek_kind_is(|k| matches!(k, TokenKind::Dot | TokenKind::RBrace | TokenKind::Eof))
+            {
+                break;
+            }
+            if self.is_choose_legacy_else_start() {
+                let (body, span) = self.parse_choose_legacy_else_body()?;
                 else_body = Some(body);
+                end_span = span;
+                self.skip_newlines();
+                if !self.peek_kind_is(|k| {
+                    matches!(
+                        k,
+                        TokenKind::Dot | TokenKind::Newline | TokenKind::RBrace | TokenKind::Eof
+                    )
+                }) {
+                    return Err(ParseError::CaseElseNotLast {
+                        span: self.peek().span,
+                    });
+                }
                 break;
             }
-            if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace | TokenKind::Eof)) {
+            if self.is_choose_canonical_else_start() {
+                let (body, span) = self.parse_choose_canonical_else_body()?;
+                else_body = Some(body);
+                end_span = span;
+                self.skip_newlines();
+                if self.is_choose_complete_marker() {
+                    end_span = self.parse_choose_complete_marker()?;
+                    exhaustive = true;
+                }
+                self.skip_newlines();
+                if !self.peek_kind_is(|k| {
+                    matches!(
+                        k,
+                        TokenKind::Dot | TokenKind::Newline | TokenKind::RBrace | TokenKind::Eof
+                    )
+                }) {
+                    return Err(ParseError::CaseElseNotLast {
+                        span: self.peek().span,
+                    });
+                }
                 break;
             }
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "'{'",
-                    found: self.peek().kind.clone(),
-                    span: self.peek().span,
-                });
+            if self.is_choose_complete_marker() {
+                end_span = self.parse_choose_complete_marker()?;
+                exhaustive = true;
+                self.skip_newlines();
+                if !self.peek_kind_is(|k| {
+                    matches!(
+                        k,
+                        TokenKind::Dot | TokenKind::Newline | TokenKind::RBrace | TokenKind::Eof
+                    )
+                }) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "문장 끝",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                break;
             }
-            let condition = self.parse_condition_expr()?;
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "':'",
-                    found: self.peek().kind.clone(),
-                    span: self.peek().span,
-                });
-            }
-            self.advance();
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "'{'",
-                    found: self.peek().kind.clone(),
-                    span: self.peek().span,
-                });
-            }
-            self.advance();
-            let body = self.parse_block()?;
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
-                return Err(ParseError::ExpectedRBrace {
-                    span: self.peek().span,
-                });
-            }
-            end_span = self.advance().span;
+            let (condition, body, span) = self.parse_choose_branch()?;
+            end_span = span;
             branches.push(ChooseBranch { condition, body });
         }
 
-        let Some(else_body) = else_body else {
-            return Err(ParseError::UnexpectedToken {
-                expected: "'아니면:'",
-                found: self.peek().kind.clone(),
-                span: self.peek().span,
-            });
-        };
+        if !branches.is_empty() && else_body.is_none() && !exhaustive {
+            return Err(ParseError::CaseCompletionRequired { span: end_span });
+        }
         let span = start_span.merge(end_span);
         self.consume_terminator()?;
         Ok(Stmt::Choose {
             branches,
             else_body,
+            exhaustive,
             span,
         })
+    }
+
+    fn is_choose_legacy_else_start(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::Aniramyeon))
+    }
+
+    fn parse_choose_legacy_else_body(&mut self) -> Result<(Vec<Stmt>, Span), ParseError> {
+        let start_span = self.advance().span;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "':'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let (body, end_span) = self.parse_choose_body_block()?;
+        Ok((body, start_span.merge(end_span)))
+    }
+
+    fn is_choose_canonical_else_start(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "그밖의"))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "경우"))
+    }
+
+    fn parse_choose_canonical_else_body(&mut self) -> Result<(Vec<Stmt>, Span), ParseError> {
+        let start_span = self.advance().span;
+        let case_token = self.advance();
+        if !matches!(case_token.kind, TokenKind::Ident(ref name) if name == "경우") {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'경우'",
+                found: case_token.kind,
+                span: case_token.span,
+            });
+        }
+        let (body, end_span) = self.parse_choose_body_block()?;
+        Ok((body, start_span.merge(end_span)))
+    }
+
+    fn is_choose_complete_marker(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "모든"))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "경우"))
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Ident(name) if name == "다룸"))
+    }
+
+    fn parse_choose_complete_marker(&mut self) -> Result<Span, ParseError> {
+        let start_span = self.advance().span;
+        let case_token = self.advance();
+        if !matches!(case_token.kind, TokenKind::Ident(ref name) if name == "경우") {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'경우'",
+                found: case_token.kind,
+                span: case_token.span,
+            });
+        }
+        let done_token = self.advance();
+        if !matches!(done_token.kind, TokenKind::Ident(ref name) if name == "다룸") {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'다룸'",
+                found: done_token.kind,
+                span: done_token.span,
+            });
+        }
+        Ok(start_span.merge(done_token.span))
+    }
+
+    fn parse_choose_branch(&mut self) -> Result<(Expr, Vec<Stmt>, Span), ParseError> {
+        let condition = self.parse_choose_condition_expr()?;
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+            let (body, end_span) = self.parse_choose_body_block()?;
+            let span = condition.span().merge(end_span);
+            return Ok((condition, body, span));
+        }
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "인")) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "':' 또는 '인 경우'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let case_token = self.advance();
+        if !matches!(case_token.kind, TokenKind::Ident(ref name) if name == "경우") {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'경우'",
+                found: case_token.kind,
+                span: case_token.span,
+            });
+        }
+        let (body, end_span) = self.parse_choose_body_block()?;
+        let span = condition.span().merge(end_span);
+        Ok((condition, body, span))
+    }
+
+    fn parse_choose_condition_expr(&mut self) -> Result<Expr, ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        let start_span = self.advance().span;
+        let expr = self.parse_expr()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        let span = start_span.merge(end_span);
+        Ok(match expr {
+            Expr::Unary { op, expr, .. } => Expr::Unary { op, expr, span },
+            Expr::Binary {
+                left, op, right, ..
+            } => Expr::Binary {
+                left,
+                op,
+                right,
+                span,
+            },
+            Expr::Call { name, args, .. } => Expr::Call { name, args, span },
+            Expr::FieldAccess { target, field, .. } => Expr::FieldAccess {
+                target,
+                field,
+                span,
+            },
+            Expr::SeedLiteral { param, body, .. } => Expr::SeedLiteral { param, body, span },
+            Expr::Formula { dialect, body, .. } => Expr::Formula {
+                dialect,
+                body,
+                span,
+            },
+            Expr::Assertion { assertion, .. } => Expr::Assertion { assertion, span },
+            Expr::FormulaEval {
+                dialect,
+                body,
+                bindings,
+                ..
+            } => Expr::FormulaEval {
+                dialect,
+                body,
+                bindings,
+                span,
+            },
+            Expr::Template { body, .. } => Expr::Template { body, span },
+            Expr::TemplateFill {
+                template, bindings, ..
+            } => Expr::TemplateFill {
+                template,
+                bindings,
+                span,
+            },
+            Expr::Pack { bindings, .. } => Expr::Pack { bindings, span },
+            Expr::FormulaFill {
+                formula, bindings, ..
+            } => Expr::FormulaFill {
+                formula,
+                bindings,
+                span,
+            },
+            Expr::Literal(value, _) => Expr::Literal(value, span),
+            Expr::Path(mut path) => {
+                path.span = span;
+                Expr::Path(path)
+            }
+            Expr::Atom { text, .. } => Expr::Atom { text, span },
+        })
+    }
+
+    fn parse_choose_body_block(&mut self) -> Result<(Vec<Stmt>, Span), ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+        let body = self.parse_block()?;
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::ExpectedRBrace {
+                span: self.peek().span,
+            });
+        }
+        let end_span = self.advance().span;
+        Ok((body, end_span))
     }
 
     fn parse_if_stmt(&mut self, condition: Expr) -> Result<Stmt, ParseError> {
@@ -1820,7 +4229,7 @@ impl Parser {
             TokenKind::Ident(name) => (name.clone(), self.peek().span),
             other => {
                 return Err(ParseError::UnexpectedToken {
-                    expected: "'알림' or '중단'",
+                    expected: "'알림' or '물림'",
                     found: other.clone(),
                     span: self.peek().span,
                 })
@@ -1836,9 +4245,9 @@ impl Parser {
         let _ = start_span.merge(end_span);
         match name.as_str() {
             "알림" => Ok(ContractMode::Alert),
-            "중단" => Ok(ContractMode::Abort),
+            "물림" => Ok(ContractMode::Abort),
             _ => Err(ParseError::UnexpectedToken {
-                expected: "'알림' or '중단'",
+                expected: "'알림' or '물림'",
                 found: TokenKind::Ident(name),
                 span: name_span,
             }),
@@ -2007,6 +4416,10 @@ impl Parser {
                 span,
             });
         }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Plus)) {
+            self.advance();
+            return self.parse_unary();
+        }
         self.parse_postfix()
     }
 
@@ -2033,23 +4446,9 @@ impl Parser {
                 };
                 continue;
             }
-            if self.peek_kind_is(|k| matches!(k, TokenKind::Dot))
-                && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_)))
-            {
+            if let Some((field, field_span)) = self.try_parse_dot_segment()? {
                 let start_span = expr.span();
-                self.advance();
-                let field_token = self.advance();
-                let field = match field_token.kind {
-                    TokenKind::Ident(name) => name,
-                    _ => {
-                        return Err(ParseError::UnexpectedToken {
-                            expected: "field name",
-                            found: field_token.kind,
-                            span: field_token.span,
-                        })
-                    }
-                };
-                let span = start_span.merge(field_token.span);
+                let span = start_span.merge(field_span);
                 expr = Expr::FieldAccess {
                     target: Box::new(expr),
                     field,
@@ -2068,9 +4467,7 @@ impl Parser {
                 let start_span = self.peek().span;
                 return self.parse_formula_expr(None, start_span);
             }
-            if self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_)))
-                && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Equal))
-            {
+            if self.is_binding_paren_start() {
                 let (bindings, start_span) = self.parse_bindings()?;
                 self.skip_newlines();
                 if self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
@@ -2094,6 +4491,20 @@ impl Parser {
                 if self.peek_kind_is(|k| matches!(k, TokenKind::Chaewugi)) {
                     return self.parse_template_fill_explicit(bindings, start_span);
                 }
+                if self.peek_kind_is(|k| matches!(k, TokenKind::Salim))
+                    || self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name != "의"))
+                {
+                    let (name, name_span) = self.parse_call_name()?;
+                    let pack = Expr::Pack {
+                        bindings,
+                        span: start_span,
+                    };
+                    return Ok(Expr::Call {
+                        name,
+                        args: vec![self.new_arg_binding(pack)],
+                        span: start_span.merge(name_span),
+                    });
+                }
                 return Ok(Expr::Pack {
                     bindings,
                     span: start_span,
@@ -2110,6 +4521,11 @@ impl Parser {
             TokenKind::Template(body) => {
                 let span = self.advance().span;
                 Ok(Expr::Template { body, span })
+            }
+            TokenKind::Assertion(raw) => {
+                let span = self.advance().span;
+                let assertion = self.parse_assertion_block(&raw, span)?;
+                Ok(Expr::Assertion { assertion, span })
             }
             TokenKind::Number(value) => {
                 let span = self.advance().span;
@@ -2131,7 +4547,22 @@ impl Parser {
                 let span = self.advance().span;
                 Ok(Expr::Literal(Literal::None, span))
             }
-            TokenKind::Ident(_) => {
+            TokenKind::Ident(name) => {
+                if name == "정규식" && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::LBrace))
+                {
+                    let ident_token = self.advance();
+                    let open = self.peek().clone();
+                    if open.span.start_line != ident_token.span.end_line
+                        || open.span.start_col != ident_token.span.end_col
+                    {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: "Gate0: 정규식{ 는 붙여쓰기만 허용됩니다",
+                            found: open.kind,
+                            span: open.span,
+                        });
+                    }
+                    return self.parse_regex_literal_call(ident_token.span);
+                }
                 let path = self.parse_path()?;
                 Ok(Expr::Path(path))
             }
@@ -2163,7 +4594,9 @@ impl Parser {
                     });
                 }
                 self.advance();
-                if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(_) | TokenKind::Salim)) {
+                if self.peek_kind_is(|k| matches!(k, TokenKind::Salim))
+                    || self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name != "의"))
+                {
                     let (name, name_span) = self.parse_call_name()?;
                     return Ok(Expr::Call {
                         name,
@@ -2254,6 +4687,69 @@ impl Parser {
         }
     }
 
+    fn parse_regex_literal_call(&mut self, ident_span: Span) -> Result<Expr, ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'{'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        self.advance();
+
+        let pattern_token = self.peek().clone();
+        let pattern = match pattern_token.kind {
+            TokenKind::String(text) => {
+                self.advance();
+                text
+            }
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "정규식 패턴 문자열",
+                    found: other,
+                    span: pattern_token.span,
+                })
+            }
+        };
+        let pattern_expr = Expr::Literal(Literal::Str(pattern), pattern_token.span);
+        let mut args = vec![self.new_arg_binding(pattern_expr)];
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Comma)) {
+            self.advance();
+            let flags_token = self.peek().clone();
+            let flags = match flags_token.kind {
+                TokenKind::String(text) => {
+                    self.advance();
+                    text
+                }
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "정규식 깃발 문자열",
+                        found: other,
+                        span: flags_token.span,
+                    })
+                }
+            };
+            let flags_expr = Expr::Literal(Literal::Str(flags), flags_token.span);
+            args.push(self.new_arg_binding(flags_expr));
+        }
+
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+            return Err(ParseError::UnexpectedToken {
+                expected: "'}'",
+                found: self.peek().kind.clone(),
+                span: self.peek().span,
+            });
+        }
+        let close_span = self.advance().span;
+        let span = ident_span.merge(close_span);
+        Ok(Expr::Call {
+            name: "정규식".to_string(),
+            args,
+            span,
+        })
+    }
+
     fn new_arg_binding(&self, expr: Expr) -> ArgBinding {
         let span = expr.span();
         ArgBinding {
@@ -2341,6 +4837,12 @@ impl Parser {
             binding_reason: suffix.binding_reason,
             span: expr_span,
         })
+    }
+
+    fn is_binding_paren_start(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_)))
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Equal | TokenKind::Colon))
     }
 
     fn build_charim_literal(&self, args: Vec<Expr>, span: Span) -> Result<Expr, ParseError> {
@@ -2498,8 +5000,24 @@ impl Parser {
                 span,
             });
         }
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "살피기")) {
+            let end_span = self.advance().span;
+            let span = start_span.merge(end_span);
+            let pack = Expr::Pack {
+                bindings,
+                span: start_span,
+            };
+            return Ok(Expr::Call {
+                name: "살피기".to_string(),
+                args: vec![
+                    self.new_arg_binding(target_expr),
+                    self.new_arg_binding(pack),
+                ],
+                span,
+            });
+        }
         Err(ParseError::UnexpectedToken {
-            expected: "'채우기' or '풀기'",
+            expected: "'채우기' or '풀기' or '살피기'",
             found: self.peek().kind.clone(),
             span: self.peek().span,
         })
@@ -2582,9 +5100,9 @@ impl Parser {
                     })
                 }
             };
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::Equal)) {
+            if !self.peek_kind_is(|k| matches!(k, TokenKind::Equal | TokenKind::Colon)) {
                 return Err(ParseError::UnexpectedToken {
-                    expected: "'='",
+                    expected: "'=' 또는 ':'",
                     found: self.peek().kind.clone(),
                     span: self.peek().span,
                 });
@@ -2682,6 +5200,35 @@ impl Parser {
         }
         self.advance();
         Ok(dialect)
+    }
+
+    fn parse_assertion_block(&self, raw: &str, span: Span) -> Result<Assertion, ParseError> {
+        let body_source = raw.replace("\r\n", "\n").replace('\r', "\n");
+        let wrapped = format!("검사:셈씨 = {{{}}}", body_source);
+        let normalized = ddonirang_lang::parse_and_normalize(
+            &wrapped,
+            "#assertion",
+            ddonirang_lang::NormalizationLevel::N1,
+        )
+        .map_err(|_| ParseError::UnexpectedToken {
+            expected: "valid assertion body",
+            found: TokenKind::Assertion(body_source.clone()),
+            span,
+        })?;
+        let open = normalized.find('{').ok_or(ParseError::UnexpectedToken {
+            expected: "assertion body start",
+            found: TokenKind::Assertion(body_source.clone()),
+            span,
+        })?;
+        let close = normalized.rfind('}').ok_or(ParseError::UnexpectedToken {
+            expected: "assertion body end",
+            found: TokenKind::Assertion(body_source.clone()),
+            span,
+        })?;
+        Ok(Assertion {
+            body_source,
+            canon: format!("세움{}", &normalized[open..=close]),
+        })
     }
 
     fn skip_tag_blocks(&mut self) {
@@ -2847,23 +5394,16 @@ impl Parser {
         let mut implicit_root = false;
 
         loop {
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::Dot)) {
+            let Some((segment, segment_span)) = self.try_parse_dot_segment()? else {
                 break;
-            }
-            if !self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_))) {
-                break;
-            }
-            self.advance();
-            let ident_token = self.advance();
-            if let TokenKind::Ident(name) = ident_token.kind {
-                segments.push(name);
-                span = span.merge(ident_token.span);
-            }
+            };
+            segments.push(segment);
+            span = span.merge(segment_span);
         }
 
         if !matches!(
             segments.first().map(|seg| seg.as_str()),
-            Some("살림" | "바탕" | "샘")
+            Some("살림" | "바탕" | "샘" | "제")
         ) {
             segments.insert(0, self.default_root.clone());
             implicit_root = true;
@@ -2876,11 +5416,10 @@ impl Parser {
         })
     }
 
-    // Step B scope: one-level map field write only.
-    // - allowed: 살림.공.x, 바탕.공.x
-    // - rejected: 살림.공.속도.x (Step C)
-    fn split_map_dot_target(path: &Path) -> Option<(Path, String)> {
-        if path.segments.len() != 3 {
+    // Step B/C scope: one-level + nested map field write.
+    // - allowed: 살림.공.x, 바탕.공.x, 살림.공.속도.x
+    fn split_map_dot_target(path: &Path) -> Option<(Path, Vec<String>)> {
+        if path.segments.len() < 3 {
             return None;
         }
         if !matches!(
@@ -2894,7 +5433,81 @@ impl Parser {
             span: path.span,
             implicit_root: path.implicit_root,
         };
-        Some((target, path.segments[2].clone()))
+        Some((target, path.segments[2..].to_vec()))
+    }
+
+    fn build_map_dot_write_expr(
+        &self,
+        map_expr: Expr,
+        key_segments: &[String],
+        value: Expr,
+        span: Span,
+    ) -> Expr {
+        debug_assert!(!key_segments.is_empty());
+        let key_expr = Expr::Literal(Literal::Str(key_segments[0].clone()), span);
+        if key_segments.len() == 1 {
+            return Expr::Call {
+                name: "짝맞춤.바꾼값".to_string(),
+                args: vec![
+                    self.new_arg_binding(map_expr),
+                    self.new_arg_binding(key_expr),
+                    self.new_arg_binding(value),
+                ],
+                span,
+            };
+        }
+        let child_map_expr = Expr::Call {
+            name: "짝맞춤.필수값".to_string(),
+            args: vec![
+                self.new_arg_binding(map_expr.clone()),
+                self.new_arg_binding(key_expr.clone()),
+            ],
+            span,
+        };
+        let child_value =
+            self.build_map_dot_write_expr(child_map_expr, &key_segments[1..], value, span);
+        Expr::Call {
+            name: "짝맞춤.바꾼값".to_string(),
+            args: vec![
+                self.new_arg_binding(map_expr),
+                self.new_arg_binding(key_expr),
+                self.new_arg_binding(child_value),
+            ],
+            span,
+        }
+    }
+
+    fn try_parse_dot_segment(&mut self) -> Result<Option<(String, Span)>, ParseError> {
+        if !self.peek_kind_is(|k| matches!(k, TokenKind::Dot)) {
+            return Ok(None);
+        }
+        if self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(_))) {
+            self.advance();
+            let token = self.advance();
+            if let TokenKind::Ident(name) = token.kind {
+                return Ok(Some((name, token.span)));
+            }
+        }
+        if self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Number(_))) {
+            self.advance();
+            let token = self.advance();
+            if let TokenKind::Number(raw) = token.kind {
+                let segment = Self::parse_nonnegative_index_segment(raw, token.span)?;
+                return Ok(Some((segment, token.span)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn parse_nonnegative_index_segment(raw: i64, span: Span) -> Result<String, ParseError> {
+        if raw < 0 || (raw & ((1_i64 << Fixed64::SCALE_BITS) - 1)) != 0 {
+            return Err(ParseError::UnexpectedToken {
+                expected: "integer dot index",
+                found: TokenKind::Number(raw),
+                span,
+            });
+        }
+        Ok((raw >> Fixed64::SCALE_BITS).to_string())
     }
 
     fn consume_terminator(&mut self) -> Result<(), ParseError> {
@@ -2962,36 +5575,27 @@ mod tests {
     use crate::lang::lexer::Lexer;
 
     #[test]
-    fn parse_pragma_graph_stmt_noop() {
+    fn parse_pragma_graph_stmt_rejected() {
         let source = "#그래프(y축=x)\n살림.x <- 1.\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let program = Parser::parse_with_default_root(tokens, "살림").expect("pragma parsed");
-        assert!(matches!(program.stmts.first(), Some(Stmt::Pragma { .. })));
-        assert!(program
-            .stmts
-            .iter()
-            .any(|stmt| matches!(stmt, Stmt::Assign { .. })));
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("pragma rejected");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
     }
 
     #[test]
-    fn parse_pragma_import_like_stmt_noop() {
+    fn parse_pragma_import_like_stmt_rejected() {
         let source = "#가져오기 누리/물리/역학 (중력씨, 이동씨)\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let program = Parser::parse_with_default_root(tokens, "살림").expect("pragma parsed");
-        assert_eq!(program.stmts.len(), 1);
-        assert!(matches!(program.stmts[0], Stmt::Pragma { .. }));
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("pragma rejected");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
     }
 
     #[test]
-    fn parse_pragma_with_parenthesized_spaces_keeps_full_args() {
+    fn parse_pragma_with_parenthesized_spaces_rejected() {
         let source = "#진단(a ≈ b, 허용오차=0.1, 이름=\"검사\")\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let program = Parser::parse_with_default_root(tokens, "살림").expect("pragma parsed");
-        let Some(Stmt::Pragma { name, args, .. }) = program.stmts.first() else {
-            panic!("first stmt must be pragma");
-        };
-        assert_eq!(name, "진단");
-        assert_eq!(args, "a ≈ b, 허용오차=0.1, 이름=\"검사\"");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("pragma rejected");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
     }
 
     #[test]
@@ -3021,6 +5625,90 @@ mod tests {
     }
 
     #[test]
+    fn parse_choose_legacy_else_still_supported() {
+        let source = r#"
+고르기:
+{ 1 == 2 }: {
+  살림.x <- 1.
+}
+아니면: {
+  살림.x <- 2.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Choose {
+            branches,
+            else_body,
+            exhaustive,
+            ..
+        }) = program.stmts.first()
+        else {
+            panic!("choose expected");
+        };
+        assert_eq!(branches.len(), 1);
+        assert!(else_body.is_some());
+        assert!(!exhaustive);
+    }
+
+    #[test]
+    fn parse_choose_case_complete_marker() {
+        let source = r#"
+고르기:
+{ 1 == 1 } 인 경우 {
+  살림.x <- 1.
+}
+모든 경우 다룸.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Choose {
+            branches,
+            else_body,
+            exhaustive,
+            ..
+        }) = program.stmts.first()
+        else {
+            panic!("choose expected");
+        };
+        assert_eq!(branches.len(), 1);
+        assert!(else_body.is_none());
+        assert!(*exhaustive);
+    }
+
+    #[test]
+    fn parse_choose_case_requires_completion() {
+        let source = r#"
+고르기:
+{ 1 == 1 } 인 경우 {
+  살림.x <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_CASE_COMPLETION_REQUIRED");
+    }
+
+    #[test]
+    fn parse_choose_case_else_must_be_last() {
+        let source = r#"
+고르기:
+{ 1 == 2 } 인 경우 {
+  살림.x <- 1.
+}
+그밖의 경우 {
+  살림.x <- 2.
+}
+{ 1 == 1 } 인 경우 {
+  살림.x <- 3.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_CASE_ELSE_NOT_LAST");
+    }
+
+    #[test]
     fn parse_dialect_header_rejected() {
         let source = r#"#말씨: xx
 (1 < 2) if {
@@ -3035,7 +5723,7 @@ mod tests {
     #[test]
     fn parse_decl_block_chaebi_item_kinds() {
         let source = r#"
-채비: {
+채비 {
   점수:수 <- 0.
   파이:수 = 3.
 }.
@@ -3054,6 +5742,111 @@ mod tests {
     }
 
     #[test]
+    fn parse_decl_block_multi_arg_call_initializer_without_maegim() {
+        let source = r#"
+채비 {
+  값:나눔수 <- (6, 9) 나눔수.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        let Stmt::DeclBlock { items, .. } = &body[0] else {
+            panic!("decl block expected");
+        };
+        let value = items[0].value.as_ref().expect("decl value");
+        let Expr::Call { name, args, .. } = value else {
+            panic!("call expression expected");
+        };
+        assert_eq!(name, "나눔수");
+        assert_eq!(args.len(), 2);
+    }
+
+    #[test]
+    fn parse_decl_block_maegim_alias_and_fields() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 조건 {
+    범위: 1..20.
+    간격: 0.1.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        let Stmt::DeclBlock { items, .. } = &body[0] else {
+            panic!("decl block expected");
+        };
+        let item = &items[0];
+        assert!(matches!(item.kind, DeclKind::Butbak));
+        let maegim = item.maegim.as_ref().expect("maegim");
+        assert_eq!(maegim.fields.len(), 2);
+        assert_eq!(maegim.fields[0].name, "범위");
+        assert_eq!(maegim.fields[1].name, "간격");
+    }
+
+    #[test]
+    fn parse_decl_block_maegim_supports_split_count() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    범위: 1..20.
+    분할수: 40.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        let Stmt::DeclBlock { items, .. } = &body[0] else {
+            panic!("decl block expected");
+        };
+        let item = &items[0];
+        let maegim = item.maegim.as_ref().expect("maegim");
+        assert_eq!(maegim.fields.len(), 2);
+        assert_eq!(maegim.fields[0].name, "범위");
+        assert_eq!(maegim.fields[1].name, "분할수");
+    }
+
+    #[test]
+    fn parse_decl_block_maegim_rejects_step_and_split_count_together() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    범위: 1..20.
+    간격: 0.1.
+    분할수: 40.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_MAEGIM_STEP_SPLIT_CONFLICT");
+        assert!(matches!(err, ParseError::MaegimStepSplitConflict { .. }));
+    }
+
+    #[test]
+    fn parse_decl_block_maegim_requires_grouped_value() {
+        let source = r#"
+채비 {
+  g:수 = 9.8 조건 {
+    범위: 1..20.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("grouped value");
+        assert_eq!(err.code(), "E_PARSE_MAEGIM_GROUPED_VALUE_REQUIRED");
+    }
+
+    #[test]
     fn parse_decl_block_legacy_header_rejected() {
         let source = r#"
 그릇채비: {
@@ -3062,31 +5855,598 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let err = Parser::parse_with_default_root(tokens, "살림").expect_err("legacy header");
-        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+        assert_eq!(err.code(), "E_BLOCK_HEADER_COLON_FORBIDDEN");
     }
 
     #[test]
-    fn parse_hook_every_allows_optional_colon() {
+    fn parse_decl_block_colon_forbidden() {
+        let source = r#"
+채비: {
+  점수:수 <- 0.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("colon compatibility");
+        assert!(program
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::SeedDef { .. })));
+    }
+
+    #[test]
+    fn parse_import_block_basic() {
+        let source = r#"
+쓰임 {
+  수학: "표준/수학@1.2".
+  진자: "./physics/pendulum".
+}.
+움직:움직씨 = { ("ok") 보여주기. }.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(matches!(
+            program.stmts.first(),
+            Some(Stmt::ImportBlock { .. })
+        ));
+        assert!(program
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::SeedDef { .. })));
+    }
+
+    #[test]
+    fn parse_import_alias_duplicate_error() {
+        let source = r#"
+쓰임 {
+  수학: "표준/수학@1.2".
+  수학: "표준/수학@1.2".
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("duplicate alias");
+        assert_eq!(err.code(), "E_IMPORT_ALIAS_DUPLICATE");
+    }
+
+    #[test]
+    fn parse_import_alias_reserved_error() {
+        let source = r#"
+쓰임 {
+  살림: "표준/수학".
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("reserved alias");
+        assert_eq!(err.code(), "E_IMPORT_ALIAS_RESERVED");
+    }
+
+    #[test]
+    fn parse_import_path_invalid_error() {
+        let source = r#"
+쓰임 {
+  수학: "https://example.com/math".
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("invalid path");
+        assert_eq!(err.code(), "E_IMPORT_PATH_INVALID");
+    }
+
+    #[test]
+    fn parse_import_version_conflict_error() {
+        let source = r#"
+쓰임 {
+  수학: "표준/수학@1.2".
+  수학2: "표준/수학@2.0".
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("version conflict");
+        assert_eq!(err.code(), "E_IMPORT_VERSION_CONFLICT");
+    }
+
+    #[test]
+    fn parse_export_block_public_alias_is_supported() {
+        let source = r#"
+공개 {
+  셈: 계산.
+  기본값.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(matches!(
+            program.stmts.first(),
+            Some(Stmt::ExportBlock { .. })
+        ));
+    }
+
+    #[test]
+    fn parse_export_block_duplicate_rejected() {
+        let source = r#"
+드러냄 { 계산. }.
+공개 { 셈: 계산. }.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("duplicate export");
+        assert_eq!(err.code(), "E_EXPORT_BLOCK_DUPLICATE");
+    }
+
+    #[test]
+    fn parse_hook_every_colon_forbidden() {
         let source = r#"
 (매마디)마다: {
   살림.t <- 살림.t + 1.
 }.
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_BLOCK_HEADER_COLON_FORBIDDEN");
+    }
+
+    #[test]
+    fn parse_hook_every_n_madi_supported() {
+        let source = r#"
+(3마디)마다 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
         let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        assert!(program.stmts.iter().any(|stmt| matches!(
-            stmt,
-            Stmt::Hook {
-                kind: HookKind::EveryMadi,
+        let Some(Stmt::Hook { kind, .. }) = program.stmts.first() else {
+            panic!("hook expected");
+        };
+        assert!(matches!(kind, HookKind::EveryNMadi(3)));
+    }
+
+    #[test]
+    fn parse_hook_every_n_madi_rejects_zero_interval() {
+        let source = r#"
+(0마디)마다 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+    }
+
+    #[test]
+    fn parse_hook_condition_becomes_supported() {
+        let source = r#"
+(살림.점수 > 10)이 될때 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::HookWhenBecomes { .. }) = program.stmts.first() else {
+            panic!("condition edge hook expected");
+        };
+    }
+
+    #[test]
+    fn parse_hook_condition_while_supported() {
+        let source = r#"
+(살림.전투중)인 동안 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::HookWhile { .. }) = program.stmts.first() else {
+            panic!("condition while hook expected");
+        };
+    }
+
+    #[test]
+    fn parse_hook_end_supported() {
+        let source = r#"
+(끝)할때 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Hook { kind, .. }) = program.stmts.first() else {
+            panic!("end hook expected");
+        };
+        assert!(matches!(kind, HookKind::End));
+    }
+
+    #[test]
+    fn parse_hook_start_alias_choeum_supported() {
+        let source = r#"
+(처음)할때 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Hook { kind, .. }) = program.stmts.first() else {
+            panic!("start hook expected");
+        };
+        assert!(matches!(kind, HookKind::Start));
+    }
+
+    #[test]
+    fn parse_bare_reset_kinds_as_zero_arg_calls() {
+        let source = r#"
+마당다시.
+판다시.
+누리다시.
+보개다시.
+모두다시.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let names: Vec<&str> = program
+            .stmts
+            .iter()
+            .map(|stmt| match stmt {
+                Stmt::Expr {
+                    value: Expr::Call { name, args, .. },
+                    ..
+                } => {
+                    assert!(args.is_empty());
+                    name.as_str()
+                }
+                _ => panic!("reset call stmt expected"),
+            })
+            .collect();
+        assert_eq!(names, vec!["마당다시", "판다시", "누리다시", "보개다시", "모두다시"]);
+    }
+
+    #[test]
+    fn parse_lifecycle_transition_verbs_as_postfix_calls() {
+        let source = r#"
+진자마당 시작하기.
+다음마당 넘어가기.
+연습판 불러오기.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let mut names: Vec<&str> = Vec::new();
+        let mut targets: Vec<&str> = Vec::new();
+        for stmt in &program.stmts {
+            let Stmt::Expr {
+                value: Expr::Call { name, args, .. },
                 ..
-            }
-        )));
+            } = stmt
+            else {
+                panic!("lifecycle transition call stmt expected");
+            };
+            names.push(name.as_str());
+            assert_eq!(args.len(), 1);
+            let Expr::Literal(Literal::Str(target), _) = &args[0].expr else {
+                panic!("lifecycle transition target string expected");
+            };
+            targets.push(target.as_str());
+        }
+        assert_eq!(names, vec!["시작하기", "넘어가기", "불러오기"]);
+        assert_eq!(targets, vec!["진자마당", "다음마당", "연습판"]);
+    }
+
+    #[test]
+    fn parse_bare_lifecycle_transition_verbs_as_zero_arg_calls() {
+        let source = r#"
+시작하기.
+넘어가기.
+불러오기.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let names: Vec<&str> = program
+            .stmts
+            .iter()
+            .map(|stmt| match stmt {
+                Stmt::Expr {
+                    value: Expr::Call { name, args, .. },
+                    ..
+                } => {
+                    assert!(args.is_empty());
+                    name.as_str()
+                }
+                _ => panic!("lifecycle transition call stmt expected"),
+            })
+            .collect();
+        assert_eq!(names, vec!["시작하기", "넘어가기", "불러오기"]);
+    }
+
+    #[test]
+    fn parse_lifecycle_pan_block_supported() {
+        let source = r#"
+판 {
+  살림.x <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::LifecycleBlock { kind, body, .. }) = program.stmts.first() else {
+            panic!("lifecycle block expected");
+        };
+        assert!(matches!(kind, LifecycleUnitKind::Pan));
+        assert_eq!(body.len(), 1);
+    }
+
+    #[test]
+    fn parse_lifecycle_madang_block_supported() {
+        let source = r#"
+마당 {
+  살림.x <- 2.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::LifecycleBlock { kind, body, .. }) = program.stmts.first() else {
+            panic!("lifecycle block expected");
+        };
+        assert!(matches!(kind, LifecycleUnitKind::Madang));
+        assert_eq!(body.len(), 1);
+    }
+
+    #[test]
+    fn parse_named_lifecycle_blocks_with_equal_surface() {
+        let source = r#"
+연습판 = 판 {
+  살림.x <- 1.
+}.
+진자마당 = 마당 {
+  살림.x <- 2.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::LifecycleBlock { name, kind, .. }) = program.stmts.first() else {
+            panic!("first lifecycle block expected");
+        };
+        assert_eq!(name.as_deref(), Some("연습판"));
+        assert!(matches!(kind, LifecycleUnitKind::Pan));
+        let Some(Stmt::LifecycleBlock { name, kind, .. }) = program.stmts.get(1) else {
+            panic!("second lifecycle block expected");
+        };
+        assert_eq!(name.as_deref(), Some("진자마당"));
+        assert!(matches!(kind, LifecycleUnitKind::Madang));
+    }
+
+    #[test]
+    fn parse_named_lifecycle_blocks_reject_duplicate_name() {
+        let source = r#"
+연습판 = 판 {
+  살림.x <- 1.
+}.
+연습판 = 마당 {
+  살림.x <- 2.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_LIFECYCLE_NAME_DUPLICATE");
+        let ParseError::LifecycleNameDuplicate {
+            span, first_span, ..
+        } = err
+        else {
+            panic!("duplicate parse error expected");
+        };
+        assert_eq!((first_span.start_line, first_span.start_col), (2, 1));
+        assert_eq!((span.start_line, span.start_col), (5, 1));
+    }
+
+    #[test]
+    fn parse_foreach_colon_forbidden() {
+        let source = r#"
+(x) x목록에 대해: {
+  살림.y <- x.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("colon compatibility");
+        let Some(Stmt::ForEach { .. }) = program.stmts.first() else {
+            panic!("foreach expected");
+        };
+    }
+
+    #[test]
+    fn parse_quantifier_statements() {
+        let source = r#"
+증명:셈씨 = {
+  n 이 자연수 낱낱에 대해 {
+    없음.
+  }.
+  x 가 실수 중 하나가 {
+    없음.
+  }.
+  y 가 정수 중 딱 하나가 {
+    없음.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::SeedDef { body, .. }) = program.stmts.first() else {
+            panic!("seed def expected");
+        };
+        assert!(matches!(
+            body.first(),
+            Some(Stmt::Quantifier {
+                kind: QuantifierKind::ForAll,
+                ..
+            })
+        ));
+        assert!(matches!(
+            body.get(1),
+            Some(Stmt::Quantifier {
+                kind: QuantifierKind::Exists,
+                ..
+            })
+        ));
+        assert!(matches!(
+            body.get(2),
+            Some(Stmt::Quantifier {
+                kind: QuantifierKind::ExistsUnique,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn parse_quantifier_rejects_mutation_in_body() {
+        let source = r#"
+증명:셈씨 = {
+  n 이 자연수 낱낱에 대해 {
+    살림.x <- 1.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_QUANTIFIER_MUTATION_FORBIDDEN");
+    }
+
+    #[test]
+    fn parse_quantifier_rejects_show_in_body() {
+        let source = r#"
+증명:셈씨 = {
+  x 가 실수 중 하나가 {
+    x 보여주기.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_QUANTIFIER_SHOW_FORBIDDEN");
+    }
+
+    #[test]
+    fn parse_quantifier_rejects_open_call_in_body() {
+        let source = r#"
+증명:셈씨 = {
+  x 가 실수 중 하나가 {
+    너머 {
+      없음.
+    }.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_QUANTIFIER_IO_FORBIDDEN");
+    }
+
+    #[test]
+    fn parse_immediate_proof_lowers_to_seed_and_call() {
+        let source = r#"
+자연수_제곱_0이상 밝히기 {
+  n 이 자연수 낱낱에 대해 {
+    없음.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(matches!(
+            program.stmts.first(),
+            Some(Stmt::SeedDef {
+                kind: SeedKind::Balhigi,
+                ..
+            })
+        ));
+        assert!(matches!(
+            program.stmts.get(1),
+            Some(Stmt::Expr {
+                value: Expr::Call { name, .. },
+                ..
+            }) if name == "자연수_제곱_0이상"
+        ));
+    }
+
+    #[test]
+    fn parse_immediate_proof_rejects_mutation_in_body() {
+        let source = r#"
+검사 밝히기 {
+  살림.x <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_IMMEDIATE_PROOF_MUTATION_FORBIDDEN");
+    }
+
+    #[test]
+    fn parse_immediate_proof_allows_solver_hooks_but_rejects_general_open() {
+        let ok_source = r#"
+검사 밝히기 {
+  ((질의="forall n. n = n")) 열림.풀이.확인.
+  ((질의="forall n. n >= 0")) 반례찾기.
+}.
+"#;
+        let tokens = Lexer::tokenize(ok_source).expect("tokenize");
+        Parser::parse_with_default_root(tokens, "살림").expect("parse");
+
+        let bad_source = r#"
+검사 밝히기 {
+  너머 {
+    없음.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(bad_source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_IMMEDIATE_PROOF_IO_FORBIDDEN");
+    }
+
+    #[test]
+    fn parse_assertion_literal_and_check_lower_to_call() {
+        let source = r#"
+거리_0이상 <- 세움{
+  { 거리 >= 0 }인것 바탕으로(물림) 아니면 {
+    없음.
+  }.
+}.
+판정 <- (거리=3)인 거리_0이상 살피기.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Assign {
+            value: Expr::Assertion { assertion, .. },
+            ..
+        }) = program.stmts.first()
+        else {
+            panic!("assertion assignment expected");
+        };
+        assert!(assertion.canon.starts_with("세움{"));
+        assert!(assertion.canon.contains("거리 >= 0"));
+
+        let Some(Stmt::Assign {
+            value: Expr::Call { name, args, .. },
+            ..
+        }) = program.stmts.get(1)
+        else {
+            panic!("check call assignment expected");
+        };
+        assert_eq!(name, "살피기");
+        assert_eq!(args.len(), 2);
+        assert!(matches!(
+            &args[0].expr,
+            Expr::Path(_) | Expr::FieldAccess { .. } | Expr::Assertion { .. }
+        ));
+        assert!(
+            matches!(&args[1].expr, Expr::Pack { bindings, .. } if bindings.len() == 1 && bindings[0].name == "거리")
+        );
+    }
+
+    #[test]
+    fn parse_accepts_unary_plus_literal_assignment() {
+        let source = "x <- +5.\ny <- (+5).\n";
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(matches!(program.stmts.first(), Some(Stmt::Assign { .. })));
+        assert!(matches!(program.stmts.get(1), Some(Stmt::Assign { .. })));
     }
 
     #[test]
     fn parse_moyang_shape_block_lowers_to_show_stmts() {
         let source = r##"
-매틱:움직씨 = {
+움직:움직씨 = {
   bob_x <- 1.
   bob_y <- -1.
   모양: {
@@ -3116,5 +6476,461 @@ mod tests {
         assert!(show_strings.contains(&"line".to_string()));
         assert!(show_strings.contains(&"circle".to_string()));
         assert!(show_strings.contains(&"point".to_string()));
+    }
+
+    #[test]
+    fn parse_jjaim_block_is_accepted_as_stub() {
+        let source = r#"
+움직:움직씨 = {
+  짜임 {
+    상태 { theta <- 0.8. }.
+    출력 { 끝점 <- (0.0, 0.0). }.
+  }.
+  살림.t <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::SeedDef { body, .. }) = program.stmts.first() else {
+            panic!("seed def expected");
+        };
+        assert!(body.iter().any(|stmt| matches!(stmt, Stmt::Expr { .. })));
+        assert!(body.iter().any(|stmt| matches!(stmt, Stmt::Assign { .. })));
+    }
+
+    #[test]
+    fn parse_beat_block_with_deferred_assignments() {
+        let source = r#"
+덩이 {
+  살림.x <- 1 미루기.
+  살림.y <- 2.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::BeatBlock { body, .. }) = program.stmts.first() else {
+            panic!("beat block expected");
+        };
+        let Some(Stmt::Assign { deferred, .. }) = body.first() else {
+            panic!("assign expected");
+        };
+        assert!(*deferred);
+        let Some(Stmt::Assign { deferred, .. }) = body.get(1) else {
+            panic!("assign expected");
+        };
+        assert!(!deferred);
+    }
+
+    #[test]
+    fn parse_legacy_beat_keyword_is_rejected() {
+        let source = r#"
+박자 {
+  살림.x <- 1 미루기.
+  살림.y <- 2.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+    }
+
+    #[test]
+    fn parse_bundle_alias_block_is_rejected() {
+        let source = r#"
+묶음 {
+  살림.x <- 1 미루기.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+    }
+
+    #[test]
+    fn parse_deferred_assignment_outside_beat_is_rejected() {
+        let source = "살림.x <- 1 미루기.\n";
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_DEFERRED_ASSIGN_OUTSIDE_BEAT");
+        assert!(matches!(err, ParseError::DeferredAssignOutsideBeat { .. }));
+    }
+
+    #[test]
+    fn parse_strict_mode_rejects_compat_matic_entry() {
+        let source = r#"
+매틱:움직씨 = {
+  살림.t <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root_mode(tokens, "살림", ParseMode::Strict)
+            .expect_err("strict");
+        assert_eq!(err.code(), "E_LANG_COMPAT_MATIC_ENTRY_DISABLED");
+    }
+
+    #[test]
+    fn parse_strict_mode_accepts_compat_matic_entry_with_flag() {
+        let source = r#"
+매틱:움직씨 = {
+  살림.t <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root_mode(
+            tokens,
+            "살림",
+            ParseMode::Strict.with_compat_matic_entry(true),
+        )
+        .expect("compat-matic-entry");
+        assert!(program
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::SeedDef { .. })));
+    }
+
+    #[test]
+    fn parse_seed_tilde_alias_expands_additional_seed_defs() {
+        let source = r#"
+막~막으~막아:움직씨 = {
+  살림.x <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let names: Vec<String> = program
+            .stmts
+            .iter()
+            .filter_map(|stmt| match stmt {
+                Stmt::SeedDef { name, .. } => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(names, vec!["막", "막으", "막아"]);
+    }
+
+    #[test]
+    fn parse_regex_literal_lowers_to_call() {
+        let source = r#"
+패턴 <- 정규식{"[0-9]+", "i"}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Assign { value, .. }) = program.stmts.first() else {
+            panic!("assign expected");
+        };
+        let Expr::Call { name, args, .. } = value else {
+            panic!("regex literal must lower to call");
+        };
+        assert_eq!(name, "정규식");
+        assert_eq!(args.len(), 2);
+        match &args[0].expr {
+            Expr::Literal(Literal::Str(text), _) => assert_eq!(text, "[0-9]+"),
+            other => panic!("pattern must be string literal: {:?}", other),
+        }
+        match &args[1].expr {
+            Expr::Literal(Literal::Str(text), _) => assert_eq!(text, "i"),
+            other => panic!("flags must be string literal: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_numeric_dot_segment_as_field_access() {
+        let source = r#"
+값목록 <- [1, 2, 3].
+둘째 <- 값목록.1.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Assign { value, .. }) = program.stmts.get(1) else {
+            panic!("second stmt must be assign");
+        };
+        match value {
+            Expr::FieldAccess { field, .. } => assert_eq!(field, "1"),
+            Expr::Path(path) => assert_eq!(
+                path.segments,
+                vec!["살림".to_string(), "값목록".to_string(), "1".to_string()]
+            ),
+            _ => panic!("numeric dot segment must lower to path/field access"),
+        }
+    }
+
+    #[test]
+    fn parse_numeric_dot_segment_rejects_fraction() {
+        let source = r#"
+값목록 <- [1, 2, 3].
+셋째 <- 값목록.1.5.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("fraction rejected");
+        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+    }
+
+    #[test]
+    fn parse_path_allows_numeric_dot_segment() {
+        let source = r#"
+살림.값목록.1 보여주기.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Show { value, .. }) = program.stmts.first() else {
+            panic!("first stmt must be show");
+        };
+        let Expr::Path(path) = value else {
+            panic!("show value must be path");
+        };
+        assert_eq!(
+            path.segments,
+            vec!["살림".to_string(), "값목록".to_string(), "1".to_string()]
+        );
+    }
+
+    #[test]
+    fn parse_map_dot_nested_write_lowers_to_nested_set_calls() {
+        let source = r#"
+살림.공.속도.x <- 1.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Assign { target, value, .. }) = program.stmts.first() else {
+            panic!("first stmt must be assign");
+        };
+        assert_eq!(target.segments, vec!["살림".to_string(), "공".to_string()]);
+        let Expr::Call { name, args, .. } = value else {
+            panic!("value must be map set call");
+        };
+        assert_eq!(name, "짝맞춤.바꾼값");
+        assert_eq!(args.len(), 3);
+        assert!(matches!(
+            &args[1].expr,
+            Expr::Literal(Literal::Str(key), _) if key == "속도"
+        ));
+        let Expr::Call {
+            name: inner_name,
+            args: inner_args,
+            ..
+        } = &args[2].expr
+        else {
+            panic!("nested map write call expected");
+        };
+        assert_eq!(inner_name, "짝맞춤.바꾼값");
+        assert_eq!(inner_args.len(), 3);
+        assert!(matches!(
+            &inner_args[0].expr,
+            Expr::Call { name, .. } if name == "짝맞춤.필수값"
+        ));
+        assert!(matches!(
+            &inner_args[1].expr,
+            Expr::Literal(Literal::Str(key), _) if key == "x"
+        ));
+    }
+
+    #[test]
+    fn parse_event_surface_canonical_lowers_to_if() {
+        let source = r#"
+"jump"라는 알림이 오면 {
+  살림.y <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::If { condition, .. }) = program.stmts.first() else {
+            panic!("event surface must lower to if");
+        };
+        let Expr::Call { name, args, .. } = condition else {
+            panic!("condition must be 사건.있나 call");
+        };
+        assert_eq!(name, "사건.있나");
+        assert_eq!(args.len(), 2);
+    }
+
+    #[test]
+    fn parse_event_surface_alias_forbidden() {
+        let source = r#"
+"jump"라는 소식이 오면 {
+  살림.y <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("alias forbidden");
+        assert_eq!(err.code(), "E_EVENT_SURFACE_ALIAS_FORBIDDEN");
+    }
+
+    #[test]
+    fn parse_neomeo_block_alias_as_open_block() {
+        let source = r#"
+너머 {
+  살림.x <- () 너머.시각.지금.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(program
+            .stmts
+            .iter()
+            .any(|stmt| matches!(stmt, Stmt::OpenBlock { .. })));
+    }
+
+    #[test]
+    fn parse_execution_policy_block_as_pragma() {
+        let source = r#"
+실행정책 {
+  실행모드: 일반.
+  효과정책: 허용.
+  슬기훅정책: 실행.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Pragma { name, args, .. }) = program.stmts.first() else {
+            panic!("execution policy should lower to pragma");
+        };
+        assert_eq!(name, "실행정책");
+        assert!(args.contains("실행모드=일반"));
+        assert!(args.contains("효과정책=허용"));
+        assert!(args.contains("슬기훅정책=실행"));
+    }
+
+    #[test]
+    fn parse_named_seed_kind_imja_and_alrimssi() {
+        let source = r#"
+(온도:수, 풍속:수) 기상특보:알림씨 = {
+}.
+
+관제탑:임자 = {
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(program.stmts.iter().any(|stmt| {
+            matches!(
+                stmt,
+                Stmt::SeedDef {
+                    name,
+                    kind: SeedKind::Named(kind),
+                    ..
+                } if name == "기상특보" && kind == "알림씨"
+            )
+        }));
+        assert!(program.stmts.iter().any(|stmt| {
+            matches!(
+                stmt,
+                Stmt::SeedDef {
+                    name,
+                    kind: SeedKind::Named(kind),
+                    ..
+                } if name == "관제탑" && kind == "임자"
+            )
+        }));
+    }
+
+    #[test]
+    fn parse_signal_send_with_payload_and_sender() {
+        let source = r#"
+기상청:임자 = {
+  (온도:1, 풍속:12@m/s) 기상특보 ~~> 관제탑.
+  (기상청)의 (온도:2, 풍속:14@m/s) 기상특보 ~~> 관제탑.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        assert!(matches!(
+            &body[0],
+            Stmt::Send {
+                sender: None,
+                payload: Expr::Call { name, .. },
+                receiver: Expr::Path(_),
+                ..
+            } if name == "기상특보"
+        ));
+        assert!(matches!(
+            &body[1],
+            Stmt::Send {
+                sender: Some(Expr::Path(_)),
+                payload: Expr::Call { name, .. },
+                receiver: Expr::Path(_),
+                ..
+            } if name == "기상특보"
+        ));
+    }
+
+    #[test]
+    fn parse_receive_hooks_typed_and_generic() {
+        let source = r#"
+관제탑:임자 = {
+  기상특보를 받으면 {
+    제.경보상태 <- 참.
+  }.
+
+  (정보 정보.온도 > 40)인 기상특보를 받으면 {
+    제.경보상태 <- 참.
+  }.
+
+  알림을 받으면 {
+    제.최근알림 <- 알림.이름.
+  }.
+
+  (알림 알림.이름 == "기상특보")인 알림을 받으면 {
+    제.최근알림 <- 알림.이름.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        assert!(matches!(
+            &body[0],
+            Stmt::Receive {
+                kind: Some(kind),
+                binding: None,
+                condition: None,
+                ..
+            } if kind == "기상특보"
+        ));
+        assert!(matches!(
+            &body[1],
+            Stmt::Receive {
+                kind: Some(kind),
+                binding: Some(binding),
+                condition: Some(_),
+                ..
+            } if kind == "기상특보" && binding == "정보"
+        ));
+        assert!(matches!(
+            &body[2],
+            Stmt::Receive {
+                kind: None,
+                binding: None,
+                condition: None,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &body[3],
+            Stmt::Receive {
+                kind: None,
+                binding: Some(binding),
+                condition: Some(_),
+                ..
+            } if binding == "알림"
+        ));
+    }
+
+    #[test]
+    fn parse_receive_hook_outside_imja_forbidden() {
+        let source = r#"
+기상청:움직씨 = {
+  알림을 받으면 {
+    참 보여주기.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must reject");
+        assert_eq!(err.code(), "E_RECEIVE_OUTSIDE_IMJA");
     }
 }
