@@ -11,6 +11,7 @@ pub struct UnitDim {
     mass: i8,
     angle: i8,
     pixel: i8,
+    temperature: i8,
     krw: i8,
     usd: i8,
 }
@@ -22,6 +23,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -31,6 +33,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -40,6 +43,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -49,6 +53,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -58,6 +63,7 @@ impl UnitDim {
         mass: 1,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -67,6 +73,7 @@ impl UnitDim {
         mass: 0,
         angle: 1,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -76,6 +83,17 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 1,
+        temperature: 0,
+        krw: 0,
+        usd: 0,
+    };
+    pub const TEMPERATURE: UnitDim = UnitDim {
+        length: 0,
+        time: 0,
+        mass: 0,
+        angle: 0,
+        pixel: 0,
+        temperature: 1,
         krw: 0,
         usd: 0,
     };
@@ -85,6 +103,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -94,6 +113,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -103,6 +123,7 @@ impl UnitDim {
         mass: 1,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 0,
     };
@@ -112,6 +133,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 1,
         usd: 0,
     };
@@ -121,6 +143,7 @@ impl UnitDim {
         mass: 0,
         angle: 0,
         pixel: 0,
+        temperature: 0,
         krw: 0,
         usd: 1,
     };
@@ -132,6 +155,7 @@ impl UnitDim {
             mass: self.mass + other.mass,
             angle: self.angle + other.angle,
             pixel: self.pixel + other.pixel,
+            temperature: self.temperature + other.temperature,
             krw: self.krw + other.krw,
             usd: self.usd + other.usd,
         }
@@ -144,6 +168,7 @@ impl UnitDim {
             mass: self.mass - other.mass,
             angle: self.angle - other.angle,
             pixel: self.pixel - other.pixel,
+            temperature: self.temperature - other.temperature,
             krw: self.krw - other.krw,
             usd: self.usd - other.usd,
         }
@@ -159,6 +184,7 @@ impl UnitDim {
             || self.mass % 2 != 0
             || self.angle % 2 != 0
             || self.pixel % 2 != 0
+            || self.temperature % 2 != 0
             || self.krw % 2 != 0
             || self.usd % 2 != 0
         {
@@ -170,6 +196,7 @@ impl UnitDim {
             mass: self.mass / 2,
             angle: self.angle / 2,
             pixel: self.pixel / 2,
+            temperature: self.temperature / 2,
             krw: self.krw / 2,
             usd: self.usd / 2,
         })
@@ -187,6 +214,7 @@ impl UnitDim {
         push_unit(&mut numerator, &mut denominator, "s", self.time);
         push_unit(&mut numerator, &mut denominator, "rad", self.angle);
         push_unit(&mut numerator, &mut denominator, "px", self.pixel);
+        push_unit(&mut numerator, &mut denominator, "K", self.temperature);
         push_unit(&mut numerator, &mut denominator, "KRW", self.krw);
         push_unit(&mut numerator, &mut denominator, "USD", self.usd);
 
@@ -225,6 +253,7 @@ pub struct UnitSpec {
     pub symbol: &'static str,
     pub dim: UnitDim,
     pub scale: Fixed64,
+    pub offset: Fixed64,
 }
 
 pub fn unit_spec_from_symbol(symbol: &str) -> Option<UnitSpec> {
@@ -250,6 +279,9 @@ pub fn unit_spec_from_symbol(symbol: &str) -> Option<UnitSpec> {
         "g" => Some(Unit::Gram.spec()),
         "rad" => Some(Unit::Radian.spec()),
         "px" => Some(Unit::Pixel.spec()),
+        "K" => Some(Unit::Kelvin.spec()),
+        "C" => Some(Unit::Celsius.spec()),
+        "F" => Some(Unit::Fahrenheit.spec()),
         "m/s" => Some(Unit::MeterPerSecond.spec()),
         "mps" => Some(Unit::MeterPerSecond.spec()),
         "m/s^2" => Some(Unit::MeterPerSecondSquared.spec()),
@@ -269,7 +301,6 @@ pub fn set_unit_registry_symbols(symbols: HashSet<String>) -> Result<(), String>
         .set(symbols)
         .map_err(|_| "단위 곳간은 한 번만 초기화할 수 있습니다".to_string())
 }
-
 
 pub fn is_known_unit(symbol: &str) -> bool {
     unit_spec_from_symbol(symbol).is_some()
@@ -300,6 +331,9 @@ pub fn base_unit_symbol_for_dim(dim: UnitDim) -> Option<&'static str> {
     }
     if dim == UnitDim::PIXEL {
         return Some("px");
+    }
+    if dim == UnitDim::TEMPERATURE {
+        return Some("K");
     }
     if dim == UnitDim::SPEED {
         return Some("m/s");
@@ -337,6 +371,9 @@ pub enum Unit {
     Gram,
     Radian,
     Pixel,
+    Kelvin,
+    Celsius,
+    Fahrenheit,
     MeterPerSecond,
     MeterPerSecondSquared,
     KilometerPerHour,
@@ -352,111 +389,151 @@ impl Unit {
                 symbol: "m",
                 dim: UnitDim::LENGTH,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::Millimeter => UnitSpec {
                 symbol: "mm",
                 dim: UnitDim::LENGTH,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW + 500) / 1000),
+                offset: Fixed64::ZERO,
             },
             Unit::Centimeter => UnitSpec {
                 symbol: "cm",
                 dim: UnitDim::LENGTH,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW + 50) / 100),
+                offset: Fixed64::ZERO,
             },
             Unit::Kilometer => UnitSpec {
                 symbol: "km",
                 dim: UnitDim::LENGTH,
                 scale: Fixed64::from_i64(1000),
+                offset: Fixed64::ZERO,
             },
             Unit::Inch => UnitSpec {
                 symbol: "inch",
                 dim: UnitDim::LENGTH,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW * 254 + 5000) / 10000),
+                offset: Fixed64::ZERO,
             },
             Unit::Foot => UnitSpec {
                 symbol: "ft",
                 dim: UnitDim::LENGTH,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW * 3048 + 5000) / 10000),
+                offset: Fixed64::ZERO,
             },
             Unit::Pyeong => UnitSpec {
                 symbol: "\u{D3C9}",
                 dim: UnitDim::AREA,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW * 3305785 + 500000) / 1000000),
+                offset: Fixed64::ZERO,
             },
             Unit::Second => UnitSpec {
                 symbol: "s",
                 dim: UnitDim::TIME,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::Microsecond => UnitSpec {
                 symbol: "us",
                 dim: UnitDim::TIME,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW + 500_000) / 1_000_000),
+                offset: Fixed64::ZERO,
             },
             Unit::Millisecond => UnitSpec {
                 symbol: "ms",
                 dim: UnitDim::TIME,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW + 500) / 1000),
+                offset: Fixed64::ZERO,
             },
             Unit::Minute => UnitSpec {
                 symbol: "min",
                 dim: UnitDim::TIME,
                 scale: Fixed64::from_i64(60),
+                offset: Fixed64::ZERO,
             },
             Unit::Hour => UnitSpec {
                 symbol: "h",
                 dim: UnitDim::TIME,
                 scale: Fixed64::from_i64(3600),
+                offset: Fixed64::ZERO,
             },
             Unit::Kilogram => UnitSpec {
                 symbol: "kg",
                 dim: UnitDim::MASS,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::Gram => UnitSpec {
                 symbol: "g",
                 dim: UnitDim::MASS,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW + 500) / 1000),
+                offset: Fixed64::ZERO,
             },
             Unit::Radian => UnitSpec {
                 symbol: "rad",
                 dim: UnitDim::ANGLE,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::Pixel => UnitSpec {
                 symbol: "px",
                 dim: UnitDim::PIXEL,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
+            },
+            Unit::Kelvin => UnitSpec {
+                symbol: "K",
+                dim: UnitDim::TEMPERATURE,
+                scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
+            },
+            Unit::Celsius => UnitSpec {
+                symbol: "C",
+                dim: UnitDim::TEMPERATURE,
+                scale: Fixed64::ONE,
+                offset: Fixed64::from_f64_lossy(273.15),
+            },
+            Unit::Fahrenheit => UnitSpec {
+                symbol: "F",
+                dim: UnitDim::TEMPERATURE,
+                scale: Fixed64::from_f64_lossy(5.0 / 9.0),
+                offset: Fixed64::from_f64_lossy(459.67),
             },
             Unit::MeterPerSecond => UnitSpec {
                 symbol: "m/s",
                 dim: UnitDim::SPEED,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::MeterPerSecondSquared => UnitSpec {
                 symbol: "m/s^2",
                 dim: UnitDim::ACCELERATION,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::KilometerPerHour => UnitSpec {
                 symbol: "kmh",
                 dim: UnitDim::SPEED,
                 scale: Fixed64::from_raw_i64((Fixed64::ONE_RAW * 5 + 9) / 18),
+                offset: Fixed64::ZERO,
             },
             Unit::Newton => UnitSpec {
                 symbol: "N",
                 dim: UnitDim::FORCE,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::Krw => UnitSpec {
                 symbol: "KRW",
                 dim: UnitDim::KRW,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
             Unit::Usd => UnitSpec {
                 symbol: "USD",
                 dim: UnitDim::USD,
                 scale: Fixed64::ONE,
+                offset: Fixed64::ZERO,
             },
         }
     }
@@ -492,8 +569,14 @@ impl UnitValue {
     }
 
     pub fn from_spec(value: Fixed64, spec: UnitSpec) -> Self {
+        if spec.dim == UnitDim::TEMPERATURE {
+            return Self {
+                value: temperature_to_kelvin(value, spec.symbol),
+                dim: spec.dim,
+            };
+        }
         Self {
-            value: value * spec.scale,
+            value: (value + spec.offset) * spec.scale,
             dim: spec.dim,
         }
     }
@@ -571,9 +654,14 @@ impl UnitValue {
                 right: spec.dim,
             });
         }
-        self.value
+        if spec.dim == UnitDim::TEMPERATURE {
+            return Ok(kelvin_to_temperature(self.value, spec.symbol));
+        }
+        let unscaled = self
+            .value
             .try_div(spec.scale)
-            .map_err(|_| UnitError::DivisionByZero)
+            .map_err(|_| UnitError::DivisionByZero)?;
+        Ok(unscaled - spec.offset)
     }
 
     pub fn display_symbol(self) -> Option<&'static str> {
@@ -583,6 +671,34 @@ impl UnitValue {
 
 pub fn resource_tag_with_unit(name: &str, unit: Unit) -> String {
     format!("{name}@{}", unit.symbol())
+}
+
+fn temperature_to_kelvin(value: Fixed64, symbol: &str) -> Fixed64 {
+    match symbol {
+        "C" => value + Fixed64::from_f64_lossy(273.15),
+        "F" => {
+            let shifted = value - Fixed64::from_i64(32);
+            let scaled = (shifted * Fixed64::from_i64(5))
+                .try_div(Fixed64::from_i64(9))
+                .unwrap_or(Fixed64::MAX);
+            scaled + Fixed64::from_f64_lossy(273.15)
+        }
+        _ => value,
+    }
+}
+
+fn kelvin_to_temperature(value: Fixed64, symbol: &str) -> Fixed64 {
+    match symbol {
+        "C" => value - Fixed64::from_f64_lossy(273.15),
+        "F" => {
+            let shifted = value - Fixed64::from_f64_lossy(273.15);
+            let scaled = (shifted * Fixed64::from_i64(9))
+                .try_div(Fixed64::from_i64(5))
+                .unwrap_or(Fixed64::MAX);
+            scaled + Fixed64::from_i64(32)
+        }
+        _ => value,
+    }
 }
 
 #[cfg(test)]
@@ -628,6 +744,31 @@ mod tests {
         let expected = Fixed64::from_i64(10);
         let diff = (speed.value.raw_i64() - expected.raw_i64()).abs();
         assert!(diff <= 200, "raw diff too large: {diff}");
+    }
+
+    #[test]
+    fn temperature_units_normalize_to_kelvin() {
+        let celsius = UnitValue::new(Fixed64::from_i64(25), Unit::Celsius);
+        let fahrenheit = UnitValue::new(Fixed64::from_i64(77), Unit::Fahrenheit);
+        let kelvin = UnitValue::new(Fixed64::from_f64_lossy(298.15), Unit::Kelvin);
+        let expected = Fixed64::from_f64_lossy(298.15);
+        assert_eq!(celsius.dim, UnitDim::TEMPERATURE);
+        assert_eq!(fahrenheit.dim, UnitDim::TEMPERATURE);
+        assert_eq!(kelvin.dim, UnitDim::TEMPERATURE);
+        assert!((celsius.value.raw_i64() - expected.raw_i64()).abs() <= 1);
+        assert!((fahrenheit.value.raw_i64() - expected.raw_i64()).abs() <= 1);
+        assert!((kelvin.value.raw_i64() - expected.raw_i64()).abs() <= 1);
+    }
+
+    #[test]
+    fn temperature_units_convert_back_to_surface_units() {
+        let kelvin = UnitValue::new(Fixed64::from_f64_lossy(298.15), Unit::Kelvin);
+        let as_c = kelvin.to_unit(Unit::Celsius.spec()).expect("to celsius");
+        let as_f = kelvin
+            .to_unit(Unit::Fahrenheit.spec())
+            .expect("to fahrenheit");
+        assert!((as_c.raw_i64() - Fixed64::from_i64(25).raw_i64()).abs() <= 2);
+        assert!((as_f.raw_i64() - Fixed64::from_i64(77).raw_i64()).abs() <= 2);
     }
 
     #[test]

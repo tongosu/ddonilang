@@ -1,7 +1,7 @@
 use ddonirang_core::{
-    EngineLoop, Fixed64, Nuri,
     platform::{Bogae, DetNuri, DetSam, InMemoryGeoul, Iyagi, Origin, Patch, PatchOp},
     signals::{TickId, VecSignalSink},
+    EngineLoop, Fixed64, Nuri,
 };
 
 struct DemoIyagi;

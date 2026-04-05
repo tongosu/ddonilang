@@ -66,7 +66,8 @@ pub fn preprocess_source_for_parse(source: &str) -> Result<String, String> {
     }
     let no_comments = strip_line_comments(&stripped);
     let rewritten_hooks = rewrite_hook_every_to_seed(&no_comments);
-    let rewritten = rewrite_legacy_shorthand(&rewritten_hooks);
+    let rewritten_boim = rewrite_legacy_boim_blocks(&rewritten_hooks);
+    let rewritten = rewrite_legacy_shorthand(&rewritten_boim);
     let expanded_colons = expand_colon_blocks(&rewritten);
     let no_brace_dot = normalize_closing_brace_dot(&expanded_colons);
     let no_unary = rewrite_unary_minus(&no_brace_dot);
@@ -438,6 +439,116 @@ fn rewrite_legacy_shorthand(source: &str) -> String {
     out
 }
 
+/// teul-cli/wasm 호환: legacy `보임 { key: expr. }.` 블록을
+/// `show` 문장열로 변환한다.
+/// - 변환 형태:
+///   - `"table.row" 보여주기.`
+///   - `"<key>" 보여주기.`
+///   - `<expr> 보여주기.`
+/// - 변환 불가(닫힘 누락/행 문법 불일치) 시 원본을 유지한다.
+fn rewrite_legacy_boim_blocks(source: &str) -> String {
+    let mut lines: Vec<(String, String)> = Vec::new();
+    for chunk in source.split_inclusive('\n') {
+        let (line, newline) = split_line(chunk);
+        lines.push((line.to_string(), newline.to_string()));
+    }
+
+    let mut out = String::with_capacity(source.len());
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let line = &lines[idx].0;
+        let Some(indent) = legacy_boim_open_indent(line) else {
+            out.push_str(line);
+            out.push_str(&lines[idx].1);
+            idx += 1;
+            continue;
+        };
+
+        let emit_newline = if lines[idx].1.is_empty() {
+            "\n".to_string()
+        } else {
+            lines[idx].1.clone()
+        };
+        let mut rows: Vec<(String, String)> = Vec::new();
+        let mut cursor = idx + 1;
+        let mut closed = false;
+        let mut convertible = true;
+
+        while cursor < lines.len() {
+            let raw = &lines[cursor].0;
+            let trimmed = raw.trim();
+            if trimmed == "}" || trimmed == "}." {
+                closed = true;
+                break;
+            }
+            if trimmed.is_empty() || trimmed.starts_with("//") {
+                cursor += 1;
+                continue;
+            }
+            let Some((key, expr)) = parse_legacy_boim_item(trimmed) else {
+                convertible = false;
+                break;
+            };
+            rows.push((key, expr));
+            cursor += 1;
+        }
+
+        if closed && convertible && !rows.is_empty() {
+            out.push_str(indent);
+            out.push_str("  \"table.row\" 보여주기.");
+            out.push_str(&emit_newline);
+            for (key, expr) in rows {
+                out.push_str(indent);
+                out.push_str("  \"");
+                out.push_str(&key);
+                out.push_str("\" 보여주기.");
+                out.push_str(&emit_newline);
+                out.push_str(indent);
+                out.push_str("  ");
+                out.push_str(&expr);
+                out.push_str(" 보여주기.");
+                out.push_str(&emit_newline);
+            }
+            idx = cursor + 1;
+            continue;
+        }
+
+        out.push_str(line);
+        out.push_str(&lines[idx].1);
+        idx += 1;
+    }
+
+    out
+}
+
+fn legacy_boim_open_indent(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with("보임") {
+        return None;
+    }
+    let rest = trimmed["보임".len()..].trim();
+    if rest != "{" {
+        return None;
+    }
+    let indent_len = line.len().saturating_sub(trimmed.len());
+    Some(&line[..indent_len])
+}
+
+fn parse_legacy_boim_item(trimmed: &str) -> Option<(String, String)> {
+    let trimmed = trimmed.trim();
+    if !trimmed.ends_with('.') {
+        return None;
+    }
+    let core = trimmed[..trimmed.len() - 1].trim();
+    let colon = core.find(':')?;
+    let key = core[..colon].trim();
+    let expr = core[colon + 1..].trim();
+    if key.is_empty() || expr.is_empty() {
+        return None;
+    }
+    Some((key.to_string(), expr.to_string()))
+}
+
 /// teul-cli 호환: `//` 줄 주석 제거 (문자열 내부 제외)
 /// lang/ 파서는 `//` 주석을 지원하지 않으므로 전처리 단계에서 제거한다.
 fn strip_line_comments(source: &str) -> String {
@@ -486,10 +597,12 @@ fn strip_line_comments(source: &str) -> String {
 /// lang/ 파서는 복합문(일때, 동안 등) 닫는 `}` 뒤에 `.`을 기대하지 않는다.
 fn normalize_closing_brace_dot(source: &str) -> String {
     let mut out = String::with_capacity(source.len());
+    let mut literal_block_depth = 0i32;
     for chunk in source.split_inclusive('\n') {
         let (line, newline) = split_line(chunk);
         let trimmed = line.trim();
-        if trimmed == "}." {
+        let in_literal_block = literal_block_depth > 0;
+        if trimmed == "}." && !in_literal_block {
             let indent_len = line.len().saturating_sub(line.trim_start().len());
             out.push_str(&line[..indent_len]);
             out.push('}');
@@ -497,8 +610,21 @@ fn normalize_closing_brace_dot(source: &str) -> String {
             out.push_str(line);
         }
         out.push_str(newline);
+
+        if in_literal_block || line_contains_attached_literal_block_opener(line) {
+            literal_block_depth += brace_diff(line);
+            if literal_block_depth < 0 {
+                literal_block_depth = 0;
+            }
+        }
     }
     out
+}
+
+fn line_contains_attached_literal_block_opener(line: &str) -> bool {
+    ["글무늬{", "수식{", "정규식{", "세움{", "상태머신{"]
+        .iter()
+        .any(|needle| line.contains(needle))
 }
 
 /// teul-cli 호환: 단항 마이너스 `-숫자` → `(0 - 숫자)` 변환
@@ -1149,6 +1275,37 @@ mod tests {
     }
 
     #[test]
+    fn normalize_brace_dot_preserves_attached_state_machine_literal() {
+        let source = r#"
+매틱:움직씨 = {
+  기계 <- 상태머신{
+    빨강, 초록 으로 이뤄짐.
+    빨강 으로 시작.
+    빨강 에서 초록 으로.
+  }.
+}
+"#;
+        let out = normalize_closing_brace_dot(source);
+        assert!(out.contains("  }."));
+    }
+
+    #[test]
+    fn normalize_brace_dot_preserves_attached_assertion_literal() {
+        let source = r#"
+매틱:움직씨 = {
+  검사 <- 세움{
+    { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+      없음.
+    }.
+  }.
+  결과 <- (거리=3)인 검사 살피기.
+}
+"#;
+        let out = normalize_closing_brace_dot(source);
+        assert!(out.contains("  }.\n  결과 <- (거리=3)인 검사 살피기."));
+    }
+
+    #[test]
     fn preprocess_keeps_setting_block_syntax() {
         let source = r#"
 매틱:움직씨 = {
@@ -1193,7 +1350,7 @@ mod tests {
     }
 
     #[test]
-    fn preprocess_keeps_boim_legacy_header_unchanged() {
+    fn preprocess_rewrites_legacy_boim_block_for_wasm() {
         let source = r#"
 보임 {
   y축: 값.
@@ -1203,8 +1360,26 @@ mod tests {
 }
 "#;
         let out = preprocess_source_for_parse(source).expect("preprocess");
-        assert!(out.contains("보임 {"));
+        assert!(!out.contains("보임 {"));
+        assert!(out.contains("\"table.row\" 보여주기."));
+        assert!(out.contains("\"y축\" 보여주기."));
+        assert!(out.contains("값 보여주기."));
         assert!(!out.contains("#보개 "));
+    }
+
+    #[test]
+    fn preprocess_keeps_unconvertible_boim_block() {
+        let source = r#"
+보임 {
+  y축 값.
+}
+매틱:움직씨 = {
+  없음.
+}
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("보임 {"));
+        assert!(!out.contains("\"table.row\" 보여주기."));
     }
 
     // --- rewrite_unary_minus ---

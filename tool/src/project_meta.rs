@@ -4,8 +4,8 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const SSOT_VERSION: &str = "20.6.42";
-const SSOT_FILE_VERSION: &str = "v20.6.42";
+const SSOT_VERSION: &str = "20.12.0";
+const SSOT_FILE_VERSION: &str = "v20.12.0";
 
 const SSOT_BUNDLE_FILES: [&str; 12] = [
     "SSOT_MASTER",

@@ -1,4 +1,4 @@
-﻿use crate::fixed64::Fixed64;
+use crate::fixed64::Fixed64;
 
 #[derive(Clone, Debug)]
 pub struct GridMazeConfig {
@@ -123,7 +123,11 @@ impl GridMazeEnv {
     }
 }
 
-pub fn run_episode(seed: u64, actions: &[i64], max_steps: Option<u64>) -> Result<Vec<GridMazeStep>, String> {
+pub fn run_episode(
+    seed: u64,
+    actions: &[i64],
+    max_steps: Option<u64>,
+) -> Result<Vec<GridMazeStep>, String> {
     if actions.is_empty() {
         return Err("E_NURIGYM_ACTIONS actions must not be empty".to_string());
     }
@@ -201,7 +205,10 @@ pub fn run_episode_with_layout(
 fn normalize_action(action: i64) -> Result<i64, String> {
     match action {
         -2 | -1 | 1 | 2 => Ok(action),
-        _ => Err(format!("E_NURIGYM_ACTION_INVALID action={} (expected -2,-1,1,2)", action)),
+        _ => Err(format!(
+            "E_NURIGYM_ACTION_INVALID action={} (expected -2,-1,1,2)",
+            action
+        )),
     }
 }
 

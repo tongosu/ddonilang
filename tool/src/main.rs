@@ -24,6 +24,7 @@ use ddonirang_core::{
 use ddonirang_lang::runtime::Value;
 use ddonirang_lang::{canonicalize, normalize, parse_with_mode, NormalizationLevel, ParseMode};
 use ddonirang_lang::{Expr, ExprKind, Literal, SeedDef, SeedKind, Stmt, TopLevelItem};
+use ddonirang_tool::canon as tool_canon;
 use preprocess::{
     format_file_meta, preprocess_ai_calls, preprocess_source_for_parse, split_file_meta, AiMeta,
 };
@@ -39,6 +40,7 @@ enum SimpleValue {
     Fixed64(Fixed64),
     Text(String),
     Bool(bool),
+    Json(serde_json::Value),
 }
 
 const DEFAULT_GOLDEN_PATH: &str = "docs/steps/000/artifacts/golden.json";
@@ -48,6 +50,9 @@ const DEFAULT_COIN_MAZE_MAP_PATH: &str = "docs/EXAMPLES/tracks/11단계/artifact
 const DEFAULT_MAZE_SCRIPT_PATH: &str = "docs/EXAMPLES/tracks/11단계/artifacts/scripts/maze_v0.ddn";
 const DEFAULT_RUN_ONCE_INPUT_PATH: &str = "docs/steps/001/artifacts/input.ddn";
 const DEFAULT_DIAG_PATH: &str = "geoul.diag.jsonl";
+const DEFAULT_STATE_TRANSITION_REPORT_PATH: &str = "geoul.state_transitions.detjson";
+const DEFAULT_STATE_TRANSITION_FAILURE_REPORT_PATH: &str =
+    "geoul.state_transition_failures.detjson";
 const DEFAULT_TEST_DIR: &str = "golden";
 const LINT_VERSION: &str = "v18.12.12";
 const TERM_MAP_VERSION: &str = "v18.12.12";
@@ -99,6 +104,36 @@ struct ExprTraceJson {
     tag: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     text: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct StateTransitionJson {
+    madi: u64,
+    origin: String,
+    from: String,
+    to: String,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guard_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    action_name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct StateTransitionFailureJson {
+    code: String,
+    kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    state_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guard_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    check_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    action_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    param_name: Option<String>,
+    message: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -161,8 +196,206 @@ fn write_diag_jsonl(events: &[DiagEvent], path: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn collect_state_transition_events(events: &[DiagEvent]) -> Vec<StateTransitionJson> {
+    events
+        .iter()
+        .filter_map(|event| {
+            if event.rule_id != "L1-STATE-01" || event.reason != "STATE_TRANSITION" {
+                return None;
+            }
+            let expr = event.expr.as_ref()?;
+            let body = expr.tag.strip_prefix("state_transition:")?;
+            let (from, to) = body.split_once("->")?;
+            let (guard_name, action_name) = parse_state_transition_expr_text(expr.text.as_deref());
+            Some(StateTransitionJson {
+                madi: event.madi,
+                origin: event.origin.clone(),
+                from: from.to_string(),
+                to: to.to_string(),
+                message: event.message.clone().unwrap_or_default(),
+                guard_name,
+                action_name,
+            })
+        })
+        .collect()
+}
+
+fn parse_state_transition_expr_text(text: Option<&str>) -> (Option<String>, Option<String>) {
+    let mut guard_name = None;
+    let mut action_name = None;
+    let Some(text) = text else {
+        return (None, None);
+    };
+    for part in text.split(';') {
+        let part = part.trim();
+        if let Some(value) = part.strip_prefix("guard=") {
+            let value = value.trim();
+            if !value.is_empty() && value != "-" {
+                guard_name = Some(value.to_string());
+            }
+        } else if let Some(value) = part.strip_prefix("action=") {
+            let value = value.trim();
+            if !value.is_empty() && value != "-" {
+                action_name = Some(value.to_string());
+            }
+        }
+    }
+    (guard_name, action_name)
+}
+
+fn write_state_transition_report(events: &[DiagEvent], path: &str) -> Result<(), String> {
+    let rows = collect_state_transition_events(events);
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut report = serde_json::Map::new();
+    report.insert(
+        "schema".to_string(),
+        serde_json::Value::String("ddn.state_transition_report.v1".to_string()),
+    );
+    report.insert(
+        "count".to_string(),
+        serde_json::Value::Number(serde_json::Number::from(rows.len() as u64)),
+    );
+    report.insert(
+        "transitions".to_string(),
+        serde_json::to_value(rows)
+            .map_err(|e| format!("state transition report 직렬화 실패: {e}"))?,
+    );
+    let text = serde_json::to_string_pretty(&serde_json::Value::Object(report))
+        .map_err(|e| format!("state transition report 직렬화 실패: {e}"))?;
+    std::fs::write(path, format!("{text}\n"))
+        .map_err(|e| format!("state transition report 쓰기 실패: {e}"))?;
+    Ok(())
+}
+
+fn collect_state_transition_failure_events(err: &str) -> Vec<StateTransitionFailureJson> {
+    err.lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if let Some(check_name) = trimmed.strip_prefix("E_STATE_TRANSITION_CHECK_FAILED: ") {
+                return Some(StateTransitionFailureJson {
+                    code: "E_STATE_TRANSITION_CHECK_FAILED".to_string(),
+                    kind: "check_failed".to_string(),
+                    state_name: None,
+                    guard_name: None,
+                    check_name: Some(check_name.trim().to_string()),
+                    action_name: None,
+                    param_name: None,
+                    message: trimmed.to_string(),
+                });
+            }
+            if let Some(check_name) = trimmed.strip_prefix("E_STATE_TRANSITION_CHECK_UNRESOLVED: ")
+            {
+                return Some(StateTransitionFailureJson {
+                    code: "E_STATE_TRANSITION_CHECK_UNRESOLVED".to_string(),
+                    kind: "check_unresolved".to_string(),
+                    state_name: None,
+                    guard_name: None,
+                    check_name: Some(check_name.trim().to_string()),
+                    action_name: None,
+                    param_name: None,
+                    message: trimmed.to_string(),
+                });
+            }
+            if let Some(guard_name) = trimmed.strip_prefix("E_STATE_TRANSITION_GUARD_UNRESOLVED: ")
+            {
+                return Some(StateTransitionFailureJson {
+                    code: "E_STATE_TRANSITION_GUARD_UNRESOLVED".to_string(),
+                    kind: "guard_unresolved".to_string(),
+                    state_name: None,
+                    guard_name: Some(guard_name.trim().to_string()),
+                    check_name: None,
+                    action_name: None,
+                    param_name: None,
+                    message: trimmed.to_string(),
+                });
+            }
+            if let Some(state_name) = trimmed.strip_prefix("E_STATE_TRANSITION_GUARD_REJECTED: ") {
+                return Some(StateTransitionFailureJson {
+                    code: "E_STATE_TRANSITION_GUARD_REJECTED".to_string(),
+                    kind: "guard_rejected".to_string(),
+                    state_name: Some(state_name.trim().to_string()),
+                    guard_name: None,
+                    check_name: None,
+                    action_name: None,
+                    param_name: None,
+                    message: trimmed.to_string(),
+                });
+            }
+            if let Some(action_name) =
+                trimmed.strip_prefix("E_STATE_TRANSITION_ACTION_UNRESOLVED: ")
+            {
+                return Some(StateTransitionFailureJson {
+                    code: "E_STATE_TRANSITION_ACTION_UNRESOLVED".to_string(),
+                    kind: "action_unresolved".to_string(),
+                    state_name: None,
+                    guard_name: None,
+                    check_name: None,
+                    action_name: Some(action_name.trim().to_string()),
+                    param_name: None,
+                    message: trimmed.to_string(),
+                });
+            }
+            if let Some(action_name) = trimmed.strip_prefix("E_STATE_TRANSITION_ACTION_ABORTED: ") {
+                return Some(StateTransitionFailureJson {
+                    code: "E_STATE_TRANSITION_ACTION_ABORTED".to_string(),
+                    kind: "action_aborted".to_string(),
+                    state_name: None,
+                    guard_name: None,
+                    check_name: None,
+                    action_name: Some(action_name.trim().to_string()),
+                    param_name: None,
+                    message: trimmed.to_string(),
+                });
+            }
+            if let Some(rest) = trimmed.strip_prefix("E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: ") {
+                let (action_name, param_name) = rest.split_once(':')?;
+                return Some(StateTransitionFailureJson {
+                    code: "E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED".to_string(),
+                    kind: "action_arg_unresolved".to_string(),
+                    state_name: None,
+                    guard_name: None,
+                    check_name: None,
+                    action_name: Some(action_name.trim().to_string()),
+                    param_name: Some(param_name.trim().to_string()),
+                    message: trimmed.to_string(),
+                });
+            }
+            None
+        })
+        .collect()
+}
+
+fn write_state_transition_failure_report(err: &str, path: &str) -> Result<(), String> {
+    let rows = collect_state_transition_failure_events(err);
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut report = serde_json::Map::new();
+    report.insert(
+        "schema".to_string(),
+        serde_json::Value::String("ddn.state_transition_failure_report.v1".to_string()),
+    );
+    report.insert(
+        "count".to_string(),
+        serde_json::Value::Number(serde_json::Number::from(rows.len() as u64)),
+    );
+    report.insert(
+        "failures".to_string(),
+        serde_json::to_value(rows)
+            .map_err(|e| format!("state transition failure report 직렬화 실패: {e}"))?,
+    );
+    let text = serde_json::to_string_pretty(&serde_json::Value::Object(report))
+        .map_err(|e| format!("state transition failure report 직렬화 실패: {e}"))?;
+    std::fs::write(path, format!("{text}\n"))
+        .map_err(|e| format!("state transition failure report 쓰기 실패: {e}"))?;
+    Ok(())
+}
+
 fn write_diag_if_any(sink: &VecSignalSink) -> Result<(), String> {
-    write_diag_jsonl(&sink.diag_events, DEFAULT_DIAG_PATH)
+    write_diag_jsonl(&sink.diag_events, DEFAULT_DIAG_PATH)?;
+    write_state_transition_report(&sink.diag_events, DEFAULT_STATE_TRANSITION_REPORT_PATH)
 }
 
 #[derive(Debug, Deserialize)]
@@ -431,7 +664,7 @@ fn run_scenario(test: &GoldenTestFile) -> Result<ScenarioRun, String> {
 
 fn run_gate0_pipe_with_sink(script_path: &str, ticks: u64) -> Result<ScenarioRun, String> {
     let source = read_text_from_path(script_path)?;
-    let program = DdnProgram::from_source(&source, script_path)?;
+    let program = load_ddn_program(&source, script_path)?;
     let mut defaults = HashMap::new();
     defaults.insert("결과".to_string(), Value::Fixed64(Fixed64::from_i64(0)));
     let iyagi = Gate0ScriptIyagi::new(program, defaults, Vec::new());
@@ -440,7 +673,7 @@ fn run_gate0_pipe_with_sink(script_path: &str, ticks: u64) -> Result<ScenarioRun
 
 fn run_gate0_unit_with_sink(script_path: &str, ticks: u64) -> Result<ScenarioRun, String> {
     let source = read_text_from_path(script_path)?;
-    let program = DdnProgram::from_source(&source, script_path)?;
+    let program = load_ddn_program(&source, script_path)?;
     let mut defaults = HashMap::new();
     defaults.insert("결과".to_string(), Value::Fixed64(Fixed64::from_i64(7)));
     defaults.insert(
@@ -577,6 +810,18 @@ fn ensure_detmath_ready() -> Result<(), String> {
     gate0_registry::ensure_gate0_registries()
 }
 
+fn canonicalize_input_alias<'a>(name: &'a str) -> &'a str {
+    let canonical = ddonirang_lang::stdlib::canonicalize_stdlib_alias(name);
+    match canonical {
+        "목록" | "list" => "차림",
+        "모둠" | "set" => "모음",
+        "그림표" | "map" => "짝맞춤",
+        "값꾸러미" | "pack" => "묶음",
+        "논" | "boolean" => "참거짓",
+        _ => canonical,
+    }
+}
+
 fn simple_value_from_expr(expr: &Expr) -> Option<SimpleValue> {
     match &expr.kind {
         ExprKind::Literal(Literal::Fixed64(v)) => Some(SimpleValue::Fixed64(*v)),
@@ -589,6 +834,79 @@ fn simple_value_from_expr(expr: &Expr) -> Option<SimpleValue> {
         ExprKind::Suffix { value, .. } => simple_value_from_expr(value),
         ExprKind::Var(name) if name == "참" => Some(SimpleValue::Bool(true)),
         ExprKind::Var(name) if name == "거짓" => Some(SimpleValue::Bool(false)),
+        _ => simple_json_from_expr(expr).map(SimpleValue::Json),
+    }
+}
+
+fn fixed64_to_json_number(v: Fixed64) -> serde_json::Value {
+    let s = v.to_string();
+    if let Ok(i) = s.parse::<i64>() {
+        return serde_json::json!(i);
+    }
+    if let Ok(f) = s.parse::<f64>() {
+        return serde_json::json!(f);
+    }
+    serde_json::json!(s)
+}
+
+fn simple_json_from_expr(expr: &Expr) -> Option<serde_json::Value> {
+    match &expr.kind {
+        ExprKind::Literal(Literal::Int(v)) => Some(serde_json::json!(*v)),
+        ExprKind::Literal(Literal::Fixed64(v)) => Some(fixed64_to_json_number(*v)),
+        ExprKind::Literal(Literal::String(s))
+        | ExprKind::Literal(Literal::Atom(s))
+        | ExprKind::Literal(Literal::Resource(s)) => Some(serde_json::json!(s)),
+        ExprKind::Literal(Literal::Bool(b)) => Some(serde_json::json!(*b)),
+        ExprKind::Literal(Literal::None) => Some(serde_json::Value::Null),
+        ExprKind::Var(name) if name == "참" => Some(serde_json::json!(true)),
+        ExprKind::Var(name) if name == "거짓" => Some(serde_json::json!(false)),
+        ExprKind::Suffix { value, .. } => simple_json_from_expr(value),
+        ExprKind::Pack { fields } => {
+            let mut out = serde_json::Map::new();
+            for (key, value_expr) in fields {
+                let value = simple_json_from_expr(value_expr)?;
+                out.insert(key.clone(), value);
+            }
+            Some(serde_json::Value::Object(out))
+        }
+        ExprKind::Call { args, func } => {
+            let canonical = canonicalize_input_alias(func);
+            if canonical == "차림" {
+                let mut values = Vec::with_capacity(args.len());
+                for arg in args {
+                    values.push(simple_json_from_expr(&arg.expr)?);
+                }
+                return Some(serde_json::Value::Array(values));
+            }
+            if canonical == "모음" {
+                let mut unique = std::collections::BTreeMap::new();
+                for arg in args {
+                    let value = simple_json_from_expr(&arg.expr)?;
+                    unique.entry(value.to_string()).or_insert(value);
+                }
+                let values = unique.into_values().collect();
+                return Some(serde_json::Value::Array(values));
+            }
+            if canonical == "짝맞춤" {
+                if args.len() % 2 != 0 {
+                    return None;
+                }
+                let mut out = serde_json::Map::new();
+                let mut idx = 0;
+                while idx < args.len() {
+                    let key_value = simple_json_from_expr(&args[idx].expr)?;
+                    let key = match key_value {
+                        serde_json::Value::String(s) => s,
+                        other => other.to_string(),
+                    };
+                    let value = simple_json_from_expr(&args[idx + 1].expr)?;
+                    out.insert(key, value);
+                    idx += 2;
+                }
+                return Some(serde_json::Value::Object(out));
+            }
+            None
+        }
         _ => None,
     }
 }
@@ -596,7 +914,7 @@ fn simple_value_from_expr(expr: &Expr) -> Option<SimpleValue> {
 fn simple_value_from_stmt(stmt: &Stmt) -> Option<SimpleValue> {
     match stmt {
         Stmt::Return { value, .. } => simple_value_from_expr(value),
-        Stmt::Expr { expr, .. } => simple_value_from_expr(expr),
+        Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } => simple_value_from_expr(expr),
         _ => None,
     }
 }
@@ -657,11 +975,12 @@ impl Iyagi for InputIyagi {
                             SeedKind::Named(name) => name.as_str(),
                             _ => continue,
                         };
+                        let kind_canonical = canonicalize_input_alias(kind_name);
                         let Some(value) = simple_value_from_seed(seed) else {
                             continue;
                         };
-                        match (kind_name, value) {
-                            ("수", SimpleValue::Fixed64(v)) => {
+                        match (kind_canonical, value) {
+                            ("수" | "바른수", SimpleValue::Fixed64(v)) => {
                                 ops.push(PatchOp::SetResourceFixed64 {
                                     tag: seed.canonical_name.clone(),
                                     value: v,
@@ -678,6 +997,12 @@ impl Iyagi for InputIyagi {
                                 ops.push(PatchOp::SetResourceJson {
                                     tag: seed.canonical_name.clone(),
                                     json: text,
+                                });
+                            }
+                            ("차림" | "모음" | "짝맞춤" | "묶음", SimpleValue::Json(v)) => {
+                                ops.push(PatchOp::SetResourceJson {
+                                    tag: seed.canonical_name.clone(),
+                                    json: v.to_string(),
                                 });
                             }
                             _ => {}
@@ -1440,6 +1765,33 @@ fn run_once_from(file_path: Option<&str>) -> Result<(), String> {
     write_diag_if_any(&sink)?;
     Ok(())
 }
+
+fn run_ddn_file(path: &str) -> Result<(), String> {
+    ensure_detmath_ready()?;
+    let source = read_text_from_path(path)?;
+    let program = load_ddn_program(&source, path)?;
+    let defaults = HashMap::new();
+    let iyagi = Gate0ScriptIyagi::new(program, defaults, Vec::new());
+    let run = match run_gate0_script_with_sink(iyagi, 1) {
+        Ok(run) => run,
+        Err(err) => {
+            write_state_transition_failure_report(
+                &err,
+                DEFAULT_STATE_TRANSITION_FAILURE_REPORT_PATH,
+            )?;
+            return Err(err);
+        }
+    };
+    let last_hash = run
+        .hashes
+        .last()
+        .cloned()
+        .ok_or_else(|| "상태 해시가 생성되지 않았습니다".to_string())?;
+    println!("state_hash: {}", last_hash);
+    println!("signals: {}", run.sink.signals.len());
+    write_diag_if_any(&run.sink)?;
+    Ok(())
+}
 fn preprocess_ai_file(input_path: &str, output_path: Option<&str>) -> Result<(), String> {
     let source = read_text_from_path(input_path)?;
     let schema_hash = read_schema_hash();
@@ -1679,6 +2031,21 @@ fn read_text_from_path(path: &str) -> Result<String, String> {
     Ok(decode_stdin(&buf))
 }
 
+fn emit_program_parse_warnings(program: &DdnProgram) {
+    for warning in program.parse_warnings() {
+        eprintln!(
+            "warning: {} [{}..{}] {}",
+            warning.code, warning.span_start, warning.span_end, warning.message
+        );
+    }
+}
+
+fn load_ddn_program(source: &str, file_path: &str) -> Result<DdnProgram, String> {
+    let program = DdnProgram::from_source(source, file_path)?;
+    emit_program_parse_warnings(&program);
+    Ok(program)
+}
+
 #[cfg(test)]
 fn read_net_events_detjson(path: &str) -> Result<Vec<ddonirang_core::platform::NetEvent>, String> {
     let text = read_text_from_path(path)?;
@@ -1710,34 +2077,6 @@ fn read_text_from_stdin() -> Result<String, String> {
         .read_to_end(&mut buf)
         .map_err(|e| format!("입력 읽기 실패: {e}"))?;
     Ok(decode_stdin(&buf))
-}
-
-fn format_parse_error_basic(source: &str, err: &ddonirang_lang::ParseError) -> String {
-    let mut line = 1usize;
-    let mut col = 1usize;
-    let mut line_start = 0usize;
-    for (idx, ch) in source.char_indices() {
-        if idx >= err.span.start {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 1;
-            line_start = idx + ch.len_utf8();
-        } else {
-            col += 1;
-        }
-    }
-    let line_end = source[line_start..]
-        .find('\n')
-        .map(|offset| line_start + offset)
-        .unwrap_or(source.len());
-    let line_text = &source[line_start..line_end];
-    let caret = " ".repeat(col.saturating_sub(1)) + "^";
-    format!(
-        "파싱 실패: {} ({}:{})\n{}\n{}",
-        err.message, line, col, line_text, caret
-    )
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2011,13 +2350,12 @@ fn run_canon(
         None => meta_parse.stripped,
     };
     let cleaned = preprocess_source_for_parse(&source_body)?;
-    let mut program = parse_with_mode(&cleaned, input_path, ddn_runtime::default_parse_mode())
-        .map_err(|e| format_parse_error_basic(&cleaned, &e))?;
-    let report = canonicalize(&mut program).map_err(|e| format_parse_error_basic(&cleaned, &e))?;
-    for warning in report.warnings {
-        eprintln!("{}: {}", warning.code, warning.message);
+    let output = tool_canon::canonicalize(&cleaned, bridge.is_some())
+        .map_err(|e| format!("파싱 실패: {}", e))?;
+    for warning in output.warnings {
+        eprintln!("{}", warning);
     }
-    let mut output_body = normalize(&program, NormalizationLevel::N1);
+    let mut output_body = output.ddn;
     if !output_body.ends_with('\n') {
         output_body.push('\n');
     }
@@ -2209,7 +2547,7 @@ fn run_maze_ddn(
     let script_text = read_text_from_path(script_path)?;
     let (data, start_x, start_y) = parse_maze(&map_text)?;
 
-    let program = DdnProgram::from_source(&script_text, script_path)?;
+    let program = load_ddn_program(&script_text, script_path)?;
     let moves = collect_moves(moves_arg)?;
 
     let sam = DetSam::new(Fixed64::from_i64(1));
@@ -2243,7 +2581,7 @@ fn run_maze_ddn_live(map_path: &str, script_path: &str) -> Result<(), String> {
     let script_text = read_text_from_path(script_path)?;
     let (data, start_x, start_y) = parse_maze(&map_text)?;
 
-    let program = DdnProgram::from_source(&script_text, script_path)?;
+    let program = load_ddn_program(&script_text, script_path)?;
 
     let sam = DetSam::new(Fixed64::from_i64(1));
     let iyagi = DdnMazeIyagi::new(data, start_x, start_y, program);
@@ -2498,7 +2836,7 @@ fn run_gate0_script_hashes(iyagi: Gate0ScriptIyagi, ticks: u64) -> Result<Vec<St
 
 fn compute_gate0_pipe_hashes(script_path: &str) -> Result<Vec<String>, String> {
     let source = read_text_from_path(script_path)?;
-    let program = DdnProgram::from_source(&source, script_path)?;
+    let program = load_ddn_program(&source, script_path)?;
     let mut defaults = HashMap::new();
     defaults.insert("결과".to_string(), Value::Fixed64(Fixed64::from_i64(0)));
     let iyagi = Gate0ScriptIyagi::new(program, defaults, Vec::new());
@@ -2507,7 +2845,7 @@ fn compute_gate0_pipe_hashes(script_path: &str) -> Result<Vec<String>, String> {
 
 fn compute_gate0_unit_hashes(script_path: &str) -> Result<Vec<String>, String> {
     let source = read_text_from_path(script_path)?;
-    let program = DdnProgram::from_source(&source, script_path)?;
+    let program = load_ddn_program(&source, script_path)?;
     let mut defaults = HashMap::new();
     defaults.insert("결과".to_string(), Value::Fixed64(Fixed64::from_i64(7)));
     defaults.insert(
@@ -3235,7 +3573,7 @@ fn run_eco_model_series(
     is_macro: bool,
     resource_keys: &BTreeSet<String>,
 ) -> Result<Vec<BTreeMap<String, Fixed64>>, String> {
-    let program = DdnProgram::from_source(source, "<eco_runner>")
+    let program = load_ddn_program(source, "<eco_runner>")
         .map_err(|e| format!("E_ECO_RUNNER_MODEL_PARSE {}", e))?;
     let mut runner = DdnRunner::new(program, "매마디");
     let mut nuri = DetNuri::new();
@@ -3803,8 +4141,8 @@ fn run_eco_single_model_snapshot(
     ticks: u64,
     resource_keys: &BTreeSet<String>,
 ) -> Result<EcoModelSnapshot, String> {
-    let program = DdnProgram::from_source(source, "<eco_single>")
-        .map_err(|e| format!("E_ECO_MODEL_PARSE {}", e))?;
+    let program =
+        load_ddn_program(source, "<eco_single>").map_err(|e| format!("E_ECO_MODEL_PARSE {}", e))?;
     let mut runner = DdnRunner::new(program, "매마디");
     let mut nuri = DetNuri::new();
     let mut sink = VecSignalSink::default();
@@ -4019,7 +4357,8 @@ fn main() {
     let requires_project = matches!(
         cmd.as_deref(),
         Some(
-            "run-once"
+            "run"
+                | "run-once"
                 | "test"
                 | "run-div0"
                 | "run-grid"
@@ -4055,6 +4394,21 @@ fn main() {
     }
 
     match cmd.as_deref() {
+        Some("run") => {
+            if let Err(err) = ensure_feature(policy.as_ref(), FeatureGate::ClosedCore) {
+                eprintln!("{err}");
+                std::process::exit(1);
+            }
+            let path = args.next();
+            if path.is_none() {
+                eprintln!("사용법: cargo run -p ddonirang-tool -- run <파일경로>");
+                std::process::exit(2);
+            }
+            if let Err(err) = run_ddn_file(path.as_deref().unwrap()) {
+                eprintln!("{err}");
+                std::process::exit(1);
+            }
+        }
         Some("run-once") => {
             if let Err(err) = ensure_feature(policy.as_ref(), FeatureGate::ClosedCore) {
                 eprintln!("{err}");
@@ -4645,6 +4999,7 @@ fn main() {
             println!("또니랑 도구줄(Toolchain) v0.1");
             println!("사용법:");
             let ai_prompt_out = paths::build_dir().join("ai.prompt.txt");
+            println!("  cargo run -p ddonirang-tool -- run <파일경로>");
             println!("  cargo run -p ddonirang-tool -- run-once");
             println!("  cargo run -p ddonirang-tool -- test [경로]");
             println!("  cargo run -p ddonirang-tool -- run-div0");
@@ -4673,6 +5028,7 @@ fn main() {
                 ai_prompt_out.display()
             );
             println!("예시:");
+            println!("  cargo run -p ddonirang-tool -- run docs/steps/001/artifacts/input.ddn");
             println!("  echo \"나이:수 = 10\" | cargo run -p ddonirang-tool -- run-once");
             println!("  cargo run -p ddonirang-tool -- test");
             println!("  cargo run -p ddonirang-tool -- run-div0");
@@ -4753,7 +5109,7 @@ mod tests {
     };
     use ddonirang_core::platform::NetEvent;
     use ddonirang_core::ArithmeticFaultKind;
-    use ddonirang_core::{ResourceMapEntry, ResourceValue};
+    use ddonirang_core::{ExprTrace, ResourceMapEntry, ResourceValue};
     use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -4765,6 +5121,378 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ddn_tool_eco_{}_{}", name, stamp));
         std::fs::create_dir_all(&dir).expect("mkdir");
         dir
+    }
+
+    #[test]
+    fn state_transition_report_collects_expected_diag_rows() {
+        let events = vec![
+            DiagEvent {
+                madi: 3,
+                seq: 0,
+                fault_id: "STATE_TRANSITION".to_string(),
+                rule_id: "L1-STATE-01".to_string(),
+                reason: "STATE_TRANSITION".to_string(),
+                sub_reason: Some("NEXT".to_string()),
+                mode: None,
+                contract_kind: None,
+                origin: "seed:매틱".to_string(),
+                targets: vec!["seed:매틱".to_string()],
+                sam_hash: None,
+                source_span: None,
+                expr: Some(ExprTrace {
+                    tag: "state_transition:빨강->초록".to_string(),
+                    text: Some("guard=전이_조건;action=기록".to_string()),
+                }),
+                message: Some("상태 전이: 빨강 -> 초록".to_string()),
+            },
+            DiagEvent {
+                madi: 3,
+                seq: 1,
+                fault_id: "ASSERTION_FAILED".to_string(),
+                rule_id: "L1-ASSERT-01".to_string(),
+                reason: "ASSERTION_FAILED".to_string(),
+                sub_reason: Some("CHECK_FAILED".to_string()),
+                mode: None,
+                contract_kind: None,
+                origin: "seed:매틱".to_string(),
+                targets: vec!["seed:매틱".to_string()],
+                sam_hash: None,
+                source_span: None,
+                expr: None,
+                message: Some("세움 실패".to_string()),
+            },
+        ];
+        let rows = collect_state_transition_events(&events);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].madi, 3);
+        assert_eq!(rows[0].origin, "seed:매틱");
+        assert_eq!(rows[0].from, "빨강");
+        assert_eq!(rows[0].to, "초록");
+        assert_eq!(rows[0].message, "상태 전이: 빨강 -> 초록");
+        assert_eq!(rows[0].guard_name.as_deref(), Some("전이_조건"));
+        assert_eq!(rows[0].action_name.as_deref(), Some("기록"));
+    }
+
+    #[test]
+    fn state_transition_report_writes_detjson_when_transitions_exist() {
+        let root = eco_temp_dir("state_transition_report");
+        let out = root.join("state_transitions.detjson");
+        let events = vec![DiagEvent {
+            madi: 0,
+            seq: 0,
+            fault_id: "STATE_TRANSITION".to_string(),
+            rule_id: "L1-STATE-01".to_string(),
+            reason: "STATE_TRANSITION".to_string(),
+            sub_reason: Some("NEXT".to_string()),
+            mode: None,
+            contract_kind: None,
+            origin: "seed:매틱".to_string(),
+            targets: vec!["seed:매틱".to_string()],
+            sam_hash: None,
+            source_span: None,
+            expr: Some(ExprTrace {
+                tag: "state_transition:대기->실행".to_string(),
+                text: Some("guard=전이_안전;action=기록".to_string()),
+            }),
+            message: Some("상태 전이: 대기 -> 실행".to_string()),
+        }];
+
+        write_state_transition_report(&events, out.to_str().expect("out path"))
+            .expect("write report");
+
+        let text = std::fs::read_to_string(&out).expect("read report");
+        let report: serde_json::Value = serde_json::from_str(&text).expect("report json");
+        assert_eq!(
+            report.get("schema").and_then(|value| value.as_str()),
+            Some("ddn.state_transition_report.v1")
+        );
+        assert_eq!(
+            report.get("count").and_then(|value| value.as_u64()),
+            Some(1)
+        );
+        let rows = report
+            .get("transitions")
+            .and_then(|value| value.as_array())
+            .expect("transitions array");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].get("from").and_then(|value| value.as_str()),
+            Some("대기")
+        );
+        assert_eq!(
+            rows[0].get("to").and_then(|value| value.as_str()),
+            Some("실행")
+        );
+        assert_eq!(
+            rows[0].get("guard_name").and_then(|value| value.as_str()),
+            Some("전이_안전")
+        );
+        assert_eq!(
+            rows[0].get("action_name").and_then(|value| value.as_str()),
+            Some("기록")
+        );
+    }
+
+    #[test]
+    fn state_transition_report_skips_write_when_no_transitions_exist() {
+        let root = eco_temp_dir("state_transition_report_empty");
+        let out = root.join("state_transitions.detjson");
+        let events = vec![DiagEvent {
+            madi: 0,
+            seq: 0,
+            fault_id: "ASSERTION_FAILED".to_string(),
+            rule_id: "L1-ASSERT-01".to_string(),
+            reason: "ASSERTION_FAILED".to_string(),
+            sub_reason: Some("CHECK_FAILED".to_string()),
+            mode: None,
+            contract_kind: None,
+            origin: "seed:매틱".to_string(),
+            targets: vec!["seed:매틱".to_string()],
+            sam_hash: None,
+            source_span: None,
+            expr: None,
+            message: Some("세움 실패".to_string()),
+        }];
+
+        write_state_transition_report(&events, out.to_str().expect("out path"))
+            .expect("skip write");
+
+        assert!(!out.exists(), "empty transition report must not be written");
+    }
+
+    #[test]
+    fn state_transition_failure_report_collects_expected_error_rows() {
+        let rows = collect_state_transition_failure_events(
+            "E_STATE_TRANSITION_CHECK_FAILED: 전이_실패\n\
+noise\n\
+E_STATE_TRANSITION_CHECK_UNRESOLVED: 전이_안전\n\
+E_STATE_TRANSITION_GUARD_UNRESOLVED: 막혀서\n\
+E_STATE_TRANSITION_GUARD_REJECTED: 빨강\n\
+E_STATE_TRANSITION_ACTION_UNRESOLVED: 기록\n\
+E_STATE_TRANSITION_ACTION_ABORTED: 기록\n\
+E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
+        );
+        assert_eq!(rows.len(), 7);
+        assert_eq!(rows[0].code, "E_STATE_TRANSITION_CHECK_FAILED");
+        assert_eq!(rows[0].kind, "check_failed");
+        assert_eq!(rows[0].check_name.as_deref(), Some("전이_실패"));
+        assert_eq!(rows[1].code, "E_STATE_TRANSITION_CHECK_UNRESOLVED");
+        assert_eq!(rows[1].kind, "check_unresolved");
+        assert_eq!(rows[1].check_name.as_deref(), Some("전이_안전"));
+        assert_eq!(rows[2].code, "E_STATE_TRANSITION_GUARD_UNRESOLVED");
+        assert_eq!(rows[2].kind, "guard_unresolved");
+        assert_eq!(rows[2].guard_name.as_deref(), Some("막혀서"));
+        assert_eq!(rows[3].code, "E_STATE_TRANSITION_GUARD_REJECTED");
+        assert_eq!(rows[3].kind, "guard_rejected");
+        assert_eq!(rows[3].state_name.as_deref(), Some("빨강"));
+        assert_eq!(rows[4].code, "E_STATE_TRANSITION_ACTION_UNRESOLVED");
+        assert_eq!(rows[4].kind, "action_unresolved");
+        assert_eq!(rows[4].action_name.as_deref(), Some("기록"));
+        assert_eq!(rows[5].code, "E_STATE_TRANSITION_ACTION_ABORTED");
+        assert_eq!(rows[5].kind, "action_aborted");
+        assert_eq!(rows[5].action_name.as_deref(), Some("기록"));
+        assert_eq!(rows[6].code, "E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED");
+        assert_eq!(rows[6].kind, "action_arg_unresolved");
+        assert_eq!(rows[6].action_name.as_deref(), Some("기록"));
+        assert_eq!(rows[6].param_name.as_deref(), Some("다음상태"));
+    }
+
+    #[test]
+    fn state_transition_failure_report_writes_detjson_when_failures_exist() {
+        let root = eco_temp_dir("state_transition_failure_report");
+        let out = root.join("state_transition_failures.detjson");
+        write_state_transition_failure_report(
+            "E_STATE_TRANSITION_CHECK_FAILED: 전이_실패",
+            out.to_str().expect("out path"),
+        )
+        .expect("write failure report");
+
+        let text = std::fs::read_to_string(&out).expect("read report");
+        let report: serde_json::Value = serde_json::from_str(&text).expect("report json");
+        assert_eq!(
+            report.get("schema").and_then(|value| value.as_str()),
+            Some("ddn.state_transition_failure_report.v1")
+        );
+        assert_eq!(
+            report.get("count").and_then(|value| value.as_u64()),
+            Some(1)
+        );
+        let rows = report
+            .get("failures")
+            .and_then(|value| value.as_array())
+            .expect("failures array");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].get("code").and_then(|value| value.as_str()),
+            Some("E_STATE_TRANSITION_CHECK_FAILED")
+        );
+        assert_eq!(
+            rows[0].get("check_name").and_then(|value| value.as_str()),
+            Some("전이_실패")
+        );
+        assert!(
+            rows[0].get("action_name").is_none(),
+            "check failure row must not carry action_name"
+        );
+    }
+
+    #[test]
+    fn state_transition_failure_report_writes_action_failure_fields() {
+        let root = eco_temp_dir("state_transition_action_failure_report");
+        let out = root.join("state_transition_failures.detjson");
+        write_state_transition_failure_report(
+            "E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
+            out.to_str().expect("out path"),
+        )
+        .expect("write action failure report");
+
+        let text = std::fs::read_to_string(&out).expect("read report");
+        let report: serde_json::Value = serde_json::from_str(&text).expect("report json");
+        let rows = report
+            .get("failures")
+            .and_then(|value| value.as_array())
+            .expect("failures array");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].get("code").and_then(|value| value.as_str()),
+            Some("E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED")
+        );
+        assert_eq!(
+            rows[0].get("action_name").and_then(|value| value.as_str()),
+            Some("기록")
+        );
+        assert_eq!(
+            rows[0].get("param_name").and_then(|value| value.as_str()),
+            Some("다음상태")
+        );
+        assert!(
+            rows[0].get("check_name").is_none(),
+            "action failure row must not carry check_name"
+        );
+    }
+
+    #[test]
+    fn state_transition_failure_report_writes_guard_failure_fields() {
+        let root = eco_temp_dir("state_transition_guard_failure_report");
+        let out = root.join("state_transition_failures.detjson");
+        write_state_transition_failure_report(
+            "E_STATE_TRANSITION_GUARD_REJECTED: 빨강",
+            out.to_str().expect("out path"),
+        )
+        .expect("write guard failure report");
+
+        let text = std::fs::read_to_string(&out).expect("read report");
+        let report: serde_json::Value = serde_json::from_str(&text).expect("report json");
+        let rows = report
+            .get("failures")
+            .and_then(|value| value.as_array())
+            .expect("failures array");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].get("code").and_then(|value| value.as_str()),
+            Some("E_STATE_TRANSITION_GUARD_REJECTED")
+        );
+        assert_eq!(
+            rows[0].get("state_name").and_then(|value| value.as_str()),
+            Some("빨강")
+        );
+        assert!(
+            rows[0].get("check_name").is_none(),
+            "guard failure row must not carry check_name"
+        );
+        assert!(
+            rows[0].get("action_name").is_none(),
+            "guard failure row must not carry action_name"
+        );
+    }
+
+    #[test]
+    fn state_transition_failure_report_writes_guard_unresolved_fields() {
+        let root = eco_temp_dir("state_transition_guard_unresolved_report");
+        let out = root.join("state_transition_failures.detjson");
+        write_state_transition_failure_report(
+            "E_STATE_TRANSITION_GUARD_UNRESOLVED: 막혀서",
+            out.to_str().expect("out path"),
+        )
+        .expect("write guard unresolved report");
+
+        let text = std::fs::read_to_string(&out).expect("read report");
+        let report: serde_json::Value = serde_json::from_str(&text).expect("report json");
+        let rows = report
+            .get("failures")
+            .and_then(|value| value.as_array())
+            .expect("failures array");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].get("code").and_then(|value| value.as_str()),
+            Some("E_STATE_TRANSITION_GUARD_UNRESOLVED")
+        );
+        assert_eq!(
+            rows[0].get("guard_name").and_then(|value| value.as_str()),
+            Some("막혀서")
+        );
+        assert!(
+            rows[0].get("state_name").is_none(),
+            "guard unresolved row must not carry state_name"
+        );
+        assert!(
+            rows[0].get("check_name").is_none(),
+            "guard unresolved row must not carry check_name"
+        );
+    }
+
+    #[test]
+    fn state_transition_failure_report_writes_check_unresolved_fields() {
+        let root = eco_temp_dir("state_transition_check_unresolved_report");
+        let out = root.join("state_transition_failures.detjson");
+        write_state_transition_failure_report(
+            "E_STATE_TRANSITION_CHECK_UNRESOLVED: 전이_안전",
+            out.to_str().expect("out path"),
+        )
+        .expect("write check unresolved report");
+
+        let text = std::fs::read_to_string(&out).expect("read report");
+        let report: serde_json::Value = serde_json::from_str(&text).expect("report json");
+        let rows = report
+            .get("failures")
+            .and_then(|value| value.as_array())
+            .expect("failures array");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].get("code").and_then(|value| value.as_str()),
+            Some("E_STATE_TRANSITION_CHECK_UNRESOLVED")
+        );
+        assert_eq!(
+            rows[0].get("check_name").and_then(|value| value.as_str()),
+            Some("전이_안전")
+        );
+        assert_eq!(
+            rows[0].get("kind").and_then(|value| value.as_str()),
+            Some("check_unresolved")
+        );
+        assert!(
+            rows[0].get("guard_name").is_none(),
+            "check unresolved row must not carry guard_name"
+        );
+        assert!(
+            rows[0].get("state_name").is_none(),
+            "check unresolved row must not carry state_name"
+        );
+    }
+
+    #[test]
+    fn state_transition_failure_report_skips_write_when_no_failures_exist() {
+        let root = eco_temp_dir("state_transition_failure_report_empty");
+        let out = root.join("state_transition_failures.detjson");
+        write_state_transition_failure_report(
+            "ASSERTION_FAILED: noop",
+            out.to_str().expect("out path"),
+        )
+        .expect("skip write");
+        assert!(
+            !out.exists(),
+            "empty transition failure report must not be written"
+        );
     }
 
     #[test]
@@ -5764,7 +6492,7 @@ mod tests {
     }
 
     #[test]
-    fn contract_pre_emits_diag_and_stops_after_violation() {
+    fn contract_pre_emits_diag_rolls_back_and_stops_after_violation() {
         let script = r#"
   매틱:움직씨 = {
       { 거짓 }인것 전제하에 아니면 { 결과 <- 1. }
@@ -5804,7 +6532,7 @@ mod tests {
             .world()
             .get_resource_fixed64("결과")
             .unwrap_or(Fixed64::ZERO);
-        assert_eq!(result, Fixed64::from_i64(1));
+        assert_eq!(result, Fixed64::ZERO);
 
         let diag = sink
             .diag_events
@@ -6005,6 +6733,118 @@ mod tests {
         }
         assert_eq!(px, Some(Fixed64::from_i64(sx + 1)));
         assert_eq!(py, Some(Fixed64::from_i64(sy)));
+    }
+
+    #[test]
+    fn input_iyagi_accepts_integer_alias_type_kinds_for_fixed_resources() {
+        let line = r#"
+정수형:바른수 = { 7 돌려줘. }
+정수별칭:정수 = { 9 돌려줘. }
+"#
+        .trim()
+        .to_string();
+        let cleaned = preprocess_source_for_parse(&line).expect("preprocess");
+        let mut parsed =
+            parse_with_mode(&cleaned, "stdin.ddoni", ddn_runtime::default_parse_mode())
+                .expect("parse");
+        canonicalize(&mut parsed).expect("canonicalize");
+        let mut iyagi = InputIyagi { line };
+        let input = ddonirang_core::InputSnapshot {
+            tick_id: 0,
+            dt: Fixed64::from_i64(1),
+            keys_pressed: 0,
+            last_key_name: String::new(),
+            pointer_x_i32: 0,
+            pointer_y_i32: 0,
+            ai_injections: Vec::new(),
+            net_events: Vec::new(),
+            rng_seed: 0,
+        };
+        let patch = iyagi.run_update(&ddonirang_core::NuriWorld::new(), &input);
+        let mut int_value = None;
+        let mut int_alias_value = None;
+        let mut fixed_tags = Vec::new();
+        let mut has_canon = false;
+        for op in patch.ops {
+            match op {
+                PatchOp::SetResourceFixed64 { tag, value } => {
+                    fixed_tags.push(tag.clone());
+                    if tag == "정수형" {
+                        int_value = Some(value);
+                    }
+                    if tag == "정수별칭" {
+                        int_alias_value = Some(value);
+                    }
+                }
+                PatchOp::SetResourceJson { tag, .. } if tag == "정본" => {
+                    has_canon = true;
+                }
+                _ => {}
+            }
+        }
+        assert!(has_canon, "정본 생성 실패: fixed_tags={fixed_tags:?}");
+        assert_eq!(int_value, Some(Fixed64::from_i64(7)));
+        assert_eq!(int_alias_value, Some(Fixed64::from_i64(9)));
+    }
+
+    #[test]
+    fn input_iyagi_emits_json_for_collection_and_pack_seed_kinds() {
+        let line = r#"
+목록값:차림 = { (1, 2, 3) 목록 돌려줘. }
+모음값:모음 = { ("a", "a", 1) 모둠 돌려줘. }
+짝값:짝맞춤 = { ("a", 1, 2, 참) 그림표 돌려줘. }
+묶음값:묶음 = { (x: 1, y: "둘", ok: 참) 돌려줘. }
+"#
+        .trim()
+        .to_string();
+        let mut iyagi = InputIyagi { line };
+        let input = ddonirang_core::InputSnapshot {
+            tick_id: 0,
+            dt: Fixed64::from_i64(1),
+            keys_pressed: 0,
+            last_key_name: String::new(),
+            pointer_x_i32: 0,
+            pointer_y_i32: 0,
+            ai_injections: Vec::new(),
+            net_events: Vec::new(),
+            rng_seed: 0,
+        };
+        let patch = iyagi.run_update(&ddonirang_core::NuriWorld::new(), &input);
+        let mut json_values = HashMap::new();
+        for op in patch.ops {
+            if let PatchOp::SetResourceJson { tag, json } = op {
+                if matches!(
+                    tag.as_str(),
+                    "목록값" | "모음값" | "짝값" | "묶음값" | "정본"
+                ) {
+                    json_values.insert(tag, json);
+                }
+            }
+        }
+        assert!(json_values.contains_key("정본"), "정본 생성 실패");
+        let list_value: serde_json::Value =
+            serde_json::from_str(json_values.get("목록값").expect("목록값")).expect("목록값 json");
+        assert_eq!(list_value, serde_json::json!([1, 2, 3]));
+
+        let set_value: serde_json::Value =
+            serde_json::from_str(json_values.get("모음값").expect("모음값")).expect("모음값 json");
+        assert_eq!(set_value, serde_json::json!(["a", 1]));
+
+        let map_value: serde_json::Value =
+            serde_json::from_str(json_values.get("짝값").expect("짝값")).expect("짝값 json");
+        assert_eq!(map_value.get("a"), Some(&serde_json::json!(1)));
+        assert_eq!(map_value.get("2"), Some(&serde_json::json!(true)));
+
+        let pack_value: serde_json::Value =
+            serde_json::from_str(json_values.get("묶음값").expect("묶음값")).expect("묶음값 json");
+        assert_eq!(
+            pack_value,
+            serde_json::json!({
+                "x": 1,
+                "y": "둘",
+                "ok": true
+            })
+        );
     }
 
     #[test]

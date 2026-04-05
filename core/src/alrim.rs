@@ -110,7 +110,12 @@ mod tests {
         let mut logger = VecAlrimLogger::default();
         let mut handler = EchoHandler;
 
-        loop_.run_tick(1, vec![Signal::Alrim { name: "연쇄" }], &mut handler, &mut logger);
+        loop_.run_tick(
+            1,
+            vec![Signal::Alrim { name: "연쇄" }],
+            &mut handler,
+            &mut logger,
+        );
 
         let processed = logger.entries.iter().filter(|e| !e.carried).count();
         let carried = logger.entries.iter().filter(|e| e.carried).count();

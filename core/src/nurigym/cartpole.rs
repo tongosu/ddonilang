@@ -90,7 +90,11 @@ impl CartPoleEnv {
         apply_step(&mut self.state, action, &self.config);
         let next_obs = self.state.observation();
         let done_after = is_done(&self.state, &self.config);
-        let reward = if done_after { Fixed64::ZERO } else { Fixed64::ONE };
+        let reward = if done_after {
+            Fixed64::ZERO
+        } else {
+            Fixed64::ONE
+        };
         self.done = done_after;
         Ok(CartPoleStep {
             observation: obs,
@@ -143,14 +147,18 @@ pub fn run_episode(
 fn normalize_action(action: i64) -> Result<i64, String> {
     match action {
         -1 | 1 => Ok(action),
-        _ => Err(format!("E_NURIGYM_ACTION_INVALID action={} (expected -1 or 1)", action)),
+        _ => Err(format!(
+            "E_NURIGYM_ACTION_INVALID action={} (expected -1 or 1)",
+            action
+        )),
     }
 }
 
 fn apply_step(state: &mut CartPoleState, action: i64, config: &CartPoleConfig) {
     let act = Fixed64::from_i64(action);
 
-    let accel = act.saturating_mul(config.force)
+    let accel = act
+        .saturating_mul(config.force)
         .saturating_sub(state.v.saturating_mul(config.friction));
     state.v = state.v + accel.saturating_mul(config.dt);
     state.x = state.x + state.v.saturating_mul(config.dt);
@@ -167,7 +175,8 @@ fn apply_step(state: &mut CartPoleState, action: i64, config: &CartPoleConfig) {
 fn is_done(state: &CartPoleState, config: &CartPoleConfig) -> bool {
     let x_abs = fixed_abs(state.x);
     let theta_abs = fixed_abs(state.theta);
-    x_abs.raw_i64() > config.position_limit.raw_i64() || theta_abs.raw_i64() > config.angle_limit.raw_i64()
+    x_abs.raw_i64() > config.position_limit.raw_i64()
+        || theta_abs.raw_i64() > config.angle_limit.raw_i64()
 }
 
 fn fixed_abs(value: Fixed64) -> Fixed64 {

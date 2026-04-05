@@ -133,7 +133,10 @@ impl MultiRealmManager {
         self.realms.iter().map(|realm| realm.state_hash).collect()
     }
 
-    pub fn step_batch(&mut self, inputs: &[RealmStepInput]) -> Result<Vec<RealmStepOutput>, String> {
+    pub fn step_batch(
+        &mut self,
+        inputs: &[RealmStepInput],
+    ) -> Result<Vec<RealmStepOutput>, String> {
         let mut normalized: Vec<(usize, RealmStepInput)> =
             inputs.iter().cloned().enumerate().collect();
         normalized.sort_by_key(|(idx, input)| (input.realm_id, *idx));

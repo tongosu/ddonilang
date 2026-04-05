@@ -26,7 +26,13 @@ where
     B: Bogae,
 {
     pub fn new(sam: S, iyagi: I, nuri: N, geoul: G, bogae: B) -> Self {
-        Self { sam, iyagi, nuri, geoul, bogae }
+        Self {
+            sam,
+            iyagi,
+            nuri,
+            geoul,
+            bogae,
+        }
     }
 
     /// ✅ 관문0: 한 틱 최소 루프

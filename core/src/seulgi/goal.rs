@@ -121,12 +121,8 @@ fn parse_goal_condition(text: &str) -> GoalCondition {
         };
     }
     if is_move_action(text) {
-        let coords = parse_coordinates(text).unwrap_or_else(|| {
-            (
-                Fixed64::from_i64(0),
-                Fixed64::from_i64(0),
-            )
-        });
+        let coords =
+            parse_coordinates(text).unwrap_or_else(|| (Fixed64::from_i64(0), Fixed64::from_i64(0)));
         return GoalCondition::LocationReached {
             x: coords.0,
             y: coords.1,
@@ -384,7 +380,10 @@ mod tests {
     #[test]
     fn parse_goal_pickup() {
         let goal = parse_dorok("사과를 줍도록");
-        assert!(matches!(goal.condition, GoalCondition::ObjectPickedUp { .. }));
+        assert!(matches!(
+            goal.condition,
+            GoalCondition::ObjectPickedUp { .. }
+        ));
     }
 
     #[test]
@@ -396,7 +395,10 @@ mod tests {
     #[test]
     fn parse_goal_move_with_coords() {
         let goal = parse_dorok("(1.5,2)로 이동하도록");
-        assert!(matches!(goal.condition, GoalCondition::LocationReached { .. }));
+        assert!(matches!(
+            goal.condition,
+            GoalCondition::LocationReached { .. }
+        ));
     }
 
     #[test]

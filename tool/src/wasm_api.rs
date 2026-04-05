@@ -10,7 +10,8 @@ use ddonirang_lang::ParseMode;
 use serde_json::{json, Map, Value as JsonValue};
 use wasm_bindgen::prelude::*;
 
-use crate::ddn_runtime::{DdnProgram, DdnRunner};
+use crate::canon;
+use crate::ddn_runtime::{DdnParseWarning, DdnProgram, DdnRunner};
 use crate::preprocess::{preprocess_source_for_parse, split_file_meta};
 
 const DEFAULT_UPDATE_NAME: &str = "매마디";
@@ -44,6 +45,51 @@ fn parse_mode_from_str(mode: &str) -> Result<ParseMode, JsValue> {
     }
 }
 
+fn canonicalize_for_wasm(source: &str) -> Result<canon::CanonOutput, JsValue> {
+    match canon::canonicalize(source, false) {
+        Ok(output) => Ok(output),
+        Err(raw_err) => {
+            let prepared = match preprocess_program_source_for_wasm(source) {
+                Ok(text) => text,
+                Err(_) => {
+                    return Err(JsValue::from_str(&format!("WASM canon 실패: {raw_err}")));
+                }
+            };
+            canon::canonicalize(&prepared, false).map_err(|fallback_err| {
+                JsValue::from_str(&format!(
+                    "WASM canon 실패: {raw_err} (preprocess 재시도 실패: {fallback_err})"
+                ))
+            })
+        }
+    }
+}
+
+fn preprocess_program_source_for_wasm(source: &str) -> Result<String, JsValue> {
+    let meta = split_file_meta(source);
+    preprocess_source_for_parse(&meta.stripped)
+        .map_err(|err| JsValue::from_str(&format!("WASM preprocess 실패: {err}")))
+}
+
+fn parse_program_with_preprocess_fallback(
+    source: &str,
+    mode: ParseMode,
+) -> Result<DdnProgram, JsValue> {
+    match DdnProgram::from_source_with_mode(source, "<wasm>", mode) {
+        Ok(program) => Ok(program),
+        Err(raw_err) => {
+            let prepared = match preprocess_program_source_for_wasm(source) {
+                Ok(text) => text,
+                Err(_) => return Err(JsValue::from_str(&raw_err)),
+            };
+            DdnProgram::from_source_with_mode(&prepared, "<wasm>", mode).map_err(|fallback_err| {
+                JsValue::from_str(&format!(
+                    "{raw_err}\n(preprocess 재시도 실패: {fallback_err})"
+                ))
+            })
+        }
+    }
+}
+
 #[wasm_bindgen]
 pub fn wasm_build_info() -> String {
     format!(
@@ -57,8 +103,31 @@ pub fn wasm_build_info() -> String {
 
 #[wasm_bindgen]
 pub fn wasm_preprocess_source(source: &str) -> Result<String, JsValue> {
-    let meta = split_file_meta(source);
-    preprocess_source_for_parse(&meta.stripped).map_err(|err| JsValue::from_str(&err))
+    preprocess_program_source_for_wasm(source)
+}
+
+#[wasm_bindgen]
+pub fn wasm_canon_flat_json(source: &str) -> Result<String, JsValue> {
+    let output = canonicalize_for_wasm(source)?;
+    Ok(output.guseong_flat_json)
+}
+
+#[wasm_bindgen]
+pub fn wasm_canon_maegim_plan(source: &str) -> Result<String, JsValue> {
+    let output = canonicalize_for_wasm(source)?;
+    Ok(output.maegim_control_json)
+}
+
+#[wasm_bindgen]
+pub fn wasm_canon_alrim_plan(source: &str) -> Result<String, JsValue> {
+    let output = canonicalize_for_wasm(source)?;
+    Ok(output.alrim_plan_json)
+}
+
+#[wasm_bindgen]
+pub fn wasm_canon_block_editor_plan(source: &str) -> Result<String, JsValue> {
+    let output = canonicalize_for_wasm(source)?;
+    Ok(output.block_editor_plan_json)
 }
 
 #[wasm_bindgen]
@@ -78,14 +147,15 @@ pub struct DdnWasmVm {
     last_patch: Option<Patch>,
     pending_ai_injections: Vec<(String, String)>,
     lang_mode: ParseMode,
+    parse_warnings: Vec<DdnParseWarning>,
 }
 
 #[wasm_bindgen]
 impl DdnWasmVm {
     #[wasm_bindgen(constructor)]
     pub fn new(source: &str) -> Result<DdnWasmVm, JsValue> {
-        let program = DdnProgram::from_source_with_mode(source, "<wasm>", ParseMode::Strict)
-            .map_err(|err| JsValue::from_str(&err))?;
+        let program = parse_program_with_preprocess_fallback(source, ParseMode::Strict)?;
+        let parse_warnings = program.parse_warnings().to_vec();
         let mut defaults = HashMap::new();
         seed_bogae_defaults(&mut defaults);
         Ok(DdnWasmVm {
@@ -107,13 +177,14 @@ impl DdnWasmVm {
             last_patch: None,
             pending_ai_injections: Vec::new(),
             lang_mode: ParseMode::Strict,
+            parse_warnings,
         })
     }
 
     pub fn new_with_mode(source: &str, mode: &str) -> Result<DdnWasmVm, JsValue> {
         let mode = parse_mode_from_str(mode)?;
-        let program = DdnProgram::from_source_with_mode(source, "<wasm>", mode)
-            .map_err(|err| JsValue::from_str(&err))?;
+        let program = parse_program_with_preprocess_fallback(source, mode)?;
+        let parse_warnings = program.parse_warnings().to_vec();
         let mut defaults = HashMap::new();
         seed_bogae_defaults(&mut defaults);
         Ok(DdnWasmVm {
@@ -135,20 +206,21 @@ impl DdnWasmVm {
             last_patch: None,
             pending_ai_injections: Vec::new(),
             lang_mode: mode,
+            parse_warnings,
         })
     }
 
     pub fn update_logic(&mut self, source: &str) -> Result<(), JsValue> {
-        let program = DdnProgram::from_source_with_mode(source, "<wasm>", self.lang_mode)
-            .map_err(|err| JsValue::from_str(&err))?;
+        let program = parse_program_with_preprocess_fallback(source, self.lang_mode)?;
+        self.parse_warnings = program.parse_warnings().to_vec();
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
         Ok(())
     }
 
     pub fn update_logic_with_mode(&mut self, source: &str, mode: &str) -> Result<(), JsValue> {
         let mode = parse_mode_from_str(mode)?;
-        let program = DdnProgram::from_source_with_mode(source, "<wasm>", mode)
-            .map_err(|err| JsValue::from_str(&err))?;
+        let program = parse_program_with_preprocess_fallback(source, mode)?;
+        self.parse_warnings = program.parse_warnings().to_vec();
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
         self.lang_mode = mode;
         Ok(())
@@ -162,6 +234,24 @@ impl DdnWasmVm {
             ENGINE_RESPONSE_SCHEMA,
             DEFAULT_UPDATE_NAME
         )
+    }
+
+    pub fn get_parse_warnings(&self) -> JsValue {
+        let warnings: Vec<JsonValue> = self
+            .parse_warnings
+            .iter()
+            .map(|warning| {
+                json!({
+                    "code": warning.code,
+                    "message": warning.message,
+                    "span": {
+                        "start": warning.span_start,
+                        "end": warning.span_end,
+                    }
+                })
+            })
+            .collect();
+        JsValue::from_str(&json!({ "warnings": warnings }).to_string())
     }
 
     pub fn set_rng_seed(&mut self, seed: u64) {
@@ -715,14 +805,18 @@ fn build_view_meta(world: &ddonirang_core::platform::NuriWorld) -> JsonValue {
         }
     }
 
+    let mut available_families = Vec::new();
+
     if let Some(space2d_json) = derive_space2d_from_bogae(world) {
         if let Ok(space2d) = serde_json::from_str::<JsonValue>(&space2d_json) {
             out.insert("space2d".to_string(), space2d);
+            available_families.push("space2d");
         }
     }
     if let Some(graph_json) = derive_graph_from_points(world) {
         if let Ok(graph) = serde_json::from_str::<JsonValue>(&graph_json) {
             out.insert("graph".to_string(), graph);
+            available_families.push("graph");
         }
     }
 
@@ -745,8 +839,33 @@ fn build_view_meta(world: &ddonirang_core::platform::NuriWorld) -> JsonValue {
         }));
     }
     out.insert("graph_hints".to_string(), JsonValue::Array(graph_hints));
+    append_view_stack_meta(&mut out, &available_families);
 
     JsonValue::Object(out)
+}
+
+fn append_view_stack_meta(out: &mut Map<String, JsonValue>, available_families: &[&str]) {
+    let Some((primary_family, secondary_families)) = available_families.split_first() else {
+        return;
+    };
+    out.insert(
+        "primary".to_string(),
+        json!({
+            "family": *primary_family,
+            "role": "main",
+        }),
+    );
+    let secondary = secondary_families
+        .iter()
+        .map(|family| {
+            json!({
+                "family": *family,
+                "role": "secondary",
+            })
+        })
+        .collect::<Vec<_>>();
+    out.insert("secondary".to_string(), JsonValue::Array(secondary));
+    out.insert("overlays".to_string(), JsonValue::Array(Vec::new()));
 }
 
 fn collect_streams(world: &ddonirang_core::platform::NuriWorld) -> JsonValue {
@@ -991,6 +1110,286 @@ fn resource_value_to_u64(value: &ResourceValue) -> Option<u64> {
 mod tests {
     use super::*;
 
+    const SAMPLE_MAEGIM_SOURCE: &str = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    범위: 1..20.
+    간격: 0.1.
+  }.
+  theta0:수 <- (0.5) 매김 {
+    범위: -1.2..1.2.
+    분할수: 24.
+  }.
+}.
+"#;
+
+    const SAMPLE_GUSEONG_SOURCE: &str = r#"
+짜임 {
+  형식: 진자_틀.
+  입력 {
+    기준점: (수,수) <- (0.0, 0.0).
+  }.
+  출력 {
+    끝점: (수,수) <- (0.0, 0.0).
+  }.
+}.
+
+짜임 {
+  형식: 물체_틀.
+  입력 {
+    붙는점: (수,수) <- (0.0, 0.0).
+  }.
+  출력 {
+    꼭짓점: (수,수) <- (0.0, 0.0).
+  }.
+}.
+
+a <- (L=1.0)인 진자_틀.
+b <- (L=0.8)인 물체_틀.
+a.기준점 <- b.꼭짓점.
+"#;
+
+    const SAMPLE_ALRIM_SOURCE: &str = r#"
+"jump"라는 알림이 오면 {
+  y <- 1.
+}.
+
+매틱:움직씨 = {
+  "tick"라는 알림이 오면 {
+    t <- t + 1.
+  }.
+}.
+
+"reset"라는 알림이 오면 {
+  y <- 0.
+}.
+"#;
+
+    const SAMPLE_BLOCK_EDITOR_SOURCE: &str = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    범위: 1..20.
+    간격: 0.1.
+  }.
+  t:변수 <- 0.
+  안내:글 = "초기".
+}.
+
+(시작)할때 {
+  안내 보여주기.
+}.
+
+(매마디)마다 {
+  t <- t + 1.
+  t < 3 일때 {
+    t 보여주기.
+  } 아니면 {
+    g 보여주기.
+  }.
+}.
+
+(x) x목록에 대해 {
+  고르기:
+    { x < 1 }인것: {
+      "low" 보여주기.
+    }
+    아니면: {
+      "high" 보여주기.
+    }.
+}.
+
+되풀이 {
+  "tick" 보여주기.
+}.
+
+너머 {
+  "side" 보여주기.
+}.
+
+{ t < 2 }인것 동안 {
+  t <- t + 1.
+}.
+
+{ t == 2 }인것 바탕으로 아니면 {
+  "bad" 보여주기.
+} 맞으면 {
+  "ok" 보여주기.
+}.
+
+{ t >= 0 }인것 다짐하고(알림) 아니면 {
+  "warn" 보여주기.
+}.
+
+?? {
+  "prompt" 보여주기.
+}
+
+"answer" ??: {
+  "after" 보여주기.
+}
+
+{ t >= 0 }인것 ??
+?? {
+  "cond" 보여주기.
+}
+
+??:
+  { t < 1 }인것: {
+    "choose-low" 보여주기.
+  }
+??: {
+    "choose-else" 보여주기.
+  }
+
+(기준:수 = 1) 판정:움직씨 = {
+  기준 되돌림.
+}.
+
+기상청:임자 = {
+  기상특보를 받으면 {
+    알림.이름 보여주기.
+  }.
+
+  (정보 정보.온도 > 40)인 기상특보를 받으면 {
+    (기상청)의 (온도:정보.온도) 경보 ~~> 제.
+  }.
+
+  (알림 알림.이름 == "경보")인 알림을 받으면 {
+    알림.정보.온도 보여주기.
+  }.
+}.
+
+"tick"라는 알림이 오면 {
+  "evt" 보여주기.
+}
+
+보개로 그려.
+
+(매마디)마다 {
+  t 톺아보기.
+  되풀이 {
+    t <- t + 1.
+    { t > 0 }인것 일때 {
+      멈추기.
+    }.
+  }.
+}
+
+실행정책 {
+  실행모드: 일반.
+  효과정책: 허용.
+}.
+
+짜임 {
+  형식: 점_틀.
+  입력 {
+    시작점: (수,수) <- (0.0, 0.0).
+  }.
+  출력 {
+    끝점: (수,수) <- (0.0, 0.0).
+  }.
+}.
+
+테스트:움직씨 = {
+  보개마당 {
+    #자막("정본 테스트").
+  }.
+}.
+
+() 증명.
+"#;
+
+    #[test]
+    fn wasm_canon_flat_json_matches_cli_canon_surface() {
+        let flat_json = wasm_canon_flat_json(SAMPLE_GUSEONG_SOURCE).expect("wasm flat json");
+        assert!(flat_json.contains("\"schema\": \"ddn.guseong_flatten_plan.v1\""));
+        assert!(flat_json.contains("\"name\": \"a\""));
+        assert!(flat_json.contains("\"name\": \"b\""));
+        assert!(flat_json.contains("\"dst_port\": \"기준점\""));
+    }
+
+    #[test]
+    fn wasm_canon_flat_json_accepts_legacy_boim_block_via_preprocess() {
+        let source = r#"
+(매마디)마다 {
+  n <- 1.
+  보임 {
+    n: n.
+  }.
+}.
+"#;
+        let flat_json = wasm_canon_flat_json(source).expect("wasm flat json with legacy boim");
+        assert!(flat_json.contains("\"schema\": \"ddn.guseong_flatten_plan.v1\""));
+    }
+
+    #[test]
+    fn wasm_vm_constructor_accepts_legacy_boim_block_via_preprocess() {
+        let source = r#"
+(매마디)마다 {
+  n <- 1.
+  보임 {
+    n: n.
+  }.
+}.
+"#;
+        let vm = DdnWasmVm::new(source).expect("vm constructor with legacy boim");
+        assert!(vm.get_build_info().contains("pkg="));
+    }
+
+    #[test]
+    fn wasm_canon_maegim_plan_matches_cli_canon_surface() {
+        let maegim_json = wasm_canon_maegim_plan(SAMPLE_MAEGIM_SOURCE).expect("wasm maegim plan");
+        assert!(maegim_json.contains("\"schema\": \"ddn.maegim_control_plan.v1\""));
+        assert!(maegim_json.contains("\"name\": \"g\""));
+        assert!(maegim_json.contains("\"name\": \"theta0\""));
+        assert!(maegim_json.contains("\"split_count_expr_canon\": \"24\""));
+    }
+
+    #[test]
+    fn wasm_canon_alrim_plan_matches_cli_canon_surface() {
+        let alrim_json = wasm_canon_alrim_plan(SAMPLE_ALRIM_SOURCE).expect("wasm alrim plan");
+        assert!(alrim_json.contains("\"schema\": \"ddn.alrim_event_plan.v1\""));
+        assert!(alrim_json.contains("\"kind\": \"jump\""));
+        assert!(alrim_json.contains("\"kind\": \"tick\""));
+        assert!(alrim_json.contains("\"scope\": \"root/seed:매틱\""));
+    }
+
+    #[test]
+    fn wasm_canon_block_editor_plan_matches_cli_canon_surface() {
+        let block_json =
+            wasm_canon_block_editor_plan(SAMPLE_BLOCK_EDITOR_SOURCE).expect("wasm block plan");
+        assert!(block_json.contains("\"schema\": \"ddn.block_editor_plan.v1\""));
+        assert!(block_json.contains("\"kind\": \"charim_block\""));
+        assert!(block_json.contains("\"kind\": \"hook_start\""));
+        assert!(block_json.contains("\"kind\": \"hook_tick\""));
+        assert!(block_json.contains("\"kind\": \"if_else\""));
+        assert!(block_json.contains("\"kind\": \"for_each\""));
+        assert!(block_json.contains("\"kind\": \"choose_else\""));
+        assert!(block_json.contains("\"kind\": \"repeat\""));
+        assert!(block_json.contains("\"kind\": \"open_block\""));
+        assert!(block_json.contains("\"kind\": \"while_block\""));
+        assert!(block_json.contains("\"kind\": \"contract_guard\""));
+        assert!(block_json.contains("\"kind\": \"prompt_block\""));
+        assert!(block_json.contains("\"kind\": \"prompt_after\""));
+        assert!(block_json.contains("\"kind\": \"prompt_condition\""));
+        assert!(block_json.contains("\"kind\": \"prompt_choose\""));
+        assert!(block_json.contains("\"kind\": \"seed_def\""));
+        assert!(block_json.contains("\"kind\": \"receive_block\""));
+        assert!(block_json.contains("\"kind\": \"event_react\""));
+        assert!(block_json.contains("\"kind\": \"send_signal\""));
+        assert!(block_json.contains("\"kind\": \"return_value\""));
+        assert!(block_json.contains("\"kind\": \"inspect_value\""));
+        assert!(block_json.contains("\"kind\": \"bogae_draw\""));
+        assert!(block_json.contains("\"kind\": \"break_loop\""));
+        assert!(block_json.contains("\"kind\": \"bogae_madang_block\""));
+        assert!(block_json.contains("\"kind\": \"exec_policy_block\""));
+        assert!(block_json.contains("\"kind\": \"jjaim_block\""));
+        assert!(block_json.contains("\"kind\": \"expr_stmt\""));
+        assert!(block_json.contains("\"exprs\": {"));
+        assert!(block_json.contains("\"kind\": \"call\""));
+        assert!(block_json.contains("\"kind\": \"binding\""));
+    }
+
     #[test]
     fn parse_stream_sidecar_tag_supports_ascii_and_ko_suffix() {
         assert_eq!(
@@ -1060,6 +1459,183 @@ mod tests {
         assert_ne!(view_hash_a, view_hash_b);
     }
 
+    fn point_resource(x: i64, y: i64) -> ResourceValue {
+        ResourceValue::List(vec![
+            ResourceValue::Fixed64(Fixed64::from_i64(x)),
+            ResourceValue::Fixed64(Fixed64::from_i64(y)),
+        ])
+    }
+
+    fn draw_item_resource(kind: &str) -> ResourceValue {
+        ResourceValue::Map(BTreeMap::from([
+            (
+                "kind".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("kind".to_string()),
+                    value: ResourceValue::String(kind.to_string()),
+                },
+            ),
+            (
+                "x".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("x".to_string()),
+                    value: ResourceValue::Fixed64(Fixed64::from_i64(0)),
+                },
+            ),
+            (
+                "y".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("y".to_string()),
+                    value: ResourceValue::Fixed64(Fixed64::from_i64(0)),
+                },
+            ),
+            (
+                "r".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("r".to_string()),
+                    value: ResourceValue::Fixed64(Fixed64::from_i64(1)),
+                },
+            ),
+        ]))
+    }
+
+    #[test]
+    fn build_view_meta_emits_primary_and_secondary_stack() {
+        let mut world = DetNuri::new();
+        world.world_mut().set_resource_value(
+            BOGAE_DRAWLIST_TAG.to_string(),
+            ResourceValue::List(vec![draw_item_resource("circle")]),
+        );
+        world.world_mut().set_resource_value(
+            "그래프_점목록_f".to_string(),
+            ResourceValue::List(vec![point_resource(0, 1), point_resource(1, 2)]),
+        );
+
+        let view_meta = build_view_meta(world.world());
+        let obj = view_meta.as_object().expect("view_meta object");
+
+        assert_eq!(
+            obj.get("primary")
+                .and_then(JsonValue::as_object)
+                .and_then(|row| row.get("family"))
+                .and_then(JsonValue::as_str),
+            Some("space2d")
+        );
+        let secondary = obj
+            .get("secondary")
+            .and_then(JsonValue::as_array)
+            .expect("secondary array");
+        assert_eq!(secondary.len(), 1);
+        assert_eq!(
+            secondary[0]
+                .as_object()
+                .and_then(|row| row.get("family"))
+                .and_then(JsonValue::as_str),
+            Some("graph")
+        );
+        assert_eq!(
+            obj.get("overlays")
+                .and_then(JsonValue::as_array)
+                .map(Vec::len),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn build_view_meta_graph_only_sets_graph_primary() {
+        let mut world = DetNuri::new();
+        world.world_mut().set_resource_value(
+            "그래프_점목록_f".to_string(),
+            ResourceValue::List(vec![point_resource(0, 1), point_resource(1, 2)]),
+        );
+
+        let view_meta = build_view_meta(world.world());
+        let obj = view_meta.as_object().expect("view_meta object");
+
+        assert_eq!(
+            obj.get("primary")
+                .and_then(JsonValue::as_object)
+                .and_then(|row| row.get("family"))
+                .and_then(JsonValue::as_str),
+            Some("graph")
+        );
+        assert_eq!(
+            obj.get("secondary")
+                .and_then(JsonValue::as_array)
+                .map(Vec::len),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn serialize_world_resources_emits_value_json_alongside_value_keys() {
+        let mut world = DetNuri::new();
+        world.world_mut().set_resource_value(
+            "묶음값".to_string(),
+            ResourceValue::Map(BTreeMap::from([
+                (
+                    "x".to_string(),
+                    ResourceMapEntry {
+                        key: ResourceValue::String("x".to_string()),
+                        value: ResourceValue::Fixed64(Fixed64::from_i64(1)),
+                    },
+                ),
+                (
+                    "ok".to_string(),
+                    ResourceMapEntry {
+                        key: ResourceValue::String("ok".to_string()),
+                        value: ResourceValue::Bool(true),
+                    },
+                ),
+            ])),
+        );
+
+        let resources = serialize_world_resources(world.world());
+        let root = resources.as_object().expect("resources object");
+        let value = root
+            .get("value")
+            .and_then(JsonValue::as_object)
+            .expect("value map");
+        let value_json = root
+            .get("value_json")
+            .and_then(JsonValue::as_object)
+            .expect("value_json map");
+
+        assert!(value.get("묶음값").and_then(JsonValue::as_str).is_some());
+        let row = value_json
+            .get("묶음값")
+            .and_then(JsonValue::as_object)
+            .expect("value_json row");
+        assert_eq!(row.get("x").and_then(JsonValue::as_f64), Some(1.0));
+        assert_eq!(row.get("ok").and_then(JsonValue::as_bool), Some(true));
+    }
+
+    #[test]
+    fn serialize_patch_set_resource_value_emits_value_json_payload() {
+        let mut patch = Patch::default();
+        patch.ops.push(PatchOp::SetResourceValue {
+            tag: "리스트".to_string(),
+            value: ResourceValue::List(vec![
+                ResourceValue::Fixed64(Fixed64::from_i64(1)),
+                ResourceValue::String("둘".to_string()),
+            ]),
+        });
+
+        let json = serialize_patch(&patch);
+        let rows = json.as_array().expect("patch array");
+        assert_eq!(rows.len(), 1);
+        let row = rows[0].as_object().expect("patch row");
+        assert_eq!(row.get("op").and_then(JsonValue::as_str), Some("set_resource_value"));
+        assert_eq!(row.get("tag").and_then(JsonValue::as_str), Some("리스트"));
+        let value_json = row
+            .get("value_json")
+            .and_then(JsonValue::as_array)
+            .expect("value_json array");
+        assert_eq!(value_json.len(), 2);
+        assert_eq!(value_json[0].as_f64(), Some(1.0));
+        assert_eq!(value_json[1].as_str(), Some("둘"));
+    }
+
     #[test]
     fn restore_hash_diags_detect_mismatch_codes() {
         let payload = json!({
@@ -1074,6 +1650,82 @@ mod tests {
             .collect::<Vec<_>>();
         assert!(codes.contains(&"STATE_HASH_MISMATCH"));
         assert!(codes.contains(&"VIEW_HASH_MISMATCH"));
+    }
+
+    #[test]
+    fn resource_value_to_draw_item_maps_layer_index_aliases() {
+        let draw_item = ResourceValue::Map(BTreeMap::from([
+            (
+                "kind".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("kind".to_string()),
+                    value: ResourceValue::String("polygon".to_string()),
+                },
+            ),
+            (
+                "레이어".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("레이어".to_string()),
+                    value: ResourceValue::Fixed64(Fixed64::from_i64(3)),
+                },
+            ),
+            (
+                "fill".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("fill".to_string()),
+                    value: ResourceValue::String("#f59e0b".to_string()),
+                },
+            ),
+        ]));
+        let json = resource_value_to_draw_item(&draw_item).expect("draw item json");
+        let obj = json.as_object().expect("draw item object");
+        assert_eq!(obj.get("kind").and_then(JsonValue::as_str), Some("polygon"));
+        assert_eq!(
+            obj.get("layer_index").and_then(JsonValue::as_f64),
+            Some(3.0)
+        );
+        assert_eq!(obj.get("fill").and_then(JsonValue::as_str), Some("#f59e0b"));
+    }
+
+    #[test]
+    fn resource_value_to_draw_item_maps_group_id_aliases() {
+        let draw_item = ResourceValue::Map(BTreeMap::from([
+            (
+                "kind".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("kind".to_string()),
+                    value: ResourceValue::String("polyline".to_string()),
+                },
+            ),
+            (
+                "그룹".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("그룹".to_string()),
+                    value: ResourceValue::String("pendulum.path".to_string()),
+                },
+            ),
+            (
+                "stroke".to_string(),
+                ResourceMapEntry {
+                    key: ResourceValue::String("stroke".to_string()),
+                    value: ResourceValue::String("#22c55e".to_string()),
+                },
+            ),
+        ]));
+        let json = resource_value_to_draw_item(&draw_item).expect("draw item json");
+        let obj = json.as_object().expect("draw item object");
+        assert_eq!(
+            obj.get("kind").and_then(JsonValue::as_str),
+            Some("polyline")
+        );
+        assert_eq!(
+            obj.get("group_id").and_then(JsonValue::as_str),
+            Some("pendulum.path")
+        );
+        assert_eq!(
+            obj.get("stroke").and_then(JsonValue::as_str),
+            Some("#22c55e")
+        );
     }
 }
 
@@ -1387,10 +2039,13 @@ fn serialize_world_resources(world: &ddonirang_core::platform::NuriWorld) -> Jso
     out.insert("handle".to_string(), JsonValue::Object(handle_map));
 
     let mut value_map = Map::new();
+    let mut value_json_map = Map::new();
     for (tag, value) in world.resource_value_entries() {
-        value_map.insert(tag, JsonValue::String(value.canon_key()));
+        value_map.insert(tag.clone(), JsonValue::String(value.canon_key()));
+        value_json_map.insert(tag, resource_value_to_json(&value));
     }
     out.insert("value".to_string(), JsonValue::Object(value_map));
+    out.insert("value_json".to_string(), JsonValue::Object(value_json_map));
 
     JsonValue::Object(out)
 }
@@ -1438,7 +2093,12 @@ fn serialize_patch(patch: &Patch) -> JsonValue {
             }
             PatchOp::SetResourceValue { tag, value } => {
                 items.push(
-                    json!({ "op": "set_resource_value", "tag": tag, "value": value.canon_key() }),
+                    json!({
+                        "op": "set_resource_value",
+                        "tag": tag,
+                        "value": value.canon_key(),
+                        "value_json": resource_value_to_json(value),
+                    }),
                 );
             }
             PatchOp::DivAssignResourceFixed64 { tag, rhs, .. } => {
@@ -1857,6 +2517,12 @@ fn resource_value_to_draw_item(value: &ResourceValue) -> Option<JsonValue> {
             "글" | "내용" => {
                 obj.insert("text".to_string(), json_value);
             }
+            "층" | "레이어" | "layer" | "layerIndex" | "z" | "z_index" => {
+                obj.insert("layer_index".to_string(), json_value);
+            }
+            "그룹" | "묶음" | "group" | "groupId" => {
+                obj.insert("group_id".to_string(), json_value);
+            }
             _ => {
                 obj.insert(key, json_value);
             }
@@ -1918,14 +2584,17 @@ fn map_bogae_kind(raw: &str) -> String {
     if lower.contains("circle") {
         return "circle".to_string();
     }
+    if lower.contains("polygon") {
+        return "polygon".to_string();
+    }
+    if lower.contains("poly") {
+        return "polyline".to_string();
+    }
     if lower.contains("line") {
         return "line".to_string();
     }
     if lower.contains("point") {
         return "point".to_string();
-    }
-    if lower.contains("poly") {
-        return "polyline".to_string();
     }
     if lower.contains("arrow") {
         return "arrow".to_string();

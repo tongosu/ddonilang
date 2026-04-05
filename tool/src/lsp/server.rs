@@ -142,7 +142,9 @@ impl LspServer {
                         }
                     }
                 }
-                Stmt::Expr { expr, .. } => self.collect_from_expr(expr, visualizations),
+                Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
+                    self.collect_from_expr(expr, visualizations)
+                }
                 Stmt::Mutate { target, value, .. } => {
                     self.collect_from_expr(target, visualizations);
                     self.collect_from_expr(value, visualizations);
@@ -186,6 +188,21 @@ impl LspServer {
                 }
                 Stmt::ForEach { iterable, body, .. } => {
                     self.collect_from_expr(iterable, visualizations);
+                    self.collect_from_body(body, visualizations);
+                }
+                Stmt::BeatBlock { body, .. } | Stmt::Hook { body, .. } => {
+                    self.collect_from_body(body, visualizations);
+                }
+                Stmt::HookWhenBecomes {
+                    condition, body, ..
+                }
+                | Stmt::HookWhile {
+                    condition, body, ..
+                } => {
+                    self.collect_from_expr(condition, visualizations);
+                    self.collect_from_body(body, visualizations);
+                }
+                Stmt::Quantifier { body, .. } => {
                     self.collect_from_body(body, visualizations);
                 }
                 Stmt::Break { .. } => {}
@@ -488,7 +505,7 @@ impl LspServer {
                         }
                     }
                 }
-                Stmt::Expr { expr, .. } => {
+                Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                     if let ExprKind::Var(name) = &expr.kind {
                         if known_seeds.contains(name) {
                             diagnostics.push(self.build_call_tail_diag(
@@ -549,6 +566,21 @@ impl LspServer {
                 }
                 Stmt::ForEach { iterable, body, .. } => {
                     self.check_call_tail_missing_expr(iterable, known_seeds, diagnostics);
+                    self.check_call_tail_missing_body(body, known_seeds, diagnostics);
+                }
+                Stmt::BeatBlock { body, .. } | Stmt::Hook { body, .. } => {
+                    self.check_call_tail_missing_body(body, known_seeds, diagnostics);
+                }
+                Stmt::HookWhenBecomes {
+                    condition, body, ..
+                }
+                | Stmt::HookWhile {
+                    condition, body, ..
+                } => {
+                    self.check_call_tail_missing_expr(condition, known_seeds, diagnostics);
+                    self.check_call_tail_missing_body(body, known_seeds, diagnostics);
+                }
+                Stmt::Quantifier { body, .. } => {
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
                 Stmt::Contract {

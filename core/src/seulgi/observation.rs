@@ -106,9 +106,7 @@ impl DefaultObserver {
 
 impl ObservationSpec for DefaultObserver {
     fn capture(&self, state: &GameState, agent_id: u64) -> Observation {
-        let agent = state
-            .get_agent(agent_id)
-            .expect("E_OBS_AGENT_NOT_FOUND");
+        let agent = state.get_agent(agent_id).expect("E_OBS_AGENT_NOT_FOUND");
 
         let self_state = AgentState {
             position: agent.position,
@@ -374,7 +372,9 @@ impl<'a> DetJsonReader<'a> {
         }
         let mut out = String::new();
         loop {
-            let ch = self.next().ok_or_else(|| "E_OBS_JSON_STRING_END".to_string())?;
+            let ch = self
+                .next()
+                .ok_or_else(|| "E_OBS_JSON_STRING_END".to_string())?;
             match ch {
                 '"' => return Ok(out),
                 '\\' => {
@@ -388,7 +388,9 @@ impl<'a> DetJsonReader<'a> {
                         'u' => {
                             let mut code = 0u32;
                             for _ in 0..4 {
-                                let hex = self.next().ok_or_else(|| "E_OBS_JSON_ESCAPE_U".to_string())?;
+                                let hex = self
+                                    .next()
+                                    .ok_or_else(|| "E_OBS_JSON_ESCAPE_U".to_string())?;
                                 code = (code << 4)
                                     + hex
                                         .to_digit(16)

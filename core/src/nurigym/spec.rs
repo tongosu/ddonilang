@@ -1,4 +1,4 @@
-﻿#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObservationSpec {
     pub slot_count: u32,
 }
@@ -14,13 +14,18 @@ impl ObservationSpec {
     }
 
     pub fn to_detjson(&self) -> String {
-        format!("{{\"schema\":\"nurigym.obs_spec.v1\",\"slot_count\":{}}}", self.slot_count)
+        format!(
+            "{{\"schema\":\"nurigym.obs_spec.v1\",\"slot_count\":{}}}",
+            self.slot_count
+        )
     }
 }
 
 impl ActionSpec {
     pub fn empty() -> Self {
-        Self { actions: Vec::new() }
+        Self {
+            actions: Vec::new(),
+        }
     }
 
     pub fn to_detjson(&self) -> String {

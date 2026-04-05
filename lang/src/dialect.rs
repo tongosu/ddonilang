@@ -423,4 +423,47 @@ mod tests {
         assert_eq!(cfg.canonicalize_keyword("설정보개"), None);
         assert_eq!(cfg.canonicalize_keyword("보임"), None);
     }
+
+    #[test]
+    fn new_canon_keywords_are_mapped_in_ko() {
+        let cfg = DialectConfig::from_source("#말씨: ko\n");
+        assert_eq!(cfg.canonicalize_keyword("짜임"), Some("짜임"));
+        assert_eq!(cfg.canonicalize_keyword("구성"), Some("짜임"));
+        assert_eq!(cfg.canonicalize_keyword("너머"), Some("너머"));
+        assert_eq!(cfg.canonicalize_keyword("효과"), Some("너머"));
+        assert_eq!(cfg.canonicalize_keyword("바깥"), Some("너머"));
+        assert_eq!(cfg.canonicalize_keyword("올때"), Some("오면"));
+        assert_eq!(cfg.canonicalize_keyword("오면"), Some("오면"));
+    }
+
+    #[test]
+    fn input_keyword_collision_is_resolved() {
+        let cfg = DialectConfig::from_source("#말씨: ko\n");
+        assert_eq!(cfg.canonicalize_keyword("입력"), Some("입력"));
+        assert_eq!(cfg.canonicalize_keyword("샘입력"), Some("샘"));
+        assert_eq!(cfg.canonicalize_keyword("샘"), Some("샘"));
+    }
+
+    #[test]
+    fn new_keywords_are_available_in_en_and_ja_dialects() {
+        let en = DialectConfig::from_source("#말씨: en\n");
+        assert_eq!(en.canonicalize_keyword("component"), Some("짜임"));
+        assert_eq!(en.canonicalize_keyword("external"), Some("너머"));
+        assert_eq!(en.canonicalize_keyword("exec_policy"), Some("실행정책"));
+        assert_eq!(en.canonicalize_keyword("event"), Some("알림"));
+        assert_eq!(en.canonicalize_keyword("caption"), Some("자막"));
+
+        let ja = DialectConfig::from_source("#말씨: ja\n");
+        assert_eq!(ja.canonicalize_keyword("kouseitai"), Some("짜임"));
+        assert_eq!(ja.canonicalize_keyword("gaiiki"), Some("너머"));
+        assert_eq!(ja.canonicalize_keyword("motto"), Some("더보기"));
+    }
+
+    #[test]
+    fn alert_aliases_are_normalized_to_alrim() {
+        let cfg = DialectConfig::from_source("#말씨: ko\n");
+        assert_eq!(cfg.canonicalize_keyword("알림"), Some("알림"));
+        assert_eq!(cfg.canonicalize_keyword("소식"), Some("알림"));
+        assert_eq!(cfg.canonicalize_keyword("알람"), Some("알림"));
+    }
 }

@@ -35,7 +35,10 @@ pub enum ArithmeticFaultKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Signal {
     /// SSOT: 산술고장
-    ArithmeticFault { ctx: FaultContext, kind: ArithmeticFaultKind },
+    ArithmeticFault {
+        ctx: FaultContext,
+        kind: ArithmeticFaultKind,
+    },
     /// SSOT: 알림(이름 기반 최소 이벤트)
     Alrim { name: &'static str },
     /// SSOT: 진단말 이벤트(geoul.diag.jsonl)

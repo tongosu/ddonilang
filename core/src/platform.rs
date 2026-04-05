@@ -6,8 +6,8 @@ use xxhash_rust::xxh3::xxh3_64;
 
 use crate::fixed64::Fixed64;
 use crate::resource::ResourceHandle;
-use crate::units::UnitValue;
 use crate::signals::{DiagEvent, ExprTrace, FaultContext, Signal, SignalSink, SourceSpan, TickId};
+use crate::units::UnitValue;
 
 // ---------- ECS 기본 타입 (최소) ----------
 
@@ -266,6 +266,38 @@ pub enum ResourceValue {
 }
 
 impl ResourceValue {
+    pub fn stream_v1_from_ring_buffer(
+        capacity: u64,
+        head: u64,
+        len: u64,
+        buffer: Vec<ResourceValue>,
+    ) -> Self {
+        ResourceValue::map_from_entries(vec![
+            ResourceMapEntry {
+                key: ResourceValue::String("__schema".to_string()),
+                value: ResourceValue::String("ddn.stream.v1".to_string()),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("capacity".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(
+                    capacity.min(i64::MAX as u64) as i64,
+                )),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("head".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(head.min(i64::MAX as u64) as i64)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("len".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(len.min(i64::MAX as u64) as i64)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("buffer".to_string()),
+                value: ResourceValue::List(buffer),
+            },
+        ])
+    }
+
     pub fn set_from_values(values: Vec<ResourceValue>) -> Self {
         let mut items = BTreeMap::new();
         for value in values {
@@ -405,6 +437,15 @@ impl ResourceValue {
                 }
             }
             ResourceValue::Map(entries) => {
+                if let Some((capacity, len, ordered)) = Self::stream_v1_oldest_to_newest(entries) {
+                    out.push(0x09);
+                    out.extend_from_slice(&capacity.to_le_bytes());
+                    out.extend_from_slice(&len.to_le_bytes());
+                    for value in ordered {
+                        value.encode_canon(out);
+                    }
+                    return;
+                }
                 out.push(0x08);
                 out.extend_from_slice(&(entries.len() as u64).to_le_bytes());
                 for entry in entries.values() {
@@ -412,6 +453,96 @@ impl ResourceValue {
                     entry.value.encode_canon(out);
                 }
             }
+        }
+    }
+
+    fn stream_v1_oldest_to_newest(
+        entries: &BTreeMap<String, ResourceMapEntry>,
+    ) -> Option<(u64, u64, Vec<ResourceValue>)> {
+        let mut schema: Option<String> = None;
+        let mut capacity: Option<u64> = None;
+        let mut head: Option<u64> = None;
+        let mut len: Option<u64> = None;
+        let mut buffer: Option<Vec<ResourceValue>> = None;
+
+        for entry in entries.values() {
+            let key = match &entry.key {
+                ResourceValue::String(key) => key.as_str(),
+                _ => return None,
+            };
+            match key {
+                "__schema" => {
+                    let ResourceValue::String(value) = &entry.value else {
+                        return None;
+                    };
+                    schema = Some(value.clone());
+                }
+                "capacity" => {
+                    capacity = Self::stream_v1_parse_u64(&entry.value);
+                }
+                "head" => {
+                    head = Self::stream_v1_parse_u64(&entry.value);
+                }
+                "len" => {
+                    len = Self::stream_v1_parse_u64(&entry.value);
+                }
+                "buffer" => {
+                    let ResourceValue::List(items) = &entry.value else {
+                        return None;
+                    };
+                    buffer = Some(items.clone());
+                }
+                _ => return None,
+            }
+        }
+
+        if schema.as_deref() != Some("ddn.stream.v1") {
+            return None;
+        }
+
+        let mut buffer = buffer?;
+        let mut capacity = capacity?;
+        let mut len = len?;
+        capacity = capacity.max(buffer.len() as u64);
+        if buffer.len() < capacity as usize {
+            buffer.resize(capacity as usize, ResourceValue::None);
+        }
+        len = len.min(capacity);
+
+        if capacity == 0 || len == 0 {
+            return Some((capacity, 0, Vec::new()));
+        }
+
+        let mut head = head.unwrap_or_else(|| len.saturating_sub(1));
+        head = head.min(capacity.saturating_sub(1));
+
+        let oldest = (head + capacity + 1 - len) % capacity;
+        let mut ordered = Vec::with_capacity(len as usize);
+        for offset in 0..len {
+            let idx = ((oldest + offset) % capacity) as usize;
+            ordered.push(buffer.get(idx).cloned().unwrap_or(ResourceValue::None));
+        }
+
+        Some((capacity, len, ordered))
+    }
+
+    fn stream_v1_parse_u64(value: &ResourceValue) -> Option<u64> {
+        match value {
+            ResourceValue::Fixed64(v) => {
+                if v.frac_part() != 0 {
+                    return None;
+                }
+                u64::try_from(v.int_part()).ok()
+            }
+            ResourceValue::Unit(v) => {
+                if v.value.frac_part() != 0 {
+                    return None;
+                }
+                u64::try_from(v.value.int_part()).ok()
+            }
+            ResourceValue::Bool(v) => Some(if *v { 1 } else { 0 }),
+            ResourceValue::String(v) => v.parse::<u64>().ok(),
+            _ => None,
         }
     }
 }
@@ -444,12 +575,12 @@ pub struct NuriWorld {
     next_entity: u64,
 
     ecs: EcsStore,
-    resources_json: BTreeMap<String, String>,               // tag -> json
+    resources_json: BTreeMap<String, String>, // tag -> json
 
     // ✅ Fixed64 전용 Resource(터살림씨) 저장
-    resources_fixed64: BTreeMap<String, Fixed64>,           // tag -> Fixed64
-    resources_handle: BTreeMap<String, ResourceHandle>,     // tag -> handle
-    resources_value: BTreeMap<String, ResourceValue>,       // tag -> value
+    resources_fixed64: BTreeMap<String, Fixed64>, // tag -> Fixed64
+    resources_handle: BTreeMap<String, ResourceHandle>, // tag -> handle
+    resources_value: BTreeMap<String, ResourceValue>, // tag -> value
 }
 
 impl NuriWorld {
@@ -566,7 +697,9 @@ impl NuriWorld {
 
     fn encode_canonical_with_filter(&self, excluded_prefixes: &[&str]) -> Vec<u8> {
         let include_tag = |tag: &str| -> bool {
-            !excluded_prefixes.iter().any(|prefix| tag.starts_with(prefix))
+            !excluded_prefixes
+                .iter()
+                .any(|prefix| tag.starts_with(prefix))
         };
 
         let mut out = Vec::<u8>::new();
@@ -659,18 +792,11 @@ fn push_str(out: &mut Vec<u8>, s: &str) {
 pub enum SeulgiIntent {
     None = 0,
 
-    MoveTo {
-        x: Fixed64,
-        y: Fixed64,
-    } = 1,
+    MoveTo { x: Fixed64, y: Fixed64 } = 1,
 
-    Attack {
-        target_id: u64,
-    } = 2,
+    Attack { target_id: u64 } = 2,
 
-    Say {
-        text: String,
-    } = 3,
+    Say { text: String } = 3,
 }
 
 impl SeulgiIntent {
@@ -839,14 +965,33 @@ impl Default for Origin {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PatchOp {
-    SetComponentJson { entity: EntityId, tag: ComponentTag, json: String },
-    RemoveComponent { entity: EntityId, tag: ComponentTag },
-    SetResourceJson { tag: String, json: String },
+    SetComponentJson {
+        entity: EntityId,
+        tag: ComponentTag,
+        json: String,
+    },
+    RemoveComponent {
+        entity: EntityId,
+        tag: ComponentTag,
+    },
+    SetResourceJson {
+        tag: String,
+        json: String,
+    },
 
     // ✅ Fixed64 Resource 세팅
-    SetResourceFixed64 { tag: String, value: Fixed64 },
-    SetResourceHandle { tag: String, handle: ResourceHandle },
-    SetResourceValue { tag: String, value: ResourceValue },
+    SetResourceFixed64 {
+        tag: String,
+        value: Fixed64,
+    },
+    SetResourceHandle {
+        tag: String,
+        handle: ResourceHandle,
+    },
+    SetResourceValue {
+        tag: String,
+        value: ResourceValue,
+    },
 
     // DivAssignResourceFixed64: emit arithmetic fault on div0, commit only on success.
     DivAssignResourceFixed64 {
@@ -857,8 +1002,14 @@ pub enum PatchOp {
         source_span: Option<SourceSpan>,
         expr: Option<ExprTrace>,
     },
-    EmitSignal { signal: Signal, targets: Vec<String> },
-    GuardViolation { entity: EntityId, rule_id: String },
+    EmitSignal {
+        signal: Signal,
+        targets: Vec<String>,
+    },
+    GuardViolation {
+        entity: EntityId,
+        rule_id: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1001,7 +1152,9 @@ pub struct DetNuri {
 
 impl DetNuri {
     pub fn new() -> Self {
-        Self { world: NuriWorld::new() }
+        Self {
+            world: NuriWorld::new(),
+        }
     }
 
     pub fn state_hash(&self) -> StateHash {
@@ -1072,7 +1225,8 @@ impl Nuri for DetNuri {
                     if skip_assignments {
                         continue;
                     }
-                    self.world.set_component_json(*entity, tag.clone(), json.clone());
+                    self.world
+                        .set_component_json(*entity, tag.clone(), json.clone());
                 }
                 PatchOp::RemoveComponent { entity, tag } => {
                     if skip_assignments {
@@ -1118,7 +1272,10 @@ impl Nuri for DetNuri {
                         continue;
                     }
                     // Missing resource defaults to zero; commit only if division succeeds.
-                    let cur = self.world.get_resource_fixed64(tag).unwrap_or(Fixed64::ZERO);
+                    let cur = self
+                        .world
+                        .get_resource_fixed64(tag)
+                        .unwrap_or(Fixed64::ZERO);
                     let ctx = FaultContext {
                         tick_id: *op_tick_id,
                         location,
@@ -1128,17 +1285,20 @@ impl Nuri for DetNuri {
                     match cur.try_div(*rhs) {
                         Ok(next) => self.world.set_resource_fixed64(tag.clone(), next),
                         Err(kind) => {
-                            sink.emit(Signal::ArithmeticFault { ctx, kind: kind.clone() });
+                            sink.emit(Signal::ArithmeticFault {
+                                ctx,
+                                kind: kind.clone(),
+                            });
                             let reason = match kind {
-                                crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
-                                    "UNIT_MISMATCH"
-                                }
+                                crate::signals::ArithmeticFaultKind::DimensionMismatch {
+                                    ..
+                                } => "UNIT_MISMATCH",
                                 _ => "ARITH_FAULT",
                             };
                             let sub_reason = match kind {
-                                crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
-                                    Some("DIM_MISMATCH".to_string())
-                                }
+                                crate::signals::ArithmeticFaultKind::DimensionMismatch {
+                                    ..
+                                } => Some("DIM_MISMATCH".to_string()),
                                 _ => Some("DIV0".to_string()),
                             };
                             let event = DiagEvent {
@@ -1162,63 +1322,61 @@ impl Nuri for DetNuri {
                         }
                     }
                 }
-                PatchOp::EmitSignal { signal, targets } => {
-                    match signal {
-                        Signal::Diag { event } => {
-                            let mut event = event.clone();
-                            event.madi = tick_id;
-                            event.seq = diag_seq;
-                            if event.targets.is_empty() {
-                                event.targets = if targets.is_empty() {
-                                    vec!["unknown".to_string()]
-                                } else {
-                                    targets.clone()
-                                };
-                            }
-                            sink.emit(Signal::Diag { event });
-                            diag_seq += 1;
-                        }
-                        Signal::ArithmeticFault { ctx, kind } => {
-                            sink.emit(signal.clone());
-                            let reason = match kind {
-                                crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
-                                    "UNIT_MISMATCH"
-                                }
-                                _ => "ARITH_FAULT",
-                            };
-                            let sub_reason = match kind {
-                                crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
-                                    Some("DIM_MISMATCH".to_string())
-                                }
-                                _ => Some("DIV0".to_string()),
-                            };
-                            let diag_targets = if targets.is_empty() {
+                PatchOp::EmitSignal { signal, targets } => match signal {
+                    Signal::Diag { event } => {
+                        let mut event = event.clone();
+                        event.madi = tick_id;
+                        event.seq = diag_seq;
+                        if event.targets.is_empty() {
+                            event.targets = if targets.is_empty() {
                                 vec!["unknown".to_string()]
                             } else {
                                 targets.clone()
                             };
-                            let event = DiagEvent {
-                                madi: tick_id,
-                                seq: diag_seq,
-                                fault_id: reason.to_string(),
-                                rule_id: String::new(),
-                                reason: reason.to_string(),
-                                sub_reason,
-                                mode: None,
-                                contract_kind: None,
-                                origin: patch.origin.label(),
-                                targets: diag_targets,
-                                sam_hash: None,
-                                source_span: ctx.source_span.clone(),
-                                expr: ctx.expr.clone(),
-                                message: None,
-                            };
-                            sink.emit(Signal::Diag { event });
-                            diag_seq += 1;
                         }
-                        _ => sink.emit(signal.clone()),
+                        sink.emit(Signal::Diag { event });
+                        diag_seq += 1;
                     }
-                }
+                    Signal::ArithmeticFault { ctx, kind } => {
+                        sink.emit(signal.clone());
+                        let reason = match kind {
+                            crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
+                                "UNIT_MISMATCH"
+                            }
+                            _ => "ARITH_FAULT",
+                        };
+                        let sub_reason = match kind {
+                            crate::signals::ArithmeticFaultKind::DimensionMismatch { .. } => {
+                                Some("DIM_MISMATCH".to_string())
+                            }
+                            _ => Some("DIV0".to_string()),
+                        };
+                        let diag_targets = if targets.is_empty() {
+                            vec!["unknown".to_string()]
+                        } else {
+                            targets.clone()
+                        };
+                        let event = DiagEvent {
+                            madi: tick_id,
+                            seq: diag_seq,
+                            fault_id: reason.to_string(),
+                            rule_id: String::new(),
+                            reason: reason.to_string(),
+                            sub_reason,
+                            mode: None,
+                            contract_kind: None,
+                            origin: patch.origin.label(),
+                            targets: diag_targets,
+                            sam_hash: None,
+                            source_span: ctx.source_span.clone(),
+                            expr: ctx.expr.clone(),
+                            message: None,
+                        };
+                        sink.emit(Signal::Diag { event });
+                        diag_seq += 1;
+                    }
+                    _ => sink.emit(signal.clone()),
+                },
                 PatchOp::GuardViolation { .. } => {}
             }
         }
@@ -1251,7 +1409,7 @@ impl Geoul for InMemoryGeoul {
 
 #[cfg(test)]
 mod tests {
-    use super::NuriWorld;
+    use super::{NuriWorld, ResourceMapEntry, ResourceValue};
     use crate::Fixed64;
 
     #[test]
@@ -1284,5 +1442,124 @@ mod tests {
             world.state_hash().to_hex(),
             world.state_hash_excluding_resource_prefixes(&[]).to_hex()
         );
+    }
+
+    #[test]
+    fn stream_v1_hash_uses_oldest_to_newest_order() {
+        let x = ResourceValue::String("x".to_string());
+        let y = ResourceValue::String("y".to_string());
+        let z = ResourceValue::String("z".to_string());
+        let none = ResourceValue::None;
+
+        let stream_a = ResourceValue::stream_v1_from_ring_buffer(
+            4,
+            2,
+            3,
+            vec![x.clone(), y.clone(), z.clone(), none.clone()],
+        );
+        let stream_b = ResourceValue::stream_v1_from_ring_buffer(
+            4,
+            0,
+            3,
+            vec![z.clone(), none.clone(), x.clone(), y.clone()],
+        );
+
+        let mut world_a = NuriWorld::new();
+        world_a.set_resource_value("흐름".to_string(), stream_a);
+        let mut world_b = NuriWorld::new();
+        world_b.set_resource_value("흐름".to_string(), stream_b);
+
+        assert_eq!(world_a.state_hash().to_hex(), world_b.state_hash().to_hex());
+    }
+
+    #[test]
+    fn stream_v1_hash_changes_when_capacity_changes() {
+        let stream_a = ResourceValue::stream_v1_from_ring_buffer(
+            4,
+            2,
+            3,
+            vec![
+                ResourceValue::String("x".to_string()),
+                ResourceValue::String("y".to_string()),
+                ResourceValue::String("z".to_string()),
+                ResourceValue::None,
+            ],
+        );
+        let stream_b = ResourceValue::stream_v1_from_ring_buffer(
+            5,
+            2,
+            3,
+            vec![
+                ResourceValue::String("x".to_string()),
+                ResourceValue::String("y".to_string()),
+                ResourceValue::String("z".to_string()),
+                ResourceValue::None,
+                ResourceValue::None,
+            ],
+        );
+
+        let mut world_a = NuriWorld::new();
+        world_a.set_resource_value("흐름".to_string(), stream_a);
+        let mut world_b = NuriWorld::new();
+        world_b.set_resource_value("흐름".to_string(), stream_b);
+
+        assert_ne!(world_a.state_hash().to_hex(), world_b.state_hash().to_hex());
+    }
+
+    #[test]
+    fn plain_map_without_stream_schema_keeps_map_hash_behavior() {
+        let map_a = ResourceValue::map_from_entries(vec![
+            ResourceMapEntry {
+                key: ResourceValue::String("capacity".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(4)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("head".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(2)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("len".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(3)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("buffer".to_string()),
+                value: ResourceValue::List(vec![
+                    ResourceValue::String("x".to_string()),
+                    ResourceValue::String("y".to_string()),
+                    ResourceValue::String("z".to_string()),
+                    ResourceValue::None,
+                ]),
+            },
+        ]);
+        let map_b = ResourceValue::map_from_entries(vec![
+            ResourceMapEntry {
+                key: ResourceValue::String("capacity".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(4)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("head".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(0)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("len".to_string()),
+                value: ResourceValue::Fixed64(Fixed64::from_i64(3)),
+            },
+            ResourceMapEntry {
+                key: ResourceValue::String("buffer".to_string()),
+                value: ResourceValue::List(vec![
+                    ResourceValue::String("z".to_string()),
+                    ResourceValue::None,
+                    ResourceValue::String("x".to_string()),
+                    ResourceValue::String("y".to_string()),
+                ]),
+            },
+        ]);
+
+        let mut world_a = NuriWorld::new();
+        world_a.set_resource_value("흐름".to_string(), map_a);
+        let mut world_b = NuriWorld::new();
+        world_b.set_resource_value("흐름".to_string(), map_b);
+
+        assert_ne!(world_a.state_hash().to_hex(), world_b.state_hash().to_hex());
     }
 }

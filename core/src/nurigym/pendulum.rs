@@ -80,7 +80,11 @@ impl PendulumEnv {
         apply_step(&mut self.state, action, &self.config);
         let next_obs = self.state.observation();
         let done_after = is_done(&self.state, &self.config);
-        let reward = if done_after { Fixed64::ZERO } else { Fixed64::ONE };
+        let reward = if done_after {
+            Fixed64::ZERO
+        } else {
+            Fixed64::ONE
+        };
         self.done = done_after;
         Ok(PendulumStep {
             observation: obs,
@@ -92,7 +96,11 @@ impl PendulumEnv {
     }
 }
 
-pub fn run_episode(seed: u64, actions: &[i64], max_steps: Option<u64>) -> Result<Vec<PendulumStep>, String> {
+pub fn run_episode(
+    seed: u64,
+    actions: &[i64],
+    max_steps: Option<u64>,
+) -> Result<Vec<PendulumStep>, String> {
     if actions.is_empty() {
         return Err("E_NURIGYM_ACTIONS actions must not be empty".to_string());
     }
@@ -130,7 +138,10 @@ pub fn run_episode(seed: u64, actions: &[i64], max_steps: Option<u64>) -> Result
 fn normalize_action(action: i64) -> Result<i64, String> {
     match action {
         -1 | 1 => Ok(action),
-        _ => Err(format!("E_NURIGYM_ACTION_INVALID action={} (expected -1 or 1)", action)),
+        _ => Err(format!(
+            "E_NURIGYM_ACTION_INVALID action={} (expected -1 or 1)",
+            action
+        )),
     }
 }
 

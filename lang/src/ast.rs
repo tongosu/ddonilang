@@ -98,6 +98,9 @@ pub enum MetaBlockKind {
     /// view-only 연출 블록 (Manim식 보개마당). state_hash 제외.
     /// entries[0] = { } 안의 원본 텍스트 그대로(opaque).
     BogeaMadang,
+    /// AGE5 짜임 블록 최소 수용용 opaque 블록.
+    /// entries[0] = { } 안의 원본 텍스트 그대로(opaque).
+    Jjaim,
 }
 
 #[derive(Debug, Clone)]
@@ -115,8 +118,22 @@ pub enum Stmt {
         mood: Mood,
         target: Expr,
         value: Expr,
+        deferred: bool,
+        deferred_span: Option<Span>,
     },
     Expr {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        expr: Expr,
+    },
+    Show {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        expr: Expr,
+    },
+    Inspect {
         id: NodeId,
         span: Span,
         mood: Mood,
@@ -185,6 +202,15 @@ pub enum Stmt {
         iterable: Expr,
         body: Body,
     },
+    Quantifier {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        kind: QuantifierKind,
+        variable: String,
+        domain: TypeRef,
+        body: Body,
+    },
     Break {
         id: NodeId,
         span: Span,
@@ -201,6 +227,33 @@ pub enum Stmt {
         else_body: Body,
     },
     Guard {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        condition: Expr,
+        body: Body,
+    },
+    BeatBlock {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        body: Body,
+    },
+    Hook {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        kind: HookKind,
+        body: Body,
+    },
+    HookWhenBecomes {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        condition: Expr,
+        body: Body,
+    },
+    HookWhile {
         id: NodeId,
         span: Span,
         mood: Mood,
@@ -269,6 +322,8 @@ pub enum ExprKind {
     Pack {
         fields: Vec<(String, Expr)>,
     },
+    Assertion(Assertion),
+    StateMachine(StateMachine),
     Formula(Formula),
     Template(Template),
     TemplateRender {
@@ -337,6 +392,21 @@ pub enum ContractMode {
     Alert,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuantifierKind {
+    ForAll,
+    Exists,
+    ExistsUnique,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HookKind {
+    Start,
+    End,
+    EveryMadi,
+    EveryNMadi(u64),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mood {
     Declarative,
@@ -384,6 +454,28 @@ pub struct Formula {
     pub raw: String,
     pub dialect: FormulaDialect,
     pub explicit_tag: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateMachine {
+    pub states: Vec<String>,
+    pub initial: String,
+    pub transitions: Vec<StateTransition>,
+    pub on_transition_checks: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Assertion {
+    pub body_source: String,
+    pub canon: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateTransition {
+    pub from: String,
+    pub to: String,
+    pub guard_name: Option<String>,
+    pub action_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

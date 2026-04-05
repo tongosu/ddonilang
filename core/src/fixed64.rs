@@ -87,12 +87,7 @@ impl Fixed64 {
     /// - rhs==0 이면 self는 그대로 유지
     /// - sink로 산술고장 emit
     #[inline]
-    pub fn div_assign_det(
-        &mut self,
-        rhs: Self,
-        ctx: FaultContext,
-        sink: &mut dyn SignalSink,
-    ) {
+    pub fn div_assign_det(&mut self, rhs: Self, ctx: FaultContext, sink: &mut dyn SignalSink) {
         if rhs.raw == 0 {
             sink.emit(Signal::ArithmeticFault {
                 ctx,
@@ -122,12 +117,13 @@ impl Fixed64 {
     }
 
     pub const NEG_ONE: Self = Self::from_raw_i64(-1 << 32);
-    
+
     pub const fn to_raw(self) -> i64 {
         self.raw
     }
 
-    pub fn from_f64_lossy(value: f64) -> Self { // FIXED64_LINT_ALLOW
+    pub fn from_f64_lossy(value: f64) -> Self {
+        // FIXED64_LINT_ALLOW
         Self::from_raw_i64((value * Self::SCALE_F64) as i64)
     }
 
@@ -168,7 +164,6 @@ fn clamp_i128_to_i64(x: i128) -> i64 {
     } else {
         x as i64
     }
-
 }
 
 // ---- 연산자 오버로드: 덧/뺄/곱은 포화로 고정, 나눗셈은 try_div로만 ----
@@ -201,7 +196,9 @@ impl core::ops::Neg for Fixed64 {
     type Output = Fixed64;
     #[inline]
     fn neg(self) -> Fixed64 {
-        Fixed64 { raw: self.raw.saturating_neg() }
+        Fixed64 {
+            raw: self.raw.saturating_neg(),
+        }
     }
 }
 
@@ -226,7 +223,7 @@ impl fmt::Display for Fixed64 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let int_part = self.int_part();
         let frac_part = self.frac_part();
-        
+
         if frac_part == 0 {
             // 정수만 있는 경우
             write!(f, "{}", int_part)
@@ -234,11 +231,11 @@ impl fmt::Display for Fixed64 {
             // 1. 소수점 아래 6자리 정밀도로 계산 (반올림 보정 포함)
             // frac_part / 2^32 * 1,000,000
             let frac_decimal = ((frac_part as u128 * 1_000_000) >> 32) as u32;
-            
+
             // 2. 임시 문자열 생성 후 0 제거 (한 번만 출력하기 위함)
             let s = format!("{}.{:06}", int_part, frac_decimal);
             let trimmed = s.trim_end_matches('0').trim_end_matches('.');
-            
+
             write!(f, "{}", trimmed)
         }
     }
@@ -294,7 +291,10 @@ mod tests {
         assert_eq!(sink.signals.len(), 1);
         assert_eq!(
             sink.signals[0],
-            Signal::ArithmeticFault { ctx, kind: ArithmeticFaultKind::DivByZero }
+            Signal::ArithmeticFault {
+                ctx,
+                kind: ArithmeticFaultKind::DivByZero
+            }
         );
     }
 
@@ -316,52 +316,53 @@ mod tests {
         assert_eq!(results, expected);
     }
 
-        #[test]
+    #[test]
     fn test_from_i64() {
         assert_eq!(Fixed64::from_i64(0), Fixed64::ZERO);
         assert_eq!(Fixed64::from_i64(1), Fixed64::ONE);
         assert_eq!(Fixed64::from_i64(-1), Fixed64::NEG_ONE);
         assert_eq!(Fixed64::from_i64(10).to_raw(), 10 << 32);
     }
-    
+
     #[test]
     fn test_addition() {
         let a = Fixed64::from_i64(3);
         let b = Fixed64::from_i64(7);
         assert_eq!(a + b, Fixed64::from_i64(10));
     }
-    
+
     #[test]
     fn test_subtraction() {
         let a = Fixed64::from_i64(10);
         let b = Fixed64::from_i64(3);
         assert_eq!(a - b, Fixed64::from_i64(7));
     }
-    
+
     #[test]
     fn test_multiplication() {
         let a = Fixed64::from_i64(3);
         let b = Fixed64::from_i64(4);
         assert_eq!(a * b, Fixed64::from_i64(12));
     }
-    
+
     #[test]
     fn test_division() {
         let a = Fixed64::from_i64(12);
         let b = Fixed64::from_i64(4);
         assert_eq!(a / b, Fixed64::from_i64(3));
     }
-    
+
     #[test]
     fn test_display() {
         assert_eq!(format!("{}", Fixed64::from_i64(10)), "10");
-        
+
         let display_val = format!("{}", Fixed64::from_f64_lossy(3.14)); // FIXED64_LINT_ALLOW
-        
+
         // 이진법 오차로 인해 3.14 또는 3.139999로 출력될 수 있습니다.
         assert!(
             display_val == "3.14" || display_val == "3.139999",
-            "실제 출력값: '{}' (예상값과 다름)", display_val
+            "실제 출력값: '{}' (예상값과 다름)",
+            display_val
         );
     }
 }

@@ -7,16 +7,11 @@ pub struct ActionNode {
 
 pub fn pick_best_action(mut actions: Vec<ActionNode>) -> Option<ActionNode> {
     actions.sort_by(|a, b| {
-        (
-            a.total_cost,
-            a.steps as i64,
-            a.action_id.as_str(),
-        )
-            .cmp(&(
-                b.total_cost,
-                b.steps as i64,
-                b.action_id.as_str(),
-            ))
+        (a.total_cost, a.steps as i64, a.action_id.as_str()).cmp(&(
+            b.total_cost,
+            b.steps as i64,
+            b.action_id.as_str(),
+        ))
     });
     actions.into_iter().next()
 }
@@ -63,21 +58,16 @@ impl WorldState {
     }
 
     pub fn satisfies_preconditions(&self, action: &Action) -> bool {
-        action.preconditions.iter().all(|(key, value)| {
-            self.variables
-                .get(key)
-                .map(|v| v == value)
-                .unwrap_or(false)
-        })
+        action
+            .preconditions
+            .iter()
+            .all(|(key, value)| self.variables.get(key).map(|v| v == value).unwrap_or(false))
     }
 
     pub fn satisfies_goal(&self, goal: &TargetState) -> bool {
         match &goal.condition {
             GoalCondition::StateEquals { key, value } => {
-                self.variables
-                    .get(key)
-                    .map(|v| v == value)
-                    .unwrap_or(false)
+                self.variables.get(key).map(|v| v == value).unwrap_or(false)
             }
             _ => false,
         }
@@ -235,7 +225,12 @@ impl GoapPlanner {
     fn heuristic(state: &WorldState, goal: &TargetState) -> u16 {
         match &goal.condition {
             GoalCondition::StateEquals { key, value } => {
-                if state.variables.get(key).map(|v| v == value).unwrap_or(false) {
+                if state
+                    .variables
+                    .get(key)
+                    .map(|v| v == value)
+                    .unwrap_or(false)
+                {
                     0
                 } else {
                     100

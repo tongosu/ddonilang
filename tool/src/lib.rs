@@ -1,4 +1,7 @@
+#[path = "../../tools/teul-cli/src/canon.rs"]
+pub mod canon;
 pub mod ddn_runtime;
+pub mod file_meta;
 pub mod gate0_registry;
 pub mod preprocess;
 

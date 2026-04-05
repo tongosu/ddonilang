@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 
 use crate::{
-    EngineLoop, Fixed64, TickId, KEY_W,
     platform::{
         Bogae, DetNuri, InMemoryGeoul, InputSnapshot, Iyagi, Nuri, NuriWorld, Origin, Patch,
         PatchOp, Sam, SeulgiIntent, SeulgiPacket,
     },
     signals::VecSignalSink,
+    EngineLoop, Fixed64, TickId, KEY_W,
 };
 
 struct SequenceSam {
@@ -57,11 +57,7 @@ impl Iyagi for InputScopeIyagi {
         Patch::default()
     }
 
-    fn run_update(
-        &mut self,
-        world: &NuriWorld,
-        input: &InputSnapshot,
-    ) -> Patch {
+    fn run_update(&mut self, world: &NuriWorld, input: &InputSnapshot) -> Patch {
         let mut ops = Vec::new();
         ops.push(PatchOp::SetResourceJson {
             tag: "current_key".to_string(),
@@ -127,22 +123,38 @@ fn sam_input_is_tick_scoped_and_requires_copy() {
     let frame1 = loop_.tick_once(1, &mut sink);
     assert_eq!(frame1.snapshot.last_key_name, "w");
     assert_eq!(
-        loop_.nuri.world().get_resource_json("current_key").as_deref(),
+        loop_
+            .nuri
+            .world()
+            .get_resource_json("current_key")
+            .as_deref(),
         Some("w")
     );
     assert_eq!(
-        loop_.nuri.world().get_resource_json("copied_key").as_deref(),
+        loop_
+            .nuri
+            .world()
+            .get_resource_json("copied_key")
+            .as_deref(),
         Some("w")
     );
 
     let frame2 = loop_.tick_once(2, &mut sink);
     assert_eq!(frame2.snapshot.last_key_name, "");
     assert_eq!(
-        loop_.nuri.world().get_resource_json("current_key").as_deref(),
+        loop_
+            .nuri
+            .world()
+            .get_resource_json("current_key")
+            .as_deref(),
         Some("")
     );
     assert_eq!(
-        loop_.nuri.world().get_resource_json("copied_key").as_deref(),
+        loop_
+            .nuri
+            .world()
+            .get_resource_json("copied_key")
+            .as_deref(),
         Some("w")
     );
 }

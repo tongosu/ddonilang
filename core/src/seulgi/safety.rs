@@ -21,16 +21,28 @@ pub fn check(rule: &SafetyRule, intent_kind: &str) -> SafetyDecision {
     match rule.mode {
         SafetyMode::AllowList => {
             if listed {
-                SafetyDecision { allowed: true, reason: "allowlist hit".to_string() }
+                SafetyDecision {
+                    allowed: true,
+                    reason: "allowlist hit".to_string(),
+                }
             } else {
-                SafetyDecision { allowed: false, reason: "allowlist miss".to_string() }
+                SafetyDecision {
+                    allowed: false,
+                    reason: "allowlist miss".to_string(),
+                }
             }
         }
         SafetyMode::DenyList => {
             if listed {
-                SafetyDecision { allowed: false, reason: "denylist hit".to_string() }
+                SafetyDecision {
+                    allowed: false,
+                    reason: "denylist hit".to_string(),
+                }
             } else {
-                SafetyDecision { allowed: true, reason: "denylist miss".to_string() }
+                SafetyDecision {
+                    allowed: true,
+                    reason: "denylist miss".to_string(),
+                }
             }
         }
     }

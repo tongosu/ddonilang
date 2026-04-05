@@ -1,9 +1,9 @@
-use crate::{EngineLoop, Fixed64};
 use crate::platform::{
     Bogae, DetNuri, DetSam, Geoul, InMemoryGeoul, InputSnapshot, Iyagi, Origin, Patch, PatchOp,
     Sam, SeulgiIntent,
 };
 use crate::signals::{TickId, VecSignalSink};
+use crate::{EngineLoop, Fixed64};
 
 struct InputEchoIyagi;
 
@@ -12,11 +12,7 @@ impl Iyagi for InputEchoIyagi {
         Patch::default()
     }
 
-    fn run_update(
-        &mut self,
-        _world: &crate::platform::NuriWorld,
-        input: &InputSnapshot,
-    ) -> Patch {
+    fn run_update(&mut self, _world: &crate::platform::NuriWorld, input: &InputSnapshot) -> Patch {
         let mut ops = Vec::new();
         ops.push(PatchOp::SetResourceJson {
             tag: "last_key".to_string(),

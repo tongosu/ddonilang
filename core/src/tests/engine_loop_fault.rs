@@ -1,10 +1,10 @@
 use crate::{
-    ArithmeticFaultKind, EngineLoop, ExprTrace, Fixed64, SourceSpan, TickId,
     platform::{
         Bogae, ComponentTag, DetNuri, DetSam, EntityId, Geoul, InMemoryGeoul, Iyagi, Nuri,
         NuriWorld, Origin, Patch, PatchOp,
     },
     signals::{Signal, VecSignalSink},
+    ArithmeticFaultKind, EngineLoop, ExprTrace, Fixed64, SourceSpan, TickId,
 };
 
 struct Div0Iyagi;
@@ -14,11 +14,7 @@ impl Iyagi for Div0Iyagi {
         Patch::default()
     }
 
-    fn run_update(
-        &mut self,
-        _world: &NuriWorld,
-        input: &crate::platform::InputSnapshot,
-    ) -> Patch {
+    fn run_update(&mut self, _world: &NuriWorld, input: &crate::platform::InputSnapshot) -> Patch {
         // ✅ resource "x"에 대해 x /= 0 수행하도록 Patch 생성
         Patch {
             ops: vec![PatchOp::DivAssignResourceFixed64 {
@@ -64,7 +60,8 @@ fn engine_loop_div0_fault_flows_to_nuri_signal_sink() {
 
     let mut nuri = DetNuri::new();
     // ✅ x = 5 (Fixed64)
-    nuri.world_mut().set_resource_fixed64("x".to_string(), Fixed64::from_i64(5));
+    nuri.world_mut()
+        .set_resource_fixed64("x".to_string(), Fixed64::from_i64(5));
     let before = nuri.world().get_resource_fixed64("x").unwrap();
 
     let geoul = InMemoryGeoul::new();
@@ -137,8 +134,7 @@ fn engine_loop_div0_fault_on_missing_resource_does_not_create_resource() {
 #[test]
 fn guard_violation_drops_origin_assignments_and_marks_entity() {
     let mut nuri = DetNuri::new();
-    nuri
-        .world_mut()
+    nuri.world_mut()
         .set_resource_fixed64("x".to_string(), Fixed64::from_i64(1));
 
     let entity = EntityId(7);
@@ -165,11 +161,15 @@ fn guard_violation_drops_origin_assignments_and_marks_entity() {
     let rule_tag = ComponentTag("#규칙위반".to_string());
     let disabled_tag = ComponentTag("#휴면".to_string());
     assert_eq!(
-        nuri.world().get_component_json(entity, &rule_tag).as_deref(),
+        nuri.world()
+            .get_component_json(entity, &rule_tag)
+            .as_deref(),
         Some("참")
     );
     assert_eq!(
-        nuri.world().get_component_json(entity, &disabled_tag).as_deref(),
+        nuri.world()
+            .get_component_json(entity, &disabled_tag)
+            .as_deref(),
         Some("참")
     );
 

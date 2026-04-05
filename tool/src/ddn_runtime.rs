@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(test)]
+use std::cell::Cell;
 
 use crate::gate0_registry;
 use crate::preprocess::{preprocess_source_for_parse, split_file_meta, FileMeta};
@@ -9,7 +11,7 @@ use ddonirang_core::platform::{
 use ddonirang_core::signals::DiagEvent;
 use ddonirang_core::{
     unit_spec_from_symbol, ArithmeticFaultKind, ExprTrace, FaultContext, Fixed64, InputSnapshot,
-    ResourceHandle, Signal, SourceSpan, UnitDim, UnitError, UnitValue,
+    ResourceHandle, Signal, SourceSpan, UnitDim, UnitError, UnitValue, KEY_A, KEY_D, KEY_S, KEY_W,
 };
 use ddonirang_lang::runtime::{
     input_just_pressed, input_pressed, list_add, list_len, list_nth, list_remove, list_set,
@@ -18,17 +20,164 @@ use ddonirang_lang::runtime::{
     Value,
 };
 use ddonirang_lang::{
-    age_not_available_error, canonicalize, parse_with_mode, AgeTarget, AtSuffix, Body,
+    age_not_available_error, canonicalize, parse_with_mode, AgeTarget, Assertion, AtSuffix, Body,
     CanonProgram, Expr, ExprKind, Formula, FormulaDialect, Literal, ParamPin, ParseError,
-    ParseMode, RegexLiteral, SeedDef, SeedKind, Stmt, TemplateFormat, TemplatePart, TopLevelItem,
-    TypeRef,
+    ParseMode, RegexLiteral, SeedDef, SeedKind, StateMachine, StateTransition, Stmt,
+    TemplateFormat, TemplatePart, TopLevelItem, TypeRef,
 };
 use libm;
+use num_bigint::{BigInt, Sign};
+use num_integer::Integer;
+use num_rational::BigRational;
+use num_traits::{ToPrimitive, Zero};
 use regex::RegexBuilder;
 
 static LAMBDA_SEQ: AtomicU64 = AtomicU64::new(1);
 static DEFAULT_PARSE_MODE: AtomicU64 = AtomicU64::new(1);
 static DEFAULT_AGE_TARGET: AtomicU64 = AtomicU64::new(3);
+const STATE_MACHINE_RESOURCE_KIND: &str = "ddn.state_machine.v1";
+const ASSERTION_RESOURCE_KIND: &str = "ddn.assertion.v1";
+const INPUT_KEY_SPACE: u64 = 1 << 4;
+const INPUT_KEY_ENTER: u64 = 1 << 5;
+const INPUT_KEY_ESCAPE: u64 = 1 << 6;
+const INPUT_KEY_Z: u64 = 1 << 7;
+const INPUT_KEY_X: u64 = 1 << 8;
+const NUMERIC_PACK_KIND_KEY: &str = "__수타입";
+const NUMERIC_PACK_APPROX_KEY: &str = "__근사";
+const NUMERIC_KIND_BIG_INT: &str = "큰바른수";
+const NUMERIC_KIND_RATIONAL: &str = "나눔수";
+const NUMERIC_KIND_FACTOR: &str = "곱수";
+const NUMERIC_DIAG_RULE_ID_FACTOR_DECOMP_DEFERRED: &str = "L1-NUMERIC-01";
+const NUMERIC_DIAG_REASON_FACTOR_DECOMP_DEFERRED: &str = "NUMERIC_FACTOR_DECOMP_DEFERRED";
+const NUMERIC_DIAG_TAG_FACTOR_DECOMP_DEFERRED: &str = "numeric:factor:deferred";
+const NUMERIC_DIAG_RULE_ID_FACTOR_ROUTE_SUMMARY: &str = "L1-NUMERIC-02";
+const NUMERIC_DIAG_REASON_FACTOR_ROUTE_SUMMARY: &str = "NUMERIC_FACTOR_ROUTE_SUMMARY";
+const NUMERIC_DIAG_TAG_FACTOR_ROUTE_SUMMARY: &str = "numeric:factor:routes";
+const NUMERIC_FACTOR_ROUTE_SUMMARY_RESOURCE_KEY: &str = "수진단.곱수경로집계";
+const NUMERIC_FACTOR_ROUTE_TOTAL_RESOURCE_KEY: &str = "수진단.곱수호출수";
+const NUMERIC_FACTOR_BITS_MIN_RESOURCE_KEY: &str = "수진단.곱수비트최소";
+const NUMERIC_FACTOR_BITS_MAX_RESOURCE_KEY: &str = "수진단.곱수비트최대";
+const NUMERIC_FACTOR_BITS_SUM_RESOURCE_KEY: &str = "수진단.곱수비트합";
+const NUMERIC_FACTOR_POLICY_RESOURCE_KEY: &str = "수진단.곱수정책";
+const FACTOR_DECOMP_STATUS_KEY: &str = "분해상태";
+const FACTOR_DECOMP_ROUTE_KEY: &str = "분해경로";
+const FACTOR_DECOMP_BITS_KEY: &str = "분해비트수";
+const FACTOR_DECOMP_STATUS_DONE: &str = "완료";
+const FACTOR_DECOMP_STATUS_DEFERRED: &str = "지연";
+const FACTOR_DECOMP_DEFERRED_REASON_KEY: &str = "지연사유";
+const FACTOR_DECOMP_DEFERRED_REASON_BIT_LIMIT: &str = "비트한계초과";
+const FACTOR_DECOMP_DEFERRED_REASON_FACTOR_FAILED: &str = "분해실패";
+const FACTOR_DECOMP_ROUTE_ZERO: &str = "zero";
+const FACTOR_DECOMP_ROUTE_I64: &str = "i64";
+const FACTOR_DECOMP_ROUTE_BIGINT: &str = "bigint";
+const FACTOR_DECOMP_ROUTE_BIGINT_SMALL_PRIME: &str = "bigint:smallprime";
+const FACTOR_DECOMP_ROUTE_BIGINT_POLLARD: &str = "bigint:pollard";
+const FACTOR_DECOMP_ROUTE_BIGINT_FALLBACK: &str = "bigint:fallback";
+const FACTOR_DECOMP_ROUTE_BIGINT_MIXED: &str = "bigint:mixed";
+const FACTOR_DECOMP_ROUTE_DEFERRED_BIT_LIMIT: &str = "deferred:bitlimit";
+const FACTOR_DECOMP_ROUTE_DEFERRED_FACTOR_FAILED: &str = "deferred:factorfailed";
+const FACTOR_BIGINT_FACTOR_BITS_LIMIT: usize = 512;
+const FACTOR_POLLARD_MAX_ITERS: usize = 200_000;
+const FACTOR_POLLARD_C_SEED_LIMIT: u64 = 64;
+const FACTOR_POLLARD_X0_SEEDS: [u64; 6] = [2, 3, 5, 7, 11, 13];
+const FACTOR_TRIAL_FALLBACK_LIMIT: u64 = 1_000_000;
+const FACTOR_SMALL_PRIMES: [u64; 25] = [
+    3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89,
+    97, 101,
+];
+#[cfg(test)]
+thread_local! {
+    static FACTOR_POLLARD_MAX_ITERS_OVERRIDE: Cell<Option<usize>> = const { Cell::new(None) };
+    static FACTOR_TRIAL_FALLBACK_LIMIT_OVERRIDE: Cell<Option<u64>> = const { Cell::new(None) };
+}
+const INPUT_KEY_BINDINGS: [(&str, u64, &[&str]); 9] = [
+    ("ArrowLeft", KEY_A, &["왼쪽화살표", "왼쪽", "좌"]),
+    ("ArrowRight", KEY_D, &["오른쪽화살표", "오른쪽", "우"]),
+    (
+        "ArrowDown",
+        KEY_S,
+        &["아래쪽화살표", "아래쪽", "아래", "하"],
+    ),
+    ("ArrowUp", KEY_W, &["위쪽화살표", "위쪽", "위", "상"]),
+    (
+        "Space",
+        INPUT_KEY_SPACE,
+        &["스페이스", "스페이스바", "공백"],
+    ),
+    ("Enter", INPUT_KEY_ENTER, &["엔터", "엔터키"]),
+    ("Escape", INPUT_KEY_ESCAPE, &["이스케이프", "이스케이프키"]),
+    ("KeyZ", INPUT_KEY_Z, &["Z키", "지키"]),
+    ("KeyX", INPUT_KEY_X, &["X키", "엑스키"]),
+];
+
+fn value_from_flag_number(value: i64) -> Value {
+    Value::Fixed64(Fixed64::from_i64(value))
+}
+
+fn seed_keyboard_flag_for_key(
+    resources: &mut HashMap<String, Value>,
+    key: &str,
+    held_on: i64,
+    pressed_on: i64,
+    released_on: i64,
+) {
+    resources.insert(
+        format!("샘.키보드.누르고있음.{}", key),
+        value_from_flag_number(held_on),
+    );
+    resources.insert(
+        format!("샘.키보드.눌림.{}", key),
+        value_from_flag_number(pressed_on),
+    );
+    resources.insert(
+        format!("샘.키보드.뗌.{}", key),
+        value_from_flag_number(released_on),
+    );
+    resources.insert(
+        format!("입력상태.키_누르고있음.{}", key),
+        value_from_flag_number(held_on),
+    );
+    resources.insert(
+        format!("입력상태.키_눌림.{}", key),
+        value_from_flag_number(pressed_on),
+    );
+    resources.insert(
+        format!("입력상태.키_뗌.{}", key),
+        value_from_flag_number(released_on),
+    );
+}
+
+fn seed_keyboard_state_resources(
+    resources: &mut HashMap<String, Value>,
+    prev_mask: u64,
+    next_mask: u64,
+) {
+    for (key, bit, aliases) in INPUT_KEY_BINDINGS {
+        let held_on = if next_mask & bit != 0 { 1 } else { 0 };
+        let pressed_on = if (next_mask & bit != 0) && (prev_mask & bit == 0) {
+            1
+        } else {
+            0
+        };
+        let released_on = if (next_mask & bit == 0) && (prev_mask & bit != 0) {
+            1
+        } else {
+            0
+        };
+        seed_keyboard_flag_for_key(resources, key, held_on, pressed_on, released_on);
+        for alias in aliases {
+            seed_keyboard_flag_for_key(resources, alias, held_on, pressed_on, released_on);
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DdnParseWarning {
+    pub code: String,
+    pub message: String,
+    pub span_start: usize,
+    pub span_end: usize,
+}
 
 fn next_lambda_id() -> u64 {
     LAMBDA_SEQ.fetch_add(1, Ordering::Relaxed)
@@ -95,6 +244,7 @@ pub struct DdnProgram {
     functions: HashMap<String, SeedDef>,
     #[allow(dead_code)]
     file_meta: FileMeta,
+    parse_warnings: Vec<DdnParseWarning>,
 }
 
 impl DdnProgram {
@@ -111,10 +261,23 @@ impl DdnProgram {
         let cleaned = preprocess_source_for_parse(&meta_parse.stripped)?;
         let mut program = parse_with_mode(&cleaned, file_path, mode)
             .map_err(|e| format_parse_error(&cleaned, &e))?;
-        let _report = canonicalize(&mut program).map_err(|e| format_parse_error(&cleaned, &e))?;
+        let report = canonicalize(&mut program).map_err(|e| format_parse_error(&cleaned, &e))?;
+        let parse_warnings = report
+            .warnings
+            .into_iter()
+            .map(|warning| DdnParseWarning {
+                code: warning.code.to_string(),
+                message: warning.message,
+                span_start: warning.span.start,
+                span_end: warning.span.end,
+            })
+            .collect();
         enforce_regex_age_gate(&program, default_age_target())?;
+        enforce_assertion_age_gate(&program, default_age_target())?;
+        enforce_state_machine_age_gate(&program, default_age_target())?;
+        enforce_quantifier_age_gate(&program, default_age_target())?;
         let mut functions = HashMap::new();
-        let tails = ["기", "고", "면"];
+        let tails = ["기", "고", "면", "면서"];
         for item in &program.items {
             let ddonirang_lang::TopLevelItem::SeedDef(seed) = item;
             let name = seed.canonical_name.clone();
@@ -130,7 +293,12 @@ impl DdnProgram {
             program,
             functions,
             file_meta: meta_parse.meta,
+            parse_warnings,
         })
+    }
+
+    pub fn parse_warnings(&self) -> &[DdnParseWarning] {
+        &self.parse_warnings
     }
 }
 
@@ -142,6 +310,54 @@ fn enforce_regex_age_gate(program: &CanonProgram, age_target: AgeTarget) -> Resu
         return Err(age_not_available_error(
             feature,
             AgeTarget::Age3,
+            age_target,
+        ));
+    }
+    Ok(())
+}
+
+fn enforce_assertion_age_gate(program: &CanonProgram, age_target: AgeTarget) -> Result<(), String> {
+    if age_target >= AgeTarget::Age1 {
+        return Ok(());
+    }
+    if let Some(feature) = detect_assertion_feature(program) {
+        return Err(age_not_available_error(
+            feature,
+            AgeTarget::Age1,
+            age_target,
+        ));
+    }
+    Ok(())
+}
+
+fn enforce_state_machine_age_gate(
+    program: &CanonProgram,
+    age_target: AgeTarget,
+) -> Result<(), String> {
+    if age_target >= AgeTarget::Age1 {
+        return Ok(());
+    }
+    if let Some(feature) = detect_state_machine_feature(program) {
+        return Err(age_not_available_error(
+            feature,
+            AgeTarget::Age1,
+            age_target,
+        ));
+    }
+    Ok(())
+}
+
+fn enforce_quantifier_age_gate(
+    program: &CanonProgram,
+    age_target: AgeTarget,
+) -> Result<(), String> {
+    if age_target >= AgeTarget::Age4 {
+        return Ok(());
+    }
+    if let Some(feature) = detect_quantifier_feature(program) {
+        return Err(age_not_available_error(
+            feature,
+            AgeTarget::Age4,
             age_target,
         ));
     }
@@ -160,9 +376,72 @@ fn detect_regex_feature(program: &CanonProgram) -> Option<&'static str> {
     None
 }
 
+fn detect_assertion_feature(program: &CanonProgram) -> Option<&'static str> {
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        if let Some(body) = &seed.body {
+            if let Some(feature) = body_assertion_feature(body) {
+                return Some(feature);
+            }
+        }
+    }
+    None
+}
+
+fn detect_state_machine_feature(program: &CanonProgram) -> Option<&'static str> {
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        if let Some(body) = &seed.body {
+            if let Some(feature) = body_state_machine_feature(body) {
+                return Some(feature);
+            }
+        }
+    }
+    None
+}
+
+fn detect_quantifier_feature(program: &CanonProgram) -> Option<&'static str> {
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        if let Some(body) = &seed.body {
+            if let Some(feature) = body_quantifier_feature(body) {
+                return Some(feature);
+            }
+        }
+    }
+    None
+}
+
 fn body_regex_feature(body: &Body) -> Option<&'static str> {
     for stmt in &body.stmts {
         if let Some(feature) = stmt_regex_feature(stmt) {
+            return Some(feature);
+        }
+    }
+    None
+}
+
+fn body_assertion_feature(body: &Body) -> Option<&'static str> {
+    for stmt in &body.stmts {
+        if let Some(feature) = stmt_assertion_feature(stmt) {
+            return Some(feature);
+        }
+    }
+    None
+}
+
+fn body_state_machine_feature(body: &Body) -> Option<&'static str> {
+    for stmt in &body.stmts {
+        if let Some(feature) = stmt_state_machine_feature(stmt) {
+            return Some(feature);
+        }
+    }
+    None
+}
+
+fn body_quantifier_feature(body: &Body) -> Option<&'static str> {
+    for stmt in &body.stmts {
+        if let Some(feature) = stmt_quantifier_feature(stmt) {
             return Some(feature);
         }
     }
@@ -184,7 +463,9 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
         Stmt::Mutate { target, value, .. } => {
             expr_regex_feature(target).or_else(|| expr_regex_feature(value))
         }
-        Stmt::Expr { expr, .. } => expr_regex_feature(expr),
+        Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
+            expr_regex_feature(expr)
+        }
         Stmt::Return { value, .. } => expr_regex_feature(value),
         Stmt::If {
             condition,
@@ -219,6 +500,14 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
         Stmt::ForEach { iterable, body, .. } => {
             expr_regex_feature(iterable).or_else(|| body_regex_feature(body))
         }
+        Stmt::BeatBlock { body, .. } | Stmt::Hook { body, .. } => body_regex_feature(body),
+        Stmt::HookWhenBecomes {
+            condition, body, ..
+        }
+        | Stmt::HookWhile {
+            condition, body, ..
+        } => expr_regex_feature(condition).or_else(|| body_regex_feature(body)),
+        Stmt::Quantifier { body, .. } => body_regex_feature(body),
         Stmt::Contract {
             condition,
             then_body,
@@ -234,20 +523,234 @@ fn stmt_regex_feature(stmt: &Stmt) -> Option<&'static str> {
     }
 }
 
+fn stmt_assertion_feature(stmt: &Stmt) -> Option<&'static str> {
+    match stmt {
+        Stmt::DeclBlock { items, .. } => {
+            for item in items {
+                if let Some(value) = &item.value {
+                    if let Some(feature) = expr_assertion_feature(value) {
+                        return Some(feature);
+                    }
+                }
+            }
+            None
+        }
+        Stmt::Mutate { target, value, .. } => {
+            expr_assertion_feature(target).or_else(|| expr_assertion_feature(value))
+        }
+        Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
+            expr_assertion_feature(expr)
+        }
+        Stmt::Return { value, .. } => expr_assertion_feature(value),
+        Stmt::If {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => expr_assertion_feature(condition)
+            .or_else(|| body_assertion_feature(then_body))
+            .or_else(|| else_body.as_ref().and_then(body_assertion_feature)),
+        Stmt::Try { action, body, .. } => {
+            expr_assertion_feature(action).or_else(|| body_assertion_feature(body))
+        }
+        Stmt::Choose {
+            branches,
+            else_body,
+            ..
+        } => {
+            for branch in branches {
+                if let Some(feature) = expr_assertion_feature(&branch.condition) {
+                    return Some(feature);
+                }
+                if let Some(feature) = body_assertion_feature(&branch.body) {
+                    return Some(feature);
+                }
+            }
+            body_assertion_feature(else_body)
+        }
+        Stmt::Repeat { body, .. } => body_assertion_feature(body),
+        Stmt::While {
+            condition, body, ..
+        } => expr_assertion_feature(condition).or_else(|| body_assertion_feature(body)),
+        Stmt::ForEach { iterable, body, .. } => {
+            expr_assertion_feature(iterable).or_else(|| body_assertion_feature(body))
+        }
+        Stmt::BeatBlock { body, .. } | Stmt::Hook { body, .. } => body_assertion_feature(body),
+        Stmt::HookWhenBecomes {
+            condition, body, ..
+        }
+        | Stmt::HookWhile {
+            condition, body, ..
+        } => expr_assertion_feature(condition).or_else(|| body_assertion_feature(body)),
+        Stmt::Quantifier { body, .. } => body_assertion_feature(body),
+        Stmt::Contract {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => expr_assertion_feature(condition)
+            .or_else(|| then_body.as_ref().and_then(body_assertion_feature))
+            .or_else(|| body_assertion_feature(else_body)),
+        Stmt::Guard {
+            condition, body, ..
+        } => expr_assertion_feature(condition).or_else(|| body_assertion_feature(body)),
+        Stmt::MetaBlock { .. } | Stmt::Pragma { .. } | Stmt::Break { .. } => None,
+    }
+}
+
+fn stmt_state_machine_feature(stmt: &Stmt) -> Option<&'static str> {
+    match stmt {
+        Stmt::DeclBlock { items, .. } => {
+            for item in items {
+                if let Some(value) = &item.value {
+                    if let Some(feature) = expr_state_machine_feature(value) {
+                        return Some(feature);
+                    }
+                }
+            }
+            None
+        }
+        Stmt::Mutate { target, value, .. } => {
+            expr_state_machine_feature(target).or_else(|| expr_state_machine_feature(value))
+        }
+        Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
+            expr_state_machine_feature(expr)
+        }
+        Stmt::Return { value, .. } => expr_state_machine_feature(value),
+        Stmt::If {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => expr_state_machine_feature(condition)
+            .or_else(|| body_state_machine_feature(then_body))
+            .or_else(|| else_body.as_ref().and_then(body_state_machine_feature)),
+        Stmt::Try { action, body, .. } => {
+            expr_state_machine_feature(action).or_else(|| body_state_machine_feature(body))
+        }
+        Stmt::Choose {
+            branches,
+            else_body,
+            ..
+        } => {
+            for branch in branches {
+                if let Some(feature) = expr_state_machine_feature(&branch.condition) {
+                    return Some(feature);
+                }
+                if let Some(feature) = body_state_machine_feature(&branch.body) {
+                    return Some(feature);
+                }
+            }
+            body_state_machine_feature(else_body)
+        }
+        Stmt::Repeat { body, .. } => body_state_machine_feature(body),
+        Stmt::While {
+            condition, body, ..
+        } => expr_state_machine_feature(condition).or_else(|| body_state_machine_feature(body)),
+        Stmt::ForEach { iterable, body, .. } => {
+            expr_state_machine_feature(iterable).or_else(|| body_state_machine_feature(body))
+        }
+        Stmt::BeatBlock { body, .. } | Stmt::Hook { body, .. } => body_state_machine_feature(body),
+        Stmt::HookWhenBecomes {
+            condition, body, ..
+        }
+        | Stmt::HookWhile {
+            condition, body, ..
+        } => expr_state_machine_feature(condition).or_else(|| body_state_machine_feature(body)),
+        Stmt::Quantifier { body, .. } => body_state_machine_feature(body),
+        Stmt::Contract {
+            condition,
+            then_body,
+            else_body,
+            ..
+        } => expr_state_machine_feature(condition)
+            .or_else(|| then_body.as_ref().and_then(body_state_machine_feature))
+            .or_else(|| body_state_machine_feature(else_body)),
+        Stmt::Guard {
+            condition, body, ..
+        } => expr_state_machine_feature(condition).or_else(|| body_state_machine_feature(body)),
+        Stmt::MetaBlock { .. } | Stmt::Pragma { .. } | Stmt::Break { .. } => None,
+    }
+}
+
+fn stmt_quantifier_feature(stmt: &Stmt) -> Option<&'static str> {
+    match stmt {
+        Stmt::DeclBlock { items, .. } => {
+            for item in items {
+                if let Some(value) = &item.value {
+                    let _ = value;
+                }
+            }
+            None
+        }
+        Stmt::Mutate { .. }
+        | Stmt::Expr { .. }
+        | Stmt::Show { .. }
+        | Stmt::Inspect { .. }
+        | Stmt::MetaBlock { .. }
+        | Stmt::Pragma { .. }
+        | Stmt::Return { .. }
+        | Stmt::Break { .. } => None,
+        Stmt::If {
+            then_body,
+            else_body,
+            ..
+        } => body_quantifier_feature(then_body)
+            .or_else(|| else_body.as_ref().and_then(body_quantifier_feature)),
+        Stmt::Try { body, .. } => body_quantifier_feature(body),
+        Stmt::Choose {
+            branches,
+            else_body,
+            ..
+        } => {
+            for branch in branches {
+                if let Some(feature) = body_quantifier_feature(&branch.body) {
+                    return Some(feature);
+                }
+            }
+            body_quantifier_feature(else_body)
+        }
+        Stmt::Repeat { body, .. } => body_quantifier_feature(body),
+        Stmt::While { body, .. } => body_quantifier_feature(body),
+        Stmt::ForEach { body, .. } => body_quantifier_feature(body),
+        Stmt::BeatBlock { body, .. } | Stmt::Hook { body, .. } => body_quantifier_feature(body),
+        Stmt::HookWhenBecomes { body, .. } | Stmt::HookWhile { body, .. } => {
+            body_quantifier_feature(body)
+        }
+        Stmt::Quantifier { .. } => Some("logic_quantifier"),
+        Stmt::Contract {
+            then_body,
+            else_body,
+            ..
+        } => then_body
+            .as_ref()
+            .and_then(body_quantifier_feature)
+            .or_else(|| body_quantifier_feature(else_body)),
+        Stmt::Guard { body, .. } => body_quantifier_feature(body),
+    }
+}
+
 fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
     match &expr.kind {
         ExprKind::Literal(Literal::Regex(_)) => Some("regex_literal"),
         ExprKind::Literal(_)
         | ExprKind::Var(_)
         | ExprKind::FlowValue
+        | ExprKind::Assertion(_)
         | ExprKind::Formula(_)
-        | ExprKind::Template(_) => None,
+        | ExprKind::Template(_)
+        | ExprKind::StateMachine(_) => None,
         ExprKind::FieldAccess { target, .. } => expr_regex_feature(target),
         ExprKind::SeedLiteral { body, .. } => expr_regex_feature(body),
         ExprKind::Call { args, func } => {
             if matches!(
                 func.as_str(),
-                "정규맞추기" | "정규찾기" | "정규바꾸기" | "정규나누기"
+                "정규맞추기"
+                    | "정규찾기"
+                    | "정규캡처하기"
+                    | "정규이름캡처하기"
+                    | "정규바꾸기"
+                    | "정규나누기"
             ) {
                 return Some("regex_api");
             }
@@ -292,15 +795,193 @@ fn expr_regex_feature(expr: &Expr) -> Option<&'static str> {
     }
 }
 
+fn expr_assertion_feature(expr: &Expr) -> Option<&'static str> {
+    match &expr.kind {
+        ExprKind::Assertion(_) => Some("assertion_literal"),
+        ExprKind::Literal(_)
+        | ExprKind::Var(_)
+        | ExprKind::FlowValue
+        | ExprKind::Formula(_)
+        | ExprKind::Template(_)
+        | ExprKind::StateMachine(_) => None,
+        ExprKind::FieldAccess { target, .. } => expr_assertion_feature(target),
+        ExprKind::SeedLiteral { body, .. } => expr_assertion_feature(body),
+        ExprKind::Call { args, func } => {
+            if func == "살피기" {
+                return Some("assertion_api");
+            }
+            for arg in args {
+                if let Some(feature) = expr_assertion_feature(&arg.expr) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Infix { left, right, .. } => {
+            expr_assertion_feature(left).or_else(|| expr_assertion_feature(right))
+        }
+        ExprKind::Suffix { value, .. } => expr_assertion_feature(value),
+        ExprKind::Thunk(body) => body_assertion_feature(body),
+        ExprKind::Eval { thunk, .. } => expr_assertion_feature(thunk),
+        ExprKind::Pipe { stages } => {
+            for stage in stages {
+                if let Some(feature) = expr_assertion_feature(stage) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Pack { fields } => {
+            for (_, value) in fields {
+                if let Some(feature) = expr_assertion_feature(value) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::TemplateRender { inject, .. } | ExprKind::FormulaEval { inject, .. } => {
+            for (_, value) in inject {
+                if let Some(feature) = expr_assertion_feature(value) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Nuance { expr, .. } => expr_assertion_feature(expr),
+    }
+}
+
+fn expr_state_machine_feature(expr: &Expr) -> Option<&'static str> {
+    match &expr.kind {
+        ExprKind::StateMachine(_) => Some("state_machine_literal"),
+        ExprKind::Literal(_)
+        | ExprKind::Var(_)
+        | ExprKind::FlowValue
+        | ExprKind::Assertion(_)
+        | ExprKind::Formula(_)
+        | ExprKind::Template(_) => None,
+        ExprKind::FieldAccess { target, .. } => expr_state_machine_feature(target),
+        ExprKind::SeedLiteral { body, .. } => expr_state_machine_feature(body),
+        ExprKind::Call { args, func } => {
+            if matches!(func.as_str(), "처음으로" | "지금상태" | "다음으로") {
+                return Some("state_machine_api");
+            }
+            for arg in args {
+                if let Some(feature) = expr_state_machine_feature(&arg.expr) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Infix { left, right, .. } => {
+            expr_state_machine_feature(left).or_else(|| expr_state_machine_feature(right))
+        }
+        ExprKind::Suffix { value, .. } => expr_state_machine_feature(value),
+        ExprKind::Thunk(body) => body_state_machine_feature(body),
+        ExprKind::Eval { thunk, .. } => expr_state_machine_feature(thunk),
+        ExprKind::Pipe { stages } => {
+            for stage in stages {
+                if let Some(feature) = expr_state_machine_feature(stage) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Pack { fields } => {
+            for (_, value) in fields {
+                if let Some(feature) = expr_state_machine_feature(value) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::TemplateRender { inject, .. } | ExprKind::FormulaEval { inject, .. } => {
+            for (_, value) in inject {
+                if let Some(feature) = expr_state_machine_feature(value) {
+                    return Some(feature);
+                }
+            }
+            None
+        }
+        ExprKind::Nuance { expr, .. } => expr_state_machine_feature(expr),
+    }
+}
+
 pub struct DdnRunner {
     program: DdnProgram,
     update_name: String,
     prev_keys_pressed: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateTransitionRecord {
+    pub madi: u64,
+    pub origin: String,
+    pub from: String,
+    pub to: String,
+    pub message: String,
+    pub guard_name: Option<String>,
+    pub action_name: Option<String>,
+}
+
 pub struct DdnRunOutput {
     pub patch: Patch,
     pub resources: HashMap<String, Value>,
+    pub state_transitions: Vec<StateTransitionRecord>,
+}
+
+fn parse_state_transition_tag(tag: &str) -> Option<(String, String)> {
+    let body = tag.strip_prefix("state_transition:")?;
+    let (from, to) = body.split_once("->")?;
+    Some((from.to_string(), to.to_string()))
+}
+
+fn parse_state_transition_text(text: Option<&str>) -> (Option<String>, Option<String>) {
+    let mut guard_name = None;
+    let mut action_name = None;
+    let Some(text) = text else {
+        return (None, None);
+    };
+    for part in text.split(';') {
+        let part = part.trim();
+        if let Some(value) = part.strip_prefix("guard=") {
+            let value = value.trim();
+            if !value.is_empty() && value != "-" {
+                guard_name = Some(value.to_string());
+            }
+        } else if let Some(value) = part.strip_prefix("action=") {
+            let value = value.trim();
+            if !value.is_empty() && value != "-" {
+                action_name = Some(value.to_string());
+            }
+        }
+    }
+    (guard_name, action_name)
+}
+
+fn collect_state_transition_records(ops: &[PatchOp]) -> Vec<StateTransitionRecord> {
+    ops.iter()
+        .filter_map(|op| match op {
+            PatchOp::EmitSignal {
+                signal: Signal::Diag { event },
+                ..
+            } if event.rule_id == "L1-STATE-01" && event.reason == "STATE_TRANSITION" => {
+                let expr = event.expr.as_ref()?;
+                let (from, to) = parse_state_transition_tag(&expr.tag)?;
+                let (guard_name, action_name) = parse_state_transition_text(expr.text.as_deref());
+                Some(StateTransitionRecord {
+                    madi: event.madi,
+                    origin: event.origin.clone(),
+                    from,
+                    to,
+                    message: event.message.clone().unwrap_or_default(),
+                    guard_name,
+                    action_name,
+                })
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 impl DdnRunner {
@@ -318,7 +999,8 @@ impl DdnRunner {
         input: &InputSnapshot,
         defaults: &HashMap<String, Value>,
     ) -> Result<DdnRunOutput, String> {
-        let input_state = InputState::new(input.keys_pressed, self.prev_keys_pressed);
+        let prev_keys_pressed = self.prev_keys_pressed;
+        let input_state = InputState::new(input.keys_pressed, prev_keys_pressed);
         self.prev_keys_pressed = input.keys_pressed;
 
         let mut ctx = EvalContext::new(
@@ -333,6 +1015,7 @@ impl DdnRunner {
             "입력키".to_string(),
             Value::String(input.last_key_name.clone()),
         );
+        seed_keyboard_state_resources(&mut ctx.resources, prev_keys_pressed, input.keys_pressed);
         let update = if let Some(update) = ctx.program.functions.get(&self.update_name) {
             update
         } else if self.update_name == "매마디" {
@@ -348,12 +1031,17 @@ impl DdnRunner {
         };
         ctx.eval_seed(update, Vec::new())
             .map_err(|err| err.to_string())?;
+        ctx.flush_factor_route_metrics_resource();
+        ctx.emit_factor_route_summary_diag();
+        let patch = Patch {
+            ops: ctx.patch_ops,
+            origin: Origin::system("ddn"),
+        };
+        let state_transitions = collect_state_transition_records(&patch.ops);
         Ok(DdnRunOutput {
-            patch: Patch {
-                ops: ctx.patch_ops,
-                origin: Origin::system("ddn"),
-            },
+            patch,
             resources: ctx.resources,
+            state_transitions,
         })
     }
 
@@ -377,6 +1065,10 @@ struct EvalContext<'a> {
     flow_stack: Vec<Option<Value>>,
     tick_id: u64,
     const_scopes: Vec<HashSet<String>>,
+    factor_route_counts: BTreeMap<String, u64>,
+    factor_bits_total: u128,
+    factor_bits_min: Option<u64>,
+    factor_bits_max: u64,
 }
 
 enum ThunkResult {
@@ -391,6 +1083,19 @@ enum FlowControl {
     Break(ddonirang_lang::Span),
 }
 
+#[derive(Clone)]
+struct EvalFrameSnapshot {
+    locals: HashMap<String, Value>,
+    resources: HashMap<String, Value>,
+    patch_ops: Vec<PatchOp>,
+    guard_rejected: bool,
+    const_scopes: Vec<HashSet<String>>,
+    factor_route_counts: BTreeMap<String, u64>,
+    factor_bits_total: u128,
+    factor_bits_min: Option<u64>,
+    factor_bits_max: u64,
+}
+
 #[derive(Debug)]
 enum EvalError {
     Message(String),
@@ -403,6 +1108,10 @@ enum BogaeShapeKind {
     Line,
     Circle,
     Point,
+    Rect,
+    Text,
+    Polyline,
+    Polygon,
 }
 
 #[derive(Debug, Clone)]
@@ -484,6 +1193,10 @@ impl<'a> EvalContext<'a> {
             flow_stack: Vec::new(),
             tick_id,
             const_scopes: Vec::new(),
+            factor_route_counts: BTreeMap::new(),
+            factor_bits_total: 0,
+            factor_bits_min: None,
+            factor_bits_max: 0,
         }
     }
 
@@ -590,9 +1303,14 @@ impl<'a> EvalContext<'a> {
             if self.aborted {
                 return Ok(FlowControl::Continue);
             }
+            let snapshot = self.capture_frame_snapshot(locals);
             match self.eval_stmt(locals, stmt)? {
                 FlowControl::Continue => {}
                 other => return Ok(other),
+            }
+            if self.aborted {
+                self.restore_frame_snapshot_preserving_abort_contract_diag(locals, &snapshot);
+                return Ok(FlowControl::Continue);
             }
         }
         Ok(FlowControl::Continue)
@@ -624,10 +1342,15 @@ impl<'a> EvalContext<'a> {
             if self.aborted {
                 return Ok(ThunkResult::Value(Value::None));
             }
+            let snapshot = self.capture_frame_snapshot(locals);
             match self.eval_stmt_for_value(locals, stmt)? {
                 ThunkResult::Return(v) => return Ok(ThunkResult::Return(v)),
                 ThunkResult::Break(span) => return Ok(ThunkResult::Break(span)),
                 ThunkResult::Value(v) => last = v,
+            }
+            if self.aborted {
+                self.restore_frame_snapshot_preserving_abort_contract_diag(locals, &snapshot);
+                return Ok(ThunkResult::Value(Value::None));
             }
         }
         Ok(ThunkResult::Value(last))
@@ -652,7 +1375,9 @@ impl<'a> EvalContext<'a> {
                 FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
                 FlowControl::Break(span) => Ok(ThunkResult::Break(span)),
             },
-            Stmt::Expr { expr, .. } => Ok(ThunkResult::Value(self.eval_expr(locals, expr)?)),
+            Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
+                Ok(ThunkResult::Value(self.eval_expr(locals, expr)?))
+            }
             Stmt::MetaBlock { .. } => match self.eval_stmt(locals, stmt)? {
                 FlowControl::Continue => Ok(ThunkResult::Value(Value::None)),
                 FlowControl::Return(value) => Ok(ThunkResult::Return(value)),
@@ -768,6 +1493,15 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(ThunkResult::Value(Value::None))
             }
+            Stmt::BeatBlock { .. }
+            | Stmt::Hook { .. }
+            | Stmt::HookWhenBecomes { .. }
+            | Stmt::HookWhile { .. } => Err(
+                "E_RUNTIME_UNSUPPORTED_STMT: 현재 ddonirang-tool 실행기에서는 박자/훅 문장을 지원하지 않습니다"
+                    .to_string()
+                    .into(),
+            ),
+            Stmt::Quantifier { .. } => Ok(ThunkResult::Value(Value::None)),
             Stmt::Break { span, .. } => Ok(ThunkResult::Break(*span)),
             Stmt::Contract {
                 kind,
@@ -777,13 +1511,21 @@ impl<'a> EvalContext<'a> {
                 else_body,
                 ..
             } => {
+                let snapshot = self.capture_frame_snapshot(locals);
                 let cond_value = self.eval_expr(locals, condition)?;
                 let ok = is_truthy(&cond_value)?;
                 match kind {
                     ddonirang_lang::ContractKind::Pre => {
                         if ok {
                             if let Some(body) = then_body {
-                                self.eval_body_for_value_inner(locals, body)
+                                let out = self.eval_body_for_value_inner(locals, body)?;
+                                if self.aborted {
+                                    self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                        locals, &snapshot,
+                                    );
+                                    return Ok(ThunkResult::Value(Value::None));
+                                }
+                                Ok(out)
                             } else {
                                 Ok(ThunkResult::Value(Value::None))
                             }
@@ -794,6 +1536,15 @@ impl<'a> EvalContext<'a> {
                                     return Ok(ThunkResult::Return(value))
                                 }
                                 FlowControl::Break(span) => return Ok(ThunkResult::Break(span)),
+                            }
+                            if self.aborted {
+                                self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                    locals, &snapshot,
+                                );
+                                return Ok(ThunkResult::Value(Value::None));
+                            }
+                            if matches!(mode, ddonirang_lang::ContractMode::Abort) {
+                                self.restore_frame_snapshot(locals, &snapshot);
                             }
                             self.emit_contract_violation(
                                 ddonirang_lang::ContractKind::Pre,
@@ -813,8 +1564,17 @@ impl<'a> EvalContext<'a> {
                                 }
                                 FlowControl::Break(span) => return Ok(ThunkResult::Break(span)),
                             }
+                            if self.aborted {
+                                self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                    locals, &snapshot,
+                                );
+                                return Ok(ThunkResult::Value(Value::None));
+                            }
                             let cond_value = self.eval_expr(locals, condition)?;
                             if !is_truthy(&cond_value)? {
+                                if matches!(mode, ddonirang_lang::ContractMode::Abort) {
+                                    self.restore_frame_snapshot(locals, &snapshot);
+                                }
                                 self.emit_contract_violation(
                                     ddonirang_lang::ContractKind::Post,
                                     *mode,
@@ -825,7 +1585,14 @@ impl<'a> EvalContext<'a> {
                             }
                         }
                         if let Some(body) = then_body {
-                            self.eval_body_for_value_inner(locals, body)
+                            let out = self.eval_body_for_value_inner(locals, body)?;
+                            if self.aborted {
+                                self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                    locals, &snapshot,
+                                );
+                                return Ok(ThunkResult::Value(Value::None));
+                            }
+                            Ok(out)
                         } else {
                             Ok(ThunkResult::Value(Value::None))
                         }
@@ -888,6 +1655,11 @@ impl<'a> EvalContext<'a> {
                     } else {
                         Value::None
                     };
+                    if item.value.is_some() {
+                        if let Err(detail) = check_value_type(&value, &item.type_ref) {
+                            return Err(type_mismatch_error(&item.name, &detail.expected, &detail.actual));
+                        }
+                    }
                     locals.insert(item.name.clone(), value);
                     if matches!(item.kind, ddonirang_lang::DeclKind::Butbak) {
                         self.declare_const(&item.name);
@@ -972,7 +1744,7 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(FlowControl::Continue)
             }
-            Stmt::Expr { expr, .. } => {
+            Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 match self.eval_expr(locals, expr) {
                     Ok(_) => {}
                     Err(EvalError::UnitMismatch { left, right }) => {
@@ -1112,6 +1884,15 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(FlowControl::Continue)
             }
+            Stmt::BeatBlock { .. }
+            | Stmt::Hook { .. }
+            | Stmt::HookWhenBecomes { .. }
+            | Stmt::HookWhile { .. } => Err(
+                "E_RUNTIME_UNSUPPORTED_STMT: 현재 ddonirang-tool 실행기에서는 박자/훅 문장을 지원하지 않습니다"
+                    .to_string()
+                    .into(),
+            ),
+            Stmt::Quantifier { .. } => Ok(FlowControl::Continue),
             Stmt::Break { span, .. } => Ok(FlowControl::Break(*span)),
             Stmt::Contract {
                 kind,
@@ -1121,19 +1902,36 @@ impl<'a> EvalContext<'a> {
                 else_body,
                 ..
             } => {
+                let snapshot = self.capture_frame_snapshot(locals);
                 let cond_value = self.eval_expr(locals, condition)?;
                 let ok = is_truthy(&cond_value)?;
                 match kind {
                     ddonirang_lang::ContractKind::Pre => {
                         if ok {
                             if let Some(body) = then_body {
-                                return Ok(self.eval_body(locals, body)?);
+                                let out = self.eval_body(locals, body)?;
+                                if self.aborted {
+                                    self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                        locals, &snapshot,
+                                    );
+                                    return Ok(FlowControl::Continue);
+                                }
+                                return Ok(out);
                             }
                             Ok(FlowControl::Continue)
                         } else {
                             match self.eval_body(locals, else_body)? {
                                 FlowControl::Continue => {}
                                 other => return Ok(other),
+                            }
+                            if self.aborted {
+                                self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                    locals, &snapshot,
+                                );
+                                return Ok(FlowControl::Continue);
+                            }
+                            if matches!(mode, ddonirang_lang::ContractMode::Abort) {
+                                self.restore_frame_snapshot(locals, &snapshot);
                             }
                             self.emit_contract_violation(
                                 ddonirang_lang::ContractKind::Pre,
@@ -1150,8 +1948,17 @@ impl<'a> EvalContext<'a> {
                                 FlowControl::Continue => {}
                                 other => return Ok(other),
                             }
+                            if self.aborted {
+                                self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                    locals, &snapshot,
+                                );
+                                return Ok(FlowControl::Continue);
+                            }
                             let cond_value = self.eval_expr(locals, condition)?;
                             if !is_truthy(&cond_value)? {
+                                if matches!(mode, ddonirang_lang::ContractMode::Abort) {
+                                    self.restore_frame_snapshot(locals, &snapshot);
+                                }
                                 self.emit_contract_violation(
                                     ddonirang_lang::ContractKind::Post,
                                     *mode,
@@ -1162,7 +1969,14 @@ impl<'a> EvalContext<'a> {
                             }
                         }
                         if let Some(body) = then_body {
-                            return Ok(self.eval_body(locals, body)?);
+                            let out = self.eval_body(locals, body)?;
+                            if self.aborted {
+                                self.restore_frame_snapshot_preserving_abort_contract_diag(
+                                    locals, &snapshot,
+                                );
+                                return Ok(FlowControl::Continue);
+                            }
+                            return Ok(out);
                         }
                         Ok(FlowControl::Continue)
                     }
@@ -1237,7 +2051,7 @@ impl<'a> EvalContext<'a> {
                 for arg in args {
                     values.push(self.eval_expr(locals, &arg.expr)?);
                 }
-                self.eval_call(func, values)
+                self.eval_call(locals, func, values, self.source_span_for_expr(expr))
             }
             ExprKind::SeedLiteral { param, body } => Ok(Value::Lambda(LambdaValue {
                 id: next_lambda_id(),
@@ -1303,15 +2117,27 @@ impl<'a> EvalContext<'a> {
                 }
                 Ok(Value::Pack(map))
             }
+            ExprKind::Assertion(assertion) => Ok(Value::Assertion(assertion.clone())),
+            ExprKind::StateMachine(machine) => Ok(Value::StateMachine(machine.clone())),
             ExprKind::Formula(formula) => Ok(Value::Formula(formula.clone())),
             ExprKind::Template(template) => Ok(Value::Template(template.clone())),
             ExprKind::TemplateRender { template, inject } => {
                 let pack = self.eval_inject_fields(locals, inject)?;
-                self.eval_call("채우기", vec![Value::Template(template.clone()), pack])
+                self.eval_call(
+                    locals,
+                    "채우기",
+                    vec![Value::Template(template.clone()), pack],
+                    self.source_span_for_expr(expr),
+                )
             }
             ExprKind::FormulaEval { formula, inject } => {
                 let pack = self.eval_inject_fields(locals, inject)?;
-                self.eval_call("풀기", vec![Value::Formula(formula.clone()), pack])
+                self.eval_call(
+                    locals,
+                    "풀기",
+                    vec![Value::Formula(formula.clone()), pack],
+                    self.source_span_for_expr(expr),
+                )
             }
             ExprKind::Nuance { expr, .. } => self.eval_expr(locals, expr),
         }
@@ -1340,12 +2166,6 @@ impl<'a> EvalContext<'a> {
         entry: &str,
     ) -> Option<Value> {
         let shape = parse_bogae_shape_call(entry)?;
-        let mut read_arg = |keys: &[&str], idx: usize, default: Value| -> Value {
-            let token = bogae_pick_arg(&shape, keys, idx);
-            token
-                .and_then(|text| self.parse_bogae_value_token(locals, text))
-                .unwrap_or(default)
-        };
         let mut map = BTreeMap::new();
         let mut put = |key: &str, value: Value| {
             let key_value = Value::String(key.to_string());
@@ -1361,13 +2181,56 @@ impl<'a> EvalContext<'a> {
         match shape.kind {
             BogaeShapeKind::Line => {
                 put("kind", Value::String("line".to_string()));
-                put("x1", read_arg(&["x1"], 0, Value::Fixed64(Fixed64::ZERO)));
-                put("y1", read_arg(&["y1"], 1, Value::Fixed64(Fixed64::ZERO)));
-                put("x2", read_arg(&["x2"], 2, Value::Fixed64(Fixed64::ZERO)));
-                put("y2", read_arg(&["y2"], 3, Value::Fixed64(Fixed64::ZERO)));
+                put(
+                    "x1",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["x1"],
+                        0,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
+                put(
+                    "y1",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["y1"],
+                        1,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
+                put(
+                    "x2",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["x2"],
+                        2,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
+                put(
+                    "y2",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["y2"],
+                        3,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
                 put(
                     "stroke",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["색", "선색", "stroke", "color"],
                         usize::MAX,
                         Value::String("#9ca3af".to_string()),
@@ -1375,7 +2238,10 @@ impl<'a> EvalContext<'a> {
                 );
                 put(
                     "width",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["굵기", "width"],
                         usize::MAX,
                         Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
@@ -1386,15 +2252,32 @@ impl<'a> EvalContext<'a> {
                 put("kind", Value::String("circle".to_string()));
                 put(
                     "x",
-                    read_arg(&["x", "cx"], 0, Value::Fixed64(Fixed64::ZERO)),
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["x", "cx"],
+                        0,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
                 );
                 put(
                     "y",
-                    read_arg(&["y", "cy"], 1, Value::Fixed64(Fixed64::ZERO)),
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["y", "cy"],
+                        1,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
                 );
                 put(
                     "r",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["r", "반지름"],
                         2,
                         Value::Fixed64(Fixed64::from_f64_lossy(0.08)),
@@ -1402,7 +2285,10 @@ impl<'a> EvalContext<'a> {
                 );
                 put(
                     "fill",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["색", "fill"],
                         usize::MAX,
                         Value::String("#38bdf8".to_string()),
@@ -1410,7 +2296,10 @@ impl<'a> EvalContext<'a> {
                 );
                 put(
                     "stroke",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["선색", "stroke", "color"],
                         usize::MAX,
                         Value::String("#0ea5e9".to_string()),
@@ -1418,7 +2307,10 @@ impl<'a> EvalContext<'a> {
                 );
                 put(
                     "width",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["굵기", "width"],
                         usize::MAX,
                         Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
@@ -1429,15 +2321,32 @@ impl<'a> EvalContext<'a> {
                 put("kind", Value::String("point".to_string()));
                 put(
                     "x",
-                    read_arg(&["x", "cx"], 0, Value::Fixed64(Fixed64::ZERO)),
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["x", "cx"],
+                        0,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
                 );
                 put(
                     "y",
-                    read_arg(&["y", "cy"], 1, Value::Fixed64(Fixed64::ZERO)),
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["y", "cy"],
+                        1,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
                 );
                 put(
                     "size",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["크기", "size", "r"],
                         2,
                         Value::Fixed64(Fixed64::from_f64_lossy(0.045)),
@@ -1445,13 +2354,241 @@ impl<'a> EvalContext<'a> {
                 );
                 put(
                     "color",
-                    read_arg(
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
                         &["색", "color"],
                         usize::MAX,
                         Value::String("#f59e0b".to_string()),
                     ),
                 );
             }
+            BogaeShapeKind::Rect => {
+                put("kind", Value::String("rect".to_string()));
+                put(
+                    "x",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["x"],
+                        0,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
+                put(
+                    "y",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["y"],
+                        1,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
+                put(
+                    "w",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["w", "너비"],
+                        2,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.2)),
+                    ),
+                );
+                put(
+                    "h",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["h", "높이"],
+                        3,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.12)),
+                    ),
+                );
+                put(
+                    "fill",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["채움색", "채움", "fill", "색", "color"],
+                        usize::MAX,
+                        Value::String("#38bdf8".to_string()),
+                    ),
+                );
+                put(
+                    "stroke",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["선색", "stroke"],
+                        usize::MAX,
+                        Value::String("#0ea5e9".to_string()),
+                    ),
+                );
+                put(
+                    "width",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["굵기", "width"],
+                        usize::MAX,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                    ),
+                );
+            }
+            BogaeShapeKind::Text => {
+                put("kind", Value::String("text".to_string()));
+                put(
+                    "x",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["x"],
+                        0,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
+                put(
+                    "y",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["y"],
+                        1,
+                        Value::Fixed64(Fixed64::ZERO),
+                    ),
+                );
+                put(
+                    "text",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["글", "내용", "text"],
+                        2,
+                        Value::String(String::new()),
+                    ),
+                );
+                put(
+                    "size",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["크기", "size"],
+                        usize::MAX,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.08)),
+                    ),
+                );
+                put(
+                    "color",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["색", "글색", "color"],
+                        usize::MAX,
+                        Value::String("#f8fafc".to_string()),
+                    ),
+                );
+            }
+            BogaeShapeKind::Polyline => {
+                let points = bogae_pick_arg(&shape, &["점들", "좌표들", "points"], usize::MAX)
+                    .and_then(|text| self.parse_bogae_value_token(locals, text))
+                    .or_else(|| bogae_points_from_positional(&shape, locals, self))?;
+                put("kind", Value::String("polyline".to_string()));
+                put("points", points);
+                put(
+                    "stroke",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["색", "선색", "stroke", "color"],
+                        usize::MAX,
+                        Value::String("#22c55e".to_string()),
+                    ),
+                );
+                put(
+                    "width",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["굵기", "width"],
+                        usize::MAX,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                    ),
+                );
+            }
+            BogaeShapeKind::Polygon => {
+                let points = bogae_pick_arg(&shape, &["점들", "좌표들", "points"], usize::MAX)
+                    .and_then(|text| self.parse_bogae_value_token(locals, text))
+                    .or_else(|| bogae_points_from_positional(&shape, locals, self))?;
+                put("kind", Value::String("polygon".to_string()));
+                put("points", points);
+                put(
+                    "fill",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["채움색", "채움", "fill", "색", "color"],
+                        usize::MAX,
+                        Value::String("#38bdf844".to_string()),
+                    ),
+                );
+                put(
+                    "stroke",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["선색", "stroke"],
+                        usize::MAX,
+                        Value::String("#0f172a".to_string()),
+                    ),
+                );
+                put(
+                    "width",
+                    bogae_read_arg(
+                        self,
+                        locals,
+                        &shape,
+                        &["굵기", "width"],
+                        usize::MAX,
+                        Value::Fixed64(Fixed64::from_f64_lossy(0.02)),
+                    ),
+                );
+            }
+        }
+        if let Some(layer_index) = bogae_pick_arg(
+            &shape,
+            &["층", "레이어", "layer_index", "layer", "z", "z_index"],
+            usize::MAX,
+        )
+        .and_then(|text| self.parse_bogae_value_token(locals, text))
+        {
+            put("layer_index", layer_index);
+        }
+        if let Some(group_id) = bogae_pick_arg(
+            &shape,
+            &["그룹", "묶음", "group_id", "group", "groupId"],
+            usize::MAX,
+        )
+        .and_then(|text| self.parse_bogae_value_token(locals, text))
+        {
+            put("group_id", group_id);
         }
         Some(Value::Map(map))
     }
@@ -1474,7 +2611,8 @@ impl<'a> EvalContext<'a> {
         if text == "거짓" {
             return Some(Value::Bool(false));
         }
-        if let Ok(num) = text.parse::<f64>() {
+        let compact_numeric: String = text.chars().filter(|ch| !ch.is_whitespace()).collect();
+        if let Ok(num) = compact_numeric.parse::<f64>() {
             if num.is_finite() {
                 return Some(Value::Fixed64(Fixed64::from_f64_lossy(num)));
             }
@@ -1488,12 +2626,18 @@ impl<'a> EvalContext<'a> {
         self.get_resource(text)
     }
 
-    fn eval_callable(&mut self, callable: &Value, args: Vec<Value>) -> Result<Value, EvalError> {
+    fn eval_callable(
+        &mut self,
+        locals: &HashMap<String, Value>,
+        callable: &Value,
+        args: Vec<Value>,
+        source_span: Option<SourceSpan>,
+    ) -> Result<Value, EvalError> {
         match callable {
             Value::Lambda(lambda) => self.eval_lambda(lambda, &args),
             Value::String(name) => {
                 let func = name.trim_start_matches('#');
-                self.eval_call(func, args)
+                self.eval_call(locals, func, args, source_span)
             }
             _ => Err("함수/씨앗 인자가 필요합니다".to_string().into()),
         }
@@ -1558,7 +2702,13 @@ impl<'a> EvalContext<'a> {
         ddonirang_lang::stdlib::canonicalize_stdlib_alias(name)
     }
 
-    fn eval_call(&mut self, func: &str, args: Vec<Value>) -> Result<Value, EvalError> {
+    fn eval_call(
+        &mut self,
+        locals: &HashMap<String, Value>,
+        func: &str,
+        args: Vec<Value>,
+        source_span: Option<SourceSpan>,
+    ) -> Result<Value, EvalError> {
         let func = Self::canonicalize_stdlib_alias(func);
         match func {
             "아님" | "아니다" => {
@@ -1583,6 +2733,43 @@ impl<'a> EvalContext<'a> {
                 let left = is_truthy(&args[0])?;
                 let right = is_truthy(&args[1])?;
                 Ok(Value::Bool(left || right))
+            }
+            "수" => {
+                if args.len() != 1 {
+                    return Err("수는 인자 1개를 받습니다".to_string().into());
+                }
+                let value = value_to_fixed64_coerce(&args[0])?;
+                Ok(Value::Fixed64(value))
+            }
+            "바른수" => {
+                if args.len() != 1 {
+                    return Err("바른수는 인자 1개를 받습니다".to_string().into());
+                }
+                let value = value_to_i64_strict(&args[0])?;
+                Ok(Value::Fixed64(Fixed64::from_i64(value)))
+            }
+            "큰바른수" => {
+                if args.len() != 1 {
+                    return Err("큰바른수는 인자 1개를 받습니다".to_string().into());
+                }
+                Ok(make_big_int_value(&args[0])?)
+            }
+            "나눔수" => {
+                if args.len() != 2 {
+                    return Err("나눔수는 인자 2개(분자, 분모)를 받습니다".to_string().into());
+                }
+                Ok(make_rational_value(&args[0], &args[1])?)
+            }
+            "곱수" => {
+                if args.len() != 1 {
+                    return Err("곱수는 인자 1개를 받습니다".to_string().into());
+                }
+                let (value, status) = make_factor_value(&args[0])?;
+                self.note_factor_route_from_value(&value);
+                if status == FACTOR_DECOMP_STATUS_DEFERRED {
+                    self.emit_factor_decomposition_deferred_diag(&value, source_span);
+                }
+                Ok(value)
             }
             "차림" | "목록" => Ok(Value::List(args)),
             "모음" => {
@@ -1635,6 +2822,96 @@ impl<'a> EvalContext<'a> {
                     },
                 );
                 Ok(Value::Map(entries))
+            }
+            "흐름.만들기" => {
+                if args.len() != 1 && args.len() != 2 {
+                    return Err("흐름.만들기는 인자 1개(용량) 또는 2개(용량, 초기값차림)를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let capacity = value_to_i64(&args[0])?;
+                if capacity <= 0 {
+                    return Err("흐름 용량은 1 이상이어야 합니다".to_string().into());
+                }
+                let mut stream = stream_new(capacity as usize)?;
+                if args.len() == 2 {
+                    let Value::List(initial) = &args[1] else {
+                        return Err("흐름.만들기의 두 번째 인자는 차림이어야 합니다"
+                            .to_string()
+                            .into());
+                    };
+                    for item in initial {
+                        stream = stream_push(stream, item.clone());
+                    }
+                }
+                Ok(stream_to_value(&stream))
+            }
+            "흐름.밀어넣기" => {
+                if args.len() != 2 {
+                    return Err("흐름.밀어넣기는 인자 2개(흐름, 값)를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let stream = stream_from_value(&args[0])?;
+                let stream = stream_push(stream, args[1].clone());
+                Ok(stream_to_value(&stream))
+            }
+            "흐름.차림" => {
+                if args.len() != 1 {
+                    return Err("흐름.차림은 인자 1개(흐름)를 받습니다".to_string().into());
+                }
+                let stream = stream_from_value(&args[0])?;
+                Ok(Value::List(stream_oldest_to_newest(&stream)))
+            }
+            "흐름.최근값" => {
+                if args.len() != 1 {
+                    return Err("흐름.최근값은 인자 1개(흐름)를 받습니다".to_string().into());
+                }
+                let stream = stream_from_value(&args[0])?;
+                if stream.len == 0 || stream.capacity == 0 {
+                    Ok(Value::None)
+                } else {
+                    Ok(stream.buffer[stream.head].clone())
+                }
+            }
+            "흐름.길이" => {
+                if args.len() != 1 {
+                    return Err("흐름.길이는 인자 1개(흐름)를 받습니다".to_string().into());
+                }
+                let stream = stream_from_value(&args[0])?;
+                Ok(Value::Fixed64(Fixed64::from_i64(stream.len as i64)))
+            }
+            "흐름.용량" => {
+                if args.len() != 1 {
+                    return Err("흐름.용량은 인자 1개(흐름)를 받습니다".to_string().into());
+                }
+                let stream = stream_from_value(&args[0])?;
+                Ok(Value::Fixed64(Fixed64::from_i64(stream.capacity as i64)))
+            }
+            "흐름.비우기" => {
+                if args.len() != 1 {
+                    return Err("흐름.비우기는 인자 1개(흐름)를 받습니다".to_string().into());
+                }
+                let stream = stream_from_value(&args[0])?;
+                Ok(stream_to_value(&stream_clear(stream)))
+            }
+            "흐름.잘라보기" => {
+                if args.len() != 2 {
+                    return Err("흐름.잘라보기는 인자 2개(흐름, 개수)를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let stream = stream_from_value(&args[0])?;
+                let count = value_to_i64(&args[1])?;
+                if count < 0 {
+                    return Err("흐름.잘라보기 개수는 0 이상이어야 합니다"
+                        .to_string()
+                        .into());
+                }
+                let ordered = stream_oldest_to_newest(&stream);
+                let take = (count as usize).min(ordered.len());
+                let start = ordered.len().saturating_sub(take);
+                Ok(Value::List(ordered[start..].to_vec()))
             }
             "키목록" => {
                 if args.len() != 1 {
@@ -1720,6 +2997,90 @@ impl<'a> EvalContext<'a> {
                 }
                 let value = eval_formula_expr(&parsed.expr, pack)?;
                 Ok(unit_value_to_value(value))
+            }
+            "살피기" => {
+                if args.len() != 2 {
+                    return Err("살피기는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::Assertion(assertion) = &args[0] else {
+                    return Err("살피기는 세움값 인자가 필요합니다".to_string().into());
+                };
+                let bindings = assertion_bindings_from_value(&args[1])?;
+                self.eval_assertion(assertion, bindings)
+            }
+            "처음으로" => {
+                if args.len() != 1 {
+                    return Err("처음으로는 인자 1개를 받습니다".to_string().into());
+                }
+                let Value::StateMachine(machine) = &args[0] else {
+                    return Err("처음으로는 상태머신값 인자가 필요합니다".to_string().into());
+                };
+                Ok(Value::String(machine.initial.clone()))
+            }
+            "지금상태" => {
+                if args.len() != 2 {
+                    return Err("지금상태는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::StateMachine(machine) = &args[0] else {
+                    return Err("지금상태는 상태머신값 인자가 필요합니다".to_string().into());
+                };
+                let Value::String(state) = &args[1] else {
+                    return Err("지금상태는 글 상태 이름 인자가 필요합니다"
+                        .to_string()
+                        .into());
+                };
+                ensure_declared_state(machine, state)?;
+                Ok(Value::String(state.clone()))
+            }
+            "다음으로" => {
+                if args.len() != 2 {
+                    return Err("다음으로는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::StateMachine(machine) = &args[0] else {
+                    return Err("다음으로는 상태머신값 인자가 필요합니다".to_string().into());
+                };
+                let Value::String(state) = &args[1] else {
+                    return Err("다음으로는 글 상태 이름 인자가 필요합니다"
+                        .to_string()
+                        .into());
+                };
+                ensure_declared_state(machine, state)?;
+                let candidates: Vec<&StateTransition> = machine
+                    .transitions
+                    .iter()
+                    .filter(|t| t.from == *state)
+                    .collect();
+                if candidates.is_empty() {
+                    return Err(format!("E_STATE_TRANSITION_MISSING: {}", state).into());
+                }
+                let mut selected: Option<&StateTransition> = None;
+                let mut guard_rejected = false;
+                for transition in candidates {
+                    let bindings =
+                        build_state_machine_transition_bindings(&transition.from, &transition.to);
+                    if let Some(guard_name) = &transition.guard_name {
+                        if !self.eval_state_machine_guard(locals, guard_name, &bindings)? {
+                            guard_rejected = true;
+                            continue;
+                        }
+                    }
+                    selected = Some(transition);
+                    break;
+                }
+                let Some(next) = selected else {
+                    if guard_rejected {
+                        return Err(format!("E_STATE_TRANSITION_GUARD_REJECTED: {}", state).into());
+                    }
+                    return Err(format!("E_STATE_TRANSITION_MISSING: {}", state).into());
+                };
+                self.apply_state_machine_transition(locals, machine, next)?;
+                self.emit_state_machine_transition(
+                    state,
+                    &next.to,
+                    next.guard_name.as_deref(),
+                    next.action_name.as_deref(),
+                );
+                Ok(Value::String(next.to.clone()))
             }
             "미분하기" => {
                 let (formula, options) = expect_formula_transform(&args, "미분하기")?;
@@ -1941,6 +3302,15 @@ impl<'a> EvalContext<'a> {
                     .map(|byte_idx| text[..byte_idx].chars().count() as i64);
                 Ok(Value::Fixed64(Fixed64::from_i64(idx.unwrap_or(-1))))
             }
+            "찾기?" => {
+                if args.len() != 2 {
+                    return Err("찾기?는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::Map(map) = &args[0] else {
+                    return Err("찾기?는 짝맞춤 인자를 받습니다".to_string().into());
+                };
+                Ok(map_get(map, &args[1]))
+            }
             "정규맞추기" => {
                 if args.len() != 2 {
                     return Err("정규맞추기는 인자 2개를 받습니다".to_string().into());
@@ -1969,6 +3339,41 @@ impl<'a> EvalContext<'a> {
                 };
                 let matched = regex_find_first(text, regex)?;
                 Ok(matched.map(Value::String).unwrap_or(Value::None))
+            }
+            "정규캡처하기" => {
+                if args.len() != 2 {
+                    return Err("정규캡처하기는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::String(text) = &args[0] else {
+                    return Err("정규캡처하기 첫 인자는 글이어야 합니다".to_string().into());
+                };
+                let Value::Regex(regex) = &args[1] else {
+                    return Err("정규캡처하기 둘째 인자는 정규식이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                Ok(Value::List(
+                    regex_capture_first(text, regex)?
+                        .into_iter()
+                        .map(Value::String)
+                        .collect(),
+                ))
+            }
+            "정규이름캡처하기" => {
+                if args.len() != 2 {
+                    return Err("정규이름캡처하기는 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::String(text) = &args[0] else {
+                    return Err("정규이름캡처하기 첫 인자는 글이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                let Value::Regex(regex) = &args[1] else {
+                    return Err("정규이름캡처하기 둘째 인자는 정규식이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                Ok(Value::Map(regex_named_capture_first(text, regex)?))
             }
             "정규바꾸기" => {
                 if args.len() != 3 {
@@ -2046,7 +3451,12 @@ impl<'a> EvalContext<'a> {
                 let func = args[1].clone();
                 let mut keyed = Vec::with_capacity(items.len());
                 for (idx, item) in items.iter().cloned().enumerate() {
-                    let key = self.eval_callable(&func, vec![item.clone()])?;
+                    let key = self.eval_callable(
+                        locals,
+                        &func,
+                        vec![item.clone()],
+                        source_span.clone(),
+                    )?;
                     keyed.push((idx, key, item));
                 }
                 keyed.sort_by(|a, b| value_cmp(&a.1, &b.1).then_with(|| a.0.cmp(&b.0)));
@@ -2063,7 +3473,12 @@ impl<'a> EvalContext<'a> {
                 let func = args[1].clone();
                 let mut out = Vec::new();
                 for item in items.iter().cloned() {
-                    let verdict = self.eval_callable(&func, vec![item.clone()])?;
+                    let verdict = self.eval_callable(
+                        locals,
+                        &func,
+                        vec![item.clone()],
+                        source_span.clone(),
+                    )?;
                     if is_truthy(&verdict)? {
                         out.push(item);
                     }
@@ -2080,7 +3495,8 @@ impl<'a> EvalContext<'a> {
                 let func = args[1].clone();
                 let mut out = Vec::with_capacity(items.len());
                 for item in items.iter().cloned() {
-                    let mapped = self.eval_callable(&func, vec![item])?;
+                    let mapped =
+                        self.eval_callable(locals, &func, vec![item], source_span.clone())?;
                     out.push(mapped);
                 }
                 Ok(Value::List(out))
@@ -2107,7 +3523,8 @@ impl<'a> EvalContext<'a> {
                 let func = args[1].clone();
                 let mut out = Vec::with_capacity(items.len());
                 for item in items.iter().cloned() {
-                    let mapped = self.eval_callable(&func, vec![item])?;
+                    let mapped =
+                        self.eval_callable(locals, &func, vec![item], source_span.clone())?;
                     out.push(mapped);
                 }
                 Ok(Value::List(out))
@@ -2189,7 +3606,7 @@ impl<'a> EvalContext<'a> {
                 };
                 let func = args[1].clone();
                 for item in items.iter().cloned() {
-                    let _ = self.eval_callable(&func, vec![item])?;
+                    let _ = self.eval_callable(locals, &func, vec![item], source_span.clone())?;
                 }
                 Ok(Value::None)
             }
@@ -2227,7 +3644,7 @@ impl<'a> EvalContext<'a> {
                 let func = args[2].clone();
                 let mut acc = args[1].clone();
                 for item in items.iter().cloned() {
-                    acc = self.eval_callable(&func, vec![acc, item])?;
+                    acc = self.eval_callable(locals, &func, vec![acc, item], source_span.clone())?;
                 }
                 Ok(acc)
             }
@@ -2438,6 +3855,282 @@ impl<'a> EvalContext<'a> {
                         Ok(unit_value_to_value(values[idx]))
                     }
                 }
+            }
+            "적분.오일러" => {
+                if args.len() != 3 {
+                    return Err("적분.오일러는 인자 3개를 받습니다".to_string().into());
+                }
+                let value = unit_value_from_value(&args[0])?;
+                let rate = unit_value_from_value(&args[1])?;
+                let dt = unit_value_from_value(&args[2])?;
+                let delta = rate.mul(dt);
+                let out = value.add(delta).map_err(unit_error)?;
+                Ok(unit_value_to_value(out))
+            }
+            "적분.반암시적오일러" => {
+                if args.len() != 4 {
+                    return Err("적분.반암시적오일러는 인자 4개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let position = unit_value_from_value(&args[0])?;
+                let velocity = unit_value_from_value(&args[1])?;
+                let acceleration = unit_value_from_value(&args[2])?;
+                let dt = unit_value_from_value(&args[3])?;
+                let next_velocity = velocity.add(acceleration.mul(dt)).map_err(unit_error)?;
+                let next_position = position.add(next_velocity.mul(dt)).map_err(unit_error)?;
+                Ok(Value::List(vec![
+                    unit_value_to_value(next_position),
+                    unit_value_to_value(next_velocity),
+                ]))
+            }
+            "보간.선형" => {
+                if args.len() != 3 {
+                    return Err("보간.선형은 인자 3개를 받습니다".to_string().into());
+                }
+                let start = unit_value_from_value(&args[0])?;
+                let end = unit_value_from_value(&args[1])?;
+                let t = unit_value_from_value(&args[2])?;
+                if !t.is_dimensionless() {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: t.dim,
+                        right: UnitDim::NONE,
+                    }));
+                }
+                let delta = end.sub(start).map_err(unit_error)?;
+                let out = start.add(delta.mul(t)).map_err(unit_error)?;
+                Ok(unit_value_to_value(out))
+            }
+            "보간.계단" => {
+                if args.len() != 4 {
+                    return Err("보간.계단은 인자 4개를 받습니다".to_string().into());
+                }
+                let start = unit_value_from_value(&args[0])?;
+                let end = unit_value_from_value(&args[1])?;
+                if start.dim != end.dim {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: start.dim,
+                        right: end.dim,
+                    }));
+                }
+                let t = unit_value_from_value(&args[2])?;
+                if !t.is_dimensionless() {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: t.dim,
+                        right: UnitDim::NONE,
+                    }));
+                }
+                let threshold = unit_value_from_value(&args[3])?;
+                if !threshold.is_dimensionless() {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: threshold.dim,
+                        right: UnitDim::NONE,
+                    }));
+                }
+                if t.value < threshold.value {
+                    Ok(unit_value_to_value(start))
+                } else {
+                    Ok(unit_value_to_value(end))
+                }
+            }
+            "필터.이동평균" => {
+                if args.len() != 2 {
+                    return Err("필터.이동평균은 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::List(window) = &args[0] else {
+                    return Err("필터.이동평균 첫 인자는 차림이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                let next = unit_value_from_value(&args[1])?;
+                let mut next_window = Vec::with_capacity(window.len() + 1);
+                let mut total = next.value;
+                for item in window {
+                    let value = unit_value_from_value(item)?;
+                    if value.dim != next.dim {
+                        return Err(unit_error(UnitError::DimensionMismatch {
+                            left: next.dim,
+                            right: value.dim,
+                        }));
+                    }
+                    total = total.saturating_add(value.value);
+                    next_window.push(unit_value_to_value(value));
+                }
+                next_window.push(unit_value_to_value(next));
+                let count = Fixed64::from_i64(next_window.len() as i64);
+                let avg = total
+                    .try_div(count)
+                    .map_err(|_| "필터.이동평균 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                Ok(Value::List(vec![
+                    Value::List(next_window),
+                    unit_value_to_value(UnitValue {
+                        value: avg,
+                        dim: next.dim,
+                    }),
+                ]))
+            }
+            "필터.지수평활" => {
+                if args.len() != 3 {
+                    return Err("필터.지수평활은 인자 3개를 받습니다".to_string().into());
+                }
+                let prev = unit_value_from_value(&args[0])?;
+                let next = unit_value_from_value(&args[1])?;
+                if prev.dim != next.dim {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: prev.dim,
+                        right: next.dim,
+                    }));
+                }
+                let alpha = unit_value_from_value(&args[2])?;
+                if !alpha.is_dimensionless() {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: alpha.dim,
+                        right: UnitDim::NONE,
+                    }));
+                }
+                if alpha.value.raw_i64() < 0 || alpha.value.raw_i64() > Fixed64::ONE.raw_i64() {
+                    return Err("필터.지수평활 alpha는 0..1 범위여야 합니다"
+                        .to_string()
+                        .into());
+                }
+                let one = Fixed64::from_i64(1);
+                let keep = one.saturating_sub(alpha.value);
+                let out = prev
+                    .value
+                    .saturating_mul(keep)
+                    .saturating_add(next.value.saturating_mul(alpha.value));
+                Ok(unit_value_to_value(UnitValue {
+                    value: out,
+                    dim: prev.dim,
+                }))
+            }
+            "미분.중앙차분" => {
+                let (formula, var_name, point, step) =
+                    expect_numeric_derivative_args(&args, "미분.중앙차분")?;
+                let prepared = prepare_numeric_formula(&formula, &var_name, "미분.중앙차분")?;
+                let two = Fixed64::from_i64(2);
+
+                let x_plus = UnitValue {
+                    value: point.value.saturating_add(step.value),
+                    dim: point.dim,
+                };
+                let x_minus = UnitValue {
+                    value: point.value.saturating_sub(step.value),
+                    dim: point.dim,
+                };
+                let y_plus = eval_numeric_formula_at(&prepared, x_plus, "미분.중앙차분")?;
+                let y_minus = eval_numeric_formula_at(&prepared, x_minus, "미분.중앙차분")?;
+                if y_plus.dim != y_minus.dim {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: y_plus.dim,
+                        right: y_minus.dim,
+                    }));
+                }
+                let denom = step.value.saturating_mul(two);
+                let d_h = y_plus
+                    .value
+                    .saturating_sub(y_minus.value)
+                    .try_div(denom)
+                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
+
+                let step2 = step.value.saturating_mul(two);
+                let x_plus2 = UnitValue {
+                    value: point.value.saturating_add(step2),
+                    dim: point.dim,
+                };
+                let x_minus2 = UnitValue {
+                    value: point.value.saturating_sub(step2),
+                    dim: point.dim,
+                };
+                let y_plus2 = eval_numeric_formula_at(&prepared, x_plus2, "미분.중앙차분")?;
+                let y_minus2 = eval_numeric_formula_at(&prepared, x_minus2, "미분.중앙차분")?;
+                if y_plus2.dim != y_minus2.dim {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: y_plus2.dim,
+                        right: y_minus2.dim,
+                    }));
+                }
+                let denom2 = step2.saturating_mul(two);
+                let d_2h = y_plus2
+                    .value
+                    .saturating_sub(y_minus2.value)
+                    .try_div(denom2)
+                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                let three = Fixed64::from_i64(3);
+                let richardson_delta = d_h.saturating_sub(d_2h);
+                let richardson_correction = richardson_delta
+                    .try_div(three)
+                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                let richardson_value = d_h.saturating_add(richardson_correction);
+                let richardson_error = fixed64_abs(richardson_delta)
+                    .try_div(three)
+                    .map_err(|_| "미분.중앙차분 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                let diff_dim = y_plus.dim.sub(step.dim);
+                Ok(Value::List(vec![
+                    unit_value_to_value(UnitValue {
+                        value: richardson_value,
+                        dim: diff_dim,
+                    }),
+                    unit_value_to_value(UnitValue {
+                        value: richardson_error,
+                        dim: diff_dim,
+                    }),
+                    Value::String("중앙차분".to_string()),
+                ]))
+            }
+            "적분.사다리꼴" => {
+                let (formula, var_name, start, end, step) =
+                    expect_numeric_integral_args(&args, "적분.사다리꼴")?;
+                let prepared = prepare_numeric_formula(&formula, &var_name, "적분.사다리꼴")?;
+                let (lower, upper, sign) = if end.value < start.value {
+                    (end, start, -1_i64)
+                } else {
+                    (start, end, 1_i64)
+                };
+                let interval = upper.value.saturating_sub(lower.value);
+                let n_est = interval
+                    .try_div(step.value)
+                    .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                let mut n = fixed64_to_nonnegative_index(fixed64_ceil(n_est))?;
+                if n == 0 {
+                    n = 1;
+                }
+                let coarse = numeric_trapezoid_integral(&prepared, lower, upper, n)?;
+                let refined = numeric_trapezoid_integral(
+                    &prepared,
+                    lower,
+                    upper,
+                    n.saturating_mul(2).max(2),
+                )?;
+                if coarse.dim != refined.dim {
+                    return Err(unit_error(UnitError::DimensionMismatch {
+                        left: coarse.dim,
+                        right: refined.dim,
+                    }));
+                }
+                let three = Fixed64::from_i64(3);
+                let richardson_delta = refined.value.saturating_sub(coarse.value);
+                let richardson_correction = richardson_delta
+                    .try_div(three)
+                    .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                let richardson_value = refined.value.saturating_add(richardson_correction);
+                let richardson_error = fixed64_abs(richardson_delta)
+                    .try_div(three)
+                    .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
+                let mut approx = refined;
+                approx.value = richardson_value;
+                if sign < 0 {
+                    approx.value = Fixed64::ZERO.saturating_sub(approx.value);
+                }
+                let err = UnitValue {
+                    value: richardson_error,
+                    dim: coarse.dim,
+                };
+                Ok(Value::List(vec![
+                    unit_value_to_value(approx),
+                    unit_value_to_value(err),
+                    Value::String("사다리꼴".to_string()),
+                ]))
             }
             "abs" => {
                 if args.len() != 1 {
@@ -2679,29 +4372,44 @@ impl<'a> EvalContext<'a> {
     fn eval_infix(&self, op: &str, left: Value, right: Value) -> Result<Value, EvalError> {
         match op {
             "+" => {
+                if let Some(exact) = eval_exact_numeric_infix(op, &left, &right)? {
+                    return Ok(exact);
+                }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
                 let sum = l.add(r).map_err(unit_error)?;
                 Ok(unit_value_to_value(sum))
             }
             "-" => {
+                if let Some(exact) = eval_exact_numeric_infix(op, &left, &right)? {
+                    return Ok(exact);
+                }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
                 let diff = l.sub(r).map_err(unit_error)?;
                 Ok(unit_value_to_value(diff))
             }
             "*" => {
+                if let Some(exact) = eval_exact_numeric_infix(op, &left, &right)? {
+                    return Ok(exact);
+                }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
                 Ok(unit_value_to_value(l.mul(r)))
             }
             "/" => {
+                if let Some(exact) = eval_exact_numeric_infix(op, &left, &right)? {
+                    return Ok(exact);
+                }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
                 let div = l.div(r).map_err(unit_error)?;
                 Ok(unit_value_to_value(div))
             }
             "%" => {
+                if let Some(exact) = eval_exact_numeric_infix(op, &left, &right)? {
+                    return Ok(exact);
+                }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
                 if l.dim != r.dim {
@@ -2720,6 +4428,9 @@ impl<'a> EvalContext<'a> {
                 }))
             }
             "==" | "!=" => {
+                if let Some(eq) = eval_exact_numeric_compare_infix(op, &left, &right)? {
+                    return Ok(Value::Bool(eq));
+                }
                 if let (Some(l), Some(r)) = (numeric_value(&left), numeric_value(&right)) {
                     if l.dim != r.dim {
                         return Err(unit_error(UnitError::DimensionMismatch {
@@ -2734,6 +4445,9 @@ impl<'a> EvalContext<'a> {
                 Ok(Value::Bool(if op == "==" { eq } else { !eq }))
             }
             "<" | "<=" | ">" | ">=" => {
+                if let Some(cmp) = eval_exact_numeric_compare_infix(op, &left, &right)? {
+                    return Ok(Value::Bool(cmp));
+                }
                 let l = unit_value_from_value(&left)?;
                 let r = unit_value_from_value(&right)?;
                 if l.dim != r.dim {
@@ -2855,6 +4569,82 @@ impl<'a> EvalContext<'a> {
         }
     }
 
+    fn emit_factor_decomposition_deferred_diag(
+        &mut self,
+        value: &Value,
+        source_span: Option<SourceSpan>,
+    ) {
+        let (deferred_value, deferred_reason, deferred_route, deferred_bits) = match value {
+            Value::Pack(fields) => {
+                let raw = fields.get("값").and_then(|raw| match raw {
+                    Value::String(text) => Some(text.clone()),
+                    _ => None,
+                });
+                let reason = fields
+                    .get(FACTOR_DECOMP_DEFERRED_REASON_KEY)
+                    .and_then(|raw| match raw {
+                        Value::String(text) => Some(text.clone()),
+                        _ => None,
+                    });
+                let route = fields.get(FACTOR_DECOMP_ROUTE_KEY).and_then(|raw| match raw {
+                    Value::String(text) => Some(text.clone()),
+                    _ => None,
+                });
+                let bits = fields.get(FACTOR_DECOMP_BITS_KEY).and_then(|raw| match raw {
+                    Value::Fixed64(value) => Some(value.int_part()),
+                    _ => None,
+                });
+                (raw, reason, route, bits)
+            }
+            _ => (None, None, None, None),
+        };
+        let origin = self
+            .current_seed_name
+            .as_ref()
+            .map(|name| format!("seed:{}", name))
+            .unwrap_or_else(|| "#system:ddn".to_string());
+        let message = match (deferred_value, deferred_reason.clone()) {
+            (Some(raw), Some(reason)) => Some(format!("곱수 분해를 지연했습니다({reason}): {raw}")),
+            (Some(raw), None) => Some(format!("곱수 분해를 지연했습니다: {raw}")),
+            _ => None,
+        };
+        let agg_suffix = self
+            .factor_route_summary_components()
+            .map(|(routes, total, _, _, _)| format!(";agg_routes={routes};agg_total={total}"))
+            .unwrap_or_default();
+        let trace_text = match (deferred_route, deferred_bits) {
+            (Some(route), Some(bits)) => Some(format!("route={route};bits={bits}{agg_suffix}")),
+            (Some(route), None) => Some(format!("route={route}{agg_suffix}")),
+            (None, Some(bits)) => Some(format!("bits={bits}{agg_suffix}")),
+            (None, None) => None,
+        };
+        let event = DiagEvent {
+            madi: self.tick_id,
+            seq: 0,
+            fault_id: NUMERIC_DIAG_REASON_FACTOR_DECOMP_DEFERRED.to_string(),
+            rule_id: NUMERIC_DIAG_RULE_ID_FACTOR_DECOMP_DEFERRED.to_string(),
+            reason: NUMERIC_DIAG_REASON_FACTOR_DECOMP_DEFERRED.to_string(),
+            sub_reason: Some(
+                deferred_reason.unwrap_or_else(|| FACTOR_DECOMP_STATUS_DEFERRED.to_string()),
+            ),
+            mode: Some("알림".to_string()),
+            contract_kind: None,
+            origin: origin.clone(),
+            targets: vec![origin],
+            sam_hash: None,
+            source_span,
+            expr: Some(ExprTrace {
+                tag: NUMERIC_DIAG_TAG_FACTOR_DECOMP_DEFERRED.to_string(),
+                text: trace_text,
+            }),
+            message,
+        };
+        self.patch_ops.push(PatchOp::EmitSignal {
+            signal: Signal::Diag { event },
+            targets: Vec::new(),
+        });
+    }
+
     fn emit_guard_violation(&mut self, expr_id: u64) {
         self.patch_ops.push(PatchOp::GuardViolation {
             entity: EntityId(0),
@@ -2867,6 +4657,207 @@ impl<'a> EvalContext<'a> {
             tag: tag.to_string(),
             text: None,
         }
+    }
+
+    fn note_factor_route_from_value(&mut self, value: &Value) {
+        let (route, bits) = match value {
+            Value::Pack(fields) => {
+                let route = fields.get(FACTOR_DECOMP_ROUTE_KEY).and_then(|raw| match raw {
+                    Value::String(route) => Some(route.clone()),
+                    _ => None,
+                });
+                let bits = fields.get(FACTOR_DECOMP_BITS_KEY).and_then(|raw| match raw {
+                    Value::Fixed64(value) if value.int_part() >= 0 => Some(value.int_part() as u64),
+                    _ => None,
+                });
+                (route, bits)
+            }
+            _ => (None, None),
+        };
+        if let Some(route) = route {
+            *self.factor_route_counts.entry(route).or_insert(0) += 1;
+        }
+        if let Some(bits) = bits {
+            self.factor_bits_total = self.factor_bits_total.saturating_add(bits as u128);
+            self.factor_bits_min = Some(match self.factor_bits_min {
+                Some(prev) => prev.min(bits),
+                None => bits,
+            });
+            self.factor_bits_max = self.factor_bits_max.max(bits);
+        }
+    }
+
+    fn flush_factor_route_metrics_resource(&mut self) {
+        let Some((summary, total, bit_min, bit_max, bit_sum)) = self.factor_route_summary_components() else {
+            return;
+        };
+        let policy_summary = factor_policy_summary_text();
+        let total_i64 = if total > i64::MAX as u64 {
+            i64::MAX
+        } else {
+            total as i64
+        };
+        let bit_min_i64 = if bit_min > i64::MAX as u64 {
+            i64::MAX
+        } else {
+            bit_min as i64
+        };
+        let bit_max_i64 = if bit_max > i64::MAX as u64 {
+            i64::MAX
+        } else {
+            bit_max as i64
+        };
+        let bit_sum_i64 = if bit_sum > i64::MAX as u128 {
+            i64::MAX
+        } else {
+            bit_sum as i64
+        };
+        self.resources.insert(
+            NUMERIC_FACTOR_ROUTE_SUMMARY_RESOURCE_KEY.to_string(),
+            Value::String(summary),
+        );
+        self.resources.insert(
+            NUMERIC_FACTOR_ROUTE_TOTAL_RESOURCE_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(total_i64)),
+        );
+        self.resources.insert(
+            NUMERIC_FACTOR_BITS_MIN_RESOURCE_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(bit_min_i64)),
+        );
+        self.resources.insert(
+            NUMERIC_FACTOR_BITS_MAX_RESOURCE_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(bit_max_i64)),
+        );
+        self.resources.insert(
+            NUMERIC_FACTOR_BITS_SUM_RESOURCE_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(bit_sum_i64)),
+        );
+        self.resources.insert(
+            NUMERIC_FACTOR_POLICY_RESOURCE_KEY.to_string(),
+            Value::String(policy_summary),
+        );
+    }
+
+    fn emit_factor_route_summary_diag(&mut self) {
+        let Some((summary, total, bit_min, bit_max, bit_sum)) = self.factor_route_summary_components() else {
+            return;
+        };
+        let policy_summary = factor_policy_summary_text();
+        let origin = self
+            .current_seed_name
+            .as_ref()
+            .map(|name| format!("seed:{}", name))
+            .unwrap_or_else(|| "#system:ddn".to_string());
+        let trace_text = format!(
+            "routes={summary};total={total};bit_min={bit_min};bit_max={bit_max};bit_sum={bit_sum};policy={policy_summary}"
+        );
+        let message = format!(
+            "곱수 분해경로 집계: {summary} (총 {total}, 비트 최소={bit_min}, 최대={bit_max}, 합={bit_sum}, 정책={policy_summary})"
+        );
+        let event = DiagEvent {
+            madi: self.tick_id,
+            seq: 0,
+            fault_id: NUMERIC_DIAG_REASON_FACTOR_ROUTE_SUMMARY.to_string(),
+            rule_id: NUMERIC_DIAG_RULE_ID_FACTOR_ROUTE_SUMMARY.to_string(),
+            reason: NUMERIC_DIAG_REASON_FACTOR_ROUTE_SUMMARY.to_string(),
+            sub_reason: None,
+            mode: Some("알림".to_string()),
+            contract_kind: None,
+            origin: origin.clone(),
+            targets: vec![origin],
+            sam_hash: None,
+            source_span: None,
+            expr: Some(ExprTrace {
+                tag: NUMERIC_DIAG_TAG_FACTOR_ROUTE_SUMMARY.to_string(),
+                text: Some(trace_text),
+            }),
+            message: Some(message),
+        };
+        self.patch_ops.push(PatchOp::EmitSignal {
+            signal: Signal::Diag { event },
+            targets: Vec::new(),
+        });
+    }
+
+    fn factor_route_summary_components(&self) -> Option<(String, u64, u64, u64, u128)> {
+        if self.factor_route_counts.is_empty() {
+            return None;
+        }
+        let summary = self
+            .factor_route_counts
+            .iter()
+            .map(|(route, count)| format!("{route}={count}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let total = self
+            .factor_route_counts
+            .values()
+            .fold(0u64, |acc, v| acc.saturating_add(*v));
+        let bit_min = self.factor_bits_min.unwrap_or(0);
+        let bit_max = self.factor_bits_max;
+        let bit_sum = self.factor_bits_total;
+        Some((summary, total, bit_min, bit_max, bit_sum))
+    }
+
+    fn capture_frame_snapshot(&self, locals: &HashMap<String, Value>) -> EvalFrameSnapshot {
+        EvalFrameSnapshot {
+            locals: locals.clone(),
+            resources: self.resources.clone(),
+            patch_ops: self.patch_ops.clone(),
+            guard_rejected: self.guard_rejected,
+            const_scopes: self.const_scopes.clone(),
+            factor_route_counts: self.factor_route_counts.clone(),
+            factor_bits_total: self.factor_bits_total,
+            factor_bits_min: self.factor_bits_min,
+            factor_bits_max: self.factor_bits_max,
+        }
+    }
+
+    fn restore_frame_snapshot(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        snapshot: &EvalFrameSnapshot,
+    ) {
+        *locals = snapshot.locals.clone();
+        self.resources = snapshot.resources.clone();
+        self.patch_ops = snapshot.patch_ops.clone();
+        self.guard_rejected = snapshot.guard_rejected;
+        self.const_scopes = snapshot.const_scopes.clone();
+        self.factor_route_counts = snapshot.factor_route_counts.clone();
+        self.factor_bits_total = snapshot.factor_bits_total;
+        self.factor_bits_min = snapshot.factor_bits_min;
+        self.factor_bits_max = snapshot.factor_bits_max;
+    }
+
+    fn restore_frame_snapshot_preserving_abort_contract_diag(
+        &mut self,
+        locals: &mut HashMap<String, Value>,
+        snapshot: &EvalFrameSnapshot,
+    ) {
+        let preserved = self.abort_contract_diag_ops_since(snapshot.patch_ops.len());
+        self.restore_frame_snapshot(locals, snapshot);
+        self.patch_ops.extend(preserved);
+    }
+
+    fn abort_contract_diag_ops_since(&self, base_len: usize) -> Vec<PatchOp> {
+        self.patch_ops
+            .iter()
+            .skip(base_len)
+            .filter_map(|op| match op {
+                PatchOp::EmitSignal {
+                    signal: Signal::Diag { event },
+                    targets,
+                } if event.rule_id == "L0-CONTRACT-01" && event.mode.as_deref() == Some("중단") => {
+                    Some(PatchOp::EmitSignal {
+                        signal: Signal::Diag {
+                            event: event.clone(),
+                        },
+                        targets: targets.clone(),
+                    })
+                }
+                _ => None,
+            })
+            .collect()
     }
 
     fn source_span_for_expr(&self, expr: &Expr) -> Option<SourceSpan> {
@@ -3016,10 +5007,15 @@ impl<'a> EvalContext<'a> {
                     .insert(name.to_string(), Value::ResourceHandle(handle));
             }
             Value::None => return Err("없음은 자원에 대입할 수 없습니다".to_string().into()),
-            Value::List(_) | Value::Set(_) | Value::Map(_) | Value::Pack(_) => {
+            Value::List(_)
+            | Value::Set(_)
+            | Value::Map(_)
+            | Value::Pack(_)
+            | Value::Assertion(_)
+            | Value::StateMachine(_) => {
                 if parse_resource_unit_tag(name).is_some() {
                     return Err(
-                        "단위 태그 자원에는 차림/모음/짝맞춤/묶음을 저장할 수 없습니다"
+                        "단위 태그 자원에는 차림/모음/짝맞춤/묶음/세움값/상태머신값을 저장할 수 없습니다"
                             .to_string()
                             .into(),
                     );
@@ -3077,6 +5073,384 @@ fn build_regex(regex: &RegexLiteral) -> Result<regex::Regex, EvalError> {
         .map_err(|e| format!("E_REGEX_PATTERN_INVALID: {}", e).into())
 }
 
+fn ensure_declared_state(machine: &StateMachine, state: &str) -> Result<(), EvalError> {
+    if machine.states.iter().any(|name| name == state) {
+        Ok(())
+    } else {
+        Err(format!("E_STATE_UNDECLARED: {}", state).into())
+    }
+}
+
+fn build_state_machine_transition_bindings(from: &str, to: &str) -> HashMap<String, Value> {
+    let from_value = Value::String(from.to_string());
+    let to_value = Value::String(to.to_string());
+    HashMap::from([
+        ("현재".to_string(), from_value.clone()),
+        ("다음".to_string(), to_value.clone()),
+        ("현재상태".to_string(), from_value.clone()),
+        ("다음상태".to_string(), to_value.clone()),
+        ("출발상태".to_string(), from_value),
+        ("도착상태".to_string(), to_value),
+    ])
+}
+
+fn state_machine_transition_action_args(
+    seed: &SeedDef,
+    bindings: &HashMap<String, Value>,
+) -> Result<Vec<Value>, EvalError> {
+    let mut args = Vec::with_capacity(seed.params.len());
+    for param in &seed.params {
+        let value = bindings.get(&param.pin_name).cloned().ok_or_else(|| {
+            EvalError::from(format!(
+                "E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: {}:{}",
+                seed.canonical_name, param.pin_name
+            ))
+        })?;
+        args.push(value);
+    }
+    Ok(args)
+}
+
+fn assertion_bindings_from_value(value: &Value) -> Result<HashMap<String, Value>, EvalError> {
+    match value {
+        Value::Pack(pack) => Ok(pack
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()),
+        Value::Map(entries) => {
+            let mut out = HashMap::new();
+            for entry in entries.values() {
+                let Value::String(key) = &entry.key else {
+                    return Err("살피기 값들은 글 키를 가진 묶음/짝맞춤이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                out.insert(key.clone(), entry.value.clone());
+            }
+            Ok(out)
+        }
+        _ => Err("살피기 값들은 묶음 또는 짝맞춤이어야 합니다"
+            .to_string()
+            .into()),
+    }
+}
+
+fn parse_assertion_body(assertion: &Assertion) -> Result<Body, EvalError> {
+    let wrapped = format!("검사:셈씨 = {{{}}}", assertion.body_source);
+    let program = parse_with_mode(&wrapped, "#assertion", ParseMode::Strict).map_err(|err| {
+        EvalError::Message(format!(
+            "세움 본문 파싱 실패: {}",
+            format_parse_error(&wrapped, &err)
+        ))
+    })?;
+    let Some(TopLevelItem::SeedDef(seed)) = program.items.first() else {
+        return Err("세움 본문을 찾을 수 없습니다".to_string().into());
+    };
+    let Some(body) = &seed.body else {
+        return Err("세움 본문이 비어 있습니다".to_string().into());
+    };
+    Ok(body.clone())
+}
+
+fn extract_assertion_body_source(canon: &str) -> Option<String> {
+    let start = canon.find('{')?;
+    let end = canon.rfind('}')?;
+    if end <= start {
+        return None;
+    }
+    Some(canon[start + 1..end].to_string())
+}
+
+impl<'a> EvalContext<'a> {
+    fn resolve_named_assertion(
+        &self,
+        locals: &HashMap<String, Value>,
+        name: &str,
+    ) -> Option<Assertion> {
+        if let Some(Value::Assertion(assertion)) = locals.get(name) {
+            return Some(assertion.clone());
+        }
+        if let Some(Value::Assertion(assertion)) = self.resources.get(name) {
+            return Some(assertion.clone());
+        }
+        if let Some(Value::Assertion(assertion)) = self.defaults.get(name) {
+            return Some(assertion.clone());
+        }
+        None
+    }
+
+    fn eval_state_machine_transition_checks(
+        &mut self,
+        locals: &HashMap<String, Value>,
+        machine: &StateMachine,
+        from: &str,
+        to: &str,
+    ) -> Result<(), EvalError> {
+        if machine.on_transition_checks.is_empty() {
+            return Ok(());
+        }
+        let bindings = build_state_machine_transition_bindings(from, to);
+        for check_name in &machine.on_transition_checks {
+            let assertion = self
+                .resolve_named_assertion(locals, check_name)
+                .ok_or_else(|| {
+                    EvalError::from(format!(
+                        "E_STATE_TRANSITION_CHECK_UNRESOLVED: {}",
+                        check_name
+                    ))
+                })?;
+            let passed = self.eval_assertion(&assertion, bindings.clone())?;
+            match passed {
+                Value::Bool(true) => {}
+                _ => {
+                    return Err(format!("E_STATE_TRANSITION_CHECK_FAILED: {}", check_name).into());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn eval_state_machine_guard(
+        &mut self,
+        locals: &HashMap<String, Value>,
+        guard_name: &str,
+        bindings: &HashMap<String, Value>,
+    ) -> Result<bool, EvalError> {
+        let assertion = self
+            .resolve_named_assertion(locals, guard_name)
+            .ok_or_else(|| {
+                EvalError::from(format!(
+                    "E_STATE_TRANSITION_GUARD_UNRESOLVED: {}",
+                    guard_name
+                ))
+            })?;
+        Ok(self
+            .eval_assertion_result(&assertion, bindings.clone())
+            .is_ok())
+    }
+
+    fn eval_state_machine_transition_action(
+        &mut self,
+        action_name: &str,
+        bindings: &HashMap<String, Value>,
+    ) -> Result<(), EvalError> {
+        let seed = self
+            .program
+            .functions
+            .get(action_name)
+            .ok_or_else(|| {
+                EvalError::from(format!(
+                    "E_STATE_TRANSITION_ACTION_UNRESOLVED: {}",
+                    action_name
+                ))
+            })?
+            .clone();
+        let args = state_machine_transition_action_args(&seed, bindings)?;
+        let mut child = EvalContext {
+            program: self.program,
+            world: self.world,
+            defaults: self.defaults,
+            resources: self.resources.clone(),
+            input: self.input,
+            patch_ops: self.patch_ops.clone(),
+            guard_rejected: self.guard_rejected,
+            aborted: false,
+            current_seed_name: self.current_seed_name.clone(),
+            rng_state: self.rng_state,
+            flow_stack: self.flow_stack.clone(),
+            tick_id: self.tick_id,
+            const_scopes: self.const_scopes.clone(),
+            factor_route_counts: self.factor_route_counts.clone(),
+            factor_bits_total: self.factor_bits_total,
+            factor_bits_min: self.factor_bits_min,
+            factor_bits_max: self.factor_bits_max,
+        };
+        child.eval_seed(&seed, args)?;
+        if child.aborted {
+            return Err(EvalError::from(format!(
+                "E_STATE_TRANSITION_ACTION_ABORTED: {}",
+                action_name
+            )));
+        }
+        self.resources = child.resources;
+        self.patch_ops = child.patch_ops;
+        self.guard_rejected = child.guard_rejected;
+        self.rng_state = child.rng_state;
+        self.const_scopes = child.const_scopes;
+        self.factor_route_counts = child.factor_route_counts;
+        self.factor_bits_total = child.factor_bits_total;
+        self.factor_bits_min = child.factor_bits_min;
+        self.factor_bits_max = child.factor_bits_max;
+        Ok(())
+    }
+
+    fn apply_state_machine_transition(
+        &mut self,
+        locals: &HashMap<String, Value>,
+        machine: &StateMachine,
+        transition: &StateTransition,
+    ) -> Result<(), EvalError> {
+        let bindings = build_state_machine_transition_bindings(&transition.from, &transition.to);
+        let mut child = EvalContext {
+            program: self.program,
+            world: self.world,
+            defaults: self.defaults,
+            resources: self.resources.clone(),
+            input: self.input,
+            patch_ops: self.patch_ops.clone(),
+            guard_rejected: self.guard_rejected,
+            aborted: false,
+            current_seed_name: self.current_seed_name.clone(),
+            rng_state: self.rng_state,
+            flow_stack: self.flow_stack.clone(),
+            tick_id: self.tick_id,
+            const_scopes: self.const_scopes.clone(),
+            factor_route_counts: self.factor_route_counts.clone(),
+            factor_bits_total: self.factor_bits_total,
+            factor_bits_min: self.factor_bits_min,
+            factor_bits_max: self.factor_bits_max,
+        };
+        if let Some(action_name) = &transition.action_name {
+            child.eval_state_machine_transition_action(action_name, &bindings)?;
+        }
+        child.eval_state_machine_transition_checks(
+            locals,
+            machine,
+            &transition.from,
+            &transition.to,
+        )?;
+        self.resources = child.resources;
+        self.patch_ops = child.patch_ops;
+        self.guard_rejected = child.guard_rejected;
+        self.rng_state = child.rng_state;
+        self.const_scopes = child.const_scopes;
+        self.factor_route_counts = child.factor_route_counts;
+        self.factor_bits_total = child.factor_bits_total;
+        self.factor_bits_min = child.factor_bits_min;
+        self.factor_bits_max = child.factor_bits_max;
+        Ok(())
+    }
+
+    fn emit_state_machine_transition(
+        &mut self,
+        from: &str,
+        to: &str,
+        guard_name: Option<&str>,
+        action_name: Option<&str>,
+    ) {
+        let origin = self
+            .current_seed_name
+            .as_ref()
+            .map(|name| format!("seed:{}", name))
+            .unwrap_or_else(|| "#system:ddn".to_string());
+        let event = DiagEvent {
+            madi: self.tick_id,
+            seq: 0,
+            fault_id: "STATE_TRANSITION".to_string(),
+            rule_id: "L1-STATE-01".to_string(),
+            reason: "STATE_TRANSITION".to_string(),
+            sub_reason: Some("NEXT".to_string()),
+            mode: None,
+            contract_kind: None,
+            origin: origin.clone(),
+            targets: vec![origin],
+            sam_hash: None,
+            source_span: None,
+            expr: Some(ExprTrace {
+                tag: format!("state_transition:{}->{}", from, to),
+                text: Some(format!(
+                    "guard={};action={}",
+                    guard_name.unwrap_or("-"),
+                    action_name.unwrap_or("-")
+                )),
+            }),
+            message: Some(format!("상태 전이: {} -> {}", from, to)),
+        };
+        self.patch_ops.push(PatchOp::EmitSignal {
+            signal: Signal::Diag { event },
+            targets: Vec::new(),
+        });
+    }
+
+    fn eval_assertion_result(
+        &mut self,
+        assertion: &Assertion,
+        bindings: HashMap<String, Value>,
+    ) -> Result<(), String> {
+        let body = parse_assertion_body(assertion).map_err(|err| err.message())?;
+        let mut child = EvalContext {
+            program: self.program,
+            world: self.world,
+            defaults: self.defaults,
+            resources: self.resources.clone(),
+            input: self.input,
+            patch_ops: Vec::new(),
+            guard_rejected: false,
+            aborted: false,
+            current_seed_name: self.current_seed_name.clone(),
+            rng_state: self.rng_state,
+            flow_stack: self.flow_stack.clone(),
+            tick_id: self.tick_id,
+            const_scopes: self.const_scopes.clone(),
+            factor_route_counts: self.factor_route_counts.clone(),
+            factor_bits_total: self.factor_bits_total,
+            factor_bits_min: self.factor_bits_min,
+            factor_bits_max: self.factor_bits_max,
+        };
+        let mut locals = bindings;
+        match child.eval_body(&mut locals, &body) {
+            Ok(_) if !child.aborted => Ok(()),
+            Ok(_) => Err("세움 살피기가 실패했습니다".to_string()),
+            Err(err) => Err(err.message()),
+        }
+    }
+
+    fn eval_assertion(
+        &mut self,
+        assertion: &Assertion,
+        bindings: HashMap<String, Value>,
+    ) -> Result<Value, EvalError> {
+        match self.eval_assertion_result(assertion, bindings) {
+            Ok(()) => Ok(Value::Bool(true)),
+            Err(message) => {
+                self.emit_assertion_failure(assertion, message);
+                Ok(Value::Bool(false))
+            }
+        }
+    }
+
+    fn emit_assertion_failure(&mut self, assertion: &Assertion, message: String) {
+        let origin = self
+            .current_seed_name
+            .as_ref()
+            .map(|name| format!("seed:{}", name))
+            .unwrap_or_else(|| "#system:ddn".to_string());
+        let event = DiagEvent {
+            madi: self.tick_id,
+            seq: 0,
+            fault_id: "ASSERTION_FAILED".to_string(),
+            rule_id: "L1-ASSERT-01".to_string(),
+            reason: "ASSERTION_FAILED".to_string(),
+            sub_reason: Some("CHECK_FAILED".to_string()),
+            mode: None,
+            contract_kind: None,
+            origin: origin.clone(),
+            targets: vec![origin],
+            sam_hash: None,
+            source_span: None,
+            expr: Some(ExprTrace {
+                tag: "assertion:check".to_string(),
+                text: Some(assertion.canon.clone()),
+            }),
+            message: Some(message),
+        };
+        self.patch_ops.push(PatchOp::EmitSignal {
+            signal: Signal::Diag { event },
+            targets: Vec::new(),
+        });
+    }
+}
+
 fn build_regex_full_match(regex: &RegexLiteral) -> Result<regex::Regex, EvalError> {
     validate_regex_flags(&regex.flags)?;
     let wrapped = format!(r"\A(?:{})\z", regex.pattern);
@@ -3127,12 +5501,157 @@ fn regex_find_first(text: &str, regex: &RegexLiteral) -> Result<Option<String>, 
     Ok(re.find(text).map(|m| m.as_str().to_string()))
 }
 
+fn regex_capture_first(text: &str, regex: &RegexLiteral) -> Result<Vec<String>, EvalError> {
+    let re = build_regex(regex)?;
+    let Some(captures) = re.captures(text) else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::with_capacity(captures.len());
+    for idx in 0..captures.len() {
+        if let Some(hit) = captures.get(idx) {
+            out.push(hit.as_str().to_string());
+        } else {
+            out.push(String::new());
+        }
+    }
+    Ok(out)
+}
+
+fn regex_named_capture_first(
+    text: &str,
+    regex: &RegexLiteral,
+) -> Result<BTreeMap<String, MapEntry>, EvalError> {
+    let re = build_regex(regex)?;
+    let Some(captures) = re.captures(text) else {
+        return Ok(BTreeMap::new());
+    };
+    let mut out = BTreeMap::new();
+    for name in re.capture_names().flatten() {
+        let key = Value::String(name.to_string());
+        let value = Value::String(
+            captures
+                .name(name)
+                .map(|item| item.as_str().to_string())
+                .unwrap_or_default(),
+        );
+        out.insert(map_key_canon(&key), MapEntry { key, value });
+    }
+    Ok(out)
+}
+
+fn regex_replacement_ref_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
+}
+
+fn validate_regex_replacement(re: &regex::Regex, replacement: &str) -> Result<(), EvalError> {
+    let names: BTreeSet<&str> = re.capture_names().flatten().collect();
+    let chars: Vec<char> = replacement.chars().collect();
+    let mut idx = 0usize;
+    while idx < chars.len() {
+        if chars[idx] != '$' {
+            idx += 1;
+            continue;
+        }
+        if idx + 1 >= chars.len() {
+            return Err(
+                "E_REGEX_REPLACEMENT_INVALID: 치환 참조가 '$'에서 끝났습니다"
+                    .to_string()
+                    .into(),
+            );
+        }
+        let next = chars[idx + 1];
+        if next == '$' {
+            idx += 2;
+            continue;
+        }
+        if next == '{' {
+            let mut end = idx + 2;
+            while end < chars.len() && chars[end] != '}' {
+                end += 1;
+            }
+            if end >= chars.len() {
+                return Err(
+                    "E_REGEX_REPLACEMENT_INVALID: 치환 참조의 닫는 '}'가 없습니다"
+                        .to_string()
+                        .into(),
+                );
+            }
+            let token: String = chars[idx + 2..end].iter().collect();
+            if token.is_empty() {
+                return Err(
+                    "E_REGEX_REPLACEMENT_INVALID: 빈 치환 참조는 사용할 수 없습니다"
+                        .to_string()
+                        .into(),
+                );
+            }
+            if token.chars().all(|ch| ch.is_ascii_digit()) {
+                let capture_index = token.parse::<usize>().unwrap_or(usize::MAX);
+                if capture_index >= re.captures_len() {
+                    return Err(format!(
+                        "E_REGEX_REPLACEMENT_INVALID: 알 수 없는 캡처 번호입니다: {}",
+                        token
+                    )
+                    .into());
+                }
+            } else if !names.contains(token.as_str()) {
+                return Err(format!(
+                    "E_REGEX_REPLACEMENT_INVALID: 알 수 없는 이름 캡처입니다: {}",
+                    token
+                )
+                .into());
+            }
+            idx = end + 1;
+            continue;
+        }
+        if next.is_ascii_digit() {
+            let mut end = idx + 1;
+            while end < chars.len() && chars[end].is_ascii_digit() {
+                end += 1;
+            }
+            let token: String = chars[idx + 1..end].iter().collect();
+            let capture_index = token.parse::<usize>().unwrap_or(usize::MAX);
+            if capture_index >= re.captures_len() {
+                return Err(format!(
+                    "E_REGEX_REPLACEMENT_INVALID: 알 수 없는 캡처 번호입니다: {}",
+                    token
+                )
+                .into());
+            }
+            idx = end;
+            continue;
+        }
+        if regex_replacement_ref_name_char(next) {
+            let mut end = idx + 1;
+            while end < chars.len() && regex_replacement_ref_name_char(chars[end]) {
+                end += 1;
+            }
+            let token: String = chars[idx + 1..end].iter().collect();
+            if !names.contains(token.as_str()) {
+                return Err(format!(
+                    "E_REGEX_REPLACEMENT_INVALID: 알 수 없는 이름 캡처입니다: {}",
+                    token
+                )
+                .into());
+            }
+            idx = end;
+            continue;
+        }
+        return Err(format!(
+            "E_REGEX_REPLACEMENT_INVALID: 지원하지 않는 치환 참조 시작입니다: ${}",
+            next
+        )
+        .into());
+    }
+    Ok(())
+}
+
 fn regex_replace_all(
     text: &str,
     regex: &RegexLiteral,
     replacement: &str,
 ) -> Result<String, EvalError> {
     let re = build_regex(regex)?;
+    validate_regex_replacement(&re, replacement)?;
     Ok(re.replace_all(text, replacement).to_string())
 }
 
@@ -3158,6 +5677,8 @@ fn values_equal(left: &Value, right: &Value) -> bool {
         (Value::ResourceHandle(a), Value::ResourceHandle(b)) => a == b,
         (Value::None, Value::None) => true,
         (Value::Pack(a), Value::Pack(b)) => a == b,
+        (Value::Assertion(a), Value::Assertion(b)) => a.canon == b.canon,
+        (Value::StateMachine(a), Value::StateMachine(b)) => a == b,
         (Value::Formula(a), Value::Formula(b)) => a == b,
         (Value::Template(a), Value::Template(b)) => a.raw == b.raw && a.tag == b.tag,
         (Value::Regex(a), Value::Regex(b)) => a == b,
@@ -3176,11 +5697,19 @@ fn value_rank(value: &Value) -> u8 {
         Value::Formula(_) => 5,
         Value::Template(_) => 6,
         Value::Regex(_) => 7,
-        Value::Lambda(_) => 8,
-        Value::Pack(_) => 9,
-        Value::List(_) => 10,
-        Value::Set(_) => 11,
-        Value::Map(_) => 12,
+        Value::Assertion(_) => 8,
+        Value::StateMachine(_) => 9,
+        Value::Lambda(_) => 10,
+        Value::Pack(_) => {
+            if numeric_pack_kind(value).is_some() {
+                2
+            } else {
+                11
+            }
+        }
+        Value::List(_) => 12,
+        Value::Set(_) => 13,
+        Value::Map(_) => 14,
     }
 }
 
@@ -3214,6 +5743,10 @@ fn value_cmp(left: &Value, right: &Value) -> std::cmp::Ordering {
             .pattern
             .cmp(&b.pattern)
             .then_with(|| a.flags.cmp(&b.flags)),
+        (Value::Assertion(a), Value::Assertion(b)) => a.canon.cmp(&b.canon),
+        (Value::StateMachine(a), Value::StateMachine(b)) => {
+            state_machine_canon(a).cmp(&state_machine_canon(b))
+        }
         (Value::Lambda(a), Value::Lambda(b)) => a.id.cmp(&b.id),
         _ => value_canon(left).cmp(&value_canon(right)),
     }
@@ -3263,6 +5796,15 @@ fn unit_value_from_value(value: &Value) -> Result<UnitValue, EvalError> {
             dim: UnitDim::NONE,
         }),
         Value::Unit(unit) => Ok(*unit),
+        Value::Pack(_) => {
+            let Some(v) = numeric_pack_approx(value) else {
+                return Err("수치가 필요합니다".to_string().into());
+            };
+            Ok(UnitValue {
+                value: v,
+                dim: UnitDim::NONE,
+            })
+        }
         _ => Err("수치가 필요합니다".to_string().into()),
     }
 }
@@ -3274,6 +5816,10 @@ fn numeric_value(value: &Value) -> Option<UnitValue> {
             dim: UnitDim::NONE,
         }),
         Value::Unit(unit) => Some(*unit),
+        Value::Pack(_) => numeric_pack_approx(value).map(|v| UnitValue {
+            value: v,
+            dim: UnitDim::NONE,
+        }),
         _ => None,
     }
 }
@@ -3428,6 +5974,219 @@ fn nearest_rank_index(p: Fixed64, len: usize) -> Result<usize, EvalError> {
     Ok((clamped_rank - 1) as usize)
 }
 
+struct NumericFormulaPrepared {
+    parsed: ParsedFormula,
+    var_name: String,
+}
+
+fn expect_numeric_derivative_args(
+    args: &[Value],
+    label: &'static str,
+) -> Result<(Formula, String, UnitValue, UnitValue), EvalError> {
+    if args.len() != 4 {
+        return Err(format!("{label}는 인자 4개를 받습니다").to_string().into());
+    }
+    let formula = match &args[0] {
+        Value::Formula(value) => value.clone(),
+        _ => {
+            return Err(format!("{label}는 수식값 인자가 필요합니다")
+                .to_string()
+                .into())
+        }
+    };
+    let raw_var = match &args[1] {
+        Value::String(text) => text.clone(),
+        _ => {
+            return Err(format!("{label} 변수 이름이 글이어야 합니다")
+                .to_string()
+                .into())
+        }
+    };
+    let var_name = raw_var.trim().trim_start_matches('#').to_string();
+    if var_name.is_empty() {
+        return Err(
+            format!("E_CALC_NUMERIC_BAD_VAR: {label} 변수 이름이 비어 있습니다")
+                .to_string()
+                .into(),
+        );
+    }
+    let point = unit_value_from_value(&args[2])?;
+    let step = unit_value_from_value(&args[3])?;
+    if point.dim != step.dim {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: point.dim,
+            right: step.dim,
+        }));
+    }
+    if step.value.raw_i64() == 0 {
+        return Err(
+            format!("E_CALC_NUMERIC_BAD_STEP: {label} 스텝은 0이 될 수 없습니다")
+                .to_string()
+                .into(),
+        );
+    }
+    Ok((formula, var_name, point, step))
+}
+
+fn expect_numeric_integral_args(
+    args: &[Value],
+    label: &'static str,
+) -> Result<(Formula, String, UnitValue, UnitValue, UnitValue), EvalError> {
+    if args.len() != 5 {
+        return Err(format!("{label}는 인자 5개를 받습니다").to_string().into());
+    }
+    let formula = match &args[0] {
+        Value::Formula(value) => value.clone(),
+        _ => {
+            return Err(format!("{label}는 수식값 인자가 필요합니다")
+                .to_string()
+                .into())
+        }
+    };
+    let raw_var = match &args[1] {
+        Value::String(text) => text.clone(),
+        _ => {
+            return Err(format!("{label} 변수 이름이 글이어야 합니다")
+                .to_string()
+                .into())
+        }
+    };
+    let var_name = raw_var.trim().trim_start_matches('#').to_string();
+    if var_name.is_empty() {
+        return Err(
+            format!("E_CALC_NUMERIC_BAD_VAR: {label} 변수 이름이 비어 있습니다")
+                .to_string()
+                .into(),
+        );
+    }
+    let start = unit_value_from_value(&args[2])?;
+    let end = unit_value_from_value(&args[3])?;
+    let step = unit_value_from_value(&args[4])?;
+    if start.dim != end.dim {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: start.dim,
+            right: end.dim,
+        }));
+    }
+    if start.dim != step.dim {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: start.dim,
+            right: step.dim,
+        }));
+    }
+    if step.value.raw_i64() <= 0 {
+        return Err(
+            format!("E_CALC_NUMERIC_BAD_STEP: {label} 스텝은 0보다 커야 합니다")
+                .to_string()
+                .into(),
+        );
+    }
+    Ok((formula, var_name, start, end, step))
+}
+
+fn prepare_numeric_formula(
+    formula: &Formula,
+    var_name: &str,
+    label: &'static str,
+) -> Result<NumericFormulaPrepared, EvalError> {
+    if !matches!(formula.dialect, FormulaDialect::Ascii) {
+        return Err(format!(
+            "E_CALC_NUMERIC_DIALECT_UNSUPPORTED: {label}는 #ascii 수식만 지원합니다"
+        )
+        .to_string()
+        .into());
+    }
+    ensure_formula_ident(var_name, &formula.dialect, label)?;
+    let parsed = parse_formula_value(formula)?;
+    if !parsed.vars.contains(var_name) {
+        return Err(format!(
+            "E_CALC_NUMERIC_FREEVAR_NOT_FOUND: {label} 변수 '{}'가 수식에 없습니다",
+            var_name
+        )
+        .to_string()
+        .into());
+    }
+    if parsed.vars.len() != 1 {
+        return Err(
+            format!("E_CALC_NUMERIC_FREEVAR_AMBIGUOUS: {label} 변수 이름이 여러 개입니다")
+                .to_string()
+                .into(),
+        );
+    }
+    Ok(NumericFormulaPrepared {
+        parsed,
+        var_name: var_name.to_string(),
+    })
+}
+
+fn eval_numeric_formula_at(
+    prepared: &NumericFormulaPrepared,
+    x: UnitValue,
+    label: &'static str,
+) -> Result<UnitValue, EvalError> {
+    let mut env = BTreeMap::new();
+    env.insert(prepared.var_name.clone(), unit_value_to_value(x));
+    eval_formula_expr(&prepared.parsed.expr, &env).map_err(|err| {
+        EvalError::Message(format!(
+            "E_CALC_NUMERIC_EVAL_FAIL: {label} 수식 평가 실패 ({err})"
+        ))
+    })
+}
+
+fn numeric_trapezoid_integral(
+    prepared: &NumericFormulaPrepared,
+    start: UnitValue,
+    end: UnitValue,
+    segments: usize,
+) -> Result<UnitValue, EvalError> {
+    if segments == 0 {
+        return Err("E_CALC_NUMERIC_BAD_STEP: 적분.사다리꼴 구간 수가 0입니다"
+            .to_string()
+            .into());
+    }
+    let interval = end.value.saturating_sub(start.value);
+    let seg = Fixed64::from_i64(segments as i64);
+    let h = interval
+        .try_div(seg)
+        .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
+
+    let mut y_dim: Option<UnitDim> = None;
+    let mut sum_raw = Fixed64::ZERO;
+    let two = Fixed64::from_i64(2);
+    for idx in 0..=segments {
+        let idx_raw = Fixed64::from_i64(idx as i64);
+        let x = UnitValue {
+            value: start.value.saturating_add(h.saturating_mul(idx_raw)),
+            dim: start.dim,
+        };
+        let y = eval_numeric_formula_at(prepared, x, "적분.사다리꼴")?;
+        if let Some(dim) = y_dim {
+            if y.dim != dim {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: dim,
+                    right: y.dim,
+                }));
+            }
+        } else {
+            y_dim = Some(y.dim);
+        }
+        let weight = if idx == 0 || idx == segments {
+            Fixed64::from_i64(1)
+        } else {
+            two
+        };
+        sum_raw = sum_raw.saturating_add(y.value.saturating_mul(weight));
+    }
+    let approx = sum_raw
+        .saturating_mul(h)
+        .try_div(Fixed64::from_i64(2))
+        .map_err(|_| "적분.사다리꼴 계산 중 0으로 나눌 수 없습니다".to_string())?;
+    Ok(UnitValue {
+        value: approx,
+        dim: y_dim.unwrap_or(UnitDim::NONE).add(start.dim),
+    })
+}
+
 fn fixed64_sqrt(value: Fixed64) -> Option<Fixed64> {
     if value.raw_i64() < 0 {
         return None;
@@ -3477,10 +6236,941 @@ fn unit_powi(base: UnitValue, exp: i64) -> Result<UnitValue, EvalError> {
     Ok(result)
 }
 
+fn make_numeric_pack(kind: &str, mut fields: BTreeMap<String, Value>) -> Value {
+    fields.insert(
+        NUMERIC_PACK_KIND_KEY.to_string(),
+        Value::String(kind.to_string()),
+    );
+    Value::Pack(fields)
+}
+
+fn numeric_pack_kind(value: &Value) -> Option<&str> {
+    let Value::Pack(fields) = value else {
+        return None;
+    };
+    let Value::String(kind) = fields.get(NUMERIC_PACK_KIND_KEY)? else {
+        return None;
+    };
+    Some(kind.as_str())
+}
+
+fn numeric_pack_approx(value: &Value) -> Option<Fixed64> {
+    let Value::Pack(fields) = value else {
+        return None;
+    };
+    match fields.get(NUMERIC_PACK_APPROX_KEY) {
+        Some(Value::Fixed64(v)) => Some(*v),
+        Some(Value::Unit(unit)) if unit.is_dimensionless() => Some(unit.value),
+        _ => None,
+    }
+}
+
+fn value_to_fixed64_coerce(value: &Value) -> Result<Fixed64, EvalError> {
+    match value {
+        Value::Fixed64(v) => Ok(*v),
+        Value::Unit(unit) if unit.is_dimensionless() => Ok(unit.value),
+        Value::String(text) => text
+            .trim()
+            .parse::<f64>()
+            .map(Fixed64::from_f64_lossy)
+            .map_err(|_| "수치 값이 필요합니다".to_string().into()),
+        _ => numeric_pack_approx(value)
+            .ok_or_else(|| EvalError::from("수치 값이 필요합니다".to_string())),
+    }
+}
+
+fn value_to_i64_strict(value: &Value) -> Result<i64, EvalError> {
+    match value {
+        Value::Fixed64(n) => {
+            if n.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(n.int_part())
+        }
+        Value::Unit(unit) if unit.is_dimensionless() => {
+            if unit.value.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(unit.value.int_part())
+        }
+        Value::String(text) => text
+            .trim()
+            .parse::<i64>()
+            .map_err(|_| "정수 값이 필요합니다".to_string().into()),
+        Value::Pack(_) => {
+            let Some(exact) = exact_numeric_from_value(value)? else {
+                return Err("정수 값이 필요합니다".to_string().into());
+            };
+            if !exact.is_integer() {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            let integer = exact.value.to_integer();
+            integer
+                .to_i64()
+                .ok_or_else(|| EvalError::from("정수 값(i64 범위)이 필요합니다".to_string()))
+        }
+        _ => Err("정수 값이 필요합니다".to_string().into()),
+    }
+}
+
+fn parse_bigint_text(raw: &str, context: &str) -> Result<BigInt, EvalError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{context} 정수 문자열이 비었습니다").to_string().into());
+    }
+    let (negative, digits) = if let Some(rest) = trimmed.strip_prefix('-') {
+        (true, rest)
+    } else if let Some(rest) = trimmed.strip_prefix('+') {
+        (false, rest)
+    } else {
+        (false, trimmed)
+    };
+    let normalized = normalize_grouped_integer_digits(digits)
+        .ok_or_else(|| EvalError::from(format!("{context} 정수 문자열 형식이 아닙니다")))?;
+    if normalized.is_empty() {
+        return Err(format!("{context} 정수 문자열 형식이 아닙니다").to_string().into());
+    }
+    let parsed = BigInt::parse_bytes(normalized.as_bytes(), 10)
+        .ok_or_else(|| EvalError::from(format!("{context} 정수 문자열 형식이 아닙니다")))?;
+    if negative {
+        Ok(-parsed)
+    } else {
+        Ok(parsed)
+    }
+}
+
+fn normalize_grouped_integer_digits(digits: &str) -> Option<String> {
+    if digits.is_empty() {
+        return None;
+    }
+    let mut out = String::with_capacity(digits.len());
+    let mut prev_was_digit = false;
+    let mut prev_was_sep = false;
+    for ch in digits.chars() {
+        if ch.is_ascii_digit() {
+            out.push(ch);
+            prev_was_digit = true;
+            prev_was_sep = false;
+            continue;
+        }
+        if ch == '_' {
+            if !prev_was_digit || prev_was_sep {
+                return None;
+            }
+            prev_was_digit = false;
+            prev_was_sep = true;
+            continue;
+        }
+        return None;
+    }
+    if prev_was_sep {
+        return None;
+    }
+    if out.is_empty() {
+        return None;
+    }
+    Some(out)
+}
+
+fn extract_bigint_string(value: &Value) -> Option<String> {
+    let Value::Pack(fields) = value else {
+        return None;
+    };
+    if numeric_pack_kind(value) != Some(NUMERIC_KIND_BIG_INT) {
+        return None;
+    }
+    fields.get("값").and_then(|v| match v {
+        Value::String(text) => Some(text.clone()),
+        _ => None,
+    })
+}
+
+fn bigint_from_value(value: &Value) -> Result<BigInt, EvalError> {
+    match value {
+        Value::Fixed64(n) => {
+            if n.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(BigInt::from(n.int_part()))
+        }
+        Value::Unit(unit) if unit.is_dimensionless() => {
+            if unit.value.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(BigInt::from(unit.value.int_part()))
+        }
+        Value::String(text) => parse_bigint_text(text, "정수"),
+        Value::Pack(_) => {
+            if let Some(raw) = extract_bigint_string(value) {
+                return parse_bigint_text(&raw, "큰바른수");
+            }
+            if numeric_pack_kind(value) == Some(NUMERIC_KIND_RATIONAL) {
+                let ratio = exact_numeric_from_value(value)?
+                    .ok_or_else(|| EvalError::from("정수 값이 필요합니다".to_string()))?;
+                if !ratio.value.is_integer() {
+                    return Err("정수 값이 필요합니다".to_string().into());
+                }
+                return Ok(ratio.value.to_integer());
+            }
+            if let Some(v) = numeric_pack_approx(value) {
+                if v.frac_part() == 0 {
+                    return Ok(BigInt::from(v.int_part()));
+                }
+            }
+            Err("정수 값이 필요합니다".to_string().into())
+        }
+        _ => Err("정수 값이 필요합니다".to_string().into()),
+    }
+}
+
+fn factorize_i64(mut n: i64) -> Vec<(i64, i32)> {
+    let mut out = Vec::new();
+    if n < 0 {
+        n = -n;
+    }
+    if n < 2 {
+        return out;
+    }
+    let mut p = 2i64;
+    while p.saturating_mul(p) <= n {
+        let mut exp = 0i32;
+        while n % p == 0 {
+            n /= p;
+            exp += 1;
+        }
+        if exp > 0 {
+            out.push((p, exp));
+        }
+        p = if p == 2 { 3 } else { p + 2 };
+    }
+    if n > 1 {
+        out.push((n, 1));
+    }
+    out
+}
+
+fn bigint_bit_len(value: &BigInt) -> usize {
+    if value.is_zero() {
+        0
+    } else {
+        value.to_str_radix(2).trim_start_matches('-').len()
+    }
+}
+
+fn is_probable_prime_bigint(n: &BigInt) -> bool {
+    let one = BigInt::from(1u8);
+    let two = BigInt::from(2u8);
+    let three = BigInt::from(3u8);
+
+    if n < &two {
+        return false;
+    }
+    if n == &two || n == &three {
+        return true;
+    }
+    if (n % &two).is_zero() {
+        return false;
+    }
+
+    for prime in FACTOR_SMALL_PRIMES {
+        let p = BigInt::from(prime);
+        if n == &p {
+            return true;
+        }
+        if (n % &p).is_zero() {
+            return false;
+        }
+    }
+
+    let n_minus_one = n - &one;
+    let mut d = n_minus_one.clone();
+    let mut s = 0u32;
+    while (&d % &two).is_zero() {
+        d /= &two;
+        s += 1;
+    }
+
+    let bases = [2u64, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+    'witness: for base in bases {
+        let a = BigInt::from(base);
+        if &a >= n {
+            continue;
+        }
+        let mut x = a.modpow(&d, n);
+        if x == one || x == n_minus_one {
+            continue;
+        }
+        for _ in 1..s {
+            x = (&x * &x) % n;
+            if x == n_minus_one {
+                continue 'witness;
+            }
+        }
+        return false;
+    }
+    true
+}
+
+fn pollard_rho_step(x: &BigInt, c: &BigInt, modulus: &BigInt) -> BigInt {
+    ((x * x) + c) % modulus
+}
+
+fn factor_pollard_max_iters() -> usize {
+    #[cfg(test)]
+    {
+        let override_iters = FACTOR_POLLARD_MAX_ITERS_OVERRIDE.with(|cell| cell.get());
+        if let Some(value) = override_iters {
+            return value;
+        }
+    }
+    FACTOR_POLLARD_MAX_ITERS
+}
+
+#[cfg(test)]
+fn swap_factor_pollard_max_iters_for_test(value: usize) -> usize {
+    FACTOR_POLLARD_MAX_ITERS_OVERRIDE.with(|cell| {
+        let previous = cell.get().unwrap_or(usize::MAX);
+        if value == usize::MAX {
+            cell.set(None);
+        } else {
+            cell.set(Some(value));
+        }
+        previous
+    })
+}
+
+fn factor_trial_fallback_limit() -> u64 {
+    #[cfg(test)]
+    {
+        let override_limit = FACTOR_TRIAL_FALLBACK_LIMIT_OVERRIDE.with(|cell| cell.get());
+        if let Some(value) = override_limit {
+            return value;
+        }
+    }
+    FACTOR_TRIAL_FALLBACK_LIMIT
+}
+
+fn factor_small_prime_max() -> u64 {
+    FACTOR_SMALL_PRIMES.last().copied().unwrap_or(0)
+}
+
+fn factor_policy_summary_text() -> String {
+    format!(
+        "bit_limit={};pollard_iters={};pollard_c_seeds={};pollard_x0_seeds={};fallback_limit={};small_prime_max={}",
+        FACTOR_BIGINT_FACTOR_BITS_LIMIT,
+        factor_pollard_max_iters(),
+        FACTOR_POLLARD_C_SEED_LIMIT,
+        FACTOR_POLLARD_X0_SEEDS.len(),
+        factor_trial_fallback_limit(),
+        factor_small_prime_max()
+    )
+}
+
+#[cfg(test)]
+fn swap_factor_trial_fallback_limit_for_test(value: u64) -> u64 {
+    FACTOR_TRIAL_FALLBACK_LIMIT_OVERRIDE.with(|cell| {
+        let previous = cell.get().unwrap_or(u64::MAX);
+        if value == u64::MAX {
+            cell.set(None);
+        } else {
+            cell.set(Some(value));
+        }
+        previous
+    })
+}
+
+fn fallback_trial_division_factor(n: &BigInt) -> Option<BigInt> {
+    let mut candidate = 3u64;
+    let limit = factor_trial_fallback_limit();
+    while candidate <= limit {
+        let factor = BigInt::from(candidate);
+        if (&factor * &factor) > *n {
+            break;
+        }
+        if (n % &factor).is_zero() {
+            return Some(factor);
+        }
+        candidate += 2;
+    }
+    None
+}
+
+fn pollard_rho_factor(n: &BigInt) -> Option<BigInt> {
+    let one = BigInt::from(1u8);
+    let two = BigInt::from(2u8);
+
+    if (n % &two).is_zero() {
+        return Some(two);
+    }
+    if is_probable_prime_bigint(n) {
+        return Some(n.clone());
+    }
+
+    for x0_seed in FACTOR_POLLARD_X0_SEEDS {
+        for c_seed in 1u64..=FACTOR_POLLARD_C_SEED_LIMIT {
+            let c = BigInt::from(c_seed);
+            let mut x = BigInt::from(x0_seed);
+            let mut y = BigInt::from(x0_seed);
+
+            for _ in 0..factor_pollard_max_iters() {
+                x = pollard_rho_step(&x, &c, n);
+                y = pollard_rho_step(&y, &c, n);
+                y = pollard_rho_step(&y, &c, n);
+                let delta = if x >= y { &x - &y } else { &y - &x };
+                let d = delta.gcd(n);
+                if d == one {
+                    continue;
+                }
+                if &d == n {
+                    break;
+                }
+                return Some(d);
+            }
+        }
+    }
+    None
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct FactorizationStats {
+    used_small_prime: bool,
+    used_pollard: bool,
+    used_fallback: bool,
+}
+
+fn factor_route_for_bigint_done(stats: &FactorizationStats) -> &'static str {
+    if stats.used_fallback && (stats.used_pollard || stats.used_small_prime) {
+        return FACTOR_DECOMP_ROUTE_BIGINT_MIXED;
+    }
+    if stats.used_pollard && stats.used_small_prime {
+        return FACTOR_DECOMP_ROUTE_BIGINT_MIXED;
+    }
+    if stats.used_fallback {
+        return FACTOR_DECOMP_ROUTE_BIGINT_FALLBACK;
+    }
+    if stats.used_pollard {
+        return FACTOR_DECOMP_ROUTE_BIGINT_POLLARD;
+    }
+    if stats.used_small_prime {
+        return FACTOR_DECOMP_ROUTE_BIGINT_SMALL_PRIME;
+    }
+    FACTOR_DECOMP_ROUTE_BIGINT
+}
+
+fn factor_route_for_deferred(reason: &str) -> &'static str {
+    match reason {
+        FACTOR_DECOMP_DEFERRED_REASON_BIT_LIMIT => FACTOR_DECOMP_ROUTE_DEFERRED_BIT_LIMIT,
+        FACTOR_DECOMP_DEFERRED_REASON_FACTOR_FAILED => FACTOR_DECOMP_ROUTE_DEFERRED_FACTOR_FAILED,
+        _ => FACTOR_DECOMP_ROUTE_DEFERRED_FACTOR_FAILED,
+    }
+}
+
+fn factorize_bigint_collect(
+    n: BigInt,
+    out: &mut Vec<BigInt>,
+    stats: &mut FactorizationStats,
+) -> bool {
+    let one = BigInt::from(1u8);
+    let two = BigInt::from(2u8);
+
+    if n == one {
+        return true;
+    }
+    if is_probable_prime_bigint(&n) {
+        out.push(n);
+        return true;
+    }
+    if (&n % &two).is_zero() {
+        out.push(two.clone());
+        return factorize_bigint_collect(n / &two, out, stats);
+    }
+    for prime in FACTOR_SMALL_PRIMES {
+        let p = BigInt::from(prime);
+        if (&n % &p).is_zero() {
+            stats.used_small_prime = true;
+            out.push(p.clone());
+            return factorize_bigint_collect(n / &p, out, stats);
+        }
+    }
+
+    let divisor = match pollard_rho_factor(&n) {
+        Some(found) => {
+            stats.used_pollard = true;
+            found
+        }
+        None => match fallback_trial_division_factor(&n) {
+            Some(found) => {
+                stats.used_fallback = true;
+                found
+            }
+            None => return false,
+        },
+    };
+    if divisor == one || divisor == n {
+        return false;
+    }
+
+    let quotient = &n / &divisor;
+    factorize_bigint_collect(divisor, out, stats) && factorize_bigint_collect(quotient, out, stats)
+}
+
+fn factorize_bigint_full(n: BigInt) -> Result<(Vec<(BigInt, u32)>, FactorizationStats), &'static str> {
+    let two = BigInt::from(2u8);
+    if n < two {
+        return Ok((Vec::new(), FactorizationStats::default()));
+    }
+    if bigint_bit_len(&n) > FACTOR_BIGINT_FACTOR_BITS_LIMIT {
+        return Err(FACTOR_DECOMP_DEFERRED_REASON_BIT_LIMIT);
+    }
+
+    let mut primes = Vec::new();
+    let mut stats = FactorizationStats::default();
+    if !factorize_bigint_collect(n, &mut primes, &mut stats) {
+        return Err(FACTOR_DECOMP_DEFERRED_REASON_FACTOR_FAILED);
+    }
+    primes.sort();
+
+    let mut out: Vec<(BigInt, u32)> = Vec::new();
+    for prime in primes {
+        if let Some((last_prime, exp)) = out.last_mut() {
+            if *last_prime == prime {
+                *exp += 1;
+                continue;
+            }
+        }
+        out.push((prime, 1));
+    }
+    Ok((out, stats))
+}
+
+fn factor_canon(sign: i8, factors: &[(i64, i32)]) -> String {
+    if factors.is_empty() {
+        return if sign < 0 { "-1".to_string() } else { "1".to_string() };
+    }
+    let body = factors
+        .iter()
+        .map(|(prime, exp)| {
+            if *exp == 1 {
+                prime.to_string()
+            } else {
+                format!("{prime}^{exp}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" * ");
+    if sign < 0 { format!("-{body}") } else { body }
+}
+
+fn factor_canon_bigint(sign: i8, factors: &[(BigInt, u32)]) -> String {
+    if factors.is_empty() {
+        return if sign < 0 {
+            "-1".to_string()
+        } else {
+            "1".to_string()
+        };
+    }
+    let body = factors
+        .iter()
+        .map(|(prime, exp)| {
+            if *exp == 1 {
+                prime.to_string()
+            } else {
+                format!("{prime}^{exp}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" * ");
+    if sign < 0 { format!("-{body}") } else { body }
+}
+
+fn make_big_int_value(value: &Value) -> Result<Value, EvalError> {
+    let parsed = bigint_from_value(value)?;
+    let text = parsed.to_string();
+    let mut fields = BTreeMap::new();
+    fields.insert("값".to_string(), Value::String(text));
+    if let Some(v) = parsed.to_i64() {
+        fields.insert(
+            NUMERIC_PACK_APPROX_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(v)),
+        );
+    }
+    Ok(make_numeric_pack(NUMERIC_KIND_BIG_INT, fields))
+}
+
+fn make_rational_value(numerator: &Value, denominator: &Value) -> Result<Value, EvalError> {
+    let n = bigint_from_value(numerator)?;
+    let d = bigint_from_value(denominator)?;
+    if d.is_zero() {
+        return Err("나눔수의 분모는 0일 수 없습니다".to_string().into());
+    }
+    let ratio = BigRational::new(n, d);
+    Ok(make_rational_pack_from_big_rational(&ratio))
+}
+
+fn make_factor_value(value: &Value) -> Result<(Value, &'static str), EvalError> {
+    let parsed = bigint_from_value(value)?;
+    let sign: i8 = match parsed.sign() {
+        Sign::Minus => -1,
+        Sign::NoSign => 0,
+        Sign::Plus => 1,
+    };
+    let (canon, status, deferred_reason, route, bit_len) = if parsed.is_zero() {
+        (
+            "0".to_string(),
+            FACTOR_DECOMP_STATUS_DONE,
+            None,
+            FACTOR_DECOMP_ROUTE_ZERO,
+            0usize,
+        )
+    } else if let Some(integer) = parsed.to_i64() {
+        if integer == i64::MIN {
+            let abs = -parsed.clone();
+            let bit_len = bigint_bit_len(&abs);
+            match factorize_bigint_full(abs) {
+                Ok((factors, stats)) => (
+                    factor_canon_bigint(sign, &factors),
+                    FACTOR_DECOMP_STATUS_DONE,
+                    None,
+                    factor_route_for_bigint_done(&stats),
+                    bit_len,
+                ),
+                Err(reason) => (
+                    parsed.to_string(),
+                    FACTOR_DECOMP_STATUS_DEFERRED,
+                    Some(reason),
+                    factor_route_for_deferred(reason),
+                    bit_len,
+                ),
+            }
+        } else {
+            let factors = factorize_i64(integer);
+            let abs = integer.unsigned_abs();
+            let bit_len = if abs == 0 {
+                0usize
+            } else {
+                (u64::BITS - abs.leading_zeros()) as usize
+            };
+            (
+                factor_canon(sign, &factors),
+                FACTOR_DECOMP_STATUS_DONE,
+                None,
+                FACTOR_DECOMP_ROUTE_I64,
+                bit_len,
+            )
+        }
+    } else {
+        let abs = if sign < 0 {
+            -parsed.clone()
+        } else {
+            parsed.clone()
+        };
+        let bit_len = bigint_bit_len(&abs);
+        match factorize_bigint_full(abs) {
+            Ok((factors, stats)) => (
+                factor_canon_bigint(sign, &factors),
+                FACTOR_DECOMP_STATUS_DONE,
+                None,
+                factor_route_for_bigint_done(&stats),
+                bit_len,
+            ),
+            // bit 제한 또는 분해 실패 시에는 표현 안정성을 위해 지연으로 둔다.
+            Err(reason) => (
+                parsed.to_string(),
+                FACTOR_DECOMP_STATUS_DEFERRED,
+                Some(reason),
+                factor_route_for_deferred(reason),
+                bit_len,
+            ),
+        }
+    };
+    let mut fields = BTreeMap::new();
+    fields.insert("값".to_string(), Value::String(parsed.to_string()));
+    fields.insert("표기".to_string(), Value::String(canon));
+    fields.insert(
+        FACTOR_DECOMP_STATUS_KEY.to_string(),
+        Value::String(status.to_string()),
+    );
+    fields.insert(
+        "부호".to_string(),
+        Value::Fixed64(Fixed64::from_i64(sign as i64)),
+    );
+    fields.insert(
+        FACTOR_DECOMP_ROUTE_KEY.to_string(),
+        Value::String(route.to_string()),
+    );
+    fields.insert(
+        FACTOR_DECOMP_BITS_KEY.to_string(),
+        Value::Fixed64(Fixed64::from_i64(bit_len as i64)),
+    );
+    if let Some(reason) = deferred_reason {
+        fields.insert(
+            FACTOR_DECOMP_DEFERRED_REASON_KEY.to_string(),
+            Value::String(reason.to_string()),
+        );
+    }
+    if let Some(v) = parsed.to_i64() {
+        fields.insert(
+            NUMERIC_PACK_APPROX_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(v)),
+        );
+    }
+    Ok((make_numeric_pack(NUMERIC_KIND_FACTOR, fields), status))
+}
+
+#[derive(Clone, Debug)]
+struct ExactNumeric {
+    value: BigRational,
+}
+
+impl ExactNumeric {
+    fn from_bigint(value: BigInt) -> Self {
+        Self {
+            value: BigRational::from_integer(value),
+        }
+    }
+
+    fn from_fixed64(value: Fixed64) -> Self {
+        let num = BigInt::from(value.raw_i64());
+        let den = BigInt::from(1_i64) << Fixed64::FRAC_BITS;
+        Self {
+            value: BigRational::new(num, den),
+        }
+    }
+
+    fn is_integer(&self) -> bool {
+        self.value.is_integer()
+    }
+}
+
+fn eval_exact_numeric_infix(
+    op: &str,
+    left: &Value,
+    right: &Value,
+) -> Result<Option<Value>, EvalError> {
+    if !is_exact_numeric_family_value(left) && !is_exact_numeric_family_value(right) {
+        return Ok(None);
+    }
+    let Some(left_exact) = exact_numeric_from_value(left)? else {
+        return Ok(None);
+    };
+    let Some(right_exact) = exact_numeric_from_value(right)? else {
+        return Ok(None);
+    };
+
+    let out = match op {
+        "+" => exact_add(&left_exact, &right_exact),
+        "-" => exact_sub(&left_exact, &right_exact),
+        "*" => exact_mul(&left_exact, &right_exact),
+        "/" => exact_div(&left_exact, &right_exact)?,
+        "%" => exact_rem(&left_exact, &right_exact)?,
+        _ => return Ok(None),
+    };
+    let prefer_rational = op == "/" || !left_exact.is_integer() || !right_exact.is_integer();
+    Ok(Some(exact_numeric_to_value(out, prefer_rational)))
+}
+
+fn eval_exact_numeric_compare_infix(
+    op: &str,
+    left: &Value,
+    right: &Value,
+) -> Result<Option<bool>, EvalError> {
+    if !is_exact_numeric_family_value(left) && !is_exact_numeric_family_value(right) {
+        return Ok(None);
+    }
+    let Some(left_exact) = exact_numeric_from_value(left)? else {
+        return Ok(None);
+    };
+    let Some(right_exact) = exact_numeric_from_value(right)? else {
+        return Ok(None);
+    };
+    let ord = exact_cmp(&left_exact, &right_exact);
+    let out = match op {
+        "==" => ord == std::cmp::Ordering::Equal,
+        "!=" => ord != std::cmp::Ordering::Equal,
+        "<" => ord == std::cmp::Ordering::Less,
+        "<=" => ord != std::cmp::Ordering::Greater,
+        ">" => ord == std::cmp::Ordering::Greater,
+        ">=" => ord != std::cmp::Ordering::Less,
+        _ => return Ok(None),
+    };
+    Ok(Some(out))
+}
+
+fn is_exact_numeric_family_value(value: &Value) -> bool {
+    matches!(
+        numeric_pack_kind(value),
+        Some(NUMERIC_KIND_BIG_INT | NUMERIC_KIND_RATIONAL | NUMERIC_KIND_FACTOR)
+    )
+}
+
+fn exact_numeric_from_value(value: &Value) -> Result<Option<ExactNumeric>, EvalError> {
+    match value {
+        Value::Fixed64(n) => Ok(Some(ExactNumeric::from_fixed64(*n))),
+        Value::Unit(unit) if unit.is_dimensionless() => Ok(Some(ExactNumeric::from_fixed64(unit.value))),
+        Value::Pack(fields) => match numeric_pack_kind(value) {
+            Some(NUMERIC_KIND_BIG_INT) => {
+                let raw = fields
+                    .get("값")
+                    .and_then(|v| match v {
+                        Value::String(text) => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .ok_or_else(|| EvalError::from("큰바른수.값이 없습니다".to_string()))?;
+                let parsed = parse_bigint_text(raw, "큰바른수")?;
+                Ok(Some(ExactNumeric::from_bigint(parsed)))
+            }
+            Some(NUMERIC_KIND_RATIONAL) => {
+                let num_raw = fields
+                    .get("분자")
+                    .and_then(|v| match v {
+                        Value::String(text) => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .ok_or_else(|| EvalError::from("나눔수.분자가 없습니다".to_string()))?;
+                let den_raw = fields
+                    .get("분모")
+                    .and_then(|v| match v {
+                        Value::String(text) => Some(text.as_str()),
+                        _ => None,
+                    })
+                    .ok_or_else(|| EvalError::from("나눔수.분모가 없습니다".to_string()))?;
+                let num = parse_bigint_text(num_raw, "나눔수 분자")?;
+                let den = parse_bigint_text(den_raw, "나눔수 분모")?;
+                if den.is_zero() {
+                    return Err("나눔수의 분모는 0일 수 없습니다".to_string().into());
+                }
+                Ok(Some(ExactNumeric {
+                    value: BigRational::new(num, den),
+                }))
+            }
+            Some(NUMERIC_KIND_FACTOR) => {
+                if let Some(raw) = fields.get("값").and_then(|v| match v {
+                    Value::String(text) => Some(text.as_str()),
+                    _ => None,
+                }) {
+                    let parsed = parse_bigint_text(raw, "곱수 값")?;
+                    return Ok(Some(ExactNumeric::from_bigint(parsed)));
+                }
+                let approx = numeric_pack_approx(value)
+                    .ok_or_else(|| EvalError::from("곱수 근사값이 없습니다".to_string()))?;
+                if approx.frac_part() != 0 {
+                    return Err("곱수 근사값은 정수여야 합니다".to_string().into());
+                }
+                Ok(Some(ExactNumeric::from_bigint(BigInt::from(approx.int_part()))))
+            }
+            _ => Ok(None),
+        },
+        _ => Ok(None),
+    }
+}
+
+fn exact_add(left: &ExactNumeric, right: &ExactNumeric) -> ExactNumeric {
+    ExactNumeric {
+        value: left.value.clone() + right.value.clone(),
+    }
+}
+
+fn exact_sub(left: &ExactNumeric, right: &ExactNumeric) -> ExactNumeric {
+    ExactNumeric {
+        value: left.value.clone() - right.value.clone(),
+    }
+}
+
+fn exact_mul(left: &ExactNumeric, right: &ExactNumeric) -> ExactNumeric {
+    ExactNumeric {
+        value: left.value.clone() * right.value.clone(),
+    }
+}
+
+fn exact_div(left: &ExactNumeric, right: &ExactNumeric) -> Result<ExactNumeric, EvalError> {
+    if right.value.is_zero() {
+        return Err(unit_error(UnitError::DivisionByZero));
+    }
+    Ok(ExactNumeric {
+        value: left.value.clone() / right.value.clone(),
+    })
+}
+
+fn exact_rem(left: &ExactNumeric, right: &ExactNumeric) -> Result<ExactNumeric, EvalError> {
+    if !left.is_integer() || !right.is_integer() {
+        return Err("나머지 연산은 정수형(바른수/큰바른수/곱수)만 지원합니다"
+            .to_string()
+            .into());
+    }
+    let l = left.value.to_integer();
+    let r = right.value.to_integer();
+    if r.is_zero() {
+        return Err(unit_error(UnitError::DivisionByZero));
+    }
+    Ok(ExactNumeric::from_bigint(l % r))
+}
+
+fn exact_cmp(left: &ExactNumeric, right: &ExactNumeric) -> std::cmp::Ordering {
+    left.value.cmp(&right.value)
+}
+
+fn make_big_int_pack_from_bigint(value: &BigInt) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert("값".to_string(), Value::String(value.to_string()));
+    if let Some(v) = value.to_i64() {
+        fields.insert(
+            NUMERIC_PACK_APPROX_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(v)),
+        );
+    }
+    make_numeric_pack(NUMERIC_KIND_BIG_INT, fields)
+}
+
+fn make_rational_pack_from_big_rational(value: &BigRational) -> Value {
+    let num = value.numer();
+    let den = value.denom();
+    let mut fields = BTreeMap::new();
+    fields.insert("분자".to_string(), Value::String(num.to_string()));
+    fields.insert("분모".to_string(), Value::String(den.to_string()));
+    if let (Some(n), Some(d)) = (num.to_i64(), den.to_i64()) {
+        fields.insert(
+            NUMERIC_PACK_APPROX_KEY.to_string(),
+            Value::Fixed64(Fixed64::from_i64(n) / Fixed64::from_i64(d)),
+        );
+    }
+    make_numeric_pack(NUMERIC_KIND_RATIONAL, fields)
+}
+
+fn exact_numeric_to_value(value: ExactNumeric, prefer_rational: bool) -> Value {
+    if prefer_rational || !value.is_integer() {
+        make_rational_pack_from_big_rational(&value.value)
+    } else {
+        let integer = value.value.to_integer();
+        make_big_int_pack_from_bigint(&integer)
+    }
+}
+
 fn value_to_i64(value: &Value) -> Result<i64, EvalError> {
     match value {
-        Value::Fixed64(n) => Ok(n.int_part()),
-        Value::Unit(unit) if unit.is_dimensionless() => Ok(unit.value.int_part()),
+        Value::Fixed64(n) => {
+            if n.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(n.int_part())
+        }
+        Value::Unit(unit) if unit.is_dimensionless() => {
+            if unit.value.frac_part() != 0 {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            Ok(unit.value.int_part())
+        }
+        Value::Pack(_) => {
+            let Some(exact) = exact_numeric_from_value(value)? else {
+                return Err("정수 값이 필요합니다".to_string().into());
+            };
+            if !exact.is_integer() {
+                return Err("정수 값이 필요합니다".to_string().into());
+            }
+            let integer = exact.value.to_integer();
+            integer
+                .to_i64()
+                .ok_or_else(|| EvalError::from("정수 값(i64 범위)이 필요합니다".to_string()))
+        }
         _ => Err("정수 값이 필요합니다".to_string().into()),
     }
 }
@@ -3507,6 +7197,215 @@ fn value_to_index(value: &Value) -> Result<usize, EvalError> {
     }
 }
 
+const STREAM_V1_SCHEMA: &str = "ddn.stream.v1";
+const STREAM_CAPACITY_MAX: usize = 1_000_000;
+const STREAM_VALUE_LABEL: &str = "흐름(흐름.만들기 결과)";
+
+#[derive(Clone)]
+struct RuntimeStream {
+    capacity: usize,
+    head: usize,
+    len: usize,
+    buffer: Vec<Value>,
+}
+
+fn stream_map_lookup<'a>(entries: &'a BTreeMap<String, MapEntry>, key: &str) -> Option<&'a Value> {
+    let key_canon = map_key_canon(&Value::String(key.to_string()));
+    entries.get(&key_canon).map(|entry| &entry.value)
+}
+
+fn stream_parse_u64(value: &Value, field: &str) -> Result<u64, EvalError> {
+    match value {
+        Value::Fixed64(n) => {
+            if n.frac_part() != 0 {
+                return Err(format!("흐름.{}는 정수여야 합니다", field).into());
+            }
+            let v = n.int_part();
+            if v < 0 {
+                return Err(format!("흐름.{}는 0 이상이어야 합니다", field).into());
+            }
+            Ok(v as u64)
+        }
+        Value::Unit(unit) if unit.is_dimensionless() => {
+            if unit.value.frac_part() != 0 {
+                return Err(format!("흐름.{}는 정수여야 합니다", field).into());
+            }
+            let v = unit.value.int_part();
+            if v < 0 {
+                return Err(format!("흐름.{}는 0 이상이어야 합니다", field).into());
+            }
+            Ok(v as u64)
+        }
+        Value::Bool(v) => Ok(if *v { 1 } else { 0 }),
+        Value::String(v) => v
+            .parse::<u64>()
+            .map_err(|_| format!("흐름.{}는 정수 문자열이어야 합니다", field).into()),
+        _ => Err(format!("흐름.{}는 정수 값이어야 합니다", field).into()),
+    }
+}
+
+fn stream_from_value(value: &Value) -> Result<RuntimeStream, EvalError> {
+    let Value::Map(entries) = value else {
+        return Err(format!("{} 인자가 필요합니다", STREAM_VALUE_LABEL).into());
+    };
+    let Some(Value::String(schema)) = stream_map_lookup(entries, "__schema") else {
+        return Err(format!("{}에 __schema가 없습니다", STREAM_VALUE_LABEL).into());
+    };
+    if schema != STREAM_V1_SCHEMA {
+        return Err(
+            format!(
+                "지원하지 않는 흐름 schema: {} (기대값: {})",
+                schema, STREAM_V1_SCHEMA
+            )
+            .into(),
+        );
+    }
+    let capacity_raw = match stream_map_lookup(entries, "capacity") {
+        Some(value) => stream_parse_u64(value, "용량")?,
+        None => 0,
+    };
+    let head_raw = match stream_map_lookup(entries, "head") {
+        Some(value) => Some(stream_parse_u64(value, "머리")?),
+        None => None,
+    };
+    let Some(Value::List(buffer_raw)) = stream_map_lookup(entries, "buffer") else {
+        return Err(format!("{}에 buffer 차림이 없습니다", STREAM_VALUE_LABEL).into());
+    };
+    let len_raw = match stream_map_lookup(entries, "len") {
+        Some(value) => stream_parse_u64(value, "길이")?,
+        None => buffer_raw.len() as u64,
+    };
+    let mut capacity_u64 = capacity_raw.max(buffer_raw.len() as u64);
+    if capacity_u64 > STREAM_CAPACITY_MAX as u64 {
+        return Err(format!(
+            "흐름 용량이 너무 큽니다 (최대 {}): {}",
+            STREAM_CAPACITY_MAX, capacity_u64
+        )
+        .into());
+    }
+    let capacity = capacity_u64 as usize;
+    let mut buffer = buffer_raw.clone();
+    if buffer.len() < capacity {
+        buffer.resize(capacity, Value::None);
+    } else if buffer.len() > capacity {
+        buffer.truncate(capacity);
+        capacity_u64 = capacity as u64;
+    }
+    let len = len_raw.min(capacity_u64) as usize;
+    let head = if capacity == 0 {
+        0
+    } else {
+        let default_head = len.saturating_sub(1) as u64;
+        head_raw
+            .unwrap_or(default_head)
+            .min(capacity_u64.saturating_sub(1)) as usize
+    };
+    Ok(RuntimeStream {
+        capacity,
+        head,
+        len,
+        buffer,
+    })
+}
+
+fn stream_to_value(stream: &RuntimeStream) -> Value {
+    let mut entries = BTreeMap::new();
+    let insert = |entries: &mut BTreeMap<String, MapEntry>, key: &str, value: Value| {
+        let key_value = Value::String(key.to_string());
+        entries.insert(
+            map_key_canon(&key_value),
+            MapEntry {
+                key: key_value,
+                value,
+            },
+        );
+    };
+    insert(
+        &mut entries,
+        "__schema",
+        Value::String(STREAM_V1_SCHEMA.to_string()),
+    );
+    insert(
+        &mut entries,
+        "capacity",
+        Value::Fixed64(Fixed64::from_i64(stream.capacity.min(i64::MAX as usize) as i64)),
+    );
+    insert(
+        &mut entries,
+        "head",
+        Value::Fixed64(Fixed64::from_i64(stream.head.min(i64::MAX as usize) as i64)),
+    );
+    insert(
+        &mut entries,
+        "len",
+        Value::Fixed64(Fixed64::from_i64(stream.len.min(i64::MAX as usize) as i64)),
+    );
+    insert(&mut entries, "buffer", Value::List(stream.buffer.clone()));
+    Value::Map(entries)
+}
+
+fn stream_new(capacity: usize) -> Result<RuntimeStream, EvalError> {
+    if capacity == 0 {
+        return Err("흐름 용량은 1 이상이어야 합니다".to_string().into());
+    }
+    if capacity > STREAM_CAPACITY_MAX {
+        return Err(format!(
+            "흐름 용량이 너무 큽니다 (최대 {}): {}",
+            STREAM_CAPACITY_MAX, capacity
+        )
+        .into());
+    }
+    Ok(RuntimeStream {
+        capacity,
+        head: 0,
+        len: 0,
+        buffer: vec![Value::None; capacity],
+    })
+}
+
+fn stream_push(mut stream: RuntimeStream, value: Value) -> RuntimeStream {
+    if stream.capacity == 0 {
+        return stream;
+    }
+    let next_head = if stream.len == 0 {
+        0
+    } else {
+        (stream.head + 1) % stream.capacity
+    };
+    if stream.buffer.len() < stream.capacity {
+        stream.buffer.resize(stream.capacity, Value::None);
+    }
+    stream.buffer[next_head] = value;
+    stream.head = next_head;
+    stream.len = stream.len.saturating_add(1).min(stream.capacity);
+    stream
+}
+
+fn stream_clear(mut stream: RuntimeStream) -> RuntimeStream {
+    if stream.buffer.len() < stream.capacity {
+        stream.buffer.resize(stream.capacity, Value::None);
+    }
+    for slot in &mut stream.buffer {
+        *slot = Value::None;
+    }
+    stream.head = 0;
+    stream.len = 0;
+    stream
+}
+
+fn stream_oldest_to_newest(stream: &RuntimeStream) -> Vec<Value> {
+    if stream.capacity == 0 || stream.len == 0 {
+        return Vec::new();
+    }
+    let oldest = (stream.head + stream.capacity + 1 - stream.len) % stream.capacity;
+    let mut out = Vec::with_capacity(stream.len);
+    for offset in 0..stream.len {
+        let idx = (oldest + offset) % stream.capacity;
+        out.push(stream.buffer.get(idx).cloned().unwrap_or(Value::None));
+    }
+    out
+}
+
 fn value_to_string(value: &Value) -> String {
     match value {
         Value::String(s) => s.clone(),
@@ -3531,6 +7430,39 @@ fn value_to_string(value: &Value) -> String {
         Value::Set(_) => "[모음]".to_string(),
         Value::Map(_) => "[짝맞춤]".to_string(),
         Value::Pack(items) => {
+            if let Some(kind) = numeric_pack_kind(value) {
+                return match kind {
+                    NUMERIC_KIND_BIG_INT => match items.get("값") {
+                        Some(Value::String(text)) => text.clone(),
+                        _ => "[큰바른수]".to_string(),
+                    },
+                    NUMERIC_KIND_RATIONAL => {
+                        let num = items
+                            .get("분자")
+                            .and_then(|v| match v {
+                                Value::String(text) => Some(text.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "?".to_string());
+                        let den = items
+                            .get("분모")
+                            .and_then(|v| match v {
+                                Value::String(text) => Some(text.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "?".to_string());
+                        format!("{num}/{den}")
+                    }
+                    NUMERIC_KIND_FACTOR => items
+                        .get("표기")
+                        .and_then(|v| match v {
+                            Value::String(text) => Some(text.clone()),
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| "[곱수]".to_string()),
+                    _ => "[수형식]".to_string(),
+                };
+            }
             let mut out = String::from("(");
             let mut first = true;
             for (key, value) in items {
@@ -3545,6 +7477,8 @@ fn value_to_string(value: &Value) -> String {
             out.push(')');
             out
         }
+        Value::Assertion(assertion) => assertion.canon.clone(),
+        Value::StateMachine(machine) => state_machine_canon(machine),
         Value::Formula(formula) => formula.raw.clone(),
         Value::Template(template) => template.raw.clone(),
         Value::Regex(regex) => {
@@ -3556,6 +7490,266 @@ fn value_to_string(value: &Value) -> String {
         }
         Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
     }
+}
+
+fn state_machine_canon(machine: &StateMachine) -> String {
+    let mut out = String::from("상태머신{ ");
+    out.push_str(&machine.states.join(", "));
+    out.push_str(" 으로 이뤄짐. ");
+    out.push_str(&machine.initial);
+    out.push_str(" 으로 시작.");
+    for transition in &machine.transitions {
+        out.push(' ');
+        out.push_str(&transition.from);
+        out.push_str(" 에서 ");
+        out.push_str(&transition.to);
+        out.push_str(" 으로");
+        if let Some(guard_name) = &transition.guard_name {
+            out.push_str(" 걸러서 ");
+            out.push_str(guard_name);
+        }
+        if let Some(action_name) = &transition.action_name {
+            out.push_str(" 하고 ");
+            out.push_str(action_name);
+        }
+        out.push('.');
+    }
+    for check in &machine.on_transition_checks {
+        out.push(' ');
+        out.push_str("전이마다 ");
+        out.push_str(check);
+        out.push_str(" 살피기.");
+    }
+    out.push_str(" }");
+    out
+}
+
+fn state_machine_resource_value(machine: &StateMachine) -> ResourceValue {
+    let mut converted = BTreeMap::new();
+    let insert = |map: &mut BTreeMap<String, ResourceMapEntry>, key: &str, value: ResourceValue| {
+        let entry_key = ResourceValue::String(key.to_string());
+        map.insert(
+            entry_key.canon_key(),
+            ResourceMapEntry {
+                key: entry_key,
+                value,
+            },
+        );
+    };
+    insert(
+        &mut converted,
+        "__ddn_kind",
+        ResourceValue::String(STATE_MACHINE_RESOURCE_KIND.to_string()),
+    );
+    insert(
+        &mut converted,
+        "states",
+        ResourceValue::List(
+            machine
+                .states
+                .iter()
+                .map(|state| ResourceValue::String(state.clone()))
+                .collect(),
+        ),
+    );
+    insert(
+        &mut converted,
+        "initial",
+        ResourceValue::String(machine.initial.clone()),
+    );
+    insert(
+        &mut converted,
+        "checks",
+        ResourceValue::List(
+            machine
+                .on_transition_checks
+                .iter()
+                .map(|check| ResourceValue::String(check.clone()))
+                .collect(),
+        ),
+    );
+    insert(
+        &mut converted,
+        "transitions",
+        ResourceValue::List(
+            machine
+                .transitions
+                .iter()
+                .map(|transition| {
+                    let mut transition_map = BTreeMap::new();
+                    let from_key = ResourceValue::String("from".to_string());
+                    transition_map.insert(
+                        from_key.canon_key(),
+                        ResourceMapEntry {
+                            key: from_key,
+                            value: ResourceValue::String(transition.from.clone()),
+                        },
+                    );
+                    let to_key = ResourceValue::String("to".to_string());
+                    transition_map.insert(
+                        to_key.canon_key(),
+                        ResourceMapEntry {
+                            key: to_key,
+                            value: ResourceValue::String(transition.to.clone()),
+                        },
+                    );
+                    if let Some(guard_name) = &transition.guard_name {
+                        let guard_key = ResourceValue::String("guard".to_string());
+                        transition_map.insert(
+                            guard_key.canon_key(),
+                            ResourceMapEntry {
+                                key: guard_key,
+                                value: ResourceValue::String(guard_name.clone()),
+                            },
+                        );
+                    }
+                    if let Some(action_name) = &transition.action_name {
+                        let action_key = ResourceValue::String("action".to_string());
+                        transition_map.insert(
+                            action_key.canon_key(),
+                            ResourceMapEntry {
+                                key: action_key,
+                                value: ResourceValue::String(action_name.clone()),
+                            },
+                        );
+                    }
+                    ResourceValue::Map(transition_map)
+                })
+                .collect(),
+        ),
+    );
+    ResourceValue::Map(converted)
+}
+
+fn assertion_resource_value(assertion: &Assertion) -> ResourceValue {
+    let mut converted = BTreeMap::new();
+    let insert = |map: &mut BTreeMap<String, ResourceMapEntry>, key: &str, value: ResourceValue| {
+        let entry_key = ResourceValue::String(key.to_string());
+        map.insert(
+            entry_key.canon_key(),
+            ResourceMapEntry {
+                key: entry_key,
+                value,
+            },
+        );
+    };
+    insert(
+        &mut converted,
+        "__ddn_kind",
+        ResourceValue::String(ASSERTION_RESOURCE_KIND.to_string()),
+    );
+    insert(
+        &mut converted,
+        "canon",
+        ResourceValue::String(assertion.canon.clone()),
+    );
+    ResourceValue::Map(converted)
+}
+
+fn resource_map_lookup<'a>(
+    entries: &'a BTreeMap<String, ResourceMapEntry>,
+    key: &str,
+) -> Option<&'a ResourceValue> {
+    entries.values().find_map(|entry| match &entry.key {
+        ResourceValue::String(value) if value == key => Some(&entry.value),
+        _ => None,
+    })
+}
+
+fn resource_map_to_state_machine(
+    entries: &BTreeMap<String, ResourceMapEntry>,
+) -> Option<StateMachine> {
+    let kind = match resource_map_lookup(entries, "__ddn_kind")? {
+        ResourceValue::String(value) => value,
+        _ => return None,
+    };
+    if kind != STATE_MACHINE_RESOURCE_KIND {
+        return None;
+    }
+    let states = match resource_map_lookup(entries, "states")?.clone() {
+        ResourceValue::List(items) => items
+            .into_iter()
+            .map(|item| match item {
+                ResourceValue::String(value) => Some(value),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?,
+        _ => return None,
+    };
+    let initial = match resource_map_lookup(entries, "initial")? {
+        ResourceValue::String(value) => value.clone(),
+        _ => return None,
+    };
+    let checks = match resource_map_lookup(entries, "checks") {
+        Some(value) => match value.clone() {
+            ResourceValue::List(items) => items
+                .into_iter()
+                .map(|item| match item {
+                    ResourceValue::String(value) => Some(value),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()?,
+            _ => return None,
+        },
+        None => Vec::new(),
+    };
+    let transitions = match resource_map_lookup(entries, "transitions")?.clone() {
+        ResourceValue::List(items) => items
+            .into_iter()
+            .map(|item| match item {
+                ResourceValue::Map(map) => {
+                    let from = match resource_map_lookup(&map, "from")? {
+                        ResourceValue::String(value) => value.clone(),
+                        _ => return None,
+                    };
+                    let to = match resource_map_lookup(&map, "to")? {
+                        ResourceValue::String(value) => value.clone(),
+                        _ => return None,
+                    };
+                    let guard_name = match resource_map_lookup(&map, "guard") {
+                        Some(ResourceValue::String(value)) => Some(value.clone()),
+                        Some(_) => return None,
+                        None => None,
+                    };
+                    let action_name = match resource_map_lookup(&map, "action") {
+                        Some(ResourceValue::String(value)) => Some(value.clone()),
+                        Some(_) => return None,
+                        None => None,
+                    };
+                    Some(StateTransition {
+                        from,
+                        to,
+                        guard_name,
+                        action_name,
+                    })
+                }
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?,
+        _ => return None,
+    };
+    Some(StateMachine {
+        states,
+        initial,
+        transitions,
+        on_transition_checks: checks,
+    })
+}
+
+fn resource_map_to_assertion(entries: &BTreeMap<String, ResourceMapEntry>) -> Option<Assertion> {
+    let kind = match resource_map_lookup(entries, "__ddn_kind")? {
+        ResourceValue::String(value) => value,
+        _ => return None,
+    };
+    if kind != ASSERTION_RESOURCE_KIND {
+        return None;
+    }
+    let canon = match resource_map_lookup(entries, "canon")? {
+        ResourceValue::String(value) => value.clone(),
+        _ => return None,
+    };
+    let body_source = extract_assertion_body_source(&canon)?;
+    Some(Assertion { body_source, canon })
 }
 
 fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> {
@@ -3610,6 +7804,8 @@ fn resource_value_from_value(value: &Value) -> Result<ResourceValue, EvalError> 
             }
             Ok(ResourceValue::Map(converted))
         }
+        Value::Assertion(assertion) => Ok(assertion_resource_value(assertion)),
+        Value::StateMachine(machine) => Ok(state_machine_resource_value(machine)),
         Value::Formula(_) => Err("수식은 자원에 대입할 수 없습니다".to_string().into()),
         Value::Template(_) => Err("글무늬는 자원에 대입할 수 없습니다".to_string().into()),
         Value::Regex(_) => Err("정규식은 자원에 대입할 수 없습니다".to_string().into()),
@@ -3639,6 +7835,12 @@ fn value_from_resource_value(value: &ResourceValue) -> Value {
             Value::Set(converted)
         }
         ResourceValue::Map(entries) => {
+            if let Some(assertion) = resource_map_to_assertion(entries) {
+                return Value::Assertion(assertion);
+            }
+            if let Some(machine) = resource_map_to_state_machine(entries) {
+                return Value::StateMachine(machine);
+            }
             let mut converted = BTreeMap::new();
             for (key, entry) in entries {
                 converted.insert(
@@ -3726,6 +7928,48 @@ fn value_canon(value: &Value) -> String {
             out
         }
         Value::Pack(items) => {
+            if let Some(kind) = numeric_pack_kind(value) {
+                return match kind {
+                    NUMERIC_KIND_BIG_INT => {
+                        let body = items
+                            .get("값")
+                            .and_then(|v| match v {
+                                Value::String(text) => Some(text.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "?".to_string());
+                        format!("큰바른수{{{body}}}")
+                    }
+                    NUMERIC_KIND_RATIONAL => {
+                        let num = items
+                            .get("분자")
+                            .and_then(|v| match v {
+                                Value::String(text) => Some(text.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "?".to_string());
+                        let den = items
+                            .get("분모")
+                            .and_then(|v| match v {
+                                Value::String(text) => Some(text.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "?".to_string());
+                        format!("나눔수{{{num}/{den}}}")
+                    }
+                    NUMERIC_KIND_FACTOR => {
+                        let body = items
+                            .get("표기")
+                            .and_then(|v| match v {
+                                Value::String(text) => Some(text.clone()),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "?".to_string());
+                        format!("곱수{{{body}}}")
+                    }
+                    _ => "수형식{}".to_string(),
+                };
+            }
             let mut out = String::from("묶음{");
             let mut first = true;
             for (key, value) in items {
@@ -3740,6 +7984,8 @@ fn value_canon(value: &Value) -> String {
             out.push('}');
             out
         }
+        Value::Assertion(assertion) => assertion.canon.clone(),
+        Value::StateMachine(machine) => state_machine_canon(machine),
         Value::Formula(formula) => formula.raw.clone(),
         Value::Template(template) => template.raw.clone(),
         Value::Regex(regex) => {
@@ -5642,6 +9888,10 @@ fn is_truthy(value: &Value) -> Result<bool, EvalError> {
         Value::Set(_) => Err("모음은 조건식에 사용할 수 없습니다".to_string().into()),
         Value::Map(_) => Err("짝맞춤은 조건식에 사용할 수 없습니다".to_string().into()),
         Value::Pack(_) => Err("묶음은 조건식에 사용할 수 없습니다".to_string().into()),
+        Value::Assertion(_) => Err("세움값은 조건식에 사용할 수 없습니다".to_string().into()),
+        Value::StateMachine(_) => Err("상태머신값은 조건식에 사용할 수 없습니다"
+            .to_string()
+            .into()),
         Value::Formula(_) => Err("수식은 조건식에 사용할 수 없습니다".to_string().into()),
         Value::Template(_) => Err("글무늬는 조건식에 사용할 수 없습니다".to_string().into()),
         Value::Regex(_) => Err("정규식은 조건식에 사용할 수 없습니다".to_string().into()),
@@ -5664,6 +9914,10 @@ fn parse_bogae_shape_call(entry: &str) -> Option<BogaeShapeCall> {
         "선" | "line" => BogaeShapeKind::Line,
         "원" | "circle" => BogaeShapeKind::Circle,
         "점" | "point" => BogaeShapeKind::Point,
+        "사각형" | "rect" => BogaeShapeKind::Rect,
+        "글" | "text" => BogaeShapeKind::Text,
+        "꺾은선" | "polyline" => BogaeShapeKind::Polyline,
+        "다각형" | "polygon" => BogaeShapeKind::Polygon,
         _ => return None,
     };
 
@@ -5790,6 +10044,59 @@ fn strip_wrapping_quotes(text: &str) -> Option<String> {
     None
 }
 
+fn bogae_point_value(x: Value, y: Value) -> Value {
+    let mut map = BTreeMap::new();
+    let x_key = Value::String("x".to_string());
+    map.insert(
+        map_key_canon(&x_key),
+        MapEntry {
+            key: x_key,
+            value: x,
+        },
+    );
+    let y_key = Value::String("y".to_string());
+    map.insert(
+        map_key_canon(&y_key),
+        MapEntry {
+            key: y_key,
+            value: y,
+        },
+    );
+    Value::Map(map)
+}
+
+fn bogae_points_from_positional(
+    shape: &BogaeShapeCall,
+    locals: &mut HashMap<String, Value>,
+    ctx: &mut EvalContext<'_>,
+) -> Option<Value> {
+    if shape.positional.len() < 4 || shape.positional.len() % 2 != 0 {
+        return None;
+    }
+    let mut points = Vec::new();
+    let mut idx = 0usize;
+    while idx + 1 < shape.positional.len() {
+        let x = ctx.parse_bogae_value_token(locals, &shape.positional[idx])?;
+        let y = ctx.parse_bogae_value_token(locals, &shape.positional[idx + 1])?;
+        points.push(bogae_point_value(x, y));
+        idx += 2;
+    }
+    Some(Value::List(points))
+}
+
+fn bogae_read_arg(
+    ctx: &mut EvalContext<'_>,
+    locals: &mut HashMap<String, Value>,
+    shape: &BogaeShapeCall,
+    keys: &[&str],
+    idx: usize,
+    default: Value,
+) -> Value {
+    bogae_pick_arg(shape, keys, idx)
+        .and_then(|text| ctx.parse_bogae_value_token(locals, text))
+        .unwrap_or(default)
+}
+
 fn runtime_error(err: RuntimeError) -> EvalError {
     EvalError::Message(runtime_error_message(err))
 }
@@ -5826,10 +10133,7 @@ fn format_type_ref(type_ref: &TypeRef) -> String {
 }
 
 fn canonical_type_name(name: &str) -> String {
-    match name {
-        "목록" => "차림".to_string(),
-        other => other.to_string(),
-    }
+    ddonirang_lang::stdlib::canonicalize_type_alias(name).to_string()
 }
 
 fn check_value_type(value: &Value, type_ref: &TypeRef) -> Result<(), TypeMismatchDetail> {
@@ -5852,7 +10156,7 @@ fn check_named_type(value: &Value, name: &str) -> Result<(), TypeMismatchDetail>
             Value::Unit(unit) if unit.is_dimensionless() => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
         },
-        "정수" => match value {
+        "바른수" => match value {
             Value::Fixed64(n) if n.frac_part() == 0 => Ok(()),
             Value::Unit(unit) if unit.is_dimensionless() && unit.value.frac_part() == 0 => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
@@ -5867,6 +10171,14 @@ fn check_named_type(value: &Value, name: &str) -> Result<(), TypeMismatchDetail>
         },
         "없음" => match value {
             Value::None => Ok(()),
+            _ => Err(type_mismatch_detail(&canonical, value)),
+        },
+        "세움값" => match value {
+            Value::Assertion(_) => Ok(()),
+            _ => Err(type_mismatch_detail(&canonical, value)),
+        },
+        "상태머신값" => match value {
+            Value::StateMachine(_) => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
         },
         "차림" => match value {
@@ -5885,6 +10197,42 @@ fn check_named_type(value: &Value, name: &str) -> Result<(), TypeMismatchDetail>
             Value::Pack(_) => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
         },
+        "큰바른수" => {
+            if numeric_pack_kind(value) == Some(NUMERIC_KIND_BIG_INT) {
+                return Ok(());
+            }
+            match value {
+                Value::Fixed64(n) if n.frac_part() == 0 => Ok(()),
+                Value::Unit(unit) if unit.is_dimensionless() && unit.value.frac_part() == 0 => {
+                    Ok(())
+                }
+                _ => Err(type_mismatch_detail(&canonical, value)),
+            }
+        }
+        "나눔수" => {
+            if numeric_pack_kind(value) == Some(NUMERIC_KIND_RATIONAL) {
+                return Ok(());
+            }
+            match value {
+                Value::Fixed64(n) if n.frac_part() == 0 => Ok(()),
+                Value::Unit(unit) if unit.is_dimensionless() && unit.value.frac_part() == 0 => {
+                    Ok(())
+                }
+                _ => Err(type_mismatch_detail(&canonical, value)),
+            }
+        }
+        "곱수" => {
+            if numeric_pack_kind(value) == Some(NUMERIC_KIND_FACTOR) {
+                return Ok(());
+            }
+            match value {
+                Value::Fixed64(n) if n.frac_part() == 0 => Ok(()),
+                Value::Unit(unit) if unit.is_dimensionless() && unit.value.frac_part() == 0 => {
+                    Ok(())
+                }
+                _ => Err(type_mismatch_detail(&canonical, value)),
+            }
+        }
         "자원" | "자원핸들" => match value {
             Value::ResourceHandle(_) => Ok(()),
             _ => Err(type_mismatch_detail(&canonical, value)),
@@ -6018,7 +10366,7 @@ fn value_type_name(value: &Value) -> String {
         Value::Bool(_) => "참거짓".to_string(),
         Value::Fixed64(n) => {
             if n.frac_part() == 0 {
-                "정수".to_string()
+                "바른수".to_string()
             } else {
                 "수".to_string()
             }
@@ -6026,7 +10374,7 @@ fn value_type_name(value: &Value) -> String {
         Value::Unit(unit) => {
             if unit.is_dimensionless() {
                 if unit.value.frac_part() == 0 {
-                    "정수".to_string()
+                    "바른수".to_string()
                 } else {
                     "수".to_string()
                 }
@@ -6039,7 +10387,11 @@ fn value_type_name(value: &Value) -> String {
         Value::List(_) => "차림".to_string(),
         Value::Set(_) => "모음".to_string(),
         Value::Map(_) => "짝맞춤".to_string(),
-        Value::Pack(_) => "묶음".to_string(),
+        Value::Pack(_) => numeric_pack_kind(value)
+            .map(|kind| kind.to_string())
+            .unwrap_or_else(|| "묶음".to_string()),
+        Value::Assertion(_) => "세움값".to_string(),
+        Value::StateMachine(_) => "상태머신값".to_string(),
         Value::Formula(_) => "수식값".to_string(),
         Value::Template(_) => "글무늬값".to_string(),
         Value::Regex(_) => "정규식".to_string(),
@@ -6103,6 +10455,27 @@ mod tests {
 
     static AGE_TARGET_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+    struct FactorizationTestOverrideGuard {
+        previous_iters: usize,
+        previous_trial_limit: u64,
+    }
+
+    impl FactorizationTestOverrideGuard {
+        fn new(iter_limit: usize, trial_limit: u64) -> Self {
+            Self {
+                previous_iters: swap_factor_pollard_max_iters_for_test(iter_limit),
+                previous_trial_limit: swap_factor_trial_fallback_limit_for_test(trial_limit),
+            }
+        }
+    }
+
+    impl Drop for FactorizationTestOverrideGuard {
+        fn drop(&mut self) {
+            swap_factor_pollard_max_iters_for_test(self.previous_iters);
+            swap_factor_trial_fallback_limit_for_test(self.previous_trial_limit);
+        }
+    }
+
     fn empty_input() -> InputSnapshot {
         InputSnapshot {
             tick_id: 0,
@@ -6125,6 +10498,153 @@ mod tests {
         }
     }
 
+    fn contract_diag_events(output: &DdnRunOutput) -> Vec<&DiagEvent> {
+        output
+            .patch
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                PatchOp::EmitSignal {
+                    signal: Signal::Diag { event },
+                    ..
+                } if event.rule_id == "L0-CONTRACT-01" => Some(event),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn assertion_diag_events(output: &DdnRunOutput) -> Vec<&DiagEvent> {
+        output
+            .patch
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                PatchOp::EmitSignal {
+                    signal: Signal::Diag { event },
+                    ..
+                } if event.rule_id == "L1-ASSERT-01" => Some(event),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn state_transition_diag_events(output: &DdnRunOutput) -> Vec<&DiagEvent> {
+        output
+            .patch
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                PatchOp::EmitSignal {
+                    signal: Signal::Diag { event },
+                    ..
+                } if event.rule_id == "L1-STATE-01" => Some(event),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn numeric_diag_events(output: &DdnRunOutput) -> Vec<&DiagEvent> {
+        output
+            .patch
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                PatchOp::EmitSignal {
+                    signal: Signal::Diag { event },
+                    ..
+                } if event.rule_id == NUMERIC_DIAG_RULE_ID_FACTOR_DECOMP_DEFERRED => Some(event),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn numeric_factor_route_summary_diag_events(output: &DdnRunOutput) -> Vec<&DiagEvent> {
+        output
+            .patch
+            .ops
+            .iter()
+            .filter_map(|op| match op {
+                PatchOp::EmitSignal {
+                    signal: Signal::Diag { event },
+                    ..
+                } if event.rule_id == NUMERIC_DIAG_RULE_ID_FACTOR_ROUTE_SUMMARY => Some(event),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn keyboard_alias_resources_track_hold_press_release() {
+        let script = r#"
+매틱:움직씨 = {
+}.
+"#;
+        let program = DdnProgram::from_source(script, "keyboard_alias_flags.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults = HashMap::new();
+
+        let mut first = empty_input();
+        first.keys_pressed = KEY_A;
+        first.last_key_name = "ArrowLeft".to_string();
+        let first_out = runner
+            .run_update(&world, &first, &defaults)
+            .expect("first run update");
+        assert_eq!(
+            extract_fixed(&first_out.resources, "샘.키보드.누르고있음.왼쪽화살표"),
+            Fixed64::from_i64(1)
+        );
+        assert_eq!(
+            extract_fixed(&first_out.resources, "샘.키보드.눌림.왼쪽화살표"),
+            Fixed64::from_i64(1)
+        );
+        assert_eq!(
+            extract_fixed(&first_out.resources, "샘.키보드.뗌.왼쪽화살표"),
+            Fixed64::from_i64(0)
+        );
+        assert_eq!(
+            extract_fixed(&first_out.resources, "입력상태.키_눌림.왼쪽화살표"),
+            Fixed64::from_i64(1)
+        );
+        assert_eq!(
+            extract_fixed(&first_out.resources, "샘.키보드.눌림.Z키"),
+            Fixed64::from_i64(0)
+        );
+
+        let mut second = empty_input();
+        second.keys_pressed = 0;
+        let second_out = runner
+            .run_update(&world, &second, &defaults)
+            .expect("second run update");
+        assert_eq!(
+            extract_fixed(&second_out.resources, "샘.키보드.누르고있음.왼쪽화살표"),
+            Fixed64::from_i64(0)
+        );
+        assert_eq!(
+            extract_fixed(&second_out.resources, "샘.키보드.눌림.왼쪽화살표"),
+            Fixed64::from_i64(0)
+        );
+        assert_eq!(
+            extract_fixed(&second_out.resources, "샘.키보드.뗌.왼쪽화살표"),
+            Fixed64::from_i64(1)
+        );
+
+        let mut third = empty_input();
+        third.keys_pressed = INPUT_KEY_Z;
+        third.last_key_name = "KeyZ".to_string();
+        let third_out = runner
+            .run_update(&world, &third, &defaults)
+            .expect("third run update");
+        assert_eq!(
+            extract_fixed(&third_out.resources, "샘.키보드.눌림.Z키"),
+            Fixed64::from_i64(1)
+        );
+        assert_eq!(
+            extract_fixed(&third_out.resources, "입력상태.키_눌림.Z키"),
+            Fixed64::from_i64(1)
+        );
+    }
+
     #[test]
     fn bogae_shape_block_emits_drawlist() {
         let script = r##"
@@ -6133,14 +10653,56 @@ mod tests {
     bob_y <- -0.8.
     모양: {
         선(0, 0, bob_x, bob_y, 색="#9ca3af", 굵기=0.02).
+        polyline(0, 0, 0.25, 0.2, 0.4, -0.1, 색="#22c55e", 굵기=0.03, 층=2, 그룹="pendulum.path").
+        polygon(-0.1, -0.05, 0.1, -0.05, 0.0, 0.16, 채움색="#f59e0b", 선색="#7c2d12", 굵기=0.01, 레이어=5, group="pendulum.body").
+        사각형(-0.2, -0.1, 0.4, 0.2, 채움색="#1e293b", 선색="#38bdf8", 굵기=0.01).
+        글(-0.1, 0.25, "추", 크기=0.09, 색="#f8fafc").
         원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
         점(0, 0, 크기=0.045, 색="#f59e0b").
     }.
 }
 "##;
         let program = DdnProgram::from_source(script, "bogae_shape.ddn").expect("parse");
-        let mut runner = DdnRunner::new(program, "매틱");
+        let seed = program.functions.get("매틱").expect("매틱 seed");
+        let body = seed.body.as_ref().expect("매틱 body");
+        let Stmt::MetaBlock { entries, .. } = &body.stmts[2] else {
+            panic!("모양 meta block expected");
+        };
+        assert_eq!(entries.len(), 7, "entries={entries:?}");
         let world = NuriWorld::new();
+        let preview_defaults = HashMap::new();
+        let mut preview_ctx = EvalContext::new(
+            &program,
+            &world,
+            &preview_defaults,
+            InputState::new(0, 0),
+            0,
+            0,
+        );
+        let mut preview_locals = HashMap::new();
+        preview_locals.insert(
+            "bob_x".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_f64_lossy(0.5)),
+        );
+        preview_locals.insert(
+            "bob_y".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_f64_lossy(-0.8)),
+        );
+        assert!(
+            preview_ctx
+                .bogae_entry_to_draw_item(&mut preview_locals, &entries[1])
+                .is_some(),
+            "polyline entry must render: {}",
+            entries[1]
+        );
+        assert!(
+            preview_ctx
+                .bogae_entry_to_draw_item(&mut preview_locals, &entries[2])
+                .is_some(),
+            "polygon entry must render: {}",
+            entries[2]
+        );
+        let mut runner = DdnRunner::new(program, "매틱");
         let output = runner
             .run_update(&world, &empty_input(), &HashMap::new())
             .expect("run update");
@@ -6148,15 +10710,118 @@ mod tests {
         let Some(RuntimeValue::List(items)) = drawlist else {
             panic!("보개_그림판_목록 must be list, got {:?}", drawlist);
         };
-        assert_eq!(items.len(), 3);
-        let RuntimeValue::Map(first) = &items[0] else {
-            panic!("첫 도형은 map 이어야 합니다");
+        assert_eq!(items.len(), 7);
+
+        let kinds: Vec<String> = items
+            .iter()
+            .map(|item| {
+                let RuntimeValue::Map(map) = item else {
+                    panic!("도형은 map 이어야 합니다");
+                };
+                map.values()
+                    .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "kind"))
+                    .and_then(|entry| match &entry.value {
+                        RuntimeValue::String(value) => Some(value.clone()),
+                        _ => None,
+                    })
+                    .expect("kind string")
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            vec!["line", "polyline", "polygon", "rect", "text", "circle", "point"]
+        );
+
+        let RuntimeValue::Map(polyline) = &items[1] else {
+            panic!("꺾은선은 map 이어야 합니다");
         };
-        let first_kind = first
+        let polyline_points = polyline
             .values()
-            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "kind"))
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "points"))
             .map(|entry| entry.value.clone());
-        assert_eq!(first_kind, Some(RuntimeValue::String("line".to_string())));
+        let Some(RuntimeValue::List(poly_points)) = polyline_points else {
+            panic!("꺾은선 points must be list");
+        };
+        assert_eq!(poly_points.len(), 3);
+        let polyline_layer = polyline
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "layer_index"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(
+            polyline_layer,
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(2)))
+        );
+        let polyline_group = polyline
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "group_id"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(
+            polyline_group,
+            Some(RuntimeValue::String("pendulum.path".to_string()))
+        );
+
+        let RuntimeValue::Map(polygon) = &items[2] else {
+            panic!("다각형은 map 이어야 합니다");
+        };
+        let polygon_fill = polygon
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "fill"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(
+            polygon_fill,
+            Some(RuntimeValue::String("#f59e0b".to_string()))
+        );
+        let polygon_layer = polygon
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "layer_index"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(
+            polygon_layer,
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(5)))
+        );
+        let polygon_group = polygon
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "group_id"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(
+            polygon_group,
+            Some(RuntimeValue::String("pendulum.body".to_string()))
+        );
+
+        let RuntimeValue::Map(rect) = &items[3] else {
+            panic!("사각형은 map 이어야 합니다");
+        };
+        let rect_fill = rect
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "fill"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(rect_fill, Some(RuntimeValue::String("#1e293b".to_string())));
+
+        let RuntimeValue::Map(text) = &items[4] else {
+            panic!("글은 map 이어야 합니다");
+        };
+        let text_value = text
+            .values()
+            .find(|entry| matches!(&entry.key, RuntimeValue::String(k) if k == "text"))
+            .map(|entry| entry.value.clone());
+        assert_eq!(text_value, Some(RuntimeValue::String("추".to_string())));
+    }
+
+    #[test]
+    fn bogae_shape_helpers_parse_polyline_and_polygon() {
+        let polyline = parse_bogae_shape_call(
+            r##"polyline(0, 0, 0.25, 0.2, 0.4, -0.1, 색="#22c55e", 굵기=0.03)"##,
+        )
+        .expect("polyline parse");
+        assert_eq!(polyline.positional.len(), 6);
+        assert!(polyline.named.contains_key("색"));
+
+        let polygon = parse_bogae_shape_call(
+            r##"polygon(-0.1, -0.05, 0.1, -0.05, 0.0, 0.16, 채움색="#f59e0b", 선색="#7c2d12", 굵기=0.01)"##,
+        )
+        .expect("polygon parse");
+        assert_eq!(polygon.positional.len(), 6);
+        assert!(polygon.named.contains_key("채움색"));
     }
 
     #[test]
@@ -6194,6 +10859,34 @@ mod tests {
             err.contains("FATAL:MAP_KEY_MISSING:b"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn map_optional_lookup_returns_none_when_missing() {
+        let script = r#"
+매틱:움직씨 = {
+    m <- ("a", 1) 짝맞춤.
+    있음 <- (m, "a") 찾기?.
+    없음인가 <- ((m, "b") 찾기?) 아니다.
+}
+"#;
+        let program = DdnProgram::from_source(script, "test.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("있음".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("없음인가".to_string(), RuntimeValue::Bool(false));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            extract_fixed(&output.resources, "있음"),
+            Fixed64::from_i64(1)
+        );
+        match output.resources.get("없음인가") {
+            Some(RuntimeValue::Bool(true)) => {}
+            other => panic!("없음인가 must be true, got {:?}", other),
+        }
     }
 
     #[test]
@@ -6258,15 +10951,706 @@ mod tests {
     }
 
     #[test]
+    fn stdlib_l1_integrator_and_interpolation_builtins() {
+        let script = r#"
+매틱:움직씨 = {
+    값1 <- (1, 2, 0.5) 적분.오일러.
+    쌍값 <- (1, 0, -1, 0.25) 적분.반암시적오일러.
+    x2 <- (쌍값, 0) 차림.값.
+    v2 <- (쌍값, 1) 차림.값.
+    보간1 <- (0, 10, 0.25) 보간.선형.
+    보간2 <- (0, 10, 0.25, 0.5) 보간.계단.
+    보간3 <- (0, 10, 0.75, 0.5) 보간.계단.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stdlib_l1_integrators.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["값1", "x2", "v2", "보간1", "보간2", "보간3"] {
+            defaults.insert(key.to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(
+            extract_fixed(&output.resources, "값1"),
+            Fixed64::from_i64(2)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "x2"),
+            Fixed64::from_f64_lossy(0.9375)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "v2"),
+            Fixed64::from_f64_lossy(-0.25)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "보간1"),
+            Fixed64::from_f64_lossy(2.5)
+        );
+        assert_eq!(extract_fixed(&output.resources, "보간2"), Fixed64::ZERO);
+        assert_eq!(
+            extract_fixed(&output.resources, "보간3"),
+            Fixed64::from_i64(10)
+        );
+    }
+
+    #[test]
+    fn stdlib_l1_filter_builtins() {
+        let script = r#"
+매틱:움직씨 = {
+    창0 <- () 차림.
+    결과1 <- (창0, 1) 필터.이동평균.
+    창1 <- (결과1, 0) 차림.값.
+    평균1 <- (결과1, 1) 차림.값.
+    결과2 <- (창1, 2) 필터.이동평균.
+    창2 <- (결과2, 0) 차림.값.
+    평균2 <- (결과2, 1) 차림.값.
+    결과3 <- (창2, 3) 필터.이동평균.
+    창3 <- (결과3, 0) 차림.값.
+    평균3 <- (결과3, 1) 차림.값.
+    결과4 <- (창3, 4) 필터.이동평균.
+    평균4 <- (결과4, 1) 차림.값.
+    y1 <- (0, 1, 0.5) 필터.지수평활.
+    y2 <- (y1, 1, 0.5) 필터.지수평활.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stdlib_l1_filters.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["평균1", "평균2", "평균3", "평균4", "y1", "y2"] {
+            defaults.insert(key.to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(
+            extract_fixed(&output.resources, "평균1"),
+            Fixed64::from_i64(1)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "평균2"),
+            Fixed64::from_f64_lossy(1.5)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "평균3"),
+            Fixed64::from_i64(2)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "평균4"),
+            Fixed64::from_f64_lossy(2.5)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "y1"),
+            Fixed64::from_f64_lossy(0.5)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "y2"),
+            Fixed64::from_f64_lossy(0.75)
+        );
+    }
+
+    #[test]
+    fn numeric_calculus_v1_builtins_return_value_error_method() {
+        let script = r#"
+매틱:움직씨 = {
+    미분묶음 <- (((#ascii) 수식{x^3}), "x", 1, 0.5) 미분.중앙차분.
+    미분값 <- (미분묶음, 0) 차림.값.
+    미분오차 <- (미분묶음, 1) 차림.값.
+    미분방법 <- (미분묶음, 2) 차림.값.
+
+    적분묶음 <- (((#ascii) 수식{x^2}), "x", 0, 1, 0.5) 적분.사다리꼴.
+    적분값 <- (적분묶음, 0) 차림.값.
+    적분오차 <- (적분묶음, 1) 차림.값.
+    적분방법 <- (적분묶음, 2) 차림.값.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_calculus_v1.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("미분값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("미분오차".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("미분방법".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("적분값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("적분오차".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("적분방법".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(
+            extract_fixed(&output.resources, "미분값"),
+            Fixed64::from_f64_lossy(3.0)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "미분오차"),
+            Fixed64::from_f64_lossy(0.25)
+        );
+        match output.resources.get("미분방법") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "중앙차분"),
+            other => panic!("미분방법 must be string, got {:?}", other),
+        }
+        assert_eq!(
+            extract_fixed(&output.resources, "적분값"),
+            Fixed64::from_raw_i64(1_431_655_766)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "적분오차"),
+            Fixed64::from_raw_i64(44_739_242)
+        );
+        match output.resources.get("적분방법") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "사다리꼴"),
+            other => panic!("적분방법 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_calculus_v1_rejects_zero_step() {
+        let script = r#"
+매틱:움직씨 = {
+    d <- (((#ascii) 수식{x^2}), "x", 1, 0) 미분.중앙차분.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_calculus_v1_bad_step.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let err = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.contains("E_CALC_NUMERIC_BAD_STEP"),
+            "expected numeric step guard, got {err}"
+        );
+    }
+
+    #[test]
+    fn contract_pre_abort_restores_state_before_else_body() {
+        let script = r#"
+매틱:움직씨 = {
+    x <- 5.
+    { x > 10 }인것 바탕으로(중단) 아니면 {
+        x <- x + 1.
+    }
+    y <- 1.
+}
+"#;
+        let program = DdnProgram::from_source(script, "contract_pre_abort.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("x".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("y".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(extract_fixed(&output.resources, "x"), Fixed64::from_i64(5));
+        assert!(!output.resources.contains_key("y"));
+        let events = contract_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].mode.as_deref(), Some("중단"));
+        assert_eq!(events[0].contract_kind.as_deref(), Some("pre"));
+    }
+
+    #[test]
+    fn contract_post_abort_restores_state_before_repair_body() {
+        let script = r#"
+매틱:움직씨 = {
+    y <- 5.
+    { y < 5 }인것 다짐하고(중단) 아니면 {
+        y <- y + 1.
+    }
+    z <- 1.
+}
+"#;
+        let program = DdnProgram::from_source(script, "contract_post_abort.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("y".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("z".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(extract_fixed(&output.resources, "y"), Fixed64::from_i64(5));
+        assert!(!output.resources.contains_key("z"));
+        let events = contract_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].mode.as_deref(), Some("중단"));
+        assert_eq!(events[0].contract_kind.as_deref(), Some("post"));
+    }
+
+    #[test]
+    fn contract_alert_keeps_else_body_state_changes() {
+        let script = r#"
+매틱:움직씨 = {
+    z <- 5.
+    { z > 10 }인것 바탕으로(알림) 아니면 {
+        z <- z + 1.
+    }
+    확인 <- z.
+}
+"#;
+        let program = DdnProgram::from_source(script, "contract_alert.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("z".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("확인".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(extract_fixed(&output.resources, "z"), Fixed64::from_i64(6));
+        assert_eq!(
+            extract_fixed(&output.resources, "확인"),
+            Fixed64::from_i64(6)
+        );
+        let events = contract_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].mode.as_deref(), Some("알림"));
+        assert_eq!(events[0].contract_kind.as_deref(), Some("pre"));
+    }
+
+    #[test]
+    fn tailed_call_alias_registers_myeonseo_variant() {
+        let script = r#"
+(왼:수~을~를, 오른:수~에) 더하:셈씨 = {
+    왼 + 오른 돌려줘.
+}
+
+매틱:움직씨 = {
+    합 <- (3을, 1에) 더하면서.
+}
+"#;
+        let program = DdnProgram::from_source(script, "tail_alias_myeonseo.ddn").expect("parse");
+        assert!(program.functions.contains_key("더하면서"));
+
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("합".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(extract_fixed(&output.resources, "합"), Fixed64::from_i64(4));
+    }
+
+    #[test]
+    fn state_machine_builtins_progress_and_store_value() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age1);
+        let script = r#"
+매틱:움직씨 = {
+    전이_안전 <- 세움{
+        { 현재상태 != 다음상태 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    기계 <- 상태머신{
+        빨강, 초록, 노랑 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로.
+        초록 에서 노랑 으로.
+        노랑 에서 빨강 으로.
+        전이마다 전이_안전 살피기.
+    }.
+    현재 <- (기계) 처음으로.
+    다음 <- (기계, 현재) 다음으로.
+    확인 <- (기계, 다음) 지금상태.
+}
+"#;
+        let program = DdnProgram::from_source(script, "state_machine.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("현재".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("다음".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("확인".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("기계") {
+            Some(RuntimeValue::StateMachine(machine)) => {
+                assert_eq!(machine.initial, "빨강");
+                assert_eq!(machine.transitions.len(), 3);
+            }
+            other => panic!("기계 must be state machine, got {:?}", other),
+        }
+        match output.resources.get("현재") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "빨강"),
+            other => panic!("현재 must be string, got {:?}", other),
+        }
+        match output.resources.get("다음") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "초록"),
+            other => panic!("다음 must be string, got {:?}", other),
+        }
+        match output.resources.get("확인") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "초록"),
+            other => panic!("확인 must be string, got {:?}", other),
+        }
+        let events = state_transition_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].reason, "STATE_TRANSITION");
+        assert_eq!(events[0].sub_reason.as_deref(), Some("NEXT"));
+        assert_eq!(
+            events[0].message.as_deref(),
+            Some("상태 전이: 빨강 -> 초록")
+        );
+        assert_eq!(output.state_transitions.len(), 1);
+        assert_eq!(output.state_transitions[0].madi, 0);
+        assert_eq!(output.state_transitions[0].from, "빨강");
+        assert_eq!(output.state_transitions[0].to, "초록");
+        assert_eq!(
+            output.state_transitions[0].message,
+            "상태 전이: 빨강 -> 초록"
+        );
+    }
+
+    #[test]
+    fn state_machine_transition_check_failure_aborts_next_state() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age1);
+        let script = r#"
+매틱:움직씨 = {
+    전이_실패 <- 세움{
+        { 현재상태 == 다음상태 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    기계 <- 상태머신{
+        빨강, 초록 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로.
+        전이마다 전이_실패 살피기.
+    }.
+    현재 <- (기계) 처음으로.
+    다음 <- (기계, 현재) 다음으로.
+}
+"#;
+        let program = DdnProgram::from_source(script, "state_machine_fail.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("transition check must fail"),
+            Err(err) => err,
+        };
+        let text = err.to_string();
+        assert!(
+            text.contains("E_STATE_TRANSITION_CHECK_FAILED: 전이_실패"),
+            "unexpected error: {text}"
+        );
+    }
+
+    #[test]
+    fn state_machine_transition_check_requires_resolved_assertion() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age1);
+        let script = r#"
+매틱:움직씨 = {
+    기계 <- 상태머신{
+        빨강, 초록 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로.
+        전이마다 전이_안전 살피기.
+    }.
+    현재 <- (기계) 처음으로.
+    다음 <- (기계, 현재) 다음으로.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "state_machine_unresolved.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("missing transition assertion must fail"),
+            Err(err) => err,
+        };
+        let text = err.to_string();
+        assert!(
+            text.contains("E_STATE_TRANSITION_CHECK_UNRESOLVED: 전이_안전"),
+            "unexpected error: {text}"
+        );
+    }
+
+    #[test]
+    fn state_machine_guard_selects_first_passing_transition_and_runs_action() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age1);
+        let script = r#"
+(현재상태:글, 다음상태:글) 기록:움직씨 = {
+    횟수 <- 횟수 + 1.
+    마지막 <- 다음상태.
+}
+
+매틱:움직씨 = {
+    거짓_거름 <- 세움{
+        { 현재상태 == 다음상태 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    참_거름 <- 세움{
+        { 현재상태 != 다음상태 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    기계 <- 상태머신{
+        빨강, 초록, 파랑 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로 걸러서 거짓_거름 하고 기록.
+        빨강 에서 파랑 으로 걸러서 참_거름 하고 기록.
+        전이마다 참_거름 살피기.
+    }.
+    현재 <- (기계) 처음으로.
+    다음 <- (기계, 현재) 다음으로.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "state_machine_guard_action.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("현재".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("다음".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("마지막".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("횟수".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("다음") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "파랑"),
+            other => panic!("다음 must be string, got {:?}", other),
+        }
+        match output.resources.get("마지막") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "파랑"),
+            other => panic!("마지막 must be string, got {:?}", other),
+        }
+        assert_eq!(
+            extract_fixed(&output.resources, "횟수"),
+            Fixed64::from_i64(1)
+        );
+        assert_eq!(output.state_transitions.len(), 1);
+        assert_eq!(output.state_transitions[0].from, "빨강");
+        assert_eq!(output.state_transitions[0].to, "파랑");
+        assert_eq!(
+            output.state_transitions[0].guard_name.as_deref(),
+            Some("참_거름")
+        );
+        assert_eq!(
+            output.state_transitions[0].action_name.as_deref(),
+            Some("기록")
+        );
+    }
+
+    #[test]
+    fn state_machine_guard_rejected_when_all_candidates_fail() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age1);
+        let script = r#"
+매틱:움직씨 = {
+    거짓_거름 <- 세움{
+        { 현재상태 == 다음상태 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    기계 <- 상태머신{
+        빨강, 초록, 파랑 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로 걸러서 거짓_거름.
+        빨강 에서 파랑 으로 걸러서 거짓_거름.
+    }.
+    현재 <- (기계) 처음으로.
+    다음 <- (기계, 현재) 다음으로.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "state_machine_guard_rejected.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("guard reject expected"),
+            Err(err) => err,
+        };
+        let text = err.to_string();
+        assert!(
+            text.contains("E_STATE_TRANSITION_GUARD_REJECTED: 빨강"),
+            "unexpected error: {text}"
+        );
+    }
+
+    #[test]
+    fn state_machine_is_age1_feature_gated() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let script = r#"
+매틱:움직씨 = {
+    기계 <- 상태머신{
+        빨강, 초록, 노랑 으로 이뤄짐.
+        빨강 으로 시작.
+        빨강 에서 초록 으로.
+        초록 에서 노랑 으로.
+        노랑 에서 빨강 으로.
+    }.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age0);
+        let err = match DdnProgram::from_source(script, "state_machine_age0.ddn") {
+            Ok(_) => panic!("age gate"),
+            Err(err) => err,
+        };
+        set_default_age_target(old_age);
+        assert!(
+            err.contains("E_AGE_NOT_AVAILABLE"),
+            "expected age gate, got {err}"
+        );
+        assert!(
+            err.contains("state_machine_literal"),
+            "expected state machine feature, got {err}"
+        );
+    }
+
+    #[test]
+    fn assertion_check_returns_true_and_stores_value() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age1);
+        let script = r#"
+매틱:움직씨 = {
+    검사 <- 세움{
+        { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    결과 <- (거리=3)인 검사 살피기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "assertion_ok.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("결과".to_string(), RuntimeValue::Bool(false));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("검사") {
+            Some(RuntimeValue::Assertion(assertion)) => {
+                assert!(assertion.canon.starts_with("세움{"));
+            }
+            other => panic!("검사 must be assertion, got {:?}", other),
+        }
+        match output.resources.get("결과") {
+            Some(RuntimeValue::Bool(value)) => assert!(*value),
+            other => panic!("결과 must be bool, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn assertion_check_failure_emits_diag_and_keeps_state_clean() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age1);
+        let script = r#"
+매틱:움직씨 = {
+    x <- 1.
+    검사 <- 세움{
+        { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    결과 <- (거리=0)인 검사 살피기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "assertion_fail.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("x".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("결과".to_string(), RuntimeValue::Bool(true));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(extract_fixed(&output.resources, "x"), Fixed64::from_i64(1));
+        match output.resources.get("결과") {
+            Some(RuntimeValue::Bool(value)) => assert!(!*value),
+            other => panic!("결과 must be bool, got {:?}", other),
+        }
+        let events = assertion_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].reason, "ASSERTION_FAILED");
+    }
+
+    #[test]
+    fn assertion_is_age1_feature_gated() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let script = r#"
+매틱:움직씨 = {
+    검사 <- 세움{
+        { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+            없음.
+        }.
+    }.
+    결과 <- (거리=3)인 검사 살피기.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age0);
+        let err = match DdnProgram::from_source(script, "assertion_age0.ddn") {
+            Ok(_) => panic!("age gate"),
+            Err(err) => err,
+        };
+        set_default_age_target(old_age);
+        assert!(
+            err.contains("E_AGE_NOT_AVAILABLE"),
+            "expected age gate, got {err}"
+        );
+        assert!(
+            err.contains("assertion_literal") || err.contains("assertion_api"),
+            "expected assertion feature, got {err}"
+        );
+    }
+
+    #[test]
     fn regex_builtins_run_deterministically() {
         let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
-    패턴 <- 정규식{"^[A-Z]{2}[0-9]+$", "i"}.
-    맞음 <- ("ab12", 패턴) 정규맞추기.
+    맞음 <- ("ab12", 정규식{"^[A-Z]{2}[0-9]+$", "i"}) 정규맞추기.
     첫매치 <- ("x12y34", 정규식{"[0-9]+"}) 정규찾기.
+    캡처 <- ("ab-12", 정규식{"([a-z]+)-([0-9]+)", "i"}) 정규캡처하기.
+    이름캡처 <- ("ab-12", 정규식{"(?P<word>[a-z]+)-(?P<num>[0-9]+)", "i"}) 정규이름캡처하기.
+    이름선택캡처 <- ("ab", 정규식{"(?P<word>[a-z]+)(?:-(?P<num>[0-9]+))?", "i"}) 정규이름캡처하기.
+    이름캡처없음 <- ("12", 정규식{"(?P<word>[a-z]+)", "i"}) 정규이름캡처하기.
     바꿈 <- ("a1b2", 정규식{"[0-9]+"}, "_") 정규바꾸기.
+    재바꿈 <- ("ab-12", 정규식{"([a-z]+)-([0-9]+)", "i"}, "$2:$1") 정규바꾸기.
+    이름재바꿈 <- ("ab-12", 정규식{"(?P<word>[a-z]+)-(?P<num>[0-9]+)", "i"}, "${num}:${word}") 정규바꾸기.
+    이름짧은재바꿈 <- ("ab-12", 정규식{"(?P<word>[a-z]+)-(?P<num>[0-9]+)", "i"}, "$num:$word") 정규바꾸기.
     조각 <- ("a1b22c", 정규식{"[0-9]+"}) 정규나누기.
+    캡처조각 <- ("ab-12-cd", 정규식{"(-)([0-9]+)(-)"}) 정규나누기.
+    줄매치 <- ("x\nAB\ny", 정규식{"^ab$", "mi"}) 정규찾기.
+    점맞음 <- ("A\nb", 정규식{"a.b", "si"}) 정규맞추기.
     조각수 <- (조각) 길이.
 }
 "#;
@@ -6279,7 +11663,29 @@ mod tests {
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
         defaults.insert("맞음".to_string(), RuntimeValue::Bool(false));
         defaults.insert("첫매치".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("캡처".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("이름캡처".to_string(), RuntimeValue::Map(BTreeMap::new()));
+        defaults.insert(
+            "이름선택캡처".to_string(),
+            RuntimeValue::Map(BTreeMap::new()),
+        );
+        defaults.insert(
+            "이름캡처없음".to_string(),
+            RuntimeValue::Map(BTreeMap::new()),
+        );
         defaults.insert("바꿈".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("재바꿈".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert(
+            "이름재바꿈".to_string(),
+            RuntimeValue::String(String::new()),
+        );
+        defaults.insert(
+            "이름짧은재바꿈".to_string(),
+            RuntimeValue::String(String::new()),
+        );
+        defaults.insert("캡처조각".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("줄매치".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("점맞음".to_string(), RuntimeValue::Bool(false));
         defaults.insert("조각수".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
         let output = runner
             .run_update(&world, &empty_input(), &defaults)
@@ -6292,9 +11698,79 @@ mod tests {
             Some(RuntimeValue::String(value)) => assert_eq!(value, "12"),
             other => panic!("첫매치 must be string, got {:?}", other),
         }
+        match output.resources.get("캡처") {
+            Some(RuntimeValue::List(items)) => {
+                let strings: Vec<String> = items
+                    .iter()
+                    .map(|item| match item {
+                        RuntimeValue::String(value) => value.clone(),
+                        other => panic!("캡처 item must be string, got {:?}", other),
+                    })
+                    .collect();
+                assert_eq!(strings, vec!["ab-12", "ab", "12"]);
+            }
+            other => panic!("캡처 must be list, got {:?}", other),
+        }
+        match output.resources.get("이름캡처") {
+            Some(RuntimeValue::Map(entries)) => {
+                assert_eq!(entries.len(), 2);
+                let word = entries.get("\"word\"").expect("word capture");
+                let num = entries.get("\"num\"").expect("num capture");
+                assert_eq!(value_canon(&word.value), "\"ab\"");
+                assert_eq!(value_canon(&num.value), "\"12\"");
+            }
+            other => panic!("이름캡처 must be map, got {:?}", other),
+        }
+        match output.resources.get("이름선택캡처") {
+            Some(RuntimeValue::Map(entries)) => {
+                assert_eq!(entries.len(), 2);
+                let word = entries.get("\"word\"").expect("word optional capture");
+                let num = entries.get("\"num\"").expect("num optional capture");
+                assert_eq!(value_canon(&word.value), "\"ab\"");
+                assert_eq!(value_canon(&num.value), "\"\"");
+            }
+            other => panic!("이름선택캡처 must be map, got {:?}", other),
+        }
+        match output.resources.get("이름캡처없음") {
+            Some(RuntimeValue::Map(entries)) => assert!(entries.is_empty()),
+            other => panic!("이름캡처없음 must be map, got {:?}", other),
+        }
         match output.resources.get("바꿈") {
             Some(RuntimeValue::String(value)) => assert_eq!(value, "a_b_"),
             other => panic!("바꿈 must be string, got {:?}", other),
+        }
+        match output.resources.get("재바꿈") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "12:ab"),
+            other => panic!("재바꿈 must be string, got {:?}", other),
+        }
+        match output.resources.get("이름재바꿈") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "12:ab"),
+            other => panic!("이름재바꿈 must be string, got {:?}", other),
+        }
+        match output.resources.get("이름짧은재바꿈") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "12:ab"),
+            other => panic!("이름짧은재바꿈 must be string, got {:?}", other),
+        }
+        match output.resources.get("캡처조각") {
+            Some(RuntimeValue::List(items)) => {
+                let strings: Vec<String> = items
+                    .iter()
+                    .map(|item| match item {
+                        RuntimeValue::String(value) => value.clone(),
+                        other => panic!("캡처조각 item must be string, got {:?}", other),
+                    })
+                    .collect();
+                assert_eq!(strings, vec!["ab".to_string(), "cd".to_string()]);
+            }
+            other => panic!("캡처조각 must be list, got {:?}", other),
+        }
+        match output.resources.get("줄매치") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "AB"),
+            other => panic!("줄매치 must be string, got {:?}", other),
+        }
+        match output.resources.get("점맞음") {
+            Some(RuntimeValue::Bool(value)) => assert!(*value),
+            other => panic!("점맞음 must be bool, got {:?}", other),
         }
         assert_eq!(
             extract_fixed(&output.resources, "조각수"),
@@ -6303,11 +11779,399 @@ mod tests {
     }
 
     #[test]
+    fn stream_stdlib_push_and_read_order() {
+        let script = r#"
+매틱:움직씨 = {
+    흐름 <- (3) 흐름.만들기.
+    흐름 <- (흐름, "a") 흐름.밀어넣기.
+    흐름 <- (흐름, "b") 흐름.밀어넣기.
+    흐름 <- (흐름, "c") 흐름.밀어넣기.
+    흐름 <- (흐름, "d") 흐름.밀어넣기.
+    값들 <- (흐름) 흐름.차림.
+    최근 <- (흐름) 흐름.최근값.
+    길이 <- (흐름) 흐름.길이.
+    용량 <- (흐름) 흐름.용량.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stream_stdlib.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("흐름".to_string(), RuntimeValue::Map(BTreeMap::new()));
+        defaults.insert("값들".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("최근".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("길이".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("용량".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        match output.resources.get("값들") {
+            Some(RuntimeValue::List(items)) => {
+                let rendered = items
+                    .iter()
+                    .map(|value| value_to_string(value))
+                    .collect::<Vec<_>>();
+                assert_eq!(rendered, vec!["b".to_string(), "c".to_string(), "d".to_string()]);
+            }
+            other => panic!("값들 must be list, got {:?}", other),
+        }
+        match output.resources.get("최근") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "d"),
+            other => panic!("최근 must be string, got {:?}", other),
+        }
+        assert_eq!(extract_fixed(&output.resources, "길이"), Fixed64::from_i64(3));
+        assert_eq!(extract_fixed(&output.resources, "용량"), Fixed64::from_i64(3));
+        match output.resources.get("흐름") {
+            Some(RuntimeValue::Map(entries)) => {
+                let schema = entries.get("\"__schema\"").expect("__schema");
+                assert_eq!(value_canon(&schema.value), "\"ddn.stream.v1\"");
+            }
+            other => panic!("흐름 must be map, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn stream_stdlib_aliases_are_supported() {
+        let script = r#"
+매틱:움직씨 = {
+    흐름 <- (2) 흐름만들기.
+    흐름 <- (흐름, 1) 흐름추가.
+    흐름 <- (흐름, 2) 흐름넣기.
+    흐름 <- (흐름, 3) 흐름추가.
+    값들 <- (흐름) 흐름값들.
+    최근 <- (흐름) 흐름최근.
+    최근하나 <- (흐름, 1) 흐름잘라보기.
+    최근둘 <- (흐름, 2) 흐름최근N.
+    흐름 <- (흐름) 흐름비우기.
+    비운길이 <- (흐름) 흐름길이.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stream_stdlib_alias.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("흐름".to_string(), RuntimeValue::Map(BTreeMap::new()));
+        defaults.insert("값들".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("최근".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("최근하나".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("최근둘".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("비운길이".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        match output.resources.get("값들") {
+            Some(RuntimeValue::List(items)) => {
+                let rendered = items
+                    .iter()
+                    .map(|value| value_to_i64(value).expect("integer"))
+                    .collect::<Vec<_>>();
+                assert_eq!(rendered, vec![2, 3]);
+            }
+            other => panic!("값들 must be list, got {:?}", other),
+        }
+        assert_eq!(extract_fixed(&output.resources, "최근"), Fixed64::from_i64(3));
+        match output.resources.get("최근하나") {
+            Some(RuntimeValue::List(items)) => {
+                let rendered = items
+                    .iter()
+                    .map(|value| value_to_i64(value).expect("integer"))
+                    .collect::<Vec<_>>();
+                assert_eq!(rendered, vec![3]);
+            }
+            other => panic!("최근하나 must be list, got {:?}", other),
+        }
+        match output.resources.get("최근둘") {
+            Some(RuntimeValue::List(items)) => {
+                let rendered = items
+                    .iter()
+                    .map(|value| value_to_i64(value).expect("integer"))
+                    .collect::<Vec<_>>();
+                assert_eq!(rendered, vec![2, 3]);
+            }
+            other => panic!("최근둘 must be list, got {:?}", other),
+        }
+        assert_eq!(extract_fixed(&output.resources, "비운길이"), Fixed64::ZERO);
+    }
+
+    #[test]
+    fn stream_stdlib_clear_and_slice_work() {
+        let script = r#"
+매틱:움직씨 = {
+    흐름 <- (3) 흐름.만들기.
+    흐름 <- (흐름, 1) 흐름.밀어넣기.
+    흐름 <- (흐름, 2) 흐름.밀어넣기.
+    흐름 <- (흐름, 3) 흐름.밀어넣기.
+    흐름 <- (흐름, 4) 흐름.밀어넣기.
+    최근둘 <- (흐름, 2) 흐름.잘라보기.
+    흐름 <- (흐름) 흐름.비우기.
+    비운길이 <- (흐름) 흐름.길이.
+    비운값들 <- (흐름) 흐름.차림.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stream_stdlib_clear_slice.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("흐름".to_string(), RuntimeValue::Map(BTreeMap::new()));
+        defaults.insert("최근둘".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("비운길이".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("비운값들".to_string(), RuntimeValue::List(Vec::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        match output.resources.get("최근둘") {
+            Some(RuntimeValue::List(items)) => {
+                let rendered = items
+                    .iter()
+                    .map(|value| value_to_i64(value).expect("integer"))
+                    .collect::<Vec<_>>();
+                assert_eq!(rendered, vec![3, 4]);
+            }
+            other => panic!("최근둘 must be list, got {:?}", other),
+        }
+        assert_eq!(extract_fixed(&output.resources, "비운길이"), Fixed64::ZERO);
+        match output.resources.get("비운값들") {
+            Some(RuntimeValue::List(items)) => assert!(items.is_empty()),
+            other => panic!("비운값들 must be list, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn stream_stdlib_reports_consistent_stream_value_label() {
+        let script = r#"
+매틱:움직씨 = {
+    길이 <- (흐름) 흐름.길이.
+}
+"#;
+        let program = DdnProgram::from_source(script, "stream_stdlib_label_error.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("흐름".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("길이".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string()
+                .contains("흐름(흐름.만들기 결과) 인자가 필요합니다"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn regex_replacement_invalid_returns_dedicated_error() {
+        let script = r#"
+매틱:움직씨 = {
+    바꿈 <- ("ab-12", 정규식{"(?P<word>[a-z]+)-(?P<num>[0-9]+)", "i"}, "${missing}") 정규바꾸기.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age3);
+        let program =
+            DdnProgram::from_source(script, "regex_replacement_invalid.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("바꿈".to_string(), RuntimeValue::String(String::new()));
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string().contains("E_REGEX_REPLACEMENT_INVALID"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn regex_replacement_numeric_backref_is_greedy_and_invalid_when_missing() {
+        let script = r#"
+매틱:움직씨 = {
+    바꿈 <- ("ab-12", 정규식{"([a-z]+)-([0-9]+)", "i"}, "$10") 정규바꾸기.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age3);
+        let program = DdnProgram::from_source(script, "regex_replacement_numeric_invalid.ddn")
+            .expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("바꿈".to_string(), RuntimeValue::String(String::new()));
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string().contains("E_REGEX_REPLACEMENT_INVALID"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn regex_replacement_invalid_subcases_return_dedicated_error() {
+        let cases = [
+            (
+                "regex_replacement_empty_ref_invalid.ddn",
+                r#"
+매틱:움직씨 = {
+    바꿈 <- ("ab-12", 정규식{"(?P<word>[a-z]+)-(?P<num>[0-9]+)", "i"}, "${}") 정규바꾸기.
+}
+"#,
+            ),
+            (
+                "regex_replacement_dangling_dollar_invalid.ddn",
+                r#"
+매틱:움직씨 = {
+    바꿈 <- ("ab-12", 정규식{"(?P<word>[a-z]+)-(?P<num>[0-9]+)", "i"}, "$") 정규바꾸기.
+}
+"#,
+            ),
+            (
+                "regex_replacement_numeric_overflow_invalid.ddn",
+                r#"
+매틱:움직씨 = {
+    바꿈 <- ("ab-12", 정규식{"([a-z]+)-([0-9]+)", "i"}, "$999999999999999999999999") 정규바꾸기.
+}
+"#,
+            ),
+        ];
+        for (file_name, script) in cases {
+            let old_age = default_age_target();
+            set_default_age_target(AgeTarget::Age3);
+            let program = DdnProgram::from_source(script, file_name).expect("parse");
+            set_default_age_target(old_age);
+            let mut runner = DdnRunner::new(program, "매틱");
+            let world = NuriWorld::new();
+            let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+            defaults.insert("바꿈".to_string(), RuntimeValue::String(String::new()));
+            let err = match runner.run_update(&world, &empty_input(), &defaults) {
+                Ok(_) => panic!("must fail: {file_name}"),
+                Err(err) => err,
+            };
+            assert!(
+                err.to_string().contains("E_REGEX_REPLACEMENT_INVALID"),
+                "unexpected error for {file_name}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn temperature_literals_compare_after_kelvin_normalization() {
+        let script = r#"
+매틱:움직씨 = {
+    같음 <- 25@C == 77@F.
+}
+"#;
+        let program = DdnProgram::from_source(script, "temperature_compare.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("같음".to_string(), RuntimeValue::Bool(false));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("같음") {
+            Some(RuntimeValue::Bool(value)) => assert!(*value),
+            other => panic!("같음 must be bool, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn temperature_literals_subtract_to_kelvin_difference() {
+        let script = r#"
+매틱:움직씨 = {
+    같음 <- (30@C - 20@C) == 10@K.
+}
+"#;
+        let program = DdnProgram::from_source(script, "temperature_subtract.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("같음".to_string(), RuntimeValue::Bool(false));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("같음") {
+            Some(RuntimeValue::Bool(value)) => assert!(*value),
+            other => panic!("같음 must be bool, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn template_format_can_render_temperature_in_celsius_and_fahrenheit() {
+        let script = r#"
+매틱:움직씨 = {
+    섭씨텍스트 <- (t=298.15@K) 글무늬{"섭씨={t|@.1C}"}.
+    화씨텍스트 <- (t=298.15@K) 글무늬{"화씨={t|@.1F}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "temperature_template_unit.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert(
+            "섭씨텍스트".to_string(),
+            RuntimeValue::String(String::new()),
+        );
+        defaults.insert(
+            "화씨텍스트".to_string(),
+            RuntimeValue::String(String::new()),
+        );
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("섭씨텍스트") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "섭씨=25.0@C"),
+            other => panic!("섭씨텍스트 must be string, got {:?}", other),
+        }
+        match output.resources.get("화씨텍스트") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "화씨=77.0@F"),
+            other => panic!("화씨텍스트 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn template_format_defaults_temperature_display_to_kelvin() {
+        let script = r#"
+매틱:움직씨 = {
+    기본텍스트 <- (t=25@C) 글무늬{"온도={t}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "temperature_template_default.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert(
+            "기본텍스트".to_string(),
+            RuntimeValue::String(String::new()),
+        );
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("기본텍스트") {
+            Some(RuntimeValue::String(value)) => {
+                assert!(value.ends_with("@K"), "unexpected value: {}", value)
+            }
+            other => panic!("기본텍스트 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn regex_is_age3_feature_gated() {
         let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
-    패턴 <- 정규식{"[0-9]+"}.
+    결과 <- ("a1", 정규식{"[0-9]+"}) 정규찾기.
 }
 "#;
         let old_age = default_age_target();
@@ -6322,8 +12186,2007 @@ mod tests {
             "expected age gate code, got {err}"
         );
         assert!(
-            err.contains("regex_literal"),
+            err.contains("regex_api"),
             "expected regex feature, got {err}"
         );
+    }
+
+    #[test]
+    fn quantifier_is_age4_feature_gated() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let script = r#"
+매틱:움직씨 = {
+    n 이 자연수 낱낱에 대해 {
+        없음.
+    }.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age3);
+        let err = match DdnProgram::from_source(script, "quantifier_age3.ddn") {
+            Ok(_) => panic!("age gate"),
+            Err(err) => err,
+        };
+        set_default_age_target(old_age);
+        assert!(
+            err.contains("E_AGE_NOT_AVAILABLE"),
+            "expected age gate code, got {err}"
+        );
+        assert!(
+            err.contains("logic_quantifier"),
+            "expected quantifier feature, got {err}"
+        );
+    }
+
+    #[test]
+    fn quantifier_statement_runs_as_proof_only_noop() {
+        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
+        let script = r#"
+매틱:움직씨 = {
+    결과 <- 3.
+    n 이 자연수 낱낱에 대해 {
+        없음.
+    }.
+}
+"#;
+        let old_age = default_age_target();
+        set_default_age_target(AgeTarget::Age4);
+        let program = DdnProgram::from_source(script, "quantifier_age4.ddn").expect("parse");
+        set_default_age_target(old_age);
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("결과".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            extract_fixed(&output.resources, "결과"),
+            Fixed64::from_i64(3)
+        );
+    }
+
+    #[test]
+    fn numeric_family_constructors_render_and_normalize() {
+        let script = r#"
+매틱:움직씨 = {
+    큰 <- ("123456789012345678901234567890") 큰바른수.
+    나눔 <- (2, 4) 나눔수.
+    곱 <- (84) 곱수.
+    요약 <- (큰=큰, 나눔=나눔, 곱=곱) 글무늬{"{큰}|{나눔}|{곱}"}.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_ctor.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("큰".to_string(), RuntimeValue::None);
+        defaults.insert("나눔".to_string(), RuntimeValue::None);
+        defaults.insert("곱".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(
+                    text,
+                    "123456789012345678901234567890|1/2|2^2 * 3 * 7"
+                );
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_alias_constructors_are_supported() {
+        let script = r#"
+매틱:움직씨 = {
+    수값 <- ("3.25") fixed64.
+    정 <- ("3") int.
+    큰 <- ("9007199254740993") bigint.
+    나눔 <- (6, 9) rational.
+    곱 <- (72) factor.
+    요약 <- (수값=수값, 정=정, 큰=큰, 나눔=나눔, 곱=곱) 글무늬{"{수값}|{정}|{큰}|{나눔}|{곱}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_alias_ctor.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("수값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("정".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("큰".to_string(), RuntimeValue::None);
+        defaults.insert("나눔".to_string(), RuntimeValue::None);
+        defaults.insert("곱".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "3.25|3|9007199254740993|2/3|2^3 * 3^2");
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_sized_variant_aliases_are_supported() {
+        let script = r#"
+매틱:움직씨 = {
+    a <- ("1.5") 셈수4.
+    b <- ("7") 바른수8.
+    c <- (a) 셈수2.
+    d <- (b) 바른수4.
+    요약 <- (c=c, d=d) 글무늬{"{c}|{d}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_sized_variant_alias.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("b".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("c".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("d".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "1.5|7");
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_sized_variant_type_pins_in_decl_block_are_supported() {
+        let script = r#"
+채비 {
+    값:셈수2 <- 1.5.
+    정:바른수4 <- 7.
+}.
+
+매틱:움직씨 = {
+    요약 <- (값=값, 정=정) 글무늬{"{값}|{정}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_sized_variant_type_pin.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("정".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "1.5|7"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_english_alias_type_pins_in_decl_block_are_supported() {
+        let script = r#"
+채비 {
+    실수형:fixed64 <- 1.5.
+    정수형:int64 <- 7.
+    큰:bigint <- ("9007199254740993") 큰바른수.
+    유리:rational <- (6, 9) 나눔수.
+    인수:factorized <- (72) 곱수.
+}.
+
+매틱:움직씨 = {
+    요약 <- (실수형=실수형, 정수형=정수형, 큰=큰, 유리=유리, 인수=인수)
+        글무늬{"{실수형}|{정수형}|{큰}|{유리}|{인수}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_english_alias_type_pin.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("실수형".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("정수형".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("큰".to_string(), RuntimeValue::None);
+        defaults.insert("유리".to_string(), RuntimeValue::None);
+        defaults.insert("인수".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert!(text.starts_with("1.5|7|9007199254740993|2/3|"));
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_fixed64_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:fixed64) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_alias_diag_fixed64.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("fixed64"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_int64_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:int64) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    1.5:x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_int64.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=바른수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("int64"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_bigint_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:bigint) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_bigint.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=큰바른수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("bigint"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_rational_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:rational) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_rational.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=나눔수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("rational"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_factorized_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:factorized) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_factorized.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=곱수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("factorized"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_big_int_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:big_int) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_big_int.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=큰바른수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("big_int"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_ratio_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:ratio) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_ratio.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=나눔수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("ratio"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_frac_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:frac) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_frac.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=나눔수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("frac"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_factor_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:factor) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_factor.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=곱수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("factor"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_primepow_alias_type_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:primepow) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_alias_diag_primepow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=곱수"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("primepow"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_boolean_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:boolean) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    1:x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_boolean.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=참거짓"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("boolean"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_list_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:list) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_list.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=차림"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("list"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_set_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:set) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_set.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=모음"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("set"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_map_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:map) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_map.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=짝맞춤"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("map"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_pack_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:pack) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_pack.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=묶음"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("pack"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_string_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:string) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    1:x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_string.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=글"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("string"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_none_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:none) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    1:x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_none.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=없음"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("none"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_non_keyword_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:non) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    1:x 통과하기.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "type_alias_diag_non_keyword.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=없음"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("non"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_non_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:논) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    1:x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_non.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=참거짓"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("논"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_mokrok_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:목록) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_mokrok.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=차림"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("목록"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_modum_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:모둠) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_modum.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=모음"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("모둠"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_geurimpyo_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:그림표) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_geurimpyo.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=짝맞춤"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("그림표"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn type_alias_valuepack_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+(x:값꾸러미) 통과:셈씨 = {
+    x 돌려줘.
+}
+
+매틱:움직씨 = {
+    "글":x 통과하기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "type_alias_diag_valuepack.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err.to_string(),
+        };
+        assert!(
+            err.contains("기대=묶음"),
+            "expected canonical type name in error, got: {err}"
+        );
+        assert!(
+            !err.contains("값꾸러미"),
+            "alias name should not leak in canonical mismatch message: {err}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_exact_infix_rational_addition() {
+        let script = r#"
+매틱:움직씨 = {
+    a <- (1, 3) 나눔수.
+    b <- (1, 6) 나눔수.
+    c <- a + b.
+    요약 <- (c=c) 글무늬{"{c}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_exact_rational_add.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::None);
+        defaults.insert("b".to_string(), RuntimeValue::None);
+        defaults.insert("c".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "1/2"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_exact_infix_bigint_multiplication_and_division() {
+        let script = r#"
+매틱:움직씨 = {
+    a <- ("10000000000000000000") 큰바른수.
+    b <- ("3") 큰바른수.
+    mul <- a * b.
+    rat <- a / b.
+    요약 <- (mul=mul, rat=rat) 글무늬{"{mul}|{rat}"}.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_family_exact_bigint_ops.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::None);
+        defaults.insert("b".to_string(), RuntimeValue::None);
+        defaults.insert("mul".to_string(), RuntimeValue::None);
+        defaults.insert("rat".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "30000000000000000000|10000000000000000000/3")
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_exact_infix_bigint_over_i128_boundary() {
+        let script = r#"
+매틱:움직씨 = {
+    a <- ("340282366920938463463374607431768211456") 큰바른수.
+    b <- ("1") 큰바른수.
+    c <- a + b.
+    요약 <- (c=c) 글무늬{"{c}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_bigint_over_i128.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::None);
+        defaults.insert("b".to_string(), RuntimeValue::None);
+        defaults.insert("c".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "340282366920938463463374607431768211457")
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_rational_accepts_bigint_operands() {
+        let script = r#"
+매틱:움직씨 = {
+    n <- ("680564733841876926926749214863536422912", "2") 나눔수.
+    기대 <- ("340282366920938463463374607431768211456") 큰바른수.
+    같음 <- n == 기대.
+    요약 <- (같음=같음) 글무늬{"{같음}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_rational_bigint_operands.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("기대".to_string(), RuntimeValue::None);
+        defaults.insert("같음".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "참"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_accepts_bigint_within_i64() {
+        let script = r#"
+매틱:움직씨 = {
+    n <- ("84") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    경로 <- f.분해경로.
+    요약 <- (표식=표식, 경로=경로, f=f) 글무늬{"{표식}|{경로}|{f}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_factor_from_bigint_ok.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("경로".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "완료|i64|2^2 * 3 * 7"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        assert!(numeric_diag_events(&output).is_empty());
+    }
+
+    #[test]
+    fn numeric_family_factor_route_metrics_resource_is_emitted() {
+        let huge = format!("1{}", "0".repeat(160));
+        let script = format!(
+            r#"
+매틱:움직씨 = {{
+    a <- ("84") 큰바른수.
+    fa <- (a) 곱수.
+    b <- ("{huge}") 큰바른수.
+    fb <- (b) 곱수.
+    c <- ("16000000064000000063") 큰바른수.
+    fc <- (c) 곱수.
+}}
+"#
+        );
+        let program =
+            DdnProgram::from_source(&script, "numeric_family_factor_route_metrics.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::None);
+        defaults.insert("b".to_string(), RuntimeValue::None);
+        defaults.insert("c".to_string(), RuntimeValue::None);
+        defaults.insert("fa".to_string(), RuntimeValue::None);
+        defaults.insert("fb".to_string(), RuntimeValue::None);
+        defaults.insert("fc".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        let summary = match output.resources.get(NUMERIC_FACTOR_ROUTE_SUMMARY_RESOURCE_KEY) {
+            Some(RuntimeValue::String(text)) => text.clone(),
+            other => panic!("route summary must be string, got {:?}", other),
+        };
+        assert!(
+            summary.contains("i64=1"),
+            "summary must include i64 route: {summary}"
+        );
+        assert!(
+            summary.contains("deferred:bitlimit=1"),
+            "summary must include deferred bitlimit route: {summary}"
+        );
+        assert!(
+            summary.contains("bigint:pollard=1"),
+            "summary must include pollard route: {summary}"
+        );
+        let total = extract_fixed(&output.resources, NUMERIC_FACTOR_ROUTE_TOTAL_RESOURCE_KEY);
+        assert_eq!(total.int_part(), 3);
+        let bits_min = extract_fixed(&output.resources, NUMERIC_FACTOR_BITS_MIN_RESOURCE_KEY);
+        let bits_max = extract_fixed(&output.resources, NUMERIC_FACTOR_BITS_MAX_RESOURCE_KEY);
+        let bits_sum = extract_fixed(&output.resources, NUMERIC_FACTOR_BITS_SUM_RESOURCE_KEY);
+        let policy = match output.resources.get(NUMERIC_FACTOR_POLICY_RESOURCE_KEY) {
+            Some(RuntimeValue::String(text)) => text.clone(),
+            other => panic!("factor policy must be string, got {:?}", other),
+        };
+        println!("numeric_factor_policy={policy}");
+        assert!(
+            policy.contains("bit_limit=512"),
+            "policy must expose bit_limit: {policy}"
+        );
+        assert!(
+            policy.contains("pollard_iters=200000"),
+            "policy must expose pollard iters: {policy}"
+        );
+        assert!(
+            policy.contains("fallback_limit=1000000"),
+            "policy must expose fallback limit: {policy}"
+        );
+        assert!(
+            policy.contains("small_prime_max=101"),
+            "policy must expose small-prime max: {policy}"
+        );
+        assert_eq!(bits_min.int_part(), 7);
+        assert!(bits_max.int_part() > FACTOR_BIGINT_FACTOR_BITS_LIMIT as i64);
+        assert!(bits_sum.int_part() >= bits_min.int_part() * 3);
+    }
+
+    #[test]
+    fn numeric_family_factor_route_metrics_diag_event_is_emitted() {
+        let script = r#"
+매틱:움직씨 = {
+    a <- ("84") 큰바른수.
+    fa <- (a) 곱수.
+    c <- ("16000000064000000063") 큰바른수.
+    fc <- (c) 곱수.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_factor_route_metrics_diag.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::None);
+        defaults.insert("c".to_string(), RuntimeValue::None);
+        defaults.insert("fa".to_string(), RuntimeValue::None);
+        defaults.insert("fc".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        let summary = match output.resources.get(NUMERIC_FACTOR_ROUTE_SUMMARY_RESOURCE_KEY) {
+            Some(RuntimeValue::String(text)) => text.clone(),
+            other => panic!("route summary must be string, got {:?}", other),
+        };
+        let total = extract_fixed(&output.resources, NUMERIC_FACTOR_ROUTE_TOTAL_RESOURCE_KEY);
+        let total_int = total.int_part();
+        let policy = match output.resources.get(NUMERIC_FACTOR_POLICY_RESOURCE_KEY) {
+            Some(RuntimeValue::String(text)) => text.clone(),
+            other => panic!("factor policy must be string, got {:?}", other),
+        };
+
+        let events = numeric_factor_route_summary_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].reason, NUMERIC_DIAG_REASON_FACTOR_ROUTE_SUMMARY);
+        assert_eq!(
+            events[0].expr.as_ref().map(|trace| trace.tag.as_str()),
+            Some(NUMERIC_DIAG_TAG_FACTOR_ROUTE_SUMMARY)
+        );
+        let bits_min = extract_fixed(&output.resources, NUMERIC_FACTOR_BITS_MIN_RESOURCE_KEY);
+        let bits_max = extract_fixed(&output.resources, NUMERIC_FACTOR_BITS_MAX_RESOURCE_KEY);
+        let bits_sum = extract_fixed(&output.resources, NUMERIC_FACTOR_BITS_SUM_RESOURCE_KEY);
+        let expected_trace = format!(
+            "routes={summary};total={total_int};bit_min={};bit_max={};bit_sum={};policy={policy}",
+            bits_min.int_part(),
+            bits_max.int_part(),
+            bits_sum.int_part()
+        );
+        assert_eq!(
+            events[0]
+                .expr
+                .as_ref()
+                .and_then(|trace| trace.text.as_deref()),
+            Some(expected_trace.as_str())
+        );
+        let expected_message = format!(
+            "곱수 분해경로 집계: {summary} (총 {total_int}, 비트 최소={}, 최대={}, 합={}, 정책={policy})",
+            bits_min.int_part(),
+            bits_max.int_part(),
+            bits_sum.int_part()
+        );
+        assert_eq!(events[0].message.as_deref(), Some(expected_message.as_str()));
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_deferred_for_bigint_out_of_i64() {
+        let huge = format!("1{}", "0".repeat(160));
+        let script = format!(
+            r#"
+매틱:움직씨 = {{
+    n <- ("{huge}") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    원인 <- f.지연사유.
+    경로 <- f.분해경로.
+    비트 <- f.분해비트수.
+    요약 <- (표식=표식, 원인=원인, 경로=경로, f=f) 글무늬{{"{{표식}}|{{원인}}|{{경로}}|{{f}}"}}.
+}}
+"#
+        );
+        let program =
+            DdnProgram::from_source(&script, "numeric_family_factor_from_bigint_overflow.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("원인".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("경로".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("비트".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let expected_summary = format!("지연|비트한계초과|deferred:bitlimit|{huge}");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, expected_summary.as_str()),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        let bits = extract_fixed(&output.resources, "비트");
+        assert!(bits.int_part() > FACTOR_BIGINT_FACTOR_BITS_LIMIT as i64);
+        let events = numeric_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        let expected_agg_routes = format!("{}=1", FACTOR_DECOMP_ROUTE_DEFERRED_BIT_LIMIT);
+        let expected_trace = format!(
+            "route={};bits={};agg_routes={};agg_total=1",
+            FACTOR_DECOMP_ROUTE_DEFERRED_BIT_LIMIT,
+            bits.int_part(),
+            expected_agg_routes
+        );
+        assert_eq!(
+            events[0]
+                .expr
+                .as_ref()
+                .and_then(|trace| trace.text.as_deref()),
+            Some(expected_trace.as_str())
+        );
+        assert_eq!(
+            events[0].reason,
+            NUMERIC_DIAG_REASON_FACTOR_DECOMP_DEFERRED
+        );
+        assert_eq!(
+            events[0].sub_reason.as_deref(),
+            Some(FACTOR_DECOMP_DEFERRED_REASON_BIT_LIMIT)
+        );
+        let expected_message = format!("곱수 분해를 지연했습니다(비트한계초과): {huge}");
+        assert_eq!(
+            events[0].message.as_deref(),
+            Some(expected_message.as_str())
+        );
+        assert_eq!(
+            events[0].expr.as_ref().map(|trace| trace.tag.as_str()),
+            Some(NUMERIC_DIAG_TAG_FACTOR_DECOMP_DEFERRED)
+        );
+        let span = events[0]
+            .source_span
+            .as_ref()
+            .expect("deferred factor diag must carry source_span");
+        assert_eq!(span.file, "numeric_family_factor_from_bigint_overflow.ddn");
+        assert!(span.start_line >= 1);
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_deferred_for_factor_failure_reason() {
+        let _guard = FactorizationTestOverrideGuard::new(0, 1);
+        let n = "9223372036854775809";
+        let script = format!(
+            r#"
+매틱:움직씨 = {{
+    n <- ("{n}") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    원인 <- f.지연사유.
+    경로 <- f.분해경로.
+    요약 <- (표식=표식, 원인=원인, 경로=경로, f=f) 글무늬{{"{{표식}}|{{원인}}|{{경로}}|{{f}}"}}.
+}}
+"#
+        );
+        let program = DdnProgram::from_source(
+            &script,
+            "numeric_family_factor_from_bigint_factor_failed.ddn",
+        )
+        .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("원인".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("경로".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "지연|분해실패|deferred:factorfailed|9223372036854775809")
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        let events = numeric_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0]
+                .expr
+                .as_ref()
+                .and_then(|trace| trace.text.as_deref()),
+            Some("route=deferred:factorfailed;bits=64;agg_routes=deferred:factorfailed=1;agg_total=1")
+        );
+        assert_eq!(
+            events[0].sub_reason.as_deref(),
+            Some(FACTOR_DECOMP_DEFERRED_REASON_FACTOR_FAILED)
+        );
+        assert_eq!(
+            events[0].message.as_deref(),
+            Some("곱수 분해를 지연했습니다(분해실패): 9223372036854775809")
+        );
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_uses_trial_fallback_when_pollard_disabled() {
+        let _guard = FactorizationTestOverrideGuard::new(0, 1_000_000);
+        let n = "9223372036854775809";
+        let script = format!(
+            r#"
+매틱:움직씨 = {{
+    n <- ("{n}") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    경로 <- f.분해경로.
+    요약 <- (표식=표식, 경로=경로, f=f) 글무늬{{"{{표식}}|{{경로}}|{{f}}"}}.
+}}
+"#
+        );
+        let program = DdnProgram::from_source(
+            &script,
+            "numeric_family_factor_from_bigint_trial_fallback.ddn",
+        )
+        .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("경로".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert!(
+                text.starts_with("완료|bigint:mixed|"),
+                "unexpected summary: {text}"
+            ),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        assert!(numeric_diag_events(&output).is_empty());
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_strips_small_prime_without_pollard_or_fallback() {
+        let _guard = FactorizationTestOverrideGuard::new(0, 1);
+        let n = "510423550381407695195061911147652317181";
+        let script = format!(
+            r#"
+매틱:움직씨 = {{
+    n <- ("{n}") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    경로 <- f.분해경로.
+    요약 <- (표식=표식, 경로=경로, f=f) 글무늬{{"{{표식}}|{{경로}}|{{f}}"}}.
+}}
+"#
+        );
+        let program = DdnProgram::from_source(
+            &script,
+            "numeric_family_factor_from_bigint_small_prime_strip.ddn",
+        )
+        .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("경로".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(
+                text,
+                "완료|bigint:smallprime|3 * 170141183460469231731687303715884105727"
+            ),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        assert!(numeric_diag_events(&output).is_empty());
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_uses_pollard_route_for_large_semiprime() {
+        let n = "16000000064000000063";
+        let script = format!(
+            r#"
+매틱:움직씨 = {{
+    n <- ("{n}") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    경로 <- f.분해경로.
+    요약 <- (표식=표식, 경로=경로, f=f) 글무늬{{"{{표식}}|{{경로}}|{{f}}"}}.
+}}
+"#
+        );
+        let program = DdnProgram::from_source(
+            &script,
+            "numeric_family_factor_from_bigint_pollard_route.ddn",
+        )
+        .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("경로".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "완료|bigint:pollard|4000000007 * 4000000009")
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        assert!(numeric_diag_events(&output).is_empty());
+    }
+
+    #[test]
+    fn numeric_family_factor_deferred_diag_keeps_source_span_via_eval_callable() {
+        let huge = format!("1{}", "0".repeat(160));
+        let script = format!(
+            r##"
+매틱:움직씨 = {{
+    함수 <- "#곱수".
+    값들 <- ("{huge}") 차림.
+    결과 <- (값들, 함수) 변환.
+    첫 <- (결과) 첫번째.
+    표식 <- 첫.분해상태.
+    요약 <- (표식=표식) 글무늬{{"{{표식}}"}}.
+}}
+"##
+        );
+        let program = DdnProgram::from_source(
+            &script,
+            "numeric_family_factor_deferred_eval_callable_span.ddn",
+        )
+        .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("함수".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("값들".to_string(), RuntimeValue::None);
+        defaults.insert("결과".to_string(), RuntimeValue::None);
+        defaults.insert("첫".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "지연"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        let events = numeric_diag_events(&output);
+        assert_eq!(events.len(), 1);
+        assert!(
+            events[0]
+                .expr
+                .as_ref()
+                .and_then(|trace| trace.text.as_deref())
+                .map(|text| {
+                    text.starts_with("route=deferred:bitlimit;bits=")
+                        && text.contains(";agg_routes=deferred:bitlimit=1;agg_total=1")
+                })
+                .unwrap_or(false),
+            "deferred diag must expose route/bits/agg in expr.text"
+        );
+        assert_eq!(
+            events[0].sub_reason.as_deref(),
+            Some(FACTOR_DECOMP_DEFERRED_REASON_BIT_LIMIT)
+        );
+        assert_eq!(
+            events[0].expr.as_ref().map(|trace| trace.tag.as_str()),
+            Some(NUMERIC_DIAG_TAG_FACTOR_DECOMP_DEFERRED)
+        );
+        let span = events[0]
+            .source_span
+            .as_ref()
+            .expect("eval_callable path must keep source_span");
+        assert_eq!(span.file, "numeric_family_factor_deferred_eval_callable_span.ddn");
+        assert!(span.start_line >= 1);
+    }
+
+    #[test]
+    fn numeric_family_i64_path_accepts_bigint_in_range() {
+        let script = r#"
+매틱:움직씨 = {
+    최소 <- ("1") 큰바른수.
+    최대 <- ("3") 큰바른수.
+    값 <- (최소, 최대) 무작위정수.
+    유효 <- (값 >= 최소) 그리고 (값 <= 최대).
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_i64_path_in_range.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("최소".to_string(), RuntimeValue::None);
+        defaults.insert("최대".to_string(), RuntimeValue::None);
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("유효".to_string(), RuntimeValue::Bool(false));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("유효") {
+            Some(RuntimeValue::Bool(flag)) => assert!(*flag),
+            other => panic!("유효 must be bool, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_factor_deferred_value_participates_exact_infix() {
+        let huge = format!("1{}", "0".repeat(160));
+        let script = format!(
+            r#"
+매틱:움직씨 = {{
+    n <- ("{huge}") 큰바른수.
+    f <- (n) 곱수.
+    next <- f + ("1") 큰바른수.
+    요약 <- (next=next) 글무늬{{"{{next}}"}}.
+}}
+"#
+        );
+        let program =
+            DdnProgram::from_source(&script, "numeric_family_factor_deferred_exact_infix.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("next".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let expected_next = format!("1{}1", "0".repeat(159));
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, expected_next.as_str()),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_handles_bigint_over_i128_when_prime() {
+        let script = r#"
+매틱:움직씨 = {
+    n <- ("170141183460469231731687303715884105727") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    요약 <- (표식=표식, f=f) 글무늬{"{표식}|{f}"}.
+}
+"#;
+        let program = DdnProgram::from_source(
+            script,
+            "numeric_family_factor_from_bigint_over_i128_prime.ddn",
+        )
+        .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "완료|170141183460469231731687303715884105727")
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        assert!(numeric_diag_events(&output).is_empty());
+    }
+
+    #[test]
+    fn numeric_family_factor_constructor_handles_bigint_over_i128_when_factorable() {
+        let script = r#"
+매틱:움직씨 = {
+    n <- ("1361129467683753853853498429727072845824") 큰바른수.
+    f <- (n) 곱수.
+    표식 <- f.분해상태.
+    요약 <- (표식=표식, f=f) 글무늬{"{표식}|{f}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_factor_from_bigint_over_i128.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("n".to_string(), RuntimeValue::None);
+        defaults.insert("f".to_string(), RuntimeValue::None);
+        defaults.insert("표식".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "완료|2^130"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+        assert!(numeric_diag_events(&output).is_empty());
+    }
+
+    #[test]
+    fn numeric_family_i64_path_rejects_bigint_out_of_range() {
+        let script = r#"
+매틱:움직씨 = {
+    최소 <- ("9223372036854775808") 큰바른수.
+    최대 <- ("9223372036854775810") 큰바른수.
+    값 <- (최소, 최대) 무작위정수.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_i64_path_overflow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("최소".to_string(), RuntimeValue::None);
+        defaults.insert("최대".to_string(), RuntimeValue::None);
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(
+            message.contains("정수 값(i64 범위)이 필요합니다"),
+            "unexpected error: {message}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_exact_infix_comparison_and_equality() {
+        let script = r#"
+매틱:움직씨 = {
+    a <- ("10000000000000000000") 큰바른수.
+    b <- ("9999999999999999999") 큰바른수.
+    r1 <- (1, 3) 나눔수.
+    r2 <- (2, 5) 나눔수.
+    같음 <- (2, 1) 나눔수 == ("2") 큰바른수.
+    큼 <- a > b.
+    작음 <- r1 < r2.
+    요약 <- (같음=같음, 큼=큼, 작음=작음) 글무늬{"{같음}|{큼}|{작음}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_exact_compare.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::None);
+        defaults.insert("b".to_string(), RuntimeValue::None);
+        defaults.insert("r1".to_string(), RuntimeValue::None);
+        defaults.insert("r2".to_string(), RuntimeValue::None);
+        defaults.insert("같음".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("큼".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("작음".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "참|참|참"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_exact_infix_modulo_for_integer_family() {
+        let script = r#"
+매틱:움직씨 = {
+    a <- ("10000000000000000003") 큰바른수.
+    b <- ("7") 큰바른수.
+    m <- a % b.
+    요약 <- (m=m) 글무늬{"{m}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_exact_modulo.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("a".to_string(), RuntimeValue::None);
+        defaults.insert("b".to_string(), RuntimeValue::None);
+        defaults.insert("m".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => assert_eq!(text, "6"),
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_integer_types_reject_fractional_value() {
+        let script = r#"
+매틱:움직씨 = {
+    정 <- (1.5) 바른수.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_int_reject.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("정".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(
+            message.contains("정수 값이 필요합니다"),
+            "unexpected error: {message}"
+        );
+    }
+
+    #[test]
+    fn numeric_family_grouped_integer_strings_are_supported() {
+        let script = r#"
+매틱:움직씨 = {
+    큰 <- ("9_223_372_036_854_775_808") 큰바른수.
+    다음 <- 큰 + ("1") 큰바른수.
+    나눔 <- ("1_000", "4") 나눔수.
+    곱 <- ("84_000") 곱수.
+    요약 <- (다음=다음, 나눔=나눔, 곱=곱) 글무늬{"{다음}|{나눔}|{곱}"}.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_grouped_integer_strings.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("큰".to_string(), RuntimeValue::None);
+        defaults.insert("다음".to_string(), RuntimeValue::None);
+        defaults.insert("나눔".to_string(), RuntimeValue::None);
+        defaults.insert("곱".to_string(), RuntimeValue::None);
+        defaults.insert("요약".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        match output.resources.get("요약") {
+            Some(RuntimeValue::String(text)) => {
+                assert_eq!(text, "9223372036854775809|250/1|2^5 * 3 * 5^3 * 7")
+            }
+            other => panic!("요약 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_family_grouped_integer_string_rejects_invalid_format() {
+        let script = r#"
+매틱:움직씨 = {
+    큰 <- ("1__000") 큰바른수.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "numeric_family_grouped_integer_invalid.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("큰".to_string(), RuntimeValue::None);
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(
+            message.contains("정수 문자열 형식이 아닙니다"),
+            "unexpected error: {message}"
+        );
+    }
+
+    #[test]
+    fn decl_block_typecheck_rejects_mismatched_exact_numeric_initializer() {
+        let script = r#"
+매틱:움직씨 = {
+    채비 {
+        값:나눔수 <- (12) 곱수.
+    }.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "decl_type_mismatch_exact_numeric.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(
+            message.contains("E_RUNTIME_TYPE_MISMATCH"),
+            "unexpected error: {message}"
+        );
+        assert!(message.contains("핀=값"), "unexpected error: {message}");
+        assert!(message.contains("기대=나눔수"), "unexpected error: {message}");
+        assert!(message.contains("실제=곱수"), "unexpected error: {message}");
+    }
+
+    #[test]
+    fn decl_block_type_alias_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+매틱:움직씨 = {
+    채비 {
+        값:rational <- (12) 곱수.
+    }.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "decl_type_alias_mismatch_rational.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(
+            message.contains("E_RUNTIME_TYPE_MISMATCH"),
+            "unexpected error: {message}"
+        );
+        assert!(message.contains("기대=나눔수"), "unexpected error: {message}");
+        assert!(
+            !message.contains("기대=rational"),
+            "expected canonical type name, got: {message}"
+        );
+    }
+
+    #[test]
+    fn decl_block_type_alias_accepts_collection_and_string_none_aliases() {
+        let script = r#"
+매틱:움직씨 = {
+    채비 {
+        글값:string <- "또니".
+        없음값:none <- 없음.
+        비움값:non <- 없음.
+        목록값:목록 <- (1, 2) 차림.
+        모둠값:모둠 <- (1, 2, 2) 모음.
+        그림표값:그림표 <- ("x", 1) 짝맞춤.
+    }.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "decl_type_alias_accepts_collection_string_none.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run should succeed");
+    }
+
+    #[test]
+    fn decl_block_type_alias_none_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+매틱:움직씨 = {
+    채비 {
+        값:none <- 1.
+    }.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "decl_type_alias_none_mismatch.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(
+            message.contains("기대=없음"),
+            "expected canonical type name, got: {message}"
+        );
+        assert!(
+            !message.contains("기대=none"),
+            "alias name should not leak in canonical mismatch message: {message}"
+        );
+    }
+
+    #[test]
+    fn decl_block_type_alias_non_keyword_mismatch_uses_canonical_expected_name() {
+        let script = r#"
+매틱:움직씨 = {
+    채비 {
+        값:non <- 1.
+    }.
+}
+"#;
+        let program = DdnProgram::from_source(script, "decl_type_alias_non_mismatch.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        let err = match runner.run_update(&world, &empty_input(), &defaults) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        let message = err.to_string();
+        assert!(
+            message.contains("기대=없음"),
+            "expected canonical type name, got: {message}"
+        );
+        assert!(
+            !message.contains("기대=non"),
+            "alias name should not leak in canonical mismatch message: {message}"
+        );
+    }
+
+    #[test]
+    fn decl_block_infer_type_skips_runtime_typecheck() {
+        let script = r#"
+매틱:움직씨 = {
+    채비 {
+        값:_ <- (12) 곱수.
+    }.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "decl_type_infer_skips_typecheck.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run should succeed");
+    }
+
+    #[test]
+    fn parse_warnings_include_block_header_colon_deprecation() {
+        let script = r#"
+매틱:움직씨 = {
+    채비: { 값:수 <- 0. }.
+}
+"#;
+        let program = DdnProgram::from_source(script, "warn_block_header.ddn").expect("parse");
+        assert!(program
+            .parse_warnings()
+            .iter()
+            .any(|w| w.code == "W_BLOCK_HEADER_COLON_DEPRECATED"));
     }
 }

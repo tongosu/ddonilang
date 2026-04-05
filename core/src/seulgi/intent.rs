@@ -1,4 +1,4 @@
-﻿use crate::fixed64::Fixed64;
+use crate::fixed64::Fixed64;
 use crate::platform::{SeulgiIntent, SeulgiPacket};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,13 +56,12 @@ pub fn intent_to_detjson(intent: &SeulgiIntent) -> String {
 pub fn intent_bundle_detjson(records: &[IntentRecord]) -> String {
     let mut items = records.to_vec();
     items.sort_by(|a, b| {
-        (
-            a.accepted_madi,
-            a.agent_id,
-            a.recv_seq,
-            a.target_madi,
-        )
-            .cmp(&(b.accepted_madi, b.agent_id, b.recv_seq, b.target_madi))
+        (a.accepted_madi, a.agent_id, a.recv_seq, a.target_madi).cmp(&(
+            b.accepted_madi,
+            b.agent_id,
+            b.recv_seq,
+            b.target_madi,
+        ))
     });
 
     let mut out = String::new();

@@ -11,7 +11,7 @@ categories = ["parser-implementations", "compilers"]
 
 [dependencies]
 ddonirang-core = { path = "../core" }
-# 현재 의존성 없음 (순수 Rust 표준 라이브러리)
+blake3 = "1"
 
 [dev-dependencies]
 # 테스트용
@@ -23,3 +23,7 @@ path = "src/lib.rs"
 [[example]]
 name = "parse_and_normalize"
 path = "examples/parse_and_normalize.rs"
+
+[[example]]
+name = "canon_ast_dump"
+path = "examples/canon_ast_dump.rs"
