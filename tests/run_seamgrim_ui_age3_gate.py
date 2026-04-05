@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 from __future__ import annotations
 
 import argparse
@@ -104,9 +104,13 @@ def main() -> int:
                     'id="screen-run"',
                     'rel="icon"',
                     'id="btn-create"',
+                    'id="btn-preset-featured-seed-quick-recent"',
+                    'id="btn-copy-browse-preset-link"',
                     'id="btn-run-from-editor"',
                     'id="btn-restart"',
                     'id="filter-quality"',
+                    'id="filter-run-launch"',
+                    'value="featured_seed_quick_recent"',
                 ],
             },
         ),
@@ -169,6 +173,17 @@ def main() -> int:
             },
         ),
         run_token_check(
+            "browse_copy_toast_feedback",
+            text_by_label,
+            {
+                "browse": [
+                    'import { showGlobalToast } from "../components/toast.js";',
+                    'showGlobalToast(ok ? "프리셋 링크를 복사했습니다." : "프리셋 링크 복사에 실패했습니다.", {',
+                    'showGlobalToast(ok ? "state_hash를 복사했습니다." : "state_hash 복사에 실패했습니다.", {',
+                ],
+            },
+        ),
+        run_token_check(
             "browse_inventory_source_policy",
             text_by_label,
             {
@@ -195,6 +210,26 @@ def main() -> int:
                     "stepWasmClientParsed",
                     "this.setHash(hash)",
                     "this.updateRuntimeStatus({ observation, views })",
+                ],
+            },
+        ),
+        run_token_check(
+            "run_featured_seed_quick_launch",
+            text_by_label,
+            {
+                "html": [
+                    'id="btn-run-featured-seed"',
+                ],
+                "app": [
+                    'import { FEATURED_SEED_IDS } from "./featured_seed_catalog.js";',
+                    "const BROWSE_PRESET_QUERY_KEY = \"browsePreset\"",
+                    "const featuredSeedButton = byId(\"btn-run-featured-seed\")",
+                    "const runNextFeaturedSeed = async () => {",
+                    "const openRunWithLesson = (lesson, { launchKind = \"manual\" } = {}) => {",
+                    "window.addEventListener(\"seamgrim:browse-preset-changed\", (event) => {",
+                    "browseScreen.applyBrowsePreset(browsePresetFromLocation)",
+                    "shouldTriggerFeaturedSeedQuickPreset(event, {",
+                    "shouldTriggerFeaturedSeedQuickLaunch(event, {",
                 ],
             },
         ),

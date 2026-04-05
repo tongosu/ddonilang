@@ -109,6 +109,8 @@ async function main() {
       compatCols.row.length === 0,
     "columnsParsed fallback: columns+row",
   );
+  const compatWarnings = compatClient.parseWarningsParsed();
+  assert(Array.isArray(compatWarnings) && compatWarnings.length === 0, "parseWarningsParsed fallback");
   let caught = false;
   try {
     compatClient.setParamParsed("g", 1);
@@ -165,6 +167,17 @@ async function main() {
       return JSON.stringify({
         columns: [{ key: "g", dtype: "fixed64", role: "state" }],
         row: [15],
+      });
+    },
+    get_parse_warnings() {
+      return JSON.stringify({
+        warnings: [
+          {
+            code: "W_BLOCK_HEADER_COLON_DEPRECATED",
+            message: "블록 헤더 콜론 비권장",
+            span: { start: 1, end: 6 },
+          },
+        ],
       });
     },
     set_param(key, value) {
@@ -242,6 +255,12 @@ async function main() {
   const cols = client.columnsParsed();
   assert(Array.isArray(cols.columns) && cols.columns.length === 1, "columnsParsed: columns");
   assert(Array.isArray(cols.row) && cols.row.length === 1, "columnsParsed: row");
+  const parseWarnings = client.parseWarningsParsed();
+  assert(Array.isArray(parseWarnings) && parseWarnings.length === 1, "parseWarningsParsed: size");
+  assert(
+    parseWarnings[0].code === "W_BLOCK_HEADER_COLON_DEPRECATED",
+    "parseWarningsParsed: warning code",
+  );
 
   const setResult = client.setParamParsed("g", 15);
   assert(setResult.ok === true, "setParamParsed: ok");

@@ -47,6 +47,202 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "non_age3_profile", "target": "schema_status", "detail": line})
             elif line.startswith("committed schema has lesson without preview"):
                 out.append({"kind": "missing_preview", "target": "schema_status", "detail": line})
+    elif name == "lesson_warning_tokens":
+        for line in lines:
+            if line.startswith("check=lesson_warning_tokens detail=legacy_warning_tokens_nonzero:"):
+                out.append(
+                    {
+                        "kind": "lesson_warning_tokens_nonzero",
+                        "target": "lesson_warning_tokens",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_warning_tokens detail=audit_failed:"):
+                out.append(
+                    {
+                        "kind": "lesson_warning_audit_failed",
+                        "target": "lesson_warning_tokens",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_warning_tokens detail="):
+                out.append(
+                    {
+                        "kind": "lesson_warning_tokens_detail",
+                        "target": "lesson_warning_tokens",
+                        "detail": line,
+                    }
+                )
+    elif name == "lesson_migration_lint":
+        for line in lines:
+            if line.startswith("check=lesson_migration_lint detail=priority_nonzero:"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_priority_nonzero",
+                        "target": "lesson_migration_lint",
+                        "detail": line,
+                    }
+                )
+    elif name == "lesson_migration_lint_preview":
+        for line in lines:
+            if line.startswith("check=lesson_migration_lint_preview detail=runner_failed:"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_preview_runner_failed",
+                        "target": "lesson_migration_lint_preview",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_migration_lint_preview detail="):
+                out.append(
+                    {
+                        "kind": "lesson_migration_preview_detail",
+                        "target": "lesson_migration_lint_preview",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_migration_lint detail=tool_"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_tool_failed",
+                        "target": "lesson_migration_lint",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_migration_lint detail="):
+                out.append(
+                    {
+                        "kind": "lesson_migration_lint_detail",
+                        "target": "lesson_migration_lint",
+                        "detail": line,
+                    }
+                )
+    elif name == "lesson_preview_sync":
+        for line in lines:
+            if line.startswith("check=lesson_preview_sync detail=would_apply_nonzero:"):
+                out.append(
+                    {
+                        "kind": "lesson_preview_sync_failed",
+                        "target": "lesson_preview_sync",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_preview_sync detail=missing_preview_nonzero:"):
+                out.append(
+                    {
+                        "kind": "lesson_preview_sync_failed",
+                        "target": "lesson_preview_sync",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_preview_sync detail=tool_failed:"):
+                out.append(
+                    {
+                        "kind": "lesson_preview_sync_failed",
+                        "target": "lesson_preview_sync",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_preview_sync detail="):
+                out.append(
+                    {
+                        "kind": "lesson_preview_sync_detail",
+                        "target": "lesson_preview_sync",
+                        "detail": line,
+                    }
+                )
+    elif name == "lesson_migration_autofix":
+        for line in lines:
+            if line.startswith("check=lesson_migration_autofix detail=tool_"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_autofix_tool_failed",
+                        "target": "lesson_migration_autofix",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("check=lesson_migration_autofix detail="):
+                out.append(
+                    {
+                        "kind": "lesson_migration_autofix_detail",
+                        "target": "lesson_migration_autofix",
+                        "detail": line,
+                    }
+                )
+    elif name == "pack_evidence_tier":
+        for line in lines:
+            if line.startswith("check=pack_evidence_tier_check detail="):
+                detail = line.split("detail=", 1)[1] if "detail=" in line else ""
+                kind = "pack_evidence_tier_check_failed"
+                if detail.startswith("docs_issue_budget_exceeded:"):
+                    kind = "pack_evidence_tier_docs_issue_budget_exceeded"
+                elif detail.startswith("repo_issue_count_unexpected:"):
+                    kind = "pack_evidence_tier_repo_issue_count_unexpected"
+                elif detail.startswith("repo_profile_strict_failed:"):
+                    kind = "pack_evidence_tier_repo_profile_strict_failed"
+                elif detail.startswith("docs_profile_failed:"):
+                    kind = "pack_evidence_tier_docs_profile_failed"
+                elif detail in {
+                    "report_missing",
+                    "fix_plan_missing",
+                    "schema_mismatch",
+                    "report_keys_missing",
+                    "suggested_fixes_missing",
+                } or detail.startswith("report_parse_failed:"):
+                    kind = "pack_evidence_tier_contract_failed"
+                out.append(
+                    {
+                        "kind": kind,
+                        "target": "pack_evidence_tier",
+                        "detail": line,
+                    }
+                )
+    elif name == "pack_evidence_tier_report_check":
+        for line in lines:
+            if line.startswith("check=pack_evidence_tier_report detail="):
+                detail = line.split("detail=", 1)[1] if "detail=" in line else ""
+                kind = "pack_evidence_tier_report_check_failed"
+                if detail.startswith("docs_issue_budget_exceeded:"):
+                    kind = "pack_evidence_tier_report_docs_issue_budget_exceeded"
+                elif detail.startswith("repo_issue_count_unexpected:"):
+                    kind = "pack_evidence_tier_report_repo_issue_count_unexpected"
+                elif detail.startswith("report_") or detail.startswith("schema_mismatch:"):
+                    kind = "pack_evidence_tier_report_contract_failed"
+                out.append(
+                    {
+                        "kind": kind,
+                        "target": "pack_evidence_tier_report_check",
+                        "detail": line,
+                    }
+                )
+    elif name == "pack_evidence_tier_report_check_selftest":
+        for line in lines:
+            if line.startswith("[pack-evidence-tier-report-check-selftest] fail"):
+                out.append(
+                    {
+                        "kind": "pack_evidence_tier_report_selftest_failed",
+                        "target": "pack_evidence_tier_report_check_selftest",
+                        "detail": line,
+                    }
+                )
+    elif name == "stateful_sim_preview_upgrade":
+        for line in lines:
+            if line.startswith("check=stateful_preview_upgrade detail="):
+                out.append(
+                    {
+                        "kind": "stateful_preview_upgrade_failed",
+                        "target": "stateful_sim_preview_upgrade",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("seamgrim stateful preview step check failed"):
+                out.append(
+                    {
+                        "kind": "stateful_preview_upgrade_failed",
+                        "target": "stateful_sim_preview_upgrade",
+                        "detail": line,
+                    }
+                )
     elif name == "ui_age3_gate":
         for line in lines:
             if line.startswith("missing ui html:"):
@@ -132,6 +328,42 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                     {
                         "kind": "seed_meta_files_failed",
                         "target": "seed_meta_files",
+                        "detail": line,
+                    }
+                )
+    elif name == "guideblock_keys_pack":
+        for line in lines:
+            if line.startswith("check=guideblock_keys_pack"):
+                out.append(
+                    {
+                        "kind": "guideblock_keys_pack_failed",
+                        "target": "guideblock_keys_pack",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("guideblock keys pack failed"):
+                out.append(
+                    {
+                        "kind": "guideblock_keys_pack_failed",
+                        "target": "guideblock_keys_pack",
+                        "detail": line,
+                    }
+                )
+    elif name == "moyang_view_boundary_pack":
+        for line in lines:
+            if line.startswith("check=moyang_view_boundary_pack"):
+                out.append(
+                    {
+                        "kind": "moyang_view_boundary_pack_failed",
+                        "target": "moyang_view_boundary_pack",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("moyang view boundary pack check failed"):
+                out.append(
+                    {
+                        "kind": "moyang_view_boundary_pack_failed",
+                        "target": "moyang_view_boundary_pack",
                         "detail": line,
                     }
                 )
@@ -248,6 +480,60 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "browse_selection_flow_failed", "target": "browse_selection_flow", "detail": line})
             elif line.startswith("seamgrim browse selection flow check failed"):
                 out.append({"kind": "browse_selection_flow_failed", "target": "browse_selection_flow", "detail": line})
+    elif name == "featured_seed_quick_launch_logic":
+        for line in lines:
+            if line.startswith("check=featured_seed_quick_launch"):
+                out.append(
+                    {
+                        "kind": "featured_seed_quick_launch_failed",
+                        "target": "featured_seed_quick_launch_logic",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("seamgrim featured seed quick launch check failed"):
+                out.append(
+                    {
+                        "kind": "featured_seed_quick_launch_failed",
+                        "target": "featured_seed_quick_launch_logic",
+                        "detail": line,
+                    }
+                )
+    elif name == "featured_seed_catalog_sync":
+        for line in lines:
+            if line.startswith("check=featured_seed_catalog_sync"):
+                out.append(
+                    {
+                        "kind": "featured_seed_catalog_sync_failed",
+                        "target": "featured_seed_catalog_sync",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("seamgrim featured seed catalog sync check failed"):
+                out.append(
+                    {
+                        "kind": "featured_seed_catalog_sync_failed",
+                        "target": "featured_seed_catalog_sync",
+                        "detail": line,
+                    }
+                )
+    elif name == "featured_seed_catalog_autogen":
+        for line in lines:
+            if line.startswith("check=featured_seed_catalog_autogen"):
+                out.append(
+                    {
+                        "kind": "featured_seed_catalog_autogen_failed",
+                        "target": "featured_seed_catalog_autogen",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("seamgrim featured seed catalog autogen check failed"):
+                out.append(
+                    {
+                        "kind": "featured_seed_catalog_autogen_failed",
+                        "target": "featured_seed_catalog_autogen",
+                        "detail": line,
+                    }
+                )
     elif name == "browse_selection_report":
         for line in lines:
             if line.startswith("check="):
@@ -264,7 +550,7 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "overlay_compare_case_failed", "target": "overlay_compare_pack", "detail": line})
             elif line.startswith("[FAIL] pack="):
                 out.append({"kind": "overlay_compare_case_failed", "target": "overlay_compare_pack", "detail": line})
-            elif line.startswith("overlay compare pack failed:"):
+            elif line.startswith("overlay compare pack failed:") or line.startswith("overlay compare pack check failed"):
                 out.append({"kind": "overlay_compare_pack_failed", "target": "overlay_compare_pack", "detail": line})
     elif name == "overlay_session_pack":
         for line in lines:
@@ -276,7 +562,7 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "overlay_session_case_failed", "target": "overlay_session_pack", "detail": line})
             elif line.startswith("[FAIL] pack="):
                 out.append({"kind": "overlay_session_case_failed", "target": "overlay_session_pack", "detail": line})
-            elif line.startswith("overlay session pack failed:"):
+            elif line.startswith("overlay session pack failed:") or line.startswith("overlay session pack check failed"):
                 out.append({"kind": "overlay_session_pack_failed", "target": "overlay_session_pack", "detail": line})
     elif name == "overlay_session_contract":
         for line in lines:
@@ -284,9 +570,61 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "overlay_session_contract_failed", "target": "overlay_session_contract", "detail": line})
             elif line.startswith("[overlay-session-contract]"):
                 out.append({"kind": "overlay_session_contract_log", "target": "overlay_session_contract", "detail": line})
+    elif name == "overlay_session_wired_consistency":
+        for line in lines:
+            if line.startswith("overlay session wired consistency check failed: missing file:"):
+                out.append(
+                    {
+                        "kind": "overlay_session_wired_file_missing",
+                        "target": "overlay_session_wired_consistency",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("- missing token:") or line.startswith(" - missing token:"):
+                out.append(
+                    {
+                        "kind": "overlay_session_wired_token_missing",
+                        "target": "overlay_session_wired_consistency",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("overlay session wired consistency check failed"):
+                out.append(
+                    {
+                        "kind": "overlay_session_wired_consistency_failed",
+                        "target": "overlay_session_wired_consistency",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_wasm_cli_diag_parity_check":
+        for line in lines:
+            if line.startswith("check=numeric_factor_route_diag_contract detail="):
+                out.append(
+                    {
+                        "kind": "numeric_factor_route_diag_contract_failed",
+                        "target": "numeric_factor_route_diag_contract",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith("[seamgrim-wasm-cli-diag-parity] fail:"):
+                detail = line.split("fail:", 1)[1].strip() if "fail:" in line else line
+                kind = "wasm_cli_diag_parity_failed"
+                if "marker missing:" in detail:
+                    kind = "wasm_cli_diag_parity_marker_missing"
+                elif "missing file:" in detail:
+                    kind = "wasm_cli_diag_parity_file_missing"
+                elif "numeric_factor_route_diag_contract" in detail:
+                    kind = "wasm_cli_diag_parity_numeric_factor_route_failed"
+                out.append(
+                    {
+                        "kind": kind,
+                        "target": "seamgrim_wasm_cli_diag_parity_check",
+                        "detail": line,
+                    }
+                )
     elif name == "age5_close":
         for line in lines:
-            if line.startswith("[age5-close] overall_ok=0"):
+            if line.startswith("[age5-close]") and "overall_ok=0" in line:
                 out.append({"kind": "age5_close_failed", "target": "age5_close", "detail": line})
             elif line.startswith(" - ") and "ok=0" in line:
                 out.append({"kind": "age5_criteria_failed", "target": "age5_close", "detail": line})
@@ -302,6 +640,156 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append({"kind": "deploy_artifact_mismatch", "target": "deploy_artifacts", "detail": line})
             elif line.startswith("seamgrim deploy artifacts check failed:"):
                 out.append({"kind": "deploy_check_failed", "target": "deploy_artifacts", "detail": line})
+    elif name == "seamgrim_ci_gate_wasm_web_smoke_step_check":
+        for line in lines:
+            if line.startswith("seamgrim ci gate wasm/web smoke step check failed"):
+                out.append(
+                    {
+                        "kind": "wasm_web_smoke_step_check_failed",
+                        "target": "seamgrim_ci_gate_wasm_web_smoke_step_check",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith(" - missing token:") or line.startswith("- missing token:"):
+                out.append(
+                    {
+                        "kind": "wasm_web_smoke_step_token_missing",
+                        "target": "seamgrim_ci_gate_wasm_web_smoke_step_check",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest":
+        for line in lines:
+            if line.startswith("[seamgrim-ci-gate-wasm-web-smoke-step-check-selftest] fail"):
+                out.append(
+                    {
+                        "kind": "wasm_web_smoke_step_selftest_failed",
+                        "target": "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_lesson_migration_lint_step_check":
+        for line in lines:
+            if line.startswith("seamgrim ci gate lesson migration lint step check failed"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_step_check_failed",
+                        "target": "seamgrim_ci_gate_lesson_migration_lint_step_check",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith(" - missing token:") or line.startswith("- missing token:"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_step_check_token_missing",
+                        "target": "seamgrim_ci_gate_lesson_migration_lint_step_check",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_lesson_migration_lint_step_check_selftest":
+        for line in lines:
+            if line.startswith("[seamgrim-ci-gate-lesson-migration-lint-step-check-selftest] fail"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_step_selftest_failed",
+                        "target": "seamgrim_ci_gate_lesson_migration_lint_step_check_selftest",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_lesson_migration_autofix_step_check":
+        for line in lines:
+            if line.startswith("seamgrim ci gate lesson migration autofix step check failed"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_autofix_step_check_failed",
+                        "target": "seamgrim_ci_gate_lesson_migration_autofix_step_check",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith(" - missing token:") or line.startswith("- missing token:"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_autofix_step_check_token_missing",
+                        "target": "seamgrim_ci_gate_lesson_migration_autofix_step_check",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_lesson_migration_autofix_step_check_selftest":
+        for line in lines:
+            if line.startswith("[seamgrim-ci-gate-lesson-migration-autofix-step-check-selftest] fail"):
+                out.append(
+                    {
+                        "kind": "lesson_migration_autofix_step_selftest_failed",
+                        "target": "seamgrim_ci_gate_lesson_migration_autofix_step_check_selftest",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_lesson_preview_sync_step_check":
+        for line in lines:
+            if line.startswith("seamgrim ci gate lesson preview sync step check failed"):
+                out.append(
+                    {
+                        "kind": "lesson_preview_sync_step_check_failed",
+                        "target": "seamgrim_ci_gate_lesson_preview_sync_step_check",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith(" - missing token:") or line.startswith("- missing token:"):
+                out.append(
+                    {
+                        "kind": "lesson_preview_sync_step_check_token_missing",
+                        "target": "seamgrim_ci_gate_lesson_preview_sync_step_check",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_lesson_preview_sync_step_check_selftest":
+        for line in lines:
+            if line.startswith("[seamgrim-ci-gate-lesson-preview-sync-step-check-selftest] fail"):
+                out.append(
+                    {
+                        "kind": "lesson_preview_sync_step_selftest_failed",
+                        "target": "seamgrim_ci_gate_lesson_preview_sync_step_check_selftest",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_pack_evidence_tier_step_check":
+        for line in lines:
+            if line.startswith("seamgrim ci gate pack evidence tier step check failed"):
+                out.append(
+                    {
+                        "kind": "pack_evidence_tier_step_check_failed",
+                        "target": "seamgrim_ci_gate_pack_evidence_tier_step_check",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith(" - missing token:") or line.startswith("- missing token:"):
+                out.append(
+                    {
+                        "kind": "pack_evidence_tier_step_check_token_missing",
+                        "target": "seamgrim_ci_gate_pack_evidence_tier_step_check",
+                        "detail": line,
+                    }
+                )
+    elif name == "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest":
+        for line in lines:
+            if line.startswith("[seamgrim-ci-gate-pack-evidence-tier-step-check-selftest] fail"):
+                out.append(
+                    {
+                        "kind": "pack_evidence_tier_step_selftest_failed",
+                        "target": "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest",
+                        "detail": line,
+                    }
+                )
+    elif name == "pack_evidence_tier_selftest":
+        for line in lines:
+            if line.startswith("[pack-evidence-tier-check-selftest] fail"):
+                out.append(
+                    {
+                        "kind": "pack_evidence_tier_selftest_failed",
+                        "target": "pack_evidence_tier_selftest",
+                        "detail": line,
+                    }
+                )
     elif name == "ddn_exec_server_check":
         for line in lines:
             if line.startswith("check="):
@@ -334,6 +822,12 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                 out.append(
                     {"kind": "seed_runtime_visual_pack_failed", "target": "seed_runtime_visual_pack", "detail": line}
                 )
+    elif name == "group_id_summary":
+        for line in lines:
+            if line.startswith("[seamgrim-group-id-summary] fail:"):
+                out.append({"kind": "group_id_summary_failed", "target": "group_id_summary", "detail": line})
+            elif line.startswith("seamgrim group_id summary check failed"):
+                out.append({"kind": "group_id_summary_failed", "target": "group_id_summary", "detail": line})
     elif name == "runtime_fallback_metrics":
         for line in lines:
             if line.startswith("check=runtime_fallback_metrics"):
@@ -371,11 +865,14 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
             elif line.startswith("seamgrim pendulum bogae shape check failed"):
                 out.append({"kind": "pendulum_bogae_shape_failed", "target": "pendulum_bogae_shape", "detail": line})
     elif name == "runtime_5min":
+        runtime_step_fail = re.compile(r"^\[(?P<step>[a-zA-Z0-9_]+)\]\s+fail\s+\(\d+ms\)$")
         for line in lines:
             if line.startswith("runtime 5min check failed:"):
                 out.append({"kind": "runtime_5min_failed", "target": "runtime_5min", "detail": line})
             elif line.startswith("[runtime-5min] ok=0"):
                 out.append({"kind": "runtime_5min_failed", "target": "runtime_5min", "detail": line})
+            elif runtime_step_fail.match(line):
+                out.append({"kind": "runtime_5min_subcheck_failed", "target": "runtime_5min", "detail": line})
             elif line.startswith("check="):
                 out.append({"kind": "runtime_5min_subcheck_failed", "target": "runtime_5min", "detail": line})
     elif name == "runtime_5min_checklist":

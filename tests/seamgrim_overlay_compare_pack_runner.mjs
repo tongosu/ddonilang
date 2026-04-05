@@ -126,13 +126,15 @@ async function main() {
     const actual = canOverlayCompareRuns(raw.baseline, raw.variant);
     const expectedCode = typeof expect.code === "string" ? expect.code : "";
     const reasonContains = typeof expect.reason_contains === "string" ? expect.reason_contains : "";
+    const expectedGroupId = typeof expect.group_id === "string" ? String(expect.group_id).trim().toLowerCase() : "";
     const okMatch = Boolean(actual.ok) === expectedOk;
     const codeMatch = expectedCode ? String(actual.code ?? "") === expectedCode : true;
     const reasonMatch = reasonContains ? String(actual.reason ?? "").includes(reasonContains) : true;
-    const caseOk = okMatch && codeMatch && reasonMatch;
+    const groupMatch = expectedGroupId ? String(actual.group_id ?? "").trim().toLowerCase() === expectedGroupId : true;
+    const caseOk = okMatch && codeMatch && reasonMatch && groupMatch;
     const detail = `expected_ok=${Number(expectedOk)} actual_ok=${Number(Boolean(actual.ok))} expected_code=${
       expectedCode || "-"
-    } actual_code=${String(actual.code ?? "-")}`;
+    } actual_code=${String(actual.code ?? "-")} expected_group_id=${expectedGroupId || "-"} actual_group_id=${String(actual.group_id ?? "-")} baseline_group_id=${String(actual.baseline_group_id ?? "-")} variant_group_id=${String(actual.variant_group_id ?? "-")}`;
     if (!caseOk) {
       const line = `check=${caseId} ${detail} reason=${String(actual.reason ?? "-")}`;
       report.failure_digest.push(line);
@@ -150,7 +152,13 @@ async function main() {
       ok: caseOk,
       expected_ok: expectedOk,
       expected_code: expectedCode || null,
+      expected_group_id: expectedGroupId || null,
       reason_contains: reasonContains || null,
+      actual_group_id: typeof actual.group_id === "string" && actual.group_id ? actual.group_id : null,
+      actual_baseline_group_id:
+        typeof actual.baseline_group_id === "string" && actual.baseline_group_id ? actual.baseline_group_id : null,
+      actual_variant_group_id:
+        typeof actual.variant_group_id === "string" && actual.variant_group_id ? actual.variant_group_id : null,
       actual,
       detail,
     });

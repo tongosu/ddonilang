@@ -22,6 +22,64 @@ SHAPE_BLOCK_RE = re.compile(r"^\s*(보개|모양)\s*:?\s*\{", re.MULTILINE)
 LEGACY_SHAPE_MARKER_RE = re.compile(r'"space2d(\.shape)?"\s+보여주기\.', re.IGNORECASE)
 SERIES_MARKER_RE = re.compile(r'"series:[^"]+"')
 
+DEFAULT_OBS_Y_ALIASES = (
+    "기본관찰",
+    "기본관측",
+    "기본관찰y",
+    "기본관측y",
+    "기본축y",
+    "기본y축",
+    "기본시리즈",
+    "기본계열",
+    "default_obs",
+    "default-observation",
+    "default_observation",
+    "default_y",
+    "default-y",
+    "default_series",
+    "default-series",
+    "default_signal",
+    "default-signal",
+    "obs",
+    "observation",
+    "series",
+    "y_axis",
+    "y-axis",
+    "yaxis",
+    "既定観測",
+    "既定系列",
+)
+
+DEFAULT_OBS_X_ALIASES = (
+    "기본관찰x",
+    "기본관측x",
+    "기본x축",
+    "기본축x",
+    "기본관찰X",
+    "기본관측X",
+    "기본X축",
+    "기본축X",
+    "기본가로축",
+    "default_obs_x",
+    "default-observation-x",
+    "default_observation_x",
+    "default_x",
+    "default-x",
+    "default_x_axis",
+    "default-x-axis",
+    "default_xaxis",
+    "x_axis",
+    "x-axis",
+    "xaxis",
+    "既定観測X",
+    "既定横軸",
+)
+
+
+def _has_meta_alias(text: str, aliases: tuple[str, ...]) -> bool:
+    pattern = r"^\s*#\s*(?:" + "|".join(re.escape(alias) for alias in aliases) + r")\s*:"
+    return bool(re.search(pattern, text, re.IGNORECASE | re.MULTILINE))
+
 
 def validate_visual_contract(raw: bytes, text: str) -> str | None:
     if raw.startswith(b"\xef\xbb\xbf"):
@@ -30,9 +88,9 @@ def validate_visual_contract(raw: bytes, text: str) -> str | None:
         return "shape_block_missing"
     if LEGACY_SHAPE_MARKER_RE.search(text):
         return "legacy_shape_marker_found"
-    if "#기본관찰x:" not in text:
+    if not _has_meta_alias(text, DEFAULT_OBS_X_ALIASES):
         return "default_x_meta_missing"
-    if "#기본관찰:" not in text:
+    if not _has_meta_alias(text, DEFAULT_OBS_Y_ALIASES):
         return "default_y_meta_missing"
     if not SERIES_MARKER_RE.search(text):
         return "series_marker_missing"

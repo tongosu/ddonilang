@@ -24,6 +24,7 @@ function buildRun(id, overrides = {}) {
         axis_x_unit: "m",
         axis_y_kind: "period",
         axis_y_unit: "s",
+        update: "replace",
       },
       series: [{ id: "pendulum_curve", points: [{ x: 1.0, y: 2.0 }] }],
     },
@@ -35,7 +36,7 @@ function buildRun(id, overrides = {}) {
 
 async function main() {
   const root = process.cwd();
-  const modulePath = path.resolve(root, "tests/contracts/overlay_session_contract.mjs");
+  const modulePath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/overlay_session_contract.js");
   const contract = await import(pathToFileURL(modulePath).href);
   const {
     buildOverlaySessionRunsPayload,
@@ -52,6 +53,20 @@ async function main() {
     compareRole: "variant",
     inputs: { L: "2.0" },
     layerIndex: 1,
+    groupId: "pendulum.variant",
+    graph: {
+      schema: "seamgrim.graph.v0",
+      meta: {
+        graph_kind: "xy",
+        axis_x_kind: "length",
+        axis_x_unit: "m",
+        axis_y_kind: "period",
+        axis_y_unit: "s",
+        update: "append",
+        tick: 3,
+      },
+      series: [{ id: "pendulum_curve", points: [{ x: 1.0, y: 2.0 }] }],
+    },
   });
 
   const comparePayload = buildOverlayCompareSessionPayload({
@@ -66,8 +81,17 @@ async function main() {
   const sessionRuns = buildOverlaySessionRunsPayload([baseline, variant]);
   assert(Array.isArray(sessionRuns) && sessionRuns.length === 2, "runs payload: length");
   assert(sessionRuns[1].layer_index === 1, "runs payload: layer index");
+  assert(sessionRuns[1].group_id === "pendulum.variant", "runs payload: group id");
   assert(sessionRuns[1].inputs?.L === "2.0", "runs payload: variant params");
   assert(sessionRuns[0].compare_role === "baseline", "runs payload: baseline role");
+  assert(sessionRuns[0].update === "replace", "runs payload: default update");
+  assert(Array.isArray(sessionRuns[0].ticks) && sessionRuns[0].ticks.length === 1, "runs payload: implicit ticks");
+  assert(sessionRuns[1].update === "append", "runs payload: explicit update");
+  assert(sessionRuns[1].tick === 3, "runs payload: explicit tick");
+  assert(
+    Array.isArray(sessionRuns[1].ticks) && sessionRuns[1].ticks.length === 1 && sessionRuns[1].ticks[0] === 3,
+    "runs payload: explicit ticks",
+  );
 
   const resolvedOk = resolveOverlayCompareFromSession({
     runs: [baseline, variant],
@@ -82,6 +106,7 @@ async function main() {
   assert(resolvedOk.variantId === "run-var", "resolve ok: role precedence variant");
   assert(resolvedOk.blockReason === "", "resolve ok: no block reason");
   assert(resolvedOk.droppedVariant === false, "resolve ok: droppedVariant false");
+  assert(buildOverlaySessionRunsPayload([variant])[0].group_id === "pendulum.variant", "resolve ok: group id roundtrip");
 
   const mismatchVariant = buildRun("run-var-2", {
     compareRole: "variant",

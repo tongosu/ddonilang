@@ -14,6 +14,11 @@ function toRole(value) {
   return token === "baseline" || token === "variant" ? token : null;
 }
 
+function toGroupId(value) {
+  const text = String(value ?? "").trim();
+  return text ? text : null;
+}
+
 function toRunRecord(raw) {
   const row = raw && typeof raw === "object" ? raw : {};
   const id = asTextId(row.id);
@@ -22,6 +27,7 @@ function toRunRecord(raw) {
     label: String(row.label ?? id ?? ""),
     visible: typeof row.visible === "boolean" ? row.visible : true,
     layerIndex: Number.isFinite(row.layerIndex) ? row.layerIndex : Number.isFinite(row.layer_index) ? row.layer_index : 0,
+    groupId: toGroupId(row.groupId ?? row.group_id ?? row.group ?? row["그룹"] ?? row["묶음"]),
     compareRole: toRole(row.compareRole ?? row.compare_role),
     source: row.source && typeof row.source === "object" ? row.source : {},
     inputs: row.inputs && typeof row.inputs === "object" ? row.inputs : {},
@@ -64,6 +70,7 @@ export function buildOverlaySessionRunsPayload(runs) {
       label: row.label,
       visible: row.visible,
       layer_index: row.layerIndex,
+      group_id: row.groupId,
       compare_role: row.compareRole,
       source: row.source,
       inputs: row.inputs,

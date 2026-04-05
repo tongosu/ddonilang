@@ -20,6 +20,17 @@ function readPrimarySeriesId(graph) {
   return "";
 }
 
+function readPrimaryGroupId(graph) {
+  const series = Array.isArray(graph?.series) ? graph.series : [];
+  for (const row of series) {
+    const groupId = normalizeToken(
+      row?.group_id ?? row?.groupId ?? row?.group ?? row?.["그룹"] ?? row?.["묶음"],
+    );
+    if (groupId) return groupId;
+  }
+  return "";
+}
+
 function toComparableGraph(raw) {
   const graph = raw && typeof raw === "object" ? raw.graph : null;
   if (!graph || typeof graph !== "object") return null;
@@ -31,6 +42,7 @@ function toComparableGraph(raw) {
     yKind: pickMetaToken(meta, "axis_y_kind", "y_kind"),
     yUnit: pickMetaToken(meta, "axis_y_unit", "y_unit"),
     seriesId: readPrimarySeriesId(graph),
+    groupId: readPrimaryGroupId(graph),
     schemaToken: normalizeToken(graph.schema),
   };
 }
@@ -78,5 +90,8 @@ export function canOverlayCompareRuns(baseline, variant) {
     ok: true,
     code: "ok",
     reason: "",
+    baseline_group_id: left.groupId,
+    variant_group_id: right.groupId,
+    group_id: left.groupId && left.groupId === right.groupId ? left.groupId : "",
   };
 }

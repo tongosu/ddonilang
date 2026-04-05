@@ -1,4 +1,4 @@
-﻿import fs from "fs";
+import fs from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 
@@ -38,11 +38,12 @@ function extractDeclarationsByBlock(text) {
   const lines = String(text ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const blockStartPattern = /^\s*(그릇채비|붙박이마련|붙박이채비|채비|씨앗)\s*:?\s*\{/u;
   const assignPattern =
-    /^\s*([A-Za-z0-9_가-힣]+)\s*(?::\s*([A-Za-z0-9_가-힣]+))?\s*(?:<-|=)\s*([^\.]+)\.?\s*$/u;
+    /^\s*([A-Za-z0-9_가-힣]+)\s*(?::\s*([A-Za-z0-9_가-힣]+))?\s*(?:<-|=)\s*(.+?)\s*\.?\s*$/u;
 
   let inBlock = false;
   let currentBlock = "";
   let depth = 0;
+  let globalDepth = 0;
 
   const out = {
     chabiVars: new Set(),
@@ -53,43 +54,48 @@ function extractDeclarationsByBlock(text) {
 
   for (const rawLine of lines) {
     const line = String(rawLine ?? "");
+    const lineNoComment = line.split("//")[0];
     if (!inBlock) {
-      const start = line.match(blockStartPattern);
+      // Control exposure policy only targets top-level declarations.
+      const start = globalDepth === 0 ? lineNoComment.match(blockStartPattern) : null;
       if (start) {
         inBlock = true;
         currentBlock = String(start[1] ?? "").trim();
-        depth = Math.max(1, countChar(line, "{") - countChar(line, "}") || 1);
+        depth = Math.max(1, countChar(lineNoComment, "{") - countChar(lineNoComment, "}") || 1);
       }
-      continue;
+    } else {
+      const match = lineNoComment.match(assignPattern);
+      if (match) {
+        const name = String(match[1] ?? "").trim();
+        const rawType = String(match[2] ?? "수").trim() || "수";
+        let rhs = String(match[3] ?? "").trim();
+        if (rhs.endsWith(".")) rhs = rhs.slice(0, -1).trim();
+        const variable = isVariableType(rawType);
+        const numericConst = isConstantLikeType(rawType) && isNumericLiteral(rhs);
+
+        const inChabiSurface = currentBlock === "채비" || currentBlock === "그릇채비" || currentBlock === "붙박이마련" || currentBlock === "붙박이채비";
+        if (inChabiSurface) {
+          if (variable) out.chabiVars.add(name);
+          if (numericConst) out.chabiNumericConsts.add(name);
+        }
+        if (currentBlock === "씨앗") {
+          if (variable) out.seedVars.add(name);
+          if (numericConst) out.seedNumericConsts.add(name);
+        }
+      }
+
+      depth += countChar(lineNoComment, "{");
+      depth -= countChar(lineNoComment, "}");
+      if (depth <= 0) {
+        inBlock = false;
+        currentBlock = "";
+        depth = 0;
+      }
     }
 
-    const lineNoComment = line.split("//")[0];
-    const match = lineNoComment.match(assignPattern);
-    if (match) {
-      const name = String(match[1] ?? "").trim();
-      const rawType = String(match[2] ?? "수").trim() || "수";
-      const rhs = String(match[3] ?? "").trim();
-      const variable = isVariableType(rawType);
-      const numericConst = isConstantLikeType(rawType) && isNumericLiteral(rhs);
-
-      const inChabiSurface = currentBlock === "채비" || currentBlock === "그릇채비" || currentBlock === "붙박이마련" || currentBlock === "붙박이채비";
-      if (inChabiSurface) {
-        if (variable) out.chabiVars.add(name);
-        if (numericConst) out.chabiNumericConsts.add(name);
-      }
-      if (currentBlock === "씨앗") {
-        if (variable) out.seedVars.add(name);
-        if (numericConst) out.seedNumericConsts.add(name);
-      }
-    }
-
-    depth += countChar(line, "{");
-    depth -= countChar(line, "}");
-    if (depth <= 0) {
-      inBlock = false;
-      currentBlock = "";
-      depth = 0;
-    }
+    globalDepth += countChar(lineNoComment, "{");
+    globalDepth -= countChar(lineNoComment, "}");
+    if (globalDepth < 0) globalDepth = 0;
   }
 
   return out;

@@ -2,13 +2,18 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
+import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 FLATTEN_SCHEMA = "ddn.guseong_flatten_plan.v1"
+PROGRESS_ENV_KEY = "DDN_CI_PACK_GOLDEN_JJAIM_FLATTEN_SELFTEST_PROGRESS_JSON"
+PACK_RUNNER_PROGRESS_ENV_KEY = "DDN_RUN_PACK_GOLDEN_PROGRESS_JSON"
 
 
 def ascii_safe(text: str) -> str:
@@ -20,16 +25,114 @@ def fail(msg: str) -> int:
     return 1
 
 
-def run_pack(root: Path, pack_name: str) -> subprocess.CompletedProcess[str]:
-    cmd = [sys.executable, "tests/run_pack_golden.py", pack_name]
-    return subprocess.run(
+def write_progress_snapshot(
+    path_text: str,
+    *,
+    status: str,
+    current_case: str,
+    last_completed_case: str,
+    current_probe: str,
+    last_completed_probe: str,
+    total_elapsed_ms: int,
+) -> None:
+    if not str(path_text).strip():
+        return
+    out = Path(path_text)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "ddn.ci.pack_golden_jjaim_flatten_selftest.progress.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": status,
+        "current_case": current_case,
+        "last_completed_case": last_completed_case,
+        "current_probe": current_probe,
+        "last_completed_probe": last_completed_probe,
+        "total_elapsed_ms": int(total_elapsed_ms),
+    }
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_pack_runner_seed_progress(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "ddn.pack.golden.progress.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": "running",
+        "current_stage": "parent_pending",
+        "last_completed_stage": "-",
+        "current_pack": "-",
+        "last_completed_pack": "-",
+        "current_case": "-",
+        "last_completed_case": "-",
+        "total_elapsed_ms": 0,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def resolve_pack_runner_child_probe(path_text: str) -> str:
+    if not str(path_text).strip():
+        return "-"
+    path = Path(path_text)
+    if not path.exists():
+        return "child_progress_missing"
+    payload = None
+    for _ in range(3):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            break
+        except Exception:
+            time.sleep(0.002)
+    if payload is None:
+        return "-"
+    if not isinstance(payload, dict):
+        return "-"
+    current_stage = str(payload.get("current_stage", "")).strip() or "-"
+    if current_stage not in ("", "-"):
+        return f"child_{current_stage}"
+    last_completed_stage = str(payload.get("last_completed_stage", "")).strip() or "-"
+    if last_completed_stage not in ("", "-"):
+        return f"child_{last_completed_stage}"
+    current_pack = str(payload.get("current_pack", "")).strip() or "-"
+    current_case = str(payload.get("current_case", "")).strip() or "-"
+    if current_pack not in ("", "-") and current_case not in ("", "-"):
+        return f"child_pack.{current_pack}.run_case_{current_case}"
+    last_completed_pack = str(payload.get("last_completed_pack", "")).strip() or "-"
+    last_completed_case = str(payload.get("last_completed_case", "")).strip() or "-"
+    if last_completed_pack not in ("", "-") and last_completed_case not in ("", "-"):
+        return f"child_pack.{last_completed_pack}.run_case_{last_completed_case}"
+    return "-"
+
+
+def spawn_pack(root: Path, pack_name: str, env_patch: dict[str, str] | None = None) -> subprocess.Popen[str]:
+    cmd = [sys.executable, "-S", "tests/run_pack_golden.py", pack_name]
+    env = dict(os.environ)
+    if env_patch:
+        env.update(env_patch)
+    return subprocess.Popen(
         cmd,
         cwd=root,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
     )
+
+
+def collect_pack_process(proc: subprocess.Popen[str]) -> subprocess.CompletedProcess[str]:
+    stdout, stderr = proc.communicate()
+    return subprocess.CompletedProcess(
+        args=proc.args,
+        returncode=proc.returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def run_pack(root: Path, pack_name: str) -> subprocess.CompletedProcess[str]:
+    proc = spawn_pack(root, pack_name)
+    return collect_pack_process(proc)
 
 
 def ensure_golden_tokens(root: Path, pack_rel: str, tokens: tuple[str, ...]) -> int:
@@ -261,15 +364,106 @@ def ensure_pack_pass(root: Path, pack_name: str) -> int:
 
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
+    progress_path = str(os.environ.get(PROGRESS_ENV_KEY, "")).strip()
+    started_at = time.perf_counter()
+    current_case = "-"
+    last_completed_case = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
 
-    for name in (
-        "seamgrim_guseong_flatten_ir_v1",
-        "seamgrim_guseong_flatten_diag_v1",
-    ):
-        rc = ensure_pack_pass(root, name)
-        if rc != 0:
-            return rc
+    def update_progress(status: str) -> None:
+        write_progress_snapshot(
+            progress_path,
+            status=status,
+            current_case=current_case,
+            last_completed_case=last_completed_case,
+            current_probe=current_probe,
+            last_completed_probe=last_completed_probe,
+            total_elapsed_ms=int((time.perf_counter() - started_at) * 1000),
+        )
 
+    def start_case(name: str) -> None:
+        nonlocal current_case, current_probe
+        current_case = name
+        current_probe = "-"
+        update_progress("running")
+
+    def complete_case(name: str) -> None:
+        nonlocal current_case, current_probe, last_completed_case
+        current_case = "-"
+        current_probe = "-"
+        last_completed_case = name
+        update_progress("running")
+
+    def start_probe(name: str) -> None:
+        nonlocal current_probe
+        current_probe = name
+        update_progress("running")
+
+    def complete_probe(name: str) -> None:
+        nonlocal current_probe, last_completed_probe
+        current_probe = "-"
+        last_completed_probe = name
+        update_progress("running")
+
+    update_progress("running")
+
+    for name in ("seamgrim_guseong_flatten_ir_v1",):
+        start_case(f"pass.{name}")
+        runner_progress_path = (
+            root / "build" / "tmp" / f"run_pack_golden_jjaim_flatten_{uuid.uuid4().hex[:8]}.progress.detjson"
+        )
+        runner_progress_path.unlink(missing_ok=True)
+        write_pack_runner_seed_progress(runner_progress_path)
+        runner_env = {PACK_RUNNER_PROGRESS_ENV_KEY: str(runner_progress_path)}
+        start_probe("ensure_pack_pass.spawn_process")
+        proc_live = spawn_pack(root, name, env_patch=runner_env)
+        complete_probe("ensure_pack_pass.spawn_process")
+        start_probe("ensure_pack_pass.wait_exit")
+        active_child_probe = "-"
+        while True:
+            try:
+                stdout_text, stderr_text = proc_live.communicate(timeout=0.005)
+                break
+            except subprocess.TimeoutExpired:
+                next_child_probe = resolve_pack_runner_child_probe(str(runner_progress_path))
+                if next_child_probe == active_child_probe:
+                    continue
+                if active_child_probe != "-":
+                    complete_probe(f"ensure_pack_pass.wait_exit.{active_child_probe}")
+                active_child_probe = next_child_probe
+                if active_child_probe != "-":
+                    start_probe(f"ensure_pack_pass.wait_exit.{active_child_probe}")
+        next_child_probe = resolve_pack_runner_child_probe(str(runner_progress_path))
+        if next_child_probe != active_child_probe:
+            if active_child_probe != "-":
+                complete_probe(f"ensure_pack_pass.wait_exit.{active_child_probe}")
+            active_child_probe = next_child_probe
+            if active_child_probe != "-":
+                start_probe(f"ensure_pack_pass.wait_exit.{active_child_probe}")
+        if active_child_probe != "-":
+            complete_probe(f"ensure_pack_pass.wait_exit.{active_child_probe}")
+        complete_probe("ensure_pack_pass.wait_exit")
+        start_probe("ensure_pack_pass.collect_output")
+        proc = subprocess.CompletedProcess(
+            args=proc_live.args,
+            returncode=proc_live.returncode,
+            stdout=stdout_text,
+            stderr=stderr_text,
+        )
+        complete_probe("ensure_pack_pass.collect_output")
+        runner_progress_path.unlink(missing_ok=True)
+        start_probe("ensure_pack_pass.validate_returncode")
+        if proc.returncode != 0:
+            return fail(f"{name} must pass: out={proc.stdout} err={proc.stderr}")
+        complete_probe("ensure_pack_pass.validate_returncode")
+        start_probe("ensure_pack_pass.validate_pass_marker")
+        if "pack golden ok" not in (proc.stdout or ""):
+            return fail(f"{name} pass marker missing")
+        complete_probe("ensure_pack_pass.validate_pass_marker")
+        complete_case(f"pass.{name}")
+
+    start_case("validate.ir_golden_tokens")
     rc = ensure_golden_tokens(
         root,
         "seamgrim_guseong_flatten_ir_v1",
@@ -281,7 +475,9 @@ def main() -> int:
     )
     if rc != 0:
         return rc
+    complete_case("validate.ir_golden_tokens")
 
+    start_case("validate.diag_golden_tokens")
     rc = ensure_golden_tokens(
         root,
         "seamgrim_guseong_flatten_diag_v1",
@@ -301,21 +497,32 @@ def main() -> int:
     )
     if rc != 0:
         return rc
+    complete_case("validate.diag_golden_tokens")
 
+    start_case("validate.flatten_ir_contract")
     rc = ensure_flatten_ir_contract(root)
     if rc != 0:
         return rc
+    complete_case("validate.flatten_ir_contract")
 
+    start_case("validate.flatten_diag_contract")
     rc = ensure_flatten_diag_contract(root)
     if rc != 0:
         return rc
+    complete_case("validate.flatten_diag_contract")
 
     # case 1: warning mismatch should fail
+    start_case("fail.warning_mismatch")
     temp_name = f"_tmp_jjaim_flatten_selftest_{uuid.uuid4().hex[:8]}"
     temp_dir = root / "pack" / temp_name
     try:
+        start_probe("build_negative_pack")
         build_negative_warning_pack(root, temp_name)
+        complete_probe("build_negative_pack")
+        start_probe("run_pack")
         proc_fail = run_pack(root, temp_name)
+        complete_probe("run_pack")
+        start_probe("validate_failure")
         if proc_fail.returncode == 0:
             return fail("negative warning mismatch pack must fail")
         merged = (proc_fail.stdout or "") + "\n" + (proc_fail.stderr or "")
@@ -323,15 +530,23 @@ def main() -> int:
             return fail(f"negative warning mismatch marker missing: out={proc_fail.stdout} err={proc_fail.stderr}")
         if "[FAIL] pack=" not in merged:
             return fail("negative warning mismatch digest missing [FAIL] pack line")
+        complete_probe("validate_failure")
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+    complete_case("fail.warning_mismatch")
 
     # case 2: invalid non-zero exit contract should fail before execution
+    start_case("fail.invalid_contract")
     temp_name_contract = f"_tmp_jjaim_flatten_selftest_contract_{uuid.uuid4().hex[:8]}"
     temp_dir_contract = root / "pack" / temp_name_contract
     try:
+        start_probe("build_invalid_contract_pack")
         build_invalid_contract_pack(root, temp_name_contract)
+        complete_probe("build_invalid_contract_pack")
+        start_probe("run_pack")
         proc_contract_fail = run_pack(root, temp_name_contract)
+        complete_probe("run_pack")
+        start_probe("validate_failure")
         if proc_contract_fail.returncode == 0:
             return fail("invalid contract pack must fail")
         merged_contract = (proc_contract_fail.stdout or "") + "\n" + (proc_contract_fail.stderr or "")
@@ -339,9 +554,12 @@ def main() -> int:
             return fail(
                 "invalid contract failure marker missing: non-zero exit_code requires expected_error_code"
             )
+        complete_probe("validate_failure")
     finally:
         shutil.rmtree(temp_dir_contract, ignore_errors=True)
+    complete_case("fail.invalid_contract")
 
+    update_progress("passed")
     print("[pack-golden-jjaim-flatten-selftest] ok")
     return 0
 

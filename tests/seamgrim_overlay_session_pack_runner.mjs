@@ -78,6 +78,14 @@ function toRuntimeRun(raw) {
     label: row.label ?? "",
     visible: row.visible ?? true,
     layerIndex: Number.isFinite(row.layer_index) ? row.layer_index : 0,
+    groupId:
+      typeof row.group_id === "string"
+        ? row.group_id
+        : typeof row.group === "string"
+          ? row.group
+          : typeof row.groupId === "string"
+            ? row.groupId
+            : "",
     compareRole: row.compare_role ?? null,
     source: row.source ?? {},
     inputs: row.inputs ?? {},
@@ -130,6 +138,16 @@ function normalizeExpectedViewCombo(viewCombo) {
   };
 }
 
+function readGroupIdForRun(runs, runId) {
+  if (!Array.isArray(runs)) return null;
+  const target = String(runId ?? "").trim();
+  if (!target) return null;
+  const hit = runs.find((row) => String(row?.id ?? "").trim() === target);
+  if (!hit) return null;
+  const groupId = String(hit?.groupId ?? "").trim();
+  return groupId || null;
+}
+
 function compareRow(expected, actual) {
   const checks = [];
   checks.push(expected.enabled === actual.enabled);
@@ -147,7 +165,7 @@ async function main() {
   const root = process.cwd();
   const args = parseArgs(process.argv.slice(2));
   const packRoot = path.resolve(root, args.packRoot);
-  const contractPath = path.resolve(root, "tests/contracts/overlay_session_contract.mjs");
+  const contractPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/overlay_session_contract.js");
   const contract = await import(pathToFileURL(contractPath).href);
   const {
     resolveOverlayCompareFromSession,
@@ -200,6 +218,10 @@ async function main() {
     const actualUiLayout = buildSessionUiLayoutPayload(resolvedUiLayout);
     const resolvedViewCombo = resolveSessionViewComboFromPayload(viewComboInput);
     const actualViewCombo = buildSessionViewComboPayload(resolvedViewCombo);
+    const expectedBaselineGroupId = readGroupIdForRun(runs, expected.baselineId);
+    const expectedVariantGroupId = readGroupIdForRun(runs, expected.variantId);
+    const actualBaselineGroupId = readGroupIdForRun(runs, actual.baselineId);
+    const actualVariantGroupId = readGroupIdForRun(runs, actual.variantId);
     const roundtripCompare = buildOverlayCompareSessionPayload({
       enabled: resolved.enabled,
       baselineId: resolved.baselineId,
@@ -219,7 +241,7 @@ async function main() {
     const caseOk = rowOk && roundtripOk && uiLayoutOk && viewComboOk;
     const detail = `enabled=${Number(actual.enabled)} baseline=${actual.baselineId ?? "-"} variant=${
       actual.variantId ?? "-"
-    } dropped=${Number(actual.droppedVariant)} drop_code=${actual.dropCode || "-"} layout=${actualUiLayout.screen_mode}/${actualUiLayout.workspace_mode}/${actualUiLayout.main_tab}/${actualUiLayout.active_view} combo=${Number(actualViewCombo.enabled)}/${actualViewCombo.layout}/${actualViewCombo.overlay_order}`;
+    } baseline_group_id=${actualBaselineGroupId ?? "-"} variant_group_id=${actualVariantGroupId ?? "-"} dropped=${Number(actual.droppedVariant)} drop_code=${actual.dropCode || "-"} layout=${actualUiLayout.screen_mode}/${actualUiLayout.workspace_mode}/${actualUiLayout.main_tab}/${actualUiLayout.active_view} combo=${Number(actualViewCombo.enabled)}/${actualViewCombo.layout}/${actualViewCombo.overlay_order}`;
     if (!caseOk) {
       const line = `check=${caseId} ${detail} expected_enabled=${Number(expected.enabled)} expected_baseline=${
         expected.baselineId ?? "-"
@@ -245,6 +267,10 @@ async function main() {
       ok: caseOk,
       expected,
       actual,
+      expected_baseline_group_id: expectedBaselineGroupId,
+      expected_variant_group_id: expectedVariantGroupId,
+      actual_baseline_group_id: actualBaselineGroupId,
+      actual_variant_group_id: actualVariantGroupId,
       roundtrip_compare_actual: roundtripCompare,
       roundtrip_compare_expected: expectedRoundtrip,
       expected_ui_layout: expectedUiLayout,

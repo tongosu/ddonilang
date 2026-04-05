@@ -3,15 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
-
-DETAIL_RE = re.compile(r"detail=(.+)$")
-
 
 def _sanitize_for_console(text: str) -> str:
     return str(text or "").replace("\ufffd", "?")
@@ -31,39 +26,30 @@ def fail(detail: str) -> int:
     return 1
 
 
-def parse_pack_detail(stdout: str) -> list[dict[str, str]]:
-    text = str(stdout or "")
-    line = next((row.strip() for row in text.splitlines() if "detail=" in row), "")
-    if not line:
-        return []
-    m = DETAIL_RE.search(line)
-    if not m:
-        return []
-    payload = m.group(1).strip()
-    if not payload:
-        return []
-
+def load_seed_report_rows(report_path: Path) -> list[dict[str, str]]:
+    doc = json.loads(report_path.read_text(encoding="utf-8"))
+    if doc.get("schema") != "ddn.seamgrim.seed_runtime_visual_pack_report.v1":
+        raise ValueError(f"seed_report_schema_mismatch:{doc.get('schema')}")
+    if doc.get("ok") is not True:
+        raise ValueError("seed_report_not_ok")
+    cases = doc.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("seed_report_cases_missing")
     out: list[dict[str, str]] = []
-    for chunk in [row.strip() for row in payload.split(",") if row.strip()]:
-        parts = [part.strip() for part in chunk.split(":")]
-        if len(parts) < 4:
+    for row in cases:
+        if not isinstance(row, dict):
             continue
-        mode = ""
-        title_start = 3
-        if len(parts) >= 5 and parts[3] in {"native", "fallback"}:
-            mode = parts[3]
-            title_start = 4
         out.append(
             {
-                "seed_id": parts[0],
-                "y_key": parts[1],
-                "points": parts[2],
-                "mode": mode,
-                "source": ":".join(parts[title_start:]).strip(),
-                "title": ":".join(parts[title_start:]).strip(),
+                "seed_id": str(row.get("id", "")).strip(),
+                "y_key": str(row.get("y", "")).strip(),
+                "points": str(row.get("points", "")),
+                "mode": str(row.get("mode", "")).strip(),
+                "source": str(row.get("source", "")).strip(),
+                "title": str(row.get("fallback_title", "")).strip(),
             }
         )
-    return out
+    return [row for row in out if row.get("seed_id")]
 
 
 def main() -> int:
@@ -73,28 +59,37 @@ def main() -> int:
         default="build/reports/seamgrim_runtime_fallback_metrics.detjson",
         help="metrics report output path",
     )
+    parser.add_argument(
+        "--seed-report",
+        default="build/reports/seamgrim_seed_runtime_visual_pack_report.detjson",
+        help="seed runtime visual pack report path",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
-    runner = root / "tests" / "run_seamgrim_seed_runtime_visual_pack_check.py"
-    if not runner.exists():
-        return fail(f"runner_missing:{runner.as_posix()}")
+    seed_report_path = root / str(args.seed_report)
+    if not seed_report_path.exists():
+        runner = root / "tests" / "run_seamgrim_seed_runtime_visual_pack_check.py"
+        if not runner.exists():
+            return fail(f"runner_missing:{runner.as_posix()}")
+        proc = subprocess.run(
+            [sys.executable, str(runner), "--json-out", str(seed_report_path)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or "").strip() or (proc.stdout or "").strip() or f"returncode={proc.returncode}"
+            return fail(f"seed_runtime_visual_pack_failed:{detail}")
 
-    proc = subprocess.run(
-        [sys.executable, str(runner)],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if proc.returncode != 0:
-        detail = (proc.stderr or "").strip() or (proc.stdout or "").strip() or f"returncode={proc.returncode}"
-        return fail(f"seed_runtime_visual_pack_failed:{detail}")
-
-    rows = parse_pack_detail(proc.stdout)
+    try:
+        rows = load_seed_report_rows(seed_report_path)
+    except Exception as exc:
+        return fail(f"seed_report_invalid:{exc}")
     if not rows:
-        return fail("pack_detail_parse_failed")
+        return fail("seed_report_rows_empty")
 
     mixed_rows = [
         row

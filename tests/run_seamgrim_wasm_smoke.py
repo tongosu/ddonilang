@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -64,7 +66,9 @@ def main() -> int:
         nargs="*",
         help=(
             "pack names under ./pack "
-            "(default: seamgrim_wasm_v0_smoke seamgrim_wasm_bridge_contract_v1 "
+            "(default: seamgrim_wasm_v0_smoke seamgrim_wasm_bridge_contract_v1 seamgrim_wasm_canon_contract_v1 "
+            "seamgrim_maegim_slider_smoke_v1 seamgrim_temp_lesson_smoke_v1 seamgrim_moyang_render_smoke_v1 "
+            "seamgrim_interactive_event_smoke_v1 "
             "seamgrim_wasm_viewmeta_statehash_v1 seamgrim_wasm_restore_state_v1 "
             "seamgrim_wasm_observation_channels_v1 seamgrim_wasm_streams_serialization_v1 "
             "seamgrim_tick_loop_v1 seamgrim_reset_v1 "
@@ -80,9 +84,19 @@ def main() -> int:
         help="skip seamgrim UI common helper smoke (tests/seamgrim_ui_common_runner.mjs)",
     )
     parser.add_argument(
+        "--skip-ui-pendulum",
+        action="store_true",
+        help="skip seamgrim pendulum run-screen smoke (tests/seamgrim_pendulum_bogae_runner.mjs)",
+    )
+    parser.add_argument(
         "--skip-wrapper",
         action="store_true",
         help="skip seamgrim wasm wrapper smoke (tests/seamgrim_wasm_wrapper_runner.mjs)",
+    )
+    parser.add_argument(
+        "--skip-vm-runtime",
+        action="store_true",
+        help="skip seamgrim wasm vm runtime smoke (tests/seamgrim_wasm_vm_runtime_runner.mjs)",
     )
     parser.add_argument(
         "--skip-space2d-source-gate",
@@ -95,6 +109,11 @@ def main() -> int:
     pack_names = args.packs or [
         "seamgrim_wasm_v0_smoke",
         "seamgrim_wasm_bridge_contract_v1",
+        "seamgrim_wasm_canon_contract_v1",
+        "seamgrim_maegim_slider_smoke_v1",
+        "seamgrim_temp_lesson_smoke_v1",
+        "seamgrim_moyang_render_smoke_v1",
+        "seamgrim_interactive_event_smoke_v1",
         "seamgrim_wasm_viewmeta_statehash_v1",
         "seamgrim_wasm_restore_state_v1",
         "seamgrim_wasm_observation_channels_v1",
@@ -111,12 +130,20 @@ def main() -> int:
     ]
 
     failures: list[str] = []
-    for name in pack_names:
+
+    def run_pack_check(name: str) -> list[str]:
         pack_dir = root / "pack" / name
         if not pack_dir.exists():
-            failures.append(f"{pack_dir}: missing pack")
-            continue
-        failures.extend(check_pack(root, pack_dir, args.update))
+            return [f"{pack_dir}: missing pack"]
+        try:
+            return check_pack(root, pack_dir, args.update)
+        except Exception as exc:
+            return [f"{pack_dir}: {exc}"]
+
+    max_workers = max(1, min(len(pack_names), os.cpu_count() or 4))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for pack_failures in executor.map(run_pack_check, pack_names):
+            failures.extend(pack_failures)
 
     if not args.skip_ui_common:
         ui_runner = root / "tests" / "seamgrim_ui_common_runner.mjs"
@@ -132,6 +159,20 @@ def main() -> int:
             detail = result.stderr.strip() or result.stdout.strip() or "ui common runner failed"
             failures.append(f"{ui_runner}: {detail}")
 
+    if not args.skip_ui_pendulum:
+        pendulum_runner = root / "tests" / "seamgrim_pendulum_bogae_runner.mjs"
+        result = subprocess.run(
+            ["node", "--no-warnings", str(pendulum_runner)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "pendulum runner failed"
+            failures.append(f"{pendulum_runner}: {detail}")
+
     if not args.skip_wrapper:
         wrapper_runner = root / "tests" / "seamgrim_wasm_wrapper_runner.mjs"
         result = subprocess.run(
@@ -145,6 +186,33 @@ def main() -> int:
         if result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip() or "wasm wrapper runner failed"
             failures.append(f"{wrapper_runner}: {detail}")
+
+    if not args.skip_vm_runtime:
+        vm_runtime_runner = root / "tests" / "seamgrim_wasm_vm_runtime_runner.mjs"
+        result = subprocess.run(
+            ["node", "--no-warnings", str(vm_runtime_runner)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "wasm vm runtime runner failed"
+            failures.append(f"{vm_runtime_runner}: {detail}")
+
+    lesson_canon_runner = root / "tests" / "seamgrim_wasm_lesson_canon_runner.mjs"
+    result = subprocess.run(
+        ["node", "--no-warnings", str(lesson_canon_runner)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "wasm lesson canon runner failed"
+        failures.append(f"{lesson_canon_runner}: {detail}")
 
     if not args.skip_space2d_source_gate:
         space2d_gate = root / "tests" / "run_seamgrim_space2d_source_ui_gate.py"

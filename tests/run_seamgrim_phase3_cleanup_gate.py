@@ -54,6 +54,7 @@ def main() -> int:
     index_html = ui_root / "index.html"
     styles_css = ui_root / "styles.css"
     runtime_state = ui_root / "seamgrim_runtime_state.js"
+    overlay_session_contract = ui_root / "overlay_session_contract.js"
 
     try:
         app_text = load_utf8(app_js)
@@ -64,15 +65,26 @@ def main() -> int:
         print(f"missing ui file: {exc}")
         return 1
 
+    wired_mode = overlay_session_contract.exists()
+    overlay_contract_text = ""
+    if wired_mode:
+        try:
+            overlay_contract_text = load_utf8(overlay_session_contract)
+        except FileNotFoundError:
+            print(f"missing ui file: {overlay_session_contract}")
+            return 1
+
     checks: list[dict] = []
 
-    # Phase3 cleanup target files must stay removed.
+    # Phase3 cleanup targets stay removed.
+    # AGE5 wired mode allows overlay_session_contract.js only.
     removed_targets = [
-        ui_root / "overlay_session_contract.js",
         ui_root / "overlay_compare_contract.js",
         ui_root / "playground.html",
         ui_root / "wasm_smoke.html",
     ]
+    if not wired_mode:
+        removed_targets.append(overlay_session_contract)
     missing = [f"exists:{path}" for path in removed_targets if path.exists()]
     checks.append(
         {
@@ -94,22 +106,51 @@ def main() -> int:
         )
     )
 
-    checks.append(
-        run_token_absence_check(
-            "phase3_app_contract_scaffold_removed",
-            app_text,
-            [
-                "overlay_session_contract.js",
-                "function buildSessionContractScaffold(",
-                "buildSessionContractScaffold();",
-                "buildOverlaySessionRunsPayload(",
-                "buildOverlayCompareSessionPayload(",
-                "resolveOverlayCompareFromSession(",
-                "buildSessionViewComboPayload(",
-                "resolveSessionViewComboFromPayload(",
-            ],
+    if wired_mode:
+        checks.append(
+            run_token_presence_check(
+                "phase3_app_contract_scaffold_wired",
+                app_text,
+                [
+                    "./overlay_session_contract.js",
+                    "buildOverlaySessionRunsPayload(",
+                    "buildOverlayCompareSessionPayload(",
+                    "resolveOverlayCompareFromSession(",
+                    "buildSessionViewComboPayload(",
+                    "resolveSessionViewComboFromPayload(",
+                ],
+            )
         )
-    )
+        checks.append(
+            run_token_presence_check(
+                "phase3_overlay_session_contract_exports_wired",
+                overlay_contract_text,
+                [
+                    "export function buildOverlaySessionRunsPayload",
+                    "export function buildOverlayCompareSessionPayload",
+                    "export function resolveOverlayCompareFromSession",
+                    "export function buildSessionViewComboPayload",
+                    "export function resolveSessionViewComboFromPayload",
+                ],
+            )
+        )
+    else:
+        checks.append(
+            run_token_absence_check(
+                "phase3_app_contract_scaffold_removed",
+                app_text,
+                [
+                    "overlay_session_contract.js",
+                    "function buildSessionContractScaffold(",
+                    "buildSessionContractScaffold();",
+                    "buildOverlaySessionRunsPayload(",
+                    "buildOverlayCompareSessionPayload(",
+                    "resolveOverlayCompareFromSession(",
+                    "buildSessionViewComboPayload(",
+                    "resolveSessionViewComboFromPayload(",
+                ],
+            )
+        )
 
     checks.append(
         run_token_absence_check(
@@ -188,4 +229,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

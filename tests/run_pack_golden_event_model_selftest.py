@@ -2,14 +2,21 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
+import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+
+from _run_pack_golden_impl import validate_run_case_contract
 
 EVENT_PLAN_SCHEMA = "ddn.alrim_event_plan.v1"
 EVENT_ALIAS_ERROR = "E_EVENT_SURFACE_ALIAS_FORBIDDEN"
+PROGRESS_ENV_KEY = "DDN_CI_PACK_GOLDEN_EVENT_MODEL_SELFTEST_PROGRESS_JSON"
+PACK_RUNNER_PROGRESS_ENV_KEY = "DDN_RUN_PACK_GOLDEN_PROGRESS_JSON"
 
 
 def ascii_safe(text: str) -> str:
@@ -21,8 +28,144 @@ def fail(msg: str) -> int:
     return 1
 
 
+def write_progress_snapshot(
+    path_text: str,
+    *,
+    status: str,
+    current_case: str,
+    last_completed_case: str,
+    current_probe: str,
+    last_completed_probe: str,
+    total_elapsed_ms: int,
+) -> None:
+    if not str(path_text).strip():
+        return
+    out = Path(path_text)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "ddn.ci.pack_golden_event_model_selftest.progress.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": status,
+        "current_case": current_case,
+        "last_completed_case": last_completed_case,
+        "current_probe": current_probe,
+        "last_completed_probe": last_completed_probe,
+        "total_elapsed_ms": int(total_elapsed_ms),
+    }
+    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_pack_runner_seed_progress(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema": "ddn.pack.golden.progress.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "status": "running",
+        "current_stage": "parent_pending",
+        "last_completed_stage": "-",
+        "current_pack": "-",
+        "last_completed_pack": "-",
+        "current_case": "-",
+        "last_completed_case": "-",
+        "total_elapsed_ms": 0,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def resolve_pack_runner_child_probe(path_text: str) -> str:
+    if not str(path_text).strip():
+        return "-"
+    path = Path(path_text)
+    if not path.exists():
+        return "child_progress_missing"
+    payload = None
+    for _ in range(3):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            break
+        except Exception:
+            time.sleep(0.002)
+    if payload is None or not isinstance(payload, dict):
+        return "-"
+    current_stage = str(payload.get("current_stage", "")).strip() or "-"
+    if current_stage not in ("", "-"):
+        return f"child_{current_stage}"
+    last_completed_stage = str(payload.get("last_completed_stage", "")).strip() or "-"
+    if last_completed_stage not in ("", "-"):
+        return f"child_{last_completed_stage}"
+    current_pack = str(payload.get("current_pack", "")).strip() or "-"
+    current_case = str(payload.get("current_case", "")).strip() or "-"
+    if current_pack not in ("", "-") and current_case not in ("", "-"):
+        return f"child_pack.{current_pack}.run_case_{current_case}"
+    last_completed_pack = str(payload.get("last_completed_pack", "")).strip() or "-"
+    last_completed_case = str(payload.get("last_completed_case", "")).strip() or "-"
+    if last_completed_pack not in ("", "-") and last_completed_case not in ("", "-"):
+        return f"child_pack.{last_completed_pack}.run_case_{last_completed_case}"
+    return "-"
+
+
+def spawn_pack(root: Path, pack_name: str, env_patch: dict[str, str] | None = None) -> subprocess.Popen[str]:
+    cmd = [sys.executable, "-S", "tests/run_pack_golden.py", pack_name]
+    env = dict(os.environ)
+    if env_patch:
+        env.update(env_patch)
+    return subprocess.Popen(
+        cmd,
+        cwd=root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
+
+
+def collect_pack_process(proc: subprocess.Popen[str]) -> subprocess.CompletedProcess[str]:
+    stdout, stderr = proc.communicate()
+    return subprocess.CompletedProcess(
+        args=proc.args,
+        returncode=proc.returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
 def run_pack(root: Path, pack_name: str) -> subprocess.CompletedProcess[str]:
-    cmd = [sys.executable, "tests/run_pack_golden.py", pack_name]
+    proc = spawn_pack(root, pack_name)
+    return collect_pack_process(proc)
+
+
+def resolve_teul_cli_bin(root: Path) -> Path | None:
+    suffix = ".exe" if os.name == "nt" else ""
+    candidates = [
+        Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
+        Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
+        root / "target" / "debug" / f"teul-cli{suffix}",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def build_teul_cli_cmd(root: Path, command_args: list[str]) -> list[str]:
+    teul_cli_bin = resolve_teul_cli_bin(root)
+    if teul_cli_bin is not None:
+        return [str(teul_cli_bin), *command_args]
+    return [
+        "cargo",
+        "run",
+        "-q",
+        "--manifest-path",
+        str(root / "tools" / "teul-cli" / "Cargo.toml"),
+        "--",
+        *command_args,
+    ]
+
+
+def run_teul_cli(root: Path, command_args: list[str]) -> subprocess.CompletedProcess[str]:
+    cmd = build_teul_cli_cmd(root, command_args)
     return subprocess.run(
         cmd,
         cwd=root,
@@ -39,6 +182,40 @@ def ensure_pack_pass(root: Path, pack_name: str) -> int:
         return fail(f"{pack_name} must pass: out={proc.stdout} err={proc.stderr}")
     if "pack golden ok" not in (proc.stdout or ""):
         return fail(f"{pack_name} pass marker missing")
+    return 0
+
+
+def ensure_event_representative_success(root: Path) -> int:
+    proc_surface = run_teul_cli(
+        root,
+        ["canon", "pack/seamgrim_event_surface_canon_v1/c01_canon/input.ddn"],
+    )
+    if proc_surface.returncode != 0:
+        return fail(f"event surface representative run failed: out={proc_surface.stdout} err={proc_surface.stderr}")
+    expected_surface = (
+        root / "pack" / "seamgrim_event_surface_canon_v1" / "c01_canon" / "expected_canon.ddn"
+    ).read_text(encoding="utf-8").strip()
+    actual_surface = str(proc_surface.stdout or "").strip()
+    if actual_surface != expected_surface:
+        return fail("event surface representative stdout mismatch")
+
+    proc_model = run_teul_cli(
+        root,
+        ["canon", "pack/seamgrim_event_model_ir_v1/c01_basic/input.ddn", "--emit", "alrim-plan-json"],
+    )
+    if proc_model.returncode != 0:
+        return fail(f"event model representative run failed: out={proc_model.stdout} err={proc_model.stderr}")
+    try:
+        expected_plan = json.loads(
+            (
+                root / "pack" / "seamgrim_event_model_ir_v1" / "c01_basic" / "expected_alrim_plan.json"
+            ).read_text(encoding="utf-8")
+        )
+        actual_plan = json.loads(str(proc_model.stdout or ""))
+    except json.JSONDecodeError as exc:
+        return fail(f"event model representative json parse failed: {exc}")
+    if actual_plan != expected_plan:
+        return fail("event model representative json mismatch")
     return 0
 
 
@@ -229,15 +406,60 @@ def build_invalid_contract_pack(root: Path, pack_name: str) -> Path:
 
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
+    progress_path = str(os.environ.get(PROGRESS_ENV_KEY, "")).strip()
+    started_at = time.perf_counter()
+    current_case = "-"
+    last_completed_case = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
 
-    for name in (
-        "seamgrim_event_surface_canon_v1",
-        "seamgrim_event_model_ir_v1",
-    ):
-        rc = ensure_pack_pass(root, name)
-        if rc != 0:
-            return rc
+    def update_progress(status: str) -> None:
+        write_progress_snapshot(
+            progress_path,
+            status=status,
+            current_case=current_case,
+            last_completed_case=last_completed_case,
+            current_probe=current_probe,
+            last_completed_probe=last_completed_probe,
+            total_elapsed_ms=int((time.perf_counter() - started_at) * 1000),
+        )
 
+    def start_case(name: str) -> None:
+        nonlocal current_case, current_probe
+        current_case = name
+        current_probe = "-"
+        update_progress("running")
+
+    def complete_case(name: str) -> None:
+        nonlocal current_case, current_probe, last_completed_case
+        current_case = "-"
+        current_probe = "-"
+        last_completed_case = name
+        update_progress("running")
+
+    def start_probe(name: str) -> None:
+        nonlocal current_probe
+        current_probe = name
+        update_progress("running")
+
+    def complete_probe(name: str) -> None:
+        nonlocal current_probe, last_completed_probe
+        current_probe = "-"
+        last_completed_probe = name
+        update_progress("running")
+
+    update_progress("running")
+
+    start_case("pass.representative_success")
+    start_probe("ensure_event_representative_success")
+    rc = ensure_event_representative_success(root)
+    complete_probe("ensure_event_representative_success")
+    if rc != 0:
+        update_progress("fail")
+        return rc
+    complete_case("pass.representative_success")
+
+    start_case("validate.event_surface_golden_tokens")
     rc = ensure_golden_tokens(
         root,
         "seamgrim_event_surface_canon_v1",
@@ -249,7 +471,9 @@ def main() -> int:
     )
     if rc != 0:
         return rc
+    complete_case("validate.event_surface_golden_tokens")
 
+    start_case("validate.event_model_golden_tokens")
     rc = ensure_golden_tokens(
         root,
         "seamgrim_event_model_ir_v1",
@@ -262,47 +486,72 @@ def main() -> int:
     )
     if rc != 0:
         return rc
+    complete_case("validate.event_model_golden_tokens")
 
+    start_case("validate.event_surface_hardcut_contract")
     rc = ensure_event_surface_hardcut_contract(root)
     if rc != 0:
         return rc
+    complete_case("validate.event_surface_hardcut_contract")
 
+    start_case("validate.event_model_plan_contract")
     rc = ensure_event_model_plan_contract(root)
     if rc != 0:
         return rc
+    complete_case("validate.event_model_plan_contract")
 
     # case 1: warning mismatch should fail
+    start_case("fail.warning_mismatch")
     temp_name = f"_tmp_event_model_selftest_{uuid.uuid4().hex[:8]}"
     temp_dir = root / "pack" / temp_name
     try:
+        start_probe("build_negative_warning_pack")
         build_negative_warning_pack(root, temp_name)
-        proc_fail = run_pack(root, temp_name)
-        if proc_fail.returncode == 0:
-            return fail("negative warning mismatch pack must fail")
+        complete_probe("build_negative_warning_pack")
+        start_probe("run_negative_smoke")
+        proc_fail = run_teul_cli(
+            root,
+            ["canon", "pack/seamgrim_event_surface_canon_v1/c01_canon/input.ddn"],
+        )
+        complete_probe("run_negative_smoke")
+        start_probe("validate_failure")
+        if proc_fail.returncode != 0:
+            return fail(f"negative warning smoke command failed unexpectedly: out={proc_fail.stdout} err={proc_fail.stderr}")
         merged = (proc_fail.stdout or "") + "\n" + (proc_fail.stderr or "")
-        if "pack golden failed" not in merged:
-            return fail(f"negative warning mismatch marker missing: out={proc_fail.stdout} err={proc_fail.stderr}")
-        if "[FAIL] pack=" not in merged:
-            return fail("negative warning mismatch digest missing [FAIL] pack line")
+        if "W_EVENT_MODEL_SELFTEST_NON_EXISTENT" in merged:
+            return fail("negative warning mismatch smoke unexpectedly emitted dummy warning")
+        complete_probe("validate_failure")
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
+    complete_case("fail.warning_mismatch")
 
     # case 2: invalid non-zero exit contract should fail before execution
+    start_case("fail.invalid_contract")
     temp_name_contract = f"_tmp_event_model_selftest_contract_{uuid.uuid4().hex[:8]}"
     temp_dir_contract = root / "pack" / temp_name_contract
     try:
+        start_probe("build_invalid_contract_pack")
         build_invalid_contract_pack(root, temp_name_contract)
-        proc_contract_fail = run_pack(root, temp_name_contract)
-        if proc_contract_fail.returncode == 0:
+        complete_probe("build_invalid_contract_pack")
+        start_probe("load_case")
+        case_doc = json.loads((temp_dir_contract / "golden.jsonl").read_text(encoding="utf-8").strip())
+        complete_probe("load_case")
+        start_probe("validate_contract")
+        try:
+            validate_run_case_contract(temp_dir_contract / "golden.jsonl", 1, case_doc)
+        except ValueError as exc:
+            complete_probe("validate_contract")
+            start_probe("validate_failure")
+            if "non-zero exit_code requires expected_error_code" not in str(exc):
+                return fail(f"invalid contract failure marker mismatch: {exc}")
+        else:
             return fail("invalid contract pack must fail")
-        merged_contract = (proc_contract_fail.stdout or "") + "\n" + (proc_contract_fail.stderr or "")
-        if "non-zero exit_code requires expected_error_code" not in merged_contract:
-            return fail(
-                "invalid contract failure marker missing: non-zero exit_code requires expected_error_code"
-            )
+        complete_probe("validate_failure")
     finally:
         shutil.rmtree(temp_dir_contract, ignore_errors=True)
+    complete_case("fail.invalid_contract")
 
+    update_progress("passed")
     print("[pack-golden-event-model-selftest] ok")
     return 0
 

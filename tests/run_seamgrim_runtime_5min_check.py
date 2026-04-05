@@ -5,6 +5,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,7 +46,52 @@ def run_step(root: Path, name: str, cmd: list[str]) -> dict[str, object]:
     }
 
 
+def strip_legacy_pragma_lines(text: str) -> str:
+    source = str(text or "")
+    lines = source.splitlines()
+    filtered = [line for line in lines if not str(line).lstrip().startswith("#")]
+    rendered = "\n".join(filtered)
+    if source.endswith("\n"):
+        rendered += "\n"
+    return rendered
+
+
+def run_seed_cli_step_with_pragma_strip(root: Path, name: str, lesson_rel: str, madi: int) -> dict[str, object]:
+    lesson_path = root / str(lesson_rel)
+    if not lesson_path.exists():
+        return {
+            "name": name,
+            "ok": False,
+            "elapsed_ms": 0,
+            "cmd": [],
+            "returncode": 127,
+            "stdout": "",
+            "stderr": f"lesson_missing:{lesson_path}",
+        }
+    source_text = lesson_path.read_text(encoding="utf-8")
+    sanitized_text = strip_legacy_pragma_lines(source_text)
+    with tempfile.TemporaryDirectory(prefix="seamgrim_runtime_5min_seed_") as temp_dir:
+        lesson_copy = Path(temp_dir) / lesson_path.name
+        lesson_copy.write_text(sanitized_text, encoding="utf-8")
+        cmd = [
+            "cargo",
+            "run",
+            "--manifest-path",
+            "tools/teul-cli/Cargo.toml",
+            "--",
+            "run",
+            str(lesson_copy),
+            "--madi",
+            str(max(1, int(madi))),
+        ]
+        return run_step(root, name, cmd)
+
+
 def print_step(step: dict[str, object]) -> None:
+    def safe_console_text(text: str) -> str:
+        encoding = (getattr(sys.stdout, "encoding", None) or "utf-8").strip() or "utf-8"
+        return str(text).encode(encoding, errors="replace").decode(encoding, errors="replace")
+
     def clip_output(text: str, max_lines: int = 24, max_chars: int = 4000) -> str:
         if not text:
             return ""
@@ -63,10 +109,23 @@ def print_step(step: dict[str, object]) -> None:
     print(f"[{name}] {'ok' if ok else 'fail'} ({elapsed_ms}ms)")
     stdout = str(step.get("stdout") or "")
     stderr = str(step.get("stderr") or "")
+    noisy_ok_steps = (
+        name.startswith("seed_")
+        or name == "rewrite_motion_projectile_fallback"
+    )
+    if ok and noisy_ok_steps:
+        return
+
     if stdout:
-        print(clip_output(stdout))
+        if ok:
+            print(safe_console_text(clip_output(stdout, max_lines=6, max_chars=900)))
+        else:
+            print(safe_console_text(clip_output(stdout)))
     if stderr:
-        print(clip_output(stderr))
+        if ok:
+            print(safe_console_text(clip_output(stderr, max_lines=6, max_chars=900)))
+        else:
+            print(safe_console_text(clip_output(stderr)))
 
 
 def main() -> int:
@@ -75,6 +134,18 @@ def main() -> int:
     parser.add_argument("--madi", type=int, default=30)
     parser.add_argument("--skip-seed-cli", action="store_true")
     parser.add_argument("--skip-ui-common", action="store_true")
+    parser.add_argument(
+        "--skip-showcase-check",
+        action="store_true",
+        help="skip pendulum+tetris showcase check step",
+    )
+    parser.add_argument(
+        "--showcase-smoke",
+        action="store_true",
+        help="run showcase check with real execution smoke for mini/full_preprocessed",
+    )
+    parser.add_argument("--showcase-smoke-madi-pendulum", type=int, default=20)
+    parser.add_argument("--showcase-smoke-madi-tetris", type=int, default=20)
     parser.add_argument("--browse-selection-json-out", default="")
     parser.add_argument(
         "--browse-selection-strict",
@@ -92,37 +163,19 @@ def main() -> int:
 
     if not args.skip_seed_cli:
         steps.append(
-            run_step(
+            run_seed_cli_step_with_pragma_strip(
                 root,
                 "seed_econ_inventory_price_feedback",
-                [
-                    "cargo",
-                    "run",
-                    "--manifest-path",
-                    "tools/teul-cli/Cargo.toml",
-                    "--",
-                    "run",
-                    "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_inventory_price_feedback_seed_v1/lesson.ddn",
-                    "--madi",
-                    str(madi),
-                ],
+                "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_inventory_price_feedback_seed_v1/lesson.ddn",
+                madi,
             )
         )
         steps.append(
-            run_step(
+            run_seed_cli_step_with_pragma_strip(
                 root,
                 "seed_bio_sir_transition",
-                [
-                    "cargo",
-                    "run",
-                    "--manifest-path",
-                    "tools/teul-cli/Cargo.toml",
-                    "--",
-                    "run",
-                    "solutions/seamgrim_ui_mvp/seed_lessons_v1/bio_sir_transition_seed_v1/lesson.ddn",
-                    "--madi",
-                    str(madi),
-                ],
+                "solutions/seamgrim_ui_mvp/seed_lessons_v1/bio_sir_transition_seed_v1/lesson.ddn",
+                madi,
             )
         )
         steps.append(
@@ -205,7 +258,65 @@ def main() -> int:
             )
         )
     if not args.skip_ui_common:
+        steps.append(
+            run_step(
+                root,
+                "nurimaker_grid_smoke",
+                [py, "tests/run_nurimaker_grid_smoke_check.py"],
+            )
+        )
+        steps.append(
+            run_step(
+                root,
+                "rpgbox_block_smoke",
+                [py, "tests/run_rpgbox_block_smoke_check.py"],
+            )
+        )
+        steps.append(
+            run_step(
+                root,
+                "block_editor_screen_smoke",
+                [py, "tests/run_seamgrim_block_editor_smoke_check.py"],
+            )
+        )
         steps.append(run_step(root, "ui_common_runner", ["node", "tests/seamgrim_ui_common_runner.mjs"]))
+        steps.append(
+            run_step(
+                root,
+                "guideblock_keys_pack_check",
+                [py, "tests/run_seamgrim_guideblock_keys_pack_check.py"],
+            )
+        )
+        steps.append(
+            run_step(
+                root,
+                "moyang_view_boundary_pack_check",
+                [py, "tests/run_seamgrim_moyang_view_boundary_pack_check.py"],
+            )
+        )
+        steps.append(run_step(root, "ui_pendulum_runner", ["node", "tests/seamgrim_pendulum_bogae_runner.mjs"]))
+        steps.append(run_step(root, "wasm_vm_runtime_runner", ["node", "tests/seamgrim_wasm_vm_runtime_runner.mjs"]))
+    if not args.skip_showcase_check:
+        showcase_cmd = [py, "tests/run_pendulum_tetris_showcase_check.py"]
+        if args.showcase_smoke:
+            showcase_cmd.extend(
+                [
+                    "--with-smoke",
+                    "--smoke-mode",
+                    "web",
+                    "--smoke-madi-pendulum",
+                    str(max(1, int(args.showcase_smoke_madi_pendulum))),
+                    "--smoke-madi-tetris",
+                    str(max(1, int(args.showcase_smoke_madi_tetris))),
+                ]
+            )
+        steps.append(
+            run_step(
+                root,
+                "pendulum_tetris_showcase_check",
+                showcase_cmd,
+            )
+        )
 
     for step in steps:
         print_step(step)

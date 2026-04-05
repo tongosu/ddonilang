@@ -26,6 +26,180 @@ def load_text(path: Path) -> str:
         return ""
 
 
+AGE4_PROOF_OK_KEY = "age4_proof_ok"
+AGE4_PROOF_FAILED_CRITERIA_KEY = "age4_proof_failed_criteria"
+AGE4_PROOF_FAILED_PREVIEW_KEY = "age4_proof_failed_preview"
+AGE5_W107_PROGRESS_KEYS = (
+    "age5_full_real_w107_golden_index_selftest_active_cases",
+    "age5_full_real_w107_golden_index_selftest_inactive_cases",
+    "age5_full_real_w107_golden_index_selftest_index_codes",
+    "age5_full_real_w107_golden_index_selftest_current_probe",
+    "age5_full_real_w107_golden_index_selftest_last_completed_probe",
+    "age5_full_real_w107_golden_index_selftest_progress_present",
+)
+AGE5_W107_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_w107_progress_contract_selftest_completed_checks",
+    "age5_full_real_w107_progress_contract_selftest_total_checks",
+    "age5_full_real_w107_progress_contract_selftest_checks_text",
+    "age5_full_real_w107_progress_contract_selftest_current_probe",
+    "age5_full_real_w107_progress_contract_selftest_last_completed_probe",
+    "age5_full_real_w107_progress_contract_selftest_progress_present",
+)
+AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_completed_checks",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_total_checks",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_checks_text",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_current_probe",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_last_completed_probe",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present",
+)
+AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present",
+)
+AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present",
+)
+AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_progress_present",
+)
+AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_proof_certificate_family_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_family_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_family_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_family_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_family_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_family_contract_selftest_progress_present",
+)
+AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_progress_present",
+)
+AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_proof_family_contract_selftest_completed_checks",
+    "age5_full_real_proof_family_contract_selftest_total_checks",
+    "age5_full_real_proof_family_contract_selftest_checks_text",
+    "age5_full_real_proof_family_contract_selftest_current_probe",
+    "age5_full_real_proof_family_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_family_contract_selftest_progress_present",
+)
+AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_lang_surface_family_contract_selftest_completed_checks",
+    "age5_full_real_lang_surface_family_contract_selftest_total_checks",
+    "age5_full_real_lang_surface_family_contract_selftest_checks_text",
+    "age5_full_real_lang_surface_family_contract_selftest_current_probe",
+    "age5_full_real_lang_surface_family_contract_selftest_last_completed_probe",
+    "age5_full_real_lang_surface_family_contract_selftest_progress_present",
+)
+AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_lang_runtime_family_contract_selftest_completed_checks",
+    "age5_full_real_lang_runtime_family_contract_selftest_total_checks",
+    "age5_full_real_lang_runtime_family_contract_selftest_checks_text",
+    "age5_full_real_lang_runtime_family_contract_selftest_current_probe",
+    "age5_full_real_lang_runtime_family_contract_selftest_last_completed_probe",
+    "age5_full_real_lang_runtime_family_contract_selftest_progress_present",
+)
+AGE5_GATE0_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_gate0_family_contract_selftest_completed_checks",
+    "age5_full_real_gate0_family_contract_selftest_total_checks",
+    "age5_full_real_gate0_family_contract_selftest_checks_text",
+    "age5_full_real_gate0_family_contract_selftest_current_probe",
+    "age5_full_real_gate0_family_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_family_contract_selftest_progress_present",
+)
+AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_gate0_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_family_transport_contract_selftest_progress_present",
+)
+AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_gate0_transport_family_contract_selftest_completed_checks",
+    "age5_full_real_gate0_transport_family_contract_selftest_total_checks",
+    "age5_full_real_gate0_transport_family_contract_selftest_checks_text",
+    "age5_full_real_gate0_transport_family_contract_selftest_current_probe",
+    "age5_full_real_gate0_transport_family_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_transport_family_contract_selftest_progress_present",
+)
+AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_progress_present",
+)
+AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_progress_present",
+)
+AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_lang_surface_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_total_checks",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_checks_text",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_current_probe",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_progress_present",
+)
+AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_present",
+)
+AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_bogae_alias_family_contract_selftest_completed_checks",
+    "age5_full_real_bogae_alias_family_contract_selftest_total_checks",
+    "age5_full_real_bogae_alias_family_contract_selftest_checks_text",
+    "age5_full_real_bogae_alias_family_contract_selftest_current_probe",
+    "age5_full_real_bogae_alias_family_contract_selftest_last_completed_probe",
+    "age5_full_real_bogae_alias_family_contract_selftest_progress_present",
+)
+AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS = (
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_total_checks",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_checks_text",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_current_probe",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_progress_present",
+)
+AGE5_POLICY_KEYS = (
+    "age5_policy_age4_proof_snapshot_fields_text",
+    "age5_policy_age4_proof_snapshot_text",
+    "age5_policy_age4_proof_source_snapshot_fields_text",
+    "age5_policy_age4_proof_gate_result_present",
+    "age5_policy_age4_proof_gate_result_parity",
+    "age5_policy_age4_proof_final_status_parse_present",
+    "age5_policy_age4_proof_final_status_parse_parity",
+)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate consistency across final CI gate artifacts")
     parser.add_argument("--summary-line", required=True, help="path to ci_gate_summary_line.txt")
@@ -82,6 +256,126 @@ def main() -> int:
     parse_ok = bool(parsed_result.get("ok", False))
     if result_ok != parse_ok:
         errors.append(f"result.ok mismatch: result={int(result_ok)} parse={int(parse_ok)}")
+    result_age4_proof_ok = bool(result_doc.get(AGE4_PROOF_OK_KEY, False))
+    parse_age4_proof_ok = bool(parsed_result.get(AGE4_PROOF_OK_KEY, False))
+    if result_age4_proof_ok != parse_age4_proof_ok:
+        errors.append(
+            f"result.{AGE4_PROOF_OK_KEY} mismatch: result={int(result_age4_proof_ok)} parse={int(parse_age4_proof_ok)}"
+        )
+    result_age4_proof_failed = int(result_doc.get(AGE4_PROOF_FAILED_CRITERIA_KEY, -1))
+    parse_age4_proof_failed = int(parsed_result.get(AGE4_PROOF_FAILED_CRITERIA_KEY, -1))
+    if result_age4_proof_failed != parse_age4_proof_failed:
+        errors.append(
+            f"result.{AGE4_PROOF_FAILED_CRITERIA_KEY} mismatch: "
+            f"result={result_age4_proof_failed} parse={parse_age4_proof_failed}"
+        )
+    result_age4_proof_preview = str(result_doc.get(AGE4_PROOF_FAILED_PREVIEW_KEY, "-")).strip() or "-"
+    parse_age4_proof_preview = str(parsed_result.get(AGE4_PROOF_FAILED_PREVIEW_KEY, "-")).strip() or "-"
+    if result_age4_proof_preview != parse_age4_proof_preview:
+        errors.append(
+            f"result.{AGE4_PROOF_FAILED_PREVIEW_KEY} mismatch: "
+            f"result={result_age4_proof_preview} parse={parse_age4_proof_preview}"
+        )
+    for key in AGE5_W107_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_W107_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
+    for key in AGE5_POLICY_KEYS:
+        result_value = str(result_doc.get(key, "")).strip()
+        parse_value = str(parsed_result.get(key, "")).strip()
+        if result_value != parse_value:
+            errors.append(f"result.{key} mismatch: result={result_value} parse={parse_value}")
 
     badge_status = str(badge_doc.get("status", "fail")).strip() or "fail"
     badge_ok = bool(badge_doc.get("ok", False))
@@ -96,6 +390,126 @@ def main() -> int:
         final_status = str(final_parsed.get("status", "fail")).strip() or "fail"
         if final_status != result_status:
             errors.append(f"final.status mismatch: final={final_status} result={result_status}")
+        final_age4_proof_ok = str(final_parsed.get(AGE4_PROOF_OK_KEY, "0")).strip() == "1"
+        if final_age4_proof_ok != result_age4_proof_ok:
+            errors.append(
+                f"final.{AGE4_PROOF_OK_KEY} mismatch: final={int(final_age4_proof_ok)} result={int(result_age4_proof_ok)}"
+            )
+        try:
+            final_age4_proof_failed = int(final_parsed.get(AGE4_PROOF_FAILED_CRITERIA_KEY, -1))
+        except Exception:
+            final_age4_proof_failed = -1
+        if final_age4_proof_failed != result_age4_proof_failed:
+            errors.append(
+                f"final.{AGE4_PROOF_FAILED_CRITERIA_KEY} mismatch: "
+                f"final={final_age4_proof_failed} result={result_age4_proof_failed}"
+            )
+        final_age4_proof_preview = str(final_parsed.get(AGE4_PROOF_FAILED_PREVIEW_KEY, "-")).strip() or "-"
+        if final_age4_proof_preview != result_age4_proof_preview:
+            errors.append(
+                f"final.{AGE4_PROOF_FAILED_PREVIEW_KEY} mismatch: "
+                f"final={final_age4_proof_preview} result={result_age4_proof_preview}"
+            )
+        for key in AGE5_W107_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_W107_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
+        for key in AGE5_POLICY_KEYS:
+            final_value = str(final_parsed.get(key, "")).strip()
+            result_value = str(result_doc.get(key, "")).strip()
+            if final_value != result_value:
+                errors.append(f"final.{key} mismatch: final={final_value} result={result_value}")
     else:
         errors.append("final_status_parse.parsed missing")
 
@@ -111,7 +525,112 @@ def main() -> int:
 
     print(
         "[ci-gate-outputs-consistency-check] ok "
-        f"status={result_status} ok={int(result_ok)} summary_line={summary_line}"
+        f"status={result_status} ok={int(result_ok)} "
+        f"age4_proof_ok={int(result_age4_proof_ok)} age4_proof_failed={result_age4_proof_failed} "
+        f"age4_proof_failed_preview={result_age4_proof_preview} "
+        f"age5_w107_active={str(result_doc.get(AGE5_W107_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_w107_inactive={str(result_doc.get(AGE5_W107_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_w107_index_codes={str(result_doc.get(AGE5_W107_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_w107_last_completed_probe={str(result_doc.get(AGE5_W107_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_w107_progress={str(result_doc.get(AGE5_W107_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_w107_contract_completed={str(result_doc.get(AGE5_W107_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_w107_contract_total={str(result_doc.get(AGE5_W107_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_w107_contract_checks_text={str(result_doc.get(AGE5_W107_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_w107_contract_last_completed_probe={str(result_doc.get(AGE5_W107_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_w107_contract_progress={str(result_doc.get(AGE5_W107_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_age1_immediate_proof_operation_contract_completed={str(result_doc.get(AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_age1_immediate_proof_operation_contract_total={str(result_doc.get(AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_age1_immediate_proof_operation_contract_checks_text={str(result_doc.get(AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_age1_immediate_proof_operation_contract_last_completed_probe={str(result_doc.get(AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_age1_immediate_proof_operation_contract_progress={str(result_doc.get(AGE5_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_proof_certificate_v1_consumer_contract_completed={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_consumer_contract_total={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_consumer_contract_checks_text={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_consumer_contract_last_completed_probe={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_consumer_contract_progress={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_completed={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_total={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_checks_text={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_last_completed_probe={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_progress={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_proof_certificate_v1_family_contract_completed={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_family_contract_total={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_family_contract_checks_text={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_family_contract_last_completed_probe={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_proof_certificate_v1_family_contract_progress={str(result_doc.get(AGE5_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_proof_certificate_family_contract_completed={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_contract_total={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_contract_checks_text={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_contract_last_completed_probe={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_contract_progress={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_proof_certificate_family_transport_contract_completed={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_transport_contract_total={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_transport_contract_checks_text={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_transport_contract_last_completed_probe={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_proof_certificate_family_transport_contract_progress={str(result_doc.get(AGE5_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_proof_family_contract_completed={str(result_doc.get(AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_proof_family_contract_total={str(result_doc.get(AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_proof_family_contract_checks_text={str(result_doc.get(AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_proof_family_contract_last_completed_probe={str(result_doc.get(AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_proof_family_contract_progress={str(result_doc.get(AGE5_PROOF_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_lang_surface_family_contract_completed={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_contract_total={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_contract_checks_text={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_contract_last_completed_probe={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_contract_progress={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_lang_runtime_family_contract_completed={str(result_doc.get(AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_lang_runtime_family_contract_total={str(result_doc.get(AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_lang_runtime_family_contract_checks_text={str(result_doc.get(AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_lang_runtime_family_contract_last_completed_probe={str(result_doc.get(AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_lang_runtime_family_contract_progress={str(result_doc.get(AGE5_LANG_RUNTIME_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_gate0_family_contract_completed={str(result_doc.get(AGE5_GATE0_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_gate0_family_contract_total={str(result_doc.get(AGE5_GATE0_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_gate0_family_contract_checks_text={str(result_doc.get(AGE5_GATE0_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_gate0_family_contract_last_completed_probe={str(result_doc.get(AGE5_GATE0_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_gate0_family_contract_progress={str(result_doc.get(AGE5_GATE0_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_gate0_family_transport_contract_completed={str(result_doc.get(AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_gate0_family_transport_contract_total={str(result_doc.get(AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_gate0_family_transport_contract_checks_text={str(result_doc.get(AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_gate0_family_transport_contract_last_completed_probe={str(result_doc.get(AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_gate0_family_transport_contract_progress={str(result_doc.get(AGE5_GATE0_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_gate0_transport_family_contract_completed={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_contract_total={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_contract_checks_text={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_contract_last_completed_probe={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_contract_progress={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_gate0_transport_family_transport_contract_completed={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_transport_contract_total={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_transport_contract_checks_text={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_transport_contract_current_probe={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[3], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_transport_contract_last_completed_probe={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_gate0_transport_family_transport_contract_progress={str(result_doc.get(AGE5_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_gate0_surface_family_transport_contract_completed={str(result_doc.get(AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_gate0_surface_family_transport_contract_total={str(result_doc.get(AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_gate0_surface_family_transport_contract_checks_text={str(result_doc.get(AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_gate0_surface_family_transport_contract_current_probe={str(result_doc.get(AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[3], '-')).strip() or '-'} "
+        f"age5_gate0_surface_family_transport_contract_last_completed_probe={str(result_doc.get(AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_gate0_surface_family_transport_contract_progress={str(result_doc.get(AGE5_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_lang_surface_family_transport_contract_completed={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_transport_contract_total={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_transport_contract_checks_text={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_transport_contract_last_completed_probe={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_lang_surface_family_transport_contract_progress={str(result_doc.get(AGE5_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_gate0_runtime_family_transport_contract_completed={str(result_doc.get(AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_gate0_runtime_family_transport_contract_total={str(result_doc.get(AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_gate0_runtime_family_transport_contract_checks_text={str(result_doc.get(AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_gate0_runtime_family_transport_contract_last_completed_probe={str(result_doc.get(AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_gate0_runtime_family_transport_contract_progress={str(result_doc.get(AGE5_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_bogae_alias_family_contract_completed={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_contract_total={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_contract_checks_text={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_contract_last_completed_probe={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_contract_progress={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"age5_bogae_alias_family_transport_contract_completed={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[0], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_transport_contract_total={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[1], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_transport_contract_checks_text={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[2], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_transport_contract_last_completed_probe={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[4], '-')).strip() or '-'} "
+        f"age5_bogae_alias_family_transport_contract_progress={str(result_doc.get(AGE5_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_PROGRESS_KEYS[5], '0')).strip() or '0'} "
+        f"summary_line={summary_line}"
     )
     return 0
 

@@ -1,0 +1,5 @@
+{
+  "schema": "ddn.proof_certificate_v1_draft_artifact.v1",
+  "source_pack_schema": "ddn.proof_certificate_v1_draft_pack.v1",
+  "source_pack_id": "pack/age4_proof_certificate_v1_draft_candidate_v1"
+}

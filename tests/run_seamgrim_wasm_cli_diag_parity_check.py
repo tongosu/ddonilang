@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -16,6 +17,32 @@ EVENT_SURFACE_MIN_CASES = 7
 OVERLAY_COMPARE_PARITY_SCRIPT = "tests/run_seamgrim_overlay_compare_diag_parity_check.py"
 OVERLAY_SESSION_PARITY_SCRIPT = "tests/run_seamgrim_overlay_session_diag_parity_check.py"
 OVERLAY_SESSION_WIRED_SCRIPT = "tests/run_seamgrim_overlay_session_wired_consistency_check.py"
+NUMERIC_FACTOR_ROUTE_DIAG_CONTRACT_SCRIPT = "tests/run_numeric_factor_route_diag_contract_check.py"
+NUMERIC_FACTOR_POLICY_KEYS = (
+    "bit_limit",
+    "pollard_iters",
+    "pollard_c_seeds",
+    "pollard_x0_seeds",
+    "fallback_limit",
+    "small_prime_max",
+)
+
+
+def default_report_path(file_name: str) -> Path:
+    candidates = (
+        Path("I:/home/urihanl/ddn/codex/build/reports"),
+        Path("C:/ddn/codex/build/reports"),
+        Path("build/reports"),
+    )
+    for base in candidates:
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+            return base / file_name
+        except OSError:
+            continue
+    fallback = Path("build/reports")
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback / file_name
 
 
 def fail(msg: str) -> int:
@@ -71,6 +98,11 @@ def main() -> int:
     code = "OK"
     step = "all"
     msg = "-"
+    numeric_factor_policy_report = default_report_path(
+        f"seamgrim_wasm_cli_numeric_factor_route_diag_contract.{os.getpid()}.detjson"
+    )
+    numeric_factor_policy_text = "-"
+    numeric_factor_policy_map: dict[str, int] = {}
 
     def record_step(
         name: str,
@@ -104,6 +136,10 @@ def main() -> int:
                 "code": code,
                 "step": step,
                 "msg": msg,
+                "numeric_factor_policy_report_path": str(numeric_factor_policy_report),
+                "numeric_factor_policy_report_exists": numeric_factor_policy_report.exists(),
+                "numeric_factor_policy_text": numeric_factor_policy_text,
+                "numeric_factor_policy": numeric_factor_policy_map,
                 "steps": steps,
                 "steps_count": len(steps),
             }
@@ -244,6 +280,16 @@ def main() -> int:
             [py, OVERLAY_SESSION_WIRED_SCRIPT],
             "overlay session wired consistency check ok",
         ),
+        (
+            "numeric_factor_route_diag_contract",
+            [
+                py,
+                NUMERIC_FACTOR_ROUTE_DIAG_CONTRACT_SCRIPT,
+                "--report-out",
+                str(numeric_factor_policy_report),
+            ],
+            "numeric factor route diag contract check ok",
+        ),
     ]
 
     for step_name, cmd, ok_marker in commands:
@@ -284,6 +330,103 @@ def main() -> int:
             step = step_name
             msg = detail
             return finalize(fail(msg))
+        if step_name == "numeric_factor_route_diag_contract":
+            if not numeric_factor_policy_report.exists():
+                detail = f"{step_name} report missing: {numeric_factor_policy_report}"
+                record_step(
+                    step_name,
+                    False,
+                    detail,
+                    returncode=proc.returncode,
+                    cmd=cmd,
+                    stdout_head=(proc.stdout or "").strip() or "-",
+                    stderr_head=(proc.stderr or "").strip() or "-",
+                )
+                status = "fail"
+                code = "E_SEAMGRIM_WASM_CLI_PARITY_NUMERIC_FACTOR_POLICY_REPORT_MISSING"
+                step = step_name
+                msg = detail
+                return finalize(fail(msg))
+            try:
+                numeric_report_doc = json.loads(
+                    numeric_factor_policy_report.read_text(encoding="utf-8")
+                )
+            except Exception as exc:
+                detail = f"{step_name} report parse failed: {exc}"
+                record_step(
+                    step_name,
+                    False,
+                    detail,
+                    returncode=proc.returncode,
+                    cmd=cmd,
+                    stdout_head=(proc.stdout or "").strip() or "-",
+                    stderr_head=(proc.stderr or "").strip() or "-",
+                )
+                status = "fail"
+                code = "E_SEAMGRIM_WASM_CLI_PARITY_NUMERIC_FACTOR_POLICY_REPORT_PARSE"
+                step = step_name
+                msg = detail
+                return finalize(fail(msg))
+            if not isinstance(numeric_report_doc, dict):
+                detail = f"{step_name} report payload must be object"
+                record_step(
+                    step_name,
+                    False,
+                    detail,
+                    returncode=proc.returncode,
+                    cmd=cmd,
+                    stdout_head=(proc.stdout or "").strip() or "-",
+                    stderr_head=(proc.stderr or "").strip() or "-",
+                )
+                status = "fail"
+                code = "E_SEAMGRIM_WASM_CLI_PARITY_NUMERIC_FACTOR_POLICY_REPORT_SHAPE"
+                step = step_name
+                msg = detail
+                return finalize(fail(msg))
+            numeric_factor_policy_text = str(
+                numeric_report_doc.get("policy_text", "")
+            ).strip() or "-"
+            numeric_policy_raw = numeric_report_doc.get("policy")
+            if not isinstance(numeric_policy_raw, dict):
+                detail = f"{step_name} report missing policy map"
+                record_step(
+                    step_name,
+                    False,
+                    detail,
+                    returncode=proc.returncode,
+                    cmd=cmd,
+                    stdout_head=(proc.stdout or "").strip() or "-",
+                    stderr_head=(proc.stderr or "").strip() or "-",
+                )
+                status = "fail"
+                code = "E_SEAMGRIM_WASM_CLI_PARITY_NUMERIC_FACTOR_POLICY_MISSING"
+                step = step_name
+                msg = detail
+                return finalize(fail(msg))
+            parsed_policy: dict[str, int] = {}
+            for key in NUMERIC_FACTOR_POLICY_KEYS:
+                raw_value = numeric_policy_raw.get(key)
+                if isinstance(raw_value, bool):
+                    raw_value = None
+                try:
+                    parsed_policy[key] = int(raw_value)
+                except Exception:
+                    detail = f"{step_name} report policy parse failed: {key}={raw_value}"
+                    record_step(
+                        step_name,
+                        False,
+                        detail,
+                        returncode=proc.returncode,
+                        cmd=cmd,
+                        stdout_head=(proc.stdout or "").strip() or "-",
+                        stderr_head=(proc.stderr or "").strip() or "-",
+                    )
+                    status = "fail"
+                    code = "E_SEAMGRIM_WASM_CLI_PARITY_NUMERIC_FACTOR_POLICY_PARSE"
+                    step = step_name
+                    msg = detail
+                    return finalize(fail(msg))
+            numeric_factor_policy_map = parsed_policy
         record_step(
             step_name,
             True,

@@ -1,15 +1,19 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import os
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 from _seamgrim_ci_diag_lib import build_failure_digest, extract_diagnostics
+from _seamgrim_parity_server_lib import start_parity_server, stop_parity_server
 
 
 def safe_print(text: str) -> None:
@@ -23,8 +27,18 @@ def safe_print(text: str) -> None:
     print(encoded.decode(sys.stdout.encoding or "utf-8", errors="replace"))
 
 
-def run_step(root: Path, name: str, cmd: list[str]) -> dict[str, object]:
+def _run_step_once(
+    root: Path,
+    name: str,
+    cmd: list[str],
+    *,
+    env_extra: dict[str, str] | None = None,
+) -> dict[str, object]:
     started = time.perf_counter()
+    env = None
+    if env_extra:
+        env = os.environ.copy()
+        env.update({str(k): str(v) for k, v in env_extra.items()})
     proc = subprocess.run(
         cmd,
         cwd=root,
@@ -32,17 +46,13 @@ def run_step(root: Path, name: str, cmd: list[str]) -> dict[str, object]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
     )
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     stdout = (proc.stdout or "").strip()
     stderr = (proc.stderr or "").strip()
     ok = proc.returncode == 0
 
-    print(f"[{name}] {'ok' if ok else 'fail'} ({elapsed_ms}ms)")
-    if stdout:
-        safe_print(stdout)
-    if stderr:
-        safe_print(stderr)
     diagnostics = extract_diagnostics(name, stdout, stderr, ok)
 
     return {
@@ -55,6 +65,92 @@ def run_step(root: Path, name: str, cmd: list[str]) -> dict[str, object]:
         "stderr": stderr,
         "diagnostics": diagnostics,
     }
+
+
+def _print_step_result(step: dict[str, object]) -> None:
+    name = str(step.get("name", "-"))
+    ok = bool(step.get("ok"))
+    elapsed_ms = int(step.get("elapsed_ms", 0))
+    stdout = str(step.get("stdout", "") or "").strip()
+    stderr = str(step.get("stderr", "") or "").strip()
+    print(f"[{name}] {'ok' if ok else 'fail'} ({elapsed_ms}ms)")
+    if stdout:
+        safe_print(stdout)
+    if stderr:
+        safe_print(stderr)
+
+
+def run_step(
+    root: Path,
+    name: str,
+    cmd: list[str],
+    *,
+    env_extra: dict[str, str] | None = None,
+) -> dict[str, object]:
+    step = _run_step_once(root, name, cmd, env_extra=env_extra)
+    _print_step_result(step)
+    return step
+
+
+def run_steps_parallel(
+    root: Path,
+    step_defs: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    if not step_defs:
+        return []
+    ordered: list[dict[str, object] | None] = [None] * len(step_defs)
+    max_workers = max(1, min(6, len(step_defs)))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        pending = {}
+        for idx, step_def in enumerate(step_defs):
+            name = str(step_def.get("name", "")).strip()
+            cmd = step_def.get("cmd")
+            env_extra = step_def.get("env_extra")
+            if not name or not isinstance(cmd, list):
+                raise ValueError(f"invalid step def at index={idx}: {step_def!r}")
+            pending[executor.submit(_run_step_once, root, name, cmd, env_extra=env_extra)] = idx
+        for future in as_completed(pending):
+            idx = pending[future]
+            ordered[idx] = future.result()
+    results: list[dict[str, object]] = []
+    for step in ordered:
+        if step is None:
+            continue
+        _print_step_result(step)
+        results.append(step)
+    return results
+
+
+def _start_local_ddn_exec_server_prewarm(
+    root: Path,
+    base_url: str,
+    *,
+    timeout_sec: float = 5.0,
+) -> subprocess.Popen[bytes] | None:
+    base = str(base_url or "").strip()
+    if not base:
+        return None
+
+    parsed = urlparse(base)
+    host = str(parsed.hostname or "").strip().lower()
+    if host not in {"127.0.0.1", "localhost"}:
+        return None
+    port = int(parsed.port or (443 if str(parsed.scheme).lower() == "https" else 80))
+    try:
+        _server_module, _resolved_base_url, proc = start_parity_server(
+            root=root,
+            module_name="seamgrim_ddn_exec_server_check_for_ci_gate",
+            host=host,
+            port=port,
+            timeout_sec=max(1.0, float(timeout_sec)),
+            require_existing_server=False,
+        )
+    except RuntimeError as exc:
+        print(f"[ddn_exec_server_prewarm] skip base_url={base} detail={str(exc).strip()}")
+        return None
+    if proc is not None:
+        print(f"[ddn_exec_server_prewarm] ok base_url={base}")
+    return proc
 
 
 def main() -> int:
@@ -99,6 +195,33 @@ def main() -> int:
         "--runtime-5min-skip-seed-cli",
         action="store_true",
         help="runtime_5min: skip seed teul-cli runs",
+    )
+    parser.add_argument(
+        "--runtime-5min-skip-ui-common",
+        action="store_true",
+        help="runtime_5min: skip ui common/aux ui runners",
+    )
+    parser.add_argument(
+        "--runtime-5min-skip-showcase-check",
+        action="store_true",
+        help="runtime_5min: skip pendulum+tetris showcase check",
+    )
+    parser.add_argument(
+        "--runtime-5min-showcase-smoke",
+        action="store_true",
+        help="runtime_5min: run showcase check with non-dry smoke",
+    )
+    parser.add_argument(
+        "--runtime-5min-showcase-smoke-madi-pendulum",
+        type=int,
+        default=20,
+        help="runtime_5min: showcase smoke pendulum madi",
+    )
+    parser.add_argument(
+        "--runtime-5min-showcase-smoke-madi-tetris",
+        type=int,
+        default=20,
+        help="runtime_5min: showcase smoke tetris madi",
     )
     parser.add_argument(
         "--with-5min-checklist",
@@ -168,6 +291,26 @@ def main() -> int:
         help="optional path to write rewrite overlay quality report json",
     )
     parser.add_argument(
+        "--pack-evidence-report-json-out",
+        default="",
+        help="optional path to write pack evidence tier runner report json",
+    )
+    parser.add_argument(
+        "--lesson-warning-report-json-out",
+        default="",
+        help="optional path to write lesson warning token scan report json",
+    )
+    parser.add_argument(
+        "--lesson-warning-require-zero",
+        action="store_true",
+        help="fail when lesson warning token total is non-zero",
+    )
+    parser.add_argument(
+        "--require-preview-synced",
+        action="store_true",
+        help="fail when lesson preview/source dry-run reports would_apply > 0",
+    )
+    parser.add_argument(
         "--print-drilldown",
         action="store_true",
         help="print parsed diagnostics for failed steps",
@@ -176,12 +319,16 @@ def main() -> int:
 
     root = Path(__file__).resolve().parent.parent
     py = sys.executable
+    transport_contract_env = {"DDN_ASSUME_FAMILY_CONTRACT_PASSED": "1"}
+    contract_prereq_env = {"DDN_ASSUME_CONTRACT_PREREQS_PASSED": "1"}
     browse_selection_json_out = str(args.browse_selection_json_out or "").strip()
     runtime_browse_selection_json_out = str(args.runtime_5min_browse_selection_json_out or "").strip()
     runtime_5min_json_out = str(args.runtime_5min_json_out or "").strip()
+    pack_evidence_report_json_out = str(args.pack_evidence_report_json_out or "").strip()
     checklist_json_out = str(args.checklist_json_out or "").strip()
     checklist_markdown_out = str(args.checklist_markdown_out or "").strip()
     checklist_from_runtime_report = str(args.checklist_from_runtime_report or "").strip()
+    lesson_warning_report_json_out = str(args.lesson_warning_report_json_out or "").strip()
     checklist_base_url = str(args.checklist_base_url or args.runtime_5min_base_url or "").strip()
     if not checklist_base_url:
         checklist_base_url = "http://127.0.0.1:18787"
@@ -194,6 +341,9 @@ def main() -> int:
         default_runtime_report = root / "build" / "reports" / "seamgrim_runtime_5min_report.detjson"
         runtime_5min_json_out = str(default_runtime_report)
         print(f"[5min-checklist] runtime report path applied: {runtime_5min_json_out}")
+    if not pack_evidence_report_json_out:
+        default_pack_evidence_report = root / "build" / "reports" / "seamgrim_pack_evidence_tier_runner_check.detjson"
+        pack_evidence_report_json_out = str(default_pack_evidence_report)
 
     steps: list[dict[str, object]] = []
     steps.append(
@@ -214,143 +364,174 @@ def main() -> int:
     schema_cmd = [py, "tests/run_seamgrim_lesson_schema_gate.py"]
     if args.require_promoted:
         schema_cmd.append("--require-promoted")
-    steps.append(run_step(root, "schema_gate", schema_cmd))
-    steps.append(
-        run_step(
-            root,
-            "schema_realign_formula_compat",
-            [py, "tests/run_seamgrim_lesson_schema_realign_formula_compat_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "schema_upgrade_formula_compat",
-            [py, "tests/run_seamgrim_lesson_schema_upgrade_formula_compat_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "formula_compat",
-            [py, "tests/run_seamgrim_formula_compat_check.py"],
-        )
-    )
+    lesson_warning_cmd = [py, "tests/run_seamgrim_lesson_warning_tokens_check.py"]
+    lesson_migration_lint_cmd = [py, "tests/run_seamgrim_lesson_migration_lint_check.py"]
+    lesson_migration_lint_preview_cmd = [py, "tests/run_seamgrim_lesson_migration_lint_preview_check.py"]
+    lesson_preview_sync_cmd = [py, "tests/run_seamgrim_lesson_preview_sync_check.py"]
+    lesson_migration_autofix_cmd = [py, "tests/run_seamgrim_lesson_migration_autofix_check.py"]
+    pack_evidence_tier_cmd = [py, "tests/run_pack_evidence_tier_check.py"]
+    pack_evidence_tier_report_check_cmd = [py, "tests/run_pack_evidence_tier_report_check.py"]
+    if pack_evidence_report_json_out:
+        pack_evidence_tier_cmd.extend(["--report-out", pack_evidence_report_json_out])
+        pack_evidence_tier_report_check_cmd.extend(["--report-path", pack_evidence_report_json_out])
+    if lesson_warning_report_json_out:
+        lesson_warning_cmd.extend(["--report", lesson_warning_report_json_out])
+    if args.lesson_warning_require_zero:
+        lesson_warning_cmd.append("--require-zero")
+    if args.require_preview_synced:
+        lesson_preview_sync_cmd.append("--require-synced")
     ui_age3_cmd = [py, "tests/run_seamgrim_ui_age3_gate.py"]
     if args.ui_age3_json_out:
         ui_age3_cmd.extend(["--json-out", args.ui_age3_json_out])
-    steps.append(
-        run_step(
-            root,
-            "ui_age3_gate",
-            ui_age3_cmd,
-        )
-    )
     sim_core_cmd = [py, "tests/run_seamgrim_sim_core_contract_gate.py"]
     if args.sim_core_json_out:
         sim_core_cmd.extend(["--json-out", str(args.sim_core_json_out)])
-    steps.append(
-        run_step(
-            root,
-            "sim_core_contract_gate",
-            sim_core_cmd,
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "shape_fallback_mode",
-            [py, "tests/run_seamgrim_shape_fallback_mode_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "space2d_primitive_source",
-            [py, "tests/run_seamgrim_space2d_primitive_source_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "space2d_source_ui_gate",
-            [py, "tests/run_seamgrim_space2d_source_ui_gate.py"],
-        )
-    )
     phase3_cleanup_cmd = [py, "tests/run_seamgrim_phase3_cleanup_gate.py"]
     if args.phase3_cleanup_json_out:
         phase3_cleanup_cmd.extend(["--json-out", str(args.phase3_cleanup_json_out)])
-    steps.append(
-        run_step(
-            root,
-            "phase3_cleanup_gate",
-            phase3_cleanup_cmd,
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "lesson_path_fallback",
-            [py, "tests/run_seamgrim_lesson_path_fallback_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "new_grammar_no_legacy_control_meta",
-            [py, "tests/run_seamgrim_new_grammar_no_legacy_control_meta_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "visual_contract",
-            [py, "tests/run_seamgrim_visual_contract_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "seed_overlay_quality",
-            [py, "tests/run_seamgrim_seed_overlay_quality_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "rewrite_overlay_quality",
-            (
-                [py, "tests/run_seamgrim_rewrite_overlay_quality_check.py"]
-                + (
-                    ["--json-out", str(args.rewrite_overlay_json_out)]
-                    if str(args.rewrite_overlay_json_out or "").strip()
-                    else []
-                )
-            ),
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "pendulum_surface_contract",
-            [py, "tests/run_seamgrim_pendulum_surface_contract_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "control_exposure_policy",
-            [py, "tests/run_seamgrim_control_exposure_policy_check.py"],
-        )
-    )
     browse_selection_cmd = [py, "tests/run_seamgrim_browse_selection_flow_check.py"]
     if browse_selection_json_out:
         browse_selection_cmd.extend(["--json-out", browse_selection_json_out])
-    steps.append(
-        run_step(
+    rewrite_overlay_cmd = [py, "tests/run_seamgrim_rewrite_overlay_quality_check.py"]
+    if str(args.rewrite_overlay_json_out or "").strip():
+        rewrite_overlay_cmd.extend(["--json-out", str(args.rewrite_overlay_json_out)])
+    steps.extend(
+        run_steps_parallel(
             root,
-            "browse_selection_flow",
-            browse_selection_cmd,
+            [
+                {
+                    "name": "schema_gate",
+                    "cmd": schema_cmd,
+                },
+                {
+                    "name": "lesson_warning_tokens",
+                    "cmd": lesson_warning_cmd,
+                },
+                {
+                    "name": "lesson_migration_lint",
+                    "cmd": lesson_migration_lint_cmd,
+                },
+                {
+                    "name": "lesson_migration_lint_preview",
+                    "cmd": lesson_migration_lint_preview_cmd,
+                },
+                {
+                    "name": "lesson_preview_sync",
+                    "cmd": lesson_preview_sync_cmd,
+                },
+                {
+                    "name": "lesson_migration_autofix",
+                    "cmd": lesson_migration_autofix_cmd,
+                },
+                {
+                    "name": "pack_evidence_tier",
+                    "cmd": pack_evidence_tier_cmd,
+                },
+                {
+                    "name": "stateful_sim_preview_upgrade",
+                    "cmd": [py, "tests/run_seamgrim_stateful_sim_preview_upgrade_check.py"],
+                },
+                {
+                    "name": "schema_realign_formula_compat",
+                    "cmd": [py, "tests/run_seamgrim_lesson_schema_realign_formula_compat_check.py"],
+                },
+                {
+                    "name": "schema_upgrade_formula_compat",
+                    "cmd": [py, "tests/run_seamgrim_lesson_schema_upgrade_formula_compat_check.py"],
+                },
+                {
+                    "name": "formula_compat",
+                    "cmd": [py, "tests/run_seamgrim_formula_compat_check.py"],
+                },
+                {
+                    "name": "ui_age3_gate",
+                    "cmd": ui_age3_cmd,
+                },
+                {
+                    "name": "sim_core_contract_gate",
+                    "cmd": sim_core_cmd,
+                },
+                {
+                    "name": "shape_fallback_mode",
+                    "cmd": [py, "tests/run_seamgrim_shape_fallback_mode_check.py"],
+                },
+                {
+                    "name": "space2d_primitive_source",
+                    "cmd": [py, "tests/run_seamgrim_space2d_primitive_source_check.py"],
+                },
+                {
+                    "name": "space2d_source_ui_gate",
+                    "cmd": [py, "tests/run_seamgrim_space2d_source_ui_gate.py"],
+                },
+                {
+                    "name": "phase3_cleanup_gate",
+                    "cmd": phase3_cleanup_cmd,
+                },
+                {
+                    "name": "lesson_path_fallback",
+                    "cmd": [py, "tests/run_seamgrim_lesson_path_fallback_check.py"],
+                },
+                {
+                    "name": "new_grammar_no_legacy_control_meta",
+                    "cmd": [py, "tests/run_seamgrim_new_grammar_no_legacy_control_meta_check.py"],
+                },
+                {
+                    "name": "visual_contract",
+                    "cmd": [py, "tests/run_seamgrim_visual_contract_check.py"],
+                },
+                {
+                    "name": "seed_overlay_quality",
+                    "cmd": [py, "tests/run_seamgrim_seed_overlay_quality_check.py"],
+                },
+                {
+                    "name": "seed_meta_files",
+                    "cmd": [py, "tests/run_seamgrim_seed_meta_files_check.py"],
+                },
+                {
+                    "name": "featured_seed_catalog_sync",
+                    "cmd": [py, "tests/run_seamgrim_featured_seed_catalog_sync_check.py"],
+                },
+                {
+                    "name": "featured_seed_catalog_autogen",
+                    "cmd": [py, "tests/run_seamgrim_featured_seed_catalog_autogen_check.py"],
+                },
+                {
+                    "name": "guideblock_keys_pack",
+                    "cmd": [py, "tests/run_seamgrim_guideblock_keys_pack_check.py"],
+                },
+                {
+                    "name": "moyang_view_boundary_pack",
+                    "cmd": [py, "tests/run_seamgrim_moyang_view_boundary_pack_check.py"],
+                },
+                {
+                    "name": "patent_b_state_view_hash_isolation",
+                    "cmd": [py, "tests/run_patent_b_state_view_hash_isolation_check.py"],
+                },
+                {
+                    "name": "dotbogi_view_meta_hash_pack",
+                    "cmd": [py, "tests/run_dotbogi_view_meta_hash_pack_check.py"],
+                },
+                {
+                    "name": "rewrite_overlay_quality",
+                    "cmd": rewrite_overlay_cmd,
+                },
+                {
+                    "name": "pendulum_surface_contract",
+                    "cmd": [py, "tests/run_seamgrim_pendulum_surface_contract_check.py"],
+                },
+                {
+                    "name": "control_exposure_policy",
+                    "cmd": [py, "tests/run_seamgrim_control_exposure_policy_check.py"],
+                },
+                {
+                    "name": "featured_seed_quick_launch_logic",
+                    "cmd": [py, "tests/run_seamgrim_featured_seed_quick_launch_check.py"],
+                },
+                {
+                    "name": "browse_selection_flow",
+                    "cmd": browse_selection_cmd,
+                },
+            ],
         )
     )
     if args.browse_selection_strict:
@@ -383,6 +564,20 @@ def main() -> int:
             runtime_5min_cmd.append("--browse-selection-strict")
         if args.runtime_5min_skip_seed_cli:
             runtime_5min_cmd.append("--skip-seed-cli")
+        if args.runtime_5min_skip_ui_common:
+            runtime_5min_cmd.append("--skip-ui-common")
+        if args.runtime_5min_skip_showcase_check:
+            runtime_5min_cmd.append("--skip-showcase-check")
+        if args.runtime_5min_showcase_smoke:
+            runtime_5min_cmd.extend(
+                [
+                    "--showcase-smoke",
+                    "--showcase-smoke-madi-pendulum",
+                    str(max(1, int(args.runtime_5min_showcase_smoke_madi_pendulum))),
+                    "--showcase-smoke-madi-tetris",
+                    str(max(1, int(args.runtime_5min_showcase_smoke_madi_tetris))),
+                ]
+            )
         steps.append(run_step(root, "runtime_5min", runtime_5min_cmd))
     if args.with_5min_checklist:
         checklist_cmd = [
@@ -423,6 +618,13 @@ def main() -> int:
         steps.append(
             run_step(
                 root,
+                "overlay_session_wired_consistency",
+                [py, "tests/run_seamgrim_overlay_session_wired_consistency_check.py"],
+            )
+        )
+        steps.append(
+            run_step(
+                root,
                 "overlay_session_contract",
                 [py, "tests/run_seamgrim_overlay_session_contract.py"],
             )
@@ -432,7 +634,7 @@ def main() -> int:
             run_step(
                 root,
                 "age5_close",
-                [py, "tests/run_age5_close.py"],
+                [py, "tests/run_age5_close.py", "--strict"],
             )
         )
 
@@ -443,6 +645,11 @@ def main() -> int:
             [py, "tests/run_seamgrim_export_graph_preprocess_check.py"],
         )
     )
+    ddn_exec_server_base_url = "http://127.0.0.1:18787"
+    ddn_exec_server_proc = _start_local_ddn_exec_server_prewarm(
+        root,
+        ddn_exec_server_base_url,
+    )
     steps.append(
         run_step(
             root,
@@ -450,32 +657,150 @@ def main() -> int:
             [py, "tests/run_seamgrim_deploy_artifacts_check.py"],
         )
     )
-    steps.append(
-        run_step(
+    full_cmd = [py, "tests/run_seamgrim_full_gate_check.py"]
+    if args.strict_graph:
+        full_cmd.append("--strict-graph")
+    steps.extend(
+        run_steps_parallel(
             root,
-            "seed_pendulum_export",
-            [py, "tests/run_seamgrim_seed_pendulum_export_check.py"],
+            [
+                {
+                    "name": "seed_pendulum_export",
+                    "cmd": [py, "tests/run_seamgrim_seed_pendulum_export_check.py"],
+                },
+                {
+                    "name": "pendulum_runtime_visual",
+                    "cmd": [py, "tests/run_seamgrim_pendulum_runtime_visual_check.py"],
+                },
+                {
+                    "name": "seed_runtime_visual_pack",
+                    "cmd": [py, "tests/run_seamgrim_seed_runtime_visual_pack_check.py"],
+                },
+                {
+                    "name": "wasm_viewmeta_statehash_prereq",
+                    "cmd": [py, "tests/run_seamgrim_wasm_smoke.py", "seamgrim_wasm_viewmeta_statehash_v1"],
+                },
+                {
+                    "name": "state_hash_view_boundary_prereq",
+                    "cmd": [py, "tests/run_pack_golden.py", "seamgrim_state_hash_view_boundary_smoke_v1"],
+                },
+                {
+                    "name": "wasm_bridge_contract_prereq",
+                    "cmd": [py, "tests/run_seamgrim_wasm_smoke.py", "seamgrim_wasm_bridge_contract_v1"],
+                },
+                {
+                    "name": "wasm_web_smoke_contract",
+                    "cmd": [py, "tests/run_seamgrim_wasm_web_smoke_contract_pack_check.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_wasm_web_smoke_step_check",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_wasm_web_smoke_step_check.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_wasm_web_smoke_step_check_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_lesson_migration_lint_step_check",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_lesson_migration_lint_step_check.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_lesson_migration_lint_step_check_selftest",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_lesson_migration_lint_step_check_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_lesson_migration_autofix_step_check",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_lesson_migration_autofix_step_check.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_lesson_migration_autofix_step_check_selftest",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_lesson_migration_autofix_step_check_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_lesson_preview_sync_step_check",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_lesson_preview_sync_step_check.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_lesson_preview_sync_step_check_selftest",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_lesson_preview_sync_step_check_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_pack_evidence_tier_step_check",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_pack_evidence_tier_step_check.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest",
+                    "cmd": [py, "tests/run_seamgrim_ci_gate_pack_evidence_tier_step_check_selftest.py"],
+                },
+                {
+                    "name": "pack_evidence_tier_report_check",
+                    "cmd": pack_evidence_tier_report_check_cmd,
+                },
+                {
+                    "name": "pack_evidence_tier_report_check_selftest",
+                    "cmd": [
+                        py,
+                        "tests/run_pack_evidence_tier_report_check_selftest.py",
+                        "--verify-report",
+                        pack_evidence_report_json_out,
+                    ],
+                },
+                {
+                    "name": "pack_evidence_tier_selftest",
+                    "cmd": [py, "tests/run_pack_evidence_tier_check_selftest.py"],
+                },
+                {
+                    "name": "graph_bridge_contract",
+                    "cmd": [py, "tests/run_seamgrim_graph_golden.py"],
+                },
+                {
+                    "name": "bridge_hash_cross_check",
+                    "cmd": [py, "tests/run_seamgrim_bridge_check_selftest.py"],
+                },
+                {
+                    "name": "graph_api_parity",
+                    "cmd": [py, "tests/run_seamgrim_graph_api_parity_check.py"],
+                },
+                {
+                    "name": "bridge_surface_api_parity",
+                    "cmd": [py, "tests/run_seamgrim_bridge_surface_api_parity_check.py"],
+                },
+                {
+                    "name": "space2d_api_parity",
+                    "cmd": [py, "tests/run_seamgrim_space2d_api_parity_check.py"],
+                },
+                {
+                    "name": "seamgrim_parity_server_lib_selftest",
+                    "cmd": [py, "tests/run_seamgrim_parity_server_lib_selftest.py"],
+                },
+                {
+                    "name": "ddn_exec_server_check",
+                    "cmd": [py, "tests/run_seamgrim_ddn_exec_server_gate_check.py"],
+                },
+                {
+                    "name": "pendulum_bogae_shape",
+                    "cmd": [py, "tests/run_seamgrim_pendulum_bogae_shape_check.py"],
+                },
+                {
+                    "name": "full_check",
+                    "cmd": full_cmd,
+                },
+            ],
         )
     )
-    steps.append(
-        run_step(
+    steps.extend(
+        run_steps_parallel(
             root,
-            "pendulum_runtime_visual",
-            [py, "tests/run_seamgrim_pendulum_runtime_visual_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "seed_runtime_visual_pack",
-            [py, "tests/run_seamgrim_seed_runtime_visual_pack_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "runtime_fallback_metrics",
-            [py, "tests/run_seamgrim_runtime_fallback_metrics_check.py"],
+            [
+                {
+                    "name": "group_id_summary",
+                    "cmd": [py, "tests/run_seamgrim_group_id_summary_check.py"],
+                },
+                {
+                    "name": "runtime_fallback_metrics",
+                    "cmd": [py, "tests/run_seamgrim_runtime_fallback_metrics_check.py"],
+                },
+            ],
         )
     )
     steps.append(
@@ -485,33 +810,307 @@ def main() -> int:
             [py, "tests/run_seamgrim_runtime_fallback_policy_check.py"],
         )
     )
-    steps.append(
-        run_step(
+    steps.extend(
+        run_steps_parallel(
             root,
-            "ddn_exec_server_check",
             [
-                py,
-                "solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py",
-                "--base-url",
-                "http://127.0.0.1:18787",
-                "--timeout-sec",
-                "15",
+                {"name": "seamgrim_bridge_family_selftest", "cmd": [py, "tests/run_seamgrim_bridge_family_selftest.py"]},
+                {
+                    "name": "seamgrim_bridge_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_bridge_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_bridge_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_bridge_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_bridge_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_bridge_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_bridge_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_bridge_family_transport_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "state_view_hash_separation_family_selftest",
+                    "cmd": [py, "tests/run_state_view_hash_separation_family_selftest.py"],
+                },
+                {
+                    "name": "state_view_hash_separation_family_contract_selftest",
+                    "cmd": [py, "tests/run_state_view_hash_separation_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "state_view_hash_separation_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_state_view_hash_separation_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "state_view_hash_separation_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_state_view_hash_separation_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "state_view_hash_separation_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_state_view_hash_separation_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_view_hash_family_selftest", "cmd": [py, "tests/run_seamgrim_view_hash_family_selftest.py"]},
+                {
+                    "name": "seamgrim_view_hash_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_view_hash_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_view_hash_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_view_hash_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_view_hash_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_view_hash_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_view_hash_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_view_hash_family_transport_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_state_view_boundary_family_selftest",
+                    "cmd": [py, "tests/run_seamgrim_state_view_boundary_family_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_state_view_boundary_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_state_view_boundary_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_state_view_boundary_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_state_view_boundary_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_state_view_boundary_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_state_view_boundary_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_state_view_boundary_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_state_view_boundary_family_transport_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_consumer_surface_family_selftest",
+                    "cmd": [py, "tests/run_seamgrim_consumer_surface_family_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_consumer_surface_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_consumer_surface_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_consumer_surface_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_consumer_surface_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_consumer_surface_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_consumer_surface_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_consumer_surface_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_consumer_surface_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_surface_family_selftest", "cmd": [py, "tests/run_seamgrim_surface_family_selftest.py"]},
+                {
+                    "name": "seamgrim_surface_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_surface_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_surface_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_surface_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_surface_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_surface_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_surface_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_surface_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_runtime_family_selftest", "cmd": [py, "tests/run_seamgrim_runtime_family_selftest.py"]},
+                {
+                    "name": "seamgrim_runtime_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_runtime_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_runtime_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_runtime_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_runtime_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_runtime_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_runtime_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_runtime_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_gate_family_selftest", "cmd": [py, "tests/run_seamgrim_gate_family_selftest.py"]},
+                {
+                    "name": "seamgrim_gate_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_gate_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_gate_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_gate_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_gate_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_gate_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_gate_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_gate_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_stack_family_selftest", "cmd": [py, "tests/run_seamgrim_stack_family_selftest.py"]},
+                {
+                    "name": "seamgrim_stack_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_stack_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_stack_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_stack_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_stack_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_stack_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_stack_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_stack_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_interaction_family_selftest", "cmd": [py, "tests/run_seamgrim_interaction_family_selftest.py"]},
+                {
+                    "name": "seamgrim_interaction_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_interaction_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_interaction_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_interaction_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_interaction_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_interaction_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_interaction_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_interaction_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_application_family_selftest", "cmd": [py, "tests/run_seamgrim_application_family_selftest.py"]},
+                {
+                    "name": "seamgrim_application_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_application_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_application_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_application_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_application_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_application_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_application_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_application_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_delivery_family_selftest", "cmd": [py, "tests/run_seamgrim_delivery_family_selftest.py"]},
+                {
+                    "name": "seamgrim_delivery_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_delivery_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_delivery_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_delivery_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_delivery_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_delivery_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_delivery_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_delivery_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_release_family_selftest", "cmd": [py, "tests/run_seamgrim_release_family_selftest.py"]},
+                {
+                    "name": "seamgrim_release_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_release_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_release_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_release_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_release_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_release_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_release_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_release_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_system_family_selftest", "cmd": [py, "tests/run_seamgrim_system_family_selftest.py"]},
+                {
+                    "name": "seamgrim_system_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_system_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_system_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_system_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_system_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_system_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_system_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_system_family_transport_contract_summary_selftest.py"],
+                },
+                {"name": "seamgrim_total_family_selftest", "cmd": [py, "tests/run_seamgrim_total_family_selftest.py"]},
+                {
+                    "name": "seamgrim_total_family_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_total_family_contract_selftest.py"],
+                    "env_extra": contract_prereq_env,
+                },
+                {
+                    "name": "seamgrim_total_family_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_total_family_contract_summary_selftest.py"],
+                },
+                {
+                    "name": "seamgrim_total_family_transport_contract_selftest",
+                    "cmd": [py, "tests/run_seamgrim_total_family_transport_contract_selftest.py"],
+                    "env_extra": transport_contract_env,
+                },
+                {
+                    "name": "seamgrim_total_family_transport_contract_summary_selftest",
+                    "cmd": [py, "tests/run_seamgrim_total_family_transport_contract_summary_selftest.py"],
+                },
             ],
         )
     )
-    steps.append(
-        run_step(
-            root,
-            "pendulum_bogae_shape",
-            [py, "tests/run_seamgrim_pendulum_bogae_shape_check.py"],
-        )
-    )
-
-    full_cmd = [py, "tests/run_seamgrim_full_check.py", "--skip-schema-gate"]
-    if args.strict_graph:
-        full_cmd.append("--strict-graph")
-    steps.append(run_step(root, "full_check", full_cmd))
-
     failed = [step for step in steps if not bool(step.get("ok"))]
     elapsed_total_ms = sum(int(step.get("elapsed_ms", 0)) for step in steps)
     result = {
@@ -524,15 +1123,20 @@ def main() -> int:
         "browse_selection_report_path": browse_selection_json_out,
         "runtime_5min_report_path": runtime_5min_json_out,
         "runtime_5min_browse_selection_report_path": runtime_browse_selection_json_out,
+        "runtime_5min_skip_ui_common": bool(args.runtime_5min_skip_ui_common),
         "with_5min_checklist": bool(args.with_5min_checklist),
         "checklist_base_url": checklist_base_url,
         "checklist_from_runtime_report": checklist_from_runtime_report,
         "checklist_json_out": checklist_json_out,
         "checklist_markdown_out": checklist_markdown_out,
+        "lesson_warning_report_path": lesson_warning_report_json_out,
+        "lesson_warning_require_zero": bool(args.lesson_warning_require_zero),
+        "require_preview_synced": bool(args.require_preview_synced),
         "ui_age3_report_path": str(args.ui_age3_json_out) if args.ui_age3_json_out else "",
         "sim_core_report_path": str(args.sim_core_json_out) if args.sim_core_json_out else "",
         "phase3_cleanup_report_path": str(args.phase3_cleanup_json_out) if args.phase3_cleanup_json_out else "",
         "rewrite_overlay_report_path": str(args.rewrite_overlay_json_out) if args.rewrite_overlay_json_out else "",
+        "pack_evidence_report_path": pack_evidence_report_json_out,
         "elapsed_total_ms": elapsed_total_ms,
         "failure_digest": build_failure_digest(steps),
         "steps": steps,
@@ -544,13 +1148,14 @@ def main() -> int:
         print(f"[report] {out}")
 
     if failed:
+        stop_parity_server(ddn_exec_server_proc)
         if args.print_drilldown:
-            print("[drilldown]")
+            safe_print("[drilldown]")
             for step in failed:
                 name = str(step.get("name", "-"))
                 diagnostics = step.get("diagnostics") or []
                 if not isinstance(diagnostics, list) or not diagnostics:
-                    print(f" - {name}: no parsed diagnostics")
+                    safe_print(f" - {name}: no parsed diagnostics")
                     continue
                 for row in diagnostics:
                     if not isinstance(row, dict):
@@ -558,13 +1163,14 @@ def main() -> int:
                     kind = str(row.get("kind", "generic_error"))
                     target = str(row.get("target", "-"))
                     detail = str(row.get("detail", "")).strip()
-                    print(f" - {name}::{kind} target={target}")
+                    safe_print(f" - {name}::{kind} target={target}")
                     if detail:
-                        print(f"   {detail}")
+                        safe_print(f"   {detail}")
         names = ", ".join(str(step.get("name")) for step in failed)
         print(f"seamgrim ci gate failed: {names}")
         return 1
 
+    stop_parity_server(ddn_exec_server_proc)
     print("seamgrim ci gate ok")
     return 0
 

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 from __future__ import annotations
 
 import subprocess
@@ -25,7 +25,7 @@ def main() -> int:
         errors="replace",
     )
     if proc.returncode != 0:
-        detail = (proc.stderr or "").strip() or (proc.stdout or "").strip() or f"returncode={proc.returncode}"
+        detail = (proc.stdout or "").strip() or (proc.stderr or "").strip() or f"returncode={proc.returncode}"
         return fail(f"runner_failed:{detail}")
 
     print((proc.stdout or "").strip() or "seamgrim control exposure policy check ok")

@@ -1,14 +1,77 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { spawnSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import { pathToFileURL } from "url";
+import { parseGuideMetaHeader } from "../solutions/seamgrim_ui_mvp/ui/components/guide_meta.js";
+
+function parseArgs(argv) {
+  const out = {
+    jsonOut: "",
+    madi: 200,
+    parallel: 6,
+  };
+  for (let i = 0; i < argv.length; i += 1) {
+    const key = argv[i];
+    if (key === "--json-out" && i + 1 < argv.length) {
+      out.jsonOut = String(argv[i + 1]);
+      i += 1;
+      continue;
+    }
+    if (key === "--madi" && i + 1 < argv.length) {
+      const parsed = Number(argv[i + 1]);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        out.madi = Math.max(1, Math.trunc(parsed));
+      }
+      i += 1;
+      continue;
+    }
+    if (key === "--parallel" && i + 1 < argv.length) {
+      const parsed = Number(argv[i + 1]);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        out.parallel = Math.max(1, Math.trunc(parsed));
+      }
+      i += 1;
+    }
+  }
+  return out;
+}
+
+const DEFAULT_OBSERVATION_ALIASES = Object.freeze([
+  "기본관찰",
+  "기본관측",
+  "기본관찰y",
+  "기본관측y",
+  "기본축y",
+  "기본y축",
+  "기본시리즈",
+  "기본계열",
+  "default_obs",
+  "default-observation",
+  "default_observation",
+  "default_y",
+  "default-y",
+  "default_series",
+  "default-series",
+  "default_signal",
+  "default-signal",
+  "obs",
+  "observation",
+  "series",
+  "y_axis",
+  "y-axis",
+  "yaxis",
+  "既定観測",
+  "既定系列",
+]);
 
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
 }
+
+const PENDULUM_CASE_IDS = new Set(["physics_pendulum_seed_v1"]);
 
 function resolveTeulCliBin(root) {
   const envBin = String(process.env.TEUL_CLI_BIN ?? "").trim();
@@ -26,19 +89,39 @@ function resolveTeulCliBin(root) {
   return "";
 }
 
-function runTeulCli(root, lessonPath, madi) {
-  const directBin = resolveTeulCliBin(root);
-  if (directBin) {
-    return spawnSync(directBin, ["run", lessonPath, "--madi", String(madi)], {
+function runTeulCliAsync(root, lessonPath, madi) {
+  return new Promise((resolve) => {
+    const directBin = resolveTeulCliBin(root);
+    const cmd = directBin || "cargo";
+    const args = directBin
+      ? ["run", lessonPath, "--madi", String(madi)]
+      : ["run", "--manifest-path", "tools/teul-cli/Cargo.toml", "--", "run", lessonPath, "--madi", String(madi)];
+    const proc = spawn(cmd, args, {
       cwd: root,
-      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "pipe"],
     });
-  }
-  return spawnSync(
-    "cargo",
-    ["run", "--manifest-path", "tools/teul-cli/Cargo.toml", "--", "run", lessonPath, "--madi", String(madi)],
-    { cwd: root, encoding: "utf-8" },
-  );
+
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    proc.stdout.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+    proc.stderr.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)));
+    proc.on("close", (code, signal) => {
+      resolve({
+        status: typeof code === "number" ? code : 1,
+        signal: signal || null,
+        stdout: Buffer.concat(stdoutChunks).toString("utf-8"),
+        stderr: Buffer.concat(stderrChunks).toString("utf-8"),
+      });
+    });
+    proc.on("error", (err) => {
+      resolve({
+        status: 1,
+        signal: "error",
+        stdout: "",
+        stderr: String(err?.message || err),
+      });
+    });
+  });
 }
 
 function preprocessForTeul(root, lessonPath, rawText) {
@@ -140,7 +223,16 @@ function extractSeriesPointsFromOutput(lines, seriesId) {
 }
 
 function readDefaultObservationKey(lessonText) {
-  const hit = String(lessonText ?? "").match(/^\s*#기본관찰\s*:\s*([A-Za-z0-9_가-힣]+)\s*$/imu);
+  const parsed = parseGuideMetaHeader(String(lessonText ?? ""));
+  const fromHeader = String(parsed?.meta?.default_observation ?? "").trim();
+  if (fromHeader) return fromHeader;
+
+  const escaped = DEFAULT_OBSERVATION_ALIASES.map((alias) => alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const pattern = new RegExp(
+    `^\\s*#\\s*(?:${escaped})\\s*:\\s*([A-Za-z0-9_가-힣]+)\\s*$`,
+    "imu",
+  );
+  const hit = String(lessonText ?? "").match(pattern);
   return String(hit?.[1] ?? "").trim();
 }
 
@@ -252,7 +344,46 @@ function normalizeExpectedShape(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-async function runCase(root, runMod, row) {
+function collectGroupIds(space2d) {
+  const shapes = Array.isArray(space2d?.shapes) ? space2d.shapes : [];
+  return shapes.map((shape) => String(shape?.group_id ?? "").trim()).filter(Boolean);
+}
+
+function loadSeedCases(root) {
+  const manifestPath = path.resolve(root, "solutions/seamgrim_ui_mvp/seed_lessons_v1/seed_manifest.detjson");
+  assert(fs.existsSync(manifestPath), `seed_manifest_missing:${manifestPath}`);
+
+  let manifestDoc = null;
+  try {
+    manifestDoc = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  } catch (err) {
+    throw new Error(`seed_manifest_parse_failed:${String(err?.message || err)}`);
+  }
+
+  const seeds = Array.isArray(manifestDoc?.seeds) ? manifestDoc.seeds : [];
+  assert(seeds.length > 0, "seed_manifest_empty");
+
+  const cases = [];
+  for (const row of seeds) {
+    if (!row || typeof row !== "object") {
+      throw new Error("seed_manifest_row_invalid");
+    }
+    const seedId = String(row.seed_id ?? "").trim();
+    assert(seedId, "seed_manifest_seed_id_missing");
+    const lessonPathFromManifest = String(row.lesson_ddn ?? "").trim();
+    const lessonPath =
+      lessonPathFromManifest ||
+      `solutions/seamgrim_ui_mvp/seed_lessons_v1/${seedId}/lesson.ddn`;
+    cases.push({
+      id: seedId,
+      lessonPath,
+      expectedShape: PENDULUM_CASE_IDS.has(seedId) ? "pendulum" : "point",
+    });
+  }
+  return cases;
+}
+
+async function runCase(root, runMod, row, madi) {
   const lessonPath = path.resolve(root, row.lessonPath);
   assert(fs.existsSync(lessonPath), `lesson_missing:${row.id}:${lessonPath}`);
   const lessonTextRaw = fs.readFileSync(lessonPath, "utf-8");
@@ -275,7 +406,7 @@ async function runCase(root, runMod, row) {
   const defaultObs = readDefaultObservationKey(lessonTextRaw);
   assert(defaultObs, `default_observation_missing:${row.id}`);
 
-  const proc = runTeulCli(root, runLessonPath, 320);
+  const proc = await runTeulCliAsync(root, runLessonPath, madi);
   cleanup();
   if (proc.status !== 0) {
     const detail = String(proc.stderr || proc.stdout || `returncode=${proc.status}`).replace(/\uFFFD/g, "?").trim();
@@ -328,8 +459,16 @@ async function runCase(root, runMod, row) {
   const fallbackTitle = String(result.meta?.title ?? "").trim();
   if (expected === "pendulum") {
     assert(fallbackTitle === "pendulum-graph-fallback", `shape_title_mismatch:${row.id}:${fallbackTitle}`);
+    assert(
+      collectGroupIds(result).join(",") === "pendulum.rod,pendulum.bob,pendulum.pivot",
+      `shape_group_id_mismatch:${row.id}:${collectGroupIds(result).join(",")}`,
+    );
   } else {
     assert(fallbackTitle === "graph-point-fallback", `shape_title_mismatch:${row.id}:${fallbackTitle}`);
+    assert(
+      collectGroupIds(result).join(",") === "graph.axis.x,graph.axis.y,graph.point.focus",
+      `shape_group_id_mismatch:${row.id}:${collectGroupIds(result).join(",")}`,
+    );
   }
   const source = nativeSpace2d ? "native-space2d" : fallbackTitle;
 
@@ -340,51 +479,56 @@ async function runCase(root, runMod, row) {
     mode,
     source,
     fallback_title: fallbackTitle,
+    group_ids: collectGroupIds(result),
   };
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const size = Array.isArray(items) ? items.length : 0;
+  if (size === 0) return [];
+  const cap = Math.max(1, Math.min(size, Math.trunc(limit || 1)));
+  const out = new Array(size);
+  let cursor = 0;
+
+  const workers = Array.from({ length: cap }, async () => {
+    while (true) {
+      const current = cursor;
+      cursor += 1;
+      if (current >= size) return;
+      out[current] = await worker(items[current], current);
+    }
+  });
+  await Promise.all(workers);
+  return out;
 }
 
 async function main() {
   const root = process.cwd();
+  const args = parseArgs(process.argv.slice(2));
   const runPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/screens/run.js");
   const runMod = await import(pathToFileURL(runPath).href);
   assert(typeof runMod.synthesizeSpace2dFromGraph === "function", "missing_export:synthesizeSpace2dFromGraph");
+  const cases = loadSeedCases(root);
+  const madi = Math.max(1, Number(args.madi) || 200);
+  const parallel = Math.max(1, Number(args.parallel) || 6);
 
-  const cases = [
-    {
-      id: "physics_pendulum_seed_v1",
-      lessonPath: "solutions/seamgrim_ui_mvp/seed_lessons_v1/physics_pendulum_seed_v1/lesson.ddn",
-      expectedShape: "pendulum",
-    },
-    {
-      id: "econ_supply_demand_seed_v1",
-      lessonPath: "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_supply_demand_seed_v1/lesson.ddn",
-      expectedShape: "point",
-    },
-    {
-      id: "econ_inventory_price_feedback_seed_v1",
-      lessonPath: "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_inventory_price_feedback_seed_v1/lesson.ddn",
-      expectedShape: "point",
-    },
-    {
-      id: "bio_sir_transition_seed_v1",
-      lessonPath: "solutions/seamgrim_ui_mvp/seed_lessons_v1/bio_sir_transition_seed_v1/lesson.ddn",
-      expectedShape: "point",
-    },
-    {
-      id: "math_quadratic_integral_seed_v1",
-      lessonPath: "solutions/seamgrim_ui_mvp/seed_lessons_v1/math_quadratic_integral_seed_v1/lesson.ddn",
-      expectedShape: "point",
-    },
-  ];
+  const results = await mapWithConcurrency(cases, parallel, (row) => runCase(root, runMod, row, madi));
 
-  const results = [];
-  for (const row of cases) {
-    const hit = await runCase(root, runMod, row);
-    results.push(hit);
+  const report = {
+    schema: "ddn.seamgrim.seed_runtime_visual_pack_report.v1",
+    generated_at_utc: new Date().toISOString(),
+    ok: true,
+    cases: results,
+  };
+  if (args.jsonOut) {
+    fs.mkdirSync(path.dirname(args.jsonOut), { recursive: true });
+    fs.writeFileSync(args.jsonOut, JSON.stringify(report, null, 2) + "\n", "utf-8");
   }
 
   const compact = results.map((row) => `${row.id}:${row.y}:${row.points}:${row.mode}:${row.source}`).join(", ");
-  console.log(`seamgrim seed runtime visual pack runner ok cases=${results.length} detail=${compact}`);
+  console.log(
+    `seamgrim seed runtime visual pack runner ok cases=${results.length} madi=${madi} parallel=${parallel} detail=${compact}`,
+  );
 }
 
 main().catch((err) => {

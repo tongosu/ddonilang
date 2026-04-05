@@ -39,6 +39,187 @@ def main() -> int:
         print("diagnostics check failed: schema_gate schema_status_drift")
         return 1
 
+    lesson_warning_diag = mod.extract_diagnostics(
+        "lesson_warning_tokens",
+        "check=lesson_warning_tokens detail=legacy_warning_tokens_nonzero:count=7:files=3:top=a.ddn:3",
+        "",
+        False,
+    )
+    if not lesson_warning_diag or lesson_warning_diag[0].get("kind") != "lesson_warning_tokens_nonzero":
+        print("diagnostics check failed: lesson_warning_tokens lesson_warning_tokens_nonzero")
+        return 1
+
+    lesson_migration_diag = mod.extract_diagnostics(
+        "lesson_migration_lint",
+        "check=lesson_migration_lint detail=priority_nonzero:count=4:files=10",
+        "",
+        False,
+    )
+    if not lesson_migration_diag or lesson_migration_diag[0].get("kind") != "lesson_migration_priority_nonzero":
+        print("diagnostics check failed: lesson_migration_lint lesson_migration_priority_nonzero")
+        return 1
+
+    lesson_migration_preview_diag = mod.extract_diagnostics(
+        "lesson_migration_lint_preview",
+        "check=lesson_migration_lint_preview detail=runner_failed:priority_nonzero",
+        "",
+        False,
+    )
+    if (
+        not lesson_migration_preview_diag
+        or lesson_migration_preview_diag[0].get("kind") != "lesson_migration_preview_runner_failed"
+    ):
+        print("diagnostics check failed: lesson_migration_lint_preview lesson_migration_preview_runner_failed")
+        return 1
+
+    lesson_preview_sync_diag = mod.extract_diagnostics(
+        "lesson_preview_sync",
+        "check=lesson_preview_sync detail=would_apply_nonzero:targets=20:would_apply=3:missing_preview=0",
+        "",
+        False,
+    )
+    if not lesson_preview_sync_diag or lesson_preview_sync_diag[0].get("kind") != "lesson_preview_sync_failed":
+        print("diagnostics check failed: lesson_preview_sync lesson_preview_sync_failed")
+        return 1
+
+    lesson_migration_autofix_diag = mod.extract_diagnostics(
+        "lesson_migration_autofix",
+        "check=lesson_migration_autofix detail=tool_failed:report_missing",
+        "",
+        False,
+    )
+    if (
+        not lesson_migration_autofix_diag
+        or lesson_migration_autofix_diag[0].get("kind") != "lesson_migration_autofix_tool_failed"
+    ):
+        print("diagnostics check failed: lesson_migration_autofix lesson_migration_autofix_tool_failed")
+        return 1
+
+    pack_evidence_tier_diag = mod.extract_diagnostics(
+        "pack_evidence_tier",
+        "check=pack_evidence_tier_check detail=repo_profile_strict_failed:issues=2",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_tier_diag
+        or pack_evidence_tier_diag[0].get("kind") != "pack_evidence_tier_repo_profile_strict_failed"
+    ):
+        print("diagnostics check failed: pack_evidence_tier pack_evidence_tier_repo_profile_strict_failed")
+        return 1
+
+    pack_evidence_docs_budget_diag = mod.extract_diagnostics(
+        "pack_evidence_tier",
+        "check=pack_evidence_tier_check detail=docs_issue_budget_exceeded:issue_count=11:max=10",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_docs_budget_diag
+        or pack_evidence_docs_budget_diag[0].get("kind") != "pack_evidence_tier_docs_issue_budget_exceeded"
+    ):
+        print("diagnostics check failed: pack_evidence_tier pack_evidence_tier_docs_issue_budget_exceeded")
+        return 1
+
+    pack_evidence_repo_expect_diag = mod.extract_diagnostics(
+        "pack_evidence_tier",
+        "check=pack_evidence_tier_check detail=repo_issue_count_unexpected:actual=1:expected=0",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_repo_expect_diag
+        or pack_evidence_repo_expect_diag[0].get("kind") != "pack_evidence_tier_repo_issue_count_unexpected"
+    ):
+        print("diagnostics check failed: pack_evidence_tier pack_evidence_tier_repo_issue_count_unexpected")
+        return 1
+
+    pack_evidence_contract_diag = mod.extract_diagnostics(
+        "pack_evidence_tier",
+        "check=pack_evidence_tier_check detail=schema_mismatch",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_contract_diag
+        or pack_evidence_contract_diag[0].get("kind") != "pack_evidence_tier_contract_failed"
+    ):
+        print("diagnostics check failed: pack_evidence_tier pack_evidence_tier_contract_failed")
+        return 1
+
+    pack_evidence_report_diag = mod.extract_diagnostics(
+        "pack_evidence_tier_report_check",
+        "check=pack_evidence_tier_report detail=report_missing:path=build/reports/missing.detjson",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_report_diag
+        or pack_evidence_report_diag[0].get("kind") != "pack_evidence_tier_report_contract_failed"
+    ):
+        print("diagnostics check failed: pack_evidence_tier_report_check pack_evidence_tier_report_contract_failed")
+        return 1
+
+    pack_evidence_report_docs_budget_diag = mod.extract_diagnostics(
+        "pack_evidence_tier_report_check",
+        "check=pack_evidence_tier_report detail=docs_issue_budget_exceeded:issue_count=11:max=10",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_report_docs_budget_diag
+        or pack_evidence_report_docs_budget_diag[0].get("kind")
+        != "pack_evidence_tier_report_docs_issue_budget_exceeded"
+    ):
+        print(
+            "diagnostics check failed: pack_evidence_tier_report_check "
+            "pack_evidence_tier_report_docs_issue_budget_exceeded"
+        )
+        return 1
+
+    pack_evidence_report_repo_expect_diag = mod.extract_diagnostics(
+        "pack_evidence_tier_report_check",
+        "check=pack_evidence_tier_report detail=repo_issue_count_unexpected:actual=1:expected=0",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_report_repo_expect_diag
+        or pack_evidence_report_repo_expect_diag[0].get("kind")
+        != "pack_evidence_tier_report_repo_issue_count_unexpected"
+    ):
+        print(
+            "diagnostics check failed: pack_evidence_tier_report_check "
+            "pack_evidence_tier_report_repo_issue_count_unexpected"
+        )
+        return 1
+
+    pack_evidence_report_selftest_diag = mod.extract_diagnostics(
+        "pack_evidence_tier_report_check_selftest",
+        "[pack-evidence-tier-report-check-selftest] fail verify-report failed rc=1",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_report_selftest_diag
+        or pack_evidence_report_selftest_diag[0].get("kind") != "pack_evidence_tier_report_selftest_failed"
+    ):
+        print(
+            "diagnostics check failed: pack_evidence_tier_report_check_selftest "
+            "pack_evidence_tier_report_selftest_failed"
+        )
+        return 1
+
+    stateful_preview_diag = mod.extract_diagnostics(
+        "stateful_sim_preview_upgrade",
+        "check=stateful_preview_upgrade detail=convertible_zero",
+        "",
+        False,
+    )
+    if not stateful_preview_diag or stateful_preview_diag[0].get("kind") != "stateful_preview_upgrade_failed":
+        print("diagnostics check failed: stateful_sim_preview_upgrade stateful_preview_upgrade_failed")
+        return 1
+
     ui_diag = mod.extract_diagnostics(
         "ui_age3_gate",
         "check=r3c_media_export missing=html:id=\"media-export-format\"",
@@ -129,6 +310,16 @@ def main() -> int:
         print("diagnostics check failed: seed_meta_files seed_meta_files_failed")
         return 1
 
+    guideblock_diag = mod.extract_diagnostics(
+        "guideblock_keys_pack",
+        "check=guideblock_keys_pack detail=runner_failed:missing_case_file:c99_missing/case.detjson",
+        "",
+        False,
+    )
+    if not guideblock_diag or guideblock_diag[0].get("kind") != "guideblock_keys_pack_failed":
+        print("diagnostics check failed: guideblock_keys_pack guideblock_keys_pack_failed")
+        return 1
+
     visual_contract_diag = mod.extract_diagnostics(
         "visual_contract",
         "check=visual_contract detail=rewrite:shape_block_missing:ssot_edu_phys_p001_01_uniform_motion_xt",
@@ -189,6 +380,45 @@ def main() -> int:
         print("diagnostics check failed: control_exposure_policy control_exposure_policy_failed")
         return 1
 
+    featured_seed_quick_launch_diag = mod.extract_diagnostics(
+        "featured_seed_quick_launch_logic",
+        "check=featured_seed_quick_launch detail=current-id next pick",
+        "",
+        False,
+    )
+    if (
+        not featured_seed_quick_launch_diag
+        or featured_seed_quick_launch_diag[0].get("kind") != "featured_seed_quick_launch_failed"
+    ):
+        print("diagnostics check failed: featured_seed_quick_launch_logic featured_seed_quick_launch_failed")
+        return 1
+
+    featured_seed_catalog_sync_diag = mod.extract_diagnostics(
+        "featured_seed_catalog_sync",
+        "check=featured_seed_catalog_sync detail=catalog_id_not_in_manifest:unknown_seed_v1",
+        "",
+        False,
+    )
+    if (
+        not featured_seed_catalog_sync_diag
+        or featured_seed_catalog_sync_diag[0].get("kind") != "featured_seed_catalog_sync_failed"
+    ):
+        print("diagnostics check failed: featured_seed_catalog_sync featured_seed_catalog_sync_failed")
+        return 1
+
+    featured_seed_catalog_autogen_diag = mod.extract_diagnostics(
+        "featured_seed_catalog_autogen",
+        "check=featured_seed_catalog_autogen detail=catalog_out_of_sync",
+        "",
+        False,
+    )
+    if (
+        not featured_seed_catalog_autogen_diag
+        or featured_seed_catalog_autogen_diag[0].get("kind") != "featured_seed_catalog_autogen_failed"
+    ):
+        print("diagnostics check failed: featured_seed_catalog_autogen featured_seed_catalog_autogen_failed")
+        return 1
+
     browse_selection_diag = mod.extract_diagnostics(
         "browse_selection_flow",
         "check=browse_selection_flow detail=selection payload object missing",
@@ -229,6 +459,16 @@ def main() -> int:
         print("diagnostics check failed: overlay_compare_pack fail-line overlay_compare_case_failed")
         return 1
 
+    overlay_check_fail_diag = mod.extract_diagnostics(
+        "overlay_compare_pack",
+        "overlay compare pack check failed",
+        "",
+        False,
+    )
+    if not overlay_check_fail_diag or overlay_check_fail_diag[0].get("kind") != "overlay_compare_pack_failed":
+        print("diagnostics check failed: overlay_compare_pack check-fail overlay_compare_pack_failed")
+        return 1
+
     overlay_session_diag = mod.extract_diagnostics(
         "overlay_session_pack",
         "check=c03_drop_variant_on_axis_mismatch enabled=1 baseline=run-base variant=- dropped=1 drop_code=mismatch_xUnit",
@@ -237,6 +477,16 @@ def main() -> int:
     )
     if not overlay_session_diag or overlay_session_diag[0].get("kind") != "overlay_session_case_failed":
         print("diagnostics check failed: overlay_session_pack overlay_session_case_failed")
+        return 1
+
+    overlay_session_check_fail_diag = mod.extract_diagnostics(
+        "overlay_session_pack",
+        "overlay session pack check failed",
+        "",
+        False,
+    )
+    if not overlay_session_check_fail_diag or overlay_session_check_fail_diag[0].get("kind") != "overlay_session_pack_failed":
+        print("diagnostics check failed: overlay_session_pack check-fail overlay_session_pack_failed")
         return 1
 
     overlay_session_diag = mod.extract_diagnostics(
@@ -249,9 +499,52 @@ def main() -> int:
         print("diagnostics check failed: overlay_session_contract overlay_session_contract_failed")
         return 1
 
+    overlay_session_wired_diag = mod.extract_diagnostics(
+        "overlay_session_wired_consistency",
+        "overlay session wired consistency check failed:\n - missing token: app_js:buildOverlayCompareSessionPayload(",
+        "",
+        False,
+    )
+    if not overlay_session_wired_diag or overlay_session_wired_diag[0].get("kind") != "overlay_session_wired_consistency_failed":
+        print("diagnostics check failed: overlay_session_wired_consistency overlay_session_wired_consistency_failed")
+        return 1
+    if len(overlay_session_wired_diag) < 2 or overlay_session_wired_diag[1].get("kind") != "overlay_session_wired_token_missing":
+        print("diagnostics check failed: overlay_session_wired_consistency overlay_session_wired_token_missing")
+        return 1
+
+    wasm_cli_diag_parity_diag = mod.extract_diagnostics(
+        "seamgrim_wasm_cli_diag_parity_check",
+        (
+            "check=numeric_factor_route_diag_contract detail="
+            "numeric_family_factor_route_metrics_diag_event_is_emitted failed (rc=1, marker=False)\n"
+            "[seamgrim-wasm-cli-diag-parity] fail: numeric_factor_route_diag_contract rc=1 "
+            "cmd=python tests/run_numeric_factor_route_diag_contract_check.py stdout=... stderr=..."
+        ),
+        "",
+        False,
+    )
+    if (
+        not wasm_cli_diag_parity_diag
+        or wasm_cli_diag_parity_diag[0].get("kind") != "numeric_factor_route_diag_contract_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_wasm_cli_diag_parity_check "
+            "numeric_factor_route_diag_contract_failed"
+        )
+        return 1
+    if (
+        len(wasm_cli_diag_parity_diag) < 2
+        or wasm_cli_diag_parity_diag[1].get("kind") != "wasm_cli_diag_parity_numeric_factor_route_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_wasm_cli_diag_parity_check "
+            "wasm_cli_diag_parity_numeric_factor_route_failed"
+        )
+        return 1
+
     age5_diag = mod.extract_diagnostics(
         "age5_close",
-        "[age5-close] overall_ok=0 criteria=13 failed=1 report=build/reports/age5_close_report.detjson\n - s5_detailed_dod_checked: ok=0",
+        "[age5-close] strict=1 overall_ok=0 criteria=13 failed=1 report=build/reports/age5_close_report.detjson\n - s5_detailed_dod_checked: ok=0",
         "",
         False,
     )
@@ -267,6 +560,201 @@ def main() -> int:
     )
     if not deploy_diag or deploy_diag[0].get("kind") != "deploy_artifact_mismatch":
         print("diagnostics check failed: deploy_artifacts deploy_artifact_mismatch")
+        return 1
+
+    wasm_web_step_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_wasm_web_smoke_step_check",
+        "seamgrim ci gate wasm/web smoke step check failed:\n - missing token: tests/run_seamgrim_ci_gate.py::token_missing::\"seamgrim_ci_gate_wasm_web_smoke_step_check\"",
+        "",
+        False,
+    )
+    if not wasm_web_step_diag or wasm_web_step_diag[0].get("kind") != "wasm_web_smoke_step_check_failed":
+        print("diagnostics check failed: seamgrim_ci_gate_wasm_web_smoke_step_check wasm_web_smoke_step_check_failed")
+        return 1
+    if len(wasm_web_step_diag) < 2 or wasm_web_step_diag[1].get("kind") != "wasm_web_smoke_step_token_missing":
+        print("diagnostics check failed: seamgrim_ci_gate_wasm_web_smoke_step_check wasm_web_smoke_step_token_missing")
+        return 1
+
+    wasm_web_step_selftest_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
+        "[seamgrim-ci-gate-wasm-web-smoke-step-check-selftest] fail verify-report code must be OK",
+        "",
+        False,
+    )
+    if (
+        not wasm_web_step_selftest_diag
+        or wasm_web_step_selftest_diag[0].get("kind") != "wasm_web_smoke_step_selftest_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_wasm_web_smoke_step_check_selftest wasm_web_smoke_step_selftest_failed"
+        )
+        return 1
+
+    lesson_migration_step_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_lesson_migration_lint_step_check",
+        "seamgrim ci gate lesson migration lint step check failed:\n - missing token: tests/run_seamgrim_ci_gate.py::token_missing::\"lesson_migration_lint\"",
+        "",
+        False,
+    )
+    if (
+        not lesson_migration_step_diag
+        or lesson_migration_step_diag[0].get("kind") != "lesson_migration_step_check_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_migration_lint_step_check lesson_migration_step_check_failed"
+        )
+        return 1
+    if (
+        len(lesson_migration_step_diag) < 2
+        or lesson_migration_step_diag[1].get("kind") != "lesson_migration_step_check_token_missing"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_migration_lint_step_check lesson_migration_step_check_token_missing"
+        )
+        return 1
+
+    lesson_migration_step_selftest_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_lesson_migration_lint_step_check_selftest",
+        "[seamgrim-ci-gate-lesson-migration-lint-step-check-selftest] fail verify-report code must be OK",
+        "",
+        False,
+    )
+    if (
+        not lesson_migration_step_selftest_diag
+        or lesson_migration_step_selftest_diag[0].get("kind") != "lesson_migration_step_selftest_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_migration_lint_step_check_selftest lesson_migration_step_selftest_failed"
+        )
+        return 1
+
+    lesson_migration_autofix_step_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_lesson_migration_autofix_step_check",
+        "seamgrim ci gate lesson migration autofix step check failed:\n - missing token: tests/run_seamgrim_ci_gate.py::token_missing::\"lesson_migration_autofix\"",
+        "",
+        False,
+    )
+    if (
+        not lesson_migration_autofix_step_diag
+        or lesson_migration_autofix_step_diag[0].get("kind") != "lesson_migration_autofix_step_check_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_migration_autofix_step_check lesson_migration_autofix_step_check_failed"
+        )
+        return 1
+    if (
+        len(lesson_migration_autofix_step_diag) < 2
+        or lesson_migration_autofix_step_diag[1].get("kind")
+        != "lesson_migration_autofix_step_check_token_missing"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_migration_autofix_step_check lesson_migration_autofix_step_check_token_missing"
+        )
+        return 1
+
+    lesson_migration_autofix_step_selftest_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_lesson_migration_autofix_step_check_selftest",
+        "[seamgrim-ci-gate-lesson-migration-autofix-step-check-selftest] fail verify-report code must be OK",
+        "",
+        False,
+    )
+    if (
+        not lesson_migration_autofix_step_selftest_diag
+        or lesson_migration_autofix_step_selftest_diag[0].get("kind")
+        != "lesson_migration_autofix_step_selftest_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_migration_autofix_step_check_selftest lesson_migration_autofix_step_selftest_failed"
+        )
+        return 1
+
+    lesson_preview_sync_step_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_lesson_preview_sync_step_check",
+        "seamgrim ci gate lesson preview sync step check failed:\n - missing token: tests/run_seamgrim_ci_gate.py::token_missing::\"lesson_preview_sync\"",
+        "",
+        False,
+    )
+    if (
+        not lesson_preview_sync_step_diag
+        or lesson_preview_sync_step_diag[0].get("kind") != "lesson_preview_sync_step_check_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_preview_sync_step_check lesson_preview_sync_step_check_failed"
+        )
+        return 1
+    if (
+        len(lesson_preview_sync_step_diag) < 2
+        or lesson_preview_sync_step_diag[1].get("kind") != "lesson_preview_sync_step_check_token_missing"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_preview_sync_step_check lesson_preview_sync_step_check_token_missing"
+        )
+        return 1
+
+    lesson_preview_sync_step_selftest_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_lesson_preview_sync_step_check_selftest",
+        "[seamgrim-ci-gate-lesson-preview-sync-step-check-selftest] fail verify-report code must be OK",
+        "",
+        False,
+    )
+    if (
+        not lesson_preview_sync_step_selftest_diag
+        or lesson_preview_sync_step_selftest_diag[0].get("kind") != "lesson_preview_sync_step_selftest_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_lesson_preview_sync_step_check_selftest lesson_preview_sync_step_selftest_failed"
+        )
+        return 1
+
+    pack_evidence_tier_step_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_pack_evidence_tier_step_check",
+        "seamgrim ci gate pack evidence tier step check failed:\n - missing token: tests/run_seamgrim_ci_gate.py::token_missing::\"pack_evidence_tier\"",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_tier_step_diag
+        or pack_evidence_tier_step_diag[0].get("kind") != "pack_evidence_tier_step_check_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_pack_evidence_tier_step_check pack_evidence_tier_step_check_failed"
+        )
+        return 1
+    if (
+        len(pack_evidence_tier_step_diag) < 2
+        or pack_evidence_tier_step_diag[1].get("kind") != "pack_evidence_tier_step_check_token_missing"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_pack_evidence_tier_step_check pack_evidence_tier_step_check_token_missing"
+        )
+        return 1
+
+    pack_evidence_tier_step_selftest_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest",
+        "[seamgrim-ci-gate-pack-evidence-tier-step-check-selftest] fail verify-report code must be OK",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_tier_step_selftest_diag
+        or pack_evidence_tier_step_selftest_diag[0].get("kind") != "pack_evidence_tier_step_selftest_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_pack_evidence_tier_step_check_selftest pack_evidence_tier_step_selftest_failed"
+        )
+        return 1
+
+    pack_evidence_tier_selftest_diag = mod.extract_diagnostics(
+        "pack_evidence_tier_selftest",
+        "[pack-evidence-tier-check-selftest] fail docs budget fail marker missing",
+        "",
+        False,
+    )
+    if (
+        not pack_evidence_tier_selftest_diag
+        or pack_evidence_tier_selftest_diag[0].get("kind") != "pack_evidence_tier_selftest_failed"
+    ):
+        print("diagnostics check failed: pack_evidence_tier_selftest pack_evidence_tier_selftest_failed")
         return 1
 
     ddn_exec_diag = mod.extract_diagnostics(
@@ -307,6 +795,29 @@ def main() -> int:
     )
     if not seed_runtime_visual_pack_diag or seed_runtime_visual_pack_diag[0].get("kind") != "seed_runtime_visual_pack_failed":
         print("diagnostics check failed: seed_runtime_visual_pack seed_runtime_visual_pack_failed")
+        return 1
+
+    group_id_summary_diag = mod.extract_diagnostics(
+        "group_id_summary",
+        "[seamgrim-group-id-summary] fail: overlay compare group_ids mismatch: ['-']",
+        "",
+        False,
+    )
+    if not group_id_summary_diag or group_id_summary_diag[0].get("kind") != "group_id_summary_failed":
+        print("diagnostics check failed: group_id_summary group_id_summary_failed")
+        return 1
+
+    moyang_view_boundary_pack_diag = mod.extract_diagnostics(
+        "moyang_view_boundary_pack",
+        "check=moyang_view_boundary_pack detail=runner_failed:error",
+        "",
+        False,
+    )
+    if (
+        not moyang_view_boundary_pack_diag
+        or moyang_view_boundary_pack_diag[0].get("kind") != "moyang_view_boundary_pack_failed"
+    ):
+        print("diagnostics check failed: moyang_view_boundary_pack moyang_view_boundary_pack_failed")
         return 1
 
     runtime_fallback_metrics_diag = mod.extract_diagnostics(
@@ -367,6 +878,16 @@ def main() -> int:
     )
     if not runtime_5min_diag or runtime_5min_diag[0].get("kind") != "runtime_5min_failed":
         print("diagnostics check failed: runtime_5min runtime_5min_failed")
+        return 1
+
+    runtime_5min_subcheck_diag = mod.extract_diagnostics(
+        "runtime_5min",
+        "[ui_pendulum_runner] fail (97ms)",
+        "",
+        False,
+    )
+    if not runtime_5min_subcheck_diag or runtime_5min_subcheck_diag[0].get("kind") != "runtime_5min_subcheck_failed":
+        print("diagnostics check failed: runtime_5min runtime_5min_subcheck_failed")
         return 1
 
     runtime_5min_checklist_diag = mod.extract_diagnostics(

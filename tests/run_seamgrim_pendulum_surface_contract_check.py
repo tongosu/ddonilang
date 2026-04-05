@@ -11,6 +11,59 @@ LEGACY_CONTROL_PATTERNS = [
     re.compile(r"^\s*#\s*조절\s*:", re.IGNORECASE),
 ]
 
+DEFAULT_OBS_Y_ALIASES = (
+    "기본관찰",
+    "기본관측",
+    "기본관찰y",
+    "기본관측y",
+    "기본축y",
+    "기본y축",
+    "기본시리즈",
+    "기본계열",
+    "default_obs",
+    "default-observation",
+    "default_observation",
+    "default_y",
+    "default-y",
+    "default_series",
+    "default-series",
+    "default_signal",
+    "default-signal",
+    "obs",
+    "observation",
+    "series",
+    "y_axis",
+    "y-axis",
+    "yaxis",
+    "既定観測",
+    "既定系列",
+)
+
+DEFAULT_OBS_X_ALIASES = (
+    "기본관찰x",
+    "기본관측x",
+    "기본x축",
+    "기본축x",
+    "기본관찰X",
+    "기본관측X",
+    "기본X축",
+    "기본축X",
+    "기본가로축",
+    "default_obs_x",
+    "default-observation-x",
+    "default_observation_x",
+    "default_x",
+    "default-x",
+    "default_x_axis",
+    "default-x-axis",
+    "default_xaxis",
+    "x_axis",
+    "x-axis",
+    "xaxis",
+    "既定観測X",
+    "既定横軸",
+)
+
 
 def fail(detail: str) -> int:
     print(f"check=pendulum_surface_contract detail={detail}")
@@ -57,6 +110,11 @@ def extract_tick_block_show_vars(text: str) -> list[str]:
     return out
 
 
+def has_meta_alias(text: str, aliases: tuple[str, ...]) -> bool:
+    pattern = r"^\s*#\s*(?:" + "|".join(re.escape(alias) for alias in aliases) + r")\s*:"
+    return bool(re.search(pattern, text, re.IGNORECASE | re.MULTILINE))
+
+
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
     lesson = root / "solutions" / "seamgrim_ui_mvp" / "seed_lessons_v1" / "physics_pendulum_seed_v1" / "lesson.ddn"
@@ -66,15 +124,15 @@ def main() -> int:
     text = lesson.read_text(encoding="utf-8")
     lines = text.splitlines()
 
-    if not re.search(r"^\s*채비\s*:\s*\{", text, re.MULTILINE):
+    if not re.search(r"^\s*채비\s*:?\s*\{", text, re.MULTILINE):
         return fail("prep_block_missing")
     if "(시작)할때" not in text:
         return fail("start_block_missing")
     if "(매마디)마다" not in text:
         return fail("tick_block_missing")
-    if not re.search(r"^\s*#기본관찰x\s*:", text, re.MULTILINE):
+    if not has_meta_alias(text, DEFAULT_OBS_X_ALIASES):
         return fail("default_x_meta_missing")
-    if not re.search(r"^\s*#기본관찰\s*:", text, re.MULTILINE):
+    if not has_meta_alias(text, DEFAULT_OBS_Y_ALIASES):
         return fail("default_y_meta_missing")
     has_shape_block = bool(re.search(r"^\s*(보개|모양)\s*:?\s*\{", text, re.MULTILINE))
     has_shape_markers = bool(re.search(r'"space2d(\.shape)?"', text)) and bool(re.search(r"보여주기\.", text))

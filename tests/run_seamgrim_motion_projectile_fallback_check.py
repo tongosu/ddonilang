@@ -5,6 +5,7 @@ import argparse
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -46,6 +47,16 @@ def split_output_lines(stdout: str) -> list[str]:
     return [raw.strip() for raw in (stdout or "").splitlines() if raw.strip()]
 
 
+def strip_legacy_pragma_lines(text: str) -> str:
+    source = str(text or "")
+    lines = source.splitlines()
+    filtered = [line for line in lines if not str(line).lstrip().startswith("#")]
+    rendered = "\n".join(filtered)
+    if source.endswith("\n"):
+        rendered += "\n"
+    return rendered
+
+
 def extract_series_points(lines: list[str], series_id: str) -> list[tuple[float, float]]:
     target = f"series:{str(series_id or '').strip().lower()}"
     if not target or target == "series:":
@@ -79,15 +90,20 @@ def extract_series_points(lines: list[str], series_id: str) -> list[tuple[float,
 
 
 def run_lesson_output(root: Path, teul_cli: Path, lesson: Path, madi: int) -> tuple[list[float], list[str]]:
-    cmd = [str(teul_cli), "run", str(lesson), "--madi", str(max(1, int(madi)))]
-    proc = subprocess.run(
-        cmd,
-        cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    source_text = lesson.read_text(encoding="utf-8")
+    sanitized_text = strip_legacy_pragma_lines(source_text)
+    with tempfile.TemporaryDirectory(prefix="seamgrim_motion_projectile_fallback_") as temp_dir:
+        lesson_copy = Path(temp_dir) / lesson.name
+        lesson_copy.write_text(sanitized_text, encoding="utf-8")
+        cmd = [str(teul_cli), "run", str(lesson_copy), "--madi", str(max(1, int(madi)))]
+        proc = subprocess.run(
+            cmd,
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
     if proc.returncode != 0:
         detail = (proc.stderr or "").strip() or (proc.stdout or "").strip() or f"returncode={proc.returncode}"
         raise RuntimeError(detail)

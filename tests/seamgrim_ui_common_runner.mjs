@@ -147,10 +147,12 @@ async function main() {
   const runtimeStatePath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/seamgrim_runtime_state.js");
   const ddnPreprocessPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/runtime/ddn_preprocess.js");
   const controlParserPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/components/control_parser.js");
+  const sliderPanelPath = path.resolve(root, "solutions/seamgrim_ui_mvp/ui/components/slider_panel.js");
   const common = await import(pathToFileURL(modulePath).href);
   const runtimeState = await import(pathToFileURL(runtimeStatePath).href);
   const ddnPreprocess = await import(pathToFileURL(ddnPreprocessPath).href);
   const controlParser = await import(pathToFileURL(controlParserPath).href);
+  const sliderPanelMod = await import(pathToFileURL(sliderPanelPath).href);
 
   const {
     applyWasmParamDraftToControls,
@@ -185,6 +187,7 @@ async function main() {
     normalizeWasmStepInput,
     observationChannelSignature,
     parsePatchJsonObject,
+    parseGuideMetaHeader,
     pushObservationLensSample,
     processPatchOperations,
     removePatchComponentStoreEntry,
@@ -192,6 +195,7 @@ async function main() {
     renderGraphOrSpace2dCanvas,
     renderObservationChannelList,
     renderSpace2dCanvas2d,
+    selectSpace2dPrimitiveItems,
     applyObservationRenderEffects,
     dispatchWasmStateApply,
     dispatchWasmStateApplyWithSource,
@@ -217,11 +221,14 @@ async function main() {
   } = common;
   const {
     extractObservationChannelsFromState,
+    extractObservationOutputRowsFromState,
     extractStructuredViewsFromState,
     normalizeWasmStatePayload,
+    resolveStructuredViewStackFromState,
   } = runtimeState;
   const { preprocessDdnText } = ddnPreprocess;
-  const { buildControlSpecsFromDdn } = controlParser;
+  const { applyControlValuesToDdnText, buildControlSpecsFromDdn } = controlParser;
+  const { SliderPanel } = sliderPanelMod;
 
   const preprocessLegacyShow = preprocessDdnText('"안녕"을 보여주기.\n"세계"를 보여주기.\n// "주석"을 보여주기.\n');
   assert(preprocessLegacyShow.bodyText.includes("매틱:움직씨 = {"), "ddn preprocess: wrap movement seed");
@@ -307,6 +314,7 @@ async function main() {
   const lifecycleChabiPos = lifecycleBody.indexOf("채비:");
   const lifecycleMovementPos = lifecycleBody.indexOf("매틱:움직씨 = {");
   const lifecycleStartGuardPos = lifecycleBody.indexOf("{ __wasm_start_once <= 0 }인것 일때 {");
+  const lifecycleStartDeclPos = lifecycleBody.indexOf("__wasm_start_once:수 <- 0.");
   const lifecycleStartInitPos = lifecycleBody.indexOf("t <- 0.");
   const lifecycleResetPos = lifecycleBody.indexOf("보개_출력_줄들 <- () 차림.");
   assert(
@@ -322,12 +330,150 @@ async function main() {
     "ddn preprocess: place start body inside wasm start-once guard",
   );
   assert(
+    lifecycleStartDeclPos >= 0 && lifecycleStartDeclPos < lifecycleMovementPos,
+    "ddn preprocess: declare wasm start guard state inside decl block",
+  );
+  assert(
     !lifecycleBody.includes("내부시작완료"),
     "ddn preprocess: remove legacy synthetic guard key",
   );
   assert(
     lifecycleResetPos > lifecycleMovementPos,
     "ddn preprocess: inject output reset inside movement seed",
+  );
+
+  const preprocessLegacyLifecycleAliases = preprocessDdnText(`
+채비: {
+  길이:수 <- 1.
+}.
+(처음)할때: {
+  t <- 0.
+  theta <- 0.5.
+}.
+(매틱)마다: {
+  t <- t + 0.1.
+  t 보여주기.
+}.
+`);
+  const lifecycleAliasBody = preprocessLegacyLifecycleAliases.bodyText;
+  const lifecycleAliasMovementPos = lifecycleAliasBody.indexOf("매틱:움직씨 = {");
+  const lifecycleAliasStartGuardPos = lifecycleAliasBody.indexOf("{ __wasm_start_once <= 0 }인것 일때 {");
+  const lifecycleAliasStartInitPos = lifecycleAliasBody.indexOf("t <- 0.");
+  assert(
+    !lifecycleAliasBody.includes("(처음)할때") &&
+      !lifecycleAliasBody.includes("(시작)할때") &&
+      !lifecycleAliasBody.includes("(매틱)마다") &&
+      !lifecycleAliasBody.includes("(매마디)마다"),
+    "ddn preprocess: alias/colon lifecycle hooks rewritten into movement",
+  );
+  assert(
+    lifecycleAliasMovementPos >= 0,
+    "ddn preprocess: alias/colon lifecycle creates movement seed",
+  );
+  assert(
+    lifecycleAliasStartGuardPos >= 0 && lifecycleAliasStartInitPos > lifecycleAliasStartGuardPos,
+    "ddn preprocess: alias/colon start body kept inside wasm start-once guard",
+  );
+
+  const preprocessLegacyLifecycleEveryN = preprocessDdnText(`
+채비: {
+  길이:수 <- 1.
+}.
+(시작)할때 {
+  t <- 0.
+}.
+(3마디)마다: {
+  t <- t + 1.
+  t 보여주기.
+}.
+`);
+  const lifecycleEveryNBody = preprocessLegacyLifecycleEveryN.bodyText;
+  const lifecycleEveryNDeclPos = lifecycleEveryNBody.indexOf("__wasm_tick_every_3:수 <- 0.");
+  const lifecycleEveryNMovementPos = lifecycleEveryNBody.indexOf("매틱:움직씨 = {");
+  assert(
+    !lifecycleEveryNBody.includes("(3마디)마다") && !lifecycleEveryNBody.includes("(시작)할때"),
+    "ddn preprocess: every-n lifecycle hooks rewritten into movement",
+  );
+  assert(
+    lifecycleEveryNDeclPos >= 0 && lifecycleEveryNDeclPos < lifecycleEveryNMovementPos,
+    "ddn preprocess: every-n lifecycle declares interval state in decl block",
+  );
+  assert(
+    lifecycleEveryNBody.includes("{ __wasm_tick_every_3 <= 0 }인것 일때 {"),
+    "ddn preprocess: every-n lifecycle injects interval guard",
+  );
+  assert(
+    lifecycleEveryNBody.includes("__wasm_tick_every_3 <- __wasm_tick_every_3 + 1."),
+    "ddn preprocess: every-n lifecycle increments interval counter",
+  );
+  assert(
+    lifecycleEveryNBody.includes("{ __wasm_tick_every_3 >= 3 }인것 일때 {"),
+    "ddn preprocess: every-n lifecycle wraps interval counter",
+  );
+
+  const preprocessLegacyDeclBlock = preprocessDdnText(`
+그릇채비: {
+  보드_가로:수 <- 10.
+  보드_세로:수 <- 20.
+  보드:글 <- (보드_가로, 보드_세로) tetris_board_new.
+}.
+`);
+  assert(
+    preprocessLegacyDeclBlock.bodyText.includes("채비: {"),
+    "ddn preprocess: legacy decl header upgraded to 채비",
+  );
+  assert(
+    !preprocessLegacyDeclBlock.bodyText.includes("그릇채비:"),
+    "ddn preprocess: legacy decl header removed",
+  );
+  assert(
+    preprocessLegacyDeclBlock.bodyText.includes("보드:글 <- ((보드_가로, 보드_세로) tetris_board_new)."),
+    "ddn preprocess: decl init call wrapped for parser compatibility",
+  );
+
+  const preprocessDeepMapInit = preprocessDdnText(`
+채비: {
+  현재:묶음.
+}.
+(매마디)마다 {
+  현재.생김새.결 <- "#보개/2D.Sprite".
+  현재.생김새.색 <- "#ffffffff".
+}.
+`);
+  assert(
+    preprocessDeepMapInit.bodyText.includes("현재 <- () 짝맞춤."),
+    "ddn preprocess: deep map root init inserted",
+  );
+  assert(
+    preprocessDeepMapInit.bodyText.includes("현재.생김새 <- () 짝맞춤."),
+    "ddn preprocess: deep map first field init inserted",
+  );
+  assert(
+    preprocessDeepMapInit.bodyText.indexOf("현재 <- () 짝맞춤.") <
+      preprocessDeepMapInit.bodyText.indexOf('현재.생김새.결 <- "#보개/2D.Sprite".'),
+    "ddn preprocess: deep map init appears before first nested write",
+  );
+
+  const preprocessLegacyBoimTable = preprocessDdnText(`
+(매마디)마다 {
+  보임 {
+    t: t.
+    섭씨: 섭씨안내.
+    화씨: 화씨안내.
+  }.
+}.
+`);
+  assert(
+    preprocessLegacyBoimTable.bodyText.includes('("table.row") 글로'),
+    "ddn preprocess: legacy boim emits table row marker",
+  );
+  assert(
+    preprocessLegacyBoimTable.bodyText.includes('("섭씨") 글로'),
+    "ddn preprocess: legacy boim keeps column key",
+  );
+  assert(
+    preprocessLegacyBoimTable.bodyText.includes('(섭씨안내) 글로'),
+    "ddn preprocess: legacy boim keeps column value",
   );
 
   const controlSplit = buildControlSpecsFromDdn(`
@@ -362,6 +508,102 @@ async function main() {
   assert(gSpec && Math.abs(gSpec.value - 9.8) < 1e-9, "control parser: decimal default g");
   assert(theta0Spec && Math.abs(theta0Spec.value - 0.5) < 1e-9, "control parser: decimal default theta0");
   assert(dtSpec && Math.abs(dtSpec.value - 0.02) < 1e-9, "control parser: decimal default dt");
+
+  const controlMaegim = buildControlSpecsFromDdn(`
+채비: {
+  g:수 = (9.8) 조건 {
+    범위: 1..20.
+    간격: 0.1.
+  }.
+  theta0:수 <- (0.5) 매김 {
+    범위: -1.2..1.2.
+    간격: 0.05.
+  }.
+}
+`);
+  const maegimGSpec = controlMaegim.specs.find((item) => item.name === "g");
+  const maegimThetaSpec = controlMaegim.specs.find((item) => item.name === "theta0");
+  assert(maegimGSpec && Math.abs(maegimGSpec.value - 9.8) < 1e-9, "control parser: maegim default g");
+  assert(maegimGSpec && maegimGSpec.min === 1 && maegimGSpec.max === 20 && maegimGSpec.step === 0.1, "control parser: maegim range g");
+  assert(maegimThetaSpec && maegimThetaSpec.min === -1.2 && maegimThetaSpec.max === 1.2, "control parser: maegim range theta0");
+  const controlFromJson = buildControlSpecsFromDdn(
+    `
+채비: {
+  g:수 = (9.8) 조건 {
+    범위: 0..1.
+    간격: 0.2.
+  }.
+  각도: 변수 <- 0.5. // 기본관찰
+}
+`,
+    {
+      maegimControlJson: JSON.stringify({
+        schema: "ddn.maegim_control_plan.v1",
+        warnings: [
+          {
+            code: "W_LEGACY_RANGE_COMMENT_DEPRECATED",
+            message: "deprecated",
+            name: "g",
+            source: "prep_comment",
+          },
+        ],
+        controls: [
+          {
+            name: "g",
+            decl_kind: "butbak",
+            type_name: "수",
+            init_expr_canon: "9.8",
+            fields: [
+              { name: "범위", value_canon: "1..20" },
+              { name: "간격", value_canon: "0.1" },
+            ],
+            range: { min_expr_canon: "1", max_expr_canon: "20", inclusive_end: false },
+            step_expr_canon: "0.1",
+          },
+        ],
+      }),
+    },
+  );
+  const jsonGSpec = controlFromJson.specs.find((item) => item.name === "g");
+  assert(controlFromJson.source === "maegim_control_json", "control parser: maegim control json source");
+  assert(jsonGSpec && jsonGSpec.min === 1 && jsonGSpec.max === 20 && jsonGSpec.step === 0.1, "control parser: maegim control json priority");
+  assert(controlFromJson.axisKeys.includes("각도"), "control parser: maegim control json keeps axis parse");
+  assert(controlFromJson.warnings.length === 1, "control parser: maegim control json warnings");
+  assert(controlFromJson.warnings[0].code === "W_LEGACY_RANGE_COMMENT_DEPRECATED", "control parser: maegim control warning code");
+  const controlFromJsonFallback = buildControlSpecsFromDdn(
+    `
+채비: {
+  g:수 <- 9.8. // 범위(1, 20, 0.1)
+}
+`,
+    { maegimControlJson: "{broken" },
+  );
+  assert(controlFromJsonFallback.source === "prep", "control parser: invalid maegim json fallback");
+  assert(controlFromJsonFallback.warnings.length === 1, "control parser: invalid maegim json fallback warnings");
+  assert(controlFromJsonFallback.warnings[0].name === "g", "control parser: legacy warning keeps name");
+  const sliderStatusEl = { textContent: "" };
+  const sliderPanel = new SliderPanel({ container: null, statusEl: sliderStatusEl });
+  sliderPanel.parseFromDdn(
+    `
+채비: {
+  g:수 <- 9.8. // 범위(1, 20, 0.1)
+}
+`,
+    { maegimControlJson: "" },
+  );
+  assert(sliderStatusEl.textContent.includes("구식 범위주석 1건"), "slider panel: legacy warning status");
+  const maegimApplied = applyControlValuesToDdnText(
+    `
+채비: {
+  g:수 = (9.8) 조건 {
+    범위: 1..20.
+    간격: 0.1.
+  }.
+}
+`,
+    { g: 12.5 },
+  );
+  assert(maegimApplied.includes("g:수 = (12.5) 조건 {"), "control parser: apply control into maegim header");
 
   const controlPolicySeedIgnore = buildControlSpecsFromDdn(`
 채비: {
@@ -427,6 +669,37 @@ async function main() {
   const priorityViews = extractStructuredViewsFromState(priorityPayload);
   assert(priorityViews && typeof priorityViews === "object", "runtime state: structured views object");
   assert(Object.prototype.hasOwnProperty.call(priorityViews, "space2d"), "runtime state: structured space2d key");
+  assert(priorityViews.viewStack?.primary?.family === "space2d", "runtime state: view stack primary inferred");
+  assert(Array.isArray(priorityViews.families) && priorityViews.families.includes("space2d"), "runtime state: families exposed");
+
+  const metaStackPayload = {
+    ...priorityPayload,
+    resources: {
+      json: {},
+      fixed64: {},
+      handle: {},
+      value: {
+        table_like: JSON.stringify({
+          schema: "seamgrim.table.v0",
+          columns: [{ key: "x" }],
+          rows: [{ x: 1 }],
+        }),
+        text_like: JSON.stringify({ markdown: "설명" }),
+      },
+    },
+    view_meta: {
+      ...priorityPayload.view_meta,
+      primary: { family: "graph", role: "main" },
+      secondary: [{ family: "table", role: "data" }],
+      overlays: [{ family: "text", role: "label" }],
+    },
+  };
+  const metaStackViews = extractStructuredViewsFromState(metaStackPayload, { preferPatch: false });
+  assert(metaStackViews.viewStack?.primary?.family === "graph", "runtime state: view_meta primary respected");
+  assert(metaStackViews.viewStack?.secondary?.[0]?.family === "table", "runtime state: view_meta secondary respected");
+  assert(metaStackViews.viewStack?.overlays?.[0]?.family === "text", "runtime state: view_meta overlays respected");
+  const resolvedMetaStack = resolveStructuredViewStackFromState(metaStackViews);
+  assert(resolvedMetaStack.primary?.family === "graph", "runtime state: standalone view stack resolver");
 
   const showPayload = {
     schema: "seamgrim.engine_response.v0",
@@ -506,6 +779,19 @@ async function main() {
   assert(Array.isArray(outputLineLegacyViews.space2d.shapes), "output lines legacy: shapes array");
   assert(outputLineLegacyViews.space2d.shapes.length === 1, "output lines legacy: shape count");
   assert(outputLineLegacyViews.space2d.shapes[0].kind === "point", "output lines legacy: point kind");
+  assert(outputLineLegacyViews.space2d.shapes[0].group_id === undefined, "output lines legacy: group id absent by default");
+
+  const outputLinesGroupPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: ['차림["space2d","space2d.shape","point","x","0.25","y","-0.5","그룹","pendulum.body"]'],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputLineGroupViews = extractStructuredViewsFromState(outputLinesGroupPayload, { preferPatch: false });
+  assert(outputLineGroupViews?.space2d && typeof outputLineGroupViews.space2d === "object", "output lines group: space2d extracted");
+  assert(Array.isArray(outputLineGroupViews.space2d.shapes), "output lines group: shapes array");
+  assert(outputLineGroupViews.space2d.shapes.length === 1, "output lines group: shape count");
+  assert(outputLineGroupViews.space2d.shapes[0].group_id === "pendulum.body", "output lines group: alias converges to group_id");
 
   const outputLinesLegacyNegativeWrapPayload = {
     schema: "seamgrim.state.v0",
@@ -546,6 +832,50 @@ async function main() {
   assert(outputLineResourceViews.space2d.shapes.length === 1, "output lines resource: shape count");
   assert(outputLineResourceViews.space2d.shapes[0].kind === "circle", "output lines resource: circle kind");
 
+  const outputLinesValueJsonPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [],
+    row: [],
+    resources: {
+      json: {},
+      fixed64: {},
+      handle: {},
+      value: {},
+      value_json: {
+        "보개_출력_줄들": ["space2d", "space2d.shape", "line", "x1", "0", "y1", "0", "x2", "1", "y2", "1"],
+      },
+    },
+  };
+  const outputLineValueJsonViews = extractStructuredViewsFromState(outputLinesValueJsonPayload, { preferPatch: false });
+  assert(outputLineValueJsonViews?.space2d && typeof outputLineValueJsonViews.space2d === "object", "output lines value_json: space2d extracted");
+  assert(Array.isArray(outputLineValueJsonViews.space2d.shapes), "output lines value_json: shapes array");
+  assert(outputLineValueJsonViews.space2d.shapes.length === 1, "output lines value_json: shape count");
+  assert(outputLineValueJsonViews.space2d.shapes[0].kind === "line", "output lines value_json: line kind");
+
+  const outputRowsPatchValueJsonPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [],
+    row: [],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+    patch: [
+      {
+        op: "set_resource_value",
+        tag: "보개_출력_줄들",
+        value: "차림[]",
+        value_json: ["table.row", "a", "1", "table.row", "b", "2"],
+      },
+    ],
+  };
+  const outputRowsFromPatchValueJson = extractObservationOutputRowsFromState(outputRowsPatchValueJsonPayload);
+  assert(outputRowsFromPatchValueJson.length === 2, "output rows patch value_json: count");
+  assert(
+    outputRowsFromPatchValueJson[0].key === "a" &&
+      outputRowsFromPatchValueJson[0].value === "1" &&
+      outputRowsFromPatchValueJson[1].key === "b" &&
+      outputRowsFromPatchValueJson[1].value === "2",
+    "output rows patch value_json: values",
+  );
+
   const outputLinesTextPayload = {
     schema: "seamgrim.state.v0",
     channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
@@ -557,6 +887,44 @@ async function main() {
   assert(outputLineTextViews.text.markdown === "도입 설명", "output lines text: markdown value");
   assert(Math.abs(Number(outputLineTextViews.text.x) - 0.0) < 1e-9, "output lines text: x parsed");
   assert(Math.abs(Number(outputLineTextViews.text.y) - 0.86) < 1e-9, "output lines text: y parsed");
+
+  const outputRowsPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["table.row", "a", "1", "table.row", "b", "2"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputRows = extractObservationOutputRowsFromState(outputRowsPayload);
+  assert(Array.isArray(outputRows), "output rows: array");
+  assert(outputRows.length === 2, "output rows: count");
+  assert(outputRows[0].key === "a" && outputRows[0].value === "1", "output rows: first pair");
+  assert(outputRows[1].key === "b" && outputRows[1].value === "2", "output rows: second pair");
+
+  const malformedOutputRowsPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["table.row", "a", "1", "table.row", "broken", "table.row", "b", "2"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const malformedOutputRows = extractObservationOutputRowsFromState(malformedOutputRowsPayload);
+  assert(malformedOutputRows.length === 2, "output rows malformed: skip broken row and keep valid rows");
+  assert(
+    malformedOutputRows[0].key === "a" &&
+      malformedOutputRows[0].value === "1" &&
+      malformedOutputRows[1].key === "b" &&
+      malformedOutputRows[1].value === "2",
+    "output rows malformed: row values",
+  );
+
+  const emptyKeyOutputRowsPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["table.row", "", "x", "table.row", "b", "2"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const emptyKeyOutputRows = extractObservationOutputRowsFromState(emptyKeyOutputRowsPayload);
+  assert(emptyKeyOutputRows.length === 1, "output rows: empty key row skipped");
+  assert(emptyKeyOutputRows[0].key === "b" && emptyKeyOutputRows[0].value === "2", "output rows: empty key skip result");
 
   const manifestPayload = {
     schema: "seamgrim.state.v0",
@@ -882,6 +1250,15 @@ async function main() {
   const fakeClient = {
     updateCalls: [],
     updateModeCalls: [],
+    parseWarningsParsed() {
+      return [
+        {
+          code: "W_BLOCK_HEADER_COLON_DEPRECATED",
+          message: "블록 헤더의 `키워드:` 표기는 예정된 비권장입니다. `키워드 {` 표기로 전환하세요",
+          span: { start: 0, end: 3 },
+        },
+      ];
+    },
     updateLogic(body) {
       this.updateCalls.push(String(body ?? ""));
     },
@@ -905,6 +1282,25 @@ async function main() {
   });
   assert(resolved.client === fakeClient, "resolve wasm client: client");
   assert(ensureArg.startsWith("매틱:움직씨"), "resolve wasm client: meta strip");
+  const parsedGuideMeta = parseGuideMetaHeader(`#title: source-aware\n#풀이: alias-desc\nx <- 1.`);
+  assert(parsedGuideMeta.meta?.name === "source-aware", "guide meta: name alias");
+  assert(parsedGuideMeta.meta?.desc === "alias-desc", "guide meta: desc alias");
+  assert(String(parsedGuideMeta.body ?? "").startsWith("x <- 1."), "guide meta: body");
+  const parsedGuideMetaIntl = parseGuideMetaHeader(
+    `#ガイド名: 国際화\n#解説: 다국어 설명\n#default-series: theta\n#x-axis: t\nx <- 1.`,
+  );
+  assert(parsedGuideMetaIntl.meta?.name === "国際화", "guide meta: intl name alias");
+  assert(parsedGuideMetaIntl.meta?.desc === "다국어 설명", "guide meta: intl desc alias");
+  assert(parsedGuideMetaIntl.meta?.default_observation === "theta", "guide meta: intl y alias");
+  assert(parsedGuideMetaIntl.meta?.default_observation_x === "t", "guide meta: intl x alias");
+  const parsedGuideMetaBlocks = parseGuideMetaHeader(
+    `설정 {\n  title: block-title.\n  설명: block-desc.\n}.\n보개 {\n  default-series: theta.\n}.\n슬기 {\n  x-axis: t.\n}.\nx <- 1.`,
+  );
+  assert(parsedGuideMetaBlocks.meta?.name === "block-title", "guide meta block: name alias");
+  assert(parsedGuideMetaBlocks.meta?.desc === "block-desc", "guide meta block: desc alias");
+  assert(parsedGuideMetaBlocks.meta?.default_observation === "theta", "guide meta block: y alias");
+  assert(parsedGuideMetaBlocks.meta?.default_observation_x === "t", "guide meta block: x alias");
+  assert(String(parsedGuideMetaBlocks.body ?? "").startsWith("x <- 1."), "guide meta block: body");
   updateWasmClientLogic({ client: fakeClient, sourceBody: "x <- 1." });
   assert(fakeClient.updateCalls.length === 1, "update wasm logic: compat");
   updateWasmClientLogic({ client: fakeClient, sourceBody: "x <- 2.", mode: "strict" });
@@ -915,6 +1311,8 @@ async function main() {
     mode: "strict",
   });
   assert(applied.state?.schema === "seamgrim.state.v0", "apply wasm logic: state");
+  assert(Array.isArray(applied.parseWarnings), "apply wasm logic: parse warnings array");
+  assert(applied.parseWarnings[0]?.code === "W_BLOCK_HEADER_COLON_DEPRECATED", "apply wasm logic: parse warning code");
   const stepped = await stepWasmWithInputFromSource({
     sourceText: "매틱:움직씨 = { x <- 4. }.",
     ensureWasm,
@@ -945,6 +1343,10 @@ async function main() {
   });
   assert(applyDispatchRendered?.schema === "seamgrim.state.v0", "apply+dispatch: onFull");
   assert(applyDispatched.resetCaches?.lensGraph === null, "apply+dispatch: reset lens graph");
+  assert(
+    applyDispatched.parseWarnings?.[0]?.code === "W_BLOCK_HEADER_COLON_DEPRECATED",
+    "apply+dispatch: parse warnings passthrough",
+  );
   assert(
     Array.isArray(applyDispatched.resetCaches?.observation?.channels),
     "apply+dispatch: reset observation",
@@ -1658,6 +2060,56 @@ async function main() {
   const shapeTexts = renderCanvas.calls.fillText.slice(shapeTextStart);
   assert(shapeTexts.includes("SHAPE_TXT"), "render source mode: shape text rendered");
   assert(!shapeTexts.includes("DRAW_TXT"), "render source mode: shapes ignores drawlist");
+  const layeredSelection = selectSpace2dPrimitiveItems({
+    drawlist: [
+      { kind: "text", x: 0, y: 0, text: "L5_A", layer_index: 5 },
+      { kind: "text", x: 0, y: 0, text: "L1", layer_index: 1 },
+      { kind: "text", x: 0, y: 0, text: "L5_B", layer_index: 5 },
+      { kind: "text", x: 0, y: 0, text: "L0" },
+    ],
+    shapes: [],
+    hasShapesField: false,
+    sourceMode: "drawlist",
+  });
+  assert(
+    layeredSelection.map((item) => item.text).join(",") === "L0,L1,L5_A,L5_B",
+    "render layer sort: stable ascending layer_index",
+  );
+  const groupedSelection = selectSpace2dPrimitiveItems({
+    drawlist: [
+      { kind: "text", x: 0, y: 0, text: "G1", group: "pendulum.body" },
+      { kind: "text", x: 0, y: 0, text: "G2", 그룹: "pendulum.path", layer_index: 2 },
+      { kind: "text", x: 0, y: 0, text: "G3", groupId: "pendulum.label", layer_index: 2 },
+    ],
+    shapes: [],
+    hasShapesField: false,
+    sourceMode: "drawlist",
+  });
+  assert(
+    groupedSelection.map((item) => item.group_id ?? "-").join(",") ===
+      "pendulum.body,pendulum.path,pendulum.label",
+    "render group normalize: alias converges to group_id",
+  );
+  const layerTextStart = renderCanvas.calls.fillText.length;
+  const layerRendered = renderSpace2dCanvas2d({
+    canvas: renderCanvas,
+    space2d: {
+      drawlist: [
+        { kind: "text", x: 0, y: 0, text: "TOP", layer_index: 9 },
+        { kind: "text", x: 0, y: 0, text: "BOTTOM", layer_index: -2 },
+        { kind: "text", x: 0, y: 0, text: "MID", layer_index: 4 },
+      ],
+    },
+    primitiveSource: "drawlist",
+    viewState: { autoFit: true, zoom: 1, panPx: 0, panPy: 0 },
+  });
+  assert(layerRendered === true, "render layer sort: rendered");
+  const layerTexts = renderCanvas.calls.fillText.slice(layerTextStart);
+  assert(
+    layerTexts.indexOf("BOTTOM") < layerTexts.indexOf("MID") &&
+      layerTexts.indexOf("MID") < layerTexts.indexOf("TOP"),
+    "render layer sort: canvas draw order follows layer_index",
+  );
   const route0 = renderGraphOrSpace2dCanvas({
     canvas: renderCanvas,
     graph: { series: [] },

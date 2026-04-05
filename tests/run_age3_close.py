@@ -203,6 +203,16 @@ def main() -> int:
         action="store_true",
         help="run seamgrim gate first and then evaluate close criteria",
     )
+    parser.add_argument(
+        "--run-age3",
+        action="store_true",
+        help="alias of --run-seamgrim",
+    )
+    parser.add_argument(
+        "--run-seamgrim-ci-gate",
+        action="store_true",
+        help="alias of --run-seamgrim",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -210,7 +220,8 @@ def main() -> int:
     ui_report = Path(args.ui_age3_report)
     report_out = Path(args.report_out)
 
-    if args.run_seamgrim:
+    run_gate = bool(args.run_seamgrim or args.run_age3 or args.run_seamgrim_ci_gate)
+    if run_gate:
         rc = run_seamgrim_gate(root, seamgrim_report, ui_report)
         if rc != 0:
             print("[age3-close] seamgrim gate returned non-zero", file=sys.stderr)

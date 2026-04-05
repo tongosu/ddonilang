@@ -164,6 +164,11 @@ function computeAxis(points) {
   };
 }
 
+function collectGroupIds(space2d) {
+  const shapes = Array.isArray(space2d?.shapes) ? space2d.shapes : [];
+  return shapes.map((shape) => String(shape?.group_id ?? "").trim()).filter(Boolean);
+}
+
 async function main() {
   const root = process.cwd();
   const lessonPath = path.resolve(
@@ -226,9 +231,17 @@ async function main() {
   const fromGraph = synthesizeSpace2dFromGraph(graph, observation);
   assert(fromGraph && Array.isArray(fromGraph.shapes), "graph_fallback_shapes_missing");
   assert(fromGraph.meta?.title === "pendulum-graph-fallback", "graph_fallback_title_mismatch");
+  assert(
+    collectGroupIds(fromGraph).join(",") === "pendulum.rod,pendulum.bob,pendulum.pivot",
+    "graph_fallback_group_id_mismatch",
+  );
 
   const fromObservation = synthesizeSpace2dFromObservation(observation);
   assert(fromObservation && Array.isArray(fromObservation.shapes), "observation_fallback_shapes_missing");
+  assert(
+    collectGroupIds(fromObservation).join(",") === "pendulum.rod,pendulum.bob,pendulum.pivot",
+    "observation_fallback_group_id_mismatch",
+  );
 
   console.log(
     `seamgrim pendulum runtime visual runner ok theta_points=${thetaPoints.length} length=${length.toFixed(3)}`,

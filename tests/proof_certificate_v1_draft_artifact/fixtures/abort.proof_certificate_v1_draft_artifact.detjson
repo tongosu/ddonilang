@@ -1,0 +1,41 @@
+{
+  "schema": "ddn.proof_certificate_v1_draft_artifact.v1",
+  "source_pack_schema": "ddn.proof_certificate_v1_draft_pack.v1",
+  "source_pack_id": "pack/age4_proof_certificate_v1_draft_candidate_v1",
+  "profile": "abort",
+  "shared_shell_key_count": 7,
+  "state_delta_key_count": 6,
+  "candidate_manifest": {
+    "schema": "ddn.proof_certificate_manifest_candidate.v1",
+    "proof_schema": "ddn.proof.detjson.v0",
+    "proof_kind": "run_contract_certificate_v1",
+    "cert_manifest_schema": "ddn.cert_manifest.v1",
+    "cert_algo": "sha256-proto",
+    "verified": false,
+    "contract_diag_count": 1,
+    "proof_subject_hash": "sha256:371b3f75b60c6e1c54fb27cf57b813616250cb01945cc0d878a28cf0a6df2598",
+    "canonical_body_hash": "sha256:7d31074b42ba5e61d67b9e547e91230dceb8ddfc6a7454f4ba9d3570a74cd2f2",
+    "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+    "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+    "state_hash": "blake3:b0c1e40b1797185b27b0ace9ef48af371e0a1070affff9ddcd355992d6451d65",
+    "trace_hash": "blake3:ea5df152b437755c34744cf152379a87de42ad7f00869f0b9ec875cde210b012"
+  },
+  "shared_shell": {
+    "schema": "ddn.proof_certificate_manifest_candidate.v1",
+    "proof_schema": "ddn.proof.detjson.v0",
+    "proof_kind": "run_contract_certificate_v1",
+    "cert_manifest_schema": "ddn.cert_manifest.v1",
+    "cert_algo": "sha256-proto",
+    "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+    "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61"
+  },
+  "state_delta": {
+    "verified": false,
+    "contract_diag_count": 1,
+    "proof_subject_hash": "sha256:371b3f75b60c6e1c54fb27cf57b813616250cb01945cc0d878a28cf0a6df2598",
+    "canonical_body_hash": "sha256:7d31074b42ba5e61d67b9e547e91230dceb8ddfc6a7454f4ba9d3570a74cd2f2",
+    "state_hash": "blake3:b0c1e40b1797185b27b0ace9ef48af371e0a1070affff9ddcd355992d6451d65",
+    "trace_hash": "blake3:ea5df152b437755c34744cf152379a87de42ad7f00869f0b9ec875cde210b012"
+  }
+}
+

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 import argparse
 import json
 from pathlib import Path
@@ -60,6 +60,23 @@ def validate_session(path: Path) -> None:
         fail(f"{path}: layers must be list")
     if not isinstance(data["required_views"], list):
         fail(f"{path}: required_views must be list")
+    seen_layer_ids = set()
+    for layer in data["layers"]:
+        if not isinstance(layer, dict):
+            fail(f"{path}: layer must be object")
+        require_keys(layer, ["id", "order", "visible"], f"{path}.layers[]")
+        layer_id = layer["id"]
+        if not isinstance(layer_id, str) or not layer_id.strip():
+            fail(f"{path}: layer.id must be non-empty string")
+        if layer_id in seen_layer_ids:
+            fail(f"{path}: duplicate layer id {layer_id}")
+        seen_layer_ids.add(layer_id)
+        if not isinstance(layer["order"], int):
+            fail(f"{path}: layer.order must be int")
+        if not isinstance(layer["visible"], bool):
+            fail(f"{path}: layer.visible must be bool")
+        if "group_id" in layer and not isinstance(layer["group_id"], str):
+            fail(f"{path}: layer.group_id must be string when present")
 
 
 def main() -> int:

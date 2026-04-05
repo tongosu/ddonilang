@@ -29,7 +29,7 @@ def main() -> int:
         "jobs:",
         "seamgrim-gate:",
         "name: seamgrim-gate",
-        "run: python tests/run_seamgrim_ci_gate.py --print-drilldown",
+        "run: python tests/run_seamgrim_ci_gate.py --require-preview-synced --print-drilldown",
     ]
     ok, missing = has_all_patterns(workflow_text, required_tokens)
     if not ok:

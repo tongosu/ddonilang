@@ -4,8 +4,168 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+from _ci_age5_combined_heavy_contract import (
+    AGE4_PROOF_FAILED_CRITERIA_KEY,
+    AGE4_PROOF_FAILED_PREVIEW_KEY,
+    AGE4_PROOF_FINAL_STATUS_PARSE_SNAPSHOT_PARITY_KEY,
+    AGE4_PROOF_FINAL_STATUS_PARSE_SNAPSHOT_PRESENT_KEY,
+    AGE4_PROOF_FINAL_STATUS_PARSE_SNAPSHOT_TEXT_KEY,
+    AGE4_PROOF_GATE_RESULT_SNAPSHOT_PARITY_KEY,
+    AGE4_PROOF_GATE_RESULT_SNAPSHOT_PRESENT_KEY,
+    AGE4_PROOF_GATE_RESULT_SNAPSHOT_TEXT_KEY,
+    AGE4_PROOF_OK_KEY,
+    AGE4_PROOF_SOURCE_SNAPSHOT_FIELDS_TEXT,
+    AGE4_PROOF_SNAPSHOT_FIELDS_TEXT,
+    AGE5_CLOSE_DIGEST_SELFTEST_OK_KEY,
+    AGE5_CLOSE_DIGEST_SELFTEST_OK_DEFAULT,
+    AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_KEY,
+    AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_TEXT_KEY,
+    AGE5_CLOSE_DIGEST_SELFTEST_OK_FRAGMENT,
+    AGE5_COMBINED_HEAVY_CHILD_SUMMARY_KEYS,
+    AGE5_COMBINED_HEAVY_CHILD_SUMMARY_DEFAULT_FIELDS_TEXT,
+    AGE5_COMBINED_HEAVY_CHILD_SUMMARY_DEFAULT_TEXT_TRANSPORT_FIELDS_TEXT,
+    AGE5_COMBINED_HEAVY_COMBINED_REPORT_CONTRACT_FIELDS_TEXT,
+    AGE5_COMBINED_HEAVY_ENV_KEY,
+    AGE5_COMBINED_HEAVY_FLAG,
+    AGE5_COMBINED_HEAVY_FULL_SUMMARY_TEXT_TRANSPORT_FIELDS_TEXT,
+    AGE5_COMBINED_HEAVY_FULL_REAL_SOURCE_TRACE_TEXT,
+    AGE5_COMBINED_HEAVY_MODE,
+    AGE5_COMBINED_HEAVY_FULL_SUMMARY_CONTRACT_FIELDS_TEXT,
+    AGE5_COMBINED_HEAVY_REPORT_SCHEMA,
+    AGE5_COMBINED_HEAVY_REQUIRED_CRITERIA,
+    AGE5_COMBINED_HEAVY_REQUIRED_REPORTS,
+    AGE5_COMBINED_HEAVY_TIMEOUT_MODE_KEY,
+    AGE5_COMBINED_HEAVY_TIMEOUT_POLICY_REASON_DEFAULT,
+    AGE5_COMBINED_HEAVY_TIMEOUT_POLICY_REASON_KEY,
+    AGE5_COMBINED_HEAVY_TIMEOUT_REQUIRES_OPTIN_DEFAULT,
+    AGE5_COMBINED_HEAVY_TIMEOUT_REQUIRES_OPTIN_KEY,
+    AGE5_FULL_REAL_ELAPSED_FIELDS_TEXT,
+    AGE5_FULL_REAL_CORE_LANG_SANITY_ELAPSED_FIELDS_TEXT,
+    AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_SELFTEST_PROBE_FIELDS_TEXT,
+    AGE5_FULL_REAL_FIXED64_DARWIN_REAL_REPORT_READINESS_CHECK_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_MAP_ACCESS_CONTRACT_CHECK_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_CI_PACK_GOLDEN_EXEC_POLICY_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_CI_PACK_GOLDEN_AGE5_SURFACE_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_CI_PACK_GOLDEN_GUIDEBLOCK_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_CI_PACK_GOLDEN_JJAIM_FLATTEN_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_CI_PACK_GOLDEN_EVENT_MODEL_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_CI_PACK_GOLDEN_LANG_CONSISTENCY_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_W107_GOLDEN_INDEX_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_W107_PROGRESS_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROOF_CERTIFICATE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROOF_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROOF_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_LANG_SURFACE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_LANG_RUNTIME_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_LANG_RUNTIME_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_GATE0_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_GATE0_SURFACE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_GATE0_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_GATE0_TRANSPORT_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_BOGAE_ALIAS_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_W94_SOCIAL_PACK_CHECK_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_W95_CERT_PACK_CHECK_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_W96_SOMSSI_PACK_CHECK_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_W97_SELF_HEAL_PACK_CHECK_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_TENSOR_V0_CLI_CHECK_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROFILE_MATRIX_FULL_REAL_SMOKE_POLICY_SELFTEST_PROGRESS_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROFILE_ELAPSED_MAP_FIELDS_TEXT,
+    AGE5_FULL_REAL_PROFILE_STATUS_MAP_FIELDS_TEXT,
+    AGE5_FULL_REAL_TIMEOUT_BREAKDOWN_FIELDS_TEXT,
+    build_age5_combined_heavy_child_summary_fields,
+    build_age5_combined_heavy_child_summary_fields_from_criteria,
+    build_age5_combined_heavy_combined_report_contract_fields,
+    build_age5_combined_heavy_child_summary_default_text_transport_fields,
+    build_age5_combined_heavy_full_real_source_trace,
+    build_age5_combined_heavy_full_real_source_trace_text,
+    build_age5_combined_heavy_child_summary_default_fields,
+    build_age5_combined_heavy_full_summary_contract_fields,
+    build_age5_combined_heavy_full_summary_text_transport_fields,
+    build_age5_combined_heavy_timeout_policy_fields,
+    build_age4_proof_snapshot,
+    build_age4_proof_source_snapshot_fields,
+    build_age4_proof_snapshot_text,
+    build_age5_close_digest_selftest_default_field,
+    build_age5_full_real_elapsed_summary,
+    build_age5_full_real_core_lang_sanity_elapsed_summary,
+    build_age5_full_real_pipeline_emit_flags_progress,
+    build_age5_full_real_pipeline_emit_flags_selftest_progress,
+    build_age5_full_real_pipeline_emit_flags_selftest_probe,
+    build_age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress,
+    build_age5_full_real_map_access_contract_check_progress,
+    build_age5_full_real_ci_pack_golden_exec_policy_selftest_progress,
+    build_age5_full_real_ci_pack_golden_age5_surface_selftest_progress,
+    build_age5_full_real_ci_pack_golden_guideblock_selftest_progress,
+    build_age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress,
+    build_age5_full_real_ci_pack_golden_event_model_selftest_progress,
+    build_age5_full_real_ci_pack_golden_lang_consistency_selftest_progress,
+    build_age5_full_real_w107_golden_index_selftest_progress,
+    build_age5_full_real_w107_progress_contract_selftest_progress,
+    build_age5_full_real_age1_immediate_proof_operation_contract_selftest_progress,
+    build_age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress,
+    build_age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress,
+    build_age5_full_real_proof_certificate_v1_family_contract_selftest_progress,
+    build_age5_full_real_proof_certificate_family_contract_selftest_progress,
+    build_age5_full_real_proof_certificate_family_transport_contract_selftest_progress,
+    build_age5_full_real_proof_family_contract_selftest_progress,
+    build_age5_full_real_proof_family_transport_contract_selftest_progress,
+    build_age5_full_real_lang_surface_family_contract_selftest_progress,
+    build_age5_full_real_lang_surface_family_transport_contract_selftest_progress,
+    build_age5_full_real_lang_runtime_family_contract_selftest_progress,
+    build_age5_full_real_lang_runtime_family_transport_contract_selftest_progress,
+    build_age5_full_real_gate0_runtime_family_transport_contract_selftest_progress,
+    build_age5_full_real_gate0_family_contract_selftest_progress,
+    build_age5_full_real_gate0_surface_family_contract_selftest_progress,
+    build_age5_full_real_gate0_surface_family_transport_contract_selftest_progress,
+    build_age5_full_real_gate0_family_transport_contract_selftest_progress,
+    build_age5_full_real_gate0_transport_family_contract_selftest_progress,
+    build_age5_full_real_gate0_transport_family_transport_contract_selftest_progress,
+    build_age5_full_real_bogae_alias_family_contract_selftest_progress,
+    build_age5_full_real_bogae_alias_family_transport_contract_selftest_progress,
+    build_age5_full_real_w94_social_pack_check_progress,
+    build_age5_full_real_w95_cert_pack_check_progress,
+    build_age5_full_real_w96_somssi_pack_check_progress,
+    build_age5_full_real_w97_self_heal_pack_check_progress,
+    build_age5_full_real_tensor_v0_cli_check_progress,
+    build_age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress,
+    build_age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress,
+    build_age5_full_real_profile_elapsed_map,
+    build_age5_full_real_profile_status_map,
+    build_age5_full_real_timeout_breakdown,
+    resolve_age5_combined_heavy_timeout_mode,
+)
+from _ci_profile_matrix_full_real_smoke_contract import (
+    PROFILE_MATRIX_FULL_REAL_SMOKE_ALLOW_FLAG,
+    PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SCRIPT,
+    PROFILE_MATRIX_FULL_REAL_SMOKE_ENV_KEY,
+    PROFILE_MATRIX_FULL_REAL_SMOKE_FLAG,
+    PROFILE_MATRIX_FULL_REAL_SMOKE_STATUS_PASS,
+)
+
+AGE5_FULL_REAL_CORE_LANG_SANITY_PROGRESS_FIELDS_TEXT = (
+    "age5_full_real_core_lang_sanity_current_step=-|"
+    "age5_full_real_core_lang_sanity_last_completed_step=-|"
+    "age5_full_real_core_lang_sanity_progress_present=0"
+)
 
 AGE4_S2_TASK_PATH = Path("docs/context/codex_tasks/TASK_SEAMGRIM_AGE4_S2_PRIMITIVE_RUNTIME_UI_SLOTS_V1.md")
 S5_BASELINE_TASK_PATH = Path("docs/context/codex_tasks/S5_OVERLAY_BASELINE_VARIANT.md")
@@ -141,6 +301,7 @@ PACK_CASE_FILES = [
     Path("pack/seamgrim_overlay_param_compare_v0/c74_yunit_mismatch_over_series_mismatch_reverse_with_full_fallback_chain/case.detjson"),
     Path("pack/seamgrim_overlay_param_compare_v0/c75_graph_missing_over_series_missing_with_full_fallback_chain/case.detjson"),
     Path("pack/seamgrim_overlay_param_compare_v0/c76_graph_missing_over_series_missing_reverse_with_full_fallback_chain/case.detjson"),
+    Path("pack/seamgrim_overlay_param_compare_v0/c77_group_id_normalized_equal_ok/case.detjson"),
 ]
 
 AGE5_SURFACE_PACK_CONTRACTS = [
@@ -261,73 +422,162 @@ CI_PROFILE_GATE_SCRIPTS = {
     "full": Path("tests/run_ci_profile_full_gate.py"),
     "seamgrim": Path("tests/run_ci_profile_seamgrim_gate.py"),
 }
+CI_PROFILE_MATRIX_FULL_REAL_SMOKE_SCRIPT = Path(PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SCRIPT)
+CI_PROFILE_CORE_LANG_RUNTIME_HELPER_CONTRACT_SELFTEST_SCRIPT = Path(
+    "tests/run_ci_profile_core_lang_runtime_helper_contract_selftest.py"
+)
+CI_PROFILE_CORE_LANG_GROUP_ID_SUMMARY_CONTRACT_SELFTEST_SCRIPT = Path(
+    "tests/run_ci_profile_core_lang_group_id_summary_contract_selftest.py"
+)
+CI_PROFILE_RUNTIME_HELPER_MISMATCH_KEY_ENV = "DDN_CI_PROFILE_GATE_FORCE_RUNTIME_HELPER_SUMMARY_MISMATCH_KEY"
+CI_PROFILE_CORE_LANG_RUNTIME_HELPER_MISMATCH_TARGET_KEY = "ci_sanity_age5_combined_heavy_policy_selftest_ok"
 
 CI_PROFILE_CORE_LANG_CHAIN_TOKENS = [
     "tests/run_ci_sanity_gate.py",
     "tests/run_ci_sync_readiness_check.py",
     "tests/run_ci_sync_readiness_report_check.py",
+    "RUNTIME_HELPER_SUMMARY_SELFTEST_MISMATCH_ENV",
+    "RUNTIME_HELPER_SUMMARY_SELFTEST_MISMATCH_KEY_ENV",
+    "RUNTIME_HELPER_SUMMARY_SELFTEST_MARKER_PREFIX",
+    "maybe_force_runtime_helper_summary_mismatch(",
+    "--quick",
+    PROFILE_MATRIX_FULL_REAL_SMOKE_FLAG,
     "--skip-aggregate",
     "--sanity-profile",
     "--require-pass",
+    "DDN_CI_PROFILE_GATE_SKIP_AGGREGATE",
+    "from _ci_profile_matrix_full_real_smoke_contract import (",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_ENV_KEY",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SCRIPT",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_STATUS_PASS",
+    "[ci-profile-core-lang] aggregate gate skipped by --quick",
+    "[ci-profile-core-lang] aggregate gate skipped by DDN_CI_PROFILE_GATE_SKIP_AGGREGATE=1",
+    "[ci-profile-core-lang] profile-matrix full-real smoke enabled",
     "ci_sync_readiness_status=pass",
     "sanity_profile=core_lang",
     "ci_profile_core_lang_status=pass",
+    "ci_sync_readiness_ci_sanity_pack_golden_graph_export_ok",
+    "ci_profile_core_lang_status=fail reason=aggregate_summary_sync_pack_golden_graph_export_mismatch",
+    "ci_sanity_seamgrim_numeric_factor_policy_ok",
+    "ci_sync_readiness_ci_sanity_seamgrim_numeric_factor_policy_ok",
+    "ci_profile_core_lang_status=fail reason=aggregate_summary_sanity_numeric_factor_policy_mismatch",
+    "ci_profile_core_lang_status=fail reason=aggregate_summary_sync_numeric_factor_policy_mismatch",
+    "ci_sanity_age5_combined_heavy_policy_selftest_ok",
 ]
 
 CI_PROFILE_SEAMGRIM_CHAIN_TOKENS = [
     "tests/run_ci_sanity_gate.py",
     "tests/run_ci_sync_readiness_check.py",
     "tests/run_ci_sync_readiness_report_check.py",
+    "--quick",
+    PROFILE_MATRIX_FULL_REAL_SMOKE_FLAG,
     "--skip-aggregate",
     "--sanity-profile",
     "--require-pass",
+    "DDN_CI_PROFILE_GATE_SKIP_AGGREGATE",
+    "from _ci_profile_matrix_full_real_smoke_contract import (",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_ENV_KEY",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SCRIPT",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_STATUS_PASS",
+    "[ci-profile-seamgrim] aggregate gate skipped by --quick",
+    "[ci-profile-seamgrim] aggregate gate skipped by DDN_CI_PROFILE_GATE_SKIP_AGGREGATE=1",
+    "[ci-profile-seamgrim] profile-matrix full-real smoke enabled",
     "ci_sync_readiness_status=pass",
     "sanity_profile=seamgrim",
     "ci_profile_seamgrim_status=pass",
+    "ci_sync_readiness_ci_sanity_pack_golden_graph_export_ok",
+    "ci_profile_seamgrim_status=fail reason=aggregate_summary_sync_pack_golden_graph_export_mismatch",
+    "ci_sanity_seamgrim_numeric_factor_policy_ok",
+    "ci_sync_readiness_ci_sanity_seamgrim_numeric_factor_policy_ok",
+    "ci_profile_seamgrim_status=fail reason=aggregate_summary_sanity_numeric_factor_policy_mismatch",
+    "ci_profile_seamgrim_status=fail reason=aggregate_summary_sync_numeric_factor_policy_mismatch",
 ]
 
 CI_PROFILE_FULL_CHAIN_TOKENS = [
     "tests/run_ci_sanity_gate.py",
     "tests/run_ci_sync_readiness_check.py",
     "tests/run_ci_sync_readiness_report_check.py",
+    "--quick",
+    PROFILE_MATRIX_FULL_REAL_SMOKE_FLAG,
     "--skip-aggregate",
     "--sanity-profile",
     "--require-pass",
+    "DDN_CI_PROFILE_GATE_SKIP_AGGREGATE",
+    "from _ci_profile_matrix_full_real_smoke_contract import (",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_ENV_KEY",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SCRIPT",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_STATUS_PASS",
+    "[ci-profile-full] aggregate gate skipped by --quick",
+    "[ci-profile-full] aggregate gate skipped by DDN_CI_PROFILE_GATE_SKIP_AGGREGATE=1",
+    "[ci-profile-full] profile-matrix full-real smoke enabled",
     "ci_sync_readiness_status=pass",
     "sanity_profile=full",
     "ci_profile_full_status=pass",
+    "ci_sync_readiness_ci_sanity_pack_golden_graph_export_ok",
+    "ci_profile_full_status=fail reason=aggregate_summary_sync_pack_golden_graph_export_mismatch",
+    "ci_sanity_seamgrim_numeric_factor_policy_ok",
+    "ci_sync_readiness_ci_sanity_seamgrim_numeric_factor_policy_ok",
+    "ci_profile_full_status=fail reason=aggregate_summary_sanity_numeric_factor_policy_mismatch",
+    "ci_profile_full_status=fail reason=aggregate_summary_sync_numeric_factor_policy_mismatch",
 ]
 
 CI_PROFILE_SPLIT_CONTRACT_TOKENS = [
     "tests/run_ci_profile_core_lang_gate.py",
     "tests/run_ci_profile_full_gate.py",
     "tests/run_ci_profile_seamgrim_gate.py",
+    "tests/run_ci_profile_core_lang_runtime_helper_contract_selftest.py",
+    "tests/run_ci_profile_gate_runtime_helper_contract_selftest.py",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SCRIPT",
     "tests/run_ci_profile_matrix_gate.py",
     "tests/run_ci_profile_matrix_gate_selftest.py",
     "tests/run_ci_sync_readiness_check.py",
     "tests/run_ci_sync_readiness_report_check.py",
+    "--quick",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_FLAG",
+    "--quick-gates",
     "--skip-aggregate",
     "--sanity-profile",
     "--require-pass",
+    "DDN_CI_PROFILE_GATE_SKIP_AGGREGATE",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_ENV_KEY",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SCRIPT",
+    "PROFILE_MATRIX_FULL_REAL_SMOKE_STATUS_PASS",
+    "DDN_CI_PROFILE_MATRIX_QUICK_GATES",
+    "quick_enabled_profiles",
+    "quick_disabled_profiles",
+    "quick_profile_flags",
+    "quick_profile_count",
+    "quick_profile_flags_complete",
+    "quick_enabled_profiles_mismatch",
+    "quick_profile_count_mismatch",
+    "quick_profile_flags_complete_mismatch",
     "ci_sync_readiness_status=pass",
+    "ci_sanity_pack_golden_graph_export_ok",
+    "ci_sync_readiness_ci_sanity_pack_golden_graph_export_ok",
+    "ci_sanity_seamgrim_numeric_factor_policy_ok",
+    "ci_sync_readiness_ci_sanity_seamgrim_numeric_factor_policy_ok",
     "sanity_profile=core_lang",
     "sanity_profile=full",
     "sanity_profile=seamgrim",
     "ddn.ci.profile_matrix_gate.v1",
 ]
 
+
+def truthy_env(name: str) -> bool:
+    return str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
+
 CI_PROFILE_CORE_LANG_REPORT_PATH_TOKENS = [
-    'prefix = "ci_profile_core_lang"',
+    'prefix = args.report_prefix.strip() or "ci_profile_core_lang"',
     'report = report_dir / f"{prefix}.ci_sync_readiness.detjson"',
 ]
 
 CI_PROFILE_SEAMGRIM_REPORT_PATH_TOKENS = [
-    'prefix = "ci_profile_seamgrim"',
+    'prefix = args.report_prefix.strip() or "ci_profile_seamgrim"',
     'report = report_dir / f"{prefix}.ci_sync_readiness.detjson"',
 ]
 
 CI_PROFILE_FULL_REPORT_PATH_TOKENS = [
-    'prefix = "ci_profile_full"',
+    'prefix = args.report_prefix.strip() or "ci_profile_full"',
     'report = report_dir / f"{prefix}.ci_sync_readiness.detjson"',
 ]
 
@@ -348,6 +598,10 @@ CI_GATE_REPORT_INDEX_CONTRACT_TOKENS = [
     "check_ci_gate_report_index",
     "check_ci_gate_report_index_selftest",
     "check_ci_gate_report_index_diagnostics",
+    "check_ci_gate_report_index_latest_smoke",
+    "check_ci_emit_artifacts_required_post_summary",
+    "ci_emit_artifacts_required_post_summary_check",
+    "allow-triage-exists-upgrade",
     "report_index_required_steps_common",
     "report_index_required_steps_seamgrim",
     "resolve_report_index_required_steps",
@@ -356,18 +610,23 @@ CI_GATE_REPORT_INDEX_CONTRACT_TOKENS = [
     "--sanity-profile",
     "--enforce-profile-step-contract",
     "--required-step",
+    "check_ci_gate_report_index(require_step_contract=False)",
     "check_ci_gate_report_index(require_step_contract=True)",
+    "report-index post-summary strict check failed",
     "ci_gate_report_index_check",
     "ci_gate_report_index_selftest",
     "ci_gate_report_index_diagnostics_check",
+    "ci_gate_report_index_latest_smoke_check",
     "tests/run_ci_gate_report_index_check.py",
     "tests/run_ci_gate_report_index_check_selftest.py",
     "tests/run_ci_gate_report_index_diagnostics_check.py",
+    "tests/run_ci_gate_report_index_latest_smoke_check.py",
 ]
 CI_GATE_REPORT_INDEX_CHECK_TOKENS = [
     "INDEX_SCHEMA = \"ddn.ci.aggregate_gate.index.v1\"",
     "VALID_SANITY_PROFILES",
     "PROFILE_REQUIRED_STEPS_COMMON",
+    "\"ci_emit_artifacts_required_post_summary_check\"",
     "PROFILE_REQUIRED_STEPS_SEAMGRIM",
     "resolve_profile_required_steps",
     "--sanity-profile",
@@ -388,6 +647,10 @@ CI_GATE_REPORT_INDEX_CHECK_TOKENS = [
     "final_status_parse aggregate_status invalid",
     "final_status_parse failed_steps must be int string",
     "final_status_parse failed_steps mismatch",
+    "AGE4_PROOF_FAILED_PREVIEW_KEY = \"age4_proof_failed_preview\"",
+    "final_parse_age4_proof_preview = str(final_parse_parsed.get(AGE4_PROOF_FAILED_PREVIEW_KEY, \"\")).strip()",
+    "f\"final_status_parse {AGE4_PROOF_FAILED_PREVIEW_KEY} missing\"",
+    "f\"final_status_parse {AGE4_PROOF_FAILED_PREVIEW_KEY} mismatch expected=",
     "index.overall_ok must be bool",
     "index.overall_ok mismatch expected=",
     "ci_gate_result overall_ok must be bool",
@@ -403,6 +666,9 @@ CI_GATE_REPORT_INDEX_CHECK_TOKENS = [
     "ci_gate_result summary_line mismatch",
     "ci_gate_result gate_index_path mismatch",
     "ci_gate_result final_status_parse_path mismatch",
+    "AGE4_PROOF_FAILED_PREVIEW_KEY,",
+    "f\"ci_fail_brief missing key: {key}\"",
+    "f\"ci_fail_brief invalid {key}: {brief_value}\"",
     "ci_gate_badge status mismatch",
     "ci_gate_badge ok must be bool",
     "ci_gate_badge ok mismatch",
@@ -498,9 +764,11 @@ CI_SEAMGRIM_WASM_CLI_DIAG_PARITY_TOKENS = [
     "tests/run_seamgrim_overlay_compare_diag_parity_check.py",
     "tests/run_seamgrim_overlay_session_diag_parity_check.py",
     "tests/run_seamgrim_overlay_session_wired_consistency_check.py",
+    "tests/run_numeric_factor_route_diag_contract_check.py",
     "overlay compare diag parity check ok",
     "overlay session diag parity check ok",
     "overlay session wired consistency check ok",
+    "numeric factor route diag contract check ok",
 ]
 
 
@@ -590,6 +858,5160 @@ def load_text(path: Path) -> str:
         return ""
 
 
+def run_text(
+    cmd: list[str],
+    cwd: Path,
+    env: dict[str, str] | None = None,
+    timeout_sec: int | None = None,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_sec if timeout_sec and timeout_sec > 0 else None,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = str(exc.stdout or "")
+        stderr = str(exc.stderr or "")
+        timeout_note = (
+            "[age5-close-combined-heavy] child timeout "
+            f"timeout_sec={timeout_sec if timeout_sec and timeout_sec > 0 else 0} "
+            f"cmd={' '.join(cmd)}"
+        )
+        merged_stdout = "\n".join(part for part in (stdout.strip(), timeout_note) if part).strip()
+        merged_stderr = "\n".join(part for part in (stderr.strip(), "timeout_expired") if part).strip()
+        return subprocess.CompletedProcess(
+            cmd,
+            124,
+            stdout=merged_stdout,
+            stderr=merged_stderr,
+        )
+
+
+def load_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def cached_age5_close_child_report_ok(path: Path, required_criterion: str) -> bool:
+    doc = load_json(path)
+    if not isinstance(doc, dict):
+        return False
+    if str(doc.get("schema", "")).strip() != "ddn.age5_close_report.v1":
+        return False
+    if not bool(doc.get("overall_ok", False)):
+        return False
+    criteria = doc.get("criteria")
+    if not isinstance(criteria, list):
+        return False
+    for row in criteria:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("name", "")).strip() != required_criterion:
+            continue
+        return bool(row.get("ok", False))
+    return False
+
+
+def child_report_indicates_timeout(path: Path, criterion_name: str) -> bool:
+    doc = load_json(path)
+    if not isinstance(doc, dict):
+        return False
+    criteria = doc.get("criteria")
+    if not isinstance(criteria, list):
+        return False
+    for row in criteria:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if "rc=124" in detail or "step timeout after" in detail:
+            return True
+    failure_digest = doc.get("failure_digest")
+    if isinstance(failure_digest, list):
+        joined = " | ".join(str(item).strip() for item in failure_digest if str(item).strip())
+        if "rc=124" in joined or "step timeout after" in joined:
+            return True
+    return False
+
+
+def parse_timeout_step_profiles(*texts: str) -> dict[str, str]:
+    step = "-"
+    profiles = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        if step == "-":
+            match = re.search(r"\bstep=([A-Za-z0-9_.-]+)", normalized)
+            if match:
+                step = match.group(1)
+        if profiles == "-":
+            match = re.search(r"\bprofiles=([A-Za-z0-9_,.-]+)", normalized)
+            if match:
+                profiles = match.group(1)
+    return build_age5_full_real_timeout_breakdown(
+        age5_full_real_timeout_step=step,
+        age5_full_real_timeout_profiles=profiles,
+        age5_full_real_timeout_present=(step != "-" or profiles != "-"),
+    )
+
+
+def load_report_criterion_detail(path: Path, criterion_name: str) -> tuple[str, str]:
+    doc = load_json(path)
+    detail = ""
+    failure_digest_joined = ""
+    if isinstance(doc, dict):
+        criteria = doc.get("criteria")
+        if isinstance(criteria, list):
+            for row in criteria:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("name", "")).strip() != criterion_name:
+                    continue
+                detail = str(row.get("detail", "")).strip()
+                break
+        failure_digest = doc.get("failure_digest")
+        if isinstance(failure_digest, list):
+            failure_digest_joined = " | ".join(
+                str(item).strip() for item in failure_digest if str(item).strip()
+            )
+    return detail, failure_digest_joined
+
+
+def extract_full_real_timeout_breakdown_from_child_report(path: Path, criterion_name: str) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_timeout_step_profiles(detail, failure_digest_joined)
+
+
+def extract_full_real_timeout_breakdown_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_timeout_step_profiles(detail, failure_digest_joined)
+
+
+def parse_full_real_elapsed_summary(*texts: str) -> dict[str, str]:
+    total_elapsed_ms = "-"
+    slowest_profile = "-"
+    slowest_elapsed_ms = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        if total_elapsed_ms == "-":
+            match = re.search(r"\bci_profile_matrix_full_real_total_elapsed_ms=([0-9-]+)", normalized)
+            if match:
+                total_elapsed_ms = match.group(1)
+        if slowest_profile == "-":
+            match = re.search(r"\bci_profile_matrix_full_real_slowest_profile=([A-Za-z0-9_.-]+)", normalized)
+            if match:
+                slowest_profile = match.group(1)
+        if slowest_elapsed_ms == "-":
+            match = re.search(r"\bci_profile_matrix_full_real_slowest_elapsed_ms=([0-9-]+)", normalized)
+            if match:
+                slowest_elapsed_ms = match.group(1)
+    return build_age5_full_real_elapsed_summary(
+        age5_full_real_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_slowest_profile=slowest_profile,
+        age5_full_real_slowest_elapsed_ms=slowest_elapsed_ms,
+        age5_full_real_elapsed_present=(
+            total_elapsed_ms != "-" or slowest_profile != "-" or slowest_elapsed_ms != "-"
+        ),
+    )
+
+
+def extract_full_real_elapsed_summary_from_child_report(path: Path, criterion_name: str) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_elapsed_summary(detail, failure_digest_joined)
+
+
+def extract_full_real_elapsed_summary_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_elapsed_summary(detail, failure_digest_joined)
+
+
+def parse_full_real_profile_elapsed_map(*texts: str) -> dict[str, str]:
+    profile_map = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        match = re.search(r"\bci_profile_matrix_full_real_profile_elapsed_map=([A-Za-z0-9:,_-]+)", normalized)
+        if match:
+            profile_map = match.group(1)
+            break
+    return build_age5_full_real_profile_elapsed_map(
+        age5_full_real_profile_elapsed_map=profile_map,
+        age5_full_real_profile_elapsed_map_present=(profile_map != "-"),
+    )
+
+
+def parse_full_real_profile_status_map(*texts: str) -> dict[str, str]:
+    profile_status_map = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        match = re.search(r"\bci_profile_matrix_full_real_profile_status_map=([A-Za-z0-9:,_-]+)", normalized)
+        if match:
+            profile_status_map = match.group(1)
+            break
+    return build_age5_full_real_profile_status_map(
+        age5_full_real_profile_status_map=profile_status_map,
+        age5_full_real_profile_status_map_present=(profile_status_map != "-"),
+    )
+
+
+def parse_full_real_core_lang_sanity_elapsed_summary(*texts: str) -> dict[str, str]:
+    total_elapsed_ms = "-"
+    slowest_step = "-"
+    slowest_elapsed_ms = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        if total_elapsed_ms == "-":
+            match_total = re.search(r"\bci_profile_core_lang_sanity_total_elapsed_ms=([A-Za-z0-9._-]+)", normalized)
+            if match_total:
+                total_elapsed_ms = match_total.group(1)
+        if slowest_step == "-":
+            match_step = re.search(r"\bci_profile_core_lang_sanity_slowest_step=([A-Za-z0-9._-]+)", normalized)
+            if match_step:
+                slowest_step = match_step.group(1)
+        if slowest_elapsed_ms == "-":
+            match_elapsed = re.search(r"\bci_profile_core_lang_sanity_slowest_elapsed_ms=([A-Za-z0-9._-]+)", normalized)
+            if match_elapsed:
+                slowest_elapsed_ms = match_elapsed.group(1)
+    return build_age5_full_real_core_lang_sanity_elapsed_summary(
+        age5_full_real_core_lang_sanity_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_core_lang_sanity_slowest_step=slowest_step,
+        age5_full_real_core_lang_sanity_slowest_elapsed_ms=slowest_elapsed_ms,
+        age5_full_real_core_lang_sanity_elapsed_present=(
+            total_elapsed_ms != "-" or slowest_step != "-" or slowest_elapsed_ms != "-"
+        ),
+    )
+
+
+def parse_full_real_core_lang_sanity_progress(*texts: str) -> dict[str, str]:
+    current_step = "-"
+    last_completed_step = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_matches = re.findall(r"\bci_sanity_current_step=([A-Za-z0-9._-]+)", normalized)
+        completed_matches = re.findall(r"\bci_sanity_last_completed_step=([A-Za-z0-9._-]+)", normalized)
+        if current_matches:
+            current_step = current_matches[-1]
+        if completed_matches:
+            last_completed_step = completed_matches[-1]
+    return {
+        "age5_full_real_core_lang_sanity_current_step": current_step,
+        "age5_full_real_core_lang_sanity_last_completed_step": last_completed_step,
+        "age5_full_real_core_lang_sanity_progress_present": (
+            "1" if current_step != "-" or last_completed_step != "-" else "0"
+        ),
+    }
+
+
+def parse_full_real_pipeline_emit_flags_progress(*texts: str) -> dict[str, str]:
+    current_section = "-"
+    last_completed_section = "-"
+    total_elapsed_ms = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_matches = re.findall(r"\bci_pipeline_emit_flags_current_section=([A-Za-z0-9._,-]+)", normalized)
+        completed_matches = re.findall(
+            r"\bci_pipeline_emit_flags_last_completed_section=([A-Za-z0-9._,-]+)", normalized
+        )
+        elapsed_matches = re.findall(r"\bci_pipeline_emit_flags_total_elapsed_ms=([A-Za-z0-9._-]+)", normalized)
+        if current_matches:
+            current_section = current_matches[-1]
+        if completed_matches:
+            last_completed_section = completed_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+    return build_age5_full_real_pipeline_emit_flags_progress(
+        age5_full_real_pipeline_emit_flags_current_section=current_section,
+        age5_full_real_pipeline_emit_flags_last_completed_section=last_completed_section,
+        age5_full_real_pipeline_emit_flags_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_pipeline_emit_flags_progress_present=(
+            current_section != "-" or last_completed_section != "-" or total_elapsed_ms != "-"
+        ),
+    )
+
+
+def parse_full_real_pipeline_emit_flags_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_matches = re.findall(
+            r"\bci_pipeline_emit_flags_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        completed_matches = re.findall(
+            r"\bci_pipeline_emit_flags_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_pipeline_emit_flags_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        if current_matches:
+            current_case = current_matches[-1]
+        if completed_matches:
+            last_completed_case = completed_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+    return build_age5_full_real_pipeline_emit_flags_selftest_progress(
+        age5_full_real_pipeline_emit_flags_selftest_current_case=current_case,
+        age5_full_real_pipeline_emit_flags_selftest_last_completed_case=last_completed_case,
+        age5_full_real_pipeline_emit_flags_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_pipeline_emit_flags_selftest_progress_present=(
+            current_case != "-" or last_completed_case != "-" or total_elapsed_ms != "-"
+        ),
+    )
+
+
+def parse_full_real_pipeline_emit_flags_selftest_probe(*texts: str) -> dict[str, str]:
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_matches = re.findall(
+            r"\bci_pipeline_emit_flags_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        completed_matches = re.findall(
+            r"\bci_pipeline_emit_flags_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_matches:
+            current_probe = current_matches[-1]
+        if completed_matches:
+            last_completed_probe = completed_matches[-1]
+    return build_age5_full_real_pipeline_emit_flags_selftest_probe(
+        age5_full_real_pipeline_emit_flags_selftest_current_probe=current_probe,
+        age5_full_real_pipeline_emit_flags_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_pipeline_emit_flags_selftest_probe_present=(
+            current_probe != "-" or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_age5_combined_policy_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    current_format = "-"
+    last_completed_format = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    total_elapsed_ms = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_age5_combined_heavy_policy_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_age5_combined_heavy_policy_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_format_matches = re.findall(
+            r"\bci_age5_combined_heavy_policy_selftest_current_format=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_format_matches = re.findall(
+            r"\bci_age5_combined_heavy_policy_selftest_last_completed_format=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_age5_combined_heavy_policy_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_age5_combined_heavy_policy_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_age5_combined_heavy_policy_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if current_format_matches:
+            current_format = current_format_matches[-1]
+        if last_completed_format_matches:
+            last_completed_format = last_completed_format_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+    progress_present = (
+        current_case != "-"
+        or last_completed_case != "-"
+        or current_format != "-"
+        or last_completed_format != "-"
+        or current_probe != "-"
+        or last_completed_probe != "-"
+        or total_elapsed_ms != "-"
+    )
+    return {
+        "age5_full_real_age5_combined_policy_selftest_current_case": current_case,
+        "age5_full_real_age5_combined_policy_selftest_last_completed_case": last_completed_case,
+        "age5_full_real_age5_combined_policy_selftest_current_format": current_format,
+        "age5_full_real_age5_combined_policy_selftest_last_completed_format": last_completed_format,
+        "age5_full_real_age5_combined_policy_selftest_current_probe": current_probe,
+        "age5_full_real_age5_combined_policy_selftest_last_completed_probe": last_completed_probe,
+        "age5_full_real_age5_combined_policy_selftest_total_elapsed_ms": total_elapsed_ms,
+        "age5_full_real_age5_combined_policy_selftest_progress_present": "1" if progress_present else "0",
+    }
+
+
+def parse_full_real_profile_matrix_full_real_smoke_policy_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    current_format = "-"
+    last_completed_format = "-"
+    total_elapsed_ms = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_policy_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_policy_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_format_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_policy_selftest_current_format=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_format_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_policy_selftest_last_completed_format=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_policy_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if current_format_matches:
+            current_format = current_format_matches[-1]
+        if last_completed_format_matches:
+            last_completed_format = last_completed_format_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+    return build_age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress(
+        age5_full_real_profile_matrix_full_real_smoke_policy_selftest_current_case=current_case,
+        age5_full_real_profile_matrix_full_real_smoke_policy_selftest_last_completed_case=last_completed_case,
+        age5_full_real_profile_matrix_full_real_smoke_policy_selftest_current_format=current_format,
+        age5_full_real_profile_matrix_full_real_smoke_policy_selftest_last_completed_format=last_completed_format,
+        age5_full_real_profile_matrix_full_real_smoke_policy_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or current_format != "-"
+            or last_completed_format != "-"
+            or total_elapsed_ms != "-"
+        ),
+    )
+
+
+def parse_full_real_profile_matrix_full_real_smoke_check_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_check_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_check_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_check_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_check_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_profile_matrix_full_real_smoke_check_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress(
+        age5_full_real_profile_matrix_full_real_smoke_check_selftest_current_case=current_case,
+        age5_full_real_profile_matrix_full_real_smoke_check_selftest_last_completed_case=last_completed_case,
+        age5_full_real_profile_matrix_full_real_smoke_check_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_profile_matrix_full_real_smoke_check_selftest_current_probe=current_probe,
+        age5_full_real_profile_matrix_full_real_smoke_check_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_fixed64_darwin_real_report_readiness_check_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_fixed64_darwin_real_report_readiness_check_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_fixed64_darwin_real_report_readiness_check_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_fixed64_darwin_real_report_readiness_check_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_fixed64_darwin_real_report_readiness_check_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress(
+        age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_current_case=current_case,
+        age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_last_completed_case=last_completed_case,
+        age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_current_probe=current_probe,
+        age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_map_access_contract_check_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_map_access_contract_check_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_map_access_contract_check_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_map_access_contract_check_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_map_access_contract_check_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_map_access_contract_check_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_map_access_contract_check_progress(
+        age5_full_real_map_access_contract_check_current_case=current_case,
+        age5_full_real_map_access_contract_check_last_completed_case=last_completed_case,
+        age5_full_real_map_access_contract_check_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_map_access_contract_check_current_probe=current_probe,
+        age5_full_real_map_access_contract_check_last_completed_probe=last_completed_probe,
+        age5_full_real_map_access_contract_check_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_tensor_v0_cli_check_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_tensor_v0_cli_check_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_tensor_v0_cli_check_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_tensor_v0_cli_check_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_tensor_v0_cli_check_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_tensor_v0_cli_check_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_tensor_v0_cli_check_progress(
+        age5_full_real_tensor_v0_cli_check_current_case=current_case,
+        age5_full_real_tensor_v0_cli_check_last_completed_case=last_completed_case,
+        age5_full_real_tensor_v0_cli_check_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_tensor_v0_cli_check_current_probe=current_probe,
+        age5_full_real_tensor_v0_cli_check_last_completed_probe=last_completed_probe,
+        age5_full_real_tensor_v0_cli_check_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_ci_pack_golden_age5_surface_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_pack_golden_age5_surface_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_pack_golden_age5_surface_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_pack_golden_age5_surface_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_pack_golden_age5_surface_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_pack_golden_age5_surface_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_ci_pack_golden_age5_surface_selftest_progress(
+        age5_full_real_ci_pack_golden_age5_surface_selftest_current_case=current_case,
+        age5_full_real_ci_pack_golden_age5_surface_selftest_last_completed_case=last_completed_case,
+        age5_full_real_ci_pack_golden_age5_surface_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_ci_pack_golden_age5_surface_selftest_current_probe=current_probe,
+        age5_full_real_ci_pack_golden_age5_surface_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_ci_pack_golden_age5_surface_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_ci_pack_golden_guideblock_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_pack_golden_guideblock_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_pack_golden_guideblock_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_pack_golden_guideblock_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_pack_golden_guideblock_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_pack_golden_guideblock_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_ci_pack_golden_guideblock_selftest_progress(
+        age5_full_real_ci_pack_golden_guideblock_selftest_current_case=current_case,
+        age5_full_real_ci_pack_golden_guideblock_selftest_last_completed_case=last_completed_case,
+        age5_full_real_ci_pack_golden_guideblock_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_ci_pack_golden_guideblock_selftest_current_probe=current_probe,
+        age5_full_real_ci_pack_golden_guideblock_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_ci_pack_golden_guideblock_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_ci_pack_golden_exec_policy_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_pack_golden_exec_policy_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_pack_golden_exec_policy_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_pack_golden_exec_policy_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_pack_golden_exec_policy_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_pack_golden_exec_policy_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_ci_pack_golden_exec_policy_selftest_progress(
+        age5_full_real_ci_pack_golden_exec_policy_selftest_current_case=current_case,
+        age5_full_real_ci_pack_golden_exec_policy_selftest_last_completed_case=last_completed_case,
+        age5_full_real_ci_pack_golden_exec_policy_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_ci_pack_golden_exec_policy_selftest_current_probe=current_probe,
+        age5_full_real_ci_pack_golden_exec_policy_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_ci_pack_golden_exec_policy_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_ci_pack_golden_jjaim_flatten_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_pack_golden_jjaim_flatten_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_pack_golden_jjaim_flatten_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_pack_golden_jjaim_flatten_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_pack_golden_jjaim_flatten_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_pack_golden_jjaim_flatten_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress(
+        age5_full_real_ci_pack_golden_jjaim_flatten_selftest_current_case=current_case,
+        age5_full_real_ci_pack_golden_jjaim_flatten_selftest_last_completed_case=last_completed_case,
+        age5_full_real_ci_pack_golden_jjaim_flatten_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_ci_pack_golden_jjaim_flatten_selftest_current_probe=current_probe,
+        age5_full_real_ci_pack_golden_jjaim_flatten_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_ci_pack_golden_event_model_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_pack_golden_event_model_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_pack_golden_event_model_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_pack_golden_event_model_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_pack_golden_event_model_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_pack_golden_event_model_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_ci_pack_golden_event_model_selftest_progress(
+        age5_full_real_ci_pack_golden_event_model_selftest_current_case=current_case,
+        age5_full_real_ci_pack_golden_event_model_selftest_last_completed_case=last_completed_case,
+        age5_full_real_ci_pack_golden_event_model_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_ci_pack_golden_event_model_selftest_current_probe=current_probe,
+        age5_full_real_ci_pack_golden_event_model_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_ci_pack_golden_event_model_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_ci_pack_golden_lang_consistency_selftest_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bci_pack_golden_lang_consistency_selftest_current_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_case_matches = re.findall(
+            r"\bci_pack_golden_lang_consistency_selftest_last_completed_case=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        elapsed_matches = re.findall(
+            r"\bci_pack_golden_lang_consistency_selftest_total_elapsed_ms=([A-Za-z0-9._-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bci_pack_golden_lang_consistency_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bci_pack_golden_lang_consistency_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_ci_pack_golden_lang_consistency_selftest_progress(
+        age5_full_real_ci_pack_golden_lang_consistency_selftest_current_case=current_case,
+        age5_full_real_ci_pack_golden_lang_consistency_selftest_last_completed_case=last_completed_case,
+        age5_full_real_ci_pack_golden_lang_consistency_selftest_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_ci_pack_golden_lang_consistency_selftest_current_probe=current_probe,
+        age5_full_real_ci_pack_golden_lang_consistency_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_ci_pack_golden_lang_consistency_selftest_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_w107_golden_index_selftest_progress(*texts: str) -> dict[str, str]:
+    active_cases = "-"
+    inactive_cases = "-"
+    index_codes = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        active_matches = re.findall(r"\bw107_golden_index_selftest_active_cases=([A-Za-z0-9._,-]+)", normalized)
+        inactive_matches = re.findall(r"\bw107_golden_index_selftest_inactive_cases=([A-Za-z0-9._,-]+)", normalized)
+        index_matches = re.findall(r"\bw107_golden_index_selftest_index_codes=([A-Za-z0-9._,-]+)", normalized)
+        current_probe_matches = re.findall(
+            r"\bw107_golden_index_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bw107_golden_index_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if active_matches:
+            active_cases = active_matches[-1]
+        if inactive_matches:
+            inactive_cases = inactive_matches[-1]
+        if index_matches:
+            index_codes = index_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_w107_golden_index_selftest_progress(
+        age5_full_real_w107_golden_index_selftest_active_cases=active_cases,
+        age5_full_real_w107_golden_index_selftest_inactive_cases=inactive_cases,
+        age5_full_real_w107_golden_index_selftest_index_codes=index_codes,
+        age5_full_real_w107_golden_index_selftest_current_probe=current_probe,
+        age5_full_real_w107_golden_index_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_w107_golden_index_selftest_progress_present=(
+            active_cases != "-"
+            or inactive_cases != "-"
+            or index_codes != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_w107_progress_contract_selftest_progress(*texts: str) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bw107_progress_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bw107_progress_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bw107_progress_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bw107_progress_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bw107_progress_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_w107_progress_contract_selftest_progress(
+        age5_full_real_w107_progress_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_w107_progress_contract_selftest_total_checks=total_checks,
+        age5_full_real_w107_progress_contract_selftest_checks_text=checks_text,
+        age5_full_real_w107_progress_contract_selftest_current_probe=current_probe,
+        age5_full_real_w107_progress_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_w107_progress_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_age1_immediate_proof_operation_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bage1_immediate_proof_operation_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bage1_immediate_proof_operation_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bage1_immediate_proof_operation_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bage1_immediate_proof_operation_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bage1_immediate_proof_operation_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_age1_immediate_proof_operation_contract_selftest_progress(
+        age5_full_real_age1_immediate_proof_operation_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_age1_immediate_proof_operation_contract_selftest_total_checks=total_checks,
+        age5_full_real_age1_immediate_proof_operation_contract_selftest_checks_text=checks_text,
+        age5_full_real_age1_immediate_proof_operation_contract_selftest_current_probe=current_probe,
+        age5_full_real_age1_immediate_proof_operation_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bproof_certificate_v1_consumer_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bproof_certificate_v1_consumer_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bproof_certificate_v1_consumer_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bproof_certificate_v1_consumer_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bproof_certificate_v1_consumer_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress(
+        age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bproof_certificate_v1_verify_report_digest_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bproof_certificate_v1_verify_report_digest_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bproof_certificate_v1_verify_report_digest_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bproof_certificate_v1_verify_report_digest_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bproof_certificate_v1_verify_report_digest_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress(
+        age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_total_checks=total_checks,
+        age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_checks_text=checks_text,
+        age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_current_probe=current_probe,
+        age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_proof_certificate_v1_family_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bproof_certificate_v1_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bproof_certificate_v1_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bproof_certificate_v1_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bproof_certificate_v1_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bproof_certificate_v1_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_proof_certificate_v1_family_contract_selftest_progress(
+        age5_full_real_proof_certificate_v1_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_proof_certificate_v1_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_proof_certificate_v1_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_proof_certificate_v1_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_proof_certificate_v1_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_proof_certificate_v1_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_proof_certificate_family_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bproof_certificate_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bproof_certificate_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bproof_certificate_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bproof_certificate_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bproof_certificate_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_proof_certificate_family_contract_selftest_progress(
+        age5_full_real_proof_certificate_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_proof_certificate_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_proof_certificate_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_proof_certificate_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_proof_certificate_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_proof_certificate_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_proof_certificate_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bproof_certificate_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bproof_certificate_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bproof_certificate_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bproof_certificate_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bproof_certificate_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_proof_certificate_family_transport_contract_selftest_progress(
+        age5_full_real_proof_certificate_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_proof_certificate_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_proof_certificate_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_proof_certificate_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_proof_certificate_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_proof_certificate_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_proof_family_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bproof_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bproof_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bproof_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bproof_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bproof_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_proof_family_contract_selftest_progress(
+        age5_full_real_proof_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_proof_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_proof_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_proof_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_proof_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_proof_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_proof_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bproof_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bproof_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bproof_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bproof_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bproof_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_proof_family_transport_contract_selftest_progress(
+        age5_full_real_proof_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_proof_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_proof_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_proof_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_proof_family_transport_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_proof_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_bogae_alias_family_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bbogae_alias_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bbogae_alias_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bbogae_alias_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bbogae_alias_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bbogae_alias_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_bogae_alias_family_contract_selftest_progress(
+        age5_full_real_bogae_alias_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_bogae_alias_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_bogae_alias_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_bogae_alias_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_bogae_alias_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_bogae_alias_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_lang_surface_family_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\blang_surface_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\blang_surface_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\blang_surface_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\blang_surface_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\blang_surface_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_lang_surface_family_contract_selftest_progress(
+        age5_full_real_lang_surface_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_lang_surface_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_lang_surface_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_lang_surface_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_lang_surface_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_lang_surface_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_lang_surface_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\blang_surface_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\blang_surface_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\blang_surface_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\blang_surface_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\blang_surface_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_lang_surface_family_transport_contract_selftest_progress(
+        age5_full_real_lang_surface_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_lang_surface_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_lang_surface_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_lang_surface_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_lang_surface_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_lang_surface_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_lang_runtime_family_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\blang_runtime_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\blang_runtime_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\blang_runtime_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\blang_runtime_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\blang_runtime_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_lang_runtime_family_contract_selftest_progress(
+        age5_full_real_lang_runtime_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_lang_runtime_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_lang_runtime_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_lang_runtime_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_lang_runtime_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_lang_runtime_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_lang_runtime_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\blang_runtime_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\blang_runtime_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\blang_runtime_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\blang_runtime_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\blang_runtime_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_lang_runtime_family_transport_contract_selftest_progress(
+        age5_full_real_lang_runtime_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_lang_runtime_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_lang_runtime_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_lang_runtime_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_lang_runtime_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_lang_runtime_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_gate0_runtime_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bgate0_runtime_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bgate0_runtime_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bgate0_runtime_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bgate0_runtime_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bgate0_runtime_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_gate0_runtime_family_transport_contract_selftest_progress(
+        age5_full_real_gate0_runtime_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_gate0_runtime_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_gate0_runtime_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_gate0_runtime_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_gate0_runtime_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_gate0_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bgate0_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bgate0_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bgate0_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bgate0_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bgate0_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_gate0_family_transport_contract_selftest_progress(
+        age5_full_real_gate0_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_gate0_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_gate0_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_gate0_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_gate0_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_gate0_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_gate0_family_contract_selftest_progress(*texts: str) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bgate0_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bgate0_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bgate0_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bgate0_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bgate0_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_gate0_family_contract_selftest_progress(
+        age5_full_real_gate0_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_gate0_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_gate0_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_gate0_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_gate0_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_gate0_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_gate0_surface_family_contract_selftest_progress(*texts: str) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bgate0_surface_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bgate0_surface_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bgate0_surface_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bgate0_surface_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bgate0_surface_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_gate0_surface_family_contract_selftest_progress(
+        age5_full_real_gate0_surface_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_gate0_surface_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_gate0_surface_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_gate0_surface_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_gate0_surface_family_contract_selftest_last_completed_probe=last_completed_probe,
+        age5_full_real_gate0_surface_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_gate0_surface_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bgate0_surface_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bgate0_surface_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bgate0_surface_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bgate0_surface_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bgate0_surface_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_gate0_surface_family_transport_contract_selftest_progress(
+        age5_full_real_gate0_surface_family_transport_contract_selftest_completed_checks=(
+            completed_checks
+        ),
+        age5_full_real_gate0_surface_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_gate0_surface_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_gate0_surface_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_gate0_surface_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_gate0_surface_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_gate0_transport_family_contract_selftest_progress(*texts: str) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bgate0_transport_family_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bgate0_transport_family_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bgate0_transport_family_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bgate0_transport_family_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bgate0_transport_family_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_gate0_transport_family_contract_selftest_progress(
+        age5_full_real_gate0_transport_family_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_gate0_transport_family_contract_selftest_total_checks=total_checks,
+        age5_full_real_gate0_transport_family_contract_selftest_checks_text=checks_text,
+        age5_full_real_gate0_transport_family_contract_selftest_current_probe=current_probe,
+        age5_full_real_gate0_transport_family_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_gate0_transport_family_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_gate0_transport_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bgate0_transport_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bgate0_transport_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bgate0_transport_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bgate0_transport_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bgate0_transport_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_gate0_transport_family_transport_contract_selftest_progress(
+        age5_full_real_gate0_transport_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_gate0_transport_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_gate0_transport_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_gate0_transport_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_gate0_transport_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_gate0_transport_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_bogae_alias_family_transport_contract_selftest_progress(
+    *texts: str,
+) -> dict[str, str]:
+    completed_checks = "-"
+    total_checks = "-"
+    checks_text = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        completed_matches = re.findall(
+            r"\bbogae_alias_family_transport_contract_selftest_completed_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        total_matches = re.findall(
+            r"\bbogae_alias_family_transport_contract_selftest_total_checks=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        checks_text_matches = re.findall(
+            r"\bbogae_alias_family_transport_contract_selftest_checks_text=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        current_probe_matches = re.findall(
+            r"\bbogae_alias_family_transport_contract_selftest_current_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bbogae_alias_family_transport_contract_selftest_last_completed_probe=([A-Za-z0-9._,-]+)",
+            normalized,
+        )
+        if completed_matches:
+            completed_checks = completed_matches[-1]
+        if total_matches:
+            total_checks = total_matches[-1]
+        if checks_text_matches:
+            checks_text = checks_text_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_bogae_alias_family_transport_contract_selftest_progress(
+        age5_full_real_bogae_alias_family_transport_contract_selftest_completed_checks=completed_checks,
+        age5_full_real_bogae_alias_family_transport_contract_selftest_total_checks=total_checks,
+        age5_full_real_bogae_alias_family_transport_contract_selftest_checks_text=checks_text,
+        age5_full_real_bogae_alias_family_transport_contract_selftest_current_probe=current_probe,
+        age5_full_real_bogae_alias_family_transport_contract_selftest_last_completed_probe=(
+            last_completed_probe
+        ),
+        age5_full_real_bogae_alias_family_transport_contract_selftest_progress_present=(
+            completed_checks != "-"
+            or total_checks != "-"
+            or checks_text != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_w94_social_pack_check_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(r"\bw94_social_pack_check_current_case=([A-Za-z0-9._,-]+)", normalized)
+        last_completed_case_matches = re.findall(
+            r"\bw94_social_pack_check_last_completed_case=([A-Za-z0-9._,-]+)", normalized
+        )
+        elapsed_matches = re.findall(r"\bw94_social_pack_check_total_elapsed_ms=([A-Za-z0-9._-]+)", normalized)
+        current_probe_matches = re.findall(r"\bw94_social_pack_check_current_probe=([A-Za-z0-9._,-]+)", normalized)
+        last_completed_probe_matches = re.findall(
+            r"\bw94_social_pack_check_last_completed_probe=([A-Za-z0-9._,-]+)", normalized
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_w94_social_pack_check_progress(
+        age5_full_real_w94_social_pack_check_current_case=current_case,
+        age5_full_real_w94_social_pack_check_last_completed_case=last_completed_case,
+        age5_full_real_w94_social_pack_check_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_w94_social_pack_check_current_probe=current_probe,
+        age5_full_real_w94_social_pack_check_last_completed_probe=last_completed_probe,
+        age5_full_real_w94_social_pack_check_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_w95_cert_pack_check_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(r"\bw95_cert_pack_check_current_case=([A-Za-z0-9._,-]+)", normalized)
+        last_completed_case_matches = re.findall(
+            r"\bw95_cert_pack_check_last_completed_case=([A-Za-z0-9._,-]+)", normalized
+        )
+        elapsed_matches = re.findall(r"\bw95_cert_pack_check_total_elapsed_ms=([A-Za-z0-9._-]+)", normalized)
+        current_probe_matches = re.findall(r"\bw95_cert_pack_check_current_probe=([A-Za-z0-9._,-]+)", normalized)
+        last_completed_probe_matches = re.findall(
+            r"\bw95_cert_pack_check_last_completed_probe=([A-Za-z0-9._,-]+)", normalized
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_w95_cert_pack_check_progress(
+        age5_full_real_w95_cert_pack_check_current_case=current_case,
+        age5_full_real_w95_cert_pack_check_last_completed_case=last_completed_case,
+        age5_full_real_w95_cert_pack_check_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_w95_cert_pack_check_current_probe=current_probe,
+        age5_full_real_w95_cert_pack_check_last_completed_probe=last_completed_probe,
+        age5_full_real_w95_cert_pack_check_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_w96_somssi_pack_check_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(r"\bw96_somssi_pack_check_current_case=([A-Za-z0-9._,-]+)", normalized)
+        last_completed_case_matches = re.findall(
+            r"\bw96_somssi_pack_check_last_completed_case=([A-Za-z0-9._,-]+)", normalized
+        )
+        elapsed_matches = re.findall(r"\bw96_somssi_pack_check_total_elapsed_ms=([A-Za-z0-9._-]+)", normalized)
+        current_probe_matches = re.findall(r"\bw96_somssi_pack_check_current_probe=([A-Za-z0-9._,-]+)", normalized)
+        last_completed_probe_matches = re.findall(
+            r"\bw96_somssi_pack_check_last_completed_probe=([A-Za-z0-9._,-]+)", normalized
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_w96_somssi_pack_check_progress(
+        age5_full_real_w96_somssi_pack_check_current_case=current_case,
+        age5_full_real_w96_somssi_pack_check_last_completed_case=last_completed_case,
+        age5_full_real_w96_somssi_pack_check_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_w96_somssi_pack_check_current_probe=current_probe,
+        age5_full_real_w96_somssi_pack_check_last_completed_probe=last_completed_probe,
+        age5_full_real_w96_somssi_pack_check_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def parse_full_real_w97_self_heal_pack_check_progress(*texts: str) -> dict[str, str]:
+    current_case = "-"
+    last_completed_case = "-"
+    total_elapsed_ms = "-"
+    current_probe = "-"
+    last_completed_probe = "-"
+    for text in texts:
+        normalized = str(text or "").strip()
+        if not normalized:
+            continue
+        current_case_matches = re.findall(
+            r"\bw97_self_heal_pack_check_current_case=([A-Za-z0-9._,-]+)", normalized
+        )
+        last_completed_case_matches = re.findall(
+            r"\bw97_self_heal_pack_check_last_completed_case=([A-Za-z0-9._,-]+)", normalized
+        )
+        elapsed_matches = re.findall(r"\bw97_self_heal_pack_check_total_elapsed_ms=([A-Za-z0-9._-]+)", normalized)
+        current_probe_matches = re.findall(
+            r"\bw97_self_heal_pack_check_current_probe=([A-Za-z0-9._,-]+)", normalized
+        )
+        last_completed_probe_matches = re.findall(
+            r"\bw97_self_heal_pack_check_last_completed_probe=([A-Za-z0-9._,-]+)", normalized
+        )
+        if current_case_matches:
+            current_case = current_case_matches[-1]
+        if last_completed_case_matches:
+            last_completed_case = last_completed_case_matches[-1]
+        if elapsed_matches:
+            total_elapsed_ms = elapsed_matches[-1]
+        if current_probe_matches:
+            current_probe = current_probe_matches[-1]
+        if last_completed_probe_matches:
+            last_completed_probe = last_completed_probe_matches[-1]
+    return build_age5_full_real_w97_self_heal_pack_check_progress(
+        age5_full_real_w97_self_heal_pack_check_current_case=current_case,
+        age5_full_real_w97_self_heal_pack_check_last_completed_case=last_completed_case,
+        age5_full_real_w97_self_heal_pack_check_total_elapsed_ms=total_elapsed_ms,
+        age5_full_real_w97_self_heal_pack_check_current_probe=current_probe,
+        age5_full_real_w97_self_heal_pack_check_last_completed_probe=last_completed_probe,
+        age5_full_real_w97_self_heal_pack_check_progress_present=(
+            current_case != "-"
+            or last_completed_case != "-"
+            or total_elapsed_ms != "-"
+            or current_probe != "-"
+            or last_completed_probe != "-"
+        ),
+    )
+
+
+def extract_full_real_profile_elapsed_map_from_child_report(path: Path, criterion_name: str) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_profile_elapsed_map(detail, failure_digest_joined)
+
+
+def extract_full_real_core_lang_sanity_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_core_lang_sanity_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_pipeline_emit_flags_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_pipeline_emit_flags_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_pipeline_emit_flags_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_pipeline_emit_flags_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_pipeline_emit_flags_selftest_probe_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_pipeline_emit_flags_selftest_probe(detail, failure_digest_joined)
+
+
+def extract_full_real_age5_combined_policy_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_age5_combined_policy_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_profile_matrix_full_real_smoke_policy_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_profile_matrix_full_real_smoke_check_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_profile_matrix_full_real_smoke_check_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_map_access_contract_check_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_map_access_contract_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_tensor_v0_cli_check_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_tensor_v0_cli_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_ci_pack_golden_jjaim_flatten_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_event_model_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_ci_pack_golden_event_model_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_lang_consistency_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_ci_pack_golden_lang_consistency_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w107_golden_index_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_w107_golden_index_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w107_progress_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_w107_progress_contract_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_age1_immediate_proof_operation_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_age1_immediate_proof_operation_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_v1_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_proof_certificate_v1_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_proof_certificate_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_proof_certificate_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_proof_family_contract_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_proof_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_proof_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_surface_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_lang_surface_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_surface_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_lang_surface_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_runtime_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_lang_runtime_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_runtime_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_lang_runtime_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_runtime_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_gate0_runtime_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_gate0_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_gate0_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_surface_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_gate0_surface_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_surface_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_gate0_surface_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_transport_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_gate0_transport_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_transport_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_gate0_transport_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_bogae_alias_family_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_bogae_alias_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_bogae_alias_family_transport_contract_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_bogae_alias_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_w94_social_pack_check_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_w94_social_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w95_cert_pack_check_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_w95_cert_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w96_somssi_pack_check_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_w96_somssi_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w97_self_heal_pack_check_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_w97_self_heal_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_age5_surface_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_ci_pack_golden_age5_surface_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_guideblock_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_ci_pack_golden_guideblock_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_exec_policy_selftest_progress_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_ci_pack_golden_exec_policy_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_profile_elapsed_map_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_profile_elapsed_map(detail, failure_digest_joined)
+
+
+def extract_full_real_core_lang_sanity_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_core_lang_sanity_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_pipeline_emit_flags_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_pipeline_emit_flags_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_profile_matrix_full_real_smoke_policy_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_profile_matrix_full_real_smoke_check_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_profile_matrix_full_real_smoke_check_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_map_access_contract_check_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_map_access_contract_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_tensor_v0_cli_check_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_tensor_v0_cli_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_age5_surface_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_ci_pack_golden_age5_surface_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_guideblock_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_ci_pack_golden_guideblock_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_exec_policy_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_ci_pack_golden_exec_policy_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_ci_pack_golden_jjaim_flatten_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_event_model_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_ci_pack_golden_event_model_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_ci_pack_golden_lang_consistency_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_ci_pack_golden_lang_consistency_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w107_golden_index_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_w107_golden_index_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w107_progress_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_w107_progress_contract_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_age1_immediate_proof_operation_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_age1_immediate_proof_operation_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_v1_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_proof_certificate_v1_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_proof_certificate_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_certificate_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_proof_certificate_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_proof_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_proof_family_contract_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_proof_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_proof_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_surface_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_lang_surface_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_surface_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_lang_surface_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_runtime_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_lang_runtime_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_lang_runtime_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_lang_runtime_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_runtime_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_gate0_runtime_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_gate0_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_gate0_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_surface_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_gate0_surface_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_surface_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_gate0_surface_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_transport_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_gate0_transport_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_gate0_transport_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_gate0_transport_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_bogae_alias_family_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_bogae_alias_family_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_bogae_alias_family_transport_contract_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        if detail:
+            break
+    failure_digest_joined = " ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_bogae_alias_family_transport_contract_selftest_progress(
+        detail, failure_digest_joined
+    )
+
+
+def extract_full_real_w94_social_pack_check_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_w94_social_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w95_cert_pack_check_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_w95_cert_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w96_somssi_pack_check_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_w96_somssi_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_w97_self_heal_pack_check_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_w97_self_heal_pack_check_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_pipeline_emit_flags_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_pipeline_emit_flags_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_pipeline_emit_flags_selftest_probe_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_pipeline_emit_flags_selftest_probe(detail, failure_digest_joined)
+
+
+def extract_full_real_age5_combined_policy_selftest_progress_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_age5_combined_policy_selftest_progress(detail, failure_digest_joined)
+
+
+def extract_full_real_profile_status_map_from_child_report(path: Path, criterion_name: str) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_profile_status_map(detail, failure_digest_joined)
+
+
+def extract_full_real_profile_status_map_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_profile_status_map(detail, failure_digest_joined)
+
+
+def extract_full_real_core_lang_sanity_elapsed_summary_from_child_report(
+    path: Path, criterion_name: str
+) -> dict[str, str]:
+    detail, failure_digest_joined = load_report_criterion_detail(path, criterion_name)
+    return parse_full_real_core_lang_sanity_elapsed_summary(detail, failure_digest_joined)
+
+
+def extract_full_real_core_lang_sanity_elapsed_summary_from_criteria(
+    criteria: list[dict[str, object]],
+    failure_digest: list[str] | None = None,
+    criterion_name: str = "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+) -> dict[str, str]:
+    detail = ""
+    for row in criteria:
+        if str(row.get("name", "")).strip() != criterion_name:
+            continue
+        detail = str(row.get("detail", "")).strip()
+        break
+    failure_digest_joined = " | ".join(
+        str(item).strip() for item in (failure_digest or []) if str(item).strip()
+    )
+    return parse_full_real_core_lang_sanity_elapsed_summary(detail, failure_digest_joined)
+
+
+def run_or_reuse_age5_close_child_report(
+    *,
+    cmd: list[str],
+    cwd: Path,
+    env: dict[str, str] | None,
+    report_path: Path,
+    required_criterion: str,
+    timeout_sec: int | None = None,
+) -> tuple[subprocess.CompletedProcess[str], bool]:
+    if cached_age5_close_child_report_ok(report_path, required_criterion):
+        proc = subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout=(
+                "[age5-close-combined-heavy] reused child report "
+                f"report={report_path} criterion={required_criterion}"
+            ),
+            stderr="",
+        )
+        return proc, True
+    return run_text(cmd, cwd, env=env, timeout_sec=timeout_sec), False
+
+
+def load_age4_proof_snapshot_sources(report_dir: Path) -> tuple[dict[str, str], dict[str, str]]:
+    gate_result_snapshot = build_age4_proof_snapshot()
+    final_status_parse_snapshot = build_age4_proof_snapshot()
+    gate_result_present = False
+    final_status_parse_present = False
+    snapshot = build_age4_proof_snapshot()
+    result_doc = load_json(report_dir / "ci_gate_result.detjson")
+    if isinstance(result_doc, dict):
+        gate_result_present = True
+        gate_result_snapshot[AGE4_PROOF_OK_KEY] = "1" if bool(result_doc.get(AGE4_PROOF_OK_KEY, False)) else "0"
+        try:
+            gate_result_snapshot[AGE4_PROOF_FAILED_CRITERIA_KEY] = str(
+                int(result_doc.get(AGE4_PROOF_FAILED_CRITERIA_KEY, -1))
+            )
+        except Exception:
+            pass
+        preview = str(result_doc.get(AGE4_PROOF_FAILED_PREVIEW_KEY, "")).strip()
+        if preview:
+            gate_result_snapshot[AGE4_PROOF_FAILED_PREVIEW_KEY] = preview
+        snapshot.update(gate_result_snapshot)
+    final_parse_doc = load_json(report_dir / "ci_gate_final_status_line_parse.detjson")
+    parsed = final_parse_doc.get("parsed") if isinstance(final_parse_doc, dict) else None
+    if isinstance(parsed, dict):
+        final_status_parse_present = True
+        final_status_parse_snapshot[AGE4_PROOF_OK_KEY] = (
+            "1" if str(parsed.get(AGE4_PROOF_OK_KEY, "0")).strip() == "1" else "0"
+        )
+        try:
+            final_status_parse_snapshot[AGE4_PROOF_FAILED_CRITERIA_KEY] = str(
+                int(str(parsed.get(AGE4_PROOF_FAILED_CRITERIA_KEY, "-1")).strip())
+            )
+        except Exception:
+            pass
+        preview = str(parsed.get(AGE4_PROOF_FAILED_PREVIEW_KEY, "")).strip()
+        if preview:
+            final_status_parse_snapshot[AGE4_PROOF_FAILED_PREVIEW_KEY] = preview
+        snapshot.update(final_status_parse_snapshot)
+    source_fields = build_age4_proof_source_snapshot_fields(
+        top_snapshot=snapshot,
+        gate_result_snapshot=gate_result_snapshot,
+        gate_result_present=gate_result_present,
+        final_status_parse_snapshot=final_status_parse_snapshot,
+        final_status_parse_present=final_status_parse_present,
+    )
+    return snapshot, source_fields
+
+
+def build_age5_combined_heavy_optin_report(
+    *,
+    root: Path,
+    strict: bool,
+    combined_heavy_env_enabled: bool,
+    full_real_cmd: list[str],
+    full_real_proc: subprocess.CompletedProcess[str],
+    full_real_report: Path,
+    runtime_helper_negative_cmd: list[str],
+    runtime_helper_negative_proc: subprocess.CompletedProcess[str],
+    runtime_helper_negative_report: Path,
+    group_id_summary_negative_cmd: list[str],
+    group_id_summary_negative_proc: subprocess.CompletedProcess[str],
+    group_id_summary_negative_report: Path,
+    combined_heavy_child_timeout_sec: int = 0,
+    age4_proof_snapshot: dict[str, str] | None = None,
+    age4_proof_source_fields: dict[str, str] | None = None,
+) -> dict[str, object]:
+    smoke_check_script = root / CI_PROFILE_MATRIX_FULL_REAL_SMOKE_SCRIPT
+    smoke_check_selftest_script = root / "tests" / "run_ci_profile_matrix_full_real_smoke_check_selftest.py"
+    smoke_check_script_text = str(CI_PROFILE_MATRIX_FULL_REAL_SMOKE_SCRIPT).replace("\\", "/")
+    smoke_check_selftest_script_text = "tests/run_ci_profile_matrix_full_real_smoke_check_selftest.py"
+    full_real_source_trace = build_age5_combined_heavy_full_real_source_trace(
+        smoke_check_script=smoke_check_script_text,
+        smoke_check_script_exists=smoke_check_script.exists(),
+        smoke_check_selftest_script=smoke_check_selftest_script_text,
+        smoke_check_selftest_script_exists=smoke_check_selftest_script.exists(),
+    )
+    full_real_ok = int(full_real_proc.returncode == 0)
+    runtime_helper_negative_ok = int(runtime_helper_negative_proc.returncode == 0)
+    group_id_summary_negative_ok = int(group_id_summary_negative_proc.returncode == 0)
+    overall_ok = bool(full_real_ok and runtime_helper_negative_ok and group_id_summary_negative_ok)
+    timeout_targets: list[str] = []
+    if int(full_real_proc.returncode) == 124 or child_report_indicates_timeout(
+        full_real_report, "age5_ci_profile_matrix_full_real_smoke_optin_pass"
+    ):
+        timeout_targets.append("full_real")
+    if int(runtime_helper_negative_proc.returncode) == 124 or child_report_indicates_timeout(
+        runtime_helper_negative_report, "age5_ci_profile_core_lang_runtime_helper_negative_optin_pass"
+    ):
+        timeout_targets.append("runtime_helper_negative")
+    if int(group_id_summary_negative_proc.returncode) == 124 or child_report_indicates_timeout(
+        group_id_summary_negative_report, "age5_ci_profile_core_lang_group_id_summary_negative_optin_pass"
+    ):
+        timeout_targets.append("group_id_summary_negative")
+    timeout_mode = resolve_age5_combined_heavy_timeout_mode(combined_heavy_child_timeout_sec)
+    full_real_timeout_breakdown = build_age5_full_real_timeout_breakdown()
+    full_real_elapsed_summary = build_age5_full_real_elapsed_summary()
+    full_real_core_lang_sanity_elapsed_summary = build_age5_full_real_core_lang_sanity_elapsed_summary()
+    full_real_core_lang_sanity_progress = parse_full_real_core_lang_sanity_progress()
+    full_real_pipeline_emit_flags_progress = build_age5_full_real_pipeline_emit_flags_progress()
+    full_real_pipeline_emit_flags_selftest_progress = build_age5_full_real_pipeline_emit_flags_selftest_progress()
+    full_real_pipeline_emit_flags_selftest_probe = build_age5_full_real_pipeline_emit_flags_selftest_probe()
+    full_real_age5_combined_policy_selftest_progress = parse_full_real_age5_combined_policy_selftest_progress()
+    full_real_profile_matrix_full_real_smoke_policy_selftest_progress = (
+        build_age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress()
+    )
+    full_real_profile_matrix_full_real_smoke_check_selftest_progress = (
+        build_age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress()
+    )
+    full_real_fixed64_darwin_real_report_readiness_check_selftest_progress = (
+        build_age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress()
+    )
+    full_real_map_access_contract_check_progress = (
+        build_age5_full_real_map_access_contract_check_progress()
+    )
+    full_real_tensor_v0_cli_check_progress = build_age5_full_real_tensor_v0_cli_check_progress()
+    full_real_ci_pack_golden_exec_policy_selftest_progress = (
+        build_age5_full_real_ci_pack_golden_exec_policy_selftest_progress()
+    )
+    full_real_ci_pack_golden_age5_surface_selftest_progress = (
+        build_age5_full_real_ci_pack_golden_age5_surface_selftest_progress()
+    )
+    full_real_ci_pack_golden_guideblock_selftest_progress = (
+        build_age5_full_real_ci_pack_golden_guideblock_selftest_progress()
+    )
+    full_real_ci_pack_golden_jjaim_flatten_selftest_progress = (
+        build_age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress()
+    )
+    full_real_ci_pack_golden_event_model_selftest_progress = (
+        build_age5_full_real_ci_pack_golden_event_model_selftest_progress()
+    )
+    full_real_ci_pack_golden_lang_consistency_selftest_progress = (
+        build_age5_full_real_ci_pack_golden_lang_consistency_selftest_progress()
+    )
+    full_real_w107_golden_index_selftest_progress = (
+        build_age5_full_real_w107_golden_index_selftest_progress()
+    )
+    full_real_w107_progress_contract_selftest_progress = (
+        build_age5_full_real_w107_progress_contract_selftest_progress()
+    )
+    full_real_age1_immediate_proof_operation_contract_selftest_progress = (
+        build_age5_full_real_age1_immediate_proof_operation_contract_selftest_progress()
+    )
+    full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress = (
+        build_age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress()
+    )
+    full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress = (
+        build_age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress()
+    )
+    full_real_proof_certificate_v1_family_contract_selftest_progress = (
+        build_age5_full_real_proof_certificate_v1_family_contract_selftest_progress()
+    )
+    full_real_proof_certificate_family_contract_selftest_progress = (
+        build_age5_full_real_proof_certificate_family_contract_selftest_progress()
+    )
+    full_real_proof_certificate_family_transport_contract_selftest_progress = (
+        build_age5_full_real_proof_certificate_family_transport_contract_selftest_progress()
+    )
+    full_real_proof_family_contract_selftest_progress = (
+        build_age5_full_real_proof_family_contract_selftest_progress()
+    )
+    full_real_proof_family_transport_contract_selftest_progress = (
+        build_age5_full_real_proof_family_transport_contract_selftest_progress()
+    )
+    full_real_lang_surface_family_contract_selftest_progress = (
+        build_age5_full_real_lang_surface_family_contract_selftest_progress()
+    )
+    full_real_lang_surface_family_transport_contract_selftest_progress = (
+        build_age5_full_real_lang_surface_family_transport_contract_selftest_progress()
+    )
+    full_real_lang_runtime_family_contract_selftest_progress = (
+        build_age5_full_real_lang_runtime_family_contract_selftest_progress()
+    )
+    full_real_lang_runtime_family_transport_contract_selftest_progress = (
+        build_age5_full_real_lang_runtime_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_runtime_family_transport_contract_selftest_progress = (
+        build_age5_full_real_gate0_runtime_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_family_transport_contract_selftest_progress = (
+        build_age5_full_real_gate0_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_transport_family_contract_selftest_progress = (
+        build_age5_full_real_gate0_transport_family_contract_selftest_progress()
+    )
+    full_real_gate0_transport_family_transport_contract_selftest_progress = (
+        build_age5_full_real_gate0_transport_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_family_contract_selftest_progress = (
+        build_age5_full_real_gate0_family_contract_selftest_progress()
+    )
+    full_real_gate0_surface_family_contract_selftest_progress = (
+        build_age5_full_real_gate0_surface_family_contract_selftest_progress()
+    )
+    full_real_gate0_surface_family_transport_contract_selftest_progress = (
+        build_age5_full_real_gate0_surface_family_transport_contract_selftest_progress()
+    )
+    full_real_bogae_alias_family_contract_selftest_progress = (
+        build_age5_full_real_bogae_alias_family_contract_selftest_progress()
+    )
+    full_real_bogae_alias_family_transport_contract_selftest_progress = (
+        build_age5_full_real_bogae_alias_family_transport_contract_selftest_progress()
+    )
+    full_real_w94_social_pack_check_progress = build_age5_full_real_w94_social_pack_check_progress()
+    full_real_w95_cert_pack_check_progress = build_age5_full_real_w95_cert_pack_check_progress()
+    full_real_w96_somssi_pack_check_progress = build_age5_full_real_w96_somssi_pack_check_progress()
+    full_real_w97_self_heal_pack_check_progress = build_age5_full_real_w97_self_heal_pack_check_progress()
+    full_real_profile_elapsed_map = build_age5_full_real_profile_elapsed_map()
+    full_real_profile_status_map = build_age5_full_real_profile_status_map()
+    if "full_real" in timeout_targets:
+        full_real_timeout_breakdown = extract_full_real_timeout_breakdown_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+    if bool(full_real_ok) or "full_real" in timeout_targets:
+        full_real_elapsed_summary = extract_full_real_elapsed_summary_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+        full_real_core_lang_sanity_elapsed_summary = (
+            extract_full_real_core_lang_sanity_elapsed_summary_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_core_lang_sanity_progress = extract_full_real_core_lang_sanity_progress_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+        full_real_pipeline_emit_flags_progress = extract_full_real_pipeline_emit_flags_progress_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+        full_real_pipeline_emit_flags_selftest_progress = (
+            extract_full_real_pipeline_emit_flags_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_pipeline_emit_flags_selftest_probe = (
+            extract_full_real_pipeline_emit_flags_selftest_probe_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_age5_combined_policy_selftest_progress = (
+            extract_full_real_age5_combined_policy_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_profile_matrix_full_real_smoke_policy_selftest_progress = (
+            extract_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_profile_matrix_full_real_smoke_check_selftest_progress = (
+            extract_full_real_profile_matrix_full_real_smoke_check_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_fixed64_darwin_real_report_readiness_check_selftest_progress = (
+            extract_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_map_access_contract_check_progress = (
+            extract_full_real_map_access_contract_check_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_tensor_v0_cli_check_progress = (
+            extract_full_real_tensor_v0_cli_check_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_ci_pack_golden_exec_policy_selftest_progress = (
+            extract_full_real_ci_pack_golden_exec_policy_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_ci_pack_golden_age5_surface_selftest_progress = (
+            extract_full_real_ci_pack_golden_age5_surface_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_ci_pack_golden_guideblock_selftest_progress = (
+            extract_full_real_ci_pack_golden_guideblock_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_ci_pack_golden_jjaim_flatten_selftest_progress = (
+            extract_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_ci_pack_golden_event_model_selftest_progress = (
+            extract_full_real_ci_pack_golden_event_model_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_ci_pack_golden_lang_consistency_selftest_progress = (
+            extract_full_real_ci_pack_golden_lang_consistency_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_w107_golden_index_selftest_progress = (
+            extract_full_real_w107_golden_index_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_w107_progress_contract_selftest_progress = (
+            extract_full_real_w107_progress_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_age1_immediate_proof_operation_contract_selftest_progress = (
+            extract_full_real_age1_immediate_proof_operation_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress = (
+            extract_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress = (
+            extract_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_proof_certificate_v1_family_contract_selftest_progress = (
+            extract_full_real_proof_certificate_v1_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_proof_certificate_family_contract_selftest_progress = (
+            extract_full_real_proof_certificate_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_proof_certificate_family_transport_contract_selftest_progress = (
+            extract_full_real_proof_certificate_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_proof_family_contract_selftest_progress = (
+            extract_full_real_proof_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_proof_family_transport_contract_selftest_progress = (
+            extract_full_real_proof_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_lang_surface_family_contract_selftest_progress = (
+            extract_full_real_lang_surface_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_lang_surface_family_transport_contract_selftest_progress = (
+            extract_full_real_lang_surface_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_lang_runtime_family_contract_selftest_progress = (
+            extract_full_real_lang_runtime_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_lang_runtime_family_transport_contract_selftest_progress = (
+            extract_full_real_lang_runtime_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_gate0_runtime_family_transport_contract_selftest_progress = (
+            extract_full_real_gate0_runtime_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_gate0_family_transport_contract_selftest_progress = (
+            extract_full_real_gate0_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_gate0_family_contract_selftest_progress = (
+            extract_full_real_gate0_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_gate0_surface_family_contract_selftest_progress = (
+            extract_full_real_gate0_surface_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_gate0_surface_family_transport_contract_selftest_progress = (
+            extract_full_real_gate0_surface_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_gate0_transport_family_contract_selftest_progress = (
+            extract_full_real_gate0_transport_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_gate0_transport_family_transport_contract_selftest_progress = (
+            extract_full_real_gate0_transport_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_bogae_alias_family_contract_selftest_progress = (
+            extract_full_real_bogae_alias_family_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_bogae_alias_family_transport_contract_selftest_progress = (
+            extract_full_real_bogae_alias_family_transport_contract_selftest_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_w94_social_pack_check_progress = extract_full_real_w94_social_pack_check_progress_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+        full_real_w95_cert_pack_check_progress = extract_full_real_w95_cert_pack_check_progress_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+        full_real_w96_somssi_pack_check_progress = extract_full_real_w96_somssi_pack_check_progress_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+        full_real_w97_self_heal_pack_check_progress = (
+            extract_full_real_w97_self_heal_pack_check_progress_from_child_report(
+                full_real_report,
+                "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            )
+        )
+        full_real_profile_elapsed_map = extract_full_real_profile_elapsed_map_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+        full_real_profile_status_map = extract_full_real_profile_status_map_from_child_report(
+            full_real_report,
+            "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+        )
+    normalized_age4_proof_snapshot = (
+        build_age4_proof_snapshot(**age4_proof_snapshot)
+        if isinstance(age4_proof_snapshot, dict)
+        else build_age4_proof_snapshot()
+    )
+    normalized_age4_proof_source_fields = (
+        dict(age4_proof_source_fields)
+        if isinstance(age4_proof_source_fields, dict)
+        else build_age4_proof_source_snapshot_fields(top_snapshot=normalized_age4_proof_snapshot)
+    )
+    report: dict[str, object] = {
+        "schema": AGE5_COMBINED_HEAVY_REPORT_SCHEMA,
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "strict": bool(strict),
+        "with_combined_heavy_runtime_helper_check": True,
+        "combined_heavy_env_enabled": bool(combined_heavy_env_enabled),
+        "overall_ok": overall_ok,
+        AGE5_CLOSE_DIGEST_SELFTEST_OK_KEY: 0,
+        AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_TEXT_KEY: AGE5_CLOSE_DIGEST_SELFTEST_OK_FRAGMENT,
+        AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_KEY: build_age5_close_digest_selftest_default_field(),
+        "age4_proof_snapshot_fields_text": AGE4_PROOF_SNAPSHOT_FIELDS_TEXT,
+        "age4_proof_snapshot_text": build_age4_proof_snapshot_text(normalized_age4_proof_snapshot),
+        "policy_contract": {
+            "env_key": AGE5_COMBINED_HEAVY_ENV_KEY,
+            "scope": AGE5_COMBINED_HEAVY_MODE,
+            "combined_report_schema": AGE5_COMBINED_HEAVY_REPORT_SCHEMA,
+            "full_real_source_trace_text": AGE5_COMBINED_HEAVY_FULL_REAL_SOURCE_TRACE_TEXT,
+            "full_real_smoke_check_script": smoke_check_script_text,
+            "full_real_smoke_check_selftest_script": smoke_check_selftest_script_text,
+            "combined_required_reports": list(AGE5_COMBINED_HEAVY_REQUIRED_REPORTS),
+            "combined_required_criteria": list(AGE5_COMBINED_HEAVY_REQUIRED_CRITERIA),
+            "combined_child_summary_keys": list(AGE5_COMBINED_HEAVY_CHILD_SUMMARY_KEYS),
+            "combined_child_summary_default_fields": build_age5_combined_heavy_child_summary_default_fields(),
+            "combined_child_summary_default_fields_text": AGE5_COMBINED_HEAVY_CHILD_SUMMARY_DEFAULT_FIELDS_TEXT,
+            "combined_timeout_policy_fields": build_age5_combined_heavy_timeout_policy_fields(),
+            AGE5_COMBINED_HEAVY_TIMEOUT_REQUIRES_OPTIN_KEY: AGE5_COMBINED_HEAVY_TIMEOUT_REQUIRES_OPTIN_DEFAULT,
+            AGE5_COMBINED_HEAVY_TIMEOUT_POLICY_REASON_KEY: AGE5_COMBINED_HEAVY_TIMEOUT_POLICY_REASON_DEFAULT,
+            AGE5_CLOSE_DIGEST_SELFTEST_OK_KEY: AGE5_CLOSE_DIGEST_SELFTEST_OK_DEFAULT,
+            AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_TEXT_KEY: AGE5_CLOSE_DIGEST_SELFTEST_OK_FRAGMENT,
+            AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_KEY: build_age5_close_digest_selftest_default_field(),
+            "combined_child_summary_default_text_transport_fields": (
+                build_age5_combined_heavy_child_summary_default_text_transport_fields()
+            ),
+            "combined_child_summary_default_text_transport_fields_text": (
+                AGE5_COMBINED_HEAVY_CHILD_SUMMARY_DEFAULT_TEXT_TRANSPORT_FIELDS_TEXT
+            ),
+            **build_age4_proof_snapshot(),
+            "age4_proof_snapshot_fields_text": AGE4_PROOF_SNAPSHOT_FIELDS_TEXT,
+            "age4_proof_source_snapshot_fields_text": AGE4_PROOF_SOURCE_SNAPSHOT_FIELDS_TEXT,
+            "age4_proof_snapshot_text": build_age4_proof_snapshot_text(build_age4_proof_snapshot()),
+            **build_age4_proof_source_snapshot_fields(top_snapshot=build_age4_proof_snapshot()),
+            "combined_contract_summary_fields": build_age5_combined_heavy_combined_report_contract_fields(),
+            "combined_contract_summary_fields_text": AGE5_COMBINED_HEAVY_COMBINED_REPORT_CONTRACT_FIELDS_TEXT,
+            "combined_full_summary_contract_fields": build_age5_combined_heavy_full_summary_contract_fields(),
+            "combined_full_summary_contract_fields_text": AGE5_COMBINED_HEAVY_FULL_SUMMARY_CONTRACT_FIELDS_TEXT,
+            "combined_full_summary_text_transport_fields": build_age5_combined_heavy_full_summary_text_transport_fields(),
+            "combined_full_summary_text_transport_fields_text": AGE5_COMBINED_HEAVY_FULL_SUMMARY_TEXT_TRANSPORT_FIELDS_TEXT,
+        },
+        "criteria": [
+            {
+                "name": "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+                "ok": bool(full_real_ok),
+                "detail": "rc={} cmd={} stdout_tail={}".format(
+                    full_real_proc.returncode,
+                    " ".join(full_real_cmd),
+                    clip(" | ".join(line.strip() for line in str(full_real_proc.stdout or "").strip().splitlines()[-6:]), 500),
+                ),
+            },
+            {
+                "name": "age5_ci_profile_core_lang_runtime_helper_negative_optin_pass",
+                "ok": bool(runtime_helper_negative_ok),
+                "detail": "rc={} cmd={} stdout_tail={}".format(
+                    runtime_helper_negative_proc.returncode,
+                    " ".join(runtime_helper_negative_cmd),
+                    clip(
+                        " | ".join(
+                            line.strip() for line in str(runtime_helper_negative_proc.stdout or "").strip().splitlines()[-6:]
+                        ),
+                        500,
+                    ),
+                ),
+            },
+            {
+                "name": "age5_ci_profile_core_lang_group_id_summary_negative_optin_pass",
+                "ok": bool(group_id_summary_negative_ok),
+                "detail": "rc={} cmd={} stdout_tail={}".format(
+                    group_id_summary_negative_proc.returncode,
+                    " ".join(group_id_summary_negative_cmd),
+                    clip(
+                        " | ".join(
+                            line.strip() for line in str(group_id_summary_negative_proc.stdout or "").strip().splitlines()[-6:]
+                        ),
+                        500,
+                    ),
+                ),
+            },
+        ],
+        "reports": {
+            "full_real": str(full_real_report),
+            "runtime_helper_negative": str(runtime_helper_negative_report),
+            "group_id_summary_negative": str(group_id_summary_negative_report),
+        },
+        "full_real_source_trace": full_real_source_trace,
+        "full_real_source_trace_text": build_age5_combined_heavy_full_real_source_trace_text(full_real_source_trace),
+        "age5_combined_heavy_timeout_present": "1" if timeout_targets else "0",
+        "age5_combined_heavy_timeout_targets": ",".join(timeout_targets) if timeout_targets else "-",
+        AGE5_COMBINED_HEAVY_TIMEOUT_MODE_KEY: timeout_mode,
+        "age5_combined_heavy_timeout_policy_ok": "1",
+        AGE5_COMBINED_HEAVY_TIMEOUT_POLICY_REASON_KEY: AGE5_COMBINED_HEAVY_TIMEOUT_POLICY_REASON_DEFAULT,
+        "age5_full_real_elapsed_fields_text": AGE5_FULL_REAL_ELAPSED_FIELDS_TEXT,
+        "age5_full_real_core_lang_sanity_elapsed_fields_text": AGE5_FULL_REAL_CORE_LANG_SANITY_ELAPSED_FIELDS_TEXT,
+        "age5_full_real_core_lang_sanity_progress_fields_text": AGE5_FULL_REAL_CORE_LANG_SANITY_PROGRESS_FIELDS_TEXT,
+        "age5_full_real_pipeline_emit_flags_progress_fields_text": AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_PROGRESS_FIELDS_TEXT,
+        "age5_full_real_pipeline_emit_flags_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_pipeline_emit_flags_selftest_probe_fields_text": (
+            AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_SELFTEST_PROBE_FIELDS_TEXT
+        ),
+        "age5_full_real_age5_combined_policy_selftest_progress_fields_text": (
+            "age5_full_real_age5_combined_policy_selftest_current_case=-|"
+            "age5_full_real_age5_combined_policy_selftest_last_completed_case=-|"
+            "age5_full_real_age5_combined_policy_selftest_current_format=-|"
+            "age5_full_real_age5_combined_policy_selftest_last_completed_format=-|"
+            "age5_full_real_age5_combined_policy_selftest_current_probe=-|"
+            "age5_full_real_age5_combined_policy_selftest_last_completed_probe=-|"
+            "age5_full_real_age5_combined_policy_selftest_total_elapsed_ms=-|"
+            "age5_full_real_age5_combined_policy_selftest_progress_present=0"
+        ),
+        "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROFILE_MATRIX_FULL_REAL_SMOKE_POLICY_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_FIXED64_DARWIN_REAL_REPORT_READINESS_CHECK_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_map_access_contract_check_progress_fields_text": (
+            AGE5_FULL_REAL_MAP_ACCESS_CONTRACT_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_tensor_v0_cli_check_progress_fields_text": (
+            AGE5_FULL_REAL_TENSOR_V0_CLI_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_exec_policy_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_EXEC_POLICY_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_age5_surface_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_AGE5_SURFACE_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_guideblock_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_GUIDEBLOCK_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_JJAIM_FLATTEN_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_event_model_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_EVENT_MODEL_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_lang_consistency_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_LANG_CONSISTENCY_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w107_golden_index_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_W107_GOLDEN_INDEX_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w107_progress_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_W107_PROGRESS_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_v1_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_surface_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_SURFACE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_surface_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_runtime_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_RUNTIME_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_runtime_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_RUNTIME_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_surface_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_SURFACE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_surface_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_transport_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_TRANSPORT_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_transport_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_bogae_alias_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_BOGAE_ALIAS_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_bogae_alias_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w94_social_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W94_SOCIAL_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w95_cert_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W95_CERT_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w96_somssi_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W96_SOMSSI_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w97_self_heal_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W97_SELF_HEAL_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_profile_elapsed_map_fields_text": AGE5_FULL_REAL_PROFILE_ELAPSED_MAP_FIELDS_TEXT,
+        "age5_full_real_profile_status_map_fields_text": AGE5_FULL_REAL_PROFILE_STATUS_MAP_FIELDS_TEXT,
+        "age5_full_real_timeout_breakdown_fields_text": AGE5_FULL_REAL_TIMEOUT_BREAKDOWN_FIELDS_TEXT,
+    }
+    report.update(normalized_age4_proof_snapshot)
+    report.update(normalized_age4_proof_source_fields)
+    report.update(full_real_elapsed_summary)
+    report.update(full_real_core_lang_sanity_elapsed_summary)
+    report.update(full_real_core_lang_sanity_progress)
+    report.update(full_real_pipeline_emit_flags_progress)
+    report.update(full_real_pipeline_emit_flags_selftest_progress)
+    report.update(full_real_pipeline_emit_flags_selftest_probe)
+    report.update(full_real_age5_combined_policy_selftest_progress)
+    report.update(full_real_profile_matrix_full_real_smoke_policy_selftest_progress)
+    report.update(full_real_profile_matrix_full_real_smoke_check_selftest_progress)
+    report.update(full_real_fixed64_darwin_real_report_readiness_check_selftest_progress)
+    report.update(full_real_map_access_contract_check_progress)
+    report.update(full_real_tensor_v0_cli_check_progress)
+    report.update(full_real_ci_pack_golden_exec_policy_selftest_progress)
+    report.update(full_real_ci_pack_golden_age5_surface_selftest_progress)
+    report.update(full_real_ci_pack_golden_guideblock_selftest_progress)
+    report.update(full_real_ci_pack_golden_jjaim_flatten_selftest_progress)
+    report.update(full_real_ci_pack_golden_event_model_selftest_progress)
+    report.update(full_real_ci_pack_golden_lang_consistency_selftest_progress)
+    report.update(full_real_w107_golden_index_selftest_progress)
+    report.update(full_real_w107_progress_contract_selftest_progress)
+    report.update(full_real_age1_immediate_proof_operation_contract_selftest_progress)
+    report.update(full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress)
+    report.update(full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress)
+    report.update(full_real_proof_certificate_v1_family_contract_selftest_progress)
+    report.update(full_real_proof_certificate_family_contract_selftest_progress)
+    report.update(full_real_proof_certificate_family_transport_contract_selftest_progress)
+    report.update(full_real_proof_family_contract_selftest_progress)
+    report.update(full_real_proof_family_transport_contract_selftest_progress)
+    report.update(full_real_lang_surface_family_contract_selftest_progress)
+    report.update(full_real_lang_surface_family_transport_contract_selftest_progress)
+    report.update(full_real_lang_runtime_family_contract_selftest_progress)
+    report.update(full_real_lang_runtime_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_family_contract_selftest_progress)
+    report.update(full_real_gate0_surface_family_contract_selftest_progress)
+    report.update(full_real_gate0_surface_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_transport_family_contract_selftest_progress)
+    report.update(full_real_gate0_transport_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_runtime_family_transport_contract_selftest_progress)
+    report.update(full_real_bogae_alias_family_contract_selftest_progress)
+    report.update(full_real_bogae_alias_family_transport_contract_selftest_progress)
+    report.update(full_real_w94_social_pack_check_progress)
+    report.update(full_real_w95_cert_pack_check_progress)
+    report.update(full_real_w96_somssi_pack_check_progress)
+    report.update(full_real_w97_self_heal_pack_check_progress)
+    report.update(full_real_profile_elapsed_map)
+    report.update(full_real_profile_status_map)
+    report.update(full_real_timeout_breakdown)
+    report.update(
+        build_age5_combined_heavy_child_summary_fields(
+            full_real_ok=bool(full_real_ok),
+            runtime_helper_negative_ok=bool(runtime_helper_negative_ok),
+            group_id_summary_negative_ok=bool(group_id_summary_negative_ok),
+        )
+    )
+    report.update(build_age5_combined_heavy_combined_report_contract_fields())
+    report.update(build_age5_combined_heavy_full_summary_contract_fields())
+    report.update(build_age5_combined_heavy_full_summary_text_transport_fields())
+    report.update(build_age5_combined_heavy_child_summary_default_text_transport_fields())
+    return report
+
+
+def build_age5_close_report(
+    *,
+    strict: bool,
+    with_profile_matrix_full_real_smoke_check: bool,
+    with_runtime_helper_mismatch_negative_check: bool,
+    with_group_id_summary_mismatch_negative_check: bool,
+    with_combined_heavy_runtime_helper_check: bool,
+    combined_heavy_env_enabled: bool,
+    criteria: list[dict[str, object]],
+    failure_digest: list[str],
+    pending_items: list[str],
+    repair: dict[str, object],
+    age4_proof_snapshot: dict[str, str] | None = None,
+    age4_proof_source_fields: dict[str, str] | None = None,
+) -> dict[str, object]:
+    overall_ok = all(bool(row.get("ok", False)) for row in criteria)
+    normalized_age4_proof_snapshot = (
+        build_age4_proof_snapshot(**age4_proof_snapshot)
+        if isinstance(age4_proof_snapshot, dict)
+        else build_age4_proof_snapshot()
+    )
+    normalized_age4_proof_source_fields = (
+        dict(age4_proof_source_fields)
+        if isinstance(age4_proof_source_fields, dict)
+        else build_age4_proof_source_snapshot_fields(top_snapshot=normalized_age4_proof_snapshot)
+    )
+    full_real_elapsed_summary = (
+        extract_full_real_elapsed_summary_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_elapsed_summary()
+    )
+    full_real_core_lang_sanity_elapsed_summary = (
+        extract_full_real_core_lang_sanity_elapsed_summary_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_core_lang_sanity_elapsed_summary()
+    )
+    full_real_core_lang_sanity_progress = (
+        extract_full_real_core_lang_sanity_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else parse_full_real_core_lang_sanity_progress()
+    )
+    full_real_pipeline_emit_flags_progress = (
+        extract_full_real_pipeline_emit_flags_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_pipeline_emit_flags_progress()
+    )
+    full_real_pipeline_emit_flags_selftest_progress = (
+        extract_full_real_pipeline_emit_flags_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_pipeline_emit_flags_selftest_progress()
+    )
+    full_real_pipeline_emit_flags_selftest_probe = (
+        extract_full_real_pipeline_emit_flags_selftest_probe_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_pipeline_emit_flags_selftest_probe()
+    )
+    full_real_age5_combined_policy_selftest_progress = (
+        extract_full_real_age5_combined_policy_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else parse_full_real_age5_combined_policy_selftest_progress()
+    )
+    full_real_profile_matrix_full_real_smoke_policy_selftest_progress = (
+        extract_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress()
+    )
+    full_real_profile_matrix_full_real_smoke_check_selftest_progress = (
+        extract_full_real_profile_matrix_full_real_smoke_check_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress()
+    )
+    full_real_fixed64_darwin_real_report_readiness_check_selftest_progress = (
+        extract_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress()
+    )
+    full_real_map_access_contract_check_progress = (
+        extract_full_real_map_access_contract_check_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_map_access_contract_check_progress()
+    )
+    full_real_tensor_v0_cli_check_progress = (
+        extract_full_real_tensor_v0_cli_check_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_tensor_v0_cli_check_progress()
+    )
+    full_real_ci_pack_golden_exec_policy_selftest_progress = (
+        extract_full_real_ci_pack_golden_exec_policy_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_ci_pack_golden_exec_policy_selftest_progress()
+    )
+    full_real_ci_pack_golden_age5_surface_selftest_progress = (
+        extract_full_real_ci_pack_golden_age5_surface_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_ci_pack_golden_age5_surface_selftest_progress()
+    )
+    full_real_ci_pack_golden_guideblock_selftest_progress = (
+        extract_full_real_ci_pack_golden_guideblock_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_ci_pack_golden_guideblock_selftest_progress()
+    )
+    full_real_ci_pack_golden_jjaim_flatten_selftest_progress = (
+        extract_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress()
+    )
+    full_real_ci_pack_golden_event_model_selftest_progress = (
+        extract_full_real_ci_pack_golden_event_model_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_ci_pack_golden_event_model_selftest_progress()
+    )
+    full_real_ci_pack_golden_lang_consistency_selftest_progress = (
+        extract_full_real_ci_pack_golden_lang_consistency_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_ci_pack_golden_lang_consistency_selftest_progress()
+    )
+    full_real_w107_golden_index_selftest_progress = (
+        extract_full_real_w107_golden_index_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_w107_golden_index_selftest_progress()
+    )
+    full_real_w107_progress_contract_selftest_progress = (
+        extract_full_real_w107_progress_contract_selftest_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_w107_progress_contract_selftest_progress()
+    )
+    full_real_age1_immediate_proof_operation_contract_selftest_progress = (
+        extract_full_real_age1_immediate_proof_operation_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_age1_immediate_proof_operation_contract_selftest_progress()
+    )
+    full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress = (
+        extract_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress()
+    )
+    full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress = (
+        extract_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress()
+    )
+    full_real_proof_certificate_v1_family_contract_selftest_progress = (
+        extract_full_real_proof_certificate_v1_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_proof_certificate_v1_family_contract_selftest_progress()
+    )
+    full_real_proof_certificate_family_contract_selftest_progress = (
+        extract_full_real_proof_certificate_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_proof_certificate_family_contract_selftest_progress()
+    )
+    full_real_proof_certificate_family_transport_contract_selftest_progress = (
+        extract_full_real_proof_certificate_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_proof_certificate_family_transport_contract_selftest_progress()
+    )
+    full_real_proof_family_contract_selftest_progress = (
+        extract_full_real_proof_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_proof_family_contract_selftest_progress()
+    )
+    full_real_proof_family_transport_contract_selftest_progress = (
+        extract_full_real_proof_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_proof_family_transport_contract_selftest_progress()
+    )
+    full_real_lang_surface_family_contract_selftest_progress = (
+        extract_full_real_lang_surface_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_lang_surface_family_contract_selftest_progress()
+    )
+    full_real_lang_surface_family_transport_contract_selftest_progress = (
+        extract_full_real_lang_surface_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_lang_surface_family_transport_contract_selftest_progress()
+    )
+    full_real_lang_runtime_family_contract_selftest_progress = (
+        extract_full_real_lang_runtime_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_lang_runtime_family_contract_selftest_progress()
+    )
+    full_real_lang_runtime_family_transport_contract_selftest_progress = (
+        extract_full_real_lang_runtime_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_lang_runtime_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_family_contract_selftest_progress = (
+        extract_full_real_gate0_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_gate0_family_contract_selftest_progress()
+    )
+    full_real_gate0_surface_family_contract_selftest_progress = (
+        extract_full_real_gate0_surface_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_gate0_surface_family_contract_selftest_progress()
+    )
+    full_real_gate0_surface_family_transport_contract_selftest_progress = (
+        extract_full_real_gate0_surface_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_gate0_surface_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_family_transport_contract_selftest_progress = (
+        extract_full_real_gate0_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_gate0_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_transport_family_contract_selftest_progress = (
+        extract_full_real_gate0_transport_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_gate0_transport_family_contract_selftest_progress()
+    )
+    full_real_gate0_transport_family_transport_contract_selftest_progress = (
+        extract_full_real_gate0_transport_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_gate0_transport_family_transport_contract_selftest_progress()
+    )
+    full_real_gate0_runtime_family_transport_contract_selftest_progress = (
+        extract_full_real_gate0_runtime_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_gate0_runtime_family_transport_contract_selftest_progress()
+    )
+    full_real_bogae_alias_family_contract_selftest_progress = (
+        extract_full_real_bogae_alias_family_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_bogae_alias_family_contract_selftest_progress()
+    )
+    full_real_bogae_alias_family_transport_contract_selftest_progress = (
+        extract_full_real_bogae_alias_family_transport_contract_selftest_progress_from_criteria(
+            criteria, failure_digest
+        )
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_bogae_alias_family_transport_contract_selftest_progress()
+    )
+    full_real_w94_social_pack_check_progress = (
+        extract_full_real_w94_social_pack_check_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_w94_social_pack_check_progress()
+    )
+    full_real_w95_cert_pack_check_progress = (
+        extract_full_real_w95_cert_pack_check_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_w95_cert_pack_check_progress()
+    )
+    full_real_w96_somssi_pack_check_progress = (
+        extract_full_real_w96_somssi_pack_check_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_w96_somssi_pack_check_progress()
+    )
+    full_real_w97_self_heal_pack_check_progress = (
+        extract_full_real_w97_self_heal_pack_check_progress_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_w97_self_heal_pack_check_progress()
+    )
+    full_real_profile_elapsed_map = (
+        extract_full_real_profile_elapsed_map_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_profile_elapsed_map()
+    )
+    full_real_profile_status_map = (
+        extract_full_real_profile_status_map_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_profile_status_map()
+    )
+    full_real_timeout_breakdown = (
+        extract_full_real_timeout_breakdown_from_criteria(criteria, failure_digest)
+        if bool(with_profile_matrix_full_real_smoke_check)
+        else build_age5_full_real_timeout_breakdown()
+    )
+    report = {
+        "schema": "ddn.age5_close_report.v1",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "strict": bool(strict),
+        "with_profile_matrix_full_real_smoke_check": bool(with_profile_matrix_full_real_smoke_check),
+        "with_runtime_helper_mismatch_negative_check": bool(with_runtime_helper_mismatch_negative_check),
+        "with_group_id_summary_mismatch_negative_check": bool(with_group_id_summary_mismatch_negative_check),
+        "with_combined_heavy_runtime_helper_check": bool(with_combined_heavy_runtime_helper_check),
+        "combined_heavy_env_enabled": bool(combined_heavy_env_enabled),
+        "overall_ok": overall_ok,
+        "combined_heavy_child_timeout_sec": 0,
+        "age5_combined_heavy_timeout_present": "0",
+        "age5_combined_heavy_timeout_targets": "-",
+        AGE5_COMBINED_HEAVY_TIMEOUT_MODE_KEY: resolve_age5_combined_heavy_timeout_mode(0),
+        "age5_full_real_elapsed_fields_text": AGE5_FULL_REAL_ELAPSED_FIELDS_TEXT,
+        "age5_full_real_core_lang_sanity_elapsed_fields_text": AGE5_FULL_REAL_CORE_LANG_SANITY_ELAPSED_FIELDS_TEXT,
+        "age5_full_real_core_lang_sanity_progress_fields_text": AGE5_FULL_REAL_CORE_LANG_SANITY_PROGRESS_FIELDS_TEXT,
+        "age5_full_real_pipeline_emit_flags_progress_fields_text": AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_PROGRESS_FIELDS_TEXT,
+        "age5_full_real_pipeline_emit_flags_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_pipeline_emit_flags_selftest_probe_fields_text": (
+            AGE5_FULL_REAL_PIPELINE_EMIT_FLAGS_SELFTEST_PROBE_FIELDS_TEXT
+        ),
+        "age5_full_real_age5_combined_policy_selftest_progress_fields_text": (
+            "age5_full_real_age5_combined_policy_selftest_current_case=-|"
+            "age5_full_real_age5_combined_policy_selftest_last_completed_case=-|"
+            "age5_full_real_age5_combined_policy_selftest_current_format=-|"
+            "age5_full_real_age5_combined_policy_selftest_last_completed_format=-|"
+            "age5_full_real_age5_combined_policy_selftest_current_probe=-|"
+            "age5_full_real_age5_combined_policy_selftest_last_completed_probe=-|"
+            "age5_full_real_age5_combined_policy_selftest_total_elapsed_ms=-|"
+            "age5_full_real_age5_combined_policy_selftest_progress_present=0"
+        ),
+        "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROFILE_MATRIX_FULL_REAL_SMOKE_POLICY_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROFILE_MATRIX_FULL_REAL_SMOKE_CHECK_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_FIXED64_DARWIN_REAL_REPORT_READINESS_CHECK_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_map_access_contract_check_progress_fields_text": (
+            AGE5_FULL_REAL_MAP_ACCESS_CONTRACT_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_tensor_v0_cli_check_progress_fields_text": (
+            AGE5_FULL_REAL_TENSOR_V0_CLI_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_exec_policy_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_EXEC_POLICY_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_age5_surface_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_AGE5_SURFACE_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_guideblock_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_GUIDEBLOCK_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_JJAIM_FLATTEN_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_event_model_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_EVENT_MODEL_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_ci_pack_golden_lang_consistency_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_CI_PACK_GOLDEN_LANG_CONSISTENCY_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w107_golden_index_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_W107_GOLDEN_INDEX_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w107_progress_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_W107_PROGRESS_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_AGE1_IMMEDIATE_PROOF_OPERATION_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_CONSUMER_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_VERIFY_REPORT_DIGEST_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_v1_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_V1_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_certificate_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_CERTIFICATE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_proof_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_PROOF_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_surface_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_SURFACE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_surface_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_SURFACE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_runtime_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_RUNTIME_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_lang_runtime_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_LANG_RUNTIME_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_surface_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_SURFACE_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_surface_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_SURFACE_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_transport_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_TRANSPORT_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_transport_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_TRANSPORT_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_GATE0_RUNTIME_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_bogae_alias_family_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_BOGAE_ALIAS_FAMILY_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_bogae_alias_family_transport_contract_selftest_progress_fields_text": (
+            AGE5_FULL_REAL_BOGAE_ALIAS_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w94_social_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W94_SOCIAL_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w95_cert_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W95_CERT_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w96_somssi_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W96_SOMSSI_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_w97_self_heal_pack_check_progress_fields_text": (
+            AGE5_FULL_REAL_W97_SELF_HEAL_PACK_CHECK_PROGRESS_FIELDS_TEXT
+        ),
+        "age5_full_real_profile_elapsed_map_fields_text": AGE5_FULL_REAL_PROFILE_ELAPSED_MAP_FIELDS_TEXT,
+        "age5_full_real_profile_status_map_fields_text": AGE5_FULL_REAL_PROFILE_STATUS_MAP_FIELDS_TEXT,
+        "age5_full_real_timeout_breakdown_fields_text": AGE5_FULL_REAL_TIMEOUT_BREAKDOWN_FIELDS_TEXT,
+        AGE5_CLOSE_DIGEST_SELFTEST_OK_KEY: 0,
+        AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_TEXT_KEY: AGE5_CLOSE_DIGEST_SELFTEST_OK_FRAGMENT,
+        AGE5_CLOSE_DIGEST_SELFTEST_DEFAULT_FIELD_KEY: build_age5_close_digest_selftest_default_field(),
+        "age4_proof_snapshot_fields_text": AGE4_PROOF_SNAPSHOT_FIELDS_TEXT,
+        "age4_proof_snapshot_text": build_age4_proof_snapshot_text(normalized_age4_proof_snapshot),
+        "criteria": criteria,
+        "paths": {
+            "age4_s2_task": str(AGE4_S2_TASK_PATH),
+            "s5_baseline_task": str(S5_BASELINE_TASK_PATH),
+            "s5_detailed_task": str(S5_DETAILED_TASK_PATH),
+            "slot_ui": str(AGE5_SLOT_UI_PATH),
+            "app_ui": str(AGE5_APP_UI_PATH),
+            "overlay_session_contract": str(OVERLAY_SESSION_CONTRACT_PATH),
+            "pack_hint": PACK_HINT,
+            "pack_golden": str(PACK_GOLDEN_PATH),
+            "session_pack_hint": S6_SESSION_PACK_HINT,
+            "session_pack_golden": str(S6_SESSION_PACK_GOLDEN_PATH),
+            "age5_surface_pack_contracts": [str(item.get("golden")) for item in AGE5_SURFACE_PACK_CONTRACTS],
+        },
+        "failure_digest": failure_digest[:20],
+        "pending_items": pending_items,
+        "repair": repair,
+    }
+    report.update(normalized_age4_proof_snapshot)
+    report.update(normalized_age4_proof_source_fields)
+    report.update(full_real_elapsed_summary)
+    report.update(full_real_core_lang_sanity_elapsed_summary)
+    report.update(full_real_core_lang_sanity_progress)
+    report.update(full_real_pipeline_emit_flags_progress)
+    report.update(full_real_pipeline_emit_flags_selftest_progress)
+    report.update(full_real_pipeline_emit_flags_selftest_probe)
+    report.update(full_real_age5_combined_policy_selftest_progress)
+    report.update(full_real_profile_matrix_full_real_smoke_policy_selftest_progress)
+    report.update(full_real_profile_matrix_full_real_smoke_check_selftest_progress)
+    report.update(full_real_fixed64_darwin_real_report_readiness_check_selftest_progress)
+    report.update(full_real_map_access_contract_check_progress)
+    report.update(full_real_tensor_v0_cli_check_progress)
+    report.update(full_real_ci_pack_golden_exec_policy_selftest_progress)
+    report.update(full_real_ci_pack_golden_age5_surface_selftest_progress)
+    report.update(full_real_ci_pack_golden_guideblock_selftest_progress)
+    report.update(full_real_ci_pack_golden_jjaim_flatten_selftest_progress)
+    report.update(full_real_ci_pack_golden_event_model_selftest_progress)
+    report.update(full_real_ci_pack_golden_lang_consistency_selftest_progress)
+    report.update(full_real_w107_golden_index_selftest_progress)
+    report.update(full_real_w107_progress_contract_selftest_progress)
+    report.update(full_real_age1_immediate_proof_operation_contract_selftest_progress)
+    report.update(full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress)
+    report.update(full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress)
+    report.update(full_real_proof_certificate_v1_family_contract_selftest_progress)
+    report.update(full_real_proof_certificate_family_contract_selftest_progress)
+    report.update(full_real_proof_certificate_family_transport_contract_selftest_progress)
+    report.update(full_real_proof_family_contract_selftest_progress)
+    report.update(full_real_proof_family_transport_contract_selftest_progress)
+    report.update(full_real_lang_surface_family_contract_selftest_progress)
+    report.update(full_real_lang_surface_family_transport_contract_selftest_progress)
+    report.update(full_real_lang_runtime_family_contract_selftest_progress)
+    report.update(full_real_lang_runtime_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_family_contract_selftest_progress)
+    report.update(full_real_gate0_surface_family_contract_selftest_progress)
+    report.update(full_real_gate0_surface_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_transport_family_contract_selftest_progress)
+    report.update(full_real_gate0_transport_family_transport_contract_selftest_progress)
+    report.update(full_real_gate0_runtime_family_transport_contract_selftest_progress)
+    report.update(full_real_bogae_alias_family_contract_selftest_progress)
+    report.update(full_real_bogae_alias_family_transport_contract_selftest_progress)
+    report.update(full_real_w94_social_pack_check_progress)
+    report.update(full_real_w95_cert_pack_check_progress)
+    report.update(full_real_w96_somssi_pack_check_progress)
+    report.update(full_real_w97_self_heal_pack_check_progress)
+    report.update(full_real_profile_elapsed_map)
+    report.update(full_real_profile_status_map)
+    report.update(full_real_timeout_breakdown)
+    report.update(
+        build_age5_combined_heavy_child_summary_fields_from_criteria(
+            criteria=criteria,
+            full_real_requested=bool(with_profile_matrix_full_real_smoke_check),
+            runtime_helper_negative_requested=bool(with_runtime_helper_mismatch_negative_check),
+            group_id_summary_negative_requested=bool(with_group_id_summary_mismatch_negative_check),
+        )
+    )
+    report.update(build_age5_combined_heavy_child_summary_default_text_transport_fields())
+    return report
+
+
 def count_nonempty_lines(text: str) -> int:
     return sum(1 for line in text.splitlines() if line.strip())
 
@@ -627,6 +6049,10 @@ def build_criteria(
     root: Path,
     *,
     strict: bool = False,
+    with_profile_matrix_full_real_smoke_check: bool = False,
+    full_real_smoke_step_timeout_sec: int = 0,
+    with_runtime_helper_mismatch_negative_check: bool = False,
+    with_group_id_summary_mismatch_negative_check: bool = False,
 ) -> tuple[list[dict[str, object]], list[str], list[str], dict[str, object]]:
     criteria: list[dict[str, object]] = []
     failure_digest: list[str] = []
@@ -1558,6 +6984,919 @@ def build_criteria(
         )
         pending_items.append("AGE5 wasm/cli parity 스크립트에 overlay/session 진단 parity 토큰 유지")
 
+    if with_profile_matrix_full_real_smoke_check:
+        smoke_script_ok = (root / CI_PROFILE_MATRIX_FULL_REAL_SMOKE_SCRIPT).exists()
+        criteria.append(
+            {
+                "name": "age5_ci_profile_matrix_full_real_smoke_script_present",
+                "ok": smoke_script_ok,
+                "detail": f"path={CI_PROFILE_MATRIX_FULL_REAL_SMOKE_SCRIPT}",
+            }
+        )
+        if not smoke_script_ok:
+            failure_digest.append(
+                f"age5_ci_profile_matrix_full_real_smoke_script_present: missing={CI_PROFILE_MATRIX_FULL_REAL_SMOKE_SCRIPT}"
+            )
+            pending_items.append("AGE5 profile-matrix full-real smoke 스크립트 유지")
+        else:
+            smoke_cmd = [
+                sys.executable,
+                str(CI_PROFILE_MATRIX_FULL_REAL_SMOKE_SCRIPT),
+                PROFILE_MATRIX_FULL_REAL_SMOKE_ALLOW_FLAG,
+            ]
+            if int(full_real_smoke_step_timeout_sec or 0) > 0:
+                smoke_cmd.extend(["--step-timeout-sec", str(int(full_real_smoke_step_timeout_sec))])
+            smoke_proc = run_text(smoke_cmd, root)
+            smoke_stdout = str(smoke_proc.stdout or "")
+            smoke_ok = smoke_proc.returncode == 0 and PROFILE_MATRIX_FULL_REAL_SMOKE_STATUS_PASS in smoke_stdout
+            smoke_timeout_breakdown = parse_timeout_step_profiles(smoke_stdout)
+            smoke_elapsed_summary = parse_full_real_elapsed_summary(smoke_stdout)
+            smoke_core_lang_sanity_elapsed_summary = parse_full_real_core_lang_sanity_elapsed_summary(smoke_stdout)
+            smoke_core_lang_sanity_progress = parse_full_real_core_lang_sanity_progress(smoke_stdout)
+            smoke_pipeline_emit_flags_progress = parse_full_real_pipeline_emit_flags_progress(smoke_stdout)
+            smoke_pipeline_emit_flags_selftest_progress = parse_full_real_pipeline_emit_flags_selftest_progress(
+                smoke_stdout
+            )
+            smoke_pipeline_emit_flags_selftest_probe = parse_full_real_pipeline_emit_flags_selftest_probe(
+                smoke_stdout
+            )
+            smoke_age5_combined_policy_selftest_progress = parse_full_real_age5_combined_policy_selftest_progress(
+                smoke_stdout
+            )
+            smoke_profile_matrix_full_real_smoke_policy_selftest_progress = (
+                parse_full_real_profile_matrix_full_real_smoke_policy_selftest_progress(smoke_stdout)
+            )
+            smoke_profile_matrix_full_real_smoke_check_selftest_progress = (
+                parse_full_real_profile_matrix_full_real_smoke_check_selftest_progress(smoke_stdout)
+            )
+            smoke_fixed64_darwin_real_report_readiness_check_selftest_progress = (
+                parse_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress(smoke_stdout)
+            )
+            smoke_map_access_contract_check_progress = parse_full_real_map_access_contract_check_progress(
+                smoke_stdout
+            )
+            smoke_tensor_v0_cli_check_progress = parse_full_real_tensor_v0_cli_check_progress(smoke_stdout)
+            smoke_ci_pack_golden_exec_policy_selftest_progress = (
+                parse_full_real_ci_pack_golden_exec_policy_selftest_progress(smoke_stdout)
+            )
+            smoke_ci_pack_golden_age5_surface_selftest_progress = (
+                parse_full_real_ci_pack_golden_age5_surface_selftest_progress(smoke_stdout)
+            )
+            smoke_ci_pack_golden_guideblock_selftest_progress = (
+                parse_full_real_ci_pack_golden_guideblock_selftest_progress(smoke_stdout)
+            )
+            smoke_ci_pack_golden_jjaim_flatten_selftest_progress = (
+                parse_full_real_ci_pack_golden_jjaim_flatten_selftest_progress(smoke_stdout)
+            )
+            smoke_ci_pack_golden_event_model_selftest_progress = (
+                parse_full_real_ci_pack_golden_event_model_selftest_progress(smoke_stdout)
+            )
+            smoke_ci_pack_golden_lang_consistency_selftest_progress = (
+                parse_full_real_ci_pack_golden_lang_consistency_selftest_progress(smoke_stdout)
+            )
+            smoke_w107_golden_index_selftest_progress = (
+                parse_full_real_w107_golden_index_selftest_progress(smoke_stdout)
+            )
+            smoke_w107_progress_contract_selftest_progress = (
+                parse_full_real_w107_progress_contract_selftest_progress(smoke_stdout)
+            )
+            smoke_age1_immediate_proof_operation_contract_selftest_progress = (
+                parse_full_real_age1_immediate_proof_operation_contract_selftest_progress(smoke_stdout)
+            )
+            smoke_proof_certificate_v1_consumer_transport_contract_selftest_progress = (
+                parse_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress(
+                    smoke_stdout
+                )
+            )
+            smoke_proof_certificate_v1_verify_report_digest_contract_selftest_progress = (
+                parse_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress(
+                    smoke_stdout
+                )
+            )
+            smoke_w94_social_pack_check_progress = parse_full_real_w94_social_pack_check_progress(smoke_stdout)
+            smoke_w95_cert_pack_check_progress = parse_full_real_w95_cert_pack_check_progress(smoke_stdout)
+            smoke_w96_somssi_pack_check_progress = parse_full_real_w96_somssi_pack_check_progress(smoke_stdout)
+            smoke_w97_self_heal_pack_check_progress = parse_full_real_w97_self_heal_pack_check_progress(smoke_stdout)
+            smoke_profile_status_map = parse_full_real_profile_status_map(smoke_stdout)
+            smoke_summary_tokens: list[str] = []
+            if smoke_elapsed_summary["age5_full_real_elapsed_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        f"ci_profile_matrix_full_real_total_elapsed_ms={smoke_elapsed_summary['age5_full_real_total_elapsed_ms']}",
+                        f"ci_profile_matrix_full_real_slowest_profile={smoke_elapsed_summary['age5_full_real_slowest_profile']}",
+                        f"ci_profile_matrix_full_real_slowest_elapsed_ms={smoke_elapsed_summary['age5_full_real_slowest_elapsed_ms']}",
+                    ]
+                )
+            if (
+                smoke_core_lang_sanity_elapsed_summary["age5_full_real_core_lang_sanity_elapsed_present"]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_profile_core_lang_sanity_total_elapsed_ms="
+                        + smoke_core_lang_sanity_elapsed_summary["age5_full_real_core_lang_sanity_total_elapsed_ms"],
+                        "ci_profile_core_lang_sanity_slowest_step="
+                        + smoke_core_lang_sanity_elapsed_summary["age5_full_real_core_lang_sanity_slowest_step"],
+                        "ci_profile_core_lang_sanity_slowest_elapsed_ms="
+                        + smoke_core_lang_sanity_elapsed_summary["age5_full_real_core_lang_sanity_slowest_elapsed_ms"],
+                    ]
+                )
+            if smoke_core_lang_sanity_progress["age5_full_real_core_lang_sanity_progress_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_sanity_current_step="
+                        + smoke_core_lang_sanity_progress["age5_full_real_core_lang_sanity_current_step"],
+                        "ci_sanity_last_completed_step="
+                        + smoke_core_lang_sanity_progress["age5_full_real_core_lang_sanity_last_completed_step"],
+                    ]
+                )
+            if smoke_pipeline_emit_flags_progress["age5_full_real_pipeline_emit_flags_progress_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pipeline_emit_flags_current_section="
+                        + smoke_pipeline_emit_flags_progress["age5_full_real_pipeline_emit_flags_current_section"],
+                        "ci_pipeline_emit_flags_last_completed_section="
+                        + smoke_pipeline_emit_flags_progress["age5_full_real_pipeline_emit_flags_last_completed_section"],
+                        "ci_pipeline_emit_flags_total_elapsed_ms="
+                        + smoke_pipeline_emit_flags_progress["age5_full_real_pipeline_emit_flags_total_elapsed_ms"],
+                    ]
+                )
+            if (
+                smoke_pipeline_emit_flags_selftest_progress[
+                    "age5_full_real_pipeline_emit_flags_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pipeline_emit_flags_selftest_current_case="
+                        + smoke_pipeline_emit_flags_selftest_progress[
+                            "age5_full_real_pipeline_emit_flags_selftest_current_case"
+                        ],
+                        "ci_pipeline_emit_flags_selftest_last_completed_case="
+                        + smoke_pipeline_emit_flags_selftest_progress[
+                            "age5_full_real_pipeline_emit_flags_selftest_last_completed_case"
+                        ],
+                        "ci_pipeline_emit_flags_selftest_total_elapsed_ms="
+                        + smoke_pipeline_emit_flags_selftest_progress[
+                            "age5_full_real_pipeline_emit_flags_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_pipeline_emit_flags_selftest_probe[
+                    "age5_full_real_pipeline_emit_flags_selftest_probe_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pipeline_emit_flags_selftest_current_probe="
+                        + smoke_pipeline_emit_flags_selftest_probe[
+                            "age5_full_real_pipeline_emit_flags_selftest_current_probe"
+                        ],
+                        "ci_pipeline_emit_flags_selftest_last_completed_probe="
+                        + smoke_pipeline_emit_flags_selftest_probe[
+                            "age5_full_real_pipeline_emit_flags_selftest_last_completed_probe"
+                        ],
+                    ]
+                )
+            if (
+                smoke_age5_combined_policy_selftest_progress[
+                    "age5_full_real_age5_combined_policy_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_age5_combined_heavy_policy_selftest_current_case="
+                        + smoke_age5_combined_policy_selftest_progress[
+                            "age5_full_real_age5_combined_policy_selftest_current_case"
+                        ],
+                        "ci_age5_combined_heavy_policy_selftest_last_completed_case="
+                        + smoke_age5_combined_policy_selftest_progress[
+                            "age5_full_real_age5_combined_policy_selftest_last_completed_case"
+                        ],
+                        "ci_age5_combined_heavy_policy_selftest_current_format="
+                        + smoke_age5_combined_policy_selftest_progress[
+                            "age5_full_real_age5_combined_policy_selftest_current_format"
+                        ],
+                        "ci_age5_combined_heavy_policy_selftest_last_completed_format="
+                        + smoke_age5_combined_policy_selftest_progress[
+                            "age5_full_real_age5_combined_policy_selftest_last_completed_format"
+                        ],
+                        "ci_age5_combined_heavy_policy_selftest_current_probe="
+                        + smoke_age5_combined_policy_selftest_progress[
+                            "age5_full_real_age5_combined_policy_selftest_current_probe"
+                        ],
+                        "ci_age5_combined_heavy_policy_selftest_last_completed_probe="
+                        + smoke_age5_combined_policy_selftest_progress[
+                            "age5_full_real_age5_combined_policy_selftest_last_completed_probe"
+                        ],
+                        "ci_age5_combined_heavy_policy_selftest_total_elapsed_ms="
+                        + smoke_age5_combined_policy_selftest_progress[
+                            "age5_full_real_age5_combined_policy_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_profile_matrix_full_real_smoke_policy_selftest_progress[
+                    "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_profile_matrix_full_real_smoke_policy_selftest_current_case="
+                        + smoke_profile_matrix_full_real_smoke_policy_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_current_case"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_policy_selftest_last_completed_case="
+                        + smoke_profile_matrix_full_real_smoke_policy_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_last_completed_case"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_policy_selftest_current_format="
+                        + smoke_profile_matrix_full_real_smoke_policy_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_current_format"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_policy_selftest_last_completed_format="
+                        + smoke_profile_matrix_full_real_smoke_policy_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_last_completed_format"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_policy_selftest_total_elapsed_ms="
+                        + smoke_profile_matrix_full_real_smoke_policy_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_policy_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_profile_matrix_full_real_smoke_check_selftest_progress[
+                    "age5_full_real_profile_matrix_full_real_smoke_check_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_profile_matrix_full_real_smoke_check_selftest_current_case="
+                        + smoke_profile_matrix_full_real_smoke_check_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_check_selftest_current_case"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_check_selftest_last_completed_case="
+                        + smoke_profile_matrix_full_real_smoke_check_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_check_selftest_last_completed_case"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_check_selftest_current_probe="
+                        + smoke_profile_matrix_full_real_smoke_check_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_check_selftest_current_probe"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_check_selftest_last_completed_probe="
+                        + smoke_profile_matrix_full_real_smoke_check_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_check_selftest_last_completed_probe"
+                        ],
+                        "ci_profile_matrix_full_real_smoke_check_selftest_total_elapsed_ms="
+                        + smoke_profile_matrix_full_real_smoke_check_selftest_progress[
+                            "age5_full_real_profile_matrix_full_real_smoke_check_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_fixed64_darwin_real_report_readiness_check_selftest_progress[
+                    "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_fixed64_darwin_real_report_readiness_check_selftest_current_case="
+                        + smoke_fixed64_darwin_real_report_readiness_check_selftest_progress[
+                            "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_current_case"
+                        ],
+                        "ci_fixed64_darwin_real_report_readiness_check_selftest_last_completed_case="
+                        + smoke_fixed64_darwin_real_report_readiness_check_selftest_progress[
+                            "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_last_completed_case"
+                        ],
+                        "ci_fixed64_darwin_real_report_readiness_check_selftest_current_probe="
+                        + smoke_fixed64_darwin_real_report_readiness_check_selftest_progress[
+                            "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_current_probe"
+                        ],
+                        "ci_fixed64_darwin_real_report_readiness_check_selftest_last_completed_probe="
+                        + smoke_fixed64_darwin_real_report_readiness_check_selftest_progress[
+                            "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_last_completed_probe"
+                        ],
+                        "ci_fixed64_darwin_real_report_readiness_check_selftest_total_elapsed_ms="
+                        + smoke_fixed64_darwin_real_report_readiness_check_selftest_progress[
+                            "age5_full_real_fixed64_darwin_real_report_readiness_check_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_map_access_contract_check_progress[
+                    "age5_full_real_map_access_contract_check_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_map_access_contract_check_current_case="
+                        + smoke_map_access_contract_check_progress[
+                            "age5_full_real_map_access_contract_check_current_case"
+                        ],
+                        "ci_map_access_contract_check_last_completed_case="
+                        + smoke_map_access_contract_check_progress[
+                            "age5_full_real_map_access_contract_check_last_completed_case"
+                        ],
+                        "ci_map_access_contract_check_current_probe="
+                        + smoke_map_access_contract_check_progress[
+                            "age5_full_real_map_access_contract_check_current_probe"
+                        ],
+                        "ci_map_access_contract_check_last_completed_probe="
+                        + smoke_map_access_contract_check_progress[
+                            "age5_full_real_map_access_contract_check_last_completed_probe"
+                        ],
+                        "ci_map_access_contract_check_total_elapsed_ms="
+                        + smoke_map_access_contract_check_progress[
+                            "age5_full_real_map_access_contract_check_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_tensor_v0_cli_check_progress[
+                    "age5_full_real_tensor_v0_cli_check_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_tensor_v0_cli_check_current_case="
+                        + smoke_tensor_v0_cli_check_progress[
+                            "age5_full_real_tensor_v0_cli_check_current_case"
+                        ],
+                        "ci_tensor_v0_cli_check_last_completed_case="
+                        + smoke_tensor_v0_cli_check_progress[
+                            "age5_full_real_tensor_v0_cli_check_last_completed_case"
+                        ],
+                        "ci_tensor_v0_cli_check_current_probe="
+                        + smoke_tensor_v0_cli_check_progress[
+                            "age5_full_real_tensor_v0_cli_check_current_probe"
+                        ],
+                        "ci_tensor_v0_cli_check_last_completed_probe="
+                        + smoke_tensor_v0_cli_check_progress[
+                            "age5_full_real_tensor_v0_cli_check_last_completed_probe"
+                        ],
+                        "ci_tensor_v0_cli_check_total_elapsed_ms="
+                        + smoke_tensor_v0_cli_check_progress[
+                            "age5_full_real_tensor_v0_cli_check_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_ci_pack_golden_exec_policy_selftest_progress[
+                    "age5_full_real_ci_pack_golden_exec_policy_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pack_golden_exec_policy_selftest_current_case="
+                        + smoke_ci_pack_golden_exec_policy_selftest_progress[
+                            "age5_full_real_ci_pack_golden_exec_policy_selftest_current_case"
+                        ],
+                        "ci_pack_golden_exec_policy_selftest_last_completed_case="
+                        + smoke_ci_pack_golden_exec_policy_selftest_progress[
+                            "age5_full_real_ci_pack_golden_exec_policy_selftest_last_completed_case"
+                        ],
+                        "ci_pack_golden_exec_policy_selftest_current_probe="
+                        + smoke_ci_pack_golden_exec_policy_selftest_progress[
+                            "age5_full_real_ci_pack_golden_exec_policy_selftest_current_probe"
+                        ],
+                        "ci_pack_golden_exec_policy_selftest_last_completed_probe="
+                        + smoke_ci_pack_golden_exec_policy_selftest_progress[
+                            "age5_full_real_ci_pack_golden_exec_policy_selftest_last_completed_probe"
+                        ],
+                        "ci_pack_golden_exec_policy_selftest_total_elapsed_ms="
+                        + smoke_ci_pack_golden_exec_policy_selftest_progress[
+                            "age5_full_real_ci_pack_golden_exec_policy_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_ci_pack_golden_age5_surface_selftest_progress[
+                    "age5_full_real_ci_pack_golden_age5_surface_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pack_golden_age5_surface_selftest_current_case="
+                        + smoke_ci_pack_golden_age5_surface_selftest_progress[
+                            "age5_full_real_ci_pack_golden_age5_surface_selftest_current_case"
+                        ],
+                        "ci_pack_golden_age5_surface_selftest_last_completed_case="
+                        + smoke_ci_pack_golden_age5_surface_selftest_progress[
+                            "age5_full_real_ci_pack_golden_age5_surface_selftest_last_completed_case"
+                        ],
+                        "ci_pack_golden_age5_surface_selftest_current_probe="
+                        + smoke_ci_pack_golden_age5_surface_selftest_progress[
+                            "age5_full_real_ci_pack_golden_age5_surface_selftest_current_probe"
+                        ],
+                        "ci_pack_golden_age5_surface_selftest_last_completed_probe="
+                        + smoke_ci_pack_golden_age5_surface_selftest_progress[
+                            "age5_full_real_ci_pack_golden_age5_surface_selftest_last_completed_probe"
+                        ],
+                        "ci_pack_golden_age5_surface_selftest_total_elapsed_ms="
+                        + smoke_ci_pack_golden_age5_surface_selftest_progress[
+                            "age5_full_real_ci_pack_golden_age5_surface_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_ci_pack_golden_guideblock_selftest_progress[
+                    "age5_full_real_ci_pack_golden_guideblock_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pack_golden_guideblock_selftest_current_case="
+                        + smoke_ci_pack_golden_guideblock_selftest_progress[
+                            "age5_full_real_ci_pack_golden_guideblock_selftest_current_case"
+                        ],
+                        "ci_pack_golden_guideblock_selftest_last_completed_case="
+                        + smoke_ci_pack_golden_guideblock_selftest_progress[
+                            "age5_full_real_ci_pack_golden_guideblock_selftest_last_completed_case"
+                        ],
+                        "ci_pack_golden_guideblock_selftest_current_probe="
+                        + smoke_ci_pack_golden_guideblock_selftest_progress[
+                            "age5_full_real_ci_pack_golden_guideblock_selftest_current_probe"
+                        ],
+                        "ci_pack_golden_guideblock_selftest_last_completed_probe="
+                        + smoke_ci_pack_golden_guideblock_selftest_progress[
+                            "age5_full_real_ci_pack_golden_guideblock_selftest_last_completed_probe"
+                        ],
+                        "ci_pack_golden_guideblock_selftest_total_elapsed_ms="
+                        + smoke_ci_pack_golden_guideblock_selftest_progress[
+                            "age5_full_real_ci_pack_golden_guideblock_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_ci_pack_golden_jjaim_flatten_selftest_progress[
+                    "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pack_golden_jjaim_flatten_selftest_current_case="
+                        + smoke_ci_pack_golden_jjaim_flatten_selftest_progress[
+                            "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_current_case"
+                        ],
+                        "ci_pack_golden_jjaim_flatten_selftest_last_completed_case="
+                        + smoke_ci_pack_golden_jjaim_flatten_selftest_progress[
+                            "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_last_completed_case"
+                        ],
+                        "ci_pack_golden_jjaim_flatten_selftest_current_probe="
+                        + smoke_ci_pack_golden_jjaim_flatten_selftest_progress[
+                            "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_current_probe"
+                        ],
+                        "ci_pack_golden_jjaim_flatten_selftest_last_completed_probe="
+                        + smoke_ci_pack_golden_jjaim_flatten_selftest_progress[
+                            "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_last_completed_probe"
+                        ],
+                        "ci_pack_golden_jjaim_flatten_selftest_total_elapsed_ms="
+                        + smoke_ci_pack_golden_jjaim_flatten_selftest_progress[
+                            "age5_full_real_ci_pack_golden_jjaim_flatten_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_ci_pack_golden_event_model_selftest_progress[
+                    "age5_full_real_ci_pack_golden_event_model_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pack_golden_event_model_selftest_current_case="
+                        + smoke_ci_pack_golden_event_model_selftest_progress[
+                            "age5_full_real_ci_pack_golden_event_model_selftest_current_case"
+                        ],
+                        "ci_pack_golden_event_model_selftest_last_completed_case="
+                        + smoke_ci_pack_golden_event_model_selftest_progress[
+                            "age5_full_real_ci_pack_golden_event_model_selftest_last_completed_case"
+                        ],
+                        "ci_pack_golden_event_model_selftest_current_probe="
+                        + smoke_ci_pack_golden_event_model_selftest_progress[
+                            "age5_full_real_ci_pack_golden_event_model_selftest_current_probe"
+                        ],
+                        "ci_pack_golden_event_model_selftest_last_completed_probe="
+                        + smoke_ci_pack_golden_event_model_selftest_progress[
+                            "age5_full_real_ci_pack_golden_event_model_selftest_last_completed_probe"
+                        ],
+                        "ci_pack_golden_event_model_selftest_total_elapsed_ms="
+                        + smoke_ci_pack_golden_event_model_selftest_progress[
+                            "age5_full_real_ci_pack_golden_event_model_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_ci_pack_golden_lang_consistency_selftest_progress[
+                    "age5_full_real_ci_pack_golden_lang_consistency_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "ci_pack_golden_lang_consistency_selftest_current_case="
+                        + smoke_ci_pack_golden_lang_consistency_selftest_progress[
+                            "age5_full_real_ci_pack_golden_lang_consistency_selftest_current_case"
+                        ],
+                        "ci_pack_golden_lang_consistency_selftest_last_completed_case="
+                        + smoke_ci_pack_golden_lang_consistency_selftest_progress[
+                            "age5_full_real_ci_pack_golden_lang_consistency_selftest_last_completed_case"
+                        ],
+                        "ci_pack_golden_lang_consistency_selftest_current_probe="
+                        + smoke_ci_pack_golden_lang_consistency_selftest_progress[
+                            "age5_full_real_ci_pack_golden_lang_consistency_selftest_current_probe"
+                        ],
+                        "ci_pack_golden_lang_consistency_selftest_last_completed_probe="
+                        + smoke_ci_pack_golden_lang_consistency_selftest_progress[
+                            "age5_full_real_ci_pack_golden_lang_consistency_selftest_last_completed_probe"
+                        ],
+                        "ci_pack_golden_lang_consistency_selftest_total_elapsed_ms="
+                        + smoke_ci_pack_golden_lang_consistency_selftest_progress[
+                            "age5_full_real_ci_pack_golden_lang_consistency_selftest_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if (
+                smoke_w107_golden_index_selftest_progress[
+                    "age5_full_real_w107_golden_index_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "w107_golden_index_selftest_active_cases="
+                        + smoke_w107_golden_index_selftest_progress[
+                            "age5_full_real_w107_golden_index_selftest_active_cases"
+                        ],
+                        "w107_golden_index_selftest_inactive_cases="
+                        + smoke_w107_golden_index_selftest_progress[
+                            "age5_full_real_w107_golden_index_selftest_inactive_cases"
+                        ],
+                        "w107_golden_index_selftest_index_codes="
+                        + smoke_w107_golden_index_selftest_progress[
+                            "age5_full_real_w107_golden_index_selftest_index_codes"
+                        ],
+                        "w107_golden_index_selftest_current_probe="
+                        + smoke_w107_golden_index_selftest_progress[
+                            "age5_full_real_w107_golden_index_selftest_current_probe"
+                        ],
+                        "w107_golden_index_selftest_last_completed_probe="
+                        + smoke_w107_golden_index_selftest_progress[
+                            "age5_full_real_w107_golden_index_selftest_last_completed_probe"
+                        ],
+                    ]
+                )
+            if (
+                smoke_w107_progress_contract_selftest_progress[
+                    "age5_full_real_w107_progress_contract_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "w107_progress_contract_selftest_completed_checks="
+                        + smoke_w107_progress_contract_selftest_progress[
+                            "age5_full_real_w107_progress_contract_selftest_completed_checks"
+                        ],
+                        "w107_progress_contract_selftest_total_checks="
+                        + smoke_w107_progress_contract_selftest_progress[
+                            "age5_full_real_w107_progress_contract_selftest_total_checks"
+                        ],
+                        "w107_progress_contract_selftest_checks_text="
+                        + smoke_w107_progress_contract_selftest_progress[
+                            "age5_full_real_w107_progress_contract_selftest_checks_text"
+                        ],
+                        "w107_progress_contract_selftest_current_probe="
+                        + smoke_w107_progress_contract_selftest_progress[
+                            "age5_full_real_w107_progress_contract_selftest_current_probe"
+                        ],
+                        "w107_progress_contract_selftest_last_completed_probe="
+                        + smoke_w107_progress_contract_selftest_progress[
+                            "age5_full_real_w107_progress_contract_selftest_last_completed_probe"
+                        ],
+                    ]
+                )
+            if (
+                smoke_age1_immediate_proof_operation_contract_selftest_progress[
+                    "age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "age1_immediate_proof_operation_contract_selftest_completed_checks="
+                        + smoke_age1_immediate_proof_operation_contract_selftest_progress[
+                            "age5_full_real_age1_immediate_proof_operation_contract_selftest_completed_checks"
+                        ],
+                        "age1_immediate_proof_operation_contract_selftest_total_checks="
+                        + smoke_age1_immediate_proof_operation_contract_selftest_progress[
+                            "age5_full_real_age1_immediate_proof_operation_contract_selftest_total_checks"
+                        ],
+                        "age1_immediate_proof_operation_contract_selftest_checks_text="
+                        + smoke_age1_immediate_proof_operation_contract_selftest_progress[
+                            "age5_full_real_age1_immediate_proof_operation_contract_selftest_checks_text"
+                        ],
+                        "age1_immediate_proof_operation_contract_selftest_current_probe="
+                        + smoke_age1_immediate_proof_operation_contract_selftest_progress[
+                            "age5_full_real_age1_immediate_proof_operation_contract_selftest_current_probe"
+                        ],
+                        "age1_immediate_proof_operation_contract_selftest_last_completed_probe="
+                        + smoke_age1_immediate_proof_operation_contract_selftest_progress[
+                            "age5_full_real_age1_immediate_proof_operation_contract_selftest_last_completed_probe"
+                        ],
+                    ]
+                )
+            if (
+                smoke_proof_certificate_v1_consumer_transport_contract_selftest_progress[
+                    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "proof_certificate_v1_consumer_transport_contract_selftest_completed_checks="
+                        + smoke_proof_certificate_v1_consumer_transport_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_completed_checks"
+                        ],
+                        "proof_certificate_v1_consumer_transport_contract_selftest_total_checks="
+                        + smoke_proof_certificate_v1_consumer_transport_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_total_checks"
+                        ],
+                        "proof_certificate_v1_consumer_transport_contract_selftest_checks_text="
+                        + smoke_proof_certificate_v1_consumer_transport_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_checks_text"
+                        ],
+                        "proof_certificate_v1_consumer_transport_contract_selftest_current_probe="
+                        + smoke_proof_certificate_v1_consumer_transport_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_current_probe"
+                        ],
+                        "proof_certificate_v1_consumer_transport_contract_selftest_last_completed_probe="
+                        + smoke_proof_certificate_v1_consumer_transport_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_last_completed_probe"
+                        ],
+                    ]
+                )
+            if (
+                smoke_proof_certificate_v1_verify_report_digest_contract_selftest_progress[
+                    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present"
+                ]
+                == "1"
+            ):
+                smoke_summary_tokens.extend(
+                    [
+                        "proof_certificate_v1_verify_report_digest_contract_selftest_completed_checks="
+                        + smoke_proof_certificate_v1_verify_report_digest_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_completed_checks"
+                        ],
+                        "proof_certificate_v1_verify_report_digest_contract_selftest_total_checks="
+                        + smoke_proof_certificate_v1_verify_report_digest_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_total_checks"
+                        ],
+                        "proof_certificate_v1_verify_report_digest_contract_selftest_checks_text="
+                        + smoke_proof_certificate_v1_verify_report_digest_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_checks_text"
+                        ],
+                        "proof_certificate_v1_verify_report_digest_contract_selftest_current_probe="
+                        + smoke_proof_certificate_v1_verify_report_digest_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_current_probe"
+                        ],
+                        "proof_certificate_v1_verify_report_digest_contract_selftest_last_completed_probe="
+                        + smoke_proof_certificate_v1_verify_report_digest_contract_selftest_progress[
+                            "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_last_completed_probe"
+                        ],
+                    ]
+                )
+            if smoke_w94_social_pack_check_progress["age5_full_real_w94_social_pack_check_progress_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        "w94_social_pack_check_current_case="
+                        + smoke_w94_social_pack_check_progress["age5_full_real_w94_social_pack_check_current_case"],
+                        "w94_social_pack_check_last_completed_case="
+                        + smoke_w94_social_pack_check_progress[
+                            "age5_full_real_w94_social_pack_check_last_completed_case"
+                        ],
+                        "w94_social_pack_check_current_probe="
+                        + smoke_w94_social_pack_check_progress["age5_full_real_w94_social_pack_check_current_probe"],
+                        "w94_social_pack_check_last_completed_probe="
+                        + smoke_w94_social_pack_check_progress[
+                            "age5_full_real_w94_social_pack_check_last_completed_probe"
+                        ],
+                        "w94_social_pack_check_total_elapsed_ms="
+                        + smoke_w94_social_pack_check_progress["age5_full_real_w94_social_pack_check_total_elapsed_ms"],
+                    ]
+                )
+            if smoke_w95_cert_pack_check_progress["age5_full_real_w95_cert_pack_check_progress_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        "w95_cert_pack_check_current_case="
+                        + smoke_w95_cert_pack_check_progress["age5_full_real_w95_cert_pack_check_current_case"],
+                        "w95_cert_pack_check_last_completed_case="
+                        + smoke_w95_cert_pack_check_progress[
+                            "age5_full_real_w95_cert_pack_check_last_completed_case"
+                        ],
+                        "w95_cert_pack_check_current_probe="
+                        + smoke_w95_cert_pack_check_progress["age5_full_real_w95_cert_pack_check_current_probe"],
+                        "w95_cert_pack_check_last_completed_probe="
+                        + smoke_w95_cert_pack_check_progress[
+                            "age5_full_real_w95_cert_pack_check_last_completed_probe"
+                        ],
+                        "w95_cert_pack_check_total_elapsed_ms="
+                        + smoke_w95_cert_pack_check_progress["age5_full_real_w95_cert_pack_check_total_elapsed_ms"],
+                    ]
+                )
+            if smoke_w96_somssi_pack_check_progress["age5_full_real_w96_somssi_pack_check_progress_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        "w96_somssi_pack_check_current_case="
+                        + smoke_w96_somssi_pack_check_progress["age5_full_real_w96_somssi_pack_check_current_case"],
+                        "w96_somssi_pack_check_last_completed_case="
+                        + smoke_w96_somssi_pack_check_progress[
+                            "age5_full_real_w96_somssi_pack_check_last_completed_case"
+                        ],
+                        "w96_somssi_pack_check_current_probe="
+                        + smoke_w96_somssi_pack_check_progress["age5_full_real_w96_somssi_pack_check_current_probe"],
+                        "w96_somssi_pack_check_last_completed_probe="
+                        + smoke_w96_somssi_pack_check_progress[
+                            "age5_full_real_w96_somssi_pack_check_last_completed_probe"
+                        ],
+                        "w96_somssi_pack_check_total_elapsed_ms="
+                        + smoke_w96_somssi_pack_check_progress["age5_full_real_w96_somssi_pack_check_total_elapsed_ms"],
+                    ]
+                )
+            if smoke_w97_self_heal_pack_check_progress["age5_full_real_w97_self_heal_pack_check_progress_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        "w97_self_heal_pack_check_current_case="
+                        + smoke_w97_self_heal_pack_check_progress["age5_full_real_w97_self_heal_pack_check_current_case"],
+                        "w97_self_heal_pack_check_last_completed_case="
+                        + smoke_w97_self_heal_pack_check_progress[
+                            "age5_full_real_w97_self_heal_pack_check_last_completed_case"
+                        ],
+                        "w97_self_heal_pack_check_current_probe="
+                        + smoke_w97_self_heal_pack_check_progress[
+                            "age5_full_real_w97_self_heal_pack_check_current_probe"
+                        ],
+                        "w97_self_heal_pack_check_last_completed_probe="
+                        + smoke_w97_self_heal_pack_check_progress[
+                            "age5_full_real_w97_self_heal_pack_check_last_completed_probe"
+                        ],
+                        "w97_self_heal_pack_check_total_elapsed_ms="
+                        + smoke_w97_self_heal_pack_check_progress[
+                            "age5_full_real_w97_self_heal_pack_check_total_elapsed_ms"
+                        ],
+                    ]
+                )
+            if smoke_profile_status_map["age5_full_real_profile_status_map_present"] == "1":
+                smoke_summary_tokens.append(
+                    "ci_profile_matrix_full_real_profile_status_map="
+                    + smoke_profile_status_map["age5_full_real_profile_status_map"]
+                )
+            if smoke_timeout_breakdown["age5_full_real_timeout_present"] == "1":
+                smoke_summary_tokens.extend(
+                    [
+                        f"step={smoke_timeout_breakdown['age5_full_real_timeout_step']}",
+                        f"profiles={smoke_timeout_breakdown['age5_full_real_timeout_profiles']}",
+                    ]
+                )
+            smoke_tail = clip(" | ".join(line.strip() for line in smoke_stdout.strip().splitlines()[-6:]), 500)
+            smoke_summary_text = " ".join(smoke_summary_tokens).strip() or "-"
+            criteria.append(
+                {
+                    "name": "age5_ci_profile_matrix_full_real_smoke_optin_pass",
+                    "ok": smoke_ok,
+                    "detail": "rc={} marker_ok={} cmd={} summary={} stdout_tail={}".format(
+                        smoke_proc.returncode,
+                        int(PROFILE_MATRIX_FULL_REAL_SMOKE_STATUS_PASS in smoke_stdout),
+                        " ".join(smoke_cmd),
+                        smoke_summary_text,
+                        smoke_tail,
+                    ),
+                }
+            )
+            if not smoke_ok:
+                failure_digest.append(
+                    "age5_ci_profile_matrix_full_real_smoke_optin_pass: rc={} summary={} stdout_tail={}".format(
+                        smoke_proc.returncode,
+                        smoke_summary_text,
+                        smoke_tail,
+                    )
+                )
+                pending_items.append("AGE5 상위 orchestration에서 profile-matrix full-real opt-in heavy smoke PASS 유지")
+
+    if with_runtime_helper_mismatch_negative_check:
+        negative_script_ok = (root / CI_PROFILE_CORE_LANG_RUNTIME_HELPER_CONTRACT_SELFTEST_SCRIPT).exists()
+        criteria.append(
+            {
+                "name": "age5_ci_profile_core_lang_runtime_helper_negative_script_present",
+                "ok": negative_script_ok,
+                "detail": f"path={CI_PROFILE_CORE_LANG_RUNTIME_HELPER_CONTRACT_SELFTEST_SCRIPT}",
+            }
+        )
+        if not negative_script_ok:
+            failure_digest.append(
+                "age5_ci_profile_core_lang_runtime_helper_negative_script_present: missing={}".format(
+                    CI_PROFILE_CORE_LANG_RUNTIME_HELPER_CONTRACT_SELFTEST_SCRIPT
+                )
+            )
+            pending_items.append("AGE5 상위 orchestration에서 core_lang runtime-helper negative selftest 스크립트 유지")
+        else:
+            negative_cmd = [
+                sys.executable,
+                str(CI_PROFILE_CORE_LANG_RUNTIME_HELPER_CONTRACT_SELFTEST_SCRIPT),
+            ]
+            negative_env = dict(os.environ)
+            negative_env[CI_PROFILE_RUNTIME_HELPER_MISMATCH_KEY_ENV] = (
+                CI_PROFILE_CORE_LANG_RUNTIME_HELPER_MISMATCH_TARGET_KEY
+            )
+            negative_proc = run_text(negative_cmd, root, env=negative_env)
+            negative_stdout = str(negative_proc.stdout or "")
+            negative_ok = (
+                negative_proc.returncode == 0
+                and "[ci-profile-core-lang-runtime-helper-contract-selftest] ok" in negative_stdout
+            )
+            criteria.append(
+                {
+                    "name": "age5_ci_profile_core_lang_runtime_helper_negative_optin_pass",
+                    "ok": negative_ok,
+                    "detail": "rc={} marker_ok={} target_key={} cmd={} stdout_tail={}".format(
+                        negative_proc.returncode,
+                        int("[ci-profile-core-lang-runtime-helper-contract-selftest] ok" in negative_stdout),
+                        CI_PROFILE_CORE_LANG_RUNTIME_HELPER_MISMATCH_TARGET_KEY,
+                        " ".join(negative_cmd),
+                        clip(" | ".join(line.strip() for line in negative_stdout.strip().splitlines()[-6:]), 500),
+                    ),
+                }
+            )
+            if not negative_ok:
+                failure_digest.append(
+                    "age5_ci_profile_core_lang_runtime_helper_negative_optin_pass: rc={} stdout_tail={}".format(
+                        negative_proc.returncode,
+                        clip(" | ".join(line.strip() for line in negative_stdout.strip().splitlines()[-6:]), 500),
+                    )
+                )
+                pending_items.append("AGE5 상위 orchestration에서 core_lang runtime-helper mismatch negative opt-in PASS 유지")
+
+    if with_group_id_summary_mismatch_negative_check:
+        negative_script_ok = (root / CI_PROFILE_CORE_LANG_GROUP_ID_SUMMARY_CONTRACT_SELFTEST_SCRIPT).exists()
+        criteria.append(
+            {
+                "name": "age5_ci_profile_core_lang_group_id_summary_negative_script_present",
+                "ok": negative_script_ok,
+                "detail": f"path={CI_PROFILE_CORE_LANG_GROUP_ID_SUMMARY_CONTRACT_SELFTEST_SCRIPT}",
+            }
+        )
+        if not negative_script_ok:
+            failure_digest.append(
+                "age5_ci_profile_core_lang_group_id_summary_negative_script_present: missing={}".format(
+                    CI_PROFILE_CORE_LANG_GROUP_ID_SUMMARY_CONTRACT_SELFTEST_SCRIPT
+                )
+            )
+            pending_items.append("AGE5 상위 orchestration에서 core_lang group_id_summary negative selftest 스크립트 유지")
+        else:
+            negative_cmd = [
+                sys.executable,
+                str(CI_PROFILE_CORE_LANG_GROUP_ID_SUMMARY_CONTRACT_SELFTEST_SCRIPT),
+            ]
+            negative_proc = run_text(negative_cmd, root)
+            negative_stdout = str(negative_proc.stdout or "")
+            negative_ok = (
+                negative_proc.returncode == 0
+                and "[ci-profile-core-lang-group-id-summary-contract-selftest] ok" in negative_stdout
+            )
+            criteria.append(
+                {
+                    "name": "age5_ci_profile_core_lang_group_id_summary_negative_optin_pass",
+                    "ok": negative_ok,
+                    "detail": "rc={} marker_ok={} cmd={} stdout_tail={}".format(
+                        negative_proc.returncode,
+                        int("[ci-profile-core-lang-group-id-summary-contract-selftest] ok" in negative_stdout),
+                        " ".join(negative_cmd),
+                        clip(" | ".join(line.strip() for line in negative_stdout.strip().splitlines()[-6:]), 500),
+                    ),
+                }
+            )
+            if not negative_ok:
+                failure_digest.append(
+                    "age5_ci_profile_core_lang_group_id_summary_negative_optin_pass: rc={} stdout_tail={}".format(
+                        negative_proc.returncode,
+                        clip(" | ".join(line.strip() for line in negative_stdout.strip().splitlines()[-6:]), 500),
+                    )
+                )
+                pending_items.append("AGE5 상위 orchestration에서 core_lang group_id_summary mismatch negative opt-in PASS 유지")
+
     return criteria, failure_digest[:20], pending_items, repair
 
 
@@ -1573,36 +7912,181 @@ def main() -> int:
         action="store_true",
         help="require wired mode for S6 contracts (retired not allowed)",
     )
+    parser.add_argument(
+        "--with-profile-matrix-full-real-smoke-check",
+        action="store_true",
+        help="run core_lang heavy gate with opt-in profile-matrix full-real smoke",
+    )
+    parser.add_argument(
+        "--with-runtime-helper-mismatch-negative-check",
+        action="store_true",
+        help="run core_lang runtime-helper mismatch negative selftest through AGE5 orchestration",
+    )
+    parser.add_argument(
+        "--with-group-id-summary-mismatch-negative-check",
+        action="store_true",
+        help="run core_lang group_id_summary mismatch negative selftest through AGE5 orchestration",
+    )
+    parser.add_argument(
+        AGE5_COMBINED_HEAVY_FLAG,
+        action="store_true",
+        help="run both profile-matrix full-real heavy smoke and runtime-helper mismatch negative replay",
+    )
+    parser.add_argument(
+        "--combined-heavy-child-timeout-sec",
+        type=int,
+        default=0,
+        help="optional timeout(sec) applied to each combined-heavy child report run; 0 disables timeout",
+    )
+    parser.add_argument(
+        "--full-real-smoke-step-timeout-sec",
+        type=int,
+        default=0,
+        help="optional per-profile timeout(sec) forwarded to full-real smoke check; mainly for guarded preview runs",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
     report_out = Path(args.report_out)
-    criteria, failure_digest, pending_items, repair = build_criteria(root, strict=bool(args.strict))
+    combined_heavy_requested = bool(args.with_combined_heavy_runtime_helper_check or truthy_env(AGE5_COMBINED_HEAVY_ENV_KEY))
+    if int(args.combined_heavy_child_timeout_sec or 0) > 0 and not combined_heavy_requested:
+        print(
+            "[age5-close] --combined-heavy-child-timeout-sec requires combined-heavy opt-in "
+            f"({AGE5_COMBINED_HEAVY_FLAG} or env {AGE5_COMBINED_HEAVY_ENV_KEY}=1)",
+            file=sys.stderr,
+        )
+        return 2
+    age4_proof_snapshot, age4_proof_source_fields = load_age4_proof_snapshot_sources(report_out.parent)
+    if combined_heavy_requested:
+        child_env = dict(os.environ)
+        child_env.pop(AGE5_COMBINED_HEAVY_ENV_KEY, None)
+        child_timeout_sec = max(0, int(args.combined_heavy_child_timeout_sec or 0))
+        full_real_report = report_out.with_name(report_out.stem + ".full_real.detjson")
+        runtime_helper_negative_report = report_out.with_name(report_out.stem + ".runtime_helper_negative.detjson")
+        group_id_summary_negative_report = report_out.with_name(report_out.stem + ".group_id_summary_negative.detjson")
+        full_real_cmd = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--report-out",
+            str(full_real_report),
+            "--with-profile-matrix-full-real-smoke-check",
+        ]
+        if child_timeout_sec > 0:
+            full_real_cmd.extend(
+                [
+                    "--full-real-smoke-step-timeout-sec",
+                    str(max(1, child_timeout_sec // 2)),
+                ]
+            )
+        if args.strict:
+            full_real_cmd.append("--strict")
+        negative_cmd = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--report-out",
+            str(runtime_helper_negative_report),
+            "--with-runtime-helper-mismatch-negative-check",
+        ]
+        if args.strict:
+            negative_cmd.append("--strict")
+        group_id_negative_cmd = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--report-out",
+            str(group_id_summary_negative_report),
+            "--with-group-id-summary-mismatch-negative-check",
+        ]
+        if args.strict:
+            group_id_negative_cmd.append("--strict")
+        full_real_proc, full_real_reused = run_or_reuse_age5_close_child_report(
+            cmd=full_real_cmd,
+            cwd=root,
+            env=child_env,
+            report_path=full_real_report,
+            required_criterion="age5_ci_profile_matrix_full_real_smoke_optin_pass",
+            timeout_sec=child_timeout_sec,
+        )
+        negative_proc, negative_reused = run_or_reuse_age5_close_child_report(
+            cmd=negative_cmd,
+            cwd=root,
+            env=child_env,
+            report_path=runtime_helper_negative_report,
+            required_criterion="age5_ci_profile_core_lang_runtime_helper_negative_optin_pass",
+            timeout_sec=child_timeout_sec,
+        )
+        group_id_negative_proc, group_id_negative_reused = run_or_reuse_age5_close_child_report(
+            cmd=group_id_negative_cmd,
+            cwd=root,
+            env=child_env,
+            report_path=group_id_summary_negative_report,
+            required_criterion="age5_ci_profile_core_lang_group_id_summary_negative_optin_pass",
+            timeout_sec=child_timeout_sec,
+        )
+        report = build_age5_combined_heavy_optin_report(
+            root=root,
+            strict=bool(args.strict),
+            combined_heavy_env_enabled=truthy_env(AGE5_COMBINED_HEAVY_ENV_KEY),
+            full_real_cmd=full_real_cmd,
+            full_real_proc=full_real_proc,
+            full_real_report=full_real_report,
+            runtime_helper_negative_cmd=negative_cmd,
+            runtime_helper_negative_proc=negative_proc,
+            runtime_helper_negative_report=runtime_helper_negative_report,
+            group_id_summary_negative_cmd=group_id_negative_cmd,
+            group_id_summary_negative_proc=group_id_negative_proc,
+            group_id_summary_negative_report=group_id_summary_negative_report,
+            combined_heavy_child_timeout_sec=child_timeout_sec,
+            age4_proof_snapshot=age4_proof_snapshot,
+            age4_proof_source_fields=age4_proof_source_fields,
+        )
+        report["reused_child_reports"] = {
+            "full_real": bool(full_real_reused),
+            "runtime_helper_negative": bool(negative_reused),
+            "group_id_summary_negative": bool(group_id_negative_reused),
+        }
+        report["combined_heavy_child_timeout_sec"] = child_timeout_sec
+        report[AGE5_COMBINED_HEAVY_TIMEOUT_MODE_KEY] = resolve_age5_combined_heavy_timeout_mode(
+            child_timeout_sec
+        )
+        overall_ok = bool(report.get("overall_ok", False))
+        report_out.parent.mkdir(parents=True, exist_ok=True)
+        report_out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        failed = sum(1 for row in report["criteria"] if not bool(row.get("ok", False)))
+        print(
+            f"[age5-close] strict={int(bool(args.strict))} combined=1 overall_ok={int(overall_ok)} "
+            f"criteria={len(report['criteria'])} failed={failed} report={report_out}"
+        )
+        for row in report["criteria"]:
+            print(f" - {row.get('name')}: ok={int(bool(row.get('ok', False)))}")
+        return 0 if overall_ok else 1
 
-    overall_ok = all(bool(row.get("ok", False)) for row in criteria)
-    report = {
-        "schema": "ddn.age5_close_report.v1",
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "strict": bool(args.strict),
-        "overall_ok": overall_ok,
-        "criteria": criteria,
-        "paths": {
-            "age4_s2_task": str(AGE4_S2_TASK_PATH),
-            "s5_baseline_task": str(S5_BASELINE_TASK_PATH),
-            "s5_detailed_task": str(S5_DETAILED_TASK_PATH),
-            "slot_ui": str(AGE5_SLOT_UI_PATH),
-            "app_ui": str(AGE5_APP_UI_PATH),
-            "overlay_session_contract": str(OVERLAY_SESSION_CONTRACT_PATH),
-            "pack_hint": PACK_HINT,
-            "pack_golden": str(PACK_GOLDEN_PATH),
-            "session_pack_hint": S6_SESSION_PACK_HINT,
-            "session_pack_golden": str(S6_SESSION_PACK_GOLDEN_PATH),
-            "age5_surface_pack_contracts": [str(item.get("golden")) for item in AGE5_SURFACE_PACK_CONTRACTS],
-        },
-        "failure_digest": failure_digest[:20],
-        "pending_items": pending_items,
-        "repair": repair,
-    }
+    with_profile_matrix_full_real_smoke_check = bool(args.with_profile_matrix_full_real_smoke_check)
+    with_runtime_helper_mismatch_negative_check = bool(args.with_runtime_helper_mismatch_negative_check)
+    with_group_id_summary_mismatch_negative_check = bool(args.with_group_id_summary_mismatch_negative_check)
+    criteria, failure_digest, pending_items, repair = build_criteria(
+        root,
+        strict=bool(args.strict),
+        with_profile_matrix_full_real_smoke_check=with_profile_matrix_full_real_smoke_check,
+        full_real_smoke_step_timeout_sec=max(0, int(args.full_real_smoke_step_timeout_sec or 0)),
+        with_runtime_helper_mismatch_negative_check=with_runtime_helper_mismatch_negative_check,
+        with_group_id_summary_mismatch_negative_check=with_group_id_summary_mismatch_negative_check,
+    )
+
+    report = build_age5_close_report(
+        strict=bool(args.strict),
+        with_profile_matrix_full_real_smoke_check=with_profile_matrix_full_real_smoke_check,
+        with_runtime_helper_mismatch_negative_check=with_runtime_helper_mismatch_negative_check,
+        with_group_id_summary_mismatch_negative_check=with_group_id_summary_mismatch_negative_check,
+        with_combined_heavy_runtime_helper_check=combined_heavy_requested,
+        combined_heavy_env_enabled=truthy_env(AGE5_COMBINED_HEAVY_ENV_KEY),
+        criteria=criteria,
+        failure_digest=failure_digest,
+        pending_items=pending_items,
+        repair=repair,
+        age4_proof_snapshot=age4_proof_snapshot,
+        age4_proof_source_fields=age4_proof_source_fields,
+    )
+    overall_ok = bool(report.get("overall_ok", False))
 
     report_out.parent.mkdir(parents=True, exist_ok=True)
     report_out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

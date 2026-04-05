@@ -20,7 +20,25 @@ STEP_LABELS = {
     "browse_selection_flow": "탐색/검색 선택 흐름 점검",
     "browse_selection_report": "탐색 strict 리포트 점검",
     "ui_common_runner": "공통 UI 러너 점검",
+    "guideblock_keys_pack_check": "guideblock 키 사전 팩 점검",
+    "moyang_view_boundary_pack_check": "모양 view boundary 팩 점검",
+    "ui_pendulum_runner": "진자 보개 러너 점검",
+    "wasm_vm_runtime_runner": "Wasm VM 런타임 러너 점검",
+    "pendulum_tetris_showcase_check": "진자+테트리스 쇼케이스 점검",
 }
+
+
+def force_utf8_stdio() -> None:
+    # ci_gate가 UTF-8로 subprocess stdout/stderr를 읽기 때문에,
+    # 이 스크립트 출력도 UTF-8로 고정해 한글 깨짐을 줄인다.
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        # stdio 강제 설정 실패 시에도 체크리스트 로직은 계속 진행한다.
+        pass
 
 
 def run_runtime_5min(
@@ -71,6 +89,8 @@ def normalize_label(step_name: str) -> str:
 
 
 def main() -> int:
+    force_utf8_stdio()
+
     parser = argparse.ArgumentParser(description="Seamgrim 5-minute checklist (human-readable wrapper)")
     parser.add_argument("--base-url", default="http://127.0.0.1:8787")
     parser.add_argument(

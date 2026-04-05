@@ -1,7 +1,8 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 import argparse
 import json
 from pathlib import Path
+from datetime import datetime, timezone
 
 
 def fail(msg: str) -> None:
@@ -94,6 +95,23 @@ def validate_session(path: Path, meta: dict) -> set[str]:
         fail(f"{path}: layers must be list")
     if not isinstance(data["required_views"], list):
         fail(f"{path}: required_views must be list")
+    seen_layer_ids = set()
+    for layer in data["layers"]:
+        if not isinstance(layer, dict):
+            fail(f"{path}: layer must be object")
+        require_keys(layer, ["id", "order", "visible"], f"{path}.layers[]")
+        layer_id = layer["id"]
+        if not isinstance(layer_id, str) or not layer_id.strip():
+            fail(f"{path}: layer.id must be non-empty string")
+        if layer_id in seen_layer_ids:
+            fail(f"{path}: duplicate layer id {layer_id}")
+        seen_layer_ids.add(layer_id)
+        if not isinstance(layer["order"], int):
+            fail(f"{path}: layer.order must be int")
+        if not isinstance(layer["visible"], bool):
+            fail(f"{path}: layer.visible must be bool")
+        if "group_id" in layer and not isinstance(layer["group_id"], str):
+            fail(f"{path}: layer.group_id must be string when present")
     required_views = set(data["required_views"])
 
     if meta:
@@ -126,7 +144,7 @@ def load_meta(meta_path: Path) -> dict:
     return meta
 
 
-def validate_pack(pack_dir: Path) -> None:
+def validate_pack(pack_dir: Path) -> dict:
     scene_path = pack_dir / "expected.scene.v0.json"
     session_path = pack_dir / "expected.session.v0.json"
     graph_path = pack_dir / "expected.graph.v0.json"
@@ -146,18 +164,58 @@ def validate_pack(pack_dir: Path) -> None:
         fail(f"{pack_dir}: graph_ref should be {graph_path.name}")
     if session.get("scene_ref") != scene_path.name:
         fail(f"{pack_dir}: scene_ref should be {scene_path.name}")
+    layers = session.get("layers", [])
+    group_ids = [
+        str(layer.get("group_id", "")).strip()
+        for layer in layers
+        if isinstance(layer, dict) and str(layer.get("group_id", "")).strip()
+    ]
+    return {
+        "pack_dir": str(pack_dir),
+        "scene_path": str(scene_path),
+        "session_path": str(session_path),
+        "graph_path": str(graph_path),
+        "required_views": sorted(required_views),
+        "layer_count": len(layers) if isinstance(layers, list) else 0,
+        "layer_ids": [
+            str(layer.get("id", "")).strip()
+            for layer in layers
+            if isinstance(layer, dict) and str(layer.get("id", "")).strip()
+        ],
+        "group_ids": group_ids,
+    }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate seamgrim scene/session expected JSON")
     parser.add_argument("packs", nargs="*", help="pack lesson directories")
+    parser.add_argument("--json-out", default="", help="optional json report path")
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
     pack_dirs = [Path(p) for p in args.packs] if args.packs else [root / "pack" / "edu_pilot_phys_econ" / "lesson_phys_01"]
 
+    summaries = []
     for pack in pack_dirs:
-        validate_pack(pack)
+        summaries.append(validate_pack(pack))
+
+    if args.json_out:
+        out = Path(args.json_out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(
+                {
+                    "schema": "ddn.seamgrim.scene_session_check_report.v1",
+                    "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+                    "ok": True,
+                    "packs": summaries,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     print("seamgrim scene/session check ok")
     return 0
