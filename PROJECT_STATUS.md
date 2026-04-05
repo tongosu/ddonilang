@@ -3,6 +3,20 @@
 ## 목적
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
+## 2026-04-05 추가 진행 (Workspace cleanup round 1.5, low-risk apply)
+- 범위:
+  문서/안내 중심의 비파괴 적용. 대규모 rename/move/delete 미실행.
+- 반영:
+  `public / internal / support` 라벨 운영 가이드를 대표 문서에 추가.
+- walks:
+  `walks = 걸음길(학습/튜토리얼/고개별)` 기준을 유지하고, misuse는 이동 후보로만 명시.
+- pack_public:
+  정본 축이 아닌 support/legacy 성격 경고 문구를 README에 반영.
+- release snapshot:
+  `docs/ssot/ssot -> docs/ssot/releases/v23.0.5/` copy-only 준비 스크립트/안내만 추가, 실제 복사/삭제는 보류.
+- 추가 점검:
+  분류 보고서 action 집계(디렉터리/루트 파일 분리) 보정안 기록, `docs/ssot/gaji/**` UTF-8 점검 수행.
+
 ## 2026-03-03 추가 진행 (Task 4/5 마감: sync-readiness 스냅샷 고정 + 문서 반영)
 - Task 4: `ci_sync_readiness` 스냅샷 리포트 고정을 프로파일 기준으로 재검증했다.
   - 검증:
