@@ -1,3 +1,8 @@
 [build]
 # Default to the non-OneDrive target dir to keep build artifacts off sync.
 target-dir = "I:/home/urihanl/ddn/codex/target"
+
+[target.'cfg(windows)']
+# teul-cli command tree(clap) initialization can overflow the default 1MB stack
+# on Windows debug builds. Raise stack size for deterministic local/CI runs.
+rustflags = ["-C", "link-arg=/STACK:16777216"]

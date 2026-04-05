@@ -5,6 +5,24 @@ trigger:
 pr:
   - "*"
 
+schedules:
+  - cron: "0 */3 * * *"
+    displayName: fixed64 darwin probe cadence
+    branches:
+      include:
+        - main
+        - master
+    always: true
+
+variables:
+  DDN_ENABLE_DARWIN_PROBE: "0"
+  DDN_DARWIN_PROBE_ARCHIVE_KEEP: "30"
+  DDN_FIXED64_THREEWAY_MAX_AGE_MINUTES: "360"
+  DDN_DARWIN_PROBE_SCHEDULE_INTERVAL_MINUTES: "180"
+  DDN_CI_PROFILE_GATE_FULL_AGGREGATE: "0"
+  DDN_CI_PROFILE_GATE_WITH_PROFILE_MATRIX_FULL_REAL_SMOKE: "0"
+  DDN_AGE5_CLOSE_WITH_COMBINED_HEAVY_RUNTIME_HELPER_CHECK: "0"
+
 pool:
   vmImage: ubuntu-latest
 
@@ -18,9 +36,27 @@ steps:
     displayName: utf8 check
   - script: |
       rc=0
-      python3 tests/run_ci_sanity_gate.py --json-out build/reports/ci_sanity_gate.detjson || rc=$?
+      fixed64_threeway_max_age="${DDN_FIXED64_THREEWAY_MAX_AGE_MINUTES:-360}"
+      darwin_probe_schedule_interval="${DDN_DARWIN_PROBE_SCHEDULE_INTERVAL_MINUTES:-180}"
+      python3 tests/run_fixed64_darwin_probe_schedule_policy_check.py --max-age-minutes "$fixed64_threeway_max_age" --schedule-interval-minutes "$darwin_probe_schedule_interval" --json-out build/reports/fixed64_darwin_probe_schedule_policy.detjson || rc=$?
       if [ "$rc" -ne 0 ]; then
-        python tests/run_ci_sanity_gate.py --json-out build/reports/ci_sanity_gate.detjson || rc=$?
+        python tests/run_fixed64_darwin_probe_schedule_policy_check.py --max-age-minutes "$fixed64_threeway_max_age" --schedule-interval-minutes "$darwin_probe_schedule_interval" --json-out build/reports/fixed64_darwin_probe_schedule_policy.detjson || rc=$?
+      fi
+      if [ "$rc" -eq 0 ]; then
+        sanity_rc=0
+        python3 tests/run_ci_sanity_gate.py --json-out build/reports/ci_sanity_gate.detjson || sanity_rc=$?
+        if [ "$sanity_rc" -ne 0 ]; then
+          python tests/run_ci_sanity_gate.py --json-out build/reports/ci_sanity_gate.detjson || sanity_rc=$?
+        fi
+        if [ "$sanity_rc" -ne 0 ]; then
+          rc="$sanity_rc"
+        fi
+      fi
+      if [ "$rc" -eq 0 ]; then
+        python3 solutions/seamgrim_ui_mvp/tools/sync_featured_seed_catalog.py --check || rc=$?
+        if [ "$rc" -ne 0 ]; then
+          python solutions/seamgrim_ui_mvp/tools/sync_featured_seed_catalog.py --check || rc=$?
+        fi
       fi
       exit "$rc"
     displayName: ci sanity selftests
@@ -36,13 +72,14 @@ steps:
       rc=0
       if [ "${DDN_ENABLE_DARWIN_PROBE:-0}" = "1" ]; then
         host="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        darwin_probe_archive_keep="${DDN_DARWIN_PROBE_ARCHIVE_KEEP:-30}"
         if [ "$host" != "darwin" ]; then
           echo "[ci-fixed64-darwin] DDN_ENABLE_DARWIN_PROBE=1 requires darwin agent; current=$host" >&2
           rc=2
         else
-          python3 tests/run_fixed64_darwin_probe_artifact.py --require-darwin --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+          python3 tests/run_fixed64_darwin_probe_artifact.py --require-darwin --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson --archive-dir build/reports/darwin_probe_archive --archive-keep "$darwin_probe_archive_keep" || rc=$?
           if [ "$rc" -ne 0 ]; then
-            python tests/run_fixed64_darwin_probe_artifact.py --require-darwin --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson || rc=$?
+            python tests/run_fixed64_darwin_probe_artifact.py --require-darwin --report-dir build/reports --json-out build/reports/fixed64_darwin_probe_artifact.detjson --archive-dir build/reports/darwin_probe_archive --archive-keep "$darwin_probe_archive_keep" || rc=$?
           fi
         fi
       fi
@@ -50,7 +87,24 @@ steps:
     displayName: darwin probe artifact (optional)
   - script: |
       rc=0
+      eval "$(python3 tools/scripts/resolve_profile_matrix_full_real_smoke_policy.py --provider azure --format shell)" || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        eval "$(python tools/scripts/resolve_profile_matrix_full_real_smoke_policy.py --provider azure --format shell)" || rc=$?
+      fi
+      eval "$(python3 tools/scripts/resolve_age5_combined_heavy_policy.py --provider azure --format shell --json-out build/reports/age5_combined_heavy_policy.detjson)" || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        eval "$(python tools/scripts/resolve_age5_combined_heavy_policy.py --provider azure --format shell --json-out build/reports/age5_combined_heavy_policy.detjson)" || rc=$?
+      fi
+      python3 tools/scripts/resolve_age5_combined_heavy_policy.py --provider azure --format text > build/reports/age5_combined_heavy_policy.txt || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tools/scripts/resolve_age5_combined_heavy_policy.py --provider azure --format text > build/reports/age5_combined_heavy_policy.txt || rc=$?
+      fi
+      python3 tools/scripts/print_age5_combined_heavy_policy_digest.py build/reports/age5_combined_heavy_policy.detjson --policy-text build/reports/age5_combined_heavy_policy.txt --summary-out build/reports/age5_combined_heavy_policy_summary.txt > build/reports/age5_combined_heavy_policy_summary.txt || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tools/scripts/print_age5_combined_heavy_policy_digest.py build/reports/age5_combined_heavy_policy.detjson --policy-text build/reports/age5_combined_heavy_policy.txt --summary-out build/reports/age5_combined_heavy_policy_summary.txt > build/reports/age5_combined_heavy_policy_summary.txt || rc=$?
+      fi
       fixed64_threeway_flag=""
+      fixed64_threeway_max_age="${DDN_FIXED64_THREEWAY_MAX_AGE_MINUTES:-360}"
       python3 tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid --require-when-env DDN_ENABLE_DARWIN_PROBE || rc=$?
       if [ "$rc" -ne 0 ]; then
         python tools/scripts/resolve_fixed64_threeway_inputs.py --report-dir build/reports --json-out build/reports/fixed64_threeway_inputs.detjson --strict-invalid --require-when-env DDN_ENABLE_DARWIN_PROBE || rc=$?
@@ -64,9 +118,13 @@ steps:
       if [ -f build/reports/fixed64_cross_platform_probe_darwin.detjson ]; then
         fixed64_threeway_flag="--require-fixed64-3way"
       fi
-      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common $fixed64_threeway_flag || rc=$?
+      eval "$(python3 tools/scripts/resolve_profile_matrix_selftest_gate_flags.py --provider azure --format shell)" || rc=$?
       if [ "$rc" -ne 0 ]; then
-        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common $fixed64_threeway_flag || rc=$?
+        eval "$(python tools/scripts/resolve_profile_matrix_selftest_gate_flags.py --provider azure --format shell)" || rc=$?
+      fi
+      python3 tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common --runtime-5min-skip-showcase-check --fixed64-threeway-max-report-age-minutes "$fixed64_threeway_max_age" $fixed64_threeway_flag $profile_matrix_selftest_gate_flags || rc=$?
+      if [ "$rc" -ne 0 ]; then
+        python tests/run_ci_aggregate_gate.py --report-dir build/reports --skip-core-tests --fast-fail --backup-hygiene --auto-prefix-env BUILD_BUILDID,SYSTEM_JOBID --clean-prefixed-reports --quiet-success-logs --compact-step-logs --step-log-dir build/reports --step-log-failed-only --checklist-skip-seed-cli --checklist-skip-ui-common --runtime-5min-skip-ui-common --runtime-5min-skip-showcase-check --fixed64-threeway-max-report-age-minutes "$fixed64_threeway_max_age" $fixed64_threeway_flag $profile_matrix_selftest_gate_flags || rc=$?
       fi
       python3 tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || python tools/scripts/emit_ci_final_line.py --report-dir build/reports --print-artifacts --print-failure-digest 6 --print-failure-tail-lines 20 --fail-on-summary-verify-error --failure-brief-out build/reports/__PREFIX__.ci_fail_brief.txt --triage-json-out build/reports/__PREFIX__.ci_fail_triage.detjson || true
       python3 tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || python tests/run_ci_emit_artifacts_check.py --report-dir build/reports --require-brief --require-triage || rc=$?

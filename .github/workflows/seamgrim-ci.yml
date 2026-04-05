@@ -60,5 +60,29 @@ jobs:
       - name: Deploy Artifacts Check
         run: python tests/run_seamgrim_deploy_artifacts_check.py
 
+      - name: W49 Golden Index Selfcheck
+        run: python tools/teul-cli/tests/run_w49_golden_index_selfcheck.py
+
+      - name: W49 Golden
+        run: python tools/teul-cli/tests/run_golden.py --root tools/teul-cli/tests/golden --teul-cli "${{ env.TEUL_CLI_BIN }}" --walk 49
+
+      - name: W111 Golden Index Selfcheck
+        run: python tools/teul-cli/tests/run_w111_golden_index_selfcheck.py
+
+      - name: W111 Golden
+        run: python tools/teul-cli/tests/run_golden.py --root tools/teul-cli/tests/golden --teul-cli "${{ env.TEUL_CLI_BIN }}" --walk 111
+
+      - name: W109 Golden Index Selfcheck
+        run: python tools/teul-cli/tests/run_w109_golden_index_selfcheck.py
+
+      - name: W109 Golden
+        run: python tools/teul-cli/tests/run_golden.py --root tools/teul-cli/tests/golden --teul-cli "${{ env.TEUL_CLI_BIN }}" --walk 109
+
+      - name: W107 Golden Index Selfcheck
+        run: python tools/teul-cli/tests/run_w107_golden_index_selfcheck.py
+
+      - name: W107 Golden
+        run: python tools/teul-cli/tests/run_golden.py --root tools/teul-cli/tests/golden --teul-cli "${{ env.TEUL_CLI_BIN }}" --walk 107
+
       - name: Seamgrim CI Gate
-        run: python tests/run_seamgrim_ci_gate.py --print-drilldown
+        run: python tests/run_seamgrim_ci_gate.py --require-preview-synced --print-drilldown
