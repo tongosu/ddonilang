@@ -1,18 +1,20 @@
 #      v_s가 음속에 가까워지면 주파수는 급격히 커진다. (v_s, f') 출력.
 
+// 출력은 숫자만. (v_s, f_prime) 순서.
+
+c <- 340.0.    // m/s
+f <- 440.0.    // Hz (A4)
+
+vs_min <- -100.0.
+vs_max <- 100.0.
+dvs <- 1.0.
+
+(시작)할때 {
+  vs <- vs_min.
+}.
+
 (매마디)마다 {
-  // 출력은 숫자만. (v_s, f_prime) 순서.
-
-  c <- 340.0.    // m/s
-  f <- 440.0.    // Hz (A4)
-
-  vs_min <- -100.0.
-  vs_max <- 100.0.
-  dvs <- 1.0.
-
-  vs목록 <- (vs_min, vs_max, dvs) 범위.
-
-  (vs) vs목록에 대해: {
+  { vs <= vs_max }인것 일때 {
     denom <- c - vs.
     f_prime <- f * (c / denom).
 
@@ -20,5 +22,6 @@
       vs: vs.
       f_prime: f_prime.
     }.
+    vs <- vs + dvs.
   }.
 }.

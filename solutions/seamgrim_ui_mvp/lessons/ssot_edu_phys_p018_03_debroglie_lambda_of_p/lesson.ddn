@@ -1,3 +1,8 @@
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  p <- 0.1.
+}.
 
 (매마디)마다 {
   // 출력은 숫자만. (p, λ) 순서.
@@ -8,14 +13,13 @@
   p_max <- 5.0.
   dp <- 0.05.
 
-  p목록 <- (p_min, p_max, dp) 범위.
-
-  (p) p목록에 대해: {
+  { p <= p_max }인것 일때 {
     lam <- h / p.
 
     보임 {
       p: p.
       lam: lam.
     }.
+    p <- p + (dp).
   }.
 }.

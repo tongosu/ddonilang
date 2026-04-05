@@ -1,3 +1,8 @@
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  c <- 0.1.
+}.
 
 (매마디)마다 {
   // 출력은 숫자만. (c, A) 순서.
@@ -12,9 +17,7 @@
   c_max <- 5.
   dc <- 0.05.
 
-  c목록 <- (c_min, c_max, dc) 범위.
-
-  (c) c목록에 대해: {
+  { c <= c_max }인것 일때 {
     d <- k - (m*w*w).
     p <- d * d.
     q <- (c*w) * (c*w).
@@ -26,5 +29,6 @@
       c: c.
       A: A.
     }.
+    c <- c + (dc).
   }.
 }.

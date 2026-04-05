@@ -23,12 +23,37 @@ LEVEL_MAP = {
     "심화": "advanced",
 }
 
+VIEW_FAMILY_ALIASES = {
+    "2d": "space2d",
+    "3d": "space3d",
+}
+
 GRADE_TOKENS = [
     ("대학", "college"),
     ("고등", "high"),
     ("중등", "middle"),
     ("초등", "elementary"),
 ]
+
+
+def normalize_view_family(raw: object) -> str:
+    text = str(raw or "").strip().lower()
+    if not text:
+        return ""
+    return VIEW_FAMILY_ALIASES.get(text, text)
+
+
+def normalize_view_family_list(values: object) -> list[str]:
+    rows = values if isinstance(values, list) else [values]
+    seen: set[str] = set()
+    out: list[str] = []
+    for row in rows:
+        family = normalize_view_family(row)
+        if not family or family in seen:
+            continue
+        seen.add(family)
+        out.append(family)
+    return out
 
 
 def parse_meta_toml(text: str) -> dict:
@@ -159,13 +184,14 @@ def sync_ssot_packs() -> list[str]:
         if meta.get("필수표") and has_table:
             required_views.append("table")
         if has_space2d:
-            required_views.append("2d")
+            required_views.append("space2d")
         if has_text:
             required_views.append("text")
         if has_structure:
             required_views.append("structure")
         if not required_views:
             required_views = ["graph"]
+        required_views = normalize_view_family_list(required_views)
 
         subject = detect_subject(str(subject_raw))
         grade = detect_grade(str(grade_raw))
@@ -253,7 +279,7 @@ def rebuild_index() -> None:
             "id": folder.name,
             "title": meta.get("title", folder.name),
             "description": meta.get("description", ""),
-            "required_views": meta.get("required_views", ["graph"]),
+            "required_views": normalize_view_family_list(meta.get("required_views", ["graph"])),
             "grade": meta.get("grade", "middle"),
             "subject": meta.get("subject", "math"),
             "level": meta.get("level", "intro"),

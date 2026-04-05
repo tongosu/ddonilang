@@ -1,6 +1,12 @@
 #이름: ssot_edu_phys_p018_02_photoelectric_Vs_of_f_variant_P018-02 광전효과 정지전압 Vs(f)
 #설명: Vs = k*(f - f0), f<f0면 0.  (임계주파수 f0 포함, 간이)
 
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  f <- 0.0.
+}.
+
 (매마디)마다 {
   // 출력은 숫자만. (f, Vs) 순서.
 
@@ -11,9 +17,7 @@
   f_max <- 6.0.
   df <- 0.05.
 
-  f목록 <- (f_min, f_max, df) 범위.
-
-  (f) f목록에 대해: {
+  { f <= f_max }인것 일때 {
     Vs <- k*(f - f0).
     { Vs < 0 }인것 일때 {
       Vs <- 0.
@@ -22,5 +26,6 @@
       f: f.
       Vs: Vs.
     }.
+    f <- f + (df).
   }.
 }.

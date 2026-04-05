@@ -1,4 +1,10 @@
-﻿function tryParseJson(raw) {
+﻿import {
+  VIEW_FAMILY_PRIORITY,
+  normalizeViewFamily,
+  orderViewFamiliesByPriority,
+} from "./view_family_contract.js";
+
+function tryParseJson(raw) {
   if (typeof raw !== "string") return null;
   const text = raw.trim();
   if (!text) return null;
@@ -25,39 +31,114 @@ function normalizeResourceMap(rawMap) {
   return rawMap;
 }
 
+export function flattenMirrorInputEntries(input, { maxEntries = 20 } = {}) {
+  const limit = Math.max(1, Math.trunc(Number(maxEntries) || 20));
+  const entries = [];
+
+  function pushEntry(key, value) {
+    if (!key || entries.length >= limit) return;
+    entries.push([key, value]);
+  }
+
+  function walk(value, path) {
+    if (entries.length >= limit) return;
+    if (value === null || value === undefined) {
+      pushEntry(path, value);
+      return;
+    }
+    if (typeof value !== "object") {
+      pushEntry(path, value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      if (!value.length) {
+        pushEntry(path, "[]");
+        return;
+      }
+      value.forEach((item, index) => {
+        if (entries.length >= limit) return;
+        walk(item, path ? `${path}[${index}]` : `[${index}]`);
+      });
+      return;
+    }
+    const objectEntries = Object.entries(value);
+    if (!objectEntries.length) {
+      pushEntry(path, "{}");
+      return;
+    }
+    objectEntries.forEach(([key, nested]) => {
+      if (entries.length >= limit) return;
+      walk(nested, path ? `${path}.${key}` : key);
+    });
+  }
+
+  if (!input || typeof input !== "object") return entries;
+  walk(input, "");
+  return entries;
+}
+
+function readNumber(raw, fallback = 0) {
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function readString(raw, fallback = "") {
+  if (typeof raw === "string") return raw;
+  if (raw === null || raw === undefined) return fallback;
+  return String(raw);
+}
+
 export function normalizeWasmStatePayload(payload) {
   const parsed = typeof payload === "string" ? tryParseJson(payload) : payload;
   const obj = normalizeObject(parsed);
-
-  if (obj?.schema === "seamgrim.wasm_state.v2" && obj?.state && typeof obj.state === "object") {
-    const state = obj.state;
-    return {
-      schema: "seamgrim.wasm_state.normalized.v1",
-      channels: Array.isArray(state.channels) ? state.channels : [],
-      row: Array.isArray(state.row) ? state.row : [],
-      patch: normalizePatch(state.patch),
-      resources: {
-        value: normalizeResourceMap(state?.resources?.value),
-        component: normalizeResourceMap(state?.resources?.component),
-      },
-      streams: normalizeResourceMap(state.streams),
-      view_meta: normalizeObject(state.view_meta),
-      observation_manifest: normalizeObject(state.observation_manifest),
-    };
-  }
+  const nestedState = normalizeObject(obj.state);
+  const topSchema = readString(obj.schema, "");
+  const engineSchema = topSchema === "seamgrim.engine_response.v0"
+    ? topSchema
+    : readString(obj.engine_schema || nestedState.engine_schema, "");
+  const channelsTop = Array.isArray(obj.channels) ? obj.channels : null;
+  const channelsNested = Array.isArray(nestedState.channels) ? nestedState.channels : null;
+  const channels = channelsTop ?? channelsNested ?? [];
+  const rowTop = Array.isArray(obj.row) ? obj.row : null;
+  const rowNested = Array.isArray(nestedState.row) ? nestedState.row : null;
+  const row = rowTop ?? rowNested ?? [];
+  const patch = normalizePatch(nestedState.patch ?? obj.patch);
+  const resourcesRaw = normalizeObject(
+    (nestedState.resources && typeof nestedState.resources === "object")
+      ? nestedState.resources
+      : obj.resources,
+  );
+  const streams = normalizeResourceMap(nestedState.streams ?? obj.streams);
+  const viewMeta = normalizeObject(obj.view_meta ?? nestedState.view_meta);
+  const observationManifest = normalizeObject(obj.observation_manifest ?? nestedState.observation_manifest);
+  const input = normalizeObject(obj.input ?? nestedState.input);
+  const tickId = readNumber(obj.tick_id ?? nestedState.tick_id, 0);
+  const stateHash = readString(obj.state_hash ?? nestedState.state_hash, "");
+  const viewHashRaw = obj.view_hash ?? nestedState.view_hash;
+  const viewHash = viewHashRaw === null || viewHashRaw === undefined ? null : readString(viewHashRaw, "");
 
   return {
-    schema: "seamgrim.wasm_state.normalized.v1",
-    channels: Array.isArray(obj.channels) ? obj.channels : [],
-    row: Array.isArray(obj.row) ? obj.row : [],
-    patch: normalizePatch(obj.patch),
+    // Keep wrapper/output contract stable for existing wasm packs.
+    schema: "seamgrim.state.v0",
+    engine_schema: engineSchema,
+    tick_id: tickId,
+    state_hash: stateHash,
+    input,
+    channels,
+    row,
+    patch,
     resources: {
-      value: normalizeResourceMap(obj?.resources?.value),
-      component: normalizeResourceMap(obj?.resources?.component),
+      json: normalizeResourceMap(resourcesRaw.json),
+      fixed64: normalizeResourceMap(resourcesRaw.fixed64),
+      handle: normalizeResourceMap(resourcesRaw.handle),
+      value: normalizeResourceMap(resourcesRaw.value),
+      value_json: normalizeResourceMap(resourcesRaw.value_json),
+      component: normalizeResourceMap(resourcesRaw.component),
     },
-    streams: normalizeResourceMap(obj.streams),
-    view_meta: normalizeObject(obj.view_meta),
-    observation_manifest: normalizeObject(obj.observation_manifest),
+    streams,
+    view_meta: viewMeta,
+    observation_manifest: observationManifest,
+    view_hash: viewHash,
   };
 }
 
@@ -284,6 +365,11 @@ function parseSpace2dFromOutputLines(rawLines) {
     "name",
     "label",
     "토큰",
+    "group_id",
+    "group",
+    "groupid",
+    "그룹",
+    "묶음",
   ]);
 
   function decodeLegacyFixed64Negative(num) {
@@ -325,7 +411,23 @@ function parseSpace2dFromOutputLines(rawLines) {
         break;
       }
       const valueText = String(lines[idx + 1] ?? "").trim();
-      if (["stroke", "fill", "color", "token", "id", "name", "label", "토큰"].includes(lowerKey)) {
+      if (
+        [
+          "stroke",
+          "fill",
+          "color",
+          "token",
+          "id",
+          "name",
+          "label",
+          "토큰",
+          "group_id",
+          "group",
+          "groupid",
+          "그룹",
+          "묶음",
+        ].includes(lowerKey)
+      ) {
         data[lowerKey] = valueText;
       } else {
         const valueNum = readNumber(valueText);
@@ -338,6 +440,12 @@ function parseSpace2dFromOutputLines(rawLines) {
       if (![data.x1, data.y1, data.x2, data.y2].every((v) => Number.isFinite(v))) {
         return { shape: null, next: idx };
       }
+      const groupId =
+        data.group_id ??
+        data.group ??
+        data.groupid ??
+        data["그룹"] ??
+        data["묶음"];
       return {
         shape: {
           kind: "line",
@@ -349,6 +457,7 @@ function parseSpace2dFromOutputLines(rawLines) {
           width: data.width,
           token: data.token ?? data["토큰"],
           id: data.id ?? data.name ?? data.label,
+          group_id: groupId,
         },
         next: idx,
       };
@@ -359,6 +468,12 @@ function parseSpace2dFromOutputLines(rawLines) {
       if (![cx, cy, data.r].every((v) => Number.isFinite(v))) {
         return { shape: null, next: idx };
       }
+      const groupId =
+        data.group_id ??
+        data.group ??
+        data.groupid ??
+        data["그룹"] ??
+        data["묶음"];
       return {
         shape: {
           kind: "circle",
@@ -370,6 +485,7 @@ function parseSpace2dFromOutputLines(rawLines) {
           width: data.width,
           token: data.token ?? data["토큰"],
           id: data.id ?? data.name ?? data.label,
+          group_id: groupId,
         },
         next: idx,
       };
@@ -378,6 +494,12 @@ function parseSpace2dFromOutputLines(rawLines) {
       if (![data.x, data.y].every((v) => Number.isFinite(v))) {
         return { shape: null, next: idx };
       }
+      const groupId =
+        data.group_id ??
+        data.group ??
+        data.groupid ??
+        data["그룹"] ??
+        data["묶음"];
       return {
         shape: {
           kind: "point",
@@ -388,6 +510,7 @@ function parseSpace2dFromOutputLines(rawLines) {
           stroke: data.stroke,
           token: data.token ?? data["토큰"],
           id: data.id ?? data.name ?? data.label,
+          group_id: groupId,
         },
         next: idx,
       };
@@ -504,14 +627,21 @@ function extractOutputLinesFromObservation(normalized) {
   const resourceValues = normalized?.resources?.value && typeof normalized.resources.value === "object"
     ? normalized.resources.value
     : {};
+  const resourceValueJson = normalized?.resources?.value_json && typeof normalized.resources.value_json === "object"
+    ? normalized.resources.value_json
+    : {};
   const patch = Array.isArray(normalized?.patch) ? normalized.patch : [];
 
   const rows = [];
   Object.entries(allValues).forEach(([key, raw]) => rows.push({ key, raw, source: "observation" }));
   Object.entries(resourceValues).forEach(([key, raw]) => rows.push({ key, raw, source: "resource" }));
+  Object.entries(resourceValueJson).forEach(([key, raw]) => rows.push({ key, raw, source: "resource_value_json" }));
   patch.forEach((op) => {
     if (!op || typeof op !== "object") return;
     if (String(op.op ?? "") !== "set_resource_value") return;
+    if (Object.prototype.hasOwnProperty.call(op, "value_json")) {
+      rows.push({ key: op.tag, raw: op.value_json, source: "patch_value_json" });
+    }
     rows.push({ key: op.tag, raw: op.value, source: "patch" });
   });
   if (!rows.length) return [];
@@ -537,6 +667,7 @@ function extractOutputLinesFromObservation(normalized) {
     const hasKnownHint = lines.some((line) => {
       const lower = line.toLowerCase();
       return (
+        lower === "table.row" ||
         lower === "space2d" ||
         lower === "space2d.shape" ||
         lower === "space2d_shape" ||
@@ -552,8 +683,77 @@ function extractOutputLinesFromObservation(normalized) {
   return [];
 }
 
+export function extractObservationOutputRowsFromState(state) {
+  const normalized = normalizeWasmStatePayload(state);
+  const lines = extractOutputLinesFromObservation(normalized);
+  if (!Array.isArray(lines) || !lines.length) return [];
+
+  const rows = [];
+  let i = 0;
+  while (i < lines.length) {
+    const marker = String(lines[i] ?? "").trim().toLowerCase();
+    if (marker !== "table.row") {
+      i += 1;
+      continue;
+    }
+    if (i + 2 >= lines.length) {
+      i += 1;
+      continue;
+    }
+    const key = String(lines[i + 1] ?? "").trim();
+    const valueToken = String(lines[i + 2] ?? "").trim();
+    if (!key) {
+      i += 1;
+      continue;
+    }
+    // malformed pair: value 위치에 다음 marker가 오면 현재 row는 버린다.
+    if (valueToken.toLowerCase() === "table.row") {
+      i += 2;
+      continue;
+    }
+    rows.push({ key, value: valueToken });
+    i += 3;
+  }
+  return rows;
+}
+
 function isTableObject(obj) {
   return Boolean(obj && typeof obj === "object" && Array.isArray(obj.columns) && Array.isArray(obj.rows));
+}
+
+function isStructureObject(obj) {
+  return Boolean(obj && typeof obj === "object" && Array.isArray(obj.nodes) && Array.isArray(obj.edges));
+}
+
+export function summarizeStructureView(value, { sampleLimit = 3 } = {}) {
+  if (!isStructureObject(value)) return null;
+  const normalizedLimit = Math.max(1, Math.trunc(Number(sampleLimit) || 3));
+  const nodes = Array.isArray(value.nodes) ? value.nodes : [];
+  const edges = Array.isArray(value.edges) ? value.edges : [];
+  const nodeSamples = nodes
+    .slice(0, normalizedLimit)
+    .map((row) => String(row?.label ?? row?.id ?? "").trim())
+    .filter(Boolean);
+  const edgeSamples = edges
+    .slice(0, normalizedLimit)
+    .map((row) => {
+      const from = String(row?.from ?? "").trim();
+      const to = String(row?.to ?? "").trim();
+      if (!from || !to) return "";
+      const directed = row?.directed === true ? "->" : "-";
+      const label = String(row?.label ?? "").trim();
+      return label ? `${from} ${directed} ${to} (${label})` : `${from} ${directed} ${to}`;
+    })
+    .filter(Boolean);
+  const directedCount = edges.filter((row) => row?.directed === true).length;
+  return {
+    title: String(value?.meta?.title ?? value?.title ?? "").trim(),
+    nodeCount: nodes.length,
+    edgeCount: edges.length,
+    directedCount,
+    nodeSamples,
+    edgeSamples,
+  };
 }
 
 function normalizeTextObject(value) {
@@ -645,6 +845,91 @@ function pickStructuredFromResources(resources, checker, keyHints = []) {
   return null;
 }
 
+function normalizeViewStackEntry(raw, fallbackRole = "") {
+  if (!raw || typeof raw !== "object") return null;
+  const family = normalizeViewFamily(raw.family ?? raw.view_family ?? raw.kind);
+  if (!family) return null;
+  const role = String(raw.role ?? fallbackRole ?? "").trim();
+  return {
+    family,
+    role,
+    source: "view_meta",
+  };
+}
+
+function normalizeViewStackEntries(rawList, fallbackRole = "") {
+  const rows = Array.isArray(rawList) ? rawList : [];
+  return rows.map((row) => normalizeViewStackEntry(row, fallbackRole)).filter(Boolean);
+}
+
+function inferAvailableStructuredFamilies({ graph, space2d, table, text, structure }) {
+  const out = [];
+  if (space2d) out.push("space2d");
+  if (graph) out.push("graph");
+  if (table) out.push("table");
+  if (text) out.push("text");
+  if (structure) out.push("structure");
+  return out;
+}
+
+export function resolveStructuredViewStackFromState(stateLike) {
+  const row = stateLike && typeof stateLike === "object" ? stateLike : {};
+  const normalized = row.state && typeof row.state === "object"
+    ? row.state
+    : normalizeWasmStatePayload(row);
+  const primaryMeta = normalizeViewStackEntry(normalized?.view_meta?.primary, "main");
+  const secondaryMeta = normalizeViewStackEntries(normalized?.view_meta?.secondary, "secondary");
+  const overlayMeta = normalizeViewStackEntries(normalized?.view_meta?.overlays, "overlay");
+  const availableFamilies = inferAvailableStructuredFamilies(row);
+  const seenFamilies = new Set();
+  const primary = primaryMeta ?? (() => {
+    const inferred = VIEW_FAMILY_PRIORITY.find((family) => availableFamilies.includes(family));
+    if (!inferred) return null;
+    seenFamilies.add(inferred);
+    return { family: inferred, role: "main", source: "inferred" };
+  })();
+
+  const secondary = [];
+  const overlays = [];
+  const pushUnique = (target, entry) => {
+    if (!entry || !entry.family) return;
+    const key = `${target === overlays ? "overlay" : "body"}:${entry.family}:${entry.role}`;
+    if (seenFamilies.has(key)) return;
+    seenFamilies.add(key);
+    target.push(entry);
+  };
+
+  if (primary?.family) {
+    seenFamilies.add(primary.family);
+  }
+  secondaryMeta.forEach((entry) => pushUnique(secondary, entry));
+  overlayMeta.forEach((entry) => pushUnique(overlays, entry));
+  availableFamilies.forEach((family) => {
+    if (!family || family === primary?.family) return;
+    const inSecondary = secondary.some((entry) => entry.family === family);
+    const inOverlay = overlays.some((entry) => entry.family === family);
+    if (inSecondary || inOverlay) return;
+    pushUnique(secondary, { family, role: "secondary", source: "inferred" });
+  });
+
+  const familySet = new Set();
+  [primary, ...secondary, ...overlays].forEach((entry) => {
+    if (!entry?.family) return;
+    familySet.add(entry.family);
+  });
+  availableFamilies.forEach((family) => {
+    if (family) familySet.add(family);
+  });
+
+  const families = orderViewFamiliesByPriority(Array.from(familySet), VIEW_FAMILY_PRIORITY);
+  return {
+    primary,
+    secondary,
+    overlays,
+    families,
+  };
+}
+
 export function extractStructuredViewsFromState(state, { preferPatch = false } = {}) {
   const normalized = normalizeWasmStatePayload(state);
   const resources = normalized?.resources?.value ?? {};
@@ -656,6 +941,7 @@ export function extractStructuredViewsFromState(state, { preferPatch = false } =
   const preferMetaGraph = isGraphObject(normalized?.view_meta?.graph) ? normalized.view_meta.graph : null;
   const preferMetaSpace2d = isSpace2dObject(normalized?.view_meta?.space2d) ? normalized.view_meta.space2d : null;
   const preferMetaText = normalizeTextObject(normalized?.view_meta?.text);
+  const preferMetaStructure = isStructureObject(normalized?.view_meta?.structure) ? normalized.view_meta.structure : null;
 
   const graphCandidate = preferMetaGraph
     ? { obj: preferMetaGraph, raw: JSON.stringify(preferMetaGraph), source: "view_meta" }
@@ -705,9 +991,19 @@ export function extractStructuredViewsFromState(state, { preferPatch = false } =
     return null;
   })();
 
+  const structureCandidate = preferMetaStructure
+    ? {
+      obj: preferMetaStructure,
+      raw: JSON.stringify(preferMetaStructure),
+      source: "view_meta",
+    }
+    : preferPatch
+      ? pickStructuredFromPatch(patch, isStructureObject) ?? pickStructuredFromResources(resources, isStructureObject, ["structure", "구조"])
+      : pickStructuredFromResources(resources, isStructureObject, ["structure", "구조"]) ?? pickStructuredFromPatch(patch, isStructureObject);
+
   const fallbackGraph = graphCandidate?.obj ? null : buildGraphFromObservation(normalized);
 
-  return {
+  const structured = {
     state: normalized,
     graph: graphCandidate?.obj ?? fallbackGraph ?? null,
     graphRaw: graphCandidate?.raw ?? (fallbackGraph ? JSON.stringify(fallbackGraph) : null),
@@ -718,7 +1014,10 @@ export function extractStructuredViewsFromState(state, { preferPatch = false } =
     tableRaw: tableCandidate?.raw ?? null,
     text: textCandidate?.obj ?? null,
     textRaw: textCandidate?.raw ?? null,
-    structure: null,
-    structureRaw: null,
+    structure: structureCandidate?.obj ?? null,
+    structureRaw: structureCandidate?.raw ?? null,
   };
+  structured.viewStack = resolveStructuredViewStackFromState(structured);
+  structured.families = Array.isArray(structured.viewStack?.families) ? structured.viewStack.families : [];
+  return structured;
 }

@@ -104,9 +104,13 @@ export class DotbogiPanel {
     this.preferredYKey = "";
     this.lockInitialAxis = true;
     this.initialAxisLocked = false;
+    this.overlaySeries = [];
+    this.playbackCursorIndex = null;
     this.graphView = {
       autoFit: true,
       axis: null,
+      showGrid: true,
+      showAxis: true,
     };
     this.drag = {
       active: false,
@@ -221,6 +225,29 @@ export class DotbogiPanel {
     return true;
   }
 
+  getGuides() {
+    return {
+      showGrid: Boolean(this.graphView.showGrid),
+      showAxis: Boolean(this.graphView.showAxis),
+    };
+  }
+
+  setGuides({ showGrid = null, showAxis = null } = {}) {
+    let changed = false;
+    if (typeof showGrid === "boolean" && this.graphView.showGrid !== showGrid) {
+      this.graphView.showGrid = showGrid;
+      changed = true;
+    }
+    if (typeof showAxis === "boolean" && this.graphView.showAxis !== showAxis) {
+      this.graphView.showAxis = showAxis;
+      changed = true;
+    }
+    if (changed) {
+      this.renderGraph();
+    }
+    return this.getGuides();
+  }
+
   resetAxis() {
     this.graphView.autoFit = true;
     this.graphView.axis = null;
@@ -273,6 +300,7 @@ export class DotbogiPanel {
 
   clearTimeline({ preserveAxes = false, preserveView = false } = {}) {
     this.timeline = [];
+    this.playbackCursorIndex = null;
     if (!preserveAxes) {
       this.selectedXKey = INDEX_X_KEY;
       this.selectedYKey = "";
@@ -285,6 +313,74 @@ export class DotbogiPanel {
       this.graphView.axis = null;
       this.initialAxisLocked = false;
     }
+    this.renderGraph();
+  }
+
+  getTimelineLength() {
+    return Array.isArray(this.timeline) ? this.timeline.length : 0;
+  }
+
+  getTimelineSampleAt(index = -1) {
+    const size = this.getTimelineLength();
+    if (size <= 0) return null;
+    const raw = Number(index);
+    const normalized = Number.isFinite(raw) ? Math.max(0, Math.min(size - 1, Math.trunc(raw))) : size - 1;
+    return this.timeline[normalized] ?? null;
+  }
+
+  getPlaybackCursor() {
+    const size = this.getTimelineLength();
+    if (size <= 0) return 0;
+    if (this.playbackCursorIndex === null || this.playbackCursorIndex === undefined) {
+      return size - 1;
+    }
+    const raw = Number(this.playbackCursorIndex);
+    if (!Number.isFinite(raw)) return size - 1;
+    return Math.max(0, Math.min(size - 1, Math.trunc(raw)));
+  }
+
+  setPlaybackCursor(index = null, { render = true } = {}) {
+    if (index === null || index === undefined || index === "") {
+      this.playbackCursorIndex = null;
+      if (render) this.renderGraph();
+      return this.getPlaybackCursor();
+    }
+    const size = this.getTimelineLength();
+    if (size <= 0) {
+      this.playbackCursorIndex = 0;
+      if (render) this.renderGraph();
+      return 0;
+    }
+    const raw = Number(index);
+    const normalized = Number.isFinite(raw) ? Math.max(0, Math.min(size - 1, Math.trunc(raw))) : size - 1;
+    this.playbackCursorIndex = normalized;
+    if (render) this.renderGraph();
+    return normalized;
+  }
+
+  setOverlaySeries(seriesList = []) {
+    const source = Array.isArray(seriesList) ? seriesList : [];
+    this.overlaySeries = source
+      .map((row, index) => {
+        const item = row && typeof row === "object" ? row : {};
+        const id = String(item.id ?? item.label ?? `overlay_${index + 1}`).trim() || `overlay_${index + 1}`;
+        const color = String(item.color ?? "").trim();
+        const pointsRaw = Array.isArray(item.points) ? item.points : [];
+        const points = pointsRaw
+          .map((point) => {
+            const x = finite(point?.x);
+            const y = finite(point?.y);
+            if (x === null || y === null) return null;
+            return { x, y };
+          })
+          .filter(Boolean);
+        return {
+          id,
+          color,
+          points,
+        };
+      })
+      .filter((row) => row.points.length > 0);
     this.renderGraph();
   }
 
@@ -402,8 +498,10 @@ export class DotbogiPanel {
     const xKey = String(this.selectedXKey ?? INDEX_X_KEY);
     const yKey = this.selectedYKey;
     if (!yKey) return [];
+    const cursor = this.getPlaybackCursor();
     const out = [];
     this.timeline.forEach((sample, index) => {
+      if (index > cursor) return;
       const rawY = finite(sample.values?.[yKey]);
       if (rawY === null) return;
       let rawX = null;
@@ -415,13 +513,44 @@ export class DotbogiPanel {
       if (rawX === null) {
         rawX = pickXAxisByTimeHeuristic(sample.values, index);
       }
-      out.push({ x: rawX, y: rawY });
+      out.push({ x: rawX, y: rawY, sourceIndex: index });
     });
     return out;
   }
 
+  buildRenderSeries() {
+    const out = [];
+    const focusPoints = [];
+    const basePoints = this.buildSeriesPoints();
+    if (basePoints.length) {
+      const focus = basePoints[basePoints.length - 1];
+      if (focus && Number.isFinite(focus.x) && Number.isFinite(focus.y)) {
+        focusPoints.push({ x: focus.x, y: focus.y, color: "#22d3ee" });
+      }
+      out.push({
+        id: this.selectedYKey || "y",
+        color: "#22d3ee",
+        points: basePoints.map((row) => ({ x: row.x, y: row.y })),
+      });
+    }
+    const overlayRows = Array.isArray(this.overlaySeries) ? this.overlaySeries : [];
+    overlayRows.forEach((row) => {
+      if (!row || typeof row !== "object") return;
+      const points = Array.isArray(row.points) ? row.points : [];
+      if (!points.length) return;
+      out.push({
+        id: String(row.id ?? "").trim() || `overlay_${out.length + 1}`,
+        color: String(row.color ?? "").trim() || undefined,
+        points,
+      });
+    });
+    return { series: out, focusPoints };
+  }
+
   computeAutoAxis() {
-    const points = this.buildSeriesPoints();
+    const { series } = this.buildRenderSeries();
+    if (!series.length) return null;
+    const points = series.flatMap((item) => Array.isArray(item.points) ? item.points : []);
     if (!points.length) return null;
     let xMin = Math.min(...points.map((p) => p.x));
     let xMax = Math.max(...points.map((p) => p.x));
@@ -440,7 +569,7 @@ export class DotbogiPanel {
   }
 
   renderGraph() {
-    const points = this.buildSeriesPoints();
+    const { series, focusPoints } = this.buildRenderSeries();
     const autoAxis = this.computeAutoAxis();
     if (
       this.lockInitialAxis &&
@@ -457,20 +586,17 @@ export class DotbogiPanel {
 
     renderGraphCanvas2d({
       canvas: this.graphCanvas,
-      graph: points.length
+      graph: series.length
         ? {
             axis,
-            series: [
-              {
-                id: this.selectedYKey || "y",
-                color: "#22d3ee",
-                points,
-              },
-            ],
+            series,
           }
         : null,
+      showGrid: Boolean(this.graphView.showGrid),
+      showAxis: Boolean(this.graphView.showAxis),
       emptyText: "그래프 출력 없음",
       noPointsText: "그래프 데이터 없음",
+      focusPoints,
     });
   }
 

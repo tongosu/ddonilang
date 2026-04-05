@@ -55,10 +55,20 @@ export interface SeamgrimDerivedState extends SeamgrimState {
   tick_time_ms: number;
 }
 
+export interface DdnParseWarning {
+  code: string;
+  message: string;
+  span?: {
+    start?: number;
+    end?: number;
+  };
+}
+
 export interface DdnWasmVm {
   columns(): string;
   update_logic(source: string): void;
   update_logic_with_mode?(source: string, mode: string): void;
+  get_parse_warnings?(): string;
   set_param(key: string, value: number | boolean | string): string;
   set_param_fixed64?(key: string, raw_i64: number): string;
   set_param_fixed64_str?(key: string, raw_i64: string): string;

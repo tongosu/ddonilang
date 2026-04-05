@@ -19,10 +19,21 @@
   - `canvas_width` / `canvas_height` / `draw_list`(역호환 슬롯)
   - `graph_hints[]`(선택): 그래프 소스 힌트
   - `layout_preset`(선택): UI 레이아웃 힌트
+  - `primary`(선택): 대표 보기
+    - `family`: canonical family 이름 (`space2d`, `graph`, `table`, ...)
+    - `role`(선택): `sim`, `dotbogi`, `main` 같은 host용 힌트
+  - `secondary[]`(선택): 보조 보기 목록
+    - `family`
+    - `role`(선택)
+  - `overlays[]`(선택): 메인 위 겹침 레이어
+    - `family`
+    - `role`(선택): `label`, `caption`, `hud`, `marker` 등
 - `view_hash`(선택): 뷰 메타 해시(디버그/골든용)
 
 ## 원칙
 - 같은 `state`에서 `view_meta`만 바뀌어도 `state_hash`는 바뀌지 않아야 한다.
+- `view_meta.primary/secondary/overlays`는 보기 의미와 역할 힌트만 담고, backend/profile/layout 결정은 host 책임이다.
+- family 이름은 canonical 값을 쓰고, 레거시 alias `2d`/`3d`는 정규화 후 저장하는 쪽을 권장한다.
 - UI 그래프 소스 우선순위는 아래 표를 따른다.
 
 ## 그래프 소스 우선순위 (Graph Source Priority)

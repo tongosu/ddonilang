@@ -10,9 +10,29 @@ DDN 출력(숫자 x/y 라인) → `seamgrim.graph.v0` JSON으로 변환합니다
 
 출력된 JSON은 `solutions/seamgrim_ui_mvp/ui/index.html`에서 불러올 수 있습니다.
 출력 라인은 `x`, `y`를 한 줄에 `x,y`로 출력하거나, 줄마다 숫자 1개씩 출력해도 됩니다.
-`#이름:`/`#설명:` 메타 헤더는 실행에 영향을 주지 않으며, 해시 계산에서는 무시됩니다.
+메타 헤더는 실행에 영향을 주지 않으며, 해시 계산에서는 무시됩니다.
+- 이름 키(별칭 포함): `#이름:` / `#name:` / `#title:` / `#제목:` / `#가이드이름:` / `#ガイド名:`
+- 설명 키(별칭 포함): `#설명:` / `#풀이:` / `#해설:` / `#description:` / `#desc:` / `#summary:` / `#解説:`
+- 기본 축 키(별칭 포함):
+  - `#기본관찰:` / `#default_observation:` / `#default-series:` (y)
+  - `#기본관찰x:` / `#default_observation_x:` / `#x-axis:` (x)
 그래프 출력은 키 정렬/소수 4자리 반올림으로 결정성을 유지합니다.
 legacy `붙박이마련`/`그릇채비`/`채비` 블록은 실행 전 `이름 <- 값.` 대입으로 정규화해 파싱 실패를 줄입니다.
+
+## bridge_check.py
+
+`seamgrim.graph.v0`/`seamgrim.snapshot.v0`의 bridge 해시 정합을 점검합니다.
+
+검증 항목:
+- `graph.meta.source_input_hash`가 입력 DDN 본문 해시와 일치하는지
+- `graph.meta.result_hash`가 점열(`series[0].points`) 재계산 해시와 일치하는지
+- `snapshot.run.hash.input/result`가 graph meta hash와 교차 일치하는지
+
+예시:
+- `python solutions/seamgrim_ui_mvp/tools/bridge_check.py --graph C:/ddn/codex/build/graph.v0.json --input-ddn pack/seamgrim_graph_v0_basics/c01_line_meta_header/input.ddn`
+- `python solutions/seamgrim_ui_mvp/tools/bridge_check.py --graph C:/ddn/codex/build/graph.v0.json --snapshot C:/ddn/codex/build/snapshot.v0.json --out C:/ddn/codex/build/bridge_check.detjson`
+
+`--graph` 없이도 `--snapshot`만으로 실행할 수 있으며, 이 경우 `snapshot.run.graph`를 사용합니다.
 
 ## ddn_exec_server.py
 UI에서 입력한 DDN을 **서버에서 실행**하고 결과 그래프를 반환하는 DDN 실행 서버입니다.
@@ -47,7 +67,7 @@ DDN 실행 서버 기동/응답을 자동 점검합니다.
 - `/lessons/index.json`, `/seed_lessons_v1/seed_manifest.detjson`, `/lessons_rewrite_v1/rewrite_manifest.detjson` 접근/구조
 - 대표 lesson/seed/rewrite DDN 파일 접근 가능 여부
 - `ddonirang_tool_bg.wasm` 응답 MIME (`application/wasm`)
-- `/api/run` 실행 결과의 source/result hash 정합
+- `/api/run` 실행 결과의 source/result hash 정합 (`bridge_check` 규칙 재사용)
 
 ## tests/run_seamgrim_runtime_5min_check.py
 현재 구현에서 5분 내 재현 가능한 런타임 검증 시나리오를 한 번에 실행합니다.
@@ -68,6 +88,7 @@ DDN 실행 서버 기동/응답을 자동 점검합니다.
 - `run_seamgrim_lesson_path_fallback_check.py`
 - `run_seamgrim_browse_selection_flow_check.py` (Search 탭 카드 클릭 payload 회귀)
 - `tests/seamgrim_ui_common_runner.mjs`
+- `run_pendulum_tetris_showcase_check.py` (dry-run 계약, 옵션으로 mini/full_preprocessed 실실행 smoke)
 
 ## tests/run_seamgrim_browse_selection_flow_check.py
 Search 탭의 카드 클릭에서 `onLessonSelect(payload)` 경로를 검증합니다.
@@ -110,6 +131,15 @@ DDN 출력에서 `seamgrim.table.v0` JSON을 추출합니다. DDN stdout의 `tab
 - `python solutions/seamgrim_ui_mvp/tools/export_table.py input.ddn output_table.json`
 - `python solutions/seamgrim_ui_mvp/tools/export_table.py input.ddn --output-dir C:/ddn/codex/build --auto-name`
 
+## export_structure.py
+
+DDN 출력에서 `seamgrim.structure.v0` JSON을 추출합니다. DDN stdout의 `structure`/`구조` 마커 뒤 `node`/`edge` 라인을 파싱합니다.
+
+예시:
+
+- `python solutions/seamgrim_ui_mvp/tools/export_structure.py input.ddn output_structure.json`
+- `python solutions/seamgrim_ui_mvp/tools/export_structure.py input.ddn --output-dir C:/ddn/codex/build --auto-name`
+
 ## lesson_pack_check.py
 교과 lesson pack의 `view_spec.toml`에 정의된 `required_views/required_gauges`를 검증합니다.
 
@@ -124,6 +154,46 @@ DDN 출력에서 `seamgrim.table.v0` JSON을 추출합니다. DDN stdout의 `tab
 - `python solutions/seamgrim_ui_mvp/tools/lesson_schema_audit.py --limit 30`
 - json 리포트: `python solutions/seamgrim_ui_mvp/tools/lesson_schema_audit.py --json-out C:/ddn/codex/build/lesson_schema_audit.json`
 - preview 포함 스캔: `python solutions/seamgrim_ui_mvp/tools/lesson_schema_audit.py --include-preview`
+
+## lesson_migration_lint.py
+교과 DDN의 마이그레이션 우선 패턴을 점검합니다.
+
+우선순위 패턴:
+- `//범위(...)` 주석형 범위 표기 (`priority_range_comment`)
+- `채비:` 콜론 헤더 (`priority_setup_colon`)
+
+참고 패턴:
+- `보여주기.` (`info_legacy_show`)
+- `(시작|처음)할때:` (`info_legacy_start_colon`)
+- `(매마디|매틱)마다:` (`info_legacy_tick_colon`)
+- `(N마디)마다:` (`info_legacy_tick_interval_colon`)
+- `(처음)할때` (`info_legacy_start_alias`)
+- `(매틱)마다` (`info_legacy_tick_alias`)
+
+실행:
+- 기본 스캔: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_lint.py`
+- json 리포트: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_lint.py --json-out C:/ddn/codex/build/lesson_migration_lint.detjson`
+- preview 포함 스캔: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_lint.py --include-preview`
+- 우선순위 패턴을 실패 처리: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_lint.py --fail-on-priority`
+
+## lesson_migration_autofix.py
+교과 DDN의 마이그레이션 우선 패턴을 자동 변환합니다.
+
+기본 변환:
+- `//범위(min,max,step)` 주석형 초기화 → `매김 { 범위: min..max. 간격: step. }`
+
+옵션 변환:
+- `--rewrite-setup-colon` 사용 시 `채비: {` → `채비 {`
+- 훅 콜론 헤더는 기본 변환: `(시작|처음)할때:`/`(매마디|매틱)마다:`/`(N마디)마다:` → 무콜론 훅 헤더
+- 훅 별칭은 기본 정규화: `(처음)할때` → `(시작)할때`, `(매틱)마다` → `(매마디)마다`
+
+실행:
+- dry-run(기본): `python solutions/seamgrim_ui_mvp/tools/lesson_migration_autofix.py`
+- inputs 포함: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_autofix.py --include-inputs`
+- preview 포함: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_autofix.py --include-inputs --include-preview`
+- 채비 콜론 헤더도 변환: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_autofix.py --rewrite-setup-colon`
+- 실제 적용: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_autofix.py --include-inputs --apply`
+- json 리포트: `python solutions/seamgrim_ui_mvp/tools/lesson_migration_autofix.py --json-out C:/ddn/codex/build/lesson_migration_autofix.detjson`
 
 ## lesson_schema_upgrade.py
 레거시 `보여주기.` 구문을 `보임 { ... }.` 블록으로 1차 변환하고, 필요 시 `(매마디)마다 { ... }.` 블록을 주입한 preview 파일을 생성합니다.

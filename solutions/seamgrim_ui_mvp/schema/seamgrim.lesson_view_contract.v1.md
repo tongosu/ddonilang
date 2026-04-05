@@ -8,8 +8,23 @@
 
 - `graph`: 2축 그래프(기본)
 - `space2d`: 2D 장면(점/선/도형)
+- `grid2d`: 2D 격자/타일 장면(확장)
 - `space3d`: 3D 장면(초안)
+- `grid3d`: 3D 격자/복셀 장면(초안)
+- `table`: 표형 출력
 - `text`: 텍스트/표형 출력
+- `structure`: 구조/트리/관계 보기(초안)
+
+호환 alias:
+
+- `2d` -> `space2d`
+- `3d` -> `space3d`
+
+원칙:
+
+- 신규/정본 메타는 canonical family 이름을 권장한다.
+- 레거시 lesson의 `required_views = ["2d", ...]`는 `["space2d", ...]`로 정규화해 읽는다.
+- 이번 단계에서는 새 DDN 표면 `보기 {}`를 도입하지 않고, `required_views`를 계속 표준 선언면으로 사용한다.
 
 예시:
 
@@ -42,4 +57,3 @@ required_views = ["graph", "space2d"]
 
 - `python solutions/seamgrim_ui_mvp/tools/lesson_pack_check.py`
 - `python solutions/seamgrim_ui_mvp/tools/lesson_schema_audit.py`
-

@@ -1,6 +1,12 @@
 #이름: ssot_edu_phys_p011_04_resonance_amplitude_vs_omega_variant_P011-04 강제진동 공진곡선 A(ω)
 #설명: 강제진동의 정상상태 진폭 A(ω)=F0/sqrt((k-mω^2)^2+(cω)^2). (ω,A) 출력.
 
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  w <- 0.
+}.
+
 (매마디)마다 {
   // 출력은 숫자만. (omega, A) 순서.
   // 설정: m=1, k=4(자연각진동수=2), c=0.5, F0=1.
@@ -14,9 +20,7 @@
   w_max <- 4.
   dw <- 0.02.
 
-  w목록 <- (w_min, w_max, dw) 범위.
-
-  (w) w목록에 대해: {
+  { w <= w_max }인것 일때 {
     d <- k - (m*w*w).
     p <- d * d.
     q <- (c*w) * (c*w).
@@ -28,5 +32,6 @@
       w: w.
       A: A.
     }.
+    w <- w + (dw).
   }.
 }.

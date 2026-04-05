@@ -58,7 +58,7 @@ def main() -> int:
     else:
         raise ValueError("출력 경로가 필요합니다 (OUTPUT 또는 --output-dir)")
 
-    input_text = input_path.read_text(encoding="utf-8")
+    input_text = input_path.read_text(encoding="utf-8-sig")
     meta = extract_meta(input_text)
     source_hash = hash_text(normalize_ddn_for_hash(input_text))
     stripped_text = preprocess_ddn_for_teul(input_text, strip_draw=True)

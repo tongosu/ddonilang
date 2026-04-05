@@ -10,12 +10,16 @@
   - 없으면 UI 기본값은 `"xy"`로 간주한다.
 - `sample`: 표본 범위
   - `var`, `x_min`, `x_max`, `step`
+  - `tick`(선택): run 단위 tick 힌트 (없으면 `ticks[]` 또는 암묵 인덱스)
 - `axis`: 계산 결과의 자동 축 범위
   - `x_min`, `x_max`, `y_min`, `y_max`
 - `view`: 표시 범위(뷰포트)
   - `auto`, `x_min`, `x_max`, `y_min`, `y_max`, `pan_x`, `pan_y`, `zoom`
 - `series`: 점열 묶음
   - `id`, `label`, `points[{x,y}]`
+- `ticks[]`(선택): 점열/행 재생 tick 시퀀스
+  - 없으면 점 인덱스 `0..N-1`를 암묵 tick으로 사용
+  - 있으면 `meta.tick`보다 우선한다.
 - `stream_source`(선택): 흐름 기반 시계열 프로비넌스
   - `node_name`: 흐름 마디 이름
   - `capacity`: 링버퍼 크기

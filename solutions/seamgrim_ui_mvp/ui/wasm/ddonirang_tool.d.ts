@@ -9,6 +9,7 @@ export class DdnWasmVm {
     clear_view_prefixes(): void;
     columns(): any;
     get_build_info(): string;
+    get_parse_warnings(): any;
     get_state_hash(): string;
     get_state_json(): any;
     inject_ai_action(key: string, value_json: string): void;
@@ -33,6 +34,14 @@ export class DdnWasmVm {
 
 export function wasm_build_info(): string;
 
+export function wasm_canon_alrim_plan(source: string): string;
+
+export function wasm_canon_block_editor_plan(source: string): string;
+
+export function wasm_canon_flat_json(source: string): string;
+
+export function wasm_canon_maegim_plan(source: string): string;
+
 export function wasm_preprocess_source(source: string): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -45,6 +54,7 @@ export interface InitOutput {
     readonly ddnwasmvm_clear_view_prefixes: (a: number) => void;
     readonly ddnwasmvm_columns: (a: number) => number;
     readonly ddnwasmvm_get_build_info: (a: number, b: number) => void;
+    readonly ddnwasmvm_get_parse_warnings: (a: number) => number;
     readonly ddnwasmvm_get_state_hash: (a: number, b: number) => void;
     readonly ddnwasmvm_get_state_json: (a: number) => number;
     readonly ddnwasmvm_inject_ai_action: (a: number, b: number, c: number, d: number, e: number) => void;
@@ -66,6 +76,10 @@ export interface InitOutput {
     readonly ddnwasmvm_update_logic: (a: number, b: number, c: number, d: number) => void;
     readonly ddnwasmvm_update_logic_with_mode: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly wasm_build_info: (a: number) => void;
+    readonly wasm_canon_alrim_plan: (a: number, b: number, c: number) => void;
+    readonly wasm_canon_block_editor_plan: (a: number, b: number, c: number) => void;
+    readonly wasm_canon_flat_json: (a: number, b: number, c: number) => void;
+    readonly wasm_canon_maegim_plan: (a: number, b: number, c: number) => void;
     readonly wasm_preprocess_source: (a: number, b: number, c: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;

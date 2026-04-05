@@ -1,0 +1,5 @@
+title = "Transport Signal Traffic Seed V1"
+description = "Single-lane queue under green/red signal cycle"
+grade = "all"
+subject = "engineering"
+quality = "recommended"

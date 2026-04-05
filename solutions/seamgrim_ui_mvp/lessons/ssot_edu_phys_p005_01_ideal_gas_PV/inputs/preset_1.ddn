@@ -1,6 +1,12 @@
 #이름: ssot_edu_phys_p005_01_ideal_gas_PV_variant_P005-01 이상기체(등온) P-V
 #설명: P = n R T / V  (출력: V P)
 
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  V <- 0.5.
+}.
+
 (매마디)마다 {
   // 출력은 숫자만. (V, P) 순서.
   // NOTE: export_graph.py는 stdout 숫자쌍을 (x,y)로 묶는다.
@@ -15,13 +21,12 @@
 
   압력식 = (#ascii1) 수식{ y = n*R*T / x }.
 
-  V목록 <- (V_min, V_max, dV) 범위.
-
-  (V) V목록에 대해: {
-    P <- (n=n, R=R, T=T, x=V)인 압력식 풀기.
+  { V <= V_max }인것 일때 {
+    P <- n*R*T / V.
     보임 {
       V: V.
       P: P.
     }.
+    V <- V + (dV).
   }.
 }.

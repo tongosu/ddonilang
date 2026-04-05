@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>또니랑 Playground</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+      #play-app { display: flex; flex-direction: column; height: 100vh; }
+
+      /* ── Topbar ── */
+      #play-topbar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 12px; border-bottom: 1px solid var(--border, #333);
+        background: var(--bg-panel, #1e1e1e); flex-shrink: 0;
+      }
+      #play-topbar .brand { font-weight: bold; font-size: 0.95rem; color: var(--accent, #4fc3f7); margin-right: 4px; }
+      #play-topbar a.back { font-size: 0.8rem; color: var(--text-muted, #888); text-decoration: none; }
+      #play-topbar a.back:hover { color: var(--text, #ddd); }
+      #play-source-label { font-size: 0.74rem; color: var(--text-muted, #888); max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #play-topbar select, #play-topbar button { font-size: 0.82rem; }
+      #play-topbar .spacer { flex: 1; }
+
+      /* ── D2: Draft recovery banner ── */
+      #play-draft-banner {
+        display: none; align-items: center; gap: 10px;
+        padding: 6px 14px; background: #2a2200; border-bottom: 1px solid #554400;
+        font-size: 0.8rem; color: #ffd; flex-shrink: 0;
+      }
+      #play-draft-banner.visible { display: flex; }
+      #play-draft-banner button { font-size: 0.78rem; padding: 2px 8px; }
+
+      /* ── Body ── */
+      #play-body { display: flex; flex: 1; min-height: 0; }
+
+      /* ── Left: editor col ── */
+      #play-editor-col {
+        display: flex; flex-direction: column;
+        width: 48%; min-width: 280px; border-right: 1px solid var(--border, #333);
+      }
+      #play-editor {
+        flex: 1; font-family: monospace; font-size: 0.85rem;
+        resize: none; border: none; outline: none;
+        background: var(--bg-editor, #161616); color: var(--text, #ccc);
+        padding: 10px; tab-size: 2;
+      }
+
+      /* ── D2: Dirty indicator ── */
+      #play-dirty-badge {
+        display: none; font-size: 0.72rem; color: #fa8;
+        padding: 0 6px;
+      }
+      #play-dirty-badge.visible { display: inline; }
+
+      /* ── D4: Tip chip ── */
+      #play-tip-chip {
+        display: none; flex-direction: column; gap: 4px;
+        padding: 8px 12px; border-top: 1px solid var(--border, #333);
+        background: var(--bg-panel, #1e1e1e); font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+      #play-tip-chip.visible { display: flex; }
+      #play-tip-chip .tip-title { color: var(--accent, #4fc3f7); font-weight: bold; margin-bottom: 2px; }
+      #play-tip-chip .tip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+      .tip-item {
+        background: var(--bg-editor, #1a1a1a); border: 1px solid var(--border, #333);
+        border-radius: 3px; padding: 2px 6px; font-family: monospace; font-size: 0.75rem;
+        color: var(--text, #ccc);
+      }
+      .tip-item b { color: var(--accent, #4fc3f7); }
+      #play-tip-chip .tip-units { margin-top: 4px; color: var(--text-muted, #888); }
+
+      /* ── Right: output ── */
+      #play-output-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+      #play-output-tabs {
+        display: flex; border-bottom: 1px solid var(--border, #333);
+        background: var(--bg-panel, #1e1e1e); flex-shrink: 0;
+      }
+      .play-tab {
+        padding: 6px 14px; cursor: pointer; font-size: 0.82rem;
+        border: none; background: none; color: var(--text-muted, #888);
+        border-bottom: 2px solid transparent;
+      }
+      .play-tab:disabled { opacity: 0.45; cursor: default; }
+      .play-tab.active { color: var(--text, #ddd); border-bottom-color: var(--accent, #4fc3f7); }
+      .play-tab-panel { display: none; flex: 1; overflow: auto; padding: 8px; }
+      .play-tab-panel.active { display: flex; flex-direction: column; }
+
+      /* ── 진단 ── */
+      #play-diag-list { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; font-family: monospace; }
+      #play-diag-list li { padding: 3px 0; border-bottom: 1px solid var(--border-faint, #2a2a2a); }
+      #play-diag-list li.diag-error { color: #f48; }
+      #play-diag-list li.diag-warn  { color: #fa8; }
+      #play-diag-list li.diag-info  { color: #8af; }
+      #play-diag-empty { color: var(--text-muted, #666); font-size: 0.8rem; margin: 8px 0; }
+
+      /* ── 출력 ── */
+      #play-obs-table { border-collapse: collapse; font-size: 0.8rem; width: 100%; }
+      #play-obs-table th, #play-obs-table td {
+        padding: 3px 10px; text-align: left;
+        border-bottom: 1px solid var(--border-faint, #2a2a2a);
+      }
+      #play-obs-table th { color: var(--text-muted, #888); font-weight: normal; }
+      #play-obs-empty { color: var(--text-muted, #666); font-size: 0.8rem; margin: 8px 0; }
+
+      /* ── 거울 ── */
+        #play-mirror-content { font-family: monospace; font-size: 0.78rem; color: var(--text-muted, #aaa); }
+        #play-mirror-content .mirror-kv { display: flex; gap: 8px; padding: 2px 0; }
+        #play-mirror-content .mirror-key { color: var(--accent, #4fc3f7); min-width: 100px; }
+        #play-mirror-content .mirror-sep { color: var(--text-muted, #555); }
+        #play-mirror-content .mirror-section { color: var(--text-muted, #555); font-size: 0.7rem; margin: 6px 0 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+        #play-mirror-content .runtime-preview-summary {
+          display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+          margin: 0 0 10px; padding: 8px 10px;
+          border: 1px solid var(--border-faint, #2a2a2a);
+          border-radius: 10px;
+          background: rgba(255,255,255,0.03);
+          color: var(--text, #ddd);
+          font-family: system-ui, sans-serif;
+          font-size: 0.74rem;
+          line-height: 1.4;
+        }
+        #play-mirror-content .runtime-preview-summary .preview-summary-label { color: var(--text-muted, #888); font-weight: 700; }
+        #play-mirror-content .runtime-preview-summary .preview-summary-family {
+          display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+          background: rgba(79,195,247,0.16); color: var(--accent, #4fc3f7); font-weight: 700; font-size: 0.68rem;
+        }
+        #play-mirror-content .runtime-preview-summary .preview-summary-text { color: var(--text, #ddd); }
+        #play-mirror-bogae {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin: 0 0 10px;
+          padding: 8px;
+          border: 1px solid var(--border-faint, #2a2a2a);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.02);
+        }
+        #play-mirror-bogae-head {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 8px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+          font-size: 0.72rem;
+        }
+        #play-mirror-bogae-title {
+          color: var(--accent, #4fc3f7);
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+        #play-mirror-bogae-status { color: var(--text-muted, #888); }
+        #play-mirror-bogae-canvas-wrap {
+          position: relative;
+          overflow: hidden;
+          height: 240px;
+          min-height: 180px;
+          border-radius: 6px;
+          background: #0b1220;
+        }
+        #play-mirror-bogae-canvas {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+        #play-mirror-bogae-overlay {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          display: none;
+        }
+        #play-mirror-bogae-overlay.visible { display: block; }
+        #play-mirror-bogae-overlay .overlay-chip {
+          position: absolute;
+          left: 10px;
+          top: 10px;
+          max-width: min(78%, 360px);
+          padding: 8px 10px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          background: rgba(2, 6, 23, 0.72);
+          color: #e5e7eb;
+          font-family: "IBM Plex Sans KR", "Noto Sans KR", system-ui, sans-serif;
+          font-size: 0.78rem;
+          line-height: 1.45;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+        }
+        #play-mirror-bogae-overlay .overlay-chip p,
+        #play-mirror-bogae-overlay .overlay-chip ul,
+        #play-mirror-bogae-overlay .overlay-chip h1,
+        #play-mirror-bogae-overlay .overlay-chip h2,
+        #play-mirror-bogae-overlay .overlay-chip h3 {
+          margin: 0;
+        }
+        #play-mirror-bogae-overlay .overlay-chip ul {
+          margin-top: 4px;
+          padding-left: 16px;
+        }
+
+      @media (max-width: 860px) {
+        #play-mirror-bogae-canvas-wrap { height: 180px; }
+      }
+
+      /* ── Grammar Lab ── */
+      #play-grammar-lab {
+        border-top: 1px solid var(--border, #333);
+        background: var(--bg-panel, #1f1f1f);
+        max-height: 38vh;
+        min-height: 160px;
+        overflow: auto;
+      }
+      #play-grammar-head {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 10px; border-bottom: 1px solid var(--border-faint, #2a2a2a);
+        position: sticky; top: 0; background: var(--bg-panel, #1f1f1f); z-index: 1;
+      }
+      #play-grammar-title { font-size: 0.8rem; color: var(--accent, #4fc3f7); font-weight: 700; }
+      #play-grammar-head button { font-size: 0.76rem; padding: 2px 8px; }
+      #play-grammar-status { font-size: 0.74rem; color: var(--text-muted, #888); }
+      #play-grammar-build { margin-left: auto; font-size: 0.7rem; color: var(--text-muted, #666); max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #play-grammar-body { padding: 8px 10px 10px; display: grid; gap: 6px; }
+      .play-grammar-panel {
+        border: 1px solid var(--border-faint, #2a2a2a);
+        border-radius: 4px;
+        background: var(--bg-editor, #161616);
+      }
+      .play-grammar-panel summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        color: var(--text, #ddd);
+        border-bottom: 1px solid var(--border-faint, #2a2a2a);
+      }
+      .play-grammar-panel summary::-webkit-details-marker { display: none; }
+      .play-grammar-panel pre {
+        margin: 0;
+        padding: 8px;
+        font-size: 0.72rem;
+        line-height: 1.4;
+        font-family: monospace;
+        color: var(--text-muted, #aaa);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+        /* ── D7: Settings panel ── */
+      #play-settings-overlay {
+        display: none; position: fixed; inset: 0; z-index: 100;
+        background: rgba(0,0,0,0.5);
+      }
+      #play-settings-overlay.visible { display: block; }
+      #play-settings-panel {
+        position: absolute; top: 40px; right: 12px;
+        background: var(--bg-panel, #242424); border: 1px solid var(--border, #444);
+        border-radius: 6px; padding: 16px; min-width: 240px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      }
+      #play-settings-panel h3 { margin: 0 0 12px; font-size: 0.9rem; color: var(--text, #ddd); }
+      .settings-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.82rem; color: var(--text, #ccc); }
+      .settings-row label { flex: 1; cursor: pointer; }
+      .settings-row input[type=checkbox] { cursor: pointer; }
+      .settings-row input[type=number] { width: 60px; font-size: 0.82rem; }
+      #play-settings-panel .settings-close { margin-top: 8px; font-size: 0.78rem; }
+
+      /* ── Status bar ── */
+      #play-statusbar {
+        padding: 3px 12px; font-size: 0.72rem; color: var(--text-muted, #666);
+        background: var(--bg-panel, #1e1e1e); border-top: 1px solid var(--border, #333);
+        flex-shrink: 0; display: flex; gap: 16px; align-items: center;
+      }
+      #play-statusbar .status-error { color: #f48; }
+      #play-statusbar .status-ok { color: #4f8; }
+
+      /* ── Controls ── */
+      #play-controls { display: flex; gap: 6px; align-items: center; }
+      #play-controls button { padding: 4px 10px; font-size: 0.8rem; }
+      #play-tick-count { font-size: 0.78rem; color: var(--text-muted, #888); min-width: 60px; }
+    </style>
+  </head>
+  <body>
+    <div id="play-app">
+
+      <!-- Topbar -->
+      <div id="play-topbar">
+        <span class="brand">⬡ Playground</span>
+        <a class="back" href="./">← 셈그림</a>
+        <span id="play-source-label" title="">source: example:counter</span>
+        <select id="play-example-select" title="예제 선택">
+          <option value="">— 예제 —</option>
+          <option value="hello">안녕, 세계</option>
+          <option value="counter">카운터</option>
+          <option value="fibonacci">피보나치</option>
+          <option value="stream_slice">흐름 잘라보기</option>
+          <option value="pendulum">진자 운동</option>
+          <option value="prep_slider">채비 + 매김{}</option>
+          <option value="shape_overlay">모양 + 겹보기</option>
+        </select>
+        <div class="spacer"></div>
+        <span id="play-dirty-badge">● 미저장</span>
+        <div id="play-controls">
+          <button id="btn-play-run" class="btn-primary" type="button">▶ 실행</button>
+          <button id="btn-play-step" type="button" title="1틱 실행">1틱</button>
+          <button id="btn-play-step10" type="button" title="10틱 실행">10틱</button>
+          <button id="btn-play-pause" type="button" disabled>⏸ 일시정지</button>
+          <button id="btn-play-reset" type="button">↺ 초기화</button>
+          <span id="play-tick-count">틱: 0</span>
+        </div>
+        <button id="btn-play-share" type="button" title="URL 복사">🔗 공유</button>
+        <button id="btn-play-settings" type="button" title="설정">⚙</button>
+      </div>
+
+      <!-- D2: Draft recovery banner -->
+      <div id="play-draft-banner">
+        <span>💾 저장되지 않은 초안이 있습니다.</span>
+        <button id="btn-draft-restore" type="button">복원</button>
+        <button id="btn-draft-discard" type="button">버리기</button>
+      </div>
+
+      <!-- Body -->
+      <div id="play-body">
+
+        <!-- Editor col -->
+        <div id="play-editor-col">
+          <textarea id="play-editor" spellcheck="false" autocorrect="off"
+            placeholder="또니랑 코드를 입력하세요..."></textarea>
+
+          <!-- D4: Tip chip (editor 포커스 시 표시) -->
+          <div id="play-tip-chip">
+            <div class="tip-title">💡 또니랑 수식 도움말</div>
+            <div class="tip-row">
+              <span class="tip-item"><b>&lt;-</b> 대입</span>
+              <span class="tip-item"><b>=</b> 상수 선언</span>
+              <span class="tip-item"><b>^</b> 제곱</span>
+              <span class="tip-item"><b>*</b> 곱셈</span>
+              <span class="tip-item"><b>/</b> 나눗셈</span>
+              <span class="tip-item"><b>%</b> 나머지</span>
+              <span class="tip-item"><b>(a + b) * c</b> 괄호 권장</span>
+              <span class="tip-item"><b>보임{}</b> 결과 출력</span>
+              <span class="tip-item"><b>채비{}</b> 파라미터 선언</span>
+              <span class="tip-item"><b>매김{}</b> 슬라이더 범위</span>
+            </div>
+            <!-- D5: Unit reference -->
+            <div id="play-tip-units" class="tip-units"></div>
+          </div>
+        </div>
+
+        <!-- Output col -->
+        <div id="play-output-col">
+          <div id="play-output-tabs">
+            <button class="play-tab active" data-tab="diag" type="button">진단</button>
+            <button class="play-tab" data-tab="obs" type="button">출력</button>
+            <button class="play-tab" data-tab="mirror" type="button">거울</button>
+          </div>
+          <div id="play-panel-diag" class="play-tab-panel active">
+            <p id="play-diag-empty">진단 없음</p>
+            <ul id="play-diag-list"></ul>
+          </div>
+          <div id="play-panel-obs" class="play-tab-panel">
+            <p id="play-obs-empty">출력 없음 — 보임{} 블록이 있어야 표시됩니다.</p>
+            <table id="play-obs-table">
+              <thead><tr><th>이름</th><th>값</th></tr></thead>
+              <tbody id="play-obs-body"></tbody>
+            </table>
+          </div>
+          <div id="play-panel-mirror" class="play-tab-panel">
+            <div id="play-mirror-bogae">
+              <div id="play-mirror-bogae-head">
+                <span id="play-mirror-bogae-title">보개(space2d)</span>
+                <span id="play-mirror-bogae-status">보개 출력 없음</span>
+              </div>
+              <div id="play-mirror-bogae-canvas-wrap">
+                <canvas id="play-mirror-bogae-canvas"></canvas>
+                <div id="play-mirror-bogae-overlay"></div>
+              </div>
+            </div>
+            <div id="play-mirror-content"></div>
+          </div>
+
+          <div id="play-grammar-lab">
+            <div id="play-grammar-head">
+              <span id="play-grammar-title">문법 실험실</span>
+              <button id="btn-play-grammar-analyze" type="button">문법 분석</button>
+              <span id="play-grammar-status">대기</span>
+              <span id="play-grammar-build"></span>
+            </div>
+            <div id="play-grammar-body">
+              <details class="play-grammar-panel" open>
+                <summary>UI 전처리 결과</summary>
+                <pre id="play-grammar-ui-pre">-</pre>
+              </details>
+              <details class="play-grammar-panel" open>
+                <summary>WASM 전처리 결과</summary>
+                <pre id="play-grammar-wasm-pre">-</pre>
+              </details>
+              <details class="play-grammar-panel">
+                <summary>Flat Canon (guseong)</summary>
+                <pre id="play-grammar-flat">-</pre>
+              </details>
+              <details class="play-grammar-panel">
+                <summary>Maegim Plan</summary>
+                <pre id="play-grammar-maegim">-</pre>
+              </details>
+              <details class="play-grammar-panel">
+                <summary>Alrim Plan</summary>
+                <pre id="play-grammar-alrim">-</pre>
+              </details>
+              <details class="play-grammar-panel">
+                <summary>Block Editor Plan</summary>
+                <pre id="play-grammar-block">-</pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status bar -->
+      <div id="play-statusbar">
+        <span id="play-status-msg">준비</span>
+        <span id="play-status-hash"></span>
+      </div>
+
+      <!-- D7: Settings overlay -->
+      <div id="play-settings-overlay">
+        <div id="play-settings-panel">
+          <h3>⚙ 설정</h3>
+          <div class="settings-row">
+            <label for="setting-expert-mode">전문가 모드 (모든 블록 팔레트 해제)</label>
+            <input type="checkbox" id="setting-expert-mode" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-show-tip">에디터 도움말 표시</label>
+            <input type="checkbox" id="setting-show-tip" checked />
+          </div>
+          <div class="settings-row">
+            <label for="setting-fps">실행 FPS</label>
+            <input type="number" id="setting-fps" value="30" min="1" max="120" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-mirror-full">거울: 전체 상태 표시</label>
+            <input type="checkbox" id="setting-mirror-full" />
+          </div>
+          <button class="settings-close" id="btn-settings-close" type="button">닫기</button>
+        </div>
+      </div>
+
+    </div>
+    <script type="module" src="./playground.js"></script>
+  </body>
+</html>

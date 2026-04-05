@@ -1,0 +1,5 @@
+title = "Queue M/M/1 Seed V1"
+description = "Fluid approximation of single-server queue"
+grade = "all"
+subject = "engineering"
+quality = "recommended"

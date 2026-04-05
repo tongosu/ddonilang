@@ -1,3 +1,8 @@
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  n <- 1.
+}.
 
 (매마디)마다 {
   // 출력은 숫자만. (n, E) 순서.
@@ -8,9 +13,7 @@
   n_max <- 10.
   dn <- 1.
 
-  n목록 <- (n_min, n_max, dn) 범위.
-
-  (n) n목록에 대해: {
+  { n <= n_max }인것 일때 {
     n2 <- n * n.
     E <- -E0 / n2.
 
@@ -18,5 +21,6 @@
       n: n.
       E: E.
     }.
+    n <- n + (dn).
   }.
 }.

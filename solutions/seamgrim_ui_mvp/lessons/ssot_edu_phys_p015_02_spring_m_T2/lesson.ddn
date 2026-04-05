@@ -1,22 +1,24 @@
+pi <- 3.141592.
+k <- 10.
+
+m_min <- 0.
+m_max <- 5.
+dm <- 0.05.
+
+coef <- (4 * pi * pi) / k.  # T^2 = coef * m
+
+(시작)할때 {
+  m <- m_min.
+}.
 
 (매마디)마다 {
-  pi <- 3.141592.
-  k <- 10.
-
-  m_min <- 0.
-  m_max <- 5.
-  dm <- 0.05.
-
-  coef <- (4 * pi * pi) / k.  # T^2 = coef * m
-
-  m목록 <- (m_min, m_max, dm) 범위.
-
-  (m) m목록에 대해: {
+  { m <= m_max }인것 일때 {
     T2 <- coef * m.
 
     보임 {
       m: m.
       T2: T2.
     }.
+    m <- m + dm.
   }.
 }.

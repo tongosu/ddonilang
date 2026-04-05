@@ -12,12 +12,15 @@
       <section id="screen-browse" class="screen">
         <header class="topbar">
           <span class="brand">셈그림</span>
+          <a href="./play.html" class="ghost" style="font-size:0.8rem;text-decoration:none;padding:4px 8px;" title="또니랑 Playground">⬡ Playground</a>
           <button id="btn-advanced-browse" class="ghost" type="button">⚙</button>
         </header>
 
         <div class="browse-tabs">
           <button class="browse-tab active" data-tab="official" type="button">★ 공식 교과</button>
           <button class="browse-tab" data-tab="search" type="button">🔍 검색</button>
+          <button id="btn-preset-featured-seed-quick-recent" class="ghost" type="button">Alt+6 최근 보기</button>
+          <button id="btn-copy-browse-preset-link" class="ghost" type="button">프리셋 링크 복사</button>
           <button class="browse-tab" type="button" disabled title="AGE5">커뮤니티</button>
           <button id="btn-create" class="btn-primary" type="button">+ 만들기</button>
         </div>
@@ -35,18 +38,41 @@
             <option value="reviewed">품질: 검수완료</option>
             <option value="experimental">품질: 실험용</option>
           </select>
+          <select id="filter-seed-scope">
+            <option value="">seed: 전체</option>
+            <option value="featured_seed">seed: 신규 10종만</option>
+            <option value="seed_only">seed: 전체</option>
+          </select>
           <select id="filter-run-status">
             <option value="">최근 실행: 전체</option>
             <option value="success">최근 실행: 성공</option>
             <option value="error">최근 실행: 실패</option>
             <option value="none">최근 실행: 미실행</option>
           </select>
+          <select id="filter-run-launch">
+            <option value="">실행 경로: 전체</option>
+            <option value="featured_seed_quick">실행 경로: Alt+6</option>
+            <option value="browse_select">실행 경로: 탐색 선택</option>
+            <option value="editor_run">실행 경로: 편집 실행</option>
+            <option value="manual">실행 경로: 수동/기타</option>
+            <option value="none">실행 경로: 기록 없음</option>
+          </select>
+          <select id="filter-warning-status">
+            <option value="">구식 범위주석: 전체</option>
+            <option value="has_legacy_warning">구식 범위주석: 있음</option>
+            <option value="clean">구식 범위주석: 없음</option>
+          </select>
           <select id="filter-sort">
             <option value="recent">정렬: 최근 실행순</option>
+            <option value="featured_seed_quick_recent">정렬: Alt+6 최근 우선</option>
+            <option value="featured_seed">정렬: 신규 seed 우선</option>
             <option value="default">정렬: 기본</option>
+            <option value="legacy_warning">정렬: 구식 범위주석 많은순</option>
           </select>
           <input id="filter-query" type="text" placeholder="검색어 입력..." />
         </div>
+
+        <div id="browse-legacy-guide-hint" class="hint browse-legacy-guide-hint hidden"></div>
 
         <div id="lesson-card-grid" class="card-grid"></div>
       </section>
@@ -56,6 +82,7 @@
           <button id="btn-back-to-browse" class="ghost" type="button">← 탐색</button>
           <span class="screen-title" id="editor-title">DDN 편집</span>
           <div class="editor-actions">
+            <button id="btn-block-mode" class="ghost" type="button">⬛ 블록으로</button>
             <button id="btn-run-from-editor" class="btn-primary" type="button">▶ 실행</button>
             <button id="btn-save-ddn" class="ghost" type="button">↓ 저장</button>
             <button id="btn-advanced-editor" class="ghost" type="button">⚙</button>
@@ -63,10 +90,67 @@
         </header>
 
         <div id="ddn-editor-area">
+          <div id="editor-focus-bar" class="editor-focus-bar hidden">
+            <span id="editor-focus-summary" class="editor-focus-summary"></span>
+            <button id="editor-focus-warning" class="editor-focus-warning" type="button"></button>
+            <div class="editor-focus-actions">
+              <select id="editor-focus-select" class="editor-focus-select"></select>
+              <button id="btn-editor-focus-prev" class="ghost" type="button">↑ 이전 후보</button>
+              <button id="btn-editor-focus-next" class="ghost" type="button">↓ 다음 후보</button>
+            </div>
+          </div>
           <textarea id="ddn-textarea" spellcheck="false"></textarea>
         </div>
 
         <div id="editor-smoke-result" class="hint"></div>
+        <section id="editor-canon-panel" class="editor-canon-panel">
+          <div id="editor-canon-summary" class="hint">구성: -</div>
+          <div class="editor-canon-grid">
+            <div class="editor-canon-card">
+              <div class="editor-canon-label">Topo</div>
+              <div id="editor-canon-topo" class="editor-canon-value">-</div>
+            </div>
+            <div class="editor-canon-card">
+              <div class="editor-canon-label">Instances</div>
+              <ul id="editor-canon-instances" class="editor-canon-list">
+                <li>-</li>
+              </ul>
+            </div>
+            <div class="editor-canon-card">
+              <div class="editor-canon-label">Links</div>
+              <ul id="editor-canon-links" class="editor-canon-list">
+                <li>-</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section id="screen-block_editor" class="screen hidden">
+        <header class="topbar">
+          <button id="btn-back-from-block-editor" class="ghost" type="button">← 편집</button>
+          <span class="screen-title" id="block-editor-title">블록 편집</span>
+          <div class="editor-actions">
+            <select id="block-editor-mode">
+              <option value="seamgrim">셈그림</option>
+              <option value="rpg">RPG 박스</option>
+            </select>
+            <button id="btn-block-to-text" class="ghost" type="button">📝 텍스트로</button>
+            <button id="btn-block-run" class="btn-primary" type="button">▶ 실행</button>
+            <button id="btn-advanced-block-editor" class="ghost" type="button">⚙</button>
+          </div>
+        </header>
+
+        <div id="block-editor-wrap">
+          <div id="block-palette"></div>
+          <div id="block-canvas"></div>
+          <div class="block-preview-pane">
+            <div id="block-editor-summary" class="hint">mode=- blocks=0 errors=0</div>
+            <textarea id="block-ddn-preview" spellcheck="false" readonly></textarea>
+          </div>
+        </div>
+
+        <div id="block-editor-result" class="hint"></div>
       </section>
 
       <section id="screen-run" class="screen hidden">
@@ -75,31 +159,162 @@
           <button id="btn-edit-ddn" class="ghost" type="button">✏ DDN</button>
           <span id="run-lesson-title" class="lesson-title-display">-</span>
           <span id="run-last-summary" class="run-last-summary">최근 실행: 기록 없음</span>
+          <button id="btn-run-featured-seed" class="ghost" type="button">신규 seed 실행 (Alt+6)</button>
           <button id="btn-overlay-toggle" class="ghost" type="button">설명</button>
           <button id="btn-advanced-run" class="ghost" type="button">⚙</button>
         </header>
 
-        <div class="run-layout">
-          <div class="bogae-area">
-            <canvas id="canvas-bogae"></canvas>
-            <div id="overlay-description" class="overlay-desc hidden"></div>
-          </div>
-
-          <div class="dotbogi-panel">
-            <div id="dotbogi-graph" class="panel-content">
-              <div class="graph-toolbar">
-                <label for="select-x-axis">x축</label>
-                <select id="select-x-axis"></select>
-                <label for="select-y-axis">y축</label>
-                <select id="select-y-axis"></select>
-              </div>
-              <canvas id="canvas-graph"></canvas>
+        <div class="run-main">
+          <div class="run-layout">
+            <div class="bogae-area">
+              <canvas id="canvas-bogae"></canvas>
+              <div id="overlay-description" class="overlay-desc hidden"></div>
             </div>
 
-            <div id="slider-panel" class="slider-panel">
-              <div id="slider-status" class="hint">control: -</div>
-              <div id="slider-list"></div>
-              <button id="btn-restart" class="btn-primary" type="button">▶ 재실행</button>
+            <div class="dotbogi-panel">
+              <div class="run-tab-strip" role="tablist" aria-label="실행 탭 패널">
+                <button id="run-tab-btn-lesson" class="run-tab-btn active" data-run-tab="lesson" type="button">교과</button>
+                <button id="run-tab-btn-ddn" class="run-tab-btn" data-run-tab="ddn" type="button">DDN</button>
+                <button id="run-tab-btn-formula" class="run-tab-btn" data-run-tab="formula" type="button">수식</button>
+                <button id="run-tab-btn-inspector" class="run-tab-btn" data-run-tab="inspector" type="button">검증/인스펙터</button>
+              </div>
+
+              <section id="run-tab-panel-lesson" class="run-tab-panel">
+                <div class="run-lesson-controls">
+                  <label for="run-lesson-select">교과 선택</label>
+                  <select id="run-lesson-select"></select>
+                  <button id="btn-run-lesson-load" type="button">불러오기</button>
+                </div>
+                <div id="run-lesson-summary" class="run-lesson-summary">교과 정보 없음</div>
+              </section>
+
+              <section id="run-tab-panel-ddn" class="run-tab-panel hidden">
+                <div class="run-tab-ddn-head">
+                  <button id="btn-restart" class="btn-primary" type="button">▶ 실행</button>
+                  <button id="btn-reset-to-lesson" type="button">Reset to lesson</button>
+                  <span class="hint">실행 버튼은 DDN 탭에서 사용합니다.</span>
+                </div>
+                <textarea id="run-ddn-preview" class="run-ddn-preview" readonly spellcheck="false"></textarea>
+              </section>
+
+              <section id="run-tab-panel-formula" class="run-tab-panel hidden">
+                <div class="formula-sugar-panel">
+                  <div class="formula-sugar-grid">
+                    <label class="formula-sugar-field" for="run-formula-text">
+                      <span>수식</span>
+                      <input id="run-formula-text" type="text" placeholder="예) y = 2*x + 1" />
+                    </label>
+                    <label class="formula-sugar-field" for="run-formula-axis">
+                      <span>축 변수</span>
+                      <input id="run-formula-axis" type="text" value="x" />
+                    </label>
+                    <label class="formula-sugar-field" for="run-formula-x-min">
+                      <span>x_min</span>
+                      <input id="run-formula-x-min" type="number" value="0" step="0.1" />
+                    </label>
+                    <label class="formula-sugar-field" for="run-formula-x-max">
+                      <span>x_max</span>
+                      <input id="run-formula-x-max" type="number" value="10" step="0.1" />
+                    </label>
+                    <label class="formula-sugar-field" for="run-formula-step">
+                      <span>step</span>
+                      <input id="run-formula-step" type="number" value="1" min="0.0001" step="0.1" />
+                    </label>
+                  </div>
+                  <div class="formula-sugar-actions">
+                    <button id="btn-formula-apply-replace" type="button">Apply Replace</button>
+                    <button id="btn-formula-apply-insert" type="button">Apply Insert</button>
+                    <span id="run-formula-status" class="run-formula-status">수식 입력 대기</span>
+                  </div>
+                  <textarea id="run-formula-ddn-preview" class="run-formula-ddn-preview" readonly spellcheck="false"></textarea>
+                </div>
+                <div id="slider-panel" class="slider-panel">
+                  <div id="slider-status" class="hint">control: -</div>
+                  <div id="slider-list"></div>
+                </div>
+              </section>
+
+              <section id="run-tab-panel-inspector" class="run-tab-panel hidden">
+                <div class="run-inspector-actions">
+                  <button id="btn-save-snapshot-v0" type="button">결과 저장</button>
+                  <button id="btn-save-session-v0" type="button">세션 저장</button>
+                  <span id="run-inspector-status" class="run-inspector-status">저장 작업 대기</span>
+                </div>
+                <div id="run-inspector-meta" class="run-inspector-meta">검증 정보 없음</div>
+              </section>
+
+              <div id="dotbogi-graph" class="panel-content">
+                <div class="graph-toolbar">
+                  <label for="select-x-axis">x축</label>
+                  <select id="select-x-axis"></select>
+                  <label for="select-y-axis">y축</label>
+                  <select id="select-y-axis"></select>
+                </div>
+                <canvas id="canvas-graph"></canvas>
+              </div>
+
+              <div id="runtime-table-panel" class="runtime-table-panel hidden">
+                <div class="runtime-table-head">
+                  <span class="runtime-table-title">표</span>
+                  <span id="runtime-table-meta" class="runtime-table-meta"></span>
+                </div>
+                <div id="runtime-table" class="runtime-table-body"></div>
+              </div>
+
+              <div id="runtime-text-panel" class="runtime-text-panel hidden">
+                <div class="runtime-text-head">
+                  <span class="runtime-text-title">설명</span>
+                </div>
+                <div id="runtime-text-body" class="runtime-text-body"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="run-view-dock" class="run-view-dock">
+            <div class="view-dock-group">
+              <span class="view-dock-label">표시 범위</span>
+              <span id="dock-space-range" class="view-dock-range">보개: -</span>
+              <span id="dock-graph-range" class="view-dock-range">그래프: -</span>
+              <button id="btn-dock-space-autoscale" type="button">보개 오토스케일</button>
+              <button id="btn-dock-graph-autoscale" type="button">그래프 오토스케일</button>
+            </div>
+
+            <div class="view-dock-group">
+              <span class="view-dock-label">줌/팬</span>
+              <select id="select-dock-target">
+                <option value="space2d">보개</option>
+                <option value="graph">그래프</option>
+              </select>
+              <button id="btn-dock-pan-left" type="button">←</button>
+              <button id="btn-dock-pan-right" type="button">→</button>
+              <button id="btn-dock-pan-up" type="button">↑</button>
+              <button id="btn-dock-pan-down" type="button">↓</button>
+              <button id="btn-dock-zoom-in" type="button">+</button>
+              <button id="btn-dock-zoom-out" type="button">-</button>
+            </div>
+
+            <div class="view-dock-group">
+              <span class="view-dock-label">오버레이</span>
+              <label class="view-dock-check"><input id="chk-dock-grid" type="checkbox" />격자</label>
+              <label class="view-dock-check"><input id="chk-dock-axis" type="checkbox" />축</label>
+              <label class="view-dock-check"><input id="chk-dock-overlay" type="checkbox" />설명</label>
+              <label class="view-dock-check"><input id="chk-dock-highlight" type="checkbox" />강조</label>
+            </div>
+
+            <div class="view-dock-group">
+              <span class="view-dock-label">시간(보기)</span>
+              <button id="btn-dock-play" type="button">▶</button>
+              <button id="btn-dock-pause" type="button">⏸</button>
+              <button id="btn-dock-next" type="button">⏭</button>
+              <label class="view-dock-check"><input id="chk-dock-loop" type="checkbox" checked />루프</label>
+              <select id="select-dock-speed">
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1.0x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2.0x</option>
+              </select>
+              <input id="range-dock-time-cursor" type="range" min="0" max="100" value="0" />
+              <span id="text-dock-time" class="view-dock-time">t=- / 틱=-</span>
             </div>
           </div>
         </div>

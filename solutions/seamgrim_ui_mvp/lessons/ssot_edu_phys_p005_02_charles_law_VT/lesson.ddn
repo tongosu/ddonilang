@@ -1,3 +1,8 @@
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  T <- 250.
+}.
 
 (매마디)마다 {
   // 출력은 숫자만. (T, V) 순서.
@@ -13,13 +18,12 @@
 
   부피식 = (#ascii1) 수식{ y = n*R*x / P }.
 
-  T목록 <- (T_min, T_max, dT) 범위.
-
-  (T) T목록에 대해: {
-    V <- (n=n, R=R, P=P, x=T)인 부피식 풀기.
+  { T <= T_max }인것 일때 {
+    V <- n*R*T / P.
     보임 {
       T: T.
       V: V.
     }.
+    T <- T + (dT).
   }.
 }.

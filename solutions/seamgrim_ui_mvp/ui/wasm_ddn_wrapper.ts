@@ -1,4 +1,10 @@
-import type { DdnWasmVm, SeamgrimDerivedState, SeamgrimState, SeamgrimSchemaId } from "./wasm_ddn_types";
+import type {
+  DdnParseWarning,
+  DdnWasmVm,
+  SeamgrimDerivedState,
+  SeamgrimState,
+  SeamgrimSchemaId,
+} from "./wasm_ddn_types";
 import { normalizeWasmStatePayload } from "./seamgrim_runtime_state.js";
 
 const EXPECTED_SCHEMA: SeamgrimSchemaId = "seamgrim.state.v0";
@@ -60,6 +66,15 @@ export class DdnWasmVmClient {
       return { columns: [], row: [] };
     }
     return JSON.parse((this.vm as any).columns());
+  }
+
+  parseWarningsParsed(): DdnParseWarning[] {
+    if (typeof (this.vm as any).get_parse_warnings !== "function") {
+      return [];
+    }
+    const parsed = JSON.parse((this.vm as any).get_parse_warnings());
+    const warnings = Array.isArray(parsed?.warnings) ? parsed.warnings : [];
+    return warnings as DdnParseWarning[];
   }
 
   setParamParsed(key: string, value: number | boolean | string): any {

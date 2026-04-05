@@ -1,0 +1,5 @@
+title = "Econ Inventory Price Feedback Seed V2"
+description = "Inventory-price loop with temporary demand shock"
+grade = "all"
+subject = "economy"
+quality = "recommended"

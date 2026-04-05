@@ -12,6 +12,116 @@ import tempfile
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
+import threading
+
+GUIDE_META_ALIASES: dict[str, tuple[str, ...]] = {
+    "name": (
+        "이름",
+        "name",
+        "title",
+        "제목",
+        "표제",
+        "헤드라인",
+        "headline",
+        "caption",
+        "label",
+        "guide_name",
+        "guide-name",
+        "가이드이름",
+        "가이드_이름",
+        "ガイド名",
+        "タイトル",
+    ),
+    "desc": (
+        "설명",
+        "풀이",
+        "해설",
+        "설명글",
+        "안내",
+        "요지",
+        "description",
+        "desc",
+        "summary",
+        "요약",
+        "guide_desc",
+        "guide-desc",
+        "guide_summary",
+        "guide-summary",
+        "subtitle",
+        "sub_title",
+        "sub-title",
+        "caption_text",
+        "guide_text",
+        "guide-text",
+        "説明",
+        "解説",
+    ),
+    "default_observation": (
+        "기본관찰",
+        "기본관측",
+        "기본관찰y",
+        "기본관측y",
+        "기본축y",
+        "기본y축",
+        "기본시리즈",
+        "기본계열",
+        "default_obs",
+        "default-observation",
+        "default_observation",
+        "default_y",
+        "default-y",
+        "default_series",
+        "default-series",
+        "default_signal",
+        "default-signal",
+        "obs",
+        "observation",
+        "series",
+        "y_axis",
+        "y-axis",
+        "yaxis",
+        "既定観測",
+        "既定系列",
+    ),
+    "default_observation_x": (
+        "기본관찰x",
+        "기본관측x",
+        "기본x축",
+        "기본축x",
+        "기본관찰X",
+        "기본관측X",
+        "기본X축",
+        "기본축X",
+        "기본가로축",
+        "default_obs_x",
+        "default-observation-x",
+        "default_observation_x",
+        "default_x",
+        "default-x",
+        "default_x_axis",
+        "default-x-axis",
+        "default_xaxis",
+        "x_axis",
+        "x-axis",
+        "xaxis",
+        "既定観測X",
+        "既定横軸",
+    ),
+}
+
+GUIDE_META_BLOCK_NAMES = {"설정", "보개", "슬기"}
+
+
+def _normalize_guide_meta_key(text: str) -> str:
+    return str(text or "").strip().lower().replace(" ", "").replace("_", "").replace("-", "")
+
+
+GUIDE_META_ALIAS_INDEX: dict[str, str] = {}
+for canon, aliases in GUIDE_META_ALIASES.items():
+    for alias in aliases:
+        normalized = _normalize_guide_meta_key(alias)
+        if normalized:
+            GUIDE_META_ALIAS_INDEX[normalized] = canon
 
 
 def hash_text(text: str) -> str:
@@ -22,8 +132,38 @@ def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-def split_meta_header(input_text: str) -> tuple[dict, str]:
-    meta: dict[str, str] = {}
+def parse_guide_meta_header(input_text: str) -> tuple[dict[str, str], dict[str, str], str]:
+    def put_meta_entry(key: str, value: str) -> None:
+        raw_meta[key] = value
+        canon = GUIDE_META_ALIAS_INDEX.get(_normalize_guide_meta_key(key))
+        if canon and canon not in canon_meta:
+            canon_meta[canon] = value
+
+    def is_guide_meta_block_start(line: str) -> bool:
+        if "{" not in line:
+            return False
+        head = line.split("{", 1)[0].strip()
+        if head.endswith(":"):
+            head = head[:-1].strip()
+        return head in GUIDE_META_BLOCK_NAMES
+
+    def parse_guide_meta_field_line(line: str) -> tuple[str, str] | None:
+        trimmed = str(line or "").lstrip(" \t\uFEFF")
+        if not trimmed or trimmed.startswith("//") or trimmed.startswith("#"):
+            return None
+        if ":" not in trimmed:
+            return None
+        key, value = trimmed.split(":", 1)
+        key = key.strip()
+        if not key:
+            return None
+        value = value.strip()
+        if value.endswith("."):
+            value = value[:-1].rstrip()
+        return key, value
+
+    raw_meta: dict[str, str] = {}
+    canon_meta: dict[str, str] = {}
     lines = normalize_newlines(input_text).split("\n")
     idx = 0
     while idx < len(lines):
@@ -37,12 +177,32 @@ def split_meta_header(input_text: str) -> tuple[dict, str]:
             key = key.strip()
             if not key:
                 break
-            meta[key] = value.strip()
+            value = value.strip()
+            put_meta_entry(key, value)
             idx += 1
+            continue
+        if is_guide_meta_block_start(trimmed):
+            depth = max(1, trimmed.count("{") - trimmed.count("}"))
+            idx += 1
+            while idx < len(lines) and depth > 0:
+                line = lines[idx]
+                if depth == 1:
+                    parsed = parse_guide_meta_field_line(line)
+                    if parsed is not None:
+                        key, value = parsed
+                        put_meta_entry(key, value)
+                depth += line.count("{")
+                depth -= line.count("}")
+                idx += 1
             continue
         break
     body = "\n".join(lines[idx:])
-    return meta, body
+    return canon_meta, raw_meta, body
+
+
+def split_meta_header(input_text: str) -> tuple[dict, str]:
+    _, raw_meta, body = parse_guide_meta_header(input_text)
+    return raw_meta, body
 
 
 def normalize_ddn_for_hash(input_text: str) -> str:
@@ -93,7 +253,7 @@ def _read_teul_cli_bin_from_project(project_root: Path) -> Optional[Path]:
     if not meta_path.exists():
         return None
     try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta = json.loads(meta_path.read_text(encoding="utf-8-sig"))
     except Exception:
         return None
     toolchain = meta.get("toolchain")
@@ -138,12 +298,14 @@ def _resolve_teul_cli_bin(project_root: Path) -> Path:
 
 _worker_client = None
 _worker_counter = 1
+_worker_client_lock = threading.Lock()
 
 
 class _WorkerClient:
     def __init__(self, root: Path):
         self.root = root
         self.teul_cli = _resolve_teul_cli_bin(root)
+        self._lock = threading.Lock()
         self.proc = subprocess.Popen(
             [str(self.teul_cli), "worker"],
             cwd=root,
@@ -186,36 +348,38 @@ class _WorkerClient:
         return body
 
     def run_file(self, input_path: Path, args: Optional[list[str]] = None) -> list[str]:
-        global _worker_counter
-        payload = {
-            "jsonrpc": "2.0",
-            "id": _worker_counter,
-            "method": "run_file",
-            "params": {
-                "path": str(input_path),
-                "args": args or [],
-                "mode": "inproc",
-            },
-        }
-        _worker_counter += 1
-        response = self.request(payload)
-        if "error" in response:
-            message = response["error"].get("message", "worker error")
-            raise RuntimeError(message)
-        result = response.get("result", {})
-        if not result.get("ok", False):
-            stderr_lines = result.get("stderr", [])
-            message = "\n".join(stderr_lines) if stderr_lines else "worker run failed"
-            raise RuntimeError(message)
-        stdout_lines = result.get("stdout", [])
-        return [line.strip() for line in stdout_lines if line.strip()]
+        with self._lock:
+            global _worker_counter
+            payload = {
+                "jsonrpc": "2.0",
+                "id": _worker_counter,
+                "method": "run_file",
+                "params": {
+                    "path": str(input_path),
+                    "args": args or [],
+                    "mode": "inproc",
+                },
+            }
+            _worker_counter += 1
+            response = self.request(payload)
+            if "error" in response:
+                message = response["error"].get("message", "worker error")
+                raise RuntimeError(message)
+            result = response.get("result", {})
+            if not result.get("ok", False):
+                stderr_lines = result.get("stderr", [])
+                message = "\n".join(stderr_lines) if stderr_lines else "worker run failed"
+                raise RuntimeError(message)
+            stdout_lines = result.get("stdout", [])
+            return [line.strip() for line in stdout_lines if line.strip()]
 
 
 def _get_worker_client(root: Path) -> _WorkerClient:
     global _worker_client
-    if _worker_client is None:
-        _worker_client = _WorkerClient(root)
-        atexit.register(_worker_client.close)
+    with _worker_client_lock:
+        if _worker_client is None:
+            _worker_client = _WorkerClient(root)
+            atexit.register(_worker_client.close)
     return _worker_client
 
 
@@ -334,22 +498,81 @@ def parse_points(lines: list[str], series_labels: Optional[list[str]] = None) ->
         "label",
         "토큰",
     }
+    table_row_markers = {"table.row", "표행"}
+    text_markers = {"text", "문서", "해설", "설명", "caption", "자막"}
+    table_markers = {"table", "표", "테이블"}
+    table_end_markers = {"table.end", "endtable", "표끝", "테이블끝"}
+    structure_markers = {"structure", "구조", "그래프구조"}
+    structure_end_markers = {"structure.end", "endstructure", "구조끝"}
+    block_stop_markers = table_row_markers | space2d_markers | shape_markers
     skip_next_numeric = False
     values: list[Decimal] = []
     points: list[dict] = []
-    for line in lines:
+    idx = 0
+    while idx < len(lines):
+        line = lines[idx]
         trimmed = line.strip()
+        lower_trimmed = trimmed.lower()
+        if lower_trimmed in table_row_markers:
+            idx += 1
+            row_map: dict[str, Decimal] = {}
+            row_numeric: list[Decimal] = []
+            while idx < len(lines):
+                key = lines[idx].strip()
+                lower_key = key.lower()
+                if not key:
+                    idx += 1
+                    continue
+                if (
+                    lower_key in block_stop_markers
+                    or lower_key in text_markers
+                    or lower_key in table_markers
+                    or lower_key in table_end_markers
+                    or lower_key in structure_markers
+                    or lower_key in structure_end_markers
+                    or lower_key.startswith("series:")
+                ):
+                    break
+                if idx + 1 >= len(lines):
+                    break
+                value_line = lines[idx + 1].strip()
+                parsed, mode = _parse_numbers_from_line(value_line)
+                if mode == "single":
+                    row_map[key] = parsed[0]
+                    row_numeric.append(parsed[0])
+                idx += 2
+            x_value = None
+            y_value = None
+            for key in ("x", "t", "tick"):
+                if key in row_map:
+                    x_value = row_map[key]
+                    break
+            for key in ("y", "값", "value"):
+                if key in row_map:
+                    y_value = row_map[key]
+                    break
+            if x_value is None or y_value is None:
+                if len(row_numeric) >= 2:
+                    x_value = row_numeric[0]
+                    y_value = row_numeric[1]
+            if x_value is not None and y_value is not None:
+                points.append({"x": x_value, "y": y_value})
+            continue
         if trimmed in space2d_markers or trimmed in shape_markers:
             skip_next_numeric = False
+            idx += 1
             continue
         if trimmed in shape_keys:
             skip_next_numeric = True
+            idx += 1
             continue
         if skip_next_numeric:
             skip_next_numeric = False
+            idx += 1
             continue
         nums, mode = _parse_numbers_from_line(line)
         if mode in ("empty", "skip"):
+            idx += 1
             continue
         if mode in ("pair", "triple"):
             if values:
@@ -359,6 +582,7 @@ def parse_points(lines: list[str], series_labels: Optional[list[str]] = None) ->
             if points:
                 raise ValueError("mixed output: single value after pair lines")
             values.extend(nums)
+        idx += 1
     if points:
         return points
     if len(values) % 2 != 0:
@@ -389,8 +613,13 @@ def build_graph(points: list[dict], label: str, source_hash: str) -> dict:
 
 
 def extract_meta(input_text: str) -> dict:
-    meta, _ = split_meta_header(input_text)
-    return {"name": meta.get("이름"), "desc": meta.get("설명")}
+    canon_meta, _, _ = parse_guide_meta_header(input_text)
+    return {
+        "name": canon_meta.get("name"),
+        "desc": canon_meta.get("desc"),
+        "default_observation": canon_meta.get("default_observation"),
+        "default_observation_x": canon_meta.get("default_observation_x"),
+    }
 
 
 def extract_series_labels(input_text: str) -> list[str]:
@@ -523,9 +752,10 @@ def flatten_storage_blocks(input_text: str) -> str:
     out: list[str] = []
     in_block = False
     depth = 0
-    block_head = re.compile(r"^\s*(?:붙박이마련|그릇채비|채비)\s*:\s*\{\s*$")
+    block_head = re.compile(r"^\s*(?:붙박이마련|그릇채비|채비)\s*:?\s*\{\s*$")
     decl = re.compile(
-        r"^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*:\s*[^.=<>]+(?:<-|=)\s*(.+?)\s*\.\s*(?://.*)?$"
+        r"^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)"
+        r"(?:\s*:\s*[^.=<>]+)?\s*(?:<-|=)\s*(.+?)\s*\.\s*(?://.*)?$"
     )
 
     for line in lines:
@@ -609,12 +839,12 @@ def rewrite_legacy_formula_assignments(input_text: str) -> str:
 
 
 def rewrite_legacy_boim_blocks(input_text: str) -> str:
-    """legacy `보임 { key: expr. }.` 블록을 `expr 보여주기.` 목록으로 변환한다."""
+    """legacy `보임 { key: expr. }.` 블록을 table-row show 목록으로 변환한다."""
     lines = input_text.splitlines()
     out: list[str] = []
     idx = 0
     header = re.compile(r"^(\s*)보임\s*\{\s*$")
-    item = re.compile(r"^[^:]+:\s*(.+)\.\s*$")
+    item = re.compile(r"^([^:]+):\s*(.+)\.\s*$")
     while idx < len(lines):
         line = lines[idx]
         match = header.match(line)
@@ -628,6 +858,7 @@ def rewrite_legacy_boim_blocks(input_text: str) -> str:
         emits: list[str] = []
         convertible = True
         closed = False
+        rows: list[tuple[str, str]] = []
         while cursor < len(lines):
             raw = lines[cursor]
             stripped = raw.strip()
@@ -641,8 +872,12 @@ def rewrite_legacy_boim_blocks(input_text: str) -> str:
             if not row:
                 convertible = False
                 break
-            expr = row.group(1).strip()
-            emits.append(f"{indent}  {expr} 보여주기.")
+            key = row.group(1).strip()
+            expr = row.group(2).strip()
+            if not key:
+                convertible = False
+                break
+            rows.append((key, expr))
             cursor += 1
 
         if not closed or not convertible:
@@ -650,6 +885,10 @@ def rewrite_legacy_boim_blocks(input_text: str) -> str:
             idx += 1
             continue
 
+        emits.append(f'{indent}  "table.row" 보여주기.')
+        for key, expr in rows:
+            emits.append(f'{indent}  "{key}" 보여주기.')
+            emits.append(f"{indent}  {expr} 보여주기.")
         out.extend(emits)
         idx = cursor + 1
     return "\n".join(out)
@@ -741,13 +980,27 @@ def _pick_shape_arg(args: dict, keys: list[object], fallback: str) -> str:
     return str(fallback or "").strip()
 
 
+def _append_optional_shape_string(
+    lines: list[str],
+    indent: str,
+    key: str,
+    value: str,
+) -> None:
+    text = str(value or "").strip()
+    if not text:
+        return
+    lines.append(f'{indent}"{key}" 보여주기.')
+    lines.append(f"{indent}{text} 보여주기.")
+
+
 def _build_shape_show_lines(kind: str, args: dict, indent: str) -> list[str]:
+    group_id = _pick_shape_arg(args, ["group_id", "group", "groupId", "그룹", "묶음"], "")
     if kind == "점":
         x = _pick_shape_arg(args, ["x", "cx", 0], "0")
         y = _pick_shape_arg(args, ["y", "cy", 1], "0")
         size = _pick_shape_arg(args, ["크기", "size", "r", 2], "0.05")
         color = _pick_shape_arg(args, ["색", "color"], '"#22c55e"')
-        return [
+        lines = [
             f'{indent}"space2d.shape" 보여주기.',
             f'{indent}"point" 보여주기.',
             f'{indent}"x" 보여주기.',
@@ -759,6 +1012,8 @@ def _build_shape_show_lines(kind: str, args: dict, indent: str) -> list[str]:
             f'{indent}"color" 보여주기.',
             f"{indent}{color} 보여주기.",
         ]
+        _append_optional_shape_string(lines, indent, "group_id", group_id)
+        return lines
 
     if kind == "선":
         x1 = _pick_shape_arg(args, ["x1", 0], "0")
@@ -767,7 +1022,7 @@ def _build_shape_show_lines(kind: str, args: dict, indent: str) -> list[str]:
         y2 = _pick_shape_arg(args, ["y2", 3], "0")
         stroke = _pick_shape_arg(args, ["색", "stroke"], '"#9ca3af"')
         width = _pick_shape_arg(args, ["굵기", "width"], "0.02")
-        return [
+        lines = [
             f'{indent}"space2d.shape" 보여주기.',
             f'{indent}"line" 보여주기.',
             f'{indent}"x1" 보여주기.',
@@ -783,6 +1038,8 @@ def _build_shape_show_lines(kind: str, args: dict, indent: str) -> list[str]:
             f'{indent}"width" 보여주기.',
             f"{indent}{width} 보여주기.",
         ]
+        _append_optional_shape_string(lines, indent, "group_id", group_id)
+        return lines
 
     x = _pick_shape_arg(args, ["x", "cx", 0], "0")
     y = _pick_shape_arg(args, ["y", "cy", 1], "0")
@@ -790,7 +1047,7 @@ def _build_shape_show_lines(kind: str, args: dict, indent: str) -> list[str]:
     fill = _pick_shape_arg(args, ["색", "fill"], '"#38bdf8"')
     stroke = _pick_shape_arg(args, ["선색", "stroke"], '"#0ea5e9"')
     width = _pick_shape_arg(args, ["굵기", "width"], "0.02")
-    return [
+    lines = [
         f'{indent}"space2d.shape" 보여주기.',
         f'{indent}"circle" 보여주기.',
         f'{indent}"x" 보여주기.',
@@ -806,6 +1063,8 @@ def _build_shape_show_lines(kind: str, args: dict, indent: str) -> list[str]:
         f'{indent}"width" 보여주기.',
         f"{indent}{width} 보여주기.",
     ]
+    _append_optional_shape_string(lines, indent, "group_id", group_id)
+    return lines
 
 
 def rewrite_bogae_shape_blocks(input_text: str) -> str:
@@ -881,8 +1140,19 @@ def rewrite_show_object_particle(input_text: str) -> str:
     return "\n".join(out)
 
 
+def strip_legacy_hash_header_lines(input_text: str) -> str:
+    """teul-cli strict 표면에서 금지된 '#' 헤더/주석 줄을 제거한다."""
+    kept: list[str] = []
+    for line in input_text.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
 def preprocess_ddn_for_teul(input_text: str, strip_draw: bool = True) -> str:
-    text, _ = strip_bogae_scene_blocks(input_text)
+    text = strip_legacy_hash_header_lines(input_text)
+    text, _ = strip_bogae_scene_blocks(text)
     text = flatten_storage_blocks(text)
     text = rewrite_legacy_formula_assignments(text)
     text = rewrite_legacy_boim_blocks(text)
@@ -924,7 +1194,7 @@ def main() -> int:
     else:
         raise ValueError("output path required (provide OUTPUT or --output-dir)")
 
-    input_text = input_path.read_text(encoding="utf-8")
+    input_text = input_path.read_text(encoding="utf-8-sig")
     meta = extract_meta(input_text)
     series_labels = extract_series_labels(input_text)
     source_hash = hash_text(normalize_ddn_for_hash(input_text))

@@ -1,3 +1,8 @@
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  t <- 0.
+}.
 
 (매마디)마다 {
   운동 = (#ascii1) 수식{ y = a t - b t^2 }.
@@ -5,13 +10,12 @@
   a <- 1.6.
   b <- 0.15.
 
-  t목록 <- (0, 8, 0.4) 범위.
-
-  (t) t목록에 대해: {
-    y <- (a=a, b=b, t=t)인 운동 풀기.
+  { t <= 8 }인것 일때 {
+    y <- a t - b t^2.
     보임 {
       t: t.
       y: y.
     }.
+    t <- t + (0.4).
   }.
 }.

@@ -8,13 +8,15 @@
 - `schema`: `"seamgrim.scene.v0"`
 - `ts`: ISO datetime
 - `view`
-  - `kind`: 현재 활성 보개 (예: `view-graph`, `view-2d`, `view-text`)
+  - `kind`: 현재 활성 primary family (예: `graph`, `space2d`, `text`)
   - `config`: `range`, `pan_x`, `pan_y`, `zoom`, `grid`, `axis`
 - `inputs`
   - `kind`: 입력원 (ddn/formula/etc)
   - `label`
   - `input_hash`, `result_hash`
 - `required_views`: lesson 요구 보개 목록
+  - canonical family 이름 권장 (`graph`, `space2d`, `grid2d`, `space3d`, `table`, `text`, `structure`)
+  - compat alias `2d`/`3d`는 허용하되 저장/리포트 시 canonical로 정규화 권장
 - `layers`: 보개/런 레이어 목록
   - `id`, `label`, `visible`, `order`, `opacity`
   - `update`, `tick`

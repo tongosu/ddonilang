@@ -13,10 +13,10 @@ function normalizeStatusLines(lines) {
 
 function normalizeWasmModulePath(wasmUrl) {
   if (typeof wasmUrl !== "string" || !wasmUrl.trim()) {
-    return "./wasm/ddonirang_tool.js";
+    return "../wasm/ddonirang_tool.js";
   }
   if (wasmUrl.endsWith(".js")) return wasmUrl;
-  return "./wasm/ddonirang_tool.js";
+  return "../wasm/ddonirang_tool.js";
 }
 
 export class WasmVmHandle {
@@ -34,6 +34,7 @@ export class WasmVmHandle {
     this.lastPragmas = [];
     this.lastDiags = [];
     this.lastObservationManifest = null;
+    this.lastParseWarnings = [];
   }
 
   preprocess(sourceText) {
@@ -63,7 +64,19 @@ export class WasmVmHandle {
       }
       this.seedU64 = null;
     }
+    this.lastParseWarnings = this.readParseWarnings(client);
     return client;
+  }
+
+  readParseWarnings(client) {
+    if (!client || typeof client !== "object") return [];
+    if (typeof client.parseWarningsParsed !== "function") return [];
+    try {
+      const warnings = client.parseWarningsParsed();
+      return Array.isArray(warnings) ? warnings : [];
+    } catch (_) {
+      return [];
+    }
   }
 
   attachObservationManifest(state) {
@@ -91,6 +104,7 @@ export class WasmVmHandle {
   async updateLogic(ddnSourceText) {
     const client = await this.ensureClient(ddnSourceText);
     client.updateLogic(this.lastBodyText);
+    this.lastParseWarnings = this.readParseWarnings(client);
     return this.attachObservationManifest(client.getStateParsed());
   }
 
@@ -162,12 +176,17 @@ export class WasmVmHandle {
     return this.attachObservationManifest(client.getStateParsed());
   }
 
+  getParseWarnings() {
+    return Array.isArray(this.lastParseWarnings) ? [...this.lastParseWarnings] : [];
+  }
+
   getDebugInfo() {
     return {
       buildInfo: this.loader.getLastBuildInfo?.() ?? "",
       preprocessed: this.loader.getLastPreprocessed?.() ?? this.lastBodyText ?? "",
       pragmas: this.lastPragmas,
       diags: this.lastDiags,
+      parseWarnings: this.getParseWarnings(),
       observationManifest: this.lastObservationManifest,
       cacheBust: this.loader.getCacheBust?.() ?? null,
     };
@@ -180,6 +199,7 @@ export class WasmVmHandle {
     this.lastPragmas = [];
     this.lastDiags = [];
     this.lastObservationManifest = null;
+    this.lastParseWarnings = [];
     this.loader.reset();
   }
 }

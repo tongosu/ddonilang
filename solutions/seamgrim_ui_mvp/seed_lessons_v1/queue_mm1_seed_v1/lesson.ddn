@@ -1,0 +1,74 @@
+#기본관찰x: t
+#기본관찰: q
+채비: {
+  q0:수 <- 8. // 범위(0, 100, 1)
+  arrival_rate:수 <- 5.2. // 범위(0.2, 20, 0.1)
+  service_rate:수 <- 6.0. // 범위(0.5, 25, 0.1)
+  dt:수 <- 0.1. // 범위(0.02, 0.5, 0.01)
+  t_max:수 <- 60. // 범위(5, 200, 1)
+}.
+
+q0 <- 8.
+arrival_rate <- 5.2.
+service_rate <- 6.0.
+dt <- 0.1.
+t_max <- 60.
+
+(시작)할때 {
+  t <- 0.
+  q <- q0.
+  arrivals <- 0.
+  served <- 0.
+  wait_est <- 0.
+  util <- 0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    arrivals <- arrival_rate * dt.
+    served <- service_rate * dt.
+    { served > q }인것 일때 {
+      served <- q.
+    }.
+
+    q <- q + arrivals - served.
+    { q < 0 }인것 일때 {
+      q <- 0.
+    }.
+
+    util <- arrival_rate / (service_rate + 0.0001).
+    wait_est <- q / (service_rate + 0.0001).
+
+    무리 <- "series:q".
+    무리 보여주기.
+    t 보여주기.
+    q 보여주기.
+
+    무리 <- "series:arrivals".
+    무리 보여주기.
+    t 보여주기.
+    arrivals 보여주기.
+
+    무리 <- "series:served".
+    무리 보여주기.
+    t 보여주기.
+    served 보여주기.
+
+    무리 <- "series:wait_est".
+    무리 보여주기.
+    t 보여주기.
+    wait_est 보여주기.
+
+    무리 <- "series:util".
+    무리 보여주기.
+    t 보여주기.
+    util 보여주기.
+
+    모양: {
+      점(t, q, 크기=0.05, 색="#3b82f6").
+      점(t, wait_est, 크기=0.04, 색="#f97316").
+    }.
+
+    t <- t + dt.
+  }.
+}.

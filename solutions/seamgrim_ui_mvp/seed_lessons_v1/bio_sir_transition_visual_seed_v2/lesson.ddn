@@ -1,0 +1,86 @@
+#기본관찰x: t
+#기본관찰: I
+채비: {
+  S0:수 <- 990. // 범위(100, 5000, 10)
+  I0:수 <- 10. // 범위(1, 600, 1)
+  beta:수 <- 0.36. // 범위(0.05, 1.5, 0.01)
+  gamma:수 <- 0.1. // 범위(0.01, 0.8, 0.01)
+  contact_boost:수 <- 1.4. // 범위(1.0, 3.0, 0.05)
+  boost_start:수 <- 12. // 범위(0, 80, 0.5)
+  boost_end:수 <- 24. // 범위(1, 100, 0.5)
+  dt:수 <- 0.1. // 범위(0.01, 0.5, 0.01)
+  t_max:수 <- 80. // 범위(10, 300, 1)
+}.
+
+S0 <- 990.
+I0 <- 10.
+beta <- 0.36.
+gamma <- 0.1.
+contact_boost <- 1.4.
+boost_start <- 12.
+boost_end <- 24.
+dt <- 0.1.
+t_max <- 80.
+
+(시작)할때 {
+  t <- 0.
+  S <- S0.
+  I <- I0.
+  R <- 0.
+  N <- S0 + I0.
+  beta_eff <- beta.
+  new_inf <- 0.
+  new_rec <- 0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    beta_eff <- beta.
+    { t >= boost_start }인것 일때 {
+      { t <= boost_end }인것 일때 {
+        beta_eff <- beta * contact_boost.
+      }.
+    }.
+
+    new_inf <- beta_eff * S * I / N * dt.
+    new_rec <- gamma * I * dt.
+
+    { new_inf > S }인것 일때 {
+      new_inf <- S.
+    }.
+    { new_rec > I }인것 일때 {
+      new_rec <- I.
+    }.
+
+    S <- S - new_inf.
+    I <- I + new_inf - new_rec.
+    R <- R + new_rec.
+
+    무리 <- "series:S".
+    무리 보여주기.
+    t 보여주기.
+    S 보여주기.
+
+    무리 <- "series:I".
+    무리 보여주기.
+    t 보여주기.
+    I 보여주기.
+
+    무리 <- "series:R".
+    무리 보여주기.
+    t 보여주기.
+    R 보여주기.
+
+    무리 <- "series:beta_eff".
+    무리 보여주기.
+    t 보여주기.
+    beta_eff 보여주기.
+
+    모양: {
+      점(t, I, 크기=0.06, 색="#ef4444").
+      점(t, R, 크기=0.045, 색="#22c55e").
+    }.
+
+    t <- t + dt.
+  }.
+}.

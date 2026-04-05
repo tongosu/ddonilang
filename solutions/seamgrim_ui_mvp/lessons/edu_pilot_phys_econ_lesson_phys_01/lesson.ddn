@@ -2,9 +2,15 @@
 #필수보개: 2d, graph, text
 #layout_preset: 좌2d_우graph_중text_하단dock
 #physics_backend: calc
-채비: {
-  L:수 <- 1.0. // 범위(0.2, 3.0, 0.01)
-  theta0:수 <- 0.6. // 범위(-1.57, 1.57, 0.01)
+채비 {
+  L:수 <- (1.0) 매김 { 범위: 0.2..3.0. 간격: 0.01. }.
+  theta0:수 <- (0.6) 매김 { 범위: -1.57..1.57. 간격: 0.01. }.
+}.
+
+// stateful-sim preview(auto): range sampler -> step sim
+
+(시작)할때 {
+  tick <- 0.
 }.
 
 (매마디)마다 {
@@ -14,7 +20,7 @@
     총초:수 = 5.0.
   }.
 
-  그릇채비: {
+  그릇채비 {
     L:수 <- 1.0.
     theta0:수 <- 0.6.
   }.
@@ -56,13 +62,12 @@
   // 시간축
   dt <- 1.0 / fps.
   끝tick <- (총초 * fps) 정수로.
-  tick목록 <- (0, 끝tick, 1)범위.
 
   // 소각근사 진자: θ(t) = θ0 * cos( sqrt(g/L) * t )
   omegaN <- (g / L) ^ 0.5.
   pivot <- (x=0.0, y=0.0) 값꾸러미.
 
-  (tick) tick목록에 대해: {
+  { tick <= 끝tick }인것 일때 {
     t <- tick * dt.
 
     보임 {
@@ -172,5 +177,7 @@
     보임 {
       글: 글.
     }.
+
+    tick <- tick + 1.
   }.
 }.

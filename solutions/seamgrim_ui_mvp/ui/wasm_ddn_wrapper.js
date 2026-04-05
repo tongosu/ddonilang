@@ -45,6 +45,14 @@ export class DdnWasmVmClient {
     return JSON.parse(this.vm.columns());
   }
 
+  parseWarningsParsed() {
+    if (typeof this.vm.get_parse_warnings !== "function") {
+      return [];
+    }
+    const parsed = JSON.parse(this.vm.get_parse_warnings());
+    return Array.isArray(parsed?.warnings) ? parsed.warnings : [];
+  }
+
   setParamParsed(key, value) {
     if (typeof this.vm.set_param !== "function") {
       throw new Error("set_param is not available in this wasm build");

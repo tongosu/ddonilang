@@ -31,7 +31,14 @@
 - `runs[]`: 실행 목록
   - `compare_role`(선택): `baseline | variant`
   - `space2d`/`text_doc`(선택)
+  - `update`/`tick`/`ticks[]`(선택): run 재생 규칙
 - `active_run_id`: 선택된 실행 ID
+- `layers[]` (세션 저장용 레이어 스냅샷)
+  - `id`, `order`, `visible`
+  - `group_id`(선택)
+  - `update`: `append | replace`
+  - `tick`(선택)
+  - `ticks[]`(선택): tick 시퀀스
 - `last_state_hash`(선택): 마지막 실행 상태 해시
 - `last_view_hash`(선택): 마지막 뷰 메타 해시(디버그/검증용)
 - `compare`(선택): baseline+variant 비교 상태

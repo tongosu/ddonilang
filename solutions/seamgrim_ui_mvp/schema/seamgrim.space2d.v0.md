@@ -38,6 +38,8 @@
 ## drawlist (C+ primitive)
 - `kind`: `"line" | "circle" | "point" | "polyline" | "rect" | "polygon" | "text" | "arrow"`
 - `token?`: 장면 토큰 매칭용 키(선택)
+- `layer_index?`: 렌더 정렬 힌트(선택). 값이 같으면 입력 순서를 유지한다.
+- `group_id?`: 프리미티브 그룹 식별자(선택). alias `group`, `groupId`, `그룹`, `묶음`은 consumer에서 `group_id`로 정규화된다.
 - 공통 스타일: `stroke?`, `fill?`, `width?`, `size?`, `opacity?`
 
 ### polyline/polygon

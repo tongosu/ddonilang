@@ -1,0 +1,68 @@
+#기본관찰x: t
+#기본관찰: cohesion
+채비: {
+  mismatch0:수 <- 0.7. // 범위(0, 1.0, 0.01)
+  align_k:수 <- 0.9. // 범위(0.01, 4.0, 0.01)
+  noise_amp:수 <- 0.15. // 범위(0, 1.0, 0.01)
+  omega:수 <- 2.4. // 범위(0.1, 10.0, 0.05)
+  dt:수 <- 0.05. // 범위(0.005, 0.2, 0.005)
+  t_max:수 <- 50. // 범위(2, 200, 0.5)
+}.
+
+mismatch0 <- 0.7.
+align_k <- 0.9.
+noise_amp <- 0.15.
+omega <- 2.4.
+dt <- 0.05.
+t_max <- 50.
+
+(시작)할때 {
+  t <- 0.
+  mismatch <- mismatch0.
+  cohesion <- 1 - mismatch0.
+  heading <- 0.
+  disturb <- 0.
+  bx <- 0.
+  by <- 0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    disturb <- noise_amp * ((omega * t) sin).
+    mismatch <- mismatch + (-align_k * mismatch + disturb) * dt.
+
+    { mismatch < 0 }인것 일때 {
+      mismatch <- 0.
+    }.
+    { mismatch > 1 }인것 일때 {
+      mismatch <- 1.
+    }.
+
+    cohesion <- 1 - mismatch.
+    heading <- heading + (0.6 + disturb) * dt.
+    bx <- ((heading) cos) * cohesion.
+    by <- ((heading) sin) * cohesion.
+
+    무리 <- "series:cohesion".
+    무리 보여주기.
+    t 보여주기.
+    cohesion 보여주기.
+
+    무리 <- "series:mismatch".
+    무리 보여주기.
+    t 보여주기.
+    mismatch 보여주기.
+
+    무리 <- "series:disturb".
+    무리 보여주기.
+    t 보여주기.
+    disturb 보여주기.
+
+    모양: {
+      점(bx, by, 크기=0.06, 색="#14b8a6").
+      원(0, 0, r=1.0, 색="#ffffff00", 선색="#94a3b8", 굵기=0.01).
+    }.
+
+    t <- t + dt.
+  }.
+}.

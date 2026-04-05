@@ -1,3 +1,5 @@
+import { parseGuideMetaHeader } from "./components/guide_meta.js";
+
 export const KEY_BITS = Object.freeze({
   up: 1,
   left: 2,
@@ -928,6 +930,7 @@ export function renderGraphCanvas2d({
   emptyText = "graph: -",
   noPointsText = "graph: (no points)",
   palette = null,
+  focusPoints = null,
 } = {}) {
   const base = setupCanvasBase(canvas);
   if (!base) return false;
@@ -1046,6 +1049,40 @@ export function renderGraphCanvas2d({
     ctx.stroke();
   });
 
+  const highlights = Array.isArray(focusPoints)
+    ? focusPoints
+      .map((row) => ({
+        x: Number(row?.x),
+        y: Number(row?.y),
+        color: String(row?.color ?? "").trim(),
+      }))
+      .filter((row) => Number.isFinite(row.x) && Number.isFinite(row.y))
+    : [];
+  highlights.forEach((row, index) => {
+    const color = row.color || activePalette[index % activePalette.length];
+    const px = pad + (row.x - xMin) * scaleX;
+    const py = h - pad - (row.y - yMin) * scaleY;
+    ctx.save();
+    ctx.strokeStyle = `${color}cc`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(px, pad);
+    ctx.lineTo(px, h - pad);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  });
+
   ctx.fillStyle = "#e2e8f0";
   ctx.font = "11px 'IBM Plex Mono', ui-monospace";
   ctx.fillText(`x:[${xMin.toFixed(2)}, ${xMax.toFixed(2)}]`, pad, 16);
@@ -1066,6 +1103,57 @@ function normalizeSpace2dKind(kind) {
   const raw = String(kind ?? "").trim().toLowerCase();
   if (raw === "poly") return "polygon";
   return raw;
+}
+
+function readSpace2dLayerIndex(item) {
+  if (!item || typeof item !== "object") return 0;
+  const raw = Number(
+    item.layer_index
+      ?? item.layerIndex
+      ?? item.layer
+      ?? item.z_index
+      ?? item.zIndex
+      ?? item.z,
+  );
+  return Number.isFinite(raw) ? raw : 0;
+}
+
+function readSpace2dGroupId(item) {
+  if (!item || typeof item !== "object") return null;
+  const raw =
+    item.group_id
+    ?? item.groupId
+    ?? item.group
+    ?? item["그룹"]
+    ?? item["묶음"];
+  if (raw === undefined || raw === null) return null;
+  const text = String(raw).trim();
+  return text.length > 0 ? text : null;
+}
+
+function normalizeSpace2dPrimitiveItem(item) {
+  if (!item || typeof item !== "object") return item;
+  const normalized = { ...item };
+  normalized.kind = normalizeSpace2dKind(normalized.kind);
+  const layerIndex = readSpace2dLayerIndex(normalized);
+  if (Number.isFinite(layerIndex)) normalized.layer_index = layerIndex;
+  const groupId = readSpace2dGroupId(normalized);
+  if (groupId !== null) normalized.group_id = groupId;
+  return normalized;
+}
+
+export function sortSpace2dPrimitiveItems(items) {
+  if (!Array.isArray(items) || items.length <= 1) return Array.isArray(items) ? [...items] : [];
+  return items
+    .map((item, index) => {
+      const normalized = normalizeSpace2dPrimitiveItem(item);
+      return { item: normalized, index, layerIndex: readSpace2dLayerIndex(normalized) };
+    })
+    .sort((a, b) => {
+      if (a.layerIndex !== b.layerIndex) return a.layerIndex - b.layerIndex;
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
 }
 
 function normalizeSpace2dPointList(points) {
@@ -1193,19 +1281,21 @@ export function selectSpace2dPrimitiveItems({
   hasShapesField,
   sourceMode,
 }) {
+  let selected = [];
   if (sourceMode === "drawlist") {
-    if (drawlist.length > 0) return drawlist;
-    return shapes;
+    selected = drawlist.length > 0 ? drawlist : shapes;
+    return sortSpace2dPrimitiveItems(selected);
   }
   if (sourceMode === "shapes") {
-    if (shapes.length > 0) return shapes;
-    return drawlist;
+    selected = shapes.length > 0 ? shapes : drawlist;
+    return sortSpace2dPrimitiveItems(selected);
   }
-  if (sourceMode === "both") return [...shapes, ...drawlist];
+  if (sourceMode === "both") return sortSpace2dPrimitiveItems([...shapes, ...drawlist]);
   if (sourceMode === "none") return [];
-  if (hasShapesField && shapes.length > 0) return shapes;
-  if (drawlist.length > 0) return drawlist;
-  return hasShapesField ? shapes : drawlist;
+  if (hasShapesField && shapes.length > 0) selected = shapes;
+  else if (drawlist.length > 0) selected = drawlist;
+  else selected = hasShapesField ? shapes : drawlist;
+  return sortSpace2dPrimitiveItems(selected);
 }
 
 export function renderSpace2dCanvas2d({
@@ -2137,22 +2227,11 @@ function normalizeLines(text) {
   return String(text ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 }
 
+export { parseGuideMetaHeader };
+
 export function stripMetaHeader(text) {
-  const lines = normalizeLines(text);
-  let idx = 0;
-  while (idx < lines.length) {
-    const trimmed = lines[idx].replace(/^[ \t\uFEFF]+/, "");
-    if (!trimmed) {
-      idx += 1;
-      continue;
-    }
-    if (trimmed.startsWith("#") && trimmed.includes(":")) {
-      idx += 1;
-      continue;
-    }
-    break;
-  }
-  return lines.slice(idx).join("\n");
+  const parsed = parseGuideMetaHeader(text);
+  return String(parsed?.body ?? "");
 }
 
 export function buildSourcePreview(source, maxLines = 30) {
@@ -2615,6 +2694,21 @@ export function updateWasmClientLogic({
   throw new Error("updateWasmClientLogic: update API가 없습니다.");
 }
 
+export function readWasmClientParseWarnings(client) {
+  if (!client || typeof client !== "object") {
+    return [];
+  }
+  if (typeof client.parseWarningsParsed !== "function") {
+    return [];
+  }
+  try {
+    const warnings = client.parseWarningsParsed();
+    return Array.isArray(warnings) ? warnings : [];
+  } catch (_) {
+    return [];
+  }
+}
+
 export async function applyWasmLogicFromSource({
   sourceText,
   ensureWasm,
@@ -2633,7 +2727,8 @@ export async function applyWasmLogicFromSource({
     throw new Error("applyWasmLogicFromSource: getStateParsed API가 없습니다.");
   }
   const state = client.getStateParsed();
-  return { client, body, state };
+  const parseWarnings = readWasmClientParseWarnings(client);
+  return { client, body, state, parseWarnings };
 }
 
 export async function applyWasmLogicAndDispatchState({

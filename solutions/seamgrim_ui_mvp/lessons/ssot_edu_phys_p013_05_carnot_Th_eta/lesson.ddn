@@ -1,14 +1,15 @@
+Tc <- 300.
+
+Th_min <- Tc + 1.
+Th_max <- 1000.
+dTh <- 5.
+
+(시작)할때 {
+  Th <- Th_min.
+}.
 
 (매마디)마다 {
-  Tc <- 300.
-
-  Th_min <- Tc + 1.
-  Th_max <- 1000.
-  dTh <- 5.
-
-  Th목록 <- (Th_min, Th_max, dTh) 범위.
-
-  (Th) Th목록에 대해: {
+  { Th <= Th_max }인것 일때 {
     eta <- 1 - (Tc / Th).
     { eta < 0 }인것 일때 {
       eta <- 0.
@@ -17,5 +18,6 @@
       Th: Th.
       eta: eta.
     }.
+    Th <- Th + dTh.
   }.
 }.

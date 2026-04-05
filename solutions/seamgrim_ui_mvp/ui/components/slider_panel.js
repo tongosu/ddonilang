@@ -10,10 +10,11 @@ export class SliderPanel {
     this.axisKeys = [];
     this.defaultAxisKey = "";
     this.defaultXAxisKey = "";
+    this.warnings = [];
   }
 
-  parseFromDdn(ddnText, { preserveValues = false } = {}) {
-    const parsed = buildControlSpecsFromDdn(ddnText);
+  parseFromDdn(ddnText, { preserveValues = false, maegimControlJson = "" } = {}) {
+    const parsed = buildControlSpecsFromDdn(ddnText, { maegimControlJson });
     const nextSpecs = Array.isArray(parsed.specs) ? parsed.specs : [];
     const nextValues = {};
     nextSpecs.forEach((spec) => {
@@ -30,10 +31,14 @@ export class SliderPanel {
     this.axisKeys = Array.isArray(parsed.axisKeys) ? parsed.axisKeys : [];
     this.defaultAxisKey = String(parsed.defaultAxisKey ?? "").trim();
     this.defaultXAxisKey = String(parsed.defaultXAxisKey ?? "").trim();
+    this.warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
 
     if (this.statusEl) {
-      if (parsed.source === "prep") {
-        this.statusEl.textContent = `control 채비: ${this.specs.length}개`;
+      const warningSuffix = this.warnings.length ? ` · 구식 범위주석 ${this.warnings.length}건` : "";
+      if (parsed.source === "maegim_control_json") {
+        this.statusEl.textContent = `control 매김: ${this.specs.length}개${warningSuffix}`;
+      } else if (parsed.source === "prep") {
+        this.statusEl.textContent = `control 채비: ${this.specs.length}개${warningSuffix}`;
       } else {
         this.statusEl.textContent = "control: -";
       }
@@ -46,6 +51,7 @@ export class SliderPanel {
       defaultAxisKey: this.defaultAxisKey,
       defaultXAxisKey: this.defaultXAxisKey,
       source: parsed.source,
+      warnings: [...this.warnings],
     };
   }
 
@@ -140,5 +146,9 @@ export class SliderPanel {
 
   getSpecs() {
     return [...this.specs];
+  }
+
+  getWarnings() {
+    return [...this.warnings];
   }
 }

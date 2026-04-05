@@ -1,25 +1,30 @@
 #이름: ssot_edu_phys_p014_04_lc_oscillation_t_Q_variant_P014-04 LC 진동 Q(t)
 #설명: LC 진동(무저항): dQ/dt=I, dI/dt=-(1/(L*C))Q 를 이산 업데이트(Euler)로 근사. (t,Q) 출력.
 
-(매마디)마다 {
-  L <- 1.
-  C <- 1.
+// stateful-sim preview(auto): range sampler -> step sim
+L <- 1.
+C <- 1.
 
-  dt <- 0.02.
-  t_max <- 10.
+dt <- 0.02.
+t_max <- 10.
 
+
+
+(시작)할때 {
+  t <- 0.
   Q <- 1.
   I <- 0.
+}.
 
-  t목록 <- (0, t_max, dt) 범위.
-
-  (t) t목록에 대해: {
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
     보임 {
       t: t.
       Q: Q.
     }.
-
+    
     I <- I + (-(Q / (L * C)) * dt).
     Q <- Q + (I * dt).
+    t <- t + (dt).
   }.
 }.

@@ -1,0 +1,5 @@
+title = "Physics Heat Diffusion Seed V1"
+description = "Three-node heat diffusion and ambient loss"
+grade = "all"
+subject = "physics"
+quality = "recommended"

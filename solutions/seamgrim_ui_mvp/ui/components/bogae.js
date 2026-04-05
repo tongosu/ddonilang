@@ -132,6 +132,8 @@ export class Bogae {
     this.view = {
       autoFit: true,
       range: null,
+      showGrid: false,
+      showAxis: false,
     };
     this.lastAutoRange = null;
     this.drag = {
@@ -274,6 +276,29 @@ export class Bogae {
     this.render(this.lastSpace2d);
   }
 
+  getGuides() {
+    return {
+      showGrid: Boolean(this.view.showGrid),
+      showAxis: Boolean(this.view.showAxis),
+    };
+  }
+
+  setGuides({ showGrid = null, showAxis = null } = {}) {
+    let changed = false;
+    if (typeof showGrid === "boolean" && this.view.showGrid !== showGrid) {
+      this.view.showGrid = showGrid;
+      changed = true;
+    }
+    if (typeof showAxis === "boolean" && this.view.showAxis !== showAxis) {
+      this.view.showAxis = showAxis;
+      changed = true;
+    }
+    if (changed) {
+      this.render(this.lastSpace2d);
+    }
+    return this.getGuides();
+  }
+
   render(space2dData) {
     this.lastSpace2d = space2dData ?? this.lastSpace2d;
     const cameraRange = finiteRangeFromCamera(this.lastSpace2d);
@@ -300,8 +325,8 @@ export class Bogae {
       space2d: this.lastSpace2d,
       viewState,
       primitiveSource: "shapes",
-      showGrid: false,
-      showAxis: false,
+      showGrid: Boolean(this.view.showGrid),
+      showAxis: Boolean(this.view.showAxis),
       emptyText: "보개 출력 없음",
       noPointsText: "보개 도형 없음",
     });

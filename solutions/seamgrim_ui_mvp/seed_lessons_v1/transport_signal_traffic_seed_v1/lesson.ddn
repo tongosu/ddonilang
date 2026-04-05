@@ -1,0 +1,93 @@
+#기본관찰x: t
+#기본관찰: queue
+채비: {
+  queue0:수 <- 18. // 범위(0, 120, 1)
+  in_rate:수 <- 6. // 범위(0.5, 20, 0.1)
+  out_rate:수 <- 10. // 범위(0.5, 30, 0.1)
+  green_sec:수 <- 8. // 범위(1, 40, 0.5)
+  red_sec:수 <- 6. // 범위(1, 40, 0.5)
+  dt:수 <- 0.1. // 범위(0.02, 0.5, 0.01)
+  t_max:수 <- 80. // 범위(10, 300, 1)
+}.
+
+queue0 <- 18.
+in_rate <- 6.
+out_rate <- 10.
+green_sec <- 8.
+red_sec <- 6.
+dt <- 0.1.
+t_max <- 80.
+
+(시작)할때 {
+  t <- 0.
+  queue <- queue0.
+  signal <- 1.
+  phase_t <- 0.
+  arrivals <- 0.
+  departures <- 0.
+  delay_index <- 0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    arrivals <- in_rate * dt.
+    departures <- 0.
+
+    { signal >= 0.5 }인것 일때 {
+      { queue > 0 }인것 일때 {
+        departures <- out_rate * dt.
+        { departures > queue }인것 일때 {
+          departures <- queue.
+        }.
+      }.
+    }.
+
+    queue <- queue + arrivals - departures.
+    { queue < 0 }인것 일때 {
+      queue <- 0.
+    }.
+
+    delay_index <- queue / (out_rate + 0.0001).
+
+    phase_t <- phase_t + dt.
+    { signal >= 0.5 }인것 일때 {
+      { phase_t >= green_sec }인것 일때 {
+        signal <- 0.
+        phase_t <- 0.
+      }.
+    }.
+    { signal < 0.5 }인것 일때 {
+      { phase_t >= red_sec }인것 일때 {
+        signal <- 1.
+        phase_t <- 0.
+      }.
+    }.
+
+    무리 <- "series:queue".
+    무리 보여주기.
+    t 보여주기.
+    queue 보여주기.
+
+    무리 <- "series:signal".
+    무리 보여주기.
+    t 보여주기.
+    signal 보여주기.
+
+    무리 <- "series:departures".
+    무리 보여주기.
+    t 보여주기.
+    departures 보여주기.
+
+    무리 <- "series:delay_index".
+    무리 보여주기.
+    t 보여주기.
+    delay_index 보여주기.
+
+    모양: {
+      점(t, queue, 크기=0.05, 색="#0ea5e9").
+      점(t, signal, 크기=0.04, 색="#f59e0b").
+    }.
+
+    t <- t + dt.
+  }.
+}.

@@ -1,7 +1,7 @@
 #이름: seamgrim_ui_mvp_pendulum_bogae_block_ui
 #설명: UI 전처리기에서 보개 { 선/원/점 } 블록을 space2d.shape로 변환하는 예시
 
-채비: {
+채비 {
   g:수 <- 9.8.
   L:수 <- 1.
   theta0:수 <- 0.5.
@@ -41,4 +41,3 @@
     t <- t + dt.
   }.
 }.
-

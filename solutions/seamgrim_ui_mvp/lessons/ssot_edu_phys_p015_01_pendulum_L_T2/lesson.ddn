@@ -1,22 +1,24 @@
+pi <- 3.141592.
+g <- 9.8.
+
+L_min <- 0.
+L_max <- 4.
+dL <- 0.05.
+
+coef <- (4 * pi * pi) / g.  # T^2 = coef * L
+
+(시작)할때 {
+  L <- L_min.
+}.
 
 (매마디)마다 {
-  pi <- 3.141592.
-  g <- 9.8.
-
-  L_min <- 0.
-  L_max <- 4.
-  dL <- 0.05.
-
-  coef <- (4 * pi * pi) / g.  # T^2 = coef * L
-
-  L목록 <- (L_min, L_max, dL) 범위.
-
-  (L) L목록에 대해: {
+  { L <= L_max }인것 일때 {
     T2 <- coef * L.
 
     보임 {
       L: L.
       T2: T2.
     }.
+    L <- L + dL.
   }.
 }.

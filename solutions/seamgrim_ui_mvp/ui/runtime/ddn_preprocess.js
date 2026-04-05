@@ -11,8 +11,9 @@ const SHOW_OBJECT_PARTICLE_RE = /^(\s*)(.+?)\s*[을를]\s+보여주기\.\s*(\/\/
 const SHOW_STATEMENT_RE = /^(\s*)(.+?)\s+보여주기\.\s*(\/\/.*)?$/;
 const MOVEMENT_SEED_OPEN_RE = /^(\s*).+:\s*움직씨\s*=\s*\{\s*$/;
 const SHOW_OUTPUT_LINES_TAG = "보개_출력_줄들";
-const LEGACY_ON_START_RE = /^(\s*)\(시작\)할때\s*\{\s*(?:\/\/.*)?$/;
-const LEGACY_ON_TICK_RE = /^(\s*)\(매마디\)마다\s*\{\s*(?:\/\/.*)?$/;
+const LEGACY_ON_START_RE = /^(\s*)\(\s*(시작|처음)\s*\)\s*할때\s*:?\s*\{\s*(?:\/\/.*)?$/;
+const LEGACY_ON_TICK_RE = /^(\s*)\(\s*(매마디|매틱)\s*\)\s*마다\s*:?\s*\{\s*(?:\/\/.*)?$/;
+const LEGACY_ON_TICK_N_RE = /^(\s*)\(\s*([1-9][0-9]*)\s*마디\s*\)\s*마다\s*:?\s*\{\s*(?:\/\/.*)?$/;
 const MOVEMENT_SEED_ANY_RE = /:\s*움직씨\s*=\s*\{/;
 const BOGAE_BLOCK_OPEN_RE = /^(\s*)(보개|모양)\s*:?\s*\{\s*(?:\/\/.*)?$/;
 const SHAPE_LINE_RE = /^(점|선|원)\s*\((.*)\)\s*\.\s*$/;
@@ -21,7 +22,16 @@ const MADANG_CHUNK_OPEN_RE = /^(\s*)토막\s*\((.*)\)\s*\{\s*(?:\/\/.*)?$/;
 const MADANG_SUBTITLE_LINE_RE = /^(\s*)자막\s*\((.*)\)\s*\.\s*$/;
 const LEGACY_BOIM_OPEN_RE = /^(\s*)보임\s*\{\s*$/;
 const LEGACY_BOIM_ITEM_RE = /^[^:]+:\s*(.+)\.\s*$/;
+const LEGACY_DECL_BLOCK_OPEN_RE =
+  /^(\s*)(그릇채비|붙박이마련|붙박이채비|바탕칸|바탕칸표|채비)\s*:?\s*\{\s*(\/\/.*)?$/;
+const DECL_ITEM_CALL_INIT_RE =
+  /^(\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣]*\s*:\s*[^<=>]+?\s*(?:<-|=)\s*)\((.+)\)\s+([A-Za-z_가-힣][A-Za-z0-9_가-힣./]*)\.\s*(\/\/.*)?$/;
+const DECL_ITEM_EMPTY_MAP_RE =
+  /^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*:\s*묶음\s*\.\s*(\/\/.*)?$/;
+const DEEP_DOT_ASSIGN_RE =
+  /^(\s*)([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\.([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\.[^<>\r\n]*<-\s*.+$/;
 const LEGACY_START_ONCE_STATE_KEY = "__wasm_start_once";
+const LEGACY_TICK_INTERVAL_STATE_PREFIX = "__wasm_tick_every_";
 
 function normalizeText(text) {
   return String(text ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -133,7 +143,9 @@ export function preprocessDdnText(ddnText) {
   });
 
   const normalizedShow = rewriteShowObjectParticles(bodyLines.join("\n"));
-  const normalizedMadang = rewriteBogaeMadangBlocksForWasm(normalizedShow);
+  const normalizedDeclBlocks = rewriteLegacyDeclBlocksForWasm(normalizedShow);
+  const normalizedDeepMap = rewriteDeepMapInitForWasm(normalizedDeclBlocks);
+  const normalizedMadang = rewriteBogaeMadangBlocksForWasm(normalizedDeepMap);
   const normalizedLifecycle = rewriteLegacyLifecycleBlocksForWasm(normalizedMadang);
   const normalizedBogae = rewriteBogaeShapeBlocksForWasm(normalizedLifecycle);
   const normalizedBoim = rewriteLegacyBoimBlocksForWasm(normalizedBogae);
@@ -165,6 +177,7 @@ function rewriteLegacyBoimBlocksForWasm(bodyText) {
     let cursor = idx + 1;
     let closed = false;
     let convertible = true;
+    const rows = [];
 
     while (cursor < lines.length) {
       const raw = String(lines[cursor] ?? "");
@@ -182,8 +195,14 @@ function rewriteLegacyBoimBlocksForWasm(bodyText) {
         convertible = false;
         break;
       }
+      const colon = trimmed.indexOf(":");
+      const key = colon >= 0 ? trimmed.slice(0, colon).trim() : "";
       const expr = String(row[1] ?? "").trim();
-      emits.push(`${indent}  ${expr} 보여주기.`);
+      if (!key) {
+        convertible = false;
+        break;
+      }
+      rows.push({ key, expr });
       cursor += 1;
     }
 
@@ -193,10 +212,124 @@ function rewriteLegacyBoimBlocksForWasm(bodyText) {
       continue;
     }
 
+    emits.push(`${indent}  "table.row" 보여주기.`);
+    rows.forEach(({ key, expr }) => {
+      emits.push(`${indent}  "${key}" 보여주기.`);
+      emits.push(`${indent}  ${expr} 보여주기.`);
+    });
     out.push(...emits);
     idx = cursor + 1;
   }
 
+  return out.join("\n");
+}
+
+function rewriteLegacyDeclBlocksForWasm(bodyText) {
+  const lines = normalizeText(bodyText).split("\n");
+  const out = [];
+  let inDeclBlock = false;
+  let declDepth = 0;
+
+  lines.forEach((line) => {
+    const open = String(line ?? "").match(LEGACY_DECL_BLOCK_OPEN_RE);
+    if (!inDeclBlock && open) {
+      const indent = open[1] ?? "";
+      const comment = String(open[3] ?? "").trim();
+      out.push(`${indent}채비: {${comment ? ` ${comment}` : ""}`);
+      inDeclBlock = true;
+      declDepth = 1;
+      return;
+    }
+
+    if (inDeclBlock && declDepth === 1) {
+      const trimmed = String(line ?? "").trim();
+      if (trimmed && !trimmed.startsWith("//")) {
+        const match = String(line ?? "").match(DECL_ITEM_CALL_INIT_RE);
+        if (match) {
+          const prefix = String(match[1] ?? "");
+          const argText = String(match[2] ?? "");
+          const callName = String(match[3] ?? "");
+          const comment = String(match[4] ?? "").trim();
+          const argTrimmed = argText.trimStart();
+          if (!argTrimmed.startsWith("(")) {
+            out.push(`${prefix}((${argText}) ${callName}).${comment ? ` ${comment}` : ""}`);
+            declDepth += countBraceDelta(line);
+            if (declDepth <= 0) {
+              inDeclBlock = false;
+              declDepth = 0;
+            }
+            return;
+          }
+        }
+      }
+    }
+
+    out.push(line);
+    if (inDeclBlock) {
+      declDepth += countBraceDelta(line);
+      if (declDepth <= 0) {
+        inDeclBlock = false;
+        declDepth = 0;
+      }
+    }
+  });
+
+  return out.join("\n");
+}
+
+function collectEmptyMapDeclNames(lines) {
+  const names = new Set();
+  let inDeclBlock = false;
+  let declDepth = 0;
+
+  lines.forEach((line) => {
+    const open = String(line ?? "").match(LEGACY_DECL_BLOCK_OPEN_RE);
+    if (!inDeclBlock && open) {
+      inDeclBlock = true;
+      declDepth = 1;
+      return;
+    }
+    if (!inDeclBlock) return;
+
+    if (declDepth === 1) {
+      const match = String(line ?? "").match(DECL_ITEM_EMPTY_MAP_RE);
+      if (match) {
+        const name = String(match[1] ?? "").trim();
+        if (name) names.add(name);
+      }
+    }
+    declDepth += countBraceDelta(line);
+    if (declDepth <= 0) {
+      inDeclBlock = false;
+      declDepth = 0;
+    }
+  });
+
+  return names;
+}
+
+function rewriteDeepMapInitForWasm(bodyText) {
+  const lines = normalizeText(bodyText).split("\n");
+  const emptyMapDecls = collectEmptyMapDeclNames(lines);
+  if (!emptyMapDecls.size) return bodyText;
+
+  const out = [];
+  const initializedPairs = new Set();
+  lines.forEach((line) => {
+    const match = String(line ?? "").match(DEEP_DOT_ASSIGN_RE);
+    if (match) {
+      const indent = String(match[1] ?? "");
+      const root = String(match[2] ?? "").trim();
+      const firstField = String(match[3] ?? "").trim();
+      const pairKey = `${root}.${firstField}`;
+      if (root && firstField && emptyMapDecls.has(root) && !initializedPairs.has(pairKey)) {
+        out.push(`${indent}${root} <- () 짝맞춤.`);
+        out.push(`${indent}${root}.${firstField} <- () 짝맞춤.`);
+        initializedPairs.add(pairKey);
+      }
+    }
+    out.push(line);
+  });
   return out.join("\n");
 }
 
@@ -223,6 +356,64 @@ function indentLines(lines, prefix) {
   return lines.map((line) => `${prefix}${String(line ?? "").trimStart()}`);
 }
 
+function escapeRegex(text) {
+  return String(text ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseLegacyTickHeader(line) {
+  const text = String(line ?? "");
+  const fixed = text.match(LEGACY_ON_TICK_RE);
+  if (fixed) {
+    return {
+      indent: fixed[1] ?? "",
+      interval: 1,
+    };
+  }
+  const numeric = text.match(LEGACY_ON_TICK_N_RE);
+  if (!numeric) return null;
+  const interval = Number.parseInt(String(numeric[2] ?? "").trim(), 10);
+  if (!Number.isFinite(interval) || interval <= 0) return null;
+  return {
+    indent: numeric[1] ?? "",
+    interval,
+  };
+}
+
+function buildTickIntervalStateKey(interval) {
+  return `${LEGACY_TICK_INTERVAL_STATE_PREFIX}${interval}`;
+}
+
+function ensureNumericStateDeclInDeclBlock(lines, key) {
+  const source = Array.isArray(lines) ? lines.slice() : [];
+  const keyRe = new RegExp(`\\b${escapeRegex(key)}\\s*:\\s*수\\s*<-\\s*`);
+  const existing = source.some((line) =>
+    keyRe.test(String(line ?? "")),
+  );
+  if (existing) return source;
+
+  const openIndex = source.findIndex((line) => LEGACY_DECL_BLOCK_OPEN_RE.test(String(line ?? "")));
+  if (openIndex >= 0) {
+    const closeIndex = findBlockCloseIndex(source, openIndex);
+    if (closeIndex > openIndex) {
+      const indentMatch = String(source[openIndex] ?? "").match(/^(\s*)/);
+      const indent = `${indentMatch?.[1] ?? ""}  `;
+      source.splice(closeIndex, 0, `${indent}${key}:수 <- 0.`);
+      return source;
+    }
+  }
+
+  const out = [
+    "채비: {",
+    `  ${key}:수 <- 0.`,
+    "}.",
+  ];
+  if (source.some((line) => String(line ?? "").trim())) {
+    out.push("");
+  }
+  out.push(...source);
+  return out;
+}
+
 function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
   const lines = normalizeText(bodyText).split("\n");
   if (lines.some((line) => MOVEMENT_SEED_ANY_RE.test(line))) {
@@ -230,10 +421,12 @@ function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
   }
 
   const startOpen = lines.findIndex((line) => LEGACY_ON_START_RE.test(line));
-  const tickOpen = lines.findIndex((line) => LEGACY_ON_TICK_RE.test(line));
+  const tickOpen = lines.findIndex((line) => parseLegacyTickHeader(line) !== null);
+  const tickMeta = tickOpen >= 0 ? parseLegacyTickHeader(lines[tickOpen]) : null;
   if (tickOpen < 0) {
     return bodyText;
   }
+  const tickInterval = Number(tickMeta?.interval ?? 1);
 
   const startClose = startOpen >= 0 ? findBlockCloseIndex(lines, startOpen) : -1;
   const tickClose = findBlockCloseIndex(lines, tickOpen);
@@ -249,7 +442,16 @@ function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
     return false;
   };
 
-  const outerLines = lines.filter((_, index) => !isRemoved(index));
+  let outerLines = lines.filter((_, index) => !isRemoved(index));
+  if (startOpen >= 0) {
+    outerLines = ensureNumericStateDeclInDeclBlock(outerLines, LEGACY_START_ONCE_STATE_KEY);
+  }
+  if (tickInterval > 1) {
+    outerLines = ensureNumericStateDeclInDeclBlock(
+      outerLines,
+      buildTickIntervalStateKey(tickInterval),
+    );
+  }
   while (outerLines.length && !outerLines[outerLines.length - 1].trim()) {
     outerLines.pop();
   }
@@ -269,7 +471,18 @@ function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
     out.push(`    ${LEGACY_START_ONCE_STATE_KEY} <- 1.`);
     out.push("  }.");
   }
-  out.push(...indentLines(tickBody, "  "));
+  if (tickInterval <= 1) {
+    out.push(...indentLines(tickBody, "  "));
+  } else {
+    const tickStateKey = buildTickIntervalStateKey(tickInterval);
+    out.push(`  { ${tickStateKey} <= 0 }인것 일때 {`);
+    out.push(...indentLines(tickBody, "    "));
+    out.push("  }.");
+    out.push(`  ${tickStateKey} <- ${tickStateKey} + 1.`);
+    out.push(`  { ${tickStateKey} >= ${tickInterval} }인것 일때 {`);
+    out.push(`    ${tickStateKey} <- 0.`);
+    out.push("  }.");
+  }
   out.push("}.");
 
   return out.join("\n");
@@ -631,9 +844,9 @@ function rewriteShowStatementsForWasm(bodyText) {
       insertedReset = true;
       return;
     }
-    const tickOpen = line.match(LEGACY_ON_TICK_RE);
+    const tickOpen = parseLegacyTickHeader(line);
     if (tickOpen) {
-      const indent = tickOpen[1] ?? "";
+      const indent = tickOpen.indent ?? "";
       withReset.push(`${indent}  ${SHOW_OUTPUT_LINES_TAG} <- () 차림.`);
       insertedReset = true;
     }

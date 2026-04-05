@@ -4,4 +4,4 @@ grade = "college"
 subject = "physics"
 level = "advanced"
 goals = ["변화 추적", "모델링 이해"]
-required_views = ["graph", "2d", "text"]
+required_views = ["graph", "space2d", "text"]

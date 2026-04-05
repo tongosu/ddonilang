@@ -134,7 +134,7 @@
       "description": "2D 궤적(시간)",
       "required_views": [
         "graph",
-        "2d",
+        "space2d",
         "text"
       ],
       "grade": "college",
@@ -444,7 +444,7 @@
       "description": "2D 궤적(시간)",
       "required_views": [
         "graph",
-        "2d"
+        "space2d"
       ],
       "grade": "middle",
       "subject": "physics",
@@ -461,7 +461,7 @@
       "title": "진자 · 한편의 장면",
       "description": "좌=진자(2d), 우=θ(t) 그래프(graph), 중=수식/자막(text), 하단=View Dock",
       "required_views": [
-        "2d",
+        "space2d",
         "graph",
         "text"
       ],

@@ -1,16 +1,18 @@
 #이름: ssot_edu_phys_p013_05_carnot_Th_eta_variant_P013-05 카르노 효율 η(Th)=1 - Tc/Th
 #설명: 카르노 효율 η=1-Tc/Th. (Th,η) 점열 출력.
 
+Tc <- 300.
+
+Th_min <- Tc + 1.
+Th_max <- 1000.
+dTh <- 5.
+
+(시작)할때 {
+  Th <- Th_min.
+}.
+
 (매마디)마다 {
-  Tc <- 300.
-
-  Th_min <- Tc + 1.
-  Th_max <- 1000.
-  dTh <- 5.
-
-  Th목록 <- (Th_min, Th_max, dTh) 범위.
-
-  (Th) Th목록에 대해: {
+  { Th <= Th_max }인것 일때 {
     eta <- 1 - (Tc / Th).
     { eta < 0 }인것 일때 {
       eta <- 0.
@@ -19,5 +21,6 @@
       Th: Th.
       eta: eta.
     }.
+    Th <- Th + dTh.
   }.
 }.

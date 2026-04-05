@@ -13,4 +13,7 @@
   - `source`: `{ kind, text }`
   - `inputs`: `{ sample, time }`
   - `graph`: `seamgrim.graph.v0`
+  - `update`: `append | replace` (run 재생 모드)
+  - `tick`(선택): run 대표 tick
+  - `ticks[]`: run 재생 tick 시퀀스
   - `hash`: `{ input, result }`

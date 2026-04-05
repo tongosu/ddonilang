@@ -23,6 +23,7 @@
       "y1": 0.0,
       "x2": 0.479426,
       "y2": -0.877583,
+      "group_id": "pendulum.rod",
       "stroke": "#60a5fa",
       "width": 0.018
     },
@@ -31,6 +32,7 @@
       "x": 0.479426,
       "y": -0.877583,
       "r": 0.08,
+      "group_id": "pendulum.bob",
       "fill": "#f97316",
       "stroke": "#fb923c",
       "width": 0.018
@@ -40,6 +42,7 @@
       "x": 0.0,
       "y": 0.0,
       "size": 0.04,
+      "group_id": "pendulum.pivot",
       "color": "#f8fafc"
     }
   ]

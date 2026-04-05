@@ -1,22 +1,26 @@
+// stateful-sim preview(auto): range sampler -> step sim
+k <- 100.
+
+V_min <- 1.
+V_max <- 20.
+dV <- 0.1.
+
+
+
+(시작)할때 {
+  V <- V_min.
+  W <- 0.
+}.
 
 (매마디)마다 {
-  k <- 100.
-
-  V_min <- 1.
-  V_max <- 20.
-  dV <- 0.1.
-
-  W <- 0.
-
-  V목록 <- (V_min, V_max, dV) 범위.
-
-  (V) V목록에 대해: {
+  { V <= V_max }인것 일때 {
     P <- k / V.
     W <- W + (P * dV).
-
+    
     보임 {
       V: V.
       W: W.
     }.
+    V <- V + (dV).
   }.
 }.
