@@ -1,0 +1,5 @@
+{
+  "schema": "ddn.proof_artifact_cert_subject_manifest.v1",
+  "clean_proof_path": "pack/age4_proof_detjson_smoke_v1/expected/clean.proof.detjson",
+  "abort_proof_path": "pack/age4_proof_detjson_smoke_v1/expected/abort.proof.detjson"
+}

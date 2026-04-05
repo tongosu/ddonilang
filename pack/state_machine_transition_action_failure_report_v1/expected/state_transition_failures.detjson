@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "failures": [
+    {
+      "action_name": "기록",
+      "code": "E_STATE_TRANSITION_ACTION_UNRESOLVED",
+      "kind": "action_unresolved",
+      "message": "E_STATE_TRANSITION_ACTION_UNRESOLVED: 기록"
+    }
+  ],
+  "schema": "ddn.state_transition_failure_report.v1"
+}

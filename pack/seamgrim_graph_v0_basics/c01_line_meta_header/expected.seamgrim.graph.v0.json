@@ -6,10 +6,8 @@
     "y_min": 1.0
   },
   "meta": {
-    "input_desc": "메타 헤더 포함 직선 그래프",
-    "input_name": "line_meta_header",
     "result_hash": "sha256:df2712379485cff12723a869ffff2576aa3a48179ba8591bc894dfdc6229e62d",
-    "source_input_hash": "sha256:5b2dbbe8db4e5fbe3f4c60dbe8103a5909bd373d51392cb3015739a567bfc99e",
+    "source_input_hash": "sha256:c32887998dc1c74b5eebdace28f699d21a62743d6e43e36b073bbd4933e82a09",
     "source_mode": "teul-cli-stdout"
   },
   "schema": "seamgrim.graph.v0",

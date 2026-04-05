@@ -1,0 +1,1 @@
+[proof-family-contract-selftest] ok checks=3 names=proof_operation_family,proof_certificate_family,proof_family

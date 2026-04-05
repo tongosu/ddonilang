@@ -1,0 +1,117 @@
+{
+  "base": {
+    "cli": {
+      "bogae_hash": "blake3:e67612d0c32ab30cd3f1a8b355ce84be25a50212ccabcace4058ceebb2f1a71c",
+      "label": "nurimaker_grid_replay.base",
+      "non_hash_stdout_digest": "sha256:1c6548ca089c7ab8aa564dc5167384d64645a6070447a3e8b9179516255e48f5",
+      "state_hash": null,
+      "stderr_lines": [],
+      "stdout_digest": "sha256:a0658acabf22e6f970a6bf1b2e4e8a357067f48f2c8f776bf7e9e094961eb7ae",
+      "stdout_lines": [
+        "bogae_hash=blake3:e67612d0c32ab30cd3f1a8b355ce84be25a50212ccabcace4058ceebb2f1a71c cmd_count=2 codec=BDL1"
+      ],
+      "trace_hash": null
+    },
+    "manifest": {
+      "bogae_hashes": [
+        "blake3:8494770e9f1600336bb84cbffc971cd0623a7cd5c70d900dd047eb6ee14e71c6",
+        "blake3:c32e41a00edd4a9471053234dffa379546d1a634fd39699763d7eb213717c35a",
+        "blake3:3975e218774e2a7d76c47df4c8f72492e04e8931c6efe38bedbf76469a7f3172",
+        "blake3:e67612d0c32ab30cd3f1a8b355ce84be25a50212ccabcace4058ceebb2f1a71c"
+      ],
+      "codec": "BDL1",
+      "digest": "sha256:39cac867cd64478b67b7c5b7315f94157f904b380df36921825b40e90c788279",
+      "frame_count": 4,
+      "frame_files": [
+        "frames/000000.bdl1.detbin",
+        "frames/000001.bdl1.detbin",
+        "frames/000002.bdl1.detbin",
+        "frames/000003.bdl1.detbin"
+      ],
+      "state_hashes": [
+        "blake3:9ab227a0eb6d1d7033b223574c0bb5ced3a34ec715e86f73e3eeae438d197da1",
+        "blake3:99c33f304a9ff03cc8625d89697f2c8c7653b8a784a72ab81d73c5b192ea464c",
+        "blake3:085f71bcb7e6a5e98f2f1b00787d3f22260eba30377a33c8b98df29db74c67a7",
+        "blake3:978029426b774d5fdb257d5947142019e6011083056f7d4cd3607612926bbfaa"
+      ]
+    }
+  },
+  "checks": {
+    "replay_changes_state": true,
+    "same_bogae_hash_sequence": true,
+    "same_frame_bytes": true,
+    "same_manifest_digest": true,
+    "same_state_hash_sequence": true
+  },
+  "frame_file_digests": [
+    {
+      "base_digest": "sha256:d16fd08cd37b98343954d489f8d10fcfc478bdb06ad85963e757c80d8ea7ecfa",
+      "file": "frames/000000.bdl1.detbin",
+      "other_digest": "sha256:d16fd08cd37b98343954d489f8d10fcfc478bdb06ad85963e757c80d8ea7ecfa",
+      "same_bytes": true
+    },
+    {
+      "base_digest": "sha256:19dcfdc639c74296761cc84b8f6a0cd5613833ef456592e7ccba0d02a23e32cc",
+      "file": "frames/000001.bdl1.detbin",
+      "other_digest": "sha256:19dcfdc639c74296761cc84b8f6a0cd5613833ef456592e7ccba0d02a23e32cc",
+      "same_bytes": true
+    },
+    {
+      "base_digest": "sha256:c13aab8dae41963848d5e378f5c7154e5143a26c82c9208b189bd2f73a9647e4",
+      "file": "frames/000002.bdl1.detbin",
+      "other_digest": "sha256:c13aab8dae41963848d5e378f5c7154e5143a26c82c9208b189bd2f73a9647e4",
+      "same_bytes": true
+    },
+    {
+      "base_digest": "sha256:1205521c570c3791b0116ee23a6d6006ead2d3bd0aac7081072a91c6954e7fd7",
+      "file": "frames/000003.bdl1.detbin",
+      "other_digest": "sha256:1205521c570c3791b0116ee23a6d6006ead2d3bd0aac7081072a91c6954e7fd7",
+      "same_bytes": true
+    }
+  ],
+  "overlay_variant": {
+    "cli": {
+      "bogae_hash": "blake3:e67612d0c32ab30cd3f1a8b355ce84be25a50212ccabcace4058ceebb2f1a71c",
+      "label": "nurimaker_grid_replay.overlay",
+      "non_hash_stdout_digest": "sha256:1c6548ca089c7ab8aa564dc5167384d64645a6070447a3e8b9179516255e48f5",
+      "state_hash": null,
+      "stderr_lines": [],
+      "stdout_digest": "sha256:a0658acabf22e6f970a6bf1b2e4e8a357067f48f2c8f776bf7e9e094961eb7ae",
+      "stdout_lines": [
+        "bogae_hash=blake3:e67612d0c32ab30cd3f1a8b355ce84be25a50212ccabcace4058ceebb2f1a71c cmd_count=2 codec=BDL1"
+      ],
+      "trace_hash": null
+    },
+    "manifest": {
+      "bogae_hashes": [
+        "blake3:8494770e9f1600336bb84cbffc971cd0623a7cd5c70d900dd047eb6ee14e71c6",
+        "blake3:c32e41a00edd4a9471053234dffa379546d1a634fd39699763d7eb213717c35a",
+        "blake3:3975e218774e2a7d76c47df4c8f72492e04e8931c6efe38bedbf76469a7f3172",
+        "blake3:e67612d0c32ab30cd3f1a8b355ce84be25a50212ccabcace4058ceebb2f1a71c"
+      ],
+      "codec": "BDL1",
+      "digest": "sha256:39cac867cd64478b67b7c5b7315f94157f904b380df36921825b40e90c788279",
+      "frame_count": 4,
+      "frame_files": [
+        "frames/000000.bdl1.detbin",
+        "frames/000001.bdl1.detbin",
+        "frames/000002.bdl1.detbin",
+        "frames/000003.bdl1.detbin"
+      ],
+      "state_hashes": [
+        "blake3:9ab227a0eb6d1d7033b223574c0bb5ced3a34ec715e86f73e3eeae438d197da1",
+        "blake3:99c33f304a9ff03cc8625d89697f2c8c7653b8a784a72ab81d73c5b192ea464c",
+        "blake3:085f71bcb7e6a5e98f2f1b00787d3f22260eba30377a33c8b98df29db74c67a7",
+        "blake3:978029426b774d5fdb257d5947142019e6011083056f7d4cd3607612926bbfaa"
+      ]
+    },
+    "overlay": {
+      "bounds": true,
+      "delta": true,
+      "digest": "sha256:8bcbfc34befbada4a6de008a456d79ff9610cae2036b070617013da8fbbee294",
+      "grid": true
+    }
+  },
+  "pack": "nurimaker_grid_replay_v1",
+  "schema": "ddn.nurimaker.grid_replay_smoke.v1"
+}

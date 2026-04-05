@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:4847187c9dfb4d7c20e3c86b8b9096b049d589d137c5d2af5037769497f880bf","event_kind":"open","key":"pack/age4_proof_file_read_replay_parse_failure_v1/hello.txt","open_kind":"file_read","site_id":"pack/age4_proof_file_read_replay_parse_failure_v1/input.ddn:0:9","value":{"schema":"open.file_read.v0","text":"hello open\n"}}

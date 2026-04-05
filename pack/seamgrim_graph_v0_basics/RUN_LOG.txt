@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update seamgrim_graph_v0_basics
+pack golden updated

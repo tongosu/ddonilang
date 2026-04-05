@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update seamgrim_overlay_session_roundtrip_v0
+pack golden updated

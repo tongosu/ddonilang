@@ -1,0 +1,108 @@
+{
+  "canonical_body_hash": "sha256:02331dd24ab81dac40baae03825247d04f1574b7110adbb9cc6965b9b5db79d9",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age1_immediate_proof_case_analysis_solver_open_smoke_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 3,
+    "items": [
+      {
+        "binding_count": 1,
+        "col": 3,
+        "error_code": null,
+        "kind": "proof_check",
+        "line": 10,
+        "passed": true,
+        "target": "세움{\n    {\n        거리 >= 0.\n    }인것 바탕으로\n        아니면 {\n            없음.\n        }\n}",
+        "tick": 0
+      },
+      {
+        "col": 5,
+        "error_code": null,
+        "kind": "solver_check",
+        "line": 18,
+        "query": "forall n. n = n",
+        "satisfied": true,
+        "tick": 0
+      },
+      {
+        "error_code": null,
+        "kind": "proof_block",
+        "name": "검사",
+        "result": "성공",
+        "tick": 0
+      }
+    ],
+    "proof_block_count": 1,
+    "proof_check_count": 1,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 1,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 3,
+  "proof_runtime_hash": "sha256:f379001daf00e4566b160627d4ad078215376d6895f626be4182d5121bfd3c9e",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 1,
+    "item_count": 5,
+    "items": [
+      {
+        "col": 1,
+        "kind": "proof_block",
+        "line": 9,
+        "name": "검사"
+      },
+      {
+        "arg_count": 1,
+        "binding_count": 1,
+        "col": 3,
+        "kind": "proof_check",
+        "line": 10,
+        "target": "살림.거리_0이상"
+      },
+      {
+        "binder": "y",
+        "body_stmt_count": 1,
+        "col": 3,
+        "domain": "정수",
+        "kind": "quantifier",
+        "line": 12,
+        "quantifier": "exists_unique"
+      },
+      {
+        "branch_count": 1,
+        "col": 3,
+        "completion": "exhaustive",
+        "exhaustive": true,
+        "has_else": false,
+        "kind": "case_analysis",
+        "line": 16
+      },
+      {
+        "arg_count": 1,
+        "col": 5,
+        "kind": "solver_open",
+        "line": 18,
+        "operation": "check",
+        "query": "forall n. n = n"
+      }
+    ],
+    "proof_check_count": 1,
+    "quantifier_count": 1,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 1
+  },
+  "solver_translation_hash": "sha256:8400f3912f9023bd2c35cc5de91daef947bb1eb62aa24992ee11af6d05489c31",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:23bd38196ca3c8e8d7d4c69a21c6def1aebafc9eface7a1fd76f3d2f1721dd5b",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:ef8f0dd31a568a5096f8647de3bd03e722c956091e52a7829b0d344a5a3f3ad1",
+  "trace_log_count": 0,
+  "verified": true
+}

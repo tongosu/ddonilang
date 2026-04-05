@@ -1,0 +1,3 @@
+default = "record"
+allow = ["clock"]
+deny = ["clock"]

@@ -1,0 +1,7 @@
+#이름: age4_quantifier_mutation_forbidden
+
+증명:셈씨 = {
+  n 이 자연수 낱낱에 대해 {
+    살림.x <- 1.
+  }.
+}.

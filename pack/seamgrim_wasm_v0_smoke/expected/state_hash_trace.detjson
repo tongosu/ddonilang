@@ -3,11 +3,11 @@
   "rows": [
     {
       "madi": 0,
-      "state_hash": "blake3:a8f258aeb141013543c30636bca833710d2fe76d1505cb3a9bc336c39f5dff27"
+      "state_hash": "blake3:629071ff3426794f104eb542cc051a993fafaab4fe486c60a9b3aa138a5776b6"
     },
     {
       "madi": 1,
-      "state_hash": "blake3:319dc0cca716d8638a22889c290876c93864daff3e4e83483a1c0c4df53910ae"
+      "state_hash": "blake3:bc0d9f8407ed0403455febefcc792260bafa32867d4e43938931032e1b712c07"
     }
   ]
 }

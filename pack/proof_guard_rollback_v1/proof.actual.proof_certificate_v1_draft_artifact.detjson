@@ -1,0 +1,40 @@
+{
+  "candidate_manifest": {
+    "canonical_body_hash": "sha256:ab6780f23c084cd8effead4579c7d8edc1872c92c800f132e6bb0942eb2af5e9",
+    "cert_algo": "sha256-proto",
+    "cert_manifest_schema": "ddn.cert_manifest.v1",
+    "contract_diag_count": 1,
+    "profile": "abort",
+    "proof_runtime_hash": "sha256:e5409d8bc754eb43beb5b625881a94d154e74ffc6266974060d15e0f3054c338",
+    "proof_subject_hash": "sha256:caf740dfab636a728f8c3df7df426be177354359c533c67278e4e48b55c0fc54",
+    "schema": "ddn.proof_certificate_v1_runtime_candidate.v1",
+    "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+    "source_proof_kind": "run_contract_certificate_v1",
+    "source_proof_path": "pack/proof_guard_rollback_v1/proof.actual.detjson",
+    "source_proof_schema": "ddn.proof.detjson.v0",
+    "state_hash": "blake3:2132290d93823b9ad1e1efda9df5cb837471995fce3e8d75a58aacf0d4b6fddc",
+    "trace_hash": "blake3:4d15a5852a2439121525e87e9743b5dce3ebdd7819cd230150fff368fbf1bfbc",
+    "verified": false
+  },
+  "profile": "abort",
+  "schema": "ddn.proof_certificate_v1_runtime_draft_artifact.v1",
+  "shared_shell": {
+    "cert_algo": "sha256-proto",
+    "cert_manifest_schema": "ddn.cert_manifest.v1",
+    "proof_runtime_hash": "sha256:e5409d8bc754eb43beb5b625881a94d154e74ffc6266974060d15e0f3054c338",
+    "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+    "source_proof_kind": "run_contract_certificate_v1",
+    "source_proof_schema": "ddn.proof.detjson.v0"
+  },
+  "shared_shell_key_count": 6,
+  "source_proof_path": "pack/proof_guard_rollback_v1/proof.actual.detjson",
+  "state_delta": {
+    "canonical_body_hash": "sha256:ab6780f23c084cd8effead4579c7d8edc1872c92c800f132e6bb0942eb2af5e9",
+    "contract_diag_count": 1,
+    "proof_subject_hash": "sha256:caf740dfab636a728f8c3df7df426be177354359c533c67278e4e48b55c0fc54",
+    "state_hash": "blake3:2132290d93823b9ad1e1efda9df5cb837471995fce3e8d75a58aacf0d4b6fddc",
+    "trace_hash": "blake3:4d15a5852a2439121525e87e9743b5dce3ebdd7819cd230150fff368fbf1bfbc",
+    "verified": false
+  },
+  "state_delta_key_count": 6
+}

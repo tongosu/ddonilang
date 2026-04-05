@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update gogae8_w86_imitation_learning_v1
+pack golden updated

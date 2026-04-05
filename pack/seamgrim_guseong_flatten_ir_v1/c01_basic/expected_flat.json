@@ -1,0 +1,25 @@
+{
+  "schema": "ddn.guseong_flatten_plan.v1",
+  "topo_order": [
+    "b",
+    "a"
+  ],
+  "instances": [
+    {
+      "name": "a",
+      "type_name": "진자_틀"
+    },
+    {
+      "name": "b",
+      "type_name": "물체_틀"
+    }
+  ],
+  "links": [
+    {
+      "dst_instance": "a",
+      "dst_port": "기준점",
+      "src_instance": "b",
+      "src_port": "꼭짓점"
+    }
+  ]
+}

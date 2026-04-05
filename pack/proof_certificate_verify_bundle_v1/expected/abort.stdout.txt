@@ -1,0 +1,4 @@
+proof_certificate_verify=ok
+proof_certificate_profile=abort
+cert_subject_hash=sha256:d3f135451dc95bf9ed8e3fb1314f1b32f73df16fb60ada2628feec4b87ab8ad9
+cert_pubkey=sha256-proto:db65f559eb263036244ba71b4bdf23e0ec1e5c4ea3bde4b18424e79bc74135c1

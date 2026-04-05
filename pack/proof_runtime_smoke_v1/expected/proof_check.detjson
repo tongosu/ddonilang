@@ -1,0 +1,60 @@
+{
+  "canonical_body_hash": "sha256:2301cdb5100dbb1a3bf1300f95e4a20b95ded4a28c44147c3b89a43299b438d1",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/proof_runtime_smoke_v1/input_check.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 1,
+    "items": [
+      {
+        "binding_count": 1,
+        "col": 7,
+        "error_code": null,
+        "kind": "proof_check",
+        "line": 7,
+        "passed": true,
+        "target": "세움{\n    {\n        거리 > 0.\n    }인것 바탕으로\n        아니면 {\n            없음.\n        }\n}",
+        "tick": 0
+      }
+    ],
+    "proof_block_count": 0,
+    "proof_check_count": 1,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 1,
+  "proof_runtime_hash": "sha256:833e6c91e3a921e1fb0b3246bf110b1fdcc6b7ff0e271f8f08237be684e2c8aa",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 1,
+    "items": [
+      {
+        "arg_count": 2,
+        "binding_count": 1,
+        "col": 7,
+        "kind": "proof_check",
+        "line": 7,
+        "target": "살림.검사"
+      }
+    ],
+    "proof_check_count": 1,
+    "quantifier_count": 0,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:f42fc529cd49f86df86a01079b940a050e290a1172c08d54e44267fdecf11297",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:b21ada5afab24cf09bae5a228c41587825864e0f0056554d171ede7863f867ed",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:1984b4d5214a181367cfdef5fdaba54adee52dea0f7ecb9c256a2c0c12b70139",
+  "trace_log_count": 0,
+  "verified": true
+}

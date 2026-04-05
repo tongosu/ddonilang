@@ -1,0 +1,4 @@
+{"input_path": "input.ddn", "stdout": ["1", "1", "10", "2"], "exit_code": 0}
+{"smoke_golden": "success.smoke_golden.v1.json", "exit_code": 0}
+{"smoke_golden": "abort.smoke_golden.v1.json", "exit_code": 0}
+{"cmd": ["run", "pack/age3_beat_reserve_smoke_v1/input_bad.ddn"], "expected_error_code": "E_PARSE_DEFERRED_ASSIGN_OUTSIDE_BEAT", "exit_code": 1}

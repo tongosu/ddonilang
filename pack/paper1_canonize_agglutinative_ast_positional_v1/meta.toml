@@ -1,0 +1,3 @@
+id = "paper1_canonize_agglutinative_ast_positional_v1"
+kind = "D-PACK"
+requires = ["ddonirang-lang"]

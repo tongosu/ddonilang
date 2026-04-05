@@ -1,0 +1,13 @@
+#title: header-title
+#default-series: theta_header
+설정 {
+  이름: block-title.
+  설명: block-desc.
+}.
+보개 {
+  default-series: theta_block.
+}.
+슬기 {
+  x-axis: t.
+}.
+x <- 1.

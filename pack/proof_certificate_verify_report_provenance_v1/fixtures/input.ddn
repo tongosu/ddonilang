@@ -1,0 +1,4 @@
+#이름: age4_proof_detjson_smoke
+
+살림.값 <- 1.
+(살림.값 + 2) 보여주기.

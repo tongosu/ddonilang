@@ -35,6 +35,7 @@
         "label": "variant",
         "visible": true,
         "layer_index": 1,
+        "group_id": "pendulum.variant",
         "compare_role": "variant",
         "graph": {
           "schema": "seamgrim.graph.v0",

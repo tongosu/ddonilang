@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/age1_immediate_proof_case_analysis_smoke_v1/input.ddn", "--proof-out", "pack/age1_immediate_proof_case_analysis_smoke_v1/proof.actual.detjson"], "stdout_path": "expected/stdout.txt", "meta_out": "proof.actual.detjson", "expected_meta": "expected/proof.detjson", "exit_code": 0}

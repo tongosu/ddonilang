@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.ci.proof_certificate_v1_consumer_transport_contract_selftest.progress.v1",
+  "generated_at_utc": "<iso8601-utc>",
+  "status": "completed",
+  "current_case": "-",
+  "last_completed_case": "-",
+  "current_probe": "-",
+  "last_completed_probe": "signed_contract",
+  "completed_checks": 6,
+  "total_checks": 6,
+  "checks_text": "signed_emit_profiles,verify_bundle,verify_report,verify_report_digest_contract,consumer_contract,signed_contract"
+}

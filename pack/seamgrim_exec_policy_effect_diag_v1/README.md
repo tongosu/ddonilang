@@ -1,0 +1,25 @@
+실행정책/너머 경계 진단 골든 pack.
+- 엄밀 모드 + 너머 호출: E_EFFECT_IN_STRICT_MODE
+- 일반 모드 + 효과정책=격리 + 너머 호출: E_EFFECT_IN_ISOLATED_MODE
+- 실행정책 중복: E_EXEC_POLICY_DUPLICATE
+- 실행정책 열거값 오류: E_EXEC_ENUM_INVALID
+- 효과정책 축은 `격리|허용`만 허용 (언어 정책)
+- open 모드는 CLI/`open.policy` 축에서만 결정
+- 우선순위: CLI `--open` > open.policy > 기본 deny
+- canon 경로: `실행정책 {}` 정본화 파싱/출력 보장
+- replay 로그 누락: `E_OPEN_LOG_MISSING` 고정
+- 효과정책=허용 + 파일읽기 + `--open record`: record 성공 경로 고정
+- replay 미스(빈 로그): `E_OPEN_REPLAY_MISS` 고정
+- replay 변조 로그: `E_OPEN_LOG_TAMPER` 고정
+- replay 파싱 실패(깨진 로그): `E_OPEN_LOG_PARSE` 고정
+- replay 파싱 실패(스키마 불일치): `E_OPEN_LOG_PARSE` 고정
+- record I/O 실패(파일 읽기 실패): `E_OPEN_IO` 고정
+- open.policy 다중 파일 충돌: `E_OPEN_POLICY` 고정
+- open.policy default 값 오류: `E_OPEN_POLICY` 고정
+- open.policy allow/deny 충돌: `E_OPEN_POLICY` 고정
+- open.policy allow 누락: `E_OPEN_POLICY` 고정
+- open.policy JSON allow 타입 오류(배열 아님): `E_OPEN_POLICY` 고정
+- open.policy JSON allow 항목 타입 오류(문자열 아님): `E_OPEN_POLICY` 고정
+- 엄밀 모드 + 효과정책 명시: `W_EFFECT_POLICY_IGNORED_IN_STRICT` 경고 고정
+- 레거시 효과정책 값(`막기`, `기록`, `되살리기`) 입력: `E_EXEC_ENUM_INVALID` 하드컷
+- 비정본 너머 블록 표면(`효과 {}`, `열림 {}`, `바깥 {}`): `E_EFFECT_SURFACE_ALIAS_FORBIDDEN` 하드컷

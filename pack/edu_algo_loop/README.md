@@ -1,4 +1,4 @@
-﻿# edu_algo_loop
+# edu_algo_loop
 
 ## 목적
 - 반복/조건

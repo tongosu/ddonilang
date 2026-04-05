@@ -1,0 +1,4 @@
+{"case":"cases/c01_sparse_2x3.detjson","expect_ok":true,"expected_hash":"sha256:0981c5efc89152aaac2e117dc4466ee28a0c4269c02a59e94346921d251988f1"}
+{"case":"cases/c02_sparse_unsorted_EXPECT_FAIL.detjson","expect_ok":false,"expected_error":"E_TENSOR_V0_SPARSE_ORDER"}
+{"case":"cases/c03_sparse_duplicate_EXPECT_FAIL.detjson","expect_ok":false,"expected_error":"E_TENSOR_V0_SPARSE_DUP"}
+{"case":"cases/c04_sparse_oob_EXPECT_FAIL.detjson","expect_ok":false,"expected_error":"E_TENSOR_V0_SPARSE_INDEX_OOB"}

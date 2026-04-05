@@ -1,0 +1,115 @@
+{
+  "canonical_body_hash": "sha256:a1624ab697fd50dc49b2eacee5ff5ab8215c9f10046fe40359d5e7b98251e7dc",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_case_analysis_else_solver_open_search_replay_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 3,
+    "items": [
+      {
+        "col": 11,
+        "error_code": null,
+        "kind": "solver_check",
+        "line": 13,
+        "query": "forall n. n = n",
+        "satisfied": true,
+        "tick": 0
+      },
+      {
+        "col": 11,
+        "error_code": null,
+        "found": false,
+        "kind": "solver_search",
+        "line": 14,
+        "operation": "counterexample",
+        "query": "forall n. n >= 0",
+        "tick": 0,
+        "value": null
+      },
+      {
+        "col": 10,
+        "error_code": null,
+        "found": true,
+        "kind": "solver_search",
+        "line": 15,
+        "operation": "solve",
+        "query": "x * x = 4",
+        "tick": 0,
+        "value": "x=2"
+      }
+    ],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 1,
+    "solver_search_count": 2
+  },
+  "proof_runtime_count": 3,
+  "proof_runtime_hash": "sha256:eae5bcae0f9fa09627882d2868606ae7df17ebb15c984f6bd299f31e2031494c",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 1,
+    "item_count": 5,
+    "items": [
+      {
+        "binder": "y",
+        "body_stmt_count": 1,
+        "col": 3,
+        "domain": "정수",
+        "kind": "quantifier",
+        "line": 4,
+        "quantifier": "exists_unique"
+      },
+      {
+        "branch_count": 1,
+        "col": 3,
+        "completion": "else",
+        "exhaustive": false,
+        "has_else": true,
+        "kind": "case_analysis",
+        "line": 8
+      },
+      {
+        "arg_count": 1,
+        "col": 11,
+        "kind": "solver_open",
+        "line": 13,
+        "operation": "check",
+        "query": "forall n. n = n"
+      },
+      {
+        "arg_count": 1,
+        "col": 11,
+        "kind": "solver_open",
+        "line": 14,
+        "operation": "counterexample",
+        "query": "forall n. n >= 0"
+      },
+      {
+        "arg_count": 1,
+        "col": 10,
+        "kind": "solver_open",
+        "line": 15,
+        "operation": "solve",
+        "query": "x * x = 4"
+      }
+    ],
+    "proof_check_count": 0,
+    "quantifier_count": 1,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 3
+  },
+  "solver_translation_hash": "sha256:dbb65c5699576eacbb8d2766cc4ac26907150ad86f151a6773b15b7355beed4f",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:94bfd0e0e61c13899edb10f069347b671e0ba3039fccaaabf9e25910b26745a9",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:ce8fe783b8b2c10f6e5bac3cadf2cf41b1e007e21a43ef3af5fb6d34eee6402a",
+  "trace_log_count": 4,
+  "verified": true
+}

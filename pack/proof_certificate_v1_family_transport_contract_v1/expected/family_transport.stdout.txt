@@ -1,0 +1,1 @@
+[proof-certificate-v1-family-transport-contract-selftest] ok checks=9 names=family_contract,aggregate_preview_summary,aggregate_status_line,final_status_line,gate_result,gate_outputs_consistency,gate_summary_line,final_line_emitter,report_index

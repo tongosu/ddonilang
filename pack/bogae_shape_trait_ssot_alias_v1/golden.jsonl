@@ -1,0 +1,3 @@
+{"input_path":"input_current.ddn","cli":["--bogae-out","build/bogae_shape_trait_ssot_alias_v1.detbin"],"stdout":["bogae_hash=blake3:288bbab6359690f971265531a38b4968de0f300678a241f364f550bce7fe347b"]}
+{"input_path":"input_ssot.ddn","cli":["--bogae-out","build/bogae_shape_trait_ssot_alias_v1.detbin"],"stdout":["bogae_hash=blake3:288bbab6359690f971265531a38b4968de0f300678a241f364f550bce7fe347b"]}
+{"input_path":"input_mixed.ddn","cli":["--bogae-out","build/bogae_shape_trait_ssot_alias_v1.detbin"],"stdout":["bogae_hash=blake3:288bbab6359690f971265531a38b4968de0f300678a241f364f550bce7fe347b"]}

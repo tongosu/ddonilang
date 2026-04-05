@@ -1,0 +1,1 @@
+[proof-case-analysis-completion-parity-selftest] ok

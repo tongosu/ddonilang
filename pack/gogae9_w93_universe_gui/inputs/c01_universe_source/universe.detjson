@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.universe.source.v1",
+  "id": "c01_universe_source",
+  "name": "w93-contract-placeholder",
+  "seed": "0x0",
+  "entities": [],
+  "rules": []
+}

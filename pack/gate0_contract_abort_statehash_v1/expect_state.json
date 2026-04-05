@@ -1,0 +1,45 @@
+{
+  "cases": {
+    "pre_abort": {
+      "final_variables": {
+        "x": 5
+      },
+      "following_statement_executed": false,
+      "diag_events": [
+        "CONTRACT_PRE:중단"
+      ],
+      "state_hash": "blake3:d4f107026baf7df77e8e2f2249ca2abc63c529cf36bbde66e13e7c3ae20be026"
+    },
+    "post_abort": {
+      "final_variables": {
+        "y": 5
+      },
+      "following_statement_executed": false,
+      "diag_events": [
+        "CONTRACT_POST:중단"
+      ],
+      "state_hash": "blake3:e8601321b2996d625722c46ffc2148e32a925f1f83b0a0e036cf1ff7f432e167"
+    },
+    "alert": {
+      "final_variables": {
+        "z": 6,
+        "끝": 1
+      },
+      "following_statement_executed": true,
+      "diag_events": [
+        "CONTRACT_PRE:알림"
+      ],
+      "state_hash": "blake3:611583a619aec77b23ff8d87c0983bb04cd9fc9f152f1d74f1b73df7c7a10e46"
+    },
+    "nested_abort": {
+      "final_variables": {
+        "w": 6
+      },
+      "following_statement_executed": false,
+      "diag_events": [
+        "CONTRACT_PRE:중단"
+      ],
+      "state_hash": "blake3:8104a63d0790b821d32c83950d4d55877e254c7c5f056e23a3c97b199ddb5a11"
+    }
+  }
+}

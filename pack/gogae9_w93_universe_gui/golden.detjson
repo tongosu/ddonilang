@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.gogae9.w93.universe_gui_report.v1",
+  "status": "pass",
+  "overall_pass": true,
+  "deterministic_pack_hash": true,
+  "deterministic_state_hash": true,
+  "cases": [
+    {
+      "id": "c01_pack_hash_roundtrip",
+      "expected_pack_hash": "sha256:a7b354f8f06b692d208ac1499779ed413888294c35cb7d60c678718be5a3146b",
+      "expected_state_hash": "sha256:ce7a9d7739914b8d9c92b698cab43ddb9e9c5cc127803406a7756d5573a98d5a",
+      "pack_hash_equal": true,
+      "roundtrip_equal": true,
+      "state_hash_equal": true
+    }
+  ]
+}

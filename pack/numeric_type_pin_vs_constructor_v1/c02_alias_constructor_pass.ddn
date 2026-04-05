@@ -1,0 +1,4 @@
+채비 {
+  r:rational <- (2, 4) 나눔수.
+  f:factorized <- (18) 곱수.
+}.

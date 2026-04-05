@@ -1,4 +1,4 @@
-﻿# D-PACK: gogae4_w34_geoul_blackbox
+# D-PACK: gogae4_w34_geoul_blackbox
 
 ## 목적
 - 제4고개(34) 거울(geoul) 블랙박스 로그 기록을 검증한다.

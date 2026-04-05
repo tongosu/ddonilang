@@ -1,0 +1,432 @@
+{
+  "schema": "seamgrim.web.interactive_event_smoke.v1",
+  "parse_diag_codes": [],
+  "prepared_body_uses_drawlist": true,
+  "steps": [
+    {
+      "id": "baseline",
+      "input_enabled": true,
+      "input": {
+        "keys": 0,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": false,
+        "keyup": false
+      },
+      "state_hash": "blake3:78d346ead3c7b0e9cac8570bcd9ae71476e28221cdf7295d275ffc01fe09a611",
+      "view_hash": "blake3:048874dc5c773209c811b5449cf2d8931777ab757ef39c5a36c865b486d76ad7",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "right_down",
+      "input_enabled": true,
+      "input": {
+        "keys": 8,
+        "lastKey": "ArrowRight",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": true,
+        "keyup": false
+      },
+      "state_hash": "blake3:fcf392f81228b7d84fdb12cac217fcc6bc6ade9d81d51fa084551a1eecbe37bf",
+      "view_hash": "blake3:2843ef911fa7f1690d89a50e1aa3b00b6e8fc046370ddc6057b7bcc1b8052f76",
+      "flags": {
+        "left": false,
+        "right": true,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 1,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "right_hold",
+      "input_enabled": true,
+      "input": {
+        "keys": 8,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": false,
+        "keyup": false
+      },
+      "state_hash": "blake3:fcf392f81228b7d84fdb12cac217fcc6bc6ade9d81d51fa084551a1eecbe37bf",
+      "view_hash": "blake3:2843ef911fa7f1690d89a50e1aa3b00b6e8fc046370ddc6057b7bcc1b8052f76",
+      "flags": {
+        "left": false,
+        "right": true,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 1,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "right_up",
+      "input_enabled": true,
+      "input": {
+        "keys": 0,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": false,
+        "keyup": true
+      },
+      "state_hash": "blake3:78d346ead3c7b0e9cac8570bcd9ae71476e28221cdf7295d275ffc01fe09a611",
+      "view_hash": "blake3:048874dc5c773209c811b5449cf2d8931777ab757ef39c5a36c865b486d76ad7",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "left_down",
+      "input_enabled": true,
+      "input": {
+        "keys": 2,
+        "lastKey": "ArrowLeft",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": true,
+        "keyup": false
+      },
+      "state_hash": "blake3:ba09b4685a308dc56060a5d87bd9b99748c2e8cd744cfb289c0e60951c9ac90e",
+      "view_hash": "blake3:503bbacecefb8a96f146f34a267db18b0055c0073172e368ef58c6cb79c7431e",
+      "flags": {
+        "left": true,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": -1,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "left_up",
+      "input_enabled": true,
+      "input": {
+        "keys": 0,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": false,
+        "keyup": true
+      },
+      "state_hash": "blake3:78d346ead3c7b0e9cac8570bcd9ae71476e28221cdf7295d275ffc01fe09a611",
+      "view_hash": "blake3:048874dc5c773209c811b5449cf2d8931777ab757ef39c5a36c865b486d76ad7",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "up_down",
+      "input_enabled": true,
+      "input": {
+        "keys": 1,
+        "lastKey": "ArrowUp",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": true,
+        "keyup": false
+      },
+      "state_hash": "blake3:0f4548a488a8970b49d5fb22595c92857b6135f441d9f690877c5821d18bdfb2",
+      "view_hash": "blake3:674e032f6b495a0dd1babda1b4b6fe2657c8e7f7fee1c4460444cc28fd7e3180",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": true
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#f97316",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.72,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "up_hold",
+      "input_enabled": true,
+      "input": {
+        "keys": 1,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": false,
+        "keyup": false
+      },
+      "state_hash": "blake3:78d346ead3c7b0e9cac8570bcd9ae71476e28221cdf7295d275ffc01fe09a611",
+      "view_hash": "blake3:048874dc5c773209c811b5449cf2d8931777ab757ef39c5a36c865b486d76ad7",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "up_up",
+      "input_enabled": true,
+      "input": {
+        "keys": 0,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": false,
+        "keyup": true
+      },
+      "state_hash": "blake3:78d346ead3c7b0e9cac8570bcd9ae71476e28221cdf7295d275ffc01fe09a611",
+      "view_hash": "blake3:048874dc5c773209c811b5449cf2d8931777ab757ef39c5a36c865b486d76ad7",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "disabled_right",
+      "input_enabled": false,
+      "input": {
+        "keys": 0,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": true,
+        "keyup": false
+      },
+      "state_hash": "blake3:78d346ead3c7b0e9cac8570bcd9ae71476e28221cdf7295d275ffc01fe09a611",
+      "view_hash": "blake3:048874dc5c773209c811b5449cf2d8931777ab757ef39c5a36c865b486d76ad7",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    },
+    {
+      "id": "reenabled_baseline",
+      "input_enabled": true,
+      "input": {
+        "keys": 0,
+        "lastKey": "",
+        "px": 0,
+        "py": 0,
+        "dt": 0.03333333333333333
+      },
+      "prevented": {
+        "keydown": false,
+        "keyup": false
+      },
+      "state_hash": "blake3:78d346ead3c7b0e9cac8570bcd9ae71476e28221cdf7295d275ffc01fe09a611",
+      "view_hash": "blake3:048874dc5c773209c811b5449cf2d8931777ab757ef39c5a36c865b486d76ad7",
+      "flags": {
+        "left": false,
+        "right": false,
+        "spin": false
+      },
+      "shape": {
+        "kind": "circle",
+        "fill": "#22c55e",
+        "stroke": "#166534",
+        "x": 0,
+        "y": 0,
+        "r": 0.46,
+        "width": 0.06
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2
+      }
+    }
+  ],
+  "right_moves_view": true,
+  "hold_keeps_right_pressed": true,
+  "release_clears_right": true,
+  "left_moves_view": true,
+  "spin_requires_pulse": true,
+  "disabled_input_blocks_event": true,
+  "rendered_all": true
+}

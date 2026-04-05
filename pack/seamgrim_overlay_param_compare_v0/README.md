@@ -78,6 +78,7 @@ S5 overlay compare(baseline+variant) 최소 검증 팩.
 - `c74_yunit_mismatch_over_series_mismatch_reverse_with_full_fallback_chain`: 역방향 fallback 동등 후보가 섞여도 `y_unit` 불일치가 `series_mismatch`보다 우선 차단(`overlay_ok=false`)
 - `c75_graph_missing_over_series_missing_with_full_fallback_chain`: `series_missing`과 fallback 동등 후보가 섞여도 `graph_missing`이 최우선 차단(`overlay_ok=false`)
 - `c76_graph_missing_over_series_missing_reverse_with_full_fallback_chain`: 역방향에서도 `series_missing`과 fallback 동등 후보보다 `graph_missing`이 최우선 차단(`overlay_ok=false`)
+- `c77_group_id_normalized_equal_ok`: primary series `group_id/group` 공백/대소문자 정규화 동등 허용(`overlay_ok=true`, `group_id=pendulum.variant`)
 
 검증 러너:
 

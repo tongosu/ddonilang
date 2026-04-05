@@ -1,0 +1,5 @@
+{
+  "flat_fixture": "fixtures/guseong_input.ddn",
+  "maegim_fixture": "fixtures/maegim_input.ddn",
+  "alrim_fixture": "fixtures/alrim_input.ddn"
+}

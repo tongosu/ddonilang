@@ -1,0 +1,15 @@
+{
+  "schema": "seamgrim.block_editor.screen.fixture.v1",
+  "title": "Seamgrim Block Screen Expr Edit",
+  "mode": "seamgrim",
+  "source_ddn": "fixtures/source.ddn",
+  "append_block_kind": "expr_stmt",
+  "expr_edits": [
+    {
+      "target_kind": "expr_stmt",
+      "target_index": 1,
+      "expr_key": "expr",
+      "value": "(세움=거리_0이상, 값들=(거리=4)) 살피기"
+    }
+  ]
+}

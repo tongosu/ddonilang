@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.ci.proof_certificate_v1_family_contract_selftest.progress.v1",
+  "generated_at_utc": "<iso8601-utc>",
+  "status": "completed",
+  "current_case": "-",
+  "last_completed_case": "-",
+  "current_probe": "-",
+  "last_completed_probe": "family",
+  "completed_checks": 4,
+  "total_checks": 4,
+  "checks_text": "signed_contract,consumer_contract,promotion,family"
+}

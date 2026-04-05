@@ -1,0 +1,8 @@
+{
+  "name": "lang_consistency_v1_c09",
+  "age_target": "AGE2",
+  "det_tier": "D-SEALED",
+  "trace_tier": "T-OFF",
+  "openness": "closed",
+  "deps": []
+}

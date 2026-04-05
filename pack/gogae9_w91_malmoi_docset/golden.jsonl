@@ -1,1 +1,1 @@
-{"cmd": ["doc", "verify", "--pack", "pack/gogae9_w91_malmoi_docset"], "stdout": [], "exit_code": 1}
+{"cmd": ["doc", "verify", "--pack", "pack/gogae9_w91_malmoi_docset"], "stdout": ["docset_hash=sha256:41a72f46a6530e2115e241ba9a6ac551e7ee1146d362e897cba9df1a5fa2e718", "docset_verify=ok", "doctest_passed=12"], "exit_code": 0}

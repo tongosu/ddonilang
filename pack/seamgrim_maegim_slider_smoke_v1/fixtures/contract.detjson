@@ -1,0 +1,9 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "legacy_fixture": "fixtures/legacy_lesson.ddn",
+  "apply_values": {
+    "g": 12.5,
+    "theta0": -0.3
+  },
+  "preserve_maegim_control_json": "{\"schema\":\"keep.me.v1\"}"
+}

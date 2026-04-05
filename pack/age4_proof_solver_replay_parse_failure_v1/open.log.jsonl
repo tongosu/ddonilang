@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:4e5bedd741bc5d6ef5c29bfaaa2701f377d353516d42eb659e40fa78e680c7e5","event_kind":"open","key":"check:forall n. n = n","open_kind":"solver","site_id":"pack/age4_proof_solver_replay_parse_failure_v1/input.ddn:7:8","value":{"goal":{"canon":"forall n. n = n","kind":"assertion"},"op":"check","result":{"satisfied":true},"schema":"open.solver.v0"}}

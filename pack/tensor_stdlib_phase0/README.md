@@ -1,4 +1,4 @@
-﻿# D-PACK: tensor_stdlib_phase0
+# D-PACK: tensor_stdlib_phase0
 
 ## 목적
 - 텐서 묶음(형상/자료/배치)과 텐서 표준 함수(형상/자료/배치/값/바꾼값)를 검증한다.

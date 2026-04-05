@@ -1,0 +1,342 @@
+{
+  "canvas_children": 3,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "charim_block_0002",
+      "kind": "charim_block"
+    },
+    {
+      "exprs": {},
+      "id": "hook_start_0014",
+      "kind": "hook_start"
+    },
+    {
+      "exprs": {},
+      "id": "show_0015",
+      "kind": "show"
+    }
+  ],
+  "generated_preview": "채비 {\n  x목록:차림 <- (0, 1, 2) 차림.\n}.\n\n(시작)할때 {\n  (x) x목록에 대해 {\n    고르기:\n      { x < 1 }인것: {\n        \"low\" 보여주기.\n      }\n\n      { x < 2 }인것: {\n        \"mid\" 보여주기.\n      }\n      아니면: {\n        \"high\" 보여주기.\n      }.\n  }.\n\n  되풀이 {\n    \"tick\" 보여주기.\n  }.\n\n  너머 {\n    \"side\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
+  "palette_children": 39,
+  "result_text": "mode=seamgrim blocks=3 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "채비 {\n  x목록:차림 <- (0, 1, 2) 차림.\n}.\n\n(시작)할때 {\n  (x) x목록에 대해 {\n    고르기:\n      { x < 1 }인것: {\n        \"low\" 보여주기.\n      }\n\n      { x < 2 }인것: {\n        \"mid\" 보여주기.\n      }\n      아니면: {\n        \"high\" 보여주기.\n      }.\n  }.\n\n  되풀이 {\n    \"tick\" 보여주기.\n  }.\n\n  너머 {\n    \"side\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Flow Block Screen"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 3,
+    "canvas_summary": {
+      "block_count": 3,
+      "block_ids": [
+        "charim_block_0002",
+        "hook_start_0014",
+        "show_0015"
+      ],
+      "block_kinds": [
+        "charim_block",
+        "hook_start",
+        "show"
+      ],
+      "expr_nodes": [
+        {
+          "depth": 0,
+          "kind": "call",
+          "text": "(0, 1, 2) 차림"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "0"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "1"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "2"
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "x목록"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "x < 1"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "x"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "1"
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"low\""
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "x < 2"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "x"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "2"
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"mid\""
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"high\""
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"tick\""
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"side\""
+        }
+      ],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "charim_block_0002",
+          "kind": "charim_block"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "call",
+            "literal",
+            "literal",
+            "literal"
+          ],
+          "id": "charim_item_var_0001",
+          "kind": "charim_item_var"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "hook_start_0014",
+          "kind": "hook_start"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "iterable"
+          ],
+          "expr_kinds": [
+            "path"
+          ],
+          "id": "for_each_0009",
+          "kind": "for_each"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "choose_else_0008",
+          "kind": "choose_else"
+        },
+        {
+          "depth": 3,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "choose_branch_0004",
+          "kind": "choose_branch"
+        },
+        {
+          "depth": 4,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0003",
+          "kind": "show"
+        },
+        {
+          "depth": 3,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "choose_branch_0006",
+          "kind": "choose_branch"
+        },
+        {
+          "depth": 4,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0005",
+          "kind": "show"
+        },
+        {
+          "depth": 3,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0007",
+          "kind": "show"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "repeat_0011",
+          "kind": "repeat"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0010",
+          "kind": "show"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "open_block_0013",
+          "kind": "open_block"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0012",
+          "kind": "show"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "show_0015",
+          "kind": "show"
+        }
+      ],
+      "total_block_count": 15,
+      "total_expr_count": 16
+    },
+    "error_count": 0,
+    "generated_length": 290,
+    "mode": "seamgrim",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block"
+      ],
+      "category_count": 5,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output"
+      ]
+    }
+  },
+  "summary_text": "mode=seamgrim blocks=3 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "채비 {\n  x목록:차림 <- (0, 1, 2) 차림.\n}.\n\n(시작)할때 {\n  (x) x목록에 대해 {\n    고르기:\n      { x < 1 }인것: {\n        \"low\" 보여주기.\n      }\n\n      { x < 2 }인것: {\n        \"mid\" 보여주기.\n      }\n      아니면: {\n        \"high\" 보여주기.\n      }.\n  }.\n\n  되풀이 {\n    \"tick\" 보여주기.\n  }.\n\n  너머 {\n    \"side\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Flow Block Screen"
+      }
+    }
+  ]
+}

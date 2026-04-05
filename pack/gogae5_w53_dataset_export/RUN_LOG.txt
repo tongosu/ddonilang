@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --manifest-path tools/teul-cli/Cargo.toml --update gogae5_w53_dataset_export gogae5_w55_smart_errand_integration
+pack golden updated

@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.social.world.v1",
+  "seed": "0x94c3",
+  "steps": 6,
+  "agents": [
+    {"agent_id": 1, "wealth": 40, "trust": 18, "culture": 3},
+    {"agent_id": 2, "wealth": 42, "trust": 16, "culture": 4},
+    {"agent_id": 3, "wealth": 39, "trust": 19, "culture": 6},
+    {"agent_id": 4, "wealth": 41, "trust": 17, "culture": 2}
+  ],
+  "events": [
+    {"step": 2, "kind": "cooperate", "a": 1, "b": 2, "boost": 6},
+    {"step": 3, "kind": "cooperate", "a": 3, "b": 4, "boost": 5},
+    {"step": 4, "kind": "cooperate", "a": 2, "b": 3, "boost": 4},
+    {"step": 5, "kind": "redistribute", "from": 4, "to": 1, "amount": 2}
+  ]
+}

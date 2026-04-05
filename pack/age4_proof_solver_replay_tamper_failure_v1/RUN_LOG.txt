@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update age4_proof_solver_replay_missing_failure_v1 age4_proof_solver_replay_tamper_failure_v1 age4_proof_solver_replay_parse_failure_v1
+pack golden updated

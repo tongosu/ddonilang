@@ -1,0 +1,14 @@
+python tests/run_canon_ast_dpack.py --update paper1_canonize_agglutinative_ast_v1
+canon ast dpack updated
+python tests/run_canon_ast_dpack.py paper1_canonize_agglutinative_ast_v1
+canon ast dpack ok
+2026-03-17 warning-surface refresh
+python tests/run_canon_ast_dpack.py --update paper1_canonize_agglutinative_ast_v1
+canon ast dpack updated
+python tests/run_canon_ast_dpack.py paper1_canonize_agglutinative_ast_v1
+canon ast dpack ok
+2026-03-17 non-warning tailed-call refresh
+python tests/run_canon_ast_dpack.py --update paper1_canonize_agglutinative_ast_v1
+canon ast dpack updated
+python tests/run_canon_ast_dpack.py paper1_canonize_agglutinative_ast_v1
+canon ast dpack ok

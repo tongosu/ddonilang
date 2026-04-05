@@ -1,0 +1,88 @@
+{
+  "baseline": {
+    "cli": {
+      "bogae_hash": "blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451",
+      "label": "bogae_grid2d.baseline",
+      "non_hash_stdout_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state_hash": "blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
+      "stderr_lines": [],
+      "stdout_digest": "sha256:b0358971d7425e8f9da136557e5777b60e50405d12f4ea8392fcd713312e4077",
+      "stdout_lines": [
+        "state_hash=blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
+        "trace_hash=blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f",
+        "bogae_hash=blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451"
+      ],
+      "trace_hash": "blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f"
+    },
+    "detbin_digest": "sha256:1bf2c383e525348fb78af078f7e4c2e723cf718ff6836dff3e239868ec19604a",
+    "run_manifest": {
+      "bogae_hash": "blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451",
+      "contract": "D-STRICT",
+      "digest": "sha256:44ecf9c6333068a57967d906b76cad17209a6f99a8bccea9e9faaac86320346b",
+      "state_hash": "blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
+      "ticks": 1,
+      "trace_hash": "blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f"
+    }
+  },
+  "checks": {
+    "grid2d_square_cells_detected": true,
+    "integer_pixel_fields": true,
+    "same_bogae_hash": true,
+    "same_detbin_bytes": true,
+    "same_state_hash": true
+  },
+  "pack": "bogae_grid2d_smoke_v1",
+  "schema": "ddn.bogae.grid2d_smoke.v1",
+  "web_overlay": {
+    "cli": {
+      "bogae_hash": "blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451",
+      "label": "bogae_grid2d.web_overlay",
+      "non_hash_stdout_digest": "sha256:6832acba882bcadf9ed250f64d22dce409f94184d371c42f85e759682bcc28f6",
+      "state_hash": null,
+      "stderr_lines": [],
+      "stdout_digest": "sha256:378de009e842f646efc4d16431345ad8c1ed3401159861b0ce8c40594c14ddf5",
+      "stdout_lines": [
+        "bogae_hash=blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451 cmd_count=11 codec=BDL1"
+      ],
+      "trace_hash": null
+    },
+    "detbin_digest": "sha256:1bf2c383e525348fb78af078f7e4c2e723cf718ff6836dff3e239868ec19604a",
+    "drawlist": {
+      "canvas_h": 96,
+      "canvas_w": 96,
+      "cmd_count": 11,
+      "cmd_kinds": [
+        "Clear",
+        "RectFill",
+        "RectFill",
+        "RectFill",
+        "RectFill",
+        "RectFill",
+        "RectFill",
+        "RectFill",
+        "RectFill",
+        "RectFill",
+        "Text"
+      ],
+      "integer_pixel_fields": true,
+      "rect_square_sizes": [
+        32
+      ],
+      "size_digest": "sha256:d8393b8ae9b212cc7ae9f10766384069ff7c6e63c5beaf2d62c7baf0f85ce6f0"
+    },
+    "overlay": {
+      "bounds": true,
+      "delta": true,
+      "digest": "sha256:8bcbfc34befbada4a6de008a456d79ff9610cae2036b070617013da8fbbee294",
+      "grid": true
+    },
+    "run_manifest": {
+      "bogae_hash": "blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451",
+      "contract": "D-STRICT",
+      "digest": "sha256:44ecf9c6333068a57967d906b76cad17209a6f99a8bccea9e9faaac86320346b",
+      "state_hash": "blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
+      "ticks": 1,
+      "trace_hash": "blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f"
+    }
+  }
+}

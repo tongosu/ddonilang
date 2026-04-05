@@ -1,0 +1,8 @@
+{"cmd": ["run", "pack/numeric_type_alias_korean_v1/c01_korean_collection_alias_pass.ddn"], "stdout_path": "c01_korean_collection_alias_pass.expected.txt", "exit_code": 0}
+{"cmd": ["run", "pack/numeric_type_alias_korean_v1/c02_string_none_alias_pass.ddn"], "stdout_path": "c02_string_none_alias_pass.expected.txt", "exit_code": 0}
+{"cmd": ["run", "pack/numeric_type_alias_korean_v1/c07_non_alias_pass.ddn"], "stdout_path": "c07_non_alias_pass.expected.txt", "exit_code": 0}
+{"cmd": ["run", "pack/numeric_type_alias_korean_v1/c03_list_alias_mismatch.ddn"], "expected_error_code": "E_RUNTIME_TYPE_MISMATCH", "exit_code": 1}
+{"cmd": ["run", "pack/numeric_type_alias_korean_v1/c04_pack_alias_mismatch.ddn"], "expected_error_code": "E_RUNTIME_TYPE_MISMATCH", "exit_code": 1}
+{"cmd": ["run", "pack/numeric_type_alias_korean_v1/c05_none_alias_mismatch.ddn"], "expected_error_code": "E_RUNTIME_TYPE_MISMATCH", "exit_code": 1}
+{"cmd": ["run", "pack/numeric_type_alias_korean_v1/c06_non_alias_mismatch.ddn"], "expected_error_code": "E_RUNTIME_TYPE_MISMATCH", "exit_code": 1}
+

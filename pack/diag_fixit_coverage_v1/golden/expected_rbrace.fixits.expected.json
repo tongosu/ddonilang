@@ -1,0 +1,18 @@
+[
+  {
+    "code": "E_PARSE_EXPECTED_RBRACE",
+    "message": "E_PARSE_EXPECTED_RBRACE fix-it 제안",
+    "span": {
+      "end_col": 0,
+      "end_line": 3,
+      "file": "input_expected_rbrace.ddn",
+      "start_col": 1,
+      "start_line": 3
+    },
+    "suggestion": {
+      "kind": "insert",
+      "new": "}",
+      "note": "열린 블록을 닫아 문장을 완결하세요."
+    }
+  }
+]

@@ -1,0 +1,3 @@
+sha256:a55b8afa399b3fb72357fba301cffd1608608b7588298399309ecad5b22b61c0  expected/proof.detjson
+sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  expected/stdout.txt
+sha256:fa2dcd1c61f689e5f73a97fa053ed6b391774c01eeec0de40452ad9585eb9ceb  golden.jsonl

@@ -1,5 +1,5 @@
-#이름: bogae_hash_determinism_v1
-#설명: detbin 직렬화 + bogae_hash 결정성 고정
+//이름: bogae_hash_determinism_v1
+//설명: detbin 직렬화 + bogae_hash 결정성 고정
 
 보개_그림판_가로 <- 40.
 보개_그림판_세로 <- 30.

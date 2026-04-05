@@ -1,0 +1,155 @@
+{
+  "canvas_children": 4,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "exec_policy_block_0001",
+      "kind": "exec_policy_block"
+    },
+    {
+      "exprs": {},
+      "id": "jjaim_block_0002",
+      "kind": "jjaim_block"
+    },
+    {
+      "exprs": {},
+      "id": "seed_def_0004",
+      "kind": "seed_def"
+    },
+    {
+      "exprs": {},
+      "id": "show_0005",
+      "kind": "show"
+    }
+  ],
+  "generated_preview": "실행정책 {\n  실행모드: 일반.\n  효과정책: 허용.\n}.\n\n짜임 {\n  형식: 점_틀.\n  입력 {\n    시작점: (수,수) <- (0.0, 0.0).\n  }.\n  출력 {\n    끝점: (수,수) <- (0.0, 0.0).\n  }.\n}.\n\n테스트:움직씨 = {\n  보개마당 {\n      #자막(\"정본 테스트\").\n    }.\n}.\n\n체력 보여주기.",
+  "palette_children": 39,
+  "result_text": "mode=seamgrim blocks=4 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "실행정책 {\n  실행모드: 일반.\n  효과정책: 허용.\n}.\n\n짜임 {\n  형식: 점_틀.\n  입력 {\n    시작점: (수,수) <- (0.0, 0.0).\n  }.\n  출력 {\n    끝점: (수,수) <- (0.0, 0.0).\n  }.\n}.\n\n테스트:움직씨 = {\n  보개마당 {\n      #자막(\"정본 테스트\").\n    }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Structured Block Screen"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 4,
+    "canvas_summary": {
+      "block_count": 4,
+      "block_ids": [
+        "exec_policy_block_0001",
+        "jjaim_block_0002",
+        "seed_def_0004",
+        "show_0005"
+      ],
+      "block_kinds": [
+        "exec_policy_block",
+        "jjaim_block",
+        "seed_def",
+        "show"
+      ],
+      "expr_nodes": [],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "exec_policy_block_0001",
+          "kind": "exec_policy_block"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "jjaim_block_0002",
+          "kind": "jjaim_block"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "seed_def_0004",
+          "kind": "seed_def"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "bogae_madang_block_0003",
+          "kind": "bogae_madang_block"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "show_0005",
+          "kind": "show"
+        }
+      ],
+      "total_block_count": 5,
+      "total_expr_count": 0
+    },
+    "error_count": 0,
+    "generated_length": 200,
+    "mode": "seamgrim",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block"
+      ],
+      "category_count": 5,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output"
+      ]
+    }
+  },
+  "summary_text": "mode=seamgrim blocks=4 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "실행정책 {\n  실행모드: 일반.\n  효과정책: 허용.\n}.\n\n짜임 {\n  형식: 점_틀.\n  입력 {\n    시작점: (수,수) <- (0.0, 0.0).\n  }.\n  출력 {\n    끝점: (수,수) <- (0.0, 0.0).\n  }.\n}.\n\n테스트:움직씨 = {\n  보개마당 {\n      #자막(\"정본 테스트\").\n    }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Structured Block Screen"
+      }
+    }
+  ]
+}

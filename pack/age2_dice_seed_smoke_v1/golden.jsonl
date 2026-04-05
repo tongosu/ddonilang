@@ -1,0 +1,2 @@
+{"input_path": "input.ddn", "stdout": ["6", "5", "활", "0.3234958767", "주사위씨{시앗=0x00000000000004d2, 상태=0x78dde6e5fd29f526, 횟수=4}"], "exit_code": 0}
+{"smoke_golden": "dice.smoke_golden.v1.json", "exit_code": 0}

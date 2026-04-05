@@ -1,0 +1,1 @@
+[seamgrim-wasm-web-smoke-contract-selftest] ok packs=4

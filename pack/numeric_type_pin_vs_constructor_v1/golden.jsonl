@@ -1,0 +1,4 @@
+{"cmd": ["run", "pack/numeric_type_pin_vs_constructor_v1/c01_exact_constructor_pass.ddn"], "stdout_path": "c01_exact_constructor_pass.expected.txt", "exit_code": 0}
+{"cmd": ["run", "pack/numeric_type_pin_vs_constructor_v1/c02_alias_constructor_pass.ddn"], "stdout_path": "c02_alias_constructor_pass.expected.txt", "exit_code": 0}
+{"cmd": ["run", "pack/numeric_type_pin_vs_constructor_v1/c03_rational_pin_factor_value_mismatch.ddn"], "expected_error_code": "E_RUNTIME_TYPE_MISMATCH", "exit_code": 1}
+{"cmd": ["run", "pack/numeric_type_pin_vs_constructor_v1/c04_factor_pin_rational_value_mismatch.ddn"], "expected_error_code": "E_RUNTIME_TYPE_MISMATCH", "exit_code": 1}

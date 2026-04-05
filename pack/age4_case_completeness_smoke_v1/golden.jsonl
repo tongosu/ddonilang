@@ -1,0 +1,5 @@
+{"input_path": "input_else.ddn", "stdout": ["fallback"], "exit_code": 0}
+{"input_path": "input_complete_ok.ddn", "stdout": ["ok"], "exit_code": 0}
+{"cmd": ["run", "pack/age4_case_completeness_smoke_v1/input_complete_miss.ddn"], "expected_error_code": "E_PROOF_INCOMPLETE", "exit_code": 1}
+{"cmd": ["run", "pack/age4_case_completeness_smoke_v1/input_missing.ddn"], "expected_error_code": "E_PARSE_CASE_COMPLETION_REQUIRED", "exit_code": 1}
+{"cmd": ["run", "pack/age4_case_completeness_smoke_v1/input_else_not_last.ddn"], "expected_error_code": "E_PARSE_CASE_ELSE_NOT_LAST", "exit_code": 1}

@@ -1,0 +1,4 @@
+{"smoke_golden": "pre_abort.smoke_golden.v1.json", "exit_code": 0}
+{"smoke_golden": "post_abort.smoke_golden.v1.json", "exit_code": 0}
+{"smoke_golden": "alert.smoke_golden.v1.json", "exit_code": 0}
+{"smoke_golden": "nested_abort.smoke_golden.v1.json", "exit_code": 0}

@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "failures": [
+    {
+      "code": "E_STATE_TRANSITION_GUARD_REJECTED",
+      "kind": "guard_rejected",
+      "message": "E_STATE_TRANSITION_GUARD_REJECTED: 빨강",
+      "state_name": "빨강"
+    }
+  ],
+  "schema": "ddn.state_transition_failure_report.v1"
+}

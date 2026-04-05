@@ -5,15 +5,15 @@
   "checkpoints": [
     {
       "tick": 0,
-      "state_hash": "blake3:88689440ba439ef71c00307280b9220b735886392596f22ec56bf25157c2292c"
+      "state_hash": "blake3:a74810a4d1b13aad0098c2337e10ea30ba3e1f4ffb5105e5b20d370de1d9c9bf"
     },
     {
       "tick": 5,
-      "state_hash": "blake3:87b268c2940e774c77e692641a80b0047e304f544c75dcd0b2338f1161e67043"
+      "state_hash": "blake3:40590d157ad81cf49d1464bab346b1fa260231039bb156324f65f1c8615c3283"
     },
     {
       "tick": 10,
-      "state_hash": "blake3:8220f9071b01cf93e7068af860e1083beca962a11b92da479b80f81b4db2ad56"
+      "state_hash": "blake3:79d4b597febff1bf7dfaf8d1dfb5a1f1944789c3cc0286f886cf4320ca0f14a0"
     }
   ],
   "max_ticks": 10,

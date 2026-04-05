@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "failures": [
+    {
+      "code": "E_STATE_TRANSITION_GUARD_UNRESOLVED",
+      "guard_name": "없는검사",
+      "kind": "guard_unresolved",
+      "message": "E_STATE_TRANSITION_GUARD_UNRESOLVED: 없는검사"
+    }
+  ],
+  "schema": "ddn.state_transition_failure_report.v1"
+}

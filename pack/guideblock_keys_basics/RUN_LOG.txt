@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update lang_regex_literal_v1 guideblock_keys_basics seamgrim_overlay_param_compare_v0 seamgrim_overlay_session_roundtrip_v0 dotbogi_ddn_interface_v1_smoke
+pack golden updated

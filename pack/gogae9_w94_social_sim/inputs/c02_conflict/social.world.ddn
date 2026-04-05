@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.social.world.v1",
+  "seed": "0x94b2",
+  "steps": 6,
+  "max_conflicts": 100,
+  "agents": [
+    {"agent_id": 1, "wealth": 70, "trust": 12, "culture": 3},
+    {"agent_id": 2, "wealth": 65, "trust": 9, "culture": 5},
+    {"agent_id": 3, "wealth": 60, "trust": 8, "culture": 1}
+  ],
+  "events": [
+    {"step": 2, "kind": "conflict", "a": 1, "b": 2, "intensity": 6},
+    {"step": 3, "kind": "conflict", "a": 2, "b": 3, "intensity": 5},
+    {"step": 4, "kind": "conflict", "a": 1, "b": 3, "intensity": 4},
+    {"step": 6, "kind": "redistribute", "from": 2, "to": 3, "amount": 3}
+  ]
+}

@@ -1,0 +1,3 @@
+{"case":"cases/c01_dense_2x2.detjson","expect_ok":true,"expected_hash":"sha256:7811667d07a2ef6eda872f41df2cc8b45c62bdc94de783c89b174b5773f79cc9"}
+{"case":"cases/c02_dense_1x3.detjson","expect_ok":true,"expected_hash":"sha256:ea66a83f1401e6b3c2049b857ad72f772d362366e9deafd61686e75516438d55"}
+{"case":"cases/c03_dense_len_mismatch_EXPECT_FAIL.detjson","expect_ok":false,"expected_error":"E_TENSOR_V0_DENSE_DATA_LEN"}

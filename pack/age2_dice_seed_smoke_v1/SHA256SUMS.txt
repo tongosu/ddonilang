@@ -1,0 +1,2 @@
+sha256:55f0e489feb2ce9179c776737accbc46fdd5e4168fc45e1a10b2bb839988732e  dice.smoke_golden.v1.json
+sha256:7e5ae6f127ae2aad6ee4b8c2e21524bad862e0c5f6e1c5c1a0d675e08e496d69  golden.jsonl

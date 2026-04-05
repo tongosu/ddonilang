@@ -1,0 +1,51 @@
+{
+  "schema": "ddn.maegim_control_plan.v1",
+  "controls": [
+    {
+      "name": "g",
+      "decl_kind": "butbak",
+      "type_name": "수",
+      "init_expr_canon": "9.8",
+      "fields": [
+        {
+          "name": "범위",
+          "value_canon": "1..20"
+        },
+        {
+          "name": "간격",
+          "value_canon": "0.1"
+        }
+      ],
+      "range": {
+        "min_expr_canon": "1",
+        "max_expr_canon": "20",
+        "inclusive_end": false
+      },
+      "step_expr_canon": "0.1",
+      "split_count_expr_canon": null
+    },
+    {
+      "name": "theta0",
+      "decl_kind": "gureut",
+      "type_name": "수",
+      "init_expr_canon": "0.5",
+      "fields": [
+        {
+          "name": "범위",
+          "value_canon": "-1.2..1.2"
+        },
+        {
+          "name": "분할수",
+          "value_canon": "24"
+        }
+      ],
+      "range": {
+        "min_expr_canon": "-1.2",
+        "max_expr_canon": "1.2",
+        "inclusive_end": false
+      },
+      "step_expr_canon": null,
+      "split_count_expr_canon": "24"
+    }
+  ]
+}

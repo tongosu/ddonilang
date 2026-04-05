@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.alrim_event_plan.v1",
+  "handlers": [
+    {
+      "order": 0,
+      "kind": "jump",
+      "scope": "root",
+      "body_canon": "y <- 1.\n"
+    },
+    {
+      "order": 1,
+      "kind": "tick",
+      "scope": "root/seed:매틱",
+      "body_canon": "t <- t + 1.\n"
+    },
+    {
+      "order": 2,
+      "kind": "reset",
+      "scope": "root",
+      "body_canon": "y <- 0.\n"
+    }
+  ]
+}

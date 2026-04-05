@@ -1,5 +1,7 @@
 # pack/bogae_observe_basics
 
+evidence_tier: golden_closed
+
 보개(관찰) 산출물의 **DrawList + bogae_hash** 흐름을 고정하기 위한 D-PACK이다.
 
 - 목표:

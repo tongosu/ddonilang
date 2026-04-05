@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.exec_policy_effect_map.v1",
+  "language_axis": {
+    "block_count": 0,
+    "exec_mode_raw": null,
+    "effect_policy_raw": null,
+    "exec_mode_effective": "엄밀",
+    "effect_policy_effective": "격리",
+    "effect_policy_explicit": false,
+    "strict_effect_ignored": false,
+    "would_fail_code": null
+  },
+  "tool_axis": {
+    "open_mode_values": [
+      "deny",
+      "record",
+      "replay"
+    ],
+    "effective_open_mode_resolution_order": [
+      "cli",
+      "open_policy",
+      "default_deny"
+    ]
+  },
+  "selected_behavior_by_open_mode": [
+    {
+      "open_mode": "deny",
+      "effect_boundary_result": "compile_error:E_EFFECT_IN_STRICT_MODE"
+    },
+    {
+      "open_mode": "record",
+      "effect_boundary_result": "compile_error:E_EFFECT_IN_STRICT_MODE"
+    },
+    {
+      "open_mode": "replay",
+      "effect_boundary_result": "compile_error:E_EFFECT_IN_STRICT_MODE"
+    }
+  ]
+}

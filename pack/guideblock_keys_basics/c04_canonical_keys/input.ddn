@@ -1,0 +1,11 @@
+설정 {
+  name: canon-title.
+  desc: canon-desc.
+}.
+보개 {
+  default_observation: theta.
+}.
+슬기 {
+  default_observation_x: t.
+}.
+x <- 1.

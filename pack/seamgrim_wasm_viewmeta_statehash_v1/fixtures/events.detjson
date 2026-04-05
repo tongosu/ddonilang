@@ -3,13 +3,15 @@
   "events": [
     { "type": "reset" },
     { "type": "set_param", "key": "x", "value": 1.0 },
-    { "type": "set_param", "key": "보개_색", "value": "#111111" },
+    { "type": "set_param", "key": "__view_w", "value": 31.0 },
+    { "type": "step" },
     { "type": "hash", "label": "a" },
-    { "type": "set_param", "key": "보개_색", "value": "#222222" },
+    { "type": "set_param", "key": "__view_w", "value": 41.0 },
+    { "type": "step" },
     { "type": "hash", "label": "b" },
     { "type": "set_param", "key": "x", "value": 2.0 },
+    { "type": "step" },
     { "type": "hash", "label": "c" }
   ],
   "compare": { "a": "a", "b": "b", "c": "c" }
 }
-

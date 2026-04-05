@@ -1,0 +1,35 @@
+{
+  "schema": "ddn.canon_ast.detjson.v1",
+  "normalized_n1": "(처음:수~에서, 끝:수~에서?) 이동:셈씨 = {\n    처음 되돌림.\n}\n\n증명:셈씨 = {\n    100@m:처음 없음:끝 이동기.\n}",
+  "warnings": [
+    {"code": "W_CALL_JOSA_CONFLICT_FIXED", "message": "호출 `이동기`에서 조사 `에서`는 여러 핀에 걸칩니다. 현재 인자는 `값:핀` 고정으로 해석했습니다"}
+  ],
+  "seeds": [
+    {
+      "name": "이동",
+      "kind": "셈씨",
+      "params": [
+        {"pin": "처음", "josa_list": ["에서"]},
+        {"pin": "끝", "josa_list": ["에서"]}
+      ],
+      "calls": [
+
+      ],
+      "contract_count": 0
+    },
+    {
+      "name": "증명",
+      "kind": "셈씨",
+      "params": [
+
+      ],
+      "calls": [
+        {
+          "func": "이동기",
+          "args": [{"resolved_pin": "처음", "josa": "에서", "binding_reason": "user_fixed", "expr": "suffix:Unit(\"m\")"}, {"resolved_pin": "끝", "josa": null, "binding_reason": "positional", "expr": "none"}]
+        }
+      ],
+      "contract_count": 0
+    }
+  ]
+}

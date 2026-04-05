@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.maegim_control_plan.v1",
+  "controls": [
+    {
+      "name": "n",
+      "decl_kind": "butbak",
+      "type_name": "수",
+      "init_expr_canon": "10",
+      "fields": [
+        {
+          "name": "범위",
+          "value_canon": "1..100"
+        },
+        {
+          "name": "간격",
+          "value_canon": "1"
+        }
+      ],
+      "range": {
+        "min_expr_canon": "1",
+        "max_expr_canon": "100",
+        "inclusive_end": false
+      },
+      "step_expr_canon": "1",
+      "split_count_expr_canon": null
+    }
+  ]
+}

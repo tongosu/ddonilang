@@ -8,3 +8,5 @@ WASM 브릿지 최소 스모크 팩.
 검증:
 
 - `python tests/run_seamgrim_wasm_smoke.py seamgrim_wasm_v0_smoke`
+- `tests/seamgrim_wasm_web_smoke_contract/README.md`
+- `python tests/run_seamgrim_wasm_web_smoke_contract_selftest.py`

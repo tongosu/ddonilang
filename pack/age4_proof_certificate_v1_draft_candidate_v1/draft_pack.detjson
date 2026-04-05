@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.proof_certificate_v1_draft_pack.v1",
+  "artifact_kind": "proof_certificate_v1_promotion_candidate",
+  "shared_shell": "fixtures/shared.proof_certificate_candidate_shell.detjson",
+  "profiles": [
+    {
+      "name": "clean",
+      "candidate": "fixtures/clean.proof_certificate_candidate.detjson",
+      "state_delta": "fixtures/clean.proof_certificate_candidate_state.detjson"
+    },
+    {
+      "name": "abort",
+      "candidate": "fixtures/abort.proof_certificate_candidate.detjson",
+      "state_delta": "fixtures/abort.proof_certificate_candidate_state.detjson"
+    }
+  ]
+}

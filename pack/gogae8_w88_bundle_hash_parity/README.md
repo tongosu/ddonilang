@@ -2,6 +2,11 @@
 
 W88 SeulgiBundleV1 + native/wasm hash parity 최소 팩.
 
+## 계약
+- `bundle_in/manifest.detjson`은 `source_hash/source_provenance`를 포함해야 한다.
+- provenance는 `model/weights/eval_report/eval_config/artifact` 파일명과 각 `sha256`을 정확히 기록해야 한다.
+- `run_pack_golden` 기본 경로와 `run_seulgi_bundle_provenance_check.py`가 모두 같은 parity를 통과해야 한다.
+
 ## 구성
 - bundle_in/manifest.detjson
 - bundle_in/model_mlp_v1.detjson

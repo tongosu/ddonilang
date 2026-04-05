@@ -1,0 +1,18 @@
+[
+  {
+    "code": "W_BLOCK_HEADER_COLON_DEPRECATED",
+    "message": "블록 헤더의 `채비:` 표기를 `채비 {`로 바꾸세요",
+    "span": {
+      "end_col": 3,
+      "end_line": 1,
+      "file": "input_header_colon.ddn",
+      "start_col": 3,
+      "start_line": 1
+    },
+    "suggestion": {
+      "kind": "delete",
+      "note": "블록 헤더에서는 콜론을 제거하고 공백 뒤 `{`를 사용하세요.",
+      "old": ":"
+    }
+  }
+]

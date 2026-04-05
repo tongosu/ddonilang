@@ -1,0 +1,247 @@
+{
+  "codec": {
+    "decoded_block_kinds": [
+      "receive_hook_plan",
+      "receive_hook_plan"
+    ],
+    "decoded_errors": [],
+    "decoded_handler_orders": [
+      0,
+      1
+    ],
+    "decoded_scopes": [
+      "root/seed:플레이어",
+      "root/seed:플레이어"
+    ],
+    "encoded_source": "(피해량:수) 피해_받음:알림씨 = {\n}.\n\n(피해량)인 피해_받음을 받으면 {\n  피해량 보여주기.\n}."
+  },
+  "engine": {
+    "appended_kind": "clamp_min",
+    "block_count_after_append": 3,
+    "canvas_dom_children": 3,
+    "initial_canvas": {
+      "block_count": 3,
+      "block_ids": [
+        "alrimsi_define_0003",
+        "receive_hook_0004",
+        "clamp_min_0005"
+      ],
+      "block_kinds": [
+        "alrimsi_define",
+        "receive_hook",
+        "clamp_min"
+      ],
+      "expr_nodes": [],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "alrimsi_define_0003",
+          "kind": "alrimsi_define"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "receive_hook_0004",
+          "kind": "receive_hook"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "show_0001",
+          "kind": "show"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "clamp_min_0005",
+          "kind": "clamp_min"
+        }
+      ],
+      "total_block_count": 4,
+      "total_expr_count": 0
+    },
+    "initial_palette": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block",
+        "alrimsi_define",
+        "alrimsi_send",
+        "receive_hook",
+        "clamp_min",
+        "clamp_max"
+      ],
+      "category_count": 7,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output",
+        "imja",
+        "state"
+      ]
+    },
+    "palette_dom_children": 46
+  },
+  "palette": {
+    "category_count": 7,
+    "category_ids": [
+      "charim",
+      "flow",
+      "logic",
+      "prompt",
+      "output",
+      "imja",
+      "state"
+    ],
+    "imja_block_kinds": [
+      "alrimsi_define",
+      "alrimsi_send",
+      "receive_hook"
+    ],
+    "state_block_kinds": [
+      "clamp_min",
+      "clamp_max"
+    ]
+  },
+  "schema": "seamgrim.web.rpgbox_block_codec_smoke.v1",
+  "screen": {
+    "block_count_after_append": 3,
+    "block_summary": {
+      "block_count": 3,
+      "canvas": {
+        "block_count": 3,
+        "block_ids": [
+          "plan_0006",
+          "plan_0007",
+          "alrimsi_send_0008"
+        ],
+        "block_kinds": [
+          "receive_hook_plan",
+          "receive_hook_plan",
+          "alrimsi_send"
+        ],
+        "expr_nodes": [],
+        "nested_blocks": [
+          {
+            "depth": 0,
+            "expr_keys": [],
+            "expr_kinds": [],
+            "id": "plan_0006",
+            "kind": "receive_hook_plan"
+          },
+          {
+            "depth": 0,
+            "expr_keys": [],
+            "expr_kinds": [],
+            "id": "plan_0007",
+            "kind": "receive_hook_plan"
+          },
+          {
+            "depth": 0,
+            "expr_keys": [],
+            "expr_kinds": [],
+            "id": "alrimsi_send_0008",
+            "kind": "alrimsi_send"
+          }
+        ],
+        "total_block_count": 3,
+        "total_expr_count": 0
+      },
+      "palette": {
+        "block_kinds": [
+          "charim_block",
+          "charim_item_const_step",
+          "charim_item_const_split",
+          "charim_item_var",
+          "charim_item_plain",
+          "seed_def",
+          "hook_start",
+          "hook_tick",
+          "repeat",
+          "for_each",
+          "open_block",
+          "break_loop",
+          "assign",
+          "if_then",
+          "if_else",
+          "while_block",
+          "contract_guard",
+          "choose_branch",
+          "choose_else",
+          "receive_block",
+          "event_react",
+          "send_signal",
+          "return_value",
+          "expr_stmt",
+          "exec_policy_block",
+          "jjaim_block",
+          "prompt_block",
+          "prompt_after",
+          "prompt_condition",
+          "prompt_choose",
+          "show",
+          "inspect_value",
+          "bogae_draw",
+          "bogae_madang_block",
+          "alrimsi_define",
+          "alrimsi_send",
+          "receive_hook",
+          "clamp_min",
+          "clamp_max"
+        ],
+        "category_count": 7,
+        "category_ids": [
+          "charim",
+          "flow",
+          "logic",
+          "prompt",
+          "output",
+          "imja",
+          "state"
+        ]
+      },
+      "status": "블록 3개"
+    },
+    "decoded_block_count": 3,
+    "decoded_status": "블록 3개",
+    "editor_text": "# plan root/seed:플레이어 알림\n# 제 <- (제, \"체력\", 제.체력 - 알림.정보.피해량) 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 알림\n# 제 <- (제, \"체력\", 제.체력 + 알림.정보.회복량) 짝맞춤.바꾼값.\n\n(피해량:30) 피해_받음 ~~> 플레이어."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.gogae9.w95.cert_cases.v1",
+  "cases": [
+    {
+      "id": "c01_verify_pass",
+      "subject": "pack/gogae9_w95_cert/inputs/c01_subject/run_manifest.detjson",
+      "key_seed": "w95-seed-pass",
+      "tamper_signature": false,
+      "expected_verify_pass": true,
+      "expected_subject_hash": "sha256:ffaf4bb0f10fd1a8e3d56a606bdd371a3d2e26007ad53826fc0207b6221bc1c2"
+    },
+    {
+      "id": "c02_verify_fail_tamper",
+      "subject": "pack/gogae9_w95_cert/inputs/c01_subject/run_manifest.detjson",
+      "key_seed": "w95-seed-pass",
+      "tamper_signature": true,
+      "expected_verify_pass": false,
+      "expected_error_code": "E_CERT_VERIFY_FAIL",
+      "expected_subject_hash": "sha256:ffaf4bb0f10fd1a8e3d56a606bdd371a3d2e26007ad53826fc0207b6221bc1c2"
+    }
+  ]
+}

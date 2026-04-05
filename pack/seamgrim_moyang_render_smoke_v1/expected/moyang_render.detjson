@@ -1,0 +1,85 @@
+{
+  "schema": "seamgrim.web.moyang_render_smoke.v1",
+  "tick_count": 3,
+  "cases": [
+    {
+      "id": "a",
+      "state_hash": "blake3:a67c614e56aafddac48262b61e026dc60c964cc54f1ad47b2cd8e48116bdcb69",
+      "view_hash": "blake3:571b8bbaed1fa57dcdfb77b95b81f510e2be13033eb179d595b78c089f471b20",
+      "space2d_source": "observation-output-lines",
+      "shape": {
+        "kind": "circle",
+        "x": 3,
+        "y": 0,
+        "r": 0.099999,
+        "fill": "#38bdf8",
+        "stroke": "#0ea5e9",
+        "width": 0.019999
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2,
+        "fill_text_count": 1
+      }
+    },
+    {
+      "id": "b",
+      "state_hash": "blake3:a67c614e56aafddac48262b61e026dc60c964cc54f1ad47b2cd8e48116bdcb69",
+      "view_hash": "blake3:571b8bbaed1fa57dcdfb77b95b81f510e2be13033eb179d595b78c089f471b20",
+      "space2d_source": "observation-output-lines",
+      "shape": {
+        "kind": "circle",
+        "x": 3,
+        "y": 0,
+        "r": 0.219999,
+        "fill": "#f97316",
+        "stroke": "#0ea5e9",
+        "width": 0.019999
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2,
+        "fill_text_count": 1
+      }
+    },
+    {
+      "id": "c",
+      "state_hash": "blake3:a67c614e56aafddac48262b61e026dc60c964cc54f1ad47b2cd8e48116bdcb69",
+      "view_hash": "blake3:571b8bbaed1fa57dcdfb77b95b81f510e2be13033eb179d595b78c089f471b20",
+      "space2d_source": "observation-output-lines",
+      "shape": {
+        "kind": "circle",
+        "x": 3,
+        "y": 0,
+        "r": 0.099999,
+        "fill": "#f97316",
+        "stroke": "#0ea5e9",
+        "width": 0.019999
+      },
+      "rendered": true,
+      "render_calls": {
+        "arc": 1,
+        "fill": 0,
+        "stroke": 2,
+        "line_to": 2,
+        "fill_text_count": 1
+      }
+    }
+  ],
+  "state_hash_equal_ab": true,
+  "state_hash_equal_ac": true,
+  "radius_diff_ab": true,
+  "fill_diff_ac": true,
+  "rendered_all": true,
+  "arcs_all": [
+    1,
+    1,
+    1
+  ]
+}

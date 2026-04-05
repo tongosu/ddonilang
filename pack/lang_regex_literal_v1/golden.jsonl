@@ -1,4 +1,9 @@
-{"input_path":"input.ddn","cli":["--age-target","AGE3"],"stdout":["참","12","a_b_","차림[a, b, c]","없음"]}
-{"input_path":"flags_invalid.ddn","cli":["--age-target","AGE3"],"expected_error_code":"E_REGEX_FLAGS_INVALID","exit_code":1}
-{"input_path":"pattern_invalid.ddn","cli":["--age-target","AGE3"],"expected_error_code":"E_REGEX_PATTERN_INVALID","exit_code":1}
-{"input_path":"age_gate.ddn","expected_error_code":"E_AGE_NOT_AVAILABLE","exit_code":1}
+{"input_path": "input.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "stdout": ["참", "12", "차림[ab-12, ab, 12]", "짝맞춤{num=>12, word=>ab}", "짝맞춤{num=>, word=>ab}", "짝맞춤{}", "a_b_", "12:ab", "12:ab", "12:ab", "차림[a, b, c]", "차림[ab, cd]", "없음", "AB", "참"], "exit_code": 0}
+{"input_path": "flags_invalid.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "expected_error_code": "E_REGEX_FLAGS_INVALID", "exit_code": 1}
+{"input_path": "pattern_invalid.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "expected_error_code": "E_REGEX_PATTERN_INVALID", "exit_code": 1}
+{"input_path": "replacement_invalid.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "expected_error_code": "E_REGEX_REPLACEMENT_INVALID", "exit_code": 1}
+{"input_path": "replacement_empty_ref_invalid.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "expected_error_code": "E_REGEX_REPLACEMENT_INVALID", "exit_code": 1}
+{"input_path": "replacement_dangling_dollar_invalid.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "expected_error_code": "E_REGEX_REPLACEMENT_INVALID", "exit_code": 1}
+{"input_path": "replacement_numeric_ambiguity_invalid.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "expected_error_code": "E_REGEX_REPLACEMENT_INVALID", "exit_code": 1}
+{"input_path": "replacement_numeric_overflow_invalid.ddn", "cli": ["--compat-matic-entry", "--age-target", "AGE3"], "expected_error_code": "E_REGEX_REPLACEMENT_INVALID", "exit_code": 1}
+{"input_path": "age_gate.ddn", "cli": ["--compat-matic-entry"], "expected_error_code": "E_AGE_NOT_AVAILABLE", "exit_code": 1}

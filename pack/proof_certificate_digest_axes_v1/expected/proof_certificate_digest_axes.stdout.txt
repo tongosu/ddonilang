@@ -1,0 +1,2 @@
+[proof-certificate-digest-axes-selftest] ok clean_subject_hash=sha256:5f60345843e9bfd49ad1bc1a49d5229c97aa2b9c5c4f560a970288674f53f1a0 abort_subject_hash=sha256:371b3f75b60c6e1c54fb27cf57b813616250cb01945cc0d878a28cf0a6df2598
+

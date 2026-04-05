@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --manifest-path tool/Cargo.toml --update state_machine_transition_failure_report_v1
+pack golden updated

@@ -1,0 +1,5 @@
+{"id":"s01_replay_source_recall_forbidden","expect_ok":true,"expected_commit":true}
+{"id":"s02_gatekeeper_reject_no_commit","expect_ok":true,"expected_commit":false}
+{"id":"s03_target_madi_fixed_apply_later","expect_ok":true,"expected_commit":true}
+{"id":"s04_trace_non_hash","expect_ok":true,"expected_commit":true}
+{"id":"s05_world_mutation_only_via_injection","expect_ok":true,"expected_commit":true}

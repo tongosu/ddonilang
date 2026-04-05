@@ -1,0 +1,28 @@
+#이름: seamgrim_space2d_shape_only
+#설명: seamgrim space2d shape-only parity
+
+"space2d.shape" 보여주기.
+"line" 보여주기.
+"x1" 보여주기.
+0 보여주기.
+"y1" 보여주기.
+0 보여주기.
+"x2" 보여주기.
+3 보여주기.
+"y2" 보여주기.
+1 보여주기.
+"stroke" 보여주기.
+"blue" 보여주기.
+"width" 보여주기.
+2 보여주기.
+
+"space2d.shape" 보여주기.
+"circle" 보여주기.
+"x" 보여주기.
+1 보여주기.
+"y" 보여주기.
+1 보여주기.
+"r" 보여주기.
+0.25 보여주기.
+"fill" 보여주기.
+"cyan" 보여주기.

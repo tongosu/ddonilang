@@ -1,0 +1,1 @@
+[proof-solver-search-operation-parity-selftest] ok

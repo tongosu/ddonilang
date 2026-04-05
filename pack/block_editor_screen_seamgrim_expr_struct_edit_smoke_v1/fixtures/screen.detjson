@@ -1,0 +1,25 @@
+{
+  "schema": "seamgrim.block_editor.screen.fixture.v1",
+  "title": "Seamgrim Block Screen Expr Struct Edit",
+  "mode": "seamgrim",
+  "source_ddn": "fixtures/source.ddn",
+  "append_block_kind": "expr_stmt",
+  "expr_node_edits": [
+    {
+      "target_kind": "expr_stmt",
+      "target_index": 1,
+      "expr_key": "expr",
+      "expr_path": [],
+      "field_key": "name",
+      "value": "검증"
+    },
+    {
+      "target_kind": "expr_stmt",
+      "target_index": 1,
+      "expr_key": "expr",
+      "expr_path": ["args", 0, "bindings", 1],
+      "field_key": "name",
+      "value": "관측값"
+    }
+  ]
+}

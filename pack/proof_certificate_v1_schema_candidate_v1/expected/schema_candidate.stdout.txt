@@ -1,0 +1,1 @@
+[proof-certificate-v1-schema-candidate-selftest] ok profiles=2 fields=16

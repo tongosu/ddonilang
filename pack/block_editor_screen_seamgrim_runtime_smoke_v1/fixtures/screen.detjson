@@ -1,0 +1,6 @@
+{
+  "schema": "seamgrim.block_editor.screen.fixture.v1",
+  "title": "Seamgrim Runtime Block Screen",
+  "mode": "seamgrim",
+  "source_ddn": "fixtures/source.ddn"
+}

@@ -1,0 +1,1 @@
+[proof-certificate-v1-consumer-transport-contract-selftest] ok checks=6 names=signed_emit_profiles,verify_bundle,verify_report,verify_report_digest_contract,consumer_contract,signed_contract

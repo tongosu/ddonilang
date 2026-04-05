@@ -1,0 +1,46 @@
+{
+  "canonical_body_hash": "sha256:bcea071e145dcdf35a4889f7ff23ad4f9b8eafb5ceabaf46de663562fe361d4b",
+  "canonical_body_hash_method": "canon",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_input_replay_parse_failure_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 0,
+    "items": [],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 0,
+  "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+  "runtime_error": {
+    "code": "E_OPEN_LOG_PARSE",
+    "col": 1,
+    "line": 1,
+    "message": "열림 로그 파싱 오류: open.input schema 불일치: expected=open.input.v1 actual=open.input.v0"
+  },
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 0,
+    "items": [],
+    "proof_check_count": 0,
+    "quantifier_count": 0,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:d01c62de55f8d6466e56865898b25d791d68d80cc6e8b2ccc89c0fd0d733debc",
+  "ticks": 0,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:671ac67337a851c702cc93e7acd664a59991232830cf1147b49d794c4ed4c003",
+  "trace_log_count": 0,
+  "verified": false
+}

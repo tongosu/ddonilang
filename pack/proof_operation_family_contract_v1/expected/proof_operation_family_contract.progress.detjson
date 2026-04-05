@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.ci.proof_operation_family_contract_selftest.progress.v1",
+  "generated_at_utc": "<iso8601-utc>",
+  "status": "completed",
+  "current_case": "-",
+  "last_completed_case": "-",
+  "current_probe": "-",
+  "last_completed_probe": "proof_operation_family",
+  "completed_checks": 4,
+  "total_checks": 4,
+  "checks_text": "age1_solver_search_matrix,solver_search_parity,solver_operation_family,proof_operation_family"
+}

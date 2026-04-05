@@ -1,0 +1,14 @@
+{
+  "schema": "ddn.seamgrim.guideblock_case.v1",
+  "case_id": "c04_canonical_keys",
+  "input": "input.ddn",
+  "expect": {
+    "meta": {
+      "name": "canon-title",
+      "desc": "canon-desc",
+      "default_observation": "theta",
+      "default_observation_x": "t"
+    },
+    "body_starts_with": "x <- 1."
+  }
+}

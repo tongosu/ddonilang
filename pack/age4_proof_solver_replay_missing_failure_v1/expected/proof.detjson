@@ -1,0 +1,74 @@
+{
+  "canonical_body_hash": "sha256:0ce6577617f38c653524de4c23d08dd1e913c2a591ec58457fb6f73cb21ab9fb",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_solver_replay_missing_failure_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 1,
+    "items": [
+      {
+        "col": 9,
+        "error_code": "E_OPEN_REPLAY_MISS",
+        "kind": "solver_check",
+        "line": 8,
+        "query": "forall n. n = n",
+        "satisfied": null,
+        "tick": 0
+      }
+    ],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 1,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 1,
+  "proof_runtime_hash": "sha256:314bda0e978c1f9e11bd46ea91b7e15eed3a91bdee342831fe47ec4eb2a7e5fa",
+  "runtime_error": {
+    "code": "E_OPEN_REPLAY_MISS",
+    "col": 9,
+    "line": 8,
+    "message": "열림 리플레이 로그 없음: kind=solver site_id=pack/age4_proof_solver_replay_missing_failure_v1/input.ddn:7:8 key=check:forall n. n = n"
+  },
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 2,
+    "items": [
+      {
+        "binder": "n",
+        "body_stmt_count": 1,
+        "col": 3,
+        "domain": "자연수",
+        "kind": "quantifier",
+        "line": 4,
+        "quantifier": "forall"
+      },
+      {
+        "arg_count": 1,
+        "col": 9,
+        "kind": "solver_open",
+        "line": 8,
+        "operation": "check",
+        "query": "forall n. n = n"
+      }
+    ],
+    "proof_check_count": 0,
+    "quantifier_count": 1,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 1
+  },
+  "solver_translation_hash": "sha256:bd7dfd4f0ecda6f5b5eac61220f45535e800c6ca6225a6732031490eed4bae19",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:f83311d1881e4ab122c25dd8c3a9e30349858a9cac5f6066f609c52c4ed9db45",
+  "ticks": 0,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:2166eaa00fa25f77bea20b6509eca6fb6c9ed7a3c8ea5e68c226b4fe78477634",
+  "trace_log_count": 0,
+  "verified": false
+}

@@ -1,0 +1,112 @@
+{
+  "schema": "ddn.seamgrim.overlay_session_case.v1",
+  "case_id": "c09_compare_disabled_with_runs_and_basic_layout",
+  "title": "compare 비활성 + run/basic 레이아웃 정규화",
+  "session_in": {
+    "schema": "seamgrim.session.v0",
+    "ui_layout": {
+      "screen_mode": "run",
+      "workspace_mode": "basic",
+      "main_tab": "tools-tab",
+      "active_view": "view-table"
+    },
+    "view_combo": {
+      "enabled": false,
+      "layout": "overlay",
+      "overlay_order": "unknown"
+    },
+    "runs": [
+      {
+        "id": "run-base",
+        "label": "baseline",
+        "visible": true,
+        "layer_index": 0,
+        "compare_role": "baseline",
+        "source": {
+          "kind": "manual"
+        },
+        "inputs": {
+          "L": "1.0"
+        },
+        "graph": {
+          "schema": "seamgrim.graph.v0",
+          "meta": {
+            "graph_kind": "xy",
+            "axis_x_kind": "length",
+            "axis_x_unit": "m",
+            "axis_y_kind": "period",
+            "axis_y_unit": "s"
+          },
+          "series": [
+            {
+              "id": "pendulum_curve",
+              "points": [
+                {
+                  "x": 1.0,
+                  "y": 2.0
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "run-var",
+        "label": "variant",
+        "visible": true,
+        "layer_index": 1,
+        "compare_role": "variant",
+        "source": {
+          "kind": "manual"
+        },
+        "inputs": {
+          "L": "2.0"
+        },
+        "graph": {
+          "schema": "seamgrim.graph.v0",
+          "meta": {
+            "graph_kind": "xy",
+            "axis_x_kind": "length",
+            "axis_x_unit": "m",
+            "axis_y_kind": "period",
+            "axis_y_unit": "s"
+          },
+          "series": [
+            {
+              "id": "pendulum_curve",
+              "points": [
+                {
+                  "x": 2.0,
+                  "y": 2.8
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "compare": {
+      "enabled": false,
+      "baseline_id": "run-base",
+      "variant_id": "run-var"
+    }
+  },
+  "expect": {
+    "enabled": false,
+    "baseline_id": null,
+    "variant_id": null,
+    "dropped_variant": false,
+    "drop_code": "",
+    "ui_layout": {
+      "screen_mode": "run",
+      "workspace_mode": "basic",
+      "main_tab": "lesson-tab",
+      "active_view": "view-table"
+    },
+    "view_combo": {
+      "enabled": false,
+      "layout": "overlay",
+      "overlay_order": "graph"
+    }
+  }
+}

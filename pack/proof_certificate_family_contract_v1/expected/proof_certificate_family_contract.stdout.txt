@@ -1,0 +1,1 @@
+[proof-certificate-family-contract-selftest] ok checks=3 names=artifact_certificate_contract,proof_certificate_v1_family,proof_certificate_family

@@ -1,0 +1,20 @@
+{
+  "duplicate_resolution_policy": "non_yanked_then_pin_score_then_normalized_entry_key",
+  "index_path": "fixtures/registry.index.json",
+  "lock_path": "fixtures/ddn.lock",
+  "matched": 1,
+  "ok": true,
+  "packages": 1,
+  "schema": "ddn.registry.verify_report.v1",
+  "source_hash": "sha256:7a1221d2594fb5b45c4eff82819358474ac7fe9b8d13b1126d8e9cf7ebb362ba",
+  "source_provenance": {
+    "index_file": "fixtures/registry.index.json",
+    "index_hash": "sha256:8c63db365985c68839992848ec7e118b92bc6b645c9ab0d05968f904f2a773a2",
+    "lock_file": "fixtures/ddn.lock",
+    "lock_hash": "sha256:6a288fd8bc9b88d98f0d004e9e06085c6a010e2dabae5d0b5da11455d885a05d",
+    "schema": "ddn.registry.verify_report_source_provenance.v1",
+    "source_kind": "registry_verify_inputs.v1"
+  },
+  "yanked_index": 0,
+  "yanked_lock": 0
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "tensor.v0",
+  "kind": "sparse",
+  "shape": [2, 3],
+  "dtype": "fixed64",
+  "items": [
+    [[2, 0], "4294967296"]
+  ]
+}

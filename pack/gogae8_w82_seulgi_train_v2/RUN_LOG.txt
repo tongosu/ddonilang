@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update gogae8_w82_seulgi_train_v2 gogae8_w87_eval_suite_v1
+pack golden updated

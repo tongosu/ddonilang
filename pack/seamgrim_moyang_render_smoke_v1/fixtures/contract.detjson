@@ -1,0 +1,17 @@
+{
+  "tick_count": 3,
+  "cases": [
+    {
+      "id": "a",
+      "ddn_fixture": "fixtures/input_template_instance_a.ddn"
+    },
+    {
+      "id": "b",
+      "ddn_fixture": "fixtures/input_template_instance_b.ddn"
+    },
+    {
+      "id": "c",
+      "ddn_fixture": "fixtures/input_template_instance_c.ddn"
+    }
+  ]
+}

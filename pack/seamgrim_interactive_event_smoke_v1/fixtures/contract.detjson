@@ -1,0 +1,19 @@
+{
+  "schema": "seamgrim.web.interactive_event_smoke.contract.v1",
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "fps_limit": 30,
+  "dt_max": 0.1,
+  "steps": [
+    { "id": "baseline" },
+    { "id": "right_down", "keydown": "ArrowRight" },
+    { "id": "right_hold" },
+    { "id": "right_up", "keyup": "ArrowRight" },
+    { "id": "left_down", "keydown": "ArrowLeft" },
+    { "id": "left_up", "keyup": "ArrowLeft" },
+    { "id": "up_down", "keydown": "ArrowUp" },
+    { "id": "up_hold" },
+    { "id": "up_up", "keyup": "ArrowUp" },
+    { "id": "disabled_right", "input_enabled": false, "keydown": "ArrowRight" },
+    { "id": "reenabled_baseline", "input_enabled": true }
+  ]
+}

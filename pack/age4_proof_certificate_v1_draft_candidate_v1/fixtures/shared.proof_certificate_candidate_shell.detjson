@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.proof_certificate_manifest_candidate.v1",
+  "proof_schema": "ddn.proof.detjson.v0",
+  "proof_kind": "run_contract_certificate_v1",
+  "cert_manifest_schema": "ddn.cert_manifest.v1",
+  "cert_algo": "sha256-proto",
+  "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+  "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61"
+}

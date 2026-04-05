@@ -1,0 +1,41 @@
+{
+  "canonical_body_hash": "sha256:547feb14cce74b39fb42207fe31e6fca0874ee7e50c0943abc349b7fadbc4fd2",
+  "canonical_body_hash_method": "canon",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_detjson_smoke_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 0,
+    "items": [],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 0,
+  "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 0,
+    "items": [],
+    "proof_check_count": 0,
+    "quantifier_count": 0,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:98d885970f0b96d9426db2c8dd905809766753b4893a7d365c0423bd3a2fcdeb",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:e6929705154af54b0fdbdfd5fc29becaaebe57de14bd87fd152b4aa67bbc9271",
+  "trace_log_count": 1,
+  "verified": true
+}
+

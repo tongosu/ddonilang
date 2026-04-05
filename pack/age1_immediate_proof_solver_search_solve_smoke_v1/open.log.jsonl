@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:e3d4f25692639710ff11bf4b160818647242b3713623c42e9cfc195c067faf63","event_kind":"open","key":"solve:x * x = 4","open_kind":"solver","site_id":"pack/age1_immediate_proof_solver_search_solve_smoke_v1/input.ddn:15:2","value":{"goal":{"canon":"x * x = 4","kind":"formula"},"op":"solve","result":{"found":true,"value":"x=2"},"schema":"open.solver.v1"}}

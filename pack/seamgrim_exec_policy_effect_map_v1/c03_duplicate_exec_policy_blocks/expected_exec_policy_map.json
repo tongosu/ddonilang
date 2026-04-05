@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.exec_policy_effect_map.v1",
+  "language_axis": {
+    "block_count": 2,
+    "exec_mode_raw": "일반",
+    "effect_policy_raw": "허용",
+    "exec_mode_effective": "일반",
+    "effect_policy_effective": "허용",
+    "effect_policy_explicit": true,
+    "strict_effect_ignored": false,
+    "would_fail_code": "E_EXEC_POLICY_DUPLICATE"
+  },
+  "tool_axis": {
+    "open_mode_values": [
+      "deny",
+      "record",
+      "replay"
+    ],
+    "effective_open_mode_resolution_order": [
+      "cli",
+      "open_policy",
+      "default_deny"
+    ]
+  },
+  "selected_behavior_by_open_mode": [
+    {
+      "open_mode": "deny",
+      "effect_boundary_result": "gate_error:E_EXEC_POLICY_DUPLICATE"
+    },
+    {
+      "open_mode": "record",
+      "effect_boundary_result": "gate_error:E_EXEC_POLICY_DUPLICATE"
+    },
+    {
+      "open_mode": "replay",
+      "effect_boundary_result": "gate_error:E_EXEC_POLICY_DUPLICATE"
+    }
+  ]
+}

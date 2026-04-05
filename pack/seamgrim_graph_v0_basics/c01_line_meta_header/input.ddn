@@ -1,5 +1,5 @@
-#이름: line_meta_header
-#설명: 메타 헤더 포함 직선 그래프
+//이름: line_meta_header
+//설명: 메타 헤더 포함 직선 그래프
 
 직선 <- (#ascii1) 수식{ y = 2*x + 1 }.
 

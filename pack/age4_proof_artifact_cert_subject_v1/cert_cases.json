@@ -1,0 +1,40 @@
+{
+  "schema": "ddn.gogae9.w95.cert_cases.v1",
+  "cases": [
+    {
+      "id": "c01_clean_verify_pass",
+      "subject": "pack/age4_proof_detjson_smoke_v1/expected/clean.proof.detjson",
+      "key_seed": "proof-artifact-clean-seed",
+      "tamper_signature": false,
+      "expected_verify_pass": true,
+      "expected_subject_hash": "sha256:5f60345843e9bfd49ad1bc1a49d5229c97aa2b9c5c4f560a970288674f53f1a0"
+    },
+    {
+      "id": "c02_clean_verify_fail_tamper",
+      "subject": "pack/age4_proof_detjson_smoke_v1/expected/clean.proof.detjson",
+      "key_seed": "proof-artifact-clean-seed",
+      "tamper_signature": true,
+      "expected_verify_pass": false,
+      "expected_error_code": "E_CERT_VERIFY_FAIL",
+      "expected_subject_hash": "sha256:5f60345843e9bfd49ad1bc1a49d5229c97aa2b9c5c4f560a970288674f53f1a0"
+    },
+    {
+      "id": "c03_abort_verify_pass",
+      "subject": "pack/age4_proof_detjson_smoke_v1/expected/abort.proof.detjson",
+      "key_seed": "proof-artifact-abort-seed",
+      "tamper_signature": false,
+      "expected_verify_pass": true,
+      "expected_subject_hash": "sha256:371b3f75b60c6e1c54fb27cf57b813616250cb01945cc0d878a28cf0a6df2598"
+    },
+    {
+      "id": "c04_abort_verify_fail_tamper",
+      "subject": "pack/age4_proof_detjson_smoke_v1/expected/abort.proof.detjson",
+      "key_seed": "proof-artifact-abort-seed",
+      "tamper_signature": true,
+      "expected_verify_pass": false,
+      "expected_error_code": "E_CERT_VERIFY_FAIL",
+      "expected_subject_hash": "sha256:371b3f75b60c6e1c54fb27cf57b813616250cb01945cc0d878a28cf0a6df2598"
+    }
+  ]
+}
+

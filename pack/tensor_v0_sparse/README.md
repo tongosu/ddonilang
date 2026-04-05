@@ -1,11 +1,9 @@
-# tensor_v0_sparse (draft)
+# tensor_v0_sparse
 
-- 상태: SSOT 승인 전 스캐폴딩
-- 제안서: `docs/context/proposals/PROPOSAL_TENSOR_V0_CANON_V1_20260209.md`
-- 주제: 텐서 V0 희소
+- 상태: 구현 반영
+- 기준: DR-133 (`tensor.v0` sparse 정렬/중복/OOB 불변식)
+- 검증 스크립트: `tests/run_tensor_v0_pack_check.py`
 
-## TODO
-- SSOT 결정 반영
-- 입력/기대값 설계
-- golden.jsonl 추가
-- run_pack_golden 목록 반영
+## 커버리지
+- 정상 케이스 해시 고정(`expected_hash`)
+- 오류 케이스(`정렬/중복/인덱스 범위`) 코드 고정

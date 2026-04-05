@@ -1,0 +1,8 @@
+{
+  "schema": "seamgrim.block_editor.screen.fixture.v1",
+  "title": "Seamgrim Flow Block Screen",
+  "mode": "seamgrim",
+  "source_ddn": "fixtures/source.ddn",
+  "append_block_kind": "show"
+}
+

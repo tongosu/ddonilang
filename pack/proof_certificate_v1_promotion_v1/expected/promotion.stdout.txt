@@ -1,0 +1,1 @@
+[proof-certificate-v1-promotion-selftest] ok profiles=2 shared=9 state=7

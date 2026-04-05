@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.ci.proof_certificate_v1_family_transport_contract_selftest.progress.v1",
+  "generated_at_utc": "<iso8601-utc>",
+  "status": "completed",
+  "current_case": "-",
+  "last_completed_case": "-",
+  "current_probe": "-",
+  "last_completed_probe": "report_index",
+  "completed_checks": 9,
+  "total_checks": 9,
+  "checks_text": "family_contract,aggregate_preview_summary,aggregate_status_line,final_status_line,gate_result,gate_outputs_consistency,gate_summary_line,final_line_emitter,report_index"
+}

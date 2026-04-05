@@ -1,0 +1,8 @@
+{
+  "name": "state_machine_transition_guard_unresolved_report_v1",
+  "ssot_requires": "20.12.0",
+  "age_target": "AGE1",
+  "det_tier": "D-STRICT",
+  "trace_tier": "T-PATCH",
+  "openness": "closed"
+}

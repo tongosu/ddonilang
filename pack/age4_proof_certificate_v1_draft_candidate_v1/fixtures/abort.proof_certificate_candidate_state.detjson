@@ -1,0 +1,9 @@
+{
+  "verified": false,
+  "contract_diag_count": 1,
+  "proof_subject_hash": "sha256:371b3f75b60c6e1c54fb27cf57b813616250cb01945cc0d878a28cf0a6df2598",
+  "canonical_body_hash": "sha256:7d31074b42ba5e61d67b9e547e91230dceb8ddfc6a7454f4ba9d3570a74cd2f2",
+  "state_hash": "blake3:b0c1e40b1797185b27b0ace9ef48af371e0a1070affff9ddcd355992d6451d65",
+  "trace_hash": "blake3:ea5df152b437755c34744cf152379a87de42ad7f00869f0b9ec875cde210b012"
+}
+

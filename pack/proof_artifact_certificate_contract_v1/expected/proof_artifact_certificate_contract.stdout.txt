@@ -1,0 +1,1 @@
+[proof-artifact-certificate-contract-selftest] ok

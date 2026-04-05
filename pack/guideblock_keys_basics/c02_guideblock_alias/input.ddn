@@ -1,0 +1,11 @@
+설정 {
+  title: block-title.
+  설명: block-desc.
+}.
+보개 {
+  default-series: theta.
+}.
+슬기 {
+  x-axis: t.
+}.
+x <- 1.

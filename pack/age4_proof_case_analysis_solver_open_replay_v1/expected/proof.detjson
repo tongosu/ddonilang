@@ -1,0 +1,77 @@
+{
+  "canonical_body_hash": "sha256:cc29eed2ef0c23cfa9327e6ef1efa3d95e39f9cfe77cbd91d5b135530c23a330",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_case_analysis_solver_open_replay_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 1,
+    "items": [
+      {
+        "col": 11,
+        "error_code": null,
+        "kind": "solver_check",
+        "line": 10,
+        "query": "forall n. n = n",
+        "satisfied": true,
+        "tick": 0
+      }
+    ],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 1,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 1,
+  "proof_runtime_hash": "sha256:1124c6c865884ec8dae2483f8b2348deea967eee96fced28d39daa18acd2dc79",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 1,
+    "item_count": 3,
+    "items": [
+      {
+        "binder": "y",
+        "body_stmt_count": 1,
+        "col": 3,
+        "domain": "정수",
+        "kind": "quantifier",
+        "line": 4,
+        "quantifier": "exists_unique"
+      },
+      {
+        "branch_count": 1,
+        "col": 3,
+        "completion": "exhaustive",
+        "exhaustive": true,
+        "has_else": false,
+        "kind": "case_analysis",
+        "line": 8
+      },
+      {
+        "arg_count": 1,
+        "col": 11,
+        "kind": "solver_open",
+        "line": 10,
+        "operation": "check",
+        "query": "forall n. n = n"
+      }
+    ],
+    "proof_check_count": 0,
+    "quantifier_count": 1,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 1
+  },
+  "solver_translation_hash": "sha256:7cacc6e043fee787347a9ebd5eadbb9cc44fd67eac86e803c95a0ebce46ab76c",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:8560661ecf59c7af250a98f8818402daf5ba733ea62dc109f5c6e548fa752f4c",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:c6d1a1f31f618f5b35b808b4910f1f01f40c0b9ff02172ba67f32b0beae1434d",
+  "trace_log_count": 1,
+  "verified": true
+}

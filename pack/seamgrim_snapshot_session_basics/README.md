@@ -1,4 +1,4 @@
-﻿# seamgrim_snapshot_session_basics
+# seamgrim_snapshot_session_basics
 
 스냅샷/세션 저장물 수동 검증용 샘플입니다.
 

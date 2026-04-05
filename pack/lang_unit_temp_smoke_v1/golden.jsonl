@@ -1,0 +1,7 @@
+{"input_path": "c01_kelvin_literal.ddn", "stdout": ["300@K"], "exit_code": 0}
+{"input_path": "c02_celsius_normalize.ddn", "stdout": ["참"], "exit_code": 0}
+{"input_path": "c03_fahrenheit_normalize.ddn", "stdout": ["참"], "exit_code": 0}
+{"input_path": "c04_temp_arithmetic_kk.ddn", "stdout": ["310@K"], "exit_code": 0}
+{"input_path": "c05_mixed_temp_add.ddn", "stdout": ["참"], "exit_code": 0}
+{"input_path": "c06_dimension_mismatch.ddn", "expected_error_code": "E_UNIT_MISMATCH", "exit_code": 1}
+{"input_path": "c07_delta_not_supported.ddn", "expected_error_code": "E_UNIT_UNKNOWN", "exit_code": 1}

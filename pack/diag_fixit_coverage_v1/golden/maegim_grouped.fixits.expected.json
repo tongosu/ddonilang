@@ -1,0 +1,19 @@
+[
+  {
+    "code": "E_PARSE_MAEGIM_GROUPED_VALUE_REQUIRED",
+    "message": "E_PARSE_MAEGIM_GROUPED_VALUE_REQUIRED fix-it 제안",
+    "span": {
+      "end_col": 14,
+      "end_line": 2,
+      "file": "input_maegim_grouped.ddn",
+      "start_col": 13,
+      "start_line": 2
+    },
+    "suggestion": {
+      "kind": "replace",
+      "new": "(9.8)",
+      "note": "매김 값은 괄호로 감싸서 적어야 합니다.",
+      "old": "9.8"
+    }
+  }
+]

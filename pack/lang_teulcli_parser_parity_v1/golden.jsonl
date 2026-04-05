@@ -1,0 +1,4 @@
+{"cmd":["canon","pack/lang_teulcli_parser_parity_v1/c01_block_header_colon_deprecated/input.ddn","--emit","ddn"],"stdout_path":"c01_block_header_colon_deprecated/expected_canon.ddn","expected_warning_code":"W_BLOCK_HEADER_COLON_DEPRECATED"}
+{"cmd":["canon","pack/lang_teulcli_parser_parity_v1/c02_bogae_madang_alias_parity/input.ddn","--emit","ddn"],"stdout_path":"c02_bogae_madang_alias_parity/expected_canon.ddn","expected_warning_code":"W_BOGAE_MADANG_ALIAS_DEPRECATED"}
+{"cmd":["canon","pack/lang_teulcli_parser_parity_v1/c03_jjaim_alias_warning_parity/input.ddn","--emit","ddn"],"stdout_path":"c03_jjaim_alias_warning_parity/expected_canon.ddn","expected_warning_code":"W_JJAIM_ALIAS_DEPRECATED"}
+{"cmd":["canon","pack/lang_teulcli_parser_parity_v1/c04_decl_maegim_alias_parity/input.ddn","--emit","ddn"],"stdout_path":"c04_decl_maegim_alias_parity/expected_canon.ddn"}

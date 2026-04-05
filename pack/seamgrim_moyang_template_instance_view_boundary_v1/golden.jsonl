@@ -1,0 +1,5 @@
+{"smoke_golden":"smoke_template_instance_a.v1.json","exit_code":0}
+{"smoke_golden":"smoke_template_instance_b.v1.json","exit_code":0}
+{"smoke_golden":"smoke_template_instance_c.v1.json","exit_code":0}
+{"cmd":["run","pack/seamgrim_moyang_template_instance_view_boundary_v1/input_template_instance_a.ddn","--madi","3","--seed","0x2a","--bogae","web","--bogae-out","build/seamgrim_moyang_template_instance_view_boundary_v1_a.detbin","--no-open"],"bogae_hash":"blake3:7544e76b4ad67449d04b71191e01eeb544a6edb80ecda868f1beae8739be32d9","exit_code":0}
+{"cmd":["run","pack/seamgrim_moyang_template_instance_view_boundary_v1/input_template_instance_b.ddn","--madi","3","--seed","0x2a","--bogae","web","--bogae-out","build/seamgrim_moyang_template_instance_view_boundary_v1_b.detbin","--no-open"],"bogae_hash":"blake3:edee967d1cbd210485956e868ee761983410c237945087ba21065a78020d0d47","exit_code":0}

@@ -1,0 +1,5 @@
+{"cmd": ["canon", "pack/block_header_no_colon/c01_decl_colon_warn/input.ddn"], "stdout_path": "c01_decl_colon_warn/expected_canon.ddn", "expected_warning_code": "W_BLOCK_HEADER_COLON_DEPRECATED", "exit_code": 0}
+{"cmd": ["canon", "pack/block_header_no_colon/c02_repeat_foreach_colon_warn/input.ddn"], "stdout_path": "c02_repeat_foreach_colon_warn/expected_canon.ddn", "expected_warning_code": "W_BLOCK_HEADER_COLON_DEPRECATED", "exit_code": 0}
+{"cmd": ["canon", "pack/block_header_no_colon/c03_while_colon_warn/input.ddn"], "stdout_path": "c03_while_colon_warn/expected_canon.ddn", "expected_warning_code": "W_BLOCK_HEADER_COLON_DEPRECATED", "exit_code": 0}
+{"cmd": ["canon", "pack/block_header_no_colon/c04_nested_multi_colon_warn/input.ddn"], "stdout_path": "c04_nested_multi_colon_warn/expected_canon.ddn", "expected_warning_code": "W_BLOCK_HEADER_COLON_DEPRECATED", "exit_code": 0}
+{"cmd": ["canon", "pack/block_header_no_colon/c05_mixed_colon_no_colon_warn/input.ddn"], "stdout_path": "c05_mixed_colon_no_colon_warn/expected_canon.ddn", "expected_warning_code": "W_BLOCK_HEADER_COLON_DEPRECATED", "exit_code": 0}

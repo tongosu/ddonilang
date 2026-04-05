@@ -1,0 +1,31 @@
+{
+  "schema": "seamgrim.web.temp_lesson_smoke.v1",
+  "prepared_body_has_temp_formats": true,
+  "parse_diag_codes": [],
+  "observation_keys": [
+    "섭씨안내",
+    "화씨안내",
+    "temp_c"
+  ],
+  "observation_temperature_strings": {
+    "celsius": "72.0@C",
+    "fahrenheit": "161.6@F"
+  },
+  "output_token_count": 21,
+  "row_count": 3,
+  "first_row": {
+    "t": 0,
+    "celsius": "80.0@C",
+    "fahrenheit": "176.0@F"
+  },
+  "last_row": {
+    "t": 2,
+    "celsius": "72.0@C",
+    "fahrenheit": "161.6@F"
+  },
+  "table_summary": "3열 · 3행 · table.v0 · temperature-smoke",
+  "rendered_table": true,
+  "rendered_contains_celsius": true,
+  "rendered_contains_fahrenheit": true,
+  "rendered_html_excerpt": "<table class=\"runtime-table\"><thead><tr><th data-col-key=\"t\">t</th><th data-col-key=\"celsius\">celsius</th><th data-col-key=\"fahrenheit\">fahrenheit</th></tr></thead><tbody><tr><td data-col-key=\"t\"><span class=\"runtime-table-celltext\">0</span"
+}

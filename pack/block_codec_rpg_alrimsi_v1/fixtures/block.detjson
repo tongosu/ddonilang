@@ -1,0 +1,58 @@
+{
+  "schema": "seamgrim.rpgbox.block.fixture.v1",
+  "source_ddn": "fixtures/source.ddn",
+  "grid": {
+    "grid_w": 3,
+    "grid_h": 2,
+    "tile_size": 16,
+    "tiles": [
+      [0, 1, 0],
+      [0, 0, 2]
+    ]
+  },
+  "actors": [
+    {
+      "id": "hero",
+      "row": 0,
+      "col": 1,
+      "fill": "#ff6b6b"
+    }
+  ],
+  "initial_blocks": [
+    {
+      "kind": "alrimsi_define",
+      "fields": {
+        "name": "피해_받음",
+        "fields": "피해량:수"
+      }
+    },
+    {
+      "kind": "receive_hook",
+      "fields": {
+        "bind": "피해량",
+        "alrim": "피해_받음"
+      },
+      "inputs": {
+        "body": [
+          {
+            "id": "show_0001",
+            "kind": "show",
+            "label": "보여주기",
+            "fields": {
+              "expr": "피해량"
+            },
+            "inputs": {},
+            "template": "{expr} 보여주기.",
+            "source": "fixture",
+            "rawText": ""
+          }
+        ]
+      }
+    }
+  ],
+  "append_send_fields": {
+    "payload": "피해량:30",
+    "alrim": "피해_받음",
+    "target": "플레이어"
+  }
+}

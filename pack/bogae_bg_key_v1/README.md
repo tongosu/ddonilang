@@ -11,3 +11,7 @@
 
 ## DoD(최소)
 - 두 입력의 `bogae_hash`가 동일하다.
+
+## Contract Pointer
+- 상위 alias 계약면: `tests/bogae_shape_alias_contract/README.md`
+- 검증: `python tests/run_bogae_shape_alias_contract_selftest.py`

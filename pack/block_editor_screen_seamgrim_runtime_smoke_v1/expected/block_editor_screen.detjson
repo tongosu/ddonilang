@@ -1,0 +1,324 @@
+{
+  "canvas_children": 4,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "seed_def_0002",
+      "kind": "seed_def"
+    },
+    {
+      "exprs": {},
+      "id": "seed_def_0009",
+      "kind": "seed_def"
+    },
+    {
+      "exprs": {},
+      "id": "event_react_0011",
+      "kind": "event_react"
+    },
+    {
+      "exprs": {},
+      "id": "show_0012",
+      "kind": "show"
+    }
+  ],
+  "generated_preview": "(기준:수 = 1) 판정:움직씨 = {\n  기준 되돌림.\n}.\n\n기상청:임자 = {\n  기상특보를 받으면 {\n    알림.이름 보여주기.\n  }.\n\n  (정보 정보.온도 > 40)인 기상특보를 받으면 {\n    (기상청)의 (온도:정보.온도) 경보 ~~> 제.\n  }.\n\n  (알림 알림.이름 == \"경보\")인 알림을 받으면 {\n    알림.정보.온도 보여주기.\n  }.\n}.\n\n\"tick\"라는 알림이 오면 {\n  \"evt\" 보여주기.\n}.\n\n체력 보여주기.",
+  "palette_children": 39,
+  "result_text": "mode=seamgrim blocks=4 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "(기준:수 = 1) 판정:움직씨 = {\n  기준 되돌림.\n}.\n\n기상청:임자 = {\n  기상특보를 받으면 {\n    알림.이름 보여주기.\n  }.\n\n  (정보 정보.온도 > 40)인 기상특보를 받으면 {\n    (기상청)의 (온도:정보.온도) 경보 ~~> 제.\n  }.\n\n  (알림 알림.이름 == \"경보\")인 알림을 받으면 {\n    알림.정보.온도 보여주기.\n  }.\n}.\n\n\"tick\"라는 알림이 오면 {\n  \"evt\" 보여주기.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Runtime Block Screen"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 4,
+    "canvas_summary": {
+      "block_count": 4,
+      "block_ids": [
+        "seed_def_0002",
+        "seed_def_0009",
+        "event_react_0011",
+        "show_0012"
+      ],
+      "block_kinds": [
+        "seed_def",
+        "seed_def",
+        "event_react",
+        "show"
+      ],
+      "expr_nodes": [
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "기준"
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "알림.이름"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "정보.온도 > 40"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "정보.온도"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "40"
+        },
+        {
+          "depth": 0,
+          "kind": "call",
+          "text": "(온도:정보.온도) 경보"
+        },
+        {
+          "depth": 1,
+          "kind": "pack",
+          "text": "(온도=정보.온도)"
+        },
+        {
+          "depth": 2,
+          "kind": "binding",
+          "text": "정보.온도"
+        },
+        {
+          "depth": 3,
+          "kind": "path",
+          "text": "정보.온도"
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "제"
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "기상청"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "알림.이름 == \"경보\""
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "알림.이름"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "\"경보\""
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "알림.정보.온도"
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"evt\""
+        }
+      ],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "seed_def_0002",
+          "kind": "seed_def"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "path"
+          ],
+          "id": "return_value_0001",
+          "kind": "return_value"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "seed_def_0009",
+          "kind": "seed_def"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "receive_block_0004",
+          "kind": "receive_block"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "path"
+          ],
+          "id": "show_0003",
+          "kind": "show"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "condition"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "receive_block_0006",
+          "kind": "receive_block"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "payload",
+            "receiver",
+            "sender"
+          ],
+          "expr_kinds": [
+            "call",
+            "pack",
+            "binding",
+            "path",
+            "path",
+            "path"
+          ],
+          "id": "send_signal_0005",
+          "kind": "send_signal"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "condition"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "receive_block_0008",
+          "kind": "receive_block"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "path"
+          ],
+          "id": "show_0007",
+          "kind": "show"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "event_react_0011",
+          "kind": "event_react"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0010",
+          "kind": "show"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "show_0012",
+          "kind": "show"
+        }
+      ],
+      "total_block_count": 12,
+      "total_expr_count": 16
+    },
+    "error_count": 0,
+    "generated_length": 257,
+    "mode": "seamgrim",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block"
+      ],
+      "category_count": 5,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output"
+      ]
+    }
+  },
+  "summary_text": "mode=seamgrim blocks=4 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "(기준:수 = 1) 판정:움직씨 = {\n  기준 되돌림.\n}.\n\n기상청:임자 = {\n  기상특보를 받으면 {\n    알림.이름 보여주기.\n  }.\n\n  (정보 정보.온도 > 40)인 기상특보를 받으면 {\n    (기상청)의 (온도:정보.온도) 경보 ~~> 제.\n  }.\n\n  (알림 알림.이름 == \"경보\")인 알림을 받으면 {\n    알림.정보.온도 보여주기.\n  }.\n}.\n\n\"tick\"라는 알림이 오면 {\n  \"evt\" 보여주기.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Runtime Block Screen"
+      }
+    }
+  ]
+}

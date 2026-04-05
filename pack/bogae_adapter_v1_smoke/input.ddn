@@ -1,5 +1,5 @@
-#이름: bogae_adapter_v1_smoke
-#설명: 보개 AdapterV1 입력(태그/형상/자산참조) 스모크
+//이름: bogae_adapter_v1_smoke
+//설명: 보개 AdapterV1 입력(태그/형상/자산참조) 스모크
 
 보개_그림판_가로 <- 64.
 보개_그림판_세로 <- 48.

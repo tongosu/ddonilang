@@ -1,0 +1,35 @@
+{
+  "schema": "ddn.canon_ast.detjson.v1",
+  "normalized_n1": "(왼:수~을~를, 오른:수~에) 더하:셈씨 = {\n    왼 + 오른 되돌림.\n}\n\n증명:셈씨 = {\n    3~을 1~에 더하기.\n}",
+  "warnings": [
+
+  ],
+  "seeds": [
+    {
+      "name": "더하",
+      "kind": "셈씨",
+      "params": [
+        {"pin": "왼", "josa_list": ["을", "를"]},
+        {"pin": "오른", "josa_list": ["에"]}
+      ],
+      "calls": [
+
+      ],
+      "contract_count": 0
+    },
+    {
+      "name": "증명",
+      "kind": "셈씨",
+      "params": [
+
+      ],
+      "calls": [
+        {
+          "func": "더하기",
+          "args": [{"resolved_pin": "왼", "josa": null, "binding_reason": "positional", "expr": "fixed64:3"}, {"resolved_pin": "오른", "josa": null, "binding_reason": "positional", "expr": "fixed64:1"}]
+        }
+      ],
+      "contract_count": 0
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{"guideblock_case": "c01_hash_header_alias/case.detjson", "exit_code": 0}
+{"guideblock_case": "c02_guideblock_alias/case.detjson", "exit_code": 0}
+{"guideblock_case": "c03_mixed_precedence/case.detjson", "exit_code": 0}
+{"guideblock_case": "c04_canonical_keys/case.detjson", "exit_code": 0}

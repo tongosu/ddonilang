@@ -1,4 +1,4 @@
-﻿# edu_math_function_line
+# edu_math_function_line
 
 ## 목적
 - 직선 함수

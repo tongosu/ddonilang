@@ -9,11 +9,11 @@
     },
     {
       "tick": 20,
-      "state_hash": "blake3:6dd9873ffc95542e6dc742b1802ebf3684145119f24db746e320b9d231b78bca"
+      "state_hash": "blake3:7cc4f734e5ff4bc436abcd9b8d55025cd6f5d4a6c9c9ad720abd8716248dd280"
     },
     {
       "tick": 40,
-      "state_hash": "blake3:c59286ad408f88e5b39031ec62038e48050de7eb472418aeee037a8b29ae8719"
+      "state_hash": "blake3:b5630970b4240dae78416fcf5a184849a89fa47675556cbe1eab9d3c4713e505"
     }
   ],
   "max_ticks": 40,

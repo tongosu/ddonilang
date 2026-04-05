@@ -1,0 +1,1 @@
+[proof-certificate-v1-draft-contract-selftest] ok layers=3 profiles=2

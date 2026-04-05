@@ -1,0 +1,10 @@
+//이름: bogae_grid2d_smoke_v1
+//설명: grid2d profile 최소 drawlist smoke
+
+보개_그림판_가로 <- 96.
+보개_그림판_세로 <- 96.
+보개_바탕색 <- "#f8f3e8ff".
+
+보개_그림판_목록 <- [(id="cell.0.0", 결="#보개/2D.Rect", x=0, y=0, w=32, h=32, 채움색="#f6f1e8ff"), (id="cell.1.0", 결="#보개/2D.Rect", x=32, y=0, w=32, h=32, 채움색="#efe8dbff"), (id="cell.2.0", 결="#보개/2D.Rect", x=64, y=0, w=32, h=32, 채움색="#f6f1e8ff"), (id="cell.0.1", 결="#보개/2D.Rect", x=0, y=32, w=32, h=32, 채움색="#efe8dbff"), (id="cell.1.1", 결="#보개/2D.Rect", x=32, y=32, w=32, h=32, 채움색="#2e3440ff"), (id="cell.2.1", 결="#보개/2D.Rect", x=64, y=32, w=32, h=32, 채움색="#efe8dbff"), (id="cell.0.2", 결="#보개/2D.Rect", x=0, y=64, w=32, h=32, 채움색="#f6f1e8ff"), (id="cell.1.2", 결="#보개/2D.Rect", x=32, y=64, w=32, h=32, 채움색="#efe8dbff"), (id="cell.2.2", 결="#보개/2D.Rect", x=64, y=64, w=32, h=32, 채움색="#67b99aff"), (id="label", 결="#보개/2D.Text", x=4, y=88, size=8, text="grid2d", 색="#111111ff")].
+
+보개로 그려.

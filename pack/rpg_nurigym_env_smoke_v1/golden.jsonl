@@ -1,0 +1,1 @@
+{"cmd":["nurigym","run","pack\\rpg_nurigym_env_smoke_v1\\input.json","--out","pack\\rpg_nurigym_env_smoke_v1\\out"],"stdout_path":"expected/stdout.txt","meta_out":"out/nurigym.dataset.jsonl","expected_meta":"expected/nurigym.dataset.jsonl","exit_code":0}

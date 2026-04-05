@@ -1,4 +1,4 @@
-﻿# D-PACK: w25_all_block_sugar
+# D-PACK: w25_all_block_sugar
 
 ## 목적
 - `(임자) 대상차림 모두 { ... }.` 설탕이 `~에 대해:`로 동작하는지 확인한다.

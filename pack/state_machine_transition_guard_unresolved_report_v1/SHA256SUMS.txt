@@ -1,0 +1,2 @@
+sha256:87290a1a533b67ed2d1cf11dba2edfc726cdf086bd20ae1e9d68812c66ad8b82  expected/state_transition_failures.detjson
+sha256:33ca34f36e8828a8db5cf000d50e768b3e2673c9cac78cd07ca97e045caea138  golden.jsonl

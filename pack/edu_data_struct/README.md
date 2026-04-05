@@ -1,4 +1,4 @@
-﻿# edu_data_struct
+# edu_data_struct
 
 ## 목적
 - 차림/짝맞춤

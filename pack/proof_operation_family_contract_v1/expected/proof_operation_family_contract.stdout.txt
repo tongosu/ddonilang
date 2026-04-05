@@ -1,0 +1,1 @@
+[proof-operation-family-contract-selftest] ok checks=4 names=age1_solver_search_matrix,solver_search_parity,solver_operation_family,proof_operation_family

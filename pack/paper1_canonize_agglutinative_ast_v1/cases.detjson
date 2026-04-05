@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.canon_ast_pack.v1",
+  "runner": "lang/examples/canon_ast_dump.rs",
+  "cases": [
+    {
+      "id": "c01_ab",
+      "input": "cases/c01_ab/input.ddn",
+      "expected": "expected/canon_ast.detjson"
+    },
+    {
+      "id": "c02_ba",
+      "input": "cases/c02_ba/input.ddn",
+      "expected": "expected/canon_ast.detjson"
+    }
+  ]
+}

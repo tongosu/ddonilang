@@ -1,0 +1,2 @@
+{"cmd":["canon","pack/seamgrim_guseong_flatten_ir_v1/c01_basic/input.ddn","--emit","guseong-flat-json"],"stdout_path":"c01_basic/expected_flat.json"}
+{"cmd":["canon","pack/seamgrim_guseong_flatten_ir_v1/c02_guseong_alias_warn/input.ddn","--emit","guseong-flat-json"],"stdout_path":"c02_guseong_alias_warn/expected_flat.json","expected_warning_code":"W_JJAIM_ALIAS_DEPRECATED"}

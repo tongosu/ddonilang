@@ -1,0 +1,14 @@
+{
+  "schema": "ddn.seamgrim.guideblock_case.v1",
+  "case_id": "c02_guideblock_alias",
+  "input": "input.ddn",
+  "expect": {
+    "meta": {
+      "name": "block-title",
+      "desc": "block-desc",
+      "default_observation": "theta",
+      "default_observation_x": "t"
+    },
+    "body_starts_with": "x <- 1."
+  }
+}

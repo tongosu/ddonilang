@@ -1,0 +1,118 @@
+{
+  "canonical_body_hash": "sha256:f665d41c34f8bad06c176c096c5236b79c3030ad389a1e5df37c62058e7f5b4f",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age1_immediate_proof_smoke_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 4,
+    "items": [
+      {
+        "binding_count": 1,
+        "col": 3,
+        "error_code": null,
+        "kind": "proof_check",
+        "line": 10,
+        "passed": true,
+        "target": "세움{\n    {\n        거리 >= 0.\n    }인것 바탕으로\n        아니면 {\n            없음.\n        }\n}",
+        "tick": 0
+      },
+      {
+        "col": 3,
+        "error_code": null,
+        "found": false,
+        "kind": "solver_search",
+        "line": 16,
+        "operation": "counterexample",
+        "query": "forall n. n >= 0",
+        "tick": 0,
+        "value": null
+      },
+      {
+        "col": 3,
+        "error_code": null,
+        "kind": "solver_check",
+        "line": 17,
+        "query": "forall n. n = n",
+        "satisfied": true,
+        "tick": 0
+      },
+      {
+        "error_code": null,
+        "kind": "proof_block",
+        "name": "자연수_제곱_0이상",
+        "result": "성공",
+        "tick": 0
+      }
+    ],
+    "proof_block_count": 1,
+    "proof_check_count": 1,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 1,
+    "solver_search_count": 1
+  },
+  "proof_runtime_count": 4,
+  "proof_runtime_hash": "sha256:0f950cda33a4cd6a45ba77c156008f76b8df11a8e6ca29e87732b945937ed5cf",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 5,
+    "items": [
+      {
+        "col": 1,
+        "kind": "proof_block",
+        "line": 9,
+        "name": "자연수_제곱_0이상"
+      },
+      {
+        "arg_count": 1,
+        "binding_count": 1,
+        "col": 3,
+        "kind": "proof_check",
+        "line": 10,
+        "target": "살림.거리_0이상"
+      },
+      {
+        "binder": "y",
+        "body_stmt_count": 1,
+        "col": 3,
+        "domain": "정수",
+        "kind": "quantifier",
+        "line": 12,
+        "quantifier": "exists_unique"
+      },
+      {
+        "arg_count": 1,
+        "col": 3,
+        "kind": "solver_open",
+        "line": 16,
+        "operation": "counterexample",
+        "query": "forall n. n >= 0"
+      },
+      {
+        "arg_count": 1,
+        "col": 3,
+        "kind": "solver_open",
+        "line": 17,
+        "operation": "check",
+        "query": "forall n. n = n"
+      }
+    ],
+    "proof_check_count": 1,
+    "quantifier_count": 1,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 2
+  },
+  "solver_translation_hash": "sha256:4a698431807ed80bf9c0aa82723c8e2e1eb4eacc705423e5356f22bf49acebec",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:23bd38196ca3c8e8d7d4c69a21c6def1aebafc9eface7a1fd76f3d2f1721dd5b",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:6f4ccc59f9e9e04d2cc651fe50c6b2475d24d43d476e0e418bcbe26b55b52208",
+  "trace_log_count": 0,
+  "verified": true
+}

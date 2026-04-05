@@ -1,0 +1,24 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "input.ddn",
+  "max_ticks": 3,
+  "timeout_ms": 30000,
+  "checkpoints": [
+    {
+      "tick": 0,
+      "state_hash": "blake3:d01c62de55f8d6466e56865898b25d791d68d80cc6e8b2ccc89c0fd0d733debc"
+    },
+    {
+      "tick": 1,
+      "state_hash": "blake3:204568463b0cb97fa2605d3aa6f443f76fb39033b83365397ce21ea400c9fa01"
+    },
+    {
+      "tick": 2,
+      "state_hash": "blake3:da24dddf946568911bca6e8bd826c12994233dbe8c8517e5dfb2d74c29fae094"
+    },
+    {
+      "tick": 3,
+      "state_hash": "blake3:48d0caa8b5dd7b043b3bee8aa9dc0df4909a2148adc3d781ab1036158c9290e4"
+    }
+  ]
+}

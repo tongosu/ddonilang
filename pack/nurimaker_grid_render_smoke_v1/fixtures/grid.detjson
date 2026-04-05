@@ -1,0 +1,51 @@
+{
+  "schema": "seamgrim.nurimaker.grid.fixture.v1",
+  "scene_id": "rpg_dungeon_intro",
+  "scene_options": [
+    {
+      "value": "rpg_dungeon_intro",
+      "label": "RPG 던전 도입"
+    },
+    {
+      "value": "rpg_dungeon_boss",
+      "label": "RPG 보스 방"
+    }
+  ],
+  "selected_tile_kind": 4,
+  "source_text": "#이름: RPG 박스\n#설명: 누리메이커 격자 스모크\n\n채비 {\n  맵_너비: 수 = 4.\n  맵_높이: 수 = 3.\n}.",
+  "click": {
+    "row": 2,
+    "col": 2
+  },
+  "grid": {
+    "grid_w": 4,
+    "grid_h": 3,
+    "tile_size": 16,
+    "tiles": [
+      [0, 1, 0, 2],
+      [0, 0, 3, 0],
+      [1, 0, 0, 0]
+    ],
+    "palette": {
+      "0": "#f6f1e8",
+      "1": "#2e3440",
+      "2": "#67b99a",
+      "3": "#f4b860",
+      "4": "#7aa2f7"
+    }
+  },
+  "actors": [
+    {
+      "id": "hero",
+      "row": 1,
+      "col": 1,
+      "fill": "#ff6b6b"
+    },
+    {
+      "id": "slime",
+      "row": 0,
+      "col": 3,
+      "fill": "#4ecdc4"
+    }
+  ]
+}

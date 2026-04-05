@@ -1,0 +1,2 @@
+python tests/run_canon_ast_dpack.py --update paper1_canonize_agglutinative_ast_v2
+canon ast dpack updated

@@ -1,0 +1,130 @@
+{
+  "canonical_body_hash": "sha256:71818b842dc9a21f3c3778e5fc372c18d7818dd20b85806cf0aedf3478330ca9",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age1_immediate_proof_case_analysis_else_solver_open_search_smoke_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 3,
+    "items": [
+      {
+        "binding_count": 1,
+        "col": 3,
+        "error_code": null,
+        "kind": "proof_check",
+        "line": 10,
+        "passed": true,
+        "target": "세움{\n    {\n        거리 >= 0.\n    }인것 바탕으로\n        아니면 {\n            없음.\n        }\n}",
+        "tick": 0
+      },
+      {
+        "col": 5,
+        "error_code": "E_OPEN_REPLAY_MISS",
+        "kind": "solver_check",
+        "line": 21,
+        "query": "forall n. n = n",
+        "satisfied": null,
+        "tick": 0
+      },
+      {
+        "error_code": "E_OPEN_REPLAY_MISS",
+        "kind": "proof_block",
+        "name": "검사",
+        "result": "실패",
+        "tick": 0
+      }
+    ],
+    "proof_block_count": 1,
+    "proof_check_count": 1,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 1,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 3,
+  "proof_runtime_hash": "sha256:0741a54d416bb21cfc359e602c2394b87cf1f59d18edefeb4de7a794ee714c55",
+  "runtime_error": {
+    "code": "E_OPEN_REPLAY_MISS",
+    "col": 5,
+    "line": 21,
+    "message": "열림 리플레이 로그 없음: kind=solver site_id=pack/age1_immediate_proof_case_analysis_else_solver_open_search_smoke_v1/input.ddn:20:4 key=check:forall n. n = n"
+  },
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 1,
+    "item_count": 7,
+    "items": [
+      {
+        "col": 1,
+        "kind": "proof_block",
+        "line": 9,
+        "name": "검사"
+      },
+      {
+        "arg_count": 1,
+        "binding_count": 1,
+        "col": 3,
+        "kind": "proof_check",
+        "line": 10,
+        "target": "살림.거리_0이상"
+      },
+      {
+        "binder": "y",
+        "body_stmt_count": 1,
+        "col": 3,
+        "domain": "정수",
+        "kind": "quantifier",
+        "line": 12,
+        "quantifier": "exists_unique"
+      },
+      {
+        "branch_count": 1,
+        "col": 3,
+        "completion": "else",
+        "exhaustive": false,
+        "has_else": true,
+        "kind": "case_analysis",
+        "line": 16
+      },
+      {
+        "arg_count": 1,
+        "col": 5,
+        "kind": "solver_open",
+        "line": 21,
+        "operation": "check",
+        "query": "forall n. n = n"
+      },
+      {
+        "arg_count": 1,
+        "col": 5,
+        "kind": "solver_open",
+        "line": 22,
+        "operation": "counterexample",
+        "query": "forall n. n >= 0"
+      },
+      {
+        "arg_count": 1,
+        "col": 5,
+        "kind": "solver_open",
+        "line": 23,
+        "operation": "solve",
+        "query": "x * x = 4"
+      }
+    ],
+    "proof_check_count": 1,
+    "quantifier_count": 1,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 3
+  },
+  "solver_translation_hash": "sha256:c8ded0c9b5c77a1f175deaff2e72c1ecf36df554dec21e18ef18f37d8836967a",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:23bd38196ca3c8e8d7d4c69a21c6def1aebafc9eface7a1fd76f3d2f1721dd5b",
+  "ticks": 0,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:50650848542d9ae71fee949101077ffd9badb827e924b01c4f8b800cb60aacb4",
+  "trace_log_count": 0,
+  "verified": false
+}

@@ -1,4 +1,4 @@
-﻿# edu_physics_motion
+# edu_physics_motion
 
 ## 목적
 - 등가속도 운동

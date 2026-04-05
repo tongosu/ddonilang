@@ -1,0 +1,7 @@
+{
+  "schema": "seamgrim.block_editor.screen.fixture.v1",
+  "title": "Seamgrim Block Screen Expr",
+  "mode": "seamgrim",
+  "source_ddn": "fixtures/source.ddn",
+  "append_block_kind": "expr_stmt"
+}

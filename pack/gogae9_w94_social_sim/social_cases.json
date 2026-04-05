@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.gogae9.w94.social_cases.v1",
+  "cases": [
+    {
+      "id": "c01_inequality",
+      "input": "pack/gogae9_w94_social_sim/inputs/c01_inequality/social.world.ddn",
+      "expected_social_report_hash": "blake3:4e178fa84e8ede3c351a78e207585f81bd2f298c67395fde8587ce24e23dc5e4",
+      "expected_final_state_hash": "blake3:c59b0f04cff431186510011e7f59a4163bd718310550218796806eda8fb91c4e"
+    },
+    {
+      "id": "c02_conflict",
+      "input": "pack/gogae9_w94_social_sim/inputs/c02_conflict/social.world.ddn",
+      "expected_social_report_hash": "blake3:621f5ada5fd95387d6a3435fea54bccdef1d3708f9c4344f517cd1a16249640f",
+      "expected_final_state_hash": "blake3:b59a09094e738765e03f52b8446fd091ce32e01f8cd0e8bc06d6db7b6bc4a27f"
+    },
+    {
+      "id": "c03_harmony",
+      "input": "pack/gogae9_w94_social_sim/inputs/c03_harmony/social.world.ddn",
+      "expected_social_report_hash": "blake3:fcd7b3086f12cea05b7692501d49d093c6931f5c630f7e9103b715d5fca55c6c",
+      "expected_final_state_hash": "blake3:2f2fa3a482665cb6957b3f70152c2e89514c557cf93b3a571624b0e8c4a22d4e"
+    }
+  ]
+}

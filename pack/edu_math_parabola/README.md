@@ -1,4 +1,4 @@
-﻿# edu_math_parabola
+# edu_math_parabola
 
 ## 목적
 - 포물선

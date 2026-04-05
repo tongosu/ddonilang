@@ -1,0 +1,7 @@
+{"cmd":["canon","pack/seamgrim_event_surface_canon_v1/c01_canon/input.ddn"],"stdout_path":"c01_canon/expected_canon.ddn"}
+{"cmd":["canon","pack/seamgrim_event_surface_canon_v1/c02_prefix_alias_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_EVENT_SURFACE_ALIAS_FORBIDDEN","exit_code":1}
+{"cmd":["canon","pack/seamgrim_event_surface_canon_v1/c03_noun_alias_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_EVENT_SURFACE_ALIAS_FORBIDDEN","exit_code":1}
+{"cmd":["canon","pack/seamgrim_event_surface_canon_v1/c04_ilttae_alias_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_EVENT_SURFACE_ALIAS_FORBIDDEN","exit_code":1}
+{"cmd":["canon","pack/seamgrim_event_surface_canon_v1/c05_alarm_noun_alias_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_EVENT_SURFACE_ALIAS_FORBIDDEN","exit_code":1}
+{"cmd":["canon","pack/seamgrim_event_surface_canon_v1/c06_kind_noun_alias_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_EVENT_SURFACE_ALIAS_FORBIDDEN","exit_code":1}
+{"cmd":["run","pack/seamgrim_event_surface_canon_v1/c06_kind_noun_alias_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_EVENT_SURFACE_ALIAS_FORBIDDEN","exit_code":1}

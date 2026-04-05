@@ -1,0 +1,1 @@
+{"cwd": ".", "cmd": ["run", "input.ddn"], "stdout": ["state_hash: 0dc6a48e63138cbb0052d4bf111d12dd8e4b7f4412042ebd1a088ac8137de216", "signals: 0"], "state_transition_report_out": "geoul.state_transitions.detjson", "expected_state_transition_report": "expected/state_transitions.detjson", "exit_code": 0}

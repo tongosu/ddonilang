@@ -1,5 +1,7 @@
 # pack/eco_macro_micro_runner_smoke
 
+evidence_tier: runner_fill
+
 거시+미시 러너(`ddn.macro_micro_runner.v0`) 스모크 팩.
 
 - c01: 충격 없음, 전 구간 수렴

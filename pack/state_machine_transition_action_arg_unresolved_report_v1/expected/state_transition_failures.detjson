@@ -1,0 +1,13 @@
+{
+  "count": 1,
+  "failures": [
+    {
+      "action_name": "기록",
+      "code": "E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED",
+      "kind": "action_arg_unresolved",
+      "message": "E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:없는상태",
+      "param_name": "없는상태"
+    }
+  ],
+  "schema": "ddn.state_transition_failure_report.v1"
+}

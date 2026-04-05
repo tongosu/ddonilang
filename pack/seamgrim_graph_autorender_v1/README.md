@@ -15,6 +15,7 @@ python tests/run_pack_golden.py --all
 - value 리소스에 접두어 키가 있으면 `seamgrim.graph.v0`가 생성된다.
 - 시리즈 이름은 원본 태그를 유지한다.
 - 점열 파싱은 `짝맞춤{"x"=>...,"y"=>...}` 패턴을 따른다.
+- `prefer_patch=true`일 때 patch의 `set_resource_value`가 base value보다 우선한다.
 
 `golden.jsonl` 케이스 키(autorender 전용):
 

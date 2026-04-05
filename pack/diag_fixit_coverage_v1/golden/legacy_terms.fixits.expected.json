@@ -1,0 +1,50 @@
+[
+  {
+    "code": "TERM-WARN-001",
+    "message": "레거시 용어를 정본으로 교체하세요: 이름",
+    "span": {
+      "end_col": 2,
+      "end_line": 1,
+      "file": "input_legacy_terms.ddn",
+      "start_col": 1,
+      "start_line": 1
+    },
+    "suggestion": {
+      "kind": "replace",
+      "new": "이름",
+      "old": "변수"
+    }
+  },
+  {
+    "code": "TERM-WARN-002",
+    "message": "레거시 용어를 정본으로 교체하세요: 움직씨",
+    "span": {
+      "end_col": 2,
+      "end_line": 2,
+      "file": "input_legacy_terms.ddn",
+      "start_col": 1,
+      "start_line": 2
+    },
+    "suggestion": {
+      "kind": "replace",
+      "new": "움직씨",
+      "old": "함수"
+    }
+  },
+  {
+    "code": "TERM-WARN-003",
+    "message": "레거시 용어를 정본으로 교체하세요: 이름씨",
+    "span": {
+      "end_col": 3,
+      "end_line": 3,
+      "file": "input_legacy_terms.ddn",
+      "start_col": 1,
+      "start_line": 3
+    },
+    "suggestion": {
+      "kind": "replace",
+      "new": "이름씨",
+      "old": "클래스"
+    }
+  }
+]

@@ -1,0 +1,33 @@
+{
+  "schema": "ddn.nurigym.shared_sync_priority_tiebreak.contract.v1",
+  "shared_env_mode": "sync",
+  "merge_rule": "priority",
+  "tie_break": [
+    "agent_id_asc",
+    "agent_slot_asc"
+  ],
+  "cases": [
+    {
+      "id": "order_a",
+      "input": "input_order_a.json"
+    },
+    {
+      "id": "order_b",
+      "input": "input_order_b.json"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "priority_selects_lowest_agent_id_non_noop",
+      "ok": true
+    },
+    {
+      "id": "priority_tie_break_order_independent_for_unique_agent_ids",
+      "ok": true
+    },
+    {
+      "id": "dataset_header_provenance_depends_on_input_hash",
+      "ok": true
+    }
+  ]
+}

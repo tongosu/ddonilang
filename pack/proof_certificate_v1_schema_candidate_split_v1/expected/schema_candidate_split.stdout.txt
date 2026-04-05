@@ -1,0 +1,1 @@
+[proof-certificate-v1-schema-candidate-split-selftest] ok shared=9 state=7

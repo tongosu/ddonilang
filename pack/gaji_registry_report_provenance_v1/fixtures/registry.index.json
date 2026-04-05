@@ -1,0 +1,14 @@
+{
+  "schema": "ddn.registry.snapshot.v1",
+  "snapshot_id": "snap-pack",
+  "index_root_hash": "sha256:index-pack",
+  "entries": [
+    {
+      "schema": "ddn.registry.index_entry.v1",
+      "scope": "표준",
+      "name": "역학",
+      "version": "20.6.30",
+      "yanked": false
+    }
+  ]
+}

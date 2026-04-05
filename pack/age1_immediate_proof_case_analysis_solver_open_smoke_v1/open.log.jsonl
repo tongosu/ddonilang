@@ -1,0 +1,1 @@
+{"detjson_hash":"sha256:75416290a65e2ebcc25008376251eee2e049f943331a98e97eeadf5ead5bc653","event_kind":"open","key":"check:forall n. n = n","open_kind":"solver","site_id":"pack/age1_immediate_proof_case_analysis_solver_open_smoke_v1/input.ddn:17:4","value":{"goal":{"canon":"forall n. n = n","kind":"assertion"},"op":"check","result":{"satisfied":true},"schema":"open.solver.v1"}}

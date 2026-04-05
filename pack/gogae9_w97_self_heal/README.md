@@ -11,6 +11,9 @@ Pack ID: `pack/gogae9_w97_self_heal`
 - tick 단위 checkpoint/rollback 계약
 - replay digest 기반 복구 재현성
 - 복구 보고서(`heal_report.detjson`) 결정성
+- gate0 runtime family:
+  - `tests/gate0_runtime_family/README.md`
+  - `python tests/run_gate0_runtime_family_selftest.py`
 
 ## 포함 파일
 

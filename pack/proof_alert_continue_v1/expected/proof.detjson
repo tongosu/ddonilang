@@ -1,0 +1,75 @@
+{
+  "canonical_body_hash": "sha256:4e1f63f45771ed9886a4150c0268c7dc1b64f9b456383936e29bfee3d2adf8f4",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 1,
+  "contract_diags": [
+    {
+      "col": 5,
+      "kind": "pre",
+      "line": 2,
+      "message": "전제하에 조건이 실패했습니다",
+      "mode": "alert"
+    }
+  ],
+  "diagnostic_failure_count": 1,
+  "diagnostic_failures": [
+    {
+      "code": "E_PROOF_CHECK_FAILED",
+      "col": 0,
+      "delta": "1",
+      "line": 0,
+      "name": "지키기 세움{\n    {\n        x <= 0.\n    }인것 바탕으로(알림)\n        아니면 {\n            없음.\n        }\n}",
+      "threshold": "0",
+      "tick": 0
+    }
+  ],
+  "entry": "pack/proof_alert_continue_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 1,
+    "items": [
+      {
+        "binding_count": 0,
+        "col": 0,
+        "error_code": "E_PROOF_CHECK_FAILED",
+        "kind": "proof_check",
+        "line": 0,
+        "passed": false,
+        "target": "세움{\n    {\n        x <= 0.\n    }인것 바탕으로(알림)\n        아니면 {\n            없음.\n        }\n}",
+        "tick": 0
+      }
+    ],
+    "proof_block_count": 0,
+    "proof_check_count": 1,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 1,
+  "proof_runtime_hash": "sha256:cf2ffe9b67d4125763c11d6d4db73ea5ab11ae648711069902a4da0708be0a7f",
+  "runtime_error": {
+    "code": "E_ECO_DIVERGENCE_DETECTED",
+    "col": 0,
+    "line": 0,
+    "message": "경제 진단 발산: 지키기 세움{\n    {\n        x <= 0.\n    }인것 바탕으로(알림)\n        아니면 {\n            없음.\n        }\n} (tick=0, delta=1 > threshold=0)"
+  },
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 0,
+    "items": [],
+    "proof_check_count": 0,
+    "quantifier_count": 0,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:ec7a27dfe502affa7c00df37590cd775c9e4d9ca9b6131e21cb9e48e61d8ce0b",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:e733192ce29b2d6b912a5b2ffa3a59db23d368be4fc072d9df68d5fad1692aee",
+  "trace_log_count": 0,
+  "verified": false
+}

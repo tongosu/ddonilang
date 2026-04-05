@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "failures": [
+    {
+      "check_name": "전이_실패",
+      "code": "E_STATE_TRANSITION_CHECK_FAILED",
+      "kind": "check_failed",
+      "message": "E_STATE_TRANSITION_CHECK_FAILED: 전이_실패"
+    }
+  ],
+  "schema": "ddn.state_transition_failure_report.v1"
+}

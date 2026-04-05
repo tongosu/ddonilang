@@ -6,3 +6,6 @@
 
 - `python tests/run_pack_golden.py seamgrim_state_hash_view_boundary_smoke_v1`
 - `python tests/run_pack_golden.py --update seamgrim_state_hash_view_boundary_smoke_v1`
+- parent family:
+  - `tests/state_view_hash_separation_family/README.md`
+  - `python tests/run_state_view_hash_separation_family_selftest.py`

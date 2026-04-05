@@ -21,6 +21,7 @@
   },
   "layers": [
     {
+      "group_id": "econ.baseline",
       "id": "baseline",
       "order": 0,
       "params": {
@@ -30,6 +31,7 @@
       "visible": true
     },
     {
+      "group_id": "econ.variant",
       "id": "variant",
       "order": 1,
       "params": {

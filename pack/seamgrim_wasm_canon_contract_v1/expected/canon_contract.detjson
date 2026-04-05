@@ -1,0 +1,43 @@
+{
+  "schema": "seamgrim.wasm.canon_contract.v1",
+  "build_info": "pkg=ddonirang-tool version=0.1.0 state_schema=seamgrim.engine_response.v0 update=매마디",
+  "flat_schema": "ddn.guseong_flatten_plan.v1",
+  "flat_instance_count": 2,
+  "flat_link_count": 1,
+  "flat_topo_order": [
+    "b",
+    "a"
+  ],
+  "flat_instance_names": [
+    "a",
+    "b"
+  ],
+  "maegim_schema": "ddn.maegim_control_plan.v1",
+  "maegim_control_count": 2,
+  "maegim_control_names": [
+    "g",
+    "theta0"
+  ],
+  "maegim_decl_kinds": [
+    "butbak",
+    "gureut"
+  ],
+  "maegim_has_split_count": true,
+  "alrim_schema": "ddn.alrim_event_plan.v1",
+  "alrim_handler_count": 3,
+  "alrim_handler_kinds": [
+    "jump",
+    "tick",
+    "reset"
+  ],
+  "alrim_handler_scopes": [
+    "root",
+    "root/seed:매틱",
+    "root"
+  ],
+  "alrim_handler_orders": [
+    0,
+    1,
+    2
+  ]
+}

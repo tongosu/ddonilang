@@ -1,0 +1,7 @@
+실행정책 {
+  실행모드: 일반.
+  효과정책: 허용.
+}.
+
+살림.텍스트 <- ("pack/seamgrim_exec_policy_effect_diag_v1/__missing__/ghost.txt") 너머.파일.읽기.
+살림.텍스트 보여주기.

@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.seamgrim.lesson_loader_case.v1",
+  "cases": [
+    {
+      "lesson_id": "physics_motion_header_sample",
+      "base_title": "물리 · 등가속도",
+      "required_views": ["graph", "table"],
+      "ddn_path": "pack/seamgrim_lesson_loader_basics/c01_load/lesson_alpha.ddn",
+      "expected_path": "pack/seamgrim_lesson_loader_basics/c01_load/expected_selection_alpha.json"
+    },
+    {
+      "lesson_id": "econ_supply_header_sample",
+      "base_title": "경제 · 수요공급",
+      "required_views": ["space2d", "graph"],
+      "ddn_path": "pack/seamgrim_lesson_loader_basics/c01_load/lesson_beta.ddn",
+      "expected_path": "pack/seamgrim_lesson_loader_basics/c01_load/expected_selection_beta.json"
+    }
+  ]
+}
+

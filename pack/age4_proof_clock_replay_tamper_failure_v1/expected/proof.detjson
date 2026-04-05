@@ -1,0 +1,46 @@
+{
+  "canonical_body_hash": "sha256:d32731886dac298c3d75aa0f94312a953b35bdf1fe7ed2b6a59c0c937fbcfa5d",
+  "canonical_body_hash_method": "canon",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_clock_replay_tamper_failure_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 0,
+    "items": [],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 0,
+  "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+  "runtime_error": {
+    "code": "E_OPEN_LOG_TAMPER",
+    "col": 10,
+    "line": 1,
+    "message": "열림 로그 변조: open.log detjson_hash 불일치: expected=sha256:deadbeef actual=sha256:497aded5708e3d4546f20c48f527dc961e38777c331006e390ab40b46309f335"
+  },
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 0,
+    "items": [],
+    "proof_check_count": 0,
+    "quantifier_count": 0,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:f83311d1881e4ab122c25dd8c3a9e30349858a9cac5f6066f609c52c4ed9db45",
+  "ticks": 0,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:a3eb0f0890d9b20f6247503425eb0b988cdd769036372a162fad641156404468",
+  "trace_log_count": 0,
+  "verified": false
+}

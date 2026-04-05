@@ -1,0 +1,10 @@
+//이름: bogae_backend_parity_console_web_v1
+//설명: console/web backend parity skeleton
+
+보개_그림판_가로 <- 96.
+보개_그림판_세로 <- 64.
+보개_바탕색 <- "#101820ff".
+
+보개_그림판_목록 <- [(id="bg", 결="#보개/2D.Rect", x=0, y=0, w=96, h=64, 채움색="#101820ff"), (id="player", 결="#보개/2D.Rect", x=32, y=16, w=16, h=16, 채움색="#ffd166ff"), (id="goal", 결="#보개/2D.Rect", x=64, y=16, w=16, h=16, 채움색="#06d6a0ff"), (id="label", 결="#보개/2D.Text", x=8, y=52, size=8, text="console/web parity", 색="#ffffffff")].
+
+보개로 그려.

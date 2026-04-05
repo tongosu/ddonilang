@@ -1,0 +1,14 @@
+{
+  "schema": "ddn.gogae9.w92.bench_cases.v1",
+  "version": "v0-draft",
+  "cases": [
+    {
+      "id": "c01_interp_aot_hash_parity",
+      "input": "pack/gogae9_w92_aot_compiler_v2/inputs/c01_interp_aot_hash_parity/input.ddn",
+      "seed": "0x0",
+      "expected_interp_state_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "expected_aot_state_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "min_speedup": 20.0
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+짜임 flatten 준비 IR + 진단 최소 pack.
+- 목적:
+  - 비순환 연결은 정본화 통과
+  - 순환 연결은 `E_GUSEONG_LINK_CYCLE`
+  - 인스턴스 이름 중복은 `E_GUSEONG_INSTANCE_DUP`
+  - 선언되지 않은 인스턴스 링크는 `E_GUSEONG_INSTANCE_UNDECLARED`
+  - 중첩 블록 내 연결은 `E_GUSEONG_LINK_TOPLEVEL_ONLY`
+  - (짜임 선언 존재 시) 입력 포트 오타는 `E_GUSEONG_INPUT_PORT_UNDECLARED`
+  - (짜임 선언 존재 시) 출력 포트 오타는 `E_GUSEONG_OUTPUT_PORT_UNDECLARED`
+  - (짜임 선언 + 포트 일치) 정상 연결은 통과(c09)
+  - (형식 태그 기반) 다중 타입 포트 검증 정상/실패(c10/c11)
+  - `수식 {}`는 타입 명시 항목만 외부 출력 포트로 간주(c12/c13)
+  - 같은 형식 재선언은 스키마 동일일 때만 허용(c14/c15)
+  - 형식 태그 없는 포트 스키마는 인스턴스 타입 1종일 때만 허용(c16)
+  - 튜플 포트 접근은 `.0/.1`만 허용(`.x`, `.2` 등은 오류, c17/c18)
+  - 스칼라 포트에 튜플 인덱스 접근은 금지(c20)
+- 범위:
+  - AGE5 최소 진단(토폴로지/중복/최상위 링크) 검증
+  - 포트 존재성은 현재 파일 내 `짜임 { 입력/출력 }` 선언이 있을 때만 검증
+  - 다중 타입은 `형식: <타입명>.` 태그가 있을 때 타입별로 검증
+  - 같은 `형식`이 여러 번 나오면 포트 스키마가 동일해야 하며, 다르면 `E_JJAIM_TYPE_SCHEMA_CONFLICT`
+  - 형식 태그 없는 `짜임` 포트 선언은 인스턴스 타입이 2종 이상이면 `E_JJAIM_TYPE_TAG_REQUIRED`
+  - 링크 포트 경로의 튜플 인덱스는 V1에서 `.0/.1`만 허용하며, 그 외는 `E_GUSEONG_TUPLE_INDEX_INVALID`
+  - 링크 포트의 선언 타입이 스칼라(`수` 등)인데 인덱스(`.0/.1`)를 붙이면 `E_GUSEONG_TUPLE_ACCESS_ON_SCALAR`

@@ -1,0 +1,98 @@
+{
+  "canonical_body_hash": "sha256:d4070de3b1951edecc47a1e12ba1ca8b073417c68f966df78016b37ac44bdf10",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_case_analysis_solver_search_replay_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 2,
+    "items": [
+      {
+        "col": 11,
+        "error_code": null,
+        "found": false,
+        "kind": "solver_search",
+        "line": 10,
+        "operation": "counterexample",
+        "query": "forall n. n >= 0",
+        "tick": 0,
+        "value": null
+      },
+      {
+        "col": 10,
+        "error_code": null,
+        "found": true,
+        "kind": "solver_search",
+        "line": 11,
+        "operation": "solve",
+        "query": "x * x = 4",
+        "tick": 0,
+        "value": "x=2"
+      }
+    ],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 2
+  },
+  "proof_runtime_count": 2,
+  "proof_runtime_hash": "sha256:c715b83ca48cab673fc55b469d601c37e329ab1cd7a2eb3967492eb289a40405",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 1,
+    "item_count": 4,
+    "items": [
+      {
+        "binder": "y",
+        "body_stmt_count": 1,
+        "col": 3,
+        "domain": "정수",
+        "kind": "quantifier",
+        "line": 4,
+        "quantifier": "exists_unique"
+      },
+      {
+        "branch_count": 1,
+        "col": 3,
+        "completion": "exhaustive",
+        "exhaustive": true,
+        "has_else": false,
+        "kind": "case_analysis",
+        "line": 8
+      },
+      {
+        "arg_count": 1,
+        "col": 11,
+        "kind": "solver_open",
+        "line": 10,
+        "operation": "counterexample",
+        "query": "forall n. n >= 0"
+      },
+      {
+        "arg_count": 1,
+        "col": 10,
+        "kind": "solver_open",
+        "line": 11,
+        "operation": "solve",
+        "query": "x * x = 4"
+      }
+    ],
+    "proof_check_count": 0,
+    "quantifier_count": 1,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 2
+  },
+  "solver_translation_hash": "sha256:a186297a2b3beeb89abae86c7431c51617425eebac4952435f6e1f64b818dbcc",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:d38bc39e82d617bfb2e7567f21815bcbf6f14798a64e82276e0791c1050662e1",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:55146d9ede23a3eab32f9ffec6024b86d494894b7097dba8fcc0c9576926bc04",
+  "trace_log_count": 3,
+  "verified": true
+}

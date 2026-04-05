@@ -1,4 +1,4 @@
-﻿# 테스트
+# 테스트
 
 ## 실행
 - `cargo run -p teul-cli -- run pack/gogae4_w34_geoul_blackbox/input.ddn --madi 201 --seed 0x0 --geoul-out build/geoul/w34`

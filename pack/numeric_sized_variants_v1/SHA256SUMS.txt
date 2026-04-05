@@ -1,0 +1,3 @@
+sha256:0997f37c27a831ef00b94fb4d007de996039d33f0632fe7f040f16b677d4dd95  c01_decl_types.expected.ddn
+sha256:ccb748809ec5088d3b4973215f9bbae595cd1828a2e4b9ab4e1e88bc23af2208  c02_ctor_alias_run.expected.txt
+sha256:9184c3524915a867affbc6ef9ea51f7c5748ef95c5f19f139b2a6c5d260b8b64  golden.jsonl

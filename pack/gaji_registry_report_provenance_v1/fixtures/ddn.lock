@@ -1,0 +1,16 @@
+{
+  "schema_version": "v1",
+  "registry_snapshot": {
+    "snapshot_id": "snap-pack",
+    "index_root_hash": "sha256:index-pack"
+  },
+  "packages": [
+    {
+      "id": "표준/역학",
+      "version": "20.6.30",
+      "path": "x",
+      "hash": "blake3:x",
+      "yanked": false
+    }
+  ]
+}

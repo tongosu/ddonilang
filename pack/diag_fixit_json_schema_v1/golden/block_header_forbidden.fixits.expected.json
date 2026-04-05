@@ -1,0 +1,18 @@
+[
+  {
+    "code": "E_BLOCK_HEADER_COLON_FORBIDDEN",
+    "message": "E_BLOCK_HEADER_COLON_FORBIDDEN fix-it 제안",
+    "span": {
+      "end_col": 4,
+      "end_line": 1,
+      "file": "input_block_header_forbidden.ddn",
+      "start_col": 1,
+      "start_line": 1
+    },
+    "suggestion": {
+      "kind": "delete",
+      "note": "레거시 선언 헤더의 콜론을 제거하고 `채비 {` 형태로 전환하세요.",
+      "old": ":"
+    }
+  }
+]

@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update age1_immediate_proof_case_analysis_smoke_v1
+pack golden updated

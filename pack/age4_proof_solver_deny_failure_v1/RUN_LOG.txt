@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update age4_proof_solver_deny_failure_v1
+pack golden updated

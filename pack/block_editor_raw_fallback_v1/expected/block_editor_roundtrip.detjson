@@ -1,0 +1,34 @@
+{
+  "block_kind_counts": {
+    "charim_block": 1,
+    "raw": 1
+  },
+  "block_plan_schema": "ddn.block_editor_plan.v1",
+  "canon_after": "채비 {\n  g:수 = (9.8) 매김 {\n    범위: 1..20.\n    설명: \"실험용\".\n  }.\n}.\n",
+  "canon_after_hash": "sha256:d073e67f1f6d36f953adeca5435a035d918824ff10854878752cce8001e14ae2",
+  "canon_before": "채비 {\n  g:수 = (9.8) 매김 {\n    범위: 1..20.\n    설명: \"실험용\".\n  }.\n}.\n",
+  "canon_before_hash": "sha256:d073e67f1f6d36f953adeca5435a035d918824ff10854878752cce8001e14ae2",
+  "canon_equal": true,
+  "decode_errors": [],
+  "encoded_ddn": "채비 {\n  g:수 = (9.8) 매김 {\n    범위: 1..20.\n    설명: \"실험용\".\n  }.\n}.\n",
+  "encoded_hash": "sha256:d073e67f1f6d36f953adeca5435a035d918824ff10854878752cce8001e14ae2",
+  "flat_json": {
+    "digest": "sha256:a9542e0c99c7aa17cb1423f527cef53e6074b8938fdbf60d8b577e486e59f715",
+    "edge_count": 0,
+    "node_count": 0,
+    "schema": "ddn.guseong_flatten_plan.v1"
+  },
+  "pack": "block_editor_raw_fallback_v1",
+  "raw_block_count": 1,
+  "raw_blocks": [
+    {
+      "label": "원시",
+      "raw_text": "g:수 = (9.8) 매김 {\n  범위: 1..20.\n  설명: \"실험용\".\n}.",
+      "source": "wasm_block_editor_plan"
+    }
+  ],
+  "schema": "ddn.block_editor_roundtrip_smoke.v1",
+  "top_level_block_kinds": [
+    "charim_block"
+  ]
+}

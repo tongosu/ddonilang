@@ -1,0 +1,22 @@
+{
+  "profile": "clean",
+  "verified": true,
+  "contract_diag_count": 0,
+  "proof_hash": "sha256:205f62056b6aac91bd36d9349db9447c2e15798cd78ab1c7308063a7648b5722",
+  "cert_manifest_hash": "sha256:0dfee3872b5138f2734300142faddd8e9e75019e4ab3f8ef456c5c46b4eb4955",
+  "bundle_hash": "sha256:258e6a90c035c8aa6807868d46f1ab2fbe5625eb0d5c009640f0abfcad147116",
+  "proof_entry": "fixtures/input.ddn",
+  "proof_subject_hash": "sha256:205f62056b6aac91bd36d9349db9447c2e15798cd78ab1c7308063a7648b5722",
+  "cert_pubkey": "sha256-proto:e6b27daf97f27e3278b043e3ce23994dac1d4f0cfa81c7babd61bbe483454098",
+  "cert_signature": "sha256-proto:729e6fe3835378f9412498899d61fd6e36c0e356b53347919a4f0f34946443ef",
+  "cert_subject_hash": "sha256:205f62056b6aac91bd36d9349db9447c2e15798cd78ab1c7308063a7648b5722",
+  "subject_path": "signed.proof.detjson",
+  "source_proof_path": "signed.proof.detjson",
+  "source_proof_schema": "ddn.proof.detjson.v0",
+  "source_proof_kind": "run_contract_certificate_v1",
+  "runtime_candidate_profile": "clean",
+  "runtime_candidate_verified": true,
+  "runtime_candidate_diag_count": 0,
+  "runtime_artifact_profile": "clean",
+  "runtime_artifact_source_proof_path": "signed.proof.detjson"
+}

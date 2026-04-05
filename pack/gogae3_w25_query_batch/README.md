@@ -1,4 +1,4 @@
-﻿# pack/gogae3_w25_query_batch
+# pack/gogae3_w25_query_batch
 
 W25(쿼리 기반 군집 실행) D-PACK 스켈레톤이다.
 

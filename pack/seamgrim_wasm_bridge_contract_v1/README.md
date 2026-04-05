@@ -16,3 +16,6 @@ WASM 브릿지 계약(`columns`/`set_param`/`reset`) 전용 팩.
 검증:
 
 - `python tests/run_seamgrim_wasm_smoke.py seamgrim_wasm_bridge_contract_v1`
+- parent family:
+  - `tests/state_view_hash_separation_family/README.md`
+  - `python tests/run_state_view_hash_separation_family_selftest.py`

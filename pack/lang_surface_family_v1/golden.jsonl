@@ -1,0 +1,2 @@
+{"cmd":["canon","pack/lang_surface_family_v1/c01_canon_roundtrip/input.ddn","--emit","ddn"],"stdout_path":"c01_canon_roundtrip/expected_canon.ddn"}
+{"cmd":["canon","pack/lang_surface_family_v1/c02_alias_bundle_roundtrip/input.ddn","--emit","ddn"],"stdout_path":"c02_alias_bundle_roundtrip/expected_canon.ddn","expected_warning_code":"W_JJAIM_ALIAS_DEPRECATED"}

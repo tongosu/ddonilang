@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "failures": [
+    {
+      "action_name": "기록",
+      "code": "E_STATE_TRANSITION_ACTION_ABORTED",
+      "kind": "action_aborted",
+      "message": "E_STATE_TRANSITION_ACTION_ABORTED: 기록"
+    }
+  ],
+  "schema": "ddn.state_transition_failure_report.v1"
+}

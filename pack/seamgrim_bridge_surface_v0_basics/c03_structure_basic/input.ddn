@@ -1,0 +1,7 @@
+#이름: seamgrim_structure_basic
+#설명: seamgrim structure bridge parity
+
+"structure" 보여주기.
+"node src 시작" 보여주기.
+"node dst 도착" 보여주기.
+"edge src dst 연결" 보여주기.

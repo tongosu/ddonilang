@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.canon_ast_pack.v1",
+  "runner": "lang/examples/canon_ast_dump.rs",
+  "cases": [
+    {
+      "id": "c06_ambiguous_reject",
+      "mode": "error",
+      "input": "cases/c06_ambiguous_reject/input.ddn",
+      "expected_error": "expected/canon_ast_reject.stderr.txt",
+      "expected_error_code": "E_PARSE_CALL_PIN_DUPLICATE"
+    },
+    {
+      "id": "c07_shared_josa_ambiguous_reject",
+      "mode": "error",
+      "input": "cases/c07_shared_josa_ambiguous_reject/input.ddn",
+      "expected_error": "expected/canon_ast_shared_josa_ambiguous_reject.stderr.txt",
+      "expected_error_code": "E_PARSE_CALL_JOSA_AMBIGUOUS"
+    }
+  ]
+}

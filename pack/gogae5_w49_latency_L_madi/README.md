@@ -1,6 +1,6 @@
-# gogae5_w49_latency_L_madi
+# gogae5_w49_latency_L_madi (legacy alias)
 
-L-마디 지연 정책(L=3) 시뮬레이션 예제.
+레거시 이름 호환용 팩. 정식 경로는 `pack/gogae5_w49_latency_madi`다.
 
 ## 실행
-- `teul-cli latency simulate --L 3 --mode fixed --count 4`
+- `teul-cli latency simulate --L 3 --mode fixed --count 3 --seed 0`

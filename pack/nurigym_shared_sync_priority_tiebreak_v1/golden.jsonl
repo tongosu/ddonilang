@@ -1,0 +1,2 @@
+{"cmd": ["nurigym", "run", "pack\\nurigym_shared_sync_priority_tiebreak_v1\\input_order_a.json", "--out", "build\\nurigym_shared_sync_priority_tiebreak_v1_order_a"], "stdout_path": "golden_order_a.txt"}
+{"cmd": ["nurigym", "run", "pack\\nurigym_shared_sync_priority_tiebreak_v1\\input_order_b.json", "--out", "build\\nurigym_shared_sync_priority_tiebreak_v1_order_b"], "stdout_path": "golden_order_b.txt"}

@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update gate0_contract_abort_statehash_v1
+pack golden updated

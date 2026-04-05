@@ -6,10 +6,8 @@
     "y_min": 0.5
   },
   "meta": {
-    "input_desc": "포물선 점열",
-    "input_name": "parabola_basic",
     "result_hash": "sha256:0cf2d41c1b1c9217cec77c1ee3bf9bd8709e63582a2878e60dc12daa2d332035",
-    "source_input_hash": "sha256:4f5ebc608c8f09ac1975aacfd45c3107b6a9f1108e2fe1fd79f8f88482f9d2d0",
+    "source_input_hash": "sha256:f0d6b503e46f81a3cdda06900cec110d0a5682e36c246e0be8866a4571f9a781",
     "source_mode": "teul-cli-stdout"
   },
   "schema": "seamgrim.graph.v0",

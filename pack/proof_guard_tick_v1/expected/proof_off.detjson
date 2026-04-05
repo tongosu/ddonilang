@@ -1,0 +1,40 @@
+{
+  "canonical_body_hash": "sha256:7da5f6b02bc33e664640123f63478fe1d6985e7dd0b2754e4094533d3c16a191",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/proof_guard_tick_v1/input_off.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 0,
+    "items": [],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 0,
+  "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 0,
+    "items": [],
+    "proof_check_count": 0,
+    "quantifier_count": 0,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:9933ceadb245a9e7740137c37bf4bd9e5ebe1783e31a5fff18256e0be1527b13",
+  "ticks": 2,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:100d815285022b2b988ccf97007bd2775d9b533405f9d1b39745b2f82198f8b2",
+  "trace_log_count": 0,
+  "verified": true
+}

@@ -1,0 +1,2 @@
+{"cmd": ["run", "pack/nuri_gym_canon_contract_v1/input.ddn", "--madi", "2", "--geoul-out", "pack/nuri_gym_canon_contract_v1/out/geoul"], "stdout_path": "expected/run_stdout.txt", "exit_code": 0}
+{"cmd": ["dataset", "export", "--geoul", "pack/nuri_gym_canon_contract_v1/out/geoul", "--format", "nurigym_v1", "--out", "pack/nuri_gym_canon_contract_v1/out/export", "--env-id", "nurigym.gridmaze2d"], "stdout_path": "expected/export_stdout.txt", "meta_out": "out/export/dataset_hash.txt", "expected_meta": "expected/dataset_hash.txt", "exit_code": 0}

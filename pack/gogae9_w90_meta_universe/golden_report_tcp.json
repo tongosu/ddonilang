@@ -20,5 +20,19 @@
   "order_rule": "sender_seq",
   "realms": 2,
   "schema": "gateway.serve_report.v1",
+  "source_hash": "sha256:53da0daec90ca5f16928f22d6235197915667cbd34f50aa51375a68ebec2f2f9",
+  "source_provenance": {
+    "listen_addr": "127.0.0.1:0",
+    "listen_max_events": 4,
+    "listen_proto": "tcp",
+    "listen_timeout_ms": 200,
+    "schema": "gateway.source_provenance.v1",
+    "send_file": "pack/gogae9_w90_meta_universe/inputs/input_002.jsonl",
+    "send_format": "jsonl",
+    "send_hash": "sha256:ad4661eb1759d4c47ea3e24c426e822e495a79351fdce76df9a6cbe8d85c5519",
+    "source_kind": "gateway_serve_listen.v1",
+    "world_file": "pack/gogae9_w90_meta_universe/world.ddn",
+    "world_hash": "sha256:5d04676cd9fc49b96effcf6459b5def0a19ddc45c5d559ae542ddf2b511e5135"
+  },
   "ssot_version": "20.6.6"
 }

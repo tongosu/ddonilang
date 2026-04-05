@@ -1,0 +1,25 @@
+{"cmd": ["canon", "pack/lang_consistency_v1/c01_logic_alias_canon/input.ddn"], "stdout_path": "c01_logic_alias_canon/expected_canon.ddn", "exit_code": 0}
+{"cmd": ["canon", "pack/lang_consistency_v1/c02_signal_arrow_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_CANON_EXPECTED_TERMINATOR", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c02_signal_arrow_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_PARSE_UNEXPECTED_TOKEN", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c03_inputkey_compat_option_run/input.ddn"], "stdout": ["0", "없음"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c04_inputkey_strict_missing_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_INPUTKEY_MISSING", "exit_code": 1}
+{"cmd": ["canon", "pack/lang_consistency_v1/c05_map_dot_nested_write_canon/input.ddn"], "stdout_path": "c05_map_dot_nested_write_canon/expected_canon.ddn", "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c06_map_dot_nested_write_run/input.ddn"], "stdout": ["9"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c07_map_dot_nested_write_missing_key_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_MAP_DOT_KEY_MISSING", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c08_map_dot_read_missing_key_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_MAP_DOT_KEY_MISSING", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c09_contract_tier_sealed_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_CONTRACT_TIER_UNSUPPORTED", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c10_contract_tier_approx_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_CONTRACT_TIER_UNSUPPORTED", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c11_map_optional_lookup_run/input.ddn"], "stdout": ["7", "없음"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c12_matic_entry_strict_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_LANG_COMPAT_MATIC_ENTRY_DISABLED", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c13_matic_entry_compat_run/input.ddn", "--compat-matic-entry"], "stdout": [], "exit_code": 0}
+{"cmd": ["canon", "pack/lang_consistency_v1/c14_receive_hook_outside_imja_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_CANON_RECEIVE_OUTSIDE_IMJA", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c14_receive_hook_outside_imja_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_RECEIVE_OUTSIDE_IMJA", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c15_reactive_next_pass_run/input.ddn"], "stdout": ["123"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c16_receive_hooks_non_consuming_order_run/input.ddn"], "stdout": ["2143"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c17_reactive_no_reentry_fifo_run/input.ddn"], "stdout": ["12434"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c18_hook_sender_default_current_imja_run/input.ddn"], "stdout": ["관제탑"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c19_hook_send_to_non_imja_EXPECT_FAIL/input.ddn"], "expected_error_code": "E_RUNTIME_TYPE_MISMATCH", "exit_code": 1}
+{"cmd": ["run", "pack/lang_consistency_v1/c20_reactive_multi_enqueue_fifo_run/input.ddn"], "stdout": ["1234"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c21_reactive_nested_enqueue_bfs_fifo_run/input.ddn"], "stdout": ["12345"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c22_reactive_same_kind_no_reentry_run/input.ddn"], "stdout": ["1323"], "exit_code": 0}
+{"cmd": ["run", "pack/lang_consistency_v1/c23_receive_hooks_same_rank_decl_order_run/input.ddn"], "stdout": ["12345"], "exit_code": 0}

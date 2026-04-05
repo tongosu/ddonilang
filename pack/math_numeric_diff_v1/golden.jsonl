@@ -1,0 +1,2 @@
+{"stdout":["3","0.25","중앙차분"],"exit_code":0}
+{"input_path":"input_bad_step.ddn","expected_error_code":"E_MATH_DOMAIN","exit_code":1}

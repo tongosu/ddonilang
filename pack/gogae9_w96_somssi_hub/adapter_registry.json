@@ -1,0 +1,736 @@
+{
+  "schema": "ddn.gogae9.w96.adapter_registry.v1",
+  "version": "v1",
+  "adapters": [
+    {
+      "id": "somssi.adapter.001",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x01",
+      "expected_state_hash": "sha256:375a457c88601172ca26067b45d1854dc38332a86b19995d6ea1738107f82b66"
+    },
+    {
+      "id": "somssi.adapter.002",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x02",
+      "expected_state_hash": "sha256:fd16c62e5cdd8d073132b0eac323b62352821770d8f3271754217711236a4e21"
+    },
+    {
+      "id": "somssi.adapter.003",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x03",
+      "expected_state_hash": "sha256:0a43a5356dd4e429bf505bb44e6b9be8ea703052ea18df5c0a95b567792ad245"
+    },
+    {
+      "id": "somssi.adapter.004",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x04",
+      "expected_state_hash": "sha256:86adb6c291f93a3cee3652303159a193c3e82336ea434c94bf0fa571e8508f32"
+    },
+    {
+      "id": "somssi.adapter.005",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x05",
+      "expected_state_hash": "sha256:19a238bf3b4089b0e56b80fc76e54f595c0d5d7c5b628245a56fc040e6d1e5f0"
+    },
+    {
+      "id": "somssi.adapter.006",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x06",
+      "expected_state_hash": "sha256:f7df6e8ef960d38edb3577a0e3f9d80b49665240881ca4f3cb317942c1ee75ee"
+    },
+    {
+      "id": "somssi.adapter.007",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x07",
+      "expected_state_hash": "sha256:3a172906a7199ead73e2cc87c974c83165be97521c04fb3380142ef10e18123a"
+    },
+    {
+      "id": "somssi.adapter.008",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x08",
+      "expected_state_hash": "sha256:1ac0cc11e3909501b3f4cb6b58c39c7f08164b2f554423c507af8114a85f70fd"
+    },
+    {
+      "id": "somssi.adapter.009",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x09",
+      "expected_state_hash": "sha256:3de11ceb93f0b4dc49d5f1f68a05aed8f3a1f7f936d7fcbe7ae047214820bbf5"
+    },
+    {
+      "id": "somssi.adapter.010",
+      "kind": "sim",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "sim_seed": "0x0a",
+      "expected_state_hash": "sha256:38ed086d67512cff13e21bc6498e094f5f2ded737ad3d6227b2df5437bf59f6e"
+    },
+    {
+      "id": "somssi.adapter.011",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.012",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.013",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.014",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.015",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.016",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.017",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.018",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.019",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.020",
+      "kind": "live",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true,
+      "notes": "live adapter uses recorded/replay only in CI"
+    },
+    {
+      "id": "somssi.adapter.021",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.022",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.023",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.024",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.025",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.026",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.027",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.028",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.029",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.030",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.031",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.032",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.033",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.034",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.035",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.036",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.037",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.038",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.039",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.040",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.041",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.042",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.043",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.044",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.045",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.046",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.047",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.048",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.049",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.050",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.051",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.052",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.053",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.054",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.055",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.056",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.057",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.058",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.059",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.060",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.061",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.062",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.063",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.064",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.065",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.066",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.067",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.068",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.069",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.070",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.071",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.072",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.073",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.074",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.075",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.076",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.077",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.078",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.079",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.080",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.081",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.082",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.083",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.084",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.085",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.086",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.087",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.088",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.089",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.090",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.091",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.092",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.093",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.094",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.095",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.096",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.097",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.098",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.099",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    },
+    {
+      "id": "somssi.adapter.100",
+      "kind": "stub",
+      "schema_version": "v1",
+      "open_mode": "recorded",
+      "record_required": true
+    }
+  ]
+}

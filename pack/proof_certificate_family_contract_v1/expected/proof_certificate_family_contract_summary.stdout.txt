@@ -1,0 +1,1 @@
+[proof-certificate-family-contract-summary-selftest] ok

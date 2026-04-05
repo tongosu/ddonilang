@@ -1,0 +1,12 @@
+{
+  "count": 1,
+  "failures": [
+    {
+      "check_name": "전이_안전",
+      "code": "E_STATE_TRANSITION_CHECK_UNRESOLVED",
+      "kind": "check_unresolved",
+      "message": "E_STATE_TRANSITION_CHECK_UNRESOLVED: 전이_안전"
+    }
+  ],
+  "schema": "ddn.state_transition_failure_report.v1"
+}

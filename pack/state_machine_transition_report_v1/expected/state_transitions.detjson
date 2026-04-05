@@ -1,0 +1,15 @@
+{
+  "count": 1,
+  "schema": "ddn.state_transition_report.v1",
+  "transitions": [
+    {
+      "action_name": "기록",
+      "from": "빨강",
+      "guard_name": "전이_안전",
+      "madi": 0,
+      "message": "상태 전이: 빨강 -> 노랑",
+      "origin": "seed:매틱",
+      "to": "노랑"
+    }
+  ]
+}

@@ -18,5 +18,15 @@
   "order_rule": "sender_seq",
   "realms": 2,
   "schema": "gateway.serve_report.v1",
+  "source_hash": "sha256:7ce0eafe5e1e753465f906db41dd24730148184b8857157f678ea5783d7c6912",
+  "source_provenance": {
+    "input_file": "pack/gogae9_w90_meta_universe/inputs/input_002.jsonl",
+    "input_format": "jsonl",
+    "input_hash": "sha256:ad4661eb1759d4c47ea3e24c426e822e495a79351fdce76df9a6cbe8d85c5519",
+    "schema": "gateway.source_provenance.v1",
+    "source_kind": "gateway_serve_input.v1",
+    "world_file": "pack/gogae9_w90_meta_universe/world.ddn",
+    "world_hash": "sha256:5d04676cd9fc49b96effcf6459b5def0a19ddc45c5d559ae542ddf2b511e5135"
+  },
   "ssot_version": "20.6.6"
 }

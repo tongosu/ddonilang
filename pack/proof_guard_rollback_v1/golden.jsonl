@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/proof_guard_rollback_v1/input.ddn", "--age-target", "AGE2", "--madi", "1", "--proof-out", "pack/proof_guard_rollback_v1/proof.actual.detjson", "--no-open"], "meta_out": "proof.actual.detjson", "expected_meta": "expected/proof.detjson", "expected_error_code": "E_ECO_DIVERGENCE_DETECTED", "exit_code": 1}

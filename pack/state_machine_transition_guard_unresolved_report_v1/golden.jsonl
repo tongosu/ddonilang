@@ -1,0 +1,1 @@
+{"cwd": ".", "cmd": ["run", "input.ddn"], "expected_error_code": "E_STATE_TRANSITION_GUARD_UNRESOLVED", "state_transition_report_out": "geoul.state_transition_failures.detjson", "expected_state_transition_report": "expected/state_transition_failures.detjson", "exit_code": 1}

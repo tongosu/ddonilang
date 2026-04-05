@@ -1,11 +1,9 @@
-# math_numeric_diff_v1 (draft)
+# math_numeric_diff_v1
 
-- 상태: SSOT 승인 전 스캐폴딩
+- 상태: 구현 반영
 - 제안서: `docs/context/proposals/PROPOSAL_MATH_NUMERIC_CALCULUS_V1_20260209.md`
-- 주제: 수치 미분 v1
+- 주제: 수치 미분 v1 (`미분.중앙차분`)
 
-## TODO
-- SSOT 결정 반영
-- 입력/기대값 설계
-- golden.jsonl 추가
-- run_pack_golden 목록 반영
+## 커버리지
+- 정상 경로: `(근사값, 오차추정, 사용한방법)` 반환
+- 오류 경로: 스텝 0 거부 (`E_MATH_DOMAIN`)

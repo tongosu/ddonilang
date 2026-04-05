@@ -1,4 +1,4 @@
-﻿# edu_pilot_phys_econ
+# edu_pilot_phys_econ
 
 SSOT edu/pilot_phys_econ 실험용 교과 팩을 pack/에 반영한 미러입니다.
 

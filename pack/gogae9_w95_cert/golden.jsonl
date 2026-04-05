@@ -1,0 +1,1 @@
+{"cmd":["canon","pack/gogae9_w95_cert/inputs/c00_contract_anchor/input.ddn"],"stdout_path":"inputs/c00_contract_anchor/expected_canon.ddn","expected_warning_code":"W_BLOCK_HEADER_COLON_DEPRECATED"}

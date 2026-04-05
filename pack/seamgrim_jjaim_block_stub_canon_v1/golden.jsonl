@@ -1,0 +1,6 @@
+{"cmd":["canon","pack/seamgrim_jjaim_block_stub_canon_v1/c01_guseong_alias/input.ddn"],"stdout_path":"c01_guseong_alias/expected_canon.ddn","expected_warning_code":"W_JJAIM_ALIAS_DEPRECATED"}
+{"cmd":["canon","pack/seamgrim_jjaim_block_stub_canon_v1/c02_invalid_subblock_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_JJAIM_SUBBLOCK_INVALID","exit_code":1}
+{"cmd":["canon","pack/seamgrim_jjaim_block_stub_canon_v1/c03_port_decl_name_only_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_JJAIM_PORT_DECL_INVALID","exit_code":1}
+{"cmd":["canon","pack/seamgrim_jjaim_block_stub_canon_v1/c04_port_type_missing_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_JJAIM_PORT_TYPE_MISSING","exit_code":1}
+{"cmd":["canon","pack/seamgrim_jjaim_block_stub_canon_v1/c05_port_duplicate_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_JJAIM_PORT_DUP","exit_code":1}
+{"cmd":["canon","pack/seamgrim_jjaim_block_stub_canon_v1/c06_jjaim_canonical_no_warn/input.ddn"],"stdout_path":"c06_jjaim_canonical_no_warn/expected_canon.ddn"}

@@ -1,0 +1,34 @@
+{
+  "axis": {
+    "x_max": 2.0,
+    "x_min": 0.0,
+    "y_max": 5.0,
+    "y_min": 1.0
+  },
+  "meta": {
+    "result_hash": "sha256:df2712379485cff12723a869ffff2576aa3a48179ba8591bc894dfdc6229e62d",
+    "source_input_hash": "sha256:66eafa3034f7b575623b75dbae5011fe5a5a921cb07865c4b917cbd6918b4e71",
+    "source_mode": "teul-cli-stdout"
+  },
+  "schema": "seamgrim.graph.v0",
+  "series": [
+    {
+      "id": "main",
+      "label": "f(x)",
+      "points": [
+        {
+          "x": 0.0,
+          "y": 1.0
+        },
+        {
+          "x": 1.0,
+          "y": 3.0
+        },
+        {
+          "x": 2.0,
+          "y": 5.0
+        }
+      ]
+    }
+  ]
+}

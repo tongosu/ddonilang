@@ -1,0 +1,225 @@
+{
+  "canvas_children": 3,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "charim_block_0002",
+      "kind": "charim_block"
+    },
+    {
+      "exprs": {},
+      "id": "hook_start_0005",
+      "kind": "hook_start"
+    },
+    {
+      "exprs": {},
+      "id": "expr_stmt_0006",
+      "kind": "expr_stmt"
+    }
+  ],
+  "generated_preview": "채비 {\n  거리:수 = 3.\n}.\n\n(시작)할때 {\n  () 증명.\n\n  (세움=거리_0이상, 관측값=(거리=거리)) 검증.\n}.\n\n() 증명.",
+  "palette_children": 39,
+  "result_text": "mode=seamgrim blocks=3 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "채비 {\n  거리:수 = 3.\n}.\n\n(시작)할때 {\n  () 증명.\n\n  (세움=거리_0이상, 관측값=(거리=거리)) 검증.\n}.\n\n() 증명.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Block Screen Expr Struct Edit"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 3,
+    "canvas_summary": {
+      "block_count": 3,
+      "block_ids": [
+        "charim_block_0002",
+        "hook_start_0005",
+        "expr_stmt_0006"
+      ],
+      "block_kinds": [
+        "charim_block",
+        "hook_start",
+        "expr_stmt"
+      ],
+      "expr_nodes": [
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "3"
+        },
+        {
+          "depth": 0,
+          "kind": "call",
+          "text": "() 증명"
+        },
+        {
+          "depth": 0,
+          "kind": "call",
+          "text": "(세움=거리_0이상, 관측값=(거리=거리)) 검증"
+        },
+        {
+          "depth": 1,
+          "kind": "pack",
+          "text": "(세움=거리_0이상, 관측값=(거리=거리))"
+        },
+        {
+          "depth": 2,
+          "kind": "binding",
+          "text": "세움=거리_0이상"
+        },
+        {
+          "depth": 3,
+          "kind": "path",
+          "text": "거리_0이상"
+        },
+        {
+          "depth": 2,
+          "kind": "binding",
+          "text": "관측값=(거리=거리)"
+        },
+        {
+          "depth": 3,
+          "kind": "pack",
+          "text": "(거리=거리)"
+        },
+        {
+          "depth": 4,
+          "kind": "binding",
+          "text": "거리=거리"
+        },
+        {
+          "depth": 5,
+          "kind": "path",
+          "text": "거리"
+        }
+      ],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "charim_block_0002",
+          "kind": "charim_block"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "charim_item_plain_0001",
+          "kind": "charim_item_plain"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "hook_start_0005",
+          "kind": "hook_start"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "call"
+          ],
+          "id": "expr_stmt_0003",
+          "kind": "expr_stmt"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "call",
+            "pack",
+            "binding",
+            "path",
+            "binding",
+            "pack",
+            "binding",
+            "path"
+          ],
+          "id": "expr_stmt_0004",
+          "kind": "expr_stmt"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "expr_stmt_0006",
+          "kind": "expr_stmt"
+        }
+      ],
+      "total_block_count": 6,
+      "total_expr_count": 10
+    },
+    "error_count": 0,
+    "generated_length": 82,
+    "mode": "seamgrim",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block"
+      ],
+      "category_count": 5,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output"
+      ]
+    }
+  },
+  "summary_text": "mode=seamgrim blocks=3 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "채비 {\n  거리:수 = 3.\n}.\n\n(시작)할때 {\n  () 증명.\n\n  (세움=거리_0이상, 관측값=(거리=거리)) 검증.\n}.\n\n() 증명.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Block Screen Expr Struct Edit"
+      }
+    }
+  ]
+}

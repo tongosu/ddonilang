@@ -1,0 +1,1 @@
+E_PARSE_CALL_PIN_DUPLICATE I:/OneDrive/study/ddonilang/codex/codex/pack/paper1_canonize_agglutinative_ast_negative_v1/cases/c06_ambiguous_reject/input.ddn: 핀 '왼'에 인자가 중복되었습니다

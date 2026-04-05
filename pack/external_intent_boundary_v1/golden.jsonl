@@ -1,0 +1,6 @@
+{"id":"c01_human_input_replay","expect_ok":true,"예상_확정":true}
+{"id":"c02_seulgi_injection_replay","expect_ok":true,"예상_확정":true}
+{"id":"c03_gatekeeper_reject","expect_ok":true,"예상_확정":false}
+{"id":"c04_schedule_event_same_boundary","expect_ok":true,"예상_확정":true}
+{"id":"c05_relay_event_replay","expect_ok":true,"예상_확정":true}
+{"id":"c06_rollout_event_replay","expect_ok":true,"예상_확정":true}

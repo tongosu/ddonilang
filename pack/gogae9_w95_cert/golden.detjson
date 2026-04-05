@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.gogae9.w95.cert_report.v1",
+  "overall_pass": true,
+  "deterministic_subject_hash": true,
+  "tamper_detection": true,
+  "cases": [
+    {
+      "id": "c01_verify_pass",
+      "verify_pass": true,
+      "expected_subject_hash": "sha256:ffaf4bb0f10fd1a8e3d56a606bdd371a3d2e26007ad53826fc0207b6221bc1c2"
+    },
+    {
+      "id": "c02_verify_fail_tamper",
+      "verify_pass": false,
+      "expected_error_code": "E_CERT_VERIFY_FAIL",
+      "expected_subject_hash": "sha256:ffaf4bb0f10fd1a8e3d56a606bdd371a3d2e26007ad53826fc0207b6221bc1c2"
+    }
+  ]
+}

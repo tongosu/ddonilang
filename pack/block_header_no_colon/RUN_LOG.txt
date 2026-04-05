@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update block_header_no_colon
+pack golden updated

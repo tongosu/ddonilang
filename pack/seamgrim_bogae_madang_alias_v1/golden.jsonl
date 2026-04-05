@@ -1,0 +1,2 @@
+{"cmd":["canon","pack/seamgrim_bogae_madang_alias_v1/c01_alias_warn/input.ddn"],"stdout_path":"c01_alias_warn/expected_canon.ddn","expected_warning_code":"W_BOGAE_MADANG_ALIAS_DEPRECATED"}
+{"cmd":["canon","pack/seamgrim_bogae_madang_alias_v1/c02_canonical_no_warn/input.ddn"],"stdout_path":"c02_canonical_no_warn/expected_canon.ddn"}

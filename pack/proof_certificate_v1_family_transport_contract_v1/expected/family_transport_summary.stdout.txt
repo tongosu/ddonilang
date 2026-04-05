@@ -1,0 +1,1 @@
+[proof-certificate-v1-family-transport-contract-summary-selftest] ok

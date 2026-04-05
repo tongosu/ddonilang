@@ -15,6 +15,17 @@
   "order_rule": "sender_seq",
   "schema": "gateway.load_report.v1",
   "seed": 1,
+  "source_hash": "sha256:4afc3016238b78bfaf774f03574d1c103d10eacddf8327dbad59ec50d43ff642",
+  "source_provenance": {
+    "clients": 4,
+    "realms": 2,
+    "schema": "gateway.source_provenance.v1",
+    "seed": 1,
+    "source_kind": "gateway_load_sim_options.v1",
+    "threads": 4,
+    "tick_hz": 60,
+    "ticks": 3
+  },
   "ssot_version": "20.6.6",
   "thread_mode": "threads=4",
   "throughput_events_per_sec": 240,

@@ -1,4 +1,4 @@
-﻿# pack/gogae3_w24_ecs_archetype
+# pack/gogae3_w24_ecs_archetype
 
 W24(ECS/아키타입) D-PACK 스켈레톤이다.
 

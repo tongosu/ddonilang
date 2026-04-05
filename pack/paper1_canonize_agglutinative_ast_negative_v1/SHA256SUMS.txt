@@ -1,0 +1,2 @@
+sha256:4ce42a0d2e4c9262dd0bc1ce493ec2e848e9c41001b1ec8c6f5e88cb16d2ccdb  expected/canon_ast_reject.stderr.txt
+sha256:d10e1e793ca006ced027cf0c792ce8321361c15edbe8c51c3520d742050a86e5  expected/canon_ast_shared_josa_ambiguous_reject.stderr.txt

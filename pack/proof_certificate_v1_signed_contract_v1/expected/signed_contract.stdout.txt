@@ -1,0 +1,1 @@
+[proof-certificate-v1-signed-contract-selftest] ok chain=3 docs=4

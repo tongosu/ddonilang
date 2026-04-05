@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update lang_consistency_v1
+pack golden updated

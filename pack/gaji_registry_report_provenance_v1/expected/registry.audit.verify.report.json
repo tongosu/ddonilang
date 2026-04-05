@@ -1,0 +1,14 @@
+{
+  "audit_log_path": "out/registry.audit.jsonl",
+  "last_hash": "blake3:1aadbde47fd3dbd4ebb84cf954dc0a6135da68afefda08caa043923aee87319f",
+  "ok": true,
+  "rows": 1,
+  "schema": "ddn.registry.audit_verify_report.v1",
+  "source_hash": "sha256:1863a2774d6786af6558444c4713f18acf9e47335fcddabbff87d601a254cebf",
+  "source_provenance": {
+    "audit_log_file": "out/registry.audit.jsonl",
+    "audit_log_hash": "sha256:a18029e48fa6eb513ff135cf8b4b502037895b3d370fa7e979b204376a24cf2d",
+    "schema": "ddn.registry.audit_verify_report_source_provenance.v1",
+    "source_kind": "registry_audit_log.v1"
+  }
+}

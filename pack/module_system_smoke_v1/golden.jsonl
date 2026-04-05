@@ -1,0 +1,8 @@
+{"cmd":["run","pack/module_system_smoke_v1/c01_import_export_run/input.ddn"],"stdout":["1"]}
+{"cmd":["run","pack/module_system_smoke_v1/c02_public_alias_run/input.ddn"],"stdout":["2"]}
+{"cmd":["run","pack/module_system_smoke_v1/c08_module_alias_call_run/input.ddn"],"stdout":["3"]}
+{"cmd":["run","pack/module_system_smoke_v1/c03_import_alias_duplicate_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_IMPORT_ALIAS_DUPLICATE","exit_code":1}
+{"cmd":["run","pack/module_system_smoke_v1/c04_import_alias_reserved_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_IMPORT_ALIAS_RESERVED","exit_code":1}
+{"cmd":["run","pack/module_system_smoke_v1/c05_import_path_invalid_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_IMPORT_PATH_INVALID","exit_code":1}
+{"cmd":["run","pack/module_system_smoke_v1/c06_import_version_conflict_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_IMPORT_VERSION_CONFLICT","exit_code":1}
+{"cmd":["run","pack/module_system_smoke_v1/c07_export_block_duplicate_EXPECT_FAIL/input.ddn"],"expected_error_code":"E_EXPORT_BLOCK_DUPLICATE","exit_code":1}

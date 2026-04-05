@@ -1,0 +1,17 @@
+{
+  "ddn_fixture": "fixtures/lesson.ddn",
+  "events": [
+    { "type": "reset" },
+    { "type": "set_param", "key": "x", "value": 1.0 },
+    { "type": "set_param", "key": "보개_카메라_x", "value": 31.0 },
+    { "type": "step" },
+    { "type": "hash", "label": "a" },
+    { "type": "set_param", "key": "보개_카메라_x", "value": 41.0 },
+    { "type": "step" },
+    { "type": "hash", "label": "b" },
+    { "type": "set_param", "key": "x", "value": 2.0 },
+    { "type": "step" },
+    { "type": "hash", "label": "c" }
+  ],
+  "compare": { "a": "a", "b": "b", "c": "c" }
+}

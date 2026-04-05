@@ -1,0 +1,106 @@
+# Proof Certificate Family
+
+## Stable Contract
+
+- 목적:
+  - `proof artifact/cert bridge` line과 `proof_certificate_v1` line을 한 단계 위에서 함께 읽는 최상위 family contract를 고정한다.
+  - 이 문서는 proof artifact 하위 digest/cert 축이나 `proof_certificate_v1` emit/verify/schema 축을 다시 정의하지 않고, 두 상위 contract가 같은 proof/cert family를 이룬다는 점만 확인한다.
+- pack 계약:
+  - `pack/proof_certificate_family_v1/README.md`
+  - `pack/proof_certificate_family_contract_v1/README.md`
+  - `pack/proof_certificate_family_transport_contract_v1/README.md`
+- 대상 surface:
+  - `tests/proof_artifact_certificate_contract/README.md`
+  - `tests/proof_certificate_v1_family/README.md`
+  - `pack/age4_proof_detjson_smoke_v1/README.md`
+  - `pack/age4_proof_artifact_cert_subject_v1/README.md`
+  - `pack/gogae9_w95_cert/README.md`
+- selftest:
+  - `python tests/run_proof_artifact_certificate_contract_selftest.py`
+  - `python tests/run_proof_certificate_v1_family_selftest.py`
+  - `python tests/run_proof_certificate_family_selftest.py`
+  - `python tests/run_proof_certificate_family_contract_selftest.py`
+  - `python tests/run_proof_certificate_family_contract_summary_selftest.py`
+  - `proof_artifact_certificate_contract_selftest`
+  - `proof_certificate_v1_family_selftest`
+  - `proof_certificate_family_selftest`
+  - `proof_certificate_family_contract_selftest`
+
+## Stable Transport Contract
+
+- bundle `checks_text`:
+  - `artifact_certificate_contract,proof_certificate_v1_family,proof_certificate_family`
+- progress schema:
+  - `ddn.ci.proof_certificate_family_contract_selftest.progress.v1`
+- transport bundle `checks_text`:
+  - `family_contract,aggregate_preview_summary,aggregate_status_line,final_status_line,gate_result,gate_outputs_consistency,gate_summary_line,final_line_emitter,report_index`
+- transport progress schema:
+  - `ddn.ci.proof_certificate_family_transport_contract_selftest.progress.v1`
+- upstream raw field:
+  - `age5_full_real_proof_certificate_family_transport_contract_selftest_*`
+- downstream compact token:
+  - `age5_proof_certificate_family_transport_contract_*`
+- sanity steps:
+  - `proof_certificate_family_contract_selftest`
+  - `proof_certificate_family_contract_summary_selftest`
+  - `proof_certificate_family_transport_contract_selftest`
+  - `proof_certificate_family_transport_contract_summary_selftest`
+- direct surface:
+  - `ci_sanity_gate stdout`
+  - `*.progress.detjson`
+  - `age5 close full-real report`
+  - `aggregate preview summary`
+  - `aggregate status line`
+  - `final status line`
+  - `gate result/summary compact`
+  - `ci_fail_brief/triage`
+  - `ci_gate_report_index`
+  - `python tests/run_proof_certificate_family_contract_selftest.py`
+  - `python tests/run_proof_certificate_family_contract_summary_selftest.py`
+  - `python tests/run_age5_close_combined_report_contract_selftest.py`
+  - `python tests/run_ci_aggregate_age5_child_summary_proof_certificate_family_transport_selftest.py`
+  - `python tests/run_ci_aggregate_gate_age5_diagnostics_check.py`
+  - `python tests/run_ci_aggregate_status_line_selftest.py`
+  - `python tests/run_ci_gate_final_status_line_selftest.py`
+  - `python tests/run_ci_gate_result_check_selftest.py`
+  - `python tests/run_ci_gate_outputs_consistency_check_selftest.py`
+  - `python tests/run_ci_gate_summary_line_check_selftest.py`
+  - `python tests/run_ci_final_line_emitter_check.py`
+  - `python tests/run_ci_gate_report_index_check_selftest.py`
+  - `python tests/run_proof_certificate_family_transport_contract_selftest.py`
+  - `python tests/run_proof_certificate_family_transport_contract_summary_selftest.py`
+
+## Matrix
+
+| family line | summary | primary contract |
+| --- | --- | --- |
+| artifact/cert bridge line | `proof artifact emit -> proof artifact cert bridge -> w95 cert` | proof artifact bytes와 subject-hash/cert surface가 `증명값` 바로 아래층 계약으로 닫혀 있다 |
+| proof_certificate_v1 line | `signed contract -> consumer contract -> promotion -> proof_certificate_v1 family` | runtime/signed/verify/schema line이 정본 `proof_certificate_v1` 후보/실행 surface로 닫혀 있다 |
+
+## Consumer Surface
+
+- `tests/proof_artifact_certificate_contract/README.md`
+- `tests/proof_certificate_v1_family/README.md`
+- `pack/age4_proof_detjson_smoke_v1/README.md`
+- `pack/age4_proof_artifact_cert_subject_v1/README.md`
+- `pack/gogae9_w95_cert/README.md`
+- `python tests/run_proof_artifact_certificate_contract_selftest.py`
+- `python tests/run_proof_certificate_v1_family_selftest.py`
+- `python tests/run_proof_certificate_family_selftest.py`
+- `python tests/run_proof_certificate_family_contract_selftest.py`
+- `python tests/run_proof_certificate_family_contract_summary_selftest.py`
+- `python tests/run_proof_certificate_family_transport_contract_selftest.py`
+- `python tests/run_proof_certificate_family_transport_contract_summary_selftest.py`
+- `python tests/run_age5_close_combined_report_contract_selftest.py`
+- `python tests/run_ci_aggregate_age5_child_summary_proof_certificate_family_transport_selftest.py`
+- `python tests/run_ci_aggregate_status_line_selftest.py`
+- `python tests/run_ci_gate_final_status_line_selftest.py`
+- `python tests/run_ci_gate_result_check_selftest.py`
+- `python tests/run_ci_gate_outputs_consistency_check_selftest.py`
+- `python tests/run_ci_gate_summary_line_check_selftest.py`
+- `python tests/run_ci_final_line_emitter_check.py`
+- `python tests/run_ci_gate_report_index_check_selftest.py`
+- `tests/proof_family/README.md`
+- `python tests/run_proof_family_selftest.py`
+- `python tests/run_ci_sanity_gate.py --profile core_lang`
+

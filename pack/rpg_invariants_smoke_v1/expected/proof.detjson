@@ -1,0 +1,48 @@
+{
+  "canonical_body_hash": "sha256:b3ad9c34c94559af6c91ec208580ab032d490d7d95f7dc69373244b813729c0f",
+  "canonical_body_hash_method": "canon",
+  "contract_diag_count": 1,
+  "contract_diags": [
+    {
+      "col": 7,
+      "kind": "pre",
+      "line": 16,
+      "message": "전제하에 조건이 실패했습니다",
+      "mode": "abort"
+    }
+  ],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/rpg_invariants_smoke_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 0,
+    "items": [],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 0,
+  "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 0,
+    "item_count": 0,
+    "items": [],
+    "proof_check_count": 0,
+    "quantifier_count": 0,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:6759ded78bc157afd2679f2739f837e98151d45bfed77085e8808cd597c854b1",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:7fe73188d388499a895e9f98d4e006dc0a1fdb45e3f96437aaef316b79ff9ddd",
+  "trace_log_count": 0,
+  "verified": false
+}

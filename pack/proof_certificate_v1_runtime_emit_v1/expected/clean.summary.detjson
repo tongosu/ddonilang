@@ -1,0 +1,23 @@
+{
+  "profile": "clean",
+  "verified": true,
+  "contract_diag_count": 0,
+  "proof_hash": "sha256:205f62056b6aac91bd36d9349db9447c2e15798cd78ab1c7308063a7648b5722",
+  "candidate_hash": "sha256:c153e3906f90e56175bb39a7bc0fd1d11944148ec706e2605be9945f7544bdcc",
+  "artifact_hash": "sha256:35f06aa18c4c1958fbc331e752027833a229f50fc805a0141ad6e945861141e7",
+  "proof_entry": "fixtures/input.ddn",
+  "proof_subject_hash": "sha256:205f62056b6aac91bd36d9349db9447c2e15798cd78ab1c7308063a7648b5722",
+  "source_proof_path": "clean.proof.detjson",
+  "source_proof_schema": "ddn.proof.detjson.v0",
+  "source_proof_kind": "run_contract_certificate_v1",
+  "proof_state_hash": "blake3:98d885970f0b96d9426db2c8dd905809766753b4893a7d365c0423bd3a2fcdeb",
+  "proof_trace_hash": "blake3:e6929705154af54b0fdbdfd5fc29becaaebe57de14bd87fd152b4aa67bbc9271",
+  "candidate_state_hash": "blake3:98d885970f0b96d9426db2c8dd905809766753b4893a7d365c0423bd3a2fcdeb",
+  "candidate_trace_hash": "blake3:e6929705154af54b0fdbdfd5fc29becaaebe57de14bd87fd152b4aa67bbc9271",
+  "artifact_profile": "clean",
+  "artifact_source_proof_path": "clean.proof.detjson",
+  "shared_shell_key_count": 6,
+  "state_delta_key_count": 6,
+  "state_delta_verified": true,
+  "state_delta_diag_count": 0
+}

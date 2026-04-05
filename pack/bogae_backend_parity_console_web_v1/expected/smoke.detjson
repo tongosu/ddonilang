@@ -1,0 +1,106 @@
+{
+  "checks": {
+    "same_bogae_hash": true,
+    "same_detbin_bytes": true,
+    "same_state_hash": true
+  },
+  "console_headless": {
+    "cli": {
+      "bogae_hash": "blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5",
+      "label": "bogae_backend_parity.console",
+      "non_hash_stdout_digest": "sha256:052814234e36328b25b00ecdb0d7c810ebcf2f92969baab445e8c3c39ed8c9e4",
+      "state_hash": "blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
+      "stderr_lines": [],
+      "stdout_digest": "sha256:20a093a6e67b370de46866b5b29b814906f4714b407c9c39543624ad22b8f767",
+      "stdout_lines": [
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "####console/web#parity##########################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "################################################",
+        "state_hash=blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
+        "trace_hash=blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102",
+        "bogae_hash=blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5"
+      ],
+      "trace_hash": "blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102"
+    },
+    "detbin_digest": "sha256:e5486b1701077ceeedceed128356864d465884a165a7f121bd71e3a2e48fc7fe",
+    "run_manifest": {
+      "bogae_hash": "blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5",
+      "contract": "D-STRICT",
+      "digest": "sha256:fc045ab33da6079c489378f6ac83308e3fc079bdbfa51f560577523df2b665c4",
+      "state_hash": "blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
+      "ticks": 1,
+      "trace_hash": "blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102"
+    }
+  },
+  "pack": "bogae_backend_parity_console_web_v1",
+  "schema": "ddn.bogae.backend_parity_console_web.v1",
+  "web2d": {
+    "cli": {
+      "bogae_hash": "blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5",
+      "label": "bogae_backend_parity.web",
+      "non_hash_stdout_digest": "sha256:fca1412dd7fc335ae216d6816f6abe540c01f5140131fbb908fae57eec4292cc",
+      "state_hash": null,
+      "stderr_lines": [],
+      "stdout_digest": "sha256:ef24e978d2508815d5c26cb28e958038762a21f97f9694ff87631a1ee07c1d3e",
+      "stdout_lines": [
+        "bogae_hash=blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5 cmd_count=5 codec=BDL1"
+      ],
+      "trace_hash": null
+    },
+    "detbin_digest": "sha256:e5486b1701077ceeedceed128356864d465884a165a7f121bd71e3a2e48fc7fe",
+    "drawlist": {
+      "canvas_h": 64,
+      "canvas_w": 96,
+      "cmd_count": 5,
+      "cmd_kinds": [
+        "Clear",
+        "RectFill",
+        "RectFill",
+        "Text",
+        "RectFill"
+      ],
+      "integer_pixel_fields": true,
+      "rect_square_sizes": [
+        16
+      ],
+      "size_digest": "sha256:ed88c508af124d90508f624c6dc0cff14b1ddaa079c75bdcbb4d341ea43175d8"
+    },
+    "run_manifest": {
+      "bogae_hash": "blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5",
+      "contract": "D-STRICT",
+      "digest": "sha256:fc045ab33da6079c489378f6ac83308e3fc079bdbfa51f560577523df2b665c4",
+      "state_hash": "blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
+      "ticks": 1,
+      "trace_hash": "blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102"
+    }
+  }
+}

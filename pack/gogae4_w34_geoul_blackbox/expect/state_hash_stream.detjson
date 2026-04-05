@@ -1,4 +1,4 @@
-﻿{
+{
   "schema": "ddn.state_hash_stream.v1",
   "frames": [
     {"madi": 0, "state_hash": "blake3:0e22ab500cc72aa114b32fef87ffad328579e49ecebf872087483ecb3546bd21"},

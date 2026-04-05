@@ -1,4 +1,4 @@
-﻿# edu_physics_energy
+# edu_physics_energy
 
 ## 목적
 - 에너지 보존

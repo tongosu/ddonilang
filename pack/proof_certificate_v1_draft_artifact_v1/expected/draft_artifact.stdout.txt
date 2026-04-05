@@ -1,0 +1,1 @@
+[proof-certificate-v1-draft-artifact-selftest] ok profiles=2 fields=9

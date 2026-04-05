@@ -1,0 +1,32 @@
+{
+  "version": "v0",
+  "units": [
+    "m",
+    "mm",
+    "cm",
+    "km",
+    "inch",
+    "ft",
+    "평",
+    "s",
+    "초",
+    "us",
+    "ms",
+    "min",
+    "h",
+    "kg",
+    "g",
+    "rad",
+    "px",
+    "K",
+    "C",
+    "F",
+    "m/s",
+    "mps",
+    "m/s^2",
+    "kmh",
+    "N",
+    "KRW",
+    "USD"
+  ]
+}

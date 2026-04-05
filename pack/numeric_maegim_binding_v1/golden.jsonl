@@ -1,0 +1,4 @@
+{"cmd": ["canon", "pack/numeric_maegim_binding_v1/c01_numeric_type_maegim.ddn", "--emit", "maegim-control-json"], "stdout_path": "c01_numeric_type_maegim.expected.json", "exit_code": 0}
+{"cmd": ["canon", "pack/numeric_maegim_binding_v1/c02_alias_condition_to_maegim.ddn"], "stdout_path": "c02_alias_condition_to_maegim.expected.ddn", "exit_code": 0}
+{"cmd": ["canon", "pack/numeric_maegim_binding_v1/c03_step_split_conflict.ddn"], "expected_error_code": "E_CANON_MAEGIM_STEP_SPLIT_CONFLICT", "exit_code": 1}
+{"cmd": ["canon", "pack/numeric_maegim_binding_v1/c04_missing_grouped_value.ddn"], "expected_error_code": "E_CANON_MAEGIM_GROUPED_VALUE_REQUIRED", "exit_code": 1}

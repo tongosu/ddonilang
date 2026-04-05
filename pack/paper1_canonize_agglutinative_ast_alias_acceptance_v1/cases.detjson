@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.canon_ast_pack.v1",
+  "runner": "lang/examples/canon_ast_dump.rs",
+  "cases": [
+    {
+      "id": "c04_alias_acceptance",
+      "input": "cases/c04_alias_acceptance/input.ddn",
+      "expected": "expected/canon_ast_alias_acceptance.detjson"
+    }
+  ]
+}

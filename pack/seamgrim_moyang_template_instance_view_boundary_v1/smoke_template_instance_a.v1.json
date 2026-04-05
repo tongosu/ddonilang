@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.smoke.golden.v1",
+  "ddn_file": "input_template_instance_a.ddn",
+  "contract": "D-STRICT",
+  "checkpoints": [
+    {
+      "tick": 3,
+      "state_hash": "blake3:35e9fe11b1e390d8a682191aa94561dc721c2c6b05821e36e6121ec84c930e6e"
+    }
+  ],
+  "max_ticks": 3,
+  "timeout_ms": 30000
+}

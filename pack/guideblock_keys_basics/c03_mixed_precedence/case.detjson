@@ -1,0 +1,14 @@
+{
+  "schema": "ddn.seamgrim.guideblock_case.v1",
+  "case_id": "c03_mixed_precedence",
+  "input": "input.ddn",
+  "expect": {
+    "meta": {
+      "name": "header-title",
+      "desc": "block-desc",
+      "default_observation": "theta_header",
+      "default_observation_x": "t"
+    },
+    "body_starts_with": "x <- 1."
+  }
+}

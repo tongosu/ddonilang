@@ -1,0 +1,3 @@
+{"input":"키0 <- () 입력키.\n길이0 <- (키0) 길이.\n길이0 보여주기.\n","stdout":["0"]}
+{"input":"키1 <- () 입력키?.\n키1 보여주기.\n","stdout":["없음"]}
+{"input":"키2 <- () 입력키!.\n키2 보여주기.\n","expected_error_code":"E_INPUTKEY_MISSING","exit_code":1}

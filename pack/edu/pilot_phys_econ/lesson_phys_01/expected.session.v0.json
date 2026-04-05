@@ -22,6 +22,7 @@
   },
   "layers": [
     {
+      "group_id": "pendulum.baseline",
       "id": "baseline",
       "order": 0,
       "params": {
@@ -32,6 +33,7 @@
       "visible": true
     },
     {
+      "group_id": "pendulum.variant",
       "id": "variant",
       "order": 1,
       "params": {

@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.gogae9.w92.aot_parity_report.v1",
+  "status": "pass",
+  "overall_pass": true,
+  "min_speedup_floor": 20.0,
+  "toolchain": {
+    "aot": "llvm-v2-draft",
+    "interp": "teul-cli-run"
+  },
+  "cases": [
+    {
+      "id": "c01_interp_aot_hash_parity",
+      "interp_state_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "aot_state_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "parity_ok": true,
+      "speedup": 20.0,
+      "meets_speedup": true
+    }
+  ]
+}

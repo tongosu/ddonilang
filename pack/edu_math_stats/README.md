@@ -1,4 +1,4 @@
-﻿# edu_math_stats
+# edu_math_stats
 
 ## 목적
 - 기초 통계

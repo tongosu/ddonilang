@@ -1,4 +1,4 @@
-﻿# D-PACK (NEGATIVE): project/project_age_target_precedence_v1_negative
+# D-PACK (NEGATIVE): project/project_age_target_precedence_v1_negative
 
 목적: age_target 결정 우선순위(pack)에서 FAIL expected 케이스를 분리한다.
 

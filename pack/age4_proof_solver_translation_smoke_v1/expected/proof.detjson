@@ -1,0 +1,86 @@
+{
+  "canonical_body_hash": "sha256:b89919ea760e2060590102db7fae40dc35d9ec24cd262334cbb640cd65ce4914",
+  "canonical_body_hash_method": "ast_fallback",
+  "contract_diag_count": 0,
+  "contract_diags": [],
+  "diagnostic_failure_count": 0,
+  "diagnostic_failures": [],
+  "entry": "pack/age4_proof_solver_translation_smoke_v1/input.ddn",
+  "kind": "run_contract_certificate_v1",
+  "proof_runtime": {
+    "item_count": 0,
+    "items": [],
+    "proof_block_count": 0,
+    "proof_check_count": 0,
+    "schema": "ddn.proof.runtime.v0",
+    "solver_check_count": 0,
+    "solver_search_count": 0
+  },
+  "proof_runtime_count": 0,
+  "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
+  "schema": "ddn.proof.detjson.v0",
+  "seed": 0,
+  "solver_translation": {
+    "case_analysis_count": 2,
+    "item_count": 5,
+    "items": [
+      {
+        "binder": "n",
+        "body_stmt_count": 1,
+        "col": 1,
+        "domain": "자연수",
+        "kind": "quantifier",
+        "line": 3,
+        "quantifier": "forall"
+      },
+      {
+        "binder": "x",
+        "body_stmt_count": 1,
+        "col": 1,
+        "domain": "실수",
+        "kind": "quantifier",
+        "line": 7,
+        "quantifier": "exists"
+      },
+      {
+        "binder": "y",
+        "body_stmt_count": 1,
+        "col": 1,
+        "domain": "정수",
+        "kind": "quantifier",
+        "line": 11,
+        "quantifier": "exists_unique"
+      },
+      {
+        "branch_count": 1,
+        "col": 1,
+        "completion": "exhaustive",
+        "exhaustive": true,
+        "has_else": false,
+        "kind": "case_analysis",
+        "line": 15
+      },
+      {
+        "branch_count": 1,
+        "col": 1,
+        "completion": "else",
+        "exhaustive": false,
+        "has_else": true,
+        "kind": "case_analysis",
+        "line": 21
+      }
+    ],
+    "proof_check_count": 0,
+    "quantifier_count": 3,
+    "schema": "ddn.proof.solver_translation.v0",
+    "solver_open_count": 0
+  },
+  "solver_translation_hash": "sha256:2f0fae1a218fffbc64ebe4a2271d43d7bbe5e8e1638aca9cddc4ec2e1dabc233",
+  "ssot_version": "20.6.6",
+  "state_hash": "blake3:f83311d1881e4ab122c25dd8c3a9e30349858a9cac5f6066f609c52c4ed9db45",
+  "ticks": 1,
+  "toolchain_version": "0.1.0",
+  "trace_hash": "blake3:bad823486278b65f58fa6fcbdf39b85227bc05ea008b275ba3fdd5a5c295b3ff",
+  "trace_log_count": 1,
+  "verified": true
+}

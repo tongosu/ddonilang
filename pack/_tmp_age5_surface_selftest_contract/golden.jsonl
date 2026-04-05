@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/_tmp_age5_surface_selftest_contract/c01_invalid_contract/input.ddn"], "exit_code": 1, "expected_warning_code": "W_AGE5_SURFACE_SELFTEST_DUMMY"}

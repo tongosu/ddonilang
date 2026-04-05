@@ -1,0 +1,4 @@
+{
+  "default": "deny",
+  "allow": ["clock"]
+}

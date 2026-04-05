@@ -1,0 +1,209 @@
+{
+  "fixture_schema": "seamgrim.nurimaker.grid.fixture.v1",
+  "renderer": {
+    "canvas_calls": {
+      "clear_rect": 1,
+      "digest": "sha256:7bdac3cd00ee099037c2a6c9b4dd63a4cfda3d785245e2d7f693732bdb5aedd1",
+      "fill_rect_count": 15,
+      "fill_text": [
+        "H",
+        "S"
+      ],
+      "stroke_rect_count": 12
+    },
+    "click_hits": [
+      {
+        "col": 2,
+        "row": 2
+      }
+    ],
+    "summary": {
+      "actor_cells": [
+        {
+          "col": 1,
+          "id": "hero",
+          "row": 1
+        },
+        {
+          "col": 3,
+          "id": "slime",
+          "row": 0
+        }
+      ],
+      "canvas_height": 48,
+      "canvas_width": 64,
+      "draw_calls": {
+        "actors": 2,
+        "background": 1,
+        "tiles": 12
+      },
+      "grid_h": 3,
+      "grid_w": 4,
+      "non_zero_cells": [
+        {
+          "col": 1,
+          "kind": 1,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "kind": 2,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "kind": 3,
+          "row": 1
+        },
+        {
+          "col": 0,
+          "kind": 1,
+          "row": 2
+        }
+      ],
+      "palette_keys": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "schema": "seamgrim.nurimaker.grid_render.v1",
+      "tile_counts": {
+        "0": 8,
+        "1": 2,
+        "2": 1,
+        "3": 1
+      },
+      "tile_size": 16
+    }
+  },
+  "schema": "seamgrim.web.nurimaker_grid_render_smoke.v1",
+  "screen": {
+    "canvas_calls": {
+      "clear_rect": 4,
+      "digest": "sha256:f5d3d6b5f90cda28d4edbdf01c7af2adf317f49e61d31d529c1e19cc1e92a0d9",
+      "fill_rect_count": 58,
+      "fill_text": [
+        "H",
+        "S",
+        "H",
+        "S",
+        "H",
+        "S"
+      ],
+      "stroke_rect_count": 48
+    },
+    "click_log": [
+      {
+        "col": 2,
+        "row": 2
+      }
+    ],
+    "non_zero_cells": [
+      {
+        "col": 1,
+        "kind": 1,
+        "row": 0
+      },
+      {
+        "col": 3,
+        "kind": 2,
+        "row": 0
+      },
+      {
+        "col": 2,
+        "kind": 3,
+        "row": 1
+      },
+      {
+        "col": 0,
+        "kind": 1,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "kind": 4,
+        "row": 2
+      }
+    ],
+    "paint_events": [
+      {
+        "col": 2,
+        "kind": 4,
+        "row": 2
+      }
+    ],
+    "painted_value": 4,
+    "render_summary": {
+      "actor_cells": [
+        {
+          "col": 1,
+          "id": "hero",
+          "row": 1
+        },
+        {
+          "col": 3,
+          "id": "slime",
+          "row": 0
+        }
+      ],
+      "canvas_height": 48,
+      "canvas_width": 64,
+      "draw_calls": {
+        "actors": 2,
+        "background": 1,
+        "tiles": 12
+      },
+      "grid_h": 3,
+      "grid_w": 4,
+      "non_zero_cells": [
+        {
+          "col": 1,
+          "kind": 1,
+          "row": 0
+        },
+        {
+          "col": 3,
+          "kind": 2,
+          "row": 0
+        },
+        {
+          "col": 2,
+          "kind": 3,
+          "row": 1
+        },
+        {
+          "col": 0,
+          "kind": 1,
+          "row": 2
+        },
+        {
+          "col": 2,
+          "kind": 4,
+          "row": 2
+        }
+      ],
+      "palette_keys": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "schema": "seamgrim.nurimaker.grid_render.v1",
+      "tile_counts": {
+        "0": 7,
+        "1": 2,
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "tile_size": 16
+    },
+    "scene_id": "rpg_dungeon_intro",
+    "selected_tile_kind": 4,
+    "source_line_count": 7,
+    "status_text": "칸 (2,2) = 4"
+  }
+}

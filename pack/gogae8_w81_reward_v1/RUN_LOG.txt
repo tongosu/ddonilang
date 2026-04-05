@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update gogae8_w81_reward_v1 gogae8_w83_edu_accuracy_v1
+pack golden updated

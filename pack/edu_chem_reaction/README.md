@@ -1,4 +1,4 @@
-﻿# edu_chem_reaction
+# edu_chem_reaction
 
 ## 목적
 - 반응 속도

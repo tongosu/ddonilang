@@ -1,0 +1,311 @@
+{
+  "canvas_children": 3,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "charim_block_0002",
+      "kind": "charim_block"
+    },
+    {
+      "exprs": {},
+      "id": "hook_start_0010",
+      "kind": "hook_start"
+    },
+    {
+      "exprs": {},
+      "id": "show_0011",
+      "kind": "show"
+    }
+  ],
+  "generated_preview": "채비 {\n  값:변수 <- 0.\n}.\n\n(시작)할때 {\n  { 값 < 2 }인것 동안 {\n    값 <- 값 + 1.\n  }.\n\n  { 값 == 2 }인것 바탕으로 아니면 {\n    \"bad\" 보여주기.\n  } 맞으면 {\n    \"ok\" 보여주기.\n  }.\n\n  { 값 >= 0 }인것 다짐하고(알림) 아니면 {\n    \"warn\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
+  "palette_children": 39,
+  "result_text": "mode=seamgrim blocks=3 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "채비 {\n  값:변수 <- 0.\n}.\n\n(시작)할때 {\n  { 값 < 2 }인것 동안 {\n    값 <- 값 + 1.\n  }.\n\n  { 값 == 2 }인것 바탕으로 아니면 {\n    \"bad\" 보여주기.\n  } 맞으면 {\n    \"ok\" 보여주기.\n  }.\n\n  { 값 >= 0 }인것 다짐하고(알림) 아니면 {\n    \"warn\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Contract Block Screen"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 3,
+    "canvas_summary": {
+      "block_count": 3,
+      "block_ids": [
+        "charim_block_0002",
+        "hook_start_0010",
+        "show_0011"
+      ],
+      "block_kinds": [
+        "charim_block",
+        "hook_start",
+        "show"
+      ],
+      "expr_nodes": [
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "0"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "값 < 2"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "값"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "2"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "값 + 1"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "값"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "1"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "값 == 2"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "값"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "2"
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"bad\""
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"ok\""
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "값 >= 0"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "값"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "0"
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"warn\""
+        }
+      ],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "charim_block_0002",
+          "kind": "charim_block"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "charim_item_var_0001",
+          "kind": "charim_item_var"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "hook_start_0010",
+          "kind": "hook_start"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "while_block_0004",
+          "kind": "while_block"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "assign_0003",
+          "kind": "assign"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "contract_guard_0007",
+          "kind": "contract_guard"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0005",
+          "kind": "show"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0006",
+          "kind": "show"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "contract_guard_0009",
+          "kind": "contract_guard"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "show_0008",
+          "kind": "show"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "show_0011",
+          "kind": "show"
+        }
+      ],
+      "total_block_count": 11,
+      "total_expr_count": 16
+    },
+    "error_count": 0,
+    "generated_length": 210,
+    "mode": "seamgrim",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block"
+      ],
+      "category_count": 5,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output"
+      ]
+    }
+  },
+  "summary_text": "mode=seamgrim blocks=3 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "채비 {\n  값:변수 <- 0.\n}.\n\n(시작)할때 {\n  { 값 < 2 }인것 동안 {\n    값 <- 값 + 1.\n  }.\n\n  { 값 == 2 }인것 바탕으로 아니면 {\n    \"bad\" 보여주기.\n  } 맞으면 {\n    \"ok\" 보여주기.\n  }.\n\n  { 값 >= 0 }인것 다짐하고(알림) 아니면 {\n    \"warn\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim Contract Block Screen"
+      }
+    }
+  ]
+}

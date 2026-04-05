@@ -1,0 +1,4 @@
+proof_certificate_verify=ok
+proof_certificate_profile=clean
+cert_subject_hash=sha256:205f62056b6aac91bd36d9349db9447c2e15798cd78ab1c7308063a7648b5722
+cert_pubkey=sha256-proto:7232cfef4c253a45f69b82284b6bd442311fe06ae0014e008956e07421e99eef

@@ -1,0 +1,4 @@
+{"input_path": "input.ddn", "stdout": ["ok"], "exit_code": 0}
+{"cmd": ["run", "pack/age4_quantifier_surface_smoke_v1/input_mutation.ddn"], "expected_error_code": "E_PARSE_QUANTIFIER_MUTATION_FORBIDDEN", "exit_code": 1}
+{"cmd": ["run", "pack/age4_quantifier_surface_smoke_v1/input_show.ddn"], "expected_error_code": "E_PARSE_QUANTIFIER_SHOW_FORBIDDEN", "exit_code": 1}
+{"cmd": ["run", "pack/age4_quantifier_surface_smoke_v1/input_io.ddn"], "expected_error_code": "E_PARSE_QUANTIFIER_IO_FORBIDDEN", "exit_code": 1}

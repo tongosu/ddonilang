@@ -1,0 +1,27 @@
+{
+  "schema": "ddn.nurigym.shared_sync_action_pipeline.contract.v1",
+  "shared_env_mode": "sync",
+  "merge_rule": "priority",
+  "required_pipeline_fields": [
+    "raw_action",
+    "resolved_action",
+    "normalized_action",
+    "action_status",
+    "merge_candidates",
+    "merged_action",
+    "applied_action",
+    "missing_input"
+  ],
+  "required_statuses": ["맞음", "가만히", "잘림", "거부"],
+  "cases": [
+    { "id": "valid_noop", "input": "input_valid_noop.json" },
+    { "id": "clip", "input": "input_clip.json" },
+    { "id": "reject", "input": "input_reject.json" }
+  ],
+  "invariants": [
+    { "id": "pipeline_fields_add_only_present", "ok": true },
+    { "id": "status_four_kinds_observed", "ok": true },
+    { "id": "reject_excluded_before_merge", "ok": true },
+    { "id": "clip_kept_before_merge", "ok": true }
+  ]
+}

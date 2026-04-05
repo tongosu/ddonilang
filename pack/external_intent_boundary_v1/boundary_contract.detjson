@@ -1,0 +1,96 @@
+{
+  "schema": "ddn.external_intent_boundary.pack.contract.v1",
+  "version": "v1",
+  "입력원천_목록": [
+    "사람",
+    "슬기",
+    "밖일",
+    "일정",
+    "이어전달",
+    "펼침실행"
+  ],
+  "주입방식_목록": [
+    "실주입",
+    "재연주입"
+  ],
+  "행동갈래_목록": [
+    "보기만",
+    "세계영향"
+  ],
+  "invariants": [
+    {
+      "id": "direct_state_mutation_forbidden",
+      "ok": true
+    },
+    {
+      "id": "sam_boundary_required",
+      "ok": true
+    },
+    {
+      "id": "gatekeeper_or_policy_check_required",
+      "ok": true
+    },
+    {
+      "id": "replay_source_recall_forbidden",
+      "ok": true
+    },
+    {
+      "id": "determinism_after_injection",
+      "ok": true
+    }
+  ],
+  "replay": {
+    "원천재호출_금지": true,
+    "기록입력만_재주입": true
+  },
+  "cases": [
+    {
+      "id": "c01_human_input_replay",
+      "입력원천": "사람",
+      "주입방식": "실주입",
+      "행동갈래": "세계영향",
+      "재연_원천재호출_없음": true,
+      "예상_상태해시_안정": true
+    },
+    {
+      "id": "c02_seulgi_injection_replay",
+      "입력원천": "슬기",
+      "주입방식": "실주입",
+      "행동갈래": "세계영향",
+      "재연_원천재호출_없음": true,
+      "예상_상태해시_안정": true
+    },
+    {
+      "id": "c03_gatekeeper_reject",
+      "입력원천": "슬기",
+      "주입방식": "실주입",
+      "행동갈래": "세계영향",
+      "재연_원천재호출_없음": true,
+      "예상_상태해시_안정": true
+    },
+    {
+      "id": "c04_schedule_event_same_boundary",
+      "입력원천": "일정",
+      "주입방식": "실주입",
+      "행동갈래": "세계영향",
+      "재연_원천재호출_없음": true,
+      "예상_상태해시_안정": true
+    },
+    {
+      "id": "c05_relay_event_replay",
+      "입력원천": "이어전달",
+      "주입방식": "재연주입",
+      "행동갈래": "세계영향",
+      "재연_원천재호출_없음": true,
+      "예상_상태해시_안정": true
+    },
+    {
+      "id": "c06_rollout_event_replay",
+      "입력원천": "펼침실행",
+      "주입방식": "재연주입",
+      "행동갈래": "보기만",
+      "재연_원천재호출_없음": true,
+      "예상_상태해시_안정": true
+    }
+  ]
+}

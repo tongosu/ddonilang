@@ -1,0 +1,251 @@
+{
+  "canvas_children": 4,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "charim_block_0002",
+      "kind": "charim_block"
+    },
+    {
+      "exprs": {},
+      "id": "bogae_draw_0003",
+      "kind": "bogae_draw"
+    },
+    {
+      "exprs": {},
+      "id": "hook_tick_0009",
+      "kind": "hook_tick"
+    },
+    {
+      "exprs": {},
+      "id": "show_0010",
+      "kind": "show"
+    }
+  ],
+  "generated_preview": "채비 {\n  t:변수 <- 0.\n}.\n\n보개로 그려.\n\n(매마디)마다 {\n  t 톺아보기.\n\n  되풀이 {\n    t <- t + 1.\n\n    { t > 0 }인것 일때 {\n      멈추기.\n    }.\n  }.\n}.\n\n체력 보여주기.",
+  "palette_children": 39,
+  "result_text": "mode=seamgrim blocks=4 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "채비 {\n  t:변수 <- 0.\n}.\n\n보개로 그려.\n\n(매마디)마다 {\n  t 톺아보기.\n\n  되풀이 {\n    t <- t + 1.\n\n    { t > 0 }인것 일때 {\n      멈추기.\n    }.\n  }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim View Block Screen"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 4,
+    "canvas_summary": {
+      "block_count": 4,
+      "block_ids": [
+        "charim_block_0002",
+        "bogae_draw_0003",
+        "hook_tick_0009",
+        "show_0010"
+      ],
+      "block_kinds": [
+        "charim_block",
+        "bogae_draw",
+        "hook_tick",
+        "show"
+      ],
+      "expr_nodes": [
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "0"
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "t"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "t + 1"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "t"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "1"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "t > 0"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "t"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "0"
+        }
+      ],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "charim_block_0002",
+          "kind": "charim_block"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "charim_item_var_0001",
+          "kind": "charim_item_var"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "bogae_draw_0003",
+          "kind": "bogae_draw"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "hook_tick_0009",
+          "kind": "hook_tick"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "path"
+          ],
+          "id": "inspect_value_0004",
+          "kind": "inspect_value"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "repeat_0008",
+          "kind": "repeat"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "assign_0005",
+          "kind": "assign"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "if_then_0007",
+          "kind": "if_then"
+        },
+        {
+          "depth": 3,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "break_loop_0006",
+          "kind": "break_loop"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "show_0010",
+          "kind": "show"
+        }
+      ],
+      "total_block_count": 10,
+      "total_expr_count": 8
+    },
+    "error_count": 0,
+    "generated_length": 134,
+    "mode": "seamgrim",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block"
+      ],
+      "category_count": 5,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output"
+      ]
+    }
+  },
+  "summary_text": "mode=seamgrim blocks=4 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "채비 {\n  t:변수 <- 0.\n}.\n\n보개로 그려.\n\n(매마디)마다 {\n  t 톺아보기.\n\n  되풀이 {\n    t <- t + 1.\n\n    { t > 0 }인것 일때 {\n      멈추기.\n    }.\n  }.\n}.\n\n체력 보여주기.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "Seamgrim View Block Screen"
+      }
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{"cli":["--unsafe-open","--compat-matic-entry","--open","replay","--open-log","pack/age2_open_input_record_replay_v1/open.log.jsonl","--madi","3"],"stdout":["10","11","12"],"stderr":[]}
+{"cli":["--unsafe-open","--compat-matic-entry","--open","replay","--open-log","pack/age2_open_input_record_replay_v1/open.log.jsonl"],"smoke_golden":"open_input_replay.smoke_golden.v1.json"}

@@ -1,0 +1,1 @@
+[proof-certificate-family-selftest] ok lines=2

@@ -1,0 +1,3 @@
+{"cmd": ["nurigym", "run", "pack\\nurigym_shared_sync_action_pipeline_v1\\input_valid_noop.json", "--out", "build\\nurigym_shared_sync_action_pipeline_v1_valid_noop"], "stdout_path": "golden_valid_noop.txt"}
+{"cmd": ["nurigym", "run", "pack\\nurigym_shared_sync_action_pipeline_v1\\input_clip.json", "--out", "build\\nurigym_shared_sync_action_pipeline_v1_clip"], "stdout_path": "golden_clip.txt"}
+{"cmd": ["nurigym", "run", "pack\\nurigym_shared_sync_action_pipeline_v1\\input_reject.json", "--out", "build\\nurigym_shared_sync_action_pipeline_v1_reject"], "stdout_path": "golden_reject.txt"}

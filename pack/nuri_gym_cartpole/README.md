@@ -1,5 +1,7 @@
 # D-PACK: nuri_gym_cartpole
 
+evidence_tier: docs_first
+
 ## Purpose
 - Seed a minimal NuriGym CartPole1d example that matches DR-075 (minimal v1 schema).
 - Provide deterministic DetJson lines for episode/step records.

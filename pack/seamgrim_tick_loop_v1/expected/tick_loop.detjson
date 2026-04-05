@@ -8,29 +8,29 @@
   "rows_a": [
     {
       "tick": 0,
-      "state_hash": "blake3:858021ec448f870b3f3ad8ae3f10d737674e0610256368450311000be7b5934d"
+      "state_hash": "blake3:b077efd1902396854b4b13c94ab5beb296ad75804a6a38360245ace2cecad1ab"
     },
     {
       "tick": 2,
-      "state_hash": "blake3:a8f258aeb141013543c30636bca833710d2fe76d1505cb3a9bc336c39f5dff27"
+      "state_hash": "blake3:43e3f2f5ffd9e41853c33d3422b858074aa904c8ce86b3222827b36149a10669"
     },
     {
       "tick": 5,
-      "state_hash": "blake3:5ffaabbfb793922774602c2b453b3e160c620d7e58116860370b9511221e6bc7"
+      "state_hash": "blake3:0218b05d0141d0c5817eafb83a3e2dc6108bbfb1d94c2799cfdf2303fff91e9c"
     }
   ],
   "rows_b": [
     {
       "tick": 0,
-      "state_hash": "blake3:858021ec448f870b3f3ad8ae3f10d737674e0610256368450311000be7b5934d"
+      "state_hash": "blake3:b077efd1902396854b4b13c94ab5beb296ad75804a6a38360245ace2cecad1ab"
     },
     {
       "tick": 2,
-      "state_hash": "blake3:a8f258aeb141013543c30636bca833710d2fe76d1505cb3a9bc336c39f5dff27"
+      "state_hash": "blake3:43e3f2f5ffd9e41853c33d3422b858074aa904c8ce86b3222827b36149a10669"
     },
     {
       "tick": 5,
-      "state_hash": "blake3:5ffaabbfb793922774602c2b453b3e160c620d7e58116860370b9511221e6bc7"
+      "state_hash": "blake3:0218b05d0141d0c5817eafb83a3e2dc6108bbfb1d94c2799cfdf2303fff91e9c"
     }
   ],
   "monotonic_tick": true,

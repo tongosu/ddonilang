@@ -1,0 +1,1 @@
+{"runner": "seamgrim_playground_smoke_runner.mjs", "expected": "expected/playground_smoke.detjson", "schema": "ddn.seamgrim_playground_smoke_result.v1"}

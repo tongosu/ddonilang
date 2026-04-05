@@ -1,0 +1,11 @@
+{
+  "schema": "tensor.v0",
+  "kind": "dense",
+  "shape": [1, 3],
+  "dtype": "fixed64",
+  "data": [
+    "0",
+    "2147483648",
+    "4294967296"
+  ]
+}

@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update age4_proof_case_analysis_exists_solver_open_search_replay_v1
+pack golden updated

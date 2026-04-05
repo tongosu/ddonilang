@@ -1,4 +1,4 @@
-﻿# pack/gogae3_w23_network_sam
+# pack/gogae3_w23_network_sam
 
 W23(네트워크 입력샘 동기) D-PACK 스켈레톤이다.
 

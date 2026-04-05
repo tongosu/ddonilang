@@ -1,6 +1,8 @@
 # stdlib_l1_integrators_v1
 
-AGE4 close용 런타임 pack 스캐폴드.
+AGE4 OI-407 D7(stdlib L1) 적분 함수 회귀 팩.
 
 - SSOT 참조: `docs/ssot/pack/stdlib_l1_integrators_v1/`
-- 목적: runtime pack 경로를 먼저 고정하고, 이후 OI-407 구현 시 실제 적분 골든으로 교체한다.
+- 검증 API:
+  - `적분.오일러`
+  - `적분.반암시적오일러`

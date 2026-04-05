@@ -1,0 +1,1 @@
+E_PARSE_CALL_JOSA_AMBIGUOUS I:/OneDrive/study/ddonilang/codex/codex/pack/paper1_canonize_agglutinative_ast_v2/cases/c07_shared_josa_ambiguous_reject/input.ddn: 조사 '을'가 모호합니다. 값:핀 또는 ~조사로 고정하세요

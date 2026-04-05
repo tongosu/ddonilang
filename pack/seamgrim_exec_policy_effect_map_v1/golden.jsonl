@@ -1,0 +1,6 @@
+{"cmd":["canon","pack/seamgrim_exec_policy_effect_map_v1/c01_general_allowed/input.ddn","--emit","exec-policy-map-json"],"stdout_path":"c01_general_allowed/expected_exec_policy_map.json"}
+{"cmd":["canon","pack/seamgrim_exec_policy_effect_map_v1/c02_strict_forces_isolated/input.ddn","--emit","exec-policy-map-json"],"stdout_path":"c02_strict_forces_isolated/expected_exec_policy_map.json"}
+{"cmd":["canon","pack/seamgrim_exec_policy_effect_map_v1/c03_duplicate_exec_policy_blocks/input.ddn","--emit","exec-policy-map-json"],"stdout_path":"c03_duplicate_exec_policy_blocks/expected_exec_policy_map.json"}
+{"cmd":["canon","pack/seamgrim_exec_policy_effect_map_v1/c04_no_policy_defaults/input.ddn","--emit","exec-policy-map-json"],"stdout_path":"c04_no_policy_defaults/expected_exec_policy_map.json"}
+{"cmd":["canon","pack/seamgrim_exec_policy_effect_map_v1/c05_invalid_effect_enum_gate_error/input.ddn","--emit","exec-policy-map-json"],"stdout_path":"c05_invalid_effect_enum_gate_error/expected_exec_policy_map.json"}
+{"cmd":["canon","pack/seamgrim_exec_policy_effect_map_v1/c06_effect_only_allowed_defaults_strict/input.ddn","--emit","exec-policy-map-json"],"stdout_path":"c06_effect_only_allowed_defaults_strict/expected_exec_policy_map.json"}

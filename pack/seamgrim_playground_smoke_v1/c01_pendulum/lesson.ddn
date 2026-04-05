@@ -1,0 +1,33 @@
+#기본관찰x: t
+#기본관찰: theta
+채비 {
+  g: 수 <- 0.
+  L: 수 <- 0.
+  theta: 수 <- 0.
+  omega: 수 <- 0.
+  dt: 수 <- 0.
+  t_max: 수 <- 0.
+  t: 수 <- 0.
+}.
+
+(시작)할때 {
+  g <- 9.8.
+  L <- 1.
+  theta <- 0.5.
+  omega <- 0.
+  dt <- 0.02.
+  t_max <- 4.
+  t <- 0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    alpha <- -(g / L) * ((theta) sin).
+    omega <- omega + alpha * dt.
+    theta <- theta + omega * dt.
+    t <- t + dt.
+  }.
+  t 보여주기.
+  theta 보여주기.
+  omega 보여주기.
+}.
