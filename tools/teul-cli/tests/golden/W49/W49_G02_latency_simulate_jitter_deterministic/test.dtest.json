@@ -1,0 +1,16 @@
+{
+  "name": "W49_G02_latency_simulate_jitter_deterministic",
+  "walk": 49,
+  "command": "latency_simulate",
+  "entry": "-",
+  "args": {
+    "L": 3,
+    "mode": "jitter",
+    "count": 4,
+    "seed": 7
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"latency.simulation.v1\",\"L\":3,\"mode\":\"jitter\",\"seed\":7,\"current_madi\":0,\"replay_header\":{\"seulgi_latency_madi\":3,\"seulgi_latency_drop_policy\":\"late_drop\",\"created_at\":\"1970-01-01T00:00:00Z\"},\"schedule\":[{\"madi\":0,\"deliver_madi\":3,\"accepted_madi\":0,\"target_madi\":3,\"late\":false,\"dropped\":false},{\"madi\":1,\"deliver_madi\":5,\"accepted_madi\":1,\"target_madi\":5,\"late\":false,\"dropped\":false},{\"madi\":2,\"deliver_madi\":7,\"accepted_madi\":2,\"target_madi\":7,\"late\":false,\"dropped\":false},{\"madi\":3,\"deliver_madi\":9,\"accepted_madi\":3,\"target_madi\":9,\"late\":false,\"dropped\":false}]}\nlatency_hash=sha256:9d575a1c79ad124fcb6fbd2b580f06509574e7520ab6299fd6c97a2c86a883c8\n"
+  }
+}

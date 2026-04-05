@@ -1,0 +1,17 @@
+{
+  "name": "W111_G19_lifecycle_next_unknown_target_error",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_LIFECYCLE_NEXT_TARGET_UNKNOWN",
+      "없는대상"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

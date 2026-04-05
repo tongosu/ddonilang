@@ -1,0 +1,18 @@
+{
+  "name": "W111_G30_lifecycle_next_target_multi_family_decl_parse_error",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_LIFECYCLE_NAME_DUPLICATE",
+      "겹대상",
+      "첫 선언"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

@@ -74,6 +74,22 @@ impl TemplateValue {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AssertionValue {
+    pub body_source: String,
+    pub canon: String,
+}
+
+impl AssertionValue {
+    pub fn display(&self) -> String {
+        self.canon.clone()
+    }
+
+    pub fn canon(&self) -> String {
+        self.canon.clone()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LambdaValue {
     pub id: u64,
@@ -88,6 +104,28 @@ impl PartialEq for LambdaValue {
 }
 
 impl Eq for LambdaValue {}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiceValue {
+    pub seed: u64,
+    pub state: u64,
+    pub draws: u64,
+}
+
+impl DiceValue {
+    pub fn display(&self) -> String {
+        format!(
+            "주사위씨{{시앗=0x{seed:016x}, 상태=0x{state:016x}, 횟수={draws}}}",
+            seed = self.seed,
+            state = self.state,
+            draws = self.draws
+        )
+    }
+
+    pub fn canon(&self) -> String {
+        self.display()
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackValue {
@@ -177,7 +215,9 @@ pub enum Value {
     ResourceHandle(ResourceHandle),
     Math(MathValue),
     Template(TemplateValue),
+    Assertion(AssertionValue),
     Lambda(LambdaValue),
+    Dice(DiceValue),
     #[allow(dead_code)]
     Pack(PackValue),
     List(ListValue),
@@ -196,7 +236,9 @@ impl Value {
             Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
             Value::Math(math) => math.display(),
             Value::Template(template) => template.display(),
+            Value::Assertion(assertion) => assertion.display(),
             Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
+            Value::Dice(dice) => dice.display(),
             Value::Pack(pack) => pack.display(),
             Value::List(list) => list.display(),
             Value::Set(set) => set.display(),
@@ -214,7 +256,9 @@ impl Value {
             Value::ResourceHandle(handle) => format!("자원#{}", handle.to_hex()),
             Value::Math(math) => math.display(),
             Value::Template(template) => template.canon(),
+            Value::Assertion(assertion) => assertion.canon(),
             Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
+            Value::Dice(dice) => dice.canon(),
             Value::Pack(pack) => pack.canon(),
             Value::List(list) => list.canon(),
             Value::Set(set) => set.canon(),
@@ -232,11 +276,13 @@ impl Value {
             Value::ResourceHandle(_) => 0x04,
             Value::Math(_) => 0x05,
             Value::Template(_) => 0x06,
-            Value::Pack(_) => 0x07,
-            Value::List(_) => 0x08,
-            Value::Set(_) => 0x09,
-            Value::Map(_) => 0x0A,
-            Value::Lambda(_) => 0x0B,
+            Value::Assertion(_) => 0x07,
+            Value::Pack(_) => 0x08,
+            Value::List(_) => 0x09,
+            Value::Set(_) => 0x0A,
+            Value::Map(_) => 0x0B,
+            Value::Lambda(_) => 0x0C,
+            Value::Dice(_) => 0x0D,
         }
     }
 }
@@ -280,9 +326,15 @@ impl Ord for Value {
             (Value::Template(a), Value::Template(b)) => a.body.cmp(&b.body),
             (Value::Template(_), _) => Ordering::Less,
             (_, Value::Template(_)) => Ordering::Greater,
+            (Value::Assertion(a), Value::Assertion(b)) => a.canon.cmp(&b.canon),
+            (Value::Assertion(_), _) => Ordering::Less,
+            (_, Value::Assertion(_)) => Ordering::Greater,
             (Value::Lambda(a), Value::Lambda(b)) => a.id.cmp(&b.id),
             (Value::Lambda(_), _) => Ordering::Less,
             (_, Value::Lambda(_)) => Ordering::Greater,
+            (Value::Dice(a), Value::Dice(b)) => compare_dice(a, b),
+            (Value::Dice(_), _) => Ordering::Less,
+            (_, Value::Dice(_)) => Ordering::Greater,
             (Value::Pack(a), Value::Pack(b)) => compare_pack(a, b),
             (Value::Pack(_), _) => Ordering::Less,
             (_, Value::Pack(_)) => Ordering::Greater,
@@ -405,6 +457,16 @@ fn compare_pack(a: &PackValue, b: &PackValue) -> Ordering {
                 other => return other,
             },
         }
+    }
+}
+
+fn compare_dice(a: &DiceValue, b: &DiceValue) -> Ordering {
+    match a.seed.cmp(&b.seed) {
+        Ordering::Equal => match a.state.cmp(&b.state) {
+            Ordering::Equal => a.draws.cmp(&b.draws),
+            other => other,
+        },
+        other => other,
     }
 }
 

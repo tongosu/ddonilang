@@ -12,10 +12,12 @@ pub enum DeclKind {
     Butbak,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SeedKind {
     Semssi,
     Umjikssi,
+    Balhigi,
+    Named(String),
 }
 
 impl SeedKind {
@@ -28,6 +30,13 @@ impl SeedKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QuantifierKind {
+    ForAll,
+    Exists,
+    ExistsUnique,
+}
+
 #[derive(Clone, Debug)]
 pub struct DeclItem {
     pub name: String,
@@ -35,6 +44,13 @@ pub struct DeclItem {
     #[allow(dead_code)]
     pub type_name: String,
     pub value: Option<Expr>,
+    pub maegim: Option<MaegimSpec>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct MaegimSpec {
+    pub fields: Vec<Binding>,
     pub span: Span,
 }
 
@@ -47,7 +63,39 @@ pub struct ParamPin {
 }
 
 #[derive(Clone, Debug)]
+pub struct ModuleImportItem {
+    #[allow(dead_code)]
+    pub alias: String,
+    #[allow(dead_code)]
+    pub path: String,
+    #[allow(dead_code)]
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct ModuleExportItem {
+    #[allow(dead_code)]
+    pub external_name: String,
+    #[allow(dead_code)]
+    pub internal_name: String,
+    #[allow(dead_code)]
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
 pub enum Stmt {
+    ImportBlock {
+        #[allow(dead_code)]
+        items: Vec<ModuleImportItem>,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    ExportBlock {
+        #[allow(dead_code)]
+        items: Vec<ModuleExportItem>,
+        #[allow(dead_code)]
+        span: Span,
+    },
     DeclBlock {
         items: Vec<DeclItem>,
         #[allow(dead_code)]
@@ -64,11 +112,29 @@ pub enum Stmt {
     Assign {
         target: Path,
         value: Expr,
+        deferred: bool,
+        #[allow(dead_code)]
+        deferred_span: Option<Span>,
         #[allow(dead_code)]
         span: Span,
     },
     Expr {
         value: Expr,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    Receive {
+        kind: Option<String>,
+        binding: Option<String>,
+        condition: Option<Expr>,
+        body: Vec<Stmt>,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    Send {
+        sender: Option<Expr>,
+        payload: Expr,
+        receiver: Expr,
         #[allow(dead_code)]
         span: Span,
     },
@@ -78,6 +144,11 @@ pub enum Stmt {
         span: Span,
     },
     Show {
+        value: Expr,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    Inspect {
         value: Expr,
         #[allow(dead_code)]
         span: Span,
@@ -92,7 +163,31 @@ pub enum Stmt {
         #[allow(dead_code)]
         span: Span,
     },
+    HookWhenBecomes {
+        condition: Expr,
+        body: Vec<Stmt>,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    HookWhile {
+        condition: Expr,
+        body: Vec<Stmt>,
+        #[allow(dead_code)]
+        span: Span,
+    },
     OpenBlock {
+        body: Vec<Stmt>,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    BeatBlock {
+        body: Vec<Stmt>,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    LifecycleBlock {
+        name: Option<String>,
+        kind: LifecycleUnitKind,
         body: Vec<Stmt>,
         #[allow(dead_code)]
         span: Span,
@@ -106,7 +201,8 @@ pub enum Stmt {
     },
     Choose {
         branches: Vec<ChooseBranch>,
-        else_body: Vec<Stmt>,
+        else_body: Option<Vec<Stmt>>,
+        exhaustive: bool,
         #[allow(dead_code)]
         span: Span,
     },
@@ -124,6 +220,17 @@ pub enum Stmt {
     ForEach {
         item: String,
         iterable: Expr,
+        body: Vec<Stmt>,
+        #[allow(dead_code)]
+        span: Span,
+    },
+    Quantifier {
+        #[allow(dead_code)]
+        kind: QuantifierKind,
+        #[allow(dead_code)]
+        variable: String,
+        #[allow(dead_code)]
+        domain: String,
         body: Vec<Stmt>,
         #[allow(dead_code)]
         span: Span,
@@ -155,6 +262,12 @@ pub enum Stmt {
 pub struct ChooseBranch {
     pub condition: Expr,
     pub body: Vec<Stmt>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Assertion {
+    pub body_source: String,
+    pub canon: String,
 }
 
 #[derive(Clone, Debug)]
@@ -201,6 +314,10 @@ pub enum Expr {
     Formula {
         dialect: FormulaDialect,
         body: String,
+        span: Span,
+    },
+    Assertion {
+        assertion: Assertion,
         span: Span,
     },
     FormulaEval {
@@ -259,6 +376,7 @@ impl Expr {
             Expr::SeedLiteral { span, .. } => *span,
             Expr::Call { span, .. } => *span,
             Expr::Formula { span, .. } => *span,
+            Expr::Assertion { span, .. } => *span,
             Expr::FormulaEval { span, .. } => *span,
             Expr::Template { span, .. } => *span,
             Expr::TemplateFill { span, .. } => *span,
@@ -301,7 +419,15 @@ impl FormulaDialect {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HookKind {
     Start,
+    End,
     EveryMadi,
+    EveryNMadi(u64),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LifecycleUnitKind {
+    Pan,
+    Madang,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

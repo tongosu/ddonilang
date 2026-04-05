@@ -1,0 +1,95 @@
+{
+  "name": "W107_G10_contract_execute_age2_observed_paren_assign",
+  "walk": 107,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "diag": "geoul.diag.jsonl"
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "실패",
+      "끝"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY",
+    "files": {
+      "geoul.diag.jsonl": {
+        "jsonl_contains": [
+          {
+            "level": "warn",
+            "code": "W_CONTRACT_PRE",
+            "file": "main.ddn",
+            "line": 5,
+            "col": 3,
+            "message": "전제하에 조건이 실패했습니다",
+            "fault_id": "contract:pre:main.ddn:5:3:0",
+            "rule_id": "L0-CONTRACT-01",
+            "reason": "CONTRACT_PRE",
+            "contract_kind": "pre",
+            "mode": "알림"
+          },
+          {
+            "event_kind": "hook",
+            "hook_name": "슬기.계약위반",
+            "hook_policy": "실행",
+            "hook_input_ref": "contract:pre:main.ddn:5:3:0",
+            "hook_input": {
+              "code": "W_CONTRACT_PRE",
+              "file": "main.ddn",
+              "line": 5,
+              "col": 3,
+              "message": "전제하에 조건이 실패했습니다",
+              "fault_id": "contract:pre:main.ddn:5:3:0",
+              "contract_kind": "pre",
+              "mode": "알림"
+            }
+          },
+          {
+            "event_kind": "hook_result",
+            "hook_name": "슬기.계약위반",
+            "hook_policy": "실행",
+            "hook_input_ref": "contract:pre:main.ddn:5:3:0",
+            "executor": "builtin.seulgi.contract.v1",
+            "result": "suggested",
+            "suggestion_count": 2,
+            "patch_candidate_count": 1,
+            "suggestions": [
+              {
+                "kind": "guard",
+                "message": "전제 조건이 참이 되도록 입력값과 초기 상태를 먼저 점검하세요."
+              },
+              {
+                "kind": "mode",
+                "message": "알림 모드 계약이므로 아니면 블록의 안내 메시지와 복구 경로를 우선 정리하세요."
+              }
+            ],
+            "patch_candidates": [
+              {
+                "patch_version": "0.1-draft",
+                "changes": [
+                  {
+                    "kind": "replace_block",
+                    "target": {
+                      "file": "main.ddn",
+                      "anchor": "{ x == 10 }인것 바탕으로(알림)"
+                    },
+                    "before": [
+                      "{ x == 10 }인것 바탕으로(알림)"
+                    ],
+                    "after": [
+                      "{ x == 5 }인것 바탕으로(알림)"
+                    ],
+                    "reason": "슬기 계약 수선 후보: 관측된 값 기준으로 계약 경계를 완화"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

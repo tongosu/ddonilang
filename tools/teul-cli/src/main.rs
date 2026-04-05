@@ -97,14 +97,22 @@ pub(crate) enum Commands {
         artifact: Vec<String>,
         #[arg(long = "trace-json")]
         trace_json: Option<PathBuf>,
+        #[arg(long = "proof-out")]
+        proof_out: Option<PathBuf>,
+        #[arg(long = "proof-cert-key")]
+        proof_cert_key: Option<PathBuf>,
         #[arg(long = "geoul-out")]
         geoul_out: Option<PathBuf>,
         #[arg(long = "geoul-record-out")]
         geoul_record_out: Option<PathBuf>,
+        #[arg(long = "latency-madi", default_value_t = 0)]
+        latency_madi: u64,
         #[arg(long = "trace-tier", value_enum, default_value_t = cli::trace_tier::TraceTierArg::TOff)]
         trace_tier: cli::trace_tier::TraceTierArg,
         #[arg(long = "lang-mode", value_enum)]
         lang_mode: Option<cli::lang_mode::LangModeArg>,
+        #[arg(long = "compat-matic-entry")]
+        compat_matic_entry: bool,
         #[arg(long = "bogae", value_enum)]
         bogae: Option<cli::bogae::BogaeMode>,
         #[arg(long = "bogae-codec", value_enum, default_value_t = cli::bogae::BogaeCodec::Bdl1)]
@@ -395,6 +403,10 @@ pub(crate) enum Commands {
     Universe {
         #[command(subcommand)]
         command: UniverseCommands,
+    },
+    Tensor {
+        #[command(subcommand)]
+        command: TensorCommands,
     },
 }
 
@@ -952,6 +964,8 @@ enum LatencyCommands {
         count: u64,
         #[arg(long, default_value_t = 0)]
         seed: u64,
+        #[arg(long = "current-madi", default_value_t = 0)]
+        current_madi: u64,
         #[arg(long)]
         out: Option<PathBuf>,
     },
@@ -1098,6 +1112,12 @@ enum CertCommands {
         #[arg(long = "in")]
         input: PathBuf,
     },
+    VerifyProofCertificate {
+        #[arg(long = "in")]
+        input: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1157,6 +1177,24 @@ enum UniverseCommands {
 }
 
 #[derive(Subcommand)]
+enum TensorCommands {
+    Validate {
+        #[arg(long = "in")]
+        input: PathBuf,
+    },
+    Hash {
+        #[arg(long = "in")]
+        input: PathBuf,
+    },
+    Canon {
+        #[arg(long = "in")]
+        input: PathBuf,
+        #[arg(long = "out")]
+        out: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
 enum StoryCommands {
     Make {
         #[arg(long = "geoul")]
@@ -1207,10 +1245,14 @@ pub(crate) struct RunCommandArgs {
     pub(crate) run_manifest: Option<PathBuf>,
     pub(crate) artifact: Vec<String>,
     pub(crate) trace_json: Option<PathBuf>,
+    pub(crate) proof_out: Option<PathBuf>,
+    pub(crate) proof_cert_key: Option<PathBuf>,
     pub(crate) geoul_out: Option<PathBuf>,
     pub(crate) geoul_record_out: Option<PathBuf>,
+    pub(crate) latency_madi: u64,
     pub(crate) trace_tier: cli::trace_tier::TraceTierArg,
     pub(crate) lang_mode: Option<cli::lang_mode::LangModeArg>,
+    pub(crate) compat_matic_entry: bool,
     pub(crate) bogae: Option<cli::bogae::BogaeMode>,
     pub(crate) bogae_codec: cli::bogae::BogaeCodec,
     pub(crate) bogae_out: Option<PathBuf>,
@@ -1257,10 +1299,14 @@ pub(crate) fn execute_run_command(
         run_manifest,
         artifact,
         trace_json,
+        proof_out,
+        proof_cert_key,
         geoul_out,
         geoul_record_out,
+        latency_madi,
         trace_tier,
         lang_mode,
+        compat_matic_entry,
         bogae,
         bogae_codec,
         bogae_out,
@@ -1370,11 +1416,15 @@ pub(crate) fn execute_run_command(
         diag_report_out,
         repro_json,
         trace_json,
+        proof_out,
+        proof_cert_key,
         geoul_out,
         geoul_record_out,
+        latency_madi,
         trace_tier: trace_tier.to_core(),
         age_target,
         lang_mode,
+        compat_matic_entry,
         bogae_mode: bogae,
         bogae_codec,
         bogae_out,
@@ -1423,10 +1473,14 @@ fn main() {
             run_manifest,
             artifact,
             trace_json,
+            proof_out,
+            proof_cert_key,
             geoul_out,
             geoul_record_out,
+            latency_madi,
             trace_tier,
             lang_mode,
+            compat_matic_entry,
             bogae,
             bogae_codec,
             bogae_out,
@@ -1468,10 +1522,14 @@ fn main() {
                 run_manifest,
                 artifact,
                 trace_json,
+                proof_out,
+                proof_cert_key,
                 geoul_out,
                 geoul_record_out,
+                latency_madi,
                 trace_tier,
                 lang_mode,
+                compat_matic_entry,
                 bogae,
                 bogae_codec,
                 bogae_out,
@@ -2207,10 +2265,18 @@ fn main() {
                 mode,
                 count,
                 seed,
+                current_madi,
                 out,
             } => {
                 if let Err(err) =
-                    cli::latency::run_simulate(l_madi, mode.to_core(), count, seed, out.as_deref())
+                    cli::latency::run_simulate(
+                        l_madi,
+                        mode.to_core(),
+                        count,
+                        seed,
+                        current_madi,
+                        out.as_deref(),
+                    )
                 {
                     eprintln!("{}", err);
                     std::process::exit(1);
@@ -2349,6 +2415,12 @@ fn main() {
                     std::process::exit(1);
                 }
             }
+            CertCommands::VerifyProofCertificate { input, out } => {
+                if let Err(err) = cli::cert::run_verify_proof_certificate(&input, out.as_deref()) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
         },
         Commands::Infer { command } => match command {
             InferCommands::Mlp { model, input, out } => {
@@ -2412,6 +2484,26 @@ fn main() {
             }
             UniverseCommands::Unpack { input, out } => {
                 if let Err(err) = cli::universe::run_unpack(&input, &out) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Tensor { command } => match command {
+            TensorCommands::Validate { input } => {
+                if let Err(err) = cli::tensor::run_validate(&input) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            TensorCommands::Hash { input } => {
+                if let Err(err) = cli::tensor::run_hash(&input) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            TensorCommands::Canon { input, out } => {
+                if let Err(err) = cli::tensor::run_canon(&input, &out) {
                     eprintln!("{}", err);
                     std::process::exit(1);
                 }
@@ -2931,6 +3023,25 @@ mod tests {
             Some("ddn.registry.verify_report.v1")
         );
         assert_eq!(report.get("ok").and_then(|v| v.as_bool()), Some(true));
+        assert!(report
+            .get("source_hash")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .starts_with("sha256:"));
+        let source_provenance = report
+            .get("source_provenance")
+            .and_then(|v| v.as_object())
+            .expect("verify report source_provenance");
+        assert_eq!(
+            source_provenance.get("schema").and_then(|v| v.as_str()),
+            Some("ddn.registry.verify_report_source_provenance.v1")
+        );
+        assert_eq!(
+            source_provenance
+                .get("source_kind")
+                .and_then(|v| v.as_str()),
+            Some("registry_verify_inputs.v1")
+        );
         assert_eq!(
             report.get("packages").and_then(|v| v.as_u64()),
             Some(packages)
@@ -2953,6 +3064,25 @@ mod tests {
             Some("ddn.registry.audit_verify_report.v1")
         );
         assert_eq!(report.get("ok").and_then(|v| v.as_bool()), Some(true));
+        assert!(report
+            .get("source_hash")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .starts_with("sha256:"));
+        let source_provenance = report
+            .get("source_provenance")
+            .and_then(|v| v.as_object())
+            .expect("audit verify report source_provenance");
+        assert_eq!(
+            source_provenance.get("schema").and_then(|v| v.as_str()),
+            Some("ddn.registry.audit_verify_report_source_provenance.v1")
+        );
+        assert_eq!(
+            source_provenance
+                .get("source_kind")
+                .and_then(|v| v.as_str()),
+            Some("registry_audit_log.v1")
+        );
         assert_eq!(report.get("rows").and_then(|v| v.as_u64()), Some(rows));
         assert!(report
             .get("last_hash")
@@ -2969,6 +3099,150 @@ mod tests {
     fn assert_audit_last_hash_diag(err: &str) {
         assert_diag_with_fix(err, "E_REG_AUDIT_LAST_HASH_MISMATCH");
         assert!(err.contains("hint="), "missing hint= in {err}");
+    }
+
+    #[test]
+    fn run_main_cli_compat_matic_entry_flag_parsed() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "run".to_string(),
+            "sample.ddn".to_string(),
+            "--compat-matic-entry".to_string(),
+        ];
+        let cli = Cli::try_parse_from(args).expect("parse run");
+        let Commands::Run {
+            compat_matic_entry, ..
+        } = cli.command
+        else {
+            panic!("expected run command");
+        };
+        assert!(compat_matic_entry);
+    }
+
+    #[test]
+    fn run_main_cli_compat_matic_entry_default_false() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "run".to_string(),
+            "sample.ddn".to_string(),
+        ];
+        let cli = Cli::try_parse_from(args).expect("parse run");
+        let Commands::Run {
+            compat_matic_entry, ..
+        } = cli.command
+        else {
+            panic!("expected run command");
+        };
+        assert!(!compat_matic_entry);
+    }
+
+    #[test]
+    fn run_main_cli_latency_madi_flag_parsed() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "run".to_string(),
+            "sample.ddn".to_string(),
+            "--latency-madi".to_string(),
+            "7".to_string(),
+        ];
+        let cli = Cli::try_parse_from(args).expect("parse run");
+        let Commands::Run { latency_madi, .. } = cli.command else {
+            panic!("expected run command");
+        };
+        assert_eq!(latency_madi, 7);
+    }
+
+    #[test]
+    fn gaji_install_main_cli_defaults_follow_dr169() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "gaji".to_string(),
+            "install".to_string(),
+        ];
+        let cli = Cli::try_parse_from(args).expect("parse gaji install");
+        let Commands::Gaji { command } = cli.command else {
+            panic!("expected gaji command");
+        };
+        let GajiCommands::Install {
+            strict_registry,
+            frozen_lockfile,
+            deny_yanked_locked,
+            ..
+        } = command
+        else {
+            panic!("expected gaji install command");
+        };
+        assert!(!strict_registry, "strict-registry default must be false");
+        assert!(
+            !frozen_lockfile,
+            "install frozen-lockfile default must be false"
+        );
+        assert!(
+            !deny_yanked_locked,
+            "deny-yanked-locked default must be false in non-strict mode"
+        );
+    }
+
+    #[test]
+    fn gaji_update_main_cli_defaults_follow_dr169() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "gaji".to_string(),
+            "update".to_string(),
+        ];
+        let cli = Cli::try_parse_from(args).expect("parse gaji update");
+        let Commands::Gaji { command } = cli.command else {
+            panic!("expected gaji command");
+        };
+        let GajiCommands::Update {
+            strict_registry,
+            frozen_lockfile,
+            deny_yanked_locked,
+            ..
+        } = command
+        else {
+            panic!("expected gaji update command");
+        };
+        assert!(!strict_registry, "strict-registry default must be false");
+        assert!(
+            !frozen_lockfile,
+            "update frozen-lockfile default must be false"
+        );
+        assert!(
+            !deny_yanked_locked,
+            "deny-yanked-locked default must be false in non-strict mode"
+        );
+    }
+
+    #[test]
+    fn gaji_vendor_main_cli_defaults_follow_dr169() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "gaji".to_string(),
+            "vendor".to_string(),
+        ];
+        let cli = Cli::try_parse_from(args).expect("parse gaji vendor");
+        let Commands::Gaji { command } = cli.command else {
+            panic!("expected gaji command");
+        };
+        let GajiCommands::Vendor {
+            strict_registry,
+            frozen_lockfile,
+            deny_yanked_locked,
+            ..
+        } = command
+        else {
+            panic!("expected gaji vendor command");
+        };
+        assert!(!strict_registry, "strict-registry default must be false");
+        assert!(
+            !frozen_lockfile,
+            "vendor frozen-lockfile default must be false"
+        );
+        assert!(
+            !deny_yanked_locked,
+            "deny-yanked-locked default must be false in non-strict mode"
+        );
     }
 
     #[test]
@@ -5955,6 +6229,45 @@ mod tests {
         ];
         let err = run_parsed_gaji(&args).expect_err("deny yanked should reject");
         assert_diag_with_fix(&err, "E_REG_YANKED_LOCKED");
+    }
+
+    #[test]
+    fn gaji_vendor_main_cli_default_allows_yanked_locked() {
+        let root = temp_dir("main_gaji_vendor_default_allows_yanked");
+        write_demo_pkg(&root, "표준/역학", "0.1.0");
+        let lock = root.join("ddn.lock");
+        cli::gaji::run_lock(&root, &lock).expect("lock");
+
+        let mut lock_json: Value =
+            serde_json::from_str(&fs::read_to_string(&lock).expect("read lock"))
+                .expect("lock json");
+        lock_json
+            .get_mut("packages")
+            .and_then(|v| v.as_array_mut())
+            .and_then(|rows| rows.get_mut(0))
+            .and_then(|row| row.as_object_mut())
+            .expect("package row")
+            .insert("yanked".to_string(), Value::Bool(true));
+        fs::write(
+            &lock,
+            serde_json::to_string_pretty(&lock_json).expect("lock json text"),
+        )
+        .expect("write lock");
+
+        let out = root.join("vendor").join("gaji");
+        let args = vec![
+            "teul-cli".to_string(),
+            "gaji".to_string(),
+            "vendor".to_string(),
+            "--root".to_string(),
+            root.to_string_lossy().to_string(),
+            "--lock".to_string(),
+            lock.to_string_lossy().to_string(),
+            "--out".to_string(),
+            out.to_string_lossy().to_string(),
+        ];
+        run_parsed_gaji(&args).expect("default mode should allow yanked lock row");
+        assert!(out.join("demo").join("gaji.toml").exists());
     }
 
     #[test]

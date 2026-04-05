@@ -1,0 +1,16 @@
+{
+  "name": "W109_B01_hook_every_n_madi_interval_invalid_build_error",
+  "walk": 109,
+  "command": "build",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
+      "양의 정수"
+    ],
+    "state_hash": "ABSENT"
+  }
+}

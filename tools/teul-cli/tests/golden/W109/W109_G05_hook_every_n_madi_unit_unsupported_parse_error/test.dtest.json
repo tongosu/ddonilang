@@ -1,0 +1,18 @@
+{
+  "name": "W109_G05_hook_every_n_madi_unit_unsupported_parse_error",
+  "walk": 109,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED",
+      "`마디`만 허용",
+      "foo"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

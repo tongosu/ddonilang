@@ -1,0 +1,17 @@
+{
+  "name": "W49_G04_latency_simulate_late_flag",
+  "walk": 49,
+  "command": "latency_simulate",
+  "entry": "-",
+  "args": {
+    "L": 0,
+    "mode": "fixed",
+    "count": 3,
+    "seed": 0,
+    "current-madi": 2
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"latency.simulation.v1\",\"L\":0,\"mode\":\"fixed\",\"seed\":0,\"current_madi\":2,\"replay_header\":{\"seulgi_latency_madi\":0,\"seulgi_latency_drop_policy\":\"late_drop\",\"created_at\":\"1970-01-01T00:00:00Z\"},\"schedule\":[{\"madi\":0,\"deliver_madi\":0,\"accepted_madi\":0,\"target_madi\":0,\"late\":true,\"dropped\":true},{\"madi\":1,\"deliver_madi\":1,\"accepted_madi\":1,\"target_madi\":1,\"late\":true,\"dropped\":true},{\"madi\":2,\"deliver_madi\":2,\"accepted_madi\":2,\"target_madi\":2,\"late\":false,\"dropped\":false}]}\nlatency_hash=sha256:905f015b8b1078a376be8741fb3a484bd1c4634f692ade6660cb45fade0452c0\n"
+  }
+}

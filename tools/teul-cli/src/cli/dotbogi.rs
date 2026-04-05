@@ -13,8 +13,10 @@ pub struct DotbogiCaseOptions<'a> {
 }
 
 pub fn run_case(options: DotbogiCaseOptions<'_>) -> Result<(), String> {
-    let text = fs::read_to_string(options.input)
+    let input_bytes = fs::read(options.input)
         .map_err(|e| format!("E_DOTBOGI_CASE_READ {} {}", options.input.display(), e))?;
+    let text = String::from_utf8(input_bytes.clone())
+        .map_err(|_| format!("E_DOTBOGI_CASE_UTF8 {}", options.input.display()))?;
     let doc: JsonValue =
         serde_json::from_str(&text).map_err(|e| format!("E_DOTBOGI_CASE_PARSE {}", e))?;
     let root = doc
@@ -72,6 +74,32 @@ pub fn run_case(options: DotbogiCaseOptions<'_>) -> Result<(), String> {
     report_map.insert(
         "schema".to_string(),
         JsonValue::String("ddn.dotbogi.case.report.v1".to_string()),
+    );
+    let source_hash = format!("sha256:{}", sha256_hex(&input_bytes));
+    report_map.insert(
+        "source_hash".to_string(),
+        JsonValue::String(source_hash.clone()),
+    );
+    report_map.insert(
+        "source_provenance".to_string(),
+        JsonValue::Object(Map::from_iter(vec![
+            (
+                "schema".to_string(),
+                JsonValue::String("ddn.dotbogi.case.source_provenance.v1".to_string()),
+            ),
+            (
+                "source_kind".to_string(),
+                JsonValue::String("dotbogi_case.v1".to_string()),
+            ),
+            (
+                "input_case_file".to_string(),
+                JsonValue::String(options.input.to_string_lossy().replace('\\', "/")),
+            ),
+            (
+                "input_case_hash".to_string(),
+                JsonValue::String(source_hash),
+            ),
+        ])),
     );
     report_map.insert("output".to_string(), output.clone());
     report_map.insert(

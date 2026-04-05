@@ -14,6 +14,8 @@ struct BundleManifest {
     ssot_version: Option<String>,
     ssot_bundle_hash: Option<String>,
     toolchain_version: Option<String>,
+    source_hash: Option<String>,
+    source_provenance: Option<JsonValue>,
     model_hash: Option<String>,
     artifact_hash: Option<String>,
     eval_report_hash: Option<String>,
@@ -44,6 +46,7 @@ pub fn run_parity(
 ) -> Result<(), String> {
     let manifest = read_manifest(bundle_in)?;
     validate_manifest(&manifest)?;
+    validate_manifest_provenance(bundle_in, &manifest)?;
 
     let model_path = bundle_in.join("model_mlp_v1.detjson");
     let model_bytes = fs::read(&model_path)
@@ -79,6 +82,20 @@ pub fn run_parity(
             return Err(format!(
                 "E_BUNDLE_MODEL_HASH expected={} got={}",
                 expected, model_hash
+            ));
+        }
+    }
+
+    let bundle_root = bundle_in.parent().unwrap_or(bundle_in);
+    let artifact_path = bundle_root.join("artifact.detjson");
+    let artifact_text = fs::read_to_string(&artifact_path)
+        .map_err(|e| format!("E_BUNDLE_ARTIFACT_READ {} {}", artifact_path.display(), e))?;
+    let artifact_hash = format!("sha256:{}", sha256_hex(artifact_text.as_bytes()));
+    if let Some(expected) = &manifest.artifact_hash {
+        if expected != &artifact_hash {
+            return Err(format!(
+                "E_BUNDLE_ARTIFACT_HASH expected={} got={}",
+                expected, artifact_hash
             ));
         }
     }
@@ -180,17 +197,23 @@ fn read_manifest(bundle_in: &Path) -> Result<BundleManifest, String> {
 }
 
 fn validate_manifest(manifest: &BundleManifest) -> Result<(), String> {
-    let missing = [
+    let mut missing = Vec::new();
+    for (key, value) in [
         ("ssot_version", manifest.ssot_version.as_ref()),
         ("ssot_bundle_hash", manifest.ssot_bundle_hash.as_ref()),
         ("toolchain_version", manifest.toolchain_version.as_ref()),
+        ("source_hash", manifest.source_hash.as_ref()),
         ("model_hash", manifest.model_hash.as_ref()),
         ("artifact_hash", manifest.artifact_hash.as_ref()),
         ("eval_report_hash", manifest.eval_report_hash.as_ref()),
-    ]
-    .iter()
-    .filter_map(|(key, value)| if value.is_none() { Some(*key) } else { None })
-    .collect::<Vec<_>>();
+    ] {
+        if value.is_none() {
+            missing.push(key);
+        }
+    }
+    if manifest.source_provenance.is_none() {
+        missing.push("source_provenance");
+    }
     if !missing.is_empty() {
         return Err(format!("E_BUNDLE_MANIFEST_FIELDS {}", missing.join(",")));
     }
@@ -200,6 +223,136 @@ fn validate_manifest(manifest: &BundleManifest) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn validate_manifest_provenance(bundle_in: &Path, manifest: &BundleManifest) -> Result<(), String> {
+    let bundle_root = bundle_in.parent().unwrap_or(bundle_in);
+    let model_path = bundle_in.join("model_mlp_v1.detjson");
+    let weights_path = bundle_in.join("weights_v1.detbin");
+    let eval_report_path = bundle_in.join("eval_report.detjson");
+    let eval_config_path = bundle_root.join("eval_config.json");
+    let artifact_path = bundle_root.join("artifact.detjson");
+
+    let model_hash = hash_file_sha256(&model_path)?;
+    let weights_hash = hash_file_sha256(&weights_path)?;
+    let eval_config_hash = hash_file_sha256(&eval_config_path)?;
+    let eval_report_hash = hash_file_sha256(&eval_report_path)?;
+    let artifact_hash = hash_file_sha256(&artifact_path)?;
+
+    let source_provenance = build_manifest_source_provenance(
+        &model_path,
+        &model_hash,
+        &weights_path,
+        &weights_hash,
+        &eval_report_path,
+        &eval_report_hash,
+        &eval_config_path,
+        &eval_config_hash,
+        &artifact_path,
+        &artifact_hash,
+    );
+    let source_hash = format!(
+        "sha256:{}",
+        sha256_hex(source_provenance.to_string().as_bytes())
+    );
+
+    let expected_source_hash = manifest
+        .source_hash
+        .as_ref()
+        .ok_or_else(|| "E_BUNDLE_MANIFEST_SOURCE_HASH missing".to_string())?;
+    if expected_source_hash != &source_hash {
+        return Err(format!(
+            "E_BUNDLE_MANIFEST_SOURCE_HASH expected={} got={}",
+            expected_source_hash, source_hash
+        ));
+    }
+
+    let expected_source_provenance = manifest
+        .source_provenance
+        .as_ref()
+        .ok_or_else(|| "E_BUNDLE_MANIFEST_SOURCE_PROVENANCE missing".to_string())?;
+    if expected_source_provenance != &source_provenance {
+        return Err("E_BUNDLE_MANIFEST_SOURCE_PROVENANCE mismatch".to_string());
+    }
+
+    Ok(())
+}
+
+fn hash_file_sha256(path: &Path) -> Result<String, String> {
+    let bytes =
+        fs::read(path).map_err(|e| format!("E_BUNDLE_HASH_READ {} {}", path.display(), e))?;
+    Ok(format!("sha256:{}", sha256_hex(&bytes)))
+}
+
+fn build_manifest_source_provenance(
+    model_path: &Path,
+    model_hash: &str,
+    weights_path: &Path,
+    weights_hash: &str,
+    eval_report_path: &Path,
+    eval_report_hash: &str,
+    eval_config_path: &Path,
+    eval_config_hash: &str,
+    artifact_path: &Path,
+    artifact_hash: &str,
+) -> JsonValue {
+    let mut map = Map::new();
+    map.insert(
+        "schema".to_string(),
+        JsonValue::String("seulgi.bundle_source_provenance.v1".to_string()),
+    );
+    map.insert(
+        "source_kind".to_string(),
+        JsonValue::String("bundle_parity_inputs.v1".to_string()),
+    );
+    map.insert(
+        "model_file".to_string(),
+        JsonValue::String(path_file_name(model_path, "model_mlp_v1.detjson")),
+    );
+    map.insert(
+        "model_hash".to_string(),
+        JsonValue::String(model_hash.to_string()),
+    );
+    map.insert(
+        "weights_file".to_string(),
+        JsonValue::String(path_file_name(weights_path, "weights_v1.detbin")),
+    );
+    map.insert(
+        "weights_hash".to_string(),
+        JsonValue::String(weights_hash.to_string()),
+    );
+    map.insert(
+        "eval_report_file".to_string(),
+        JsonValue::String(path_file_name(eval_report_path, "eval_report.detjson")),
+    );
+    map.insert(
+        "eval_report_hash".to_string(),
+        JsonValue::String(eval_report_hash.to_string()),
+    );
+    map.insert(
+        "eval_config_file".to_string(),
+        JsonValue::String(path_file_name(eval_config_path, "eval_config.json")),
+    );
+    map.insert(
+        "eval_config_hash".to_string(),
+        JsonValue::String(eval_config_hash.to_string()),
+    );
+    map.insert(
+        "artifact_file".to_string(),
+        JsonValue::String(path_file_name(artifact_path, "artifact.detjson")),
+    );
+    map.insert(
+        "artifact_hash".to_string(),
+        JsonValue::String(artifact_hash.to_string()),
+    );
+    JsonValue::Object(map)
+}
+
+fn path_file_name(path: &Path, fallback: &str) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(fallback)
+        .to_string()
 }
 
 fn resolve_out_dir(out_dir: Option<&Path>) -> PathBuf {

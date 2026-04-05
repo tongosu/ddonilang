@@ -1,0 +1,17 @@
+{
+  "name": "W109_L03_hook_every_n_madi_suffix_unsupported_lint_error",
+  "walk": 109,
+  "command": "lint",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED",
+      "`마다`만 허용",
+      "할때"
+    ],
+    "state_hash": "ABSENT"
+  }
+}

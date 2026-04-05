@@ -1,0 +1,146 @@
+{
+  "schema": "ddn.teul_cli.golden_index.v1",
+  "walk": 109,
+  "suite": "W109 maegim and hook diagnostics",
+  "cases": [
+    {
+      "code": "B01",
+      "case_dir": "W109_B01_hook_every_n_madi_interval_invalid_build_error",
+      "command": "build",
+      "classification": "build_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+    },
+    {
+      "code": "B02",
+      "case_dir": "W109_B02_hook_every_n_madi_unit_unsupported_build_error",
+      "command": "build",
+      "classification": "build_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+    },
+    {
+      "code": "B03",
+      "case_dir": "W109_B03_hook_every_n_madi_suffix_unsupported_build_error",
+      "command": "build",
+      "classification": "build_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
+    },
+    {
+      "code": "C01",
+      "case_dir": "W109_C01_modu_canon",
+      "command": "canon",
+      "classification": "canon_success"
+    },
+    {
+      "code": "C02",
+      "case_dir": "W109_C02_hook_every_n_madi_interval_invalid_canon_error",
+      "command": "canon",
+      "classification": "canon_error",
+      "diag_code": "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+    },
+    {
+      "code": "C03",
+      "case_dir": "W109_C03_hook_every_n_madi_unit_unsupported_canon_error",
+      "command": "canon",
+      "classification": "canon_error",
+      "diag_code": "E_CANON_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+    },
+    {
+      "code": "C04",
+      "case_dir": "W109_C04_hook_every_n_madi_suffix_unsupported_canon_error",
+      "command": "canon",
+      "classification": "canon_error",
+      "diag_code": "E_CANON_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
+    },
+    {
+      "code": "C05",
+      "case_dir": "W109_C05_hook_every_n_madi_interval_invalid_canon_check_diag_fixit",
+      "command": "canon",
+      "classification": "canon_error",
+      "diag_code": "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
+      "requires_diag_fixit": true
+    },
+    {
+      "code": "G01",
+      "case_dir": "W109_G01_modu_run",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G02",
+      "case_dir": "W109_G02_maegim_nested_section_unsupported_parse_error",
+      "command": "run",
+      "classification": "run_parse_error",
+      "diag_code": "E_PARSE_MAEGIM_NESTED_SECTION_UNSUPPORTED"
+    },
+    {
+      "code": "G03",
+      "case_dir": "W109_G03_maegim_nested_field_unsupported_parse_error",
+      "command": "run",
+      "classification": "run_parse_error",
+      "diag_code": "E_PARSE_MAEGIM_NESTED_FIELD_UNSUPPORTED"
+    },
+    {
+      "code": "G04",
+      "case_dir": "W109_G04_hook_every_n_madi_interval_invalid_parse_error",
+      "command": "run",
+      "classification": "run_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+    },
+    {
+      "code": "G05",
+      "case_dir": "W109_G05_hook_every_n_madi_unit_unsupported_parse_error",
+      "command": "run",
+      "classification": "run_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+    },
+    {
+      "code": "G06",
+      "case_dir": "W109_G06_hook_every_n_madi_suffix_unsupported_parse_error",
+      "command": "run",
+      "classification": "run_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
+    },
+    {
+      "code": "K01",
+      "case_dir": "W109_K01_hook_every_n_madi_interval_invalid_check_error",
+      "command": "check",
+      "classification": "check_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+    },
+    {
+      "code": "K02",
+      "case_dir": "W109_K02_hook_every_n_madi_unit_unsupported_check_error",
+      "command": "check",
+      "classification": "check_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+    },
+    {
+      "code": "K03",
+      "case_dir": "W109_K03_hook_every_n_madi_suffix_unsupported_check_error",
+      "command": "check",
+      "classification": "check_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
+    },
+    {
+      "code": "L01",
+      "case_dir": "W109_L01_hook_every_n_madi_interval_invalid_lint_error",
+      "command": "lint",
+      "classification": "lint_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+    },
+    {
+      "code": "L02",
+      "case_dir": "W109_L02_hook_every_n_madi_unit_unsupported_lint_error",
+      "command": "lint",
+      "classification": "lint_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+    },
+    {
+      "code": "L03",
+      "case_dir": "W109_L03_hook_every_n_madi_suffix_unsupported_lint_error",
+      "command": "lint",
+      "classification": "lint_parse_error",
+      "diag_code": "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
+    }
+  ]
+}

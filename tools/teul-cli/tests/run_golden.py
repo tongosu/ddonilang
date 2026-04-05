@@ -488,6 +488,9 @@ def main():
                 cmd += ["--count", str(spec_args.get("count"))]
             if spec_args.get("seed") is not None:
                 cmd += ["--seed", str(spec_args.get("seed"))]
+            current_madi = spec_args.get("current_madi", spec_args.get("current-madi"))
+            if current_madi is not None:
+                cmd += ["--current-madi", str(current_madi)]
             if spec_args.get("out"):
                 cmd += ["--out", spec_args.get("out")]
         elif cmd_kind == "safety_check":
@@ -839,6 +842,9 @@ def main():
                         cmd += ["--count", str(st_args.get("count"))]
                     if st_args.get("seed") is not None:
                         cmd += ["--seed", str(st_args.get("seed"))]
+                    current_madi = st_args.get("current_madi", st_args.get("current-madi"))
+                    if current_madi is not None:
+                        cmd += ["--current-madi", str(current_madi)]
                     if st_args.get("out"):
                         cmd += ["--out", st_args.get("out")]
                 elif kind == "safety_check":

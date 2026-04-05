@@ -1,0 +1,15 @@
+{
+  "name": "W109_C02_hook_every_n_madi_interval_invalid_canon_error",
+  "walk": 109,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
+      "양의 정수"
+    ]
+  }
+}

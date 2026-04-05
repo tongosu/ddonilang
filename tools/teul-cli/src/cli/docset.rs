@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -72,6 +73,8 @@ struct DocsetEntry {
 struct DocsetMeta {
     schema: String,
     ssot_version: String,
+    source_hash: String,
+    source_provenance: JsonValue,
     entries: Vec<DocsetEntry>,
 }
 
@@ -212,9 +215,16 @@ fn build_docset(out_dir: &Path) -> Result<DocsetBuildResult, String> {
         written_files.push(entry_path);
     }
 
+    let source_provenance = build_docset_source_provenance(&entries);
+    let source_hash = sha256_text(
+        &serde_json::to_string(&source_provenance)
+            .map_err(|e| format!("E_DOCSET_SOURCE_PROVENANCE_JSON {}", e))?,
+    );
     let meta = DocsetMeta {
         schema: DOCSET_SCHEMA.to_string(),
         ssot_version: SSOT_VERSION.to_string(),
+        source_hash,
+        source_provenance,
         entries,
     };
     let meta_text = serde_json::to_string_pretty(&meta)
@@ -266,6 +276,39 @@ fn extract_title(text: &str, fallback: &str) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or(fallback)
         .to_string()
+}
+
+fn build_docset_source_provenance(entries: &[DocsetEntry]) -> JsonValue {
+    let files = entries
+        .iter()
+        .map(|entry| {
+            let mut file = Map::new();
+            file.insert(
+                "path".to_string(),
+                JsonValue::String(entry.source_path.clone()),
+            );
+            file.insert(
+                "sha256".to_string(),
+                JsonValue::String(entry.sha256.clone()),
+            );
+            JsonValue::Object(file)
+        })
+        .collect();
+    let mut map = Map::new();
+    map.insert(
+        "schema".to_string(),
+        JsonValue::String("malmoi.docset_source_provenance.v1".to_string()),
+    );
+    map.insert(
+        "source_kind".to_string(),
+        JsonValue::String("docset_sources.v1".to_string()),
+    );
+    map.insert(
+        "file_count".to_string(),
+        JsonValue::Number(serde_json::Number::from(entries.len())),
+    );
+    map.insert("files".to_string(), JsonValue::Array(files));
+    JsonValue::Object(map)
 }
 
 fn normalize_rel_path(path: &Path) -> String {

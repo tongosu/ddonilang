@@ -1,0 +1,39 @@
+{
+  "name": "W109_C05_hook_every_n_madi_interval_invalid_canon_check_diag_fixit",
+  "walk": 109,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {
+    "cli": [
+      "--check",
+      "--fixits-json",
+      "fixits.json",
+      "--diag-jsonl",
+      "diag.jsonl"
+    ]
+  },
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
+      "양의 정수"
+    ],
+    "files": {
+      "diag.jsonl": {
+        "jsonl_contains": [
+          {
+            "kind": "canon",
+            "level": "error",
+            "code": "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+          }
+        ]
+      },
+      "fixits.json": {
+        "contains": [
+          "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+        ]
+      }
+    }
+  }
+}

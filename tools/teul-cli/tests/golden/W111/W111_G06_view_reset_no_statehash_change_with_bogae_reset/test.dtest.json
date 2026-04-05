@@ -1,0 +1,14 @@
+﻿{
+  "name": "W111_G06_view_reset_no_statehash_change_with_bogae_reset",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "SAME_AS:W111_G05_view_reset_no_statehash_change_plain",
+    "trace_hash": "ANY"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "W111_G18_lifecycle_start_target_arity_error",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_LIFECYCLE_START_TARGET_ARITY",
+      "기대=0또는1",
+      "실제=2"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

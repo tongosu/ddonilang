@@ -1,0 +1,16 @@
+{
+  "name": "W111_G13_lifecycle_named_pan_mapping",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "200"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

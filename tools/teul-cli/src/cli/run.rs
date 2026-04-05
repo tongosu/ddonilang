@@ -4211,6 +4211,11 @@ fn parse_line(err: &ParseError) -> usize {
         ParseError::ReceiveOutsideImja { span } => span.start_line,
         ParseError::MaegimRequiresGroupedValue { span } => span.start_line,
         ParseError::MaegimStepSplitConflict { span } => span.start_line,
+        ParseError::MaegimNestedSectionUnsupported { span, .. } => span.start_line,
+        ParseError::MaegimNestedFieldUnsupported { span, .. } => span.start_line,
+        ParseError::HookEveryNMadiIntervalInvalid { span } => span.start_line,
+        ParseError::HookEveryNMadiUnitUnsupported { span, .. } => span.start_line,
+        ParseError::HookEveryNMadiSuffixUnsupported { span, .. } => span.start_line,
         ParseError::DeferredAssignOutsideBeat { span } => span.start_line,
         ParseError::QuantifierMutationForbidden { span } => span.start_line,
         ParseError::QuantifierShowForbidden { span } => span.start_line,
@@ -4249,6 +4254,11 @@ fn parse_col(err: &ParseError) -> usize {
         ParseError::ReceiveOutsideImja { span } => span.start_col,
         ParseError::MaegimRequiresGroupedValue { span } => span.start_col,
         ParseError::MaegimStepSplitConflict { span } => span.start_col,
+        ParseError::MaegimNestedSectionUnsupported { span, .. } => span.start_col,
+        ParseError::MaegimNestedFieldUnsupported { span, .. } => span.start_col,
+        ParseError::HookEveryNMadiIntervalInvalid { span } => span.start_col,
+        ParseError::HookEveryNMadiUnitUnsupported { span, .. } => span.start_col,
+        ParseError::HookEveryNMadiSuffixUnsupported { span, .. } => span.start_col,
         ParseError::DeferredAssignOutsideBeat { span } => span.start_col,
         ParseError::QuantifierMutationForbidden { span } => span.start_col,
         ParseError::QuantifierShowForbidden { span } => span.start_col,
@@ -4322,6 +4332,27 @@ fn parse_message(err: &ParseError) -> String {
         }
         ParseError::MaegimStepSplitConflict { .. } => {
             "`매김`에서 `간격`과 `분할수`는 동시에 사용할 수 없습니다".to_string()
+        }
+        ParseError::MaegimNestedSectionUnsupported { section, .. } => {
+            format!(
+                "`매김` 중첩 섹션은 `가늠`/`갈래`만 허용됩니다: {}",
+                section
+            )
+        }
+        ParseError::MaegimNestedFieldUnsupported { section, field, .. } => {
+            format!(
+                "`매김` 섹션 `{}`에서 지원하지 않는 항목입니다: {}",
+                section, field
+            )
+        }
+        ParseError::HookEveryNMadiIntervalInvalid { .. } => {
+            "(N마디)마다에서 N은 양의 정수여야 합니다".to_string()
+        }
+        ParseError::HookEveryNMadiUnitUnsupported { unit, .. } => {
+            format!("(N마디)마다에서 단위는 `마디`만 허용됩니다: {}", unit)
+        }
+        ParseError::HookEveryNMadiSuffixUnsupported { suffix, .. } => {
+            format!("(N마디) 훅 접미는 `마다`만 허용됩니다: {}", suffix)
         }
         ParseError::DeferredAssignOutsideBeat { .. } => {
             "`미루기` 대입은 `덩이 {}` 안에서만 사용할 수 있습니다".to_string()
@@ -7007,6 +7038,96 @@ mod tests {
         assert_eq!(
             RunError::Parse(err).code(),
             "E_PARSE_MAEGIM_STEP_SPLIT_CONFLICT"
+        );
+    }
+
+    #[test]
+    fn parse_maegim_nested_section_unsupported_maps_to_specific_cli_diagnostic() {
+        let err = ParseError::MaegimNestedSectionUnsupported {
+            section: "실험".to_string(),
+            span: Span::new(8, 5, 8, 9),
+        };
+        assert_eq!(parse_line(&err), 8);
+        assert_eq!(parse_col(&err), 5);
+        assert_eq!(
+            parse_message(&err),
+            "`매김` 중첩 섹션은 `가늠`/`갈래`만 허용됩니다: 실험".to_string()
+        );
+        assert_eq!(
+            RunError::Parse(err).code(),
+            "E_PARSE_MAEGIM_NESTED_SECTION_UNSUPPORTED"
+        );
+    }
+
+    #[test]
+    fn parse_maegim_nested_field_unsupported_maps_to_specific_cli_diagnostic() {
+        let err = ParseError::MaegimNestedFieldUnsupported {
+            section: "가늠".to_string(),
+            field: "최소값".to_string(),
+            span: Span::new(9, 7, 9, 11),
+        };
+        assert_eq!(parse_line(&err), 9);
+        assert_eq!(parse_col(&err), 7);
+        assert_eq!(
+            parse_message(&err),
+            "`매김` 섹션 `가늠`에서 지원하지 않는 항목입니다: 최소값".to_string()
+        );
+        assert_eq!(
+            RunError::Parse(err).code(),
+            "E_PARSE_MAEGIM_NESTED_FIELD_UNSUPPORTED"
+        );
+    }
+
+    #[test]
+    fn parse_hook_every_n_madi_interval_invalid_maps_to_specific_cli_diagnostic() {
+        let err = ParseError::HookEveryNMadiIntervalInvalid {
+            span: Span::new(6, 2, 6, 3),
+        };
+        assert_eq!(parse_line(&err), 6);
+        assert_eq!(parse_col(&err), 2);
+        assert_eq!(
+            parse_message(&err),
+            "(N마디)마다에서 N은 양의 정수여야 합니다".to_string()
+        );
+        assert_eq!(
+            RunError::Parse(err).code(),
+            "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+        );
+    }
+
+    #[test]
+    fn parse_hook_every_n_madi_unit_unsupported_maps_to_specific_cli_diagnostic() {
+        let err = ParseError::HookEveryNMadiUnitUnsupported {
+            unit: "foo".to_string(),
+            span: Span::new(7, 4, 7, 5),
+        };
+        assert_eq!(parse_line(&err), 7);
+        assert_eq!(parse_col(&err), 4);
+        assert_eq!(
+            parse_message(&err),
+            "(N마디)마다에서 단위는 `마디`만 허용됩니다: foo".to_string()
+        );
+        assert_eq!(
+            RunError::Parse(err).code(),
+            "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+        );
+    }
+
+    #[test]
+    fn parse_hook_every_n_madi_suffix_unsupported_maps_to_specific_cli_diagnostic() {
+        let err = ParseError::HookEveryNMadiSuffixUnsupported {
+            suffix: "할때".to_string(),
+            span: Span::new(8, 8, 8, 9),
+        };
+        assert_eq!(parse_line(&err), 8);
+        assert_eq!(parse_col(&err), 8);
+        assert_eq!(
+            parse_message(&err),
+            "(N마디) 훅 접미는 `마다`만 허용됩니다: 할때".to_string()
+        );
+        assert_eq!(
+            RunError::Parse(err).code(),
+            "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
         );
     }
 

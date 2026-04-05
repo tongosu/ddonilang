@@ -1,0 +1,14 @@
+﻿{
+  "name": "W111_G05_view_reset_no_statehash_change_plain",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

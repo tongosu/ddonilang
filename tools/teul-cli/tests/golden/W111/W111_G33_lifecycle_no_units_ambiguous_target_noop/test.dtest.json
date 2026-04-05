@@ -1,0 +1,16 @@
+{
+  "name": "W111_G33_lifecycle_no_units_ambiguous_target_noop",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "1"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

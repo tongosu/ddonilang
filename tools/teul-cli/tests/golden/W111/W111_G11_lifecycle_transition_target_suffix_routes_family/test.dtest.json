@@ -1,0 +1,16 @@
+{
+  "name": "W111_G11_lifecycle_transition_target_suffix_routes_family",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "11"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

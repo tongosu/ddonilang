@@ -1,0 +1,42 @@
+{
+  "schema": "ddn.teul_cli.golden_index.v1",
+  "walk": 49,
+  "suite": "W49 latency madi",
+  "cases": [
+    {
+      "code": "G01",
+      "case_dir": "W49_G01_latency_simulate",
+      "classification": "simulate"
+    },
+    {
+      "code": "G02",
+      "case_dir": "W49_G02_latency_simulate_jitter_deterministic",
+      "classification": "simulate"
+    },
+    {
+      "code": "G03",
+      "case_dir": "W49_G03_latency_simulate_overflow_saturating",
+      "classification": "simulate"
+    },
+    {
+      "code": "G04",
+      "case_dir": "W49_G04_latency_simulate_late_flag",
+      "classification": "simulate"
+    },
+    {
+      "code": "G05",
+      "case_dir": "W49_G05_latency_replay_statehash_l0",
+      "classification": "replay"
+    },
+    {
+      "code": "G06",
+      "case_dir": "W49_G06_latency_replay_statehash_l10_diff",
+      "classification": "replay"
+    },
+    {
+      "code": "G07",
+      "case_dir": "W49_G07_latency_run_diag_schedule_metadata",
+      "classification": "diag"
+    }
+  ]
+}

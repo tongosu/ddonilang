@@ -36,6 +36,8 @@ struct NuriGymRunInput {
     reward_mode: Option<String>,
     reward_weights: Option<HashMap<String, f64>>,
     gridmaze_layouts: Option<Vec<GridMazeLayoutInput>>,
+    emit_action_pipeline: Option<bool>,
+    out_of_range_policy: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -81,6 +83,13 @@ enum SharedMerge {
     Priority,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum OutOfRangeMode {
+    StrictError,
+    Reject,
+    Clip,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RewardMode {
     Individual,
@@ -111,6 +120,31 @@ struct StepRecord {
     reward: Fixed64,
     next_observation: Vec<Fixed64>,
     done: bool,
+    action_pipeline: Option<ActionPipelineRecord>,
+}
+
+#[derive(Clone, Debug)]
+struct ActionPipelineRecord {
+    raw_action: i64,
+    resolved_action: i64,
+    normalized_action: i64,
+    action_status: &'static str,
+    merge_candidates: Vec<i64>,
+    merged_action: i64,
+    applied_action: i64,
+    missing_input: bool,
+}
+
+#[derive(Clone, Debug)]
+struct EvaluatedAction {
+    agent_id: u64,
+    slot_index: usize,
+    raw_action: i64,
+    resolved_action: i64,
+    normalized_action: i64,
+    action_status: &'static str,
+    merge_candidate: bool,
+    missing_input: bool,
 }
 
 pub fn run_spec(from: &Path, out_dir: &Path, slots: Option<u32>) -> Result<(), String> {
@@ -150,6 +184,12 @@ pub fn run_view(spec: &Path) -> Result<(), String> {
 
 pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String> {
     let text = read_text(input_path)?;
+    let input_hash = format!("sha256:{}", sha256_hex(text.as_bytes()));
+    let input_file = input_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("input.json")
+        .to_string();
     let input: NuriGymRunInput =
         serde_json::from_str(&text).map_err(|err| format!("E_NURIGYM_INPUT {}", err))?;
 
@@ -163,6 +203,8 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
     let shared_env_mode = parse_shared_env_mode(&input);
     let shared_merge = parse_shared_merge(&input);
     let reward_mode = parse_reward_mode(&input);
+    let emit_action_pipeline = input.emit_action_pipeline.unwrap_or(false);
+    let out_of_range_mode = parse_out_of_range_mode(&input, emit_action_pipeline);
 
     let agents = collect_agents(&input)?;
     let reward_weights = build_reward_weights(&input, &agents)?;
@@ -208,6 +250,8 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
             reward_mode,
             &reward_weights,
             gridmaze_layout.clone(),
+            emit_action_pipeline,
+            out_of_range_mode,
         )?
     } else {
         run_independent_env(
@@ -260,6 +304,8 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
         shared_env_mode.as_option(),
         if shared_env { Some(reward_mode) } else { None },
         reward_weights.hash.as_deref(),
+        &input_hash,
+        &input_file,
     );
     let mut dataset_lines = Vec::with_capacity(step_records.len() + 1);
     dataset_lines.push(dataset_header);
@@ -366,6 +412,8 @@ fn run_shared_env(
     reward_mode: RewardMode,
     reward_weights: &RewardWeights,
     gridmaze_layout: Option<GridMazeLayout>,
+    emit_action_pipeline: bool,
+    out_of_range_mode: OutOfRangeMode,
 ) -> Result<Vec<StepRecord>, String> {
     match (env_id, shared_env_mode) {
         ("nurigym.cartpole1d", SharedEnvMode::RoundRobin) => run_shared_cartpole(
@@ -384,6 +432,8 @@ fn run_shared_env(
             noop_action,
             reward_mode,
             reward_weights,
+            emit_action_pipeline,
+            out_of_range_mode,
         ),
         ("nurigym.pendulum1d", SharedEnvMode::RoundRobin) => run_shared_pendulum(
             seed,
@@ -401,6 +451,8 @@ fn run_shared_env(
             noop_action,
             reward_mode,
             reward_weights,
+            emit_action_pipeline,
+            out_of_range_mode,
         ),
         ("nurigym.gridmaze2d", SharedEnvMode::RoundRobin) => run_shared_gridmaze(
             seed,
@@ -420,6 +472,8 @@ fn run_shared_env(
             gridmaze_layout,
             reward_mode,
             reward_weights,
+            emit_action_pipeline,
+            out_of_range_mode,
         ),
         _ => Err(format!("E_NURIGYM_ENV unknown env_id={}", env_id)),
     }
@@ -444,6 +498,7 @@ fn run_cartpole(
             reward: step.reward,
             next_observation: step.next_observation.to_vec(),
             done: step.done,
+            action_pipeline: None,
         })
         .collect())
 }
@@ -463,6 +518,7 @@ fn run_pendulum(
             reward: step.reward,
             next_observation: step.next_observation.to_vec(),
             done: step.done,
+            action_pipeline: None,
         })
         .collect())
 }
@@ -492,6 +548,7 @@ fn run_gridmaze_with_layout(
             reward: step.reward,
             next_observation: step.next_observation.to_vec(),
             done: step.done,
+            action_pipeline: None,
         })
         .collect())
 }
@@ -551,6 +608,7 @@ fn run_shared_cartpole(
                     reward: step.reward,
                     next_observation: step.next_observation.to_vec(),
                     done: step.done,
+                    action_pipeline: None,
                 });
             } else {
                 let rewards = distribute_rewards(
@@ -575,6 +633,7 @@ fn run_shared_cartpole(
                         reward: rewards[idx],
                         next_observation: step.next_observation.to_vec(),
                         done: step.done,
+                        action_pipeline: None,
                     });
                 }
             }
@@ -647,6 +706,7 @@ fn run_shared_pendulum(
                     reward: step.reward,
                     next_observation: step.next_observation.to_vec(),
                     done: step.done,
+                    action_pipeline: None,
                 });
             } else {
                 let rewards = distribute_rewards(
@@ -671,6 +731,7 @@ fn run_shared_pendulum(
                         reward: rewards[idx],
                         next_observation: step.next_observation.to_vec(),
                         done: step.done,
+                        action_pipeline: None,
                     });
                 }
             }
@@ -748,6 +809,7 @@ fn run_shared_gridmaze(
                     reward: step.reward,
                     next_observation: step.next_observation.to_vec(),
                     done: step.done,
+                    action_pipeline: None,
                 });
             } else {
                 let rewards = distribute_rewards(
@@ -772,6 +834,7 @@ fn run_shared_gridmaze(
                         reward: rewards[idx],
                         next_observation: step.next_observation.to_vec(),
                         done: step.done,
+                        action_pipeline: None,
                     });
                 }
             }
@@ -797,6 +860,8 @@ fn run_shared_cartpole_sync(
     noop_action: Option<i64>,
     reward_mode: RewardMode,
     reward_weights: &RewardWeights,
+    emit_action_pipeline: bool,
+    out_of_range_mode: OutOfRangeMode,
 ) -> Result<Vec<StepRecord>, String> {
     let mut config = CartPoleConfig::default_v1();
     let limits = agent_limits(agents);
@@ -826,6 +891,8 @@ fn run_shared_cartpole_sync(
         allowed,
         reward_mode,
         reward_weights,
+        emit_action_pipeline,
+        out_of_range_mode,
     )
 }
 
@@ -837,6 +904,8 @@ fn run_shared_pendulum_sync(
     noop_action: Option<i64>,
     reward_mode: RewardMode,
     reward_weights: &RewardWeights,
+    emit_action_pipeline: bool,
+    out_of_range_mode: OutOfRangeMode,
 ) -> Result<Vec<StepRecord>, String> {
     let mut config = PendulumConfig::default_v1();
     let limits = agent_limits(agents);
@@ -866,6 +935,8 @@ fn run_shared_pendulum_sync(
         allowed,
         reward_mode,
         reward_weights,
+        emit_action_pipeline,
+        out_of_range_mode,
     )
 }
 
@@ -878,6 +949,8 @@ fn run_shared_gridmaze_sync(
     layout: Option<GridMazeLayout>,
     reward_mode: RewardMode,
     reward_weights: &RewardWeights,
+    emit_action_pipeline: bool,
+    out_of_range_mode: OutOfRangeMode,
 ) -> Result<Vec<StepRecord>, String> {
     let mut config = GridMazeConfig::default_v1();
     let limits = agent_limits(agents);
@@ -911,6 +984,8 @@ fn run_shared_gridmaze_sync(
         allowed,
         reward_mode,
         reward_weights,
+        emit_action_pipeline,
+        out_of_range_mode,
     )
 }
 
@@ -980,6 +1055,8 @@ fn build_dataset_header(
     shared_env_mode: Option<&str>,
     reward_mode: Option<RewardMode>,
     reward_weights_hash: Option<&str>,
+    input_hash: &str,
+    input_file: &str,
 ) -> String {
     let mut out = String::new();
     out.push_str("{\"schema\":\"nurigym.dataset.v1\",\"env_id\":\"");
@@ -1007,6 +1084,14 @@ fn build_dataset_header(
             out.push('"');
         }
     }
+    out.push_str(",\"source_hash\":\"");
+    out.push_str(input_hash);
+    out.push('"');
+    out.push_str(",\"source_provenance\":{\"schema\":\"nurigym.source_provenance.v1\",\"source_kind\":\"input_json\",\"input_file\":\"");
+    out.push_str(input_file);
+    out.push_str("\",\"input_hash\":\"");
+    out.push_str(input_hash);
+    out.push_str("\"}");
     out.push_str(",\"count\":");
     out.push_str(&count.to_string());
     out.push_str(",\"agent_count\":");
@@ -1049,6 +1134,31 @@ fn build_step_record(
     out.push_str(&next_text);
     out.push_str(",\"done\":");
     out.push_str(if step.done { "true" } else { "false" });
+    if let Some(pipeline) = &step.action_pipeline {
+        out.push_str(",\"raw_action\":");
+        out.push_str(&pipeline.raw_action.to_string());
+        out.push_str(",\"resolved_action\":");
+        out.push_str(&pipeline.resolved_action.to_string());
+        out.push_str(",\"normalized_action\":");
+        out.push_str(&pipeline.normalized_action.to_string());
+        out.push_str(",\"action_status\":\"");
+        out.push_str(pipeline.action_status);
+        out.push('"');
+        out.push_str(",\"merge_candidates\":[");
+        for (idx, value) in pipeline.merge_candidates.iter().enumerate() {
+            if idx > 0 {
+                out.push(',');
+            }
+            out.push_str(&value.to_string());
+        }
+        out.push(']');
+        out.push_str(",\"merged_action\":");
+        out.push_str(&pipeline.merged_action.to_string());
+        out.push_str(",\"applied_action\":");
+        out.push_str(&pipeline.applied_action.to_string());
+        out.push_str(",\"missing_input\":");
+        out.push_str(if pipeline.missing_input { "true" } else { "false" });
+    }
     out.push('}');
     out
 }
@@ -1107,6 +1217,17 @@ fn parse_shared_merge(input: &NuriGymRunInput) -> SharedMerge {
     }
 }
 
+fn parse_out_of_range_mode(input: &NuriGymRunInput, emit_action_pipeline: bool) -> OutOfRangeMode {
+    if !emit_action_pipeline {
+        return OutOfRangeMode::StrictError;
+    }
+    match input.out_of_range_policy.as_deref().unwrap_or("reject") {
+        "clip" => OutOfRangeMode::Clip,
+        "strict_error" => OutOfRangeMode::StrictError,
+        _ => OutOfRangeMode::Reject,
+    }
+}
+
 fn select_gridmaze_layout(
     seed: u64,
     layouts: Option<&[GridMazeLayoutInput]>,
@@ -1159,42 +1280,163 @@ fn validate_action(action: i64, allowed: &[i64], noop_action: i64) -> Result<(),
     }
 }
 
+fn clip_action_to_allowed(action: i64, allowed: &[i64]) -> i64 {
+    let mut best: Option<(i64, i64)> = None;
+    for candidate in allowed.iter().copied() {
+        let dist = (action - candidate).abs();
+        match best {
+            None => best = Some((dist, candidate)),
+            Some((best_dist, best_candidate))
+                if dist < best_dist || (dist == best_dist && candidate < best_candidate) =>
+            {
+                best = Some((dist, candidate));
+            }
+            _ => {}
+        }
+    }
+    best.map(|(_, candidate)| candidate).unwrap_or(action)
+}
+
+fn evaluate_action(
+    agent: &AgentRun,
+    slot_index: usize,
+    action: i64,
+    missing_input: bool,
+    allowed: &[i64],
+    noop_action: i64,
+    out_of_range_mode: OutOfRangeMode,
+) -> Result<EvaluatedAction, String> {
+    let resolved_action = if missing_input { noop_action } else { action };
+    if missing_input {
+        return Ok(EvaluatedAction {
+            agent_id: agent.agent_id,
+            slot_index,
+            raw_action: action,
+            resolved_action,
+            normalized_action: noop_action,
+            action_status: "가만히",
+            merge_candidate: true,
+            missing_input: true,
+        });
+    }
+
+    if resolved_action == noop_action {
+        return Ok(EvaluatedAction {
+            agent_id: agent.agent_id,
+            slot_index,
+            raw_action: action,
+            resolved_action,
+            normalized_action: noop_action,
+            action_status: "가만히",
+            merge_candidate: true,
+            missing_input: false,
+        });
+    }
+
+    if allowed.contains(&resolved_action) {
+        return Ok(EvaluatedAction {
+            agent_id: agent.agent_id,
+            slot_index,
+            raw_action: action,
+            resolved_action,
+            normalized_action: resolved_action,
+            action_status: "맞음",
+            merge_candidate: true,
+            missing_input: false,
+        });
+    }
+
+    match out_of_range_mode {
+        OutOfRangeMode::StrictError => {
+            validate_action(resolved_action, allowed, noop_action)?;
+            Ok(EvaluatedAction {
+                agent_id: agent.agent_id,
+                slot_index,
+                raw_action: action,
+                resolved_action,
+                normalized_action: resolved_action,
+                action_status: "맞음",
+                merge_candidate: true,
+                missing_input: false,
+            })
+        }
+        OutOfRangeMode::Reject => Ok(EvaluatedAction {
+            agent_id: agent.agent_id,
+            slot_index,
+            raw_action: action,
+            resolved_action,
+            normalized_action: noop_action,
+            action_status: "거부",
+            merge_candidate: false,
+            missing_input: false,
+        }),
+        OutOfRangeMode::Clip => Ok(EvaluatedAction {
+            agent_id: agent.agent_id,
+            slot_index,
+            raw_action: action,
+            resolved_action,
+            normalized_action: clip_action_to_allowed(resolved_action, allowed),
+            action_status: "잘림",
+            merge_candidate: true,
+            missing_input: false,
+        }),
+    }
+}
+
 fn merge_actions(
     merge: SharedMerge,
-    actions: &[i64],
+    evaluated_actions: &[EvaluatedAction],
     noop_action: i64,
     allowed: &[i64],
     last_action: i64,
 ) -> i64 {
     match merge {
         SharedMerge::Priority => {
-            for action in actions.iter().copied() {
-                if action != noop_action {
-                    return action;
-                }
-            }
-            last_action
-        }
-        SharedMerge::Majority => {
-            let mut counts = std::collections::HashMap::new();
-            for action in actions.iter().copied() {
-                if action == noop_action {
+            let mut best: Option<(u64, usize, i64)> = None;
+            for item in evaluated_actions.iter() {
+                if !item.merge_candidate || item.normalized_action == noop_action {
                     continue;
                 }
-                *counts.entry(action).or_insert(0usize) += 1;
+                match best {
+                    None => best = Some((item.agent_id, item.slot_index, item.normalized_action)),
+                    Some((best_agent_id, best_idx, _))
+                        if (item.agent_id, item.slot_index) < (best_agent_id, best_idx) =>
+                    {
+                        best = Some((item.agent_id, item.slot_index, item.normalized_action));
+                    }
+                    _ => {}
+                }
+            }
+            best.map(|(_, _, action)| action).unwrap_or(last_action)
+        }
+        SharedMerge::Majority => {
+            let mut counts = std::collections::BTreeMap::new();
+            for item in evaluated_actions.iter() {
+                if !item.merge_candidate || item.normalized_action == noop_action {
+                    continue;
+                }
+                *counts.entry(item.normalized_action).or_insert(0usize) += 1;
             }
             let mut best = None;
             for (action, count) in counts {
                 match best {
-                    None => best = Some((action, count)),
-                    Some((_, best_count)) if count > best_count => best = Some((action, count)),
+                    None => best = Some((count, action)),
+                    Some((best_count, best_action))
+                        if count > best_count || (count == best_count && action < best_action) =>
+                    {
+                        best = Some((count, action))
+                    }
                     _ => {}
                 }
             }
-            best.map(|(action, _)| action).unwrap_or(last_action)
+            best.map(|(_, action)| action).unwrap_or(last_action)
         }
         SharedMerge::SumClamp => {
-            let sum: i64 = actions.iter().copied().sum();
+            let sum: i64 = evaluated_actions
+                .iter()
+                .filter(|item| item.merge_candidate)
+                .map(|item| item.normalized_action)
+                .sum();
             let min = *allowed.iter().min().unwrap_or(&-1);
             let max = *allowed.iter().max().unwrap_or(&1);
             let mut merged = sum;
@@ -1225,6 +1467,8 @@ fn run_shared_sync_loop<E>(
     allowed: &[i64],
     reward_mode: RewardMode,
     reward_weights: &RewardWeights,
+    emit_action_pipeline: bool,
+    out_of_range_mode: OutOfRangeMode,
 ) -> Result<Vec<StepRecord>, String>
 where
     E: SyncStepEnv,
@@ -1237,17 +1481,34 @@ where
             break;
         }
         let mut actions = Vec::with_capacity(agents.len());
+        let mut evaluated_actions = Vec::with_capacity(agents.len());
         for (idx, agent) in agents.iter().enumerate() {
             let limit = limits.get(idx).copied().unwrap_or(0);
-            let action = if tick < limit as u64 {
-                agent.actions[tick as usize]
-            } else {
+            let missing_input = tick >= limit as u64;
+            let raw_action = if missing_input {
                 noop_action
+            } else {
+                agent.actions[tick as usize]
             };
-            validate_action(action, allowed, noop_action)?;
-            actions.push(action);
+            let evaluated = evaluate_action(
+                agent,
+                idx,
+                raw_action,
+                missing_input,
+                allowed,
+                noop_action,
+                out_of_range_mode,
+            )?;
+            actions.push(raw_action);
+            evaluated_actions.push(evaluated);
         }
-        let merged_action = merge_actions(merge, &actions, noop_action, allowed, last_action);
+        let merged_action = merge_actions(
+            merge,
+            &evaluated_actions,
+            noop_action,
+            allowed,
+            last_action,
+        );
         let mut step = env.step(merged_action)?;
         let last_tick = tick + 1 >= max_steps;
         if last_tick && !step.done {
@@ -1266,15 +1527,43 @@ where
             noop_action,
             reward_weights,
         );
+        let merge_candidates: Vec<i64> = evaluated_actions
+            .iter()
+            .filter(|item| item.merge_candidate)
+            .map(|item| item.normalized_action)
+            .collect();
+        let mut rows: Vec<(u64, usize, i64, Fixed64, Option<ActionPipelineRecord>)> =
+            Vec::with_capacity(agents.len());
         for (idx, agent) in agents.iter().enumerate() {
             let action = actions.get(idx).copied().unwrap_or(noop_action);
+            let reward = rewards.get(idx).copied().unwrap_or(step.reward);
+            let evaluated = evaluated_actions.get(idx);
+            let pipeline = if emit_action_pipeline {
+                evaluated.map(|item| ActionPipelineRecord {
+                    raw_action: item.raw_action,
+                    resolved_action: item.resolved_action,
+                    normalized_action: item.normalized_action,
+                    action_status: item.action_status,
+                    merge_candidates: merge_candidates.clone(),
+                    merged_action,
+                    applied_action: merged_action,
+                    missing_input: item.missing_input,
+                })
+            } else {
+                None
+            };
+            rows.push((agent.agent_id, idx, action, reward, pipeline));
+        }
+        rows.sort_by_key(|(agent_id, idx, _, _, _)| (*agent_id, *idx));
+        for (agent_id, _, action, reward, action_pipeline) in rows {
             step_records.push(StepRecord {
-                agent_id: agent.agent_id,
+                agent_id,
                 observation: step.observation.to_vec(),
                 action,
-                reward: rewards.get(idx).copied().unwrap_or(step.reward),
+                reward,
                 next_observation: step.next_observation.to_vec(),
                 done: step.done,
+                action_pipeline,
             });
         }
         if step.done {
@@ -1453,4 +1742,145 @@ fn distribute_rewards(
         }
     }
     rewards
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_step_record, evaluate_action, merge_actions, ActionPipelineRecord, AgentRun, EvaluatedAction,
+        OutOfRangeMode, SharedMerge, StepRecord,
+    };
+    use ddonirang_core::fixed64::Fixed64;
+
+    fn eval(agent_id: u64, slot_index: usize, normalized_action: i64, merge_candidate: bool) -> EvaluatedAction {
+        EvaluatedAction {
+            agent_id,
+            slot_index,
+            raw_action: normalized_action,
+            resolved_action: normalized_action,
+            normalized_action,
+            action_status: "맞음",
+            merge_candidate,
+            missing_input: false,
+        }
+    }
+
+    fn agent(agent_id: u64) -> AgentRun {
+        AgentRun {
+            agent_id,
+            actions: vec![],
+            max_steps: None,
+        }
+    }
+
+    #[test]
+    fn nurigym_priority_merge_prefers_smallest_agent_id() {
+        let evaluated = vec![eval(10, 0, 1, true), eval(2, 1, -1, true), eval(7, 2, 1, true)];
+        let merged = merge_actions(SharedMerge::Priority, &evaluated, 0, &[-1, 1], 1);
+        assert_eq!(merged, -1);
+    }
+
+    #[test]
+    fn nurigym_priority_merge_is_order_independent_when_agent_ids_are_unique() {
+        let evaluated_a = vec![eval(10, 0, 1, true), eval(2, 1, -1, true)];
+        let evaluated_b = vec![eval(2, 0, -1, true), eval(10, 1, 1, true)];
+        let merged_a = merge_actions(SharedMerge::Priority, &evaluated_a, 0, &[-1, 1], 1);
+        let merged_b = merge_actions(SharedMerge::Priority, &evaluated_b, 0, &[-1, 1], 1);
+        assert_eq!(merged_a, -1);
+        assert_eq!(merged_a, merged_b);
+    }
+
+    #[test]
+    fn nurigym_priority_merge_uses_last_action_when_all_noop() {
+        let evaluated = vec![eval(5, 0, 0, true), eval(1, 1, 0, true)];
+        let merged = merge_actions(SharedMerge::Priority, &evaluated, 0, &[-1, 1], -1);
+        assert_eq!(merged, -1);
+    }
+
+    #[test]
+    fn nurigym_majority_merge_tie_breaks_to_lower_action_value() {
+        let evaluated = vec![eval(1, 0, 1, true), eval(2, 1, -1, true)];
+        let merged = merge_actions(SharedMerge::Majority, &evaluated, 0, &[-1, 1], 1);
+        assert_eq!(merged, -1);
+    }
+
+    #[test]
+    fn nurigym_priority_merge_ignores_rejected_candidates() {
+        let evaluated = vec![eval(1, 0, 1, false), eval(2, 1, -1, true)];
+        let merged = merge_actions(SharedMerge::Priority, &evaluated, 0, &[-1, 1], 1);
+        assert_eq!(merged, -1);
+    }
+
+    #[test]
+    fn nurigym_action_status_clip_maps_to_jallim() {
+        let row = evaluate_action(&agent(1), 0, 5, false, &[-1, 1], 0, OutOfRangeMode::Clip)
+            .expect("clip mode must accept out-of-range");
+        assert_eq!(row.action_status, "잘림");
+        assert_eq!(row.normalized_action, 1);
+        assert!(row.merge_candidate);
+    }
+
+    #[test]
+    fn nurigym_action_status_reject_maps_to_geobu() {
+        let row = evaluate_action(&agent(1), 0, 5, false, &[-1, 1], 0, OutOfRangeMode::Reject)
+            .expect("reject mode must accept out-of-range");
+        assert_eq!(row.action_status, "거부");
+        assert_eq!(row.normalized_action, 0);
+        assert!(!row.merge_candidate);
+    }
+
+    #[test]
+    fn nurigym_action_status_valid_noop_missing_cover_four_states() {
+        let valid = evaluate_action(&agent(1), 0, 1, false, &[-1, 1], 0, OutOfRangeMode::StrictError)
+            .expect("valid action");
+        assert_eq!(valid.action_status, "맞음");
+
+        let noop = evaluate_action(&agent(1), 0, 0, false, &[-1, 1], 0, OutOfRangeMode::StrictError)
+            .expect("noop action");
+        assert_eq!(noop.action_status, "가만히");
+
+        let missing = evaluate_action(&agent(1), 0, 0, true, &[-1, 1], 0, OutOfRangeMode::StrictError)
+            .expect("missing input promoted");
+        assert_eq!(missing.action_status, "가만히");
+        assert!(missing.missing_input);
+
+        let clipped = evaluate_action(&agent(1), 0, 5, false, &[-1, 1], 0, OutOfRangeMode::Clip)
+            .expect("clip action");
+        assert_eq!(clipped.action_status, "잘림");
+
+        let rejected = evaluate_action(&agent(1), 0, 5, false, &[-1, 1], 0, OutOfRangeMode::Reject)
+            .expect("reject action");
+        assert_eq!(rejected.action_status, "거부");
+    }
+
+    #[test]
+    fn nurigym_build_step_record_emits_action_pipeline_fields() {
+        let row = StepRecord {
+            agent_id: 1,
+            observation: vec![Fixed64::ZERO],
+            action: 5,
+            reward: Fixed64::ZERO,
+            next_observation: vec![Fixed64::ZERO],
+            done: false,
+            action_pipeline: Some(ActionPipelineRecord {
+                raw_action: 5,
+                resolved_action: 5,
+                normalized_action: 1,
+                action_status: "잘림",
+                merge_candidates: vec![1, -1],
+                merged_action: 1,
+                applied_action: 1,
+                missing_input: false,
+            }),
+        };
+        let text = build_step_record(1, row.agent_id, 0, &row, 1);
+        assert!(text.contains("\"raw_action\":5"));
+        assert!(text.contains("\"resolved_action\":5"));
+        assert!(text.contains("\"normalized_action\":1"));
+        assert!(text.contains("\"action_status\":\"잘림\""));
+        assert!(text.contains("\"merge_candidates\":[1,-1]"));
+        assert!(text.contains("\"merged_action\":1"));
+        assert!(text.contains("\"applied_action\":1"));
+        assert!(text.contains("\"missing_input\":false"));
+    }
 }

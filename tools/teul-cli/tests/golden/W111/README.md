@@ -1,0 +1,40 @@
+# W111 Golden Index
+
+- 기계 검증 메타데이터: `index.json`
+- 인덱스 self-check:
+  - `python tools/teul-cli/tests/run_w111_golden_index_selfcheck.py`
+
+- W111_G01: lifecycle transition postfix 표면 (`대상 시작하기/넘어가기/불러오기`) 수용 + no-op
+- W111_G02: lifecycle transition bare 표면 (`시작하기/넘어가기/불러오기`) 수용 + no-op
+- W111_G03: `누리다시`가 시작 훅 이후 world snapshot으로 복원되는지 검증(끝 훅 출력 기준)
+- W111_G04: `모두다시`가 시작 훅 이후 world snapshot으로 복원되는지 검증(끝 훅 출력 기준)
+- W111_G05/G06: `보개다시` 유무에 따른 state_hash 동등성 검증 (`SAME_AS`)
+- W111_G07: lifecycle transition 호출형에서 비문자열 target 거부(`E_RUNTIME_TYPE_MISMATCH`)
+- W111_G08: lifecycle transition 호출형 문자열 target 허용 + no-op
+- W111_G09: `시작하기` + `넘어가기`가 `마당 {}` unit 1→2를 실행하는지 검증
+- W111_G10: `불러오기`가 active `판 {}` unit을 재실행(advance 없음)하는지 검증
+- W111_G11: target suffix(`...마당`/`...판`)로 lifecycle family 라우팅이 되는지 검증
+- W111_G12: named lifecycle 선언(`이름 = 마당 {}`) 기준 target 이름 정확 매핑 검증
+- W111_G13: named lifecycle 선언(`이름 = 판 {}`) 기준 `시작하기/불러오기` 매핑 검증
+- W111_G14: active가 마지막 마당일 때 bare `넘어가기`가 첫 마당으로 래핑되는지 검증
+- W111_G15: active가 마지막 판일 때 `(...판) 넘어가기`가 첫 판으로 래핑되는지 검증
+- W111_G16: named lifecycle 중복 선언 parse 오류(`E_PARSE_LIFECYCLE_NAME_DUPLICATE`) 검증
+- W111_G17: `동사=시작하기 / 분류=unknown_target / 조건=unit 존재` runtime 오류(`E_RUNTIME_LIFECYCLE_START_TARGET_UNKNOWN`) 검증
+- W111_G18: `동사=시작하기 / 분류=arity / 조건=인자 2개` runtime 오류(`E_RUNTIME_LIFECYCLE_START_TARGET_ARITY`) 검증
+- W111_G19: `동사=넘어가기 / 분류=unknown_target / 조건=unit 존재` runtime 오류(`E_RUNTIME_LIFECYCLE_NEXT_TARGET_UNKNOWN`) 검증
+- W111_G20: `동사=불러오기 / 분류=unknown_target / 조건=unit 존재` runtime 오류(`E_RUNTIME_LIFECYCLE_CALL_TARGET_UNKNOWN`) 검증
+- W111_G21: `동사=넘어가기 / 분류=arity / 조건=인자 2개` runtime 오류(`E_RUNTIME_LIFECYCLE_NEXT_TARGET_ARITY`) 검증
+- W111_G22: `동사=불러오기 / 분류=arity / 조건=인자 2개` runtime 오류(`E_RUNTIME_LIFECYCLE_CALL_TARGET_ARITY`) 검증
+- W111_G23: `동사=시작하기 / 분류=family_conflict / 조건=힌트↔선언 불일치` runtime 오류(`E_RUNTIME_LIFECYCLE_START_TARGET_FAMILY_CONFLICT`) 검증
+- W111_G24: `동사=넘어가기 / 분류=family_conflict / 조건=힌트↔선언 불일치` runtime 오류(`E_RUNTIME_LIFECYCLE_NEXT_TARGET_FAMILY_CONFLICT`) 검증
+- W111_G25: `동사=불러오기 / 분류=family_conflict / 조건=힌트↔선언 불일치` runtime 오류(`E_RUNTIME_LIFECYCLE_CALL_TARGET_FAMILY_CONFLICT`) 검증
+- W111_G26: `동사=시작하기 / 분류=family_ambiguous / 조건=target에 판·마당 동시 포함` runtime 오류(`E_RUNTIME_LIFECYCLE_START_TARGET_FAMILY_AMBIGUOUS`) 검증
+- W111_G27: `동사=넘어가기 / 분류=family_ambiguous / 조건=target에 판·마당 동시 포함` runtime 오류(`E_RUNTIME_LIFECYCLE_NEXT_TARGET_FAMILY_AMBIGUOUS`) 검증
+- W111_G28: `동사=불러오기 / 분류=family_ambiguous / 조건=target에 판·마당 동시 포함` runtime 오류(`E_RUNTIME_LIFECYCLE_CALL_TARGET_FAMILY_AMBIGUOUS`) 검증
+- W111_G29: `동사=시작하기 / 분류=parse_guard / 조건=동일 lifecycle 이름 재선언` parse 선차단(`E_PARSE_LIFECYCLE_NAME_DUPLICATE`) 검증
+- W111_G30: `동사=넘어가기 / 분류=parse_guard / 조건=동일 lifecycle 이름 재선언` parse 선차단(`E_PARSE_LIFECYCLE_NAME_DUPLICATE`) 검증
+- W111_G31: `동사=불러오기 / 분류=parse_guard / 조건=동일 lifecycle 이름 재선언` parse 선차단(`E_PARSE_LIFECYCLE_NAME_DUPLICATE`) 검증
+- W111_G32: `동사=시작하기/넘어가기/불러오기 / 분류=no_units_unknown_target_noop` unit 없음 경계에서 `없는대상` no-op 허용 검증
+- W111_G33: `동사=시작하기/넘어가기/불러오기 / 분류=no_units_ambiguous_target_noop` unit 없음 경계에서 `혼합판마당` no-op 허용 검증
+- W111_G34: `누리다시`가 SAM live-input(키보드 hold) 현재 틱 값을 유지하는지 검증
+- W111_G35: `모두다시`가 SAM live-input(키보드 hold)을 시작 snapshot 값으로 복원하는지 검증

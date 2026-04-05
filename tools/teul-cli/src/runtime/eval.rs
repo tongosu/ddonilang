@@ -292,6 +292,38 @@ fn ensure_no_break(flow: FlowControl) -> Result<(), RuntimeError> {
     }
 }
 
+fn is_live_control_key(name: &str) -> bool {
+    name.starts_with("샘.") || name.starts_with("입력상태.")
+}
+
+fn capture_live_control_values(state: &State) -> Vec<(Key, Value)> {
+    state
+        .resources
+        .iter()
+        .filter_map(|(key, value)| {
+            is_live_control_key(key.as_str()).then(|| (key.clone(), value.clone()))
+        })
+        .collect()
+}
+
+fn clear_live_control_values(state: &mut State) {
+    let keys = state
+        .resources
+        .keys()
+        .filter(|key| is_live_control_key(key.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    for key in keys {
+        state.resources.remove(&key);
+    }
+}
+
+fn restore_live_control_values(state: &mut State, entries: &[(Key, Value)]) {
+    for (key, value) in entries {
+        state.resources.insert(key.clone(), value.clone());
+    }
+}
+
 impl Evaluator {
     #[allow(dead_code)]
     pub fn new() -> Self {
@@ -1420,21 +1452,36 @@ impl Evaluator {
         });
     }
 
-    fn apply_nuri_reset(&mut self) {
+    fn apply_nuri_world_reset(&mut self, keep_live_control_values: bool) {
         let Some(snapshot) = self.nuri_reset_snapshot.clone() else {
             return;
         };
+        let live_controls = if keep_live_control_values {
+            Some(capture_live_control_values(&self.state))
+        } else {
+            None
+        };
         self.state = snapshot.state;
+        if let Some(entries) = live_controls {
+            clear_live_control_values(&mut self.state);
+            restore_live_control_values(&mut self.state, &entries);
+        }
         self.pending_signals = snapshot.pending_signals;
         self.deferred_assign_frames = snapshot.deferred_assign_frames;
         self.current_entity_stack = snapshot.current_entity_stack;
         self.aborted = snapshot.aborted;
-        self.bogae_requested = snapshot.bogae_requested;
-        self.bogae_requested_tick = snapshot.bogae_requested_tick;
         self.lifecycle_pan_name_to_index = snapshot.lifecycle_pan_name_to_index;
         self.lifecycle_madang_name_to_index = snapshot.lifecycle_madang_name_to_index;
         self.lifecycle_active_pan = snapshot.lifecycle_active_pan;
         self.lifecycle_active_madang = snapshot.lifecycle_active_madang;
+    }
+
+    fn apply_nuri_view_reset(&mut self) {
+        let Some(snapshot) = self.nuri_reset_snapshot.clone() else {
+            return;
+        };
+        self.bogae_requested = snapshot.bogae_requested;
+        self.bogae_requested_tick = snapshot.bogae_requested_tick;
     }
 
     fn infer_lifecycle_family(
@@ -2162,7 +2209,7 @@ impl Evaluator {
                         span,
                     });
                 }
-                self.apply_nuri_reset();
+                self.apply_nuri_world_reset(true);
                 Ok(Value::None)
             }
             "판다시" => {
@@ -2172,7 +2219,7 @@ impl Evaluator {
                         span,
                     });
                 }
-                self.apply_nuri_reset();
+                self.apply_nuri_world_reset(true);
                 Ok(Value::None)
             }
             "누리다시" => {
@@ -2182,7 +2229,7 @@ impl Evaluator {
                         span,
                     });
                 }
-                self.apply_nuri_reset();
+                self.apply_nuri_world_reset(true);
                 Ok(Value::None)
             }
             "보개다시" => {
@@ -2192,6 +2239,7 @@ impl Evaluator {
                         span,
                     });
                 }
+                self.apply_nuri_view_reset();
                 Ok(Value::None)
             }
             "모두다시" => {
@@ -2201,7 +2249,8 @@ impl Evaluator {
                         span,
                     });
                 }
-                self.apply_nuri_reset();
+                self.apply_nuri_world_reset(false);
+                self.apply_nuri_view_reset();
                 Ok(Value::None)
             }
             "시작하기" | "넘어가기" | "불러오기" => {
@@ -8359,6 +8408,16 @@ mod tests {
         evaluator.run_with_ticks(&program, ticks)
     }
 
+    fn parse_program(source: &str) -> Program {
+        let tokens = Lexer::tokenize(source).expect("lex");
+        let default_root = Parser::default_root_for_source(source);
+        Parser::parse_with_default_root(tokens, default_root).expect("parse")
+    }
+
+    fn dimensionless_num(value: i64) -> Value {
+        Value::Num(Quantity::new(Fixed64::from_int(value), UnitDim::zero()))
+    }
+
     fn state_num(output: &EvalOutput, key: &str) -> Fixed64 {
         let value = output
             .state
@@ -8586,6 +8645,114 @@ mod tests {
 "#;
         let output = run_source_ticks(source, 3).expect("run");
         assert_eq!(state_num(&output, "값"), Fixed64::from_int(17));
+    }
+
+    #[test]
+    fn nuri_reset_keeps_live_input_values() {
+        let source = r#"
+값 <- 0.
+(매마디)마다 {
+  값 <- 값 + 1.
+  누리다시.
+}.
+"#;
+        let program = parse_program(source);
+        let evaluator = Evaluator::with_state_and_seed(State::new(), 42);
+        let output = evaluator
+            .run_with_ticks_observe_and_inject(
+                &program,
+                2,
+                |madi, state| {
+                    let pressed = if madi == 0 { 0 } else { 1 };
+                    state.set(
+                        Key::new("샘.키보드.누르고있음.ArrowRight"),
+                        dimensionless_num(pressed),
+                    );
+                    Ok(())
+                },
+                |_, _, _| {},
+            )
+            .expect("run");
+        assert_eq!(state_num(&output, "값"), Fixed64::from_int(0));
+        assert_eq!(
+            state_num(&output, "샘.키보드.누르고있음.ArrowRight"),
+            Fixed64::from_int(1)
+        );
+    }
+
+    #[test]
+    fn all_reset_restores_live_input_values_to_snapshot() {
+        let source = r#"
+값 <- 0.
+(매마디)마다 {
+  값 <- 값 + 1.
+  모두다시.
+}.
+"#;
+        let mut initial_state = State::new();
+        initial_state.set(
+            Key::new("샘.키보드.누르고있음.ArrowRight"),
+            dimensionless_num(1),
+        );
+        let program = parse_program(source);
+        let evaluator = Evaluator::with_state_and_seed(initial_state, 42);
+        let output = evaluator
+            .run_with_ticks_observe_and_inject(
+                &program,
+                2,
+                |_, state| {
+                    state.set(
+                        Key::new("샘.키보드.누르고있음.ArrowRight"),
+                        dimensionless_num(0),
+                    );
+                    Ok(())
+                },
+                |_, _, _| {},
+            )
+            .expect("run");
+        assert_eq!(state_num(&output, "값"), Fixed64::from_int(0));
+        assert_eq!(
+            state_num(&output, "샘.키보드.누르고있음.ArrowRight"),
+            Fixed64::from_int(1)
+        );
+    }
+
+    #[test]
+    fn nuri_reset_drops_snapshot_live_input_when_current_tick_has_none() {
+        let source = r#"
+값 <- 0.
+(매마디)마다 {
+  값 <- 값 + 1.
+  누리다시.
+}.
+"#;
+        let mut initial_state = State::new();
+        initial_state.set(
+            Key::new("샘.키보드.누르고있음.ArrowRight"),
+            dimensionless_num(1),
+        );
+        let program = parse_program(source);
+        let evaluator = Evaluator::with_state_and_seed(initial_state, 42);
+        let output = evaluator
+            .run_with_ticks_observe_and_inject(
+                &program,
+                1,
+                |_, state| {
+                    state
+                        .resources
+                        .remove(&Key::new("샘.키보드.누르고있음.ArrowRight"));
+                    Ok(())
+                },
+                |_, _, _| {},
+            )
+            .expect("run");
+        assert_eq!(state_num(&output, "값"), Fixed64::from_int(0));
+        assert!(
+            output
+                .state
+                .get(&Key::new("샘.키보드.누르고있음.ArrowRight"))
+                .is_none()
+        );
     }
 
     #[test]

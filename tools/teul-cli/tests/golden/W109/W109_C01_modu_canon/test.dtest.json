@@ -6,7 +6,7 @@
   "args": {},
   "expect": {
     "exit": 0,
-    "stdout_text": "(임자) 살림.목록에 대해: {\n  임자 보여주기.\n}.\n",
+    "stdout_text": "(임자) 바탕.목록에 대해 {\n  임자 보여주기.\n}.\n",
     "stderr_contains": []
   }
 }

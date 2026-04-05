@@ -1,0 +1,234 @@
+{
+  "schema": "ddn.teul_cli.golden_index.v1",
+  "walk": 111,
+  "suite": "W111 lifecycle transition",
+  "cases": [
+    {
+      "code": "G01",
+      "case_dir": "W111_G01_lifecycle_transition_postfix_noop",
+      "classification": "noop",
+      "verb": "mixed"
+    },
+    {
+      "code": "G02",
+      "case_dir": "W111_G02_lifecycle_transition_bare_noop",
+      "classification": "noop",
+      "verb": "mixed"
+    },
+    {
+      "code": "G03",
+      "case_dir": "W111_G03_reset_nuri_restores_start_snapshot",
+      "classification": "success",
+      "verb": "mixed"
+    },
+    {
+      "code": "G04",
+      "case_dir": "W111_G04_reset_all_restores_start_snapshot",
+      "classification": "success",
+      "verb": "mixed"
+    },
+    {
+      "code": "G05",
+      "case_dir": "W111_G05_view_reset_no_statehash_change_plain",
+      "classification": "hash_invariant",
+      "verb": "mixed"
+    },
+    {
+      "code": "G06",
+      "case_dir": "W111_G06_view_reset_no_statehash_change_with_bogae_reset",
+      "classification": "hash_invariant",
+      "verb": "mixed"
+    },
+    {
+      "code": "G07",
+      "case_dir": "W111_G07_lifecycle_transition_call_bad_target_type",
+      "classification": "runtime_error",
+      "verb": "call",
+      "diag_code": "E_RUNTIME_TYPE_MISMATCH"
+    },
+    {
+      "code": "G08",
+      "case_dir": "W111_G08_lifecycle_transition_call_string_target_noop",
+      "classification": "noop",
+      "verb": "call"
+    },
+    {
+      "code": "G09",
+      "case_dir": "W111_G09_lifecycle_transition_start_next_executes_madang",
+      "classification": "success",
+      "verb": "start_next"
+    },
+    {
+      "code": "G10",
+      "case_dir": "W111_G10_lifecycle_transition_call_replays_active_pan",
+      "classification": "success",
+      "verb": "call"
+    },
+    {
+      "code": "G11",
+      "case_dir": "W111_G11_lifecycle_transition_target_suffix_routes_family",
+      "classification": "success",
+      "verb": "mixed"
+    },
+    {
+      "code": "G12",
+      "case_dir": "W111_G12_lifecycle_named_madang_mapping",
+      "classification": "success",
+      "verb": "start"
+    },
+    {
+      "code": "G13",
+      "case_dir": "W111_G13_lifecycle_named_pan_mapping",
+      "classification": "success",
+      "verb": "mixed"
+    },
+    {
+      "code": "G14",
+      "case_dir": "W111_G14_lifecycle_next_wraps_last_to_first_madang",
+      "classification": "success",
+      "verb": "next"
+    },
+    {
+      "code": "G15",
+      "case_dir": "W111_G15_lifecycle_next_wraps_last_to_first_pan",
+      "classification": "success",
+      "verb": "next"
+    },
+    {
+      "code": "G16",
+      "case_dir": "W111_G16_lifecycle_named_duplicate_parse_error",
+      "classification": "parse_error",
+      "verb": "mixed",
+      "diag_code": "E_PARSE_LIFECYCLE_NAME_DUPLICATE"
+    },
+    {
+      "code": "G17",
+      "case_dir": "W111_G17_lifecycle_start_unknown_target_error",
+      "classification": "runtime_error",
+      "verb": "start",
+      "diag_code": "E_RUNTIME_LIFECYCLE_START_TARGET_UNKNOWN"
+    },
+    {
+      "code": "G18",
+      "case_dir": "W111_G18_lifecycle_start_target_arity_error",
+      "classification": "runtime_error",
+      "verb": "start",
+      "diag_code": "E_RUNTIME_LIFECYCLE_START_TARGET_ARITY"
+    },
+    {
+      "code": "G19",
+      "case_dir": "W111_G19_lifecycle_next_unknown_target_error",
+      "classification": "runtime_error",
+      "verb": "next",
+      "diag_code": "E_RUNTIME_LIFECYCLE_NEXT_TARGET_UNKNOWN"
+    },
+    {
+      "code": "G20",
+      "case_dir": "W111_G20_lifecycle_call_unknown_target_error",
+      "classification": "runtime_error",
+      "verb": "call",
+      "diag_code": "E_RUNTIME_LIFECYCLE_CALL_TARGET_UNKNOWN"
+    },
+    {
+      "code": "G21",
+      "case_dir": "W111_G21_lifecycle_next_target_arity_error",
+      "classification": "runtime_error",
+      "verb": "next",
+      "diag_code": "E_RUNTIME_LIFECYCLE_NEXT_TARGET_ARITY"
+    },
+    {
+      "code": "G22",
+      "case_dir": "W111_G22_lifecycle_call_target_arity_error",
+      "classification": "runtime_error",
+      "verb": "call",
+      "diag_code": "E_RUNTIME_LIFECYCLE_CALL_TARGET_ARITY"
+    },
+    {
+      "code": "G23",
+      "case_dir": "W111_G23_lifecycle_start_target_family_conflict_error",
+      "classification": "runtime_error",
+      "verb": "start",
+      "diag_code": "E_RUNTIME_LIFECYCLE_START_TARGET_FAMILY_CONFLICT"
+    },
+    {
+      "code": "G24",
+      "case_dir": "W111_G24_lifecycle_next_target_family_conflict_error",
+      "classification": "runtime_error",
+      "verb": "next",
+      "diag_code": "E_RUNTIME_LIFECYCLE_NEXT_TARGET_FAMILY_CONFLICT"
+    },
+    {
+      "code": "G25",
+      "case_dir": "W111_G25_lifecycle_call_target_family_conflict_error",
+      "classification": "runtime_error",
+      "verb": "call",
+      "diag_code": "E_RUNTIME_LIFECYCLE_CALL_TARGET_FAMILY_CONFLICT"
+    },
+    {
+      "code": "G26",
+      "case_dir": "W111_G26_lifecycle_start_target_family_ambiguous_error",
+      "classification": "runtime_error",
+      "verb": "start",
+      "diag_code": "E_RUNTIME_LIFECYCLE_START_TARGET_FAMILY_AMBIGUOUS"
+    },
+    {
+      "code": "G27",
+      "case_dir": "W111_G27_lifecycle_next_target_family_ambiguous_error",
+      "classification": "runtime_error",
+      "verb": "next",
+      "diag_code": "E_RUNTIME_LIFECYCLE_NEXT_TARGET_FAMILY_AMBIGUOUS"
+    },
+    {
+      "code": "G28",
+      "case_dir": "W111_G28_lifecycle_call_target_family_ambiguous_error",
+      "classification": "runtime_error",
+      "verb": "call",
+      "diag_code": "E_RUNTIME_LIFECYCLE_CALL_TARGET_FAMILY_AMBIGUOUS"
+    },
+    {
+      "code": "G29",
+      "case_dir": "W111_G29_lifecycle_start_target_multi_family_decl_parse_error",
+      "classification": "parse_error",
+      "verb": "start",
+      "diag_code": "E_PARSE_LIFECYCLE_NAME_DUPLICATE"
+    },
+    {
+      "code": "G30",
+      "case_dir": "W111_G30_lifecycle_next_target_multi_family_decl_parse_error",
+      "classification": "parse_error",
+      "verb": "next",
+      "diag_code": "E_PARSE_LIFECYCLE_NAME_DUPLICATE"
+    },
+    {
+      "code": "G31",
+      "case_dir": "W111_G31_lifecycle_call_target_multi_family_decl_parse_error",
+      "classification": "parse_error",
+      "verb": "call",
+      "diag_code": "E_PARSE_LIFECYCLE_NAME_DUPLICATE"
+    },
+    {
+      "code": "G32",
+      "case_dir": "W111_G32_lifecycle_no_units_unknown_target_noop",
+      "classification": "noop",
+      "verb": "mixed"
+    },
+    {
+      "code": "G33",
+      "case_dir": "W111_G33_lifecycle_no_units_ambiguous_target_noop",
+      "classification": "noop",
+      "verb": "mixed"
+    },
+    {
+      "code": "G34",
+      "case_dir": "W111_G34_reset_nuri_keeps_live_input_current_tick",
+      "classification": "success",
+      "verb": "mixed"
+    },
+    {
+      "code": "G35",
+      "case_dir": "W111_G35_reset_all_restores_live_input_snapshot",
+      "classification": "success",
+      "verb": "mixed"
+    }
+  ]
+}

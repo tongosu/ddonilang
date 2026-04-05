@@ -5,7 +5,7 @@ use ddonirang_core::Fixed64;
 use serde::Deserialize;
 use serde_json::{Map, Value as JsonValue};
 
-use super::detjson::write_text;
+use super::detjson::{sha256_hex, write_text};
 use super::paths;
 
 const DEFAULT_EPS: &str = "0.000000001";
@@ -41,6 +41,12 @@ struct CaseResult {
 pub fn run_accuracy(input: &Path, out_dir: Option<&Path>) -> Result<(), String> {
     let text = fs::read_to_string(input)
         .map_err(|e| format!("E_EDU_INPUT_READ {} {}", input.display(), e))?;
+    let input_hash = format!("sha256:{}", sha256_hex(text.as_bytes()));
+    let input_file = input
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("scenario.json")
+        .to_string();
     let scenario: EduScenarioInput =
         serde_json::from_str(&text).map_err(|e| format!("E_EDU_INPUT_PARSE {}", e))?;
     if let Some(schema) = scenario.schema.as_deref() {
@@ -120,6 +126,8 @@ pub fn run_accuracy(input: &Path, out_dir: Option<&Path>) -> Result<(), String> 
     }
 
     let report = build_report(
+        &input_file,
+        &input_hash,
         &scenario.scenario_id,
         total_count,
         pass_count,
@@ -142,6 +150,8 @@ fn resolve_out_dir(out_dir: Option<&Path>) -> PathBuf {
 }
 
 fn build_report(
+    input_file: &str,
+    input_hash: &str,
     scenario_id: &str,
     total_count: u64,
     pass_count: u64,
@@ -153,6 +163,31 @@ fn build_report(
     map.insert(
         "schema".to_string(),
         JsonValue::String("edu.report.v1".to_string()),
+    );
+    map.insert(
+        "source_hash".to_string(),
+        JsonValue::String(input_hash.to_string()),
+    );
+    let mut source_provenance = Map::new();
+    source_provenance.insert(
+        "schema".to_string(),
+        JsonValue::String("edu.source_provenance.v1".to_string()),
+    );
+    source_provenance.insert(
+        "source_kind".to_string(),
+        JsonValue::String("edu_scenario.v1".to_string()),
+    );
+    source_provenance.insert(
+        "input_file".to_string(),
+        JsonValue::String(input_file.to_string()),
+    );
+    source_provenance.insert(
+        "input_hash".to_string(),
+        JsonValue::String(input_hash.to_string()),
+    );
+    map.insert(
+        "source_provenance".to_string(),
+        JsonValue::Object(source_provenance),
     );
     map.insert(
         "scenario_id".to_string(),

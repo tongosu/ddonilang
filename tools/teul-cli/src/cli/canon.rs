@@ -596,6 +596,11 @@ fn build_parse_fixit(source: &str, file_label: &str, err: &ParseError) -> Option
         | ParseError::ImportVersionConflict { .. }
         | ParseError::ExportBlockDuplicate { .. }
         | ParseError::MaegimStepSplitConflict { .. }
+        | ParseError::MaegimNestedSectionUnsupported { .. }
+        | ParseError::MaegimNestedFieldUnsupported { .. }
+        | ParseError::HookEveryNMadiIntervalInvalid { .. }
+        | ParseError::HookEveryNMadiUnitUnsupported { .. }
+        | ParseError::HookEveryNMadiSuffixUnsupported { .. }
         | ParseError::CompatMaticEntryDisabled { .. } => (
             "replace",
             span_snippet(source, span),
@@ -645,6 +650,11 @@ fn parse_error_span(err: &ParseError) -> Span {
         | ParseError::ReceiveOutsideImja { span }
         | ParseError::MaegimRequiresGroupedValue { span }
         | ParseError::MaegimStepSplitConflict { span }
+        | ParseError::MaegimNestedSectionUnsupported { span, .. }
+        | ParseError::MaegimNestedFieldUnsupported { span, .. }
+        | ParseError::HookEveryNMadiIntervalInvalid { span }
+        | ParseError::HookEveryNMadiUnitUnsupported { span, .. }
+        | ParseError::HookEveryNMadiSuffixUnsupported { span, .. }
         | ParseError::DeferredAssignOutsideBeat { span }
         | ParseError::QuantifierMutationForbidden { span }
         | ParseError::QuantifierShowForbidden { span }

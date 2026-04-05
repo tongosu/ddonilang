@@ -279,8 +279,11 @@ fn run_file_inproc_inner(path: &str, args: &[String]) -> Result<InprocReport, St
         run_manifest,
         artifact,
         trace_json,
+        proof_out,
+        proof_cert_key,
         geoul_out,
         geoul_record_out,
+        latency_madi,
         trace_tier,
         bogae,
         bogae_codec,
@@ -308,6 +311,7 @@ fn run_file_inproc_inner(path: &str, args: &[String]) -> Result<InprocReport, St
         no_open,
         unsafe_open,
         lang_mode,
+        compat_matic_entry,
     } = cli.command
     else {
         return Ok(InprocReport {
@@ -336,8 +340,11 @@ fn run_file_inproc_inner(path: &str, args: &[String]) -> Result<InprocReport, St
         run_manifest,
         artifact,
         trace_json,
+        proof_out,
+        proof_cert_key,
         geoul_out,
         geoul_record_out,
+        latency_madi,
         trace_tier,
         bogae,
         bogae_codec,
@@ -365,6 +372,7 @@ fn run_file_inproc_inner(path: &str, args: &[String]) -> Result<InprocReport, St
         no_open,
         unsafe_open,
         lang_mode,
+        compat_matic_entry,
         run_command_override: Some(build_command_string_from_parts(&cli_args)),
     };
 

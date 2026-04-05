@@ -1,0 +1,16 @@
+{
+  "name": "W49_G03_latency_simulate_overflow_saturating",
+  "walk": 49,
+  "command": "latency_simulate",
+  "entry": "-",
+  "args": {
+    "L": 18446744073709551615,
+    "mode": "fixed",
+    "count": 2,
+    "seed": 0
+  },
+  "expect": {
+    "exit": 0,
+    "stdout_text": "{\"schema\":\"latency.simulation.v1\",\"L\":18446744073709551615,\"mode\":\"fixed\",\"seed\":0,\"current_madi\":0,\"replay_header\":{\"seulgi_latency_madi\":18446744073709551615,\"seulgi_latency_drop_policy\":\"late_drop\",\"created_at\":\"1970-01-01T00:00:00Z\"},\"schedule\":[{\"madi\":0,\"deliver_madi\":18446744073709551615,\"accepted_madi\":0,\"target_madi\":18446744073709551615,\"late\":false,\"dropped\":false},{\"madi\":1,\"deliver_madi\":18446744073709551615,\"accepted_madi\":1,\"target_madi\":18446744073709551615,\"late\":false,\"dropped\":false}]}\nlatency_hash=sha256:465454f591287610af7c8373df9e4b5d06b55c78e872bf8a9a45bf4f84428165\n"
+  }
+}

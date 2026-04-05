@@ -184,6 +184,10 @@ pub struct GeoulBundleWriter {
     toolchain_version: String,
     entry_file: Option<String>,
     entry_hash: Option<String>,
+    age_target_source: Option<String>,
+    age_target_value: Option<String>,
+    seulgi_latency_madi: Option<u64>,
+    seulgi_latency_drop_policy: Option<String>,
 }
 
 impl GeoulBundleWriter {
@@ -221,6 +225,10 @@ impl GeoulBundleWriter {
             toolchain_version: toolchain_version.to_string(),
             entry_file: None,
             entry_hash: None,
+            age_target_source: None,
+            age_target_value: None,
+            seulgi_latency_madi: None,
+            seulgi_latency_drop_policy: None,
         })
     }
 
@@ -231,6 +239,19 @@ impl GeoulBundleWriter {
     pub fn set_entry(&mut self, entry_file: &str, entry_hash: &str) {
         self.entry_file = Some(entry_file.to_string());
         self.entry_hash = Some(entry_hash.to_string());
+    }
+
+    pub fn set_age_target(&mut self, age_target_source: &str, age_target_value: &str) {
+        self.age_target_source = Some(age_target_source.to_string());
+        self.age_target_value = Some(age_target_value.to_string());
+    }
+
+    pub fn set_seulgi_latency_madi(&mut self, seulgi_latency_madi: u64) {
+        self.seulgi_latency_madi = Some(seulgi_latency_madi);
+    }
+
+    pub fn set_seulgi_latency_drop_policy(&mut self, policy: &str) {
+        self.seulgi_latency_drop_policy = Some(policy.to_string());
     }
 
     pub fn record_frame(
@@ -301,6 +322,10 @@ impl GeoulBundleWriter {
             &audit_hash,
             self.entry_file.as_deref(),
             self.entry_hash.as_deref(),
+            self.age_target_source.as_deref(),
+            self.age_target_value.as_deref(),
+            self.seulgi_latency_madi,
+            self.seulgi_latency_drop_policy.as_deref(),
         );
         fs::write(self.out_dir.join("manifest.detjson"), manifest_text)
             .map_err(|e| e.to_string())?;
@@ -506,6 +531,10 @@ fn build_manifest_text(
     audit_hash: &str,
     entry_file: Option<&str>,
     entry_hash: Option<&str>,
+    age_target_source: Option<&str>,
+    age_target_value: Option<&str>,
+    seulgi_latency_madi: Option<u64>,
+    seulgi_latency_drop_policy: Option<&str>,
 ) -> String {
     let mut out = String::new();
     out.push_str("{\n");
@@ -538,6 +567,27 @@ fn build_manifest_text(
         if let Some(hash) = entry_hash {
             out.push_str(&format!("  \"entry_hash\": \"{}\",\n", escape_json(hash)));
         }
+    }
+    if let Some(source) = age_target_source {
+        out.push_str(&format!(
+            "  \"age_target_source\": \"{}\",\n",
+            escape_json(source)
+        ));
+    }
+    if let Some(value) = age_target_value {
+        out.push_str(&format!(
+            "  \"age_target_value\": \"{}\",\n",
+            escape_json(value)
+        ));
+    }
+    if let Some(value) = seulgi_latency_madi {
+        out.push_str(&format!("  \"seulgi_latency_madi\": {},\n", value));
+    }
+    if let Some(policy) = seulgi_latency_drop_policy {
+        out.push_str(&format!(
+            "  \"seulgi_latency_drop_policy\": \"{}\",\n",
+            escape_json(policy)
+        ));
     }
     out.push_str("  \"audit_file\": \"audit.ddni\",\n");
     out.push_str("  \"index_file\": \"audit.idx\"\n");
@@ -663,4 +713,57 @@ fn read_str_slice(bytes: &[u8], idx: &mut usize) -> Result<String, String> {
         .map_err(|_| "snapshot detbin UTF-8 오류".to_string())?;
     *idx = end;
     Ok(text.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_manifest_text, AuditHeader};
+
+    #[test]
+    fn manifest_includes_seulgi_latency_madi_when_set() {
+        let header = AuditHeader::new(0, 0, 1, 0);
+        let text = build_manifest_text(
+            &header,
+            "21.0.0",
+            "0.1.0",
+            256,
+            0,
+            3,
+            3,
+            1234,
+            "blake3:abc",
+            Some("entry.ddn"),
+            Some("blake3:def"),
+            Some("flag"),
+            Some("age3"),
+            Some(5),
+            Some("late_drop"),
+        );
+        assert!(text.contains("\"seulgi_latency_madi\": 5"));
+        assert!(text.contains("\"seulgi_latency_drop_policy\": \"late_drop\""));
+    }
+
+    #[test]
+    fn manifest_omits_seulgi_latency_madi_when_unset() {
+        let header = AuditHeader::new(0, 0, 1, 0);
+        let text = build_manifest_text(
+            &header,
+            "21.0.0",
+            "0.1.0",
+            256,
+            0,
+            3,
+            3,
+            1234,
+            "blake3:abc",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert!(!text.contains("\"seulgi_latency_madi\""));
+        assert!(!text.contains("\"seulgi_latency_drop_policy\""));
+    }
 }

@@ -28,6 +28,12 @@ struct ReplayStep {
 pub fn run_imitation(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String> {
     let text = fs::read_to_string(config_path)
         .map_err(|e| format!("E_IMITATION_CONFIG_READ {} {}", config_path.display(), e))?;
+    let config_hash = format!("sha256:{}", sha256_hex(text.as_bytes()));
+    let config_file = config_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("imitation_config.json")
+        .to_string();
     let config: ImitationConfig =
         serde_json::from_str(&text).map_err(|e| format!("E_IMITATION_CONFIG_PARSE {}", e))?;
     if let Some(schema) = config.schema.as_deref() {
@@ -43,6 +49,12 @@ pub fn run_imitation(config_path: &Path, out_dir: Option<&Path>) -> Result<(), S
     let replay_path = resolve_replay_path(config_path, &config.replay_path);
     let replay_text = fs::read_to_string(&replay_path)
         .map_err(|e| format!("E_IMITATION_REPLAY_READ {} {}", replay_path.display(), e))?;
+    let replay_hash = format!("sha256:{}", sha256_hex(replay_text.as_bytes()));
+    let replay_file = replay_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("replay.jsonl")
+        .to_string();
     let (env_id, mut steps) = parse_replay_lines(&replay_text)?;
 
     if steps.is_empty() {
@@ -68,7 +80,14 @@ pub fn run_imitation(config_path: &Path, out_dir: Option<&Path>) -> Result<(), S
         (a.episode_id, a.step_index, a.order).cmp(&(b.episode_id, b.step_index, b.order))
     });
 
-    let dataset_text = build_dataset_text(&env_id, &steps);
+    let dataset_text = build_dataset_text(
+        &env_id,
+        &steps,
+        &replay_hash,
+        &replay_file,
+        &config_hash,
+        &config_file,
+    );
     let dataset_hash = format!("sha256:{}", sha256_hex(dataset_text.as_bytes()));
 
     let out_dir = resolve_out_dir(out_dir);
@@ -215,20 +234,52 @@ fn value_as_u64(value: Option<&JsonValue>, line_no: usize, field: &str) -> Resul
     }
 }
 
-fn build_dataset_text(env_id: &str, steps: &[ReplayStep]) -> String {
+fn build_dataset_text(
+    env_id: &str,
+    steps: &[ReplayStep],
+    replay_hash: &str,
+    replay_file: &str,
+    config_hash: &str,
+    config_file: &str,
+) -> String {
     let mut lines = Vec::with_capacity(steps.len() + 1);
-    lines.push(build_dataset_header(env_id, steps.len() as u64));
+    lines.push(build_dataset_header(
+        env_id,
+        steps.len() as u64,
+        replay_hash,
+        replay_file,
+        config_hash,
+        config_file,
+    ));
     for step in steps {
         lines.push(build_sample_line(step));
     }
     lines.join("\n") + "\n"
 }
 
-fn build_dataset_header(env_id: &str, count: u64) -> String {
+fn build_dataset_header(
+    env_id: &str,
+    count: u64,
+    replay_hash: &str,
+    replay_file: &str,
+    config_hash: &str,
+    config_file: &str,
+) -> String {
     let mut out = String::new();
     out.push_str("{\"schema\":\"imitation.dataset.v1\",\"env_id\":\"");
     out.push_str(env_id);
-    out.push_str("\",\"count\":");
+    out.push_str("\",\"source_hash\":\"");
+    out.push_str(replay_hash);
+    out.push_str("\",\"source_provenance\":{\"schema\":\"seulgi.source_provenance.v1\",\"source_kind\":\"replay_jsonl\",\"replay_file\":\"");
+    out.push_str(replay_file);
+    out.push_str("\",\"replay_hash\":\"");
+    out.push_str(replay_hash);
+    out.push_str("\",\"config_file\":\"");
+    out.push_str(config_file);
+    out.push_str("\",\"config_hash\":\"");
+    out.push_str(config_hash);
+    out.push_str("\"}");
+    out.push_str(",\"count\":");
     out.push_str(&count.to_string());
     out.push('}');
     out

@@ -1,0 +1,16 @@
+{
+  "name": "W109_C03_hook_every_n_madi_unit_unsupported_canon_error",
+  "walk": 109,
+  "command": "canon",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_CANON_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED",
+      "`마디`만 허용",
+      "foo"
+    ]
+  }
+}

@@ -1773,6 +1773,18 @@ impl Parser {
         self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "조건" || name == "매김"))
     }
 
+    fn is_supported_maegim_nested_section(name: &str) -> bool {
+        matches!(name, "가늠" | "갈래")
+    }
+
+    fn is_supported_maegim_nested_field(section: &str, field: &str) -> bool {
+        match section {
+            "가늠" => matches!(field, "범위" | "간격" | "분할수"),
+            "갈래" => matches!(field, "가만히" | "벗남다룸"),
+            _ => false,
+        }
+    }
+
     fn parse_maegim_spec(&mut self) -> Result<MaegimSpec, CanonError> {
         let keyword = self.expect_ident()?;
         if keyword != "조건" && keyword != "매김" {
@@ -1798,21 +1810,84 @@ impl Parser {
                 ));
             }
             let name = self.expect_ident()?;
-            self.expect(TokenKind::Colon)?;
-            let value = self.parse_expr()?;
-            if name == "간격" {
-                has_step = true;
-            } else if name == "분할수" {
-                has_split_count = true;
+            self.skip_newlines();
+            if self.peek_is(|k| matches!(k, TokenKind::LBrace)) {
+                if !Self::is_supported_maegim_nested_section(&name) {
+                    return Err(CanonError::new(
+                        "E_CANON_MAEGIM_NESTED_SECTION_UNSUPPORTED",
+                        format!(
+                            "`매김` 중첩 섹션은 `가늠`/`갈래`만 허용됩니다: {}",
+                            name
+                        ),
+                    ));
+                }
+                self.expect(TokenKind::LBrace)?;
+                loop {
+                    self.skip_newlines();
+                    if self.peek_is(|k| matches!(k, TokenKind::RBrace)) {
+                        break;
+                    }
+                    if self.peek_is(|k| matches!(k, TokenKind::Eof)) {
+                        return Err(CanonError::new(
+                            "E_CANON_EXPECTED_RBRACE",
+                            "닫는 중괄호가 필요합니다.",
+                        ));
+                    }
+                    let nested_name = self.expect_ident()?;
+                    self.expect(TokenKind::Colon)?;
+                    let value = self.parse_expr()?;
+                    if !Self::is_supported_maegim_nested_field(&name, &nested_name) {
+                        return Err(CanonError::new(
+                            "E_CANON_MAEGIM_NESTED_FIELD_UNSUPPORTED",
+                            format!(
+                                "`매김` 섹션 `{}`에서 지원하지 않는 항목입니다: {}",
+                                name, nested_name
+                            ),
+                        ));
+                    }
+                    if nested_name == "간격" {
+                        has_step = true;
+                    } else if nested_name == "분할수" {
+                        has_split_count = true;
+                    }
+                    if has_step && has_split_count {
+                        return Err(CanonError::new(
+                            "E_CANON_MAEGIM_STEP_SPLIT_CONFLICT",
+                            "`매김`에서 `간격`과 `분할수`는 동시에 사용할 수 없습니다.",
+                        ));
+                    }
+                    self.consume_terminator()?;
+                    fields.push(Binding {
+                        name: format!("{}.{}", name, nested_name),
+                        value,
+                    });
+                }
+                self.expect(TokenKind::RBrace)?;
+                if self.peek_is(|k| matches!(k, TokenKind::Dot | TokenKind::Newline)) {
+                    self.consume_terminator()?;
+                } else if !self.peek_is(|k| matches!(k, TokenKind::RBrace | TokenKind::Eof)) {
+                    return Err(CanonError::new(
+                        "E_CANON_EXPECTED_TERMINATOR",
+                        "문장 끝 구분자(점 또는 줄바꿈)가 필요합니다.",
+                    ));
+                }
+            } else {
+                self.expect(TokenKind::Colon)?;
+                let value = self.parse_expr()?;
+                if name == "간격" {
+                    has_step = true;
+                } else if name == "분할수" {
+                    has_split_count = true;
+                }
+                if has_step && has_split_count {
+                    return Err(CanonError::new(
+                        "E_CANON_MAEGIM_STEP_SPLIT_CONFLICT",
+                        "`매김`에서 `간격`과 `분할수`는 동시에 사용할 수 없습니다.",
+                    ));
+                }
+                self.consume_terminator()?;
+                fields.push(Binding { name, value });
             }
-            if has_step && has_split_count {
-                return Err(CanonError::new(
-                    "E_CANON_MAEGIM_STEP_SPLIT_CONFLICT",
-                    "`매김`에서 `간격`과 `분할수`는 동시에 사용할 수 없습니다.",
-                ));
-            }
-            self.consume_terminator()?;
-            fields.push(Binding { name, value });
         }
         self.expect(TokenKind::RBrace)?;
         Ok(MaegimSpec { fields })
@@ -1823,12 +1898,7 @@ impl Parser {
             return false;
         }
         let mut idx = self.pos + 1;
-        let head_is_ident = self
-            .tokens
-            .get(idx)
-            .map(|t| matches!(t.kind, TokenKind::Ident(_)))
-            .unwrap_or(false);
-        let head_is_number_madi = self
+        let number_head = self
             .tokens
             .get(idx)
             .map(|t| matches!(t.kind, TokenKind::Number(_)))
@@ -1836,11 +1906,16 @@ impl Parser {
             && self
                 .tokens
                 .get(idx + 1)
-                .map(|t| matches!(&t.kind, TokenKind::Ident(text) if text == "마디"))
+                .map(|t| matches!(t.kind, TokenKind::Ident(_)))
                 .unwrap_or(false);
+        let head_is_ident = self
+            .tokens
+            .get(idx)
+            .map(|t| matches!(t.kind, TokenKind::Ident(_)))
+            .unwrap_or(false);
         if head_is_ident {
             idx += 1;
-        } else if head_is_number_madi {
+        } else if number_head {
             idx += 2;
         } else {
             return false;
@@ -1857,14 +1932,19 @@ impl Parser {
         let Some(Token { kind }) = self.tokens.get(idx) else {
             return false;
         };
-        let suffix_ok = matches!(
-            kind,
-            TokenKind::Ident(name) if name == "할때" || name == "마다"
-        );
+        let suffix_ok = if number_head {
+            matches!(kind, TokenKind::Ident(_))
+        } else {
+            matches!(kind, TokenKind::Ident(name) if name == "할때" || name == "마다")
+        };
         if !suffix_ok {
             return false;
         }
         idx += 1;
+        self.hook_header_has_block_start(idx)
+    }
+
+    fn hook_header_has_block_start(&self, mut idx: usize) -> bool {
         while self
             .tokens
             .get(idx)
@@ -1897,22 +1977,32 @@ impl Parser {
 
     fn parse_hook_stmt(&mut self) -> Result<SurfaceStmt, CanonError> {
         self.expect(TokenKind::LParen)?;
+        let mut number_head = false;
         let mut name = if self.peek_is(|k| matches!(k, TokenKind::Number(_))) {
+            number_head = true;
             let raw = match self.advance().kind {
                 TokenKind::Number(value) => value,
                 _ => unreachable!("number branch must consume number token"),
             };
             let interval = raw.parse::<u64>().ok().filter(|value| *value > 0).ok_or_else(|| {
                 CanonError::new(
-                    "E_CANON_HOOK_INTERVAL",
+                    "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
                     "(N마디)마다에서 N은 양의 정수여야 합니다.",
                 )
             })?;
-            let unit = self.expect_ident()?;
+            let unit = match self.advance().kind {
+                TokenKind::Ident(text) => text,
+                other => {
+                    return Err(CanonError::new(
+                        "E_CANON_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED",
+                        format!("(N마디)마다에서 단위는 `마디`만 허용됩니다: {other:?}"),
+                    ))
+                }
+            };
             if unit != "마디" {
                 return Err(CanonError::new(
-                    "E_CANON_HOOK_INTERVAL",
-                    "(N마디)마다에서 단위는 `마디`만 허용됩니다.",
+                    "E_CANON_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED",
+                    format!("(N마디)마다에서 단위는 `마디`만 허용됩니다: {unit}"),
                 ));
             }
             format!("{}마디", interval)
@@ -1920,9 +2010,22 @@ impl Parser {
             self.expect_ident()?
         };
         self.expect(TokenKind::RParen)?;
-        let suffix = match self.expect_ident()?.as_str() {
+        let raw_suffix = self.expect_ident()?;
+        let suffix = match raw_suffix.as_str() {
+            "할때" if number_head => {
+                return Err(CanonError::new(
+                    "E_CANON_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED",
+                    format!("(N마디) 훅 접미는 `마다`만 허용됩니다: {raw_suffix}"),
+                ))
+            }
             "할때" => HookSuffix::Halttae,
             "마다" => HookSuffix::Mada,
+            _ if number_head => {
+                return Err(CanonError::new(
+                    "E_CANON_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED",
+                    format!("(N마디) 훅 접미는 `마다`만 허용됩니다: {raw_suffix}"),
+                ))
+            }
             _ => {
                 return Err(CanonError::new(
                     "E_CANON_HOOK_SUFFIX",
@@ -3276,12 +3379,7 @@ impl Parser {
         let token = self.advance();
         let body = match token.kind {
             TokenKind::BogaeMadangBlock(body) => body,
-            TokenKind::BogaeJangmyeonBlock(_) => {
-                return Err(CanonError::new(
-                    "E_BOGAE_JANGMYEON_FORBIDDEN",
-                    "`보개장면`은 더 이상 허용하지 않습니다. `보개마당`을 사용하세요.",
-                ))
-            }
+            TokenKind::BogaeJangmyeonBlock(body) => body,
             _ => {
                 return Err(CanonError::new(
                     "E_CANON_UNEXPECTED_TOKEN",
@@ -3499,6 +3597,9 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
     let legacy_guseong_alias_seen = tokens
         .iter()
         .any(|token| matches!(token.kind, TokenKind::GuseongBlock(_)));
+    let legacy_bogae_madang_alias_seen = tokens
+        .iter()
+        .any(|token| matches!(token.kind, TokenKind::BogaeJangmyeonBlock(_)));
     let mut parser = Parser::new(tokens, bridge);
     let surface = parser.parse_program()?;
     let deprecated_block_header_colon_count = parser.deprecated_block_header_colon_count();
@@ -3879,6 +3980,12 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
     if legacy_guseong_alias_seen {
         warnings.push(
             "W_JJAIM_ALIAS_DEPRECATED `구성`은 별칭입니다. 정본 키워드 `짜임`을 사용하세요"
+                .to_string(),
+        );
+    }
+    if legacy_bogae_madang_alias_seen {
+        warnings.push(
+            "W_BOGAE_MADANG_ALIAS_DEPRECATED `보개장면`은 별칭입니다. 정본 키워드 `보개마당`을 사용하세요"
                 .to_string(),
         );
     }
@@ -4433,7 +4540,8 @@ fn build_block_editor_plan_decl_item(item: &DeclItem) -> BlockEditorPlanNode {
         let mut split_count = None;
         let mut unsupported = false;
         for field in &maegim.fields {
-            match field.name.as_str() {
+            let leaf = maegim_field_leaf_name(&field.name);
+            match leaf {
                 "범위" => {
                     range = Some(format_maegim_field_value(field));
                 }
@@ -5003,7 +5111,35 @@ mod tests {
             Ok(_) => panic!("must reject"),
             Err(err) => err,
         };
-        assert_eq!(err.code(), "E_CANON_HOOK_INTERVAL");
+        assert_eq!(err.code(), "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID");
+    }
+
+    #[test]
+    fn canon_rejects_every_n_madi_unsupported_unit() {
+        let source = r#"
+(3 foo)마다 {
+  "bad" 보여주기.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must reject"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CANON_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED");
+    }
+
+    #[test]
+    fn canon_rejects_every_n_madi_unsupported_suffix() {
+        let source = r#"
+(3마디)할때 {
+  "bad" 보여주기.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must reject"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CANON_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED");
     }
 
     #[test]
@@ -5061,6 +5197,91 @@ mod tests {
     }
 
     #[test]
+    fn canon_accepts_nested_maegim_sections_and_normalizes_canonical_sections() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    가늠 {
+      범위: 1..20.
+      간격: 0.1.
+    }.
+    갈래 {
+      가만히: 참.
+      벗남다룸: "잘림".
+    }.
+  }.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("g:수 = (9.8) 매김 {"));
+        assert!(out.ddn.contains("가늠 {"));
+        assert!(out.ddn.contains("범위: 1..20."));
+        assert!(out.ddn.contains("간격: 0.1."));
+        assert!(out.ddn.contains("갈래 {"));
+        assert!(out.ddn.contains("가만히: 참."));
+        assert!(out.ddn.contains("벗남다룸: \"잘림\"."));
+        assert!(!out.ddn.contains("가늠.범위:"));
+        assert!(out
+            .maegim_control_json
+            .contains("\"step_expr_canon\": \"0.1\""));
+    }
+
+    #[test]
+    fn canon_rejects_nested_maegim_step_and_split_count_together() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    가늠 {
+      간격: 0.1.
+      분할수: 24.
+    }.
+  }.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CANON_MAEGIM_STEP_SPLIT_CONFLICT");
+    }
+
+    #[test]
+    fn canon_rejects_unknown_nested_maegim_section() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    실험 {
+      범위: 1..20.
+    }.
+  }.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CANON_MAEGIM_NESTED_SECTION_UNSUPPORTED");
+    }
+
+    #[test]
+    fn canon_rejects_unknown_nested_maegim_field_in_ganeum() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    가늠 {
+      최소값: 1.
+    }.
+  }.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CANON_MAEGIM_NESTED_FIELD_UNSUPPORTED");
+    }
+
+    #[test]
     fn canon_emits_maegim_control_plan_json() {
         let source = r#"
 채비 {
@@ -5098,6 +5319,24 @@ mod tests {
         assert!(out
             .maegim_control_json
             .contains("\"split_count_expr_canon\": \"24\""));
+    }
+
+    #[test]
+    fn canon_emits_block_editor_plan_json_for_nested_maegim_sections() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    가늠 {
+      범위: 1..20.
+      간격: 0.1.
+    }.
+  }.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out
+            .block_editor_plan_json
+            .contains("\"kind\": \"charim_item_const_step\""));
     }
 
     #[test]
@@ -5415,17 +5654,15 @@ mod tests {
     }
 
     #[test]
-    fn canon_rejects_legacy_bogae_jangmyeon_block() {
+    fn canon_normalizes_legacy_bogae_jangmyeon_block() {
         let source = r#"
 보개장면 {
   #자막("legacy").
 }.
 "#;
-        let err = match canonicalize(source, false) {
-            Ok(_) => panic!("must reject"),
-            Err(err) => err,
-        };
-        assert_eq!(err.code(), "E_BOGAE_JANGMYEON_FORBIDDEN");
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("보개마당 {"));
+        assert!(!out.ddn.contains("보개장면 {"));
     }
 }
 
@@ -5460,7 +5697,7 @@ fn build_maegim_control_plan(stmts: &[Stmt]) -> MaegimControlPlan {
             let range = maegim
                 .fields
                 .iter()
-                .find(|binding| binding.name == "범위")
+                .find(|binding| maegim_field_leaf_name(&binding.name) == "범위")
                 .and_then(|binding| parse_maegim_range_expr(&binding.value))
                 .map(
                     |(min_expr_canon, max_expr_canon, inclusive_end)| MaegimControlRange {
@@ -5472,12 +5709,12 @@ fn build_maegim_control_plan(stmts: &[Stmt]) -> MaegimControlPlan {
             let step_expr_canon = maegim
                 .fields
                 .iter()
-                .find(|binding| binding.name == "간격")
+                .find(|binding| maegim_field_leaf_name(&binding.name) == "간격")
                 .map(|binding| format_expr(&binding.value));
             let split_count_expr_canon = maegim
                 .fields
                 .iter()
-                .find(|binding| binding.name == "분할수")
+                .find(|binding| maegim_field_leaf_name(&binding.name) == "분할수")
                 .map(|binding| format_expr(&binding.value));
             controls.push(MaegimControlItem {
                 name: item.name.clone(),
@@ -7717,7 +7954,53 @@ fn format_decl_item(item: &DeclItem, indent: usize) -> String {
             out.push('(');
             out.push_str(&format_expr(value));
             out.push_str(") 매김 {\n");
+            let mut emitted_ganeum = false;
+            let mut emitted_gallae = false;
             for field in &maegim.fields {
+                if field.name.starts_with("가늠.") {
+                    if emitted_ganeum {
+                        continue;
+                    }
+                    emitted_ganeum = true;
+                    out.push_str(&pad);
+                    out.push_str("  가늠 {\n");
+                    for nested in &maegim.fields {
+                        let Some(leaf) = nested.name.strip_prefix("가늠.") else {
+                            continue;
+                        };
+                        out.push_str(&pad);
+                        out.push_str("    ");
+                        out.push_str(leaf);
+                        out.push_str(": ");
+                        out.push_str(&format_maegim_field_value(nested));
+                        out.push_str(".\n");
+                    }
+                    out.push_str(&pad);
+                    out.push_str("  }.\n");
+                    continue;
+                }
+                if field.name.starts_with("갈래.") {
+                    if emitted_gallae {
+                        continue;
+                    }
+                    emitted_gallae = true;
+                    out.push_str(&pad);
+                    out.push_str("  갈래 {\n");
+                    for nested in &maegim.fields {
+                        let Some(leaf) = nested.name.strip_prefix("갈래.") else {
+                            continue;
+                        };
+                        out.push_str(&pad);
+                        out.push_str("    ");
+                        out.push_str(leaf);
+                        out.push_str(": ");
+                        out.push_str(&format_maegim_field_value(nested));
+                        out.push_str(".\n");
+                    }
+                    out.push_str(&pad);
+                    out.push_str("  }.\n");
+                    continue;
+                }
                 out.push_str(&pad);
                 out.push_str("  ");
                 out.push_str(&field.name);
@@ -7739,8 +8022,12 @@ fn format_expr(expr: &Expr) -> String {
     format_expr_prec(expr, 0)
 }
 
+fn maegim_field_leaf_name(name: &str) -> &str {
+    name.rsplit('.').next().unwrap_or(name)
+}
+
 fn format_maegim_field_value(binding: &Binding) -> String {
-    if binding.name == "범위" {
+    if maegim_field_leaf_name(&binding.name) == "범위" {
         if let Some(rendered) = try_format_range_expr(&binding.value) {
             return rendered;
         }

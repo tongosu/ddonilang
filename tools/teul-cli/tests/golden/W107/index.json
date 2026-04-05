@@ -1,0 +1,334 @@
+{
+  "schema": "ddn.teul_cli.golden_index.v1",
+  "walk": 107,
+  "suite": "W107 contract hook golden",
+  "inactive_case_dirs": [
+    "W107_G28_contract_execute_age2_observed_typed_stale_blocked"
+  ],
+  "cases": [
+    {
+      "code": "C01",
+      "case_dir": "W107_C01_contract_canon_alert",
+      "command": "canon",
+      "classification": "canon_success"
+    },
+    {
+      "code": "G01",
+      "case_dir": "W107_G01_contract_alert",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G02",
+      "case_dir": "W107_G02_contract_abort",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G03",
+      "case_dir": "W107_G03_contract_post_alert",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G04",
+      "case_dir": "W107_G04_contract_post_abort",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G05",
+      "case_dir": "W107_G05_contract_execute_age2",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G06",
+      "case_dir": "W107_G06_contract_execute_age2_false_compare",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G07",
+      "case_dir": "W107_G07_contract_execute_age2_false_relational",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G08",
+      "case_dir": "W107_G08_contract_execute_age2_observed_relax",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G09",
+      "case_dir": "W107_G09_contract_execute_age2_observed_equality",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G10",
+      "case_dir": "W107_G10_contract_execute_age2_observed_paren_assign",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G11",
+      "case_dir": "W107_G11_contract_execute_age2_observed_negative_paren",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G12",
+      "case_dir": "W107_G12_contract_execute_age2_observed_negative_plain",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G13",
+      "case_dir": "W107_G13_contract_execute_age2_observed_recent_assign",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G14",
+      "case_dir": "W107_G14_contract_execute_age2_observed_plus_plain",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G15",
+      "case_dir": "W107_G15_contract_execute_age2_observed_plus_paren",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G16",
+      "case_dir": "W107_G16_contract_execute_age2_observed_root_plus",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G17",
+      "case_dir": "W107_G17_contract_execute_age2_observed_root_nested",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G18",
+      "case_dir": "W107_G18_contract_execute_age2_observed_batang_plus",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G19",
+      "case_dir": "W107_G19_contract_execute_age2_observed_batang_nested",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G20",
+      "case_dir": "W107_G20_contract_execute_age2_observed_mismatch_no_patch",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G21",
+      "case_dir": "W107_G21_contract_execute_age2_observed_indirect_no_patch",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G22",
+      "case_dir": "W107_G22_contract_execute_age2_observed_stale_constant_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G23",
+      "case_dir": "W107_G23_contract_execute_age2_observed_expr_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G24",
+      "case_dir": "W107_G24_contract_execute_age2_observed_batang_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G25",
+      "case_dir": "W107_G25_contract_execute_age2_observed_paren_expr_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G26",
+      "case_dir": "W107_G26_contract_execute_age2_observed_nested_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G27",
+      "case_dir": "W107_G27_contract_execute_age2_observed_nested_expr_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G28",
+      "case_dir": "W107_G28_contract_execute_age2_observed_parent_overwrite_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G29",
+      "case_dir": "W107_G29_contract_execute_age2_observed_batang_parent_overwrite_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G30",
+      "case_dir": "W107_G30_contract_execute_age2_observed_sibling_overwrite_kept",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G31",
+      "case_dir": "W107_G31_contract_execute_age2_observed_batang_sibling_overwrite_kept",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G32",
+      "case_dir": "W107_G32_contract_execute_age2_contract_batang_target",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G33",
+      "case_dir": "W107_G33_contract_execute_age2_contract_batang_nested_target",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G34",
+      "case_dir": "W107_G34_contract_execute_age2_contract_sallim_target",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G35",
+      "case_dir": "W107_G35_contract_execute_age2_contract_sallim_nested_target",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G36",
+      "case_dir": "W107_G36_contract_execute_age2_contract_cross_sallim_to_batang",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G37",
+      "case_dir": "W107_G37_contract_execute_age2_contract_cross_batang_to_sallim",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G38",
+      "case_dir": "W107_G38_contract_execute_age2_contract_cross_sallim_to_batang_nested",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G39",
+      "case_dir": "W107_G39_contract_execute_age2_contract_cross_batang_to_sallim_nested",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G40",
+      "case_dir": "W107_G40_contract_execute_age2_contract_sallim_target_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G41",
+      "case_dir": "W107_G41_contract_execute_age2_contract_batang_target_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G42",
+      "case_dir": "W107_G42_contract_execute_age2_contract_sallim_nested_target_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G43",
+      "case_dir": "W107_G43_contract_execute_age2_contract_batang_nested_target_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G44",
+      "case_dir": "W107_G44_contract_execute_age2_contract_sallim_nested_parent_overwrite_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G45",
+      "case_dir": "W107_G45_contract_execute_age2_contract_batang_nested_parent_overwrite_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G46",
+      "case_dir": "W107_G46_contract_execute_age2_contract_sallim_nested_sibling_overwrite_kept",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G47",
+      "case_dir": "W107_G47_contract_execute_age2_contract_batang_nested_sibling_overwrite_kept",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G48",
+      "case_dir": "W107_G48_contract_execute_age2_contract_cross_sallim_to_batang_nested_parent_overwrite_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G49",
+      "case_dir": "W107_G49_contract_execute_age2_contract_cross_batang_to_sallim_nested_parent_overwrite_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G50",
+      "case_dir": "W107_G50_contract_execute_age2_contract_cross_sallim_to_batang_nested_sibling_overwrite_kept",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G51",
+      "case_dir": "W107_G51_contract_execute_age2_contract_cross_batang_to_sallim_nested_sibling_overwrite_kept",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G52",
+      "case_dir": "W107_G52_contract_execute_age2_contract_cross_sallim_to_batang_nested_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    },
+    {
+      "code": "G53",
+      "case_dir": "W107_G53_contract_execute_age2_contract_cross_batang_to_sallim_nested_stale_blocked",
+      "command": "run",
+      "classification": "run_success"
+    }
+  ]
+}

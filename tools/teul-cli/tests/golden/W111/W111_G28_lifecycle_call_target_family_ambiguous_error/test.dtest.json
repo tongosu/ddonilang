@@ -1,0 +1,17 @@
+{
+  "name": "W111_G28_lifecycle_call_target_family_ambiguous_error",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_LIFECYCLE_CALL_TARGET_FAMILY_AMBIGUOUS",
+      "혼합판마당"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

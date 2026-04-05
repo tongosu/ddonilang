@@ -1,0 +1,50 @@
+{
+  "name": "W49_G07_latency_run_diag_schedule_metadata",
+  "walk": 49,
+  "command": "run",
+  "entry": "../../../../../../pack/gogae5_w49_latency_madi/input_replay.ddn",
+  "args": {
+    "madi": 4,
+    "seed": "0x0",
+    "cli": [
+      "--sam",
+      "../../../../../../pack/gogae5_w49_latency_madi/sam/right_hold_2ticks.input.bin",
+      "--latency-madi",
+      "2",
+      "--diag",
+      "geoul.diag.jsonl",
+      "--trace-tier",
+      "T-OFF"
+    ]
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY",
+    "files_exist": [
+      "geoul.diag.jsonl"
+    ],
+    "files": {
+      "geoul.diag.jsonl": {
+        "jsonl_contains": [
+          {
+            "event": "run_config",
+            "latency_madi": 2,
+            "latency_drop_policy": "late_drop"
+          },
+          {
+            "event": "latency_schedule",
+            "accept_madi": 0,
+            "target_madi": 2,
+            "applied_madi": 2,
+            "late": false,
+            "dropped": false,
+            "drop_policy": "late_drop"
+          }
+        ]
+      }
+    }
+  }
+}

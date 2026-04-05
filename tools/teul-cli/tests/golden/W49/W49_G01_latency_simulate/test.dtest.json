@@ -11,6 +11,6 @@
   },
   "expect": {
     "exit": 0,
-    "stdout_text": "{\"schema\":\"latency.simulation.v1\",\"L\":3,\"mode\":\"fixed\",\"seed\":0,\"schedule\":[{\"madi\":0,\"deliver_madi\":3},{\"madi\":1,\"deliver_madi\":4},{\"madi\":2,\"deliver_madi\":5}]}\nlatency_hash=sha256:ee1efeee46c191d585ab5b9076ed2aaa310193bcbe7d9953fe9bbf7e839509cc\n"
+    "stdout_text": "{\"schema\":\"latency.simulation.v1\",\"L\":3,\"mode\":\"fixed\",\"seed\":0,\"current_madi\":0,\"replay_header\":{\"seulgi_latency_madi\":3,\"seulgi_latency_drop_policy\":\"late_drop\",\"created_at\":\"1970-01-01T00:00:00Z\"},\"schedule\":[{\"madi\":0,\"deliver_madi\":3,\"accepted_madi\":0,\"target_madi\":3,\"late\":false,\"dropped\":false},{\"madi\":1,\"deliver_madi\":4,\"accepted_madi\":1,\"target_madi\":4,\"late\":false,\"dropped\":false},{\"madi\":2,\"deliver_madi\":5,\"accepted_madi\":2,\"target_madi\":5,\"late\":false,\"dropped\":false}]}\nlatency_hash=sha256:e1fb7b31046db57cc3fefe32f8fc0fc1cf0801913edf8c61441a35cb398ea9f5\n"
   }
 }

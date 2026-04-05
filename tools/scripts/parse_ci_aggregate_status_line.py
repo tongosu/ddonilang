@@ -15,13 +15,161 @@ EXPECTED_KEYS = [
     "seamgrim_failed_steps",
     "age3_failed_criteria",
     "age4_failed_criteria",
+    "age4_proof_ok",
+    "age4_proof_failed_criteria",
     "age5_failed_criteria",
+    "age5_combined_heavy_full_real_status",
+    "age5_full_real_source_check",
+    "age5_full_real_source_selftest",
+    "age5_full_real_w107_golden_index_selftest_active_cases",
+    "age5_full_real_w107_golden_index_selftest_inactive_cases",
+    "age5_full_real_w107_golden_index_selftest_index_codes",
+    "age5_full_real_w107_golden_index_selftest_current_probe",
+    "age5_full_real_w107_golden_index_selftest_last_completed_probe",
+    "age5_full_real_w107_golden_index_selftest_progress_present",
+    "age5_full_real_w107_progress_contract_selftest_completed_checks",
+    "age5_full_real_w107_progress_contract_selftest_total_checks",
+    "age5_full_real_w107_progress_contract_selftest_checks_text",
+    "age5_full_real_w107_progress_contract_selftest_current_probe",
+    "age5_full_real_w107_progress_contract_selftest_last_completed_probe",
+    "age5_full_real_w107_progress_contract_selftest_progress_present",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_completed_checks",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_total_checks",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_checks_text",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_current_probe",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_last_completed_probe",
+    "age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_v1_family_contract_selftest_progress_present",
+    "age5_full_real_proof_certificate_family_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_family_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_family_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_family_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_family_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_family_contract_selftest_progress_present",
+    "age5_full_real_proof_family_contract_selftest_completed_checks",
+    "age5_full_real_proof_family_contract_selftest_total_checks",
+    "age5_full_real_proof_family_contract_selftest_checks_text",
+    "age5_full_real_proof_family_contract_selftest_current_probe",
+    "age5_full_real_proof_family_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_family_contract_selftest_progress_present",
+    "age5_full_real_proof_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_proof_family_transport_contract_selftest_total_checks",
+    "age5_full_real_proof_family_transport_contract_selftest_checks_text",
+    "age5_full_real_proof_family_transport_contract_selftest_current_probe",
+    "age5_full_real_proof_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_family_transport_contract_selftest_progress_present",
+    "age5_full_real_lang_surface_family_contract_selftest_completed_checks",
+    "age5_full_real_lang_surface_family_contract_selftest_total_checks",
+    "age5_full_real_lang_surface_family_contract_selftest_checks_text",
+    "age5_full_real_lang_surface_family_contract_selftest_current_probe",
+    "age5_full_real_lang_surface_family_contract_selftest_last_completed_probe",
+    "age5_full_real_lang_surface_family_contract_selftest_progress_present",
+    "age5_full_real_lang_runtime_family_contract_selftest_completed_checks",
+    "age5_full_real_lang_runtime_family_contract_selftest_total_checks",
+    "age5_full_real_lang_runtime_family_contract_selftest_checks_text",
+    "age5_full_real_lang_runtime_family_contract_selftest_current_probe",
+    "age5_full_real_lang_runtime_family_contract_selftest_last_completed_probe",
+    "age5_full_real_lang_runtime_family_contract_selftest_progress_present",
+    "age5_full_real_gate0_family_contract_selftest_completed_checks",
+    "age5_full_real_gate0_family_contract_selftest_total_checks",
+    "age5_full_real_gate0_family_contract_selftest_checks_text",
+    "age5_full_real_gate0_family_contract_selftest_current_probe",
+    "age5_full_real_gate0_family_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_family_contract_selftest_progress_present",
+    "age5_full_real_gate0_surface_family_contract_selftest_completed_checks",
+    "age5_full_real_gate0_surface_family_contract_selftest_total_checks",
+    "age5_full_real_gate0_surface_family_contract_selftest_checks_text",
+    "age5_full_real_gate0_surface_family_contract_selftest_current_probe",
+    "age5_full_real_gate0_surface_family_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_surface_family_contract_selftest_progress_present",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_surface_family_transport_contract_selftest_progress_present",
+    "age5_full_real_lang_runtime_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_lang_runtime_family_transport_contract_selftest_total_checks",
+    "age5_full_real_lang_runtime_family_transport_contract_selftest_checks_text",
+    "age5_full_real_lang_runtime_family_transport_contract_selftest_current_probe",
+    "age5_full_real_lang_runtime_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_lang_runtime_family_transport_contract_selftest_progress_present",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_present",
+    "age5_full_real_gate0_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_family_transport_contract_selftest_progress_present",
+    "age5_full_real_gate0_transport_family_contract_selftest_completed_checks",
+    "age5_full_real_gate0_transport_family_contract_selftest_total_checks",
+    "age5_full_real_gate0_transport_family_contract_selftest_checks_text",
+    "age5_full_real_gate0_transport_family_contract_selftest_current_probe",
+    "age5_full_real_gate0_transport_family_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_transport_family_contract_selftest_progress_present",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_total_checks",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_checks_text",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_current_probe",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_gate0_transport_family_transport_contract_selftest_progress_present",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_total_checks",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_checks_text",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_current_probe",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_lang_surface_family_transport_contract_selftest_progress_present",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_total_checks",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_checks_text",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_current_probe",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_proof_certificate_family_transport_contract_selftest_progress_present",
+    "age5_full_real_bogae_alias_family_contract_selftest_completed_checks",
+    "age5_full_real_bogae_alias_family_contract_selftest_total_checks",
+    "age5_full_real_bogae_alias_family_contract_selftest_checks_text",
+    "age5_full_real_bogae_alias_family_contract_selftest_current_probe",
+    "age5_full_real_bogae_alias_family_contract_selftest_last_completed_probe",
+    "age5_full_real_bogae_alias_family_contract_selftest_progress_present",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_completed_checks",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_total_checks",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_checks_text",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_current_probe",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_last_completed_probe",
+    "age5_full_real_bogae_alias_family_transport_contract_selftest_progress_present",
+    "age5_combined_heavy_runtime_helper_negative_status",
+    "age5_combined_heavy_group_id_summary_negative_status",
+    "ci_sanity_age5_combined_heavy_child_summary_default_fields",
+    "ci_sync_readiness_ci_sanity_age5_combined_heavy_child_summary_default_fields",
     "oi_failed_packs",
     "report_path",
     "generated_at_utc",
     "reason",
 ]
 TOKEN_RE = re.compile(r'([A-Za-z0-9_]+)=("([^"\\]|\\.)*"|[^ \t]+)')
+SUMMARY_STATUS_VALUES = {"pass", "fail", "skipped"}
 
 
 def load_json(path: Path) -> dict | None:
@@ -75,11 +223,232 @@ def parse_status_line(path: Path) -> tuple[dict[str, str] | None, str]:
         return None, f"invalid status: {parsed.get('status')}"
     if parsed.get("overall_ok") not in {"0", "1"}:
         return None, f"invalid overall_ok: {parsed.get('overall_ok')}"
-    for key in ("seamgrim_failed_steps", "age3_failed_criteria", "age4_failed_criteria", "age5_failed_criteria", "oi_failed_packs"):
+    if parsed.get("age4_proof_ok") not in {"0", "1"}:
+        return None, f"invalid age4_proof_ok: {parsed.get('age4_proof_ok')}"
+    for key in ("age5_full_real_source_check", "age5_full_real_source_selftest"):
+        if parsed.get(key) not in {"0", "1"}:
+            return None, f"invalid {key}: {parsed.get(key)}"
+    if parsed.get("age5_full_real_w107_golden_index_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_w107_golden_index_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_w107_golden_index_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_w107_progress_contract_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_w107_progress_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_w107_progress_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_proof_certificate_family_contract_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_proof_certificate_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_proof_certificate_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_proof_certificate_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_proof_certificate_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_proof_certificate_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_proof_family_contract_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_proof_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_proof_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_proof_family_transport_contract_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_proof_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_proof_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_lang_surface_family_contract_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_lang_surface_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_lang_surface_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_lang_runtime_family_contract_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_lang_runtime_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_lang_runtime_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_gate0_family_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_gate0_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_gate0_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_gate0_surface_family_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_gate0_surface_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_gate0_surface_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_gate0_surface_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_gate0_surface_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_gate0_surface_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_lang_runtime_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_lang_runtime_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_lang_runtime_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_gate0_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_gate0_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_gate0_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_gate0_transport_family_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_gate0_transport_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_gate0_transport_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_gate0_transport_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_gate0_transport_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_gate0_transport_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_lang_surface_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_lang_surface_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_lang_surface_family_transport_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_bogae_alias_family_contract_selftest_progress_present") not in {"0", "1"}:
+        return None, (
+            "invalid age5_full_real_bogae_alias_family_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_bogae_alias_family_contract_selftest_progress_present')}"
+        )
+    if parsed.get("age5_full_real_bogae_alias_family_transport_contract_selftest_progress_present") not in {
+        "0",
+        "1",
+    }:
+        return None, (
+            "invalid age5_full_real_bogae_alias_family_transport_contract_selftest_progress_present: "
+            f"{parsed.get('age5_full_real_bogae_alias_family_transport_contract_selftest_progress_present')}"
+        )
+    for key in (
+        "seamgrim_failed_steps",
+        "age3_failed_criteria",
+        "age4_failed_criteria",
+        "age4_proof_failed_criteria",
+        "age5_failed_criteria",
+        "oi_failed_packs",
+        "age5_full_real_w107_golden_index_selftest_active_cases",
+        "age5_full_real_w107_golden_index_selftest_inactive_cases",
+        "age5_full_real_w107_golden_index_selftest_index_codes",
+        "age5_full_real_w107_progress_contract_selftest_completed_checks",
+        "age5_full_real_w107_progress_contract_selftest_total_checks",
+        "age5_full_real_age1_immediate_proof_operation_contract_selftest_completed_checks",
+        "age5_full_real_age1_immediate_proof_operation_contract_selftest_total_checks",
+        "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_completed_checks",
+        "age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_total_checks",
+        "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_completed_checks",
+        "age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_total_checks",
+        "age5_full_real_proof_certificate_v1_family_contract_selftest_completed_checks",
+        "age5_full_real_proof_certificate_v1_family_contract_selftest_total_checks",
+        "age5_full_real_proof_certificate_family_contract_selftest_completed_checks",
+        "age5_full_real_proof_certificate_family_contract_selftest_total_checks",
+        "age5_full_real_proof_certificate_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_proof_certificate_family_transport_contract_selftest_total_checks",
+        "age5_full_real_proof_family_contract_selftest_completed_checks",
+        "age5_full_real_proof_family_contract_selftest_total_checks",
+        "age5_full_real_proof_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_proof_family_transport_contract_selftest_total_checks",
+        "age5_full_real_lang_surface_family_contract_selftest_completed_checks",
+        "age5_full_real_lang_surface_family_contract_selftest_total_checks",
+        "age5_full_real_lang_runtime_family_contract_selftest_completed_checks",
+        "age5_full_real_lang_runtime_family_contract_selftest_total_checks",
+        "age5_full_real_gate0_family_contract_selftest_completed_checks",
+        "age5_full_real_gate0_family_contract_selftest_total_checks",
+        "age5_full_real_gate0_surface_family_contract_selftest_completed_checks",
+        "age5_full_real_gate0_surface_family_contract_selftest_total_checks",
+        "age5_full_real_gate0_surface_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_gate0_surface_family_transport_contract_selftest_total_checks",
+        "age5_full_real_lang_runtime_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_lang_runtime_family_transport_contract_selftest_total_checks",
+        "age5_full_real_gate0_runtime_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_gate0_runtime_family_transport_contract_selftest_total_checks",
+        "age5_full_real_gate0_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_gate0_family_transport_contract_selftest_total_checks",
+        "age5_full_real_gate0_transport_family_contract_selftest_completed_checks",
+        "age5_full_real_gate0_transport_family_contract_selftest_total_checks",
+        "age5_full_real_gate0_transport_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_gate0_transport_family_transport_contract_selftest_total_checks",
+        "age5_full_real_lang_surface_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_lang_surface_family_transport_contract_selftest_total_checks",
+        "age5_full_real_bogae_alias_family_contract_selftest_completed_checks",
+        "age5_full_real_bogae_alias_family_contract_selftest_total_checks",
+        "age5_full_real_bogae_alias_family_transport_contract_selftest_completed_checks",
+        "age5_full_real_bogae_alias_family_transport_contract_selftest_total_checks",
+    ):
+        value = str(parsed.get(key, "0")).strip()
+        if value == "-":
+            continue
         try:
-            int(parsed.get(key, "0"))
+            int(value)
         except ValueError:
-            return None, f"{key} must be int"
+            return None, f"{key} must be int-or-dash"
+    for key in (
+        "age5_combined_heavy_full_real_status",
+        "age5_combined_heavy_runtime_helper_negative_status",
+        "age5_combined_heavy_group_id_summary_negative_status",
+    ):
+        if parsed.get(key) not in SUMMARY_STATUS_VALUES:
+            return None, f"{key} invalid: {parsed.get(key)}"
     return parsed, ""
 
 
@@ -90,7 +459,154 @@ def compact_line(parsed: dict[str, str]) -> str:
         f"seamgrim_failed={parsed.get('seamgrim_failed_steps', '-1')} "
         f"age3_failed={parsed.get('age3_failed_criteria', '-1')} "
         f"age4_failed={parsed.get('age4_failed_criteria', '-1')} "
+        f"age4_proof_ok={parsed.get('age4_proof_ok', '0')} "
+        f"age4_proof_failed={parsed.get('age4_proof_failed_criteria', '-1')} "
         f"age5_failed={parsed.get('age5_failed_criteria', '-1')} "
+        f"age5_full_real={parsed.get('age5_combined_heavy_full_real_status', '-')} "
+        f"age5_full_real_source_check={parsed.get('age5_full_real_source_check', '0')} "
+        f"age5_full_real_source_selftest={parsed.get('age5_full_real_source_selftest', '0')} "
+        f"age5_w107_active={parsed.get('age5_full_real_w107_golden_index_selftest_active_cases', '-')} "
+        f"age5_w107_inactive={parsed.get('age5_full_real_w107_golden_index_selftest_inactive_cases', '-')} "
+        f"age5_w107_index_codes={parsed.get('age5_full_real_w107_golden_index_selftest_index_codes', '-')} "
+        f"age5_w107_current_probe={parsed.get('age5_full_real_w107_golden_index_selftest_current_probe', '-')} "
+        f"age5_w107_last_completed_probe={parsed.get('age5_full_real_w107_golden_index_selftest_last_completed_probe', '-')} "
+        f"age5_w107_progress={parsed.get('age5_full_real_w107_golden_index_selftest_progress_present', '0')} "
+        f"age5_w107_contract_completed={parsed.get('age5_full_real_w107_progress_contract_selftest_completed_checks', '-')} "
+        f"age5_w107_contract_total={parsed.get('age5_full_real_w107_progress_contract_selftest_total_checks', '-')} "
+        f"age5_w107_contract_checks_text={parsed.get('age5_full_real_w107_progress_contract_selftest_checks_text', '-')} "
+        f"age5_w107_contract_current_probe={parsed.get('age5_full_real_w107_progress_contract_selftest_current_probe', '-')} "
+        f"age5_w107_contract_last_completed_probe={parsed.get('age5_full_real_w107_progress_contract_selftest_last_completed_probe', '-')} "
+        f"age5_w107_contract_progress={parsed.get('age5_full_real_w107_progress_contract_selftest_progress_present', '0')} "
+        f"age5_age1_immediate_proof_operation_contract_completed={parsed.get('age5_full_real_age1_immediate_proof_operation_contract_selftest_completed_checks', '-')} "
+        f"age5_age1_immediate_proof_operation_contract_total={parsed.get('age5_full_real_age1_immediate_proof_operation_contract_selftest_total_checks', '-')} "
+        f"age5_age1_immediate_proof_operation_contract_checks_text={parsed.get('age5_full_real_age1_immediate_proof_operation_contract_selftest_checks_text', '-')} "
+        f"age5_age1_immediate_proof_operation_contract_current_probe={parsed.get('age5_full_real_age1_immediate_proof_operation_contract_selftest_current_probe', '-')} "
+        f"age5_age1_immediate_proof_operation_contract_last_completed_probe={parsed.get('age5_full_real_age1_immediate_proof_operation_contract_selftest_last_completed_probe', '-')} "
+        f"age5_age1_immediate_proof_operation_contract_progress={parsed.get('age5_full_real_age1_immediate_proof_operation_contract_selftest_progress_present', '0')} "
+        f"age5_proof_certificate_v1_consumer_contract_completed={parsed.get('age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_proof_certificate_v1_consumer_contract_total={parsed.get('age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_total_checks', '-')} "
+        f"age5_proof_certificate_v1_consumer_contract_checks_text={parsed.get('age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_checks_text', '-')} "
+        f"age5_proof_certificate_v1_consumer_contract_current_probe={parsed.get('age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_current_probe', '-')} "
+        f"age5_proof_certificate_v1_consumer_contract_last_completed_probe={parsed.get('age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_proof_certificate_v1_consumer_contract_progress={parsed.get('age5_full_real_proof_certificate_v1_consumer_transport_contract_selftest_progress_present', '0')} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_completed={parsed.get('age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_completed_checks', '-')} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_total={parsed.get('age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_total_checks', '-')} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_checks_text={parsed.get('age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_checks_text', '-')} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_current_probe={parsed.get('age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_current_probe', '-')} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_last_completed_probe={parsed.get('age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_last_completed_probe', '-')} "
+        f"age5_proof_certificate_v1_verify_report_digest_contract_progress={parsed.get('age5_full_real_proof_certificate_v1_verify_report_digest_contract_selftest_progress_present', '0')} "
+        f"age5_proof_certificate_v1_family_contract_completed={parsed.get('age5_full_real_proof_certificate_v1_family_contract_selftest_completed_checks', '-')} "
+        f"age5_proof_certificate_v1_family_contract_total={parsed.get('age5_full_real_proof_certificate_v1_family_contract_selftest_total_checks', '-')} "
+        f"age5_proof_certificate_v1_family_contract_checks_text={parsed.get('age5_full_real_proof_certificate_v1_family_contract_selftest_checks_text', '-')} "
+        f"age5_proof_certificate_v1_family_contract_current_probe={parsed.get('age5_full_real_proof_certificate_v1_family_contract_selftest_current_probe', '-')} "
+        f"age5_proof_certificate_v1_family_contract_last_completed_probe={parsed.get('age5_full_real_proof_certificate_v1_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_proof_certificate_v1_family_contract_progress={parsed.get('age5_full_real_proof_certificate_v1_family_contract_selftest_progress_present', '0')} "
+        f"age5_proof_certificate_family_contract_completed={parsed.get('age5_full_real_proof_certificate_family_contract_selftest_completed_checks', '-')} "
+        f"age5_proof_certificate_family_contract_total={parsed.get('age5_full_real_proof_certificate_family_contract_selftest_total_checks', '-')} "
+        f"age5_proof_certificate_family_contract_checks_text={parsed.get('age5_full_real_proof_certificate_family_contract_selftest_checks_text', '-')} "
+        f"age5_proof_certificate_family_contract_current_probe={parsed.get('age5_full_real_proof_certificate_family_contract_selftest_current_probe', '-')} "
+        f"age5_proof_certificate_family_contract_last_completed_probe={parsed.get('age5_full_real_proof_certificate_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_proof_certificate_family_contract_progress={parsed.get('age5_full_real_proof_certificate_family_contract_selftest_progress_present', '0')} "
+        f"age5_proof_certificate_family_transport_contract_completed={parsed.get('age5_full_real_proof_certificate_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_proof_certificate_family_transport_contract_total={parsed.get('age5_full_real_proof_certificate_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_proof_certificate_family_transport_contract_checks_text={parsed.get('age5_full_real_proof_certificate_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_proof_certificate_family_transport_contract_current_probe={parsed.get('age5_full_real_proof_certificate_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_proof_certificate_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_proof_certificate_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_proof_certificate_family_transport_contract_progress={parsed.get('age5_full_real_proof_certificate_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_proof_family_contract_completed={parsed.get('age5_full_real_proof_family_contract_selftest_completed_checks', '-')} "
+        f"age5_proof_family_contract_total={parsed.get('age5_full_real_proof_family_contract_selftest_total_checks', '-')} "
+        f"age5_proof_family_contract_checks_text={parsed.get('age5_full_real_proof_family_contract_selftest_checks_text', '-')} "
+        f"age5_proof_family_contract_current_probe={parsed.get('age5_full_real_proof_family_contract_selftest_current_probe', '-')} "
+        f"age5_proof_family_contract_last_completed_probe={parsed.get('age5_full_real_proof_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_proof_family_contract_progress={parsed.get('age5_full_real_proof_family_contract_selftest_progress_present', '0')} "
+        f"age5_proof_family_transport_contract_completed={parsed.get('age5_full_real_proof_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_proof_family_transport_contract_total={parsed.get('age5_full_real_proof_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_proof_family_transport_contract_checks_text={parsed.get('age5_full_real_proof_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_proof_family_transport_contract_current_probe={parsed.get('age5_full_real_proof_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_proof_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_proof_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_proof_family_transport_contract_progress={parsed.get('age5_full_real_proof_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_lang_surface_family_contract_completed={parsed.get('age5_full_real_lang_surface_family_contract_selftest_completed_checks', '-')} "
+        f"age5_lang_surface_family_contract_total={parsed.get('age5_full_real_lang_surface_family_contract_selftest_total_checks', '-')} "
+        f"age5_lang_surface_family_contract_checks_text={parsed.get('age5_full_real_lang_surface_family_contract_selftest_checks_text', '-')} "
+        f"age5_lang_surface_family_contract_current_probe={parsed.get('age5_full_real_lang_surface_family_contract_selftest_current_probe', '-')} "
+        f"age5_lang_surface_family_contract_last_completed_probe={parsed.get('age5_full_real_lang_surface_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_lang_surface_family_contract_progress={parsed.get('age5_full_real_lang_surface_family_contract_selftest_progress_present', '0')} "
+        f"age5_lang_runtime_family_contract_completed={parsed.get('age5_full_real_lang_runtime_family_contract_selftest_completed_checks', '-')} "
+        f"age5_lang_runtime_family_contract_total={parsed.get('age5_full_real_lang_runtime_family_contract_selftest_total_checks', '-')} "
+        f"age5_lang_runtime_family_contract_checks_text={parsed.get('age5_full_real_lang_runtime_family_contract_selftest_checks_text', '-')} "
+        f"age5_lang_runtime_family_contract_current_probe={parsed.get('age5_full_real_lang_runtime_family_contract_selftest_current_probe', '-')} "
+        f"age5_lang_runtime_family_contract_last_completed_probe={parsed.get('age5_full_real_lang_runtime_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_lang_runtime_family_contract_progress={parsed.get('age5_full_real_lang_runtime_family_contract_selftest_progress_present', '0')} "
+        f"age5_gate0_family_contract_completed={parsed.get('age5_full_real_gate0_family_contract_selftest_completed_checks', '-')} "
+        f"age5_gate0_family_contract_total={parsed.get('age5_full_real_gate0_family_contract_selftest_total_checks', '-')} "
+        f"age5_gate0_family_contract_checks_text={parsed.get('age5_full_real_gate0_family_contract_selftest_checks_text', '-')} "
+        f"age5_gate0_family_contract_current_probe={parsed.get('age5_full_real_gate0_family_contract_selftest_current_probe', '-')} "
+        f"age5_gate0_family_contract_last_completed_probe={parsed.get('age5_full_real_gate0_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_gate0_family_contract_progress={parsed.get('age5_full_real_gate0_family_contract_selftest_progress_present', '0')} "
+        f"age5_gate0_surface_family_contract_completed={parsed.get('age5_full_real_gate0_surface_family_contract_selftest_completed_checks', '-')} "
+        f"age5_gate0_surface_family_contract_total={parsed.get('age5_full_real_gate0_surface_family_contract_selftest_total_checks', '-')} "
+        f"age5_gate0_surface_family_contract_checks_text={parsed.get('age5_full_real_gate0_surface_family_contract_selftest_checks_text', '-')} "
+        f"age5_gate0_surface_family_contract_current_probe={parsed.get('age5_full_real_gate0_surface_family_contract_selftest_current_probe', '-')} "
+        f"age5_gate0_surface_family_contract_last_completed_probe={parsed.get('age5_full_real_gate0_surface_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_gate0_surface_family_contract_progress={parsed.get('age5_full_real_gate0_surface_family_contract_selftest_progress_present', '0')} "
+        f"age5_gate0_surface_family_transport_contract_completed={parsed.get('age5_full_real_gate0_surface_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_gate0_surface_family_transport_contract_total={parsed.get('age5_full_real_gate0_surface_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_gate0_surface_family_transport_contract_checks_text={parsed.get('age5_full_real_gate0_surface_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_gate0_surface_family_transport_contract_current_probe={parsed.get('age5_full_real_gate0_surface_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_gate0_surface_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_gate0_surface_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_gate0_surface_family_transport_contract_progress={parsed.get('age5_full_real_gate0_surface_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_lang_runtime_family_transport_contract_completed={parsed.get('age5_full_real_lang_runtime_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_lang_runtime_family_transport_contract_total={parsed.get('age5_full_real_lang_runtime_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_lang_runtime_family_transport_contract_checks_text={parsed.get('age5_full_real_lang_runtime_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_lang_runtime_family_transport_contract_current_probe={parsed.get('age5_full_real_lang_runtime_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_lang_runtime_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_lang_runtime_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_lang_runtime_family_transport_contract_progress={parsed.get('age5_full_real_lang_runtime_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_gate0_runtime_family_transport_contract_completed={parsed.get('age5_full_real_gate0_runtime_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_gate0_runtime_family_transport_contract_total={parsed.get('age5_full_real_gate0_runtime_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_gate0_runtime_family_transport_contract_checks_text={parsed.get('age5_full_real_gate0_runtime_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_gate0_runtime_family_transport_contract_current_probe={parsed.get('age5_full_real_gate0_runtime_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_gate0_runtime_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_gate0_runtime_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_gate0_runtime_family_transport_contract_progress={parsed.get('age5_full_real_gate0_runtime_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_gate0_family_transport_contract_completed={parsed.get('age5_full_real_gate0_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_gate0_family_transport_contract_total={parsed.get('age5_full_real_gate0_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_gate0_family_transport_contract_checks_text={parsed.get('age5_full_real_gate0_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_gate0_family_transport_contract_current_probe={parsed.get('age5_full_real_gate0_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_gate0_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_gate0_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_gate0_family_transport_contract_progress={parsed.get('age5_full_real_gate0_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_gate0_transport_family_contract_completed={parsed.get('age5_full_real_gate0_transport_family_contract_selftest_completed_checks', '-')} "
+        f"age5_gate0_transport_family_contract_total={parsed.get('age5_full_real_gate0_transport_family_contract_selftest_total_checks', '-')} "
+        f"age5_gate0_transport_family_contract_checks_text={parsed.get('age5_full_real_gate0_transport_family_contract_selftest_checks_text', '-')} "
+        f"age5_gate0_transport_family_contract_current_probe={parsed.get('age5_full_real_gate0_transport_family_contract_selftest_current_probe', '-')} "
+        f"age5_gate0_transport_family_contract_last_completed_probe={parsed.get('age5_full_real_gate0_transport_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_gate0_transport_family_contract_progress={parsed.get('age5_full_real_gate0_transport_family_contract_selftest_progress_present', '0')} "
+        f"age5_gate0_transport_family_transport_contract_completed={parsed.get('age5_full_real_gate0_transport_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_gate0_transport_family_transport_contract_total={parsed.get('age5_full_real_gate0_transport_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_gate0_transport_family_transport_contract_checks_text={parsed.get('age5_full_real_gate0_transport_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_gate0_transport_family_transport_contract_current_probe={parsed.get('age5_full_real_gate0_transport_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_gate0_transport_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_gate0_transport_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_gate0_transport_family_transport_contract_progress={parsed.get('age5_full_real_gate0_transport_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_lang_surface_family_transport_contract_completed={parsed.get('age5_full_real_lang_surface_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_lang_surface_family_transport_contract_total={parsed.get('age5_full_real_lang_surface_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_lang_surface_family_transport_contract_checks_text={parsed.get('age5_full_real_lang_surface_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_lang_surface_family_transport_contract_current_probe={parsed.get('age5_full_real_lang_surface_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_lang_surface_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_lang_surface_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_lang_surface_family_transport_contract_progress={parsed.get('age5_full_real_lang_surface_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_bogae_alias_family_contract_completed={parsed.get('age5_full_real_bogae_alias_family_contract_selftest_completed_checks', '-')} "
+        f"age5_bogae_alias_family_contract_total={parsed.get('age5_full_real_bogae_alias_family_contract_selftest_total_checks', '-')} "
+        f"age5_bogae_alias_family_contract_checks_text={parsed.get('age5_full_real_bogae_alias_family_contract_selftest_checks_text', '-')} "
+        f"age5_bogae_alias_family_contract_current_probe={parsed.get('age5_full_real_bogae_alias_family_contract_selftest_current_probe', '-')} "
+        f"age5_bogae_alias_family_contract_last_completed_probe={parsed.get('age5_full_real_bogae_alias_family_contract_selftest_last_completed_probe', '-')} "
+        f"age5_bogae_alias_family_contract_progress={parsed.get('age5_full_real_bogae_alias_family_contract_selftest_progress_present', '0')} "
+        f"age5_bogae_alias_family_transport_contract_completed={parsed.get('age5_full_real_bogae_alias_family_transport_contract_selftest_completed_checks', '-')} "
+        f"age5_bogae_alias_family_transport_contract_total={parsed.get('age5_full_real_bogae_alias_family_transport_contract_selftest_total_checks', '-')} "
+        f"age5_bogae_alias_family_transport_contract_checks_text={parsed.get('age5_full_real_bogae_alias_family_transport_contract_selftest_checks_text', '-')} "
+        f"age5_bogae_alias_family_transport_contract_current_probe={parsed.get('age5_full_real_bogae_alias_family_transport_contract_selftest_current_probe', '-')} "
+        f"age5_bogae_alias_family_transport_contract_last_completed_probe={parsed.get('age5_full_real_bogae_alias_family_transport_contract_selftest_last_completed_probe', '-')} "
+        f"age5_bogae_alias_family_transport_contract_progress={parsed.get('age5_full_real_bogae_alias_family_transport_contract_selftest_progress_present', '0')} "
+        f"age5_runtime_helper_negative={parsed.get('age5_combined_heavy_runtime_helper_negative_status', '-')} "
+        f"age5_group_id_summary_negative={parsed.get('age5_combined_heavy_group_id_summary_negative_status', '-')} "
+        f"age5_child_summary_defaults={parsed.get('ci_sanity_age5_combined_heavy_child_summary_default_fields', '-')} "
+        f"age5_sync_child_summary_defaults={parsed.get('ci_sync_readiness_ci_sanity_age5_combined_heavy_child_summary_default_fields', '-')} "
         f"oi_failed={parsed.get('oi_failed_packs', '-1')} "
         f"reason={parsed.get('reason', '-')}"
     )

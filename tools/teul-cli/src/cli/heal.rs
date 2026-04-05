@@ -38,9 +38,20 @@ struct HealScenarioReport {
     final_state_hash: String,
 }
 
+#[derive(Serialize, Clone)]
+struct HealSourceProvenance {
+    schema: &'static str,
+    source_kind: &'static str,
+    pack_dir: String,
+    input_file: String,
+    input_hash: String,
+}
+
 #[derive(Serialize)]
 struct HealReportSeed {
     schema: &'static str,
+    source_hash: String,
+    source_provenance: HealSourceProvenance,
     input_schema: &'static str,
     scenario_count: usize,
     overall_pass: bool,
@@ -52,6 +63,8 @@ struct HealReportSeed {
 #[derive(Serialize)]
 struct HealReport {
     schema: &'static str,
+    source_hash: String,
+    source_provenance: HealSourceProvenance,
     input_schema: &'static str,
     scenario_count: usize,
     overall_pass: bool,
@@ -63,13 +76,15 @@ struct HealReport {
 
 pub fn run_pack(pack_dir: &Path, out_dir: Option<&Path>) -> Result<(), String> {
     let input_path = pack_dir.join("fault_scenarios.json");
-    let text = fs::read_to_string(&input_path).map_err(|e| {
+    let input_bytes = fs::read(&input_path).map_err(|e| {
         format!(
             "E_HEAL_INPUT_READ read input failed {} ({})",
             input_path.display(),
             e
         )
     })?;
+    let text = String::from_utf8(input_bytes.clone())
+        .map_err(|_| format!("E_HEAL_INPUT_UTF8 {}", input_path.display()))?;
     let doc: HealInputDoc =
         serde_json::from_str(&text).map_err(|e| format!("E_HEAL_INPUT_PARSE {}", e))?;
 
@@ -130,8 +145,18 @@ pub fn run_pack(pack_dir: &Path, out_dir: Option<&Path>) -> Result<(), String> {
         });
     }
 
+    let source_hash = format!("sha256:{}", detjson::sha256_hex(&input_bytes));
+    let source_provenance = HealSourceProvenance {
+        schema: "ddn.gogae9.w97.heal_source_provenance.v1",
+        source_kind: "heal_fault_scenarios.v1",
+        pack_dir: pack_dir.to_string_lossy().replace('\\', "/"),
+        input_file: input_path.to_string_lossy().replace('\\', "/"),
+        input_hash: source_hash.clone(),
+    };
     let seed = HealReportSeed {
         schema: HEAL_REPORT_SCHEMA,
+        source_hash: source_hash.clone(),
+        source_provenance: source_provenance.clone(),
         input_schema: HEAL_INPUT_SCHEMA,
         scenario_count: rows.len(),
         overall_pass: true,
@@ -139,11 +164,13 @@ pub fn run_pack(pack_dir: &Path, out_dir: Option<&Path>) -> Result<(), String> {
         rollback_restored: true,
         cases: rows,
     };
-    let seed_text = serde_json::to_string(&seed)
-        .map_err(|e| format!("E_HEAL_REPORT_SERIALIZE {}", e))?;
+    let seed_text =
+        serde_json::to_string(&seed).map_err(|e| format!("E_HEAL_REPORT_SERIALIZE {}", e))?;
     let heal_report_hash = format!("blake3:{}", blake3::hash(seed_text.as_bytes()).to_hex());
     let report = HealReport {
         schema: seed.schema,
+        source_hash,
+        source_provenance,
         input_schema: seed.input_schema,
         scenario_count: seed.scenario_count,
         overall_pass: seed.overall_pass,
@@ -152,15 +179,20 @@ pub fn run_pack(pack_dir: &Path, out_dir: Option<&Path>) -> Result<(), String> {
         cases: seed.cases,
         heal_report_hash: heal_report_hash.clone(),
     };
-    let report_text = serde_json::to_string(&report)
-        .map_err(|e| format!("E_HEAL_REPORT_SERIALIZE {}", e))?;
+    let report_text =
+        serde_json::to_string(&report).map_err(|e| format!("E_HEAL_REPORT_SERIALIZE {}", e))?;
 
     let out_root = match out_dir {
         Some(path) => path.to_path_buf(),
         None => paths::build_dir().join("heal"),
     };
-    fs::create_dir_all(&out_root)
-        .map_err(|e| format!("E_HEAL_OUT_DIR create failed {} ({})", out_root.display(), e))?;
+    fs::create_dir_all(&out_root).map_err(|e| {
+        format!(
+            "E_HEAL_OUT_DIR create failed {} ({})",
+            out_root.display(),
+            e
+        )
+    })?;
     let out_file = out_root.join("heal_report.detjson");
     detjson::write_text(&out_file, &report_text)
         .map_err(|e| format!("E_HEAL_OUT_WRITE {} ({})", out_file.display(), e))?;

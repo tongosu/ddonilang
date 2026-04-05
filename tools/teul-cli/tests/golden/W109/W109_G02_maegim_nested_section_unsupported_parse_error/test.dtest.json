@@ -1,0 +1,18 @@
+{
+  "name": "W109_G02_maegim_nested_section_unsupported_parse_error",
+  "walk": 109,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_MAEGIM_NESTED_SECTION_UNSUPPORTED",
+      "가늠`/`갈래",
+      "실험"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

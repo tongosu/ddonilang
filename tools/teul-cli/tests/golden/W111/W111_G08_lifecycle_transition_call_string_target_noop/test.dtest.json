@@ -1,0 +1,16 @@
+﻿{
+  "name": "W111_G08_lifecycle_transition_call_string_target_noop",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "1"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

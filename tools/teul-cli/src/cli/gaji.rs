@@ -1964,6 +1964,44 @@ mod tests {
     }
 
     #[test]
+    fn run_vendor_default_allows_yanked_locked_with_warning_path() {
+        let root = temp_dir("vendor_default_yanked_allowed");
+        let pkg_dir = root.join("gaji").join("demo");
+        fs::create_dir_all(&pkg_dir).expect("pkg mkdir");
+        fs::write(
+            pkg_dir.join("gaji.toml"),
+            "id = \"demo/pkg\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("write toml");
+        fs::write(pkg_dir.join("main.ddn"), "값 <- 1.\n").expect("write src");
+
+        let lock_path = root.join("ddn.lock");
+        run_lock(&root, &lock_path).expect("lock");
+        let mut lock = read_lock_file(&lock_path).expect("read lock");
+        lock.get_mut("packages")
+            .and_then(|v| v.as_array_mut())
+            .and_then(|rows| rows.get_mut(0))
+            .and_then(|row| row.as_object_mut())
+            .expect("package row")
+            .insert("yanked".to_string(), Value::Bool(true));
+        fs::write(
+            &lock_path,
+            serde_json::to_string_pretty(&lock).expect("lock json"),
+        )
+        .expect("write lock");
+
+        let vendor_out = root.join("vendor").join("gaji");
+        run_vendor_with_options(
+            &root,
+            &lock_path,
+            &vendor_out,
+            &FrozenLockOptions::default(),
+        )
+        .expect("default mode should allow yanked lock as warn-only");
+        assert!(vendor_out.join("demo").join("gaji.toml").exists());
+    }
+
+    #[test]
     fn run_vendor_verify_registry_requires_index() {
         let root = temp_dir("vendor_verify_need_index");
         let pkg_dir = root.join("gaji").join("demo");

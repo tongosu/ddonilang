@@ -120,6 +120,7 @@ fn expr_type(expr: &Expr, symbols: &BTreeMap<String, TypeKind>) -> TypeKind {
         Expr::TemplateFill { .. } => TypeKind::Str,
         Expr::Pack { .. } => TypeKind::Unknown,
         Expr::SeedLiteral { .. } => TypeKind::Unknown,
+        Expr::Assertion { .. } => TypeKind::Unknown,
     }
 }
 

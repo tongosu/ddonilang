@@ -33,6 +33,11 @@ pub fn run_train(config_path: &Path, out_dir: Option<&Path>) -> Result<(), Strin
     let value: JsonValue =
         serde_json::from_str(&text).map_err(|e| format!("E_TRAIN_CONFIG_PARSE {}", e))?;
     let config_hash = format!("sha256:{}", sha256_hex(value.to_string().as_bytes()));
+    let config_file = config_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("train_config.json")
+        .to_string();
 
     let config: TrainConfig =
         serde_json::from_value(value).map_err(|e| format!("E_TRAIN_CONFIG_SCHEMA {}", e))?;
@@ -52,7 +57,16 @@ pub fn run_train(config_path: &Path, out_dir: Option<&Path>) -> Result<(), Strin
     let (base, step) = derive_curve(mix_seed);
 
     let outcome = run_toy_training(base, step, config.target_score, config.max_epochs);
-    let report_detjson = build_train_report(&run_id, &outcome, config.target_score);
+    let report_detjson = build_train_report(
+        &run_id,
+        &outcome,
+        config.target_score,
+        &config_file,
+        &config_hash,
+        &config.dataset_hash,
+        &config.recipe_hash,
+        &config.ssot_bundle_hash,
+    );
     let eval_report_hash = format!("sha256:{}", sha256_hex(report_detjson.as_bytes()));
 
     let mut artifact_detjson = None;
@@ -64,10 +78,13 @@ pub fn run_train(config_path: &Path, out_dir: Option<&Path>) -> Result<(), Strin
         artifact_detjson = Some(build_artifact(
             &config.model_id,
             &run_id,
+            &config_file,
             &config.ssot_bundle_hash,
             &config_hash,
             &eval_report_hash,
             &weights_hash,
+            &config.dataset_hash,
+            &config.recipe_hash,
         ));
     }
 
@@ -135,11 +152,57 @@ fn run_toy_training(base: u64, step: u64, target: u64, max_epochs: u64) -> Train
     }
 }
 
-fn build_train_report(run_id: &str, outcome: &TrainOutcome, target: u64) -> String {
+fn build_train_report(
+    run_id: &str,
+    outcome: &TrainOutcome,
+    target: u64,
+    config_file: &str,
+    config_hash: &str,
+    dataset_hash: &str,
+    recipe_hash: &str,
+    ssot_bundle_hash: &str,
+) -> String {
     let mut map = serde_json::Map::new();
     map.insert(
         "schema".to_string(),
         JsonValue::String("seulgi.train_report.v1".to_string()),
+    );
+    map.insert(
+        "source_hash".to_string(),
+        JsonValue::String(config_hash.to_string()),
+    );
+    let mut source_provenance = serde_json::Map::new();
+    source_provenance.insert(
+        "schema".to_string(),
+        JsonValue::String("seulgi.source_provenance.v1".to_string()),
+    );
+    source_provenance.insert(
+        "source_kind".to_string(),
+        JsonValue::String("train_config.v1".to_string()),
+    );
+    source_provenance.insert(
+        "config_file".to_string(),
+        JsonValue::String(config_file.to_string()),
+    );
+    source_provenance.insert(
+        "config_hash".to_string(),
+        JsonValue::String(config_hash.to_string()),
+    );
+    source_provenance.insert(
+        "dataset_hash".to_string(),
+        JsonValue::String(dataset_hash.to_string()),
+    );
+    source_provenance.insert(
+        "recipe_hash".to_string(),
+        JsonValue::String(recipe_hash.to_string()),
+    );
+    source_provenance.insert(
+        "ssot_bundle_hash".to_string(),
+        JsonValue::String(ssot_bundle_hash.to_string()),
+    );
+    map.insert(
+        "source_provenance".to_string(),
+        JsonValue::Object(source_provenance),
     );
     map.insert("run_id".to_string(), JsonValue::String(run_id.to_string()));
     map.insert("epoch".to_string(), JsonValue::Number(outcome.epoch.into()));
@@ -152,10 +215,13 @@ fn build_train_report(run_id: &str, outcome: &TrainOutcome, target: u64) -> Stri
 fn build_artifact(
     model_id: &str,
     run_id: &str,
+    config_file: &str,
     ssot_bundle_hash: &str,
     train_config_hash: &str,
     eval_report_hash: &str,
     weights_hash: &str,
+    dataset_hash: &str,
+    recipe_hash: &str,
 ) -> String {
     let mut map = serde_json::Map::new();
     map.insert(
@@ -186,6 +252,39 @@ fn build_artifact(
     map.insert(
         "weights_hash".to_string(),
         JsonValue::String(weights_hash.to_string()),
+    );
+    let mut source_provenance = serde_json::Map::new();
+    source_provenance.insert(
+        "schema".to_string(),
+        JsonValue::String("seulgi.source_provenance.v1".to_string()),
+    );
+    source_provenance.insert(
+        "source_kind".to_string(),
+        JsonValue::String("train_artifact.v1".to_string()),
+    );
+    source_provenance.insert(
+        "config_file".to_string(),
+        JsonValue::String(config_file.to_string()),
+    );
+    source_provenance.insert(
+        "config_hash".to_string(),
+        JsonValue::String(train_config_hash.to_string()),
+    );
+    source_provenance.insert(
+        "train_report_hash".to_string(),
+        JsonValue::String(eval_report_hash.to_string()),
+    );
+    source_provenance.insert(
+        "dataset_hash".to_string(),
+        JsonValue::String(dataset_hash.to_string()),
+    );
+    source_provenance.insert(
+        "recipe_hash".to_string(),
+        JsonValue::String(recipe_hash.to_string()),
+    );
+    map.insert(
+        "source_provenance".to_string(),
+        JsonValue::Object(source_provenance),
     );
     JsonValue::Object(map).to_string()
 }

@@ -6,7 +6,7 @@ use ddonirang_core::Fixed64;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 
-use super::detjson::write_text;
+use super::detjson::{sha256_hex, write_text};
 
 #[derive(Deserialize)]
 struct RewardCheckInput {
@@ -45,6 +45,12 @@ struct RealmSummary {
 pub fn run_reward_check(input: &Path, out_dir: Option<&Path>) -> Result<(), String> {
     let text = fs::read_to_string(input)
         .map_err(|e| format!("E_REWARD_INPUT_READ {} {}", input.display(), e))?;
+    let input_hash = format!("sha256:{}", sha256_hex(text.as_bytes()));
+    let input_file = input
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("reward_input.json")
+        .to_string();
     let input: RewardCheckInput =
         serde_json::from_str(&text).map_err(|e| format!("E_REWARD_INPUT_PARSE {}", e))?;
     if let Some(schema) = input.schema.as_deref() {
@@ -104,8 +110,10 @@ pub fn run_reward_check(input: &Path, out_dir: Option<&Path>) -> Result<(), Stri
         total = total.saturating_add(entry.reward);
     }
 
-    let log_detjson = build_reward_log(&entries);
-    let report_detjson = build_reward_report(&summaries, total);
+    let log_detjson = build_reward_log(&input_file, &input_hash, &entries);
+    let log_hash = format!("sha256:{}", sha256_hex(log_detjson.as_bytes()));
+    let report_detjson =
+        build_reward_report(&input_file, &input_hash, &log_hash, &summaries, total);
 
     if let Some(out_dir) = out_dir {
         fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
@@ -120,9 +128,15 @@ pub fn run_reward_check(input: &Path, out_dir: Option<&Path>) -> Result<(), Stri
     Ok(())
 }
 
-fn build_reward_log(entries: &[RewardEntry]) -> String {
+fn build_reward_log(input_file: &str, input_hash: &str, entries: &[RewardEntry]) -> String {
     let mut out = String::new();
-    out.push_str("{\"schema\":\"reward.log.v1\",\"entries\":[");
+    out.push_str("{\"schema\":\"reward.log.v1\",\"source_hash\":\"");
+    out.push_str(input_hash);
+    out.push_str("\",\"source_provenance\":{\"schema\":\"reward.source_provenance.v1\",\"source_kind\":\"reward_check.v1\",\"input_file\":\"");
+    out.push_str(input_file);
+    out.push_str("\",\"input_hash\":\"");
+    out.push_str(input_hash);
+    out.push_str("\"},\"entries\":[");
     for (idx, entry) in entries.iter().enumerate() {
         if idx > 0 {
             out.push(',');
@@ -139,9 +153,23 @@ fn build_reward_log(entries: &[RewardEntry]) -> String {
     out
 }
 
-fn build_reward_report(summaries: &BTreeMap<u64, RealmSummary>, total: Fixed64) -> String {
+fn build_reward_report(
+    input_file: &str,
+    input_hash: &str,
+    log_hash: &str,
+    summaries: &BTreeMap<u64, RealmSummary>,
+    total: Fixed64,
+) -> String {
     let mut out = String::new();
-    out.push_str("{\"schema\":\"reward.report.v1\",\"realm_count\":");
+    out.push_str("{\"schema\":\"reward.report.v1\",\"source_hash\":\"");
+    out.push_str(input_hash);
+    out.push_str("\",\"source_provenance\":{\"schema\":\"reward.source_provenance.v1\",\"source_kind\":\"reward_check.v1\",\"input_file\":\"");
+    out.push_str(input_file);
+    out.push_str("\",\"input_hash\":\"");
+    out.push_str(input_hash);
+    out.push_str("\",\"log_hash\":\"");
+    out.push_str(log_hash);
+    out.push_str("\"},\"realm_count\":");
     out.push_str(&summaries.len().to_string());
     out.push_str(",\"total_raw\":\"");
     out.push_str(&fixed64_raw_string(total));

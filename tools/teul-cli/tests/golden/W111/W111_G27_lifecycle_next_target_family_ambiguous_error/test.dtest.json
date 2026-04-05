@@ -1,0 +1,17 @@
+{
+  "name": "W111_G27_lifecycle_next_target_family_ambiguous_error",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_LIFECYCLE_NEXT_TARGET_FAMILY_AMBIGUOUS",
+      "혼합판마당"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "W109_G03_maegim_nested_field_unsupported_parse_error",
+  "walk": 109,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_PARSE_MAEGIM_NESTED_FIELD_UNSUPPORTED",
+      "가늠",
+      "최소값"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

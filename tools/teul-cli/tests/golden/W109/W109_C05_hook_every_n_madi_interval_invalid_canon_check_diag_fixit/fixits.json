@@ -1,0 +1,18 @@
+[
+  {
+    "code": "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
+    "message": "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID fix-it 제안",
+    "span": {
+      "end_col": 2,
+      "end_line": 1,
+      "file": "main.ddn",
+      "start_col": 2,
+      "start_line": 1
+    },
+    "suggestion": {
+      "kind": "replace",
+      "note": "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
+      "old": "0"
+    }
+  }
+]

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{env, path::Component};
@@ -21,6 +21,36 @@ pub enum OpenMode {
     Replay,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OpenSolverOp {
+    Check,
+    Counterexample,
+    Solve,
+}
+
+impl OpenSolverOp {
+    fn as_str(self) -> &'static str {
+        match self {
+            OpenSolverOp::Check => "check",
+            OpenSolverOp::Counterexample => "counterexample",
+            OpenSolverOp::Solve => "solve",
+        }
+    }
+
+    fn goal_kind(self) -> &'static str {
+        match self {
+            OpenSolverOp::Check | OpenSolverOp::Counterexample => "assertion",
+            OpenSolverOp::Solve => "formula",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OpenSolverReply {
+    Check { satisfied: bool },
+    Search { found: bool, value: Option<String> },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct OpenKey {
     open_kind: String,
@@ -32,6 +62,14 @@ struct OpenKey {
 struct OpenValue {
     value: JsonValue,
     detjson_hash: String,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct OpenCheckpoint {
+    replay: BTreeMap<OpenKey, VecDeque<OpenValue>>,
+    open_seq: u64,
+    current_tick: u64,
+    record_len: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -71,6 +109,23 @@ impl OpenDiagConfig {
             run_id,
             det_tier,
             trace_tier,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OpenInputFrame {
+    pub held_mask: u16,
+    pub pressed_mask: u16,
+    pub released_mask: u16,
+}
+
+impl OpenInputFrame {
+    pub fn new(held_mask: u16, pressed_mask: u16, released_mask: u16) -> Self {
+        Self {
+            held_mask,
+            pressed_mask,
+            released_mask,
         }
     }
 }
@@ -180,6 +235,58 @@ impl OpenRuntime {
 
     pub fn set_tick(&mut self, tick: u64) {
         self.current_tick = tick;
+    }
+
+    pub(crate) fn checkpoint(&self, span: Span) -> Result<OpenCheckpoint, RuntimeError> {
+        let record_len = match self.record_out.as_ref() {
+            Some(file) => Some(
+                file.metadata()
+                    .map_err(|e| RuntimeError::OpenIo {
+                        message: format!("open.log 길이 확인 실패: {}", e),
+                        span,
+                    })?
+                    .len(),
+            ),
+            None => None,
+        };
+        Ok(OpenCheckpoint {
+            replay: self.replay.clone(),
+            open_seq: self.open_seq,
+            current_tick: self.current_tick,
+            record_len,
+        })
+    }
+
+    pub(crate) fn restore(
+        &mut self,
+        checkpoint: OpenCheckpoint,
+        span: Span,
+    ) -> Result<(), RuntimeError> {
+        self.replay = checkpoint.replay;
+        self.open_seq = checkpoint.open_seq;
+        self.current_tick = checkpoint.current_tick;
+        if let Some(record_len) = checkpoint.record_len {
+            let Some(file) = self.record_out.as_mut() else {
+                return Err(RuntimeError::OpenIo {
+                    message: "open.log 출력 대상이 없습니다".to_string(),
+                    span,
+                });
+            };
+            file.set_len(record_len).map_err(|e| RuntimeError::OpenIo {
+                message: format!("open.log truncate 실패: {}", e),
+                span,
+            })?;
+            file.seek(SeekFrom::Start(record_len))
+                .map_err(|e| RuntimeError::OpenIo {
+                    message: format!("open.log seek 실패: {}", e),
+                    span,
+                })?;
+            file.flush().map_err(|e| RuntimeError::OpenIo {
+                message: format!("open.log flush 실패: {}", e),
+                span,
+            })?;
+        }
+        Ok(())
     }
 
     pub fn open_clock(&mut self, site_id: &str, span: Span) -> Result<Value, RuntimeError> {
@@ -582,6 +689,143 @@ impl OpenRuntime {
         result
     }
 
+    pub fn open_input(
+        &mut self,
+        site_id: &str,
+        madi: u64,
+        frame: Option<OpenInputFrame>,
+        span: Span,
+    ) -> Result<OpenInputFrame, RuntimeError> {
+        let open_seq = self.next_open_seq();
+        let key = format!("madi:{}", madi);
+        if !self.policy_allows("input") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "input".to_string(),
+                span,
+            };
+            self.record_diag(
+                "input",
+                site_id,
+                &key,
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
+            return Err(err);
+        }
+        self.warn_not_declared("input", site_id);
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
+            OpenMode::Deny => Err(RuntimeError::OpenDenied {
+                open_kind: "input".to_string(),
+                span,
+            }),
+            OpenMode::Record => {
+                let frame = frame.ok_or(RuntimeError::OpenIo {
+                    message: "open.input record에는 입력 프레임이 필요합니다".to_string(),
+                    span,
+                })?;
+                let value_json = build_open_input_value(frame);
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("input", site_id, &key, &value_json, &detjson_hash, span)?;
+                Ok(frame)
+            }
+            OpenMode::Replay => {
+                let value = self.take_replay("input", site_id, &key, span)?;
+                value_hash = Some(value.detjson_hash.clone());
+                parse_open_input_frame(&value.value, span)
+            }
+        };
+        let (result_label, diag_code) = match &result {
+            Ok(_) => ("ok", None),
+            Err(err) => {
+                let label = match err {
+                    RuntimeError::OpenDenied { .. } => "deny",
+                    _ => "fault",
+                };
+                (label, Some(err.code()))
+            }
+        };
+        self.record_diag(
+            "input",
+            site_id,
+            &key,
+            value_hash.as_deref(),
+            result_label,
+            diag_code,
+            open_seq,
+            span,
+        )?;
+        result
+    }
+
+    pub fn open_solver(
+        &mut self,
+        site_id: &str,
+        op: OpenSolverOp,
+        goal: &str,
+        reply: Option<OpenSolverReply>,
+        span: Span,
+    ) -> Result<Value, RuntimeError> {
+        let open_seq = self.next_open_seq();
+        let key = build_open_solver_key(op, goal);
+        if !self.policy_allows("solver") {
+            let err = RuntimeError::OpenDenied {
+                open_kind: "solver".to_string(),
+                span,
+            };
+            self.record_diag(
+                "solver",
+                site_id,
+                &key,
+                None,
+                "deny",
+                Some(err.code()),
+                open_seq,
+                span,
+            )?;
+            return Err(err);
+        }
+        self.warn_not_declared("solver", site_id);
+        let mut value_hash: Option<String> = None;
+        let result = match self.mode {
+            OpenMode::Deny => Err(RuntimeError::OpenDenied {
+                open_kind: "solver".to_string(),
+                span,
+            }),
+            OpenMode::Record => {
+                let reply = reply.ok_or(RuntimeError::OpenIo {
+                    message: "open.solver 기록에는 결과가 필요합니다".to_string(),
+                    span,
+                })?;
+                let value_json = build_open_solver_value(op, goal, &reply);
+                let detjson_hash = build_detjson_hash(&value_json, span)?;
+                value_hash = Some(detjson_hash.clone());
+                self.append_event("solver", site_id, &key, &value_json, &detjson_hash, span)?;
+                Ok(open_solver_reply_to_value(reply))
+            }
+            OpenMode::Replay => {
+                let value = self.take_replay("solver", site_id, &key, span)?;
+                value_hash = Some(value.detjson_hash.clone());
+                let reply = parse_open_solver_reply(&value.value, op, span)?;
+                Ok(open_solver_reply_to_value(reply))
+            }
+        };
+        self.finish_diag(
+            "solver",
+            site_id,
+            &key,
+            value_hash.as_deref(),
+            &result,
+            open_seq,
+            span,
+        )?;
+        result
+    }
+
     fn append_event(
         &mut self,
         open_kind: &str,
@@ -874,10 +1118,12 @@ fn diag_open_kind(open_kind: &str) -> &'static str {
     match open_kind {
         "clock" => "open.clock",
         "file_read" => "open.file_read",
+        "input" => "open.input",
         "rand" => "open.rand",
         "net" => "open.net",
         "ffi" => "open.ffi",
         "gpu" => "open.gpu",
+        "solver" => "open.solver",
         _ => "open.unknown",
     }
 }
@@ -1070,6 +1316,56 @@ fn parse_rand_value(value: &JsonValue, span: Span) -> Result<i64, RuntimeError> 
     Ok(value)
 }
 
+fn build_open_input_value(frame: OpenInputFrame) -> JsonValue {
+    let mut obj = serde_json::Map::new();
+    obj.insert(
+        "schema".to_string(),
+        JsonValue::String("open.input.v1".to_string()),
+    );
+    obj.insert(
+        "held_mask".to_string(),
+        JsonValue::Number(serde_json::Number::from(frame.held_mask)),
+    );
+    obj.insert(
+        "pressed_mask".to_string(),
+        JsonValue::Number(serde_json::Number::from(frame.pressed_mask)),
+    );
+    obj.insert(
+        "released_mask".to_string(),
+        JsonValue::Number(serde_json::Number::from(frame.released_mask)),
+    );
+    JsonValue::Object(obj)
+}
+
+fn parse_open_input_frame(value: &JsonValue, span: Span) -> Result<OpenInputFrame, RuntimeError> {
+    let Some(obj) = value.as_object() else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: "open.input value는 객체여야 합니다".to_string(),
+            span,
+        });
+    };
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.input schema 누락".to_string(),
+                span,
+            })?;
+    if schema != "open.input.v1" {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!(
+                "open.input schema 불일치: expected=open.input.v1 actual={}",
+                schema
+            ),
+            span,
+        });
+    }
+    let held_mask = require_u16_field(obj, "open.input", "held_mask", span)?;
+    let pressed_mask = require_u16_field(obj, "open.input", "pressed_mask", span)?;
+    let released_mask = require_u16_field(obj, "open.input", "released_mask", span)?;
+    Ok(OpenInputFrame::new(held_mask, pressed_mask, released_mask))
+}
+
 fn build_open_net_value(url: &str, method: &str, body: Option<&str>, response: &str) -> JsonValue {
     let mut obj = serde_json::Map::new();
     obj.insert(
@@ -1093,6 +1389,161 @@ fn build_open_net_key(method: &str, url: &str, body: Option<&str>) -> String {
         key.push_str(digest.as_str());
     }
     key
+}
+
+fn build_open_solver_key(op: OpenSolverOp, goal: &str) -> String {
+    format!("{}:{}", op.as_str(), goal)
+}
+
+fn build_open_solver_value(op: OpenSolverOp, goal: &str, reply: &OpenSolverReply) -> JsonValue {
+    let mut obj = serde_json::Map::new();
+    obj.insert(
+        "schema".to_string(),
+        JsonValue::String("open.solver.v1".to_string()),
+    );
+    obj.insert("op".to_string(), JsonValue::String(op.as_str().to_string()));
+    obj.insert(
+        "goal".to_string(),
+        JsonValue::Object(serde_json::Map::from_iter([
+            (
+                "kind".to_string(),
+                JsonValue::String(op.goal_kind().to_string()),
+            ),
+            ("canon".to_string(), JsonValue::String(goal.to_string())),
+        ])),
+    );
+    let result = match reply {
+        OpenSolverReply::Check { satisfied } => JsonValue::Object(serde_json::Map::from_iter([(
+            "satisfied".to_string(),
+            JsonValue::Bool(*satisfied),
+        )])),
+        OpenSolverReply::Search { found, value } => {
+            let mut result = serde_json::Map::new();
+            result.insert("found".to_string(), JsonValue::Bool(*found));
+            if let Some(value) = value {
+                result.insert("value".to_string(), JsonValue::String(value.clone()));
+            }
+            JsonValue::Object(result)
+        }
+    };
+    obj.insert("result".to_string(), result);
+    JsonValue::Object(obj)
+}
+
+fn parse_open_solver_reply(
+    value: &JsonValue,
+    expected_op: OpenSolverOp,
+    span: Span,
+) -> Result<OpenSolverReply, RuntimeError> {
+    let Some(obj) = value.as_object() else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: "open.solver value는 객체여야 합니다".to_string(),
+            span,
+        });
+    };
+    let schema =
+        obj.get("schema")
+            .and_then(|v| v.as_str())
+            .ok_or(RuntimeError::OpenReplayInvalid {
+                message: "open.solver schema 누락".to_string(),
+                span,
+            })?;
+    if schema != "open.solver.v1" {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!(
+                "open.solver schema 불일치: expected=open.solver.v1 actual={}",
+                schema
+            ),
+            span,
+        });
+    }
+    if let (Some(query), Some(answer)) = (
+        obj.get("query").and_then(|v| v.as_str()),
+        obj.get("satisfied").and_then(|v| v.as_bool()),
+    ) {
+        if expected_op != OpenSolverOp::Check {
+            return Err(RuntimeError::OpenReplayInvalid {
+                message: format!(
+                    "open.solver legacy check 로그를 {} 요청에 재사용할 수 없습니다",
+                    expected_op.as_str()
+                ),
+                span,
+            });
+        }
+        if query.is_empty() {
+            return Err(RuntimeError::OpenReplayInvalid {
+                message: "open.solver query는 빈 문자열일 수 없습니다".to_string(),
+                span,
+            });
+        }
+        return Ok(OpenSolverReply::Check { satisfied: answer });
+    }
+    let op = require_string_field(obj, "open.solver", "op", span)?;
+    if op != expected_op.as_str() {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!(
+                "open.solver op 불일치: expected={} actual={}",
+                expected_op.as_str(),
+                op
+            ),
+            span,
+        });
+    }
+    let goal_obj = require_object_field(obj, "open.solver", "goal", span)?;
+    require_string_field(goal_obj, "open.solver.goal", "kind", span)?;
+    let canon = require_string_field(goal_obj, "open.solver.goal", "canon", span)?;
+    if canon.is_empty() {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: "open.solver goal.canon은 빈 문자열일 수 없습니다".to_string(),
+            span,
+        });
+    }
+    let result_obj = require_object_field(obj, "open.solver", "result", span)?;
+    match expected_op {
+        OpenSolverOp::Check => {
+            let Some(satisfied) = result_obj.get("satisfied").and_then(|v| v.as_bool()) else {
+                return Err(RuntimeError::OpenReplayInvalid {
+                    message: "open.solver result.satisfied는 참거짓이어야 합니다".to_string(),
+                    span,
+                });
+            };
+            Ok(OpenSolverReply::Check { satisfied })
+        }
+        OpenSolverOp::Counterexample | OpenSolverOp::Solve => {
+            let Some(found) = result_obj.get("found").and_then(|v| v.as_bool()) else {
+                return Err(RuntimeError::OpenReplayInvalid {
+                    message: "open.solver result.found는 참거짓이어야 합니다".to_string(),
+                    span,
+                });
+            };
+            let value = result_obj
+                .get("value")
+                .map(|raw| match raw {
+                    JsonValue::String(text) => Ok(text.clone()),
+                    _ => Err(RuntimeError::OpenReplayInvalid {
+                        message: "open.solver result.value는 문자열이어야 합니다".to_string(),
+                        span,
+                    }),
+                })
+                .transpose()?;
+            Ok(OpenSolverReply::Search { found, value })
+        }
+    }
+}
+
+fn open_solver_reply_to_value(reply: OpenSolverReply) -> Value {
+    match reply {
+        OpenSolverReply::Check { satisfied } => Value::Bool(satisfied),
+        OpenSolverReply::Search { found, value } => {
+            let mut fields = BTreeMap::new();
+            fields.insert("찾음".to_string(), Value::Bool(found));
+            fields.insert(
+                "값".to_string(),
+                value.map(Value::Str).unwrap_or(Value::None),
+            );
+            Value::Pack(PackValue { fields })
+        }
+    }
 }
 
 fn parse_open_net_text(value: &JsonValue, span: Span) -> Result<String, RuntimeError> {
@@ -1256,6 +1707,51 @@ fn require_string_field<'a>(
     Ok(text)
 }
 
+fn require_object_field<'a>(
+    obj: &'a serde_json::Map<String, JsonValue>,
+    label: &str,
+    key: &str,
+    span: Span,
+) -> Result<&'a serde_json::Map<String, JsonValue>, RuntimeError> {
+    let Some(value) = obj.get(key) else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {} 누락", label, key),
+            span,
+        });
+    };
+    let Some(found) = value.as_object() else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {}은 객체여야 합니다", label, key),
+            span,
+        });
+    };
+    Ok(found)
+}
+
+fn require_u16_field(
+    obj: &serde_json::Map<String, JsonValue>,
+    label: &str,
+    key: &str,
+    span: Span,
+) -> Result<u16, RuntimeError> {
+    let Some(value) = obj.get(key) else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {} 누락", label, key),
+            span,
+        });
+    };
+    let Some(raw) = value.as_u64() else {
+        return Err(RuntimeError::OpenReplayInvalid {
+            message: format!("{} {}은 정수여야 합니다", label, key),
+            span,
+        });
+    };
+    u16::try_from(raw).map_err(|_| RuntimeError::OpenReplayInvalid {
+        message: format!("{} {} 범위 초과", label, key),
+        span,
+    })
+}
+
 fn optional_string_field(
     obj: &serde_json::Map<String, JsonValue>,
     label: &str,
@@ -1362,6 +1858,156 @@ fn normalize_path(path: &Path) -> PathBuf {
         out.push(part);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn span() -> Span {
+        Span::new(1, 1, 1, 1)
+    }
+
+    fn temp_log_path(name: &str) -> PathBuf {
+        let unique = format!(
+            "ddn_open_input_{}_{}_{}.jsonl",
+            name,
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        );
+        env::temp_dir().join(unique)
+    }
+
+    #[test]
+    fn open_input_record_and_replay_roundtrip() {
+        let path = temp_log_path("roundtrip");
+        let site_id = "test.ddn:input";
+        let madi = 3;
+        let frame = OpenInputFrame::new(0b0011, 0b0001, 0b0100);
+
+        let mut record = OpenRuntime::new(OpenMode::Record, Some(path.clone()), Vec::new(), None)
+            .expect("record runtime");
+        let recorded = record
+            .open_input(site_id, madi, Some(frame), span())
+            .expect("record ok");
+        assert_eq!(recorded, frame);
+
+        let log_text = fs::read_to_string(&path).expect("log text");
+        assert!(log_text.contains("\"open_kind\":\"input\""));
+        assert!(log_text.contains("\"schema\":\"open.input.v1\""));
+
+        let mut replay = OpenRuntime::new(OpenMode::Replay, Some(path.clone()), Vec::new(), None)
+            .expect("replay runtime");
+        let replayed = replay
+            .open_input(site_id, madi, None, span())
+            .expect("replay ok");
+        assert_eq!(replayed, frame);
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn open_solver_record_and_replay_roundtrip() {
+        let path = temp_log_path("solver");
+        let site_id = "proof.ddn:solver";
+
+        let mut record = OpenRuntime::new(
+            OpenMode::Record,
+            Some(path.clone()),
+            vec!["solver".to_string()],
+            None,
+        )
+        .expect("record runtime");
+        let recorded = record
+            .open_solver(
+                site_id,
+                OpenSolverOp::Check,
+                "forall n. n = n",
+                Some(OpenSolverReply::Check { satisfied: true }),
+                span(),
+            )
+            .expect("record ok");
+        assert_eq!(recorded, Value::Bool(true));
+
+        let log_text = fs::read_to_string(&path).expect("log text");
+        assert!(log_text.contains("\"open_kind\":\"solver\""));
+        assert!(log_text.contains("\"schema\":\"open.solver.v1\""));
+        assert!(log_text.contains("\"op\":\"check\""));
+
+        let mut replay = OpenRuntime::new(
+            OpenMode::Replay,
+            Some(path.clone()),
+            vec!["solver".to_string()],
+            None,
+        )
+        .expect("replay runtime");
+        let replayed = replay
+            .open_solver(
+                site_id,
+                OpenSolverOp::Check,
+                "forall n. n = n",
+                None,
+                span(),
+            )
+            .expect("replay ok");
+        assert_eq!(replayed, Value::Bool(true));
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn open_solver_counterexample_roundtrip_returns_pack() {
+        let path = temp_log_path("solver_counterexample");
+        let site_id = "proof.ddn:counterexample";
+
+        let mut record = OpenRuntime::new(
+            OpenMode::Record,
+            Some(path.clone()),
+            vec!["solver".to_string()],
+            None,
+        )
+        .expect("record runtime");
+        let recorded = record
+            .open_solver(
+                site_id,
+                OpenSolverOp::Counterexample,
+                "forall n. n >= 0",
+                Some(OpenSolverReply::Search {
+                    found: false,
+                    value: None,
+                }),
+                span(),
+            )
+            .expect("record ok");
+        assert_eq!(recorded.display(), "묶음{값=없음, 찾음=거짓}");
+
+        let log_text = fs::read_to_string(&path).expect("log text");
+        assert!(log_text.contains("\"op\":\"counterexample\""));
+        assert!(log_text.contains("\"found\":false"));
+
+        let mut replay = OpenRuntime::new(
+            OpenMode::Replay,
+            Some(path.clone()),
+            vec!["solver".to_string()],
+            None,
+        )
+        .expect("replay runtime");
+        let replayed = replay
+            .open_solver(
+                site_id,
+                OpenSolverOp::Counterexample,
+                "forall n. n >= 0",
+                None,
+                span(),
+            )
+            .expect("replay ok");
+        assert_eq!(replayed.display(), "묶음{값=없음, 찾음=거짓}");
+
+        let _ = fs::remove_file(path);
+    }
 }
 
 fn path_to_slash(path: &Path) -> String {

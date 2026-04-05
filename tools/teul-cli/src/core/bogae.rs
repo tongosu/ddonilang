@@ -373,8 +373,11 @@ struct DrawEntry {
 
 const SHAPE_CANON_SEGMENT: &str = "생김새";
 const SHAPE_ALIAS_SEGMENT: &str = "모양";
+const SHAPE_TRAIT_SSOT_CANON: &str = "특성";
 const SHAPE_TRAIT_CANON: &str = "결";
 const SHAPE_TRAIT_ALIAS: &str = "트레잇";
+const CANVAS_W_SSOT_CANON: &str = "보개_바탕_가로";
+const CANVAS_H_SSOT_CANON: &str = "보개_바탕_세로";
 const CANVAS_W_CANON: &str = "보개_그림판_가로";
 const CANVAS_H_CANON: &str = "보개_그림판_세로";
 const CANVAS_W_ALIAS: &str = "bogae_canvas_w";
@@ -452,8 +455,16 @@ pub fn build_drawlist_from_state(
     state: &State,
     pack: Option<&ColorNamePack>,
 ) -> Result<BogaeDrawListV1, BogaeError> {
-    let width = read_pixel_i32_with_alias(state, CANVAS_W_CANON, CANVAS_W_ALIAS)?.unwrap_or(0);
-    let height = read_pixel_i32_with_alias(state, CANVAS_H_CANON, CANVAS_H_ALIAS)?.unwrap_or(0);
+    let width = read_pixel_i32_with_aliases(
+        state,
+        &[CANVAS_W_SSOT_CANON, CANVAS_W_CANON, CANVAS_W_ALIAS],
+    )?
+    .unwrap_or(0);
+    let height = read_pixel_i32_with_aliases(
+        state,
+        &[CANVAS_H_SSOT_CANON, CANVAS_H_CANON, CANVAS_H_ALIAS],
+    )?
+    .unwrap_or(0);
     let bg = match read_str(state, "보개_바탕색")? {
         Some(value) => value,
         None => read_str(state, "bogae_bg")?.unwrap_or_else(|| "#000000ff".to_string()),
@@ -461,6 +472,7 @@ pub fn build_drawlist_from_state(
     let color = canonicalize_color(&bg, pack)?;
     let mut cmds = vec![BogaeCmd::Clear { color, aa: false }];
     let mut entries = collect_draw_entries(state, pack)?;
+    entries.extend(collect_draw_entries_from_space2d_shape(state, pack)?);
     entries.extend(collect_draw_entries_from_list(state, pack)?);
     entries.extend(collect_draw_entries_from_mapping(state, pack)?);
     entries.sort_by(|a, b| {
@@ -497,13 +509,172 @@ pub fn build_drawlist_from_state(
     })
 }
 
+fn collect_draw_entries_from_space2d_shape(
+    state: &State,
+    pack: Option<&ColorNamePack>,
+) -> Result<Vec<DrawEntry>, BogaeError> {
+    if read_str(state, "space2d.shape")?.is_none() {
+        return Ok(Vec::new());
+    }
+
+    let mut entries = Vec::new();
+    if read_str(state, "line")?.is_some() {
+        let x1 = read_num_f32(state, "x1")?.unwrap_or(0.0);
+        let y1 = read_num_f32(state, "y1")?.unwrap_or(0.0);
+        let x2 = read_num_f32(state, "x2")?.unwrap_or(0.0);
+        let y2 = read_num_f32(state, "y2")?.unwrap_or(0.0);
+        let width = read_num_f32(state, "width")?.unwrap_or(0.02);
+        let stroke = read_str(state, "stroke")?.unwrap_or_else(|| "#9ca3af".to_string());
+        let color = canonicalize_color(&stroke, pack)?;
+        entries.push(DrawEntry {
+            entity_id: "space2d.shape".to_string(),
+            trait_id: "line".to_string(),
+            z_order: 0,
+            x: x1.min(x2).round() as i32,
+            y: y1.min(y2).round() as i32,
+            w: (x2 - x1).abs().round() as i32,
+            h: (y2 - y1).abs().round() as i32,
+            extra: DrawEntryExtra::None,
+            cmd: BogaeCmd::Line {
+                x1,
+                y1,
+                x2,
+                y2,
+                thickness: width,
+                color,
+                aa: false,
+            },
+        });
+        return Ok(entries);
+    }
+
+    if read_str(state, "circle")?.is_some() {
+        let cx = read_num_f32(state, "x")?.unwrap_or(0.0);
+        let cy = read_num_f32(state, "y")?.unwrap_or(0.0);
+        let r = read_num_f32(state, "r")?.unwrap_or(0.08);
+        let fill = read_str(state, "fill")?.unwrap_or_else(|| "#38bdf8".to_string());
+        let stroke = read_str(state, "stroke")?.unwrap_or_else(|| "#0ea5e9".to_string());
+        let width = read_num_f32(state, "width")?.unwrap_or(0.02);
+        let fill_color = canonicalize_color(&fill, pack)?;
+        let stroke_color = canonicalize_color(&stroke, pack)?;
+        entries.push(DrawEntry {
+            entity_id: "space2d.shape".to_string(),
+            trait_id: "circle.fill".to_string(),
+            z_order: 0,
+            x: (cx - r).round() as i32,
+            y: (cy - r).round() as i32,
+            w: (2.0 * r).round() as i32,
+            h: (2.0 * r).round() as i32,
+            extra: DrawEntryExtra::None,
+            cmd: BogaeCmd::CircleFill {
+                cx,
+                cy,
+                r,
+                color: fill_color,
+                aa: false,
+            },
+        });
+        if width > 0.0 {
+            entries.push(DrawEntry {
+                entity_id: "space2d.shape".to_string(),
+                trait_id: "circle.stroke".to_string(),
+                z_order: 0,
+                x: (cx - r).round() as i32,
+                y: (cy - r).round() as i32,
+                w: (2.0 * r).round() as i32,
+                h: (2.0 * r).round() as i32,
+                extra: DrawEntryExtra::None,
+                cmd: BogaeCmd::CircleStroke {
+                    cx,
+                    cy,
+                    r,
+                    thickness: width,
+                    color: stroke_color,
+                    aa: false,
+                },
+            });
+        }
+        return Ok(entries);
+    }
+
+    if read_str(state, "point")?.is_some() {
+        let cx = read_num_f32(state, "x")?.unwrap_or(0.0);
+        let cy = read_num_f32(state, "y")?.unwrap_or(0.0);
+        let r = read_num_f32(state, "size")?.unwrap_or(0.05);
+        let color_text = read_str(state, "color")?.unwrap_or_else(|| "#22c55e".to_string());
+        let color = canonicalize_color(&color_text, pack)?;
+        entries.push(DrawEntry {
+            entity_id: "space2d.shape".to_string(),
+            trait_id: "point".to_string(),
+            z_order: 0,
+            x: (cx - r).round() as i32,
+            y: (cy - r).round() as i32,
+            w: (2.0 * r).round() as i32,
+            h: (2.0 * r).round() as i32,
+            extra: DrawEntryExtra::None,
+            cmd: BogaeCmd::CircleFill {
+                cx,
+                cy,
+                r,
+                color,
+                aa: false,
+            },
+        });
+    }
+
+    Ok(entries)
+}
+
 pub fn build_bogae_output(
     state: &State,
     pack: Option<&ColorNamePack>,
     policy: CmdPolicyConfig,
     codec: BogaeCodec,
 ) -> Result<(BogaeOutput, Option<CmdPolicyEvent>), BogaeError> {
+    build_bogae_output_with_trace(state, &[], pack, policy, codec)
+}
+
+pub fn build_bogae_output_with_trace(
+    state: &State,
+    trace_lines: &[&str],
+    pack: Option<&ColorNamePack>,
+    policy: CmdPolicyConfig,
+    codec: BogaeCodec,
+) -> Result<(BogaeOutput, Option<CmdPolicyEvent>), BogaeError> {
     let drawlist = build_drawlist_from_state(state, pack)?;
+    let mut drawlist = drawlist;
+    if drawlist.cmds.len() <= 1 {
+        let mut trace_entries = collect_draw_entries_from_trace_lines(trace_lines, pack)?;
+        if !trace_entries.is_empty() {
+            trace_entries.sort_by(|a, b| {
+                let key_a = (
+                    a.entity_id.as_str(),
+                    a.trait_id.as_str(),
+                    a.z_order,
+                    a.x,
+                    a.y,
+                    a.w,
+                    a.h,
+                    extra_sort_key(&a.extra),
+                );
+                let key_b = (
+                    b.entity_id.as_str(),
+                    b.trait_id.as_str(),
+                    b.z_order,
+                    b.x,
+                    b.y,
+                    b.w,
+                    b.h,
+                    extra_sort_key(&b.extra),
+                );
+                key_a.cmp(&key_b)
+            });
+            for entry in trace_entries {
+                drawlist.cmds.push(entry.cmd);
+            }
+        }
+    }
+
     let (drawlist, event) = apply_cmd_policy(drawlist, policy)?;
     let detbin = match codec {
         BogaeCodec::Bdl1 => encode_drawlist_detbin(&drawlist),
@@ -521,39 +692,242 @@ pub fn build_bogae_output(
     ))
 }
 
+fn collect_draw_entries_from_trace_lines(
+    trace_lines: &[&str],
+    pack: Option<&ColorNamePack>,
+) -> Result<Vec<DrawEntry>, BogaeError> {
+    if trace_lines.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut idx = 0usize;
+    let mut current_frame = Vec::new();
+    let mut last_frame = Vec::new();
+    while idx < trace_lines.len() {
+        let token = trace_lines[idx].trim();
+        if token == "space2d" {
+            if !current_frame.is_empty() {
+                last_frame = current_frame;
+                current_frame = Vec::new();
+            }
+            idx += 1;
+            continue;
+        }
+        if token == "space2d.shape" {
+            let (entries, next_idx) = parse_trace_shape_block(trace_lines, idx + 1, pack)?;
+            if !entries.is_empty() {
+                current_frame.extend(entries);
+            }
+            idx = next_idx;
+            continue;
+        }
+        idx += 1;
+    }
+    if !current_frame.is_empty() {
+        last_frame = current_frame;
+    }
+    Ok(last_frame)
+}
+
+fn parse_trace_shape_block(
+    trace_lines: &[&str],
+    start: usize,
+    pack: Option<&ColorNamePack>,
+) -> Result<(Vec<DrawEntry>, usize), BogaeError> {
+    let mut idx = start;
+    if idx >= trace_lines.len() {
+        return Ok((Vec::new(), idx));
+    }
+
+    let mut kind = String::new();
+    let token = trace_lines[idx].trim();
+    if matches!(token, "line" | "circle" | "point") {
+        kind = token.to_string();
+        idx += 1;
+    }
+    if kind.is_empty() {
+        return Ok((Vec::new(), idx));
+    }
+
+    let mut kv = BTreeMap::<String, String>::new();
+    while idx + 1 < trace_lines.len() {
+        let key = trace_lines[idx].trim();
+        if key == "space2d" || key == "space2d.shape" {
+            break;
+        }
+        let val = trace_lines[idx + 1].trim();
+        if val == "space2d" || val == "space2d.shape" {
+            break;
+        }
+        kv.insert(key.to_string(), val.to_string());
+        idx += 2;
+    }
+
+    let mut entries = Vec::new();
+    match kind.as_str() {
+        "line" => {
+            let x1 = trace_kv_num(&kv, "x1", 0.0);
+            let y1 = trace_kv_num(&kv, "y1", 0.0);
+            let x2 = trace_kv_num(&kv, "x2", 0.0);
+            let y2 = trace_kv_num(&kv, "y2", 0.0);
+            let width = trace_kv_num(&kv, "width", 0.02);
+            let stroke = kv
+                .get("stroke")
+                .cloned()
+                .unwrap_or_else(|| "#9ca3af".to_string());
+            let color = canonicalize_color(&stroke, pack)?;
+            entries.push(DrawEntry {
+                entity_id: "space2d.shape".to_string(),
+                trait_id: "line".to_string(),
+                z_order: 0,
+                x: x1.min(x2).round() as i32,
+                y: y1.min(y2).round() as i32,
+                w: (x2 - x1).abs().round() as i32,
+                h: (y2 - y1).abs().round() as i32,
+                extra: DrawEntryExtra::None,
+                cmd: BogaeCmd::Line {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    thickness: width,
+                    color,
+                    aa: false,
+                },
+            });
+        }
+        "circle" => {
+            let cx = trace_kv_num(&kv, "x", 0.0);
+            let cy = trace_kv_num(&kv, "y", 0.0);
+            let r = trace_kv_num(&kv, "r", 0.08);
+            let fill = kv
+                .get("fill")
+                .cloned()
+                .unwrap_or_else(|| "#38bdf8".to_string());
+            let stroke = kv
+                .get("stroke")
+                .cloned()
+                .unwrap_or_else(|| "#0ea5e9".to_string());
+            let width = trace_kv_num(&kv, "width", 0.02);
+            let fill_color = canonicalize_color(&fill, pack)?;
+            let stroke_color = canonicalize_color(&stroke, pack)?;
+            entries.push(DrawEntry {
+                entity_id: "space2d.shape".to_string(),
+                trait_id: "circle.fill".to_string(),
+                z_order: 0,
+                x: (cx - r).round() as i32,
+                y: (cy - r).round() as i32,
+                w: (2.0 * r).round() as i32,
+                h: (2.0 * r).round() as i32,
+                extra: DrawEntryExtra::None,
+                cmd: BogaeCmd::CircleFill {
+                    cx,
+                    cy,
+                    r,
+                    color: fill_color,
+                    aa: false,
+                },
+            });
+            if width > 0.0 {
+                entries.push(DrawEntry {
+                    entity_id: "space2d.shape".to_string(),
+                    trait_id: "circle.stroke".to_string(),
+                    z_order: 0,
+                    x: (cx - r).round() as i32,
+                    y: (cy - r).round() as i32,
+                    w: (2.0 * r).round() as i32,
+                    h: (2.0 * r).round() as i32,
+                    extra: DrawEntryExtra::None,
+                    cmd: BogaeCmd::CircleStroke {
+                        cx,
+                        cy,
+                        r,
+                        thickness: width,
+                        color: stroke_color,
+                        aa: false,
+                    },
+                });
+            }
+        }
+        "point" => {
+            let cx = trace_kv_num(&kv, "x", 0.0);
+            let cy = trace_kv_num(&kv, "y", 0.0);
+            let r = trace_kv_num(&kv, "size", 0.05);
+            let color_text = kv
+                .get("color")
+                .cloned()
+                .unwrap_or_else(|| "#22c55e".to_string());
+            let color = canonicalize_color(&color_text, pack)?;
+            entries.push(DrawEntry {
+                entity_id: "space2d.shape".to_string(),
+                trait_id: "point".to_string(),
+                z_order: 0,
+                x: (cx - r).round() as i32,
+                y: (cy - r).round() as i32,
+                w: (2.0 * r).round() as i32,
+                h: (2.0 * r).round() as i32,
+                extra: DrawEntryExtra::None,
+                cmd: BogaeCmd::CircleFill {
+                    cx,
+                    cy,
+                    r,
+                    color,
+                    aa: false,
+                },
+            });
+        }
+        _ => {}
+    }
+
+    Ok((entries, idx))
+}
+
+fn trace_kv_num(kv: &BTreeMap<String, String>, key: &str, default: f32) -> f32 {
+    kv.get(key)
+        .and_then(|text| text.trim().parse::<f32>().ok())
+        .unwrap_or(default)
+}
+
 fn collect_draw_entries(
     state: &State,
     pack: Option<&ColorNamePack>,
 ) -> Result<Vec<DrawEntry>, BogaeError> {
     let mut entries = Vec::new();
+    let ssot_canon_suffix = format!(".{}.{}", SHAPE_CANON_SEGMENT, SHAPE_TRAIT_SSOT_CANON);
     let canon_suffix = format!(".{}.{}", SHAPE_CANON_SEGMENT, SHAPE_TRAIT_CANON);
     let alias_suffix = format!(".{}.{}", SHAPE_ALIAS_SEGMENT, SHAPE_TRAIT_ALIAS);
-    for (key, value) in &state.resources {
-        let key_str = key.as_str();
-        let entity_id = if let Some(entity_id) = key_str.strip_suffix(&canon_suffix) {
-            entity_id
-        } else if let Some(entity_id) = key_str.strip_suffix(&alias_suffix) {
-            entity_id
-        } else {
+    let mut entity_ids = BTreeSet::new();
+    for key in state.resources.keys() {
+        if let Some(entity_id) = key.as_str().strip_suffix(&ssot_canon_suffix) {
+            entity_ids.insert(entity_id.to_string());
             continue;
-        };
-        let trait_id = match value {
-            Value::Str(text) => text.trim().to_string(),
-            _ => {
-                return Err(BogaeError::BadFieldType {
-                    field: key_str.to_string(),
-                    expected: "문자열",
-                })
-            }
+        }
+        if let Some(entity_id) = key.as_str().strip_suffix(&canon_suffix) {
+            entity_ids.insert(entity_id.to_string());
+            continue;
+        }
+        if let Some(entity_id) = key.as_str().strip_suffix(&alias_suffix) {
+            entity_ids.insert(entity_id.to_string());
+        }
+    }
+    for entity_id in entity_ids {
+        let trait_field = shape_trait_key_ssot(&entity_id);
+        let trait_id = if let Some(value) = read_str(state, &trait_field)? {
+            value.trim().to_string()
+        } else if let Some(value) = read_str(state, &shape_trait_key_current(&entity_id))? {
+            value.trim().to_string()
+        } else if let Some(value) = read_str(state, &shape_trait_key_alias(&entity_id))? {
+            value.trim().to_string()
+        } else {
+            return Err(BogaeError::MissingField { field: trait_field });
         };
 
-        let z_key = shape_key(entity_id, "겹");
-        let z_key_alias = shape_key_alias(entity_id, "겹");
+        let z_key = shape_key(&entity_id, "겹");
+        let z_key_alias = shape_key_alias(&entity_id, "겹");
         let z_order = read_pixel_i32_with_alias(state, &z_key, &z_key_alias)?.unwrap_or(0);
 
         if is_rect_trait(&trait_id) {
-            let rect_key = shape_key(entity_id, "네모");
-            let rect_key_alias = shape_key_alias(entity_id, "네모");
+            let rect_key = shape_key(&entity_id, "네모");
+            let rect_key_alias = shape_key_alias(&entity_id, "네모");
             let rect_pack =
                 read_pack_with_alias(state, &rect_key, &rect_key_alias)?.ok_or_else(|| {
                     BogaeError::MissingField {
@@ -564,7 +938,7 @@ fn collect_draw_entries(
             let y = read_pack_pixel_i32(rect_pack, "y", &format!("{rect_key}.y"))?;
             let w = read_pack_pixel_i32(rect_pack, "w", &format!("{rect_key}.w"))?;
             let h = read_pack_pixel_i32(rect_pack, "h", &format!("{rect_key}.h"))?;
-            let color = read_shape_color(state, entity_id, pack)?;
+            let color = read_shape_color(state, &entity_id, pack)?;
             entries.push(DrawEntry {
                 entity_id: entity_id.to_string(),
                 trait_id,
@@ -587,8 +961,8 @@ fn collect_draw_entries(
         }
 
         if is_text_trait(&trait_id) {
-            let text_key = shape_key(entity_id, "글씨");
-            let text_key_alias = shape_key_alias(entity_id, "글씨");
+            let text_key = shape_key(&entity_id, "글씨");
+            let text_key_alias = shape_key_alias(&entity_id, "글씨");
             let text_pack =
                 read_pack_with_alias(state, &text_key, &text_key_alias)?.ok_or_else(|| {
                     BogaeError::MissingField {
@@ -603,7 +977,7 @@ fn collect_draw_entries(
                 read_pack_pixel_i32(text_pack, "size_px", &format!("{text_key}.size_px"))?
             };
             let text = read_pack_string(text_pack, "text", &format!("{text_key}.text"))?;
-            let color = read_shape_color(state, entity_id, pack)?;
+            let color = read_shape_color(state, &entity_id, pack)?;
             entries.push(DrawEntry {
                 entity_id: entity_id.to_string(),
                 trait_id,
@@ -629,8 +1003,8 @@ fn collect_draw_entries(
         }
 
         if is_sprite_trait(&trait_id) {
-            let sprite_key = shape_key(entity_id, "그림");
-            let sprite_key_alias = shape_key_alias(entity_id, "그림");
+            let sprite_key = shape_key(&entity_id, "그림");
+            let sprite_key_alias = shape_key_alias(&entity_id, "그림");
             let sprite_pack = read_pack_with_alias(state, &sprite_key, &sprite_key_alias)?
                 .ok_or_else(|| BogaeError::MissingField {
                     field: sprite_key.clone(),
@@ -640,7 +1014,7 @@ fn collect_draw_entries(
             let w = read_pack_pixel_i32(sprite_pack, "w", &format!("{sprite_key}.w"))?;
             let h = read_pack_pixel_i32(sprite_pack, "h", &format!("{sprite_key}.h"))?;
             let uri = read_pack_string(sprite_pack, "uri", &format!("{sprite_key}.uri"))?;
-            let tint = read_shape_color(state, entity_id, pack)?;
+            let tint = read_shape_color(state, &entity_id, pack)?;
             entries.push(DrawEntry {
                 entity_id: entity_id.to_string(),
                 trait_id,
@@ -689,6 +1063,10 @@ fn collect_draw_entries_from_list(
         };
         let entry_ref = format!("{}[{}]", DRAWLIST_LIST_CANON, idx);
         let trait_id = if let Some(value) =
+            read_pack_string_optional(pack_value, "특성", &format!("{entry_ref}.특성"))?
+        {
+            value
+        } else if let Some(value) =
             read_pack_string_optional(pack_value, "결", &format!("{entry_ref}.결"))?
         {
             value
@@ -698,7 +1076,7 @@ fn collect_draw_entries_from_list(
             value
         } else {
             return Err(BogaeError::ItemFieldMissing {
-                field: format!("{entry_ref}.결"),
+                field: format!("{entry_ref}.특성"),
             });
         };
         let trait_id = trait_id.trim().to_string();
@@ -1011,6 +1389,18 @@ fn shape_key(entity_id: &str, field: &str) -> String {
     format!("{}.{}.{}", entity_id, SHAPE_CANON_SEGMENT, field)
 }
 
+fn shape_trait_key_ssot(entity_id: &str) -> String {
+    shape_key(entity_id, SHAPE_TRAIT_SSOT_CANON)
+}
+
+fn shape_trait_key_current(entity_id: &str) -> String {
+    shape_key(entity_id, SHAPE_TRAIT_CANON)
+}
+
+fn shape_trait_key_alias(entity_id: &str) -> String {
+    shape_key_alias(entity_id, SHAPE_TRAIT_ALIAS)
+}
+
 fn shape_key_alias(entity_id: &str, field: &str) -> String {
     format!("{}.{}.{}", entity_id, SHAPE_ALIAS_SEGMENT, field)
 }
@@ -1035,6 +1425,15 @@ fn read_pixel_i32_with_alias(
         return Ok(Some(value));
     }
     read_pixel_i32(state, alias)
+}
+
+fn read_pixel_i32_with_aliases(state: &State, keys: &[&str]) -> Result<Option<i32>, BogaeError> {
+    for key in keys {
+        if let Some(value) = read_pixel_i32(state, key)? {
+            return Ok(Some(value));
+        }
+    }
+    Ok(None)
 }
 
 fn read_pack_with_alias<'a>(
@@ -1932,6 +2331,31 @@ fn read_pixel_i32(state: &State, key: &str) -> Result<Option<i32>, BogaeError> {
     value_to_pixel_i32(value, key).map(Some)
 }
 
+fn read_num_f32(state: &State, key: &str) -> Result<Option<f32>, BogaeError> {
+    let value = state.resources.get(&Key::new(key));
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    match value {
+        Value::Num(quantity) => {
+            let raw = quantity.raw.raw() as f64;
+            let scale = Fixed64::SCALE as f64;
+            Ok(Some((raw / scale) as f32))
+        }
+        Value::Str(text) => match text.trim().parse::<f32>() {
+            Ok(parsed) => Ok(Some(parsed)),
+            Err(_) => Err(BogaeError::BadFieldType {
+                field: key.to_string(),
+                expected: "수",
+            }),
+        },
+        _ => Err(BogaeError::BadFieldType {
+            field: key.to_string(),
+            expected: "수",
+        }),
+    }
+}
+
 fn read_pack<'a>(state: &'a State, key: &str) -> Result<Option<&'a PackValue>, BogaeError> {
     let value = state.resources.get(&Key::new(key));
     match value {
@@ -2418,4 +2842,263 @@ fn read_hash32_bdl2(bytes: &[u8], idx: &mut usize) -> Result<[u8; 32], BogaeErro
     let mut out = [0u8; 32];
     out.copy_from_slice(raw);
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::fixed64::Fixed64;
+    use crate::core::state::State;
+    use crate::core::unit::UnitDim;
+    use crate::core::value::{ListValue, PackValue, Quantity, Value};
+
+    fn num(value: i64) -> Value {
+        Value::Num(Quantity::new(Fixed64::from_int(value), UnitDim::zero()))
+    }
+
+    fn rect_pack(x: i64, y: i64, w: i64, h: i64) -> Value {
+        let mut fields = BTreeMap::new();
+        fields.insert("x".to_string(), num(x));
+        fields.insert("y".to_string(), num(y));
+        fields.insert("w".to_string(), num(w));
+        fields.insert("h".to_string(), num(h));
+        Value::Pack(PackValue { fields })
+    }
+
+    fn drawlist_rect_item_with_trait_alias(x: i64, y: i64, w: i64, h: i64) -> Value {
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            "트레잇".to_string(),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        fields.insert("x".to_string(), num(x));
+        fields.insert("y".to_string(), num(y));
+        fields.insert("w".to_string(), num(w));
+        fields.insert("h".to_string(), num(h));
+        fields.insert("채움색".to_string(), Value::Str("#00ff00ff".to_string()));
+        Value::Pack(PackValue { fields })
+    }
+
+    fn drawlist_rect_item_with_trait_ssot(x: i64, y: i64, w: i64, h: i64) -> Value {
+        let mut fields = BTreeMap::new();
+        fields.insert("특성".to_string(), Value::Str("#보개/2D.Rect".to_string()));
+        fields.insert("x".to_string(), num(x));
+        fields.insert("y".to_string(), num(y));
+        fields.insert("w".to_string(), num(w));
+        fields.insert("h".to_string(), num(h));
+        fields.insert("채움색".to_string(), Value::Str("#00ff00ff".to_string()));
+        Value::Pack(PackValue { fields })
+    }
+
+    #[test]
+    fn build_drawlist_accepts_shape_alias_terms() {
+        let mut state = State::new();
+        state.set(Key::new("bogae_canvas_w"), num(32));
+        state.set(Key::new("bogae_canvas_h"), num(24));
+        state.set(Key::new("bogae_bg"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("주인공.모양.트레잇"),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        state.set(Key::new("주인공.모양.네모"), rect_pack(10, 12, 20, 16));
+        state.set(
+            Key::new("주인공.모양.채움색"),
+            Value::Str("#ffcc00ff".to_string()),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        assert_eq!(drawlist.width_px, 32);
+        assert_eq!(drawlist.height_px, 24);
+        assert_eq!(drawlist.cmds.len(), 2);
+        match &drawlist.cmds[1] {
+            BogaeCmd::RectFill { x, y, w, h, .. } => {
+                assert_eq!((*x, *y, *w, *h), (10.0, 12.0, 20.0, 16.0));
+            }
+            other => panic!("expected rect fill, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_drawlist_prefers_canonical_shape_term_over_alias_duplicate() {
+        let mut state = State::new();
+        state.set(Key::new("보개_그림판_가로"), num(32));
+        state.set(Key::new("보개_그림판_세로"), num(24));
+        state.set(Key::new("보개_바탕색"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("주인공.생김새.결"),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        state.set(
+            Key::new("주인공.모양.트레잇"),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        state.set(Key::new("주인공.생김새.네모"), rect_pack(10, 12, 20, 16));
+        state.set(
+            Key::new("주인공.생김새.채움색"),
+            Value::Str("#ffcc00ff".to_string()),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        let rect_count = drawlist
+            .cmds
+            .iter()
+            .filter(|cmd| matches!(cmd, BogaeCmd::RectFill { .. }))
+            .count();
+        assert_eq!(rect_count, 1);
+    }
+
+    #[test]
+    fn build_drawlist_prefers_canonical_canvas_keys_over_alias() {
+        let mut state = State::new();
+        state.set(Key::new("보개_그림판_가로"), num(32));
+        state.set(Key::new("보개_그림판_세로"), num(24));
+        state.set(Key::new("bogae_canvas_w"), num(99));
+        state.set(Key::new("bogae_canvas_h"), num(77));
+        state.set(Key::new("보개_바탕색"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("주인공.생김새.결"),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        state.set(Key::new("주인공.생김새.네모"), rect_pack(1, 2, 3, 4));
+        state.set(
+            Key::new("주인공.생김새.채움색"),
+            Value::Str("#ffcc00ff".to_string()),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        assert_eq!(drawlist.width_px, 32);
+        assert_eq!(drawlist.height_px, 24);
+    }
+
+    #[test]
+    fn build_drawlist_accepts_shape_ssot_terms() {
+        let mut state = State::new();
+        state.set(Key::new("보개_바탕_가로"), num(32));
+        state.set(Key::new("보개_바탕_세로"), num(24));
+        state.set(Key::new("보개_바탕색"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("주인공.생김새.특성"),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        state.set(Key::new("주인공.생김새.네모"), rect_pack(10, 12, 20, 16));
+        state.set(
+            Key::new("주인공.생김새.채움색"),
+            Value::Str("#ffcc00ff".to_string()),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        assert_eq!(drawlist.width_px, 32);
+        assert_eq!(drawlist.height_px, 24);
+        assert_eq!(drawlist.cmds.len(), 2);
+    }
+
+    #[test]
+    fn build_drawlist_prefers_ssot_canvas_keys_over_current_and_alias() {
+        let mut state = State::new();
+        state.set(Key::new("보개_바탕_가로"), num(32));
+        state.set(Key::new("보개_바탕_세로"), num(24));
+        state.set(Key::new("보개_그림판_가로"), num(99));
+        state.set(Key::new("보개_그림판_세로"), num(77));
+        state.set(Key::new("bogae_canvas_w"), num(55));
+        state.set(Key::new("bogae_canvas_h"), num(44));
+        state.set(Key::new("보개_바탕색"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("주인공.생김새.특성"),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        state.set(Key::new("주인공.생김새.네모"), rect_pack(1, 2, 3, 4));
+        state.set(
+            Key::new("주인공.생김새.채움색"),
+            Value::Str("#ffcc00ff".to_string()),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        assert_eq!(drawlist.width_px, 32);
+        assert_eq!(drawlist.height_px, 24);
+    }
+
+    #[test]
+    fn build_drawlist_prefers_ssot_shape_term_over_current_and_alias_duplicate() {
+        let mut state = State::new();
+        state.set(Key::new("보개_바탕_가로"), num(32));
+        state.set(Key::new("보개_바탕_세로"), num(24));
+        state.set(Key::new("보개_바탕색"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("주인공.생김새.특성"),
+            Value::Str("#보개/2D.Rect".to_string()),
+        );
+        state.set(
+            Key::new("주인공.생김새.결"),
+            Value::Str("#보개/2D.Text".to_string()),
+        );
+        state.set(
+            Key::new("주인공.모양.트레잇"),
+            Value::Str("#보개/2D.Text".to_string()),
+        );
+        state.set(Key::new("주인공.생김새.네모"), rect_pack(10, 12, 20, 16));
+        state.set(
+            Key::new("주인공.생김새.채움색"),
+            Value::Str("#ffcc00ff".to_string()),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        let rect_count = drawlist
+            .cmds
+            .iter()
+            .filter(|cmd| matches!(cmd, BogaeCmd::RectFill { .. }))
+            .count();
+        let text_count = drawlist
+            .cmds
+            .iter()
+            .filter(|cmd| matches!(cmd, BogaeCmd::Text { .. }))
+            .count();
+        assert_eq!(rect_count, 1);
+        assert_eq!(text_count, 0);
+    }
+
+    #[test]
+    fn build_drawlist_list_accepts_trait_alias_field() {
+        let mut state = State::new();
+        state.set(Key::new("보개_그림판_가로"), num(32));
+        state.set(Key::new("보개_그림판_세로"), num(24));
+        state.set(Key::new("보개_바탕색"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("보개_그림판_목록"),
+            Value::List(ListValue {
+                items: vec![drawlist_rect_item_with_trait_alias(3, 4, 5, 6)],
+            }),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        assert_eq!(drawlist.cmds.len(), 2);
+        match &drawlist.cmds[1] {
+            BogaeCmd::RectFill { x, y, w, h, .. } => {
+                assert_eq!((*x, *y, *w, *h), (3.0, 4.0, 5.0, 6.0));
+            }
+            other => panic!("expected rect fill, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_drawlist_list_accepts_trait_ssot_field() {
+        let mut state = State::new();
+        state.set(Key::new("보개_바탕_가로"), num(32));
+        state.set(Key::new("보개_바탕_세로"), num(24));
+        state.set(Key::new("보개_바탕색"), Value::Str("#000000ff".to_string()));
+        state.set(
+            Key::new("보개_그림판_목록"),
+            Value::List(ListValue {
+                items: vec![drawlist_rect_item_with_trait_ssot(3, 4, 5, 6)],
+            }),
+        );
+
+        let drawlist = build_drawlist_from_state(&state, None).expect("drawlist");
+        assert_eq!(drawlist.cmds.len(), 2);
+        match &drawlist.cmds[1] {
+            BogaeCmd::RectFill { x, y, w, h, .. } => {
+                assert_eq!((*x, *y, *w, *h), (3.0, 4.0, 5.0, 6.0));
+            }
+            other => panic!("expected rect fill, got {other:?}"),
+        }
+    }
 }

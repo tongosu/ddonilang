@@ -1,5 +1,5 @@
 use crate::core::fixed64::Fixed64;
-use crate::core::unit::{eval_unit_expr, UnitDim, UnitExpr, UnitFactor};
+use crate::core::unit::{eval_unit_expr, temperature_dim, UnitDim, UnitExpr, UnitFactor};
 use crate::core::value::{Quantity, Value};
 use crate::lang::span::Span;
 use crate::runtime::error::RuntimeError;
@@ -594,20 +594,24 @@ fn format_quantity(
         }
         TemplateFormat::Fixed { decimals, unit } => {
             let (value, unit_suffix) = if let Some(unit) = unit {
-                let (dim, scale) = eval_unit_expr(&unit.expr).map_err(|err| {
-                    let unit_name = match err {
-                        crate::core::unit::UnitError::Unknown(name) => name,
-                        crate::core::unit::UnitError::Overflow => "overflow".to_string(),
-                    };
-                    RuntimeError::UnitUnknown {
-                        unit: unit_name,
-                        span,
+                if let Some(value) = convert_temperature_for_template(qty, &unit.expr, span)? {
+                    (value, Some(unit.text.clone()))
+                } else {
+                    let (dim, scale) = eval_unit_expr(&unit.expr).map_err(|err| {
+                        let unit_name = match err {
+                            crate::core::unit::UnitError::Unknown(name) => name,
+                            crate::core::unit::UnitError::Overflow => "overflow".to_string(),
+                        };
+                        RuntimeError::UnitUnknown {
+                            unit: unit_name,
+                            span,
+                        }
+                    })?;
+                    if dim != qty.dim {
+                        return Err(RuntimeError::UnitMismatch { span });
                     }
-                })?;
-                if dim != qty.dim {
-                    return Err(RuntimeError::UnitMismatch { span });
+                    (scale.apply_inverse(qty.raw), Some(unit.text.clone()))
                 }
-                (scale.apply_inverse(qty.raw), Some(unit.text.clone()))
             } else if qty.dim == UnitDim::zero() {
                 (qty.raw, None)
             } else {
@@ -623,6 +627,50 @@ fn format_quantity(
             Ok(out)
         }
     }
+}
+
+fn convert_temperature_for_template(
+    qty: &Quantity,
+    expr: &UnitExpr,
+    span: Span,
+) -> Result<Option<Fixed64>, RuntimeError> {
+    if qty.dim != temperature_dim() {
+        return Ok(None);
+    }
+    let Some(unit_name) = exact_single_unit_name(expr) else {
+        return Ok(None);
+    };
+    let kelvin = qty.raw;
+    let converted = match unit_name {
+        "K" => kelvin,
+        "C" => kelvin.saturating_sub(fixed_literal("273.15")),
+        "F" => kelvin
+            .saturating_sub(fixed_literal("273.15"))
+            .saturating_mul(Fixed64::from_ratio(9, 5))
+            .saturating_add(fixed_literal("32")),
+        _ => {
+            return Err(RuntimeError::UnitUnknown {
+                unit: unit_name.to_string(),
+                span,
+            })
+        }
+    };
+    Ok(Some(converted))
+}
+
+fn exact_single_unit_name(expr: &UnitExpr) -> Option<&str> {
+    if expr.factors.len() != 1 {
+        return None;
+    }
+    let factor = &expr.factors[0];
+    if factor.exp != 1 {
+        return None;
+    }
+    Some(factor.name.as_str())
+}
+
+fn fixed_literal(text: &str) -> Fixed64 {
+    Fixed64::parse_literal(text).unwrap_or_else(|| panic!("invalid fixed literal: {}", text))
 }
 
 fn pad_width(text: &str, width: usize, zero_pad: bool) -> String {

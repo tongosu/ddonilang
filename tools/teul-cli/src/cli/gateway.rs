@@ -63,12 +63,10 @@ pub fn run_serve(opts: ServeOptions) -> Result<(), String> {
         return Err(format!("E_GATEWAY_WORLD_NOT_FOUND {}", world.display()));
     }
     let bytes = fs::read(world).map_err(|e| format!("E_GATEWAY_WORLD_READ {}", e))?;
-    let mut hasher = Sha256::new();
-    hasher.update(&bytes);
-    let digest = hasher.finalize();
+    let world_hash = format!("sha256:{}", sha256_hex(&bytes));
     println!("gateway_mode=serve");
     println!("gateway_threads={}", opts.threads);
-    println!("gateway_world_hash=sha256:{}", hex::encode(digest));
+    println!("gateway_world_hash={}", world_hash);
     if opts.input.is_some() && opts.listen_addr.is_some() {
         return Err(
             "E_GATEWAY_INPUT_CONFLICT input과 listen은 동시에 지정할 수 없습니다.".to_string(),
@@ -139,9 +137,12 @@ pub fn run_load_sim(opts: LoadSimOptions) -> Result<(), String> {
             "state_hash": format!("sha256:{}", hex::encode(digest)),
         }));
     }
+    let (source_hash, source_provenance) = build_load_source_provenance(&opts)?;
 
     let report = json!({
         "schema": "gateway.load_report.v1",
+        "source_hash": source_hash,
+        "source_provenance": source_provenance,
         "ssot_version": SSOT_VERSION,
         "clients": opts.clients,
         "ticks": opts.ticks,
@@ -334,6 +335,17 @@ fn parse_event_from_value(value: &JsonValue) -> Result<GatewayNetEvent, String> 
 }
 
 fn build_serve_report(opts: &ServeOptions) -> Result<JsonValue, String> {
+    let world_hash = sha256_file(&opts.world)?;
+    let input_hash = if let Some(input) = opts.input.as_deref() {
+        Some(sha256_file(input)?)
+    } else {
+        None
+    };
+    let send_hash = if let Some(send_path) = opts.send_path.as_deref() {
+        Some(sha256_file(send_path)?)
+    } else {
+        None
+    };
     let events = if let Some(addr) = opts.listen_addr.as_deref() {
         let send_events = if let Some(send_path) = opts.send_path.as_deref() {
             Some(read_gateway_events(send_path, opts.send_format)?)
@@ -356,8 +368,16 @@ fn build_serve_report(opts: &ServeOptions) -> Result<JsonValue, String> {
     let (ordered, dropped) = order_and_dedupe_events(events);
     let realm_count = resolve_realm_count(&ordered, opts.realms)?;
     let final_state_hashes = compute_realm_hashes(&ordered, realm_count);
+    let (source_hash, source_provenance) = build_serve_source_provenance(
+        opts,
+        &world_hash,
+        input_hash.as_deref(),
+        send_hash.as_deref(),
+    )?;
     let mut report = json!({
         "schema": "gateway.serve_report.v1",
+        "source_hash": source_hash,
+        "source_provenance": source_provenance,
         "ssot_version": SSOT_VERSION,
         "events_total": total,
         "events_ordered": ordered.len() as u64,
@@ -651,4 +671,136 @@ fn compute_realm_hashes(events: &[GatewayNetEvent], realm_count: u64) -> Vec<Jso
         }));
     }
     final_state_hashes
+}
+
+fn sha256_file(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(|e| format!("E_GATEWAY_INPUT_READ {}", e))?;
+    Ok(format!("sha256:{}", sha256_hex(&bytes)))
+}
+
+fn build_source_hash(doc: &JsonValue) -> Result<String, String> {
+    let text = serde_json::to_string(doc).map_err(|e| format!("E_GATEWAY_REPORT_JSON {}", e))?;
+    Ok(format!("sha256:{}", sha256_hex(text.as_bytes())))
+}
+
+fn build_serve_source_provenance(
+    opts: &ServeOptions,
+    world_hash: &str,
+    input_hash: Option<&str>,
+    send_hash: Option<&str>,
+) -> Result<(String, JsonValue), String> {
+    let mut provenance = serde_json::Map::new();
+    provenance.insert(
+        "schema".to_string(),
+        JsonValue::String("gateway.source_provenance.v1".to_string()),
+    );
+    provenance.insert(
+        "source_kind".to_string(),
+        JsonValue::String(
+            if opts.listen_addr.is_some() {
+                "gateway_serve_listen.v1"
+            } else {
+                "gateway_serve_input.v1"
+            }
+            .to_string(),
+        ),
+    );
+    provenance.insert(
+        "world_file".to_string(),
+        JsonValue::String(opts.world.to_string_lossy().to_string()),
+    );
+    provenance.insert(
+        "world_hash".to_string(),
+        JsonValue::String(world_hash.to_string()),
+    );
+    if let Some(input) = opts.input.as_deref() {
+        provenance.insert(
+            "input_file".to_string(),
+            JsonValue::String(input.to_string_lossy().to_string()),
+        );
+        provenance.insert(
+            "input_format".to_string(),
+            JsonValue::String(format!("{:?}", opts.input_format).to_lowercase()),
+        );
+    }
+    if let Some(hash) = input_hash {
+        provenance.insert(
+            "input_hash".to_string(),
+            JsonValue::String(hash.to_string()),
+        );
+    }
+    if let Some(send_path) = opts.send_path.as_deref() {
+        provenance.insert(
+            "send_file".to_string(),
+            JsonValue::String(send_path.to_string_lossy().to_string()),
+        );
+        provenance.insert(
+            "send_format".to_string(),
+            JsonValue::String(format!("{:?}", opts.send_format).to_lowercase()),
+        );
+    }
+    if let Some(hash) = send_hash {
+        provenance.insert("send_hash".to_string(), JsonValue::String(hash.to_string()));
+    }
+    if let Some(addr) = opts.listen_addr.as_deref() {
+        provenance.insert(
+            "listen_addr".to_string(),
+            JsonValue::String(addr.to_string()),
+        );
+        provenance.insert(
+            "listen_proto".to_string(),
+            JsonValue::String(
+                match opts.listen_proto {
+                    ListenProtocol::Tcp => "tcp",
+                    ListenProtocol::Udp => "udp",
+                }
+                .to_string(),
+            ),
+        );
+    }
+    if let Some(max_events) = opts.listen_max_events {
+        provenance.insert(
+            "listen_max_events".to_string(),
+            JsonValue::Number(max_events.into()),
+        );
+    }
+    if let Some(timeout_ms) = opts.listen_timeout_ms {
+        provenance.insert(
+            "listen_timeout_ms".to_string(),
+            JsonValue::Number(timeout_ms.into()),
+        );
+    }
+    let provenance_doc = JsonValue::Object(provenance);
+    let source_hash = build_source_hash(&provenance_doc)?;
+    Ok((source_hash, provenance_doc))
+}
+
+fn build_load_source_provenance(opts: &LoadSimOptions) -> Result<(String, JsonValue), String> {
+    let mut provenance = serde_json::Map::new();
+    provenance.insert(
+        "schema".to_string(),
+        JsonValue::String("gateway.source_provenance.v1".to_string()),
+    );
+    provenance.insert(
+        "source_kind".to_string(),
+        JsonValue::String("gateway_load_sim_options.v1".to_string()),
+    );
+    provenance.insert(
+        "clients".to_string(),
+        JsonValue::Number(opts.clients.into()),
+    );
+    provenance.insert("ticks".to_string(), JsonValue::Number(opts.ticks.into()));
+    provenance.insert("seed".to_string(), JsonValue::Number(opts.seed.into()));
+    provenance.insert("realms".to_string(), JsonValue::Number(opts.realms.into()));
+    provenance.insert(
+        "tick_hz".to_string(),
+        JsonValue::Number(opts.tick_hz.into()),
+    );
+    provenance.insert(
+        "threads".to_string(),
+        JsonValue::Number((opts.threads as u64).into()),
+    );
+    let provenance_doc = JsonValue::Object(provenance);
+    let source_hash = build_source_hash(&provenance_doc)?;
+    Ok((source_hash, provenance_doc))
 }

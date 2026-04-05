@@ -1,0 +1,18 @@
+{
+  "name": "W111_G23_lifecycle_start_target_family_conflict_error",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 1,
+    "stdout": [],
+    "stderr_contains": [
+      "E_RUNTIME_LIFECYCLE_START_TARGET_FAMILY_CONFLICT",
+      "힌트=마당",
+      "선언=판"
+    ],
+    "state_hash": "ABSENT",
+    "trace_hash": "ABSENT"
+  }
+}

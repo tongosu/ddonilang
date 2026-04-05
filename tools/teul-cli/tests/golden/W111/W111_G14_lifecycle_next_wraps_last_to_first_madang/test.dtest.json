@@ -1,0 +1,16 @@
+{
+  "name": "W111_G14_lifecycle_next_wraps_last_to_first_madang",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {},
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "110"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

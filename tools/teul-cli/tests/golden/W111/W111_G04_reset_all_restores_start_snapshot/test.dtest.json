@@ -1,0 +1,18 @@
+﻿{
+  "name": "W111_G04_reset_all_restores_start_snapshot",
+  "walk": 111,
+  "command": "run",
+  "entry": "main.ddn",
+  "args": {
+    "madi": 3
+  },
+  "expect": {
+    "exit": 0,
+    "stdout": [
+      "9"
+    ],
+    "stderr_contains": [],
+    "state_hash": "ANY",
+    "trace_hash": "ANY"
+  }
+}

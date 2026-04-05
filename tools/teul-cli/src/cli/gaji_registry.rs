@@ -953,9 +953,22 @@ pub fn run_verify_with_guard(
         "registry_verify_duplicate_resolution_policy={}",
         VERIFY_DUPLICATE_RESOLUTION_POLICY
     );
+    let index_hash = hash_file_sha256(index_path)?;
+    let lock_hash = hash_file_sha256(lock_path)?;
+    let source_provenance = json!({
+        "schema": "ddn.registry.verify_report_source_provenance.v1",
+        "source_kind": "registry_verify_inputs.v1",
+        "index_file": index_path.display().to_string(),
+        "index_hash": index_hash,
+        "lock_file": lock_path.display().to_string(),
+        "lock_hash": lock_hash,
+    });
+    let source_hash = build_source_hash(&source_provenance)?;
     Ok(VerifyReport {
         index_path: index_path.display().to_string(),
         lock_path: lock_path.display().to_string(),
+        source_hash,
+        source_provenance,
         packages: lock_packages.len(),
         matched,
         yanked_lock,
@@ -968,6 +981,8 @@ pub fn run_verify_with_guard(
 pub struct VerifyReport {
     index_path: String,
     lock_path: String,
+    source_hash: String,
+    source_provenance: Value,
     packages: usize,
     matched: usize,
     yanked_lock: usize,
@@ -981,6 +996,8 @@ pub fn write_verify_report(path: &Path, report: &VerifyReport) -> Result<(), Str
         "ok": true,
         "index_path": report.index_path,
         "lock_path": report.lock_path,
+        "source_hash": report.source_hash,
+        "source_provenance": report.source_provenance,
         "packages": report.packages,
         "matched": report.matched,
         "yanked_lock": report.yanked_lock,
@@ -1018,6 +1035,8 @@ pub fn write_verify_report(path: &Path, report: &VerifyReport) -> Result<(), Str
 #[derive(Clone, Debug)]
 pub struct AuditVerifyReport {
     audit_log_path: String,
+    source_hash: String,
+    source_provenance: Value,
     rows: usize,
     last_hash: Option<String>,
 }
@@ -1182,8 +1201,18 @@ pub fn run_audit_verify(audit_log_path: &Path) -> Result<AuditVerifyReport, Stri
         "audit_verify_last_hash={}",
         prev_hash.as_deref().unwrap_or("<none>")
     );
+    let audit_log_hash = hash_file_sha256(audit_log_path)?;
+    let source_provenance = json!({
+        "schema": "ddn.registry.audit_verify_report_source_provenance.v1",
+        "source_kind": "registry_audit_log.v1",
+        "audit_log_file": audit_log_path.display().to_string(),
+        "audit_log_hash": audit_log_hash,
+    });
+    let source_hash = build_source_hash(&source_provenance)?;
     Ok(AuditVerifyReport {
         audit_log_path: audit_log_path.display().to_string(),
+        source_hash,
+        source_provenance,
         rows,
         last_hash: prev_hash,
     })
@@ -1194,6 +1223,8 @@ pub fn write_audit_verify_report(path: &Path, report: &AuditVerifyReport) -> Res
         "schema": "ddn.registry.audit_verify_report.v1",
         "ok": true,
         "audit_log_path": report.audit_log_path,
+        "source_hash": report.source_hash,
+        "source_provenance": report.source_provenance,
         "rows": report.rows,
         "last_hash": report.last_hash,
     });
@@ -1254,6 +1285,27 @@ fn normalized_json_text(value: &Value) -> Result<String, String> {
             Some("의존성 JSON 구조를 점검하세요.".to_string()),
         )
     })
+}
+
+fn build_source_hash(value: &Value) -> Result<String, String> {
+    let normalized = normalized_json_text(value)?;
+    let mut hasher = Sha256::new();
+    hasher.update(normalized.as_bytes());
+    Ok(format!("sha256:{:x}", hasher.finalize()))
+}
+
+fn hash_file_sha256(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(|e| {
+        diag::build_diag(
+            "E_REG_REPORT_SOURCE_READ",
+            &format!("path={} {}", path.display(), e),
+            None,
+            Some("source report 입력 파일 경로/권한을 확인하세요.".to_string()),
+        )
+    })?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    Ok(format!("sha256:{:x}", hasher.finalize()))
 }
 
 fn normalize_json_value(value: &Value) -> Value {
@@ -3205,6 +3257,25 @@ mod tests {
             Some("ddn.registry.verify_report.v1")
         );
         assert_eq!(report.get("ok").and_then(|v| v.as_bool()), Some(true));
+        assert!(report
+            .get("source_hash")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .starts_with("sha256:"));
+        let source_provenance = report
+            .get("source_provenance")
+            .and_then(|v| v.as_object())
+            .expect("verify report source_provenance");
+        assert_eq!(
+            source_provenance.get("schema").and_then(|v| v.as_str()),
+            Some("ddn.registry.verify_report_source_provenance.v1")
+        );
+        assert_eq!(
+            source_provenance
+                .get("source_kind")
+                .and_then(|v| v.as_str()),
+            Some("registry_verify_inputs.v1")
+        );
         assert_eq!(
             report.get("packages").and_then(|v| v.as_u64()),
             Some(packages)
@@ -3227,6 +3298,25 @@ mod tests {
             Some("ddn.registry.audit_verify_report.v1")
         );
         assert_eq!(report.get("ok").and_then(|v| v.as_bool()), Some(true));
+        assert!(report
+            .get("source_hash")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .starts_with("sha256:"));
+        let source_provenance = report
+            .get("source_provenance")
+            .and_then(|v| v.as_object())
+            .expect("audit verify report source_provenance");
+        assert_eq!(
+            source_provenance.get("schema").and_then(|v| v.as_str()),
+            Some("ddn.registry.audit_verify_report_source_provenance.v1")
+        );
+        assert_eq!(
+            source_provenance
+                .get("source_kind")
+                .and_then(|v| v.as_str()),
+            Some("registry_audit_log.v1")
+        );
         assert_eq!(report.get("rows").and_then(|v| v.as_u64()), Some(rows));
         assert!(report
             .get("last_hash")

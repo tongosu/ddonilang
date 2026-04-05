@@ -18,6 +18,7 @@ pub struct UnitDim {
     pub mass: i32,
     pub angle: i32,
     pub pixel: i32,
+    pub temperature: i32,
 }
 
 impl UnitDim {
@@ -28,11 +29,17 @@ impl UnitDim {
             mass: 0,
             angle: 0,
             pixel: 0,
+            temperature: 0,
         }
     }
 
     pub fn is_dimensionless(self) -> bool {
-        self.length == 0 && self.time == 0 && self.mass == 0 && self.angle == 0 && self.pixel == 0
+        self.length == 0
+            && self.time == 0
+            && self.mass == 0
+            && self.angle == 0
+            && self.pixel == 0
+            && self.temperature == 0
     }
 
     pub fn add(self, other: Self) -> Self {
@@ -42,6 +49,7 @@ impl UnitDim {
             mass: self.mass + other.mass,
             angle: self.angle + other.angle,
             pixel: self.pixel + other.pixel,
+            temperature: self.temperature + other.temperature,
         }
     }
 
@@ -52,7 +60,19 @@ impl UnitDim {
             mass: self.mass * factor,
             angle: self.angle * factor,
             pixel: self.pixel * factor,
+            temperature: self.temperature * factor,
         }
+    }
+}
+
+pub fn temperature_dim() -> UnitDim {
+    UnitDim {
+        length: 0,
+        time: 0,
+        mass: 0,
+        angle: 0,
+        pixel: 0,
+        temperature: 1,
     }
 }
 
@@ -192,6 +212,7 @@ pub fn format_dim(dim: UnitDim) -> String {
     push_dim(&mut numer, &mut denom, "kg", dim.mass);
     push_dim(&mut numer, &mut denom, "rad", dim.angle);
     push_dim(&mut numer, &mut denom, "px", dim.pixel);
+    push_dim(&mut numer, &mut denom, "K", dim.temperature);
 
     let numer_str = if numer.is_empty() {
         "1".to_string()
@@ -228,6 +249,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::one(),
         }),
@@ -238,6 +260,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_ratio(1, 1000),
         }),
@@ -248,6 +271,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_ratio(1, 100),
         }),
@@ -258,6 +282,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_int(1000),
         }),
@@ -268,6 +293,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::one(),
         }),
@@ -278,6 +304,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_ratio(1, 1_000_000),
         }),
@@ -288,6 +315,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_ratio(1, 1000),
         }),
@@ -298,6 +326,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_int(60),
         }),
@@ -308,6 +337,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_int(3600),
         }),
@@ -318,6 +348,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 1,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::one(),
         }),
@@ -328,6 +359,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 1,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::from_ratio(1, 1000),
         }),
@@ -338,6 +370,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 1,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::one(),
         }),
@@ -348,6 +381,18 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 0,
                 angle: 0,
                 pixel: 1,
+                temperature: 0,
+            },
+            scale: UnitScale::one(),
+        }),
+        "K" => Some(UnitDef {
+            dim: UnitDim {
+                length: 0,
+                time: 0,
+                mass: 0,
+                angle: 0,
+                pixel: 0,
+                temperature: 1,
             },
             scale: UnitScale::one(),
         }),
@@ -358,6 +403,7 @@ fn unit_def(name: &str) -> Option<UnitDef> {
                 mass: 1,
                 angle: 0,
                 pixel: 0,
+                temperature: 0,
             },
             scale: UnitScale::one(),
         }),

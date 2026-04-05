@@ -6,5 +6,8 @@ pub mod open;
 pub mod template;
 
 pub use error::RuntimeError;
-pub use eval::{ContractDiag, DiagnosticFailure, DiagnosticRecord, EvalOutput, Evaluator};
-pub use open::{OpenDiagConfig, OpenMode, OpenPolicy, OpenRuntime};
+pub use eval::{
+    ContractDiag, DiagnosticFailure, DiagnosticRecord, EvalFailure, EvalOutput, Evaluator,
+    ProofRuntimeEvent,
+};
+pub use open::{OpenDiagConfig, OpenInputFrame, OpenMode, OpenPolicy, OpenRuntime};

@@ -4,8 +4,10 @@ use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
+use crate::cli::run::RunError;
 use crate::lang::dialect::DialectConfig;
 use crate::lang::lexer::Lexer;
+use crate::lang::parser::Parser;
 use crate::lang::token::TokenKind;
 
 struct LegacyTerm {
@@ -54,8 +56,12 @@ struct LineChange {
 
 pub fn run(file: &Path, suggest_patch: bool, out: Option<&Path>) -> Result<(), String> {
     let source = fs::read_to_string(file).map_err(|e| format!("E_LINT_READ {}", e))?;
+    let file_label = file.display().to_string();
     let dialect = DialectConfig::from_source(&source);
-    let tokens = Lexer::tokenize(&source).map_err(|e| format!("{} lint 실패", e.code()))?;
+    let tokens = Lexer::tokenize(&source).map_err(|e| RunError::Lex(e).format(&file_label))?;
+    let default_root = Parser::default_root_for_source(&source);
+    Parser::parse_with_default_root(tokens.clone(), default_root)
+        .map_err(|e| RunError::Parse(e).format(&file_label))?;
 
     let lines: Vec<String> = source.lines().map(|line| line.to_string()).collect();
     let mut line_counts: HashMap<String, usize> = HashMap::new();

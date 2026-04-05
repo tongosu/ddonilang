@@ -32,6 +32,12 @@ const CARTPOLE_THRESHOLD: u64 = 195;
 pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String> {
     let text = fs::read_to_string(config_path)
         .map_err(|e| format!("E_EVAL_CONFIG_READ {} {}", config_path.display(), e))?;
+    let config_hash = format!("sha256:{}", sha256_hex(text.as_bytes()));
+    let config_file = config_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("eval_config.json")
+        .to_string();
     let config: EvalConfig =
         serde_json::from_str(&text).map_err(|e| format!("E_EVAL_CONFIG_PARSE {}", e))?;
     if let Some(schema) = config.schema.as_deref() {
@@ -47,6 +53,11 @@ pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String
     let model_path = resolve_path(config_path, &config.model_path);
     let model_bytes = fs::read(&model_path)
         .map_err(|e| format!("E_EVAL_MODEL_READ {} {}", model_path.display(), e))?;
+    let model_file = model_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("model.detjson")
+        .to_string();
     let model_text = String::from_utf8(model_bytes.clone())
         .map_err(|_| "E_EVAL_MODEL_UTF8 모델 detjson은 UTF-8이어야 합니다".to_string())?;
     let model: MlpModel =
@@ -67,6 +78,11 @@ pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String
     let weights_path = resolve_weights_path(&model_path, &model.weights_path);
     let weights = fs::read(&weights_path)
         .map_err(|e| format!("E_EVAL_WEIGHTS_READ {} {}", weights_path.display(), e))?;
+    let weights_file = weights_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("weights.bin")
+        .to_string();
 
     let model_hash = compute_model_hash(&model_bytes, &weights);
     let weights_hash = format!("sha256:{}", sha256_hex(&weights));
@@ -80,7 +96,12 @@ pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String
     let pass = avg_score >= CARTPOLE_THRESHOLD;
 
     let (report_text, report_hash) = build_report(
+        &config_file,
+        &config_hash,
         &model_hash,
+        &model_file,
+        &weights_file,
+        &weights_hash,
         &config.suite_id,
         &seeds,
         &scores,
@@ -95,8 +116,14 @@ pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String
     let mut artifact_text = None;
     if let Some(artifact_path) = &config.artifact_path {
         let artifact_path = resolve_path(config_path, artifact_path);
+        let artifact_file = artifact_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("artifact.detjson")
+            .to_string();
         let artifact_raw = fs::read_to_string(&artifact_path)
             .map_err(|e| format!("E_EVAL_ARTIFACT_READ {} {}", artifact_path.display(), e))?;
+        let artifact_hash = format!("sha256:{}", sha256_hex(artifact_raw.as_bytes()));
         let mut artifact_value: JsonValue = serde_json::from_str(&artifact_raw)
             .map_err(|e| format!("E_EVAL_ARTIFACT_PARSE {}", e))?;
         let obj = artifact_value
@@ -114,6 +141,55 @@ pub fn run_eval(config_path: &Path, out_dir: Option<&Path>) -> Result<(), String
                 JsonValue::String(report_hash.clone()),
             );
         }
+        let mut source_provenance = Map::new();
+        source_provenance.insert(
+            "schema".to_string(),
+            JsonValue::String("seulgi.source_provenance.v1".to_string()),
+        );
+        source_provenance.insert(
+            "source_kind".to_string(),
+            JsonValue::String("eval_artifact_input.v1".to_string()),
+        );
+        source_provenance.insert(
+            "config_file".to_string(),
+            JsonValue::String(config_file.clone()),
+        );
+        source_provenance.insert(
+            "config_hash".to_string(),
+            JsonValue::String(config_hash.clone()),
+        );
+        source_provenance.insert(
+            "artifact_file".to_string(),
+            JsonValue::String(artifact_file),
+        );
+        source_provenance.insert(
+            "artifact_input_hash".to_string(),
+            JsonValue::String(artifact_hash),
+        );
+        source_provenance.insert(
+            "model_file".to_string(),
+            JsonValue::String(model_file.clone()),
+        );
+        source_provenance.insert(
+            "model_hash".to_string(),
+            JsonValue::String(model_hash.clone()),
+        );
+        source_provenance.insert(
+            "weights_file".to_string(),
+            JsonValue::String(weights_file.clone()),
+        );
+        source_provenance.insert(
+            "weights_hash".to_string(),
+            JsonValue::String(weights_hash.clone()),
+        );
+        source_provenance.insert(
+            "report_hash".to_string(),
+            JsonValue::String(report_hash.clone()),
+        );
+        obj.insert(
+            "source_provenance".to_string(),
+            JsonValue::Object(source_provenance),
+        );
         let updated = JsonValue::Object(obj.clone()).to_string();
         write_text(&out_dir.join("artifact.detjson"), &updated)?;
         artifact_text = Some(updated);
@@ -157,7 +233,12 @@ fn compute_model_hash(model_bytes: &[u8], weights: &[u8]) -> String {
 }
 
 fn build_report(
+    config_file: &str,
+    config_hash: &str,
     model_hash: &str,
+    model_file: &str,
+    weights_file: &str,
+    weights_hash: &str,
     suite_id: &str,
     seeds: &[u64],
     scores: &[u64],
@@ -168,6 +249,47 @@ fn build_report(
     map.insert(
         "schema".to_string(),
         JsonValue::String("seulgi.eval_report.v1".to_string()),
+    );
+    map.insert(
+        "source_hash".to_string(),
+        JsonValue::String(config_hash.to_string()),
+    );
+    let mut source_provenance = Map::new();
+    source_provenance.insert(
+        "schema".to_string(),
+        JsonValue::String("seulgi.source_provenance.v1".to_string()),
+    );
+    source_provenance.insert(
+        "source_kind".to_string(),
+        JsonValue::String("eval_config.v1".to_string()),
+    );
+    source_provenance.insert(
+        "config_file".to_string(),
+        JsonValue::String(config_file.to_string()),
+    );
+    source_provenance.insert(
+        "config_hash".to_string(),
+        JsonValue::String(config_hash.to_string()),
+    );
+    source_provenance.insert(
+        "model_file".to_string(),
+        JsonValue::String(model_file.to_string()),
+    );
+    source_provenance.insert(
+        "model_hash".to_string(),
+        JsonValue::String(model_hash.to_string()),
+    );
+    source_provenance.insert(
+        "weights_file".to_string(),
+        JsonValue::String(weights_file.to_string()),
+    );
+    source_provenance.insert(
+        "weights_hash".to_string(),
+        JsonValue::String(weights_hash.to_string()),
+    );
+    map.insert(
+        "source_provenance".to_string(),
+        JsonValue::Object(source_provenance),
     );
     map.insert(
         "model_hash".to_string(),

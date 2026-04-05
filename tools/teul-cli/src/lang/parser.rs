@@ -91,6 +91,26 @@ pub enum ParseError {
     MaegimStepSplitConflict {
         span: Span,
     },
+    MaegimNestedSectionUnsupported {
+        section: String,
+        span: Span,
+    },
+    MaegimNestedFieldUnsupported {
+        section: String,
+        field: String,
+        span: Span,
+    },
+    HookEveryNMadiIntervalInvalid {
+        span: Span,
+    },
+    HookEveryNMadiUnitUnsupported {
+        unit: String,
+        span: Span,
+    },
+    HookEveryNMadiSuffixUnsupported {
+        suffix: String,
+        span: Span,
+    },
     DeferredAssignOutsideBeat {
         span: Span,
     },
@@ -149,6 +169,21 @@ impl ParseError {
                 "E_PARSE_MAEGIM_GROUPED_VALUE_REQUIRED"
             }
             ParseError::MaegimStepSplitConflict { .. } => "E_PARSE_MAEGIM_STEP_SPLIT_CONFLICT",
+            ParseError::MaegimNestedSectionUnsupported { .. } => {
+                "E_PARSE_MAEGIM_NESTED_SECTION_UNSUPPORTED"
+            }
+            ParseError::MaegimNestedFieldUnsupported { .. } => {
+                "E_PARSE_MAEGIM_NESTED_FIELD_UNSUPPORTED"
+            }
+            ParseError::HookEveryNMadiIntervalInvalid { .. } => {
+                "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+            }
+            ParseError::HookEveryNMadiUnitUnsupported { .. } => {
+                "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+            }
+            ParseError::HookEveryNMadiSuffixUnsupported { .. } => {
+                "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
+            }
             ParseError::DeferredAssignOutsideBeat { .. } => "E_PARSE_DEFERRED_ASSIGN_OUTSIDE_BEAT",
             ParseError::QuantifierMutationForbidden { .. } => {
                 "E_PARSE_QUANTIFIER_MUTATION_FORBIDDEN"
@@ -1132,6 +1167,9 @@ impl Parser {
         if self.is_hook_every() {
             return Ok(Some(self.parse_hook(HookKind::EveryMadi)?));
         }
+        if self.is_hook_every_n_madi_candidate() {
+            return Ok(Some(self.parse_hook_every_n_madi()?));
+        }
         if self.is_hook_every_n_madi() {
             return Ok(Some(self.parse_hook_every_n_madi()?));
         }
@@ -1168,6 +1206,36 @@ impl Parser {
             && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Ident(name) if name == "마디"))
             && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::RParen))
             && self.peek_kind_n_is(4, |k| matches!(k, TokenKind::Mada))
+    }
+
+    fn is_hook_every_n_madi_candidate(&self) -> bool {
+        if !(self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Number(_)))
+            && self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Ident(_)))
+            && self.peek_kind_n_is(3, |k| matches!(k, TokenKind::RParen)))
+        {
+            return false;
+        }
+        let suffix_ok = self.peek_kind_n_is(4, |k| {
+            matches!(
+                k,
+                TokenKind::Mada | TokenKind::Halttae | TokenKind::Ident(_)
+            )
+        });
+        suffix_ok && self.hook_header_has_block_start(5)
+    }
+
+    fn hook_header_has_block_start(&self, mut offset: usize) -> bool {
+        while self.peek_kind_n_is(offset, |k| matches!(k, TokenKind::Newline)) {
+            offset += 1;
+        }
+        if self.peek_kind_n_is(offset, |k| matches!(k, TokenKind::Colon)) {
+            offset += 1;
+            while self.peek_kind_n_is(offset, |k| matches!(k, TokenKind::Newline)) {
+                offset += 1;
+            }
+        }
+        self.peek_kind_n_is(offset, |k| matches!(k, TokenKind::LBrace))
     }
 
     fn is_bogae_draw_stmt(&self) -> bool {
@@ -2156,6 +2224,18 @@ impl Parser {
         )
     }
 
+    fn is_supported_maegim_nested_section(name: &str) -> bool {
+        matches!(name, "가늠" | "갈래")
+    }
+
+    fn is_supported_maegim_nested_field(section: &str, field: &str) -> bool {
+        match section {
+            "가늠" => matches!(field, "범위" | "간격" | "분할수"),
+            "갈래" => matches!(field, "가만히" | "벗남다룸"),
+            _ => false,
+        }
+    }
+
     fn parse_maegim_spec(&mut self) -> Result<MaegimSpec, ParseError> {
         let start_token = self.peek().clone();
         let keyword_span = self.advance().span;
@@ -2207,30 +2287,109 @@ impl Parser {
                     })
                 }
             };
-            if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "':'",
-                    found: self.peek().kind.clone(),
-                    span: self.peek().span,
+            self.skip_newlines();
+            if self.peek_kind_is(|k| matches!(k, TokenKind::LBrace)) {
+                if !Self::is_supported_maegim_nested_section(&name) {
+                    return Err(ParseError::MaegimNestedSectionUnsupported {
+                        section: name,
+                        span: name_token.span,
+                    });
+                }
+                self.advance();
+                loop {
+                    self.skip_newlines();
+                    if self.peek_kind_is(|k| matches!(k, TokenKind::RBrace)) {
+                        break;
+                    }
+                    if self.peek_kind_is(|k| matches!(k, TokenKind::Eof)) {
+                        return Err(ParseError::ExpectedRBrace {
+                            span: self.peek().span,
+                        });
+                    }
+                    let nested_name_token = self.peek().clone();
+                    let nested_name = match &nested_name_token.kind {
+                        TokenKind::Ident(text) => {
+                            self.advance();
+                            text.clone()
+                        }
+                        _ => {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: "매김 항목 이름",
+                                found: nested_name_token.kind,
+                                span: nested_name_token.span,
+                            })
+                        }
+                    };
+                    if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: "':'",
+                            found: self.peek().kind.clone(),
+                            span: self.peek().span,
+                        });
+                    }
+                    self.advance();
+                    let value = self.parse_expr()?;
+                    if !Self::is_supported_maegim_nested_field(&name, &nested_name) {
+                        return Err(ParseError::MaegimNestedFieldUnsupported {
+                            section: name.clone(),
+                            field: nested_name,
+                            span: nested_name_token.span,
+                        });
+                    }
+                    let field_name = format!("{}.{}", name, nested_name);
+                    let field_span = nested_name_token.span.merge(value.span());
+                    if nested_name == "간격" {
+                        has_step = true;
+                    } else if nested_name == "분할수" {
+                        has_split_count = true;
+                    }
+                    if has_step && has_split_count {
+                        return Err(ParseError::MaegimStepSplitConflict { span: field_span });
+                    }
+                    self.consume_terminator()?;
+                    fields.push(Binding {
+                        name: field_name,
+                        value,
+                        span: field_span,
+                    });
+                }
+                self.advance();
+                if self.peek_kind_is(|k| matches!(k, TokenKind::Dot | TokenKind::Newline)) {
+                    self.consume_terminator()?;
+                } else if !self.peek_kind_is(|k| matches!(k, TokenKind::RBrace | TokenKind::Eof))
+                {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "'.' or newline or '}'",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+            } else {
+                if !self.peek_kind_is(|k| matches!(k, TokenKind::Colon)) {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: "':'",
+                        found: self.peek().kind.clone(),
+                        span: self.peek().span,
+                    });
+                }
+                self.advance();
+                let value = self.parse_expr()?;
+                let field_span = name_token.span.merge(value.span());
+                if name == "간격" {
+                    has_step = true;
+                } else if name == "분할수" {
+                    has_split_count = true;
+                }
+                if has_step && has_split_count {
+                    return Err(ParseError::MaegimStepSplitConflict { span: field_span });
+                }
+                self.consume_terminator()?;
+                fields.push(Binding {
+                    name,
+                    value,
+                    span: field_span,
                 });
             }
-            self.advance();
-            let value = self.parse_expr()?;
-            let field_span = name_token.span.merge(value.span());
-            if name == "간격" {
-                has_step = true;
-            } else if name == "분할수" {
-                has_split_count = true;
-            }
-            if has_step && has_split_count {
-                return Err(ParseError::MaegimStepSplitConflict { span: field_span });
-            }
-            self.consume_terminator()?;
-            fields.push(Binding {
-                name,
-                value,
-                span: field_span,
-            });
         }
 
         let end_span = self.advance().span;
@@ -2300,16 +2459,17 @@ impl Parser {
         let number_token = self.advance();
         let interval = match number_token.kind {
             TokenKind::Number(value) => {
-                let segment = Self::parse_nonnegative_index_segment(value, number_token.span)?;
-                let interval = segment.parse::<u64>().map_err(|_| ParseError::UnexpectedToken {
-                    expected: "양의 정수 마디 간격",
-                    found: TokenKind::Number(value),
-                    span: number_token.span,
-                })?;
+                let segment = Self::parse_nonnegative_index_segment(value, number_token.span)
+                    .map_err(|_| ParseError::HookEveryNMadiIntervalInvalid {
+                        span: number_token.span,
+                    })?;
+                let interval = segment
+                    .parse::<u64>()
+                    .map_err(|_| ParseError::HookEveryNMadiIntervalInvalid {
+                        span: number_token.span,
+                    })?;
                 if interval == 0 {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: "양의 정수 마디 간격",
-                        found: TokenKind::Number(value),
+                    return Err(ParseError::HookEveryNMadiIntervalInvalid {
                         span: number_token.span,
                     });
                 }
@@ -2323,21 +2483,40 @@ impl Parser {
                 })
             }
         };
-        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "마디")) {
-            return Err(ParseError::UnexpectedToken {
-                expected: "'마디'",
-                found: self.peek().kind.clone(),
-                span: self.peek().span,
-            });
+        let unit_token = self.advance();
+        match unit_token.kind {
+            TokenKind::Ident(unit) if unit == "마디" => {}
+            TokenKind::Ident(unit) => {
+                return Err(ParseError::HookEveryNMadiUnitUnsupported {
+                    unit,
+                    span: unit_token.span,
+                })
+            }
+            other => {
+                return Err(ParseError::HookEveryNMadiUnitUnsupported {
+                    unit: format!("{other:?}"),
+                    span: unit_token.span,
+                })
+            }
         }
-        self.advance();
         if !self.peek_kind_is(|k| matches!(k, TokenKind::RParen)) {
             return Err(ParseError::ExpectedRParen {
                 span: self.peek().span,
             });
         }
         self.advance();
-        self.advance();
+        let suffix_token = self.advance();
+        if !matches!(suffix_token.kind, TokenKind::Mada) {
+            let suffix = match suffix_token.kind {
+                TokenKind::Halttae => "할때".to_string(),
+                TokenKind::Ident(name) => name,
+                other => format!("{other:?}"),
+            };
+            return Err(ParseError::HookEveryNMadiSuffixUnsupported {
+                suffix,
+                span: suffix_token.span,
+            });
+        }
         self.parse_hook_tail(start_span, HookKind::EveryNMadi(interval))
     }
 
@@ -4227,9 +4406,10 @@ impl Parser {
         let start_span = self.advance().span;
         let (name, name_span) = match &self.peek().kind {
             TokenKind::Ident(name) => (name.clone(), self.peek().span),
+            TokenKind::Break => ("중단".to_string(), self.peek().span),
             other => {
                 return Err(ParseError::UnexpectedToken {
-                    expected: "'알림' or '물림'",
+                    expected: "'알림' or '물림' or '중단'",
                     found: other.clone(),
                     span: self.peek().span,
                 })
@@ -4245,9 +4425,9 @@ impl Parser {
         let _ = start_span.merge(end_span);
         match name.as_str() {
             "알림" => Ok(ContractMode::Alert),
-            "물림" => Ok(ContractMode::Abort),
+            "물림" | "중단" => Ok(ContractMode::Abort),
             _ => Err(ParseError::UnexpectedToken {
-                expected: "'알림' or '물림'",
+                expected: "'알림' or '물림' or '중단'",
                 found: TokenKind::Ident(name),
                 span: name_span,
             }),
@@ -5816,6 +5996,100 @@ mod tests {
     }
 
     #[test]
+    fn parse_decl_block_maegim_supports_ganeum_and_gallae_blocks() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    가늠 {
+      범위: 1..20.
+      간격: 0.1.
+    }.
+    갈래 {
+      가만히: 참.
+      벗남다룸: "잘림".
+    }.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        let Stmt::DeclBlock { items, .. } = &body[0] else {
+            panic!("decl block expected");
+        };
+        let maegim = items[0].maegim.as_ref().expect("maegim");
+        let names = maegim
+            .fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            vec!["가늠.범위", "가늠.간격", "갈래.가만히", "갈래.벗남다룸"]
+        );
+    }
+
+    #[test]
+    fn parse_decl_block_maegim_nested_rejects_step_and_split_count_together() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    가늠 {
+      간격: 0.1.
+      분할수: 40.
+    }.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_MAEGIM_STEP_SPLIT_CONFLICT");
+        assert!(matches!(err, ParseError::MaegimStepSplitConflict { .. }));
+    }
+
+    #[test]
+    fn parse_decl_block_maegim_nested_rejects_unknown_section() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    실험 {
+      범위: 1..20.
+    }.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_MAEGIM_NESTED_SECTION_UNSUPPORTED");
+        assert!(matches!(
+            err,
+            ParseError::MaegimNestedSectionUnsupported { .. }
+        ));
+    }
+
+    #[test]
+    fn parse_decl_block_maegim_nested_rejects_unknown_field_in_ganeum() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    가늠 {
+      최소값: 1.
+    }.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_MAEGIM_NESTED_FIELD_UNSUPPORTED");
+        assert!(matches!(
+            err,
+            ParseError::MaegimNestedFieldUnsupported { .. }
+        ));
+    }
+
+    #[test]
     fn parse_decl_block_maegim_rejects_step_and_split_count_together() {
         let source = r#"
 채비 {
@@ -6007,7 +6281,31 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
-        assert_eq!(err.code(), "E_PARSE_UNEXPECTED_TOKEN");
+        assert_eq!(err.code(), "E_PARSE_HOOK_EVERY_N_MADI_INTERVAL_INVALID");
+    }
+
+    #[test]
+    fn parse_hook_every_n_madi_rejects_unsupported_unit() {
+        let source = r#"
+(3 foo)마다 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED");
+    }
+
+    #[test]
+    fn parse_hook_every_n_madi_rejects_unsupported_suffix() {
+        let source = r#"
+(3마디)할때 {
+  없음.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
+        assert_eq!(err.code(), "E_PARSE_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED");
     }
 
     #[test]

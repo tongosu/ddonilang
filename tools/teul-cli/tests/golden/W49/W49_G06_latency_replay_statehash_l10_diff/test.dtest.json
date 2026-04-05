@@ -1,0 +1,51 @@
+{
+  "name": "W49_G06_latency_replay_statehash_l10_diff",
+  "walk": 49,
+  "command": "multi",
+  "entry": "../../../../../../pack/gogae5_w49_latency_madi/input_replay.ddn",
+  "steps": [
+    {
+      "cmd": "run",
+      "in": "../../../../../../pack/gogae5_w49_latency_madi/input_replay.ddn",
+      "madi": 4,
+      "seed": "0x0",
+      "cli": [
+        "--sam",
+        "../../../../../../pack/gogae5_w49_latency_madi/sam/right_hold_2ticks.input.bin",
+        "--geoul-out",
+        "out/geoul_l10",
+        "--trace-tier",
+        "T-OFF",
+        "--latency-madi",
+        "10"
+      ]
+    },
+    {
+      "cmd": "replay_verify",
+      "geoul": "out/geoul_l10"
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "state_hash": "DIFFERS_FROM:W49_G05_latency_replay_statehash_l0",
+    "stdout": [
+      "verify_ok=true",
+      "first_diverge_madi=null"
+    ],
+    "files_exist": [
+      "out/geoul_l10/audit.ddni",
+      "out/geoul_l10/audit.idx",
+      "out/geoul_l10/manifest.detjson",
+      "out/geoul_l10/checkpoints/cp_000000.detbin",
+      "out/geoul_l10/entry.ddn"
+    ],
+    "files": {
+      "out/geoul_l10/manifest.detjson": {
+        "contains": [
+          "\"seulgi_latency_madi\": 10",
+          "\"seulgi_latency_drop_policy\": \"late_drop\""
+        ]
+      }
+    }
+  }
+}
