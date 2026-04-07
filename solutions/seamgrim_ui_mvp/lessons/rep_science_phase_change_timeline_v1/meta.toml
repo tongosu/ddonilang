@@ -1,0 +1,7 @@
+title = "대표 · 과학 · 예제 1"
+description = "상변화"
+grade = "middle"
+subject = "science"
+level = "intro"
+goals = ["가열 과정에서 단계 변화(고체/융해/액체/기화/기체)를 확인한다", "잠열 구간에서 온도 정체를 관찰한다"]
+required_views = ["graph", "text"]

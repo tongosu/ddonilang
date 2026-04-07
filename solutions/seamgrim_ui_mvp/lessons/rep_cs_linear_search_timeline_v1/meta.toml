@@ -1,0 +1,7 @@
+title = "대표 · CS · 예제 1"
+description = "선형 탐색"
+grade = "middle"
+subject = "cs"
+level = "intro"
+goals = ["선형 탐색의 단계 진행을 시간축으로 본다", "목표 인덱스 변화에 따른 비교 횟수를 확인한다"]
+required_views = ["table", "graph", "text"]

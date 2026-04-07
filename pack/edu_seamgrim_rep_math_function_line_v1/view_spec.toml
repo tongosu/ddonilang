@@ -1,0 +1,11 @@
+schema = "SeamgrimViewSpecV0"
+
+required_views = [
+  "seamgrim.graph.v0:main",
+  "seamgrim.table.v0:main",
+  "seamgrim.text.v0:main"
+]
+
+required_gauges = [
+  "seamgrim.text.v0:summary"
+]

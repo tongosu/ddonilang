@@ -1,0 +1,7 @@
+title = "대표 · 물리 · 예제 1"
+description = "투사체 운동"
+grade = "middle"
+subject = "physics"
+level = "intro"
+goals = ["시간에 따른 위치/속도 변화를 상태 전개로 확인한다", "중력 가속도 변화가 궤적에 주는 영향을 확인한다"]
+required_views = ["space2d", "graph", "text"]

@@ -1,0 +1,7 @@
+title = "대표 · 경제 · 예제 1"
+description = "수요·공급·조세"
+grade = "middle"
+subject = "econ"
+level = "intro"
+goals = ["시장 가격과 거래량의 변화를 단계별로 본다", "세금 변화가 거래량에 미치는 영향을 확인한다"]
+required_views = ["graph", "text"]
