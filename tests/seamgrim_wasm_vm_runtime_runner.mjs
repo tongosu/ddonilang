@@ -13,6 +13,12 @@ function createClient({
   supportsStepWithInput = true,
   seedThrows = false,
   supportsSeed = true,
+  updateThrows = false,
+  stepThrows = false,
+  columnsThrows = false,
+  setParamThrows = false,
+  hashThrows = false,
+  stateThrows = false,
 } = {}) {
   const sharedState = state ?? {
     schema: "seamgrim.state.v0",
@@ -27,15 +33,24 @@ function createClient({
       return warnings;
     },
     updateLogic(body) {
+      if (updateThrows) {
+        throw new Error("update-fail");
+      }
       this._updates.push(String(body ?? ""));
     },
     getStateParsed() {
+      if (stateThrows) {
+        throw new Error("state-fail");
+      }
       return sharedState;
     },
     resetParsed() {
       return sharedState;
     },
     stepOneParsed() {
+      if (stepThrows) {
+        throw new Error("step-fail");
+      }
       return sharedState;
     },
     stepOneWithInputParsed(keys, lastKey, px, py, dt) {
@@ -48,12 +63,21 @@ function createClient({
       };
     },
     columnsParsed() {
+      if (columnsThrows) {
+        throw new Error("columns-fail");
+      }
       return { columns: [], row: [] };
     },
     setParamParsed(key, value) {
+      if (setParamThrows) {
+        throw new Error("set-param-fail");
+      }
       return { ok: true, key, value };
     },
     getStateHash() {
+      if (hashThrows) {
+        throw new Error("hash-fail");
+      }
       return "blake3:test";
     },
   };
@@ -226,6 +250,115 @@ async function main() {
   assert(
     readFailedWarnings?.[0]?.code === "E_WASM_PARSE_WARNINGS_READ_FAILED",
     "wasm vm handle: parse warnings read failed diag",
+  );
+
+  const failClient = createClient({
+    warnings: [],
+    updateThrows: true,
+    stepThrows: true,
+    columnsThrows: true,
+    setParamThrows: true,
+    hashThrows: true,
+    stateThrows: true,
+  });
+  const failHandle = new WasmVmHandle({
+    loader: {
+      async ensure() {
+        return failClient;
+      },
+      reset() {},
+      getLastBuildInfo() {
+        return "";
+      },
+      getLastBuildInfoDiag() {
+        return null;
+      },
+      getLastInitDiag() {
+        return null;
+      },
+      getLastPreprocessed() {
+        return "";
+      },
+      getLastPreprocessDiag() {
+        return null;
+      },
+      getCacheBust() {
+        return 13;
+      },
+    },
+    defaultSourceText: "매틱:움직씨 = { x <- 1. }.",
+  });
+
+  let updateFailed = false;
+  try {
+    await failHandle.updateLogic("매틱:움직씨 = { x <- 1. }.");
+  } catch (_) {
+    updateFailed = true;
+  }
+  assert(updateFailed, "wasm vm handle: update failure path");
+  assert(
+    failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_UPDATELOGIC_FAILED"),
+    "wasm vm handle: update failure diag",
+  );
+
+  let stepFailed = false;
+  try {
+    await failHandle.step({ n: 1 });
+  } catch (_) {
+    stepFailed = true;
+  }
+  assert(stepFailed, "wasm vm handle: step failure path");
+  assert(
+    failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_STEP_FAILED"),
+    "wasm vm handle: step failure diag",
+  );
+
+  let columnsFailed = false;
+  try {
+    await failHandle.columns();
+  } catch (_) {
+    columnsFailed = true;
+  }
+  assert(columnsFailed, "wasm vm handle: columns failure path");
+  assert(
+    failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_COLUMNS_FAILED"),
+    "wasm vm handle: columns failure diag",
+  );
+
+  let setParamFailed = false;
+  try {
+    await failHandle.setParam({ key: "k", value: 1 });
+  } catch (_) {
+    setParamFailed = true;
+  }
+  assert(setParamFailed, "wasm vm handle: setParam failure path");
+  assert(
+    failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_SET_PARAM_FAILED"),
+    "wasm vm handle: setParam failure diag",
+  );
+
+  let hashFailed = false;
+  try {
+    await failHandle.getStateHash();
+  } catch (_) {
+    hashFailed = true;
+  }
+  assert(hashFailed, "wasm vm handle: state hash failure path");
+  assert(
+    failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_STATE_HASH_FAILED"),
+    "wasm vm handle: state hash failure diag",
+  );
+
+  let stateJsonFailed = false;
+  try {
+    await failHandle.getStateJson();
+  } catch (_) {
+    stateJsonFailed = true;
+  }
+  assert(stateJsonFailed, "wasm vm handle: state json failure path");
+  assert(
+    failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_GET_STATE_JSON_FAILED"),
+    "wasm vm handle: state json failure diag",
   );
 
   console.log("seamgrim wasm vm runtime ok");

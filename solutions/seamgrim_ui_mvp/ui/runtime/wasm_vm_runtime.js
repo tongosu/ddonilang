@@ -73,6 +73,13 @@ export class WasmVmHandle {
     this.lastRuntimeDiags = [];
   }
 
+  addRuntimeDiag(code, message, detail = "") {
+    this.lastRuntimeDiags = [
+      ...this.lastRuntimeDiags,
+      buildRuntimeDiag(code, message, detail),
+    ];
+  }
+
   preprocess(sourceText) {
     const source = String(sourceText ?? this.lastSourceText ?? this.defaultSourceText);
     const pre = preprocessDdnText(source);
@@ -98,23 +105,17 @@ export class WasmVmHandle {
         try {
           client.setRngSeed(this.seedU64);
         } catch (err) {
-          this.lastRuntimeDiags = [
-            ...this.lastRuntimeDiags,
-            buildRuntimeDiag(
-              "E_WASM_SET_RNG_SEED_FAILED",
-              "setRngSeed 호출에 실패했습니다.",
-              err?.message ?? String(err ?? ""),
-            ),
-          ];
+          this.addRuntimeDiag(
+            "E_WASM_SET_RNG_SEED_FAILED",
+            "setRngSeed 호출에 실패했습니다.",
+            err?.message ?? String(err ?? ""),
+          );
         }
       } else {
-        this.lastRuntimeDiags = [
-          ...this.lastRuntimeDiags,
-          buildRuntimeDiag(
-            "E_WASM_SET_RNG_SEED_API_MISSING",
-            "setRngSeed API가 없어 시드를 적용할 수 없습니다.",
-          ),
-        ];
+        this.addRuntimeDiag(
+          "E_WASM_SET_RNG_SEED_API_MISSING",
+          "setRngSeed API가 없어 시드를 적용할 수 없습니다.",
+        );
       }
       this.seedU64 = null;
     }
@@ -178,9 +179,27 @@ export class WasmVmHandle {
 
   async updateLogic(ddnSourceText) {
     const client = await this.ensureClient(ddnSourceText);
-    client.updateLogic(this.lastBodyText);
+    try {
+      client.updateLogic(this.lastBodyText);
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_UPDATELOGIC_FAILED",
+        "updateLogic 호출에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
     this.lastParseWarnings = this.readParseWarnings(client);
-    return this.attachObservationManifest(client.getStateParsed());
+    try {
+      return this.attachObservationManifest(client.getStateParsed());
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_GETSTATE_AFTER_UPDATE_FAILED",
+        "updateLogic 이후 상태 조회에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
   }
 
   async reset({ keepParams = false } = {}) {
@@ -194,20 +213,29 @@ export class WasmVmHandle {
     const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.floor(countRaw) : 1;
     let state = null;
     for (let i = 0; i < count; i += 1) {
-      if (
-        input &&
-        typeof input === "object" &&
-        typeof client.stepOneWithInputParsed === "function"
-      ) {
-        state = client.stepOneWithInputParsed(
-          Number(input.keys ?? 0),
-          String(input.lastKey ?? ""),
-          Number(input.px ?? 0),
-          Number(input.py ?? 0),
-          Number(input.dt ?? 0),
+      try {
+        if (
+          input &&
+          typeof input === "object" &&
+          typeof client.stepOneWithInputParsed === "function"
+        ) {
+          state = client.stepOneWithInputParsed(
+            Number(input.keys ?? 0),
+            String(input.lastKey ?? ""),
+            Number(input.px ?? 0),
+            Number(input.py ?? 0),
+            Number(input.dt ?? 0),
+          );
+        } else {
+          state = client.stepOneParsed();
+        }
+      } catch (err) {
+        this.addRuntimeDiag(
+          "E_WASM_STEP_FAILED",
+          "stepOne 호출에 실패했습니다.",
+          `i=${i}; ${String(err?.message ?? err ?? "")}`,
         );
-      } else {
-        state = client.stepOneParsed();
+        throw err;
       }
     }
     return this.attachObservationManifest(state);
@@ -215,7 +243,17 @@ export class WasmVmHandle {
 
   async columns() {
     const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
-    const payload = client.columnsParsed();
+    let payload;
+    try {
+      payload = client.columnsParsed();
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_COLUMNS_FAILED",
+        "columnsParsed 호출에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
     const nativeManifest =
       payload?.observation_manifest && typeof payload.observation_manifest === "object"
         ? payload.observation_manifest
@@ -238,17 +276,44 @@ export class WasmVmHandle {
 
   async setParam({ key, value } = {}) {
     const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
-    return client.setParamParsed(String(key ?? ""), value);
+    try {
+      return client.setParamParsed(String(key ?? ""), value);
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_SET_PARAM_FAILED",
+        "setParamParsed 호출에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
   }
 
   async getStateHash() {
     const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
-    return client.getStateHash();
+    try {
+      return client.getStateHash();
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_STATE_HASH_FAILED",
+        "getStateHash 호출에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
   }
 
   async getStateJson() {
     const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
-    return this.attachObservationManifest(client.getStateParsed());
+    try {
+      return this.attachObservationManifest(client.getStateParsed());
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_GET_STATE_JSON_FAILED",
+        "getStateParsed 호출에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
   }
 
   getParseWarnings() {
