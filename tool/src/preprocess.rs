@@ -79,6 +79,8 @@ pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
 
 pub fn preprocess_source_for_parse(source: &str) -> Result<String, String> {
     let stripped = strip_slgi_blocks(source)?;
+    validate_no_legacy_header(&stripped)?;
+    validate_no_legacy_boim_surface(&stripped)?;
     if find_ai_call(&stripped).is_some() {
         return Err("AI_PREPROCESS_REQUIRED: `??()`/`??{}` 전처리가 필요합니다".to_string());
     }
@@ -1257,7 +1259,7 @@ mod tests {
     }
 
     #[test]
-    fn preprocess_keeps_legacy_boim_block_as_is() {
+    fn preprocess_rejects_legacy_boim_block() {
         let source = r#"
 보임 {
   y축: 값.
@@ -1266,13 +1268,12 @@ mod tests {
   없음.
 }
 "#;
-        let out = preprocess_source_for_parse(source).expect("preprocess");
-        assert!(out.contains("보임 {"));
-        assert!(!out.contains("\"table.row\" 보여주기."));
+        let err = preprocess_source_for_parse(source).expect_err("must reject");
+        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
     }
 
     #[test]
-    fn preprocess_keeps_unconvertible_boim_block() {
+    fn preprocess_rejects_unconvertible_boim_block() {
         let source = r#"
 보임 {
   y축 값.
@@ -1281,9 +1282,15 @@ mod tests {
   없음.
 }
 "#;
-        let out = preprocess_source_for_parse(source).expect("preprocess");
-        assert!(out.contains("보임 {"));
-        assert!(!out.contains("\"table.row\" 보여주기."));
+        let err = preprocess_source_for_parse(source).expect_err("must reject");
+        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
+    }
+
+    #[test]
+    fn preprocess_rejects_legacy_hash_header() {
+        let source = "#이름: legacy\nx <- 1.\n";
+        let err = preprocess_source_for_parse(source).expect_err("must reject");
+        assert!(err.contains("E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN"));
     }
 
     #[test]
