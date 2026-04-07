@@ -3670,8 +3670,17 @@ fn canonicalize_with_fallback_mode(
     }
     let meta_parse = split_file_meta(&prepared);
     let root_hide = has_root_hide_directive(&prepared);
+    let normalized_frontdoor = ddonirang_lang::parse_frontdoor_and_normalize(
+        &meta_parse.stripped,
+        "<canon-frontdoor-prepared>",
+        ddonirang_lang::NormalizationLevel::N1,
+    )
+    .ok();
+    let parse_source = normalized_frontdoor
+        .as_deref()
+        .unwrap_or(&meta_parse.stripped);
     let default_root = "바탕";
-    let tokens = Lexer::tokenize(&prepared)?;
+    let tokens = Lexer::tokenize(parse_source)?;
     let legacy_guseong_alias_seen = tokens
         .iter()
         .any(|token| matches!(token.kind, TokenKind::GuseongBlock(_)));
@@ -3685,12 +3694,14 @@ fn canonicalize_with_fallback_mode(
             if !allow_frontdoor_fallback {
                 return Err(primary_err);
             }
-            let normalized = ddonirang_lang::parse_frontdoor_and_normalize(
-                &meta_parse.stripped,
-                "<canon-fallback-frontdoor>",
-                ddonirang_lang::NormalizationLevel::N1,
-            )
-            .ok();
+            let normalized = normalized_frontdoor.clone().or_else(|| {
+                ddonirang_lang::parse_frontdoor_and_normalize(
+                    &meta_parse.stripped,
+                    "<canon-fallback-frontdoor>",
+                    ddonirang_lang::NormalizationLevel::N1,
+                )
+                .ok()
+            });
 
             if let Some(normalized_text) = normalized.as_ref() {
                 if let Ok(mut strict_output) =
