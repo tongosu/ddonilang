@@ -2881,6 +2881,8 @@ export function createWasmLoader({
   cacheBust = Date.now(),
   modulePath = "./wasm/ddonirang_tool.js",
   wrapperPath = "./wasm_ddn_wrapper.js",
+  moduleFactory = null,
+  wrapperFactory = null,
   fallbackSource = "매틱:움직씨 = { 프레임수 <- 0. 프레임수 <- (프레임수 + 1). }.",
   setStatus,
   clearStatusError,
@@ -2922,7 +2924,14 @@ export function createWasmLoader({
 
     let wasmModule;
     try {
-      wasmModule = await import(withCacheBust(modulePath));
+      if (typeof moduleFactory === "function") {
+        wasmModule = await moduleFactory({
+          modulePath,
+          cacheBust,
+        });
+      } else {
+        wasmModule = await import(withCacheBust(modulePath));
+      }
     } catch (err) {
       lastInitDiag = {
         code: "E_WASM_LOADER_MODULE_LOAD_FAILED",
@@ -2970,7 +2979,14 @@ export function createWasmLoader({
 
     let wrapper;
     try {
-      wrapper = await import(withCacheBust(wrapperPath));
+      if (typeof wrapperFactory === "function") {
+        wrapper = await wrapperFactory({
+          wrapperPath,
+          cacheBust,
+        });
+      } else {
+        wrapper = await import(withCacheBust(wrapperPath));
+      }
     } catch (err) {
       lastInitDiag = {
         code: "E_WASM_LOADER_WRAPPER_LOAD_FAILED",
