@@ -1,4 +1,3 @@
-#말씨: en
 root.message <- "dialect_sym3_before".
 { 참 } 인것 ?=> { root.message <- "dialect_sym3_ok". }
 root.message 보여주기.

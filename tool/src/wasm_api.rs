@@ -46,48 +46,22 @@ fn parse_mode_from_str(mode: &str) -> Result<ParseMode, JsValue> {
 }
 
 fn canonicalize_for_wasm(source: &str) -> Result<canon::CanonOutput, JsValue> {
-    match canon::canonicalize(source, false) {
-        Ok(output) => Ok(output),
-        Err(raw_err) => {
-            let prepared = match preprocess_program_source_for_wasm(source) {
-                Ok(text) => text,
-                Err(_) => {
-                    return Err(JsValue::from_str(&format!("WASM canon 실패: {raw_err}")));
-                }
-            };
-            canon::canonicalize(&prepared, false).map_err(|fallback_err| {
-                JsValue::from_str(&format!(
-                    "WASM canon 실패: {raw_err} (preprocess 재시도 실패: {fallback_err})"
-                ))
-            })
-        }
-    }
+    canon::canonicalize(source, false).map_err(|err| JsValue::from_str(&format!("WASM canon 실패: {err}")))
 }
 
 fn preprocess_program_source_for_wasm(source: &str) -> Result<String, JsValue> {
     let meta = split_file_meta(source);
-    preprocess_source_for_parse(&meta.stripped)
+    let preprocessed = preprocess_source_for_parse(&meta.stripped)
         .map_err(|err| JsValue::from_str(&format!("WASM preprocess 실패: {err}")))
+        ?;
+    Ok(ddonirang_lang::preprocess_frontdoor_source(&preprocessed))
 }
 
 fn parse_program_with_preprocess_fallback(
     source: &str,
     mode: ParseMode,
 ) -> Result<DdnProgram, JsValue> {
-    match DdnProgram::from_source_with_mode(source, "<wasm>", mode) {
-        Ok(program) => Ok(program),
-        Err(raw_err) => {
-            let prepared = match preprocess_program_source_for_wasm(source) {
-                Ok(text) => text,
-                Err(_) => return Err(JsValue::from_str(&raw_err)),
-            };
-            DdnProgram::from_source_with_mode(&prepared, "<wasm>", mode).map_err(|fallback_err| {
-                JsValue::from_str(&format!(
-                    "{raw_err}\n(preprocess 재시도 실패: {fallback_err})"
-                ))
-            })
-        }
-    }
+    DdnProgram::from_source_with_mode(source, "<wasm>", mode).map_err(|err| JsValue::from_str(&err))
 }
 
 #[wasm_bindgen]
@@ -122,6 +96,15 @@ pub fn wasm_canon_maegim_plan(source: &str) -> Result<String, JsValue> {
 pub fn wasm_canon_alrim_plan(source: &str) -> Result<String, JsValue> {
     let output = canonicalize_for_wasm(source)?;
     Ok(output.alrim_plan_json)
+}
+
+#[wasm_bindgen]
+pub fn wasm_canon_exec_policy_map(source: &str) -> Result<String, JsValue> {
+    if !canon::has_exec_policy_surface(source) {
+        return Ok("{}\n".to_string());
+    }
+    let output = canonicalize_for_wasm(source)?;
+    Ok(output.exec_policy_map_json)
 }
 
 #[wasm_bindgen]
@@ -1109,6 +1092,8 @@ fn resource_value_to_u64(value: &ResourceValue) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::{Path, PathBuf};
 
     const SAMPLE_MAEGIM_SOURCE: &str = r#"
 채비 {
@@ -1299,6 +1284,46 @@ a.기준점 <- b.꼭짓점.
 () 증명.
 "#;
 
+    const WAVE1_LESSON_PATHS: &[&str] = &[
+        "docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn",
+        "docs/ssot/pack/edu_econ_e030_01_cobweb_price_time_series/lesson.ddn",
+        "docs/ssot/pack/edu_phys_p004_04_rc_charging_Vc_t/lesson.ddn",
+        "docs/ssot/pack/edu_econ_e009_04_tax_incidence_tau_pc/lesson.ddn",
+        "docs/ssot/pack/edu_math_m001_04_riemann_sum_integral_x2/lesson.ddn",
+    ];
+
+    fn repo_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("repo root")
+            .to_path_buf()
+    }
+
+    fn wave1_lessons() -> Vec<(&'static str, String)> {
+        let root = repo_root();
+        WAVE1_LESSON_PATHS
+            .iter()
+            .map(|rel| {
+                let abs = root.join(rel);
+                let text = fs::read_to_string(&abs)
+                    .unwrap_or_else(|err| panic!("wave1 lesson read 실패: {} ({err})", abs.display()));
+                (*rel, text)
+            })
+            .collect()
+    }
+
+    fn cli_canon_output(source: &str) -> crate::canon::CanonOutput {
+        crate::canon::canonicalize(source, false).expect("cli canon")
+    }
+
+    fn cli_like_exec_policy_emit(source: &str) -> String {
+        if !crate::canon::has_exec_policy_surface(source) {
+            "{}\n".to_string()
+        } else {
+            cli_canon_output(source).exec_policy_map_json
+        }
+    }
+
     #[test]
     fn wasm_canon_flat_json_matches_cli_canon_surface() {
         let flat_json = wasm_canon_flat_json(SAMPLE_GUSEONG_SOURCE).expect("wasm flat json");
@@ -1309,21 +1334,14 @@ a.기준점 <- b.꼭짓점.
     }
 
     #[test]
-    fn wasm_canon_flat_json_accepts_legacy_boim_block_via_preprocess() {
-        let source = r#"
-(매마디)마다 {
-  n <- 1.
-  보임 {
-    n: n.
-  }.
-}.
-"#;
-        let flat_json = wasm_canon_flat_json(source).expect("wasm flat json with legacy boim");
-        assert!(flat_json.contains("\"schema\": \"ddn.guseong_flatten_plan.v1\""));
+    fn wasm_canon_flat_json_exact_parity_with_cli_output() {
+        let wasm = wasm_canon_flat_json(SAMPLE_GUSEONG_SOURCE).expect("wasm flat json");
+        let cli = cli_canon_output(SAMPLE_GUSEONG_SOURCE).guseong_flat_json;
+        assert_eq!(wasm, cli);
     }
 
     #[test]
-    fn wasm_vm_constructor_accepts_legacy_boim_block_via_preprocess() {
+    fn wasm_canon_legacy_boim_surface_detection_works() {
         let source = r#"
 (매마디)마다 {
   n <- 1.
@@ -1332,7 +1350,13 @@ a.기준점 <- b.꼭짓점.
   }.
 }.
 "#;
-        let vm = DdnWasmVm::new(source).expect("vm constructor with legacy boim");
+        assert!(crate::canon::has_legacy_boim_surface(source));
+        assert!(!crate::canon::has_legacy_boim_surface(SAMPLE_GUSEONG_SOURCE));
+    }
+
+    #[test]
+    fn wasm_vm_constructor_build_info_contains_pkg() {
+        let vm = DdnWasmVm::new(SAMPLE_GUSEONG_SOURCE).expect("vm constructor");
         assert!(vm.get_build_info().contains("pkg="));
     }
 
@@ -1346,12 +1370,111 @@ a.기준점 <- b.꼭짓점.
     }
 
     #[test]
+    fn wasm_canon_maegim_plan_exact_parity_with_cli_output() {
+        let wasm = wasm_canon_maegim_plan(SAMPLE_MAEGIM_SOURCE).expect("wasm maegim plan");
+        let cli = cli_canon_output(SAMPLE_MAEGIM_SOURCE).maegim_control_json;
+        assert_eq!(wasm, cli);
+    }
+
+    #[test]
     fn wasm_canon_alrim_plan_matches_cli_canon_surface() {
         let alrim_json = wasm_canon_alrim_plan(SAMPLE_ALRIM_SOURCE).expect("wasm alrim plan");
         assert!(alrim_json.contains("\"schema\": \"ddn.alrim_event_plan.v1\""));
         assert!(alrim_json.contains("\"kind\": \"jump\""));
         assert!(alrim_json.contains("\"kind\": \"tick\""));
         assert!(alrim_json.contains("\"scope\": \"root/seed:매틱\""));
+    }
+
+    #[test]
+    fn wasm_canon_alrim_plan_exact_parity_with_cli_output() {
+        let wasm = wasm_canon_alrim_plan(SAMPLE_ALRIM_SOURCE).expect("wasm alrim plan");
+        let cli = cli_canon_output(SAMPLE_ALRIM_SOURCE).alrim_plan_json;
+        assert_eq!(wasm, cli);
+    }
+
+    #[test]
+    fn wasm_canon_exec_policy_map_uses_empty_fast_path_without_surface() {
+        let source = r#"
+채비 {
+  x:수 <- 1.
+}.
+"#;
+        let exec_json = wasm_canon_exec_policy_map(source).expect("wasm exec policy map");
+        assert_eq!(exec_json.trim(), "{}");
+    }
+
+    #[test]
+    fn wasm_canon_exec_policy_map_exact_parity_with_cli_emit_semantics_without_surface() {
+        let source = r#"
+채비 {
+  x:수 <- 1.
+}.
+"#;
+        let wasm = wasm_canon_exec_policy_map(source).expect("wasm exec policy map");
+        let cli_like = cli_like_exec_policy_emit(source);
+        assert_eq!(wasm, cli_like);
+    }
+
+    #[test]
+    fn wasm_canon_exec_policy_map_emits_schema_with_surface() {
+        let source = r#"
+너머 {
+  실행모드: 일반.
+  효과정책: 허용.
+}.
+"#;
+        let exec_json = wasm_canon_exec_policy_map(source).expect("wasm exec policy map");
+        assert!(exec_json.contains("\"schema\": \"ddn.exec_policy_effect_map.v1\""));
+        assert_ne!(exec_json.trim(), "{}");
+    }
+
+    #[test]
+    fn wasm_canon_exec_policy_map_exact_parity_with_cli_emit_semantics_with_surface() {
+        let source = r#"
+너머 {
+  실행모드: 일반.
+  효과정책: 허용.
+}.
+"#;
+        let wasm = wasm_canon_exec_policy_map(source).expect("wasm exec policy map");
+        let cli_like = cli_like_exec_policy_emit(source);
+        assert_eq!(wasm, cli_like);
+    }
+
+    #[test]
+    fn wasm_canon_wave1_flat_json_exact_parity_with_cli_output() {
+        for (lesson_path, source) in wave1_lessons() {
+            let wasm = wasm_canon_flat_json(&source).expect("wasm flat json");
+            let cli = cli_canon_output(&source).guseong_flat_json;
+            assert_eq!(wasm, cli, "wave1 flat parity mismatch: {lesson_path}");
+        }
+    }
+
+    #[test]
+    fn wasm_canon_wave1_maegim_plan_exact_parity_with_cli_output() {
+        for (lesson_path, source) in wave1_lessons() {
+            let wasm = wasm_canon_maegim_plan(&source).expect("wasm maegim plan");
+            let cli = cli_canon_output(&source).maegim_control_json;
+            assert_eq!(wasm, cli, "wave1 maegim parity mismatch: {lesson_path}");
+        }
+    }
+
+    #[test]
+    fn wasm_canon_wave1_alrim_plan_exact_parity_with_cli_output() {
+        for (lesson_path, source) in wave1_lessons() {
+            let wasm = wasm_canon_alrim_plan(&source).expect("wasm alrim plan");
+            let cli = cli_canon_output(&source).alrim_plan_json;
+            assert_eq!(wasm, cli, "wave1 alrim parity mismatch: {lesson_path}");
+        }
+    }
+
+    #[test]
+    fn wasm_canon_wave1_exec_policy_map_exact_parity_with_cli_emit_semantics() {
+        for (lesson_path, source) in wave1_lessons() {
+            let wasm = wasm_canon_exec_policy_map(&source).expect("wasm exec policy map");
+            let cli_like = cli_like_exec_policy_emit(&source);
+            assert_eq!(wasm, cli_like, "wave1 exec parity mismatch: {lesson_path}");
+        }
     }
 
     #[test]

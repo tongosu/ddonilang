@@ -1,5 +1,3 @@
-#이름: ssot_edu_phys_p014_01_electric_field_r_E_variant_P014-01 전기장 E(r)
-#설명: 점전하 주변 전기장 크기 E(r)=k/r^2 (교육용 스케일). r=0 회피. (r,E) 출력.
 
 k <- 1000.
 

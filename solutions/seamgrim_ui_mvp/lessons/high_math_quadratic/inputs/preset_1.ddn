@@ -1,5 +1,3 @@
-#이름: high_math_quadratic_variant_high_math_quadratic
-#설명: y = a*x^2 + b*x + c (위로 열린 포물선)
 채비 {
   a:수 <- (0.8) 매김 { 범위: -3..3. 간격: 0.1. }.
   b:수 <- (0.5) 매김 { 범위: -8..8. 간격: 0.1. }.

@@ -1,5 +1,3 @@
-#이름: bogae_api_catalog_v1_game_hud
-#설명: 게임 HUD 카탈로그 이름 경로 결정성
 
 체력 <- 87.
 아이템행 <- "포션x2, 열쇠x1".

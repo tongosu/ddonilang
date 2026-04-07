@@ -1,5 +1,3 @@
-#이름: ssot_edu_econ_e008_02_average_cost_q_ac_variant_E008-02 평균비용 AC(q)
-#설명: TC(q)=F + c*q + 0.5*d*q^2 에서 AC(q)=TC(q)/q 를 계산해 (q,AC) 출력.
 
 #기본관찰x: q
 #기본관찰: AC

@@ -1,5 +1,3 @@
-#이름: elem_econ_supply_demand_basic_variant_수요·공급 기초
-#설명: 가격이 초과수요/초과공급에 반응하며 균형으로 이동한다.
 
 #기본관찰x: t
 #기본관찰: 가격

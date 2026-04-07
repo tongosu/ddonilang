@@ -1,5 +1,3 @@
-#이름: elem_math_speed_distance_variant_속력·거리
-#설명: 시간에 따른 거리 누적 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: 거리

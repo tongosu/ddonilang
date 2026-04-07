@@ -1,5 +1,3 @@
-#이름: ssot_edu_econ_e010_01_inverse_demand_q_p_variant_E010-01 역수요곡선 P(Q)
-#설명: 선형 역수요 P(Q)=max(0, a - b*Q)를 산출량 스캔으로 관찰한다.
 
 #기본관찰x: Q
 #기본관찰: P

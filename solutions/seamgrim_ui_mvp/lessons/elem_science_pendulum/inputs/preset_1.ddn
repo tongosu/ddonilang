@@ -1,5 +1,3 @@
-#이름: elem_science_pendulum_variant_진자 운동
-#설명: 감쇠 진자 ODE(각도/각속도) 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: 각도

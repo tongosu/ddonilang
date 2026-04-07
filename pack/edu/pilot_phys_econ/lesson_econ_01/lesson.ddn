@@ -1,10 +1,3 @@
-#이름: 수요공급_균형_한편의장면
-#설명: graph(수요/공급 곡선) + table(균형 값) + text(설명/자막) + ViewDock
-#교과: 경제-수요공급
-#필수보개: graph, table, text, structure
-#layout_preset: 좌graph_우table_중text_하단dock
-#physics_backend: none
-#control: income:수=0 [-50..50] step=1 unit=idx
 
 붙박이마련: {
   // 기본 선형 모형 파라미터
@@ -20,7 +13,10 @@
 }.
 
 그릇채비: {
-  income:수 <- 0.
+  income:수 <- (0) 매김 {
+    범위: -50..50.
+    간격: 1.
+  }.
 }.
 
 // 바탕(전제): 기울기/범위 유효성

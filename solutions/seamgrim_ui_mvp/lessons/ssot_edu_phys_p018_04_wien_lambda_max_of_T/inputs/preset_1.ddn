@@ -1,5 +1,3 @@
-#이름: ssot_edu_phys_p018_04_wien_lambda_max_of_T_variant_P018-04 빈의 법칙 λ_max(T)=b/T
-#설명: λ_max = b/T.  온도↑ → 최대파장↓ (짧은 파장으로 이동).
 
 // stateful-sim preview(auto): range sampler -> step sim
 

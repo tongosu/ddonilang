@@ -1,5 +1,3 @@
-#이름: elem_math_even_numbers_variant_짝수 패턴
-#설명: 짝수 수열 상태 시뮬레이션
 
 #기본관찰x: n
 #기본관찰: 짝수

@@ -19,6 +19,10 @@ use crate::canon;
 use crate::cli::bogae::{
     default_bogae_out_dir, is_bogae_out_dir, resolve_bogae_out_dir, BogaeMode, OverlayConfig,
 };
+use crate::cli::frontdoor_input::validate_no_legacy_header;
+use crate::cli::frontdoor_parse::{
+    parse_program_for_runtime, parse_program_for_runtime_with_mode, FrontdoorParseFailure,
+};
 use crate::cli::bogae_console::{render_drawlist_ascii, ConsoleLive, ConsoleRenderConfig};
 use crate::cli::bogae_playback::{write_manifest, write_viewer_assets, PlaybackFrameMeta};
 use crate::cli::bogae_web::write_web_assets;
@@ -46,8 +50,8 @@ use crate::lang::ast::{
     ArgBinding, BinaryOp, Binding, ContractKind, ContractMode, Expr, Literal, Path as AstPath,
     Program, QuantifierKind, SeedKind, Stmt, UnaryOp,
 };
-use crate::lang::lexer::{LexError, Lexer};
-use crate::lang::parser::{ParseError, ParseMode, Parser};
+use crate::lang::lexer::LexError;
+use crate::lang::parser::{ParseError, ParseMode};
 use crate::runtime::{
     ContractDiag, DiagnosticFailure, DiagnosticRecord, EvalFailure, EvalOutput, Evaluator,
     OpenDiagConfig, OpenInputFrame, OpenMode, OpenPolicy, OpenRuntime, ProofRuntimeEvent,
@@ -2930,6 +2934,7 @@ pub fn run_file_with_emitter(
     emit: &mut dyn RunEmitSink,
 ) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    validate_no_legacy_header(&source)?;
     let file_label = path.display().to_string();
     let open_source = canonical_open_source_path(path);
     let mut open_allow = parse_open_allow_directives(&source);
@@ -2938,21 +2943,11 @@ pub fn run_file_with_emitter(
     let project_policy = load_project_policy(path)?;
     let parse_mode = resolve_lang_mode(options.lang_mode, &project_policy)?
         .with_compat_matic_entry(options.compat_matic_entry);
-    let program_for_gate = {
-        let tokens = match Lexer::tokenize(&source) {
-            Ok(tokens) => tokens,
-            Err(err) => {
-                return Err(RunError::Lex(err).format(&file_label));
-            }
-        };
-        let default_root = Parser::default_root_for_source(&source);
-        match Parser::parse_with_default_root_mode(tokens, default_root, parse_mode) {
-            Ok(program) => program,
-            Err(err) => {
-                return Err(RunError::Parse(err).format(&file_label));
-            }
-        }
-    };
+    let (program_for_gate, _prepared_source) =
+        parse_program_for_runtime_with_mode(&source, parse_mode).map_err(|err| match err {
+            FrontdoorParseFailure::Lex(err) => RunError::Lex(err).format(&file_label),
+            FrontdoorParseFailure::Parse(err) => RunError::Parse(err).format(&file_label),
+        })?;
     let exec_policy_extract = extract_exec_policy(&program_for_gate)?;
     for kind in extract_exec_policy_open_allow(&program_for_gate) {
         if !open_allow.iter().any(|entry| entry == &kind) {
@@ -3843,15 +3838,16 @@ pub fn run_source_with_state_seed_ticks(
     seed: u64,
     ticks: u64,
 ) -> Result<EvalOutput, RunError> {
-    let tokens = Lexer::tokenize(source).map_err(RunError::Lex)?;
-    let default_root = Parser::default_root_for_source(source);
-    let program = Parser::parse_with_default_root(tokens, default_root).map_err(RunError::Parse)?;
+    let (program, prepared_source) = parse_program_for_runtime(source).map_err(|err| match err {
+        FrontdoorParseFailure::Lex(err) => RunError::Lex(err),
+        FrontdoorParseFailure::Parse(err) => RunError::Parse(err),
+    })?;
     let evaluator = Evaluator::with_state_seed_open(
         state,
         seed,
         OpenRuntime::deny(),
         "<memory>".to_string(),
-        Some(source.to_string()),
+        Some(prepared_source),
     );
     evaluator
         .run_with_ticks(&program, ticks)
@@ -3888,16 +3884,14 @@ where
 {
     let mut tick_error: Option<RunError> = None;
     let mut ticks_run = 0u64;
-    let tokens = Lexer::tokenize(source).map_err(|error| FailedRunOutcome {
-        error: RunError::Lex(error),
-        output: None,
-        ticks: ticks_run,
-    })?;
-    let default_root = Parser::default_root_for_source(source);
-    let program =
-        Parser::parse_with_default_root_mode(tokens, default_root, parse_mode).map_err(|error| {
+    let (program, prepared_source) =
+        parse_program_for_runtime_with_mode(source, parse_mode).map_err(|error| {
+            let error = match error {
+                FrontdoorParseFailure::Lex(error) => RunError::Lex(error),
+                FrontdoorParseFailure::Parse(error) => RunError::Parse(error),
+            };
             FailedRunOutcome {
-                error: RunError::Parse(error),
+                error,
                 output: None,
                 ticks: ticks_run,
             }
@@ -3907,7 +3901,7 @@ where
         seed,
         open_runtime,
         open_source.to_string(),
-        Some(source.to_string()),
+        Some(prepared_source),
     );
     let input_open_active = uses_input_surface
         && open_mode != OpenMode::Deny
@@ -4293,7 +4287,7 @@ fn parse_message(err: &ParseError) -> String {
             "strict 모드에서는 '=' 대입이 허용되지 않습니다".to_string()
         }
         ParseError::CompatMaticEntryDisabled { .. } => {
-            "strict 모드에서는 매틱:움직씨가 비활성화됩니다. --compat-matic-entry를 사용하세요."
+            "strict 모드에서는 매틱:움직씨가 비활성화됩니다. 정본 표면(매마디:움직씨)으로 전환하세요."
                 .to_string()
         }
         ParseError::BlockHeaderColonForbidden { .. } => {
@@ -5923,11 +5917,13 @@ fn quantifier_kind_label(kind: QuantifierKind) -> &'static str {
 }
 
 fn parse_program_for_proof_with_mode(source: &str, parse_mode: ParseMode) -> Result<Program, String> {
-    let tokens =
-        Lexer::tokenize(source).map_err(|err| format!("{} {}", err.code(), lex_message(&err)))?;
-    let default_root = Parser::default_root_for_source(source);
-    Parser::parse_with_default_root_mode(tokens, default_root, parse_mode)
-        .map_err(|err| format!("{} {}", err.code(), parse_message(&err)))
+    let (program, _) = parse_program_for_runtime_with_mode(source, parse_mode).map_err(|err| {
+        match err {
+            FrontdoorParseFailure::Lex(err) => format!("{} {}", err.code(), lex_message(&err)),
+            FrontdoorParseFailure::Parse(err) => format!("{} {}", err.code(), parse_message(&err)),
+        }
+    })?;
+    Ok(program)
 }
 
 fn extract_solver_query_hint(args: &[ArgBinding]) -> Option<String> {
@@ -6806,6 +6802,8 @@ fn open_in_browser(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lang::lexer::Lexer;
+    use crate::lang::parser::Parser;
     use crate::lang::span::Span;
 
     struct CaptureEmitter {
@@ -6833,10 +6831,9 @@ mod tests {
     }
 
     fn parse_program_for_test(source: &str) -> Program {
-        let tokens = Lexer::tokenize(source).expect("tokenize");
-        let default_root = Parser::default_root_for_source(source);
-        Parser::parse_with_default_root_mode(tokens, default_root, ParseMode::Strict)
-            .expect("parse")
+        let (program, _) =
+            parse_program_for_runtime(source).expect("parse program for runtime");
+        program
     }
 
     fn default_run_options() -> RunOptions {

@@ -1,5 +1,3 @@
-#이름: bogae_observe_basics
-#설명: 보개(관찰) - DrawListV1 + bogae_hash 기본 시나리오
 
 보개_그림판_가로 <- 64.
 보개_그림판_세로 <- 48.

@@ -1,5 +1,3 @@
-#이름: elem_science_magnet_distance_variant_자석과 거리
-#설명: 자력-감쇠 기반 거리/속도 동학 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: 거리

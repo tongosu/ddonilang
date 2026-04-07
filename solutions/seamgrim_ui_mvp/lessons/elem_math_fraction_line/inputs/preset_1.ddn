@@ -1,5 +1,3 @@
-#이름: elem_math_fraction_line_variant_분수와 소수
-#설명: 분수선 위에서 x/2 값이 누적되는 상태 시뮬레이션
 
 #기본관찰x: x
 #기본관찰: 분수값

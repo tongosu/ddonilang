@@ -19,6 +19,8 @@ pub mod dotbogi;
 pub mod eco;
 pub mod edu;
 pub mod eval;
+pub mod frontdoor_input;
+pub mod frontdoor_parse;
 pub mod gaji;
 pub mod gaji_registry;
 pub mod gateway;

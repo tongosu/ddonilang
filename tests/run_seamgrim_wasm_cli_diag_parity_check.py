@@ -45,8 +45,15 @@ def default_report_path(file_name: str) -> Path:
     return fallback / file_name
 
 
+def emit_line(text: str) -> None:
+    line = f"{text}\n"
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    sys.stdout.buffer.write(line.encode(encoding, errors="replace"))
+    sys.stdout.flush()
+
+
 def fail(msg: str) -> int:
-    print(f"[seamgrim-wasm-cli-diag-parity] fail: {msg}")
+    emit_line(f"[seamgrim-wasm-cli-diag-parity] fail: {msg}")
     return 1
 
 
@@ -437,7 +444,7 @@ def main() -> int:
             stderr_head=(proc.stderr or "").strip() or "-",
         )
 
-    print("[seamgrim-wasm-cli-diag-parity] ok")
+    emit_line("[seamgrim-wasm-cli-diag-parity] ok")
     return finalize(0)
 
 

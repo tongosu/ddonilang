@@ -354,43 +354,16 @@ impl Parser {
             *stmts = rest;
             return Ok(());
         }
-
-        let mut injected = false;
-        for stmt in rest.iter_mut() {
-            if let Stmt::SeedDef {
-                name, kind, body, ..
-            } = stmt
-            {
-                if matches!(kind, SeedKind::Umjikssi) && (name == "매틱" || name == "매마디") {
-                    let mut new_body = Vec::with_capacity(decls.len() + body.len());
-                    new_body.append(&mut decls);
-                    new_body.append(body);
-                    *body = new_body;
-                    injected = true;
-                    break;
-                }
-            }
-        }
-
-        if !injected {
-            let span = if let (Some(first), Some(last)) = (decls.first(), decls.last()) {
-                Self::stmt_span(first).merge(Self::stmt_span(last))
-            } else {
-                self.peek().span
-            };
-            rest.push(Stmt::SeedDef {
-                name: "매틱".to_string(),
-                params: Vec::new(),
-                kind: SeedKind::Umjikssi,
-                body: decls,
-                span,
-            });
-        }
-
-        *stmts = rest;
+        // Frontdoor closure: top-level `채비` 선언은 프로그램 시작 시점에
+        // 즉시 상태로 반영되어야 하므로 별도 seed 주입 없이 원위치로 유지한다.
+        let mut merged = Vec::with_capacity(decls.len() + rest.len());
+        merged.extend(decls);
+        merged.extend(rest);
+        *stmts = merged;
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn stmt_span(stmt: &Stmt) -> Span {
         match stmt {
             Stmt::ImportBlock { span, .. }

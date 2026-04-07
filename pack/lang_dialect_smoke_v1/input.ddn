@@ -1,4 +1,3 @@
-#말씨: en
 root.message <- "dialect_smoke_before".
 { 참 } 인것 if { root.message <- "dialect_smoke_ok". }
 root.message 보여주기.

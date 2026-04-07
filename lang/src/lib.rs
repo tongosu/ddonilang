@@ -11,6 +11,7 @@ pub mod age_gate;
 pub mod ast;
 pub mod canonicalizer;
 pub mod dialect;
+pub mod frontdoor;
 pub mod lexer;
 pub mod normalizer;
 pub mod parser;
@@ -23,6 +24,7 @@ pub use age_gate::{age_not_available_error, AgeTarget};
 pub use ast::*;
 pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
 pub use dialect::DialectConfig;
+pub use frontdoor::preprocess_frontdoor_source;
 pub use lexer::{LexError, Lexer, Token, TokenKind};
 pub use normalizer::{normalize, NormalizationLevel, Normalizer};
 pub use parser::{ParseError, ParseMode, Parser};
@@ -40,6 +42,16 @@ pub use surface::{surface_form, SurfaceError};
 /// 편리 함수: 소스 → AST
 pub fn parse(source: &str, file_path: &str) -> Result<CanonProgram, ParseError> {
     parse_with_mode(source, file_path, ParseMode::Strict)
+}
+
+/// 편리 함수: frontdoor 입력 표면 전처리 후 AST
+pub fn parse_frontdoor_with_mode(
+    source: &str,
+    file_path: &str,
+    mode: ParseMode,
+) -> Result<CanonProgram, ParseError> {
+    let prepared = preprocess_frontdoor_source(source);
+    parse_with_mode(&prepared, file_path, mode)
 }
 
 /// 편리 함수: 소스 → AST (모드 지정)
@@ -69,6 +81,16 @@ pub fn parse_and_normalize(
     let mut program = parse(source, file_path)?;
     let _report = canonicalize(&mut program)?;
     Ok(normalize(&program, level))
+}
+
+/// 편리 함수: frontdoor 입력 표면 전처리 후 정본화
+pub fn parse_frontdoor_and_normalize(
+    source: &str,
+    file_path: &str,
+    level: NormalizationLevel,
+) -> Result<String, ParseError> {
+    let prepared = preprocess_frontdoor_source(source);
+    parse_and_normalize(&prepared, file_path, level)
 }
 
 #[cfg(test)]

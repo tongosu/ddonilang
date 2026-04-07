@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Generate rewritten Seamgrim lessons from generation plan."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from pathlib import Path
 TEMPLATES = {
     "physics_motion_v1": """#이름: {name}
 #설명: {desc}
-#control: x0:수=0 [-20..20] step=0.5; v0:수=1 [-20..20] step=0.5; a:수=0.2 [-10..10] step=0.1; dt:수=0.1 [0.02..1] step=0.01; t_max:수=8 [1..30] step=0.5
+// control: x0:수=0 [-20..20] step=0.5; v0:수=1 [-20..20] step=0.5; a:수=0.2 [-10..10] step=0.1; dt:수=0.1 [0.02..1] step=0.01; t_max:수=8 [1..30] step=0.5
 
 x0 <- 0.
 v0 <- 1.
@@ -39,7 +39,7 @@ t_max <- 8.
 """,
     "physics_orbit_v1": """#이름: {name}
 #설명: {desc}
-#control: x0:수=1 [0.2..5] step=0.1; y0:수=0 [-5..5] step=0.1; vx0:수=0 [-5..5] step=0.1; vy0:수=1 [0.1..5] step=0.1; mu:수=1 [0.2..10] step=0.1; dt:수=0.02 [0.005..0.1] step=0.005; t_max:수=8 [1..30] step=0.5
+// control: x0:수=1 [0.2..5] step=0.1; y0:수=0 [-5..5] step=0.1; vx0:수=0 [-5..5] step=0.1; vy0:수=1 [0.1..5] step=0.1; mu:수=1 [0.2..10] step=0.1; dt:수=0.02 [0.005..0.1] step=0.005; t_max:수=8 [1..30] step=0.5
 
 x0 <- 1.
 y0 <- 0.
@@ -75,7 +75,7 @@ t_max <- 8.
 """,
     "physics_thermal_v1": """#이름: {name}
 #설명: {desc}
-#control: T_env:수=20 [-10..50] step=0.5; T0:수=90 [0..150] step=0.5; k:수=0.15 [0.01..1] step=0.01; dt:수=0.1 [0.02..1] step=0.01; t_max:수=12 [1..50] step=0.5
+// control: T_env:수=20 [-10..50] step=0.5; T0:수=90 [0..150] step=0.5; k:수=0.15 [0.01..1] step=0.01; dt:수=0.1 [0.02..1] step=0.01; t_max:수=12 [1..50] step=0.5
 
 T_env <- 20.
 T0 <- 90.
@@ -101,7 +101,7 @@ t_max <- 12.
 """,
     "physics_oscillator_v1": """#이름: {name}
 #설명: {desc}
-#control: x0:수=1 [-5..5] step=0.1; v0:수=0 [-5..5] step=0.1; k:수=1 [0.1..8] step=0.1; c:수=0.1 [0..2] step=0.05; dt:수=0.02 [0.005..0.1] step=0.005; t_max:수=8 [1..30] step=0.5
+// control: x0:수=1 [-5..5] step=0.1; v0:수=0 [-5..5] step=0.1; k:수=1 [0.1..8] step=0.1; c:수=0.1 [0..2] step=0.05; dt:수=0.02 [0.005..0.1] step=0.005; t_max:수=8 [1..30] step=0.5
 
 x0 <- 1.
 v0 <- 0.
@@ -131,7 +131,7 @@ t_max <- 8.
 """,
     "math_quadratic_integral_v1": """#이름: {name}
 #설명: {desc}
-#control: a:수=1 [-5..5] step=0.1; b:수=0 [-8..8] step=0.1; c:수=0 [-20..20] step=0.1; x_start:수=-3 [-20..20] step=0.5; x_end:수=3 [-20..20] step=0.5; dx:수=0.1 [0.02..1] step=0.02
+// control: a:수=1 [-5..5] step=0.1; b:수=0 [-8..8] step=0.1; c:수=0 [-20..20] step=0.1; x_start:수=-3 [-20..20] step=0.5; x_end:수=3 [-20..20] step=0.5; dx:수=0.1 [0.02..1] step=0.02
 
 a <- 1.
 b <- 0.
@@ -162,7 +162,7 @@ dx <- 0.1.
 """,
     "math_linear_v1": """#이름: {name}
 #설명: {desc}
-#control: m:수=1 [-10..10] step=0.1; b:수=0 [-20..20] step=0.1; x_start:수=-5 [-20..20] step=0.5; x_end:수=5 [-20..20] step=0.5; dx:수=0.25 [0.05..1] step=0.05
+// control: m:수=1 [-10..10] step=0.1; b:수=0 [-20..20] step=0.1; x_start:수=-5 [-20..20] step=0.5; x_end:수=5 [-20..20] step=0.5; dx:수=0.25 [0.05..1] step=0.05
 
 m <- 1.
 b <- 0.
@@ -185,7 +185,7 @@ dx <- 0.25.
 """,
     "math_stats_v1": """#이름: {name}
 #설명: {desc}
-#control: x0:수=10 [0..100] step=1; trend:수=0.4 [-5..5] step=0.1; noise:수=0.2 [0..2] step=0.1; dt:수=1 [1..1] step=1; t_max:수=20 [5..60] step=1
+// control: x0:수=10 [0..100] step=1; trend:수=0.4 [-5..5] step=0.1; noise:수=0.2 [0..2] step=0.1; dt:수=1 [1..1] step=1; t_max:수=20 [5..60] step=1
 
 x0 <- 10.
 trend <- 0.4.
@@ -214,7 +214,7 @@ t_max <- 20.
 """,
     "math_sequence_v1": """#이름: {name}
 #설명: {desc}
-#control: a0:수=1 [-20..20] step=0.5; d:수=2 [-10..10] step=0.5; r:수=1.1 [0.2..3] step=0.05; blend:수=0.5 [0..1] step=0.05; n_max:수=20 [5..80] step=1
+// control: a0:수=1 [-20..20] step=0.5; d:수=2 [-10..10] step=0.5; r:수=1.1 [0.2..3] step=0.05; blend:수=0.5 [0..1] step=0.05; n_max:수=20 [5..80] step=1
 
 a0 <- 1.
 d <- 2.
@@ -244,7 +244,7 @@ n_max <- 20.
 """,
     "math_matrix_v1": """#이름: {name}
 #설명: {desc}
-#control: a:수=1 [-10..10] step=0.5; b:수=2 [-10..10] step=0.5; c:수=3 [-10..10] step=0.5; d:수=4 [-10..10] step=0.5; delta:수=0.1 [-2..2] step=0.1; n_max:수=20 [5..80] step=1
+// control: a:수=1 [-10..10] step=0.5; b:수=2 [-10..10] step=0.5; c:수=3 [-10..10] step=0.5; d:수=4 [-10..10] step=0.5; delta:수=0.1 [-2..2] step=0.1; n_max:수=20 [5..80] step=1
 
 a <- 1.
 b <- 2.
@@ -273,7 +273,7 @@ n_max <- 20.
 """,
     "economy_supply_demand_v1": """#이름: {name}
 #설명: {desc}
-#control: d0:수=120 [30..300] step=1; d1:수=2 [0.5..6] step=0.1; s0:수=20 [0..150] step=1; s1:수=1.2 [0.2..4] step=0.1; p0:수=10 [1..80] step=0.5; k:수=0.08 [0.01..0.3] step=0.01; dt:수=0.1 [0.02..0.5] step=0.01; t_max:수=10 [2..30] step=0.5
+// control: d0:수=120 [30..300] step=1; d1:수=2 [0.5..6] step=0.1; s0:수=20 [0..150] step=1; s1:수=1.2 [0.2..4] step=0.1; p0:수=10 [1..80] step=0.5; k:수=0.08 [0.01..0.3] step=0.01; dt:수=0.1 [0.02..0.5] step=0.01; t_max:수=10 [2..30] step=0.5
 
 d0 <- 120.
 d1 <- 2.
@@ -307,7 +307,7 @@ t_max <- 10.
 """,
     "economy_growth_v1": """#이름: {name}
 #설명: {desc}
-#control: y0:수=100 [10..500] step=1; g:수=0.03 [-0.05..0.2] step=0.005; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
+// control: y0:수=100 [10..500] step=1; g:수=0.03 [-0.05..0.2] step=0.005; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
 
 y0 <- 100.
 g <- 0.03.
@@ -331,7 +331,7 @@ t_max <- 20.
 """,
     "economy_budget_v1": """#이름: {name}
 #설명: {desc}
-#control: income:수=100 [20..500] step=1; consume_rate:수=0.7 [0..1] step=0.01; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
+// control: income:수=100 [20..500] step=1; consume_rate:수=0.7 [0..1] step=0.01; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
 
 income <- 100.
 consume_rate <- 0.7.
@@ -358,7 +358,7 @@ t_max <- 20.
 """,
     "economy_stock_flow_v1": """#이름: {name}
 #설명: {desc}
-#control: stock0:수=100 [0..500] step=1; inflow:수=20 [0..200] step=1; out_rate:수=0.15 [0..1] step=0.01; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
+// control: stock0:수=100 [0..500] step=1; inflow:수=20 [0..200] step=1; out_rate:수=0.15 [0..1] step=0.01; dt:수=1 [1..1] step=1; t_max:수=20 [5..80] step=1
 
 stock0 <- 100.
 inflow <- 20.
@@ -386,7 +386,7 @@ t_max <- 20.
 """,
     "generic_series_v1": """#이름: {name}
 #설명: {desc}
-#control: x0:수=0 [-20..20] step=0.5; rate:수=1 [-10..10] step=0.1; dt:수=0.1 [0.02..1] step=0.01; t_max:수=8 [1..30] step=0.5
+// control: x0:수=0 [-20..20] step=0.5; rate:수=1 [-10..10] step=0.1; dt:수=0.1 [0.02..1] step=0.01; t_max:수=8 [1..30] step=0.5
 
 x0 <- 0.
 rate <- 1.
@@ -538,3 +538,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

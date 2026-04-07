@@ -5,6 +5,7 @@ use clap::ValueEnum;
 use serde_json::json;
 
 use crate::canon::{self, CanonError};
+use crate::cli::frontdoor_input::{prepare_frontdoor_canon_input, validate_no_legacy_header};
 use crate::lang::lexer::Lexer;
 use crate::lang::parser::{ParseError, Parser};
 use crate::lang::span::Span;
@@ -69,9 +70,92 @@ pub struct CanonArgs {
 
 pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("E_CLI_READ {}", e))?;
+    validate_no_legacy_header(&source)?;
+    if canon::has_legacy_boim_surface(&source) {
+        return Err(
+            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
+                .to_string(),
+        );
+    }
+    if let Some(alias_kind) = detect_forbidden_event_surface_alias(&source) {
+        let err = CanonError::new(
+            "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
+            format!(
+                "비정본 이벤트 문형 금지({alias_kind}) — 정본은 \"KIND\"라는 알림이 오면 {{ ... }}."
+            ),
+        );
+        return Err(err.to_string());
+    }
     let fixits_json = build_fixits_json(&source, path);
     let bridge = matches!(args.bridge, Some(BridgeKind::Age0Step01));
-    let result = canon::canonicalize(&source, bridge);
+    let legacy_block_header_colon_count = detect_legacy_block_header_colon_count(&source);
+
+    if matches!(args.emit, EmitKind::Ddn) {
+        let (ddn, meta, mut warnings) = canonicalize_ddn_strict(&source, path, bridge)?;
+        append_block_header_warning_if_needed(&mut warnings, legacy_block_header_colon_count);
+        ensure_no_inplace_fixits(path, &args, &fixits_json)?;
+        if args.check && !is_canon_match(&source, &ddn) {
+            let err = CanonError::new(
+                "E_CANON_CHECK_MISMATCH",
+                format!("정본 불일치: {}", path.display()),
+            );
+            maybe_write_fixits(&fixits_json, &args.fixits_json)?;
+            maybe_write_diag(&args.diag_jsonl, &diag_error_line(&err))?;
+            return Err(err.to_string());
+        }
+        for warning in &warnings {
+            eprintln!("warning: {}", warning);
+        }
+        maybe_write_fixits(&fixits_json, &args.fixits_json)?;
+        maybe_write_diag(&args.diag_jsonl, &diag_ok_line())?;
+        maybe_write_meta(&meta, &args.meta_out)?;
+        write_emit(
+            path,
+            &args,
+            &fixits_json,
+            &ddn,
+            "{}\n",
+            "{}\n",
+            "{}\n",
+            "{}\n",
+        )?;
+        return Ok(());
+    }
+
+    if matches!(args.emit, EmitKind::ExecPolicyMapJson) && !canon::has_exec_policy_surface(&source) {
+        let (ddn, meta, mut warnings) = canonicalize_ddn_strict(&source, path, bridge)?;
+        append_block_header_warning_if_needed(&mut warnings, legacy_block_header_colon_count);
+        ensure_no_inplace_fixits(path, &args, &fixits_json)?;
+        if args.check && !is_canon_match(&source, &ddn) {
+            let err = CanonError::new(
+                "E_CANON_CHECK_MISMATCH",
+                format!("정본 불일치: {}", path.display()),
+            );
+            maybe_write_fixits(&fixits_json, &args.fixits_json)?;
+            maybe_write_diag(&args.diag_jsonl, &diag_error_line(&err))?;
+            return Err(err.to_string());
+        }
+        for warning in &warnings {
+            eprintln!("warning: {}", warning);
+        }
+        maybe_write_fixits(&fixits_json, &args.fixits_json)?;
+        maybe_write_diag(&args.diag_jsonl, &diag_ok_line())?;
+        maybe_write_meta(&meta, &args.meta_out)?;
+        write_emit(
+            path,
+            &args,
+            &fixits_json,
+            &ddn,
+            "{}\n",
+            "{}\n",
+            "{}\n",
+            "{}\n",
+        )?;
+        return Ok(());
+    }
+
+    let input = prepare_frontdoor_canon_input(&source);
+    let result = canon::canonicalize(&input.prepared, bridge);
 
     match result {
         Ok(output) => {
@@ -109,6 +193,92 @@ pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
             Err(err.to_string())
         }
     }
+}
+
+fn canonicalize_ddn_strict(
+    source: &str,
+    _path: &Path,
+    bridge: bool,
+) -> Result<(String, crate::file_meta::FileMeta, Vec<String>), String> {
+    validate_no_legacy_header(source)?;
+    if canon::has_legacy_boim_surface(source) {
+        return Err(
+            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
+                .to_string(),
+        );
+    }
+    let input = prepare_frontdoor_canon_input(source);
+    let output = canon::canonicalize(&input.prepared, bridge).map_err(|err| err.to_string())?;
+    Ok((output.ddn, output.meta, output.warnings))
+}
+
+fn detect_legacy_block_header_colon_count(source: &str) -> usize {
+    source
+        .lines()
+        .filter(|line| is_legacy_block_header_colon_line(line))
+        .count()
+}
+
+fn is_legacy_block_header_colon_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+        return false;
+    }
+    let Some(colon_pos) = trimmed.find(':') else {
+        return false;
+    };
+    let head = trimmed[..colon_pos].trim();
+    if head.is_empty() {
+        return false;
+    }
+    let tail = trimmed[colon_pos + 1..].trim_start();
+    if !tail.starts_with('{') {
+        return false;
+    }
+    // 타입 선언/대입/경로 표면은 제외하고, 헤더형 `키워드: {`만 감지한다.
+    if head.contains('=') || head.contains("<-") || head.contains('.') {
+        return false;
+    }
+    true
+}
+
+fn append_block_header_warning_if_needed(warnings: &mut Vec<String>, count: usize) {
+    if count == 0 {
+        return;
+    }
+    if warnings
+        .iter()
+        .any(|w| w.contains("W_BLOCK_HEADER_COLON_DEPRECATED"))
+    {
+        return;
+    }
+    warnings.push(format!(
+        "W_BLOCK_HEADER_COLON_DEPRECATED 블록 헤더의 `키워드:` 표기는 예정된 비권장입니다. `키워드 {{` 표기로 전환하세요 (count={count})"
+    ));
+}
+
+fn detect_forbidden_event_surface_alias(source: &str) -> Option<&'static str> {
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if trimmed.starts_with("알림 \"")
+            && (trimmed.contains("\"가 오면") || trimmed.contains("\"이 오면"))
+        {
+            return Some("prefix_form");
+        }
+        if trimmed.starts_with('"') && (trimmed.contains(" 일때") || trimmed.contains(" 일때:")) {
+            return Some("ilttae_form");
+        }
+        if trimmed.contains("라는 소식") && trimmed.contains("오면") {
+            return Some("noun_alias");
+        }
+        if trimmed.contains("라는 알람") && trimmed.contains("오면") {
+            return Some("noun_alias");
+        }
+    }
+    None
 }
 
 fn ensure_no_inplace_fixits(
@@ -314,7 +484,8 @@ struct FixitEntry {
 }
 
 fn build_fixits_json(source: &str, path: &Path) -> String {
-    let tokens = match Lexer::tokenize(source) {
+    let prepared = ddonirang_lang::preprocess_frontdoor_source(source);
+    let tokens = match Lexer::tokenize(&prepared) {
         Ok(tokens) => tokens,
         Err(_) => return "[]\n".to_string(),
     };
@@ -748,6 +919,59 @@ fn find_legacy_term(name: &str) -> Option<&'static LegacyTerm> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_path(name: &str, ext: &str) -> std::path::PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        let mut path = std::env::temp_dir();
+        path.push(format!("teul_cli_canon_{name}_{nonce}.{ext}"));
+        path
+    }
+
+    fn write_temp_ddn(source: &str, name: &str) -> std::path::PathBuf {
+        let path = unique_temp_path(name, "ddn");
+        fs::write(&path, source).expect("write source");
+        path
+    }
+
+    fn run_emit_and_read(source: &str, emit: EmitKind, name: &str) -> String {
+        let src = write_temp_ddn(source, name);
+        let out = unique_temp_path(name, "json");
+        let args = CanonArgs {
+            emit,
+            out_dir: Some(out.clone()),
+            bridge: None,
+            fixits_json: None,
+            diag_jsonl: None,
+            meta_out: None,
+            check: false,
+        };
+        run(&src, args).expect("run canon");
+        let text = fs::read_to_string(&out).expect("read out");
+        let _ = fs::remove_file(src);
+        let _ = fs::remove_file(out);
+        text
+    }
+
+    fn run_expect_error(source: &str, emit: EmitKind, name: &str) -> String {
+        let src = write_temp_ddn(source, name);
+        let args = CanonArgs {
+            emit,
+            out_dir: None,
+            bridge: None,
+            fixits_json: None,
+            diag_jsonl: None,
+            meta_out: None,
+            check: false,
+        };
+        let err = run(&src, args).expect_err("canon must fail");
+        let _ = fs::remove_file(src);
+        err
+    }
 
     #[test]
     fn lifecycle_fixit_candidate_uses_next_available_suffix() {
@@ -771,5 +995,75 @@ mod tests {
 "#;
         let candidate = propose_lifecycle_rename_candidate(source, "연습판");
         assert_eq!(candidate, "연습판2");
+    }
+
+    #[test]
+    fn run_exec_policy_emit_without_surface_uses_empty_fast_path() {
+        let source = r#"
+채비 {
+  x:수 <- 1.
+}.
+"#;
+        let out = run_emit_and_read(
+            source,
+            EmitKind::ExecPolicyMapJson,
+            "exec_policy_emit_empty_fast_path",
+        );
+        assert_eq!(out.trim(), "{}");
+    }
+
+    #[test]
+    fn run_exec_policy_emit_with_surface_writes_policy_map_schema() {
+        let source = r#"
+너머 {
+  실행모드: 일반.
+  효과정책: 허용.
+}.
+"#;
+        let out = run_emit_and_read(
+            source,
+            EmitKind::ExecPolicyMapJson,
+            "exec_policy_emit_with_surface",
+        );
+        assert!(out.contains("\"schema\": \"ddn.exec_policy_effect_map.v1\""));
+        assert!(out.contains("\"map\": {}"));
+        assert_ne!(out.trim(), "{}");
+    }
+
+    #[test]
+    fn run_guseong_emit_writes_flatten_schema() {
+        let source = r#"
+채비 {
+  x:수 <- 1.
+}.
+"#;
+        let out = run_emit_and_read(source, EmitKind::GuseongFlatJson, "guseong_emit_schema");
+        assert!(out.contains("\"schema\": \"ddn.guseong_flatten_plan.v1\""));
+    }
+
+    #[test]
+    fn run_maegim_emit_writes_control_schema() {
+        let source = r#"
+채비 {
+  g:수 = (9.8) 매김 {
+    범위: 1..20.
+    간격: 0.1.
+  }.
+}.
+"#;
+        let out = run_emit_and_read(source, EmitKind::MaegimControlJson, "maegim_emit_schema");
+        assert!(out.contains("\"schema\": \"ddn.maegim_control_plan.v1\""));
+        assert!(out.contains("\"name\": \"g\""));
+    }
+
+    #[test]
+    fn run_ddn_rejects_forbidden_event_surface_alias() {
+        let source = r#"
+"jump"라는 소식이 오면 {
+  x <- 1.
+}.
+"#;
+        let err = run_expect_error(source, EmitKind::Ddn, "event_alias_forbidden");
+        assert!(err.contains("E_EVENT_SURFACE_ALIAS_FORBIDDEN"));
     }
 }

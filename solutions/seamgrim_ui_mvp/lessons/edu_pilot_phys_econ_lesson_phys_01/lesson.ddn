@@ -1,7 +1,3 @@
-#교과: 물리-진자
-#필수보개: 2d, graph, text
-#layout_preset: 좌2d_우graph_중text_하단dock
-#physics_backend: calc
 채비 {
   L:수 <- (1.0) 매김 { 범위: 0.2..3.0. 간격: 0.01. }.
   theta0:수 <- (0.6) 매김 { 범위: -1.57..1.57. 간격: 0.01. }.

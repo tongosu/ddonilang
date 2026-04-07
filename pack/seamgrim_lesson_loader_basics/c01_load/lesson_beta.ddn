@@ -1,5 +1,3 @@
-#이름: lesson_econ_supply_demand
-#설명: 수요/공급 선형모형 균형점 관찰
 
 채비 {
   a:수 <- 20.

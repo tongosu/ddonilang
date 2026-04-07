@@ -1,5 +1,3 @@
-#이름: elem_math_fraction_addition_variant_분수 더하기
-#설명: 분수 덧셈 상태 시뮬레이션(x/6 + 1/2, 상한 14)
 
 #기본관찰x: x
 #기본관찰: 합값

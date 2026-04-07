@@ -1,5 +1,3 @@
-#이름: elem_math_unit_cm_to_mm_variant_cm→mm 변환
-#설명: cm 입력이 mm로 변환되는 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: mm

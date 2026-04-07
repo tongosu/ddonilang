@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::cli::frontdoor_input::validate_no_legacy_header;
+use crate::cli::frontdoor_parse::{parse_program_for_runtime, FrontdoorParseFailure};
 use crate::cli::run::RunError;
 use crate::lang::ast::{Expr, Literal, Stmt};
-use crate::lang::lexer::Lexer;
-use crate::lang::parser::Parser;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TypeKind {
@@ -43,11 +43,11 @@ pub struct CheckArgs {
 
 pub fn run(file: &Path, args: CheckArgs) -> Result<(), String> {
     let source = fs::read_to_string(file).map_err(|e| e.to_string())?;
-    let tokens = Lexer::tokenize(&source)
-        .map_err(|e| RunError::Lex(e).format(&file.display().to_string()))?;
-    let default_root = Parser::default_root_for_source(&source);
-    let program = Parser::parse_with_default_root(tokens, default_root)
-        .map_err(|e| RunError::Parse(e).format(&file.display().to_string()))?;
+    validate_no_legacy_header(&source)?;
+    let (program, _) = parse_program_for_runtime(&source).map_err(|err| match err {
+        FrontdoorParseFailure::Lex(e) => RunError::Lex(e).format(&file.display().to_string()),
+        FrontdoorParseFailure::Parse(e) => RunError::Parse(e).format(&file.display().to_string()),
+    })?;
 
     let mut symbols: BTreeMap<String, TypeKind> = BTreeMap::new();
 

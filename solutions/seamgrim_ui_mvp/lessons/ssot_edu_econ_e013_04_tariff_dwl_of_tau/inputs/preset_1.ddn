@@ -1,5 +1,3 @@
-#이름: ssot_edu_econ_e013_04_tariff_dwl_of_tau_variant_E013-04 관세 τ와 사중손실 DWL(간이)
-#설명: 수요 Qd=a-bp, 공급 Qs=c+dp, 세계가격 pw. 관세 τ → 국내가격 p=pw+τ.
 
 #기본관찰x: tau
 #기본관찰: DWL

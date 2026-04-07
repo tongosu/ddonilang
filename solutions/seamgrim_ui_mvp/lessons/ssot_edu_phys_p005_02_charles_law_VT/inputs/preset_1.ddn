@@ -1,5 +1,3 @@
-#이름: ssot_edu_phys_p005_02_charles_law_VT_variant_P005-02 기체 법칙(정압) V-T
-#설명: V = n R T / P  (출력: T V)
 
 // stateful-sim preview(auto): range sampler -> step sim
 

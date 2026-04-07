@@ -1,5 +1,3 @@
-#이름: ssot_edu_econ_e014_04_min_wage_unemployment_of_wmin_variant_E014-04 최저임금 w_min과 초과공급(실업) U(w_min)
-#설명: U = max(0, Ls(w_min) - Ld(w_min)).
 
 #기본관찰x: wmin
 #기본관찰: U

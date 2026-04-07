@@ -1,5 +1,3 @@
-#이름: physics_projectile_variant_physics_projectile
-#설명: 2D 투사체 궤적(단순)
 
 // stateful-sim preview(auto): range sampler -> step sim
 

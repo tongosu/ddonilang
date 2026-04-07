@@ -1,5 +1,3 @@
-#이름: elem_science_season_temp_variant_계절과 기온
-#설명: 계절 주기와 완충을 반영한 기온 동학 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: 현재기온

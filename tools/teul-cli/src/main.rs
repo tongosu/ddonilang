@@ -10,6 +10,9 @@ mod cli;
 mod core;
 mod file_meta;
 mod lang;
+#[path = "../../../tool/src/preprocess.rs"]
+#[allow(dead_code)]
+mod preprocess_bridge;
 mod runtime;
 
 #[derive(Subcommand)]
@@ -1281,6 +1284,13 @@ pub(crate) struct RunCommandArgs {
     pub(crate) run_command_override: Option<String>,
 }
 
+fn compat_release_override_enabled() -> bool {
+    matches!(
+        std::env::var("DDN_INTERNAL_ALLOW_COMPAT").ok().as_deref(),
+        Some("1")
+    )
+}
+
 pub(crate) fn execute_run_command(
     args: RunCommandArgs,
     emit: &mut dyn cli::run::RunEmitSink,
@@ -1334,6 +1344,12 @@ pub(crate) fn execute_run_command(
         unsafe_open,
         run_command_override,
     } = args;
+
+    if compat_matic_entry && !compat_release_override_enabled() {
+        return Err(
+            "E_CLI_COMPAT_RELEASE_BLOCKED --compat-matic-entry는 출시 경로에서 비활성화됩니다. 내부 진단이 필요하면 DDN_INTERNAL_ALLOW_COMPAT=1을 사용하세요.".to_string()
+        );
+    }
 
     let seed = parse_seed(&seed).map_err(|message| format!("E_CLI_BAD_SEED {}", message))?;
     let madi =

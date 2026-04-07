@@ -1,5 +1,3 @@
-#이름: elem_science_daily_temperature_variant_하루 기온
-#설명: 일주기 목표기온을 따라 현재기온이 지연 추종하는 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: 현재기온

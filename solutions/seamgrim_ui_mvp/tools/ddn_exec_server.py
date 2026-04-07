@@ -179,6 +179,20 @@ def _build_maegim_control_payload_from_source_text(source_text: str, source_labe
             payload = json.loads(str(result.stdout or "").strip())
             if isinstance(payload, dict) and str(payload.get("schema") or "").strip() == MAEGIM_CONTROL_SCHEMA:
                 payload.setdefault("warnings", [])
+                controls = payload.get("controls")
+                warnings = payload.get("warnings")
+                # canon 경로가 비어 있거나(controls 없음), legacy 주석 경고를 놓친 경우에는
+                # 실행 서버 계약을 위해 legacy 계획으로 강등한다.
+                legacy_preview = _build_legacy_maegim_control_plan(source_text, source_label)
+                legacy_warnings = legacy_preview.get("warnings")
+                if not isinstance(controls, list) or not controls:
+                    return legacy_preview, "legacy"
+                if (
+                    isinstance(legacy_warnings, list)
+                    and legacy_warnings
+                    and (not isinstance(warnings, list) or not warnings)
+                ):
+                    return legacy_preview, "legacy"
                 return payload, "canon"
         payload = _build_legacy_maegim_control_plan(source_text, source_label)
         if not isinstance(payload, dict) or str(payload.get("schema") or "").strip() != MAEGIM_CONTROL_SCHEMA:

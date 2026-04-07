@@ -1,5 +1,3 @@
-#이름: elem_math_probability_dice_variant_주사위 확률
-#설명: 반복 시행에서 목표 눈 비율이 누적되는 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: 목표눈확률

@@ -810,6 +810,13 @@ def main() -> int:
             [py, "tests/run_seamgrim_runtime_fallback_policy_check.py"],
         )
     )
+    steps.append(
+        run_step(
+            root,
+            "frontdoor_strict_all",
+            [py, "tests/run_seamgrim_frontdoor_strict_all_check.py"],
+        )
+    )
     steps.extend(
         run_steps_parallel(
             root,

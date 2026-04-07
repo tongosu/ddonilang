@@ -3582,6 +3582,7 @@ pub struct CanonOutput {
     pub ddn: String,
     pub guseong_flat_json: String,
     pub alrim_plan_json: String,
+    #[allow(dead_code)]
     pub block_editor_plan_json: String,
     pub exec_policy_map_json: String,
     pub maegim_control_json: String,
@@ -3589,11 +3590,86 @@ pub struct CanonOutput {
     pub warnings: Vec<String>,
 }
 
+struct FrontdoorFallbackPlans {
+    guseong_flat_json: String,
+    alrim_plan_json: String,
+    exec_policy_map_json: String,
+    maegim_control_json: String,
+}
+
+pub fn preprocess_frontdoor_source(input: &str) -> String {
+    ddonirang_lang::preprocess_frontdoor_source(input)
+}
+
+pub fn has_exec_policy_surface(input: &str) -> bool {
+    let prepared = preprocess_frontdoor_source(input);
+    // 빠른 음성 판정: 실행정책/너머 키워드 자체가 없으면 exec-policy 표면이 없다.
+    if !prepared.contains("너머") && !prepared.contains("실행정책") {
+        return false;
+    }
+    let Ok(tokens) = Lexer::tokenize(&prepared) else {
+        // 토큰화가 실패해도 키워드 기반으로만 보수 판정한다.
+        return prepared.contains("너머") || prepared.contains("실행정책");
+    };
+
+    let mut i = 0usize;
+    while i < tokens.len() {
+        match &tokens[i].kind {
+            TokenKind::ExecPolicyBlock(_) => return true,
+            TokenKind::Ident(name) if name == "너머" => {
+                let mut j = i + 1;
+                while j < tokens.len() && matches!(tokens[j].kind, TokenKind::Newline) {
+                    j += 1;
+                }
+                if j < tokens.len() && matches!(tokens[j].kind, TokenKind::LBrace) {
+                    return true;
+                }
+                if j < tokens.len() && matches!(tokens[j].kind, TokenKind::Colon) {
+                    j += 1;
+                    while j < tokens.len() && matches!(tokens[j].kind, TokenKind::Newline) {
+                        j += 1;
+                    }
+                    if j < tokens.len() && matches!(tokens[j].kind, TokenKind::LBrace) {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    false
+}
+
+pub fn has_legacy_boim_surface(input: &str) -> bool {
+    let prepared = preprocess_frontdoor_source(input);
+    for line in prepared.lines() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("보임") {
+            continue;
+        }
+        let rest = trimmed["보임".len()..].trim_start();
+        if rest.starts_with('{') || rest.starts_with(':') {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError> {
-    let meta_parse = split_file_meta(input);
-    let root_hide = has_root_hide_directive(input);
+    canonicalize_with_fallback_mode(input, bridge, true)
+}
+
+fn canonicalize_with_fallback_mode(
+    input: &str,
+    bridge: bool,
+    allow_frontdoor_fallback: bool,
+) -> Result<CanonOutput, CanonError> {
+    let prepared = preprocess_frontdoor_source(input);
+    let meta_parse = split_file_meta(&prepared);
+    let root_hide = has_root_hide_directive(&prepared);
     let default_root = "바탕";
-    let tokens = Lexer::tokenize(input)?;
+    let tokens = Lexer::tokenize(&prepared)?;
     let legacy_guseong_alias_seen = tokens
         .iter()
         .any(|token| matches!(token.kind, TokenKind::GuseongBlock(_)));
@@ -3601,7 +3677,52 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
         .iter()
         .any(|token| matches!(token.kind, TokenKind::BogaeJangmyeonBlock(_)));
     let mut parser = Parser::new(tokens, bridge);
-    let surface = parser.parse_program()?;
+    let surface = match parser.parse_program() {
+        Ok(surface) => surface,
+        Err(primary_err) => {
+            if !allow_frontdoor_fallback {
+                return Err(primary_err);
+            }
+            let normalized = ddonirang_lang::parse_frontdoor_and_normalize(
+                &meta_parse.stripped,
+                "<canon-fallback-frontdoor>",
+                ddonirang_lang::NormalizationLevel::N1,
+            )
+            .ok();
+
+            if let Some(normalized_text) = normalized.as_ref() {
+                if let Ok(mut strict_output) =
+                    canonicalize_with_fallback_mode(normalized_text, bridge, false)
+                {
+                    let mut ddn = String::new();
+                    ddn.push_str(&format_file_meta(&meta_parse.meta));
+                    ddn.push_str(strict_output.ddn.trim_end());
+                    ddn.push('\n');
+                    strict_output.ddn = ddn;
+                    strict_output.meta = meta_parse.meta.clone();
+                    return Ok(strict_output);
+                }
+            }
+
+            let fallback_source = normalized.as_deref().unwrap_or(&meta_parse.stripped);
+            let fallback_plans = build_frontdoor_fallback_plans(fallback_source)?;
+            let ddn_body = normalized.unwrap_or_else(|| preprocess_frontdoor_source(&meta_parse.stripped));
+            let mut ddn = String::new();
+            ddn.push_str(&format_file_meta(&meta_parse.meta));
+            ddn.push_str(ddn_body.trim_end());
+            ddn.push('\n');
+            return Ok(CanonOutput {
+                ddn,
+                guseong_flat_json: fallback_plans.guseong_flat_json,
+                alrim_plan_json: fallback_plans.alrim_plan_json,
+                block_editor_plan_json: "{}\n".to_string(),
+                exec_policy_map_json: fallback_plans.exec_policy_map_json,
+                maegim_control_json: fallback_plans.maegim_control_json,
+                meta: meta_parse.meta,
+                warnings: Vec::new(),
+            });
+        }
+    };
     let deprecated_block_header_colon_count = parser.deprecated_block_header_colon_count();
     let flatten_plan = build_guseong_flatten_plan_surface(&surface)?;
     let guseong_flat_json = flatten_plan.to_json_string()?;
@@ -4008,6 +4129,208 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
         meta: meta_parse.meta,
         warnings,
     })
+}
+
+#[derive(Serialize)]
+struct FallbackGuseongEnvelope {
+    schema: &'static str,
+    groups: Vec<FallbackGuseongGroup>,
+}
+
+#[derive(Serialize)]
+struct FallbackGuseongGroup {
+    id: String,
+}
+
+#[derive(Serialize)]
+struct FallbackAlrimEnvelope {
+    schema: &'static str,
+    plans: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct FallbackExecEnvelope {
+    schema: &'static str,
+    map: BTreeMap<String, String>,
+}
+
+#[derive(Serialize)]
+struct FallbackMaegimEnvelope {
+    schema: &'static str,
+    controls: Vec<FallbackMaegimControl>,
+}
+
+#[derive(Serialize)]
+struct FallbackMaegimControl {
+    name: String,
+    decl_kind: &'static str,
+    min_expr_canon: Option<String>,
+    max_expr_canon: Option<String>,
+    inclusive_end: bool,
+    step_expr_canon: Option<String>,
+    split_count_expr_canon: Option<String>,
+}
+
+fn build_frontdoor_fallback_plans(source: &str) -> Result<FrontdoorFallbackPlans, CanonError> {
+    let guseong_flat_json = build_frontdoor_fallback_guseong_json(source)?;
+    let alrim_plan_json = build_frontdoor_fallback_alrim_json()?;
+    let exec_policy_map_json = build_frontdoor_fallback_exec_json()?;
+    let maegim_control_json = build_frontdoor_fallback_maegim_json(source)?;
+    Ok(FrontdoorFallbackPlans {
+        guseong_flat_json,
+        alrim_plan_json,
+        exec_policy_map_json,
+        maegim_control_json,
+    })
+}
+
+fn build_frontdoor_fallback_guseong_json(source: &str) -> Result<String, CanonError> {
+    let mut uniq = BTreeSet::new();
+    let mut groups = Vec::new();
+    for raw_line in source.lines() {
+        let line = raw_line.trim();
+        if !line.starts_with("무리 <- ") {
+            continue;
+        }
+        let Some(start) = line.find('"') else {
+            continue;
+        };
+        let remain = &line[start + 1..];
+        let Some(end) = remain.find('"') else {
+            continue;
+        };
+        let id = remain[..end].trim();
+        if id.is_empty() || !uniq.insert(id.to_string()) {
+            continue;
+        }
+        groups.push(FallbackGuseongGroup { id: id.to_string() });
+    }
+    let envelope = FallbackGuseongEnvelope {
+        schema: "ddn.guseong_flatten_plan.v1",
+        groups,
+    };
+    serde_json::to_string_pretty(&envelope)
+        .map(|text| format!("{}\n", text))
+        .map_err(|err| {
+            CanonError::new(
+                "E_CANON_GUSEONG_FLAT_JSON",
+                format!("frontdoor fallback guseong JSON 직렬화 실패: {}", err),
+            )
+        })
+}
+
+fn build_frontdoor_fallback_alrim_json() -> Result<String, CanonError> {
+    let envelope = FallbackAlrimEnvelope {
+        schema: "ddn.alrim_plan.v1",
+        plans: Vec::new(),
+    };
+    serde_json::to_string_pretty(&envelope)
+        .map(|text| format!("{}\n", text))
+        .map_err(|err| {
+            CanonError::new(
+                "E_CANON_ALRIM_PLAN_JSON",
+                format!("frontdoor fallback alrim JSON 직렬화 실패: {}", err),
+            )
+        })
+}
+
+fn build_frontdoor_fallback_exec_json() -> Result<String, CanonError> {
+    let envelope = FallbackExecEnvelope {
+        schema: "ddn.exec_policy_effect_map.v1",
+        map: BTreeMap::new(),
+    };
+    serde_json::to_string_pretty(&envelope)
+        .map(|text| format!("{}\n", text))
+        .map_err(|err| {
+            CanonError::new(
+                "E_CANON_EXEC_POLICY_MAP_JSON",
+                format!("frontdoor fallback exec-policy JSON 직렬화 실패: {}", err),
+            )
+        })
+}
+
+fn build_frontdoor_fallback_maegim_json(source: &str) -> Result<String, CanonError> {
+    let lines = source.lines().collect::<Vec<_>>();
+    let mut idx = 0usize;
+    let mut controls = Vec::new();
+    while idx < lines.len() {
+        let line = lines[idx].trim();
+        if !line.contains("매김 {") {
+            idx += 1;
+            continue;
+        }
+
+        let Some(colon_pos) = line.find(':') else {
+            idx += 1;
+            continue;
+        };
+        let name = line[..colon_pos].trim();
+        if name.is_empty() {
+            idx += 1;
+            continue;
+        }
+
+        let mut min_expr_canon = None;
+        let mut max_expr_canon = None;
+        let mut inclusive_end = false;
+        let mut step_expr_canon = None;
+        let mut split_count_expr_canon = None;
+
+        idx += 1;
+        while idx < lines.len() {
+            let inner = lines[idx].trim();
+            if inner.starts_with("}.") || inner == "}" {
+                break;
+            }
+            if let Some(rest) = inner.strip_prefix("범위:") {
+                let expr = rest.trim().trim_end_matches('.');
+                if let Some((left, right, incl)) = parse_fallback_range(expr) {
+                    min_expr_canon = Some(left);
+                    max_expr_canon = Some(right);
+                    inclusive_end = incl;
+                }
+            } else if let Some(rest) = inner.strip_prefix("간격:") {
+                step_expr_canon = Some(rest.trim().trim_end_matches('.').to_string());
+            } else if let Some(rest) = inner.strip_prefix("분할수:") {
+                split_count_expr_canon = Some(rest.trim().trim_end_matches('.').to_string());
+            }
+            idx += 1;
+        }
+
+        controls.push(FallbackMaegimControl {
+            name: name.to_string(),
+            decl_kind: "gureut",
+            min_expr_canon,
+            max_expr_canon,
+            inclusive_end,
+            step_expr_canon,
+            split_count_expr_canon,
+        });
+        idx += 1;
+    }
+
+    let envelope = FallbackMaegimEnvelope {
+        schema: "ddn.maegim_control_plan.v1",
+        controls,
+    };
+    serde_json::to_string_pretty(&envelope)
+        .map(|text| format!("{}\n", text))
+        .map_err(|err| {
+            CanonError::new(
+                "E_CANON_MAEGIM_CONTROL_PLAN_JSON",
+                format!("frontdoor fallback maegim JSON 직렬화 실패: {}", err),
+            )
+        })
+}
+
+fn parse_fallback_range(input: &str) -> Option<(String, String, bool)> {
+    if let Some((left, right)) = input.split_once("..=") {
+        return Some((left.trim().to_string(), right.trim().to_string(), true));
+    }
+    if let Some((left, right)) = input.split_once("..") {
+        return Some((left.trim().to_string(), right.trim().to_string(), false));
+    }
+    None
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -5019,7 +5342,7 @@ fn exec_mode_label(mode: ExecMode) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::canonicalize;
+    use super::{canonicalize, has_exec_policy_surface};
 
     #[test]
     fn canon_accepts_signal_send_and_named_seed_kind() {
@@ -5319,6 +5642,28 @@ mod tests {
         assert!(out
             .maegim_control_json
             .contains("\"split_count_expr_canon\": \"24\""));
+    }
+
+    #[test]
+    fn canon_emits_maegim_control_plan_json_from_seed_body_decl_block() {
+        let source = r#"
+매틱:움직씨 = {
+  채비 {
+    g:수 = (9.8) 조건 {
+      범위: 1..20.
+      간격: 0.1.
+    }.
+  }.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out
+            .maegim_control_json
+            .contains("\"schema\": \"ddn.maegim_control_plan.v1\""));
+        assert!(out.maegim_control_json.contains("\"name\": \"g\""));
+        assert!(out
+            .maegim_control_json
+            .contains("\"step_expr_canon\": \"0.1\""));
     }
 
     #[test]
@@ -5664,6 +6009,63 @@ mod tests {
         assert!(out.ddn.contains("보개마당 {"));
         assert!(!out.ddn.contains("보개장면 {"));
     }
+
+    #[test]
+    fn canon_frontdoor_accepts_file_leading_setting_block() {
+        let source = r#"
+설정 {
+  문서 {
+    이름: "프론트도어".
+  }.
+}.
+
+채비 {
+  x:수 <- 1.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("채비 {"));
+        assert!(out.ddn.contains("x:수 <- 1."));
+        assert!(!out.ddn.contains("설정 {"));
+    }
+
+    #[test]
+    fn exec_policy_surface_detector_distinguishes_presence() {
+        let no_policy = r#"
+채비 {
+  너머값:수 <- 1.
+}.
+"#;
+        assert!(!has_exec_policy_surface(no_policy));
+
+        let with_policy = r#"
+너머 {
+  실행모드: 엄밀.
+  효과정책: 격리.
+}.
+"#;
+        assert!(has_exec_policy_surface(with_policy));
+    }
+
+    #[test]
+    fn canon_exec_policy_map_emits_strict_default_contract_without_surface() {
+        let source = r#"
+채비 {
+  x:수 <- 1.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out
+            .exec_policy_map_json
+            .contains("\"schema\": \"ddn.exec_policy_effect_map.v1\""));
+        assert!(out.exec_policy_map_json.contains("\"block_count\": 0"));
+        assert!(out
+            .exec_policy_map_json
+            .contains("\"exec_mode_effective\": \"엄밀\""));
+        assert!(out
+            .exec_policy_map_json
+            .contains("\"effect_policy_effective\": \"격리\""));
+    }
 }
 
 fn effect_policy_label(policy: EffectPolicy) -> String {
@@ -5675,63 +6077,116 @@ fn effect_policy_label(policy: EffectPolicy) -> String {
 
 fn build_maegim_control_plan(stmts: &[Stmt]) -> MaegimControlPlan {
     let mut controls = Vec::new();
+    collect_maegim_controls_from_stmts(stmts, &mut controls);
+    MaegimControlPlan { controls }
+}
+
+fn collect_maegim_controls_from_stmts(stmts: &[Stmt], controls: &mut Vec<MaegimControlItem>) {
     for stmt in stmts {
-        let Stmt::RootDecl { items } = stmt else {
-            continue;
-        };
-        for item in items {
-            let Some(maegim) = &item.maegim else {
-                continue;
-            };
-            let Some(value) = &item.value else {
-                continue;
-            };
-            let fields = maegim
-                .fields
-                .iter()
-                .map(|binding| MaegimControlField {
-                    name: binding.name.clone(),
-                    value_canon: format_maegim_field_value(binding),
-                })
-                .collect();
-            let range = maegim
-                .fields
-                .iter()
-                .find(|binding| maegim_field_leaf_name(&binding.name) == "범위")
-                .and_then(|binding| parse_maegim_range_expr(&binding.value))
-                .map(
-                    |(min_expr_canon, max_expr_canon, inclusive_end)| MaegimControlRange {
-                        min_expr_canon,
-                        max_expr_canon,
-                        inclusive_end,
-                    },
-                );
-            let step_expr_canon = maegim
-                .fields
-                .iter()
-                .find(|binding| maegim_field_leaf_name(&binding.name) == "간격")
-                .map(|binding| format_expr(&binding.value));
-            let split_count_expr_canon = maegim
-                .fields
-                .iter()
-                .find(|binding| maegim_field_leaf_name(&binding.name) == "분할수")
-                .map(|binding| format_expr(&binding.value));
-            controls.push(MaegimControlItem {
-                name: item.name.clone(),
-                decl_kind: match item.kind {
-                    DeclKind::Gureut => "gureut".to_string(),
-                    DeclKind::Butbak => "butbak".to_string(),
-                },
-                type_name: item.type_name.clone(),
-                init_expr_canon: format_expr(value),
-                fields,
-                range,
-                step_expr_canon,
-                split_count_expr_canon,
-            });
+        match stmt {
+            Stmt::RootDecl { items } => collect_maegim_controls_from_decl_items(items, controls),
+            Stmt::SeedDef { body, .. }
+            | Stmt::Repeat { body }
+            | Stmt::While { body, .. }
+            | Stmt::ForEach { body, .. }
+            | Stmt::Hook { body, .. }
+            | Stmt::Receive { body, .. }
+            | Stmt::EventReact { body, .. }
+            | Stmt::OpenBlock { body }
+            | Stmt::PromptAfter { body, .. }
+            | Stmt::PromptCondition { body, .. }
+            | Stmt::PromptBlock { body } => collect_maegim_controls_from_stmts(body, controls),
+            Stmt::If {
+                then_body,
+                else_body,
+                ..
+            } => {
+                collect_maegim_controls_from_stmts(then_body, controls);
+                if let Some(else_body) = else_body {
+                    collect_maegim_controls_from_stmts(else_body, controls);
+                }
+            }
+            Stmt::Contract {
+                then_body,
+                else_body,
+                ..
+            } => {
+                if let Some(then_body) = then_body {
+                    collect_maegim_controls_from_stmts(then_body, controls);
+                }
+                collect_maegim_controls_from_stmts(else_body, controls);
+            }
+            Stmt::Choose { branches, else_body } => {
+                for branch in branches {
+                    collect_maegim_controls_from_stmts(&branch.body, controls);
+                }
+                collect_maegim_controls_from_stmts(else_body, controls);
+            }
+            Stmt::PromptChoose { branches, else_body } => {
+                for branch in branches {
+                    collect_maegim_controls_from_stmts(&branch.body, controls);
+                }
+                if let Some(else_body) = else_body {
+                    collect_maegim_controls_from_stmts(else_body, controls);
+                }
+            }
+            _ => {}
         }
     }
-    MaegimControlPlan { controls }
+}
+
+fn collect_maegim_controls_from_decl_items(items: &[DeclItem], controls: &mut Vec<MaegimControlItem>) {
+    for item in items {
+        let Some(maegim) = &item.maegim else {
+            continue;
+        };
+        let Some(value) = &item.value else {
+            continue;
+        };
+        let fields = maegim
+            .fields
+            .iter()
+            .map(|binding| MaegimControlField {
+                name: binding.name.clone(),
+                value_canon: format_maegim_field_value(binding),
+            })
+            .collect();
+        let range = maegim
+            .fields
+            .iter()
+            .find(|binding| maegim_field_leaf_name(&binding.name) == "범위")
+            .and_then(|binding| parse_maegim_range_expr(&binding.value))
+            .map(
+                |(min_expr_canon, max_expr_canon, inclusive_end)| MaegimControlRange {
+                    min_expr_canon,
+                    max_expr_canon,
+                    inclusive_end,
+                },
+            );
+        let step_expr_canon = maegim
+            .fields
+            .iter()
+            .find(|binding| maegim_field_leaf_name(&binding.name) == "간격")
+            .map(|binding| format_expr(&binding.value));
+        let split_count_expr_canon = maegim
+            .fields
+            .iter()
+            .find(|binding| maegim_field_leaf_name(&binding.name) == "분할수")
+            .map(|binding| format_expr(&binding.value));
+        controls.push(MaegimControlItem {
+            name: item.name.clone(),
+            decl_kind: match item.kind {
+                DeclKind::Gureut => "gureut".to_string(),
+                DeclKind::Butbak => "butbak".to_string(),
+            },
+            type_name: item.type_name.clone(),
+            init_expr_canon: format_expr(value),
+            fields,
+            range,
+            step_expr_canon,
+            split_count_expr_canon,
+        });
+    }
 }
 
 fn parse_maegim_range_expr(expr: &Expr) -> Option<(String, String, bool)> {

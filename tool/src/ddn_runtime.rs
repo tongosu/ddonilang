@@ -259,9 +259,10 @@ impl DdnProgram {
     ) -> Result<Self, String> {
         let meta_parse = split_file_meta(source);
         let cleaned = preprocess_source_for_parse(&meta_parse.stripped)?;
-        let mut program = parse_with_mode(&cleaned, file_path, mode)
-            .map_err(|e| format_parse_error(&cleaned, &e))?;
-        let report = canonicalize(&mut program).map_err(|e| format_parse_error(&cleaned, &e))?;
+        let prepared = ddonirang_lang::preprocess_frontdoor_source(&cleaned);
+        let mut program = parse_with_mode(&prepared, file_path, mode)
+            .map_err(|e| format_parse_error(&prepared, &e))?;
+        let report = canonicalize(&mut program).map_err(|e| format_parse_error(&prepared, &e))?;
         let parse_warnings = report
             .warnings
             .into_iter()
@@ -927,6 +928,7 @@ pub struct StateTransitionRecord {
 pub struct DdnRunOutput {
     pub patch: Patch,
     pub resources: HashMap<String, Value>,
+    #[allow(dead_code)]
     pub state_transitions: Vec<StateTransitionRecord>,
 }
 
@@ -4883,6 +4885,7 @@ impl<'a> EvalContext<'a> {
         })
     }
 
+    #[allow(dead_code)]
     fn resource_exists(&self, name: &str) -> bool {
         if self.resources.contains_key(name) || self.defaults.contains_key(name) {
             return true;

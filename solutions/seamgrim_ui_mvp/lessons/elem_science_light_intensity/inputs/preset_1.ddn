@@ -1,5 +1,3 @@
-#이름: elem_science_light_intensity_variant_빛의 세기
-#설명: 거리 변화와 흡수 보정이 반영된 광세기 시뮬레이션
 
 #기본관찰x: t
 #기본관찰: 세기

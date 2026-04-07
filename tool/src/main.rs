@@ -4339,9 +4339,24 @@ fn parse_seed_arg(text: &str) -> Result<u64, String> {
         .map_err(|_| format!("seed 파싱 실패: {}", text))
 }
 
+fn unsafe_compat_override_enabled() -> bool {
+    matches!(
+        std::env::var("DDN_INTERNAL_ALLOW_UNSAFE_COMPAT")
+            .ok()
+            .as_deref(),
+        Some("1")
+    )
+}
+
 fn main() {
     let mut raw_args: Vec<String> = std::env::args().skip(1).collect();
     let unsafe_compat = take_flag(&mut raw_args, "--unsafe-compat");
+    if unsafe_compat && !unsafe_compat_override_enabled() {
+        eprintln!(
+            "E_TOOL_COMPAT_RELEASE_BLOCKED --unsafe-compat는 출시 경로에서 비활성화됩니다. 내부 진단이 필요하면 DDN_INTERNAL_ALLOW_UNSAFE_COMPAT=1을 사용하세요."
+        );
+        std::process::exit(2);
+    }
     let lang_mode_raw = take_arg_value(&mut raw_args, "--lang-mode");
     let mut args = raw_args.into_iter();
     let cmd = args.next();
