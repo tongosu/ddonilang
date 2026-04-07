@@ -6,8 +6,16 @@ import sys
 from pathlib import Path
 
 
+def safe_print(line: str) -> None:
+    try:
+        print(line)
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "utf-8"
+        sys.stdout.buffer.write((line + "\n").encode(encoding, errors="replace"))
+
+
 def fail(detail: str) -> int:
-    print(f"check=ddn_exec_server_gate detail={detail}")
+    safe_print(f"check=ddn_exec_server_gate detail={detail}")
     return 1
 
 
@@ -34,11 +42,10 @@ def main() -> int:
         return fail(detail)
     stdout = (proc.stdout or "").strip()
     if stdout:
-        print(stdout)
-    print("seamgrim ddn exec server gate check ok")
+        safe_print(stdout)
+    safe_print("seamgrim ddn exec server gate check ok")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
