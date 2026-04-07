@@ -10,6 +10,37 @@ function buildCanonDiag(code, message, detail = "") {
   };
 }
 
+function pickRuntimeCanonDiag(runtime, fallbackError) {
+  if (!runtime || typeof runtime !== "object") return null;
+  const fromCanon = typeof runtime.getLastCanonDiag === "function" ? runtime.getLastCanonDiag() : null;
+  if (fromCanon && typeof fromCanon === "object") {
+    return buildCanonDiag(
+      String(fromCanon.code ?? "E_WASM_CANON_RUNTIME_DIAG"),
+      String(fromCanon.message ?? "wasm canon runtime 오류"),
+      String(fromCanon.detail ?? fallbackError ?? ""),
+    );
+  }
+  const fromPreprocess =
+    typeof runtime.getLastPreprocessDiag === "function" ? runtime.getLastPreprocessDiag() : null;
+  if (fromPreprocess && typeof fromPreprocess === "object") {
+    return buildCanonDiag(
+      String(fromPreprocess.code ?? "E_WASM_CANON_RUNTIME_DIAG"),
+      String(fromPreprocess.message ?? "wasm preprocess runtime 오류"),
+      String(fromPreprocess.detail ?? fallbackError ?? ""),
+    );
+  }
+  const fromBuildInfo =
+    typeof runtime.getLastBuildInfoDiag === "function" ? runtime.getLastBuildInfoDiag() : null;
+  if (fromBuildInfo && typeof fromBuildInfo === "object") {
+    return buildCanonDiag(
+      String(fromBuildInfo.code ?? "E_WASM_CANON_RUNTIME_DIAG"),
+      String(fromBuildInfo.message ?? "wasm build_info runtime 오류"),
+      String(fromBuildInfo.detail ?? fallbackError ?? ""),
+    );
+  }
+  return null;
+}
+
 function normalizeLessonPayload(lesson) {
   return lesson && typeof lesson === "object" ? { ...lesson } : {};
 }
@@ -129,17 +160,24 @@ export function createLessonCanonHydrator({
     clearCanonDiags();
     const sourceText = String(ddnText ?? "").trim();
     if (!sourceText) return "";
+    let runtime = null;
     try {
-      const runtime = await getRuntime();
+      runtime = await getRuntime();
       const plan = await runtime.canonMaegimPlan(sourceText);
       if (!plan || typeof plan !== "object") return "";
       return JSON.stringify(plan, null, 2);
     } catch (error) {
-      setCanonDiag(
-        "E_WASM_MAEGIM_PLAN_FALLBACK_FAILED",
-        "wasm maegim plan canonicalization에 실패했습니다.",
-        error?.message ?? String(error ?? ""),
-      );
+      const errText = error?.message ?? String(error ?? "");
+      const runtimeDiag = pickRuntimeCanonDiag(runtime, errText);
+      if (runtimeDiag) {
+        setCanonDiag(runtimeDiag.code, runtimeDiag.message, runtimeDiag.detail);
+      } else {
+        setCanonDiag(
+          "E_WASM_MAEGIM_PLAN_FALLBACK_FAILED",
+          "wasm maegim plan canonicalization에 실패했습니다.",
+          errText,
+        );
+      }
       console.warn(
         `[seamgrim] wasm maegim plan fallback failed: ${String(error?.message ?? error)}`,
       );
@@ -151,16 +189,23 @@ export function createLessonCanonHydrator({
     clearCanonDiags();
     const sourceText = String(ddnText ?? "").trim();
     if (!sourceText) return null;
+    let runtime = null;
     try {
-      const runtime = await getRuntime();
+      runtime = await getRuntime();
       const flat = await runtime.canonFlatJson(sourceText);
       return flat && typeof flat === "object" ? flat : null;
     } catch (error) {
-      setCanonDiag(
-        "E_WASM_FLAT_PLAN_FALLBACK_FAILED",
-        "wasm flat plan canonicalization에 실패했습니다.",
-        error?.message ?? String(error ?? ""),
-      );
+      const errText = error?.message ?? String(error ?? "");
+      const runtimeDiag = pickRuntimeCanonDiag(runtime, errText);
+      if (runtimeDiag) {
+        setCanonDiag(runtimeDiag.code, runtimeDiag.message, runtimeDiag.detail);
+      } else {
+        setCanonDiag(
+          "E_WASM_FLAT_PLAN_FALLBACK_FAILED",
+          "wasm flat plan canonicalization에 실패했습니다.",
+          errText,
+        );
+      }
       if (!quiet) {
         console.warn(
           `[seamgrim] wasm flat plan fallback failed: ${String(error?.message ?? error)}`,

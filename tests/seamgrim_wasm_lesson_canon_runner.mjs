@@ -170,6 +170,29 @@ async function main() {
     throw new Error(`flat failure diag mismatch: ${JSON.stringify(flatFailDiag)}`);
   }
 
+  const runtimeDiagHydrator = runtime.createLessonCanonHydrator({
+    createCanon: async () => ({
+      canonMaegimPlan() {
+        throw new Error("runtime-diag-test-fail");
+      },
+      getLastCanonDiag() {
+        return {
+          code: "E_WASM_CANON_JSON_PARSE_FAILED",
+          message: "maegim canonical JSON 파싱에 실패했습니다.",
+          detail: "runtime-diag-detail",
+        };
+      },
+    }),
+  });
+  await runtimeDiagHydrator.deriveMaegimControlJson("매틱:움직씨 = { x <- 1. }.");
+  const runtimeDiag = runtimeDiagHydrator.getCanonDiags?.()?.[0] ?? null;
+  if (String(runtimeDiag?.code ?? "") !== "E_WASM_CANON_JSON_PARSE_FAILED") {
+    throw new Error(`runtime diag passthrough mismatch: ${JSON.stringify(runtimeDiag)}`);
+  }
+  if (String(runtimeDiag?.detail ?? "") !== "runtime-diag-detail") {
+    throw new Error(`runtime diag detail passthrough mismatch: ${JSON.stringify(runtimeDiag)}`);
+  }
+
   const buildInfoFailCanon = await runtime.createWasmCanon({
     moduleFactory: async () => ({
       default() {},
