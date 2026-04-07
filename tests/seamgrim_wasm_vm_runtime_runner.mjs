@@ -101,6 +101,13 @@ async function main() {
     getLastBuildInfo() {
       return "build-info";
     },
+    getLastBuildInfoDiag() {
+      return {
+        code: "E_WASM_BUILD_INFO_CALL_FAILED",
+        message: "mock build-info failed",
+        detail: "mock",
+      };
+    },
     getLastPreprocessed() {
       return "preprocessed-body";
     },
@@ -146,6 +153,10 @@ async function main() {
     "wasm vm handle: seed failure runtime diag",
   );
   assert(
+    handle.getDebugInfo().buildInfoDiag?.code === "E_WASM_BUILD_INFO_CALL_FAILED",
+    "wasm vm handle: build info diag passthrough",
+  );
+  assert(
     handle.getDebugInfo().preprocessDiag?.code === "E_WASM_PREPROCESS_CALL_FAILED",
     "wasm vm handle: preprocess diag passthrough",
   );
@@ -165,6 +176,9 @@ async function main() {
       reset() {},
       getLastBuildInfo() {
         return "build-info";
+      },
+      getLastBuildInfoDiag() {
+        return null;
       },
       getLastPreprocessed() {
         return "preprocessed-body";

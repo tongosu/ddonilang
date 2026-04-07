@@ -2891,6 +2891,7 @@ export function createWasmLoader({
 } = {}) {
   let vmClient = null;
   let lastBuildInfo = "";
+  let lastBuildInfoDiag = null;
   let lastPreprocessed = "";
   let lastPreprocessDiag = null;
 
@@ -2902,6 +2903,7 @@ export function createWasmLoader({
   function reset() {
     vmClient = null;
     lastBuildInfo = "";
+    lastBuildInfoDiag = null;
     lastPreprocessed = "";
     lastPreprocessDiag = null;
   }
@@ -2925,8 +2927,14 @@ export function createWasmLoader({
     if (typeof wasmModule.wasm_build_info === "function") {
       try {
         lastBuildInfo = wasmModule.wasm_build_info();
+        lastBuildInfoDiag = null;
       } catch (err) {
         lastBuildInfo = `build_info error: ${String(err?.message ?? err)}`;
+        lastBuildInfoDiag = {
+          code: "E_WASM_BUILD_INFO_CALL_FAILED",
+          message: "wasm_build_info 호출에 실패했습니다.",
+          detail: String(err?.message ?? err ?? ""),
+        };
       }
     }
 
@@ -2992,8 +3000,14 @@ export function createWasmLoader({
     if (!buildInfo && typeof vm.get_build_info === "function") {
       try {
         buildInfo = vm.get_build_info();
+        lastBuildInfoDiag = null;
       } catch (err) {
         buildInfo = `build_info error: ${String(err?.message ?? err)}`;
+        lastBuildInfoDiag = {
+          code: "E_WASM_VM_BUILD_INFO_CALL_FAILED",
+          message: "vm.get_build_info 호출에 실패했습니다.",
+          detail: String(err?.message ?? err ?? ""),
+        };
       }
     }
 
@@ -3011,6 +3025,7 @@ export function createWasmLoader({
     ensure,
     reset,
     getLastBuildInfo: () => lastBuildInfo,
+    getLastBuildInfoDiag: () => (lastBuildInfoDiag ? { ...lastBuildInfoDiag } : null),
     getLastPreprocessed: () => lastPreprocessed,
     getLastPreprocessDiag: () => (lastPreprocessDiag ? { ...lastPreprocessDiag } : null),
     getCacheBust: () => cacheBust,
