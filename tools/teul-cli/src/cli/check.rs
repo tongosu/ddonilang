@@ -189,3 +189,19 @@ fn escape_json(input: &str) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::schema_path_for;
+    use std::path::Path;
+
+    #[test]
+    fn schema_path_is_redirected_to_build_cache_zone() {
+        let source = Path::new("solutions/seamgrim_ui_mvp/lessons/foo/lesson.ddn");
+        let out = schema_path_for(source);
+        let out_text = out.to_string_lossy().replace('\\', "/");
+        assert!(out_text.contains("/check_schema/"));
+        assert!(out_text.ends_with(".ddn.schema.json"));
+        assert!(!out_text.contains("/lessons/foo/ddn.schema.json"));
+    }
+}

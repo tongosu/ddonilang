@@ -3105,7 +3105,10 @@ mod tests {
             "sample.ddn".to_string(),
             "--compat-matic-entry".to_string(),
         ];
-        let err = Cli::try_parse_from(args).expect_err("compat flag must be rejected");
+        let err = match Cli::try_parse_from(args) {
+            Ok(_) => panic!("compat flag must be rejected"),
+            Err(err) => err,
+        };
         let rendered = err.to_string();
         assert!(rendered.contains("--compat-matic-entry"));
         assert!(rendered.contains("unexpected argument"));
