@@ -108,6 +108,13 @@ async function main() {
         detail: "mock",
       };
     },
+    getLastInitDiag() {
+      return {
+        code: "E_WASM_LOADER_MODULE_INIT_FAILED",
+        message: "mock module init failed",
+        detail: "mock",
+      };
+    },
     getLastPreprocessed() {
       return "preprocessed-body";
     },
@@ -157,6 +164,10 @@ async function main() {
     "wasm vm handle: build info diag passthrough",
   );
   assert(
+    handle.getDebugInfo().initDiag?.code === "E_WASM_LOADER_MODULE_INIT_FAILED",
+    "wasm vm handle: init diag passthrough",
+  );
+  assert(
     handle.getDebugInfo().preprocessDiag?.code === "E_WASM_PREPROCESS_CALL_FAILED",
     "wasm vm handle: preprocess diag passthrough",
   );
@@ -178,6 +189,9 @@ async function main() {
         return "build-info";
       },
       getLastBuildInfoDiag() {
+        return null;
+      },
+      getLastInitDiag() {
         return null;
       },
       getLastPreprocessed() {

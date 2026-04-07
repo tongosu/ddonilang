@@ -2892,6 +2892,7 @@ export function createWasmLoader({
   let vmClient = null;
   let lastBuildInfo = "";
   let lastBuildInfoDiag = null;
+  let lastInitDiag = null;
   let lastPreprocessed = "";
   let lastPreprocessDiag = null;
 
@@ -2904,6 +2905,7 @@ export function createWasmLoader({
     vmClient = null;
     lastBuildInfo = "";
     lastBuildInfoDiag = null;
+    lastInitDiag = null;
     lastPreprocessed = "";
     lastPreprocessDiag = null;
   }
@@ -2918,9 +2920,28 @@ export function createWasmLoader({
       clearStatusError();
     }
 
-    const wasmModule = await import(withCacheBust(modulePath));
+    let wasmModule;
+    try {
+      wasmModule = await import(withCacheBust(modulePath));
+    } catch (err) {
+      lastInitDiag = {
+        code: "E_WASM_LOADER_MODULE_LOAD_FAILED",
+        message: "wasm module 로드에 실패했습니다.",
+        detail: String(err?.message ?? err ?? ""),
+      };
+      throw err;
+    }
     if (typeof wasmModule.default === "function") {
-      await wasmModule.default();
+      try {
+        await wasmModule.default();
+      } catch (err) {
+        lastInitDiag = {
+          code: "E_WASM_LOADER_MODULE_INIT_FAILED",
+          message: "wasm module 초기화에 실패했습니다.",
+          detail: String(err?.message ?? err ?? ""),
+        };
+        throw err;
+      }
     }
 
     const { DdnWasmVm } = wasmModule;
@@ -2939,10 +2960,25 @@ export function createWasmLoader({
     }
 
     if (typeof DdnWasmVm !== "function") {
+      lastInitDiag = {
+        code: "E_WASM_LOADER_EXPORT_MISSING",
+        message: "DdnWasmVm export가 없습니다.",
+        detail: String(missingExportMessage ?? ""),
+      };
       throw new Error(missingExportMessage);
     }
 
-    const wrapper = await import(withCacheBust(wrapperPath));
+    let wrapper;
+    try {
+      wrapper = await import(withCacheBust(wrapperPath));
+    } catch (err) {
+      lastInitDiag = {
+        code: "E_WASM_LOADER_WRAPPER_LOAD_FAILED",
+        message: "wasm wrapper 로드에 실패했습니다.",
+        detail: String(err?.message ?? err ?? ""),
+      };
+      throw err;
+    }
     const needsSource = DdnWasmVm.length > 0;
     const sourceText = stripMetaHeader(source);
     const prepareSourceText = (rawSource) => {
@@ -2978,6 +3014,7 @@ export function createWasmLoader({
     if (needsSource && !cleaned) {
       vm = new DdnWasmVm(fallbackSource);
       vmClient = new wrapper.DdnWasmVmClient(vm);
+      lastInitDiag = null;
       vmClient.prepareSourceText = prepareSourceText;
       if (typeof setStatus === "function") {
         const lines =
@@ -2991,6 +3028,7 @@ export function createWasmLoader({
 
     vm = needsSource ? new DdnWasmVm(cleaned) : new DdnWasmVm();
     vmClient = new wrapper.DdnWasmVmClient(vm);
+    lastInitDiag = null;
     vmClient.prepareSourceText = prepareSourceText;
     if (!needsSource && cleaned) {
       vmClient.updateLogic(cleaned);
@@ -3026,6 +3064,7 @@ export function createWasmLoader({
     reset,
     getLastBuildInfo: () => lastBuildInfo,
     getLastBuildInfoDiag: () => (lastBuildInfoDiag ? { ...lastBuildInfoDiag } : null),
+    getLastInitDiag: () => (lastInitDiag ? { ...lastInitDiag } : null),
     getLastPreprocessed: () => lastPreprocessed,
     getLastPreprocessDiag: () => (lastPreprocessDiag ? { ...lastPreprocessDiag } : null),
     getCacheBust: () => cacheBust,
