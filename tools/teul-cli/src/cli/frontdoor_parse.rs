@@ -60,10 +60,11 @@ fn validate_lang_frontdoor_parity(prepared_source: &str) -> Result<(), String> {
                 return Ok(());
             }
             let wrapped_err = wrapped_result.expect_err("wrapped_result is already known as Err");
+            let (wline, wcol, wsnippet) = locate_span(&wrapped, wrapped_err.span.start);
             let (line, col, snippet) = locate_span(&parity_source, primary_err.span.start);
             let blocker = classify_lang_parser_gap(&snippet, &primary_err.to_string());
             Err(format!(
-                "E_FRONTDOOR_LANG_PARSER_GAP lang_code={} blocked_by={} line={} col={} near={} detail={} wrapped_code={} wrapped_detail={}",
+                "E_FRONTDOOR_LANG_PARSER_GAP lang_code={} blocked_by={} line={} col={} near={} detail={} wrapped_code={} wrapped_line={} wrapped_col={} wrapped_near={} wrapped_detail={}",
                 primary_err.code(),
                 blocker,
                 line,
@@ -71,6 +72,9 @@ fn validate_lang_frontdoor_parity(prepared_source: &str) -> Result<(), String> {
                 snippet,
                 primary_err,
                 wrapped_err.code(),
+                wline,
+                wcol,
+                wsnippet,
                 wrapped_err
             ))
         }
@@ -79,7 +83,8 @@ fn validate_lang_frontdoor_parity(prepared_source: &str) -> Result<(), String> {
 
 fn normalize_for_lang_parity(source: &str) -> String {
     let without_maegim = strip_decl_item_maegim_suffix_for_lang_parity(source);
-    strip_hook_colon_before_block_for_lang_parity(&without_maegim)
+    let without_hook_colon = strip_hook_colon_before_block_for_lang_parity(&without_maegim);
+    rewrite_three_arg_range_bound_call_for_lang_parity(&without_hook_colon)
 }
 
 fn wrap_lang_parity_source(source: &str) -> String {
@@ -262,6 +267,105 @@ fn strip_hook_colon_before_block_for_lang_parity(source: &str) -> String {
     out
 }
 
+fn rewrite_three_arg_range_bound_call_for_lang_parity(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    for chunk in source.split_inclusive('\n') {
+        let (line, newline) = split_line(chunk);
+        if let Some(rewritten) = rewrite_single_line_three_arg_range(line) {
+            out.push_str(&rewritten);
+            out.push_str(newline);
+        } else {
+            out.push_str(line);
+            out.push_str(newline);
+        }
+    }
+    out
+}
+
+fn rewrite_single_line_three_arg_range(line: &str) -> Option<String> {
+    let assign_idx = line.find("<-")?;
+    let tail = &line[assign_idx + 2..];
+    let open_rel = tail.find('(')?;
+    let open_idx = assign_idx + 2 + open_rel;
+    let mut depth = 0usize;
+    let mut close_idx = None;
+    for (off, ch) in line[open_idx..].char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    close_idx = Some(open_idx + off);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let close_idx = close_idx?;
+    let after = &line[close_idx + 1..];
+    let ws_len = after.chars().take_while(|c| c.is_whitespace()).count();
+    let after_trim = &after[after
+        .char_indices()
+        .nth(ws_len)
+        .map(|(i, _)| i)
+        .unwrap_or(after.len())..];
+    if !after_trim.starts_with("범위") {
+        return None;
+    }
+    let inside = &line[open_idx + 1..close_idx];
+    let parts = split_top_level_commas(inside);
+    if parts.len() != 3 {
+        return None;
+    }
+    let start = parts[0].trim();
+    let end = parts[1].trim();
+    if start.is_empty() || end.is_empty() {
+        return None;
+    }
+    let keyword_bytes = "범위".len();
+    let keyword_start = line[close_idx + 1..]
+        .find("범위")
+        .map(|off| close_idx + 1 + off)?;
+    let after_keyword = &line[keyword_start + keyword_bytes..];
+    Some(format!(
+        "{}({} .. {}){}",
+        &line[..open_idx],
+        start,
+        end,
+        after_keyword
+    ))
+}
+
+fn split_top_level_commas(input: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (idx, ch) in input.char_indices() {
+        match ch {
+            '(' | '{' | '[' => depth += 1,
+            ')' | '}' | ']' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                parts.push(input[start..idx].to_string());
+                start = idx + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(input[start..].to_string());
+    parts
+}
+
+fn split_line(chunk: &str) -> (&str, &str) {
+    if let Some(stripped) = chunk.strip_suffix('\n') {
+        if let Some(stripped_cr) = stripped.strip_suffix('\r') {
+            return (stripped_cr, "\r\n");
+        }
+        return (stripped, "\n");
+    }
+    (chunk, "")
+}
+
 fn locate_span(source: &str, byte_pos: usize) -> (usize, usize, String) {
     let clamped = byte_pos.min(source.len());
     let mut line_no = 1usize;
@@ -288,8 +392,10 @@ fn locate_span(source: &str, byte_pos: usize) -> (usize, usize, String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_program_for_runtime, strip_decl_item_maegim_suffix_for_lang_parity,
-        validate_lang_frontdoor_parity, FrontdoorParseFailure,
+        lang_parse_with_mode, normalize_for_lang_parity, parse_program_for_runtime,
+        rewrite_three_arg_range_bound_call_for_lang_parity,
+        strip_decl_item_maegim_suffix_for_lang_parity, validate_lang_frontdoor_parity,
+        wrap_lang_parity_source, FrontdoorParseFailure, LangParseMode,
     };
 
     #[test]
@@ -350,5 +456,54 @@ mod tests {
     fn validate_lang_frontdoor_parity_accepts_top_level_hook_colon_variant() {
         let source = "(시작)할때: { n <- 1. }.";
         validate_lang_frontdoor_parity(source).expect("must pass with hook-colon strip");
+    }
+
+    #[test]
+    fn validate_lang_frontdoor_parity_accepts_hook_with_mul_and_call() {
+        let source = r#"
+(시작)할때 {
+  각도 <- 45.
+  cos_a <- (각도) cos.
+  vx <- 20 * cos_a.
+}.
+"#;
+        validate_lang_frontdoor_parity(source).expect("must pass hook mul/call pattern");
+    }
+
+    #[test]
+    fn validate_lang_frontdoor_parity_accepts_three_arg_bound_call_range_after_rewrite() {
+        let source = "n목록 <- (n_min, n_max, dn) 범위.";
+        validate_lang_frontdoor_parity(source).expect("must pass after range rewrite");
+    }
+
+    #[test]
+    fn rewrite_three_arg_range_bound_call_converts_to_range_infix() {
+        let source = "n목록 <- (n_min, n_max, dn) 범위.";
+        let rewritten = rewrite_three_arg_range_bound_call_for_lang_parity(source);
+        assert_eq!(rewritten, "n목록 <- (n_min .. n_max).");
+    }
+
+    #[test]
+    fn validate_lang_frontdoor_parity_accepts_simple_assignment() {
+        validate_lang_frontdoor_parity("x <- 1.").expect("simple assignment must pass");
+    }
+
+    #[test]
+    fn normalize_for_lang_parity_keeps_wave1_projectile_core_lines() {
+        let source = include_str!("../../../../docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn");
+        let parity = normalize_for_lang_parity(source);
+        let wrapped = wrap_lang_parity_source(&parity);
+        assert!(wrapped.contains("채비 {"));
+        assert!(wrapped.contains("vx <- 초기속도 * cos_a."));
+        assert!(!wrapped.contains("매김 {"));
+    }
+
+    #[test]
+    fn validate_lang_frontdoor_parity_accepts_wave1_projectile_wrapped_source() {
+        let source = include_str!("../../../../docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn");
+        let parity = normalize_for_lang_parity(source);
+        let wrapped = wrap_lang_parity_source(&parity);
+        lang_parse_with_mode(&wrapped, "<wave1-projectile-parity>", LangParseMode::Strict)
+            .expect("wrapped projectile parity source must parse in lang");
     }
 }

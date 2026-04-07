@@ -469,7 +469,23 @@ impl<'a> Lexer<'a> {
         let has_underscore = lexeme.contains('_');
         let next_sig = self.peek_non_ws_char();
         if !has_underscore && self.peek_char() != Some(':') {
-            if matches!(next_sig, Some('<') | Some('=') | Some(':') | Some('.'))
+            if matches!(
+                next_sig,
+                Some('<')
+                    | Some('=')
+                    | Some(':')
+                    | Some('.')
+                    | Some('+')
+                    | Some('-')
+                    | Some('*')
+                    | Some('/')
+                    | Some('%')
+                    | Some(')')
+                    | Some(']')
+                    | Some('}')
+                    | Some(',')
+                    | Some('|')
+            )
                 || no_split.iter().any(|w| *w == lexeme.as_str())
             {
                 return Ok(Token {
@@ -873,7 +889,7 @@ impl<'a> Lexer<'a> {
     fn read_ascii(&mut self) -> Result<Token, LexError> {
         let start = self.pos;
         while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_alphanumeric() || ch == '_' {
+            if is_ident_continue(ch) {
                 self.advance();
             } else {
                 break;
@@ -1228,5 +1244,38 @@ mod tests {
         assert!(tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::JjaimBlock(_))));
+    }
+
+    #[test]
+    fn ident_ending_with_josa_is_not_split_before_arithmetic_operator() {
+        let mut lexer = Lexer::new("vx <- 초기속도 * cos_a.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "초기속도")));
+        assert!(!tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Josa(ref name) if name == "도")));
+    }
+
+    #[test]
+    fn ident_ending_with_josa_is_not_split_before_closing_paren() {
+        let mut lexer = Lexer::new("(초기속도).");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "초기속도")));
+        assert!(!tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Josa(ref name) if name == "도")));
+    }
+
+    #[test]
+    fn mixed_ascii_korean_identifier_is_single_ident_token() {
+        let mut lexer = Lexer::new("n목록 <- 1.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "n목록")));
     }
 }
