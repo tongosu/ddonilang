@@ -4,7 +4,10 @@ use crate::cli::frontdoor_input::{
 use crate::lang::ast::Program;
 use crate::lang::lexer::{LexError, Lexer};
 use crate::lang::parser::{ParseError, ParseMode, Parser};
-use ddonirang_lang::{parse_with_mode as lang_parse_with_mode, ParseMode as LangParseMode};
+use ddonirang_lang::{
+    normalize_for_lang_parity as lang_normalize_for_parity, parse_with_mode as lang_parse_with_mode,
+    wrap_lang_parity_source as lang_wrap_parity_source, ParseMode as LangParseMode,
+};
 
 #[derive(Debug)]
 pub enum FrontdoorParseFailure {
@@ -82,13 +85,11 @@ fn validate_lang_frontdoor_parity(prepared_source: &str) -> Result<(), String> {
 }
 
 fn normalize_for_lang_parity(source: &str) -> String {
-    let without_maegim = strip_decl_item_maegim_suffix_for_lang_parity(source);
-    let without_hook_colon = strip_hook_colon_before_block_for_lang_parity(&without_maegim);
-    rewrite_three_arg_range_bound_call_for_lang_parity(&without_hook_colon)
+    lang_normalize_for_parity(source)
 }
 
 fn wrap_lang_parity_source(source: &str) -> String {
-    format!("프론트도어_패리티_검사:움직씨 = {{\n{source}\n}}\n")
+    lang_wrap_parity_source(source)
 }
 
 fn classify_lang_parser_gap(snippet: &str, detail: &str) -> &'static str {
@@ -100,270 +101,6 @@ fn classify_lang_parser_gap(snippet: &str, detail: &str) -> &'static str {
         return "blocked_by_control_meta_relocation";
     }
     "blocked_by_frontdoor_parser_gap"
-}
-
-fn strip_decl_item_maegim_suffix_for_lang_parity(source: &str) -> String {
-    let chars: Vec<char> = source.chars().collect();
-    let mut out = String::with_capacity(source.len());
-    let mut i = 0usize;
-    let mut in_string = false;
-    let mut escape = false;
-    while i < chars.len() {
-        let ch = chars[i];
-        if in_string {
-            out.push(ch);
-            if escape {
-                escape = false;
-            } else if ch == '\\' {
-                escape = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            i += 1;
-            continue;
-        }
-        if ch == '"' {
-            in_string = true;
-            out.push(ch);
-            i += 1;
-            continue;
-        }
-
-        if (keyword_at(&chars, i, "매김") || keyword_at(&chars, i, "조건"))
-            && prev_non_ws_char(&chars, i) == Some(')')
-        {
-            let mut j = i + 2; // Korean chars are one char each in Vec<char>
-            while j < chars.len() && chars[j].is_whitespace() {
-                j += 1;
-            }
-            if j < chars.len() && chars[j] == ':' {
-                j += 1;
-                while j < chars.len() && chars[j].is_whitespace() {
-                    j += 1;
-                }
-            }
-            if j < chars.len() && chars[j] == '{' {
-                let mut depth = 1usize;
-                j += 1;
-                while j < chars.len() && depth > 0 {
-                    match chars[j] {
-                        '{' => depth += 1,
-                        '}' => depth -= 1,
-                        _ => {}
-                    }
-                    j += 1;
-                }
-                // Optional trailing spaces after removed block.
-                while j < chars.len() && chars[j].is_whitespace() && chars[j] != '\n' {
-                    j += 1;
-                }
-                i = j;
-                continue;
-            }
-        }
-
-        out.push(ch);
-        i += 1;
-    }
-    out
-}
-
-fn keyword_at(chars: &[char], idx: usize, keyword: &str) -> bool {
-    let mut j = idx;
-    for kc in keyword.chars() {
-        if chars.get(j).copied() != Some(kc) {
-            return false;
-        }
-        j += 1;
-    }
-    let prev_ok = idx == 0
-        || chars
-            .get(idx - 1)
-            .copied()
-            .is_some_and(|c| c.is_whitespace() || matches!(c, '{' | '}' | '(' | ')' | '.' | ':'));
-    let next_ok = j >= chars.len()
-        || chars
-            .get(j)
-            .copied()
-            .is_some_and(|c| c.is_whitespace() || matches!(c, '{' | ':' | '.'));
-    prev_ok && next_ok
-}
-
-fn prev_non_ws_char(chars: &[char], idx: usize) -> Option<char> {
-    if idx == 0 {
-        return None;
-    }
-    let mut j = idx;
-    while j > 0 {
-        j -= 1;
-        let c = chars[j];
-        if !c.is_whitespace() {
-            return Some(c);
-        }
-    }
-    None
-}
-
-fn strip_hook_colon_before_block_for_lang_parity(source: &str) -> String {
-    const KEYWORDS: &[&str] = &["할때", "마다", "될때", "동안"];
-    let chars: Vec<char> = source.chars().collect();
-    let mut out = String::with_capacity(source.len());
-    let mut i = 0usize;
-    let mut in_string = false;
-    let mut escape = false;
-    while i < chars.len() {
-        let ch = chars[i];
-        if in_string {
-            out.push(ch);
-            if escape {
-                escape = false;
-            } else if ch == '\\' {
-                escape = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            i += 1;
-            continue;
-        }
-        if ch == '"' {
-            in_string = true;
-            out.push(ch);
-            i += 1;
-            continue;
-        }
-
-        let mut removed_colon = false;
-        for kw in KEYWORDS {
-            if !keyword_at(&chars, i, kw) {
-                continue;
-            }
-            let kw_len = kw.chars().count();
-            let kw_end = i + kw_len;
-            let mut j = kw_end;
-            while j < chars.len() && chars[j].is_whitespace() && chars[j] != '\n' {
-                j += 1;
-            }
-            if j < chars.len() && chars[j] == ':' {
-                let mut k = j + 1;
-                while k < chars.len() && chars[k].is_whitespace() && chars[k] != '\n' {
-                    k += 1;
-                }
-                if k < chars.len() && chars[k] == '{' {
-                    for c in &chars[i..j] {
-                        out.push(*c);
-                    }
-                    i = j + 1; // drop colon only
-                    removed_colon = true;
-                    break;
-                }
-            }
-        }
-        if removed_colon {
-            continue;
-        }
-        out.push(ch);
-        i += 1;
-    }
-    out
-}
-
-fn rewrite_three_arg_range_bound_call_for_lang_parity(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    for chunk in source.split_inclusive('\n') {
-        let (line, newline) = split_line(chunk);
-        if let Some(rewritten) = rewrite_single_line_three_arg_range(line) {
-            out.push_str(&rewritten);
-            out.push_str(newline);
-        } else {
-            out.push_str(line);
-            out.push_str(newline);
-        }
-    }
-    out
-}
-
-fn rewrite_single_line_three_arg_range(line: &str) -> Option<String> {
-    let assign_idx = line.find("<-")?;
-    let tail = &line[assign_idx + 2..];
-    let open_rel = tail.find('(')?;
-    let open_idx = assign_idx + 2 + open_rel;
-    let mut depth = 0usize;
-    let mut close_idx = None;
-    for (off, ch) in line[open_idx..].char_indices() {
-        match ch {
-            '(' => depth += 1,
-            ')' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    close_idx = Some(open_idx + off);
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-    let close_idx = close_idx?;
-    let after = &line[close_idx + 1..];
-    let ws_len = after.chars().take_while(|c| c.is_whitespace()).count();
-    let after_trim = &after[after
-        .char_indices()
-        .nth(ws_len)
-        .map(|(i, _)| i)
-        .unwrap_or(after.len())..];
-    if !after_trim.starts_with("범위") {
-        return None;
-    }
-    let inside = &line[open_idx + 1..close_idx];
-    let parts = split_top_level_commas(inside);
-    if parts.len() != 3 {
-        return None;
-    }
-    let start = parts[0].trim();
-    let end = parts[1].trim();
-    if start.is_empty() || end.is_empty() {
-        return None;
-    }
-    let keyword_bytes = "범위".len();
-    let keyword_start = line[close_idx + 1..]
-        .find("범위")
-        .map(|off| close_idx + 1 + off)?;
-    let after_keyword = &line[keyword_start + keyword_bytes..];
-    Some(format!(
-        "{}({} .. {}){}",
-        &line[..open_idx],
-        start,
-        end,
-        after_keyword
-    ))
-}
-
-fn split_top_level_commas(input: &str) -> Vec<String> {
-    let mut parts = Vec::new();
-    let mut depth = 0usize;
-    let mut start = 0usize;
-    for (idx, ch) in input.char_indices() {
-        match ch {
-            '(' | '{' | '[' => depth += 1,
-            ')' | '}' | ']' => depth = depth.saturating_sub(1),
-            ',' if depth == 0 => {
-                parts.push(input[start..idx].to_string());
-                start = idx + ch.len_utf8();
-            }
-            _ => {}
-        }
-    }
-    parts.push(input[start..].to_string());
-    parts
-}
-
-fn split_line(chunk: &str) -> (&str, &str) {
-    if let Some(stripped) = chunk.strip_suffix('\n') {
-        if let Some(stripped_cr) = stripped.strip_suffix('\r') {
-            return (stripped_cr, "\r\n");
-        }
-        return (stripped, "\n");
-    }
-    (chunk, "")
 }
 
 fn locate_span(source: &str, byte_pos: usize) -> (usize, usize, String) {
@@ -393,9 +130,8 @@ fn locate_span(source: &str, byte_pos: usize) -> (usize, usize, String) {
 mod tests {
     use super::{
         lang_parse_with_mode, normalize_for_lang_parity, parse_program_for_runtime,
-        rewrite_three_arg_range_bound_call_for_lang_parity,
-        strip_decl_item_maegim_suffix_for_lang_parity, validate_lang_frontdoor_parity,
-        wrap_lang_parity_source, FrontdoorParseFailure, LangParseMode,
+        validate_lang_frontdoor_parity, wrap_lang_parity_source, FrontdoorParseFailure,
+        LangParseMode,
     };
 
     #[test]
@@ -439,9 +175,9 @@ mod tests {
     }
 
     #[test]
-    fn strip_decl_item_maegim_suffix_removes_inline_block() {
+    fn normalize_for_lang_parity_removes_inline_maegim_block() {
         let src = "채비 { g: 수 <- (9.8) 매김 { 범위(0..10). 간격(1). }. }.";
-        let out = strip_decl_item_maegim_suffix_for_lang_parity(src);
+        let out = normalize_for_lang_parity(src);
         assert!(out.contains("g: 수 <- (9.8) ."));
         assert!(!out.contains("매김 {"));
     }
@@ -477,9 +213,9 @@ mod tests {
     }
 
     #[test]
-    fn rewrite_three_arg_range_bound_call_converts_to_range_infix() {
+    fn normalize_for_lang_parity_rewrites_three_arg_range_bound_call() {
         let source = "n목록 <- (n_min, n_max, dn) 범위.";
-        let rewritten = rewrite_three_arg_range_bound_call_for_lang_parity(source);
+        let rewritten = normalize_for_lang_parity(source);
         assert_eq!(rewritten, "n목록 <- (n_min .. n_max).");
     }
 

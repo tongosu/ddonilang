@@ -25,8 +25,9 @@ pub use ast::*;
 pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
 pub use dialect::DialectConfig;
 pub use frontdoor::{
-    find_legacy_header, has_legacy_boim_surface, preprocess_frontdoor_source,
-    validate_no_legacy_boim_surface, validate_no_legacy_header,
+    find_legacy_header, has_legacy_boim_surface, normalize_for_lang_parity,
+    preprocess_frontdoor_source, validate_no_legacy_boim_surface, validate_no_legacy_header,
+    wrap_lang_parity_source,
 };
 pub use lexer::{LexError, Lexer, Token, TokenKind};
 pub use normalizer::{normalize, NormalizationLevel, Normalizer};
