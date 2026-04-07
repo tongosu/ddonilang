@@ -27,6 +27,33 @@ REQUIRED_NEW_SEED_IDS = (
     "ecology_forest_fire_ca_seed_v1",
     "swarm_boids_alignment_seed_v1",
 )
+REQUIRED_SUBJECT_REPRESENTATIVE = (
+    {
+        "lesson_id": "rep_econ_supply_demand_tax_v1",
+        "subject": "econ",
+        "ssot_pack": "edu_seamgrim_rep_econ_supply_demand_tax_v1",
+    },
+    {
+        "lesson_id": "rep_math_function_line_v1",
+        "subject": "math",
+        "ssot_pack": "edu_seamgrim_rep_math_function_line_v1",
+    },
+    {
+        "lesson_id": "rep_phys_projectile_xy_v1",
+        "subject": "physics",
+        "ssot_pack": "edu_seamgrim_rep_phys_projectile_xy_v1",
+    },
+    {
+        "lesson_id": "rep_cs_linear_search_timeline_v1",
+        "subject": "cs",
+        "ssot_pack": "edu_seamgrim_rep_cs_linear_search_timeline_v1",
+    },
+    {
+        "lesson_id": "rep_science_phase_change_timeline_v1",
+        "subject": "science",
+        "ssot_pack": "edu_seamgrim_rep_science_phase_change_timeline_v1",
+    },
+)
 
 sys.path.insert(0, str(TOOLS_DIR))
 from bridge_check import build_bridge_report
@@ -495,6 +522,11 @@ def main(argv: list[str] | None = None) -> int:
             for row in inventory_rows
             if isinstance(row, dict) and str(row.get("id", "")).strip()
         }
+        inventory_rows_by_id = {
+            str(row.get("id", "")).strip(): row
+            for row in inventory_rows
+            if isinstance(row, dict) and str(row.get("id", "")).strip()
+        }
         missing_new_seed_inventory = [seed_id for seed_id in REQUIRED_NEW_SEED_IDS if seed_id not in inventory_ids]
         if missing_new_seed_inventory:
             print(
@@ -502,6 +534,29 @@ def main(argv: list[str] | None = None) -> int:
                 + ",".join(missing_new_seed_inventory[:5])
             )
             return 1
+        missing_representative_inventory = [
+            item["lesson_id"] for item in REQUIRED_SUBJECT_REPRESENTATIVE if item["lesson_id"] not in inventory_ids
+        ]
+        if missing_representative_inventory:
+            print(
+                "check=lesson_inventory_api_invalid detail=representative_ids_missing:"
+                + ",".join(missing_representative_inventory[:5])
+            )
+            return 1
+        for item in REQUIRED_SUBJECT_REPRESENTATIVE:
+            lesson_id = item["lesson_id"]
+            expected_subject = str(item["subject"]).strip()
+            row = inventory_rows_by_id.get(lesson_id)
+            if not isinstance(row, dict):
+                print(f"check=lesson_inventory_api_invalid detail=representative_row_missing:{lesson_id}")
+                return 1
+            observed_subject = str(row.get("subject", "")).strip()
+            if observed_subject != expected_subject:
+                print(
+                    "check=lesson_inventory_api_invalid detail=representative_subject_mismatch:"
+                    f"{lesson_id}:{observed_subject}:{expected_subject}"
+                )
+                return 1
         pendulum_inventory = next(
             (
                 row
@@ -584,6 +639,11 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(lesson_rows, list) or not lesson_rows:
             print("check=lessons_index_invalid detail=lessons list empty")
             return 1
+        lesson_rows_by_id = {
+            str(row.get("id", "")).strip(): row
+            for row in lesson_rows
+            if isinstance(row, dict) and str(row.get("id", "")).strip()
+        }
         first_lesson = next(
             (str(row.get("id", "")).strip() for row in lesson_rows if isinstance(row, dict) and str(row.get("id", "")).strip()),
             "",
@@ -597,6 +657,42 @@ def main(argv: list[str] | None = None) -> int:
         if not lesson_ddn_loaded:
             print(f"check=lesson_ddn_unreachable detail=lesson_id={first_lesson}")
             return 1
+        for item in REQUIRED_SUBJECT_REPRESENTATIVE:
+            lesson_id = item["lesson_id"]
+            expected_subject = str(item["subject"]).strip()
+            expected_ssot_pack = str(item["ssot_pack"]).strip()
+            row = lesson_rows_by_id.get(lesson_id)
+            if not isinstance(row, dict):
+                print(f"check=lessons_index_invalid detail=representative_missing:{lesson_id}")
+                return 1
+            observed_subject = str(row.get("subject", "")).strip()
+            if observed_subject != expected_subject:
+                print(
+                    "check=lessons_index_invalid detail=representative_subject_mismatch:"
+                    f"{lesson_id}:{observed_subject}:{expected_subject}"
+                )
+                return 1
+            observed_source = str(row.get("source", "")).strip()
+            if observed_source != "representative_v1":
+                print(
+                    "check=lessons_index_invalid detail=representative_source_mismatch:"
+                    f"{lesson_id}:{observed_source}:representative_v1"
+                )
+                return 1
+            observed_ssot_pack = str(row.get("ssot_pack", "")).strip()
+            if observed_ssot_pack != expected_ssot_pack:
+                print(
+                    "check=lessons_index_invalid detail=representative_ssot_pack_mismatch:"
+                    f"{lesson_id}:{observed_ssot_pack}:{expected_ssot_pack}"
+                )
+                return 1
+            rep_ddn_loaded = fetch_first_ok_text(
+                base_url,
+                build_catalog_candidate_paths(f"/lessons/{lesson_id}/lesson.ddn"),
+            )
+            if not rep_ddn_loaded:
+                print(f"check=lesson_ddn_unreachable detail=representative:{lesson_id}")
+                return 1
 
         seed_manifest_loaded = fetch_first_ok_json(
             base_url, build_catalog_candidate_paths("/seed_lessons_v1/seed_manifest.detjson")

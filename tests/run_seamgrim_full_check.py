@@ -86,6 +86,22 @@ def check_lesson_schema_gate(root: Path, require_promoted: bool = False) -> None
         raise RuntimeError(msg)
 
 
+def check_subject_representative_examples(root: Path) -> None:
+    checker = root / "tests" / "run_seamgrim_subject_representative_examples_check.py"
+    cmd = [sys.executable, str(checker)]
+    result = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        msg = result.stderr.strip() or result.stdout.strip() or "subject representative examples check failed"
+        raise RuntimeError(msg)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run seamgrim graph + scene/session checks")
     parser.add_argument("packs", nargs="*", help="pack lesson directories")
@@ -100,6 +116,11 @@ def main() -> int:
         action="store_true",
         help="schema gate에서 source==preview 승격 완료 상태를 요구",
     )
+    parser.add_argument(
+        "--skip-subject-representative",
+        action="store_true",
+        help="skip representative 5-subject examples gate check",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -112,6 +133,8 @@ def main() -> int:
     for pack_dir in pack_dirs:
         check_graph(root, pack_dir, args.strict_graph, warnings)
         check_scene_session(root, pack_dir)
+    if not args.skip_subject_representative:
+        check_subject_representative_examples(root)
     if not args.skip_schema_gate:
         check_lesson_schema_gate(root, require_promoted=args.require_promoted)
 

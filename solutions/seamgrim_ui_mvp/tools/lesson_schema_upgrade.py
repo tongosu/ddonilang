@@ -511,11 +511,19 @@ def main() -> int:
         violations = collect_age3_violations(effective_text) if args.enforce_age3 else []
         if violations:
             failed += 1
+        wrote_preview = False
         if is_changed:
             changed += 1
             if args.write_preview:
+                preview_file.parent.mkdir(parents=True, exist_ok=True)
                 preview_file.write_text(converted, encoding="utf-8")
                 effective_text = converted
+                wrote_preview = True
+        elif args.write_preview and not preview_file.exists():
+            preview_file.parent.mkdir(parents=True, exist_ok=True)
+            preview_file.write_text(converted, encoding="utf-8")
+            effective_text = converted
+            wrote_preview = True
         rows.append(
             {
                 "path": str(path.relative_to(ROOT)),
@@ -529,7 +537,7 @@ def main() -> int:
                 "violations": violations,
                 "mamadi_injected": mamadi_injected,
                 "preview": str(preview_file.relative_to(ROOT))
-                if is_changed and args.write_preview
+                if args.write_preview and (is_changed or wrote_preview)
                 else None,
             }
         )
