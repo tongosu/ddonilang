@@ -270,7 +270,16 @@ export class WasmVmHandle {
         throw err;
       }
     }
-    return this.attachObservationManifest(state);
+    try {
+      return this.attachObservationManifest(state);
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_STEP_STATE_ATTACH_FAILED",
+        "step 결과 상태 부착에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
   }
 
   async columns() {
@@ -292,24 +301,33 @@ export class WasmVmHandle {
       );
       throw err;
     }
-    const nativeManifest =
-      payload?.observation_manifest && typeof payload.observation_manifest === "object"
-        ? payload.observation_manifest
-        : null;
-    if (nativeManifest && String(nativeManifest.schema ?? "").trim()) {
-      this.lastObservationManifest = nativeManifest;
-      return payload;
+    try {
+      const nativeManifest =
+        payload?.observation_manifest && typeof payload.observation_manifest === "object"
+          ? payload.observation_manifest
+          : null;
+      if (nativeManifest && String(nativeManifest.schema ?? "").trim()) {
+        this.lastObservationManifest = nativeManifest;
+        return payload;
+      }
+      const columns = Array.isArray(payload?.columns) ? payload.columns : [];
+      const manifest = buildObservationManifest({
+        channels: columns,
+        pragmas: this.lastPragmas,
+      });
+      this.lastObservationManifest = manifest;
+      return {
+        ...payload,
+        observation_manifest: manifest,
+      };
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_COLUMNS_ATTACH_FAILED",
+        "columns 결과 상태 부착에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
     }
-    const columns = Array.isArray(payload?.columns) ? payload.columns : [];
-    const manifest = buildObservationManifest({
-      channels: columns,
-      pragmas: this.lastPragmas,
-    });
-    this.lastObservationManifest = manifest;
-    return {
-      ...payload,
-      observation_manifest: manifest,
-    };
   }
 
   async setParam({ key, value } = {}) {

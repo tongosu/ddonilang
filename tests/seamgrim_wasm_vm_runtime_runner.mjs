@@ -13,6 +13,8 @@ function createClient({
   supportsStepWithInput = true,
   seedThrows = false,
   supportsSeed = true,
+  attachThrowsInState = false,
+  columnsAttachThrows = false,
   resetThrows = false,
   updateThrows = false,
   stepThrows = false,
@@ -21,13 +23,25 @@ function createClient({
   hashThrows = false,
   stateThrows = false,
 } = {}) {
-  const sharedState = state ?? {
-    schema: "seamgrim.state.v0",
-    tick_id: 0,
-    channels: [],
-    row: [],
-    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
-  };
+  const sharedState =
+    state ??
+    (() => {
+      const base = {
+        schema: "seamgrim.state.v0",
+        tick_id: 0,
+        channels: [],
+        row: [],
+        resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+      };
+      if (attachThrowsInState) {
+        Object.defineProperty(base, "observation_manifest", {
+          get() {
+            throw new Error("state-attach-fail");
+          },
+        });
+      }
+      return base;
+    })();
   const client = {
     _updates: [],
     parseWarningsParsed() {
@@ -69,6 +83,15 @@ function createClient({
     columnsParsed() {
       if (columnsThrows) {
         throw new Error("columns-fail");
+      }
+      if (columnsAttachThrows) {
+        const payload = { columns: [], row: [] };
+        Object.defineProperty(payload, "observation_manifest", {
+          get() {
+            throw new Error("columns-attach-fail");
+          },
+        });
+        return payload;
       }
       return { columns: [], row: [] };
     },
@@ -376,6 +399,88 @@ async function main() {
   assert(
     failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_GET_STATE_JSON_FAILED"),
     "wasm vm handle: state json failure diag",
+  );
+
+  const stepAttachFailHandle = new WasmVmHandle({
+    loader: {
+      async ensure() {
+        return createClient({ warnings: [], attachThrowsInState: true });
+      },
+      reset() {},
+      getLastBuildInfo() {
+        return "";
+      },
+      getLastBuildInfoDiag() {
+        return null;
+      },
+      getLastInitDiag() {
+        return null;
+      },
+      getLastPreprocessed() {
+        return "";
+      },
+      getLastPreprocessDiag() {
+        return null;
+      },
+      getCacheBust() {
+        return 23;
+      },
+    },
+    defaultSourceText: "매틱:움직씨 = { x <- 1. }.",
+  });
+  let stepAttachFailed = false;
+  try {
+    await stepAttachFailHandle.step({ n: 1 });
+  } catch (_) {
+    stepAttachFailed = true;
+  }
+  assert(stepAttachFailed, "wasm vm handle: step attach failure path");
+  assert(
+    stepAttachFailHandle.getDebugInfo().runtimeDiags?.some(
+      (row) => row?.code === "E_WASM_STEP_STATE_ATTACH_FAILED",
+    ),
+    "wasm vm handle: step attach failure diag",
+  );
+
+  const columnsAttachFailHandle = new WasmVmHandle({
+    loader: {
+      async ensure() {
+        return createClient({ warnings: [], columnsAttachThrows: true });
+      },
+      reset() {},
+      getLastBuildInfo() {
+        return "";
+      },
+      getLastBuildInfoDiag() {
+        return null;
+      },
+      getLastInitDiag() {
+        return null;
+      },
+      getLastPreprocessed() {
+        return "";
+      },
+      getLastPreprocessDiag() {
+        return null;
+      },
+      getCacheBust() {
+        return 29;
+      },
+    },
+    defaultSourceText: "매틱:움직씨 = { x <- 1. }.",
+  });
+  let columnsAttachFailed = false;
+  try {
+    await columnsAttachFailHandle.columns();
+  } catch (_) {
+    columnsAttachFailed = true;
+  }
+  assert(columnsAttachFailed, "wasm vm handle: columns attach failure path");
+  assert(
+    columnsAttachFailHandle.getDebugInfo().runtimeDiags?.some(
+      (row) => row?.code === "E_WASM_COLUMNS_ATTACH_FAILED",
+    ),
+    "wasm vm handle: columns attach failure diag",
   );
 
   const ensureFailHandle = new WasmVmHandle({
