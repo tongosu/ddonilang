@@ -3128,6 +3128,40 @@ mod tests {
     }
 
     #[test]
+    fn canon_main_cli_compat_matic_entry_flag_rejected() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "canon".to_string(),
+            "sample.ddn".to_string(),
+            "--compat-matic-entry".to_string(),
+        ];
+        let err = match Cli::try_parse_from(args) {
+            Ok(_) => panic!("compat flag must be rejected"),
+            Err(err) => err,
+        };
+        let rendered = err.to_string();
+        assert!(rendered.contains("--compat-matic-entry"));
+        assert!(rendered.contains("unexpected argument"));
+    }
+
+    #[test]
+    fn check_main_cli_compat_matic_entry_flag_rejected() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "check".to_string(),
+            "sample.ddn".to_string(),
+            "--compat-matic-entry".to_string(),
+        ];
+        let err = match Cli::try_parse_from(args) {
+            Ok(_) => panic!("compat flag must be rejected"),
+            Err(err) => err,
+        };
+        let rendered = err.to_string();
+        assert!(rendered.contains("--compat-matic-entry"));
+        assert!(rendered.contains("unexpected argument"));
+    }
+
+    #[test]
     fn run_main_cli_latency_madi_flag_parsed() {
         let args = vec![
             "teul-cli".to_string(),
