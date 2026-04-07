@@ -16,3 +16,10 @@ target-wsl/
 /.claude/
 geoul.diag.jsonl
 pack/**/cases/.tmp_*.detjson
+
+# local workspace temp/noise
+.clj-kondo/
+.lsp/
+CLAUDE.md
+__tmp_*.ddn
+__tmp_*.jsonl
