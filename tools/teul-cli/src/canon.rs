@@ -3662,6 +3662,12 @@ fn canonicalize_with_fallback_mode(
             format!("line={line} key={key} use=설정{{}}/매김{{}}/설정.보개"),
         ));
     }
+    if ddonirang_lang::has_legacy_boim_surface(&prepared) {
+        return Err(CanonError::new(
+            "E_CANON_LEGACY_BOIM_FORBIDDEN",
+            "legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요.",
+        ));
+    }
     let meta_parse = split_file_meta(&prepared);
     let root_hide = has_root_hide_directive(&prepared);
     let default_root = "바탕";
@@ -6076,6 +6082,22 @@ mod tests {
             Err(err) => err,
         };
         assert_eq!(err.code(), "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN");
+    }
+
+    #[test]
+    fn canon_rejects_legacy_boim_surface_on_frontdoor() {
+        let source = r#"
+(매마디)마다 {
+  보임 {
+    x: 1.
+  }.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must reject"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CANON_LEGACY_BOIM_FORBIDDEN");
     }
 }
 
