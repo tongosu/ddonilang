@@ -14,7 +14,19 @@ def fail(detail: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run seamgrim full gate wrapper")
-    parser.add_argument("--strict-graph", action="store_true", help="forward strict graph mode")
+    parser.add_argument(
+        "--strict-graph",
+        dest="strict_graph",
+        action="store_true",
+        help="forward strict graph mode (default: on)",
+    )
+    parser.add_argument(
+        "--allow-graph-warnings",
+        dest="strict_graph",
+        action="store_false",
+        help="allow graph export warnings (legacy compatibility)",
+    )
+    parser.set_defaults(strict_graph=True)
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
