@@ -5,7 +5,10 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::cli::run::RunEmitSink;
-use crate::{build_command_string_from_parts, execute_run_command, Cli, Commands, RunCommandArgs};
+use crate::{
+    build_command_string_from_parts, execute_run_command, validate_compat_matic_entry_release_lock,
+    Cli, Commands, RunCommandArgs,
+};
 
 pub fn run() -> Result<(), String> {
     let exec_path = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -325,6 +328,18 @@ fn run_file_inproc_inner(path: &str, args: &[String]) -> Result<InprocReport, St
         });
     };
 
+    if let Err(err) = validate_compat_matic_entry_release_lock(compat_matic_entry) {
+        return Ok(InprocReport {
+            ok: false,
+            exit_code: 1,
+            stdout: Vec::new(),
+            stderr: split_lines(&err),
+            state_hash: None,
+            trace_hash: None,
+            bogae_hash: None,
+        });
+    }
+
     let mut emitter = CaptureEmitter::new();
     let run_args = RunCommandArgs {
         file,
@@ -372,7 +387,6 @@ fn run_file_inproc_inner(path: &str, args: &[String]) -> Result<InprocReport, St
         no_open,
         unsafe_open,
         lang_mode,
-        compat_matic_entry,
         run_command_override: Some(build_command_string_from_parts(&cli_args)),
     };
 

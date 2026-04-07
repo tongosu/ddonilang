@@ -1255,7 +1255,6 @@ pub(crate) struct RunCommandArgs {
     pub(crate) latency_madi: u64,
     pub(crate) trace_tier: cli::trace_tier::TraceTierArg,
     pub(crate) lang_mode: Option<cli::lang_mode::LangModeArg>,
-    pub(crate) compat_matic_entry: bool,
     pub(crate) bogae: Option<cli::bogae::BogaeMode>,
     pub(crate) bogae_codec: cli::bogae::BogaeCodec,
     pub(crate) bogae_out: Option<PathBuf>,
@@ -1284,7 +1283,7 @@ pub(crate) struct RunCommandArgs {
     pub(crate) run_command_override: Option<String>,
 }
 
-fn validate_compat_matic_entry_release_lock(compat_matic_entry: bool) -> Result<(), String> {
+pub(crate) fn validate_compat_matic_entry_release_lock(compat_matic_entry: bool) -> Result<(), String> {
     if compat_matic_entry {
         return Err(
             "E_CLI_COMPAT_RELEASE_BLOCKED --compat-matic-entry는 출시 경로에서 완전 비활성화됩니다."
@@ -1319,7 +1318,6 @@ pub(crate) fn execute_run_command(
         latency_madi,
         trace_tier,
         lang_mode,
-        compat_matic_entry,
         bogae,
         bogae_codec,
         bogae_out,
@@ -1347,8 +1345,6 @@ pub(crate) fn execute_run_command(
         unsafe_open,
         run_command_override,
     } = args;
-
-    validate_compat_matic_entry_release_lock(compat_matic_entry)?;
 
     let seed = parse_seed(&seed).map_err(|message| format!("E_CLI_BAD_SEED {}", message))?;
     let madi =
@@ -1521,6 +1517,10 @@ fn main() {
             no_open,
             unsafe_open,
         } => {
+            if let Err(err) = validate_compat_matic_entry_release_lock(compat_matic_entry) {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
             let mut emitter = cli::run::StdoutRunEmitter;
             let run_args = RunCommandArgs {
                 file,
@@ -1543,7 +1543,6 @@ fn main() {
                 latency_madi,
                 trace_tier,
                 lang_mode,
-                compat_matic_entry,
                 bogae,
                 bogae_codec,
                 bogae_out,
