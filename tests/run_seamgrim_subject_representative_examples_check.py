@@ -46,6 +46,8 @@ LEGACY_HEADER_PATTERNS = [
     re.compile(r"^\s*#\s*required_views\s*:", re.IGNORECASE),
 ]
 
+LEGACY_BOIM_PATTERN = re.compile(r"^\s*보임\s*\{")
+
 
 def fail(msg: str) -> int:
     print(f"check=seamgrim_subject_representative_examples detail={msg}")
@@ -72,6 +74,13 @@ def has_fallback_warning(text: str) -> bool:
 def has_legacy_header(text: str) -> int | None:
     for i, line in enumerate(text.splitlines(), start=1):
         if any(p.search(line) for p in LEGACY_HEADER_PATTERNS):
+            return i
+    return None
+
+
+def has_legacy_boim_block(text: str) -> int | None:
+    for i, line in enumerate(text.splitlines(), start=1):
+        if LEGACY_BOIM_PATTERN.search(line):
             return i
     return None
 
@@ -108,9 +117,38 @@ def main() -> int:
         if not mirror_lesson.exists():
             return fail(f"mirror_lesson_missing:{lesson_id}")
 
-        line = has_legacy_header(pack_lesson.read_text(encoding="utf-8"))
+        pack_source = pack_lesson.read_text(encoding="utf-8")
+        mirror_source = mirror_lesson.read_text(encoding="utf-8")
+
+        line = has_legacy_header(pack_source)
         if line is not None:
             return fail(f"legacy_header_pack:{pack_id}:{line}")
+        line = has_legacy_header(mirror_source)
+        if line is not None:
+            return fail(f"legacy_header_mirror:{lesson_id}:{line}")
+
+        line = has_legacy_boim_block(pack_source)
+        if line is not None:
+            return fail(f"legacy_boim_pack:{pack_id}:{line}")
+        line = has_legacy_boim_block(mirror_source)
+        if line is not None:
+            return fail(f"legacy_boim_mirror:{lesson_id}:{line}")
+
+        if pack_source != mirror_source:
+            return fail(f"mirror_lesson_not_synced:{lesson_id}")
+
+        mirror_preset = (
+            root / "solutions" / "seamgrim_ui_mvp" / "lessons" / lesson_id / "inputs" / "preset_1.ddn"
+        )
+        if not mirror_preset.exists():
+            return fail(f"mirror_preset_missing:{lesson_id}")
+        preset_source = mirror_preset.read_text(encoding="utf-8")
+        if has_legacy_header(preset_source) is not None:
+            return fail(f"legacy_header_mirror_preset:{lesson_id}")
+        if has_legacy_boim_block(preset_source) is not None:
+            return fail(f"legacy_boim_mirror_preset:{lesson_id}")
+        if preset_source != pack_source:
+            return fail(f"mirror_preset_not_synced:{lesson_id}")
 
         row = by_id.get(lesson_id)
         if not row:
