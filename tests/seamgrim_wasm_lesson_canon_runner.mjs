@@ -58,6 +58,15 @@ async function main() {
     cacheBust: 0,
     initInput: wasmBytes,
   });
+  if (typeof canon.getLastBuildInfoDiag !== "function") {
+    throw new Error("createWasmCanon.getLastBuildInfoDiag export 누락");
+  }
+  if (typeof canon.getLastPreprocessDiag !== "function") {
+    throw new Error("createWasmCanon.getLastPreprocessDiag export 누락");
+  }
+  if (typeof canon.getLastCanonDiag !== "function") {
+    throw new Error("createWasmCanon.getLastCanonDiag export 누락");
+  }
 
   const hydrated = await hydrator.hydrateLessonCanon({
     id: "lesson-canon-smoke",
@@ -101,6 +110,13 @@ async function main() {
   }
   if (String(handlers?.[1]?.scope ?? "") !== "root/seed:매틱") {
     throw new Error(`alrim handler scope mismatch: ${String(handlers?.[1]?.scope ?? "")}`);
+  }
+  const preprocessed = await canon.preprocessSource(alrimText);
+  if (!String(preprocessed).trim()) {
+    throw new Error("wasm canon preprocess output must not be empty");
+  }
+  if (canon.getLastPreprocessDiag() !== null) {
+    throw new Error("successful wasm canon preprocess must clear preprocess diag");
   }
   const summary = runtime.summarizeFlatPlan(flat);
   if (!String(summary).includes("instance 2개")) {
@@ -152,6 +168,71 @@ async function main() {
   const flatFailDiag = failingHydrator.getCanonDiags?.()?.[0] ?? null;
   if (String(flatFailDiag?.code ?? "") !== "E_WASM_FLAT_PLAN_FALLBACK_FAILED") {
     throw new Error(`flat failure diag mismatch: ${JSON.stringify(flatFailDiag)}`);
+  }
+
+  const buildInfoFailCanon = await runtime.createWasmCanon({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_build_info() {
+        throw new Error("build-info-test-fail");
+      },
+      wasm_canon_flat_json() {
+        return "{}";
+      },
+    }),
+    cacheBust: 0,
+  });
+  await buildInfoFailCanon.canonFlatJson("매틱:움직씨 = { x <- 1. }.");
+  if (String(buildInfoFailCanon.getLastBuildInfoDiag?.()?.code ?? "") !== "E_WASM_CANON_BUILD_INFO_CALL_FAILED") {
+    throw new Error("wasm canon build-info diag mismatch");
+  }
+
+  const preprocessMissingCanon = await runtime.createWasmCanon({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_canon_flat_json() {
+        return "{}";
+      },
+    }),
+    cacheBust: 0,
+  });
+  const passthrough = await preprocessMissingCanon.preprocessSource("x <- 1.");
+  if (passthrough !== "x <- 1.") {
+    throw new Error("wasm canon preprocess missing-api path must passthrough source");
+  }
+  if (
+    String(preprocessMissingCanon.getLastPreprocessDiag?.()?.code ?? "") !==
+    "E_WASM_CANON_PREPROCESS_API_MISSING"
+  ) {
+    throw new Error("wasm canon preprocess missing-api diag mismatch");
+  }
+
+  const preprocessFailCanon = await runtime.createWasmCanon({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_preprocess_source() {
+        throw new Error("preprocess-test-fail");
+      },
+      wasm_canon_flat_json() {
+        return "{}";
+      },
+    }),
+    cacheBust: 0,
+  });
+  let preprocessFailed = false;
+  try {
+    await preprocessFailCanon.preprocessSource("x <- 1.");
+  } catch (_) {
+    preprocessFailed = true;
+  }
+  if (!preprocessFailed) {
+    throw new Error("wasm canon preprocess failure path must throw");
+  }
+  if (
+    String(preprocessFailCanon.getLastPreprocessDiag?.()?.code ?? "") !==
+    "E_WASM_CANON_PREPROCESS_CALL_FAILED"
+  ) {
+    throw new Error("wasm canon preprocess failure diag mismatch");
   }
 
   console.log("seamgrim wasm lesson canon runner ok");
