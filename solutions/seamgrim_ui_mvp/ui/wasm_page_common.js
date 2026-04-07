@@ -2956,10 +2956,10 @@ export function createWasmLoader({
     const { DdnWasmVm } = wasmModule;
     if (typeof wasmModule.wasm_build_info === "function") {
       try {
-        lastBuildInfo = wasmModule.wasm_build_info();
+        lastBuildInfo = String(wasmModule.wasm_build_info() ?? "");
         lastBuildInfoDiag = null;
       } catch (err) {
-        lastBuildInfo = `build_info error: ${String(err?.message ?? err)}`;
+        lastBuildInfo = "";
         lastBuildInfoDiag = {
           code: "E_WASM_BUILD_INFO_CALL_FAILED",
           message: "wasm_build_info 호출에 실패했습니다.",
@@ -3061,7 +3061,7 @@ export function createWasmLoader({
     let buildInfo = lastBuildInfo;
     if (!buildInfo && typeof vm.get_build_info === "function") {
       try {
-        buildInfo = vm.get_build_info();
+        buildInfo = String(vm.get_build_info() ?? "");
         lastBuildInfoDiag = null;
       } catch (err) {
         buildInfo = `build_info error: ${String(err?.message ?? err)}`;
@@ -3072,6 +3072,7 @@ export function createWasmLoader({
         };
       }
     }
+    lastBuildInfo = String(buildInfo ?? "");
 
     if (typeof setStatus === "function") {
       const lines =

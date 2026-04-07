@@ -138,6 +138,39 @@ async function main() {
   assert(client && typeof client === "object", "success loader: client object expected");
   assert(successLoader.getLastInitDiag?.() === null, "success loader: init diag should be cleared");
 
+  const buildInfoFallbackLoader = createWasmLoader({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_build_info() {
+        throw new Error("wasm-build-info-fail");
+      },
+      DdnWasmVm: function DdnWasmVm(_source) {
+        this.get_build_info = () => "vm-only-build";
+      },
+    }),
+    wrapperFactory: async () => ({
+      DdnWasmVmClient: class DdnWasmVmClient {
+        constructor(vm) {
+          this.vm = vm;
+        }
+        updateLogic(_text) {}
+      },
+    }),
+  });
+  const buildInfoFallbackClient = await buildInfoFallbackLoader.ensure(sourceText);
+  assert(
+    buildInfoFallbackClient && typeof buildInfoFallbackClient === "object",
+    "build-info fallback loader: client object expected",
+  );
+  assert(
+    buildInfoFallbackLoader.getLastBuildInfo?.() === "vm-only-build",
+    `build-info fallback loader: expected vm-only-build, got ${String(buildInfoFallbackLoader.getLastBuildInfo?.())}`,
+  );
+  assert(
+    buildInfoFallbackLoader.getLastBuildInfoDiag?.() === null,
+    "build-info fallback loader: build info diag should be cleared after vm fallback success",
+  );
+
   console.log("seamgrim wasm loader diag runner ok");
 }
 
