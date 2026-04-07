@@ -467,6 +467,7 @@ impl<'a> Lexer<'a> {
             let ident = self.lex_ident();
             if ident == "글무늬"
                 || ident == "수식"
+                || ident == "모양"
                 || ident == "보개마당"
                 || ident == "보개장면"
                 || ident == "실행정책"
@@ -480,6 +481,7 @@ impl<'a> Lexer<'a> {
                     let kind = match ident.as_str() {
                         "글무늬" => TokenKind::Template(body),
                         "수식" => TokenKind::Formula(body),
+                        "모양" => TokenKind::GuseongBlock(body),
                         "보개마당" => TokenKind::BogaeMadangBlock(body),
                         "보개장면" => TokenKind::BogaeJangmyeonBlock(body),
                         "실행정책" => TokenKind::ExecPolicyBlock(body),
@@ -3721,6 +3723,11 @@ fn canonicalize_with_fallback_mode(
             ddn.push_str(&format_file_meta(&meta_parse.meta));
             ddn.push_str(ddn_body.trim_end());
             ddn.push('\n');
+            let mut warnings = Vec::new();
+            if normalized_frontdoor.is_some() {
+                warnings.push("W_CANON_FALLBACK_LANG_NORMALIZER".to_string());
+            }
+            warnings.push("W_CANON_PASSTHROUGH".to_string());
             return Ok(CanonOutput {
                 ddn,
                 guseong_flat_json: fallback_plans.guseong_flat_json,
@@ -3729,7 +3736,7 @@ fn canonicalize_with_fallback_mode(
                 exec_policy_map_json: fallback_plans.exec_policy_map_json,
                 maegim_control_json: fallback_plans.maegim_control_json,
                 meta: meta_parse.meta,
-                warnings: Vec::new(),
+                warnings,
             });
         }
     };
@@ -8848,3 +8855,4 @@ fn escape_string(input: &str) -> String {
     }
     out
 }
+
