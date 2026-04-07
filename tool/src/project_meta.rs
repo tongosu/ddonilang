@@ -120,14 +120,14 @@ impl ProjectPolicy {
     }
 }
 
-pub fn load_project_policy(unsafe_compat: bool) -> Result<ProjectPolicy, String> {
+pub fn load_project_policy() -> Result<ProjectPolicy, String> {
     let path = find_project_meta()?;
     let content = fs::read_to_string(&path)
         .map_err(|e| format!("failed to read project meta: {} ({})", path.display(), e))?;
     let meta: ProjectMeta = serde_json::from_str(&content)
         .map_err(|e| format!("failed to parse project meta: {} ({})", path.display(), e))?;
 
-    if meta.ssot_requires != SSOT_VERSION && !unsafe_compat {
+    if meta.ssot_requires != SSOT_VERSION {
         return Err(format!(
             "SSOT version mismatch: project={} toolchain={}",
             meta.ssot_requires, SSOT_VERSION
@@ -136,7 +136,7 @@ pub fn load_project_policy(unsafe_compat: bool) -> Result<ProjectPolicy, String>
 
     let bundle_hash = if let Some(hash) = &meta.ssot_bundle_hash {
         let actual = compute_ssot_bundle_hash()?;
-        if hash != &actual && !unsafe_compat {
+        if hash != &actual {
             return Err(format!(
                 "SSOT bundle hash mismatch: project={} actual={}",
                 hash, actual
