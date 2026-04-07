@@ -11,22 +11,32 @@ TARGETS = [
     {
         "pack_id": "edu_seamgrim_rep_econ_supply_demand_tax_v1",
         "lesson_id": "rep_econ_supply_demand_tax_v1",
+        "subject": "econ",
+        "required_views": ["graph", "text"],
     },
     {
         "pack_id": "edu_seamgrim_rep_math_function_line_v1",
         "lesson_id": "rep_math_function_line_v1",
+        "subject": "math",
+        "required_views": ["graph", "table", "text"],
     },
     {
         "pack_id": "edu_seamgrim_rep_phys_projectile_xy_v1",
         "lesson_id": "rep_phys_projectile_xy_v1",
+        "subject": "physics",
+        "required_views": ["space2d", "graph", "text"],
     },
     {
         "pack_id": "edu_seamgrim_rep_cs_linear_search_timeline_v1",
         "lesson_id": "rep_cs_linear_search_timeline_v1",
+        "subject": "cs",
+        "required_views": ["table", "graph", "text"],
     },
     {
         "pack_id": "edu_seamgrim_rep_science_phase_change_timeline_v1",
         "lesson_id": "rep_science_phase_change_timeline_v1",
+        "subject": "science",
+        "required_views": ["graph", "text"],
     },
 ]
 
@@ -108,6 +118,8 @@ def main() -> int:
     for target in TARGETS:
         pack_id = target["pack_id"]
         lesson_id = target["lesson_id"]
+        expected_subject = target["subject"]
+        expected_views = sorted(target["required_views"])
 
         pack_lesson = root / "pack" / pack_id / "lesson.ddn"
         if not pack_lesson.exists():
@@ -157,6 +169,20 @@ def main() -> int:
         ssot_pack = str(row.get("ssot_pack", "")).strip()
         if ssot_pack != pack_id:
             return fail(f"index_ssot_pack_mismatch:{lesson_id}:{ssot_pack}:{pack_id}")
+        subject = str(row.get("subject", "")).strip()
+        if subject != expected_subject:
+            return fail(f"index_subject_mismatch:{lesson_id}:{subject}:{expected_subject}")
+        source = str(row.get("source", "")).strip()
+        if source != "representative_v1":
+            return fail(f"index_source_mismatch:{lesson_id}:{source}:representative_v1")
+        required_views = row.get("required_views")
+        if not isinstance(required_views, list):
+            return fail(f"index_required_views_not_list:{lesson_id}")
+        normalized_views = sorted(str(v).strip() for v in required_views if str(v).strip())
+        if normalized_views != expected_views:
+            return fail(
+                f"index_required_views_mismatch:{lesson_id}:{normalized_views}:{expected_views}"
+            )
 
         lesson_arg = str(pack_lesson.as_posix())
 
