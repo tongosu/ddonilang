@@ -17,12 +17,21 @@ WAVE1_LESSONS = [
     "docs/ssot/pack/edu_math_m001_04_riemann_sum_integral_x2/lesson.ddn",
 ]
 
+ACTIVE_LINE_GLOBS = [
+    "pack/edu_seamgrim_rep_*/lesson.ddn",
+    "pack/edu_seamgrim_rep_*/inputs/*.ddn",
+    "solutions/seamgrim_ui_mvp/lessons/rep_*/lesson.ddn",
+    "solutions/seamgrim_ui_mvp/lessons/rep_*/inputs/*.ddn",
+]
+
 NON_DDN_EMITS = [
     "guseong-flat-json",
     "alrim-plan-json",
     "exec-policy-map-json",
     "maegim-control-json",
 ]
+
+LEGACY_BOIM_PATTERN = re.compile(r"^\s*보임\s*\{")
 
 LEGACY_CONTROL_META_PATTERNS = [
     re.compile(r"^\s*#\s*이름\s*:", re.IGNORECASE),
@@ -92,6 +101,30 @@ def find_legacy_control_meta_line(source: str) -> int | None:
     return None
 
 
+def find_legacy_boim_line(source: str) -> int | None:
+    for idx, line in enumerate(source.splitlines(), start=1):
+        if LEGACY_BOIM_PATTERN.search(line):
+            return idx
+    return None
+
+
+def scan_active_line_legacy_surface_zero(root: Path) -> tuple[int, int]:
+    scanned = 0
+    for pattern in ACTIVE_LINE_GLOBS:
+        for path in sorted(root.glob(pattern)):
+            if not path.is_file():
+                continue
+            scanned += 1
+            source = path.read_text(encoding="utf-8")
+            legacy_line = find_legacy_control_meta_line(source)
+            if legacy_line is not None:
+                raise RuntimeError(f"legacy_header_active_line:{path.as_posix()}:{legacy_line}")
+            boim_line = find_legacy_boim_line(source)
+            if boim_line is not None:
+                raise RuntimeError(f"legacy_boim_active_line:{path.as_posix()}:{boim_line}")
+    return scanned, len(ACTIVE_LINE_GLOBS)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seamgrim frontdoor strict-all regression lock check")
     parser.add_argument(
@@ -104,6 +137,13 @@ def main() -> int:
     root = Path(__file__).resolve().parent.parent
     teul_manifest = str((root / "tools" / "teul-cli" / "Cargo.toml").as_posix())
     tool_manifest = str((root / "tool" / "Cargo.toml").as_posix())
+
+    try:
+        scanned, _ = scan_active_line_legacy_surface_zero(root)
+    except RuntimeError as err:
+        return fail(str(err))
+    if scanned == 0:
+        return fail("active_line_scan_empty")
 
     # Build once to reduce repeated compile overhead in later cargo run calls.
     rc, out = run_cmd_with_windows_lock_retry(
@@ -381,6 +421,52 @@ def main() -> int:
             "run",
             "--quiet",
             "--manifest-path",
+            teul_manifest,
+            "--",
+            "check",
+            compat_probe,
+            "--compat-matic-entry",
+        ],
+    )
+    if rc == 0:
+        return fail(f"compat_check_release_block_missing:{out.strip() or f'rc={rc}'}")
+    if (
+        "E_CLI_COMPAT_RELEASE_BLOCKED" not in out
+        and "unexpected argument '--compat-matic-entry'" not in out
+    ):
+        return fail(f"compat_check_release_block_missing:{out.strip() or f'rc={rc}'}")
+
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            teul_manifest,
+            "--",
+            "canon",
+            compat_probe,
+            "--emit",
+            "ddn",
+            "--compat-matic-entry",
+        ],
+    )
+    if rc == 0:
+        return fail(f"compat_canon_release_block_missing:{out.strip() or f'rc={rc}'}")
+    if (
+        "E_CLI_COMPAT_RELEASE_BLOCKED" not in out
+        and "unexpected argument '--compat-matic-entry'" not in out
+    ):
+        return fail(f"compat_canon_release_block_missing:{out.strip() or f'rc={rc}'}")
+
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
             tool_manifest,
             "--",
             "--unsafe-compat",
@@ -435,6 +521,7 @@ def main() -> int:
         f"ddn_pass={ddn_pass}/{len(WAVE1_LESSONS)} "
         f"non_ddn_pass={non_ddn_pass}/{len(WAVE1_LESSONS) * len(NON_DDN_EMITS)} "
         f"fallback_hits={fallback_hits} "
+        f"active_line_scan={scanned} "
         f"wasm_parity={wasm_status} "
         f"wasm_exec_policy={wasm_exec_policy_status}"
     )
