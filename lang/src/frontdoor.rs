@@ -1,6 +1,70 @@
+const LEGACY_HEADER_KEYS: &[&str] = &[
+    "이름",
+    "설명",
+    "말씨",
+    "사투리",
+    "그래프",
+    "필수보기",
+    "required_views",
+    "필수보개",
+    "조종",
+    "조절",
+    "control",
+];
+
 pub fn preprocess_frontdoor_source(input: &str) -> String {
     let stripped = strip_file_leading_setting_block(input);
     rewrite_inline_maegim_fields(&stripped)
+}
+
+pub fn find_legacy_header(source: &str) -> Option<(usize, &'static str)> {
+    for (line_no, raw) in source.lines().enumerate() {
+        let line = raw.trim_start();
+        if !line.starts_with('#') {
+            continue;
+        }
+        let rest = line[1..].trim_start();
+        for key in LEGACY_HEADER_KEYS {
+            if header_key_matches(rest, key) {
+                return Some((line_no + 1, *key));
+            }
+        }
+    }
+    None
+}
+
+pub fn validate_no_legacy_header(source: &str) -> Result<(), String> {
+    if let Some((line, key)) = find_legacy_header(source) {
+        return Err(format!(
+            "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN line={line} key={key} use=설정{{}}/매김{{}}/설정.보개"
+        ));
+    }
+    Ok(())
+}
+
+pub fn has_legacy_boim_surface(source: &str) -> bool {
+    let prepared = preprocess_frontdoor_source(source);
+    for line in prepared.lines() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("보임") {
+            continue;
+        }
+        let rest = trimmed["보임".len()..].trim_start();
+        if rest.starts_with('{') || rest.starts_with(':') {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
+    if has_legacy_boim_surface(source) {
+        return Err(
+            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 fn strip_file_leading_setting_block(input: &str) -> String {
@@ -191,4 +255,45 @@ fn split_line_frontdoor(chunk: &str) -> (&str, &str) {
         return (stripped, "\n");
     }
     (chunk, "")
+}
+
+fn header_key_matches(rest: &str, key: &str) -> bool {
+    if key.is_ascii() {
+        let lower = rest.to_ascii_lowercase();
+        let key_lower = key.to_ascii_lowercase();
+        if !lower.starts_with(&key_lower) {
+            return false;
+        }
+        return lower[key_lower.len()..].trim_start().starts_with(':');
+    }
+    if !rest.starts_with(key) {
+        return false;
+    }
+    rest[key.len()..].trim_start().starts_with(':')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_legacy_header_detects_hash_header() {
+        let source = "#이름: 예제\n(매마디)마다 { n <- 1. }.";
+        let detected = find_legacy_header(source).expect("legacy header");
+        assert_eq!(detected.0, 1);
+        assert_eq!(detected.1, "이름");
+    }
+
+    #[test]
+    fn validate_no_legacy_header_accepts_canonical_surface() {
+        let source = "설정 { 문서 { 이름: \"ok\". }. }.\n(매마디)마다 { n <- 1. }.";
+        validate_no_legacy_header(source).expect("must pass");
+    }
+
+    #[test]
+    fn validate_no_legacy_boim_surface_detects_block() {
+        let source = "보임 { x: 1. }.";
+        let err = validate_no_legacy_boim_surface(source).expect_err("must fail");
+        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
+    }
 }

@@ -24,7 +24,10 @@ pub use age_gate::{age_not_available_error, AgeTarget};
 pub use ast::*;
 pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
 pub use dialect::DialectConfig;
-pub use frontdoor::preprocess_frontdoor_source;
+pub use frontdoor::{
+    find_legacy_header, has_legacy_boim_surface, preprocess_frontdoor_source,
+    validate_no_legacy_boim_surface, validate_no_legacy_header,
+};
 pub use lexer::{LexError, Lexer, Token, TokenKind};
 pub use normalizer::{normalize, NormalizationLevel, Normalizer};
 pub use parser::{ParseError, ParseMode, Parser};

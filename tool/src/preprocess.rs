@@ -43,19 +43,6 @@ impl AiMeta {
 
 const DEFAULT_AI_MODEL_ID: &str = "ddn.slgi.default";
 const DEFAULT_PROMPT_FINGERPRINT: &str = "slgi-block-v1";
-const LEGACY_HEADER_KEYS: &[&str] = &[
-    "이름",
-    "설명",
-    "말씨",
-    "사투리",
-    "그래프",
-    "필수보기",
-    "required_views",
-    "필수보개",
-    "조종",
-    "조절",
-    "control",
-];
 
 fn default_model_id() -> String {
     std::env::var("DDN_AI_MODEL_ID")
@@ -72,69 +59,22 @@ fn default_prompt_hash() -> String {
     )
 }
 
+#[allow(dead_code)]
 pub fn find_legacy_header(source: &str) -> Option<(usize, &'static str)> {
-    for (line_no, raw) in source.lines().enumerate() {
-        let line = raw.trim_start();
-        if !line.starts_with('#') {
-            continue;
-        }
-        let rest = line[1..].trim_start();
-        for key in LEGACY_HEADER_KEYS {
-            if header_key_matches(rest, key) {
-                return Some((line_no + 1, *key));
-            }
-        }
-    }
-    None
+    ddonirang_lang::find_legacy_header(source)
 }
 
 pub fn validate_no_legacy_header(source: &str) -> Result<(), String> {
-    if let Some((line, key)) = find_legacy_header(source) {
-        return Err(format!(
-            "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN line={line} key={key} use=설정{{}}/매김{{}}/설정.보개"
-        ));
-    }
-    Ok(())
+    ddonirang_lang::validate_no_legacy_header(source)
 }
 
+#[allow(dead_code)]
 pub fn has_legacy_boim_surface(source: &str) -> bool {
-    let prepared = ddonirang_lang::preprocess_frontdoor_source(source);
-    for line in prepared.lines() {
-        let trimmed = line.trim_start();
-        if !trimmed.starts_with("보임") {
-            continue;
-        }
-        let rest = trimmed["보임".len()..].trim_start();
-        if rest.starts_with('{') || rest.starts_with(':') {
-            return true;
-        }
-    }
-    false
+    ddonirang_lang::has_legacy_boim_surface(source)
 }
 
 pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
-    if has_legacy_boim_surface(source) {
-        return Err(
-            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
-                .to_string(),
-        );
-    }
-    Ok(())
-}
-
-fn header_key_matches(rest: &str, key: &str) -> bool {
-    if key.is_ascii() {
-        let lower = rest.to_ascii_lowercase();
-        let key_lower = key.to_ascii_lowercase();
-        if !lower.starts_with(&key_lower) {
-            return false;
-        }
-        return lower[key_lower.len()..].trim_start().starts_with(':');
-    }
-    if !rest.starts_with(key) {
-        return false;
-    }
-    rest[key.len()..].trim_start().starts_with(':')
+    ddonirang_lang::validate_no_legacy_boim_surface(source)
 }
 
 pub fn preprocess_source_for_parse(source: &str) -> Result<String, String> {

@@ -3642,18 +3642,7 @@ pub fn has_exec_policy_surface(input: &str) -> bool {
 }
 
 pub fn has_legacy_boim_surface(input: &str) -> bool {
-    let prepared = preprocess_frontdoor_source(input);
-    for line in prepared.lines() {
-        let trimmed = line.trim_start();
-        if !trimmed.starts_with("보임") {
-            continue;
-        }
-        let rest = trimmed["보임".len()..].trim_start();
-        if rest.starts_with('{') || rest.starts_with(':') {
-            return true;
-        }
-    }
-    false
+    ddonirang_lang::has_legacy_boim_surface(input)
 }
 
 pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError> {
