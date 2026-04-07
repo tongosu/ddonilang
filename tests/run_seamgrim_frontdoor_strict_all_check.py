@@ -467,10 +467,7 @@ def main() -> int:
     )
     if rc == 0:
         return fail(f"compat_release_block_missing:{out.strip() or f'rc={rc}'}")
-    if (
-        "E_CLI_COMPAT_RELEASE_BLOCKED" not in out
-        and "unexpected argument '--compat-matic-entry'" not in out
-    ):
+    if "E_CLI_COMPAT_RELEASE_BLOCKED" not in out:
         return fail(f"compat_release_block_missing:{out.strip() or f'rc={rc}'}")
 
     rc, out = run_cmd(
@@ -489,10 +486,7 @@ def main() -> int:
     )
     if rc == 0:
         return fail(f"compat_check_release_block_missing:{out.strip() or f'rc={rc}'}")
-    if (
-        "E_CLI_COMPAT_RELEASE_BLOCKED" not in out
-        and "unexpected argument '--compat-matic-entry'" not in out
-    ):
+    if "E_CLI_COMPAT_RELEASE_BLOCKED" not in out:
         return fail(f"compat_check_release_block_missing:{out.strip() or f'rc={rc}'}")
 
     rc, out = run_cmd(
@@ -513,10 +507,7 @@ def main() -> int:
     )
     if rc == 0:
         return fail(f"compat_canon_release_block_missing:{out.strip() or f'rc={rc}'}")
-    if (
-        "E_CLI_COMPAT_RELEASE_BLOCKED" not in out
-        and "unexpected argument '--compat-matic-entry'" not in out
-    ):
+    if "E_CLI_COMPAT_RELEASE_BLOCKED" not in out:
         return fail(f"compat_canon_release_block_missing:{out.strip() or f'rc={rc}'}")
 
     rc, out = run_cmd(
