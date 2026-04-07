@@ -1827,18 +1827,22 @@ fn default_schema_output_path() -> std::path::PathBuf {
     paths::build_dir().join("schema").join("ddn.schema.json")
 }
 
-fn read_schema_hash() -> Option<String> {
-    let primary = default_schema_output_path();
+fn read_schema_hash_from_paths(primary: &std::path::Path, legacy: &std::path::Path) -> Option<String> {
     if primary.exists() {
-        let data = std::fs::read(&primary).ok()?;
+        let data = std::fs::read(primary).ok()?;
         return Some(blake3::hash(&data).to_hex().to_string());
     }
-    let legacy = std::path::Path::new("ddn.schema.json");
     if legacy.exists() {
         let data = std::fs::read(legacy).ok()?;
         return Some(blake3::hash(&data).to_hex().to_string());
     }
     None
+}
+
+fn read_schema_hash() -> Option<String> {
+    let primary = default_schema_output_path();
+    let legacy = std::path::Path::new("ddn.schema.json");
+    read_schema_hash_from_paths(&primary, legacy)
 }
 
 fn run_div0() -> Result<(), String> {
@@ -5130,6 +5134,42 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ddn_tool_eco_{}_{}", name, stamp));
         std::fs::create_dir_all(&dir).expect("mkdir");
         dir
+    }
+
+    #[test]
+    fn default_schema_output_path_points_to_build_schema_file() {
+        let path = default_schema_output_path();
+        assert_eq!(path.file_name().and_then(|v| v.to_str()), Some("ddn.schema.json"));
+        let parent = path.parent().expect("schema parent");
+        assert_eq!(parent.file_name().and_then(|v| v.to_str()), Some("schema"));
+    }
+
+    #[test]
+    fn read_schema_hash_prefers_primary_over_legacy() {
+        let root = eco_temp_dir("schema_hash_prefer_primary");
+        let primary = root.join("build").join("schema").join("ddn.schema.json");
+        let legacy = root.join("ddn.schema.json");
+        std::fs::create_dir_all(primary.parent().expect("primary parent")).expect("mkdir");
+        std::fs::write(&primary, b"primary").expect("write primary");
+        std::fs::write(&legacy, b"legacy").expect("write legacy");
+
+        let got =
+            read_schema_hash_from_paths(primary.as_path(), legacy.as_path()).expect("schema hash");
+        let expected = blake3::hash(b"primary").to_hex().to_string();
+        assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn read_schema_hash_falls_back_to_legacy_when_primary_missing() {
+        let root = eco_temp_dir("schema_hash_fallback_legacy");
+        let primary = root.join("build").join("schema").join("ddn.schema.json");
+        let legacy = root.join("ddn.schema.json");
+        std::fs::write(&legacy, b"legacy-only").expect("write legacy");
+
+        let got =
+            read_schema_hash_from_paths(primary.as_path(), legacy.as_path()).expect("schema hash");
+        let expected = blake3::hash(b"legacy-only").to_hex().to_string();
+        assert_eq!(got, expected);
     }
 
     #[test]
