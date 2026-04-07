@@ -185,6 +185,49 @@ def main() -> int:
     if rc == 0 or "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN" not in out:
         return fail(f"legacy_header_must_fail:{out.strip() or f'rc={rc}'}")
 
+    legacy_header_path.write_text(
+        "#이름: 금지\n"
+        "(매마디)마다 {\n"
+        "  n <- 1.\n"
+        "}.\n",
+        encoding="utf-8",
+    )
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            teul_manifest,
+            "--",
+            "check",
+            str(legacy_header_path.as_posix()),
+        ],
+    )
+    if rc == 0 or "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN" not in out:
+        legacy_header_path.unlink(missing_ok=True)
+        return fail(f"legacy_header_check_must_fail:{out.strip() or f'rc={rc}'}")
+
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            teul_manifest,
+            "--",
+            "run",
+            str(legacy_header_path.as_posix()),
+            "--madi",
+            "1",
+        ],
+    )
+    legacy_header_path.unlink(missing_ok=True)
+    if rc == 0 or "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN" not in out:
+        return fail(f"legacy_header_run_must_fail:{out.strip() or f'rc={rc}'}")
+
     ddn_pass = 0
     non_ddn_pass = 0
     fallback_hits = 0
