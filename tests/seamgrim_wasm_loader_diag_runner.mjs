@@ -96,6 +96,25 @@ async function main() {
     "wrapper-load-fail",
   );
 
+  const wrapperExportMissingLoader = createWasmLoader({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_build_info() {
+        return "";
+      },
+      DdnWasmVm: function DdnWasmVm(_source) {
+        this.get_build_info = () => "vm-build-info";
+      },
+    }),
+    wrapperFactory: async () => ({}),
+  });
+  await expectEnsureFailure(
+    wrapperExportMissingLoader,
+    sourceText,
+    "E_WASM_LOADER_WRAPPER_EXPORT_MISSING",
+    "wrapper-export-missing",
+  );
+
   const successLoader = createWasmLoader({
     moduleFactory: async () => ({
       default() {},
@@ -126,4 +145,3 @@ main().catch((err) => {
   console.error(String(err?.stack ?? err));
   process.exit(1);
 });
-

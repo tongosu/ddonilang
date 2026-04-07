@@ -2995,6 +2995,14 @@ export function createWasmLoader({
       };
       throw err;
     }
+    if (typeof wrapper?.DdnWasmVmClient !== "function") {
+      lastInitDiag = {
+        code: "E_WASM_LOADER_WRAPPER_EXPORT_MISSING",
+        message: "DdnWasmVmClient export가 없습니다.",
+        detail: String(wrapperPath ?? ""),
+      };
+      throw new Error("DdnWasmVmClient export missing");
+    }
     const needsSource = DdnWasmVm.length > 0;
     const sourceText = stripMetaHeader(source);
     const prepareSourceText = (rawSource) => {
