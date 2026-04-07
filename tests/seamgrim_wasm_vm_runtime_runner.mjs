@@ -98,6 +98,13 @@ async function main() {
     getLastPreprocessed() {
       return "preprocessed-body";
     },
+    getLastPreprocessDiag() {
+      return {
+        code: "E_WASM_PREPROCESS_CALL_FAILED",
+        message: "mock preprocess failed",
+        detail: "mock",
+      };
+    },
     getCacheBust() {
       return 7;
     },
@@ -120,6 +127,10 @@ async function main() {
     handle.getDebugInfo().runtimeDiags?.[0]?.code === "E_WASM_SET_RNG_SEED_FAILED",
     "wasm vm handle: seed failure runtime diag",
   );
+  assert(
+    handle.getDebugInfo().preprocessDiag?.code === "E_WASM_PREPROCESS_CALL_FAILED",
+    "wasm vm handle: preprocess diag passthrough",
+  );
 
   await handle.invalidate();
   assert(handle.getParseWarnings().length === 0, "wasm vm handle: parse warnings reset on invalidate");
@@ -139,6 +150,9 @@ async function main() {
       },
       getLastPreprocessed() {
         return "preprocessed-body";
+      },
+      getLastPreprocessDiag() {
+        return null;
       },
       getCacheBust() {
         return 11;

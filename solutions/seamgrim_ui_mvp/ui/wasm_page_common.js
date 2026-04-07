@@ -2892,6 +2892,7 @@ export function createWasmLoader({
   let vmClient = null;
   let lastBuildInfo = "";
   let lastPreprocessed = "";
+  let lastPreprocessDiag = null;
 
   function withCacheBust(path) {
     const sep = path.includes("?") ? "&" : "?";
@@ -2902,6 +2903,7 @@ export function createWasmLoader({
     vmClient = null;
     lastBuildInfo = "";
     lastPreprocessed = "";
+    lastPreprocessDiag = null;
   }
 
   async function ensure(source) {
@@ -2939,14 +2941,25 @@ export function createWasmLoader({
       const text = String(rawSource ?? "");
       if (typeof wasmModule.wasm_preprocess_source !== "function") {
         lastPreprocessed = text;
+        lastPreprocessDiag = {
+          code: "E_WASM_PREPROCESS_API_MISSING",
+          message: "wasm_preprocess_source API가 없습니다.",
+          detail: "",
+        };
         return text;
       }
       try {
         const prepared = String(wasmModule.wasm_preprocess_source(text) ?? text);
         lastPreprocessed = prepared;
+        lastPreprocessDiag = null;
         return prepared;
       } catch (err) {
         lastPreprocessed = text;
+        lastPreprocessDiag = {
+          code: "E_WASM_PREPROCESS_CALL_FAILED",
+          message: "wasm_preprocess_source 호출에 실패했습니다.",
+          detail: String(err?.message ?? err ?? ""),
+        };
         return text;
       }
     };
@@ -2999,6 +3012,7 @@ export function createWasmLoader({
     reset,
     getLastBuildInfo: () => lastBuildInfo,
     getLastPreprocessed: () => lastPreprocessed,
+    getLastPreprocessDiag: () => (lastPreprocessDiag ? { ...lastPreprocessDiag } : null),
     getCacheBust: () => cacheBust,
   };
 }

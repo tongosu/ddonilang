@@ -243,6 +243,7 @@ export class WasmVmHandle {
     return {
       buildInfo: this.loader.getLastBuildInfo?.() ?? "",
       preprocessed: this.loader.getLastPreprocessed?.() ?? this.lastBodyText ?? "",
+      preprocessDiag: this.loader.getLastPreprocessDiag?.() ?? null,
       pragmas: this.lastPragmas,
       diags: this.lastDiags,
       parseWarnings: this.getParseWarnings(),
