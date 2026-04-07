@@ -2,6 +2,14 @@ import { createWasmCanon } from "./wasm_canon_runtime.js";
 
 const DEFAULT_WASM_CANON_URL = "../wasm/ddonirang_tool.js";
 
+function buildCanonDiag(code, message, detail = "") {
+  return {
+    code,
+    message,
+    detail: String(detail ?? ""),
+  };
+}
+
 function normalizeLessonPayload(lesson) {
   return lesson && typeof lesson === "object" ? { ...lesson } : {};
 }
@@ -89,6 +97,19 @@ export function createLessonCanonHydrator({
   createCanon = createWasmCanon,
 } = {}) {
   let canonRuntimePromise = null;
+  let lastCanonDiags = [];
+
+  function setCanonDiag(code, message, detail = "") {
+    lastCanonDiags = [buildCanonDiag(code, message, detail)];
+  }
+
+  function clearCanonDiags() {
+    lastCanonDiags = [];
+  }
+
+  function getCanonDiags() {
+    return Array.isArray(lastCanonDiags) ? [...lastCanonDiags] : [];
+  }
 
   async function getRuntime() {
     if (!canonRuntimePromise) {
@@ -105,6 +126,7 @@ export function createLessonCanonHydrator({
   }
 
   async function deriveMaegimControlJson(ddnText) {
+    clearCanonDiags();
     const sourceText = String(ddnText ?? "").trim();
     if (!sourceText) return "";
     try {
@@ -113,6 +135,11 @@ export function createLessonCanonHydrator({
       if (!plan || typeof plan !== "object") return "";
       return JSON.stringify(plan, null, 2);
     } catch (error) {
+      setCanonDiag(
+        "E_WASM_MAEGIM_PLAN_FALLBACK_FAILED",
+        "wasm maegim plan canonicalization에 실패했습니다.",
+        error?.message ?? String(error ?? ""),
+      );
       console.warn(
         `[seamgrim] wasm maegim plan fallback failed: ${String(error?.message ?? error)}`,
       );
@@ -121,6 +148,7 @@ export function createLessonCanonHydrator({
   }
 
   async function deriveFlatJson(ddnText, { quiet = false } = {}) {
+    clearCanonDiags();
     const sourceText = String(ddnText ?? "").trim();
     if (!sourceText) return null;
     try {
@@ -128,6 +156,11 @@ export function createLessonCanonHydrator({
       const flat = await runtime.canonFlatJson(sourceText);
       return flat && typeof flat === "object" ? flat : null;
     } catch (error) {
+      setCanonDiag(
+        "E_WASM_FLAT_PLAN_FALLBACK_FAILED",
+        "wasm flat plan canonicalization에 실패했습니다.",
+        error?.message ?? String(error ?? ""),
+      );
       if (!quiet) {
         console.warn(
           `[seamgrim] wasm flat plan fallback failed: ${String(error?.message ?? error)}`,
@@ -151,6 +184,7 @@ export function createLessonCanonHydrator({
 
   return {
     getRuntime,
+    getCanonDiags,
     deriveMaegimControlJson,
     deriveFlatJson,
     hydrateLessonCanon,

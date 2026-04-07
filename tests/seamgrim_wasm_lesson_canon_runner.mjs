@@ -73,6 +73,9 @@ async function main() {
   if (controls.length !== 2) {
     throw new Error(`hydrated maegim control count mismatch: ${controls.length}`);
   }
+  if (!Array.isArray(hydrator.getCanonDiags?.()) || hydrator.getCanonDiags().length !== 0) {
+    throw new Error("canon diags should be empty after successful maegim canon");
+  }
 
   const preserved = await hydrator.hydrateLessonCanon({
     id: "lesson-canon-preserve",
@@ -120,6 +123,35 @@ async function main() {
   const linkRange = editor.findFlatLinkSelectionRange(guseongText, view.links[0]);
   if (!linkRange || guseongText.slice(linkRange.start, linkRange.end).trim() !== "a.기준점 <- b.꼭짓점.") {
     throw new Error("flat link selection range mismatch");
+  }
+
+  const failingHydrator = runtime.createLessonCanonHydrator({
+    createCanon: async () => ({
+      canonMaegimPlan() {
+        throw new Error("maegim-test-fail");
+      },
+      canonFlatJson() {
+        throw new Error("flat-test-fail");
+      },
+    }),
+  });
+
+  const maegimFailText = await failingHydrator.deriveMaegimControlJson("매틱:움직씨 = { x <- 1. }.");
+  if (maegimFailText !== "") {
+    throw new Error("maegim failure path must return empty string");
+  }
+  const maegimFailDiag = failingHydrator.getCanonDiags?.()?.[0] ?? null;
+  if (String(maegimFailDiag?.code ?? "") !== "E_WASM_MAEGIM_PLAN_FALLBACK_FAILED") {
+    throw new Error(`maegim failure diag mismatch: ${JSON.stringify(maegimFailDiag)}`);
+  }
+
+  const flatFail = await failingHydrator.deriveFlatJson("매틱:움직씨 = { x <- 1. }.", { quiet: true });
+  if (flatFail !== null) {
+    throw new Error("flat failure path must return null");
+  }
+  const flatFailDiag = failingHydrator.getCanonDiags?.()?.[0] ?? null;
+  if (String(flatFailDiag?.code ?? "") !== "E_WASM_FLAT_PLAN_FALLBACK_FAILED") {
+    throw new Error(`flat failure diag mismatch: ${JSON.stringify(flatFailDiag)}`);
   }
 
   console.log("seamgrim wasm lesson canon runner ok");
