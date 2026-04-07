@@ -1203,6 +1203,18 @@ impl Parser {
         self.deprecated_block_header_colon_count
     }
 
+    fn unexpected_token_error(&self, context: &str) -> CanonError {
+        CanonError::new(
+            "E_CANON_UNEXPECTED_TOKEN",
+            format!(
+                "{}; at_token_index={} found={:?}",
+                context,
+                self.pos,
+                self.peek_kind()
+            ),
+        )
+    }
+
     fn parse_program(&mut self) -> Result<Vec<SurfaceStmt>, CanonError> {
         let mut stmts = Vec::new();
         loop {
@@ -1513,10 +1525,7 @@ impl Parser {
             self.consume_terminator()?;
             return Ok(SurfaceStmt::Expr { value: payload });
         }
-        Err(CanonError::new(
-            "E_CANON_UNEXPECTED_TOKEN",
-            "예상하지 못한 토큰입니다.",
-        ))
+        Err(self.unexpected_token_error("예상하지 못한 토큰입니다"))
     }
 
     fn try_parse_event_react_stmt(&mut self) -> Result<Option<SurfaceStmt>, CanonError> {
@@ -3381,10 +3390,7 @@ impl Parser {
             TokenKind::BogaeMadangBlock(body) => body,
             TokenKind::BogaeJangmyeonBlock(body) => body,
             _ => {
-                return Err(CanonError::new(
-                    "E_CANON_UNEXPECTED_TOKEN",
-                    "예상하지 못한 토큰입니다.",
-                ))
+                return Err(self.unexpected_token_error("보개마당/보개장면 블록 파싱 실패"))
             }
         };
         self.consume_optional_terminator();
@@ -3397,10 +3403,7 @@ impl Parser {
             TokenKind::JjaimBlock(body) => body,
             TokenKind::GuseongBlock(body) => body,
             _ => {
-                return Err(CanonError::new(
-                    "E_CANON_UNEXPECTED_TOKEN",
-                    "예상하지 못한 토큰입니다.",
-                ))
+                return Err(self.unexpected_token_error("짜임/구성 블록 파싱 실패"))
             }
         };
         validate_jjaim_block_body(&body)?;
@@ -3413,10 +3416,7 @@ impl Parser {
         let body = match token.kind {
             TokenKind::ExecPolicyBlock(body) => body,
             _ => {
-                return Err(CanonError::new(
-                    "E_CANON_UNEXPECTED_TOKEN",
-                    "예상하지 못한 토큰입니다.",
-                ))
+                return Err(self.unexpected_token_error("너머 블록 파싱 실패"))
             }
         };
         self.consume_optional_terminator();
@@ -3442,10 +3442,7 @@ impl Parser {
             self.advance();
             return Ok(());
         }
-        Err(CanonError::new(
-            "E_CANON_UNEXPECTED_TOKEN",
-            "예상하지 못한 토큰입니다.",
-        ))
+        Err(self.unexpected_token_error("토큰 기대값 불일치"))
     }
 
     fn peek_ident_text(&self) -> Option<String> {
