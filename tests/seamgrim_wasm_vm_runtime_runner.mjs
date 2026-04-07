@@ -81,6 +81,12 @@ async function main() {
       message: "deprecated",
       span: { start: 0, end: 1 },
     },
+    {
+      code: 77,
+      message: null,
+      detail: 42,
+      span: { start: "x", end: undefined },
+    },
   ];
   const strictClient = createClient({ warnings: strictWarnings, seedThrows: true });
   const compatClient = createClient({ warnings: [] });
@@ -118,10 +124,22 @@ async function main() {
 
   const updatedState = await handle.updateLogic("#이름: 테스트\n매틱:움직씨 = { x <- 2. }.");
   assert(updatedState?.schema === "seamgrim.state.v0", "wasm vm handle: update state schema");
-  assert(handle.getParseWarnings().length === 1, "wasm vm handle: parse warnings retained");
+  assert(handle.getParseWarnings().length === 2, "wasm vm handle: parse warnings retained");
   assert(
     handle.getDebugInfo().parseWarnings?.[0]?.code === "W_BLOCK_HEADER_COLON_DEPRECATED",
     "wasm vm handle: parse warnings in debug info",
+  );
+  assert(
+    handle.getDebugInfo().parseWarnings?.[1]?.code === "77",
+    "wasm vm handle: parse warnings code normalized to string",
+  );
+  assert(
+    handle.getDebugInfo().parseWarnings?.[1]?.detail === "42",
+    "wasm vm handle: parse warnings detail normalized to string",
+  );
+  assert(
+    handle.getDebugInfo().parseWarnings?.[1]?.span?.start === 0,
+    "wasm vm handle: parse warnings span.start normalized",
   );
   assert(
     handle.getDebugInfo().runtimeDiags?.[0]?.code === "E_WASM_SET_RNG_SEED_FAILED",

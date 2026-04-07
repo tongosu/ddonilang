@@ -30,6 +30,22 @@ function buildParseWarningsReadDiag(code, message, detail = "") {
   ];
 }
 
+function normalizeParseWarningRow(raw) {
+  const row = raw && typeof raw === "object" ? raw : {};
+  const spanRaw = row.span && typeof row.span === "object" ? row.span : {};
+  const startNum = Number(spanRaw.start);
+  const endNum = Number(spanRaw.end);
+  return {
+    code: String(row.code ?? "W_WASM_PARSE_WARNING_UNKNOWN"),
+    message: String(row.message ?? ""),
+    detail: String(row.detail ?? ""),
+    span: {
+      start: Number.isFinite(startNum) ? startNum : 0,
+      end: Number.isFinite(endNum) ? endNum : 0,
+    },
+  };
+}
+
 function buildRuntimeDiag(code, message, detail = "") {
   return {
     code,
@@ -128,7 +144,7 @@ export class WasmVmHandle {
           typeof warnings,
         );
       }
-      return warnings;
+      return warnings.map(normalizeParseWarningRow);
     } catch (err) {
       return buildParseWarningsReadDiag(
         "E_WASM_PARSE_WARNINGS_READ_FAILED",
