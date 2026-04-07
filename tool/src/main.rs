@@ -1812,20 +1812,33 @@ fn build_schema_file(input_path: &str, output_path: Option<&str>) -> Result<(), 
     let schema = build_schema(&source, input_path)?;
     let out_path = output_path
         .map(|s| s.to_string())
-        .unwrap_or_else(|| "ddn.schema.json".to_string());
+        .unwrap_or_else(|| default_schema_output_path().to_string_lossy().to_string());
+    if let Some(parent) = std::path::Path::new(&out_path).parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("SCHEMA_DIR_CREATE_FAILED: {} ({})", parent.display(), e))?;
+    }
     let schema_hash = write_schema(&out_path, &schema)?;
     println!("schema_written: {}", out_path);
     println!("schema_hash: {}", schema_hash);
     Ok(())
 }
 
+fn default_schema_output_path() -> std::path::PathBuf {
+    paths::build_dir().join("schema").join("ddn.schema.json")
+}
+
 fn read_schema_hash() -> Option<String> {
-    let path = std::path::Path::new("ddn.schema.json");
-    if !path.exists() {
-        return None;
+    let primary = default_schema_output_path();
+    if primary.exists() {
+        let data = std::fs::read(&primary).ok()?;
+        return Some(blake3::hash(&data).to_hex().to_string());
     }
-    let data = std::fs::read(path).ok()?;
-    Some(blake3::hash(&data).to_hex().to_string())
+    let legacy = std::path::Path::new("ddn.schema.json");
+    if legacy.exists() {
+        let data = std::fs::read(legacy).ok()?;
+        return Some(blake3::hash(&data).to_hex().to_string());
+    }
+    None
 }
 
 fn run_div0() -> Result<(), String> {
