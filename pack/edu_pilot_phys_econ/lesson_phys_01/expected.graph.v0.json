@@ -6,13 +6,11 @@
     "y_min": -0.6
   },
   "meta": {
-    "input_desc": "좌=진자(2d), 우=θ(t) 그래프(graph), 중=수식/자막(text), 하단=ViewDock",
-    "input_name": "진자_한편의장면",
     "result_hash": "sha256:28441400839fcdfe30cc37f14ab49527ff172dcd406d62db90be8797c28f7f36",
     "series_labels": [
       "series:theta"
     ],
-    "source_input_hash": "sha256:3be2ea45bac6196b851cd5fabc3f2626abf804fdcf96ea9002cfbdb3b1ae672e",
+    "source_input_hash": "sha256:14d816c35cd863d8a61383d742ec0ff9b0009d06a905d029c6dab692f63f1de1",
     "source_mode": "teul-cli-stdout"
   },
   "schema": "seamgrim.graph.v0",

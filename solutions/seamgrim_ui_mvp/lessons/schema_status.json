@@ -1762,6 +1762,106 @@
       }
     },
     {
+      "lesson_id": "rep_cs_linear_search_timeline_v1",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_cs_linear_search_timeline_v1\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_cs_linear_search_timeline_v1\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "rep_econ_supply_demand_tax_v1",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_econ_supply_demand_tax_v1\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_econ_supply_demand_tax_v1\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "rep_math_function_line_v1",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_math_function_line_v1\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_math_function_line_v1\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "rep_phys_projectile_xy_v1",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_phys_projectile_xy_v1\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_phys_projectile_xy_v1\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
+      "lesson_id": "rep_science_phase_change_timeline_v1",
+      "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_science_phase_change_timeline_v1\\lesson.ddn",
+      "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\rep_science_phase_change_timeline_v1\\lesson.age3.preview.ddn",
+      "has_preview": true,
+      "source_profile": "age3_target",
+      "effective_profile": "age3_target",
+      "source_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      },
+      "effective_counts": {
+        "legacy_show": 0,
+        "view_block": 1,
+        "mamadi": 1,
+        "matik": 0
+      }
+    },
+    {
       "lesson_id": "ssot_edu_econ_e001_01_demand_curve_PQ",
       "lesson_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_01_demand_curve_PQ\\lesson.ddn",
       "preview_path": "solutions\\seamgrim_ui_mvp\\lessons\\ssot_edu_econ_e001_01_demand_curve_PQ\\lesson.age3.preview.ddn",
