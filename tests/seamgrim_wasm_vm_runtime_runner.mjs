@@ -11,6 +11,7 @@ function createClient({
   warnings = [],
   state = null,
   supportsStepWithInput = true,
+  seedThrows = false,
 } = {}) {
   const sharedState = state ?? {
     schema: "seamgrim.state.v0",
@@ -23,6 +24,12 @@ function createClient({
     _updates: [],
     parseWarningsParsed() {
       return warnings;
+    },
+    setRngSeed(seed) {
+      if (seedThrows) {
+        throw new Error(`seed-fail:${String(seed)}`);
+      }
+      this._seed = Number(seed);
     },
     updateLogic(body) {
       this._updates.push(String(body ?? ""));
@@ -71,7 +78,7 @@ async function main() {
       span: { start: 0, end: 1 },
     },
   ];
-  const strictClient = createClient({ warnings: strictWarnings });
+  const strictClient = createClient({ warnings: strictWarnings, seedThrows: true });
   const compatClient = createClient({ warnings: [] });
 
   let ensureCount = 0;
@@ -95,6 +102,7 @@ async function main() {
   const handle = new WasmVmHandle({
     loader,
     defaultSourceText: "매틱:움직씨 = { x <- 1. }.",
+    seedU64: 123,
   });
 
   const updatedState = await handle.updateLogic("#이름: 테스트\n매틱:움직씨 = { x <- 2. }.");
@@ -103,6 +111,10 @@ async function main() {
   assert(
     handle.getDebugInfo().parseWarnings?.[0]?.code === "W_BLOCK_HEADER_COLON_DEPRECATED",
     "wasm vm handle: parse warnings in debug info",
+  );
+  assert(
+    handle.getDebugInfo().runtimeDiags?.[0]?.code === "E_WASM_SET_RNG_SEED_FAILED",
+    "wasm vm handle: seed failure runtime diag",
   );
 
   await handle.invalidate();

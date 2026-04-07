@@ -30,6 +30,14 @@ function buildParseWarningsReadDiag(code, message, detail = "") {
   ];
 }
 
+function buildRuntimeDiag(code, message, detail = "") {
+  return {
+    code,
+    message,
+    detail: String(detail ?? ""),
+  };
+}
+
 export class WasmVmHandle {
   constructor({
     loader,
@@ -46,6 +54,7 @@ export class WasmVmHandle {
     this.lastDiags = [];
     this.lastObservationManifest = null;
     this.lastParseWarnings = [];
+    this.lastRuntimeDiags = [];
   }
 
   preprocess(sourceText) {
@@ -70,8 +79,15 @@ export class WasmVmHandle {
     if (this.seedU64 !== null && typeof client?.setRngSeed === "function") {
       try {
         client.setRngSeed(this.seedU64);
-      } catch (_) {
-        // keep runtime usable even when seed API is not available
+      } catch (err) {
+        this.lastRuntimeDiags = [
+          ...this.lastRuntimeDiags,
+          buildRuntimeDiag(
+            "E_WASM_SET_RNG_SEED_FAILED",
+            "setRngSeed 호출에 실패했습니다.",
+            err?.message ?? String(err ?? ""),
+          ),
+        ];
       }
       this.seedU64 = null;
     }
@@ -219,6 +235,7 @@ export class WasmVmHandle {
       pragmas: this.lastPragmas,
       diags: this.lastDiags,
       parseWarnings: this.getParseWarnings(),
+      runtimeDiags: Array.isArray(this.lastRuntimeDiags) ? [...this.lastRuntimeDiags] : [],
       observationManifest: this.lastObservationManifest,
       cacheBust: this.loader.getCacheBust?.() ?? null,
     };
@@ -232,6 +249,7 @@ export class WasmVmHandle {
     this.lastDiags = [];
     this.lastObservationManifest = null;
     this.lastParseWarnings = [];
+    this.lastRuntimeDiags = [];
     this.loader.reset();
   }
 }
