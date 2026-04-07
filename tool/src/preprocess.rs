@@ -97,6 +97,31 @@ pub fn validate_no_legacy_header(source: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn has_legacy_boim_surface(source: &str) -> bool {
+    let prepared = ddonirang_lang::preprocess_frontdoor_source(source);
+    for line in prepared.lines() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("보임") {
+            continue;
+        }
+        let rest = trimmed["보임".len()..].trim_start();
+        if rest.starts_with('{') || rest.starts_with(':') {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
+    if has_legacy_boim_surface(source) {
+        return Err(
+            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 fn header_key_matches(rest: &str, key: &str) -> bool {
     if key.is_ascii() {
         let lower = rest.to_ascii_lowercase();
@@ -1319,6 +1344,19 @@ mod tests {
         let out = preprocess_source_for_parse(source).expect("preprocess");
         assert!(out.contains("보임 {"));
         assert!(!out.contains("\"table.row\" 보여주기."));
+    }
+
+    #[test]
+    fn validate_no_legacy_boim_surface_detects_block() {
+        let source = "보임 { x: 1. }.";
+        let err = validate_no_legacy_boim_surface(source).expect_err("must fail");
+        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
+    }
+
+    #[test]
+    fn validate_no_legacy_boim_surface_accepts_canonical_bogae() {
+        let source = "설정: { 보개: { 기본: \"space2d\". }. }.";
+        validate_no_legacy_boim_surface(source).expect("must pass");
     }
 
     // --- rewrite_unary_minus ---
