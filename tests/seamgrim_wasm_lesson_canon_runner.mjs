@@ -54,6 +54,9 @@ async function main() {
     cacheBust: 0,
     initInput: wasmBytes,
   });
+  if (typeof hydrator.getRuntimeDiags !== "function") {
+    throw new Error("createLessonCanonHydrator.getRuntimeDiags export 누락");
+  }
   const canon = await runtime.createWasmCanon({
     cacheBust: 0,
     initInput: wasmBytes,
@@ -87,6 +90,9 @@ async function main() {
   }
   if (!Array.isArray(hydrator.getCanonDiags?.()) || hydrator.getCanonDiags().length !== 0) {
     throw new Error("canon diags should be empty after successful maegim canon");
+  }
+  if (!Array.isArray(hydrator.getRuntimeDiags?.())) {
+    throw new Error("runtime diags should be array");
   }
 
   const preserved = await hydrator.hydrateLessonCanon({
@@ -201,6 +207,10 @@ async function main() {
   }
   if (String(runtimeDiag?.detail ?? "") !== "init-diag-detail") {
     throw new Error(`runtime diag detail passthrough mismatch: ${JSON.stringify(runtimeDiag)}`);
+  }
+  const runtimeDiagRow = runtimeDiagHydrator.getRuntimeDiags?.()?.[0] ?? null;
+  if (String(runtimeDiagRow?.code ?? "") !== "E_WASM_CANON_MODULE_INIT_FAILED") {
+    throw new Error(`runtime diag snapshot mismatch: ${JSON.stringify(runtimeDiagRow)}`);
   }
 
   const loadFailCanon = await runtime.createWasmCanon({

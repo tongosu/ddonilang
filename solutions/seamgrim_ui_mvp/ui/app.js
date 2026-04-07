@@ -1159,6 +1159,24 @@ async function main() {
     });
     const flat = await lessonCanonHydrator.deriveFlatJson(sourceText, { quiet: true });
     if (ticket !== editorCanonSummaryTicket || !editorScreen) return;
+    if (!flat) {
+      const canonDiag = Array.isArray(lessonCanonHydrator.getCanonDiags?.())
+        ? lessonCanonHydrator.getCanonDiags()
+        : [];
+      const runtimeDiag = Array.isArray(lessonCanonHydrator.getRuntimeDiags?.())
+        ? lessonCanonHydrator.getRuntimeDiags()
+        : [];
+      const topDiag = canonDiag[0] ?? runtimeDiag[0] ?? null;
+      if (topDiag && topDiag.code) {
+        editorScreen.setCanonFlatView({
+          summaryText: `구성: WASM canon 실패 (${String(topDiag.code)})`,
+          topoOrder: [],
+          instances: [],
+          links: [],
+        });
+        return;
+      }
+    }
     editorScreen.setCanonFlatView(buildFlatPlanView(flat));
   };
 

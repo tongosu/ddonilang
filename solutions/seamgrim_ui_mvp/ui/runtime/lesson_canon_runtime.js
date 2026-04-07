@@ -137,6 +137,7 @@ export function createLessonCanonHydrator({
 } = {}) {
   let canonRuntimePromise = null;
   let lastCanonDiags = [];
+  let lastRuntimeDiags = [];
 
   function setCanonDiag(code, message, detail = "") {
     lastCanonDiags = [buildCanonDiag(code, message, detail)];
@@ -148,6 +149,41 @@ export function createLessonCanonHydrator({
 
   function getCanonDiags() {
     return Array.isArray(lastCanonDiags) ? [...lastCanonDiags] : [];
+  }
+
+  function updateRuntimeDiags(runtime) {
+    if (!runtime || typeof runtime !== "object") {
+      lastRuntimeDiags = [];
+      return;
+    }
+    const rows = [];
+    if (typeof runtime.getLastInitDiag === "function") {
+      const row = runtime.getLastInitDiag();
+      if (row && typeof row === "object") rows.push(row);
+    }
+    if (typeof runtime.getLastBuildInfoDiag === "function") {
+      const row = runtime.getLastBuildInfoDiag();
+      if (row && typeof row === "object") rows.push(row);
+    }
+    if (typeof runtime.getLastPreprocessDiag === "function") {
+      const row = runtime.getLastPreprocessDiag();
+      if (row && typeof row === "object") rows.push(row);
+    }
+    if (typeof runtime.getLastCanonDiag === "function") {
+      const row = runtime.getLastCanonDiag();
+      if (row && typeof row === "object") rows.push(row);
+    }
+    lastRuntimeDiags = rows.map((row) =>
+      buildCanonDiag(
+        String(row.code ?? "E_WASM_CANON_RUNTIME_DIAG"),
+        String(row.message ?? ""),
+        String(row.detail ?? ""),
+      ),
+    );
+  }
+
+  function getRuntimeDiags() {
+    return Array.isArray(lastRuntimeDiags) ? [...lastRuntimeDiags] : [];
   }
 
   async function getRuntime() {
@@ -172,10 +208,12 @@ export function createLessonCanonHydrator({
     try {
       runtime = await getRuntime();
       const plan = await runtime.canonMaegimPlan(sourceText);
+      updateRuntimeDiags(runtime);
       if (!plan || typeof plan !== "object") return "";
       return JSON.stringify(plan, null, 2);
     } catch (error) {
       const errText = error?.message ?? String(error ?? "");
+      updateRuntimeDiags(runtime);
       const runtimeDiag = pickRuntimeCanonDiag(runtime, errText);
       if (runtimeDiag) {
         setCanonDiag(runtimeDiag.code, runtimeDiag.message, runtimeDiag.detail);
@@ -201,9 +239,11 @@ export function createLessonCanonHydrator({
     try {
       runtime = await getRuntime();
       const flat = await runtime.canonFlatJson(sourceText);
+      updateRuntimeDiags(runtime);
       return flat && typeof flat === "object" ? flat : null;
     } catch (error) {
       const errText = error?.message ?? String(error ?? "");
+      updateRuntimeDiags(runtime);
       const runtimeDiag = pickRuntimeCanonDiag(runtime, errText);
       if (runtimeDiag) {
         setCanonDiag(runtimeDiag.code, runtimeDiag.message, runtimeDiag.detail);
@@ -238,6 +278,7 @@ export function createLessonCanonHydrator({
   return {
     getRuntime,
     getCanonDiags,
+    getRuntimeDiags,
     deriveMaegimControlJson,
     deriveFlatJson,
     hydrateLessonCanon,
