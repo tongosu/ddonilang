@@ -1284,11 +1284,14 @@ pub(crate) struct RunCommandArgs {
     pub(crate) run_command_override: Option<String>,
 }
 
-fn compat_release_override_enabled() -> bool {
-    matches!(
-        std::env::var("DDN_INTERNAL_ALLOW_COMPAT").ok().as_deref(),
-        Some("1")
-    )
+fn validate_compat_matic_entry_release_lock(compat_matic_entry: bool) -> Result<(), String> {
+    if compat_matic_entry {
+        return Err(
+            "E_CLI_COMPAT_RELEASE_BLOCKED --compat-matic-entry는 출시 경로에서 완전 비활성화됩니다."
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 pub(crate) fn execute_run_command(
@@ -1345,11 +1348,7 @@ pub(crate) fn execute_run_command(
         run_command_override,
     } = args;
 
-    if compat_matic_entry && !compat_release_override_enabled() {
-        return Err(
-            "E_CLI_COMPAT_RELEASE_BLOCKED --compat-matic-entry는 출시 경로에서 비활성화됩니다. 내부 진단이 필요하면 DDN_INTERNAL_ALLOW_COMPAT=1을 사용하세요.".to_string()
-        );
-    }
+    validate_compat_matic_entry_release_lock(compat_matic_entry)?;
 
     let seed = parse_seed(&seed).map_err(|message| format!("E_CLI_BAD_SEED {}", message))?;
     let madi =
@@ -3150,6 +3149,17 @@ mod tests {
             panic!("expected run command");
         };
         assert!(!compat_matic_entry);
+    }
+
+    #[test]
+    fn compat_matic_entry_release_lock_rejects_flag() {
+        let err = validate_compat_matic_entry_release_lock(true).expect_err("must fail");
+        assert!(err.contains("E_CLI_COMPAT_RELEASE_BLOCKED"));
+    }
+
+    #[test]
+    fn compat_matic_entry_release_lock_accepts_default_false() {
+        validate_compat_matic_entry_release_lock(false).expect("must pass");
     }
 
     #[test]

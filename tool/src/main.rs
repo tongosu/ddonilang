@@ -4339,22 +4339,21 @@ fn parse_seed_arg(text: &str) -> Result<u64, String> {
         .map_err(|_| format!("seed 파싱 실패: {}", text))
 }
 
-fn unsafe_compat_override_enabled() -> bool {
-    matches!(
-        std::env::var("DDN_INTERNAL_ALLOW_UNSAFE_COMPAT")
-            .ok()
-            .as_deref(),
-        Some("1")
-    )
+fn validate_tool_unsafe_compat_release_lock(unsafe_compat: bool) -> Result<(), String> {
+    if unsafe_compat {
+        return Err(
+            "E_TOOL_COMPAT_RELEASE_BLOCKED --unsafe-compat는 출시 경로에서 완전 비활성화됩니다."
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 fn main() {
     let mut raw_args: Vec<String> = std::env::args().skip(1).collect();
     let unsafe_compat = take_flag(&mut raw_args, "--unsafe-compat");
-    if unsafe_compat && !unsafe_compat_override_enabled() {
-        eprintln!(
-            "E_TOOL_COMPAT_RELEASE_BLOCKED --unsafe-compat는 출시 경로에서 비활성화됩니다. 내부 진단이 필요하면 DDN_INTERNAL_ALLOW_UNSAFE_COMPAT=1을 사용하세요."
-        );
+    if let Err(err) = validate_tool_unsafe_compat_release_lock(unsafe_compat) {
+        eprintln!("{err}");
         std::process::exit(2);
     }
     let lang_mode_raw = take_arg_value(&mut raw_args, "--lang-mode");
@@ -5136,6 +5135,17 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ddn_tool_eco_{}_{}", name, stamp));
         std::fs::create_dir_all(&dir).expect("mkdir");
         dir
+    }
+
+    #[test]
+    fn tool_unsafe_compat_release_lock_rejects_flag() {
+        let err = validate_tool_unsafe_compat_release_lock(true).expect_err("must fail");
+        assert!(err.contains("E_TOOL_COMPAT_RELEASE_BLOCKED"));
+    }
+
+    #[test]
+    fn tool_unsafe_compat_release_lock_accepts_default_false() {
+        validate_tool_unsafe_compat_release_lock(false).expect("must pass");
     }
 
     #[test]
