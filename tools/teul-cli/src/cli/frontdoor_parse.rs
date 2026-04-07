@@ -4,6 +4,7 @@ use crate::cli::frontdoor_input::{
 use crate::lang::ast::Program;
 use crate::lang::lexer::{LexError, Lexer};
 use crate::lang::parser::{ParseError, ParseMode, Parser};
+use ddonirang_lang::{parse_with_mode as lang_parse_with_mode, ParseMode as LangParseMode};
 
 #[derive(Debug)]
 pub enum FrontdoorParseFailure {
@@ -26,12 +27,37 @@ pub fn parse_program_for_runtime_with_mode(
     let default_root = Parser::default_root_for_source(&prepared);
     let program = Parser::parse_with_default_root_mode(tokens, default_root, parse_mode)
         .map_err(FrontdoorParseFailure::Parse)?;
+    if should_enforce_lang_frontdoor_parity() {
+        validate_lang_frontdoor_parity(&prepared).map_err(FrontdoorParseFailure::Guard)?;
+    }
     Ok((program, prepared))
+}
+
+fn should_enforce_lang_frontdoor_parity() -> bool {
+    std::env::var("DDN_LANG_FRONTDOOR_PARITY_ENFORCE")
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false)
+}
+
+fn validate_lang_frontdoor_parity(prepared_source: &str) -> Result<(), String> {
+    lang_parse_with_mode(
+        prepared_source,
+        "<teul-frontdoor-acceptance>",
+        LangParseMode::Strict,
+    )
+    .map(|_| ())
+    .map_err(|err| {
+        format!(
+            "E_FRONTDOOR_LANG_PARSER_GAP lang_code={} detail={}",
+            err.code(),
+            err
+        )
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_program_for_runtime, FrontdoorParseFailure};
+    use super::{parse_program_for_runtime, validate_lang_frontdoor_parity, FrontdoorParseFailure};
 
     #[test]
     fn parse_runtime_rejects_legacy_hash_header() {
@@ -55,5 +81,11 @@ mod tests {
             }
             other => panic!("unexpected error variant: {:?}", other),
         }
+    }
+
+    #[test]
+    fn validate_lang_frontdoor_parity_reports_gap_code_on_parse_error() {
+        let err = validate_lang_frontdoor_parity("x <- .").expect_err("must fail");
+        assert!(err.starts_with("E_FRONTDOOR_LANG_PARSER_GAP"));
     }
 }

@@ -146,6 +146,13 @@ fn frontdoor_code_and_detail(message: &str) -> (&'static str, &str) {
                 .trim_start_matches("E_CANON_LEGACY_BOIM_FORBIDDEN")
                 .trim_start(),
         )
+    } else if message.starts_with("E_FRONTDOOR_LANG_PARSER_GAP") {
+        (
+            "E_FRONTDOOR_LANG_PARSER_GAP",
+            message
+                .trim_start_matches("E_FRONTDOOR_LANG_PARSER_GAP")
+                .trim_start(),
+        )
     } else {
         ("E_FRONTDOOR", message)
     }
@@ -11309,5 +11316,20 @@ x <- () 너머.시각.지금.
             "D-APPROX"
         );
         assert_eq!(contract_label_for_manifest(None), "");
+    }
+
+    #[test]
+    fn frontdoor_code_and_detail_maps_lang_parser_gap_code() {
+        let message = "E_FRONTDOOR_LANG_PARSER_GAP lang_code=E_PARSE detail=파서 오류: .";
+        let (code, detail) = frontdoor_code_and_detail(message);
+        assert_eq!(code, "E_FRONTDOOR_LANG_PARSER_GAP");
+        assert!(detail.contains("lang_code=E_PARSE"));
+    }
+
+    #[test]
+    fn frontdoor_code_and_detail_uses_generic_frontdoor_code_for_unknown_message() {
+        let (code, detail) = frontdoor_code_and_detail("E_FRONTDOOR_CUSTOM detail=custom");
+        assert_eq!(code, "E_FRONTDOOR");
+        assert_eq!(detail, "E_FRONTDOOR_CUSTOM detail=custom");
     }
 }
