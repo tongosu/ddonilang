@@ -43,15 +43,16 @@ export async function createWasmCanon({
 
   async function ensureModule() {
     if (wasmModule) return wasmModule;
+    let loadedModule = null;
     try {
       if (typeof moduleFactory === "function") {
-        wasmModule = await moduleFactory({
+        loadedModule = await moduleFactory({
           modulePath,
           cacheBust,
           initInput,
         });
       } else {
-        wasmModule = await import(withCacheBust(modulePath, cacheBust));
+        loadedModule = await import(withCacheBust(modulePath, cacheBust));
       }
     } catch (err) {
       lastInitDiag = buildCanonDiag(
@@ -61,14 +62,15 @@ export async function createWasmCanon({
       );
       throw err;
     }
-    if (typeof wasmModule.default === "function") {
+    if (typeof loadedModule?.default === "function") {
       try {
         if (initInput === undefined || initInput === null) {
-          await wasmModule.default();
+          await loadedModule.default();
         } else {
-          await wasmModule.default({ module_or_path: initInput });
+          await loadedModule.default({ module_or_path: initInput });
         }
       } catch (err) {
+        wasmModule = null;
         lastInitDiag = buildCanonDiag(
           "E_WASM_CANON_MODULE_INIT_FAILED",
           "wasm canonical module 초기화에 실패했습니다.",
@@ -77,6 +79,7 @@ export async function createWasmCanon({
         throw err;
       }
     }
+    wasmModule = loadedModule;
     lastInitDiag = null;
     if (typeof wasmModule.wasm_build_info === "function") {
       try {

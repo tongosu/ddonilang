@@ -256,6 +256,41 @@ async function main() {
     throw new Error("wasm canon module-init diag mismatch");
   }
 
+  let flakyInitAttempts = 0;
+  const flakyInitCanon = await runtime.createWasmCanon({
+    moduleFactory: async () => ({
+      default() {
+        flakyInitAttempts += 1;
+        if (flakyInitAttempts === 1) {
+          throw new Error("module-init-flaky-fail-once");
+        }
+      },
+      wasm_canon_flat_json() {
+        return '{"schema":"ddn.guseong_flatten_plan.v1","instances":[],"links":[],"topo_order":[]}';
+      },
+    }),
+    cacheBust: 0,
+  });
+  let flakyFailed = false;
+  try {
+    await flakyInitCanon.canonFlatJson("매틱:움직씨 = { x <- 1. }.");
+  } catch (_) {
+    flakyFailed = true;
+  }
+  if (!flakyFailed) {
+    throw new Error("wasm canon flaky-init first call must fail");
+  }
+  if (String(flakyInitCanon.getLastInitDiag?.()?.code ?? "") !== "E_WASM_CANON_MODULE_INIT_FAILED") {
+    throw new Error("wasm canon flaky-init first diag mismatch");
+  }
+  const flakyRetry = await flakyInitCanon.canonFlatJson("매틱:움직씨 = { x <- 1. }.");
+  if (String(flakyRetry?.schema ?? "") !== "ddn.guseong_flatten_plan.v1") {
+    throw new Error("wasm canon flaky-init retry parse mismatch");
+  }
+  if (flakyInitCanon.getLastInitDiag?.() !== null) {
+    throw new Error("wasm canon flaky-init retry should clear init diag");
+  }
+
   const buildInfoFailCanon = await runtime.createWasmCanon({
     moduleFactory: async () => ({
       default() {},
