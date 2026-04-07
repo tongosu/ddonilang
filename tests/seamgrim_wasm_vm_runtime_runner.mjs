@@ -12,6 +12,7 @@ function createClient({
   state = null,
   supportsStepWithInput = true,
   seedThrows = false,
+  supportsSeed = true,
 } = {}) {
   const sharedState = state ?? {
     schema: "seamgrim.state.v0",
@@ -20,16 +21,10 @@ function createClient({
     row: [],
     resources: { json: {}, fixed64: {}, handle: {}, value: {} },
   };
-  return {
+  const client = {
     _updates: [],
     parseWarningsParsed() {
       return warnings;
-    },
-    setRngSeed(seed) {
-      if (seedThrows) {
-        throw new Error(`seed-fail:${String(seed)}`);
-      }
-      this._seed = Number(seed);
     },
     updateLogic(body) {
       this._updates.push(String(body ?? ""));
@@ -62,6 +57,15 @@ function createClient({
       return "blake3:test";
     },
   };
+  if (supportsSeed) {
+    client.setRngSeed = function setRngSeed(seed) {
+      if (seedThrows) {
+        throw new Error(`seed-fail:${String(seed)}`);
+      }
+      this._seed = Number(seed);
+    };
+  }
+  return client;
 }
 
 async function main() {
@@ -122,6 +126,32 @@ async function main() {
 
   await handle.updateLogic("매틱:움직씨 = { x <- 3. }.");
   assert(handle.getParseWarnings().length === 0, "wasm vm handle: compat empty warnings");
+  assert(handle.getDebugInfo().runtimeDiags?.length === 0, "wasm vm handle: runtime diags reset after next ensure");
+
+  const missingSeedApiHandle = new WasmVmHandle({
+    loader: {
+      async ensure() {
+        return createClient({ warnings: [], supportsSeed: false });
+      },
+      reset() {},
+      getLastBuildInfo() {
+        return "build-info";
+      },
+      getLastPreprocessed() {
+        return "preprocessed-body";
+      },
+      getCacheBust() {
+        return 11;
+      },
+    },
+    defaultSourceText: "매틱:움직씨 = { x <- 4. }.",
+    seedU64: 77,
+  });
+  await missingSeedApiHandle.updateLogic("매틱:움직씨 = { x <- 4. }.");
+  assert(
+    missingSeedApiHandle.getDebugInfo().runtimeDiags?.[0]?.code === "E_WASM_SET_RNG_SEED_API_MISSING",
+    "wasm vm handle: seed api missing runtime diag",
+  );
 
   const missingApiWarnings = handle.readParseWarnings({});
   assert(

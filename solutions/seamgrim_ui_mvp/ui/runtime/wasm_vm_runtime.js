@@ -76,16 +76,27 @@ export class WasmVmHandle {
     const pre = this.preprocess(sourceText);
     const client = await this.loader.ensure(pre.bodyText);
     this.client = client;
-    if (this.seedU64 !== null && typeof client?.setRngSeed === "function") {
-      try {
-        client.setRngSeed(this.seedU64);
-      } catch (err) {
+    this.lastRuntimeDiags = [];
+    if (this.seedU64 !== null) {
+      if (typeof client?.setRngSeed === "function") {
+        try {
+          client.setRngSeed(this.seedU64);
+        } catch (err) {
+          this.lastRuntimeDiags = [
+            ...this.lastRuntimeDiags,
+            buildRuntimeDiag(
+              "E_WASM_SET_RNG_SEED_FAILED",
+              "setRngSeed 호출에 실패했습니다.",
+              err?.message ?? String(err ?? ""),
+            ),
+          ];
+        }
+      } else {
         this.lastRuntimeDiags = [
           ...this.lastRuntimeDiags,
           buildRuntimeDiag(
-            "E_WASM_SET_RNG_SEED_FAILED",
-            "setRngSeed 호출에 실패했습니다.",
-            err?.message ?? String(err ?? ""),
+            "E_WASM_SET_RNG_SEED_API_MISSING",
+            "setRngSeed API가 없어 시드를 적용할 수 없습니다.",
           ),
         ];
       }
