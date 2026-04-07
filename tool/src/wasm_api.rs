@@ -64,7 +64,7 @@ fn preprocess_program_source_for_wasm(source: &str) -> Result<String, JsValue> {
     Ok(ddonirang_lang::preprocess_frontdoor_source(&preprocessed))
 }
 
-fn parse_program_with_preprocess_fallback(
+fn parse_program_for_wasm(
     source: &str,
     mode: ParseMode,
 ) -> Result<DdnProgram, JsValue> {
@@ -146,7 +146,7 @@ pub struct DdnWasmVm {
 impl DdnWasmVm {
     #[wasm_bindgen(constructor)]
     pub fn new(source: &str) -> Result<DdnWasmVm, JsValue> {
-        let program = parse_program_with_preprocess_fallback(source, ParseMode::Strict)?;
+        let program = parse_program_for_wasm(source, ParseMode::Strict)?;
         let parse_warnings = program.parse_warnings().to_vec();
         let mut defaults = HashMap::new();
         seed_bogae_defaults(&mut defaults);
@@ -175,7 +175,7 @@ impl DdnWasmVm {
 
     pub fn new_with_mode(source: &str, mode: &str) -> Result<DdnWasmVm, JsValue> {
         let mode = parse_mode_from_str(mode)?;
-        let program = parse_program_with_preprocess_fallback(source, mode)?;
+        let program = parse_program_for_wasm(source, mode)?;
         let parse_warnings = program.parse_warnings().to_vec();
         let mut defaults = HashMap::new();
         seed_bogae_defaults(&mut defaults);
@@ -203,7 +203,7 @@ impl DdnWasmVm {
     }
 
     pub fn update_logic(&mut self, source: &str) -> Result<(), JsValue> {
-        let program = parse_program_with_preprocess_fallback(source, self.lang_mode)?;
+        let program = parse_program_for_wasm(source, self.lang_mode)?;
         self.parse_warnings = program.parse_warnings().to_vec();
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
         Ok(())
@@ -211,7 +211,7 @@ impl DdnWasmVm {
 
     pub fn update_logic_with_mode(&mut self, source: &str, mode: &str) -> Result<(), JsValue> {
         let mode = parse_mode_from_str(mode)?;
-        let program = parse_program_with_preprocess_fallback(source, mode)?;
+        let program = parse_program_for_wasm(source, mode)?;
         self.parse_warnings = program.parse_warnings().to_vec();
         self.runner = DdnRunner::new(program, DEFAULT_UPDATE_NAME);
         self.lang_mode = mode;
