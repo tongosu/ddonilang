@@ -1056,4 +1056,46 @@ mod tests {
         let err = run_expect_error(source, EmitKind::Ddn, "event_alias_forbidden");
         assert!(err.contains("E_EVENT_SURFACE_ALIAS_FORBIDDEN"));
     }
+
+    #[test]
+    fn canon_rejects_legacy_hash_header_for_all_emit_kinds() {
+        let source = "#이름: 금지\n(매마디)마다 { 살림.n <- 1. }.";
+        let emits = [
+            EmitKind::Ddn,
+            EmitKind::GuseongFlatJson,
+            EmitKind::AlrimPlanJson,
+            EmitKind::ExecPolicyMapJson,
+            EmitKind::MaegimControlJson,
+            EmitKind::FixitsJson,
+            EmitKind::Both,
+        ];
+        for emit in emits {
+            let err = run_expect_error(source, emit, "legacy_header_all_emit");
+            assert!(
+                err.contains("E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN"),
+                "emit={emit:?} err={err}"
+            );
+        }
+    }
+
+    #[test]
+    fn canon_rejects_legacy_boim_surface_for_all_emit_kinds() {
+        let source = "보임 { x: 1. }.";
+        let emits = [
+            EmitKind::Ddn,
+            EmitKind::GuseongFlatJson,
+            EmitKind::AlrimPlanJson,
+            EmitKind::ExecPolicyMapJson,
+            EmitKind::MaegimControlJson,
+            EmitKind::FixitsJson,
+            EmitKind::Both,
+        ];
+        for emit in emits {
+            let err = run_expect_error(source, emit, "legacy_boim_all_emit");
+            assert!(
+                err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"),
+                "emit={emit:?} err={err}"
+            );
+        }
+    }
 }
