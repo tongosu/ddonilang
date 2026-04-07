@@ -115,9 +115,46 @@ def main() -> int:
             "ddn",
         ],
     )
-    legacy_boim_path.unlink(missing_ok=True)
     if rc == 0:
+        legacy_boim_path.unlink(missing_ok=True)
         return fail("legacy_boim_must_fail")
+
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            teul_manifest,
+            "--",
+            "check",
+            str(legacy_boim_path.as_posix()),
+        ],
+    )
+    if rc == 0 or "E_CANON_LEGACY_BOIM_FORBIDDEN" not in out:
+        legacy_boim_path.unlink(missing_ok=True)
+        return fail(f"legacy_boim_check_must_fail:{out.strip() or f'rc={rc}'}")
+
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            teul_manifest,
+            "--",
+            "run",
+            str(legacy_boim_path.as_posix()),
+            "--madi",
+            "1",
+        ],
+    )
+    if rc == 0 or "E_CANON_LEGACY_BOIM_FORBIDDEN" not in out:
+        legacy_boim_path.unlink(missing_ok=True)
+        return fail(f"legacy_boim_run_must_fail:{out.strip() or f'rc={rc}'}")
+    legacy_boim_path.unlink(missing_ok=True)
 
     # Legacy hash header surface must also be rejected on strict frontdoor.
     legacy_header_path = root / "build" / "tmp_frontdoor_legacy_header_forbidden.ddn"

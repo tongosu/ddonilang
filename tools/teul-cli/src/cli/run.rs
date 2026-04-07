@@ -19,7 +19,7 @@ use crate::canon;
 use crate::cli::bogae::{
     default_bogae_out_dir, is_bogae_out_dir, resolve_bogae_out_dir, BogaeMode, OverlayConfig,
 };
-use crate::cli::frontdoor_input::validate_no_legacy_header;
+use crate::cli::frontdoor_input::validate_no_legacy_frontdoor_surface;
 use crate::cli::frontdoor_parse::{
     parse_program_for_runtime, parse_program_for_runtime_with_mode, FrontdoorParseFailure,
 };
@@ -2934,7 +2934,7 @@ pub fn run_file_with_emitter(
     emit: &mut dyn RunEmitSink,
 ) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    validate_no_legacy_header(&source)?;
+    validate_no_legacy_frontdoor_surface(&source)?;
     let file_label = path.display().to_string();
     let open_source = canonical_open_source_path(path);
     let mut open_allow = parse_open_allow_directives(&source);

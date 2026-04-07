@@ -5,58 +5,23 @@ pub struct PreparedFrontdoorCanonInput {
     pub prepared: String,
 }
 
-const LEGACY_HEADER_KEYS: &[&str] = &[
-    "이름",
-    "설명",
-    "말씨",
-    "사투리",
-    "그래프",
-    "필수보기",
-    "required_views",
-    "필수보개",
-    "조종",
-    "조절",
-    "control",
-];
-
+#[allow(dead_code)]
 pub fn find_legacy_header(source: &str) -> Option<(usize, &'static str)> {
-    for (line_no, raw) in source.lines().enumerate() {
-        let line = raw.trim_start();
-        if !line.starts_with('#') {
-            continue;
-        }
-        let rest = line[1..].trim_start();
-        for key in LEGACY_HEADER_KEYS {
-            if header_key_matches(rest, key) {
-                return Some((line_no + 1, *key));
-            }
-        }
-    }
-    None
+    ddonirang_lang::find_legacy_header(source)
 }
 
 pub fn validate_no_legacy_header(source: &str) -> Result<(), String> {
-    if let Some((line, key)) = find_legacy_header(source) {
-        return Err(format!(
-            "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN line={line} key={key} use=설정{{}}/매김{{}}/설정.보개"
-        ));
-    }
-    Ok(())
+    ddonirang_lang::validate_no_legacy_header(source)
 }
 
-fn header_key_matches(rest: &str, key: &str) -> bool {
-    if key.is_ascii() {
-        let lower = rest.to_ascii_lowercase();
-        let key_lower = key.to_ascii_lowercase();
-        if !lower.starts_with(&key_lower) {
-            return false;
-        }
-        return lower[key_lower.len()..].trim_start().starts_with(':');
-    }
-    if !rest.starts_with(key) {
-        return false;
-    }
-    rest[key.len()..].trim_start().starts_with(':')
+pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
+    ddonirang_lang::validate_no_legacy_boim_surface(source)
+}
+
+pub fn validate_no_legacy_frontdoor_surface(source: &str) -> Result<(), String> {
+    validate_no_legacy_header(source)?;
+    validate_no_legacy_boim_surface(source)?;
+    Ok(())
 }
 
 pub fn prepare_frontdoor_runtime_source(source: &str) -> String {
@@ -71,5 +36,25 @@ pub fn prepare_frontdoor_canon_input(source: &str) -> PreparedFrontdoorCanonInpu
     let prepared = ddonirang_lang::preprocess_frontdoor_source(&stripped);
     PreparedFrontdoorCanonInput {
         prepared,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{find_legacy_header, validate_no_legacy_frontdoor_surface};
+
+    #[test]
+    fn legacy_header_is_detected_via_lang_single_source() {
+        let source = "#이름: 금지\n(매마디)마다 { n <- 1. }.";
+        let found = find_legacy_header(source).expect("must detect");
+        assert_eq!(found.0, 1);
+        assert_eq!(found.1, "이름");
+    }
+
+    #[test]
+    fn legacy_boim_is_rejected_via_frontdoor_guard() {
+        let source = "보임 { x: 1. }.";
+        let err = validate_no_legacy_frontdoor_surface(source).expect_err("must reject");
+        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
     }
 }

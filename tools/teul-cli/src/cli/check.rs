@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::cli::frontdoor_input::validate_no_legacy_header;
+use crate::cli::frontdoor_input::validate_no_legacy_frontdoor_surface;
 use crate::cli::frontdoor_parse::{parse_program_for_runtime, FrontdoorParseFailure};
 use crate::cli::run::RunError;
 use crate::lang::ast::{Expr, Literal, Stmt};
@@ -43,7 +43,7 @@ pub struct CheckArgs {
 
 pub fn run(file: &Path, args: CheckArgs) -> Result<(), String> {
     let source = fs::read_to_string(file).map_err(|e| e.to_string())?;
-    validate_no_legacy_header(&source)?;
+    validate_no_legacy_frontdoor_surface(&source)?;
     let (program, _) = parse_program_for_runtime(&source).map_err(|err| match err {
         FrontdoorParseFailure::Lex(e) => RunError::Lex(e).format(&file.display().to_string()),
         FrontdoorParseFailure::Parse(e) => RunError::Parse(e).format(&file.display().to_string()),

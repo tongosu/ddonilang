@@ -5,7 +5,9 @@ use clap::ValueEnum;
 use serde_json::json;
 
 use crate::canon::{self, CanonError};
-use crate::cli::frontdoor_input::{prepare_frontdoor_canon_input, validate_no_legacy_header};
+use crate::cli::frontdoor_input::{
+    prepare_frontdoor_canon_input, validate_no_legacy_frontdoor_surface,
+};
 use crate::lang::lexer::Lexer;
 use crate::lang::parser::{ParseError, Parser};
 use crate::lang::span::Span;
@@ -70,13 +72,7 @@ pub struct CanonArgs {
 
 pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| format!("E_CLI_READ {}", e))?;
-    validate_no_legacy_header(&source)?;
-    if canon::has_legacy_boim_surface(&source) {
-        return Err(
-            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
-                .to_string(),
-        );
-    }
+    validate_no_legacy_frontdoor_surface(&source)?;
     if let Some(alias_kind) = detect_forbidden_event_surface_alias(&source) {
         let err = CanonError::new(
             "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
@@ -200,13 +196,7 @@ fn canonicalize_ddn_strict(
     _path: &Path,
     bridge: bool,
 ) -> Result<(String, crate::file_meta::FileMeta, Vec<String>), String> {
-    validate_no_legacy_header(source)?;
-    if canon::has_legacy_boim_surface(source) {
-        return Err(
-            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
-                .to_string(),
-        );
-    }
+    validate_no_legacy_frontdoor_surface(source)?;
     let input = prepare_frontdoor_canon_input(source);
     let output = canon::canonicalize(&input.prepared, bridge).map_err(|err| err.to_string())?;
     Ok((output.ddn, output.meta, output.warnings))
