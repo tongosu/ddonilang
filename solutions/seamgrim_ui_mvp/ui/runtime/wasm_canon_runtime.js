@@ -36,28 +36,48 @@ export async function createWasmCanon({
   const modulePath = normalizeWasmModulePath(wasmUrl);
   let wasmModule = null;
   let buildInfo = "";
+  let lastInitDiag = null;
   let lastBuildInfoDiag = null;
   let lastPreprocessDiag = null;
   let lastCanonDiag = null;
 
   async function ensureModule() {
     if (wasmModule) return wasmModule;
-    if (typeof moduleFactory === "function") {
-      wasmModule = await moduleFactory({
-        modulePath,
-        cacheBust,
-        initInput,
-      });
-    } else {
-      wasmModule = await import(withCacheBust(modulePath, cacheBust));
+    try {
+      if (typeof moduleFactory === "function") {
+        wasmModule = await moduleFactory({
+          modulePath,
+          cacheBust,
+          initInput,
+        });
+      } else {
+        wasmModule = await import(withCacheBust(modulePath, cacheBust));
+      }
+    } catch (err) {
+      lastInitDiag = buildCanonDiag(
+        "E_WASM_CANON_MODULE_LOAD_FAILED",
+        "wasm canonical module 로드에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
     }
     if (typeof wasmModule.default === "function") {
-      if (initInput === undefined || initInput === null) {
-        await wasmModule.default();
-      } else {
-        await wasmModule.default({ module_or_path: initInput });
+      try {
+        if (initInput === undefined || initInput === null) {
+          await wasmModule.default();
+        } else {
+          await wasmModule.default({ module_or_path: initInput });
+        }
+      } catch (err) {
+        lastInitDiag = buildCanonDiag(
+          "E_WASM_CANON_MODULE_INIT_FAILED",
+          "wasm canonical module 초기화에 실패했습니다.",
+          err?.message ?? String(err ?? ""),
+        );
+        throw err;
       }
     }
+    lastInitDiag = null;
     if (typeof wasmModule.wasm_build_info === "function") {
       try {
         buildInfo = String(wasmModule.wasm_build_info() ?? "");
@@ -205,6 +225,9 @@ export async function createWasmCanon({
     preprocessSource,
     getBuildInfo() {
       return buildInfo;
+    },
+    getLastInitDiag() {
+      return lastInitDiag ? { ...lastInitDiag } : null;
     },
     getLastBuildInfoDiag() {
       return lastBuildInfoDiag ? { ...lastBuildInfoDiag } : null;

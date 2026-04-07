@@ -61,6 +61,9 @@ async function main() {
   if (typeof canon.getLastBuildInfoDiag !== "function") {
     throw new Error("createWasmCanon.getLastBuildInfoDiag export 누락");
   }
+  if (typeof canon.getLastInitDiag !== "function") {
+    throw new Error("createWasmCanon.getLastInitDiag export 누락");
+  }
   if (typeof canon.getLastPreprocessDiag !== "function") {
     throw new Error("createWasmCanon.getLastPreprocessDiag export 누락");
   }
@@ -175,6 +178,13 @@ async function main() {
       canonMaegimPlan() {
         throw new Error("runtime-diag-test-fail");
       },
+      getLastInitDiag() {
+        return {
+          code: "E_WASM_CANON_MODULE_INIT_FAILED",
+          message: "wasm canonical module 초기화에 실패했습니다.",
+          detail: "init-diag-detail",
+        };
+      },
       getLastCanonDiag() {
         return {
           code: "E_WASM_CANON_JSON_PARSE_FAILED",
@@ -186,11 +196,54 @@ async function main() {
   });
   await runtimeDiagHydrator.deriveMaegimControlJson("매틱:움직씨 = { x <- 1. }.");
   const runtimeDiag = runtimeDiagHydrator.getCanonDiags?.()?.[0] ?? null;
-  if (String(runtimeDiag?.code ?? "") !== "E_WASM_CANON_JSON_PARSE_FAILED") {
+  if (String(runtimeDiag?.code ?? "") !== "E_WASM_CANON_MODULE_INIT_FAILED") {
     throw new Error(`runtime diag passthrough mismatch: ${JSON.stringify(runtimeDiag)}`);
   }
-  if (String(runtimeDiag?.detail ?? "") !== "runtime-diag-detail") {
+  if (String(runtimeDiag?.detail ?? "") !== "init-diag-detail") {
     throw new Error(`runtime diag detail passthrough mismatch: ${JSON.stringify(runtimeDiag)}`);
+  }
+
+  const loadFailCanon = await runtime.createWasmCanon({
+    moduleFactory: async () => {
+      throw new Error("module-load-test-fail");
+    },
+    cacheBust: 0,
+  });
+  let loadFailed = false;
+  try {
+    await loadFailCanon.canonFlatJson("매틱:움직씨 = { x <- 1. }.");
+  } catch (_) {
+    loadFailed = true;
+  }
+  if (!loadFailed) {
+    throw new Error("wasm canon module-load failure path must throw");
+  }
+  if (String(loadFailCanon.getLastInitDiag?.()?.code ?? "") !== "E_WASM_CANON_MODULE_LOAD_FAILED") {
+    throw new Error("wasm canon module-load diag mismatch");
+  }
+
+  const initFailCanon = await runtime.createWasmCanon({
+    moduleFactory: async () => ({
+      default() {
+        throw new Error("module-init-test-fail");
+      },
+      wasm_canon_flat_json() {
+        return "{}";
+      },
+    }),
+    cacheBust: 0,
+  });
+  let initFailed = false;
+  try {
+    await initFailCanon.canonFlatJson("매틱:움직씨 = { x <- 1. }.");
+  } catch (_) {
+    initFailed = true;
+  }
+  if (!initFailed) {
+    throw new Error("wasm canon module-init failure path must throw");
+  }
+  if (String(initFailCanon.getLastInitDiag?.()?.code ?? "") !== "E_WASM_CANON_MODULE_INIT_FAILED") {
+    throw new Error("wasm canon module-init diag mismatch");
   }
 
   const buildInfoFailCanon = await runtime.createWasmCanon({

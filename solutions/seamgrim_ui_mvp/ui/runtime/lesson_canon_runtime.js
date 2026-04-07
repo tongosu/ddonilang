@@ -12,6 +12,14 @@ function buildCanonDiag(code, message, detail = "") {
 
 function pickRuntimeCanonDiag(runtime, fallbackError) {
   if (!runtime || typeof runtime !== "object") return null;
+  const fromInit = typeof runtime.getLastInitDiag === "function" ? runtime.getLastInitDiag() : null;
+  if (fromInit && typeof fromInit === "object") {
+    return buildCanonDiag(
+      String(fromInit.code ?? "E_WASM_CANON_RUNTIME_DIAG"),
+      String(fromInit.message ?? "wasm init runtime 오류"),
+      String(fromInit.detail ?? fallbackError ?? ""),
+    );
+  }
   const fromCanon = typeof runtime.getLastCanonDiag === "function" ? runtime.getLastCanonDiag() : null;
   if (fromCanon && typeof fromCanon === "object") {
     return buildCanonDiag(
