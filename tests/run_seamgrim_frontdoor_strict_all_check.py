@@ -119,6 +119,35 @@ def main() -> int:
     if rc == 0:
         return fail("legacy_boim_must_fail")
 
+    # Legacy hash header surface must also be rejected on strict frontdoor.
+    legacy_header_path = root / "build" / "tmp_frontdoor_legacy_header_forbidden.ddn"
+    legacy_header_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_header_path.write_text(
+        "#이름: 금지\n"
+        "(매마디)마다 {\n"
+        "  n <- 1.\n"
+        "}.\n",
+        encoding="utf-8",
+    )
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            teul_manifest,
+            "--",
+            "canon",
+            str(legacy_header_path.as_posix()),
+            "--emit",
+            "ddn",
+        ],
+    )
+    legacy_header_path.unlink(missing_ok=True)
+    if rc == 0 or "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN" not in out:
+        return fail(f"legacy_header_must_fail:{out.strip() or f'rc={rc}'}")
+
     ddn_pass = 0
     non_ddn_pass = 0
     fallback_hits = 0

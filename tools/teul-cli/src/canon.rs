@@ -3655,6 +3655,12 @@ fn canonicalize_with_fallback_mode(
     allow_frontdoor_fallback: bool,
 ) -> Result<CanonOutput, CanonError> {
     let prepared = preprocess_frontdoor_source(input);
+    if let Some((line, key)) = ddonirang_lang::find_legacy_header(&prepared) {
+        return Err(CanonError::new(
+            "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN",
+            format!("line={line} key={key} use=설정{{}}/매김{{}}/설정.보개"),
+        ));
+    }
     let meta_parse = split_file_meta(&prepared);
     let root_hide = has_root_hide_directive(&prepared);
     let default_root = "바탕";
@@ -6054,6 +6060,21 @@ mod tests {
         assert!(out
             .exec_policy_map_json
             .contains("\"effect_policy_effective\": \"격리\""));
+    }
+
+    #[test]
+    fn canon_rejects_legacy_hash_header_on_frontdoor() {
+        let source = r#"
+#이름: 금지
+채비 {
+  x:수 <- 1.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must reject"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN");
     }
 }
 
