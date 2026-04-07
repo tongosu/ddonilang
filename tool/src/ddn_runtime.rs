@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::cell::Cell;
 
 use crate::gate0_registry;
-use crate::preprocess::{preprocess_source_for_parse, split_file_meta, FileMeta};
+use crate::preprocess::{preprocess_source_for_parse, split_file_meta, validate_no_legacy_header, FileMeta};
 use ddonirang_core::platform::{
     EntityId, NuriWorld, Origin, Patch, PatchOp, ResourceMapEntry, ResourceValue,
 };
@@ -257,6 +257,7 @@ impl DdnProgram {
         file_path: &str,
         mode: ParseMode,
     ) -> Result<Self, String> {
+        validate_no_legacy_header(source)?;
         let meta_parse = split_file_meta(source);
         let cleaned = preprocess_source_for_parse(&meta_parse.stripped)?;
         let prepared = ddonirang_lang::preprocess_frontdoor_source(&cleaned);
@@ -10574,6 +10575,19 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn from_source_rejects_legacy_header_frontdoor() {
+        let source = "#이름: legacy\nx <- 1.\n";
+        let err = match DdnProgram::from_source(source, "legacy_header.ddn") {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.contains("E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

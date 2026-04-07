@@ -12,7 +12,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::canon;
 use crate::ddn_runtime::{DdnParseWarning, DdnProgram, DdnRunner};
-use crate::preprocess::{preprocess_source_for_parse, split_file_meta};
+use crate::preprocess::{preprocess_source_for_parse, split_file_meta, validate_no_legacy_header};
 
 const DEFAULT_UPDATE_NAME: &str = "매마디";
 const ENGINE_RESPONSE_SCHEMA: &str = "seamgrim.engine_response.v0";
@@ -46,10 +46,12 @@ fn parse_mode_from_str(mode: &str) -> Result<ParseMode, JsValue> {
 }
 
 fn canonicalize_for_wasm(source: &str) -> Result<canon::CanonOutput, JsValue> {
+    validate_no_legacy_header(source).map_err(|err| JsValue::from_str(&err))?;
     canon::canonicalize(source, false).map_err(|err| JsValue::from_str(&format!("WASM canon 실패: {err}")))
 }
 
 fn preprocess_program_source_for_wasm(source: &str) -> Result<String, JsValue> {
+    validate_no_legacy_header(source).map_err(|err| JsValue::from_str(&err))?;
     let meta = split_file_meta(source);
     let preprocessed = preprocess_source_for_parse(&meta.stripped)
         .map_err(|err| JsValue::from_str(&format!("WASM preprocess 실패: {err}")))
@@ -61,6 +63,7 @@ fn parse_program_with_preprocess_fallback(
     source: &str,
     mode: ParseMode,
 ) -> Result<DdnProgram, JsValue> {
+    validate_no_legacy_header(source).map_err(|err| JsValue::from_str(&err))?;
     DdnProgram::from_source_with_mode(source, "<wasm>", mode).map_err(|err| JsValue::from_str(&err))
 }
 
