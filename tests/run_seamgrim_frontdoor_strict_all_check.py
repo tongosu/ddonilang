@@ -292,6 +292,65 @@ def main() -> int:
     if rc == 0 or "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN" not in out:
         return fail(f"legacy_header_run_must_fail:{out.strip() or f'rc={rc}'}")
 
+    # tool canon frontdoor must reject the same legacy surfaces.
+    legacy_tool_header_path = root / "build" / "tmp_tool_legacy_header_forbidden.ddn"
+    legacy_tool_header_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_tool_header_path.write_text(
+        "#이름: 금지\n"
+        "(매마디)마다 {\n"
+        "  n <- 1.\n"
+        "}.\n",
+        encoding="utf-8",
+    )
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            tool_manifest,
+            "--",
+            "canon",
+            str(legacy_tool_header_path.as_posix()),
+            "--emit",
+            "ddn",
+        ],
+    )
+    legacy_tool_header_path.unlink(missing_ok=True)
+    if rc == 0 or "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN" not in out:
+        return fail(f"tool_legacy_header_must_fail:{out.strip() or f'rc={rc}'}")
+
+    legacy_tool_boim_path = root / "build" / "tmp_tool_legacy_boim_forbidden.ddn"
+    legacy_tool_boim_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy_tool_boim_path.write_text(
+        "(매마디)마다 {\n"
+        "  n <- 1.\n"
+        "  보임 {\n"
+        "    n: n.\n"
+        "  }.\n"
+        "}.\n",
+        encoding="utf-8",
+    )
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            tool_manifest,
+            "--",
+            "canon",
+            str(legacy_tool_boim_path.as_posix()),
+            "--emit",
+            "ddn",
+        ],
+    )
+    legacy_tool_boim_path.unlink(missing_ok=True)
+    if rc == 0 or "E_CANON_LEGACY_BOIM_FORBIDDEN" not in out:
+        return fail(f"tool_legacy_boim_must_fail:{out.strip() or f'rc={rc}'}")
+
     ddn_pass = 0
     non_ddn_pass = 0
     fallback_hits = 0

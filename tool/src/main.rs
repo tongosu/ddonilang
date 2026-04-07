@@ -26,7 +26,8 @@ use ddonirang_lang::{canonicalize, normalize, parse_with_mode, NormalizationLeve
 use ddonirang_lang::{Expr, ExprKind, Literal, SeedDef, SeedKind, Stmt, TopLevelItem};
 use ddonirang_tool::canon as tool_canon;
 use preprocess::{
-    format_file_meta, preprocess_ai_calls, preprocess_source_for_parse, split_file_meta, AiMeta,
+    format_file_meta, preprocess_ai_calls, preprocess_source_for_parse, split_file_meta,
+    validate_no_legacy_boim_surface, validate_no_legacy_header, AiMeta,
 };
 use project_meta::{load_project_policy, FeatureGate, ProjectPolicy};
 use schema::{build_schema, write_schema};
@@ -2361,6 +2362,8 @@ fn run_canon(
         return Err(format!("지원하지 않는 --emit 값: {emit}"));
     }
     let source = read_text_from_path(input_path)?;
+    validate_no_legacy_header(&source)?;
+    validate_no_legacy_boim_surface(&source)?;
     let meta_parse = split_file_meta(&source);
     let source_body = match bridge {
         Some(bridge) => apply_canon_bridge(&meta_parse.stripped, bridge)?,
@@ -4943,6 +4946,7 @@ fn main() {
             };
             if let Err(err) = run_canon(&input, &emit, out.as_deref(), check, bridge) {
                 eprintln!("{err}");
+                std::process::exit(1);
             }
         }
         Some("preprocess-ai") => {
