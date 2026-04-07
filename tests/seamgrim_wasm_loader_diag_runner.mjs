@@ -115,6 +115,85 @@ async function main() {
     "wrapper-export-missing",
   );
 
+  const vmConstructFailLoader = createWasmLoader({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_build_info() {
+        return "";
+      },
+      DdnWasmVm: function DdnWasmVm(_source) {
+        throw new Error("vm-construct-fail");
+      },
+    }),
+    wrapperFactory: async () => ({
+      DdnWasmVmClient: class DdnWasmVmClient {
+        constructor(vm) {
+          this.vm = vm;
+        }
+        updateLogic(_text) {}
+      },
+    }),
+  });
+  await expectEnsureFailure(
+    vmConstructFailLoader,
+    sourceText,
+    "E_WASM_LOADER_VM_CONSTRUCT_FAILED",
+    "vm-construct-fail",
+  );
+
+  const clientConstructFailLoader = createWasmLoader({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_build_info() {
+        return "";
+      },
+      DdnWasmVm: function DdnWasmVm(_source) {
+        this.get_build_info = () => "vm-build-info";
+      },
+    }),
+    wrapperFactory: async () => ({
+      DdnWasmVmClient: class DdnWasmVmClient {
+        constructor(_vm) {
+          throw new Error("client-construct-fail");
+        }
+      },
+    }),
+  });
+  await expectEnsureFailure(
+    clientConstructFailLoader,
+    sourceText,
+    "E_WASM_LOADER_CLIENT_CONSTRUCT_FAILED",
+    "client-construct-fail",
+  );
+
+  const updateLogicFailLoader = createWasmLoader({
+    moduleFactory: async () => ({
+      default() {},
+      wasm_build_info() {
+        return "";
+      },
+      DdnWasmVm: function DdnWasmVm() {
+        this.get_build_info = () => "vm-build-info";
+      },
+    }),
+    wrapperFactory: async () => ({
+      DdnWasmVmClient: class DdnWasmVmClient {
+        constructor(vm) {
+          this.vm = vm;
+        }
+        updateLogic(_text) {
+          throw new Error("client-updateLogic-fail");
+        }
+      },
+    }),
+  });
+  await expectEnsureFailure(
+    updateLogicFailLoader,
+    sourceText,
+    "E_WASM_LOADER_CLIENT_UPDATELOGIC_FAILED",
+    "client-updateLogic-fail",
+  );
+
   const successLoader = createWasmLoader({
     moduleFactory: async () => ({
       default() {},

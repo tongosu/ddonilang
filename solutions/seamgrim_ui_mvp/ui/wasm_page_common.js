@@ -3036,8 +3036,26 @@ export function createWasmLoader({
 
     let vm;
     if (needsSource && !cleaned) {
-      vm = new DdnWasmVm(fallbackSource);
-      vmClient = new wrapper.DdnWasmVmClient(vm);
+      try {
+        vm = new DdnWasmVm(fallbackSource);
+      } catch (err) {
+        lastInitDiag = {
+          code: "E_WASM_LOADER_VM_CONSTRUCT_FAILED",
+          message: "DdnWasmVm 생성에 실패했습니다.",
+          detail: String(err?.message ?? err ?? ""),
+        };
+        throw err;
+      }
+      try {
+        vmClient = new wrapper.DdnWasmVmClient(vm);
+      } catch (err) {
+        lastInitDiag = {
+          code: "E_WASM_LOADER_CLIENT_CONSTRUCT_FAILED",
+          message: "DdnWasmVmClient 생성에 실패했습니다.",
+          detail: String(err?.message ?? err ?? ""),
+        };
+        throw err;
+      }
       lastInitDiag = null;
       vmClient.prepareSourceText = prepareSourceText;
       if (typeof setStatus === "function") {
@@ -3050,12 +3068,39 @@ export function createWasmLoader({
       return vmClient;
     }
 
-    vm = needsSource ? new DdnWasmVm(cleaned) : new DdnWasmVm();
-    vmClient = new wrapper.DdnWasmVmClient(vm);
+    try {
+      vm = needsSource ? new DdnWasmVm(cleaned) : new DdnWasmVm();
+    } catch (err) {
+      lastInitDiag = {
+        code: "E_WASM_LOADER_VM_CONSTRUCT_FAILED",
+        message: "DdnWasmVm 생성에 실패했습니다.",
+        detail: String(err?.message ?? err ?? ""),
+      };
+      throw err;
+    }
+    try {
+      vmClient = new wrapper.DdnWasmVmClient(vm);
+    } catch (err) {
+      lastInitDiag = {
+        code: "E_WASM_LOADER_CLIENT_CONSTRUCT_FAILED",
+        message: "DdnWasmVmClient 생성에 실패했습니다.",
+        detail: String(err?.message ?? err ?? ""),
+      };
+      throw err;
+    }
     lastInitDiag = null;
     vmClient.prepareSourceText = prepareSourceText;
     if (!needsSource && cleaned) {
-      vmClient.updateLogic(cleaned);
+      try {
+        vmClient.updateLogic(cleaned);
+      } catch (err) {
+        lastInitDiag = {
+          code: "E_WASM_LOADER_CLIENT_UPDATELOGIC_FAILED",
+          message: "DdnWasmVmClient.updateLogic 호출에 실패했습니다.",
+          detail: String(err?.message ?? err ?? ""),
+        };
+        throw err;
+      }
     }
 
     let buildInfo = lastBuildInfo;
