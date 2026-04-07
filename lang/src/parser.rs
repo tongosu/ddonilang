@@ -617,6 +617,8 @@ impl Parser {
     fn token_text_is(token: &TokenKind, expected: &str) -> bool {
         match token {
             TokenKind::Ident(name) | TokenKind::Josa(name) => name == expected,
+            TokenKind::KwIlttae => matches!(expected, "일때" | "할때"),
+            TokenKind::KwDongan => expected == "동안",
             _ => false,
         }
     }
