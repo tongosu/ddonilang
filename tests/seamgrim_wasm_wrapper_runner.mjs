@@ -64,6 +64,7 @@ async function main() {
   assert(Array.isArray(parsed.row) && parsed.row.length === 1, "parseStateJson: row");
 
   let compatUpdated = "";
+  let compatModeError = "";
   const vmCompatOnly = {
     update_logic(source) {
       compatUpdated = String(source ?? "");
@@ -99,19 +100,30 @@ async function main() {
     },
   };
   const compatClient = new DdnWasmVmClient(vmCompatOnly);
-  compatClient.updateLogicWithMode("매틱:움직씨 = {}.", "strict");
-  assert(compatUpdated.includes("매틱"), "updateLogicWithMode fallback -> update_logic");
-  const compatCols = compatClient.columnsParsed();
+  try {
+    compatClient.updateLogicWithMode("매틱:움직씨 = {}.", "strict");
+  } catch (err) {
+    compatModeError = String(err?.message ?? err);
+  }
   assert(
-    Array.isArray(compatCols.columns) &&
-      compatCols.columns.length === 0 &&
-      Array.isArray(compatCols.row) &&
-      compatCols.row.length === 0,
-    "columnsParsed fallback: columns+row",
+    compatModeError.includes("update_logic_with_mode"),
+    "updateLogicWithMode missing mode API must fail",
   );
-  const compatWarnings = compatClient.parseWarningsParsed();
-  assert(Array.isArray(compatWarnings) && compatWarnings.length === 0, "parseWarningsParsed fallback");
+  assert(compatUpdated === "", "updateLogicWithMode must not fallback to update_logic");
   let caught = false;
+  try {
+    compatClient.columnsParsed();
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("columns");
+  }
+  assert(caught, "columnsParsed: missing function error");
+  caught = false;
+  try {
+    compatClient.parseWarningsParsed();
+  } catch (err) {
+    caught = String(err?.message ?? err).includes("get_parse_warnings");
+  }
+  assert(caught, "parseWarningsParsed: missing function error");
   try {
     compatClient.setParamParsed("g", 1);
   } catch (err) {

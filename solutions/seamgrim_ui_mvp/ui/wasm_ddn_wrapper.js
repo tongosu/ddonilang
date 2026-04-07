@@ -23,11 +23,10 @@ export class DdnWasmVmClient {
   }
 
   updateLogicWithMode(source, mode) {
-    if (typeof this.vm.update_logic_with_mode === "function") {
-      this.vm.update_logic_with_mode(source, mode);
-      return;
+    if (typeof this.vm.update_logic_with_mode !== "function") {
+      throw new Error("update_logic_with_mode is not available in this wasm build");
     }
-    this.updateLogic(source);
+    this.vm.update_logic_with_mode(source, mode);
   }
 
   setRngSeed(seed) {
@@ -40,14 +39,14 @@ export class DdnWasmVmClient {
 
   columnsParsed() {
     if (typeof this.vm.columns !== "function") {
-      return { columns: [], row: [] };
+      throw new Error("columns is not available in this wasm build");
     }
     return JSON.parse(this.vm.columns());
   }
 
   parseWarningsParsed() {
     if (typeof this.vm.get_parse_warnings !== "function") {
-      return [];
+      throw new Error("get_parse_warnings is not available in this wasm build");
     }
     const parsed = JSON.parse(this.vm.get_parse_warnings());
     return Array.isArray(parsed?.warnings) ? parsed.warnings : [];
