@@ -19,7 +19,6 @@ use crate::canon;
 use crate::cli::bogae::{
     default_bogae_out_dir, is_bogae_out_dir, resolve_bogae_out_dir, BogaeMode, OverlayConfig,
 };
-use crate::cli::frontdoor_input::validate_no_legacy_frontdoor_surface;
 use crate::cli::frontdoor_parse::{
     parse_program_for_runtime, parse_program_for_runtime_with_mode, FrontdoorParseFailure,
 };
@@ -66,6 +65,7 @@ use ddonirang_core::gogae3::{
 use ddonirang_core::seulgi::latency::LATENCY_DROP_POLICY_LATE_DROP;
 use ddonirang_lang::{age_not_available_error, AgeTarget};
 pub enum RunError {
+    Frontdoor { message: String },
     Lex(LexError),
     Parse(ParseError),
     Runtime(RuntimeError),
@@ -76,6 +76,7 @@ pub enum RunError {
 impl RunError {
     pub fn code(&self) -> &'static str {
         match self {
+            RunError::Frontdoor { message } => frontdoor_code(message),
             RunError::Lex(err) => err.code(),
             RunError::Parse(err) => err.code(),
             RunError::Runtime(err) => err.code(),
@@ -86,6 +87,14 @@ impl RunError {
 
     pub fn format(&self, file: &str) -> String {
         match self {
+            RunError::Frontdoor { message } => {
+                let (code, detail) = frontdoor_code_and_detail(message);
+                if detail.is_empty() {
+                    format!("{} {}:1:1", code, file)
+                } else {
+                    format!("{} {}:1:1 {}", code, file, detail)
+                }
+            }
             RunError::Lex(err) => format!(
                 "{} {}:{}:{} {}",
                 err.code(),
@@ -115,6 +124,30 @@ impl RunError {
                 format!("E_IO_WRITE {}:1:1 {}", path.display(), message)
             }
         }
+    }
+}
+
+fn frontdoor_code(message: &str) -> &'static str {
+    frontdoor_code_and_detail(message).0
+}
+
+fn frontdoor_code_and_detail(message: &str) -> (&'static str, &str) {
+    if message.starts_with("E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN") {
+        (
+            "E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN",
+            message
+                .trim_start_matches("E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN")
+                .trim_start(),
+        )
+    } else if message.starts_with("E_CANON_LEGACY_BOIM_FORBIDDEN") {
+        (
+            "E_CANON_LEGACY_BOIM_FORBIDDEN",
+            message
+                .trim_start_matches("E_CANON_LEGACY_BOIM_FORBIDDEN")
+                .trim_start(),
+        )
+    } else {
+        ("E_FRONTDOOR", message)
     }
 }
 
@@ -2934,7 +2967,6 @@ pub fn run_file_with_emitter(
     emit: &mut dyn RunEmitSink,
 ) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    validate_no_legacy_frontdoor_surface(&source)?;
     let file_label = path.display().to_string();
     let open_source = canonical_open_source_path(path);
     let mut open_allow = parse_open_allow_directives(&source);
@@ -2945,6 +2977,7 @@ pub fn run_file_with_emitter(
         .with_compat_matic_entry(options.compat_matic_entry);
     let (program_for_gate, _prepared_source) =
         parse_program_for_runtime_with_mode(&source, parse_mode).map_err(|err| match err {
+            FrontdoorParseFailure::Guard(message) => message,
             FrontdoorParseFailure::Lex(err) => RunError::Lex(err).format(&file_label),
             FrontdoorParseFailure::Parse(err) => RunError::Parse(err).format(&file_label),
         })?;
@@ -3839,6 +3872,7 @@ pub fn run_source_with_state_seed_ticks(
     ticks: u64,
 ) -> Result<EvalOutput, RunError> {
     let (program, prepared_source) = parse_program_for_runtime(source).map_err(|err| match err {
+        FrontdoorParseFailure::Guard(message) => RunError::Frontdoor { message },
         FrontdoorParseFailure::Lex(err) => RunError::Lex(err),
         FrontdoorParseFailure::Parse(err) => RunError::Parse(err),
     })?;
@@ -3887,6 +3921,7 @@ where
     let (program, prepared_source) =
         parse_program_for_runtime_with_mode(source, parse_mode).map_err(|error| {
             let error = match error {
+                FrontdoorParseFailure::Guard(message) => RunError::Frontdoor { message },
                 FrontdoorParseFailure::Lex(error) => RunError::Lex(error),
                 FrontdoorParseFailure::Parse(error) => RunError::Parse(error),
             };
@@ -4644,6 +4679,7 @@ fn build_proof_runtime_error(err: &RunError) -> Option<JsonValue> {
 
 fn write_diag_jsonl(path: &Path, file: &str, err: &RunError, append: bool) -> Result<(), String> {
     let (line, col, message) = match err {
+        RunError::Frontdoor { message } => (1, 1, message.clone()),
         RunError::Lex(err) => (lex_line(err), lex_col(err), lex_message(err)),
         RunError::Parse(err) => (parse_line(err), parse_col(err), parse_message(err)),
         RunError::Runtime(err) => (runtime_line(err), runtime_col(err), runtime_message(err)),
@@ -5919,6 +5955,7 @@ fn quantifier_kind_label(kind: QuantifierKind) -> &'static str {
 fn parse_program_for_proof_with_mode(source: &str, parse_mode: ParseMode) -> Result<Program, String> {
     let (program, _) = parse_program_for_runtime_with_mode(source, parse_mode).map_err(|err| {
         match err {
+            FrontdoorParseFailure::Guard(message) => message,
             FrontdoorParseFailure::Lex(err) => format!("{} {}", err.code(), lex_message(&err)),
             FrontdoorParseFailure::Parse(err) => format!("{} {}", err.code(), parse_message(&err)),
         }
