@@ -221,7 +221,6 @@ pub struct RunOptions {
     pub trace_tier: TraceTier,
     pub age_target: Option<String>,
     pub lang_mode: Option<crate::cli::lang_mode::LangModeArg>,
-    pub compat_matic_entry: bool,
     pub bogae_mode: Option<BogaeMode>,
     pub bogae_codec: BogaeCodec,
     pub bogae_out: Option<PathBuf>,
@@ -2966,12 +2965,6 @@ pub fn run_file_with_emitter(
     options: RunOptions,
     emit: &mut dyn RunEmitSink,
 ) -> Result<(), String> {
-    if options.compat_matic_entry {
-        return Err(
-            "E_CLI_COMPAT_RELEASE_BLOCKED --compat-matic-entry는 출시 경로에서 완전 비활성화됩니다."
-                .to_string(),
-        );
-    }
     let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let file_label = path.display().to_string();
     let open_source = canonical_open_source_path(path);
@@ -6895,7 +6888,6 @@ mod tests {
             trace_tier: TraceTier::Off,
             age_target: None,
             lang_mode: None,
-            compat_matic_entry: false,
             bogae_mode: None,
             bogae_codec: BogaeCodec::Bdl1,
             bogae_out: None,
@@ -7041,24 +7033,6 @@ mod tests {
         )
         .expect_err("strict run must fail");
         assert!(err.contains("E_LANG_COMPAT_MATIC_ENTRY_DISABLED"));
-        let _ = fs::remove_file(path);
-    }
-
-    #[test]
-    fn run_file_rejects_matic_entry_even_with_compat_flag() {
-        let mut path = std::env::temp_dir();
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("time")
-            .as_nanos();
-        path.push(format!("teul_matic_entry_compat_{nonce}.ddn"));
-        fs::write(&path, matic_seed_source()).expect("write source");
-        let mut options = default_run_options();
-        options.compat_matic_entry = true;
-        let mut emitter = CaptureEmitter::new();
-        let err = run_file_with_emitter(&path, Some(MadiLimit::Finite(1)), 0, options, &mut emitter)
-            .expect_err("hard-cut must fail");
-        assert!(err.contains("E_CLI_COMPAT_RELEASE_BLOCKED"));
         let _ = fs::remove_file(path);
     }
 

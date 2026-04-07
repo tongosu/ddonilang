@@ -1439,7 +1439,6 @@ pub(crate) fn execute_run_command(
         trace_tier: trace_tier.to_core(),
         age_target,
         lang_mode,
-        compat_matic_entry,
         bogae_mode: bogae,
         bogae_codec,
         bogae_out,
