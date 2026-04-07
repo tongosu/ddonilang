@@ -236,6 +236,21 @@ def main() -> int:
     if rc == 0 or "E_CLI_COMPAT_RELEASE_BLOCKED" not in out:
         return fail(f"compat_release_block_missing:{out.strip() or f'rc={rc}'}")
 
+    rc, out = run_cmd(
+        root,
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            tool_manifest,
+            "--",
+            "--unsafe-compat",
+        ],
+    )
+    if rc == 0 or "E_TOOL_COMPAT_RELEASE_BLOCKED" not in out:
+        return fail(f"tool_unsafe_compat_release_block_missing:{out.strip() or f'rc={rc}'}")
+
     wasm_status = "skipped"
     wasm_exec_policy_status = "skipped"
     if not args.skip_wasm_parity:
