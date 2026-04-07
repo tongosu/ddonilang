@@ -48,15 +48,28 @@ fn validate_lang_frontdoor_parity(prepared_source: &str) -> Result<(), String> {
     .map(|_| ())
     .map_err(|err| {
         let (line, col, snippet) = locate_span(prepared_source, err.span.start);
+        let blocker = classify_lang_parser_gap(&snippet, &err.to_string());
         format!(
-            "E_FRONTDOOR_LANG_PARSER_GAP lang_code={} line={} col={} near={} detail={}",
+            "E_FRONTDOOR_LANG_PARSER_GAP lang_code={} blocked_by={} line={} col={} near={} detail={}",
             err.code(),
+            blocker,
             line,
             col,
             snippet,
             err
         )
     })
+}
+
+fn classify_lang_parser_gap(snippet: &str, detail: &str) -> &'static str {
+    if snippet.contains(" 매김 {")
+        || snippet.contains(" 조건 {")
+        || detail.contains("매김")
+        || detail.contains("조건")
+    {
+        return "blocked_by_control_meta_relocation";
+    }
+    "blocked_by_frontdoor_parser_gap"
 }
 
 fn locate_span(source: &str, byte_pos: usize) -> (usize, usize, String) {
@@ -114,8 +127,16 @@ mod tests {
     fn validate_lang_frontdoor_parity_reports_gap_code_on_parse_error() {
         let err = validate_lang_frontdoor_parity("x <- .").expect_err("must fail");
         assert!(err.starts_with("E_FRONTDOOR_LANG_PARSER_GAP"));
+        assert!(err.contains("blocked_by=blocked_by_frontdoor_parser_gap"));
         assert!(err.contains("line=1"));
         assert!(err.contains("col="));
         assert!(err.contains("near=x <- ."));
+    }
+
+    #[test]
+    fn validate_lang_frontdoor_parity_tags_control_meta_gap() {
+        let source = "채비 { g: 수 <- (9.8) 매김 { 범위(0..10). }. }.";
+        let err = validate_lang_frontdoor_parity(source).expect_err("must fail");
+        assert!(err.contains("blocked_by=blocked_by_control_meta_relocation"));
     }
 }
