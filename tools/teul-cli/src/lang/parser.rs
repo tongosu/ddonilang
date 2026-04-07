@@ -206,21 +206,9 @@ impl ParseError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseMode {
     Strict,
-    StrictCompatMaticEntry,
 }
 
 impl ParseMode {
-    pub fn with_compat_matic_entry(self, enabled: bool) -> Self {
-        if enabled {
-            ParseMode::StrictCompatMaticEntry
-        } else {
-            ParseMode::Strict
-        }
-    }
-
-    pub fn compat_matic_entry_enabled(self) -> bool {
-        matches!(self, ParseMode::StrictCompatMaticEntry)
-    }
 }
 
 struct ArgSuffix {
@@ -234,7 +222,6 @@ pub struct Parser {
     pos: usize,
     default_root: String,
     root_hide: bool,
-    allow_compat_matic_entry: bool,
     declared_scopes: Vec<HashSet<String>>,
     pending_stmts: VecDeque<Stmt>,
     import_aliases: HashSet<String>,
@@ -261,14 +248,13 @@ impl Parser {
     pub fn parse_with_default_root_mode(
         tokens: Vec<Token>,
         default_root: &str,
-        mode: ParseMode,
+        _mode: ParseMode,
     ) -> Result<Program, ParseError> {
         let mut parser = Parser {
             tokens,
             pos: 0,
             default_root: default_root.to_string(),
             root_hide: default_root == "바탕",
-            allow_compat_matic_entry: mode.compat_matic_entry_enabled(),
             declared_scopes: vec![HashSet::new()],
             pending_stmts: VecDeque::new(),
             import_aliases: HashSet::new(),
@@ -3633,8 +3619,7 @@ impl Parser {
             }
         };
 
-        if name == "매틱" && matches!(kind, SeedKind::Umjikssi) && !self.allow_compat_matic_entry
-        {
+        if name == "매틱" && matches!(kind, SeedKind::Umjikssi) {
             return Err(ParseError::CompatMaticEntryDisabled {
                 span: name_token.span,
             });
@@ -6840,23 +6825,20 @@ mod tests {
     }
 
     #[test]
-    fn parse_strict_mode_accepts_compat_matic_entry_with_flag() {
+    fn parse_strict_mode_rejects_compat_matic_entry_even_with_flag() {
         let source = r#"
 매틱:움직씨 = {
   살림.t <- 1.
 }.
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
-        let program = Parser::parse_with_default_root_mode(
+        let err = Parser::parse_with_default_root_mode(
             tokens,
             "살림",
-            ParseMode::Strict.with_compat_matic_entry(true),
+            ParseMode::Strict,
         )
-        .expect("compat-matic-entry");
-        assert!(program
-            .stmts
-            .iter()
-            .any(|stmt| matches!(stmt, Stmt::SeedDef { .. })));
+        .expect_err("hard-cut");
+        assert_eq!(err.code(), "E_LANG_COMPAT_MATIC_ENTRY_DISABLED");
     }
 
     #[test]

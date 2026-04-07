@@ -2966,6 +2966,12 @@ pub fn run_file_with_emitter(
     options: RunOptions,
     emit: &mut dyn RunEmitSink,
 ) -> Result<(), String> {
+    if options.compat_matic_entry {
+        return Err(
+            "E_CLI_COMPAT_RELEASE_BLOCKED --compat-matic-entry는 출시 경로에서 완전 비활성화됩니다."
+                .to_string(),
+        );
+    }
     let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let file_label = path.display().to_string();
     let open_source = canonical_open_source_path(path);
@@ -2973,8 +2979,7 @@ pub fn run_file_with_emitter(
     let open_policy =
         load_open_policy(path).map_err(|message| format!("E_OPEN_POLICY {}", message))?;
     let project_policy = load_project_policy(path)?;
-    let parse_mode = resolve_lang_mode(options.lang_mode, &project_policy)?
-        .with_compat_matic_entry(options.compat_matic_entry);
+    let parse_mode = resolve_lang_mode(options.lang_mode, &project_policy)?;
     let (program_for_gate, _prepared_source) =
         parse_program_for_runtime_with_mode(&source, parse_mode).map_err(|err| match err {
             FrontdoorParseFailure::Guard(message) => message,
@@ -7000,7 +7005,7 @@ mod tests {
     }
 
     #[test]
-    fn strict_mode_accepts_matic_entry_with_compat_flag() {
+    fn strict_mode_rejects_matic_entry_even_with_compat_flag() {
         let project_policy = ProjectPolicy {
             age_target: None,
             det_tier: None,
@@ -7009,13 +7014,12 @@ mod tests {
             detmath_seal_hash: None,
             nuri_lock_hash: None,
         };
-        let mode = resolve_lang_mode(None, &project_policy)
-            .expect("lang mode")
-            .with_compat_matic_entry(true);
-        assert!(mode.compat_matic_entry_enabled());
+        let mode = resolve_lang_mode(None, &project_policy).expect("lang mode");
         let tokens = Lexer::tokenize(matic_seed_source()).expect("tokenize");
         let default_root = Parser::default_root_for_source(matic_seed_source());
-        Parser::parse_with_default_root_mode(tokens, default_root, mode).expect("compat");
+        let err =
+            Parser::parse_with_default_root_mode(tokens, default_root, mode).expect_err("hard-cut");
+        assert_eq!(err.code(), "E_LANG_COMPAT_MATIC_ENTRY_DISABLED");
     }
 
     #[test]
@@ -7041,7 +7045,7 @@ mod tests {
     }
 
     #[test]
-    fn run_file_accepts_matic_entry_with_compat_flag() {
+    fn run_file_rejects_matic_entry_even_with_compat_flag() {
         let mut path = std::env::temp_dir();
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -7052,9 +7056,9 @@ mod tests {
         let mut options = default_run_options();
         options.compat_matic_entry = true;
         let mut emitter = CaptureEmitter::new();
-        run_file_with_emitter(&path, Some(MadiLimit::Finite(1)), 0, options, &mut emitter)
-            .expect("compat run must pass");
-        assert!(emitter.out.iter().any(|line| line.starts_with("state_hash=")));
+        let err = run_file_with_emitter(&path, Some(MadiLimit::Finite(1)), 0, options, &mut emitter)
+            .expect_err("hard-cut must fail");
+        assert!(err.contains("E_CLI_COMPAT_RELEASE_BLOCKED"));
         let _ = fs::remove_file(path);
     }
 
