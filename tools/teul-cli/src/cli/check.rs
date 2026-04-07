@@ -1,6 +1,10 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
 use crate::cli::frontdoor_parse::{parse_program_for_runtime, FrontdoorParseFailure};
 use crate::cli::run::RunError;
@@ -143,14 +147,32 @@ fn write_schema(source_path: &Path, entries: &[SchemaEntry]) -> Result<(), Strin
     out.push_str("}\n");
 
     let schema_path = schema_path_for(source_path);
+    if let Some(parent) = schema_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
     fs::write(schema_path, out).map_err(|e| e.to_string())
 }
 
 fn schema_path_for(source_path: &Path) -> PathBuf {
-    match source_path.parent() {
-        Some(dir) => dir.join("ddn.schema.json"),
-        None => PathBuf::from("ddn.schema.json"),
-    }
+    let mut hasher = DefaultHasher::new();
+    source_path.to_string_lossy().hash(&mut hasher);
+    let digest = hasher.finish();
+    let stem = source_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("ddn");
+    let safe_stem = stem
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let file_name = format!("{safe_stem}.{digest:016x}.ddn.schema.json");
+    crate::cli::paths::build_dir().join("check_schema").join(file_name)
 }
 
 fn escape_json(input: &str) -> String {
