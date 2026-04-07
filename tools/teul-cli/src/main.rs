@@ -1454,8 +1454,24 @@ pub(crate) fn execute_run_command(
     cli::run::run_file_with_emitter(&file, madi, seed, options, emit)
 }
 
+fn blocked_release_compat_flag(args: &[String]) -> Option<&str> {
+    for arg in args {
+        if arg == "--compat-matic-entry" || arg == "--unsafe-compat" {
+            return Some(arg.as_str());
+        }
+    }
+    None
+}
+
 fn main() {
-    let cli = Cli::parse();
+    let raw_args: Vec<String> = env::args().collect();
+    if let Some(flag) = blocked_release_compat_flag(&raw_args[1..]) {
+        eprintln!(
+            "E_CLI_COMPAT_RELEASE_BLOCKED {flag}는 출시 경로에서 완전 비활성화됩니다."
+        );
+        std::process::exit(2);
+    }
+    let cli = Cli::parse_from(raw_args);
     match cli.command {
         Commands::Run {
             file,
@@ -3112,6 +3128,43 @@ mod tests {
         let rendered = err.to_string();
         assert!(rendered.contains("--compat-matic-entry"));
         assert!(rendered.contains("unexpected argument"));
+    }
+
+    #[test]
+    fn release_compat_flag_scan_blocks_compat_matic_entry() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "check".to_string(),
+            "sample.ddn".to_string(),
+            "--compat-matic-entry".to_string(),
+        ];
+        let blocked = blocked_release_compat_flag(&args[1..]);
+        assert_eq!(blocked, Some("--compat-matic-entry"));
+    }
+
+    #[test]
+    fn release_compat_flag_scan_blocks_unsafe_compat() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "run".to_string(),
+            "sample.ddn".to_string(),
+            "--unsafe-compat".to_string(),
+        ];
+        let blocked = blocked_release_compat_flag(&args[1..]);
+        assert_eq!(blocked, Some("--unsafe-compat"));
+    }
+
+    #[test]
+    fn release_compat_flag_scan_passes_without_compat() {
+        let args = vec![
+            "teul-cli".to_string(),
+            "run".to_string(),
+            "sample.ddn".to_string(),
+            "--madi".to_string(),
+            "1".to_string(),
+        ];
+        let blocked = blocked_release_compat_flag(&args[1..]);
+        assert_eq!(blocked, None);
     }
 
     #[test]
