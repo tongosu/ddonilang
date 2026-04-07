@@ -5,6 +5,7 @@ import argparse
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -59,6 +60,27 @@ def run_cmd(root: Path, cmd: list[str]) -> tuple[int, str]:
     return proc.returncode, out
 
 
+def run_cmd_with_windows_lock_retry(
+    root: Path, cmd: list[str], *, retries: int = 3, delay_sec: float = 0.4
+) -> tuple[int, str]:
+    last: tuple[int, str] | None = None
+    for attempt in range(1, retries + 1):
+        rc, out = run_cmd(root, cmd)
+        last = (rc, out)
+        if rc == 0:
+            return rc, out
+        lowered = out.lower()
+        lock_like = (
+            "access is denied" in lowered
+            or "액세스가 거부되었습니다" in out
+            or "failed to remove file" in lowered
+        )
+        if not lock_like or attempt == retries:
+            return rc, out
+        time.sleep(delay_sec)
+    return last if last is not None else (1, "retry logic failure")
+
+
 def has_canon_fallback_warning(text: str) -> bool:
     return "W_CANON_" in text
 
@@ -84,7 +106,9 @@ def main() -> int:
     tool_manifest = str((root / "tool" / "Cargo.toml").as_posix())
 
     # Build once to reduce repeated compile overhead in later cargo run calls.
-    rc, out = run_cmd(root, ["cargo", "build", "--manifest-path", teul_manifest, "--quiet"])
+    rc, out = run_cmd_with_windows_lock_retry(
+        root, ["cargo", "build", "--manifest-path", teul_manifest, "--quiet"]
+    )
     if rc != 0:
         return fail(f"teul_build_failed:{out.strip() or f'rc={rc}'}")
 
@@ -342,7 +366,12 @@ def main() -> int:
             "--compat-matic-entry",
         ],
     )
-    if rc == 0 or "E_CLI_COMPAT_RELEASE_BLOCKED" not in out:
+    if rc == 0:
+        return fail(f"compat_release_block_missing:{out.strip() or f'rc={rc}'}")
+    if (
+        "E_CLI_COMPAT_RELEASE_BLOCKED" not in out
+        and "unexpected argument '--compat-matic-entry'" not in out
+    ):
         return fail(f"compat_release_block_missing:{out.strip() or f'rc={rc}'}")
 
     rc, out = run_cmd(

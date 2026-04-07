@@ -208,7 +208,7 @@ def ensure_representative_success(root: Path) -> int:
     commands = {
         "canon": ["canon", "pack/lang_consistency_v1/c01_logic_alias_canon/input.ddn"],
         "optional": ["run", "pack/lang_consistency_v1/c11_map_optional_lookup_run/input.ddn"],
-        "compat": [
+        "compat_block": [
             "run",
             "pack/lang_consistency_v1/c13_matic_entry_compat_run/input.ddn",
             "--compat-matic-entry",
@@ -220,7 +220,7 @@ def ensure_representative_success(root: Path) -> int:
         futures = {key: executor.submit(run_teul_cli, root, command_args) for key, command_args in commands.items()}
         proc_canon = futures["canon"].result()
         proc_optional = futures["optional"].result()
-        proc_compat = futures["compat"].result()
+        proc_compat = futures["compat_block"].result()
         proc_reactive = futures["reactive"].result()
         proc_rank = futures["rank"].result()
 
@@ -244,11 +244,18 @@ def ensure_representative_success(root: Path) -> int:
     if rc != 0:
         return rc
 
-    if proc_compat.returncode != 0:
-        return fail(f"lang consistency compat representative failed: out={proc_compat.stdout} err={proc_compat.stderr}")
-    compat_payload = _stdout_payload_lines(_stdout_lines(proc_compat))
-    if compat_payload not in (["11"], []):
-        return fail("lang consistency compat stdout mismatch")
+    if proc_compat.returncode == 0:
+        return fail(
+            "lang consistency compat-block representative must fail on --compat-matic-entry"
+        )
+    compat_merged = f"{proc_compat.stdout}\n{proc_compat.stderr}"
+    if (
+        "unexpected argument '--compat-matic-entry'" not in compat_merged
+        and "E_CLI_COMPAT_RELEASE_BLOCKED" not in compat_merged
+    ):
+        return fail(
+            "lang consistency compat-block representative missing expected block marker"
+        )
 
     if proc_reactive.returncode != 0:
         return fail(

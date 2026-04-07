@@ -114,8 +114,6 @@ pub(crate) enum Commands {
         trace_tier: cli::trace_tier::TraceTierArg,
         #[arg(long = "lang-mode", value_enum)]
         lang_mode: Option<cli::lang_mode::LangModeArg>,
-        #[arg(long = "compat-matic-entry")]
-        compat_matic_entry: bool,
         #[arg(long = "bogae", value_enum)]
         bogae: Option<cli::bogae::BogaeMode>,
         #[arg(long = "bogae-codec", value_enum, default_value_t = cli::bogae::BogaeCodec::Bdl1)]
@@ -1283,16 +1281,6 @@ pub(crate) struct RunCommandArgs {
     pub(crate) run_command_override: Option<String>,
 }
 
-pub(crate) fn validate_compat_matic_entry_release_lock(compat_matic_entry: bool) -> Result<(), String> {
-    if compat_matic_entry {
-        return Err(
-            "E_CLI_COMPAT_RELEASE_BLOCKED --compat-matic-entry는 출시 경로에서 완전 비활성화됩니다."
-                .to_string(),
-        );
-    }
-    Ok(())
-}
-
 pub(crate) fn execute_run_command(
     args: RunCommandArgs,
     emit: &mut dyn cli::run::RunEmitSink,
@@ -1490,7 +1478,6 @@ fn main() {
             latency_madi,
             trace_tier,
             lang_mode,
-            compat_matic_entry,
             bogae,
             bogae_codec,
             bogae_out,
@@ -1517,10 +1504,6 @@ fn main() {
             no_open,
             unsafe_open,
         } => {
-            if let Err(err) = validate_compat_matic_entry_release_lock(compat_matic_entry) {
-                eprintln!("{}", err);
-                std::process::exit(1);
-            }
             let mut emitter = cli::run::StdoutRunEmitter;
             let run_args = RunCommandArgs {
                 file,
@@ -3115,49 +3098,30 @@ mod tests {
     }
 
     #[test]
-    fn run_main_cli_compat_matic_entry_flag_parsed() {
+    fn run_main_cli_compat_matic_entry_flag_rejected() {
         let args = vec![
             "teul-cli".to_string(),
             "run".to_string(),
             "sample.ddn".to_string(),
             "--compat-matic-entry".to_string(),
         ];
-        let cli = Cli::try_parse_from(args).expect("parse run");
-        let Commands::Run {
-            compat_matic_entry, ..
-        } = cli.command
-        else {
-            panic!("expected run command");
-        };
-        assert!(compat_matic_entry);
+        let err = Cli::try_parse_from(args).expect_err("compat flag must be rejected");
+        let rendered = err.to_string();
+        assert!(rendered.contains("--compat-matic-entry"));
+        assert!(rendered.contains("unexpected argument"));
     }
 
     #[test]
-    fn run_main_cli_compat_matic_entry_default_false() {
+    fn run_main_cli_without_compat_matic_entry_parses() {
         let args = vec![
             "teul-cli".to_string(),
             "run".to_string(),
             "sample.ddn".to_string(),
         ];
         let cli = Cli::try_parse_from(args).expect("parse run");
-        let Commands::Run {
-            compat_matic_entry, ..
-        } = cli.command
-        else {
+        let Commands::Run { .. } = cli.command else {
             panic!("expected run command");
         };
-        assert!(!compat_matic_entry);
-    }
-
-    #[test]
-    fn compat_matic_entry_release_lock_rejects_flag() {
-        let err = validate_compat_matic_entry_release_lock(true).expect_err("must fail");
-        assert!(err.contains("E_CLI_COMPAT_RELEASE_BLOCKED"));
-    }
-
-    #[test]
-    fn compat_matic_entry_release_lock_accepts_default_false() {
-        validate_compat_matic_entry_release_lock(false).expect("must pass");
     }
 
     #[test]

@@ -241,7 +241,7 @@ def main() -> int:
         if run_log != run_log_lines:
             return fail(f"RUN_LOG.txt mismatch: expected={run_log_lines} got={run_log}")
 
-        run_case = {"stdout": ["stale"], "cli": ["--compat-matic-entry"]}
+        run_case = {"stdout": ["stale"], "cli": ["--madi", "1"]}
         changed, issues = module.write_case_updates(
             pack_dir,
             run_case,

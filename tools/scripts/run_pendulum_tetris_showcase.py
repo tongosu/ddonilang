@@ -249,7 +249,6 @@ def main() -> int:
     needs_preprocess = args.tetris_profile == "full_preprocessed"
     if needs_preprocess:
         tetris_step_prefix = "tetris_full_preprocessed"
-        tetris_extra_args = ["--compat-matic-entry"]
         preprocessed_abs = (ROOT / "build" / "showcase_inputs" / "tetris_full_preprocessed.ddn").resolve()
         tetris_preprocessed_output = str(preprocessed_abs)
         tetris_input = str(preprocessed_abs)
