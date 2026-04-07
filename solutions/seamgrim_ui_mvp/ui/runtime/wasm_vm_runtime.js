@@ -80,6 +80,15 @@ export class WasmVmHandle {
     ];
   }
 
+  async ensureClientForOp(sourceText, code, message) {
+    try {
+      return await this.ensureClient(sourceText);
+    } catch (err) {
+      this.addRuntimeDiag(code, message, err?.message ?? String(err ?? ""));
+      throw err;
+    }
+  }
+
   preprocess(sourceText) {
     const source = String(sourceText ?? this.lastSourceText ?? this.defaultSourceText);
     const pre = preprocessDdnText(source);
@@ -178,7 +187,11 @@ export class WasmVmHandle {
   }
 
   async updateLogic(ddnSourceText) {
-    const client = await this.ensureClient(ddnSourceText);
+    const client = await this.ensureClientForOp(
+      ddnSourceText,
+      "E_WASM_UPDATE_ENSURE_FAILED",
+      "updateLogic 진입을 위한 wasm client 준비에 실패했습니다.",
+    );
     try {
       client.updateLogic(this.lastBodyText);
     } catch (err) {
@@ -203,12 +216,31 @@ export class WasmVmHandle {
   }
 
   async reset({ keepParams = false } = {}) {
-    const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
-    return this.attachObservationManifest(client.resetParsed(Boolean(keepParams)));
+    const client =
+      this.client ??
+      (await this.ensureClientForOp(
+        this.defaultSourceText,
+        "E_WASM_RESET_ENSURE_FAILED",
+        "reset 진입을 위한 wasm client 준비에 실패했습니다.",
+      ));
+    try {
+      return this.attachObservationManifest(client.resetParsed(Boolean(keepParams)));
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_RESET_FAILED",
+        "resetParsed 호출에 실패했습니다.",
+        err?.message ?? String(err ?? ""),
+      );
+      throw err;
+    }
   }
 
   async step({ n = 1, input = null, sourceText = null } = {}) {
-    const client = await this.ensureClient(sourceText ?? this.lastSourceText ?? this.defaultSourceText);
+    const client = await this.ensureClientForOp(
+      sourceText ?? this.lastSourceText ?? this.defaultSourceText,
+      "E_WASM_STEP_ENSURE_FAILED",
+      "step 진입을 위한 wasm client 준비에 실패했습니다.",
+    );
     const countRaw = Number(n);
     const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.floor(countRaw) : 1;
     let state = null;
@@ -242,7 +274,13 @@ export class WasmVmHandle {
   }
 
   async columns() {
-    const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
+    const client =
+      this.client ??
+      (await this.ensureClientForOp(
+        this.defaultSourceText,
+        "E_WASM_COLUMNS_ENSURE_FAILED",
+        "columns 진입을 위한 wasm client 준비에 실패했습니다.",
+      ));
     let payload;
     try {
       payload = client.columnsParsed();
@@ -275,7 +313,13 @@ export class WasmVmHandle {
   }
 
   async setParam({ key, value } = {}) {
-    const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
+    const client =
+      this.client ??
+      (await this.ensureClientForOp(
+        this.defaultSourceText,
+        "E_WASM_SET_PARAM_ENSURE_FAILED",
+        "setParam 진입을 위한 wasm client 준비에 실패했습니다.",
+      ));
     try {
       return client.setParamParsed(String(key ?? ""), value);
     } catch (err) {
@@ -289,7 +333,13 @@ export class WasmVmHandle {
   }
 
   async getStateHash() {
-    const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
+    const client =
+      this.client ??
+      (await this.ensureClientForOp(
+        this.defaultSourceText,
+        "E_WASM_STATE_HASH_ENSURE_FAILED",
+        "getStateHash 진입을 위한 wasm client 준비에 실패했습니다.",
+      ));
     try {
       return client.getStateHash();
     } catch (err) {
@@ -303,7 +353,13 @@ export class WasmVmHandle {
   }
 
   async getStateJson() {
-    const client = this.client ?? (await this.ensureClient(this.defaultSourceText));
+    const client =
+      this.client ??
+      (await this.ensureClientForOp(
+        this.defaultSourceText,
+        "E_WASM_GET_STATE_JSON_ENSURE_FAILED",
+        "getStateJson 진입을 위한 wasm client 준비에 실패했습니다.",
+      ));
     try {
       return this.attachObservationManifest(client.getStateParsed());
     } catch (err) {

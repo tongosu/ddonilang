@@ -13,6 +13,7 @@ function createClient({
   supportsStepWithInput = true,
   seedThrows = false,
   supportsSeed = true,
+  resetThrows = false,
   updateThrows = false,
   stepThrows = false,
   columnsThrows = false,
@@ -45,6 +46,9 @@ function createClient({
       return sharedState;
     },
     resetParsed() {
+      if (resetThrows) {
+        throw new Error("reset-fail");
+      }
       return sharedState;
     },
     stepOneParsed() {
@@ -254,6 +258,7 @@ async function main() {
 
   const failClient = createClient({
     warnings: [],
+    resetThrows: true,
     updateThrows: true,
     stepThrows: true,
     columnsThrows: true,
@@ -299,6 +304,18 @@ async function main() {
   assert(
     failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_UPDATELOGIC_FAILED"),
     "wasm vm handle: update failure diag",
+  );
+
+  let resetFailed = false;
+  try {
+    await failHandle.reset({ keepParams: false });
+  } catch (_) {
+    resetFailed = true;
+  }
+  assert(resetFailed, "wasm vm handle: reset failure path");
+  assert(
+    failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_RESET_FAILED"),
+    "wasm vm handle: reset failure diag",
   );
 
   let stepFailed = false;
@@ -359,6 +376,46 @@ async function main() {
   assert(
     failHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_GET_STATE_JSON_FAILED"),
     "wasm vm handle: state json failure diag",
+  );
+
+  const ensureFailHandle = new WasmVmHandle({
+    loader: {
+      async ensure() {
+        throw new Error("ensure-fail");
+      },
+      reset() {},
+      getLastBuildInfo() {
+        return "";
+      },
+      getLastBuildInfoDiag() {
+        return null;
+      },
+      getLastInitDiag() {
+        return { code: "E_WASM_LOADER_MODULE_LOAD_FAILED", message: "load-fail", detail: "load-fail" };
+      },
+      getLastPreprocessed() {
+        return "";
+      },
+      getLastPreprocessDiag() {
+        return null;
+      },
+      getCacheBust() {
+        return 19;
+      },
+    },
+    defaultSourceText: "매틱:움직씨 = { x <- 1. }.",
+  });
+
+  let ensureFailed = false;
+  try {
+    await ensureFailHandle.updateLogic("매틱:움직씨 = { x <- 1. }.");
+  } catch (_) {
+    ensureFailed = true;
+  }
+  assert(ensureFailed, "wasm vm handle: ensure failure path");
+  assert(
+    ensureFailHandle.getDebugInfo().runtimeDiags?.some((row) => row?.code === "E_WASM_UPDATE_ENSURE_FAILED"),
+    "wasm vm handle: ensure failure diag",
   );
 
   console.log("seamgrim wasm vm runtime ok");
