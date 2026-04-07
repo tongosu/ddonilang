@@ -190,6 +190,7 @@ async function main() {
     parseGuideMetaHeader,
     pushObservationLensSample,
     processPatchOperations,
+    readWasmClientParseWarnings,
     removePatchComponentStoreEntry,
     renderGraphCanvas2d,
     renderGraphOrSpace2dCanvas,
@@ -1313,6 +1314,29 @@ async function main() {
   assert(applied.state?.schema === "seamgrim.state.v0", "apply wasm logic: state");
   assert(Array.isArray(applied.parseWarnings), "apply wasm logic: parse warnings array");
   assert(applied.parseWarnings[0]?.code === "W_BLOCK_HEADER_COLON_DEPRECATED", "apply wasm logic: parse warning code");
+  const parseWarningsReadFail = readWasmClientParseWarnings({
+    parseWarningsParsed() {
+      throw new Error("parse-warning-read-boom");
+    },
+  });
+  assert(
+    parseWarningsReadFail[0]?.code === "E_WASM_PARSE_WARNINGS_READ_FAILED",
+    "read parse warnings: read failed code",
+  );
+  const parseWarningsApiMissing = readWasmClientParseWarnings({});
+  assert(
+    parseWarningsApiMissing[0]?.code === "E_WASM_PARSE_WARNINGS_API_MISSING",
+    "read parse warnings: api missing code",
+  );
+  const parseWarningsPayloadInvalid = readWasmClientParseWarnings({
+    parseWarningsParsed() {
+      return { warning: "bad-shape" };
+    },
+  });
+  assert(
+    parseWarningsPayloadInvalid[0]?.code === "E_WASM_PARSE_WARNINGS_PAYLOAD_INVALID",
+    "read parse warnings: payload invalid code",
+  );
   const stepped = await stepWasmWithInputFromSource({
     sourceText: "매틱:움직씨 = { x <- 4. }.",
     ensureWasm,

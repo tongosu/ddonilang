@@ -2695,17 +2695,42 @@ export function updateWasmClientLogic({
 }
 
 export function readWasmClientParseWarnings(client) {
+  const buildReadDiag = (code, message, detail = "") => [
+    {
+      code,
+      message,
+      detail: String(detail ?? ""),
+      span: { start: 0, end: 0 },
+    },
+  ];
   if (!client || typeof client !== "object") {
-    return [];
+    return buildReadDiag(
+      "E_WASM_PARSE_WARNINGS_CLIENT_MISSING",
+      "parse warnings를 읽을 client가 없습니다.",
+    );
   }
   if (typeof client.parseWarningsParsed !== "function") {
-    return [];
+    return buildReadDiag(
+      "E_WASM_PARSE_WARNINGS_API_MISSING",
+      "parseWarningsParsed API가 없습니다.",
+    );
   }
   try {
     const warnings = client.parseWarningsParsed();
-    return Array.isArray(warnings) ? warnings : [];
-  } catch (_) {
-    return [];
+    if (!Array.isArray(warnings)) {
+      return buildReadDiag(
+        "E_WASM_PARSE_WARNINGS_PAYLOAD_INVALID",
+        "parseWarningsParsed 결과가 배열이 아닙니다.",
+        typeof warnings,
+      );
+    }
+    return warnings;
+  } catch (err) {
+    return buildReadDiag(
+      "E_WASM_PARSE_WARNINGS_READ_FAILED",
+      "parseWarningsParsed 호출에 실패했습니다.",
+      err?.message ?? String(err ?? ""),
+    );
   }
 }
 
