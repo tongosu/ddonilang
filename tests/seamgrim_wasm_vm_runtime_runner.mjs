@@ -111,6 +111,21 @@ async function main() {
   await handle.updateLogic("매틱:움직씨 = { x <- 3. }.");
   assert(handle.getParseWarnings().length === 0, "wasm vm handle: compat empty warnings");
 
+  const missingApiWarnings = handle.readParseWarnings({});
+  assert(
+    missingApiWarnings?.[0]?.code === "E_WASM_PARSE_WARNINGS_API_MISSING",
+    "wasm vm handle: parse warnings api missing diag",
+  );
+  const readFailedWarnings = handle.readParseWarnings({
+    parseWarningsParsed() {
+      throw new Error("parse-warn-read-fail");
+    },
+  });
+  assert(
+    readFailedWarnings?.[0]?.code === "E_WASM_PARSE_WARNINGS_READ_FAILED",
+    "wasm vm handle: parse warnings read failed diag",
+  );
+
   console.log("seamgrim wasm vm runtime ok");
 }
 
@@ -118,4 +133,3 @@ main().catch((err) => {
   console.error(String(err?.stack ?? err));
   process.exit(1);
 });
-
