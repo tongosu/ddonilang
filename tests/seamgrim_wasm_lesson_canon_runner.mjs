@@ -213,6 +213,20 @@ async function main() {
     throw new Error(`runtime diag snapshot mismatch: ${JSON.stringify(runtimeDiagRow)}`);
   }
 
+  const createFailHydrator = runtime.createLessonCanonHydrator({
+    createCanon: async () => {
+      throw new Error("create-canon-fail");
+    },
+  });
+  const createFailFlat = await createFailHydrator.deriveFlatJson("매틱:움직씨 = { x <- 1. }.", { quiet: true });
+  if (createFailFlat !== null) {
+    throw new Error("create-fail hydrator must return null for flat");
+  }
+  const createFailRuntimeDiag = createFailHydrator.getRuntimeDiags?.()?.[0] ?? null;
+  if (String(createFailRuntimeDiag?.code ?? "") !== "E_WASM_CANON_RUNTIME_CREATE_FAILED") {
+    throw new Error(`create-fail runtime diag mismatch: ${JSON.stringify(createFailRuntimeDiag)}`);
+  }
+
   const loadFailCanon = await runtime.createWasmCanon({
     moduleFactory: async () => {
       throw new Error("module-load-test-fail");

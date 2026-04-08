@@ -152,10 +152,7 @@ export function createLessonCanonHydrator({
   }
 
   function updateRuntimeDiags(runtime) {
-    if (!runtime || typeof runtime !== "object") {
-      lastRuntimeDiags = [];
-      return;
-    }
+    if (!runtime || typeof runtime !== "object") return;
     const rows = [];
     if (typeof runtime.getLastInitDiag === "function") {
       const row = runtime.getLastInitDiag();
@@ -193,6 +190,13 @@ export function createLessonCanonHydrator({
         cacheBust,
         initInput,
       }).catch((error) => {
+        lastRuntimeDiags = [
+          buildCanonDiag(
+            "E_WASM_CANON_RUNTIME_CREATE_FAILED",
+            "wasm canon runtime 생성에 실패했습니다.",
+            error?.message ?? String(error ?? ""),
+          ),
+        ];
         canonRuntimePromise = null;
         throw error;
       });
