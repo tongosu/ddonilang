@@ -1133,6 +1133,7 @@ async function main() {
   ]);
   const allowFederatedFileFallback = readWindowBoolean("SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK", false);
   const allowShapeFallback = readWindowBoolean("SEAMGRIM_ENABLE_SHAPE_FALLBACK", false);
+  const allowServerFallback = readWindowBoolean("SEAMGRIM_ENABLE_SERVER_FALLBACK", false);
   const federatedFileCandidates = allowFederatedFileFallback
     ? readWindowStringArray("SEAMGRIM_FEDERATED_FILE_CANDIDATES", [])
     : [];
@@ -1440,6 +1441,7 @@ async function main() {
     root: byId("screen-run"),
     wasmState: appState.wasm,
     allowShapeFallback,
+    allowServerFallback,
     getOverlaySession: () => appState.overlaySession,
     getRuntimeSessionV0: () => appState.runtimeSessionV0,
     onOverlaySessionChange: (sessionLike) => {

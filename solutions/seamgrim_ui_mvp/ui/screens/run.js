@@ -1049,6 +1049,7 @@ export class RunScreen {
     onSaveSession,
     onFormulaApplied,
     allowShapeFallback = false,
+    allowServerFallback = false,
   } = {}) {
     this.root = root;
     this.wasmState = wasmState;
@@ -1064,6 +1065,7 @@ export class RunScreen {
     this.onSaveSession = typeof onSaveSession === "function" ? onSaveSession : null;
     this.onFormulaApplied = typeof onFormulaApplied === "function" ? onFormulaApplied : null;
     this.allowShapeFallback = Boolean(allowShapeFallback);
+    this.allowServerFallback = Boolean(allowServerFallback);
 
     this.lesson = null;
     this.baseDdn = "";
@@ -2983,6 +2985,9 @@ export class RunScreen {
   }
 
   async runViaExecServer(ddnText) {
+    if (!this.allowServerFallback) {
+      return null;
+    }
     const payload = {
       ddn_text: String(ddnText ?? ""),
       madi: 420,
@@ -3232,31 +3237,35 @@ export class RunScreen {
       return true;
     } catch (err) {
       console.error("[RunScreen.restart] wasm execution failed", err);
-      // server fallback은 wasm 내부 변환본이 아닌 원본 DDN(슬라이더 반영본)으로 실행한다.
-      const serverDerived = await this.runViaExecServer(rawDdnText);
-      if (serverDerived) {
-        this.wasmState.client = null;
-        this.setParseWarnings([]);
-        this.lastState = null;
-        this.lastRuntimeDerived = serverDerived;
-        this.setHash("server-fallback");
-        this.lastExecPathHint = "실행 경로: server-fallback";
-        this.startServerPlayback(serverDerived);
-        this.applyRuntimeDerived(serverDerived, { forceView: true });
-        this.syncDockRangeLabels();
-        this.syncDockTimeUi();
-        this.renderInspectorMeta();
-        this.updateRuntimeStatus(serverDerived);
-        this.updateRuntimeHint();
-        this.publishRunManagerSession();
-        this.syncLoopState();
-        return true;
+      if (this.allowServerFallback) {
+        // server fallback은 wasm 내부 변환본이 아닌 원본 DDN(슬라이더 반영본)으로 실행한다.
+        const serverDerived = await this.runViaExecServer(rawDdnText);
+        if (serverDerived) {
+          this.wasmState.client = null;
+          this.setParseWarnings([]);
+          this.lastState = null;
+          this.lastRuntimeDerived = serverDerived;
+          this.setHash("server-fallback");
+          this.lastExecPathHint = "실행 경로: server-fallback";
+          this.startServerPlayback(serverDerived);
+          this.applyRuntimeDerived(serverDerived, { forceView: true });
+          this.syncDockRangeLabels();
+          this.syncDockTimeUi();
+          this.renderInspectorMeta();
+          this.updateRuntimeStatus(serverDerived);
+          this.updateRuntimeHint();
+          this.publishRunManagerSession();
+          this.syncLoopState();
+          return true;
+        }
       }
       this.haltLoop();
       this.setParseWarnings([]);
       this.setHash("-");
       this.lastRuntimeDerived = null;
-      this.lastExecPathHint = "실행 실패: wasm/server 모두 실패";
+      this.lastExecPathHint = this.allowServerFallback
+        ? "실행 실패: wasm/server 모두 실패"
+        : "실행 실패: wasm-direct-only (E_WASM_DIRECT_ONLY_FALLBACK_BLOCKED)";
       this.lastSpace2dMode = "none";
       this.setRuntimePreviewViewModel(null);
       this.updateRuntimeHint();
