@@ -137,6 +137,7 @@ def main() -> int:
     root = Path(__file__).resolve().parent.parent
     teul_manifest = str((root / "tools" / "teul-cli" / "Cargo.toml").as_posix())
     tool_manifest = str((root / "tool" / "Cargo.toml").as_posix())
+    wasm_direct_only_checker = root / "tests" / "run_seamgrim_wasm_direct_only_check.py"
 
     try:
         scanned, _ = scan_active_line_legacy_surface_zero(root)
@@ -524,6 +525,10 @@ def main() -> int:
     )
     if rc == 0 or "E_TOOL_COMPAT_RELEASE_BLOCKED" not in out:
         return fail(f"tool_unsafe_compat_release_block_missing:{out.strip() or f'rc={rc}'}")
+
+    rc, out = run_cmd(root, [sys.executable, str(wasm_direct_only_checker)])
+    if rc != 0:
+        return fail(f"wasm_direct_only_gate_fail:{out.strip() or f'rc={rc}'}")
 
     wasm_status = "skipped"
     wasm_exec_policy_status = "skipped"
