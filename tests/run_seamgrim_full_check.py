@@ -102,6 +102,22 @@ def check_subject_representative_examples(root: Path) -> None:
         raise RuntimeError(msg)
 
 
+def check_wasm_direct_only(root: Path) -> None:
+    checker = root / "tests" / "run_seamgrim_wasm_direct_only_check.py"
+    cmd = [sys.executable, str(checker)]
+    result = subprocess.run(
+        cmd,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        msg = result.stderr.strip() or result.stdout.strip() or "wasm direct-only check failed"
+        raise RuntimeError(msg)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run seamgrim graph + scene/session checks")
     parser.add_argument("packs", nargs="*", help="pack lesson directories")
@@ -133,6 +149,7 @@ def main() -> int:
     for pack_dir in pack_dirs:
         check_graph(root, pack_dir, args.strict_graph, warnings)
         check_scene_session(root, pack_dir)
+    check_wasm_direct_only(root)
     if not args.skip_subject_representative:
         check_subject_representative_examples(root)
     if not args.skip_schema_gate:
