@@ -165,6 +165,21 @@ function readWindowBoolean(key, fallback = false) {
   }
 }
 
+function readQueryBoolean(key, fallback = false) {
+  try {
+    const href = String(window?.location?.href ?? "").trim();
+    if (!href) return fallback;
+    const url = new URL(href);
+    const raw = String(url.searchParams.get(key) ?? "").trim().toLowerCase();
+    if (!raw) return fallback;
+    if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true;
+    if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false;
+    return fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
 function applySimCorePolicy() {
   const enabled = readWindowBoolean("SEAMGRIM_SIM_CORE_POLICY", true);
   try {
@@ -1133,7 +1148,9 @@ async function main() {
   ]);
   const allowFederatedFileFallback = readWindowBoolean("SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK", false);
   const allowShapeFallback = readWindowBoolean("SEAMGRIM_ENABLE_SHAPE_FALLBACK", false);
-  const allowServerFallback = readWindowBoolean("SEAMGRIM_ENABLE_SERVER_FALLBACK", false);
+  const allowServerFallback =
+    readWindowBoolean("SEAMGRIM_ENABLE_SERVER_FALLBACK", false) ||
+    readQueryBoolean("server_fallback", false);
   const federatedFileCandidates = allowFederatedFileFallback
     ? readWindowStringArray("SEAMGRIM_FEDERATED_FILE_CANDIDATES", [])
     : [];

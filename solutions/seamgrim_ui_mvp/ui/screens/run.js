@@ -3260,7 +3260,18 @@ export class RunScreen {
         }
       }
       this.haltLoop();
-      this.setParseWarnings([]);
+      const directOnlyBlocked = !this.allowServerFallback;
+      this.setParseWarnings(
+        directOnlyBlocked
+          ? [
+              {
+                code: "E_WASM_DIRECT_ONLY_FALLBACK_BLOCKED",
+                message:
+                  "WASM Direct Only 정책으로 server fallback이 차단되었습니다. URL에 ?server_fallback=1을 붙여 임시 진단 실행이 가능합니다.",
+              },
+            ]
+          : [],
+      );
       this.setHash("-");
       this.lastRuntimeDerived = null;
       this.lastExecPathHint = this.allowServerFallback
