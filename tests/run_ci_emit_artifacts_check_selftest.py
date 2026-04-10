@@ -1479,6 +1479,12 @@ def build_case(
                 {"step": "stdlib_catalog_check_selftest", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {"step": "tensor_v0_pack_check", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {"step": "tensor_v0_cli_check", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
+                {
+                    "step": "seamgrim_ci_gate_sam_seulgi_family_step_check",
+                    "ok": True,
+                    "returncode": 0,
+                    "cmd": ["python", "x.py"],
+                },
                 {"step": "seamgrim_ci_gate_seed_meta_step_check", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {
                     "step": "seamgrim_ci_gate_runtime5_passthrough_check",
