@@ -95,6 +95,17 @@ AGE3_GATE_SELFTEST_REQUIRED_TOKENS: tuple[str, ...] = (
     "ddn.seamgrim_ci_gate_wasm_web_smoke_step_check.v1",
 )
 
+CI_SANITY_REQUIRED_TOKENS: tuple[str, ...] = (
+    "sam_seulgi_family_contract_selftest",
+    "tests/run_sam_seulgi_family_contract_selftest.py",
+    "DDN_SAM_SEULGI_FAMILY_CONTRACT_SELFTEST_PROGRESS_JSON",
+    "sam_seulgi_family_contract_selftest_current_probe=",
+    "sam_seulgi_family_contract_selftest_last_completed_probe=",
+    "sam_seulgi_family_contract_selftest_completed_checks=",
+    "sam_seulgi_family_contract_selftest_total_checks=",
+    "sam_seulgi_family_contract_selftest_checks_text=",
+)
+
 
 def fail(code: str, msg: str) -> int:
     print(f"[external-intent-seulgi-walk-alignment] fail code={code} msg={msg}", file=sys.stderr)
@@ -165,6 +176,15 @@ def main() -> int:
     for token in AGE3_GATE_SELFTEST_REQUIRED_TOKENS:
         if token not in age3_gate_selftest_text:
             return fail("E_ALIGNMENT_AGE3_GATE_SELFTEST_TOKEN", token)
+
+    ci_sanity_path = root / "tests/run_ci_sanity_gate.py"
+    try:
+        ci_sanity_text = load_text(ci_sanity_path)
+    except ValueError as exc:
+        return fail("E_ALIGNMENT_CI_SANITY_READ", str(exc))
+    for token in CI_SANITY_REQUIRED_TOKENS:
+        if token not in ci_sanity_text:
+            return fail("E_ALIGNMENT_CI_SANITY_TOKEN", token)
 
     print("[external-intent-seulgi-walk-alignment] ok")
     print(f"pack_roots={len(PACK_FILE_REQUIREMENTS)}")
