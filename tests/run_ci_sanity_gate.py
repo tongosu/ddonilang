@@ -202,6 +202,7 @@ CORE_LANG_PROFILE_STEPS = {
     "sam_inputsnapshot_contract_pack_check",
     "sam_ai_ordering_pack_check",
     "seulgi_gatekeeper_pack_check",
+    "sam_seulgi_family_contract_selftest",
     "age5_close_pack_contract_selftest",
     "age5_close_combined_report_contract_selftest",
     "ci_gate_summary_line_check_selftest",
@@ -3661,6 +3662,11 @@ def main() -> int:
             "seulgi_gatekeeper_pack_check",
             [py, "tests/run_seulgi_gatekeeper_pack_check.py"],
             "E_CI_SANITY_SEULGI_GATEKEEPER_PACK_CHECK_FAIL",
+        ),
+        (
+            "sam_seulgi_family_contract_selftest",
+            [py, "tests/run_sam_seulgi_family_contract_selftest.py"],
+            "E_CI_SANITY_SAM_SEULGI_FAMILY_CONTRACT_SELFTEST_FAIL",
         ),
         (
             "seamgrim_ci_gate_seed_meta_step_check",
