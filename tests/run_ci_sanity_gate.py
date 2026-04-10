@@ -1279,6 +1279,9 @@ def build_step_progress_env(step_name: str, json_out: str) -> dict[str, str] | N
     if step_name == "proof_family_contract_selftest":
         progress_path = base.with_name(f"{base.stem}.proof_family_contract_selftest.progress.detjson")
         return {"DDN_PROOF_FAMILY_CONTRACT_SELFTEST_PROGRESS_JSON": str(progress_path)}
+    if step_name == "sam_seulgi_family_contract_selftest":
+        progress_path = base.with_name(f"{base.stem}.sam_seulgi_family_contract_selftest.progress.detjson")
+        return {"DDN_SAM_SEULGI_FAMILY_CONTRACT_SELFTEST_PROGRESS_JSON": str(progress_path)}
     if step_name == "proof_family_transport_contract_selftest":
         progress_path = base.with_name(f"{base.stem}.proof_family_transport_contract_selftest.progress.detjson")
         return {"DDN_PROOF_FAMILY_TRANSPORT_CONTRACT_SELFTEST_PROGRESS_JSON": str(progress_path)}
@@ -1631,6 +1634,31 @@ def write_step_seed_progress(step_name: str, step_env: dict[str, str] | None) ->
                     "family_contract,aggregate_preview_summary,aggregate_status_line,"
                     "final_status_line,gate_result,gate_outputs_consistency,"
                     "gate_summary_line,final_line_emitter,report_index"
+                ),
+            },
+        )
+        return
+    if step_name == "sam_seulgi_family_contract_selftest":
+        progress_path = str(
+            step_env.get("DDN_SAM_SEULGI_FAMILY_CONTRACT_SELFTEST_PROGRESS_JSON", "")
+        ).strip()
+        if not progress_path:
+            return
+        write_json_snapshot(
+            progress_path,
+            {
+                "schema": "ddn.ci.sam_seulgi_family_contract_selftest.progress.v1",
+                "status": "running",
+                "current_case": "-",
+                "last_completed_case": "-",
+                "completed_checks": 0,
+                "total_checks": 6,
+                "current_probe": "spawn_process",
+                "last_completed_probe": "-",
+                "checks_text": (
+                    "external_intent_boundary_pack,seulgi_v1_pack,"
+                    "sam_inputsnapshot_contract_pack,sam_ai_ordering_pack,"
+                    "seulgi_gatekeeper_pack,external_intent_seulgi_walk_alignment"
                 ),
             },
         )
@@ -2673,6 +2701,35 @@ def emit_step_progress_tokens(step_name: str, step_env: dict[str, str] | None) -
                 )
                 print(
                     "proof_family_contract_selftest_checks_text="
+                    + (str(payload.get("checks_text", "")).strip() or "-")
+                )
+                return
+            if step_name == "sam_seulgi_family_contract_selftest":
+                payload = load_json_snapshot(
+                    str(
+                        step_env.get("DDN_SAM_SEULGI_FAMILY_CONTRACT_SELFTEST_PROGRESS_JSON", "")
+                    ).strip()
+                )
+                if not isinstance(payload, dict):
+                    return
+                print(
+                    "sam_seulgi_family_contract_selftest_current_probe="
+                    + (str(payload.get("current_probe", "")).strip() or "-")
+                )
+                print(
+                    "sam_seulgi_family_contract_selftest_last_completed_probe="
+                    + (str(payload.get("last_completed_probe", "")).strip() or "-")
+                )
+                print(
+                    "sam_seulgi_family_contract_selftest_completed_checks="
+                    + (str(payload.get("completed_checks", "")).strip() or "-")
+                )
+                print(
+                    "sam_seulgi_family_contract_selftest_total_checks="
+                    + (str(payload.get("total_checks", "")).strip() or "-")
+                )
+                print(
+                    "sam_seulgi_family_contract_selftest_checks_text="
                     + (str(payload.get("checks_text", "")).strip() or "-")
                 )
                 return
