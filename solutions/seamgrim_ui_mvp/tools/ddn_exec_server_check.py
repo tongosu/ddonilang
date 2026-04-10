@@ -72,7 +72,25 @@ def parse_args(argv: list[str] | None = None):
         default=5.0,
         help="startup wait timeout seconds (default: 5.0)",
     )
+    parser.add_argument(
+        "--profile",
+        choices=["release", "legacy"],
+        default=os.environ.get("SEAMGRIM_DDN_EXEC_SERVER_CHECK_PROFILE", "release"),
+        help="validation profile (default: release)",
+    )
     return parser.parse_args(argv)
+
+
+def strip_legacy_pragma_lines(text: str) -> str:
+    source = str(text or "")
+    if not source:
+        return source
+    lines = source.splitlines()
+    filtered = [line for line in lines if not str(line).lstrip().startswith("#")]
+    rendered = "\n".join(filtered)
+    if source.endswith("\n"):
+        rendered += "\n"
+    return rendered
 
 
 def is_server_alive(base_url: str) -> bool:
@@ -140,6 +158,34 @@ def _post_run_payload(base_url: str, payload: bytes) -> dict:
     if last_error is not None:
         raise last_error
     raise RuntimeError("api run failed without detail")
+
+
+def post_run_status_and_json(base_url: str, payload_obj: object) -> tuple[int, dict | None]:
+    payload = json.dumps(payload_obj).encode("utf-8")
+    req = Request(
+        f"{base_url}/api/run",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(req, timeout=5.0) as resp:
+            status = int(resp.status)
+            body = resp.read().decode("utf-8", errors="replace")
+    except HTTPError as exc:
+        status = int(exc.code)
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+    except Exception:
+        return -1, None
+    try:
+        doc = json.loads(body)
+    except Exception:
+        return status, None
+    if not isinstance(doc, dict):
+        return status, None
+    return status, doc
 
 
 def extract_maegim_control_source(payload: dict) -> str:
@@ -454,6 +500,71 @@ def fetch_first_ok_json(base_url: str, paths: list[str]) -> tuple[str, dict] | N
     return path, payload
 
 
+def fetch_status_code(base_url: str, path: str) -> int:
+    try:
+        with urlopen(f"{base_url}{path}", timeout=5.0) as resp:
+            return int(resp.status)
+    except HTTPError as exc:
+        return int(exc.code)
+    except Exception:
+        return -1
+
+
+def fetch_status_and_json(base_url: str, path: str) -> tuple[int, dict | None]:
+    try:
+        with urlopen(f"{base_url}{path}", timeout=5.0) as resp:
+            status = int(resp.status)
+            body = resp.read().decode("utf-8", errors="replace")
+    except HTTPError as exc:
+        status = int(exc.code)
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+    except Exception:
+        return -1, None
+    payload = None
+    try:
+        decoded = json.loads(body or "")
+        if isinstance(decoded, dict):
+            payload = decoded
+    except Exception:
+        payload = None
+    return status, payload
+
+
+def validate_api_error_contract(payload: dict | None, *, expected_code: str) -> tuple[bool, str]:
+    if not isinstance(payload, dict):
+        return False, "payload_not_object"
+    code = str(payload.get("code", "")).strip()
+    if code != expected_code:
+        return False, f"code_mismatch:{code or '-'}"
+    technical_code = str(payload.get("technical_code", "")).strip()
+    if technical_code != expected_code:
+        return False, f"technical_code_mismatch:{technical_code or '-'}"
+    user_message = str(payload.get("user_message", "")).strip()
+    if not user_message:
+        return False, "user_message_missing"
+    technical_message = str(payload.get("technical_message", "")).strip()
+    if not technical_message:
+        return False, "technical_message_missing"
+    diagnostics = payload.get("diagnostics")
+    if not isinstance(diagnostics, list) or not diagnostics:
+        return False, "diagnostics_missing"
+    first = diagnostics[0] if isinstance(diagnostics[0], dict) else {}
+    diag_code = str(first.get("technical_code", first.get("code", ""))).strip()
+    if diag_code != expected_code:
+        return False, f"diagnostics_code_mismatch:{diag_code or '-'}"
+    return True, ""
+
+
+def summarize_retired_line_payload(status: int, payload: dict | None) -> str:
+    code = str((payload or {}).get("code", "")).strip() or "-"
+    technical_code = str((payload or {}).get("technical_code", "")).strip() or "-"
+    return f"status:{int(status)}:code:{code}:technical_code:{technical_code}"
+
+
 def can_autostart_local_server(base_url: str) -> bool:
     parsed = urlparse(base_url)
     host = (parsed.hostname or "").strip().lower()
@@ -471,19 +582,35 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     base_url = str(args.base_url or "").rstrip("/")
     timeout_sec = max(1.0, float(args.timeout_sec))
+    profile = str(args.profile or "release").strip().lower()
+    legacy_profile = profile == "legacy"
     if not base_url:
         print("base url is required")
         return 1
 
     sample_path = ROOT / "solutions" / "seamgrim_ui_mvp" / "samples" / "01_line_graph_export.ddn"
     ddn_text = sample_path.read_text(encoding="utf-8-sig")
+    if not legacy_profile:
+        ddn_text = strip_legacy_pragma_lines(ddn_text)
 
     started_proc = None
     if not is_server_alive(base_url):
         if can_autostart_local_server(base_url):
             host, port = resolve_bind_from_base_url(base_url)
+            server_cmd = [
+                sys.executable,
+                str(TOOLS_DIR / "ddn_exec_server.py"),
+                "--host",
+                host,
+                "--port",
+                str(port),
+            ]
+            if legacy_profile:
+                server_cmd.extend(["--catalog-mode", "full", "--allow-legacy-lessons"])
+            else:
+                server_cmd.extend(["--catalog-mode", "reps_only"])
             started_proc = subprocess.Popen(
-                [sys.executable, str(TOOLS_DIR / "ddn_exec_server.py"), "--host", host, "--port", str(port)],
+                server_cmd,
                 cwd=ROOT,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -527,13 +654,6 @@ def main(argv: list[str] | None = None) -> int:
             for row in inventory_rows
             if isinstance(row, dict) and str(row.get("id", "")).strip()
         }
-        missing_new_seed_inventory = [seed_id for seed_id in REQUIRED_NEW_SEED_IDS if seed_id not in inventory_ids]
-        if missing_new_seed_inventory:
-            print(
-                "check=lesson_inventory_api_invalid detail=new_seed_ids_missing:"
-                + ",".join(missing_new_seed_inventory[:5])
-            )
-            return 1
         missing_representative_inventory = [
             item["lesson_id"] for item in REQUIRED_SUBJECT_REPRESENTATIVE if item["lesson_id"] not in inventory_ids
         ]
@@ -557,78 +677,105 @@ def main(argv: list[str] | None = None) -> int:
                     f"{lesson_id}:{observed_subject}:{expected_subject}"
                 )
                 return 1
-        pendulum_inventory = next(
-            (
-                row
+        if legacy_profile:
+            missing_new_seed_inventory = [seed_id for seed_id in REQUIRED_NEW_SEED_IDS if seed_id not in inventory_ids]
+            if missing_new_seed_inventory:
+                print(
+                    "check=lesson_inventory_api_invalid detail=new_seed_ids_missing:"
+                    + ",".join(missing_new_seed_inventory[:5])
+                )
+                return 1
+            pendulum_inventory = next(
+                (
+                    row
+                    for row in inventory_rows
+                    if isinstance(row, dict) and str(row.get("id", "")).strip() == "physics_pendulum_seed_v1"
+                ),
+                None,
+            )
+            if pendulum_inventory is None:
+                print("check=lesson_inventory_api_invalid detail=physics_pendulum_seed_v1 missing")
+                return 1
+            if int(pendulum_inventory.get("maegim_control_warning_count", 0) or 0) <= 0:
+                print("check=lesson_inventory_api_invalid detail=maegim_control_warning_count missing for physics_pendulum_seed_v1")
+                return 1
+            inventory_warning_codes = pendulum_inventory.get("maegim_control_warning_codes")
+            if not isinstance(inventory_warning_codes, list) or "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
+                str(item).strip() for item in inventory_warning_codes
+            ]:
+                print("check=lesson_inventory_api_invalid detail=maegim_control_warning_codes missing for physics_pendulum_seed_v1")
+                return 1
+            inventory_warning_names = pendulum_inventory.get("maegim_control_warning_names")
+            if not isinstance(inventory_warning_names, list) or "g" not in [str(item).strip() for item in inventory_warning_names]:
+                print("check=lesson_inventory_api_invalid detail=maegim_control_warning_names missing for physics_pendulum_seed_v1")
+                return 1
+            inventory_warning_examples = pendulum_inventory.get("maegim_control_warning_examples")
+            if not isinstance(inventory_warning_examples, list) or "g <- (9.8) 매김 { 범위: 1..20. 간격: 0.1. }." not in [
+                str(item).strip() for item in inventory_warning_examples
+            ]:
+                print("check=lesson_inventory_api_invalid detail=maegim_control_warning_examples missing for physics_pendulum_seed_v1")
+                return 1
+            default_obs = str(pendulum_inventory.get("default_observation", "")).strip()
+            default_obs_x = str(pendulum_inventory.get("default_observation_x", "")).strip()
+            if not default_obs:
+                print("check=lesson_inventory_api_invalid detail=default_observation missing for physics_pendulum_seed_v1")
+                return 1
+            if not default_obs_x:
+                print("check=lesson_inventory_api_invalid detail=default_observation_x missing for physics_pendulum_seed_v1")
+                return 1
+            pendulum_maegim_paths = pendulum_inventory.get("maegim_control_path")
+            if not isinstance(pendulum_maegim_paths, list) or not any(str(item or "").strip() for item in pendulum_maegim_paths):
+                print("check=lesson_inventory_api_invalid detail=maegim_control_path missing for physics_pendulum_seed_v1")
+                return 1
+            pendulum_maegim_path = next((str(item).strip() for item in pendulum_maegim_paths if str(item).strip()), "")
+            pendulum_maegim_loaded = fetch_first_ok_json(base_url, build_catalog_candidate_paths(pendulum_maegim_path))
+            if not pendulum_maegim_loaded:
+                print(f"check=maegim_control_unreachable detail=path={pendulum_maegim_path}")
+                return 1
+            _, pendulum_maegim_payload = pendulum_maegim_loaded
+            if str(pendulum_maegim_payload.get('schema', '')).strip() != "ddn.maegim_control_plan.v1":
+                print("check=maegim_control_invalid detail=schema")
+                return 1
+            pendulum_controls = pendulum_maegim_payload.get("controls")
+            if not isinstance(pendulum_controls, list) or not pendulum_controls:
+                print("check=maegim_control_invalid detail=controls empty")
+                return 1
+            pendulum_warnings = pendulum_maegim_payload.get("warnings")
+            if not isinstance(pendulum_warnings, list) or not pendulum_warnings:
+                print("check=maegim_control_invalid detail=warnings missing")
+                return 1
+            if "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
+                str(item.get("code", "")).strip() for item in pendulum_warnings if isinstance(item, dict)
+            ]:
+                print("check=maegim_control_invalid detail=legacy warning code missing")
+                return 1
+            parallel_maegim_ok, parallel_maegim_detail = validate_parallel_maegim_control_fetch(
+                base_url,
+                pendulum_maegim_path,
+                request_count=10,
+            )
+            if not parallel_maegim_ok:
+                print(f"check=maegim_control_parallel_fetch_failed detail={parallel_maegim_detail}")
+                return 1
+        else:
+            required_rep_ids = {item["lesson_id"] for item in REQUIRED_SUBJECT_REPRESENTATIVE}
+            if inventory_ids != required_rep_ids:
+                extra_ids = sorted(list(inventory_ids - required_rep_ids))
+                missing_ids = sorted(list(required_rep_ids - inventory_ids))
+                print(
+                    "check=lesson_inventory_api_invalid detail=release_inventory_mismatch:"
+                    f"missing={','.join(missing_ids[:5]) or '-'}:"
+                    f"extra={','.join(extra_ids[:5]) or '-'}"
+                )
+                return 1
+            forbidden_sources = [
+                str(row.get("source", "")).strip()
                 for row in inventory_rows
-                if isinstance(row, dict) and str(row.get("id", "")).strip() == "physics_pendulum_seed_v1"
-            ),
-            None,
-        )
-        if pendulum_inventory is None:
-            print("check=lesson_inventory_api_invalid detail=physics_pendulum_seed_v1 missing")
-            return 1
-        if int(pendulum_inventory.get("maegim_control_warning_count", 0) or 0) <= 0:
-            print("check=lesson_inventory_api_invalid detail=maegim_control_warning_count missing for physics_pendulum_seed_v1")
-            return 1
-        inventory_warning_codes = pendulum_inventory.get("maegim_control_warning_codes")
-        if not isinstance(inventory_warning_codes, list) or "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
-            str(item).strip() for item in inventory_warning_codes
-        ]:
-            print("check=lesson_inventory_api_invalid detail=maegim_control_warning_codes missing for physics_pendulum_seed_v1")
-            return 1
-        inventory_warning_names = pendulum_inventory.get("maegim_control_warning_names")
-        if not isinstance(inventory_warning_names, list) or "g" not in [str(item).strip() for item in inventory_warning_names]:
-            print("check=lesson_inventory_api_invalid detail=maegim_control_warning_names missing for physics_pendulum_seed_v1")
-            return 1
-        inventory_warning_examples = pendulum_inventory.get("maegim_control_warning_examples")
-        if not isinstance(inventory_warning_examples, list) or "g <- (9.8) 매김 { 범위: 1..20. 간격: 0.1. }." not in [
-            str(item).strip() for item in inventory_warning_examples
-        ]:
-            print("check=lesson_inventory_api_invalid detail=maegim_control_warning_examples missing for physics_pendulum_seed_v1")
-            return 1
-        default_obs = str(pendulum_inventory.get("default_observation", "")).strip()
-        default_obs_x = str(pendulum_inventory.get("default_observation_x", "")).strip()
-        if not default_obs:
-            print("check=lesson_inventory_api_invalid detail=default_observation missing for physics_pendulum_seed_v1")
-            return 1
-        if not default_obs_x:
-            print("check=lesson_inventory_api_invalid detail=default_observation_x missing for physics_pendulum_seed_v1")
-            return 1
-        pendulum_maegim_paths = pendulum_inventory.get("maegim_control_path")
-        if not isinstance(pendulum_maegim_paths, list) or not any(str(item or "").strip() for item in pendulum_maegim_paths):
-            print("check=lesson_inventory_api_invalid detail=maegim_control_path missing for physics_pendulum_seed_v1")
-            return 1
-        pendulum_maegim_path = next((str(item).strip() for item in pendulum_maegim_paths if str(item).strip()), "")
-        pendulum_maegim_loaded = fetch_first_ok_json(base_url, build_catalog_candidate_paths(pendulum_maegim_path))
-        if not pendulum_maegim_loaded:
-            print(f"check=maegim_control_unreachable detail=path={pendulum_maegim_path}")
-            return 1
-        _, pendulum_maegim_payload = pendulum_maegim_loaded
-        if str(pendulum_maegim_payload.get('schema', '')).strip() != "ddn.maegim_control_plan.v1":
-            print("check=maegim_control_invalid detail=schema")
-            return 1
-        pendulum_controls = pendulum_maegim_payload.get("controls")
-        if not isinstance(pendulum_controls, list) or not pendulum_controls:
-            print("check=maegim_control_invalid detail=controls empty")
-            return 1
-        pendulum_warnings = pendulum_maegim_payload.get("warnings")
-        if not isinstance(pendulum_warnings, list) or not pendulum_warnings:
-            print("check=maegim_control_invalid detail=warnings missing")
-            return 1
-        if "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
-            str(item.get("code", "")).strip() for item in pendulum_warnings if isinstance(item, dict)
-        ]:
-            print("check=maegim_control_invalid detail=legacy warning code missing")
-            return 1
-        parallel_maegim_ok, parallel_maegim_detail = validate_parallel_maegim_control_fetch(
-            base_url,
-            pendulum_maegim_path,
-            request_count=10,
-        )
-        if not parallel_maegim_ok:
-            print(f"check=maegim_control_parallel_fetch_failed detail={parallel_maegim_detail}")
-            return 1
+                if isinstance(row, dict) and str(row.get("source", "")).strip() in {"seed", "rewrite"}
+            ]
+            if forbidden_sources:
+                print("check=lesson_inventory_api_invalid detail=release_inventory_contains_retired_source")
+                return 1
 
         index_loaded = fetch_first_ok_json(base_url, build_catalog_candidate_paths("/lessons/index.json"))
         if not index_loaded:
@@ -694,185 +841,293 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"check=lesson_ddn_unreachable detail=representative:{lesson_id}")
                 return 1
 
-        seed_manifest_loaded = fetch_first_ok_json(
-            base_url, build_catalog_candidate_paths("/seed_lessons_v1/seed_manifest.detjson")
-        )
-        if not seed_manifest_loaded:
-            print("check=seed_manifest_unreachable detail=seed_manifest.detjson")
-            return 1
-        _, seed_manifest = seed_manifest_loaded
-        seed_rows = seed_manifest.get("seeds")
-        if not isinstance(seed_rows, list) or not seed_rows:
-            print("check=seed_manifest_invalid detail=seeds list empty")
-            return 1
-        seed_ids = {
-            str(row.get("seed_id", "")).strip()
-            for row in seed_rows
-            if isinstance(row, dict) and str(row.get("seed_id", "")).strip()
-        }
-        missing_new_seed_manifest = [seed_id for seed_id in REQUIRED_NEW_SEED_IDS if seed_id not in seed_ids]
-        if missing_new_seed_manifest:
-            print("check=seed_manifest_invalid detail=new_seed_ids_missing:" + ",".join(missing_new_seed_manifest[:5]))
-            return 1
-        seed_ddn_path = next(
-            (
-                str(row.get("lesson_ddn", "")).strip()
+        if legacy_profile:
+            seed_manifest_loaded = fetch_first_ok_json(
+                base_url, build_catalog_candidate_paths("/seed_lessons_v1/seed_manifest.detjson")
+            )
+            if not seed_manifest_loaded:
+                print("check=seed_manifest_unreachable detail=seed_manifest.detjson")
+                return 1
+            _, seed_manifest = seed_manifest_loaded
+            seed_rows = seed_manifest.get("seeds")
+            if not isinstance(seed_rows, list) or not seed_rows:
+                print("check=seed_manifest_invalid detail=seeds list empty")
+                return 1
+            seed_ids = {
+                str(row.get("seed_id", "")).strip()
                 for row in seed_rows
-                if isinstance(row, dict) and str(row.get("lesson_ddn", "")).strip()
-            ),
-            "",
+                if isinstance(row, dict) and str(row.get("seed_id", "")).strip()
+            }
+            missing_new_seed_manifest = [seed_id for seed_id in REQUIRED_NEW_SEED_IDS if seed_id not in seed_ids]
+            if missing_new_seed_manifest:
+                print("check=seed_manifest_invalid detail=new_seed_ids_missing:" + ",".join(missing_new_seed_manifest[:5]))
+                return 1
+            seed_ddn_path = next(
+                (
+                    str(row.get("lesson_ddn", "")).strip()
+                    for row in seed_rows
+                    if isinstance(row, dict) and str(row.get("lesson_ddn", "")).strip()
+                ),
+                "",
+            )
+            if not seed_ddn_path:
+                print("check=seed_manifest_invalid detail=lesson_ddn missing")
+                return 1
+            if not fetch_first_ok_text(base_url, build_catalog_candidate_paths(seed_ddn_path)):
+                print(f"check=seed_lesson_unreachable detail=path={seed_ddn_path}")
+                return 1
+
+            pendulum_seed_row = next(
+                (
+                    row
+                    for row in seed_rows
+                    if isinstance(row, dict) and str(row.get("seed_id", "")).strip() == "physics_pendulum_seed_v1"
+                ),
+                None,
+            )
+            if pendulum_seed_row is None:
+                print("check=seed_manifest_invalid detail=physics_pendulum_seed_v1 missing")
+                return 1
+            pendulum_ddn_path = str(pendulum_seed_row.get("lesson_ddn", "")).strip()
+            if not pendulum_ddn_path:
+                print("check=seed_manifest_invalid detail=physics_pendulum_seed_v1 lesson_ddn missing")
+                return 1
+            pendulum_loaded = fetch_first_ok_text(base_url, build_catalog_candidate_paths(pendulum_ddn_path))
+            if not pendulum_loaded:
+                print(f"check=seed_pendulum_unreachable detail=path={pendulum_ddn_path}")
+                return 1
+            _, pendulum_ddn_text, _ = pendulum_loaded
+            pendulum_payload = post_run(base_url, pendulum_ddn_text, madi=420)
+            pendulum_ok, pendulum_detail = validate_seed_pendulum_payload(pendulum_payload)
+            if not pendulum_ok:
+                print(f"check=seed_pendulum_run_invalid detail={pendulum_detail}")
+                return 1
+            maegim_control_payload = pendulum_payload.get("maegim_control")
+            if not isinstance(maegim_control_payload, dict):
+                print("check=seed_pendulum_run_invalid detail=maegim_control missing")
+                return 1
+            if str(maegim_control_payload.get("schema", "")).strip() != "ddn.maegim_control_plan.v1":
+                print("check=seed_pendulum_run_invalid detail=maegim_control schema")
+                return 1
+            maegim_controls = maegim_control_payload.get("controls")
+            if not isinstance(maegim_controls, list) or not maegim_controls:
+                print("check=seed_pendulum_run_invalid detail=maegim_control controls empty")
+                return 1
+            maegim_warnings = maegim_control_payload.get("warnings")
+            if not isinstance(maegim_warnings, list) or not maegim_warnings:
+                print("check=seed_pendulum_run_invalid detail=maegim_control warnings empty")
+                return 1
+            if "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
+                str(item.get("code", "")).strip() for item in maegim_warnings if isinstance(item, dict)
+            ]:
+                print("check=seed_pendulum_run_invalid detail=maegim_control warning code")
+                return 1
+            runtime_summary = pendulum_payload.get("runtime")
+            if not isinstance(runtime_summary, dict):
+                print("check=seed_pendulum_run_invalid detail=runtime summary missing")
+                return 1
+            if str(runtime_summary.get("schema", "")).strip() != "seamgrim.runtime_summary.v1":
+                print("check=seed_pendulum_run_invalid detail=runtime summary schema")
+                return 1
+            runtime_control_names = runtime_summary.get("maegim_control_names")
+            if not isinstance(runtime_control_names, list) or "g" not in [str(item).strip() for item in runtime_control_names]:
+                print("check=seed_pendulum_run_invalid detail=runtime maegim control names")
+                return 1
+            runtime_control_count = runtime_summary.get("maegim_control_count")
+            if int(runtime_control_count) != len(maegim_controls):
+                print("check=seed_pendulum_run_invalid detail=runtime maegim control count")
+                return 1
+            runtime_warning_count = runtime_summary.get("maegim_control_warning_count")
+            if int(runtime_warning_count) != len(maegim_warnings):
+                print("check=seed_pendulum_run_invalid detail=runtime maegim warning count")
+                return 1
+            runtime_warning_codes = runtime_summary.get("maegim_control_warning_codes")
+            if not isinstance(runtime_warning_codes, list) or "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
+                str(item).strip() for item in runtime_warning_codes
+            ]:
+                print("check=seed_pendulum_run_invalid detail=runtime maegim warning codes")
+                return 1
+            runtime_view_families = runtime_summary.get("view_families")
+            if not isinstance(runtime_view_families, list) or "graph" not in [str(item).strip() for item in runtime_view_families]:
+                print("check=seed_pendulum_run_invalid detail=runtime view families")
+                return 1
+            runtime_view_contract_schema = str(runtime_summary.get("view_contract_schema", "")).strip()
+            if runtime_view_contract_schema != "seamgrim.view_contract.v1":
+                print("check=seed_pendulum_run_invalid detail=runtime view contract schema")
+                return 1
+            view_contract = pendulum_payload.get("view_contract")
+            if not isinstance(view_contract, dict):
+                print("check=seed_pendulum_run_invalid detail=view_contract missing")
+                return 1
+            if str(view_contract.get("schema", "")).strip() != "seamgrim.view_contract.v1":
+                print("check=seed_pendulum_run_invalid detail=view_contract schema")
+                return 1
+            if str(view_contract.get("source", "")).strip() != "api_run":
+                print("check=seed_pendulum_run_invalid detail=view_contract source")
+                return 1
+            view_families = view_contract.get("families")
+            if not isinstance(view_families, list) or "graph" not in [str(item).strip() for item in view_families]:
+                print("check=seed_pendulum_run_invalid detail=view_contract families")
+                return 1
+            by_family = view_contract.get("by_family")
+            if not isinstance(by_family, dict):
+                print("check=seed_pendulum_run_invalid detail=view_contract by_family")
+                return 1
+            for family in [str(item).strip() for item in view_families if str(item).strip()]:
+                row = by_family.get(family)
+                if not isinstance(row, dict):
+                    print(f"check=seed_pendulum_run_invalid detail=view_contract by_family missing:{family}")
+                    return 1
+                source = str(row.get("source", "")).strip()
+                if source != "api_run":
+                    print(f"check=seed_pendulum_run_invalid detail=view_contract by_family source:{family}:{source or '-'}")
+                    return 1
+        else:
+            seed_status, seed_payload = fetch_status_and_json(base_url, "/seed_lessons_v1/seed_manifest.detjson")
+            rewrite_status, rewrite_payload = fetch_status_and_json(base_url, "/lessons_rewrite_v1/rewrite_manifest.detjson")
+            if seed_status != 410:
+                print(
+                    "check=retired_line_block_invalid detail="
+                    f"seed_manifest_status_mismatch:{summarize_retired_line_payload(seed_status, seed_payload)}:expected_status:410"
+                )
+                return 1
+            if rewrite_status != 410:
+                print(
+                    "check=retired_line_block_invalid detail="
+                    f"rewrite_manifest_status_mismatch:{summarize_retired_line_payload(rewrite_status, rewrite_payload)}:expected_status:410"
+                )
+                return 1
+            seed_code = str((seed_payload or {}).get("code", "")).strip()
+            rewrite_code = str((rewrite_payload or {}).get("code", "")).strip()
+            if seed_code != "E_SEAMGRIM_RETIRED_LINE_BLOCKED":
+                print(
+                    "check=retired_line_block_invalid detail="
+                    f"seed_manifest_code_mismatch:{summarize_retired_line_payload(seed_status, seed_payload)}"
+                    ":expected_code:E_SEAMGRIM_RETIRED_LINE_BLOCKED"
+                )
+                return 1
+            if rewrite_code != "E_SEAMGRIM_RETIRED_LINE_BLOCKED":
+                print(
+                    "check=retired_line_block_invalid detail="
+                    f"rewrite_manifest_code_mismatch:{summarize_retired_line_payload(rewrite_status, rewrite_payload)}"
+                    ":expected_code:E_SEAMGRIM_RETIRED_LINE_BLOCKED"
+                )
+                return 1
+            seed_contract_ok, seed_contract_detail = validate_api_error_contract(
+                seed_payload,
+                expected_code="E_SEAMGRIM_RETIRED_LINE_BLOCKED",
+            )
+            if not seed_contract_ok:
+                print(
+                    "check=retired_line_block_invalid detail="
+                    f"seed_manifest_contract:{seed_contract_detail}:{summarize_retired_line_payload(seed_status, seed_payload)}"
+                )
+                return 1
+            rewrite_contract_ok, rewrite_contract_detail = validate_api_error_contract(
+                rewrite_payload,
+                expected_code="E_SEAMGRIM_RETIRED_LINE_BLOCKED",
+            )
+            if not rewrite_contract_ok:
+                print(
+                    "check=retired_line_block_invalid detail="
+                    f"rewrite_manifest_contract:{rewrite_contract_detail}:{summarize_retired_line_payload(rewrite_status, rewrite_payload)}"
+                )
+                return 1
+
+        run_empty_status, run_empty_payload = post_run_status_and_json(base_url, {})
+        if run_empty_status != 400:
+            print(f"check=run_api_error_contract_invalid detail=status:{run_empty_status}:expected_400")
+            return 1
+        run_empty_ok, run_empty_detail = validate_api_error_contract(
+            run_empty_payload,
+            expected_code="E_API_RUN_DDN_TEXT_REQUIRED",
         )
-        if not seed_ddn_path:
-            print("check=seed_manifest_invalid detail=lesson_ddn missing")
-            return 1
-        if not fetch_first_ok_text(base_url, build_catalog_candidate_paths(seed_ddn_path)):
-            print(f"check=seed_lesson_unreachable detail=path={seed_ddn_path}")
+        if not run_empty_ok:
+            print(f"check=run_api_error_contract_invalid detail={run_empty_detail}")
             return 1
 
-        pendulum_seed_row = next(
-            (
-                row
-                for row in seed_rows
-                if isinstance(row, dict) and str(row.get("seed_id", "")).strip() == "physics_pendulum_seed_v1"
-            ),
-            None,
-        )
-        if pendulum_seed_row is None:
-            print("check=seed_manifest_invalid detail=physics_pendulum_seed_v1 missing")
-            return 1
-        pendulum_ddn_path = str(pendulum_seed_row.get("lesson_ddn", "")).strip()
-        if not pendulum_ddn_path:
-            print("check=seed_manifest_invalid detail=physics_pendulum_seed_v1 lesson_ddn missing")
-            return 1
-        pendulum_loaded = fetch_first_ok_text(base_url, build_catalog_candidate_paths(pendulum_ddn_path))
-        if not pendulum_loaded:
-            print(f"check=seed_pendulum_unreachable detail=path={pendulum_ddn_path}")
-            return 1
-        _, pendulum_ddn_text, _ = pendulum_loaded
-        pendulum_payload = post_run(base_url, pendulum_ddn_text, madi=420)
-        pendulum_ok, pendulum_detail = validate_seed_pendulum_payload(pendulum_payload)
-        if not pendulum_ok:
-            print(f"check=seed_pendulum_run_invalid detail={pendulum_detail}")
-            return 1
-        maegim_control_payload = pendulum_payload.get("maegim_control")
-        if not isinstance(maegim_control_payload, dict):
-            print("check=seed_pendulum_run_invalid detail=maegim_control missing")
-            return 1
-        if str(maegim_control_payload.get("schema", "")).strip() != "ddn.maegim_control_plan.v1":
-            print("check=seed_pendulum_run_invalid detail=maegim_control schema")
-            return 1
-        maegim_controls = maegim_control_payload.get("controls")
-        if not isinstance(maegim_controls, list) or not maegim_controls:
-            print("check=seed_pendulum_run_invalid detail=maegim_control controls empty")
-            return 1
-        maegim_warnings = maegim_control_payload.get("warnings")
-        if not isinstance(maegim_warnings, list) or not maegim_warnings:
-            print("check=seed_pendulum_run_invalid detail=maegim_control warnings empty")
-            return 1
-        if "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
-            str(item.get("code", "")).strip() for item in maegim_warnings if isinstance(item, dict)
-        ]:
-            print("check=seed_pendulum_run_invalid detail=maegim_control warning code")
-            return 1
-        runtime_summary = pendulum_payload.get("runtime")
-        if not isinstance(runtime_summary, dict):
-            print("check=seed_pendulum_run_invalid detail=runtime summary missing")
-            return 1
-        if str(runtime_summary.get("schema", "")).strip() != "seamgrim.runtime_summary.v1":
-            print("check=seed_pendulum_run_invalid detail=runtime summary schema")
-            return 1
-        runtime_control_names = runtime_summary.get("maegim_control_names")
-        if not isinstance(runtime_control_names, list) or "g" not in [str(item).strip() for item in runtime_control_names]:
-            print("check=seed_pendulum_run_invalid detail=runtime maegim control names")
-            return 1
-        runtime_control_count = runtime_summary.get("maegim_control_count")
-        if int(runtime_control_count) != len(maegim_controls):
-            print("check=seed_pendulum_run_invalid detail=runtime maegim control count")
-            return 1
-        runtime_warning_count = runtime_summary.get("maegim_control_warning_count")
-        if int(runtime_warning_count) != len(maegim_warnings):
-            print("check=seed_pendulum_run_invalid detail=runtime maegim warning count")
-            return 1
-        runtime_warning_codes = runtime_summary.get("maegim_control_warning_codes")
-        if not isinstance(runtime_warning_codes, list) or "W_LEGACY_RANGE_COMMENT_DEPRECATED" not in [
-            str(item).strip() for item in runtime_warning_codes
-        ]:
-            print("check=seed_pendulum_run_invalid detail=runtime maegim warning codes")
-            return 1
+        thermal_payload: dict | None = None
+        linear_payload: dict | None = None
+        if legacy_profile:
+            thermal_loaded = fetch_first_ok_text(
+                base_url, build_catalog_candidate_paths("/lessons/college_physics_thermal/lesson.ddn")
+            )
+            if not thermal_loaded:
+                print("check=thermal_lesson_unreachable detail=college_physics_thermal")
+                return 1
+            _, thermal_ddn_text, _ = thermal_loaded
+            if "@.1C" not in thermal_ddn_text or "@.1F" not in thermal_ddn_text:
+                print("check=thermal_lesson_invalid detail=temperature_format_tokens_missing")
+                return 1
 
-        thermal_loaded = fetch_first_ok_text(
-            base_url, build_catalog_candidate_paths("/lessons/college_physics_thermal/lesson.ddn")
-        )
-        if not thermal_loaded:
-            print("check=thermal_lesson_unreachable detail=college_physics_thermal")
-            return 1
-        _, thermal_ddn_text, _ = thermal_loaded
-        if "@.1C" not in thermal_ddn_text or "@.1F" not in thermal_ddn_text:
-            print("check=thermal_lesson_invalid detail=temperature_format_tokens_missing")
-            return 1
+            linear_loaded = fetch_first_ok_text(
+                base_url, build_catalog_candidate_paths("/lessons/college_math_linear/lesson.ddn")
+            )
+            if not linear_loaded:
+                print("check=linear_lesson_unreachable detail=college_math_linear")
+                return 1
+            _, linear_ddn_text, _ = linear_loaded
+            if 'label <- (x=x, y=y) 글무늬{"point({x},{y})"}.' not in linear_ddn_text:
+                print("check=linear_lesson_invalid detail=label_template_missing")
+                return 1
 
-        linear_loaded = fetch_first_ok_text(
-            base_url, build_catalog_candidate_paths("/lessons/college_math_linear/lesson.ddn")
-        )
-        if not linear_loaded:
-            print("check=linear_lesson_unreachable detail=college_math_linear")
-            return 1
-        _, linear_ddn_text, _ = linear_loaded
-        if 'label <- (x=x, y=y) 글무늬{"point({x},{y})"}.' not in linear_ddn_text:
-            print("check=linear_lesson_invalid detail=label_template_missing")
-            return 1
+            # These run-api validations are independent and dominate this check's wall-clock.
+            # Execute them concurrently while preserving the same validation criteria.
+            # Thermal/linear lessons may emit one sample per 마디 after stateful conversion,
+            # so force sufficient madi to keep first/last row assertions stable.
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                thermal_future = executor.submit(post_run, base_url, thermal_ddn_text, 64)
+                linear_future = executor.submit(post_run, base_url, linear_ddn_text, 64)
+                sample_future = executor.submit(post_run, base_url, ddn_text)
+                sample_bom_future = executor.submit(post_run, base_url, f"\ufeff{ddn_text}")
+                sample_json_bom_future = executor.submit(post_run_json_bom, base_url, ddn_text)
+                thermal_payload = thermal_future.result()
+                linear_payload = linear_future.result()
+                payload = sample_future.result()
+                payload_bom = sample_bom_future.result()
+                payload_json_bom = sample_json_bom_future.result()
+        else:
+            payload = {}
+            payload_bom = {}
+            payload_json_bom = {}
 
-        # These run-api validations are independent and dominate this check's wall-clock.
-        # Execute them concurrently while preserving the same validation criteria.
-        # Thermal/linear lessons may emit one sample per 마디 after stateful conversion,
-        # so force sufficient madi to keep first/last row assertions stable.
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            thermal_future = executor.submit(post_run, base_url, thermal_ddn_text, 64)
-            linear_future = executor.submit(post_run, base_url, linear_ddn_text, 64)
-            sample_future = executor.submit(post_run, base_url, ddn_text)
-            sample_bom_future = executor.submit(post_run, base_url, f"\ufeff{ddn_text}")
-            sample_json_bom_future = executor.submit(post_run_json_bom, base_url, ddn_text)
-            thermal_payload = thermal_future.result()
-            linear_payload = linear_future.result()
-            payload = sample_future.result()
-            payload_bom = sample_bom_future.result()
-            payload_json_bom = sample_json_bom_future.result()
+        if legacy_profile:
+            thermal_ok, thermal_detail = validate_college_thermal_payload(thermal_payload)
+            if not thermal_ok:
+                print(f"check=thermal_run_invalid detail={thermal_detail}")
+                return 1
 
-        thermal_ok, thermal_detail = validate_college_thermal_payload(thermal_payload)
-        if not thermal_ok:
-            print(f"check=thermal_run_invalid detail={thermal_detail}")
-            return 1
+            linear_ok, linear_detail = validate_college_math_linear_payload(linear_payload)
+            if not linear_ok:
+                print(f"check=linear_run_invalid detail={linear_detail}")
+                return 1
 
-        linear_ok, linear_detail = validate_college_math_linear_payload(linear_payload)
-        if not linear_ok:
-            print(f"check=linear_run_invalid detail={linear_detail}")
-            return 1
-
-        rewrite_manifest_loaded = fetch_first_ok_json(
-            base_url, build_catalog_candidate_paths("/lessons_rewrite_v1/rewrite_manifest.detjson")
-        )
-        if not rewrite_manifest_loaded:
-            print("check=rewrite_manifest_unreachable detail=rewrite_manifest.detjson")
-            return 1
-        _, rewrite_manifest = rewrite_manifest_loaded
-        rewrite_rows = rewrite_manifest.get("generated")
-        if not isinstance(rewrite_rows, list) or not rewrite_rows:
-            print("check=rewrite_manifest_invalid detail=generated list empty")
-            return 1
-        rewrite_ddn_path = next(
-            (
-                str(row.get("generated_lesson_ddn", "")).strip()
-                for row in rewrite_rows
-                if isinstance(row, dict) and str(row.get("generated_lesson_ddn", "")).strip()
-            ),
-            "",
-        )
-        if not rewrite_ddn_path:
-            print("check=rewrite_manifest_invalid detail=generated_lesson_ddn missing")
-            return 1
-        if not fetch_first_ok_text(base_url, build_catalog_candidate_paths(rewrite_ddn_path)):
-            print(f"check=rewrite_lesson_unreachable detail=path={rewrite_ddn_path}")
-            return 1
+        if legacy_profile:
+            rewrite_manifest_loaded = fetch_first_ok_json(
+                base_url, build_catalog_candidate_paths("/lessons_rewrite_v1/rewrite_manifest.detjson")
+            )
+            if not rewrite_manifest_loaded:
+                print("check=rewrite_manifest_unreachable detail=rewrite_manifest.detjson")
+                return 1
+            _, rewrite_manifest = rewrite_manifest_loaded
+            rewrite_rows = rewrite_manifest.get("generated")
+            if not isinstance(rewrite_rows, list) or not rewrite_rows:
+                print("check=rewrite_manifest_invalid detail=generated list empty")
+                return 1
+            rewrite_ddn_path = next(
+                (
+                    str(row.get("generated_lesson_ddn", "")).strip()
+                    for row in rewrite_rows
+                    if isinstance(row, dict) and str(row.get("generated_lesson_ddn", "")).strip()
+                ),
+                "",
+            )
+            if not rewrite_ddn_path:
+                print("check=rewrite_manifest_invalid detail=generated_lesson_ddn missing")
+                return 1
+            if not fetch_first_ok_text(base_url, build_catalog_candidate_paths(rewrite_ddn_path)):
+                print(f"check=rewrite_lesson_unreachable detail=path={rewrite_ddn_path}")
+                return 1
 
         wasm_loaded = fetch_first_ok_text(
             base_url,
@@ -888,6 +1143,9 @@ def main(argv: list[str] | None = None) -> int:
         if "application/wasm" not in wasm_content_type:
             print(f"check=wasm_mime_invalid detail=content_type={wasm_content_type or '-'}")
             return 1
+        if not legacy_profile:
+            print(f"ok: release_inventory={len(inventory_rows)} mode=reps_only")
+            return 0
 
         if not payload.get("ok"):
             print(f"check=run_api_failed detail={payload.get('error')}")
