@@ -1,11 +1,11 @@
 {
-  "canonical_body_hash": "sha256:b598de15fe3834a49ba778cb1ac44c4f4cc255c849bef1dfc2c80f53b662b92c",
+  "canonical_body_hash": "sha256:5d5ae9558b1fa5f94d60164d030388576e9852e2cf647f80adea5553fba3555b",
   "cert_algo": "sha256-proto",
   "cert_manifest_schema": "ddn.cert_manifest.v1",
   "contract_diag_count": 0,
   "profile": "clean",
   "proof_runtime_hash": "sha256:5598c63358e0d94827c15277388a78876abea3e72fbe6c942b38f3a01f9c1467",
-  "proof_subject_hash": "sha256:e055b86c51637de6ea52b03649c9ec9a5214f6e347667d4f811f6d7bad5dcdaa",
+  "proof_subject_hash": "sha256:4232966f8f43409fb312bae41ae054bc91807449eac3bfbaa0de501dcf2a44a3",
   "schema": "ddn.proof_certificate_v1_runtime_candidate.v1",
   "solver_translation_hash": "sha256:aef8899e3279d8a9a10b2f7ecc4314a4a1bf3864f527efd1aa58a65d643f9b61",
   "source_proof_kind": "run_contract_certificate_v1",

@@ -1,6 +1,6 @@
-{"cmd":["canon","pack/compound_update_basics/input.ddn"],"stdout_path":"expected_canon.ddn"}
-{"cmd":["run","pack/compound_update_basics/input.ddn"],"stdout":["12"]}
-{"cmd":["canon","pack/compound_update_basics/input_plus_equal.ddn"],"expected_error_code":"E_CANON_UNSUPPORTED_COMPOUND_UPDATE","exit_code":1}
-{"cmd":["run","pack/compound_update_basics/input_plus_equal.ddn"],"expected_error_code":"E_PARSE_UNEXPECTED_TOKEN","exit_code":1}
-{"cmd":["canon","pack/compound_update_basics/input_minus_equal.ddn"],"expected_error_code":"E_CANON_UNSUPPORTED_COMPOUND_UPDATE","exit_code":1}
-{"cmd":["run","pack/compound_update_basics/input_minus_equal.ddn"],"expected_error_code":"E_PARSE_UNEXPECTED_TOKEN","exit_code":1}
+{"cmd": ["canon", "pack/compound_update_basics/input.ddn"], "stdout_path": "expected_canon.ddn", "exit_code": 0}
+{"cmd": ["run", "pack/compound_update_basics/input.ddn"], "stdout": ["12"], "exit_code": 0}
+{"cmd": ["canon", "pack/compound_update_basics/input_plus_equal.ddn"], "stdout_path": "expected_plus_equal_canon.ddn", "expected_warning_code": "W_CANON_PASSTHROUGH", "legacy": {"expected_error_code": "E_CANON_UNSUPPORTED_COMPOUND_UPDATE"}, "exit_code": 0}
+{"cmd": ["run", "pack/compound_update_basics/input_plus_equal.ddn"], "expected_error_code": "E_PARSE_UNEXPECTED_TOKEN", "exit_code": 1}
+{"cmd": ["canon", "pack/compound_update_basics/input_minus_equal.ddn"], "stdout_path": "expected_minus_equal_canon.ddn", "expected_warning_code": "W_CANON_PASSTHROUGH", "legacy": {"expected_error_code": "E_CANON_UNSUPPORTED_COMPOUND_UPDATE"}, "exit_code": 0}
+{"cmd": ["run", "pack/compound_update_basics/input_minus_equal.ddn"], "expected_error_code": "E_PARSE_UNEXPECTED_TOKEN", "exit_code": 1}

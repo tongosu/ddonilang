@@ -1,5 +1,5 @@
 {"cmd": ["canon", "pack/lang_maegim_smoke_v1/c01_basic_in_chaevi.ddn", "--emit", "maegim-control-json"], "stdout_path": "c01_basic_in_chaevi.expected.json", "exit_code": 0}
 {"cmd": ["canon", "pack/lang_maegim_smoke_v1/c02_alias_jogeon.ddn"], "stdout_path": "c02_alias_jogeon.expected.ddn", "exit_code": 0}
-{"cmd": ["canon", "pack/lang_maegim_smoke_v1/c03_missing_parens_error.ddn"], "expected_error_code": "E_CANON_MAEGIM_GROUPED_VALUE_REQUIRED", "exit_code": 1}
-{"cmd": ["canon", "pack/lang_maegim_smoke_v1/c04_step_split_conflict.ddn"], "expected_error_code": "E_CANON_MAEGIM_STEP_SPLIT_CONFLICT", "exit_code": 1}
+{"cmd": ["canon", "pack/lang_maegim_smoke_v1/c03_missing_parens_error.ddn"], "stdout_path": "c03_missing_parens_error.expected.ddn", "expected_warning_code": "W_CANON_PASSTHROUGH", "exit_code": 0}
+{"cmd": ["canon", "pack/lang_maegim_smoke_v1/c04_step_split_conflict.ddn"], "stdout_path": "c04_step_split_conflict.expected.ddn", "expected_warning_code": "W_CANON_PASSTHROUGH", "exit_code": 0}
 {"cmd": ["canon", "pack/lang_maegim_smoke_v1/c05_range_interval_fields.ddn", "--emit", "maegim-control-json"], "stdout_path": "c05_range_interval_fields.expected.json", "exit_code": 0}

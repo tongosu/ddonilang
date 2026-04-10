@@ -1,6 +1,6 @@
 {
-  "canonical_body_hash": "sha256:2301cdb5100dbb1a3bf1300f95e4a20b95ded4a28c44147c3b89a43299b438d1",
-  "canonical_body_hash_method": "ast_fallback",
+  "canonical_body_hash": "sha256:4fda1fdde4a620829437918dcef3c74038e0a067f9117003a33877777b954515",
+  "canonical_body_hash_method": "canon",
   "contract_diag_count": 0,
   "contract_diags": [],
   "diagnostic_failure_count": 0,

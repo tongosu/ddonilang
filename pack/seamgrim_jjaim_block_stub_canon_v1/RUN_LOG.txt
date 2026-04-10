@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update seamgrim_jjaim_block_stub_canon_v1
+pack golden updated

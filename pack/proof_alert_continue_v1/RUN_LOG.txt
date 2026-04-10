@@ -1,2 +1,2 @@
-python tests/run_pack_golden.py --update proof_runtime_smoke_v1 proof_guard_tick_v1 proof_guard_rollback_v1 proof_alert_continue_v1
+python tests/run_pack_golden.py --update diag_fixit_coverage_v1 diag_fixit_json_schema_v1 lang_maegim_smoke_v1 proof_runtime_smoke_v1 proof_guard_tick_v1 proof_guard_rollback_v1 proof_alert_continue_v1
 pack golden updated
