@@ -744,6 +744,21 @@ def main() -> int:
         )
         return 1
 
+    sam_seulgi_family_diag = mod.extract_diagnostics(
+        "sam_seulgi_family_contract_selftest",
+        "[sam-seulgi-family-contract-selftest] fail: check=sam_ai_ordering_pack rc=1 detail=[sam-ai-ordering-pack-check] fail ...",
+        "",
+        False,
+    )
+    if (
+        not sam_seulgi_family_diag
+        or sam_seulgi_family_diag[0].get("kind") != "sam_seulgi_family_contract_selftest_failed"
+    ):
+        print(
+            "diagnostics check failed: sam_seulgi_family_contract_selftest sam_seulgi_family_contract_selftest_failed"
+        )
+        return 1
+
     pack_evidence_tier_selftest_diag = mod.extract_diagnostics(
         "pack_evidence_tier_selftest",
         "[pack-evidence-tier-check-selftest] fail docs budget fail marker missing",

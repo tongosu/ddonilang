@@ -790,6 +790,16 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                         "detail": line,
                     }
                 )
+    elif name == "sam_seulgi_family_contract_selftest":
+        for line in lines:
+            if line.startswith("[sam-seulgi-family-contract-selftest] fail:"):
+                out.append(
+                    {
+                        "kind": "sam_seulgi_family_contract_selftest_failed",
+                        "target": "sam_seulgi_family_contract_selftest",
+                        "detail": line,
+                    }
+                )
     elif name == "ddn_exec_server_check":
         for line in lines:
             if line.startswith("check="):
