@@ -55,9 +55,12 @@ PACK_GOLDEN_SNIPPETS = (
     '"pack/compound_update_basics/input.ddn"',
     '"pack/compound_update_basics/input_plus_equal.ddn"',
     '"pack/compound_update_basics/input_minus_equal.ddn"',
-    '"stdout_path":"expected_canon.ddn"',
-    '"expected_error_code":"E_CANON_UNSUPPORTED_COMPOUND_UPDATE"',
-    '"expected_error_code":"E_PARSE_UNEXPECTED_TOKEN"',
+    '"stdout_path": "expected_canon.ddn"',
+    '"stdout_path": "expected_plus_equal_canon.ddn"',
+    '"stdout_path": "expected_minus_equal_canon.ddn"',
+    '"expected_warning_code": "W_CANON_PASSTHROUGH"',
+    '"expected_error_code": "E_CANON_UNSUPPORTED_COMPOUND_UPDATE"',
+    '"expected_error_code": "E_PARSE_UNEXPECTED_TOKEN"',
 )
 
 PENDING_SNIPPETS = (

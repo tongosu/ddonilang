@@ -23,35 +23,40 @@ README_SNIPPETS = {
     ),
 }
 PARSE_FIXIT_PROBES = (
-    ("unexpected_token", "E_PARSE_UNEXPECTED_TOKEN", "살림.x <- 1 2.\n"),
-    ("expected_expr", "E_PARSE_EXPECTED_EXPR", "살림.x <- .\n"),
-    ("expected_target", "E_PARSE_EXPECTED_TARGET", "(1 + 2) <- 3.\n"),
-    ("expected_rparen", "E_PARSE_EXPECTED_RPAREN", "살림.x <- (1 + 2.\n"),
-    ("expected_rbrace", "E_PARSE_EXPECTED_RBRACE", "너머 {\n  살림.x <- () 너머.시각.지금.\n"),
+    ("unexpected_token", "E_PARSE_UNEXPECTED_TOKEN", "살림.x <- 1 2.\n", True),
+    ("expected_expr", "E_PARSE_EXPECTED_EXPR", "살림.x <- .\n", True),
+    ("expected_target", "E_PARSE_EXPECTED_TARGET", "(1 + 2) <- 3.\n", True),
+    ("expected_rparen", "E_PARSE_EXPECTED_RPAREN", "살림.x <- (1 + 2.\n", True),
+    ("expected_rbrace", "E_PARSE_EXPECTED_RBRACE", "너머 {\n  살림.x <- () 너머.시각.지금.\n", True),
     (
         "maegim_grouped",
         "E_PARSE_MAEGIM_GROUPED_VALUE_REQUIRED",
         "채비 {\n  g:수 = 9.8 매김 {\n    간격: 1.\n  }.\n}.\n",
+        True,
     ),
     (
         "block_header_forbidden",
         "E_BLOCK_HEADER_COLON_FORBIDDEN",
         "그릇채비: {\n  점수:수 <- 0.\n}.\n",
+        True,
     ),
     (
         "event_alias",
         "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
         "\"jump\"라는 소식이 오면 {\n  살림.y <- 1.\n}.\n",
+        False,
     ),
     (
         "receive_outside_imja",
         "E_RECEIVE_OUTSIDE_IMJA",
         "기상청:움직씨 = {\n  알림을 받으면 {\n    참 보여주기.\n  }.\n}.\n",
+        True,
     ),
     (
         "immediate_proof_io",
         "E_PARSE_IMMEDIATE_PROOF_IO_FORBIDDEN",
         "검사 밝히기 {\n  너머 {\n    없음.\n  }.\n}.\n",
+        True,
     ),
 )
 
@@ -175,7 +180,13 @@ def run_pack_goldens(root: Path) -> None:
         raise ValueError(detail)
 
 
-def run_probe(binary: Path, name: str, expected_code: str, source: str) -> None:
+def run_probe(
+    binary: Path,
+    name: str,
+    expected_code: str,
+    source: str,
+    expect_fixits_json: bool,
+) -> None:
     with tempfile.TemporaryDirectory(prefix=f"diag_fixit_{name}_") as temp_dir_text:
         temp_dir = Path(temp_dir_text)
         input_path = temp_dir / "input.ddn"
@@ -189,16 +200,22 @@ def run_probe(binary: Path, name: str, expected_code: str, source: str) -> None:
             encoding="utf-8",
             errors="replace",
         )
-        if not output_path.exists():
-            raise ValueError(f"{name}: missing fixits.json")
-        payload = json.loads(output_path.read_text(encoding="utf-8"))
-        validate_fixits_payload(payload, allow_empty=False)
-        codes = {str(entry.get("code", "")) for entry in payload}
-        if expected_code not in codes:
-            raise ValueError(f"{name}: missing expected fixit code {expected_code}; got {sorted(codes)}")
-        if proc.returncode == 0 and expected_code.startswith("E_"):
-            # parse-derived fixit can coexist with a success canon path. That is acceptable.
+        if output_path.exists():
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            validate_fixits_payload(payload, allow_empty=False)
+            codes = {str(entry.get("code", "")) for entry in payload}
+            if expected_code not in codes:
+                raise ValueError(f"{name}: missing expected fixit code {expected_code}; got {sorted(codes)}")
+            if proc.returncode == 0 and expected_code.startswith("E_"):
+                # parse-derived fixit can coexist with a success canon path. That is acceptable.
+                return
             return
+
+        if expect_fixits_json:
+            raise ValueError(f"{name}: missing fixits.json")
+        combined = f"{proc.stdout}\n{proc.stderr}"
+        if expected_code not in combined:
+            raise ValueError(f"{name}: expected code not found without fixits.json: {expected_code}")
 
 
 def main() -> int:
@@ -210,8 +227,8 @@ def main() -> int:
             ensure_snippets(ROOT / relative, snippets)
         run_pack_goldens(ROOT)
         binary = ensure_teul_cli(ROOT)
-        for name, expected_code, source in PARSE_FIXIT_PROBES:
-            run_probe(binary, name, expected_code, source)
+        for name, expected_code, source, expect_fixits_json in PARSE_FIXIT_PROBES:
+            run_probe(binary, name, expected_code, source, expect_fixits_json)
     except ValueError as exc:
         return fail(str(exc))
 

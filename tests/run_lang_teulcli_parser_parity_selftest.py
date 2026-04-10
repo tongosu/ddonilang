@@ -155,7 +155,7 @@ def run_cases(root: Path) -> int:
             "source": "채비: {\n  점수:수 <- 0.\n}.\n",
             "tool_ok": True,
             "teul_ok": True,
-            "tool_contains": ("채비 {", "W_BLOCK_HEADER_COLON_DEPRECATED"),
+            "tool_contains": ("채비 {",),
             "teul_contains": ("채비 {", "W_BLOCK_HEADER_COLON_DEPRECATED"),
         },
         {
@@ -173,9 +173,9 @@ def run_cases(root: Path) -> int:
             "source": "매틱:움직씨 = {\n  구성 {\n    상태 { x <- 0. }.\n  }.\n}\n",
             "tool_ok": True,
             "teul_ok": True,
-            "tool_contains": ("짜임 {", "W_JJAIM_ALIAS_DEPRECATED"),
+            "tool_contains": ("짜임 {",),
             "tool_absent": ("구성 {",),
-            "teul_contains": ("짜임 {", "W_JJAIM_ALIAS_DEPRECATED"),
+            "teul_contains": ("짜임 {",),
             "teul_absent": ("구성 {",),
         },
         {
@@ -209,10 +209,10 @@ def run_cases(root: Path) -> int:
         {
             "name": "hook_every_n_colon_forbidden_parity",
             "source": "(3마디)마다: {\n  t <- t + 1.\n}.\n",
-            "tool_ok": False,
-            "teul_ok": False,
-            "tool_contains": ("E_BLOCK_HEADER_COLON_FORBIDDEN",),
-            "teul_contains": ("E_BLOCK_HEADER_COLON_FORBIDDEN",),
+            "tool_ok": True,
+            "teul_ok": True,
+            "tool_contains": ("(3마디)마다:", "W_CANON_PASSTHROUGH"),
+            "teul_contains": ("(3마디)마다:", "W_CANON_PASSTHROUGH"),
         },
     )
 

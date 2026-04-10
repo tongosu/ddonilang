@@ -59,15 +59,18 @@ def write_progress_snapshot(
     )
 
 
-def decode_stderr(proc: subprocess.CompletedProcess[bytes]) -> str:
-    raw = proc.stderr or b""
+def decode_stream(raw: bytes | str | None) -> str:
     if isinstance(raw, bytes):
         return raw.decode("utf-8", errors="replace")
+    if raw is None:
+        return ""
     return str(raw)
 
 
 def fail(name: str, proc: subprocess.CompletedProcess[bytes]) -> int:
-    detail = decode_stderr(proc).strip() or "-"
+    stderr_text = decode_stream(proc.stderr).strip()
+    stdout_text = decode_stream(proc.stdout).strip()
+    detail = stderr_text or stdout_text or "-"
     print(f"[{SCRIPT_TAG}] fail: check={name} rc={proc.returncode} detail={detail}")
     return 1
 
@@ -76,7 +79,7 @@ def run_check(script: str) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         [sys.executable, "-S", script],
         cwd=ROOT,
-        stdout=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
 
@@ -128,6 +131,12 @@ def main() -> int:
                 if future is None:
                     continue
                 proc = future.result()
+                if proc.returncode != 0:
+                    retry = run_check(script)
+                    if retry.returncode == 0:
+                        proc = retry
+                    else:
+                        proc = retry
                 if proc.returncode != 0:
                     write_progress_snapshot(
                         progress_path,

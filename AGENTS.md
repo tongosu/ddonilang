@@ -28,7 +28,7 @@
 
 ## 빠른 탐색 시작점
 - `CLAUDE.md`: Claude Code 전용 협업 지침 (이 파일과 함께 읽을 것)
-- `docs/ssot/ssot/SSOT_INDEX_v23.2.5.md`: SSOT 목차 (현재 버전: v23.2.5)
+- `docs/ssot/ssot/SSOT_INDEX_v24.0.2.md`: SSOT 목차 (현재 버전: v24.0.2)
 - `docs/context/all/DEV_SUMMARY.md`: 최신 개발 진행 요약 (작업 전 반드시 확인)
 - `docs/status/PROJECT_STATUS.md`: 최근 변경 요약
 - `docs/status/CHANGELOG.md`: 변경 내역
@@ -38,12 +38,12 @@
 - 파일 변경 전 관련 문서를 먼저 확인한다.
 - docs/ssot/ssot/의 SSOT 본문과 `docs/ssot/walks/gogae#/`, `docs/ssot/age/age#/`의 단계/걸음 문서는 작업 전 반드시 읽고 준수한다.
 - SSOT 정본은 `docs/ssot/ssot/`, `docs/ssot/walks/gogae#/`, `docs/ssot/age/age#/`만 인정한다.
-  - 현재 SSOT 버전: **v23.2.5** (파일명: `*_v23.2.5.md`)
-  - 우선순위: `docs/ssot/ssot/`(v23.2.5) > `docs/ssot/walks/gogae#/` + `docs/ssot/age/age#/`. 충돌 시 상위 SSOT 기준으로 진행하고 기록한다.
+  - 현재 SSOT 버전: **v24.0.2** (파일명: `*_v24.0.2.md`)
+  - 우선순위: `docs/ssot/ssot/`(v24.0.2) > `docs/ssot/walks/gogae#/` + `docs/ssot/age/age#/`. 충돌 시 상위 SSOT 기준으로 진행하고 기록한다.
   - 고개별 지침: `docs/ssot/walks/gogae#/`
   - AGE별 지침: `docs/ssot/age/age#/`
   - WALK별 지침: `docs/ssot/walks/gogae#/WALK##/` (SPEC/IMPL_GUIDE/GOLDEN_TESTS)
-- 걸음별 기획안은 `docs/ssot/ssot/SSOT_ROADMAP_CATALOG_v23.2.5.md`의 JIT 원칙(다가오는 1~3걸음만) 기준으로 작성/확인한다.
+- 걸음별 기획안은 `docs/ssot/ssot/SSOT_ROADMAP_CATALOG_v24.0.2.md`의 JIT 원칙(다가오는 1~3걸음만) 기준으로 작성/확인한다.
 - 로드맵은 **설명용 기준**으로만 사용하고, 실제 구현/검증은 `docs/ssot/walks/gogae#/WALK##/{SPEC,IMPL_GUIDE,GOLDEN_TESTS}.md`를 우선한다.
 - 도메인별 가지/팩/샘플은 `docs/ssot/gaji/`, `docs/ssot/pack/`, `docs/ssot/samples/`에서 확인한다.
 - 기존 동작을 깨는 변경은 문서에 이유를 남긴다.
