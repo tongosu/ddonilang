@@ -21,6 +21,7 @@ README_SNIPPETS = (
     "`python tests/run_seamgrim_ddn_exec_server_gate_check.py`",
     "`python tests/run_seamgrim_pendulum_bogae_shape_check.py`",
     "`python tests/run_seamgrim_full_gate_check.py`",
+    "`python tests/run_sam_seulgi_family_contract_selftest.py`",
     "`python tests/run_seamgrim_gate_family_selftest.py`",
     "`python tests/run_seamgrim_gate_family_contract_selftest.py`",
     "`python tests/run_seamgrim_gate_family_contract_summary_selftest.py`",
@@ -31,7 +32,7 @@ README_SNIPPETS = (
     "`ddn.ci.seamgrim_gate_family_transport_contract_selftest.progress.v1`",
     "`seamgrim_gate_family_transport_contract_selftest`",
     "`seamgrim_gate_family_transport_contract_summary_selftest`",
-    "runtime transport + group_id summary + runtime fallback metrics/policy + frontdoor strict-all + subject representative examples + ddn_exec server + pendulum bogae shape + full gate",
+    "runtime transport + group_id summary + runtime fallback metrics/policy + frontdoor strict-all + subject representative examples + ddn_exec server + pendulum bogae shape + full gate + sam/seulgi family contract",
     "ci gate stdout",
     "*.progress.detjson",
 )
@@ -82,6 +83,8 @@ def main() -> int:
                 '[py, "tests/run_seamgrim_frontdoor_strict_all_check.py"]',
                 '[py, "tests/run_seamgrim_subject_representative_examples_check.py"]',
                 '[py, "tests/run_seamgrim_full_gate_check.py"]',
+                '"sam_seulgi_family_contract_selftest"',
+                '[py, "tests/run_sam_seulgi_family_contract_selftest.py"]',
             ),
         )
     except ValueError as exc:

@@ -16,9 +16,10 @@
   - `python tests/run_seamgrim_ddn_exec_server_gate_check.py`
   - `python tests/run_seamgrim_pendulum_bogae_shape_check.py`
   - `python tests/run_seamgrim_full_gate_check.py`
+  - `python tests/run_sam_seulgi_family_contract_selftest.py`
   - `python tests/run_seamgrim_gate_family_selftest.py`
 - fixed family line:
-  - `runtime transport + group_id summary + runtime fallback metrics/policy + frontdoor strict-all + subject representative examples + ddn_exec server + pendulum bogae shape + full gate`
+  - `runtime transport + group_id summary + runtime fallback metrics/policy + frontdoor strict-all + subject representative examples + ddn_exec server + pendulum bogae shape + full gate + sam/seulgi family contract`
 
 ## Stable Bundle Contract
 
@@ -27,7 +28,7 @@
 - summary check:
   - `python tests/run_seamgrim_gate_family_contract_summary_selftest.py`
 - bundle `checks_text`:
-  - `runtime_transport,group_id_summary,runtime_fallback_metrics,runtime_fallback_policy,frontdoor_strict_all,subject_representative_examples,ddn_exec_server_gate,pendulum_bogae_shape,full_gate,seamgrim_gate_family`
+  - `runtime_transport,group_id_summary,runtime_fallback_metrics,runtime_fallback_policy,frontdoor_strict_all,subject_representative_examples,ddn_exec_server_gate,pendulum_bogae_shape,full_gate,sam_seulgi_family_contract,seamgrim_gate_family`
 - progress schema:
   - `ddn.ci.seamgrim_gate_family_contract_selftest.progress.v1`
 - progress surface:
@@ -41,7 +42,7 @@
 - transport summary check:
   - `python tests/run_seamgrim_gate_family_transport_contract_summary_selftest.py`
 - transport bundle `checks_text`:
-  - `family_contract,runtime_transport,group_id_summary,runtime_fallback_metrics,runtime_fallback_policy,frontdoor_strict_all,subject_representative_examples,ddn_exec_server_gate,pendulum_bogae_shape,full_gate`
+  - `family_contract,runtime_transport,group_id_summary,runtime_fallback_metrics,runtime_fallback_policy,frontdoor_strict_all,subject_representative_examples,ddn_exec_server_gate,pendulum_bogae_shape,full_gate,sam_seulgi_family_contract`
 - progress schema:
   - `ddn.ci.seamgrim_gate_family_transport_contract_selftest.progress.v1`
 - sanity steps:
@@ -64,6 +65,7 @@
   - `ddn_exec_server_check`
   - `pendulum_bogae_shape`
   - `full_check`
+  - `sam_seulgi_family_contract_selftest`
 - parent family:
   - `tests/seamgrim_stack_family/README.md`
   - `python tests/run_seamgrim_stack_family_selftest.py`

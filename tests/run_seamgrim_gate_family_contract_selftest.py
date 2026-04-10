@@ -21,6 +21,7 @@ CHECKS = (
     ("ddn_exec_server_gate", "tests/run_seamgrim_ddn_exec_server_gate_check.py"),
     ("pendulum_bogae_shape", "tests/run_seamgrim_pendulum_bogae_shape_check.py"),
     ("full_gate", "tests/run_seamgrim_full_gate_check.py"),
+    ("sam_seulgi_family_contract", "tests/run_sam_seulgi_family_contract_selftest.py"),
     ("seamgrim_gate_family", "tests/run_seamgrim_gate_family_selftest.py"),
 )
 CHECKS_TEXT = ",".join(name for name, _ in CHECKS)
@@ -35,6 +36,7 @@ CONTRACT_PREREQ_COVERED_CHECKS = {
     "ddn_exec_server_gate",
     "pendulum_bogae_shape",
     "full_gate",
+    "sam_seulgi_family_contract",
     "seamgrim_gate_family",
 }
 
