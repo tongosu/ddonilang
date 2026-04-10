@@ -1,0 +1,32 @@
+{
+  "schema": "ddn.seulgi_gatekeeper.pack.contract.v1",
+  "gatekeeper": {
+    "required": true,
+    "reject_keeps_state_uncommitted": true
+  },
+  "trace": {
+    "trace_fields_non_hash": true,
+    "state_hash_stable_with_trace_delta": true
+  },
+  "latency": {
+    "target_madi_fixed": true,
+    "formula": "target_madi = accepted_madi + latency_madi"
+  },
+  "cases": [
+    {
+      "id": "g01_gatekeeper_reject_no_commit",
+      "expect_ok": true,
+      "expected_commit": false
+    },
+    {
+      "id": "g02_trace_non_hash",
+      "expect_ok": true,
+      "expected_commit": true
+    },
+    {
+      "id": "g03_latency_target_madi_fixed",
+      "expect_ok": true,
+      "expected_commit": true
+    }
+  ]
+}

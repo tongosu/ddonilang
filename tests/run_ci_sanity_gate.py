@@ -199,6 +199,9 @@ CORE_LANG_PROFILE_STEPS = {
     "nurigym_shared_sync_priority_tiebreak_pack_check",
     "nurigym_shared_sync_action_pipeline_pack_check",
     "nuri_gym_contract_check",
+    "sam_inputsnapshot_contract_pack_check",
+    "sam_ai_ordering_pack_check",
+    "seulgi_gatekeeper_pack_check",
     "age5_close_pack_contract_selftest",
     "age5_close_combined_report_contract_selftest",
     "ci_gate_summary_line_check_selftest",
@@ -3643,6 +3646,21 @@ def main() -> int:
             "nuri_gym_contract_check",
             [py, "tests/run_nuri_gym_contract_check.py"],
             "E_CI_SANITY_NURI_GYM_CONTRACT_CHECK_FAIL",
+        ),
+        (
+            "sam_inputsnapshot_contract_pack_check",
+            [py, "tests/run_sam_inputsnapshot_contract_pack_check.py"],
+            "E_CI_SANITY_SAM_INPUTSNAPSHOT_CONTRACT_PACK_CHECK_FAIL",
+        ),
+        (
+            "sam_ai_ordering_pack_check",
+            [py, "tests/run_sam_ai_ordering_pack_check.py"],
+            "E_CI_SANITY_SAM_AI_ORDERING_PACK_CHECK_FAIL",
+        ),
+        (
+            "seulgi_gatekeeper_pack_check",
+            [py, "tests/run_seulgi_gatekeeper_pack_check.py"],
+            "E_CI_SANITY_SEULGI_GATEKEEPER_PACK_CHECK_FAIL",
         ),
         (
             "seamgrim_ci_gate_seed_meta_step_check",

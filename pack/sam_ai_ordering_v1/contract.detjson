@@ -1,0 +1,26 @@
+{
+  "schema": "ddn.sam_ai_ordering.pack.contract.v1",
+  "execution_ordering": {
+    "keys": ["agent_id", "recv_seq"],
+    "forbidden_ordering_keys": ["intent_kind", "payload_hash", "accepted_madi", "target_madi"],
+    "strict_monotonic_recv_seq_per_agent": true,
+    "duplicate_recv_seq_reject": true,
+    "reverse_recv_seq_reject": true
+  },
+  "cases": [
+    {
+      "id": "c01_order_independent_inputs",
+      "expect_ok": true
+    },
+    {
+      "id": "c02_duplicate_recv_seq_reject",
+      "expect_ok": true,
+      "expected_error": "E_SAM_AI_ORDERING_DUPLICATE_RECV_SEQ"
+    },
+    {
+      "id": "c03_reverse_recv_seq_reject",
+      "expect_ok": true,
+      "expected_error": "E_SAM_AI_ORDERING_REVERSE_RECV_SEQ"
+    }
+  ]
+}

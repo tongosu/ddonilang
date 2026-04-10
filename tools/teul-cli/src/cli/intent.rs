@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -79,6 +80,7 @@ fn parse_intent_jsonl(
 ) -> Result<Vec<IntentRecord>, String> {
     let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let mut records = Vec::new();
+    let mut last_recv_seq_by_agent: BTreeMap<u64, u64> = BTreeMap::new();
     for (idx, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() {
@@ -96,12 +98,32 @@ fn parse_intent_jsonl(
             }
         }
         let line_agent = value_as_u64(&value, "agent_id")?;
+        let recv_seq = value_as_u64(&value, "recv_seq")?;
+        if let Some(previous) = last_recv_seq_by_agent.get(&line_agent) {
+            if recv_seq == *previous {
+                return Err(format!(
+                    "E_INTENT_RECV_SEQ_DUPLICATE line={} agent_id={} recv_seq={}",
+                    idx + 1,
+                    line_agent,
+                    recv_seq
+                ));
+            }
+            if recv_seq < *previous {
+                return Err(format!(
+                    "E_INTENT_RECV_SEQ_REVERSE line={} agent_id={} recv_seq={} prev={}",
+                    idx + 1,
+                    line_agent,
+                    recv_seq,
+                    previous
+                ));
+            }
+        }
+        last_recv_seq_by_agent.insert(line_agent, recv_seq);
         if let Some(expect) = agent {
             if line_agent != expect {
                 continue;
             }
         }
-        let recv_seq = value_as_u64(&value, "recv_seq")?;
         let kind = value_as_str(&value, "kind")?;
         let intent = parse_intent(kind, &value)?;
         records.push(IntentRecord {
@@ -264,4 +286,50 @@ fn escape_json(input: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::parse_intent_jsonl;
+
+    fn write_temp_intent_jsonl(lines: &[&str]) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("intent_cli_monotonic_{nanos}.jsonl"));
+        let mut body = String::new();
+        for line in lines {
+            body.push_str(line);
+            body.push('\n');
+        }
+        fs::write(&path, body).expect("write temp file");
+        path
+    }
+
+    #[test]
+    fn parse_intent_jsonl_rejects_duplicate_recv_seq_per_agent() {
+        let path = write_temp_intent_jsonl(&[
+            r#"{"accepted_madi":0,"target_madi":0,"agent_id":1,"recv_seq":1,"kind":"Say","text":"a"}"#,
+            r#"{"accepted_madi":1,"target_madi":1,"agent_id":1,"recv_seq":1,"kind":"Say","text":"b"}"#,
+        ]);
+        let err = parse_intent_jsonl(&path, None, None).expect_err("duplicate recv_seq must fail");
+        assert!(err.starts_with("E_INTENT_RECV_SEQ_DUPLICATE"), "{err}");
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn parse_intent_jsonl_rejects_reverse_recv_seq_per_agent() {
+        let path = write_temp_intent_jsonl(&[
+            r#"{"accepted_madi":0,"target_madi":0,"agent_id":7,"recv_seq":3,"kind":"Say","text":"a"}"#,
+            r#"{"accepted_madi":1,"target_madi":1,"agent_id":7,"recv_seq":2,"kind":"Say","text":"b"}"#,
+        ]);
+        let err = parse_intent_jsonl(&path, None, None).expect_err("reverse recv_seq must fail");
+        assert!(err.starts_with("E_INTENT_RECV_SEQ_REVERSE"), "{err}");
+        let _ = fs::remove_file(path);
+    }
 }

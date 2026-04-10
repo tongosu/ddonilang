@@ -1,0 +1,2 @@
+{"agent_id":9,"recv_seq":5,"accepted_madi":20,"target_madi":22,"intent_kind":"Say","payload_hash":"sha256:z"}
+{"agent_id":9,"recv_seq":4,"accepted_madi":21,"target_madi":23,"intent_kind":"Attack","payload_hash":"sha256:y"}

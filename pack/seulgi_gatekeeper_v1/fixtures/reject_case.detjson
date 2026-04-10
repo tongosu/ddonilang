@@ -1,0 +1,5 @@
+{
+  "gatekeeper_decision": "reject",
+  "expected_commit": false,
+  "reason": "policy_forbidden_world_mutation"
+}

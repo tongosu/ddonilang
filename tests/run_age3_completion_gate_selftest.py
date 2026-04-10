@@ -98,6 +98,9 @@ def main() -> int:
             "bogae_geoul_visibility_smoke_pass",
             "external_intent_boundary_pack_pass",
             "seulgi_v1_pack_pass",
+            "sam_inputsnapshot_contract_pack_pass",
+            "sam_ai_ordering_pack_pass",
+            "seulgi_gatekeeper_pack_pass",
             "external_intent_seulgi_walk_alignment_pass",
             "age3_doc_paths_exist",
         ]

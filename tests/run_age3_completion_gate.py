@@ -774,7 +774,8 @@ def run_cmd(root: Path, cmd: list[str], label: str) -> tuple[int, str, str]:
         encoding="utf-8",
         errors="replace",
     )
-    return first_rc, str(rerun.stdout or ""), str(rerun.stderr or "")
+    rerun_rc = int(rerun.returncode or 0)
+    return rerun_rc, str(rerun.stdout or ""), str(rerun.stderr or "")
 
 
 def py_cmd(script_path: str, *extra_args: str) -> list[str]:
@@ -850,8 +851,11 @@ def run_pack_golden_job(
                         encoding="utf-8",
                         errors="replace",
                     )
+                    rerun_rc = int(rerun.returncode or 0)
                     job["stdout"] = str(rerun.stdout or "")
                     job["stderr"] = str(rerun.stderr or "")
+                    step_rc = rerun_rc
+                    job["returncode"] = step_rc
                 else:
                     job["stdout"] = ""
                     job["stderr"] = ""
@@ -1240,6 +1244,18 @@ def main() -> int:
             py_cmd("tests/run_seulgi_v1_pack_check.py"),
         ),
         (
+            "sam_inputsnapshot_contract_pack",
+            py_cmd("tests/run_sam_inputsnapshot_contract_pack_check.py"),
+        ),
+        (
+            "sam_ai_ordering_pack",
+            py_cmd("tests/run_sam_ai_ordering_pack_check.py"),
+        ),
+        (
+            "seulgi_gatekeeper_pack",
+            py_cmd("tests/run_seulgi_gatekeeper_pack_check.py"),
+        ),
+        (
             "external_intent_seulgi_walk_alignment",
             py_cmd("tests/run_external_intent_seulgi_walk_alignment_check.py"),
         ),
@@ -1395,6 +1411,30 @@ def main() -> int:
     if seulgi_v1_pack_stderr:
         emit_text_safely(seulgi_v1_pack_stderr, stream=sys.stderr)
 
+    sam_inputsnapshot_contract_pack_rc, sam_inputsnapshot_contract_pack_stdout, sam_inputsnapshot_contract_pack_stderr = parallel_results[
+        "sam_inputsnapshot_contract_pack"
+    ]
+    if sam_inputsnapshot_contract_pack_stdout:
+        emit_text_safely(sam_inputsnapshot_contract_pack_stdout)
+    if sam_inputsnapshot_contract_pack_stderr:
+        emit_text_safely(sam_inputsnapshot_contract_pack_stderr, stream=sys.stderr)
+
+    sam_ai_ordering_pack_rc, sam_ai_ordering_pack_stdout, sam_ai_ordering_pack_stderr = parallel_results[
+        "sam_ai_ordering_pack"
+    ]
+    if sam_ai_ordering_pack_stdout:
+        emit_text_safely(sam_ai_ordering_pack_stdout)
+    if sam_ai_ordering_pack_stderr:
+        emit_text_safely(sam_ai_ordering_pack_stderr, stream=sys.stderr)
+
+    seulgi_gatekeeper_pack_rc, seulgi_gatekeeper_pack_stdout, seulgi_gatekeeper_pack_stderr = parallel_results[
+        "seulgi_gatekeeper_pack"
+    ]
+    if seulgi_gatekeeper_pack_stdout:
+        emit_text_safely(seulgi_gatekeeper_pack_stdout)
+    if seulgi_gatekeeper_pack_stderr:
+        emit_text_safely(seulgi_gatekeeper_pack_stderr, stream=sys.stderr)
+
     external_intent_seulgi_walk_alignment_rc, external_intent_seulgi_walk_alignment_stdout, external_intent_seulgi_walk_alignment_stderr = parallel_results[
         "external_intent_seulgi_walk_alignment"
     ]
@@ -1498,6 +1538,21 @@ def main() -> int:
             "detail": f"exit={seulgi_v1_pack_rc}",
         },
         {
+            "name": "sam_inputsnapshot_contract_pack_pass",
+            "ok": sam_inputsnapshot_contract_pack_rc == 0,
+            "detail": f"exit={sam_inputsnapshot_contract_pack_rc}",
+        },
+        {
+            "name": "sam_ai_ordering_pack_pass",
+            "ok": sam_ai_ordering_pack_rc == 0,
+            "detail": f"exit={sam_ai_ordering_pack_rc}",
+        },
+        {
+            "name": "seulgi_gatekeeper_pack_pass",
+            "ok": seulgi_gatekeeper_pack_rc == 0,
+            "detail": f"exit={seulgi_gatekeeper_pack_rc}",
+        },
+        {
             "name": "external_intent_seulgi_walk_alignment_pass",
             "ok": external_intent_seulgi_walk_alignment_rc == 0,
             "detail": f"exit={external_intent_seulgi_walk_alignment_rc}",
@@ -1587,6 +1642,18 @@ def main() -> int:
         text = seulgi_v1_pack_stderr.strip() or seulgi_v1_pack_stdout.strip() or "-"
         collect_error_codes(text, failure_codes)
         failure_digest.append(f"seulgi_v1_pack: {clip(text)}")
+    if sam_inputsnapshot_contract_pack_rc != 0:
+        text = sam_inputsnapshot_contract_pack_stderr.strip() or sam_inputsnapshot_contract_pack_stdout.strip() or "-"
+        collect_error_codes(text, failure_codes)
+        failure_digest.append(f"sam_inputsnapshot_contract_pack: {clip(text)}")
+    if sam_ai_ordering_pack_rc != 0:
+        text = sam_ai_ordering_pack_stderr.strip() or sam_ai_ordering_pack_stdout.strip() or "-"
+        collect_error_codes(text, failure_codes)
+        failure_digest.append(f"sam_ai_ordering_pack: {clip(text)}")
+    if seulgi_gatekeeper_pack_rc != 0:
+        text = seulgi_gatekeeper_pack_stderr.strip() or seulgi_gatekeeper_pack_stdout.strip() or "-"
+        collect_error_codes(text, failure_codes)
+        failure_digest.append(f"seulgi_gatekeeper_pack: {clip(text)}")
     if external_intent_seulgi_walk_alignment_rc != 0:
         text = (
             external_intent_seulgi_walk_alignment_stderr.strip()

@@ -1,0 +1,3 @@
+{"id":"c01_order_independent_inputs","expect_ok":true}
+{"id":"c02_duplicate_recv_seq_reject","expect_ok":true,"expected_error":"E_SAM_AI_ORDERING_DUPLICATE_RECV_SEQ"}
+{"id":"c03_reverse_recv_seq_reject","expect_ok":true,"expected_error":"E_SAM_AI_ORDERING_REVERSE_RECV_SEQ"}

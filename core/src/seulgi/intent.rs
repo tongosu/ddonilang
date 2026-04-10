@@ -55,14 +55,9 @@ pub fn intent_to_detjson(intent: &SeulgiIntent) -> String {
 
 pub fn intent_bundle_detjson(records: &[IntentRecord]) -> String {
     let mut items = records.to_vec();
-    items.sort_by(|a, b| {
-        (a.accepted_madi, a.agent_id, a.recv_seq, a.target_madi).cmp(&(
-            b.accepted_madi,
-            b.agent_id,
-            b.recv_seq,
-            b.target_madi,
-        ))
-    });
+    // Export bundle ordering is intentionally metadata-rich and separate from runtime execution
+    // ordering. Runtime execution ordering is hard-cut in SeulgiPacket::stable_sort_key.
+    items.sort_by_key(export_sort_key);
 
     let mut out = String::new();
     out.push('{');
@@ -83,6 +78,10 @@ pub fn intent_bundle_detjson(records: &[IntentRecord]) -> String {
     }
     out.push_str("]}");
     out
+}
+
+fn export_sort_key(item: &IntentRecord) -> (u64, u64, u64, u64) {
+    (item.accepted_madi, item.agent_id, item.recv_seq, item.target_madi)
 }
 
 fn push_kv_str(out: &mut String, key: &str, value: &str, first: bool) {
@@ -129,4 +128,33 @@ fn escape_json(input: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{export_sort_key, IntentRecord};
+    use crate::platform::SeulgiIntent;
+
+    #[test]
+    fn intent_bundle_export_ordering_is_distinct_from_execution_ordering() {
+        let mut rows = vec![
+            IntentRecord {
+                agent_id: 1,
+                recv_seq: 2,
+                accepted_madi: 5,
+                target_madi: 9,
+                intent: SeulgiIntent::None,
+            },
+            IntentRecord {
+                agent_id: 1,
+                recv_seq: 1,
+                accepted_madi: 10,
+                target_madi: 10,
+                intent: SeulgiIntent::None,
+            },
+        ];
+        rows.sort_by_key(export_sort_key);
+        assert_eq!((rows[0].accepted_madi, rows[0].recv_seq), (5, 2));
+        assert_eq!((rows[1].accepted_madi, rows[1].recv_seq), (10, 1));
+    }
 }

@@ -1,0 +1,3 @@
+{"id":"g01_gatekeeper_reject_no_commit","expect_ok":true,"expected_commit":false}
+{"id":"g02_trace_non_hash","expect_ok":true,"expected_commit":true}
+{"id":"g03_latency_target_madi_fixed","expect_ok":true,"expected_commit":true}

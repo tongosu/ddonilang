@@ -19,6 +19,24 @@ PACK_FILE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         "contract.detjson",
         "golden.jsonl",
     ),
+    "pack/sam_inputsnapshot_contract_v1": (
+        "README.md",
+        "intent.md",
+        "contract.detjson",
+        "golden.jsonl",
+    ),
+    "pack/sam_ai_ordering_v1": (
+        "README.md",
+        "intent.md",
+        "contract.detjson",
+        "golden.jsonl",
+    ),
+    "pack/seulgi_gatekeeper_v1": (
+        "README.md",
+        "intent.md",
+        "contract.detjson",
+        "golden.jsonl",
+    ),
 }
 
 WALK_FILE_REQUIREMENTS: tuple[str, ...] = (
@@ -50,10 +68,16 @@ PROPOSAL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
 AGE3_GATE_REQUIRED_TOKENS: tuple[str, ...] = (
     "tests/run_external_intent_boundary_pack_check.py",
     "tests/run_seulgi_v1_pack_check.py",
+    "tests/run_sam_inputsnapshot_contract_pack_check.py",
+    "tests/run_sam_ai_ordering_pack_check.py",
+    "tests/run_seulgi_gatekeeper_pack_check.py",
     "tests/run_external_intent_seulgi_walk_alignment_check.py",
     "tests/run_seamgrim_ci_gate_wasm_web_smoke_step_check.py",
     "external_intent_boundary_pack_pass",
     "seulgi_v1_pack_pass",
+    "sam_inputsnapshot_contract_pack_pass",
+    "sam_ai_ordering_pack_pass",
+    "seulgi_gatekeeper_pack_pass",
     "external_intent_seulgi_walk_alignment_pass",
     "seamgrim_wasm_web_step_check_pass",
     "seamgrim_wasm_web_step_check_report_path",
@@ -62,6 +86,9 @@ AGE3_GATE_REQUIRED_TOKENS: tuple[str, ...] = (
 AGE3_GATE_SELFTEST_REQUIRED_TOKENS: tuple[str, ...] = (
     "external_intent_boundary_pack_pass",
     "seulgi_v1_pack_pass",
+    "sam_inputsnapshot_contract_pack_pass",
+    "sam_ai_ordering_pack_pass",
+    "seulgi_gatekeeper_pack_pass",
     "external_intent_seulgi_walk_alignment_pass",
     "seamgrim_wasm_web_step_check_pass",
     "seamgrim_wasm_web_step_check_report_path",

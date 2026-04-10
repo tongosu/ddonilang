@@ -1,0 +1,6 @@
+{
+  "accepted_madi": 10,
+  "latency_madi": 2,
+  "target_madi": 12,
+  "target_madi_fixed": true
+}

@@ -841,13 +841,10 @@ pub struct SeulgiPacket {
 }
 
 impl SeulgiPacket {
-    pub fn stable_sort_key(&self) -> (u64, u32, u64, u64) {
-        (
-            self.agent_id,
-            self.intent.kind_u32(),
-            self.intent.stable_payload_hash(),
-            self.recv_seq,
-        )
+    pub fn stable_sort_key(&self) -> (u64, u64) {
+        // Execution ordering hard-cut: (agent_id, recv_seq).
+        // accepted_madi/target_madi are scheduling metadata and are not ordering keys.
+        (self.agent_id, self.recv_seq)
     }
 }
 
