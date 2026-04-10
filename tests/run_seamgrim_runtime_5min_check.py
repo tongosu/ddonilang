@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import subprocess
 import sys
 import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 def run_step(root: Path, name: str, cmd: list[str]) -> dict[str, object]:
@@ -128,9 +130,41 @@ def print_step(step: dict[str, object]) -> None:
             print(safe_console_text(clip_output(stderr)))
 
 
+def _find_step(steps: list[dict[str, object]], name: str) -> dict[str, object] | None:
+    for step in steps:
+        if str(step.get("name", "")).strip() == str(name).strip():
+            return step
+    return None
+
+
+def pick_free_local_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return int(sock.getsockname()[1])
+
+
+def resolve_server_check_base_url(raw_base_url: str) -> tuple[str, bool]:
+    text = str(raw_base_url or "").strip()
+    if text:
+        return text.rstrip("/"), False
+    port = pick_free_local_port()
+    return f"http://127.0.0.1:{port}", True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Seamgrim 5-minute runtime validation scenario")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8787")
+    parser.add_argument(
+        "--base-url",
+        default="",
+        help="ddn_exec_server base url. 비우면 매 실행마다 전용 로컬 포트를 자동 할당한다.",
+    )
+    parser.add_argument(
+        "--server-check-profile",
+        default="release",
+        choices=["release", "legacy"],
+        help="ddn_exec_server_check profile (default: release)",
+    )
     parser.add_argument("--madi", type=int, default=30)
     parser.add_argument("--skip-seed-cli", action="store_true")
     parser.add_argument("--skip-ui-common", action="store_true")
@@ -158,6 +192,7 @@ def main() -> int:
     root = Path(__file__).resolve().parent.parent
     py = sys.executable
     madi = max(1, int(args.madi))
+    server_check_base_url, server_check_isolated = resolve_server_check_base_url(str(args.base_url))
 
     steps: list[dict[str, object]] = []
 
@@ -217,7 +252,9 @@ def main() -> int:
                 py,
                 "solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py",
                 "--base-url",
-                str(args.base_url),
+                server_check_base_url,
+                "--profile",
+                str(args.server_check_profile),
             ],
         )
     )
@@ -226,6 +263,13 @@ def main() -> int:
             root,
             "lesson_path_fallback",
             [py, "tests/run_seamgrim_lesson_path_fallback_check.py"],
+        )
+    )
+    steps.append(
+        run_step(
+            root,
+            "runtime_view_source_strict",
+            [py, "tests/run_seamgrim_runtime_view_source_strict_check.py"],
         )
     )
     browse_selection_report_path = str(args.browse_selection_json_out or "").strip()
@@ -323,11 +367,22 @@ def main() -> int:
 
     ok = all(bool(step.get("ok")) for step in steps)
     elapsed_ms_total = sum(int(step.get("elapsed_ms") or 0) for step in steps)
+    view_source_step = _find_step(steps, "runtime_view_source_strict")
+    view_source_ok = bool(view_source_step and view_source_step.get("ok"))
     payload = {
         "schema": "seamgrim.runtime_5min_check.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "ok": ok,
         "elapsed_ms_total": elapsed_ms_total,
+        "view_source_strict_ok": view_source_ok,
+        "server_check_base_url": server_check_base_url,
+        "server_check_isolated": bool(server_check_isolated),
+        "view_source_strict_step": {
+            "name": str(view_source_step.get("name", "")) if view_source_step else "runtime_view_source_strict",
+            "ok": bool(view_source_step.get("ok")) if view_source_step else False,
+            "elapsed_ms": int(view_source_step.get("elapsed_ms") or 0) if view_source_step else 0,
+            "returncode": int(view_source_step.get("returncode") or 0) if view_source_step else 127,
+        },
         "browse_selection_report_path": browse_selection_report_path,
         "step_count": len(steps),
         "steps": steps,
