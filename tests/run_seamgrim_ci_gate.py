@@ -125,6 +125,7 @@ def _start_local_ddn_exec_server_prewarm(
     root: Path,
     base_url: str,
     *,
+    profile: str = "release",
     timeout_sec: float = 5.0,
 ) -> subprocess.Popen[bytes] | None:
     base = str(base_url or "").strip()
@@ -136,6 +137,14 @@ def _start_local_ddn_exec_server_prewarm(
     if host not in {"127.0.0.1", "localhost"}:
         return None
     port = int(parsed.port or (443 if str(parsed.scheme).lower() == "https" else 80))
+    previous_catalog_mode = os.environ.get("SEAMGRIM_LESSON_CATALOG_MODE")
+    previous_allow_legacy = os.environ.get("SEAMGRIM_ALLOW_LEGACY_LESSONS")
+    if str(profile).strip().lower() == "legacy":
+        os.environ["SEAMGRIM_LESSON_CATALOG_MODE"] = "full"
+        os.environ["SEAMGRIM_ALLOW_LEGACY_LESSONS"] = "1"
+    else:
+        os.environ["SEAMGRIM_LESSON_CATALOG_MODE"] = "reps_only"
+        os.environ["SEAMGRIM_ALLOW_LEGACY_LESSONS"] = "0"
     try:
         _server_module, _resolved_base_url, proc = start_parity_server(
             root=root,
@@ -148,8 +157,17 @@ def _start_local_ddn_exec_server_prewarm(
     except RuntimeError as exc:
         print(f"[ddn_exec_server_prewarm] skip base_url={base} detail={str(exc).strip()}")
         return None
+    finally:
+        if previous_catalog_mode is None:
+            os.environ.pop("SEAMGRIM_LESSON_CATALOG_MODE", None)
+        else:
+            os.environ["SEAMGRIM_LESSON_CATALOG_MODE"] = previous_catalog_mode
+        if previous_allow_legacy is None:
+            os.environ.pop("SEAMGRIM_ALLOW_LEGACY_LESSONS", None)
+        else:
+            os.environ["SEAMGRIM_ALLOW_LEGACY_LESSONS"] = previous_allow_legacy
     if proc is not None:
-        print(f"[ddn_exec_server_prewarm] ok base_url={base}")
+        print(f"[ddn_exec_server_prewarm] ok base_url={base} profile={str(profile).strip().lower() or 'release'}")
     return proc
 
 
@@ -164,6 +182,12 @@ def main() -> int:
         "--strict-graph",
         action="store_true",
         help="force full check graph export failures to fail",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=["release", "legacy"],
+        default="release",
+        help="gate profile (default: release)",
     )
     parser.add_argument("--json-out", help="write gate result json")
     parser.add_argument(
@@ -319,6 +343,8 @@ def main() -> int:
 
     root = Path(__file__).resolve().parent.parent
     py = sys.executable
+    profile = str(args.profile or "release").strip().lower()
+    release_profile = profile != "legacy"
     transport_contract_env = {"DDN_ASSUME_FAMILY_CONTRACT_PASSED": "1"}
     contract_prereq_env = {"DDN_ASSUME_CONTRACT_PREREQS_PASSED": "1"}
     browse_selection_json_out = str(args.browse_selection_json_out or "").strip()
@@ -344,6 +370,23 @@ def main() -> int:
     if not pack_evidence_report_json_out:
         default_pack_evidence_report = root / "build" / "reports" / "seamgrim_pack_evidence_tier_runner_check.detjson"
         pack_evidence_report_json_out = str(default_pack_evidence_report)
+
+    legacy_only_parallel_steps = {
+        "schema_gate",
+        "seed_overlay_quality",
+        "seed_meta_files",
+        "featured_seed_catalog_sync",
+        "featured_seed_catalog_autogen",
+        "rewrite_overlay_quality",
+        "featured_seed_quick_launch_logic",
+    }
+    legacy_only_gate_steps = {
+        "seed_pendulum_export",
+        "pendulum_runtime_visual",
+        "seed_runtime_visual_pack",
+        "pendulum_bogae_shape",
+        "full_check",
+    }
 
     steps: list[dict[str, object]] = []
     steps.append(
@@ -395,10 +438,7 @@ def main() -> int:
     rewrite_overlay_cmd = [py, "tests/run_seamgrim_rewrite_overlay_quality_check.py"]
     if str(args.rewrite_overlay_json_out or "").strip():
         rewrite_overlay_cmd.extend(["--json-out", str(args.rewrite_overlay_json_out)])
-    steps.extend(
-        run_steps_parallel(
-            root,
-            [
+    parallel_step_defs: list[dict[str, object]] = [
                 {
                     "name": "schema_gate",
                     "cmd": schema_cmd,
@@ -454,6 +494,14 @@ def main() -> int:
                 {
                     "name": "shape_fallback_mode",
                     "cmd": [py, "tests/run_seamgrim_shape_fallback_mode_check.py"],
+                },
+                {
+                    "name": "runtime_view_source_strict",
+                    "cmd": [py, "tests/run_seamgrim_runtime_view_source_strict_check.py"],
+                },
+                {
+                    "name": "run_legacy_autofix",
+                    "cmd": [py, "tests/run_seamgrim_run_legacy_autofix_check.py"],
                 },
                 {
                     "name": "space2d_primitive_source",
@@ -531,9 +579,12 @@ def main() -> int:
                     "name": "browse_selection_flow",
                     "cmd": browse_selection_cmd,
                 },
-            ],
-        )
-    )
+            ]
+    if release_profile:
+        parallel_step_defs = [
+            row for row in parallel_step_defs if str(row.get("name", "")).strip() not in legacy_only_parallel_steps
+        ]
+    steps.extend(run_steps_parallel(root, parallel_step_defs))
     if args.browse_selection_strict:
         steps.append(
             run_step(
@@ -553,6 +604,8 @@ def main() -> int:
             "tests/run_seamgrim_runtime_5min_check.py",
             "--base-url",
             str(args.runtime_5min_base_url),
+            "--server-check-profile",
+            "legacy" if not release_profile else "release",
         ]
         if runtime_5min_json_out:
             runtime_5min_cmd.extend(["--json-out", runtime_5min_json_out])
@@ -564,9 +617,15 @@ def main() -> int:
             runtime_5min_cmd.append("--browse-selection-strict")
         if args.runtime_5min_skip_seed_cli:
             runtime_5min_cmd.append("--skip-seed-cli")
+        if release_profile and not args.runtime_5min_skip_seed_cli:
+            runtime_5min_cmd.append("--skip-seed-cli")
         if args.runtime_5min_skip_ui_common:
             runtime_5min_cmd.append("--skip-ui-common")
+        if release_profile and not args.runtime_5min_skip_ui_common:
+            runtime_5min_cmd.append("--skip-ui-common")
         if args.runtime_5min_skip_showcase_check:
+            runtime_5min_cmd.append("--skip-showcase-check")
+        if release_profile and not args.runtime_5min_skip_showcase_check:
             runtime_5min_cmd.append("--skip-showcase-check")
         if args.runtime_5min_showcase_smoke:
             runtime_5min_cmd.extend(
@@ -649,6 +708,7 @@ def main() -> int:
     ddn_exec_server_proc = _start_local_ddn_exec_server_prewarm(
         root,
         ddn_exec_server_base_url,
+        profile=profile,
     )
     steps.append(
         run_step(
@@ -660,10 +720,7 @@ def main() -> int:
     full_cmd = [py, "tests/run_seamgrim_full_gate_check.py"]
     if args.strict_graph:
         full_cmd.append("--strict-graph")
-    steps.extend(
-        run_steps_parallel(
-            root,
-            [
+    gate_step_defs: list[dict[str, object]] = [
                 {
                     "name": "seed_pendulum_export",
                     "cmd": [py, "tests/run_seamgrim_seed_pendulum_export_check.py"],
@@ -775,19 +832,29 @@ def main() -> int:
                 },
                 {
                     "name": "ddn_exec_server_check",
-                    "cmd": [py, "tests/run_seamgrim_ddn_exec_server_gate_check.py"],
+                    "cmd": [py, "tests/run_seamgrim_ddn_exec_server_gate_check.py"]
+                    + ([] if release_profile else ["--profile", "legacy"]),
                 },
                 {
                     "name": "pendulum_bogae_shape",
                     "cmd": [py, "tests/run_seamgrim_pendulum_bogae_shape_check.py"],
                 },
                 {
+                    "name": "observe_output_contract",
+                    "cmd": [py, "tests/run_seamgrim_observe_output_contract_check.py"],
+                },
+                {
+                    "name": "sam_seulgi_family_contract_selftest",
+                    "cmd": [py, "tests/run_sam_seulgi_family_contract_selftest.py"],
+                },
+                {
                     "name": "full_check",
                     "cmd": full_cmd,
                 },
-            ],
-        )
-    )
+            ]
+    if release_profile:
+        gate_step_defs = [row for row in gate_step_defs if str(row.get("name", "")).strip() not in legacy_only_gate_steps]
+    steps.extend(run_steps_parallel(root, gate_step_defs))
     steps.extend(
         run_steps_parallel(
             root,
@@ -1131,13 +1198,19 @@ def main() -> int:
         "schema": "seamgrim.ci_gate.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "ok": len(failed) == 0,
+        "profile": profile,
         "strict_graph": bool(args.strict_graph),
         "require_promoted": bool(args.require_promoted),
         "browse_selection_strict": bool(args.browse_selection_strict),
         "browse_selection_report_path": browse_selection_json_out,
         "runtime_5min_report_path": runtime_5min_json_out,
         "runtime_5min_browse_selection_report_path": runtime_browse_selection_json_out,
+        "runtime_5min_skip_seed_cli": bool(args.runtime_5min_skip_seed_cli),
+        "runtime_5min_skip_seed_cli_effective": bool(args.runtime_5min_skip_seed_cli or release_profile),
         "runtime_5min_skip_ui_common": bool(args.runtime_5min_skip_ui_common),
+        "runtime_5min_skip_ui_common_effective": bool(args.runtime_5min_skip_ui_common or release_profile),
+        "runtime_5min_skip_showcase_check": bool(args.runtime_5min_skip_showcase_check),
+        "runtime_5min_skip_showcase_check_effective": bool(args.runtime_5min_skip_showcase_check or release_profile),
         "with_5min_checklist": bool(args.with_5min_checklist),
         "checklist_base_url": checklist_base_url,
         "checklist_from_runtime_report": checklist_from_runtime_report,

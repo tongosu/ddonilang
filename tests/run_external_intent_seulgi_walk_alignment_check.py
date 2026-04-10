@@ -105,6 +105,10 @@ CI_SANITY_REQUIRED_TOKENS: tuple[str, ...] = (
     "sam_seulgi_family_contract_selftest_total_checks=",
     "sam_seulgi_family_contract_selftest_checks_text=",
 )
+SEAMGRIM_CI_GATE_REQUIRED_TOKENS: tuple[str, ...] = (
+    '"sam_seulgi_family_contract_selftest"',
+    "tests/run_sam_seulgi_family_contract_selftest.py",
+)
 SEAMGRIM_PROFILE_REQUIRED_STEPS: tuple[str, ...] = (
     "sam_seulgi_family_contract_selftest",
     "external_intent_seulgi_walk_alignment_check_selftest",
@@ -208,6 +212,14 @@ def main() -> int:
     for token in CI_SANITY_REQUIRED_TOKENS:
         if token not in ci_sanity_text:
             return fail("E_ALIGNMENT_CI_SANITY_TOKEN", token)
+    seamgrim_ci_gate_path = root / "tests/run_seamgrim_ci_gate.py"
+    try:
+        seamgrim_ci_gate_text = load_text(seamgrim_ci_gate_path)
+    except ValueError as exc:
+        return fail("E_ALIGNMENT_SEAMGRIM_CI_GATE_READ", str(exc))
+    for token in SEAMGRIM_CI_GATE_REQUIRED_TOKENS:
+        if token not in seamgrim_ci_gate_text:
+            return fail("E_ALIGNMENT_SEAMGRIM_CI_GATE_TOKEN", token)
     try:
         seamgrim_profile_block = extract_set_block(ci_sanity_text, "SEAMGRIM_PROFILE_STEPS = {")
     except ValueError as exc:

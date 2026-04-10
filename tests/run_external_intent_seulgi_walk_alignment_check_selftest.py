@@ -83,6 +83,35 @@ def main() -> int:
                 bad_proc,
             )
 
+    seamgrim_gate_target_block = (
+        'SEAMGRIM_CI_GATE_REQUIRED_TOKENS: tuple[str, ...] = (\n'
+        '    \'"sam_seulgi_family_contract_selftest"\',\n'
+        '    "tests/run_sam_seulgi_family_contract_selftest.py",\n'
+        ')'
+    )
+    seamgrim_gate_mutated_block = (
+        'SEAMGRIM_CI_GATE_REQUIRED_TOKENS: tuple[str, ...] = (\n'
+        '    \'"sam_seulgi_family_contract_selftest_BROKEN"\',\n'
+        '    "tests/run_sam_seulgi_family_contract_selftest.py",\n'
+        ')'
+    )
+    if seamgrim_gate_target_block not in source:
+        return fail(f"mutation anchor missing: {seamgrim_gate_target_block}")
+    seamgrim_gate_mutated_source = source.replace(seamgrim_gate_target_block, seamgrim_gate_mutated_block, 1)
+
+    with tempfile.TemporaryDirectory(prefix="external_intent_seulgi_walk_alignment_gate_selftest_") as td:
+        temp_script = Path(td) / "run_external_intent_seulgi_walk_alignment_check.py"
+        temp_script.write_text(seamgrim_gate_mutated_source, encoding="utf-8")
+        bad_proc = run([sys.executable, str(temp_script), "--repo-root", str(ROOT)], ROOT)
+        if bad_proc.returncode == 0:
+            return fail("mutated seamgrim ci gate token case must fail", bad_proc)
+        merged = ((bad_proc.stdout or "") + "\n" + (bad_proc.stderr or "")).strip()
+        if "E_ALIGNMENT_SEAMGRIM_CI_GATE_TOKEN" not in merged:
+            return fail(
+                "mutated seamgrim ci gate token must report E_ALIGNMENT_SEAMGRIM_CI_GATE_TOKEN",
+                bad_proc,
+            )
+
     print("[external-intent-seulgi-walk-alignment-check-selftest] ok")
     return 0
 
