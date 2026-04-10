@@ -843,6 +843,7 @@ def resolve_contract_only_sanity_steps(profile: str) -> tuple[str, ...]:
         "w97_self_heal_pack_check",
     )
     seamgrim_extra = (
+        "seamgrim_ci_gate_sam_seulgi_family_step_check",
         "seamgrim_ci_gate_seed_meta_step_check",
         "seamgrim_ci_gate_pack_evidence_tier_runner_check",
         "seamgrim_ci_gate_pack_evidence_tier_step_check",
@@ -883,6 +884,7 @@ def resolve_contract_only_sanity_steps(profile: str) -> tuple[str, ...]:
             "ci_profile_split_contract_check",
             "ci_profile_matrix_lightweight_contract_selftest",
             "ci_profile_matrix_snapshot_helper_selftest",
+            "seamgrim_ci_gate_sam_seulgi_family_step_check",
             "seamgrim_ci_gate_seed_meta_step_check",
             "seamgrim_ci_gate_pack_evidence_tier_runner_check",
             "seamgrim_ci_gate_pack_evidence_tier_step_check",
@@ -920,6 +922,7 @@ def resolve_contract_only_required_steps(profile: str) -> tuple[str, ...]:
         "ci_gate_report_index_latest_smoke_check",
     )
     seamgrim = (
+        "seamgrim_ci_gate_sam_seulgi_family_step_check",
         "seamgrim_ci_gate_seed_meta_step_check",
         "seamgrim_ci_gate_pack_evidence_tier_runner_check",
         "seamgrim_ci_gate_pack_evidence_tier_step_check",

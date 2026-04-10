@@ -93,6 +93,10 @@ def main() -> int:
         "full sanity steps must include ci_emit_artifacts_sanity_contract_selftest",
     )
     expect(
+        "seamgrim_ci_gate_sam_seulgi_family_step_check" in resolve_contract_only_sanity_steps("full"),
+        "full sanity steps must include seamgrim_ci_gate_sam_seulgi_family_step_check",
+    )
+    expect(
         "seamgrim_ci_gate_pack_evidence_tier_step_check" in resolve_contract_only_sanity_steps("full"),
         "full sanity steps must include seamgrim_ci_gate_pack_evidence_tier_step_check",
     )
@@ -119,6 +123,10 @@ def main() -> int:
     expect(
         "ci_emit_artifacts_sanity_contract_selftest" in resolve_contract_only_sanity_steps("seamgrim"),
         "seamgrim sanity steps must include ci_emit_artifacts_sanity_contract_selftest",
+    )
+    expect(
+        "seamgrim_ci_gate_sam_seulgi_family_step_check" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim sanity steps must include seamgrim_ci_gate_sam_seulgi_family_step_check",
     )
     expect(
         "seamgrim_ci_gate_pack_evidence_tier_step_check" in resolve_contract_only_sanity_steps("seamgrim"),
