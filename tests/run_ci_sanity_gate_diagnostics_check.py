@@ -193,6 +193,9 @@ CONTRACT_AND_REGISTRY_TOKENS = [
 ]
 
 SEAMGRIM_CONTRACT_TOKENS = [
+    "seamgrim_ci_gate_sam_seulgi_family_step_check",
+    "tests/run_seamgrim_ci_gate_sam_seulgi_family_step_check.py",
+    "E_CI_SANITY_SAM_SEULGI_FAMILY_STEP_FAIL",
     "seamgrim_ci_gate_seed_meta_step_check",
     "tests/run_seamgrim_ci_gate_seed_meta_step_check.py",
     "E_CI_SANITY_SEED_META_STEP_FAIL",

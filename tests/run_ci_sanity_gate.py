@@ -357,6 +357,7 @@ SEAMGRIM_PROFILE_STEPS = {
     "age3_close",
     "sam_seulgi_family_contract_selftest",
     "external_intent_seulgi_walk_alignment_check_selftest",
+    "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_seed_meta_step_check",
     "seamgrim_ci_gate_featured_seed_catalog_step_check",
     "seamgrim_ci_gate_featured_seed_catalog_autogen_step_check",
@@ -3732,6 +3733,11 @@ def main() -> int:
             "external_intent_seulgi_walk_alignment_check_selftest",
             [py, "tests/run_external_intent_seulgi_walk_alignment_check_selftest.py"],
             "E_CI_SANITY_EXTERNAL_INTENT_SEULGI_WALK_ALIGNMENT_CHECK_SELFTEST_FAIL",
+        ),
+        (
+            "seamgrim_ci_gate_sam_seulgi_family_step_check",
+            [py, "tests/run_seamgrim_ci_gate_sam_seulgi_family_step_check.py"],
+            "E_CI_SANITY_SAM_SEULGI_FAMILY_STEP_FAIL",
         ),
         (
             "seamgrim_ci_gate_seed_meta_step_check",

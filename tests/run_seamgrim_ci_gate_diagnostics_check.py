@@ -744,6 +744,29 @@ def main() -> int:
         )
         return 1
 
+    sam_seulgi_step_diag = mod.extract_diagnostics(
+        "seamgrim_ci_gate_sam_seulgi_family_step_check",
+        "seamgrim ci gate sam seulgi family step check failed:\n - missing token: tests/run_seamgrim_ci_gate.py::token_missing::\"sam_seulgi_family_contract_selftest\"",
+        "",
+        False,
+    )
+    if (
+        not sam_seulgi_step_diag
+        or sam_seulgi_step_diag[0].get("kind") != "sam_seulgi_family_step_check_failed"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_sam_seulgi_family_step_check sam_seulgi_family_step_check_failed"
+        )
+        return 1
+    if (
+        len(sam_seulgi_step_diag) < 2
+        or sam_seulgi_step_diag[1].get("kind") != "sam_seulgi_family_step_check_token_missing"
+    ):
+        print(
+            "diagnostics check failed: seamgrim_ci_gate_sam_seulgi_family_step_check sam_seulgi_family_step_check_token_missing"
+        )
+        return 1
+
     sam_seulgi_family_diag = mod.extract_diagnostics(
         "sam_seulgi_family_contract_selftest",
         "[sam-seulgi-family-contract-selftest] fail: check=sam_ai_ordering_pack rc=1 detail=[sam-ai-ordering-pack-check] fail ...",

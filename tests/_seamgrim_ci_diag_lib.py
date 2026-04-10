@@ -780,6 +780,24 @@ def extract_diagnostics(name: str, stdout: str, stderr: str, ok: bool) -> list[d
                         "detail": line,
                     }
                 )
+    elif name == "seamgrim_ci_gate_sam_seulgi_family_step_check":
+        for line in lines:
+            if line.startswith("seamgrim ci gate sam seulgi family step check failed"):
+                out.append(
+                    {
+                        "kind": "sam_seulgi_family_step_check_failed",
+                        "target": "seamgrim_ci_gate_sam_seulgi_family_step_check",
+                        "detail": line,
+                    }
+                )
+            elif line.startswith(" - missing token:") or line.startswith("- missing token:"):
+                out.append(
+                    {
+                        "kind": "sam_seulgi_family_step_check_token_missing",
+                        "target": "seamgrim_ci_gate_sam_seulgi_family_step_check",
+                        "detail": line,
+                    }
+                )
     elif name == "pack_evidence_tier_selftest":
         for line in lines:
             if line.startswith("[pack-evidence-tier-check-selftest] fail"):
