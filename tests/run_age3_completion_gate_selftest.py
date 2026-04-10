@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -44,7 +45,78 @@ def env_path(key: str) -> Path | None:
     return Path(raw)
 
 
+def load_age3_gate_module(root: Path):
+    script_path = root / "tests" / "run_age3_completion_gate.py"
+    spec = importlib.util.spec_from_file_location("run_age3_completion_gate", script_path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"unable to load module spec: {script_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def verify_run_cmd_retry_semantics(root: Path) -> None:
+    module = load_age3_gate_module(root)
+    run_cmd = getattr(module, "run_cmd", None)
+    if run_cmd is None:
+        raise ValueError("run_age3_completion_gate.py missing run_cmd")
+
+    with tempfile.TemporaryDirectory(prefix="age3_completion_gate_retry_") as tmp:
+        tmp_path = Path(tmp)
+        marker = tmp_path / "retry.marker"
+        flaky_script = tmp_path / "flaky_once.py"
+        flaky_script.write_text(
+            "\n".join(
+                [
+                    "import pathlib",
+                    "import sys",
+                    "marker = pathlib.Path(sys.argv[1])",
+                    "if not marker.exists():",
+                    "    marker.write_text('1', encoding='utf-8')",
+                    "    print('first-fail')",
+                    "    sys.stderr.write('transient-fail\\n')",
+                    "    raise SystemExit(9)",
+                    "print('ok-second')",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        rc, out, err = run_cmd(root, [sys.executable, str(flaky_script), str(marker)], "retry-semantics")
+        if int(rc) != 0:
+            raise ValueError(f"run_cmd retry success path must return 0, got={rc}")
+        if "ok-second" not in out:
+            raise ValueError(f"run_cmd retry success path missing rerun output: {out!r}")
+        if err.strip():
+            raise ValueError(f"run_cmd retry success path stderr should be empty: {err!r}")
+
+        fail_script = tmp_path / "always_fail.py"
+        fail_script.write_text(
+            "\n".join(
+                [
+                    "import sys",
+                    "print('always-fail')",
+                    "sys.stderr.write('persistent-fail\\n')",
+                    "raise SystemExit(4)",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        rc_fail, out_fail, err_fail = run_cmd(root, [sys.executable, str(fail_script)], "retry-semantics-fail")
+        if int(rc_fail) != 4:
+            raise ValueError(f"run_cmd persistent failure must keep rerun rc=4, got={rc_fail}")
+        if "always-fail" not in out_fail and "persistent-fail" not in err_fail:
+            raise ValueError("run_cmd persistent failure must expose rerun output")
+
+
 def main() -> int:
+    root = Path(__file__).resolve().parent.parent
+    try:
+        verify_run_cmd_retry_semantics(root)
+    except ValueError as exc:
+        return fail(str(exc))
+
     with tempfile.TemporaryDirectory(prefix="age3_completion_gate_selftest_") as tmp:
         report = Path(tmp) / "age3_completion_gate.detjson"
         pack_report = Path(tmp) / "age3_completion_pack_report.detjson"
