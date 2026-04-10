@@ -55,18 +55,35 @@ def criteria_map(criteria: object) -> dict[str, bool]:
     return out
 
 
-def make_seamgrim_doc(step_ok: bool = True) -> dict:
-    required_steps = [
-        "schema_gate",
-        "ui_age3_gate",
-        "space2d_source_ui_gate",
-        "export_graph_preprocess",
-        "full_check",
-        "ci_gate_diagnostics",
-    ]
+def make_seamgrim_doc(step_ok: bool = True, *, mode: str = "legacy") -> dict:
+    if mode == "release":
+        required_steps = [
+            "schema_realign_formula_compat",
+            "schema_upgrade_formula_compat",
+            "formula_compat",
+            "ui_age3_gate",
+            "space2d_source_ui_gate",
+            "export_graph_preprocess",
+            "frontdoor_strict_all",
+            "ci_gate_diagnostics",
+        ]
+        fail_target = "schema_realign_formula_compat"
+    else:
+        required_steps = [
+            "schema_gate",
+            "ui_age3_gate",
+            "space2d_source_ui_gate",
+            "export_graph_preprocess",
+            "full_check",
+            "ci_gate_diagnostics",
+        ]
+        fail_target = "schema_gate"
     rows = [{"name": name, "ok": True} for name in required_steps]
     if not step_ok:
-        rows[0]["ok"] = False
+        for row in rows:
+            if str(row.get("name", "")) == fail_target:
+                row["ok"] = False
+                break
     return {
         "schema": "ddn.seamgrim.ci_gate.v1",
         "ok": step_ok,
@@ -96,8 +113,8 @@ def main() -> int:
         ui_report = report_dir / "seamgrim_ui_age3_gate_report.detjson"
         close_report = report_dir / "age3_close_report.detjson"
 
-        # case 1: positive flow
-        write_json(seamgrim_report, make_seamgrim_doc(step_ok=True))
+        # case 1: positive flow (legacy surface)
+        write_json(seamgrim_report, make_seamgrim_doc(step_ok=True, mode="legacy"))
         write_json(ui_report, make_ui_doc(ok=True))
         proc_ok = run(
             [
@@ -142,6 +159,32 @@ def main() -> int:
         if failed:
             return fail(f"criteria must pass: {failed}")
 
+        # case 1a: positive flow (release surface)
+        write_json(seamgrim_report, make_seamgrim_doc(step_ok=True, mode="release"))
+        write_json(ui_report, make_ui_doc(ok=True))
+        proc_release_ok = run(
+            [
+                py,
+                "tests/run_age3_close.py",
+                "--seamgrim-report",
+                str(seamgrim_report),
+                "--ui-age3-report",
+                str(ui_report),
+                "--report-out",
+                str(close_report),
+            ],
+            root,
+        )
+        if proc_release_ok.returncode != 0:
+            return fail("release surface positive flow must pass", proc_release_ok)
+        release_doc = load_json(close_report)
+        if not bool(release_doc.get("overall_ok", False)):
+            return fail("release surface overall_ok must be true")
+        release_map = criteria_map(release_doc.get("criteria"))
+        failed_release = [name for name in required_true if not release_map.get(name, False)]
+        if failed_release:
+            return fail(f"release surface criteria must pass: {failed_release}")
+
         # case 1b: alias flags are exposed on CLI help
         proc_help = run(
             [
@@ -157,7 +200,7 @@ def main() -> int:
             return fail("alias flags missing from help output")
 
         # case 2: negative flow
-        write_json(seamgrim_report, make_seamgrim_doc(step_ok=False))
+        write_json(seamgrim_report, make_seamgrim_doc(step_ok=False, mode="release"))
         write_json(ui_report, make_ui_doc(ok=True))
         proc_bad = run(
             [

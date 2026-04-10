@@ -76,6 +76,52 @@ def find_step_ok(seamgrim_doc: dict, step_name: str) -> bool:
     return False
 
 
+def find_step_row(seamgrim_doc: dict, step_name: str) -> dict | None:
+    steps = seamgrim_doc.get("steps")
+    if not isinstance(steps, list):
+        return None
+    for row in steps:
+        if isinstance(row, dict) and str(row.get("name", "")) == step_name:
+            return row
+    return None
+
+
+def resolve_schema_gate_ok(seamgrim_doc: dict | None) -> tuple[bool, str]:
+    if not isinstance(seamgrim_doc, dict):
+        return (False, "step:schema_gate missing")
+    legacy_row = find_step_row(seamgrim_doc, "schema_gate")
+    if isinstance(legacy_row, dict):
+        ok = bool(legacy_row.get("ok", False))
+        return (ok, f"step:schema_gate ok={int(ok)}")
+    release_names = (
+        "schema_realign_formula_compat",
+        "schema_upgrade_formula_compat",
+        "formula_compat",
+    )
+    rows: list[dict] = []
+    for name in release_names:
+        row = find_step_row(seamgrim_doc, name)
+        if not isinstance(row, dict):
+            return (False, f"steps:{'+'.join(release_names)} missing={name}")
+        rows.append(row)
+    ok = all(bool(row.get("ok", False)) for row in rows)
+    return (ok, f"steps:{'+'.join(release_names)} ok={int(ok)}")
+
+
+def resolve_full_check_ok(seamgrim_doc: dict | None) -> tuple[bool, str]:
+    if not isinstance(seamgrim_doc, dict):
+        return (False, "step:full_check missing")
+    legacy_row = find_step_row(seamgrim_doc, "full_check")
+    if isinstance(legacy_row, dict):
+        ok = bool(legacy_row.get("ok", False))
+        return (ok, f"step:full_check ok={int(ok)}")
+    frontdoor_row = find_step_row(seamgrim_doc, "frontdoor_strict_all")
+    if not isinstance(frontdoor_row, dict):
+        return (False, "step:full_check/frontdoor_strict_all missing")
+    ok = bool(frontdoor_row.get("ok", False))
+    return (ok, f"step:frontdoor_strict_all ok={int(ok)}")
+
+
 def build_report(
     seamgrim_doc: dict | None,
     ui_doc: dict | None,
@@ -83,12 +129,12 @@ def build_report(
     ui_report: Path,
 ) -> dict:
     seamgrim_ok = bool(seamgrim_doc.get("ok", False)) if isinstance(seamgrim_doc, dict) else False
-    schema_gate_ok = find_step_ok(seamgrim_doc, "schema_gate") if isinstance(seamgrim_doc, dict) else False
+    schema_gate_ok, schema_gate_detail = resolve_schema_gate_ok(seamgrim_doc)
     ui_gate_step_ok = find_step_ok(seamgrim_doc, "ui_age3_gate") if isinstance(seamgrim_doc, dict) else False
     space2d_source_ui_gate_ok = (
         find_step_ok(seamgrim_doc, "space2d_source_ui_gate") if isinstance(seamgrim_doc, dict) else False
     )
-    full_check_ok = find_step_ok(seamgrim_doc, "full_check") if isinstance(seamgrim_doc, dict) else False
+    full_check_ok, full_check_detail = resolve_full_check_ok(seamgrim_doc)
     export_pre_ok = find_step_ok(seamgrim_doc, "export_graph_preprocess") if isinstance(seamgrim_doc, dict) else False
     diag_ok = find_step_ok(seamgrim_doc, "ci_gate_diagnostics") if isinstance(seamgrim_doc, dict) else False
     require_promoted = bool(seamgrim_doc.get("require_promoted", False)) if isinstance(seamgrim_doc, dict) else False
@@ -119,7 +165,7 @@ def build_report(
         {
             "name": "schema_gate_ok",
             "ok": schema_gate_ok,
-            "detail": f"step:schema_gate ok={int(schema_gate_ok)}",
+            "detail": schema_gate_detail,
         },
         {
             "name": "ui_age3_gate_step_ok",
@@ -144,7 +190,7 @@ def build_report(
         {
             "name": "full_check_ok",
             "ok": full_check_ok,
-            "detail": f"step:full_check ok={int(full_check_ok)}",
+            "detail": full_check_detail,
         },
         {
             "name": "ci_gate_diagnostics_ok",
