@@ -355,6 +355,7 @@ SEAMGRIM_PROFILE_STEPS = {
     "age3_completion_gate_selftest",
     "age3_close_selftest",
     "age3_close",
+    "external_intent_seulgi_walk_alignment_check_selftest",
     "seamgrim_ci_gate_seed_meta_step_check",
     "seamgrim_ci_gate_featured_seed_catalog_step_check",
     "seamgrim_ci_gate_featured_seed_catalog_autogen_step_check",
