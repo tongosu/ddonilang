@@ -105,6 +105,29 @@ CI_SANITY_REQUIRED_TOKENS: tuple[str, ...] = (
     "sam_seulgi_family_contract_selftest_total_checks=",
     "sam_seulgi_family_contract_selftest_checks_text=",
 )
+SEAMGRIM_PROFILE_REQUIRED_STEPS: tuple[str, ...] = (
+    "sam_seulgi_family_contract_selftest",
+    "external_intent_seulgi_walk_alignment_check_selftest",
+)
+
+
+def extract_set_block(text: str, anchor: str) -> str:
+    anchor_index = text.find(anchor)
+    if anchor_index < 0:
+        raise ValueError(f"anchor missing: {anchor}")
+    brace_start = text.find("{", anchor_index)
+    if brace_start < 0:
+        raise ValueError(f"set opening brace missing after anchor: {anchor}")
+    depth = 0
+    for index in range(brace_start, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[brace_start : index + 1]
+    raise ValueError(f"set closing brace missing after anchor: {anchor}")
 
 
 def fail(code: str, msg: str) -> int:
@@ -185,6 +208,13 @@ def main() -> int:
     for token in CI_SANITY_REQUIRED_TOKENS:
         if token not in ci_sanity_text:
             return fail("E_ALIGNMENT_CI_SANITY_TOKEN", token)
+    try:
+        seamgrim_profile_block = extract_set_block(ci_sanity_text, "SEAMGRIM_PROFILE_STEPS = {")
+    except ValueError as exc:
+        return fail("E_ALIGNMENT_CI_SANITY_SEAMGRIM_PROFILE_READ", str(exc))
+    for token in SEAMGRIM_PROFILE_REQUIRED_STEPS:
+        if token not in seamgrim_profile_block:
+            return fail("E_ALIGNMENT_CI_SANITY_SEAMGRIM_PROFILE_TOKEN", token)
 
     print("[external-intent-seulgi-walk-alignment] ok")
     print(f"pack_roots={len(PACK_FILE_REQUIREMENTS)}")

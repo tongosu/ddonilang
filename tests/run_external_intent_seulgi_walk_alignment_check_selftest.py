@@ -54,6 +54,35 @@ def main() -> int:
         if "E_ALIGNMENT_CI_SANITY_TOKEN" not in merged:
             return fail("mutated ci_sanity token must report E_ALIGNMENT_CI_SANITY_TOKEN", bad_proc)
 
+    profile_target_block = (
+        'SEAMGRIM_PROFILE_REQUIRED_STEPS: tuple[str, ...] = (\n'
+        '    "sam_seulgi_family_contract_selftest",\n'
+        '    "external_intent_seulgi_walk_alignment_check_selftest",\n'
+        ')'
+    )
+    profile_mutated_block = (
+        'SEAMGRIM_PROFILE_REQUIRED_STEPS: tuple[str, ...] = (\n'
+        '    "sam_seulgi_family_contract_selftest_BROKEN",\n'
+        '    "external_intent_seulgi_walk_alignment_check_selftest",\n'
+        ')'
+    )
+    if profile_target_block not in source:
+        return fail(f"mutation anchor missing: {profile_target_block}")
+    profile_mutated_source = source.replace(profile_target_block, profile_mutated_block, 1)
+
+    with tempfile.TemporaryDirectory(prefix="external_intent_seulgi_walk_alignment_profile_selftest_") as td:
+        temp_script = Path(td) / "run_external_intent_seulgi_walk_alignment_check.py"
+        temp_script.write_text(profile_mutated_source, encoding="utf-8")
+        bad_proc = run([sys.executable, str(temp_script), "--repo-root", str(ROOT)], ROOT)
+        if bad_proc.returncode == 0:
+            return fail("mutated seamgrim profile token case must fail", bad_proc)
+        merged = ((bad_proc.stdout or "") + "\n" + (bad_proc.stderr or "")).strip()
+        if "E_ALIGNMENT_CI_SANITY_SEAMGRIM_PROFILE_TOKEN" not in merged:
+            return fail(
+                "mutated seamgrim profile token must report E_ALIGNMENT_CI_SANITY_SEAMGRIM_PROFILE_TOKEN",
+                bad_proc,
+            )
+
     print("[external-intent-seulgi-walk-alignment-check-selftest] ok")
     return 0
 
