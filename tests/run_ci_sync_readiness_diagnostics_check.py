@@ -35,6 +35,7 @@ REQUIRED_SYNC_CHECK_TOKENS = [
     "tensor_v0_pack_check",
     "tensor_v0_cli_check",
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_lesson_warning_step_check",
     "seamgrim_ci_gate_stateful_preview_step_check",
