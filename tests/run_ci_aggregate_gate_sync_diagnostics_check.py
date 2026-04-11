@@ -104,6 +104,8 @@ LATEST_SMOKE_REASON_BRANCH_TOKENS = [
 ]
 
 SEAMGRIM_SYNC_STEP_TOKENS = [
+    "from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS",
+    "report_index_required_steps_seamgrim = list(SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS)",
     "--require-preview-synced",
     "check_seamgrim_ci_gate_preview_sync_passthrough",
     "seamgrim_ci_gate_preview_sync_passthrough_check",

@@ -18,6 +18,10 @@ from _ci_age5_combined_heavy_contract import (
     AGE5_COMBINED_HEAVY_SANITY_CONTRACT_SUMMARY_FIELDS,
     build_age5_combined_heavy_sync_contract_fields,
 )
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+    merge_step_names,
+)
 
 SYNC_READINESS_OK = "OK"
 SYNC_READINESS_STEP_FAIL = "E_SYNC_READINESS_STEP_FAIL"
@@ -186,6 +190,15 @@ SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = (
     "seamgrim_overlay_session_diag_parity_check",
     "seamgrim_overlay_compare_diag_parity_check",
     "seamgrim_wasm_cli_diag_parity_check",
+)
+
+SANITY_REQUIRED_PASS_STEPS = merge_step_names(
+    SANITY_REQUIRED_PASS_STEPS,
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+)
+SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = merge_step_names(
+    SANITY_REQUIRED_PASS_STEPS_SEAMGRIM,
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
 )
 
 VALID_SANITY_PROFILES = ("full", "core_lang", "seamgrim")

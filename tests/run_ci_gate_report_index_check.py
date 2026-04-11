@@ -43,6 +43,7 @@ from _ci_profile_matrix_selftest_lib import (
     PROFILE_MATRIX_SUMMARY_VALUE_KEYS,
     expected_profile_matrix_aggregate_summary_contract,
 )
+from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
 from ci_check_error_codes import GATE_REPORT_INDEX_CODES as CODES
 
 INDEX_SCHEMA = "ddn.ci.aggregate_gate.index.v1"
@@ -104,17 +105,7 @@ PROFILE_REQUIRED_STEPS_COMMON = (
     "ci_gate_report_index_latest_smoke_check",
 )
 PROFILE_REQUIRED_STEPS_CORE_LANG = ()
-PROFILE_REQUIRED_STEPS_SEAMGRIM = (
-    "seamgrim_ci_gate_seed_meta_step_check",
-    "seamgrim_ci_gate_sam_seulgi_family_step_check",
-    "seamgrim_ci_gate_runtime5_passthrough_check",
-    "seamgrim_ci_gate_guideblock_step_check",
-    "seamgrim_ci_gate_lesson_warning_step_check",
-    "seamgrim_ci_gate_stateful_preview_step_check",
-    "seamgrim_ci_gate_wasm_web_smoke_step_check",
-    "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
-    "seamgrim_wasm_cli_diag_parity_check",
-)
+PROFILE_REQUIRED_STEPS_SEAMGRIM = SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
 SANITY_REQUIRED_PASS_STEPS_FULL_CORE_LANG = (
     "ci_pack_golden_lang_consistency_selftest",
 )

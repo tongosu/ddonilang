@@ -5,6 +5,9 @@ from pathlib import Path
 
 
 REQUIRED_SYNC_CHECK_TOKENS = [
+    "from _ci_seamgrim_step_contract import (",
+    "SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,",
+    "merge_step_names,",
     "SANITY_REQUIRED_PASS_STEPS",
     "SYNC_READINESS_OK",
     "SYNC_READINESS_STEP_FAIL",
@@ -59,6 +62,8 @@ REQUIRED_SYNC_CHECK_TOKENS = [
     "w96_somssi_pack_check",
     "w97_self_heal_pack_check",
     "seamgrim_wasm_cli_diag_parity_check",
+    "SANITY_REQUIRED_PASS_STEPS = merge_step_names(",
+    "SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = merge_step_names(",
     "validate_sanity_contract",
     "build_default_sanity_summary_fields",
     "SANITY_SUMMARY_STEP_FIELDS",

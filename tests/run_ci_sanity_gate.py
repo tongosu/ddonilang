@@ -17,6 +17,7 @@ from _ci_age3_completion_gate_contract import (
     age3_completion_gate_criteria_summary_key,
 )
 from _ci_age5_combined_heavy_contract import build_age5_combined_heavy_sanity_contract_fields
+from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
 from _selftest_exec_cache import EXEC_CACHE_ENV_KEY, mark_script_ok, reset_exec_cache
 
 
@@ -377,6 +378,7 @@ SEAMGRIM_PROFILE_STEPS = {
     "seamgrim_overlay_compare_diag_parity_check",
     "seamgrim_wasm_cli_diag_parity_check",
 }
+SEAMGRIM_PROFILE_STEPS.update(SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS)
 
 
 def clip(text: str, limit: int = 180) -> str:

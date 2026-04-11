@@ -51,6 +51,7 @@ from _ci_latest_smoke_contract import (
     LATEST_SMOKE_SKIP_REASON_FLAG_DISABLED,
     LATEST_SMOKE_SKIP_REASON_PENDING_FAILURE_SUMMARY_REGENERATION,
 )
+from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
 from ci_check_error_codes import GATE_REPORT_INDEX_CODES as CODES
 
 REQUIRED_STEPS_COMMON = (
@@ -66,17 +67,7 @@ REQUIRED_STEPS_COMMON = (
     "ci_gate_report_index_diagnostics_check",
     "ci_gate_report_index_latest_smoke_check",
 )
-REQUIRED_STEPS_SEAMGRIM = (
-    "seamgrim_ci_gate_seed_meta_step_check",
-    "seamgrim_ci_gate_sam_seulgi_family_step_check",
-    "seamgrim_ci_gate_runtime5_passthrough_check",
-    "seamgrim_ci_gate_guideblock_step_check",
-    "seamgrim_ci_gate_lesson_warning_step_check",
-    "seamgrim_ci_gate_stateful_preview_step_check",
-    "seamgrim_ci_gate_wasm_web_smoke_step_check",
-    "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
-    "seamgrim_wasm_cli_diag_parity_check",
-)
+REQUIRED_STEPS_SEAMGRIM = SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
 REQUIRED_STEPS_FULL = REQUIRED_STEPS_COMMON + REQUIRED_STEPS_SEAMGRIM
 REQUIRED_STEPS_CORE_LANG = REQUIRED_STEPS_COMMON
 AGE5_CHILD_SUMMARY_DEFAULTS = {

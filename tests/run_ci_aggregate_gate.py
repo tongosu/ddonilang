@@ -219,6 +219,7 @@ from _ci_latest_smoke_contract import (
     LATEST_SMOKE_SKIP_REASON_FLAG_DISABLED,
     LATEST_SMOKE_SKIP_REASON_PENDING_FAILURE_SUMMARY_REGENERATION,
 )
+from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
 
 # Keep explicit summary-token contracts in this file so static diagnostics checks
 # can validate aggregate-gate surface invariants after helper modularization.
@@ -2463,17 +2464,7 @@ def main() -> int:
         "ci_gate_report_index_diagnostics_check",
         "ci_gate_report_index_latest_smoke_check",
     ]
-    report_index_required_steps_seamgrim = [
-        "seamgrim_ci_gate_seed_meta_step_check",
-        "seamgrim_ci_gate_sam_seulgi_family_step_check",
-        "seamgrim_ci_gate_runtime5_passthrough_check",
-        "seamgrim_ci_gate_guideblock_step_check",
-        "seamgrim_ci_gate_lesson_warning_step_check",
-        "seamgrim_ci_gate_stateful_preview_step_check",
-        "seamgrim_ci_gate_wasm_web_smoke_step_check",
-        "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
-        "seamgrim_wasm_cli_diag_parity_check",
-    ]
+    report_index_required_steps_seamgrim = list(SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS)
 
     def resolve_report_index_required_steps(sanity_profile: str) -> list[str]:
         if sanity_profile == "core_lang":
