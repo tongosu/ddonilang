@@ -106,6 +106,7 @@ PROFILE_REQUIRED_STEPS_COMMON = (
 PROFILE_REQUIRED_STEPS_CORE_LANG = ()
 PROFILE_REQUIRED_STEPS_SEAMGRIM = (
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_guideblock_step_check",
     "seamgrim_ci_gate_lesson_warning_step_check",

@@ -2465,6 +2465,7 @@ def main() -> int:
     ]
     report_index_required_steps_seamgrim = [
         "seamgrim_ci_gate_seed_meta_step_check",
+        "seamgrim_ci_gate_sam_seulgi_family_step_check",
         "seamgrim_ci_gate_runtime5_passthrough_check",
         "seamgrim_ci_gate_guideblock_step_check",
         "seamgrim_ci_gate_lesson_warning_step_check",
@@ -2942,6 +2943,13 @@ def main() -> int:
         ]
         return run_and_record("seamgrim_ci_gate_seed_meta_step_check", cmd)
 
+    def check_seamgrim_ci_gate_sam_seulgi_family_step() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_ci_gate_sam_seulgi_family_step_check.py",
+        ]
+        return run_and_record("seamgrim_ci_gate_sam_seulgi_family_step_check", cmd)
+
     def check_seamgrim_ci_gate_guideblock_step() -> int:
         cmd = [
             py,
@@ -3229,6 +3237,7 @@ def main() -> int:
         check_ci_profile_matrix_gate_selftest()
         check_seamgrim_ci_gate_runtime5_passthrough()
         check_seamgrim_ci_gate_seed_meta_step()
+        check_seamgrim_ci_gate_sam_seulgi_family_step()
         check_seamgrim_ci_gate_guideblock_step()
         check_seamgrim_ci_gate_lesson_warning_step()
         check_seamgrim_ci_gate_stateful_preview_step()
@@ -3982,6 +3991,12 @@ def main() -> int:
             seamgrim_ci_gate_seed_meta_step_rc,
             "[ci-gate] fast-fail: seamgrim ci gate seed-meta step check failed",
         )
+    seamgrim_ci_gate_sam_seulgi_family_step_rc = check_seamgrim_ci_gate_sam_seulgi_family_step()
+    if args.fast_fail and seamgrim_ci_gate_sam_seulgi_family_step_rc != 0:
+        return fail_and_exit(
+            seamgrim_ci_gate_sam_seulgi_family_step_rc,
+            "[ci-gate] fast-fail: seamgrim ci gate sam seulgi family step check failed",
+        )
     seamgrim_ci_gate_guideblock_step_rc = check_seamgrim_ci_gate_guideblock_step()
     if args.fast_fail and seamgrim_ci_gate_guideblock_step_rc != 0:
         return fail_and_exit(
@@ -4557,6 +4572,7 @@ def main() -> int:
         or ci_gate_report_index_diagnostics_rc != 0
         or ci_gate_report_index_latest_smoke_rc != 0
         or ci_gate_report_index_rc != 0
+        or seamgrim_ci_gate_sam_seulgi_family_step_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
         or ci_combine_reports_age5_selftest_rc != 0

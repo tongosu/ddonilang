@@ -68,6 +68,7 @@ REQUIRED_STEPS_COMMON = (
 )
 REQUIRED_STEPS_SEAMGRIM = (
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_guideblock_step_check",
     "seamgrim_ci_gate_lesson_warning_step_check",
@@ -1190,6 +1191,12 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
                     "returncode": 0,
                     "ok": True,
                     "cmd": ["python", "tests/run_seamgrim_ci_gate_seed_meta_step_check.py"],
+                },
+                {
+                    "name": "seamgrim_ci_gate_sam_seulgi_family_step_check",
+                    "returncode": 0,
+                    "ok": True,
+                    "cmd": ["python", "tests/run_seamgrim_ci_gate_sam_seulgi_family_step_check.py"],
                 },
                 {
                     "name": "seamgrim_ci_gate_runtime5_passthrough_check",
