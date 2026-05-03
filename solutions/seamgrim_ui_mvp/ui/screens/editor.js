@@ -1,8 +1,13 @@
-﻿const BLANK_DDN_TEMPLATE = `#이름: 새 교과
-#설명: 채비를 조절하면서 결과를 확인하세요.
+﻿const BLANK_DDN_TEMPLATE = `설정 {
+  제목: 새_교과.
+  설명: "채비를 조절하면서 결과를 확인하세요.".
+}.
 
-채비: {
-  계수 <- 1.
+채비 {
+  계수:수 <- 1.
+  프레임수:수 <- 0.
+  t:수 <- 0.
+  y:수 <- 0.
 }.
 
 (매마디)마다 {
@@ -12,6 +17,41 @@
   y 보여주기.
   프레임수 <- (프레임수 + 1).
 }.`;
+
+const STUDIO_READINESS_STAGE_READY = "ready";
+const STUDIO_READINESS_STAGE_AUTOFIX = "autofix";
+const STUDIO_READINESS_STAGE_BLOCKED = "blocked";
+
+function normalizeReadinessStage(raw) {
+  const text = String(raw ?? "").trim().toLowerCase();
+  if (text === STUDIO_READINESS_STAGE_AUTOFIX) return STUDIO_READINESS_STAGE_AUTOFIX;
+  if (text === STUDIO_READINESS_STAGE_BLOCKED) return STUDIO_READINESS_STAGE_BLOCKED;
+  return STUDIO_READINESS_STAGE_READY;
+}
+
+function normalizeReadinessModel(rawModel = null) {
+  const model = rawModel && typeof rawModel === "object" ? rawModel : {};
+  const stage = normalizeReadinessStage(model.stage);
+  const cause = String(model.user_cause ?? "").trim();
+  const primary = model.primary_action && typeof model.primary_action === "object"
+    ? model.primary_action
+    : {};
+  const buttonLabel = String(primary.label ?? "").trim();
+  const buttonDetail = String(primary.detail ?? "").trim();
+  const actionKind = String(primary.kind ?? "").trim().toLowerCase();
+  return {
+    stage,
+    user_cause: cause || (stage === STUDIO_READINESS_STAGE_BLOCKED ? "실행 전 수정이 필요합니다." : "입력 준비됨"),
+    primary_action: {
+      kind: actionKind || (stage === STUDIO_READINESS_STAGE_BLOCKED ? "manual_fix_example" : "run"),
+      label: buttonLabel || (stage === STUDIO_READINESS_STAGE_AUTOFIX ? "자동 수정 적용" : "작업실에서 실행"),
+      detail: buttonDetail,
+    },
+    autofix_available: Boolean(model.autofix_available),
+    blocking_remaining: Boolean(model.blocking_remaining),
+    manual_example: String(model.manual_example ?? "").trim(),
+  };
+}
 
 function extractFocusMatchLabel(text) {
   const normalized = String(text ?? "").trim();
@@ -114,7 +154,7 @@ export function findFlatLinkSelectionRange(text, link) {
 }
 
 export class EditorScreen {
-  constructor({ root, onBack, onRun, onSave, onOpenAdvanced, onSourceChange, onOpenBlock } = {}) {
+  constructor({ root, onBack, onRun, onSave, onOpenAdvanced, onSourceChange, onOpenBlock, onAutofix } = {}) {
     this.root = root;
     this.onBack = typeof onBack === "function" ? onBack : () => {};
     this.onRun = typeof onRun === "function" ? onRun : () => {};
@@ -122,11 +162,13 @@ export class EditorScreen {
     this.onOpenAdvanced = typeof onOpenAdvanced === "function" ? onOpenAdvanced : () => {};
     this.onSourceChange = typeof onSourceChange === "function" ? onSourceChange : () => {};
     this.onOpenBlock = typeof onOpenBlock === "function" ? onOpenBlock : () => {};
+    this.onAutofix = typeof onAutofix === "function" ? onAutofix : null;
     this.readOnly = false;
     this.focusMatches = [];
     this.focusIndex = -1;
     this.guideHeaderRange = null;
     this.warningShowsGuide = false;
+    this.readinessModel = normalizeReadinessModel(null);
   }
 
   init() {
@@ -143,17 +185,26 @@ export class EditorScreen {
     this.focusSelectEl = this.root.querySelector("#editor-focus-select");
     this.focusPrevBtn = this.root.querySelector("#btn-editor-focus-prev");
     this.focusNextBtn = this.root.querySelector("#btn-editor-focus-next");
+    this.runGateReasonEl = this.root.querySelector("#editor-run-gate-reason");
+    this.readinessCardEl = this.root.querySelector("#editor-readiness-card");
+    this.readinessStageEl = this.root.querySelector("#editor-readiness-stage");
+    this.readinessCauseEl = this.root.querySelector("#editor-readiness-cause");
+    this.readinessActionBtn = this.root.querySelector("#btn-editor-readiness-action");
+    this.loadFileInputEl = this.root.querySelector("#input-editor-ddn-file");
 
     this.root.querySelector("#btn-back-to-browse")?.addEventListener("click", () => {
       this.onBack();
     });
 
     this.root.querySelector("#btn-run-from-editor")?.addEventListener("click", () => {
-      this.onRun(this.getDdn());
+      this.onRun(this.getDdn(), { readinessModel: this.getStudioReadinessModel() });
     });
 
     this.root.querySelector("#btn-save-ddn")?.addEventListener("click", () => {
       this.onSave(this.getDdn());
+    });
+    this.root.querySelector("#btn-load-ddn")?.addEventListener("click", () => {
+      void this.handleLoadFromLocalFile();
     });
 
     this.root.querySelector("#btn-block-mode")?.addEventListener("click", () => {
@@ -188,6 +239,29 @@ export class EditorScreen {
     this.focusWarningEl?.addEventListener("click", () => {
       this.toggleGuideHeaderSelection();
     });
+    this.readinessActionBtn?.addEventListener("click", () => {
+      void this.handleReadinessAction();
+    });
+    this.setStudioReadinessModel(null);
+  }
+
+  async handleLoadFromLocalFile() {
+    const file = await pickDdnFileFromLocal(this.loadFileInputEl);
+    if (!file) return false;
+    return this.applyLoadedFile(file);
+  }
+
+  async applyLoadedFile(file) {
+    try {
+      const text = await readTextFromLocalFile(file);
+      this.replaceDdn(text, { emitSourceChange: true });
+      const fileName = String(file?.name ?? "파일").trim() || "파일";
+      this.setSmokeResult(`불러오기 완료: ${fileName}`);
+      return true;
+    } catch (error) {
+      this.setSmokeResult(`불러오기 실패: ${String(error?.message ?? error)}`);
+      return false;
+    }
   }
 
   loadLesson(ddnText, { title = "DDN 보기", readOnly = true, focusText = "", focusTexts = [] } = {}) {
@@ -202,6 +276,7 @@ export class EditorScreen {
     }
     this.setSmokeResult(this.readOnly ? "교과 DDN 읽기 전용 모드" : "편집 모드");
     this.loadFocusMatches(normalizedText, { readOnly: this.readOnly, focusText, focusTexts });
+    this.setStudioReadinessModel(null);
     this.emitSourceChange();
   }
 
@@ -216,11 +291,20 @@ export class EditorScreen {
     }
     this.setSmokeResult("새 DDN 편집 모드");
     this.loadFocusMatches(BLANK_DDN_TEMPLATE, { readOnly: false });
+    this.setStudioReadinessModel(null);
     this.emitSourceChange();
   }
 
   getDdn() {
     return String(this.textarea?.value ?? "");
+  }
+
+  replaceDdn(nextText, { emitSourceChange = true } = {}) {
+    if (!this.textarea) return;
+    this.textarea.value = String(nextText ?? "");
+    if (emitSourceChange) {
+      this.emitSourceChange();
+    }
   }
 
   setSmokeResult(message) {
@@ -327,6 +411,61 @@ export class EditorScreen {
     } catch (_) {
       // ignore editor source change errors
     }
+  }
+
+  getStudioReadinessModel() {
+    return normalizeReadinessModel(this.readinessModel);
+  }
+
+  setStudioReadinessModel(rawModel = null) {
+    const model = normalizeReadinessModel(rawModel);
+    this.readinessModel = model;
+    if (this.readinessCardEl?.dataset) {
+      this.readinessCardEl.dataset.stage = model.stage;
+    }
+    if (this.readinessStageEl) {
+      if (model.stage === STUDIO_READINESS_STAGE_AUTOFIX) {
+        this.readinessStageEl.textContent = "자동 수정 가능";
+      } else if (model.stage === STUDIO_READINESS_STAGE_BLOCKED) {
+        this.readinessStageEl.textContent = "실행 차단";
+      } else {
+        this.readinessStageEl.textContent = "입력 준비됨";
+      }
+    }
+    if (this.readinessCauseEl) {
+      this.readinessCauseEl.textContent = model.user_cause;
+    }
+    if (this.readinessActionBtn) {
+      this.readinessActionBtn.textContent = String(model.primary_action?.label ?? "바로 실행");
+      this.readinessActionBtn.disabled = this.readOnly;
+      this.readinessActionBtn.title = String(model.primary_action?.detail ?? "");
+    }
+    if (this.runGateReasonEl) {
+      if (model.stage === STUDIO_READINESS_STAGE_BLOCKED) {
+        this.runGateReasonEl.textContent = `실행 차단: ${model.user_cause}`;
+      } else if (model.stage === STUDIO_READINESS_STAGE_AUTOFIX) {
+        this.runGateReasonEl.textContent = "자동 수정 가능";
+      } else {
+        this.runGateReasonEl.textContent = "입력 준비됨";
+      }
+    }
+  }
+
+  async handleReadinessAction() {
+    const model = this.getStudioReadinessModel();
+    const actionKind = String(model?.primary_action?.kind ?? "").trim().toLowerCase();
+    if (actionKind === "autofix" && typeof this.onAutofix === "function") {
+      await this.onAutofix(this.getDdn(), {
+        source: "editor_readiness_card",
+      });
+      return;
+    }
+    if (actionKind === "manual_fix_example") {
+      const detail = String(model.manual_example || model.primary_action?.detail || "").trim();
+      this.setSmokeResult(detail || "수정 예시를 참고해 입력을 바꿔 주세요.");
+      return;
+    }
+    this.onRun(this.getDdn(), { readinessModel: model });
   }
 
   loadFocusMatches(value, { readOnly = true, focusText = "", focusTexts = [] } = {}) {
@@ -480,4 +619,46 @@ export function saveDdnToFile(text, filename = "lesson.ddn") {
   link.download = filename;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 800);
+}
+
+export async function readTextFromLocalFile(file) {
+  if (!file || typeof file !== "object") {
+    throw new Error("선택된 파일이 없습니다.");
+  }
+  const text = await file.text();
+  return String(text ?? "");
+}
+
+export function pickDdnFileFromLocal(inputEl = null) {
+  const input = inputEl && typeof inputEl === "object"
+    ? inputEl
+    : document.createElement("input");
+  input.type = "file";
+  input.accept = ".ddn,.txt,.md,text/plain,text/markdown";
+  input.classList?.add?.("hidden");
+  if (!input.parentNode) {
+    document.body.appendChild(input);
+  }
+  input.value = "";
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (file) => {
+      if (settled) return;
+      settled = true;
+      input.removeEventListener("change", handleChange);
+      window.removeEventListener("focus", handleWindowFocus);
+      resolve(file ?? null);
+    };
+    const handleChange = () => {
+      finish(input.files?.[0] ?? null);
+    };
+    const handleWindowFocus = () => {
+      setTimeout(() => {
+        finish(input.files?.[0] ?? null);
+      }, 240);
+    };
+    input.addEventListener("change", handleChange);
+    window.addEventListener("focus", handleWindowFocus, { once: true });
+    input.click();
+  });
 }

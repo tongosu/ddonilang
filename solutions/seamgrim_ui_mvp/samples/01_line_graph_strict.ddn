@@ -1,6 +1,3 @@
-#이름: seamgrim_ui_mvp_moving_dot_sample_strict
-#설명: strict 모드용. 프레임수로 점이 대각선 이동(모듈로 wrap).
-
 그릇채비: {
   프레임수:수 <- 0.
 }.

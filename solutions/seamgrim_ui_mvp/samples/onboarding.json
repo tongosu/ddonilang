@@ -1,0 +1,33 @@
+{
+  "schema": "seamgrim.onboarding.v1",
+  "summary": {
+    "canonical_path_text": "hello -> 움직임 -> slider -> replay/거울",
+    "estimated_minutes": 3
+  },
+  "steps": [
+    {
+      "id": "hello",
+      "title": "hello",
+      "target_kind": "sample",
+      "target_id": "06_console_grid_scalar_show"
+    },
+    {
+      "id": "movement",
+      "title": "움직임",
+      "target_kind": "sample",
+      "target_id": "09_moyang_pendulum_working"
+    },
+    {
+      "id": "maegim",
+      "title": "slider",
+      "target_kind": "lesson",
+      "target_id": "elem_math_multiplication_table"
+    },
+    {
+      "id": "replay_geoul",
+      "title": "replay/거울",
+      "target_kind": "lesson",
+      "target_id": "elem_econ_timeline"
+    }
+  ]
+}

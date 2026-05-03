@@ -1,14 +1,14 @@
 {
   "version": 0,
   "symbols": [
-    { "name": "살림.P_star", "type": "수" },
-    { "name": "살림.Pf_max", "type": "수" },
-    { "name": "살림.Pf_min", "type": "수" },
-    { "name": "살림.Pf목록", "type": "수" },
-    { "name": "살림.a", "type": "수" },
-    { "name": "살림.b", "type": "수" },
-    { "name": "살림.c", "type": "수" },
-    { "name": "살림.d", "type": "수" },
-    { "name": "살림.dPf", "type": "수" }
+    { "name": "P_star", "type": "수" },
+    { "name": "Pf_max", "type": "수" },
+    { "name": "Pf_min", "type": "수" },
+    { "name": "Pf목록", "type": "수" },
+    { "name": "a", "type": "수" },
+    { "name": "b", "type": "수" },
+    { "name": "c", "type": "수" },
+    { "name": "d", "type": "수" },
+    { "name": "dPf", "type": "수" }
   ]
 }

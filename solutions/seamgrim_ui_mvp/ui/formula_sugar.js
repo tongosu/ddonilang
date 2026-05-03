@@ -112,8 +112,10 @@ export function buildFormulaSugarDdn(draft = null) {
   const stepText = formatDdnNumber(sample.step);
 
   return [
-    `#이름: formula_${outputVar}`,
-    "#설명: 수식 입력에서 자동 생성됨",
+    "설정 {",
+    `  제목: formula_${outputVar}.`,
+    '  설명: "수식 입력에서 자동 생성됨".',
+    "}.",
     "",
     "채비 {",
     `  ${minVar}:수 <- ${minText}.`,

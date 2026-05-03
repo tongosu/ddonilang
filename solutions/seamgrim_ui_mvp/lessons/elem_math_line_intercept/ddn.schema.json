@@ -2,19 +2,19 @@
   "version": 0,
   "symbols": [
     {
-      "name": "살림.dx",
+      "name": "dx",
       "type": "수"
     },
     {
-      "name": "살림.x_max",
+      "name": "x_max",
       "type": "수"
     },
     {
-      "name": "살림.x_min",
+      "name": "x_min",
       "type": "수"
     },
     {
-      "name": "살림.x목록",
+      "name": "x목록",
       "type": "수"
     }
   ]

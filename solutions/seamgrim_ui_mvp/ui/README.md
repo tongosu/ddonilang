@@ -13,6 +13,10 @@
 - Docker 시작: `docker compose -f solutions/seamgrim_ui_mvp/deploy/docker-compose.yml up --build -d`
 - 브라우저에서 `http://localhost:8787/` 접속
 - UI는 교과/샘플 경로를 `/...`와 `/solutions/seamgrim_ui_mvp/...` 순서로 자동 폴백합니다(실행 서버/정적 루트 차이 완화).
+- 둘러보기에는 `교과`와 별도로 `예제` 탭이 있으며, `/samples/index.json`에 등록된 샘플을 작업실로 바로 열 수 있습니다.
+- 처음 시작은 hello -> 움직임 -> slider -> replay/거울 순서로 본다.
+- 위 first-run rail은 current-line 기준 3분 동선으로 유지하며, `samples/onboarding.json`과 `ui/first_run_catalog.js`가 같은 순서를 가리켜야 한다.
+- `예제` 탭의 테트리스 카드는 웹 작업실 current-line에서 실제로 도는 `10_console_grid_mini_tetris.ddn` 기반 playable 예제를 연다.
 - 연합 검색은 기본적으로 `/api/lessons/inventory`만 조회합니다(불필요한 `build/reports/*.json` 404 방지).
 - 파일 인벤토리 폴백이 필요하면 `index.html` 로드 전에 `window.SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK = true;` 와 `window.SEAMGRIM_FEDERATED_FILE_CANDIDATES = ["build/reports/seamgrim_lesson_inventory.json"];` 를 함께 지정합니다.
 - 실행 화면은 기본적으로 sim-core 정책(`시뮬 중심 + 축 선택 + 교과 오버레이`)으로 동작합니다. 해제가 필요하면 `window.SEAMGRIM_SIM_CORE_POLICY = false`를 설정합니다.
@@ -116,9 +120,14 @@
 - 단축키 도움말 팝오버의 열림/닫힘 상태도 로컬 저장소에 유지되어 재접속 시 복원됩니다.
 - 실행 탭과 상단 `고급 메뉴`에서 `Playground`/`Smoke`로 진입할 수 있습니다.
 - `playground.html`, `wasm_smoke.html` 레거시 파일은 제거되었고, 동작 진입점은 `index.html` 하나만 유지합니다.
-- UI 전처리기(실행 화면 경로)에서 `보개 { ... }`/`모양 { ... }` 블록의 `선(...)`, `원(...)`, `점(...)`을 `space2d.shape` 출력으로 자동 변환합니다.
+- UI 전처리기(실행 화면 경로)에서 `모양 { ... }` 블록의 `선(...)`, `원(...)`, `점(...)`을 `space2d.shape` 출력으로 자동 변환합니다.
   - 현재 범위는 블록 내부가 위 3개 프리미티브로만 구성된 경우입니다.
   - 예제: `solutions/seamgrim_ui_mvp/samples/05_pendulum_bogae_block_ui.ddn`
+  - space2d 진자 최소 데모: `solutions/seamgrim_ui_mvp/samples/08_pendulum_space2d_minimal.ddn`
+  - 바로 붙여 넣는 working 데모: `solutions/seamgrim_ui_mvp/samples/09_moyang_pendulum_working.ddn`
+  - console-grid 최소 예제: `solutions/seamgrim_ui_mvp/samples/06_console_grid_scalar_show.ddn`
+  - console-grid live 데모: `solutions/seamgrim_ui_mvp/samples/07_console_grid_live_counter.ddn`
+  - console-grid 기반 playable 테트리스 예제(예제 탭): `solutions/seamgrim_ui_mvp/samples/10_console_grid_mini_tetris.ddn`
   - 권장 패턴:
     - `채비`는 조절값 기본값/범위 선언만 담당
     - `(시작)할때`는 시뮬 상태(`t`, `theta`, `omega` 등) 초기화만 담당

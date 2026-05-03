@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 
 (시작)할때 {
@@ -23,10 +22,6 @@
     c <- (beta) cos.
     I <- c*c.
 
-    보임 {
-      th: th.
-      I: I.
-    }.
     th <- th + (dth).
   }.
 }.

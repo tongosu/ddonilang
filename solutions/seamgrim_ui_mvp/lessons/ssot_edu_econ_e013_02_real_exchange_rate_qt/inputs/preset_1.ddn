@@ -1,4 +1,3 @@
-
 #기본관찰x: t
 #기본관찰: q
 
@@ -23,13 +22,6 @@
     q <- 0.
     { P_dom > 0 }인것 일때 {
       q <- e * (P_for / P_dom).
-    }.
-
-    보임 {
-      t: t.
-      q: q.
-      P_dom: P_dom.
-      P_for: P_for.
     }.
 
     P_dom <- P_dom * (1 + pi_dom).

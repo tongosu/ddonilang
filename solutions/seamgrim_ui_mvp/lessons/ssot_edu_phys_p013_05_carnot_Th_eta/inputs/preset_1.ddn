@@ -1,4 +1,3 @@
-
 Tc <- 300.
 
 Th_min <- Tc + 1.
@@ -14,10 +13,6 @@ dTh <- 5.
     eta <- 1 - (Tc / Th).
     { eta < 0 }인것 일때 {
       eta <- 0.
-    }.
-    보임 {
-      Th: Th.
-      eta: eta.
     }.
     Th <- Th + dTh.
   }.

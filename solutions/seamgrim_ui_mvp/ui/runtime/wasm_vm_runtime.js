@@ -235,40 +235,45 @@ export class WasmVmHandle {
     }
   }
 
-  async step({ n = 1, input = null, sourceText = null } = {}) {
+  async step({ n = null, input = null, sourceText = null } = {}) {
     const client = await this.ensureClientForOp(
       sourceText ?? this.lastSourceText ?? this.defaultSourceText,
       "E_WASM_STEP_ENSURE_FAILED",
       "step 진입을 위한 wasm client 준비에 실패했습니다.",
     );
-    const countRaw = Number(n);
+    const configuredMadi =
+      n === null || n === undefined
+        ? (typeof client.configuredMadi === "function" ? client.configuredMadi() : 0)
+        : 0;
+    const countRaw = Number(configuredMadi > 0 ? configuredMadi : n);
     const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.floor(countRaw) : 1;
     let state = null;
-    for (let i = 0; i < count; i += 1) {
-      try {
-        if (
-          input &&
-          typeof input === "object" &&
-          typeof client.stepOneWithInputParsed === "function"
-        ) {
-          state = client.stepOneWithInputParsed(
-            Number(input.keys ?? 0),
-            String(input.lastKey ?? ""),
-            Number(input.px ?? 0),
-            Number(input.py ?? 0),
+    const hasFrameInput = Boolean(input && typeof input === "object");
+    try {
+      if (!hasFrameInput && typeof client.runTicksParsed === "function") {
+        state = client.runTicksParsed(count);
+      } else {
+        for (let i = 0; i < count; i += 1) {
+          if (hasFrameInput && typeof client.stepOneWithInputParsed === "function") {
+            state = client.stepOneWithInputParsed(
+              Number(input.keys ?? 0),
+              String(input.lastKey ?? ""),
+              Number(input.px ?? 0),
+              Number(input.py ?? 0),
             Number(input.dt ?? 0),
           );
-        } else {
-          state = client.stepOneParsed();
+          } else {
+            state = client.stepOneParsed();
+          }
         }
-      } catch (err) {
-        this.addRuntimeDiag(
-          "E_WASM_STEP_FAILED",
-          "stepOne 호출에 실패했습니다.",
-          `i=${i}; ${String(err?.message ?? err ?? "")}`,
-        );
-        throw err;
       }
+    } catch (err) {
+      this.addRuntimeDiag(
+        "E_WASM_STEP_FAILED",
+        "stepOne 호출에 실패했습니다.",
+        String(err?.message ?? err ?? ""),
+      );
+      throw err;
     }
     try {
       return this.attachObservationManifest(state);

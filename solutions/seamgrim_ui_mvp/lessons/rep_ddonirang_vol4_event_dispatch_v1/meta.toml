@@ -1,0 +1,9 @@
+title = "대표 · 또니랑 4권 · 사건/발송"
+description = "알림씨와 받으면, 임자, dispatch를 묶어 보는 대표 lesson"
+grade = "middle"
+subject = "cs"
+level = "advanced"
+goals = ["알림씨가 임자 상태를 어떻게 바꾸는지 읽는다", "같은 흐름에서 여러 dispatch가 순서대로 반영되는지 본다"]
+story = "또니랑 4권 앞부분의 알림씨/받으면/임자 흐름을 셈그림 교과 탭에서 바로 확인합니다."
+missions = ["경고 뒤 확인이 오면 마지막 상태가 어떻게 바뀌는지 말하기", "처리횟수가 몇 번 누적되는지 확인하기"]
+required_views = ["table", "text"]

@@ -13,6 +13,7 @@ PROMOTE_BACKUP_SUFFIX = ".before_age3_promote.bak"
 
 PATTERNS: dict[str, re.Pattern[str]] = {
     "priority_range_comment": re.compile(r"//\s*범위\s*\([^)\n]*\)", re.MULTILINE),
+    "priority_range_hash": re.compile(r"#\s*범위\s*(?:\(|:)", re.MULTILINE),
     "priority_setup_colon": re.compile(r"^\s*채비\s*:\s*\{", re.MULTILINE),
     "info_legacy_show": re.compile(r"보여주기\s*\.", re.MULTILINE),
     "info_legacy_start_colon": re.compile(r"\(\s*(?:시작|처음)\s*\)\s*할때\s*:", re.MULTILINE),
@@ -21,7 +22,7 @@ PATTERNS: dict[str, re.Pattern[str]] = {
     "info_legacy_start_alias": re.compile(r"\(\s*처음\s*\)\s*할때\b", re.MULTILINE),
     "info_legacy_tick_alias": re.compile(r"\(\s*매틱\s*\)\s*마다\b", re.MULTILINE),
 }
-PRIORITY_KEYS = ("priority_range_comment", "priority_setup_colon")
+PRIORITY_KEYS = ("priority_range_comment", "priority_range_hash", "priority_setup_colon")
 
 
 def parse_args() -> argparse.Namespace:
@@ -128,6 +129,7 @@ def main() -> int:
         " ".join(
             [
                 f"priority_range_comment={totals['priority_range_comment']}",
+                f"priority_range_hash={totals['priority_range_hash']}",
                 f"priority_setup_colon={totals['priority_setup_colon']}",
                 f"info_legacy_show={totals['info_legacy_show']}",
                 f"info_legacy_start_colon={totals['info_legacy_start_colon']}",
@@ -146,7 +148,7 @@ def main() -> int:
             continue
         print(
             f"[legacy] {row['path']} priority={row['priority_total']} "
-            f"range={row['priority_range_comment']} setup_colon={row['priority_setup_colon']} "
+            f"range={row['priority_range_comment']} range_hash={row['priority_range_hash']} setup_colon={row['priority_setup_colon']} "
             f"show={row['info_legacy_show']} start_colon={row['info_legacy_start_colon']} "
             f"tick_colon={row['info_legacy_tick_colon']} interval_tick_colon={row['info_legacy_tick_interval_colon']} "
             f"start_alias={row['info_legacy_start_alias']} tick_alias={row['info_legacy_tick_alias']}"

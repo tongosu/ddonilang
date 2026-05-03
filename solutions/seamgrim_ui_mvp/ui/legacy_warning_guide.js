@@ -36,7 +36,7 @@ export function buildLegacyGuideDraftText({
 
   const guideLines = [
     "// --- 매김 전환 초안 ---",
-    `// ${normalizedTitle}의 legacy \`// 범위(...)\`를 \`매김 {}\`로 옮기기 위한 편집 초안입니다.`,
+    `// ${normalizedTitle}의 금지된 \`// 범위(...)\`를 \`매김 {}\`로 옮기기 위한 편집 초안입니다.`,
   ];
   if (names.length > 0) {
     guideLines.push(`// 대상 항목: ${names.join(", ")}`);

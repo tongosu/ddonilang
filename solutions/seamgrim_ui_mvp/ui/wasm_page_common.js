@@ -128,7 +128,8 @@ export function syncWasmSettingsControlsFromState({
 } = {}) {
   const ws = wasmState && typeof wasmState === "object" ? wasmState : {};
   if (enabledToggle) enabledToggle.checked = Boolean(ws.enabled);
-  if (langModeSelect) langModeSelect.value = String(ws.langMode ?? "compat");
+  const langMode = String(ws.langMode ?? "strict") === "compat" ? "strict" : String(ws.langMode ?? "strict");
+  if (langModeSelect) langModeSelect.value = langMode;
   if (sampleSelect) sampleSelect.value = String(ws.sampleId ?? "");
   if (inputEnabledToggle) inputEnabledToggle.checked = Boolean(ws.inputEnabled);
   if (fpsInput && ws.fpsLimit !== undefined && ws.fpsLimit !== null) fpsInput.value = ws.fpsLimit;
@@ -921,6 +922,52 @@ function formatGraphTickLabel(value, step = 1) {
   return Number(numeric.toFixed(digits)).toString();
 }
 
+function formatSpace2dRangeLabel(minValue, maxValue) {
+  const min = Number(minValue);
+  const max = Number(maxValue);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return "[-, -]";
+  return `[${Number(min.toFixed(2))}, ${Number(max.toFixed(2))}]`;
+}
+
+function formatSpace2dMetric(value, digits = 2) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "-";
+  return Number(numeric.toFixed(digits)).toString();
+}
+
+function normalizeSpace2dRangeForMetrics(range) {
+  if (!range || typeof range !== "object") return null;
+  const xMin = Number(range.x_min ?? range.xMin);
+  const xMax = Number(range.x_max ?? range.xMax);
+  const yMin = Number(range.y_min ?? range.yMin);
+  const yMax = Number(range.y_max ?? range.yMax);
+  if (![xMin, xMax, yMin, yMax].every(Number.isFinite) || xMax <= xMin || yMax <= yMin) return null;
+  return { xMin, xMax, yMin, yMax };
+}
+
+function summarizeSpace2dViewTransform({ autoFit, viewState, xMin, xMax, yMin, yMax }) {
+  const base = normalizeSpace2dRangeForMetrics(viewState?.baseRange);
+  const current = { xMin, xMax, yMin, yMax };
+  if (!base) {
+    return autoFit ? "auto" : "manual";
+  }
+  const baseW = base.xMax - base.xMin;
+  const baseH = base.yMax - base.yMin;
+  const curW = current.xMax - current.xMin;
+  const curH = current.yMax - current.yMin;
+  const zoomX = baseW / curW;
+  const zoomY = baseH / curH;
+  const zoom = [zoomX, zoomY].every(Number.isFinite) ? Math.sqrt(Math.max(0, zoomX * zoomY)) : 1;
+  const baseCx = (base.xMin + base.xMax) / 2;
+  const baseCy = (base.yMin + base.yMax) / 2;
+  const curCx = (current.xMin + current.xMax) / 2;
+  const curCy = (current.yMin + current.yMax) / 2;
+  const panX = curCx - baseCx;
+  const panY = curCy - baseCy;
+  const mode = autoFit ? "auto" : "manual";
+  return `${mode} zoom=${formatSpace2dMetric(zoom)} pan=(${formatSpace2dMetric(panX)}, ${formatSpace2dMetric(panY)})`;
+}
+
 export function renderGraphCanvas2d({
   canvas,
   graph,
@@ -1037,14 +1084,37 @@ export function renderGraphCanvas2d({
     : ["#67e8f9", "#22c55e", "#38bdf8", "#a855f7", "#f59e0b", "#ef4444"];
   series.forEach((item, idx) => {
     const color = item.color ?? activePalette[idx % activePalette.length];
+    const kind = String(item?.kind ?? "line").trim().toLowerCase();
     ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    if (kind === "point") {
+      item.points.forEach((pt) => {
+        const x = pad + (pt.x - xMin) * scaleX;
+        const y = h - pad - (pt.y - yMin) * scaleY;
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      return;
+    }
     ctx.lineWidth = 2;
     ctx.beginPath();
     item.points.forEach((pt, index) => {
       const x = pad + (pt.x - xMin) * scaleX;
       const y = h - pad - (pt.y - yMin) * scaleY;
-      if (index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      if (index === 0) {
+        ctx.moveTo(x, y);
+        return;
+      }
+      if (kind === "step") {
+        const prev = item.points[index - 1];
+        const prevX = pad + (prev.x - xMin) * scaleX;
+        const prevY = h - pad - (prev.y - yMin) * scaleY;
+        ctx.lineTo(x, prevY);
+        ctx.lineTo(x, y);
+        return;
+      }
+      ctx.lineTo(x, y);
     });
     ctx.stroke();
   });
@@ -1305,6 +1375,8 @@ export function renderSpace2dCanvas2d({
   primitiveSource = "auto",
   showGrid = false,
   showAxis = false,
+  showXAxisTicks = false,
+  xTickCount = 5,
   pad = 28,
   emptyText = "graph/space2d: -",
   noPointsText = "space2d: (no points)",
@@ -1380,6 +1452,14 @@ export function renderSpace2dCanvas2d({
   const panPy = autoFit ? 0 : (Number.isFinite(panPyRaw) ? panPyRaw : 0);
   const mapX = (x) => (w / 2) + panPx + ((x - centerX) * scale * zoom);
   const mapY = (y) => (h / 2) + panPy - ((y - centerY) * scale * zoom);
+  const invScale = scale * zoom;
+  const visibleXMin = centerX + ((pad - (w / 2) - panPx) / invScale);
+  const visibleXMax = centerX + (((w - pad) - (w / 2) - panPx) / invScale);
+  const visibleYMax = centerY - ((pad - (h / 2) - panPy) / invScale);
+  const visibleYMin = centerY - (((h - pad) - (h / 2) - panPy) / invScale);
+  const xTicks = buildNiceTicks(visibleXMin, visibleXMax, Math.max(2, Number(xTickCount) || 5));
+  const yTicks = buildNiceTicks(visibleYMin, visibleYMax, 5);
+  const xTickStep = inferTickStep(xTicks, visibleXMax - visibleXMin);
 
   ctx.strokeStyle = "#1f2a44";
   ctx.lineWidth = 1;
@@ -1390,40 +1470,61 @@ export function renderSpace2dCanvas2d({
   ctx.stroke();
 
   if (showGrid) {
-    const gridCount = 5;
     ctx.strokeStyle = "rgba(148,163,184,0.25)";
     ctx.lineWidth = 1;
-    for (let i = 0; i < gridCount; i += 1) {
-      const t = i / (gridCount - 1);
-      const gx = pad + t * (w - pad * 2);
-      const gy = pad + t * (h - pad * 2);
+    xTicks.forEach((tick) => {
+      const gx = mapX(tick);
+      if (!Number.isFinite(gx) || gx < pad - 1 || gx > w - pad + 1) return;
       ctx.beginPath();
       ctx.moveTo(gx, pad);
       ctx.lineTo(gx, h - pad);
       ctx.stroke();
+    });
+    yTicks.forEach((tick) => {
+      const gy = mapY(tick);
+      if (!Number.isFinite(gy) || gy < pad - 1 || gy > h - pad + 1) return;
       ctx.beginPath();
       ctx.moveTo(pad, gy);
       ctx.lineTo(w - pad, gy);
       ctx.stroke();
-    }
+    });
   }
   if (showAxis) {
     ctx.strokeStyle = "rgba(226,232,240,0.35)";
     ctx.lineWidth = 1.5;
-    if (xMin <= 0 && xMax >= 0) {
+    if (visibleXMin <= 0 && visibleXMax >= 0) {
       const x0 = mapX(0);
       ctx.beginPath();
       ctx.moveTo(x0, pad);
       ctx.lineTo(x0, h - pad);
       ctx.stroke();
     }
-    if (yMin <= 0 && yMax >= 0) {
+    if (visibleYMin <= 0 && visibleYMax >= 0) {
       const y0 = mapY(0);
       ctx.beginPath();
       ctx.moveTo(pad, y0);
       ctx.lineTo(w - pad, y0);
       ctx.stroke();
     }
+  }
+  if (showXAxisTicks && xTicks.length > 0) {
+    const yAxis = visibleYMin <= 0 && visibleYMax >= 0 ? mapY(0) : h - pad;
+    ctx.strokeStyle = "rgba(226,232,240,0.55)";
+    ctx.fillStyle = "#94a3b8";
+    ctx.lineWidth = 1;
+    ctx.font = "11px 'IBM Plex Mono', ui-monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    xTicks.forEach((tick) => {
+      const x = mapX(tick);
+      if (!Number.isFinite(x) || x < pad - 1 || x > w - pad + 1) return;
+      ctx.beginPath();
+      ctx.moveTo(x, yAxis - 4);
+      ctx.lineTo(x, yAxis + 4);
+      ctx.stroke();
+      const labelY = Math.min(h - 16, yAxis + 7);
+      ctx.fillText(formatGraphTickLabel(tick, xTickStep), x, labelY);
+    });
   }
 
   ctx.fillStyle = "#facc15";
@@ -1518,6 +1619,10 @@ export function renderSpace2dCanvas2d({
       const rr = Math.max(1, Math.abs(circle.r * scale * zoom));
       ctx.beginPath();
       ctx.arc(x, y, rr, 0, Math.PI * 2);
+      if (shape.fill) {
+        ctx.fillStyle = String(shape.fill);
+        ctx.fill();
+      }
       ctx.stroke();
     } else if (kind === "rect") {
       const rect = resolveSpace2dRect(shape);
@@ -1600,8 +1705,11 @@ export function renderSpace2dCanvas2d({
 
   ctx.fillStyle = "#e2e8f0";
   ctx.font = "11px 'IBM Plex Mono', ui-monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  const transformLabel = summarizeSpace2dViewTransform({ autoFit, viewState, xMin, xMax, yMin, yMax });
   ctx.fillText(
-    `space2d zoom=${zoom.toFixed(2)} pan=(${Math.round(panPx)}, ${Math.round(panPy)})`,
+    `space2d ${transformLabel} x=${formatSpace2dRangeLabel(visibleXMin, visibleXMax)} y=${formatSpace2dRangeLabel(visibleYMin, visibleYMax)}`,
     pad,
     16,
   );
@@ -1639,6 +1747,7 @@ export function renderGraphOrSpace2dCanvas({
       primitiveSource: spacePrimitiveSource,
       showGrid: showSpaceGrid,
       showAxis: showSpaceAxis,
+      showXAxisTicks: Boolean(space2d?.guides?.showXAxisTicks ?? space2d?.guides?.show_x_axis_ticks),
     });
     return "space2d";
   }
@@ -1658,6 +1767,7 @@ export function renderGraphOrSpace2dCanvas({
     primitiveSource: spacePrimitiveSource,
     showGrid: showSpaceGrid,
     showAxis: showSpaceAxis,
+    showXAxisTicks: Boolean(space2d?.guides?.showXAxisTicks ?? space2d?.guides?.show_x_axis_ticks),
   });
   return "space2d";
 }

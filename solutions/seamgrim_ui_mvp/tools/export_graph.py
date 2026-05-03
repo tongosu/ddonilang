@@ -1140,6 +1140,46 @@ def rewrite_show_object_particle(input_text: str) -> str:
     return "\n".join(out)
 
 
+def rewrite_korean_if_branches(input_text: str) -> str:
+    lines = input_text.splitlines()
+    out: list[str] = []
+    if_open_re = re.compile(r"^(\s*)만약\s+(.+?)\s+이라면\s*\{\s*(//.*)?$")
+    if_then_close_re = re.compile(r"^(\s*)\}\.\s*(//.*)?$")
+    else_open_re = re.compile(r"^\s*아니면\s*\{")
+
+    def next_significant(start_index: int) -> str:
+        for idx in range(start_index, len(lines)):
+            text = str(lines[idx] or "").strip()
+            if not text or text.startswith("//"):
+                continue
+            return text
+        return ""
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("//"):
+            out.append(line)
+            continue
+
+        if_open = if_open_re.match(line)
+        if if_open:
+            indent = if_open.group(1) or ""
+            condition = (if_open.group(2) or "").strip()
+            comment = (if_open.group(3) or "").strip()
+            out.append(f"{indent}{{ {condition} }}인것 일때 {{{(' ' + comment) if comment else ''}")
+            continue
+
+        if_close = if_then_close_re.match(line)
+        if if_close and else_open_re.match(next_significant(idx + 1)):
+            indent = if_close.group(1) or ""
+            comment = (if_close.group(2) or "").strip()
+            out.append(f"{indent}}}{(' ' + comment) if comment else ''}")
+            continue
+
+        out.append(line)
+    return "\n".join(out)
+
+
 def strip_legacy_hash_header_lines(input_text: str) -> str:
     """teul-cli strict 표면에서 금지된 '#' 헤더/주석 줄을 제거한다."""
     kept: list[str] = []
@@ -1158,6 +1198,7 @@ def preprocess_ddn_for_teul(input_text: str, strip_draw: bool = True) -> str:
     text = rewrite_legacy_boim_blocks(text)
     text = rewrite_bogae_shape_blocks(text)
     text = rewrite_show_object_particle(text)
+    text = rewrite_korean_if_branches(text)
     text = normalize_inline_calls(text)
     text = normalize_pow_half(text)
     if strip_draw:

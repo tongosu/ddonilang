@@ -15,23 +15,32 @@ const LEGACY_ON_START_RE = /^(\s*)\(\s*(시작|처음)\s*\)\s*할때\s*:?\s*\{\s
 const LEGACY_ON_TICK_RE = /^(\s*)\(\s*(매마디|매틱)\s*\)\s*마다\s*:?\s*\{\s*(?:\/\/.*)?$/;
 const LEGACY_ON_TICK_N_RE = /^(\s*)\(\s*([1-9][0-9]*)\s*마디\s*\)\s*마다\s*:?\s*\{\s*(?:\/\/.*)?$/;
 const MOVEMENT_SEED_ANY_RE = /:\s*움직씨\s*=\s*\{/;
-const BOGAE_BLOCK_OPEN_RE = /^(\s*)(보개|모양)\s*:?\s*\{\s*(?:\/\/.*)?$/;
+const BOGAE_BLOCK_OPEN_RE = /^(\s*)모양\s*:?\s*\{\s*(?:\/\/.*)?$/;
 const SHAPE_LINE_RE = /^(점|선|원)\s*\((.*)\)\s*\.\s*$/;
 const BOGAE_MADANG_BLOCK_OPEN_RE = /^(\s*)보개마당\s*:?\s*\{\s*(?:\/\/.*)?$/;
 const MADANG_CHUNK_OPEN_RE = /^(\s*)토막\s*\((.*)\)\s*\{\s*(?:\/\/.*)?$/;
 const MADANG_SUBTITLE_LINE_RE = /^(\s*)자막\s*\((.*)\)\s*\.\s*$/;
 const LEGACY_BOIM_OPEN_RE = /^(\s*)보임\s*\{\s*$/;
 const LEGACY_BOIM_ITEM_RE = /^[^:]+:\s*(.+)\.\s*$/;
+const KOREAN_IF_OPEN_RE = /^(\s*)만약\s+(.+?)\s+이라면\s*\{\s*(\/\/.*)?$/u;
+const IF_THEN_CLOSE_BEFORE_ELSE_RE = /^(\s*)\}\.\s*(\/\/.*)?$/u;
+const ELSE_OPEN_RE = /^\s*아니면\s*\{/u;
 const LEGACY_DECL_BLOCK_OPEN_RE =
   /^(\s*)(그릇채비|붙박이마련|붙박이채비|바탕칸|바탕칸표|채비)\s*:?\s*\{\s*(\/\/.*)?$/;
 const DECL_ITEM_CALL_INIT_RE =
   /^(\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣]*\s*:\s*[^<=>]+?\s*(?:<-|=)\s*)\((.+)\)\s+([A-Za-z_가-힣][A-Za-z0-9_가-힣./]*)\.\s*(\/\/.*)?$/;
 const DECL_ITEM_EMPTY_MAP_RE =
   /^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*:\s*묶음\s*\.\s*(\/\/.*)?$/;
+const DECL_ITEM_INIT_RE =
+  /^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*:\s*([^<=>]+?)\s*(<-|=)\s*(.+?)\.\s*(\/\/.*)?$/;
 const DEEP_DOT_ASSIGN_RE =
   /^(\s*)([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\.([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\.[^<>\r\n]*<-\s*.+$/;
 const LEGACY_START_ONCE_STATE_KEY = "__wasm_start_once";
 const LEGACY_TICK_INTERVAL_STATE_PREFIX = "__wasm_tick_every_";
+const ROOT_MUTATE_RE = /^\s*([A-Za-z_가-힣][A-Za-z0-9_가-힣]*)\s*<-\s*.+$/;
+const START_ONCE_GUARD_OPEN_RE = new RegExp(
+  String.raw`^\s*\{\s*${escapeRegex(LEGACY_START_ONCE_STATE_KEY)}\s*<=\s*0\s*\}\s*인것\s*일때\s*\{\s*$`,
+);
 
 function normalizeText(text) {
   return String(text ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -147,15 +156,49 @@ export function preprocessDdnText(ddnText) {
   const normalizedDeepMap = rewriteDeepMapInitForWasm(normalizedDeclBlocks);
   const normalizedMadang = rewriteBogaeMadangBlocksForWasm(normalizedDeepMap);
   const normalizedLifecycle = rewriteLegacyLifecycleBlocksForWasm(normalizedMadang);
-  const normalizedBogae = rewriteBogaeShapeBlocksForWasm(normalizedLifecycle);
+  const normalizedMutableDeclInit = rewriteMutableDeclInitForWasm(normalizedLifecycle);
+  const normalizedBogae = rewriteBogaeShapeBlocksForWasm(normalizedMutableDeclInit);
   const normalizedBoim = rewriteLegacyBoimBlocksForWasm(normalizedBogae);
-  const bodyText = rewriteShowStatementsForWasm(normalizedBoim);
+  const normalizedKoreanIf = rewriteKoreanIfBranchesForWasm(normalizedBoim);
+  const bodyText = rewriteShowStatementsForWasm(normalizedKoreanIf);
 
   return {
     bodyText,
     pragmas,
     diags,
   };
+}
+
+function findNextSignificantLine(lines, startIndex) {
+  for (let idx = startIndex; idx < lines.length; idx += 1) {
+    const text = String(lines[idx] ?? "").trim();
+    if (!text || text.startsWith("//")) continue;
+    return text;
+  }
+  return "";
+}
+
+function rewriteKoreanIfBranchesForWasm(bodyText) {
+  const lines = normalizeText(bodyText).split("\n");
+  const out = lines.map((line, idx) => {
+    const ifOpen = String(line ?? "").match(KOREAN_IF_OPEN_RE);
+    if (ifOpen) {
+      const indent = String(ifOpen[1] ?? "");
+      const condition = String(ifOpen[2] ?? "").trim();
+      const comment = String(ifOpen[3] ?? "").trim();
+      return `${indent}{ ${condition} }인것 일때 {${comment ? ` ${comment}` : ""}`;
+    }
+
+    const close = String(line ?? "").match(IF_THEN_CLOSE_BEFORE_ELSE_RE);
+    if (close && ELSE_OPEN_RE.test(findNextSignificantLine(lines, idx + 1))) {
+      const indent = String(close[1] ?? "");
+      const comment = String(close[2] ?? "").trim();
+      return `${indent}}${comment ? ` ${comment}` : ""}`;
+    }
+
+    return line;
+  });
+  return out.join("\n");
 }
 
 function rewriteLegacyBoimBlocksForWasm(bodyText) {
@@ -443,15 +486,6 @@ function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
   };
 
   let outerLines = lines.filter((_, index) => !isRemoved(index));
-  if (startOpen >= 0) {
-    outerLines = ensureNumericStateDeclInDeclBlock(outerLines, LEGACY_START_ONCE_STATE_KEY);
-  }
-  if (tickInterval > 1) {
-    outerLines = ensureNumericStateDeclInDeclBlock(
-      outerLines,
-      buildTickIntervalStateKey(tickInterval),
-    );
-  }
   while (outerLines.length && !outerLines[outerLines.length - 1].trim()) {
     outerLines.pop();
   }
@@ -464,10 +498,15 @@ function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
   if (outerLines.some((line) => String(line ?? "").trim())) {
     out.push("");
   }
-  out.push("매틱:움직씨 = {");
-  if (startOpen >= 0) {
+  out.push("매마디:움직씨 = {");
+  if (startOpen >= 0 || tickInterval > 1) {
     out.push(`  { ${LEGACY_START_ONCE_STATE_KEY} <= 0 }인것 일때 {`);
-    out.push(...indentLines(startBody, "    "));
+    if (tickInterval > 1) {
+      out.push(`    ${buildTickIntervalStateKey(tickInterval)} <- 0.`);
+    }
+    if (startOpen >= 0) {
+      out.push(...indentLines(startBody, "    "));
+    }
     out.push(`    ${LEGACY_START_ONCE_STATE_KEY} <- 1.`);
     out.push("  }.");
   }
@@ -486,6 +525,121 @@ function rewriteLegacyLifecycleBlocksForWasm(bodyText) {
   out.push("}.");
 
   return out.join("\n");
+}
+
+function collectTopLevelDeclInitializers(lines) {
+  const items = [];
+  let inDeclBlock = false;
+  let declDepth = 0;
+
+  lines.forEach((line, index) => {
+    const open = String(line ?? "").match(LEGACY_DECL_BLOCK_OPEN_RE);
+    if (!inDeclBlock && open) {
+      inDeclBlock = true;
+      declDepth = 1;
+      return;
+    }
+    if (!inDeclBlock) return;
+
+    if (declDepth === 1) {
+      const match = String(line ?? "").match(DECL_ITEM_INIT_RE);
+      if (match) {
+        const name = String(match[1] ?? "").trim();
+        const assign = String(match[3] ?? "").trim();
+        const expr = String(match[4] ?? "").trim();
+        if (name && assign === "<-" && expr && !expr.includes("매김 {")) {
+          items.push({ name, expr, index });
+        }
+      }
+    }
+    declDepth += countBraceDelta(line);
+    if (declDepth <= 0) {
+      inDeclBlock = false;
+      declDepth = 0;
+    }
+  });
+
+  return items;
+}
+
+function collectMovementMutateNames(lines) {
+  const names = new Set();
+  let movementDepth = 0;
+  let inMovement = false;
+
+  lines.forEach((line) => {
+    const text = String(line ?? "");
+    const movementOpen = text.match(MOVEMENT_SEED_OPEN_RE);
+    if (!inMovement && movementOpen) {
+      inMovement = true;
+      movementDepth = 1;
+      return;
+    }
+    if (!inMovement) return;
+
+    if (movementDepth >= 1) {
+      const match = text.match(ROOT_MUTATE_RE);
+      if (match) {
+        const name = String(match[1] ?? "").trim();
+        if (name) names.add(name);
+      }
+    }
+    movementDepth += countBraceDelta(text);
+    if (movementDepth <= 0) {
+      inMovement = false;
+      movementDepth = 0;
+    }
+  });
+
+  return names;
+}
+
+function rewriteMutableDeclInitForWasm(bodyText) {
+  const sourceLines = normalizeText(bodyText).split("\n");
+  const declItems = collectTopLevelDeclInitializers(sourceLines);
+  if (!declItems.length) return bodyText;
+
+  const mutateNames = collectMovementMutateNames(sourceLines);
+  const initItems = declItems
+    .filter((item) => item.name !== LEGACY_START_ONCE_STATE_KEY && mutateNames.has(item.name))
+    .map((item) => ({ ...item, initLine: `    ${item.name} <- ${item.expr}.` }));
+  if (!initItems.length) return bodyText;
+
+  const removeIndexes = new Set(initItems.map((item) => item.index));
+  const trimmedLines = sourceLines.filter((_, index) => !removeIndexes.has(index));
+  const nextLines = trimmedLines.slice();
+  const movementOpen = nextLines.findIndex((line) => MOVEMENT_SEED_OPEN_RE.test(String(line ?? "")));
+  if (movementOpen < 0) return nextLines.join("\n");
+
+  const movementClose = findBlockCloseIndex(nextLines, movementOpen);
+  if (movementClose < 0) return nextLines.join("\n");
+
+  const startGuardOpen = nextLines.findIndex(
+    (line, index) => index > movementOpen && index < movementClose && START_ONCE_GUARD_OPEN_RE.test(String(line ?? "")),
+  );
+  if (startGuardOpen > movementOpen) {
+    const startGuardClose = findBlockCloseIndex(nextLines, startGuardOpen);
+    if (startGuardClose > startGuardOpen) {
+      const startDoneIndex = nextLines.findIndex(
+        (line, index) =>
+          index > startGuardOpen
+          && index < startGuardClose
+          && String(line ?? "").includes(`${LEGACY_START_ONCE_STATE_KEY} <- 1.`),
+      );
+      const insertIndex = startDoneIndex > startGuardOpen ? startDoneIndex : startGuardClose;
+      nextLines.splice(insertIndex, 0, ...initItems.map((item) => item.initLine));
+      return nextLines.join("\n");
+    }
+  }
+
+  const injected = [
+    "  { __wasm_start_once <= 0 }인것 일때 {",
+    ...initItems.map((item) => item.initLine),
+    "    __wasm_start_once <- 1.",
+    "  }.",
+  ];
+  nextLines.splice(movementOpen + 1, 0, ...injected);
+  return nextLines.join("\n");
 }
 
 function rewriteShowObjectParticles(bodyText) {
@@ -854,7 +1008,7 @@ function rewriteShowStatementsForWasm(bodyText) {
   if (insertedReset) return withReset.join("\n");
 
   const wrapped = [];
-  wrapped.push("매틱:움직씨 = {");
+  wrapped.push("매마디:움직씨 = {");
   wrapped.push(`  ${SHOW_OUTPUT_LINES_TAG} <- () 차림.`);
   rewritten.forEach((line) => {
     if (!line.trim()) {

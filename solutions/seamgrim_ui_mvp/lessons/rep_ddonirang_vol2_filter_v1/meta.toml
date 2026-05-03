@@ -1,0 +1,9 @@
+title = "대표 · 또니랑 2권 · 거르기"
+description = "차림에서 필요한 값만 골라 보는 대표 lesson"
+grade = "middle"
+subject = "cs"
+level = "intro"
+goals = ["거르기 전후의 차이를 읽는다", "기준값을 바꾸며 남는 값의 수를 비교한다"]
+story = "또니랑 2권 후반에서 나오는 '차림에서 필요한 것만 골라 보기' 감각을 셈그림 교과 탭에서 바로 확인합니다."
+missions = ["기준값을 바꿔 남는 값의 수를 말하기", "첫값과 마지막값이 어떻게 바뀌는지 보기"]
+required_views = ["table", "text"]

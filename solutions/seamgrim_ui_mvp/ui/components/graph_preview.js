@@ -85,7 +85,7 @@ export function buildGraphPreviewHtml(
             })
             .filter(Boolean)
         : [];
-      if (points.length < 2) return null;
+      if (!points.length) return null;
       return {
         id: String(row?.id ?? row?.label ?? `series_${index}`).trim() || `series_${index}`,
         points,
@@ -117,12 +117,26 @@ export function buildGraphPreviewHtml(
     : [lineClass];
   const pathSvg = usable
     .map((row, index) => {
+      if (row.points.length < 2) return "";
       const points = row.points
         .map((point, pointIndex) => `${pointIndex === 0 ? "M" : "L"} ${px(point.x).toFixed(1)} ${py(point.y).toFixed(1)}`)
         .join(" ");
       const variantClass = String(palette[index % palette.length] ?? "").trim();
       const classes = [lineClass, variantClass].filter(Boolean).join(" ");
       return `<path d="${points}" class="${classes}" />`;
+    })
+    .join("");
+  const pointSvg = usable
+    .map((row, index) => {
+      const variantClass = String(palette[index % palette.length] ?? "").trim();
+      const suffix = variantClass.replace("runtime-graph-line", "runtime-graph-point");
+      const classes = ["runtime-graph-point", suffix].filter(Boolean).join(" ");
+      return row.points
+        .map(
+          (point) =>
+            `<circle cx="${px(point.x).toFixed(1)}" cy="${py(point.y).toFixed(1)}" r="3.4" class="${classes}" />`,
+        )
+        .join("");
     })
     .join("");
   const title = String(graph?.meta?.title ?? "").trim();
@@ -134,6 +148,7 @@ export function buildGraphPreviewHtml(
         <line x1="${margin}" y1="${height - margin}" x2="${width - margin}" y2="${height - margin}" class="${axisClass}" />
         <line x1="${margin}" y1="${margin}" x2="${margin}" y2="${height - margin}" class="${axisClass}" />
         ${pathSvg}
+        ${pointSvg}
       </svg>
     </div>
   `;

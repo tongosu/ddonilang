@@ -119,6 +119,10 @@ function encodeSingleBlock(block) {
     const elseBody = elseLines ? indentLines(elseLines, "    ") : "    # 비어 있음";
     return `고르기:\n${branches}\n  아니면: {\n${elseBody}\n  }.`.trim();
   }
+  if (String(block.kind ?? "") === "choose_exhaustive") {
+    const branches = renderChildStatements(block.inputs?.branches ?? []);
+    return `고르기:\n${branches}\n  모든 경우 다룸.`.trim();
+  }
   if (String(block.kind ?? "") === "contract_guard") {
     const cond = String(block.fields?.cond ?? "");
     const contractKind = String(block.fields?.contract_kind ?? "pre");

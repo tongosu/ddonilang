@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 // 출력은 숫자만. (t, T) 순서.
 // NOTE: export_graph.py는 stdout 숫자쌍을 (x,y)로 묶는다.
@@ -11,7 +10,6 @@ k <- 0.15.
 dt <- 0.5.
 t_max <- 30.
 
-
 (시작)할때 {
   t <- 0.
   T <- 90.
@@ -19,10 +17,6 @@ t_max <- 30.
 
 (매마디)마다 {
   { t <= t_max }인것 일때 {
-    보임 {
-      t: t.
-      T: T.
-    }.
     
     T <- T - k * (T - Tenv) * dt.
     t <- t + (dt).

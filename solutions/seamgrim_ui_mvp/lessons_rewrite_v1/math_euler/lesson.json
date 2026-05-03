@@ -1,0 +1,9 @@
+{
+  "id": "math_euler",
+  "title": "오일러 적분",
+  "subject": "math",
+  "grade": "high",
+  "description": "미분방정식의 수치 근사를 오일러 방법으로 실험합니다.",
+  "keywords": ["오일러", "수치해석", "미분방정식"],
+  "quality": "recommended"
+}

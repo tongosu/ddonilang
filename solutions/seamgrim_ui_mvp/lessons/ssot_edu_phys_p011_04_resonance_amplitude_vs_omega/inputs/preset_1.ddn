@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 
 (시작)할때 {
@@ -26,10 +25,6 @@
     den <- ((u) sqrt).
     A <- F0 / den.
 
-    보임 {
-      w: w.
-      A: A.
-    }.
     w <- w + (dw).
   }.
 }.

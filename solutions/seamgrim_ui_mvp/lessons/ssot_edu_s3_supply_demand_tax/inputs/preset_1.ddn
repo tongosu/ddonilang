@@ -21,10 +21,6 @@
   { tau <= tau_max }인것 동안: {
     p_star <- (a - c + d * tau) / (b + d).
     q_star <- a - b * p_star.
-    보임 {
-      tau: tau.
-      p_star: p_star.
-    }.
     tau <- tau + tau_step.
   }.
 }.

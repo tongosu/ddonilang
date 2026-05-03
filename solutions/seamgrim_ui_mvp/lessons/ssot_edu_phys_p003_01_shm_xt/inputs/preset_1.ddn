@@ -1,25 +1,19 @@
-
 (매마디)마다 {
   // 출력은 숫자만. (t, x) 순서.
 
-  살림.A <- 1.
-  살림.omega <- 2.
-  살림.phi <- 0.
-  살림.dt <- 0.02.
-  살림.t_max <- 10.
+  A <- 1.
+  omega <- 2.
+  phi <- 0.
+  dt <- 0.02.
+  t_max <- 10.
 
-  살림.t <- 0.
+  t <- 0.
 
-  { 살림.t <= 살림.t_max }인것 동안: {
-    살림.theta <- (omega=살림.omega, t=살림.t, phi=살림.phi) (#ascii) 수식{ omega*t + phi }.
-    살림.s <- (살림.theta) sin.
-    살림.x <- (A=살림.A, s=살림.s) (#ascii) 수식{ A*s }.
+  { t <= t_max }인것 동안: {
+    theta <- (omega=omega, t=t, phi=phi) (#ascii) 수식{ omega*t + phi }.
+    s <- (theta) sin.
+    x <- (A=A, s=s) (#ascii) 수식{ A*s }.
 
-    보임 {
-      값1: 살림.t.
-      값2: 살림.x.
-    }.
-
-    살림.t <- 살림.t + 살림.dt.
+    t <- t + dt.
   }.
 }.

@@ -360,7 +360,7 @@ export function parsePrepBlockAssignments(text) {
             step: parsed.step ?? derivedStep ?? inferred.step,
             splitCount: parsed.splitCount ?? null,
             unit: "",
-            source: "prep",
+            source: "maegim_inline",
           });
           numericSeen.add(name);
         }
@@ -392,24 +392,23 @@ export function parsePrepBlockAssignments(text) {
           const value = Number(numMatch[1]);
           if (Number.isFinite(value)) {
             const inferred = inferBounds(value);
-            const range = parseRangeAnnotation(tail);
             numericAssignments.push({
               id: name,
               name,
               type: rawType,
               value,
-              min: range?.min ?? inferred.min,
-              max: range?.max ?? inferred.max,
-              step: range?.step ?? inferred.step,
+              min: inferred.min,
+              max: inferred.max,
+              step: inferred.step,
               unit: "",
               source: "prep",
             });
-            if (range) {
+            if (tail.includes("범위(")) {
               warnings.push({
-                code: "W_LEGACY_RANGE_COMMENT_DEPRECATED",
-                message: "`// 범위(...)`는 deprecated입니다. `매김 {}`으로 옮기세요.",
+                code: "E_LEGACY_RANGE_SYNTAX",
+                message: "`// 범위(...)`는 더 이상 허용되지 않습니다. `매김 { 범위: a..b. 간격: c. }`로 옮기세요.",
                 name,
-                source: "prep_comment",
+                source: "legacy_range_comment",
               });
             }
             numericSeen.add(name);
@@ -435,13 +434,15 @@ export function buildControlSpecsFromDdn(ddnText, options = {}) {
   const defaultObsXRaw =
     String(meta?.default_observation_x ?? "") || findGuideMetaValue(rawMeta, "default_observation_x");
   const prep = parsePrepBlockAssignments(ddnText);
-  const prepSpecs = Array.isArray(prep.numericAssignments) ? prep.numericAssignments : [];
+  const inlineMaegimSpecs = Array.isArray(prep.numericAssignments)
+    ? prep.numericAssignments.filter((item) => String(item?.source ?? "").trim() === "maegim_inline")
+    : [];
   const prepWarnings = Array.isArray(prep.warnings) ? prep.warnings : [];
   const maegimParsed = buildControlSpecsFromMaegimControlPlan(options?.maegimControlJson);
   const maegimSpecs = Array.isArray(maegimParsed.specs) ? maegimParsed.specs : [];
   const maegimWarnings = Array.isArray(maegimParsed.warnings) ? maegimParsed.warnings : [];
-  const specs = maegimSpecs.length ? maegimSpecs : prepSpecs;
-  const source = maegimSpecs.length ? "maegim_control_json" : prepSpecs.length ? "prep" : "none";
+  const specs = maegimSpecs.length ? maegimSpecs : inlineMaegimSpecs;
+  const source = maegimSpecs.length ? "maegim_control_json" : inlineMaegimSpecs.length ? "maegim_inline" : "none";
   const warnings = maegimSpecs.length ? maegimWarnings : prepWarnings;
   const axisKeys = Array.from(new Set(Array.isArray(prep.axisKeys) ? prep.axisKeys : []));
   const preferredMetaAxis = pickFirstIdentifier(defaultObsRaw);

@@ -2,25 +2,25 @@
   // 출력은 숫자만. (t, Vc) 순서.
   // NOTE: 지수해를 쓰지 않고 오일러(Euler) 적분으로 '충전 곡선'을 만든다.
 
-  살림.Vin <- 5.
-  살림.R <- 10.
-  살림.C <- 0.1.        // R*C = 1
-  살림.dt <- 0.01.
-  살림.t_max <- 5.
+  Vin <- 5.
+  R <- 10.
+  C <- 0.1.        // R*C = 1
+  dt <- 0.01.
+  t_max <- 5.
 
-  살림.t <- 0.
-  살림.Vc <- 0.
+  t <- 0.
+  Vc <- 0.
 
-  { 살림.t <= 살림.t_max }인것 동안: {
+  { t <= t_max }인것 동안: {
     // (t, Vc)
     보임 {
-      값1: 살림.t.
-      값2: 살림.Vc.
+      값1: t.
+      값2: Vc.
     }.
 
-    살림.dVc <- (Vin=살림.Vin, Vc=살림.Vc, R=살림.R, C=살림.C) (#ascii) 수식{ (Vin - Vc) / (R*C) }.
-    살림.Vc <- (Vc=살림.Vc, dVc=살림.dVc, dt=살림.dt) (#ascii) 수식{ Vc + dVc*dt }.
+    dVc <- (Vin=Vin, Vc=Vc, R=R, C=C) (#ascii) 수식{ (Vin - Vc) / (R*C) }.
+    Vc <- (Vc=Vc, dVc=dVc, dt=dt) (#ascii) 수식{ Vc + dVc*dt }.
 
-    살림.t <- 살림.t + 살림.dt.
+    t <- t + dt.
   }.
 }.

@@ -125,7 +125,10 @@ function parseGraphSeriesFromResources(rawState, preferPatch = false) {
 }
 
 export function buildGraphFromValueResources(state, preferPatch = false) {
-  const structured = extractStructuredViewsFromState(state, { preferPatch: Boolean(preferPatch) });
+  const structured = extractStructuredViewsFromState(state, {
+    preferPatch: Boolean(preferPatch),
+    allowObservationOutputFallback: false,
+  });
   if (structured?.graph && typeof structured.graph === "object") {
     return structured.graph;
   }

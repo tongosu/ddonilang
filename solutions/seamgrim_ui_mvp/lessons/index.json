@@ -1562,6 +1562,60 @@
       "ssot_pack": "edu_seamgrim_rep_science_phase_change_timeline_v1"
     },
     {
+      "id": "rep_ddonirang_vol2_filter_v1",
+      "title": "대표 · 또니랑 2권 · 거르기",
+      "description": "차림에서 필요한 값만 골라 보는 representative lesson",
+      "required_views": [
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "cs",
+      "level": "intro",
+      "goals": [
+        "거르기 전후의 차이를 읽는다",
+        "기준값을 바꾸며 남는 값의 수를 비교한다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
+      "id": "rep_ddonirang_vol2_map_v1",
+      "title": "대표 · 또니랑 2권 · 바꾸기",
+      "description": "각 값을 새 값으로 바꾸는 representative lesson",
+      "required_views": [
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "cs",
+      "level": "intro",
+      "goals": [
+        "바꾸기 전후의 값 변화를 읽는다",
+        "같은 규칙이 차림 전체에 적용된다는 감각을 익힌다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
+      "id": "rep_ddonirang_vol2_pipeline_v1",
+      "title": "대표 · 또니랑 2권 · 여러 단계 차림 작업",
+      "description": "거르기와 바꾸기를 이어 붙이는 representative lesson",
+      "required_views": [
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "cs",
+      "level": "intro",
+      "goals": [
+        "여러 단계 자료 흐름을 한 번에 읽는다",
+        "거르기와 바꾸기를 연결한 뒤 요약값을 해석한다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
       "id": "ssot_edu_econ_e001_01_demand_curve_PQ",
       "title": "수요와 수요곡선 (E001-01)",
       "description": "수요와 수요곡선",
@@ -3496,6 +3550,78 @@
       ],
       "source": "ssot",
       "ssot_pack": "edu_s3_supply_demand_tax"
+    },
+    {
+      "id": "rep_ddonirang_vol4_event_dispatch_v1",
+      "title": "대표 · 또니랑 4권 · 사건/발송",
+      "description": "알림씨와 받으면, 임자, dispatch를 작업장 lesson으로 읽는 representative rail",
+      "required_views": [
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "cs",
+      "level": "advanced",
+      "goals": [
+        "알림씨가 임자 상태를 어떻게 바꾸는지 읽는다",
+        "같은 흐름에서 여러 dispatch가 순서대로 반영되는지 본다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
+      "id": "rep_ddonirang_vol4_state_transition_v1",
+      "title": "대표 · 또니랑 4권 · 상태 전이",
+      "description": "임자 상태값과 사건 반응으로 bounded state transition을 읽는 representative rail",
+      "required_views": [
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "cs",
+      "level": "advanced",
+      "goals": [
+        "사건이 상태값을 어떻게 바꾸는지 읽는다",
+        "상태 전이와 체력 변화가 함께 움직이는지 본다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
+      "id": "rep_ddonirang_vol4_resume_isolation_v1",
+      "title": "대표 · 또니랑 4권 · 복귀/격리",
+      "description": "격리, 복귀, 재개를 current-line bounded shell로 읽는 representative rail",
+      "required_views": [
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "cs",
+      "level": "advanced",
+      "goals": [
+        "격리 중에는 일반 요청이 어떻게 보류되는지 읽는다",
+        "복귀승인과 재개요청이 순서대로 작동하는지 본다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
+      "id": "rep_ddonirang_vol4_multi_signal_priority_v1",
+      "title": "대표 · 또니랑 4권 · 다중 신호 우선 반응",
+      "description": "강한 경고와 일반 요청의 handling order를 current-line shell로 읽는 representative rail",
+      "required_views": [
+        "table",
+        "text"
+      ],
+      "grade": "middle",
+      "subject": "cs",
+      "level": "advanced",
+      "goals": [
+        "강한 경고 뒤 일반 요청이 어떻게 차단되는지 읽는다",
+        "복귀 뒤 정상 요청이 다시 처리되는지 본다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
     }
   ]
 }

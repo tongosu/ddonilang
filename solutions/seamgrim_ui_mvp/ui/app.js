@@ -3,8 +3,13 @@ import { createLessonCanonHydrator, buildFlatPlanView } from "./runtime/index.js
 import { BrowseScreen } from "./screens/browse.js";
 import { EditorScreen, saveDdnToFile } from "./screens/editor.js";
 import { BlockEditorScreen } from "./screens/block_editor.js";
-import { RunScreen } from "./screens/run.js";
+import { RunScreen, applyLegacyAutofixToDdn, hasLegacyAutofixCandidate } from "./screens/run.js";
 import { normalizeViewFamilyList } from "./view_family_contract.js";
+import {
+  buildAutofixResultContract,
+  buildStudioEditorReadinessModel,
+  STUDIO_READINESS_STAGE,
+} from "./studio_edit_run_contract.js";
 import {
   parseLessonDdnMetaHeader,
   resolveLessonDisplayMeta,
@@ -26,7 +31,6 @@ import {
 } from "./overlay_session_contract.js";
 import {
   createInputRegistryState,
-  registerFormulaInput,
   registerDdnInput,
   registerLessonInput,
   restoreInputRegistrySession,
@@ -38,8 +42,38 @@ import {
   serializeSceneSummarySession,
 } from "./scene_summary_contract.js";
 import { buildRuntimeSnapshotBundleV0 } from "./snapshot_session_contract.js";
+import {
+  CatalogKind,
+  ObjectKind,
+  PublishPolicy,
+  PublicationPolicy,
+  RouteSlotPolicy,
+  RevisionPolicy,
+  ShareKind,
+  SourceManagementPolicy,
+  Visibility,
+} from "./platform_contract.js";
+import {
+  buildMockInstallPackagePayload,
+  buildMockPublishAdapterPayload,
+  buildMockRestoreRevisionPayload,
+  buildMockSaveAdapterPayload,
+  buildMockShareAdapterPayload,
+  buildMockSwitchCatalogPayload,
+} from "./platform_mock_adapter_contract.js";
+import {
+  PlatformServerAdapterOp,
+  PlatformServerAdapterUiAction,
+  buildServerAdapterErrorResponse,
+  buildServerAdapterRequest,
+  mapServerOpToNotReadyErrorCode,
+  resolveServerErrorActionRail,
+} from "./platform_server_adapter_contract.js";
 
 const PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/";
+const ACTIVE_ALLOWLIST_PATH = "solutions/seamgrim_ui_mvp/lessons/active_allowlist.detjson";
+const CATALOG_MODE_REPS_ONLY = "reps_only";
+const CATALOG_MODE_FULL = "full";
 const SIM_CORE_POLICY_CLASS = "policy-sim-core";
 const OVERLAY_SESSION_STORAGE_KEY = "seamgrim.overlay_session.v1";
 const INPUT_REGISTRY_STORAGE_KEY = "seamgrim.input_registry.v0";
@@ -47,11 +81,48 @@ const SCENE_SUMMARY_STORAGE_KEY = "seamgrim.scene_summary.v0";
 const SNAPSHOT_V0_STORAGE_KEY = "seamgrim.snapshot.v0";
 const SESSION_V0_STORAGE_KEY = "seamgrim.session.v0";
 const BROWSE_PRESET_QUERY_KEY = "browsePreset";
-const WASM_CANON_RUNTIME_URL = "./runtime/../wasm/ddonirang_tool.js";
+const BROWSE_UI_PREFS_STORAGE_KEY = "seamgrim.ui.browse_prefs.v1";
+// lesson canon runtime(./runtime/*)에서 동적 import하므로 경로 기준은 runtime 디렉터리다.
+const WASM_CANON_RUNTIME_URL = "../wasm/ddonirang_tool.js";
+const PLATFORM_UI_ACTION_EVENT = "seamgrim:platform-ui-action";
+const PLATFORM_REVIEW_ACTION_EVENT = "seamgrim:platform-review-action";
+const MAIN_TAB_BROWSE = "browse";
+const MAIN_TAB_STUDIO = "studio";
+const STUDIO_DRAFT_LESSON_ID = "studio_draft";
+const STUDIO_DRAFT_DDN_TEMPLATE = `설정 {
+  제목: 새_교과.
+  설명: "채비를 조절하면서 결과를 확인하세요.".
+}.
+
+채비 {
+  계수:수 <- 1.
+  프레임수:수 <- 0.
+  t:수 <- 0.
+  y:수 <- 0.
+}.
+
+(매마디)마다 {
+  t <- 프레임수.
+  y <- (계수 * t).
+  t 보여주기.
+  y 보여주기.
+  프레임수 <- (프레임수 + 1).
+}.`;
 
 const appState = {
+  catalogMode: CATALOG_MODE_REPS_ONLY,
   currentLesson: null,
   currentScreen: "browse",
+  shell: {
+    authSession: null,
+    currentWorkId: null,
+    currentProjectId: null,
+    currentRevisionId: null,
+    currentPublicationId: null,
+    shareMode: null,
+    activeCatalog: CatalogKind.LESSON,
+    reviewStatus: "pending",
+  },
   wasm: {
     enabled: true,
     loader: null,
@@ -60,6 +131,13 @@ const appState = {
     fpsLimit: 30,
     dtMax: 0.1,
     langMode: "strict",
+  },
+  studio: {
+    sourceKind: "scratch",
+    sourceLabel: "새 작업",
+    engineStatus: "idle",
+    primaryViewFamily: "sim",
+    activeSubpanelTab: "graph",
   },
   lessonsById: new Map(),
   screenListeners: new Set(),
@@ -178,6 +256,264 @@ function readQueryBoolean(key, fallback = false) {
   } catch (_) {
     return fallback;
   }
+}
+
+function normalizeMainTabTarget(raw, fallback = MAIN_TAB_BROWSE) {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (value === MAIN_TAB_STUDIO) return MAIN_TAB_STUDIO;
+  if (value === MAIN_TAB_BROWSE || value === "lesson") return MAIN_TAB_BROWSE;
+  return fallback;
+}
+
+function decodeBase64Utf8(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return "";
+  try {
+    const normalized = text.replace(/-/g, "+").replace(/_/g, "/");
+    const padLen = normalized.length % 4;
+    const padded = padLen === 0 ? normalized : normalized + "=".repeat(4 - padLen);
+    const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  } catch (_) {
+    return "";
+  }
+}
+
+function normalizeLessonIdFromRoute(raw) {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return "";
+  const direct = value.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!direct) return "";
+  if (direct.includes("/")) {
+    const matched = direct.match(/^lessons\/([^/]+)\/lesson\.ddn$/i);
+    if (matched && matched[1]) return String(matched[1]).trim();
+  }
+  return direct;
+}
+
+function readStudioRouteRequestFromLocation() {
+  const fallback = {
+    tab: MAIN_TAB_BROWSE,
+    lessonId: "",
+    ddnText: "",
+    hasStudioRequest: false,
+    fromLegacyPlayRedirect: false,
+    hasLessonOrDdnRequest: false,
+  };
+  try {
+    const href = String(window?.location?.href ?? "").trim();
+    if (!href) return fallback;
+    const url = new URL(href);
+    const tab = normalizeMainTabTarget(url.searchParams.get("tab"), MAIN_TAB_BROWSE);
+    const lessonId = normalizeLessonIdFromRoute(url.searchParams.get("lesson"));
+    const ddnText = decodeBase64Utf8(url.searchParams.get("ddn"));
+    const notice = String(url.searchParams.get("_notice") ?? "").trim().toLowerCase();
+    const fromLegacyPlayRedirect =
+      readQueryBoolean("legacy_play_redirect", false) || notice === "play_unified";
+    const hasLessonOrDdnRequest = Boolean(lessonId) || Boolean(ddnText);
+    return {
+      tab,
+      lessonId,
+      ddnText,
+      hasStudioRequest: tab === MAIN_TAB_STUDIO || hasLessonOrDdnRequest,
+      fromLegacyPlayRedirect,
+      hasLessonOrDdnRequest,
+    };
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function syncMainTabRoute({ tab = MAIN_TAB_BROWSE, lessonId = "" } = {}) {
+  try {
+    const href = String(window?.location?.href ?? "").trim();
+    if (!href || !window?.history?.replaceState) return false;
+    const url = new URL(href);
+    const normalizedTab = normalizeMainTabTarget(tab, MAIN_TAB_BROWSE);
+    if (normalizedTab === MAIN_TAB_STUDIO) {
+      url.searchParams.set("tab", MAIN_TAB_STUDIO);
+      const normalizedLessonId = normalizeLessonIdFromRoute(lessonId);
+      if (normalizedLessonId) {
+        url.searchParams.set("lesson", normalizedLessonId);
+      } else {
+        url.searchParams.delete("lesson");
+      }
+    } else {
+      url.searchParams.set("tab", MAIN_TAB_BROWSE);
+      url.searchParams.delete("lesson");
+      url.searchParams.delete("ddn");
+    }
+    const next = `${url.pathname}${url.search}${url.hash}`;
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next === current) return false;
+    window.history.replaceState(null, "", next);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function consumeLegacyPlayRedirectParam() {
+  try {
+    const href = String(window?.location?.href ?? "").trim();
+    if (!href || !window?.history?.replaceState) return false;
+    const url = new URL(href);
+    const hasLegacy = url.searchParams.has("legacy_play_redirect");
+    const hasNotice = url.searchParams.has("_notice");
+    if (!hasLegacy && !hasNotice) return false;
+    url.searchParams.delete("legacy_play_redirect");
+    url.searchParams.delete("_notice");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function resolvePlatformMockMenuEnabled() {
+  return (
+    readWindowBoolean("SEAMGRIM_ENABLE_PLATFORM_MOCK_MENU", false) ||
+    readQueryBoolean("platform_mock_menu", false) ||
+    readQueryBoolean("platform_mock", false)
+  );
+}
+
+function resolvePlatformServerAdapterEnabled() {
+  return (
+    readWindowBoolean("SEAMGRIM_ENABLE_PLATFORM_SERVER_ADAPTER", false) ||
+    readQueryBoolean("platform_server_adapter", false)
+  );
+}
+
+function applyPlatformMockMenuState(buttons = [], enabled = false) {
+  const active = Boolean(enabled);
+  const rows = Array.isArray(buttons) ? buttons : [];
+  rows.forEach((button) => {
+    if (!button || typeof button !== "object") return;
+    try {
+      button.disabled = !active;
+    } catch (_) {
+      // ignore disabled toggle errors
+    }
+    try {
+      button.title = active ? "플랫폼 mock 표면 활성화" : "준비 중";
+    } catch (_) {
+      // ignore title update errors
+    }
+    try {
+      button.setAttribute?.("aria-disabled", active ? "false" : "true");
+    } catch (_) {
+      // ignore aria-disabled errors
+    }
+  });
+  return active;
+}
+
+function emitPlatformServerAdapterExchange(request = null, response = null) {
+  if (typeof window === "undefined") return;
+  try {
+    window.__SEAMGRIM_PLATFORM_SERVER_LAST_REQUEST__ = request && typeof request === "object" ? request : null;
+  } catch (_) {
+    // ignore assignment errors
+  }
+  try {
+    window.__SEAMGRIM_PLATFORM_SERVER_LAST_RESPONSE__ = response && typeof response === "object" ? response : null;
+  } catch (_) {
+    // ignore assignment errors
+  }
+  const errorCode = String(response?.error?.code ?? "").trim();
+  const actionRail = resolveServerErrorActionRail(errorCode);
+  try {
+    window.__SEAMGRIM_PLATFORM_SERVER_LAST_ACTION_RAIL__ = Array.isArray(actionRail) ? actionRail.slice() : [];
+  } catch (_) {
+    // ignore assignment errors
+  }
+  try {
+    if (typeof window?.dispatchEvent === "function" && typeof CustomEvent === "function") {
+      window.dispatchEvent(
+        new CustomEvent("seamgrim:platform-server-adapter-exchange", {
+          detail: {
+            request: request && typeof request === "object" ? request : null,
+            response: response && typeof response === "object" ? response : null,
+            action_rail: Array.isArray(actionRail) ? actionRail.slice() : [],
+          },
+        }),
+      );
+    }
+  } catch (_) {
+    // ignore dispatch errors
+  }
+}
+
+function maybeEmitPlatformServerAdapterForOp(op, payload = {}, fallbackMessage = "플랫폼 server adapter 준비 중입니다.") {
+  if (!resolvePlatformServerAdapterEnabled()) return null;
+  const request = buildServerAdapterRequest({
+    op: String(op ?? "").trim(),
+    requestId: `mock-${Date.now()}`,
+    authSessionId: appState.shell?.authSession?.id ?? null,
+    userId: appState.shell?.authSession?.userId ?? null,
+    context: {
+      work_id: appState.shell.currentWorkId,
+      project_id: appState.shell.currentProjectId,
+      revision_id: appState.shell.currentRevisionId,
+      publication_id: appState.shell.currentPublicationId,
+      active_catalog: appState.shell.activeCatalog,
+      lesson_id: appState.currentLesson?.id ?? null,
+      share_mode: appState.shell.shareMode,
+    },
+    payload: payload && typeof payload === "object" ? payload : {},
+  });
+  const response = buildServerAdapterErrorResponse({
+    request,
+    code: mapServerOpToNotReadyErrorCode(op),
+    message: String(fallbackMessage ?? "").trim() || "플랫폼 server adapter 준비 중입니다.",
+    retryable: false,
+  });
+  emitPlatformServerAdapterExchange(request, response);
+  return response;
+}
+
+function normalizeCatalogMode(raw, fallback = CATALOG_MODE_REPS_ONLY) {
+  const mode = String(raw ?? "").trim().toLowerCase();
+  if (mode === CATALOG_MODE_FULL) return CATALOG_MODE_FULL;
+  if (mode === CATALOG_MODE_REPS_ONLY) return CATALOG_MODE_REPS_ONLY;
+  return fallback;
+}
+
+function normalizeRunOnboardingProfile(raw) {
+  const profile = String(raw ?? "").trim().toLowerCase();
+  if (profile === "student") return "student";
+  if (profile === "teacher") return "teacher";
+  return "";
+}
+
+function readBrowseLaunchProfile() {
+  try {
+    const raw = window?.localStorage?.getItem(BROWSE_UI_PREFS_STORAGE_KEY);
+    if (!raw) return "";
+    const parsed = JSON.parse(raw);
+    return normalizeRunOnboardingProfile(parsed?.launchProfile ?? "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function resolveCatalogMode() {
+  const windowMode = normalizeCatalogMode(window?.SEAMGRIM_LESSON_CATALOG_MODE, CATALOG_MODE_REPS_ONLY);
+  try {
+    const href = String(window?.location?.href ?? "").trim();
+    if (href) {
+      const url = new URL(href);
+      const queryMode = normalizeCatalogMode(url.searchParams.get("catalog_mode"), "");
+      if (queryMode === CATALOG_MODE_FULL || queryMode === CATALOG_MODE_REPS_ONLY) {
+        return queryMode;
+      }
+    }
+  } catch (_) {
+    // ignore query parse errors
+  }
+  return windowMode;
 }
 
 function applySimCorePolicy() {
@@ -523,23 +859,6 @@ function trackDdnInputSource({
   });
 }
 
-function trackFormulaInputSource({
-  lessonId = "",
-  lessonTitle = "",
-  formulaText = "",
-  derivedDdn = "",
-} = {}) {
-  const normalizedLessonId = String(lessonId ?? "").trim();
-  const normalizedId = normalizedLessonId ? `formula:${normalizedLessonId}` : "formula:main";
-  const normalizedTitle = String(lessonTitle ?? "").trim();
-  appState.inputRegistry = registerFormulaInput(appState.inputRegistry, {
-    id: normalizedId,
-    label: normalizedTitle ? `수식 · ${normalizedTitle}` : "수식",
-    formulaText: String(formulaText ?? ""),
-    derivedDdn: String(derivedDdn ?? ""),
-  });
-}
-
 function setScreen(name) {
   ["browse", "editor", "block_editor", "run"].forEach((screenName) => {
     const node = byId(`screen-${screenName}`);
@@ -547,6 +866,24 @@ function setScreen(name) {
     node.classList.toggle("hidden", screenName !== name);
   });
   appState.currentScreen = name;
+  const mainTabTarget = name === "browse" ? MAIN_TAB_BROWSE : MAIN_TAB_STUDIO;
+  if (mainTabTarget === MAIN_TAB_BROWSE) {
+    syncMainTabRoute({ tab: MAIN_TAB_BROWSE });
+  }
+  try {
+    const tabButtons = document?.querySelectorAll?.(".main-shell-tab[data-main-tab-target]") ?? [];
+    tabButtons.forEach((button) => {
+      const target = normalizeMainTabTarget(button?.dataset?.mainTabTarget, MAIN_TAB_BROWSE);
+      button?.classList?.toggle?.("active", target === mainTabTarget);
+      try {
+        button?.setAttribute?.("aria-pressed", target === mainTabTarget ? "true" : "false");
+      } catch (_) {
+        // ignore aria update errors
+      }
+    });
+  } catch (_) {
+    // ignore main tab update errors
+  }
   appState.screenListeners.forEach((listener) => {
     try {
       listener(name);
@@ -568,6 +905,465 @@ function isEditableKeyboardTarget(target) {
   if (target instanceof HTMLSelectElement) return true;
   if (target.closest("input, textarea, select, [contenteditable='true']")) return true;
   return target.isContentEditable;
+}
+
+function showPlatformToast(message) {
+  const text = String(message ?? "").trim();
+  if (!text) return;
+  try {
+    window?.dispatchEvent?.(
+      new CustomEvent("seamgrim:platform-toast", {
+        detail: { message: text },
+      }),
+    );
+  } catch (_) {
+    // ignore dispatch errors
+  }
+  console.info(`[seamgrim-platform] ${text}`);
+}
+
+function normalizePlatformUiAction(raw) {
+  const token = String(raw ?? "").trim();
+  if (
+    token === PlatformServerAdapterUiAction.LOGIN ||
+    token === PlatformServerAdapterUiAction.REQUEST_ACCESS ||
+    token === PlatformServerAdapterUiAction.FIX_INPUT ||
+    token === PlatformServerAdapterUiAction.RETRY_LATER ||
+    token === PlatformServerAdapterUiAction.OPEN_LOCAL_SAVE
+  ) {
+    return token;
+  }
+  return "";
+}
+
+function resolvePlatformUiActionDdnText(detail = {}, resolveDdnText = null) {
+  const direct = String(detail?.ddnText ?? "");
+  if (direct.trim()) return direct;
+  if (typeof resolveDdnText === "function") {
+    const resolved = String(resolveDdnText() ?? "");
+    if (resolved.trim()) return resolved;
+  }
+  return "";
+}
+
+function handlePlatformUiActionRequest(detail = {}, { resolveDdnText = null } = {}) {
+  const action = normalizePlatformUiAction(detail?.action ?? "");
+  if (!action) return false;
+  if (action === PlatformServerAdapterUiAction.LOGIN) {
+    showPlatformToast("로그인 기능은 준비 중입니다. 우선 로컬 저장으로 계속할 수 있습니다.");
+    return true;
+  }
+  if (action === PlatformServerAdapterUiAction.REQUEST_ACCESS) {
+    showPlatformToast("권한 요청 기능은 준비 중입니다. 우선 로컬 저장으로 계속할 수 있습니다.");
+    return true;
+  }
+  if (action === PlatformServerAdapterUiAction.FIX_INPUT) {
+    showPlatformToast("입력 점검이 필요합니다. DDN/거울 탭에서 원인을 확인하세요.");
+    return true;
+  }
+  if (action === PlatformServerAdapterUiAction.RETRY_LATER) {
+    showPlatformToast("잠시 후 다시 시도하세요.");
+    return true;
+  }
+  if (action === PlatformServerAdapterUiAction.OPEN_LOCAL_SAVE) {
+    const ddnText = resolvePlatformUiActionDdnText(detail, resolveDdnText);
+    const ok = saveCurrentWork("local", { ddnText });
+    showPlatformToast(ok ? "로컬 저장을 실행했습니다." : "로컬 저장에 실패했습니다.");
+    return ok;
+  }
+  return false;
+}
+
+function emitPlatformMockAdapterPayload(payload) {
+  if (!payload || typeof payload !== "object") return;
+  if (typeof window === "undefined") return;
+  try {
+    window.__SEAMGRIM_PLATFORM_MOCK_LAST_PAYLOAD__ = payload;
+  } catch (_) {
+    // ignore assignment errors
+  }
+}
+
+function emitPlatformReviewAction(action = "", detail = {}) {
+  const normalizedAction = String(action ?? "").trim();
+  if (!normalizedAction || typeof window === "undefined") return;
+  const payload = {
+    action: normalizedAction,
+    workId: appState.shell.currentWorkId,
+    revisionId: appState.shell.currentRevisionId,
+    publicationId: appState.shell.currentPublicationId,
+    reviewStatus: appState.shell.reviewStatus,
+    ...((detail && typeof detail === "object") ? detail : {}),
+  };
+  try {
+    window.__SEAMGRIM_PLATFORM_REVIEW_LAST_ACTION__ = payload;
+  } catch (_) {
+    // ignore assignment errors
+  }
+  try {
+    if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+      window.dispatchEvent(
+        new CustomEvent(PLATFORM_REVIEW_ACTION_EVENT, {
+          detail: payload,
+        }),
+      );
+    }
+  } catch (_) {
+    // ignore dispatch errors
+  }
+}
+
+function readPlatformRouteSlotsFromLocation() {
+  const fallback = {
+    workId: "",
+    revisionId: "",
+    publicationId: "",
+    projectId: "",
+    hasPlatformSlots: false,
+    hasLegacySlots: false,
+  };
+  try {
+    const href = String(window?.location?.href ?? "").trim();
+    if (!href) return fallback;
+    const url = new URL(href);
+    const routePrecedence = Array.isArray(RouteSlotPolicy?.PLATFORM_ROUTE_PRECEDENCE)
+      ? RouteSlotPolicy.PLATFORM_ROUTE_PRECEDENCE
+      : ["work", "revision", "publication", "project"];
+    const legacyKeys = Array.isArray(RouteSlotPolicy?.LEGACY_FALLBACK_KEYS)
+      ? RouteSlotPolicy.LEGACY_FALLBACK_KEYS
+      : ["lesson", "ddn"];
+    const values = Object.create(null);
+    routePrecedence.forEach((key) => {
+      values[key] = String(url.searchParams.get(key) ?? "").trim();
+    });
+    const legacyValues = Object.create(null);
+    legacyKeys.forEach((key) => {
+      legacyValues[key] = String(url.searchParams.get(key) ?? "").trim();
+    });
+    return {
+      workId: String(values.work ?? "").trim(),
+      revisionId: String(values.revision ?? "").trim(),
+      publicationId: String(values.publication ?? "").trim(),
+      projectId: String(values.project ?? "").trim(),
+      hasPlatformSlots: routePrecedence.some((key) => Boolean(values[key])),
+      hasLegacySlots: legacyKeys.some((key) => Boolean(legacyValues[key])),
+    };
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function applyPlatformRouteFallback(slots = {}) {
+  const route = slots && typeof slots === "object" ? slots : {};
+  appState.shell.currentWorkId = String(route.workId ?? "").trim() || null;
+  appState.shell.currentRevisionId = String(route.revisionId ?? "").trim() || null;
+  appState.shell.currentPublicationId = String(route.publicationId ?? "").trim() || null;
+  appState.shell.currentProjectId = String(route.projectId ?? "").trim() || null;
+  const routeLabel = Array.isArray(RouteSlotPolicy?.PLATFORM_ROUTE_PRECEDENCE)
+    ? RouteSlotPolicy.PLATFORM_ROUTE_PRECEDENCE.join("/")
+    : "work/revision/publication/project";
+  const targetKinds = [
+    [ObjectKind.WORKSPACE, appState.shell.currentWorkId],
+    [ObjectKind.REVISION, appState.shell.currentRevisionId],
+    [ObjectKind.ARTIFACT, appState.shell.currentPublicationId],
+    [ObjectKind.PROJECT, appState.shell.currentProjectId],
+  ]
+    .filter(([, value]) => Boolean(value))
+    .map(([kind]) => kind);
+  if (targetKinds.length > 0) {
+    showPlatformToast(
+      `서버 저장 기능은 준비 중입니다. (${routeLabel}, ${targetKinds.join(", ")}) 경로는 교과 탭으로 이동합니다.`,
+    );
+  } else {
+    showPlatformToast("서버 저장 기능은 준비 중입니다. 교과 탭으로 이동합니다.");
+  }
+}
+
+function shouldApplyPlatformRouteFallback(slots = {}) {
+  const route = slots && typeof slots === "object" ? slots : {};
+  return Boolean(route.hasPlatformSlots);
+}
+
+function switchCatalog(kind) {
+  const next = String(kind ?? "").trim();
+  emitPlatformMockAdapterPayload(
+    buildMockSwitchCatalogPayload({
+      catalogKind: next,
+    }),
+  );
+  if (next === CatalogKind.PACKAGE) {
+    if (typeof maybeEmitPlatformServerAdapterForOp === "function") {
+      maybeEmitPlatformServerAdapterForOp(
+        PlatformServerAdapterOp.SWITCH_CATALOG,
+        { catalog_kind: next },
+        "꾸러미 카탈로그는 준비 중입니다.",
+      );
+    }
+    showPlatformToast("꾸러미 카탈로그는 준비 중입니다.");
+    return;
+  }
+  if (next === CatalogKind.LESSON || next === CatalogKind.PROJECT) {
+    appState.shell.activeCatalog = next;
+  }
+}
+
+function saveCurrentWork(target = "local", { ddnText = "" } = {}) {
+  const mode = String(target ?? "").trim().toLowerCase();
+  emitPlatformMockAdapterPayload(
+    buildMockSaveAdapterPayload({
+      target: mode,
+      ddnText: String(ddnText ?? ""),
+      workId: appState.shell.currentWorkId,
+      projectId: appState.shell.currentProjectId,
+      revisionId: appState.shell.currentRevisionId,
+      publicationId: appState.shell.currentPublicationId,
+    }),
+  );
+  if (mode === "local") {
+    saveDdnToFile(String(ddnText ?? ""), "lesson.ddn");
+    return true;
+  }
+  if (mode === "server") {
+    if (typeof maybeEmitPlatformServerAdapterForOp === "function") {
+      maybeEmitPlatformServerAdapterForOp(
+        PlatformServerAdapterOp.SAVE,
+        {
+          target: mode,
+          ddn_text: String(ddnText ?? ""),
+        },
+        "서버 저장은 준비 중입니다.",
+      );
+    }
+    showPlatformToast("서버 저장은 준비 중입니다.");
+    return false;
+  }
+  if (mode === "share") {
+    if (typeof maybeEmitPlatformServerAdapterForOp === "function") {
+      maybeEmitPlatformServerAdapterForOp(
+        PlatformServerAdapterOp.SHARE,
+        {
+          target: mode,
+          ddn_text: String(ddnText ?? ""),
+        },
+        "공유 링크 생성은 준비 중입니다.",
+      );
+    }
+    showPlatformToast("공유 링크 생성은 준비 중입니다.");
+    return false;
+  }
+  showPlatformToast(`지원하지 않는 저장 대상입니다: ${mode || "-"}`);
+  return false;
+}
+
+function restoreRevision(revisionId = "") {
+  const sourceRevisionId = String(revisionId ?? "").trim() || appState.shell.currentRevisionId || "";
+  emitPlatformMockAdapterPayload(
+    buildMockRestoreRevisionPayload({
+      sourceRevisionId,
+      restoreMode: RevisionPolicy.RESTORE_MODE,
+    }),
+  );
+  if (
+    SourceManagementPolicy.REVISION_APPEND_ONLY !== true ||
+    SourceManagementPolicy.RESTORE_CREATES_NEW_REVISION !== true ||
+    SourceManagementPolicy.OVERWRITE_FORBIDDEN !== true
+  ) {
+    showPlatformToast("소스관리 정책이 잘못되었습니다. (append-only/new-revision/overwrite-forbidden)");
+    return false;
+  }
+  if (!sourceRevisionId) {
+    showPlatformToast("복원할 리비전이 없습니다.");
+    return false;
+  }
+  if (typeof maybeEmitPlatformServerAdapterForOp === "function") {
+    maybeEmitPlatformServerAdapterForOp(
+      PlatformServerAdapterOp.RESTORE_REVISION,
+      { source_revision_id: sourceRevisionId },
+      "리비전 복원은 준비 중입니다. (새 revision으로 복원 예정)",
+    );
+  }
+  if (RevisionPolicy.RESTORE_MODE !== "new_revision") {
+    showPlatformToast("리비전 복원 정책이 잘못되었습니다.");
+    return false;
+  }
+  showPlatformToast("리비전 복원은 준비 중입니다. (새 revision으로 복원 예정)");
+  return false;
+}
+
+function openRevisionHistory() {
+  showPlatformToast("리비전 기록 화면은 준비 중입니다.");
+  return false;
+}
+
+function compareRevisionWithHead() {
+  const sourceRevisionId = String(appState.shell.currentRevisionId ?? "").trim();
+  if (!sourceRevisionId) {
+    showPlatformToast("비교할 리비전이 없습니다.");
+    return false;
+  }
+  showPlatformToast(`리비전 비교(${sourceRevisionId} vs HEAD)는 준비 중입니다.`);
+  return false;
+}
+
+function duplicateCurrentWork() {
+  const sourceWorkId = String(appState.shell.currentWorkId ?? "").trim();
+  if (!sourceWorkId) {
+    showPlatformToast("복제할 작업이 없습니다.");
+    return false;
+  }
+  showPlatformToast(`작업 복제(${sourceWorkId})는 준비 중입니다.`);
+  return false;
+}
+
+function shareCurrent(kind = ShareKind.LINK) {
+  const normalized = String(kind ?? "").trim().toLowerCase();
+  emitPlatformMockAdapterPayload(
+    buildMockShareAdapterPayload({
+      kind: normalized,
+      objectKind: appState.currentLesson ? ObjectKind.LESSON : ObjectKind.PROJECT,
+      objectId:
+        (appState.currentLesson && String(appState.currentLesson.id ?? "").trim()) ||
+        appState.shell.currentProjectId ||
+        appState.shell.currentWorkId ||
+        "",
+      visibility: Visibility.PRIVATE,
+      sourceRevisionId: appState.shell.currentRevisionId,
+      linkTarget: PublicationPolicy.PUBLIC_LINK_TARGET_DEFAULT,
+    }),
+  );
+  if (typeof maybeEmitPlatformServerAdapterForOp === "function") {
+    maybeEmitPlatformServerAdapterForOp(
+      PlatformServerAdapterOp.SHARE,
+      {
+        kind: normalized,
+        lesson_id: appState.currentLesson?.id ?? null,
+      },
+      normalized === ShareKind.CLONE ? "복제 공유는 준비 중입니다." : "링크 공유는 준비 중입니다.",
+    );
+  }
+  if (normalized === ShareKind.LINK) {
+    showPlatformToast(`링크 공유(${PublicationPolicy.PUBLIC_LINK_TARGET_DEFAULT})는 준비 중입니다.`);
+    return false;
+  }
+  if (normalized === ShareKind.CLONE) {
+    showPlatformToast("복제 공유는 준비 중입니다.");
+    return false;
+  }
+  if (normalized === ShareKind.PACKAGE) {
+    showPlatformToast("꾸러미 공유는 준비 중입니다.");
+    return false;
+  }
+  showPlatformToast(`지원하지 않는 공유 방식입니다: ${normalized || "-"}`);
+  return false;
+}
+
+function publishCurrent() {
+  emitPlatformMockAdapterPayload(
+    buildMockPublishAdapterPayload({
+      projectId: appState.shell.currentProjectId,
+      sourceRevisionId: appState.shell.currentRevisionId,
+      publicationId: appState.shell.currentPublicationId,
+      visibility: Visibility.PRIVATE,
+    }),
+  );
+  if (typeof maybeEmitPlatformServerAdapterForOp === "function") {
+    maybeEmitPlatformServerAdapterForOp(
+      PlatformServerAdapterOp.PUBLISH,
+      {
+        project_id: appState.shell.currentProjectId,
+        source_revision_id: appState.shell.currentRevisionId,
+      },
+      "게시 기능은 준비 중입니다.",
+    );
+  }
+  if (!RevisionPolicy.SOURCE_REVISION_ID_REQUIRED) {
+    showPlatformToast("게시 정책이 잘못되었습니다.");
+    return false;
+  }
+  if (PublishPolicy.ARTIFACT_TRACKS_DRAFT !== false) {
+    showPlatformToast("게시 정책이 잘못되었습니다. (artifact draft 추적 금지)");
+    return false;
+  }
+  if (
+    PublicationPolicy.SNAPSHOT_IMMUTABLE !== true ||
+    PublicationPolicy.PINNED_REVISION_REQUIRED !== true ||
+    PublicationPolicy.REPUBLISH_APPEND_ONLY !== true
+  ) {
+    showPlatformToast("게시 스냅샷 정책이 잘못되었습니다.");
+    return false;
+  }
+  if (PublicationPolicy.PINNED_REVISION_REQUIRED && !String(appState.shell.currentRevisionId ?? "").trim()) {
+    showPlatformToast("게시 실패: source_revision_id가 필요합니다.");
+    return false;
+  }
+  showPlatformToast("게시 기능은 준비 중입니다.");
+  return false;
+}
+
+function republishCurrent() {
+  const sourcePublicationId = String(appState.shell.currentPublicationId ?? "").trim();
+  if (PublicationPolicy.REPUBLISH_APPEND_ONLY !== true) {
+    showPlatformToast("재게시 정책이 잘못되었습니다.");
+    return false;
+  }
+  if (!sourcePublicationId) {
+    showPlatformToast("재게시할 publication이 없습니다.");
+    return false;
+  }
+  showPlatformToast(`재게시(${sourcePublicationId})는 준비 중입니다. (새 publication record append-only)`);
+  return false;
+}
+
+function requestReview() {
+  appState.shell.reviewStatus = "pending";
+  emitPlatformReviewAction("request", {
+    reviewStatus: appState.shell.reviewStatus,
+  });
+  showPlatformToast("검토 요청은 준비 중입니다.");
+  return false;
+}
+
+function approvePublication() {
+  appState.shell.reviewStatus = "approved";
+  emitPlatformReviewAction("approve", {
+    reviewStatus: appState.shell.reviewStatus,
+  });
+  showPlatformToast("검토 승인 처리는 준비 중입니다.");
+  return false;
+}
+
+function rejectPublication() {
+  appState.shell.reviewStatus = "rejected";
+  emitPlatformReviewAction("reject", {
+    reviewStatus: appState.shell.reviewStatus,
+  });
+  showPlatformToast("검토 반려 처리는 준비 중입니다.");
+  return false;
+}
+
+function installPackage(packageId = "", version = "") {
+  const normalizedId = String(packageId ?? "").trim() || "-";
+  const normalizedVersion = String(version ?? "").trim() || "latest";
+  emitPlatformMockAdapterPayload(
+    buildMockInstallPackagePayload({
+      packageId: normalizedId,
+      version: normalizedVersion,
+      catalogKind: appState.shell.activeCatalog,
+    }),
+  );
+  if (typeof maybeEmitPlatformServerAdapterForOp === "function") {
+    maybeEmitPlatformServerAdapterForOp(
+      PlatformServerAdapterOp.INSTALL_PACKAGE,
+      {
+        package_id: normalizedId,
+        version: normalizedVersion,
+        catalog_kind: appState.shell.activeCatalog,
+      },
+      `꾸러미 설치(${normalizedId}@${normalizedVersion})는 준비 중입니다.`,
+    );
+  }
+  showPlatformToast(`꾸러미 설치(${normalizedId}@${normalizedVersion})는 준비 중입니다.`);
+  return false;
 }
 
 function normalizePath(path) {
@@ -704,6 +1500,8 @@ function toLessonEntry(base) {
     subject: normalizeSubject(base.subject),
     quality: String(base.quality ?? "experimental"),
     source: String(base.source ?? "official"),
+    firstRunPath: String(base.firstRunPath ?? base.first_run_path ?? "").trim(),
+    tags: Array.isArray(base.tags) ? base.tags.filter(Boolean).map((item) => String(item)) : [],
     requiredViews: normalizeViewFamilyList(base.requiredViews ?? base.required_views ?? []),
     ddnCandidates: Array.isArray(base.ddnCandidates) ? base.ddnCandidates.filter(Boolean) : [],
     maegimControlCandidates: Array.isArray(base.maegimControlCandidates) ? base.maegimControlCandidates.filter(Boolean) : [],
@@ -727,6 +1525,15 @@ function toLessonEntry(base) {
   };
 }
 
+function lessonSourcePriority(source) {
+  const normalized = String(source ?? "").trim().toLowerCase();
+  if (normalized === "official") return 40;
+  if (normalized === "federated") return 35;
+  if (normalized === "seed") return 30;
+  if (normalized === "rewrite") return 10;
+  return 20;
+}
+
 function mergeLessonEntry(map, nextEntry) {
   if (!nextEntry) return;
   const existing = map.get(nextEntry.id);
@@ -735,9 +1542,25 @@ function mergeLessonEntry(map, nextEntry) {
     return;
   }
 
+  const keepExistingMeta = lessonSourcePriority(existing.source) >= lessonSourcePriority(nextEntry.source);
+  const mergedSource = keepExistingMeta ? existing.source : nextEntry.source;
+  const mergedTitle = keepExistingMeta ? existing.title : nextEntry.title;
+  const mergedDescription = keepExistingMeta ? existing.description : nextEntry.description;
+  const mergedGrade = keepExistingMeta ? existing.grade : nextEntry.grade;
+  const mergedSubject = keepExistingMeta ? existing.subject : nextEntry.subject;
+  const mergedQuality = keepExistingMeta ? existing.quality : nextEntry.quality;
+
   const merged = {
     ...existing,
     ...nextEntry,
+    source: mergedSource,
+    title: mergedTitle,
+    description: mergedDescription,
+    grade: mergedGrade,
+    subject: mergedSubject,
+    quality: mergedQuality,
+    firstRunPath: String(existing.firstRunPath ?? "").trim() || String(nextEntry.firstRunPath ?? "").trim(),
+    tags: Array.from(new Set([...(existing.tags ?? []), ...(nextEntry.tags ?? [])])),
     requiredViews: Array.from(new Set([...(existing.requiredViews ?? []), ...(nextEntry.requiredViews ?? [])])),
     ddnCandidates: Array.from(new Set([...(existing.ddnCandidates ?? []), ...(nextEntry.ddnCandidates ?? [])])),
     maegimControlCandidates: Array.from(
@@ -849,6 +1672,8 @@ function ensureLessonEntryFromSelection(selection) {
     subject: selection.subject,
     quality: selection.quality,
     source,
+    firstRunPath: selection.firstRunPath ?? selection.first_run_path ?? "",
+    tags: selection.tags ?? [],
     requiredViews: selection.requiredViews ?? selection.required_views ?? [],
     ddnCandidates: ddnCandidates.length ? ddnCandidates : [fallback.ddn],
     maegimControlCandidates: deriveMaegimControlCandidates(
@@ -898,6 +1723,8 @@ function mergeCatalogFromInventoryPayload(merged, payload) {
         subject: row?.subject ?? "",
         quality: row?.quality ?? "experimental",
         source,
+        firstRunPath: row?.firstRunPath ?? row?.first_run_path ?? "",
+        tags: row?.tags ?? [],
         requiredViews: row?.requiredViews ?? row?.required_views ?? [],
         ddnCandidates: ddnCandidates.length ? ddnCandidates : [fallback.ddn],
         maegimControlCandidates: deriveMaegimControlCandidates(
@@ -920,12 +1747,39 @@ function mergeCatalogFromInventoryPayload(merged, payload) {
   });
 }
 
+async function loadActiveLessonAllowlist() {
+  const payload = await fetchJson(ACTIVE_ALLOWLIST_PATH);
+  const rows = Array.isArray(payload?.lesson_ids) ? payload.lesson_ids : [];
+  const out = new Set();
+  rows.forEach((raw) => {
+    const lessonId = String(raw ?? "").trim();
+    if (lessonId) out.add(lessonId);
+  });
+  return out;
+}
+
+function filterCatalogByAllowlist(merged, allowlist) {
+  if (!(allowlist instanceof Set) || allowlist.size === 0) return;
+  Array.from(merged.keys()).forEach((lessonId) => {
+    if (!allowlist.has(lessonId)) {
+      merged.delete(lessonId);
+    }
+  });
+}
+
 async function loadCatalogLessons() {
+  const catalogMode = resolveCatalogMode();
+  appState.catalogMode = catalogMode;
+  const repsOnly = catalogMode !== CATALOG_MODE_FULL;
+  const activeAllowlist = await loadActiveLessonAllowlist();
   const merged = new Map();
 
   const inventoryApi = await fetchFirstOk(["/api/lessons/inventory", "/api/lesson-inventory"], "json");
   if (inventoryApi.ok) {
     mergeCatalogFromInventoryPayload(merged, inventoryApi.data);
+    if (repsOnly) {
+      filterCatalogByAllowlist(merged, activeAllowlist);
+    }
   }
 
   if (merged.size === 0) {
@@ -934,6 +1788,7 @@ async function loadCatalogLessons() {
     indexLessons.forEach((row) => {
       const id = String(row.id ?? "").trim();
       if (!id) return;
+      if (repsOnly && activeAllowlist.size > 0 && !activeAllowlist.has(id)) return;
       const paths = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons", id);
       const rowMetaCandidates = resolveSelectionCandidates(row, ["metaCandidates", "meta_path"]);
       mergeLessonEntry(
@@ -959,67 +1814,69 @@ async function loadCatalogLessons() {
       );
     });
 
-    const seedManifest = await fetchJson("solutions/seamgrim_ui_mvp/seed_lessons_v1/seed_manifest.detjson");
-    const seeds = Array.isArray(seedManifest?.seeds) ? seedManifest.seeds : [];
-    seeds.forEach((seed) => {
-      const id = String(seed.seed_id ?? "").trim();
-      if (!id) return;
-      const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/seed_lessons_v1", id);
-      mergeLessonEntry(
-        merged,
-        toLessonEntry({
-          id,
-          title: id,
-          description: "Seed lesson",
-          grade: "all",
-          subject: seed.subject,
-          quality: "recommended",
-          source: "seed",
-          ddnCandidates: [seed.lesson_ddn, fallback.ddn],
-          maegimControlCandidates: deriveMaegimControlCandidates(
-            [seed.lesson_ddn, fallback.ddn],
-            resolveSelectionCandidates(seed, ["maegimControlCandidates", "maegim_control_path"]),
-          ),
-          textCandidates: [seed.text_md, fallback.text],
-          graphCandidates: [fallback.graph],
-          tableCandidates: [fallback.table],
-          space2dCandidates: [fallback.space2d],
-          structureCandidates: [fallback.structure],
-          metaCandidates: resolveSelectionCandidates(seed, ["metaCandidates", "meta_path", "meta_toml"]),
-        }),
-      );
-    });
+    if (!repsOnly) {
+      const seedManifest = await fetchJson("solutions/seamgrim_ui_mvp/seed_lessons_v1/seed_manifest.detjson");
+      const seeds = Array.isArray(seedManifest?.seeds) ? seedManifest.seeds : [];
+      seeds.forEach((seed) => {
+        const id = String(seed.seed_id ?? "").trim();
+        if (!id) return;
+        const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/seed_lessons_v1", id);
+        mergeLessonEntry(
+          merged,
+          toLessonEntry({
+            id,
+            title: id,
+            description: "Seed lesson",
+            grade: "all",
+            subject: seed.subject,
+            quality: "recommended",
+            source: "seed",
+            ddnCandidates: [seed.lesson_ddn, fallback.ddn],
+            maegimControlCandidates: deriveMaegimControlCandidates(
+              [seed.lesson_ddn, fallback.ddn],
+              resolveSelectionCandidates(seed, ["maegimControlCandidates", "maegim_control_path"]),
+            ),
+            textCandidates: [seed.text_md, fallback.text],
+            graphCandidates: [fallback.graph],
+            tableCandidates: [fallback.table],
+            space2dCandidates: [fallback.space2d],
+            structureCandidates: [fallback.structure],
+            metaCandidates: resolveSelectionCandidates(seed, ["metaCandidates", "meta_path", "meta_toml"]),
+          }),
+        );
+      });
 
-    const rewriteManifest = await fetchJson("solutions/seamgrim_ui_mvp/lessons_rewrite_v1/rewrite_manifest.detjson");
-    const generated = Array.isArray(rewriteManifest?.generated) ? rewriteManifest.generated : [];
-    generated.forEach((row) => {
-      const id = String(row.lesson_id ?? "").trim();
-      if (!id) return;
-      const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons_rewrite_v1", id);
-      mergeLessonEntry(
-        merged,
-        toLessonEntry({
-          id,
-          title: id,
-          description: "Rewrite v1",
-          grade: "all",
-          subject: row.subject,
-          quality: "reviewed",
-          source: "rewrite",
-          ddnCandidates: [row.generated_lesson_ddn, fallback.ddn],
-          maegimControlCandidates: deriveMaegimControlCandidates(
-            [row.generated_lesson_ddn, fallback.ddn],
-            resolveSelectionCandidates(row, ["maegimControlCandidates", "maegim_control_path"]),
-          ),
-          textCandidates: [row.generated_text_md, fallback.text],
-          graphCandidates: [fallback.graph],
-          tableCandidates: [fallback.table],
-          space2dCandidates: [fallback.space2d],
-          structureCandidates: [fallback.structure],
-          metaCandidates: resolveSelectionCandidates(row, ["metaCandidates", "meta_path", "meta_toml"]),
-        }),
-      );
-    });
+      const rewriteManifest = await fetchJson("solutions/seamgrim_ui_mvp/lessons_rewrite_v1/rewrite_manifest.detjson");
+      const generated = Array.isArray(rewriteManifest?.generated) ? rewriteManifest.generated : [];
+      generated.forEach((row) => {
+        const id = String(row.lesson_id ?? "").trim();
+        if (!id) return;
+        const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons_rewrite_v1", id);
+        mergeLessonEntry(
+          merged,
+          toLessonEntry({
+            id,
+            title: id,
+            description: "Rewrite v1",
+            grade: "all",
+            subject: row.subject,
+            quality: "reviewed",
+            source: "rewrite",
+            ddnCandidates: [row.generated_lesson_ddn, fallback.ddn],
+            maegimControlCandidates: deriveMaegimControlCandidates(
+              [row.generated_lesson_ddn, fallback.ddn],
+              resolveSelectionCandidates(row, ["maegimControlCandidates", "maegim_control_path"]),
+            ),
+            textCandidates: [row.generated_text_md, fallback.text],
+            graphCandidates: [fallback.graph],
+            tableCandidates: [fallback.table],
+            space2dCandidates: [fallback.space2d],
+            structureCandidates: [fallback.structure],
+            metaCandidates: resolveSelectionCandidates(row, ["metaCandidates", "meta_path", "meta_toml"]),
+          }),
+        );
+      });
+    }
   }
 
   const lessons = Array.from(merged.values()).sort((a, b) => String(a.title).localeCompare(String(b.title), "ko"));
@@ -1092,15 +1949,133 @@ async function loadLessonById(lessonId) {
   return lesson;
 }
 
+async function buildStudioDraftLessonFromDdn(ddnText, {
+  id = STUDIO_DRAFT_LESSON_ID,
+  title = "작업실 DDN",
+  description = "작업실에서 직접 작성한 DDN",
+} = {}) {
+  const sourceText = String(ddnText ?? "");
+  const baseMeta = {};
+  const ddnMetaHeader = parseLessonDdnMetaHeader(sourceText);
+  const displayMeta = resolveLessonDisplayMeta({
+    baseTitle: title,
+    baseDescription: description,
+    tomlMeta: baseMeta,
+    ddnMetaHeader,
+  });
+  const lesson = await lessonCanonHydrator.hydrateLessonCanon({
+    id: String(id ?? STUDIO_DRAFT_LESSON_ID).trim() || STUDIO_DRAFT_LESSON_ID,
+    title: displayMeta.title || title,
+    description: displayMeta.description || description,
+    subject: normalizeSubject(appState.currentLesson?.subject ?? ""),
+    grade: appState.currentLesson?.grade ?? "",
+    quality: appState.currentLesson?.quality ?? "experimental",
+    requiredViews: normalizeViewFamilyList(
+      baseMeta.required_views ??
+      ddnMetaHeader.requiredViews ??
+      ddnMetaHeader.required_views ??
+      appState.currentLesson?.requiredViews ??
+      [],
+    ),
+    ddnText: sourceText,
+    maegimControlJson: "",
+    textMd: "",
+    meta: baseMeta,
+    ddnMetaHeader,
+  });
+  appState.currentLesson = lesson;
+  appState.lessonsById.set(lesson.id, lesson);
+  return lesson;
+}
+
 function createAdvancedMenu({ onSmoke }) {
   const menu = byId("advanced-menu");
   const smokeBtn = byId("advanced-smoke");
+  const saveServerBtn = byId("btn-save-server");
+  const shareLinkBtn = byId("btn-share-link");
+  const revisionHistoryBtn = byId("btn-revision-history");
+  const revisionCompareBtn = byId("btn-revision-compare");
+  const workDuplicateBtn = byId("btn-work-duplicate");
+  const shareCloneBtn = byId("btn-share-clone");
+  const publishBtn = byId("btn-publish");
+  const republishBtn = byId("btn-republish");
+  const publicationHistoryBtn = byId("btn-publication-history");
+  const packageCatalogBtn = byId("btn-package-catalog");
+  const packageDepsBtn = byId("btn-package-deps");
+  const reviewRequestBtn = byId("btn-review-request");
+  const reviewApproveBtn = byId("btn-review-approve");
+  const reviewRejectBtn = byId("btn-review-reject");
+  const platformMenuButtons = [
+    saveServerBtn,
+    shareLinkBtn,
+    revisionHistoryBtn,
+    revisionCompareBtn,
+    workDuplicateBtn,
+    shareCloneBtn,
+    publishBtn,
+    republishBtn,
+    publicationHistoryBtn,
+    packageCatalogBtn,
+    packageDepsBtn,
+    reviewRequestBtn,
+    reviewApproveBtn,
+    reviewRejectBtn,
+  ];
+  const platformMockMenuEnabled = applyPlatformMockMenuState(platformMenuButtons, resolvePlatformMockMenuEnabled());
+  if (platformMockMenuEnabled) {
+    showPlatformToast("플랫폼 mock 메뉴가 활성화되었습니다. 서버/공유 기능은 mock payload만 기록됩니다.");
+  }
+  if (resolvePlatformServerAdapterEnabled()) {
+    showPlatformToast("플랫폼 server adapter가 활성화되었습니다. 요청/응답 스냅샷을 기록합니다.");
+  }
 
   smokeBtn?.addEventListener("click", async () => {
     menu?.classList.add("hidden");
     if (typeof onSmoke === "function") {
       await onSmoke();
     }
+  });
+  saveServerBtn?.addEventListener("click", () => {
+    saveCurrentWork("server");
+  });
+  shareLinkBtn?.addEventListener("click", () => {
+    saveCurrentWork("share");
+  });
+  revisionHistoryBtn?.addEventListener("click", () => {
+    openRevisionHistory();
+  });
+  revisionCompareBtn?.addEventListener("click", () => {
+    compareRevisionWithHead();
+  });
+  workDuplicateBtn?.addEventListener("click", () => {
+    duplicateCurrentWork();
+  });
+  shareCloneBtn?.addEventListener("click", () => {
+    shareCurrent(ShareKind.CLONE);
+  });
+  publishBtn?.addEventListener("click", () => {
+    publishCurrent();
+  });
+  republishBtn?.addEventListener("click", () => {
+    republishCurrent();
+  });
+  publicationHistoryBtn?.addEventListener("click", () => {
+    showPlatformToast("게시 이력 화면은 준비 중입니다.");
+  });
+  packageCatalogBtn?.addEventListener("click", () => {
+    switchCatalog(CatalogKind.PACKAGE);
+  });
+  packageDepsBtn?.addEventListener("click", () => {
+    installPackage("표준/물리/중력", "0.0.0");
+  });
+  reviewRequestBtn?.addEventListener("click", () => {
+    requestReview();
+  });
+  reviewApproveBtn?.addEventListener("click", () => {
+    approvePublication();
+  });
+  reviewRejectBtn?.addEventListener("click", () => {
+    rejectPublication();
   });
 
   window.addEventListener("click", (event) => {
@@ -1147,7 +2122,7 @@ async function main() {
     "/api/lessons/inventory",
   ]);
   const allowFederatedFileFallback = readWindowBoolean("SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK", false);
-  const allowShapeFallback = readWindowBoolean("SEAMGRIM_ENABLE_SHAPE_FALLBACK", false);
+  const allowShapeFallback = readWindowBoolean("SEAMGRIM_ENABLE_SHAPE_FALLBACK", true);
   const allowServerFallback =
     readWindowBoolean("SEAMGRIM_ENABLE_SERVER_FALLBACK", false) ||
     readQueryBoolean("server_fallback", false);
@@ -1155,28 +2130,126 @@ async function main() {
     ? readWindowStringArray("SEAMGRIM_FEDERATED_FILE_CANDIDATES", [])
     : [];
   const browsePresetFromLocation = readBrowsePresetFromLocation();
-  const featuredSeedButton = byId("btn-run-featured-seed");
+  const studioRouteRequest = readStudioRouteRequestFromLocation();
+  const platformRouteSlots = readPlatformRouteSlotsFromLocation();
+  const catalogMode = resolveCatalogMode();
+  appState.catalogMode = catalogMode;
+  const featuredSeedEnabled = catalogMode === CATALOG_MODE_FULL;
+  const featuredSeedButton = byId("btn-preset-featured-seed-quick-recent");
   let runScreen = null;
   let editorScreen = null;
   let blockEditorScreen = null;
+  let lastEditorReadinessModel = buildStudioEditorReadinessModel({
+    sourceText: "",
+    canonDiagCode: "",
+    canonDiagMessage: "",
+    autofixAvailable: false,
+  });
+
+  const emitStudioMetric = (name, payload = {}) => {
+    const metricName = String(name ?? "").trim();
+    if (!metricName || typeof window === "undefined") return;
+    const record = {
+      name: metricName,
+      ts: Date.now(),
+      ...((payload && typeof payload === "object") ? payload : {}),
+    };
+    try {
+      if (!Array.isArray(window.__SEAMGRIM_STUDIO_METRICS__)) {
+        window.__SEAMGRIM_STUDIO_METRICS__ = [];
+      }
+      window.__SEAMGRIM_STUDIO_METRICS__.push(record);
+    } catch (_) {
+      // ignore metric buffer failures
+    }
+    try {
+      if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+        window.dispatchEvent(new CustomEvent("seamgrim:studio-metric", { detail: record }));
+      }
+    } catch (_) {
+      // ignore metric event failures
+    }
+  };
+
+  const setStudioState = (patch = {}) => {
+    const next = patch && typeof patch === "object" ? patch : {};
+    appState.studio = {
+      ...appState.studio,
+      ...next,
+    };
+    return appState.studio;
+  };
+
+  const updateEditorReadinessModel = (sourceText, { canonDiagCode = "", canonDiagMessage = "" } = {}) => {
+    const source = String(sourceText ?? "");
+    const model = buildStudioEditorReadinessModel({
+      sourceText: source,
+      canonDiagCode: String(canonDiagCode ?? "").trim(),
+      canonDiagMessage: String(canonDiagMessage ?? "").trim(),
+      autofixAvailable: hasLegacyAutofixCandidate(source),
+    });
+    lastEditorReadinessModel = model;
+    editorScreen?.setStudioReadinessModel?.(model);
+    runScreen?.setStudioReadinessModel?.(model);
+    return model;
+  };
+
+  const resolveCanonDiagUiModel = (diag = null) => {
+    const row = diag && typeof diag === "object" ? diag : {};
+    const code = String(row?.code ?? "").trim();
+    const rawMessage = String(row?.message ?? row?.detail ?? "").trim();
+    const normalized = rawMessage.toLowerCase();
+    if (code === "E_WASM_CANON_JSON_PARSE_FAILED") {
+      if (normalized.includes("flat canonical")) {
+        return {
+          blocking: false,
+          readinessCode: "",
+          readinessMessage: "",
+          summaryText: "구성 해석 실패: 실행은 계속할 수 있습니다.",
+        };
+      }
+      if (normalized.includes("maegim canonical")) {
+        return {
+          blocking: false,
+          readinessCode: "",
+          readinessMessage: "",
+          summaryText: "매김 계획 해석 실패: 실행은 계속할 수 있습니다.",
+        };
+      }
+      return {
+        blocking: false,
+        readinessCode: "",
+        readinessMessage: "",
+        summaryText: "구성 해석 실패: 실행은 계속할 수 있습니다.",
+      };
+    }
+    return {
+      blocking: Boolean(code),
+      readinessCode: code,
+      readinessMessage: rawMessage,
+      summaryText: code ? `구성 해석 실패 (${code})` : "구성 해석 실패",
+    };
+  };
 
   const refreshEditorCanonSummary = async (ddnText) => {
-    if (!editorScreen) return;
+    if (!editorScreen && !runScreen) return;
     const sourceText = String(ddnText ?? "");
     const ticket = editorCanonSummaryTicket + 1;
     editorCanonSummaryTicket = ticket;
     if (!sourceText.trim()) {
-      editorScreen.setCanonFlatView(null);
+      editorScreen?.setCanonFlatView?.(null);
+      updateEditorReadinessModel(sourceText);
       return;
     }
-    editorScreen.setCanonFlatView({
+    updateEditorReadinessModel(sourceText);
+    editorScreen?.setCanonFlatView?.({
       summaryText: "구성: WASM canon 계산 중...",
       topoOrder: [],
       instances: [],
       links: [],
     });
     const flat = await lessonCanonHydrator.deriveFlatJson(sourceText, { quiet: true });
-    if (ticket !== editorCanonSummaryTicket || !editorScreen) return;
+    if (ticket !== editorCanonSummaryTicket) return;
     if (!flat) {
       const canonDiag = Array.isArray(lessonCanonHydrator.getCanonDiags?.())
         ? lessonCanonHydrator.getCanonDiags()
@@ -1186,8 +2259,13 @@ async function main() {
         : [];
       const topDiag = canonDiag[0] ?? runtimeDiag[0] ?? null;
       if (topDiag && topDiag.code) {
-        editorScreen.setCanonFlatView({
-          summaryText: `구성: WASM canon 실패 (${String(topDiag.code)})`,
+        const uiDiag = resolveCanonDiagUiModel(topDiag);
+        updateEditorReadinessModel(sourceText, {
+          canonDiagCode: uiDiag.readinessCode,
+          canonDiagMessage: uiDiag.readinessMessage,
+        });
+        editorScreen?.setCanonFlatView?.({
+          summaryText: uiDiag.summaryText,
           topoOrder: [],
           instances: [],
           links: [],
@@ -1195,14 +2273,23 @@ async function main() {
         return;
       }
     }
-    editorScreen.setCanonFlatView(buildFlatPlanView(flat));
+    editorScreen?.setCanonFlatView?.(buildFlatPlanView(flat));
+    updateEditorReadinessModel(sourceText);
   };
 
   const resolveFeaturedSeedIds = () =>
-    resolveAvailableFeaturedSeedIds(FEATURED_SEED_IDS, appState.lessonsById);
+    featuredSeedEnabled
+      ? resolveAvailableFeaturedSeedIds(FEATURED_SEED_IDS, appState.lessonsById)
+      : [];
 
   const updateFeaturedSeedQuickAction = () => {
     if (!featuredSeedButton) return;
+    if (!featuredSeedEnabled) {
+      featuredSeedButton.disabled = true;
+      featuredSeedButton.classList.add("hidden");
+      featuredSeedButton.title = "release reps-only 모드에서는 비활성화됩니다.";
+      return;
+    }
     const ids = resolveFeaturedSeedIds();
     if (!ids.length) {
       featuredSeedButton.disabled = true;
@@ -1225,10 +2312,29 @@ async function main() {
 
   const openRunWithLessonWithSource = (
     lesson,
-    { launchKind = "manual", sourceId = "", sourceType = "lesson", derivedFrom = "" } = {},
+    {
+      launchKind = "manual",
+      autoExecute = false,
+      sourceId = "",
+      sourceType = "lesson",
+      derivedFrom = "",
+      onboardingProfile = "",
+      runRequest = null,
+    } = {},
   ) => {
     if (!runScreen) return;
-    if (String(sourceType) === "ddn") {
+    const sourceKind = String(sourceType ?? "").trim().toLowerCase();
+    const routeLessonId = sourceKind === "lesson" ? String(lesson?.id ?? "").trim() : "";
+    const sourceLabel = String(
+      sourceKind === "lesson"
+        ? (lesson?.title ?? lesson?.id ?? "교과")
+        : (lesson?.title ?? "새 작업"),
+    ).trim() || "새 작업";
+    syncMainTabRoute({
+      tab: MAIN_TAB_STUDIO,
+      lessonId: routeLessonId,
+    });
+    if (sourceKind === "ddn") {
       trackDdnInputSource({
         sourceId,
         label: String(lesson?.title ?? lesson?.id ?? "사용자 DDN"),
@@ -1239,19 +2345,131 @@ async function main() {
       trackLessonInputSource(lesson, { sourceId });
     }
     persistInputRegistrySnapshot();
+    setStudioState({
+      sourceKind: sourceKind === "lesson" ? "lesson" : "scratch",
+      sourceLabel,
+      engineStatus: "idle",
+      primaryViewFamily: "sim",
+      activeSubpanelTab: "graph",
+    });
     runScreen.setLessonOptions(Array.from(appState.lessonsById.values()));
-    runScreen.loadLesson(lesson, { launchKind });
+    runScreen.loadLesson(lesson, {
+      launchKind,
+      sourceKind: sourceKind === "lesson" ? "lesson" : "scratch",
+      sourceLabel,
+    });
+    const queuedRunRequest = (runRequest || autoExecute)
+      ? runScreen.enqueueRunRequest(runRequest ?? {
+        sourceText: lesson?.ddnText ?? "",
+        launchKind,
+        sourceType: sourceKind === "lesson" ? "lesson" : "ddn",
+      })
+      : null;
+    const normalizedOnboardingProfile = normalizeRunOnboardingProfile(onboardingProfile);
+    if (normalizedOnboardingProfile) {
+      runScreen.applyRunOnboardingProfile(normalizedOnboardingProfile);
+    }
     persistSceneSummarySnapshot(runScreen);
     persistRuntimeSnapshotBundleV0(runScreen);
     setScreen("run");
+    void refreshEditorCanonSummary(lesson?.ddnText ?? "");
     updateFeaturedSeedQuickAction();
+    return queuedRunRequest;
   };
 
-  const openRunWithLesson = (lesson, { launchKind = "manual" } = {}) => {
-    openRunWithLessonWithSource(lesson, { launchKind });
+  const openRunWithLesson = (lesson, { launchKind = "manual", autoExecute = false } = {}) => {
+    openRunWithLessonWithSource(lesson, { launchKind, autoExecute });
+  };
+
+  const openStudioWithDdnText = async (
+    ddnText,
+    {
+      launchKind = "manual",
+      autoExecute = false,
+      sourceId = "ddn:studio:manual",
+      title = "작업실 DDN",
+      description = "작업실에서 직접 작성한 DDN",
+    } = {},
+  ) => {
+    const source = String(ddnText ?? "");
+    if (!source.trim()) {
+      showPlatformToast("빈 DDN은 실행할 수 없습니다.");
+      return false;
+    }
+    const lesson = await buildStudioDraftLessonFromDdn(source, {
+      id: STUDIO_DRAFT_LESSON_ID,
+      title,
+      description,
+    });
+    openRunWithLessonWithSource(lesson, {
+      launchKind,
+      autoExecute,
+      sourceId,
+      sourceType: "ddn",
+      derivedFrom: appState.currentLesson?.id ?? "",
+    });
+    return true;
+  };
+
+  const openStudioWithBlankDraft = async () =>
+    openStudioWithDdnText(STUDIO_DRAFT_DDN_TEMPLATE, {
+      launchKind: "manual",
+      sourceId: "ddn:studio:draft",
+      title: "새 작업",
+      description: "작업실 기본 초안",
+    });
+
+  const switchMainTab = async (
+    target,
+    {
+      lessonId = "",
+      ddnText = "",
+      launchKind = "manual",
+      autoExecute = false,
+      onboardingProfile = "",
+      fallbackToBlankOnLessonError = true,
+    } = {},
+  ) => {
+    const normalizedTarget = normalizeMainTabTarget(target, MAIN_TAB_BROWSE);
+    if (normalizedTarget === MAIN_TAB_BROWSE) {
+      setScreen("browse");
+      return true;
+    }
+
+    const requestedLessonId = String(lessonId ?? "").trim();
+    if (requestedLessonId) {
+      try {
+        const lesson = await loadLessonById(requestedLessonId);
+        openRunWithLessonWithSource(lesson, {
+          launchKind,
+          autoExecute,
+          sourceId: `lesson:${lesson.id}`,
+          onboardingProfile,
+        });
+        return true;
+      } catch (err) {
+        showPlatformToast(`작업실 로드 실패: ${String(err?.message ?? err)}`);
+        if (!fallbackToBlankOnLessonError) {
+          return false;
+        }
+      }
+    }
+
+    const directDdn = String(ddnText ?? "");
+    if (directDdn.trim()) {
+      const ok = await openStudioWithDdnText(directDdn, {
+        launchKind,
+        autoExecute,
+        sourceId: "ddn:studio:route",
+      });
+      if (ok) return true;
+    }
+
+    return openStudioWithBlankDraft();
   };
 
   const pickNextFeaturedSeedId = () => {
+    if (!featuredSeedEnabled) return "";
     const picked = pickNextFeaturedSeedLaunch({
       featuredSeedIds: FEATURED_SEED_IDS,
       lessonsById: appState.lessonsById,
@@ -1265,13 +2483,17 @@ async function main() {
   };
 
   const runNextFeaturedSeed = async () => {
+    if (!featuredSeedEnabled) {
+      updateFeaturedSeedQuickAction();
+      return false;
+    }
     const targetId = pickNextFeaturedSeedId();
     if (!targetId) {
       updateFeaturedSeedQuickAction();
       return false;
     }
     const lesson = await loadLessonById(targetId);
-    openRunWithLesson(lesson, { launchKind: "featured_seed_quick" });
+    openRunWithLesson(lesson, { launchKind: "featured_seed_quick", autoExecute: true });
     return true;
   };
 
@@ -1279,17 +2501,25 @@ async function main() {
     root: byId("screen-browse"),
     federatedApiCandidates,
     federatedFileCandidates,
-    onLessonSelect: async (selection) => {
+    featuredSeedEnabled,
+    onLessonSelect: async (selection, { autoExecute = true } = {}) => {
       const lessonId = ensureLessonEntryFromSelection(selection);
       if (!lessonId) {
         throw new Error("교과를 찾지 못했습니다: invalid lesson selection");
       }
-      const lesson = await loadLessonById(lessonId);
-      openRunWithLessonWithSource(lesson, { launchKind: "browse_select", sourceId: `lesson:${lesson.id}` });
+      const onboardingProfile = normalizeRunOnboardingProfile(
+        selection?.launchProfile ?? selection?.onboardingProfile ?? readBrowseLaunchProfile(),
+      );
+      const launchKind = onboardingProfile ? `browse_select_${onboardingProfile}` : "browse_select";
+      await switchMainTab(MAIN_TAB_STUDIO, {
+        lessonId,
+        launchKind,
+        autoExecute,
+        onboardingProfile,
+      });
     },
     onCreate: () => {
-      editorScreen.loadBlank();
-      setScreen("editor");
+      void switchMainTab(MAIN_TAB_STUDIO, { launchKind: "manual" });
     },
     onOpenLegacyGuideExample: async ({ lesson, example, examples, warningNames }) => {
       const title = String(lesson?.title ?? lesson?.id ?? "교과").trim() || "교과";
@@ -1341,6 +2571,28 @@ async function main() {
     },
   });
 
+  const runEditorAutofix = (ddnText, { applyToEditor = false, source = "editor" } = {}) => {
+    const sourceText = String(ddnText ?? "");
+    const rawResult = applyLegacyAutofixToDdn(sourceText);
+    const textAfter = String(rawResult?.text ?? sourceText);
+    const contract = buildAutofixResultContract(rawResult, { sourceTextAfter: textAfter });
+    const appliedRuleCount = Array.isArray(contract.applied_rules) ? contract.applied_rules.length : 0;
+    emitStudioMetric("studio.autofix", {
+      source,
+      changed: Boolean(contract.changed),
+      blocking_remaining: Boolean(contract.blocking_remaining),
+      applied_rule_count: appliedRuleCount,
+    });
+    if (applyToEditor && rawResult?.changed) {
+      editorScreen?.replaceDdn?.(textAfter, { emitSourceChange: true });
+    }
+    return {
+      ...(rawResult && typeof rawResult === "object" ? rawResult : {}),
+      text: textAfter,
+      contract,
+    };
+  };
+
   editorScreen = new EditorScreen({
     root: byId("screen-editor"),
     onBack: () => {
@@ -1348,51 +2600,123 @@ async function main() {
     },
     onRun: async (ddnText) => {
       editorScreen.setSmokeResult("WASM 매김 계획 계산 중...");
+      const sourceText = String(ddnText ?? "");
+      const sourceLessonId = String(appState.currentLesson?.id ?? "").trim();
+      const model = buildStudioEditorReadinessModel({
+        sourceText,
+        autofixAvailable: hasLegacyAutofixCandidate(sourceText),
+      });
+      lastEditorReadinessModel = model;
+      editorScreen?.setStudioReadinessModel?.(model);
+      const stage = String(model?.stage ?? "").trim().toLowerCase();
+
+      if (stage === STUDIO_READINESS_STAGE.BLOCKED) {
+        const cause = String(model?.user_cause ?? "").trim() || "실행 전 수정이 필요합니다.";
+        const fixHint = String(model?.manual_example ?? model?.primary_action?.detail ?? "").trim();
+        editorScreen.setSmokeResult(fixHint ? `실행 차단: ${cause}\n수정 가이드: ${fixHint}` : `실행 차단: ${cause}`);
+        emitStudioMetric("studio.run.blocked", {
+          stage,
+          cause,
+        });
+        return;
+      }
+
+      let effectiveDdnText = sourceText;
+      let autofixContract = null;
+      if (stage === STUDIO_READINESS_STAGE.AUTOFIX || hasLegacyAutofixCandidate(sourceText)) {
+        const autofix = runEditorAutofix(sourceText, {
+          applyToEditor: false,
+          source: "editor_run_preflight",
+        });
+        autofixContract = autofix.contract ?? null;
+        effectiveDdnText = String(autofix.text ?? sourceText);
+        if (autofixContract?.blocking_remaining) {
+          const reason = String(model?.user_cause ?? "").trim() || "자동 수정으로 해결할 수 없는 항목이 남았습니다.";
+          const fixHint = String(model?.manual_example ?? "").trim();
+          editorScreen.setSmokeResult(
+            fixHint
+              ? `실행 차단: ${reason}\n수정 가이드: ${fixHint}`
+              : `실행 차단: ${reason}`,
+          );
+          emitStudioMetric("studio.run.blocked_after_autofix", {
+            stage,
+            changed: Boolean(autofixContract?.changed),
+          });
+          return;
+        }
+        if (autofixContract?.changed) {
+          editorScreen.setSmokeResult("자동 수정 변환본으로 실행합니다. 원문 반영은 '자동 수정 적용' 버튼에서 선택할 수 있습니다.");
+        }
+      }
+
+      emitStudioMetric("studio.run.attempt", {
+        stage: stage || "ready",
+        autofix_changed: Boolean(autofixContract?.changed),
+        source_lesson_id: sourceLessonId || null,
+      });
+      editorScreen.setSmokeResult("WASM 매김 계획 계산 중...");
       const baseMeta = appState.currentLesson?.meta ?? {};
-      const ddnMetaHeader = parseLessonDdnMetaHeader(ddnText);
+      const ddnMetaHeader = parseLessonDdnMetaHeader(effectiveDdnText);
       const displayMeta = resolveLessonDisplayMeta({
         baseTitle: appState.currentLesson?.title ?? "사용자 DDN",
         baseDescription: appState.currentLesson?.description ?? "",
         tomlMeta: baseMeta,
         ddnMetaHeader,
       });
-      const lesson = await lessonCanonHydrator.hydrateLessonCanon({
+      const baseLesson = {
         id: appState.currentLesson?.id ?? "custom",
         title: displayMeta.title || appState.currentLesson?.title || "사용자 DDN",
         description: displayMeta.description || appState.currentLesson?.description || "",
         subject: appState.currentLesson?.subject ?? "",
         grade: appState.currentLesson?.grade ?? "",
         quality: appState.currentLesson?.quality ?? "experimental",
-        requiredViews: normalizeViewFamilyList(
-          baseMeta.required_views ??
-            ddnMetaHeader.requiredViews ??
-            ddnMetaHeader.required_views ??
-            appState.currentLesson?.requiredViews ??
-            [],
-        ),
-        ddnText,
+        requiredViews: normalizeViewFamilyList(baseMeta.required_views ?? ddnMetaHeader.requiredViews ?? ddnMetaHeader.required_views ?? appState.currentLesson?.requiredViews ?? []),
+        ddnText: effectiveDdnText,
         maegimControlJson: appState.currentLesson?.maegimControlJson ?? "",
         textMd: appState.currentLesson?.textMd ?? "",
         meta: baseMeta,
         ddnMetaHeader,
-      });
-      appState.currentLesson = lesson;
-      openRunWithLessonWithSource(lesson, {
+      };
+      appState.currentLesson = baseLesson;
+      const queuedRunRequest = openRunWithLessonWithSource(baseLesson, {
         launchKind: "editor_run",
-        sourceId: `ddn:editor:${lesson.id}`,
+        runRequest: { id: `editor:${Date.now()}`, sourceText: effectiveDdnText, launchKind: "editor_run", sourceType: "ddn", createdAtMs: Date.now() },
+        sourceId: `ddn:editor:${baseLesson.id}`,
         sourceType: "ddn",
-        derivedFrom: String(appState.currentLesson?.id ?? ""),
+        derivedFrom: sourceLessonId,
       });
+      void lessonCanonHydrator.hydrateLessonCanon(baseLesson)
+        .then((hydratedLesson) => {
+          if (hydratedLesson && appState.currentLesson === baseLesson && String(hydratedLesson.ddnText ?? "") === queuedRunRequest?.sourceText) appState.currentLesson = hydratedLesson;
+        })
+        .catch((err) => console.warn(`[seamgrim] editor run hydration skipped: ${String(err?.message ?? err)}`));
     },
     onSave: (ddnText) => {
-      saveDdnToFile(ddnText, "lesson.ddn");
-      editorScreen.setSmokeResult("DDN 파일 저장 완료");
+      const ok = saveCurrentWork("local", { ddnText });
+      editorScreen.setSmokeResult(ok ? "DDN 파일 저장 완료" : "저장 실패");
     },
     onOpenAdvanced: () => {
       advanced.toggle();
     },
     onSourceChange: (ddnText) => {
       void refreshEditorCanonSummary(ddnText);
+    },
+    onAutofix: async (ddnText, { source = "editor_readiness_card" } = {}) => {
+      const result = runEditorAutofix(ddnText, {
+        applyToEditor: false,
+        source,
+      });
+      if (result?.changed) {
+        editorScreen.replaceDdn(result.text, { emitSourceChange: true });
+        const rules = Array.isArray(result.contract?.applied_rules) ? result.contract.applied_rules.join(", ") : "";
+        editorScreen.setSmokeResult(rules ? `자동 수정 적용: ${rules}` : "자동 수정을 적용했습니다.");
+      } else if (result?.contract?.blocking_remaining) {
+        editorScreen.setSmokeResult("자동 수정으로 해결되지 않는 항목이 있습니다. 수동 수정 가이드를 확인하세요.");
+      } else {
+        editorScreen.setSmokeResult("자동 수정 대상이 없습니다.");
+      }
+      updateEditorReadinessModel(String(result?.text ?? ddnText));
+      return result;
     },
     onOpenBlock: async (ddnText, { title = "블록 편집" } = {}) => {
       await blockEditorScreen.loadSource(ddnText, { title, mode: "" });
@@ -1444,6 +2768,7 @@ async function main() {
       appState.currentLesson = lesson;
       openRunWithLessonWithSource(lesson, {
         launchKind: "editor_run",
+        autoExecute: true,
         sourceId: `ddn:block:${lesson.id}`,
         sourceType: "ddn",
         derivedFrom: String(appState.currentLesson?.id ?? ""),
@@ -1478,26 +2803,23 @@ async function main() {
       persistSceneSummarySnapshot(runScreen);
       persistRuntimeSnapshotBundleV0(runScreen);
     },
+    onSourceChange: (ddnText) => {
+      void refreshEditorCanonSummary(ddnText);
+    },
+    onStudioStateChange: (patch) => {
+      setStudioState(patch);
+    },
+    onSaveDdn: (ddnText) => saveCurrentWork("local", { ddnText }),
     onSaveSnapshot: () => persistRuntimeSnapshotV0(runScreen),
     onSaveSession: () => persistRuntimeSessionV0(runScreen),
-    onFormulaApplied: ({ formulaText = "", derivedDdn = "" } = {}) => {
-      const lessonId = String(runScreen?.lesson?.id ?? appState.currentLesson?.id ?? "").trim();
-      const lessonTitle = String(runScreen?.lesson?.title ?? appState.currentLesson?.title ?? lessonId).trim();
-      trackFormulaInputSource({
-        lessonId,
-        lessonTitle,
-        formulaText,
-        derivedDdn,
-      });
-      persistInputRegistrySnapshot();
-      persistSceneSummarySnapshot(runScreen);
-      persistRuntimeSnapshotBundleV0(runScreen);
-    },
     onSelectLesson: async (lessonId) => {
       const targetId = String(lessonId ?? "").trim();
       if (!targetId) return;
-      const lesson = await loadLessonById(targetId);
-      openRunWithLessonWithSource(lesson, { launchKind: "browse_select", sourceId: `lesson:${lesson.id}` });
+      await switchMainTab(MAIN_TAB_STUDIO, {
+        lessonId: targetId,
+        launchKind: "browse_select",
+        autoExecute: true,
+      });
     },
     onGetInspectorContext: () => ({
       sceneSummary: appState.sceneSummary,
@@ -1557,6 +2879,12 @@ async function main() {
   editorScreen.init();
   blockEditorScreen.init();
   runScreen.init();
+  document.querySelectorAll(".main-shell-tab[data-main-tab-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = normalizeMainTabTarget(button?.dataset?.mainTabTarget, MAIN_TAB_BROWSE);
+      void switchMainTab(target, { launchKind: "manual" });
+    });
+  });
   featuredSeedButton?.addEventListener("click", () => {
     void runNextFeaturedSeed();
   });
@@ -1565,7 +2893,18 @@ async function main() {
       const presetId = normalizeBrowsePresetId(event?.detail?.presetId ?? "");
       syncBrowsePresetToLocation(presetId);
     });
+    window.addEventListener(PLATFORM_UI_ACTION_EVENT, (event) => {
+      handlePlatformUiActionRequest(event?.detail ?? {}, {
+        resolveDdnText: () => {
+          if (appState.currentScreen === "editor") {
+            return String(editorScreen?.getDdn?.() ?? "");
+          }
+          return String(appState.currentLesson?.ddnText ?? "");
+        },
+      });
+    });
     window.addEventListener("keydown", (event) => {
+      if (!featuredSeedEnabled) return;
       if (
         shouldTriggerFeaturedSeedQuickPreset(event, {
           isEditableTarget: isEditableKeyboardTarget(event?.target),
@@ -1609,7 +2948,45 @@ async function main() {
     updateFeaturedSeedQuickAction();
   }
 
-  setScreen("browse");
+  let initialScreenApplied = false;
+  if (shouldApplyPlatformRouteFallback(platformRouteSlots)) {
+    if (!appState.shell.shareMode) {
+      appState.shell.shareMode = Visibility.PRIVATE;
+    }
+    applyPlatformRouteFallback(platformRouteSlots);
+    setScreen("browse");
+    initialScreenApplied = true;
+  } else {
+    if (studioRouteRequest.fromLegacyPlayRedirect && consumeLegacyPlayRedirectParam()) {
+      showPlatformToast("예전 Playground 주소를 작업실로 옮겼습니다. 이제 작업실에서 편집하고 실행하세요.");
+    }
+    if (studioRouteRequest.lessonId) {
+      const opened = await switchMainTab(MAIN_TAB_STUDIO, {
+        lessonId: studioRouteRequest.lessonId,
+        launchKind: "browse_select",
+        autoExecute: true,
+        fallbackToBlankOnLessonError: false,
+      });
+      if (!opened) {
+        showPlatformToast(`교과를 찾지 못했습니다: ${studioRouteRequest.lessonId}`);
+        setScreen("browse");
+      }
+      initialScreenApplied = true;
+    } else if (studioRouteRequest.ddnText) {
+      const opened = await openStudioWithDdnText(studioRouteRequest.ddnText, {
+        launchKind: "manual",
+        sourceId: "ddn:studio:query",
+      });
+      initialScreenApplied = Boolean(opened);
+    } else if (studioRouteRequest.tab === MAIN_TAB_STUDIO) {
+      const opened = await switchMainTab(MAIN_TAB_STUDIO, { launchKind: "manual" });
+      initialScreenApplied = Boolean(opened);
+    }
+  }
+
+  if (!initialScreenApplied) {
+    setScreen("browse");
+  }
   window.addEventListener("beforeunload", () => {
     runScreen?.flushOverlaySession?.();
     persistSceneSummarySnapshot(runScreen);

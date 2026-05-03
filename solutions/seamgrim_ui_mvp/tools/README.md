@@ -7,6 +7,18 @@ DDN 출력(숫자 x/y 라인) → `seamgrim.graph.v0` JSON으로 변환합니다
 - `python solutions/seamgrim_ui_mvp/tools/export_graph.py solutions/seamgrim_ui_mvp/samples/01_line_graph_export.ddn C:/ddn/codex/build/seamgrim_graph.json`
 - `python solutions/seamgrim_ui_mvp/tools/export_graph.py solutions/seamgrim_ui_mvp/samples/02_parabola_export.ddn --output-dir C:/ddn/codex/build --auto-name`
 - `python solutions/seamgrim_ui_mvp/tools/export_graph.py solutions/seamgrim_ui_mvp/samples/01_line_graph_export.ddn --output-dir C:/ddn/codex/build --auto-name --label-from-input`
+- `python solutions/seamgrim_ui_mvp/tools/extract_study_guide_ddn.py`
+  - `docs/guides/study/**/*.md`의 ` ```ddn ` 블록을 추출해 `build/study_practice/` 아래에 raw/Seamgrim 실습용 `.ddn`를 생성합니다.
+  - 결과 리포트: `study_practice_report.detjson`
+  - 셈그림 실습용 인벤토리: `seamgrim_inventory.detjson`
+  - legacy `바탕.`/`살림.` 표면은 current-line 실행형으로 정규화한 복사본만 생성하고, 원문은 `raw/`에 함께 남깁니다.
+- `python solutions/seamgrim_ui_mvp/tools/repair_study_guide_markdown_ddn.py --apply-safe`
+  - `docs/guides/study/*.md` 안의 fenced `ddn` 블록에서 안전한 current-line 치환만 본문에 적용합니다.
+  - 적용 범위:
+    - `바탕.`/`살림.` 접두 제거
+    - `에 대해: {` -> `에 대해 {`
+    - 단독 `}` -> `}.`
+  - prose 설명은 건드리지 않으며, 본문 레거시 설명이 남은 문서는 `study_markdown_repair_report.detjson`로 별도 리포트합니다.
 
 출력된 JSON은 `solutions/seamgrim_ui_mvp/ui/index.html`에서 불러올 수 있습니다.
 출력 라인은 `x`, `y`를 한 줄에 `x,y`로 출력하거나, 줄마다 숫자 1개씩 출력해도 됩니다.

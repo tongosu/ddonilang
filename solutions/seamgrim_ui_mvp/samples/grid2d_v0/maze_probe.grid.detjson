@@ -1,0 +1,39 @@
+{
+  "schema": "seamgrim.nurimaker.grid.fixture.v1",
+  "scene_id": "sample_grid2d_maze_probe",
+  "grid": {
+    "grid_w": 6,
+    "grid_h": 5,
+    "tile_size": 18,
+    "tiles": [
+      [1, 1, 1, 1, 1, 1],
+      [1, 0, 0, 0, 2, 1],
+      [1, 0, 1, 0, 0, 1],
+      [1, 0, 0, 0, 3, 1],
+      [1, 1, 1, 1, 1, 1]
+    ],
+    "palette": {
+      "0": "#f6f1e8",
+      "1": "#2e3440",
+      "2": "#67b99a",
+      "3": "#f4b860",
+      "4": "#7aa2f7"
+    }
+  },
+  "actors": [
+    {
+      "id": "player",
+      "row": 1,
+      "col": 1,
+      "fill": "#ff6b6b",
+      "label": "P"
+    },
+    {
+      "id": "goal",
+      "row": 3,
+      "col": 4,
+      "fill": "#67b99a",
+      "label": "G"
+    }
+  ]
+}

@@ -52,6 +52,14 @@ export class DdnWasmVmClient {
     return Array.isArray(parsed?.warnings) ? parsed.warnings : [];
   }
 
+  configuredMadi() {
+    if (typeof this.vm.get_configured_madi !== "function") {
+      return 0;
+    }
+    const value = Number(this.vm.get_configured_madi());
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  }
+
   setParamParsed(key, value) {
     if (typeof this.vm.set_param !== "function") {
       throw new Error("set_param is not available in this wasm build");
@@ -126,6 +134,25 @@ export class DdnWasmVmClient {
 
   stepOneParsed() {
     const state = parseStateJson(this.vm.step_one());
+    return this.attachDerived(state, true);
+  }
+
+  runTicksParsed(count) {
+    if (typeof this.vm.run_ticks !== "function") {
+      throw new Error("run_ticks is not available in this wasm build");
+    }
+    const state = parseStateJson(this.vm.run_ticks(count));
+    return this.attachDerived(state, true);
+  }
+
+  applyCurrentlineCellParsed(source, context = null) {
+    if (typeof this.vm.apply_currentline_cell !== "function") {
+      throw new Error("apply_currentline_cell is not available in this wasm build");
+    }
+    const contextJson = context === null || context === undefined
+      ? undefined
+      : (typeof context === "string" ? context : JSON.stringify(context));
+    const state = parseStateJson(this.vm.apply_currentline_cell(source, contextJson));
     return this.attachDerived(state, true);
   }
 

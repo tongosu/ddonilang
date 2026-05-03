@@ -91,6 +91,8 @@ export interface DdnWasmVm {
   set_pointer(pointer_x_i32: number, pointer_y_i32: number): void;
   set_dt_f64(dt: number): void;
   step_one(): string;
+  run_ticks?(count: number): string;
+  apply_currentline_cell?(source: string, context_json?: string): string;
   step_one_with_input(
     keys_pressed: number,
     last_key_name: string,

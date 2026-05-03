@@ -1,5 +1,10 @@
 import { showGlobalToast } from "../components/toast.js";
 import { FEATURED_SEED_IDS } from "../featured_seed_catalog.js";
+import {
+  buildFirstRunBadgeLabel,
+  buildFirstRunHintText,
+  resolveFirstRunStepByTarget,
+} from "../first_run_catalog.js";
 import { resolveLessonCardPreviewViewModel } from "../preview_session.js";
 import { applyPreviewViewModelMetadata } from "../preview_view_model.js";
 import {
@@ -14,9 +19,11 @@ const QUALITY_BADGE = Object.freeze({
 const LEGACY_WARNING_CODE = "W_LEGACY_RANGE_COMMENT_DEPRECATED";
 const DEFAULT_FEDERATED_API_CANDIDATES = Object.freeze(["/api/lessons/inventory"]);
 const DEFAULT_FEDERATED_FILE_CANDIDATES = Object.freeze([]);
+const DEFAULT_SAMPLE_CANDIDATES = Object.freeze(["/samples/index.json"]);
 const RUN_UI_PREFS_STORAGE_KEY = "seamgrim.ui.run_prefs.v1";
 const BROWSE_UI_PREFS_STORAGE_KEY = "seamgrim.ui.browse_prefs.v1";
 const BROWSE_PRESET_QUERY_KEY = "browsePreset";
+const PREVIEW_CONCURRENCY_LIMIT = 3;
 
 function readStorageJson(key, fallback) {
   try {
@@ -57,6 +64,12 @@ function normalizeQuality(quality) {
 
 function normalizeSource(source) {
   return String(source ?? "").trim().toLowerCase();
+}
+
+function normalizeStringList(value) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
 }
 
 function isFeaturedSeedLesson(lesson) {
@@ -102,6 +115,8 @@ function normalizeLaunchKind(raw) {
   if (!kind) return "";
   if (kind === "featured_seed_quick") return "featured_seed_quick";
   if (kind === "browse_select") return "browse_select";
+  if (kind === "browse_select_student") return "browse_select";
+  if (kind === "browse_select_teacher") return "browse_select";
   if (kind === "editor_run") return "editor_run";
   if (kind === "manual") return "manual";
   return "manual";
@@ -115,6 +130,13 @@ function normalizeRunLaunchFilter(raw) {
   if (kind === "browse_select") return "browse_select";
   if (kind === "editor_run") return "editor_run";
   if (kind === "manual") return "manual";
+  return "";
+}
+
+function normalizeLaunchProfile(raw) {
+  const profile = String(raw ?? "").trim().toLowerCase();
+  if (profile === "student") return "student";
+  if (profile === "teacher") return "teacher";
   return "";
 }
 
@@ -153,6 +175,8 @@ export class BrowseScreen {
     onOpenAdvanced,
     federatedApiCandidates,
     federatedFileCandidates,
+    sampleCandidates,
+    featuredSeedEnabled,
   } = {}) {
     this.root = root;
     this.onLessonSelect = typeof onLessonSelect === "function" ? onLessonSelect : async () => {};
@@ -162,8 +186,10 @@ export class BrowseScreen {
     this.onOpenAdvanced = typeof onOpenAdvanced === "function" ? onOpenAdvanced : () => {};
 
     this.lessons = [];
+    this.sampleResults = [];
     this.searchResults = [];
     this.federatedLoadState = "idle";
+    this.sampleLoadState = "idle";
     this.activeTab = "official";
     this.federatedApiCandidates = normalizeCandidateList(
       federatedApiCandidates,
@@ -173,6 +199,11 @@ export class BrowseScreen {
       federatedFileCandidates,
       DEFAULT_FEDERATED_FILE_CANDIDATES,
     );
+    this.sampleCandidates = normalizeCandidateList(
+      sampleCandidates,
+      DEFAULT_SAMPLE_CANDIDATES,
+    );
+    this.featuredSeedEnabled = featuredSeedEnabled !== false;
 
     this.filter = {
       grade: "",
@@ -181,6 +212,7 @@ export class BrowseScreen {
       seedScope: "",
       runStatus: "",
       runLaunch: "",
+      launchProfile: "",
       warningStatus: "",
       sort: "recent",
       query: "",
@@ -190,6 +222,11 @@ export class BrowseScreen {
     };
     this.lastBrowsePresetId = "";
     this.lessonPreviewCache = new Map();
+    this.previewQueue = [];
+    this.activePreviewCount = 0;
+    this.previewObserver = null;
+    this.previewPayloadByElement = new WeakMap();
+    this.detailLesson = null;
   }
 
   init() {
@@ -200,6 +237,7 @@ export class BrowseScreen {
     this.seedScopeSelect = this.root.querySelector("#filter-seed-scope");
     this.runStatusSelect = this.root.querySelector("#filter-run-status");
     this.runLaunchSelect = this.root.querySelector("#filter-run-launch");
+    this.launchProfileSelect = this.root.querySelector("#filter-launch-profile");
     this.warningStatusSelect = this.root.querySelector("#filter-warning-status");
     this.sortSelect = this.root.querySelector("#filter-sort");
     this.queryInput = this.root.querySelector("#filter-query");
@@ -207,7 +245,16 @@ export class BrowseScreen {
     this.copyBrowsePresetLinkButton = this.root.querySelector("#btn-copy-browse-preset-link");
     this.legacyGuideHintEl = this.root.querySelector("#browse-legacy-guide-hint");
     this.grid = this.root.querySelector("#lesson-card-grid");
+    this.detailPanelEl = this.root.querySelector("#catalog-detail-panel");
+    this.detailSubjectBadgeEl = this.root.querySelector("#detail-subject-badge");
+    this.detailTitleEl = this.root.querySelector("#detail-title");
+    this.detailDescEl = this.root.querySelector("#detail-desc");
+    this.detailKeywordsEl = this.root.querySelector("#detail-keywords");
+    this.detailOpenBtn = this.root.querySelector("#btn-open-in-studio");
+    this.detailCloseBtn = this.root.querySelector("#btn-detail-close");
     this.loadBrowsePrefs();
+    this.applyFeaturedSeedVisibilityPolicy();
+    this.applySimplifiedCatalogFilters();
 
     this.root.querySelector("#btn-create")?.addEventListener("click", () => {
       this.onCreate();
@@ -222,12 +269,22 @@ export class BrowseScreen {
     this.copyBrowsePresetLinkButton?.addEventListener("click", () => {
       void this.handleCopyBrowsePresetLink();
     });
+    this.detailCloseBtn?.addEventListener("click", () => {
+      this.hideLessonDetail();
+    });
+    this.detailOpenBtn?.addEventListener("click", () => {
+      if (!this.detailLesson) return;
+      void this.onLessonSelect(this.detailLesson, { autoExecute: true });
+    });
 
     this.tabButtons.forEach((button) => {
       button.addEventListener("click", async () => {
         const tab = String(button.dataset.tab ?? "official");
         this.activeTab = tab;
         this.tabButtons.forEach((item) => item.classList.toggle("active", item === button));
+        if (tab === "examples") {
+          await this.loadSampleResults();
+        }
         if (tab === "search") {
           await this.loadFederatedResults();
         }
@@ -258,6 +315,11 @@ export class BrowseScreen {
     });
     this.runLaunchSelect?.addEventListener("change", () => {
       this.filter.runLaunch = normalizeRunLaunchFilter(this.runLaunchSelect.value);
+      this.saveBrowsePrefs();
+      this.render();
+    });
+    this.launchProfileSelect?.addEventListener("change", () => {
+      this.filter.launchProfile = normalizeLaunchProfile(this.launchProfileSelect.value);
       this.saveBrowsePrefs();
       this.render();
     });
@@ -300,9 +362,52 @@ export class BrowseScreen {
     if (this.runLaunchSelect) {
       this.runLaunchSelect.value = this.filter.runLaunch;
     }
+    if (this.launchProfileSelect) {
+      this.launchProfileSelect.value = this.filter.launchProfile;
+    }
     this.lastBrowsePresetId = resolveBrowsePresetId(this.filter);
     this.updateFeaturedSeedQuickPresetButton();
     this.updateBrowsePresetCopyButton();
+  }
+
+  removeSelectOption(selectEl, value) {
+    if (!selectEl) return;
+    const option = selectEl.querySelector(`option[value="${value}"]`);
+    if (option) option.remove();
+  }
+
+  applyFeaturedSeedVisibilityPolicy() {
+    if (this.featuredSeedEnabled) return;
+    this.presetFeaturedSeedQuickRecentButton?.classList.add("hidden");
+    this.removeSelectOption(this.seedScopeSelect, "featured_seed");
+    this.removeSelectOption(this.seedScopeSelect, "seed_only");
+    this.removeSelectOption(this.runLaunchSelect, "featured_seed_quick");
+    this.removeSelectOption(this.sortSelect, "featured_seed");
+    this.removeSelectOption(this.sortSelect, "featured_seed_quick_recent");
+    if (this.filter.seedScope === "featured_seed") this.filter.seedScope = "";
+    if (this.filter.seedScope === "seed_only") this.filter.seedScope = "";
+    if (this.filter.runLaunch === "featured_seed_quick") this.filter.runLaunch = "";
+    if (this.filter.sort === "featured_seed" || this.filter.sort === "featured_seed_quick_recent") {
+      this.filter.sort = "recent";
+    }
+  }
+
+  applySimplifiedCatalogFilters() {
+    const hiddenTargets = [
+      this.qualitySelect,
+      this.seedScopeSelect,
+      this.runStatusSelect,
+      this.runLaunchSelect,
+      this.launchProfileSelect,
+      this.warningStatusSelect,
+      this.sortSelect,
+    ];
+    hiddenTargets.forEach((node) => {
+      if (!node || !node.classList?.add) return;
+      node.classList.add("catalog-filter-hidden");
+      node.setAttribute?.("aria-hidden", "true");
+      node.tabIndex = -1;
+    });
   }
 
   loadBrowsePrefs() {
@@ -310,6 +415,9 @@ export class BrowseScreen {
     this.filter.sort = String(parsed?.sort ?? this.filter.sort ?? "recent").trim() || "recent";
     this.filter.seedScope = String(parsed?.seedScope ?? this.filter.seedScope ?? "").trim();
     this.filter.runLaunch = normalizeRunLaunchFilter(parsed?.runLaunch ?? this.filter.runLaunch ?? "");
+    this.filter.launchProfile = normalizeLaunchProfile(
+      parsed?.launchProfile ?? this.filter.launchProfile ?? "",
+    );
     if (this.sortSelect) {
       this.sortSelect.value = this.filter.sort;
     }
@@ -319,6 +427,9 @@ export class BrowseScreen {
     if (this.runLaunchSelect) {
       this.runLaunchSelect.value = this.filter.runLaunch;
     }
+    if (this.launchProfileSelect) {
+      this.launchProfileSelect.value = this.filter.launchProfile;
+    }
   }
 
   saveBrowsePrefs() {
@@ -326,6 +437,7 @@ export class BrowseScreen {
       sort: String(this.filter.sort ?? "recent"),
       seedScope: String(this.filter.seedScope ?? ""),
       runLaunch: String(this.filter.runLaunch ?? ""),
+      launchProfile: String(this.filter.launchProfile ?? ""),
     });
     this.emitBrowsePresetChanged();
   }
@@ -434,6 +546,25 @@ export class BrowseScreen {
   buildFeaturedSeedBadge(lesson) {
     if (!isFeaturedSeedLesson(lesson)) return null;
     return { label: "신규 seed", cls: "badge-featured-seed" };
+  }
+
+  buildFirstRunBadge(lesson) {
+    const step = resolveFirstRunStepByTarget({
+      id: lesson?.id,
+      source: lesson?.source,
+      firstRunPath: lesson?.firstRunPath,
+    });
+    if (!step) return null;
+    return { label: buildFirstRunBadgeLabel(step), cls: "badge-recommended" };
+  }
+
+  buildFirstRunHint(lesson) {
+    const step = resolveFirstRunStepByTarget({
+      id: lesson?.id,
+      source: lesson?.source,
+      firstRunPath: lesson?.firstRunPath,
+    });
+    return buildFirstRunHintText(step);
   }
 
   buildLegacyWarningBadge(lesson) {
@@ -566,6 +697,8 @@ export class BrowseScreen {
   toFederatedLessonItems(payload) {
     const rows = Array.isArray(payload?.lessons)
       ? payload.lessons
+      : Array.isArray(payload?.samples)
+        ? payload.samples
       : Array.isArray(payload)
         ? payload
         : [];
@@ -604,6 +737,8 @@ export class BrowseScreen {
           subject: normalizeSubject(row?.subject),
           quality: normalizeQuality(row?.quality),
           source: String(row?.source ?? "federated"),
+          firstRunPath: String(row?.first_run_path ?? row?.firstRunPath ?? "").trim(),
+          tags: normalizeStringList(row?.tags),
           maegimControlWarningCount: Math.max(0, Math.trunc(Number(row?.maegim_control_warning_count ?? row?.maegimControlWarningCount) || 0)),
           maegimControlWarningCodes: Array.isArray(row?.maegim_control_warning_codes)
             ? row.maegim_control_warning_codes.map((item) => String(item))
@@ -644,6 +779,19 @@ export class BrowseScreen {
     }
   }
 
+  async tryLoadSampleCandidate(candidate) {
+    try {
+      const response = await fetch(candidate, { cache: "no-cache" });
+      if (!response.ok) return false;
+      const json = await response.json();
+      this.sampleResults = this.toFederatedLessonItems(json);
+      this.sampleLoadState = "loaded";
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async loadFederatedResults() {
     if (this.federatedLoadState === "loaded" || this.federatedLoadState === "unavailable") {
       return;
@@ -678,8 +826,23 @@ export class BrowseScreen {
     this.federatedLoadState = "unavailable";
   }
 
+  async loadSampleResults() {
+    if (this.sampleLoadState === "loaded" || this.sampleLoadState === "unavailable") {
+      return;
+    }
+    for (const candidate of this.sampleCandidates) {
+      if (await this.tryLoadSampleCandidate(candidate)) {
+        return;
+      }
+    }
+    this.sampleResults = [];
+    this.sampleLoadState = "unavailable";
+  }
+
   currentPool() {
-    return this.activeTab === "search" ? this.searchResults : this.lessons;
+    if (this.activeTab === "search") return this.searchResults;
+    if (this.activeTab === "examples") return this.sampleResults;
+    return this.lessons;
   }
 
   filteredLessons() {
@@ -765,6 +928,7 @@ export class BrowseScreen {
   }
 
   applyFeaturedSeedQuickRecentPreset() {
+    if (!this.featuredSeedEnabled) return;
     this.filter.runLaunch = "featured_seed_quick";
     this.filter.sort = "featured_seed_quick_recent";
     if (this.runLaunchSelect) {
@@ -778,6 +942,7 @@ export class BrowseScreen {
   }
 
   applyBrowsePreset(presetId = "") {
+    if (!this.featuredSeedEnabled) return false;
     const normalized = String(presetId ?? "").trim().toLowerCase();
     if (normalized === "featured_seed_quick_recent") {
       this.applyFeaturedSeedQuickRecentPreset();
@@ -808,6 +973,10 @@ export class BrowseScreen {
   updateFeaturedSeedQuickPresetButton() {
     const button = this.presetFeaturedSeedQuickRecentButton;
     if (!button) return;
+    if (!this.featuredSeedEnabled) {
+      button.classList.add("hidden");
+      return;
+    }
     const pool = this.currentPool();
     const quickCount = Array.isArray(pool)
       ? pool.filter((lesson) => this.getLessonLastLaunchKind(lesson?.id) === "featured_seed_quick").length
@@ -853,12 +1022,17 @@ export class BrowseScreen {
   createLessonCard(lesson) {
     const qualityKey = QUALITY_BADGE[lesson.quality] ? lesson.quality : "experimental";
     const badge = QUALITY_BADGE[qualityKey];
+    const firstRunBadge = this.buildFirstRunBadge(lesson);
+    const firstRunHint = this.buildFirstRunHint(lesson);
     const stateHint = this.buildCardStateHint(lesson.id);
     const runHint = this.buildCardRunHint(lesson.id);
     const runBadge = this.buildRunBadge(lesson.id);
     const launchBadge = this.buildLaunchBadge(lesson.id);
     const legacyWarningBadge = this.buildLegacyWarningBadge(lesson);
     const featuredSeedBadge = this.buildFeaturedSeedBadge(lesson);
+    const sampleBadge = String(lesson?.source ?? "").trim().toLowerCase() === "sample"
+      ? { label: "예제", cls: "badge-reviewed" }
+      : null;
     const runHash = this.getLessonLastRunHash(lesson.id);
     const runHashShort = runHash ? runHash.slice(0, 12) : "";
 
@@ -869,11 +1043,14 @@ export class BrowseScreen {
     card.innerHTML = `
       <div class="card-top-badges">
         <span class="quality-badge ${badge.cls}">${badge.label}</span>
+        ${sampleBadge ? `<span class="quality-badge ${sampleBadge.cls}">${sampleBadge.label}</span>` : ""}
+        ${firstRunBadge ? `<span class="quality-badge ${firstRunBadge.cls}">${firstRunBadge.label}</span>` : ""}
         ${featuredSeedBadge ? `<span class="quality-badge ${featuredSeedBadge.cls}">${featuredSeedBadge.label}</span>` : ""}
       </div>
       <div class="card-title">${lesson.title || lesson.id}</div>
       <div class="card-meta">${lesson.grade || "all"} · ${lesson.subject || "-"}</div>
       <div class="card-desc">${lesson.description || "설명 없음"}</div>
+      ${firstRunHint ? `<div class="card-state-hint">${firstRunHint}</div>` : ""}
       <div class="card-badge-row">
         <span class="card-run-badge ${runBadge.cls}">${runBadge.label}</span>
         ${launchBadge ? `<span class="card-run-badge ${launchBadge.cls}">${launchBadge.label}</span>` : ""}
@@ -886,6 +1063,10 @@ export class BrowseScreen {
       </div>
       <div class="card-state-hint">${stateHint}</div>
       <div class="card-run-hint">${runHint}</div>
+      <div class="card-launch-actions">
+        <button type="button" class="ghost card-launch-btn" data-launch-profile="student" title="학생 시작 프로필로 실행">학생 시작</button>
+        <button type="button" class="ghost card-launch-btn" data-launch-profile="teacher" title="교사 시작 프로필로 실행">교사 시작</button>
+      </div>
     `;
     const shouldShowPreview = lessonHasPreviewDescriptor(lesson);
     if (shouldShowPreview && typeof document?.createElement === "function") {
@@ -893,7 +1074,7 @@ export class BrowseScreen {
       preview.className = "card-structure-preview hidden";
       preview.textContent = "미리보기 로딩 중…";
       card.appendChild(preview);
-      void this.hydrateLessonPreview(preview, lesson);
+      this.enqueueLessonPreview(card, preview, lesson);
     }
     card.querySelector(".card-hash-copy")?.addEventListener("click", async (event) => {
       event.preventDefault();
@@ -910,10 +1091,97 @@ export class BrowseScreen {
       event.stopPropagation();
       this.showLegacyWarningGuide(lesson);
     });
+    card.querySelectorAll(".card-launch-btn")?.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const launchProfile = normalizeLaunchProfile(button?.dataset?.launchProfile ?? "");
+        void this.onLessonSelect({
+          ...lesson,
+          launchProfile,
+        }, { autoExecute: true });
+      });
+    });
     card.addEventListener("click", () => {
-      void this.onLessonSelect(lesson);
+      if (this.detailPanelEl) {
+        this.showLessonDetail(lesson);
+        return;
+      }
+      void this.onLessonSelect(lesson, { autoExecute: true });
     });
     return card;
+  }
+
+  showLessonDetail(lesson) {
+    this.detailLesson = lesson && typeof lesson === "object" ? lesson : null;
+    if (!this.detailPanelEl || !this.detailLesson) {
+      return;
+    }
+    const subject = String(this.detailLesson.subject ?? "").trim() || "-";
+    const grade = String(this.detailLesson.grade ?? "").trim() || "-";
+    if (this.detailSubjectBadgeEl) {
+      this.detailSubjectBadgeEl.textContent = `${subject} · ${grade}`;
+    }
+    if (this.detailTitleEl) {
+      this.detailTitleEl.textContent = String(this.detailLesson.title ?? this.detailLesson.id ?? "").trim() || "교과";
+    }
+    if (this.detailDescEl) {
+      this.detailDescEl.textContent = String(this.detailLesson.description ?? "").trim() || "설명 없음";
+    }
+    if (this.detailKeywordsEl) {
+      const keywords = Array.isArray(this.detailLesson.keywords) ? this.detailLesson.keywords : [];
+      this.detailKeywordsEl.innerHTML = keywords.length
+        ? keywords.map((keyword) => `<span class="detail-keyword">${String(keyword ?? "").trim()}</span>`).join("")
+        : "";
+    }
+    this.detailPanelEl.classList.remove("hidden");
+  }
+
+  hideLessonDetail() {
+    this.detailLesson = null;
+    this.detailPanelEl?.classList?.add?.("hidden");
+  }
+
+  ensurePreviewObserver() {
+    if (this.previewObserver || typeof IntersectionObserver === "undefined") return this.previewObserver;
+    this.previewObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry?.isIntersecting) return;
+        const payload = this.previewPayloadByElement.get(entry.target);
+        if (!payload) return;
+        this.previewObserver?.unobserve?.(entry.target);
+        this.previewPayloadByElement.delete(entry.target);
+        this.previewQueue.push(payload);
+      });
+      this.drainPreviewQueue();
+    }, { rootMargin: "100px" });
+    return this.previewObserver;
+  }
+
+  enqueueLessonPreview(card, preview, lesson) {
+    if (!card || !preview || !lesson) return;
+    const payload = { preview, lesson };
+    const observer = this.ensurePreviewObserver();
+    if (!observer) {
+      this.previewQueue.push(payload);
+      this.drainPreviewQueue();
+      return;
+    }
+    this.previewPayloadByElement.set(card, payload);
+    observer.observe(card);
+  }
+
+  drainPreviewQueue() {
+    while (this.activePreviewCount < PREVIEW_CONCURRENCY_LIMIT && this.previewQueue.length > 0) {
+      const next = this.previewQueue.shift();
+      if (!next?.preview || !next?.lesson) continue;
+      this.activePreviewCount += 1;
+      this.hydrateLessonPreview(next.preview, next.lesson)
+        .finally(() => {
+          this.activePreviewCount = Math.max(0, this.activePreviewCount - 1);
+          this.drainPreviewQueue();
+        });
+    }
   }
 
   async hydrateLessonPreview(container, lesson) {
@@ -965,14 +1233,22 @@ export class BrowseScreen {
     this.updateFeaturedSeedQuickPresetButton();
     this.updateBrowsePresetCopyButton();
     this.grid.innerHTML = "";
+    this.previewQueue = [];
+    this.activePreviewCount = 0;
+    if (this.detailLesson && !lessons.some((row) => String(row?.id ?? "") === String(this.detailLesson?.id ?? ""))) {
+      this.hideLessonDetail();
+    }
 
     if (!lessons.length) {
       const empty = document.createElement("div");
       empty.className = "hint";
       empty.textContent = this.activeTab === "search"
         ? "연합 검색 결과가 없습니다."
-        : "조건에 맞는 교과가 없습니다.";
+        : this.activeTab === "examples"
+          ? "등록된 예제가 없습니다."
+          : "조건에 맞는 교과가 없습니다.";
       this.grid.appendChild(empty);
+      this.hideLessonDetail();
       return;
     }
 

@@ -1,3 +1,5 @@
+import { formatDisplayLabel } from "../display_label_contract.js";
+
 function escapeTableHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -11,7 +13,7 @@ function normalizeColumns(table, maxCols = 3) {
   const columns = Array.isArray(table?.columns) ? table.columns : [];
   return columns.slice(0, Math.max(1, Number(maxCols) || 3)).map((column, index) => ({
     key: String(column?.key ?? `col_${index}`).trim() || `col_${index}`,
-    label: String(column?.label ?? column?.key ?? `col_${index}`).trim() || `col_${index}`,
+    label: formatDisplayLabel(String(column?.label ?? column?.key ?? `col_${index}`).trim() || `col_${index}`),
   }));
 }
 

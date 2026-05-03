@@ -1,0 +1,18 @@
+{
+  "schema": "seamgrim.active_lessons.allowlist.v1",
+  "mode": "reps_only",
+  "lesson_ids": [
+    "rep_econ_supply_demand_tax_v1",
+    "rep_math_function_line_v1",
+    "rep_phys_projectile_xy_v1",
+    "rep_cs_linear_search_timeline_v1",
+    "rep_science_phase_change_timeline_v1",
+    "rep_ddonirang_vol2_filter_v1",
+    "rep_ddonirang_vol2_map_v1",
+    "rep_ddonirang_vol2_pipeline_v1",
+    "rep_ddonirang_vol4_event_dispatch_v1",
+    "rep_ddonirang_vol4_state_transition_v1",
+    "rep_ddonirang_vol4_resume_isolation_v1",
+    "rep_ddonirang_vol4_multi_signal_priority_v1"
+  ]
+}

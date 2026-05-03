@@ -126,21 +126,21 @@ export const SEAMGRIM_PALETTE = {
           label: "대입",
           template: "{target} <- {value}.",
           fields: [
-            { id: "target", type: "text", default: "바탕.t" },
-            { id: "value", type: "expr", default: "바탕.t + 1" },
+            { id: "target", type: "text", default: "t" },
+            { id: "value", type: "expr", default: "t + 1" },
           ],
         },
         {
           kind: "if_then",
           label: "조건 블록",
-          template: "{cond} 일때 {\n{then}\n}.",
+          template: "만약 {cond} 이라면 {\n{then}\n}.",
           fields: [{ id: "cond", type: "expr", default: "체력 < 30" }],
           inputs: [{ id: "then", type: "statements" }],
         },
         {
           kind: "if_else",
           label: "조건/아니면 블록",
-          template: "{cond} 일때 {\n{then}\n} 아니면 {\n{else}\n}.",
+          template: "만약 {cond} 이라면 {\n{then}\n} 아니면 {\n{else}\n}.",
           fields: [{ id: "cond", type: "expr", default: "체력 < 30" }],
           inputs: [
             { id: "then", type: "statements" },
@@ -183,6 +183,13 @@ export const SEAMGRIM_PALETTE = {
             { id: "branches", type: "statements" },
             { id: "else", type: "statements" },
           ],
+        },
+        {
+          kind: "choose_exhaustive",
+          label: "고르기 모두",
+          template: "고르기:\n{branches}\n  모든 경우 다룸.",
+          fields: [{ id: "exhaustive", type: "text", default: "true" }],
+          inputs: [{ id: "branches", type: "statements" }],
         },
         {
           kind: "receive_block",

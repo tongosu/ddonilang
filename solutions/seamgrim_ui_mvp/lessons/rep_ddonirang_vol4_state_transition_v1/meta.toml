@@ -1,0 +1,9 @@
+title = "대표 · 또니랑 4권 · 상태 전이"
+description = "임자 상태값과 사건 반응으로 bounded state transition을 읽는 대표 lesson"
+grade = "middle"
+subject = "cs"
+level = "advanced"
+goals = ["사건이 상태값을 어떻게 바꾸는지 읽는다", "상태 전이와 체력 변화가 함께 움직이는지 본다"]
+story = "또니랑 4권의 상태 전이 감각을 generalized state-machine 없이 current-line shell로 확인합니다."
+missions = ["대기 -> 전투 -> 부상 -> 복귀 흐름을 말하기", "피해량이 큰 경우 상태가 왜 바뀌는지 설명하기"]
+required_views = ["table", "text"]

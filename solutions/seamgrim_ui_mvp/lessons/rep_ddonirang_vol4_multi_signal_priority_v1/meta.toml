@@ -1,0 +1,9 @@
+title = "대표 · 또니랑 4권 · 다중 신호 우선 반응"
+description = "강한 경고와 일반 요청의 handling order를 current-line shell로 읽는 대표 lesson"
+grade = "middle"
+subject = "cs"
+level = "advanced"
+goals = ["강한 경고 뒤 일반 요청이 어떻게 차단되는지 읽는다", "복귀 뒤 정상 요청이 다시 처리되는지 본다"]
+story = "또니랑 4권의 priority/override 감각을 generalized scheduler 없이 deterministic handling order로 확인합니다."
+missions = ["첫 번째 일반 요청이 왜 차단되는지 말하기", "복귀승인 뒤 일반처리가 어떻게 다시 늘어나는지 보기"]
+required_views = ["table", "text"]

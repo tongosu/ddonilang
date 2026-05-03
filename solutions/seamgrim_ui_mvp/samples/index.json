@@ -1,0 +1,109 @@
+{
+  "schema": "seamgrim.sample_inventory.v1",
+  "samples": [
+    {
+      "id": "06_console_grid_scalar_show",
+      "title": "콘솔 보개 최소 예제",
+      "description": "합, x, y를 console-grid로 바로 보는 가장 짧은 예제이며 first-run hello rail 시작점입니다.",
+      "tags": ["first_run", "hello"],
+      "first_run_path": "hello",
+      "grade": "demo",
+      "subject": "console-grid",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/06_console_grid_scalar_show.ddn"]
+    },
+    {
+      "id": "07_console_grid_live_counter",
+      "title": "콘솔 보개 live 카운터",
+      "description": "매마디 값이 바뀌는 console-grid live 데모입니다.",
+      "grade": "demo",
+      "subject": "console-grid",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/07_console_grid_live_counter.ddn"]
+    },
+    {
+      "id": "08_pendulum_space2d_minimal",
+      "title": "진자 space2d 최소 데모",
+      "description": "모양 {}만으로 진자 장면만 보는 최소 space2d 샘플입니다.",
+      "grade": "demo",
+      "subject": "space2d",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/08_pendulum_space2d_minimal.ddn"]
+    },
+    {
+      "id": "09_moyang_pendulum_working",
+      "title": "모양 {} 진자 working 데모",
+      "description": "작업실에 바로 붙여 넣어 space2d 진자를 확인하는 working 샘플이며 onboarding.json에서 slider -> replay/거울 rail로 이어집니다.",
+      "tags": ["first_run", "movement"],
+      "first_run_path": "movement",
+      "grade": "demo",
+      "subject": "space2d",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/09_moyang_pendulum_working.ddn"]
+    },
+    {
+      "id": "10_console_grid_mini_tetris",
+      "title": "테트리스 playable 예제",
+      "description": "웹 작업실 current-line에서 바로 도는 console-grid 테트리스 예제입니다. ← → ↓ 이동, Space 리셋.",
+      "grade": "demo",
+      "subject": "game",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/10_console_grid_mini_tetris.ddn"]
+    },
+    {
+      "id": "12_symbolic_simplify",
+      "title": "수식 정리 예제",
+      "description": "수식{}의 전개와 약분 정리를 console-grid에서 확인합니다.",
+      "grade": "demo",
+      "subject": "symbolic",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/12_symbolic_simplify.ddn"]
+    },
+    {
+      "id": "13_seum_equivalence_proof",
+      "title": "세움 동치 증명 예제",
+      "description": "세움{} 살피기로 두 수식의 동치를 검증합니다.",
+      "grade": "demo",
+      "subject": "proof",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/13_seum_equivalence_proof.ddn"]
+    },
+    {
+      "id": "14_lambda_store_return",
+      "title": "람다 저장/반환 예제",
+      "description": "{값 | 식} 람다가 생성 시점의 값을 기억하는 예제입니다.",
+      "grade": "demo",
+      "subject": "lambda",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/14_lambda_store_return.ddn"]
+    },
+    {
+      "id": "15_console_grid_maze_probe",
+      "title": "콘솔 격자 미로 실험",
+      "description": "콘솔 격자 보개에서 플레이어 P가 목표 G 주변을 도는 짧은 text-grid 실험 예제입니다.",
+      "grade": "demo",
+      "subject": "console-grid",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/15_console_grid_maze_probe.ddn"]
+    },
+    {
+      "id": "16_space2d_bounce_probe",
+      "title": "평면 공 튕김 실험",
+      "description": "평면 보개에서 벽 안을 움직이는 공과 보임 그래프를 함께 확인하는 실험 예제입니다.",
+      "grade": "demo",
+      "subject": "space2d",
+      "quality": "reviewed",
+      "source": "sample",
+      "ddn_path": ["/samples/16_space2d_bounce_probe.ddn"]
+    }
+  ]
+}

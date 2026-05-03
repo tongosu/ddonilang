@@ -1,0 +1,9 @@
+title = "대표 · 또니랑 4권 · 복귀/격리"
+description = "격리, 복귀, 재개를 current-line bounded shell로 읽는 대표 lesson"
+grade = "middle"
+subject = "cs"
+level = "advanced"
+goals = ["격리 중에는 일반 요청이 어떻게 보류되는지 읽는다", "복귀승인과 재개요청이 순서대로 작동하는지 본다"]
+story = "또니랑 4권 후반의 복귀/재개/격리 흐름을 current-line representative rail로 확인합니다."
+missions = ["처리건수와 보류건수가 어떻게 달라지는지 말하기", "격리됨이 언제 풀리는지 설명하기"]
+required_views = ["table", "text"]

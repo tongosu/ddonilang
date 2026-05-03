@@ -1,3 +1,5 @@
+import { preprocessDdnText } from "./ddn_preprocess.js";
+
 function normalizeWasmModulePath(wasmUrl) {
   if (typeof wasmUrl !== "string" || !wasmUrl.trim()) {
     return "../wasm/ddonirang_tool.js";
@@ -25,6 +27,19 @@ function buildCanonDiag(code, message, detail = "") {
     message,
     detail: String(detail ?? ""),
   };
+}
+
+function prepareCanonSourceForUi(sourceText) {
+  const source = String(sourceText ?? "");
+  if (!source.trim()) return source;
+  const normalized = source.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const needsUiPreprocess = /(^|\n)\s*보임\s*\{/u.test(normalized);
+  if (!needsUiPreprocess) {
+    return source;
+  }
+  const pre = preprocessDdnText(source);
+  const body = String(pre?.bodyText ?? "");
+  return body.trim() ? body : source;
 }
 
 export async function createWasmCanon({
@@ -108,7 +123,8 @@ export async function createWasmCanon({
       throw new Error("wasm_canon_flat_json export 누락");
     }
     try {
-      const parsed = parseJsonText(mod.wasm_canon_flat_json(String(sourceText ?? "")), "flat");
+      const normalizedSource = prepareCanonSourceForUi(sourceText);
+      const parsed = parseJsonText(mod.wasm_canon_flat_json(normalizedSource), "flat");
       lastCanonDiag = null;
       return parsed;
     } catch (err) {
@@ -132,7 +148,8 @@ export async function createWasmCanon({
       throw new Error("wasm_canon_maegim_plan export 누락");
     }
     try {
-      const parsed = parseJsonText(mod.wasm_canon_maegim_plan(String(sourceText ?? "")), "maegim");
+      const normalizedSource = prepareCanonSourceForUi(sourceText);
+      const parsed = parseJsonText(mod.wasm_canon_maegim_plan(normalizedSource), "maegim");
       lastCanonDiag = null;
       return parsed;
     } catch (err) {
@@ -156,7 +173,8 @@ export async function createWasmCanon({
       throw new Error("wasm_canon_alrim_plan export 누락");
     }
     try {
-      const parsed = parseJsonText(mod.wasm_canon_alrim_plan(String(sourceText ?? "")), "alrim");
+      const normalizedSource = prepareCanonSourceForUi(sourceText);
+      const parsed = parseJsonText(mod.wasm_canon_alrim_plan(normalizedSource), "alrim");
       lastCanonDiag = null;
       return parsed;
     } catch (err) {
@@ -180,8 +198,9 @@ export async function createWasmCanon({
       throw new Error("wasm_canon_block_editor_plan export 누락");
     }
     try {
+      const normalizedSource = prepareCanonSourceForUi(sourceText);
       const parsed = parseJsonText(
-        mod.wasm_canon_block_editor_plan(String(sourceText ?? "")),
+        mod.wasm_canon_block_editor_plan(normalizedSource),
         "block_editor",
       );
       lastCanonDiag = null;

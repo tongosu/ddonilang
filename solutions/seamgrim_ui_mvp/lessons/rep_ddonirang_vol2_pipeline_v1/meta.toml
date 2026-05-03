@@ -1,0 +1,9 @@
+title = "대표 · 또니랑 2권 · 여러 단계 차림 작업"
+description = "거르기와 바꾸기를 이어 붙이는 대표 lesson"
+grade = "middle"
+subject = "cs"
+level = "intro"
+goals = ["여러 단계 자료 흐름을 한 번에 읽는다", "거르기와 바꾸기를 연결한 뒤 요약값을 해석한다"]
+story = "또니랑 2권 후반의 '여러 단계 차림 작업'을 셈그림 교과 탭에서 바로 확인합니다."
+missions = ["기준값과 배수를 함께 바꿔 결과를 비교하기", "단계 연결 뒤 개수와 끝값이 어떻게 바뀌는지 말하기"]
+required_views = ["table", "text"]

@@ -12,9 +12,14 @@ DEFAULT_SCAN_ROOT = ROOT / "solutions" / "seamgrim_ui_mvp" / "lessons"
 PROMOTE_BACKUP_SUFFIX = ".before_age3_promote.bak"
 
 RANGE_COMMENT_HINT_RE = re.compile(r"//\s*범위\s*\(")
+RANGE_HASH_HINT_RE = re.compile(r"#\s*범위\s*(?:\(|:)")
 RANGE_DECL_RE = re.compile(
     r"^(?P<prefix>\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*\s*(?::\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*)?\s*<-\s*)"
     r"(?P<init>.+?)\.\s*//\s*범위\s*\(\s*(?P<min>[^,\n\)]+)\s*,\s*(?P<max>[^,\n\)]+)\s*,\s*(?P<step>[^\)\n]+)\)\s*(?P<tail>//.*)?$"
+)
+RANGE_HASH_DECL_RE = re.compile(
+    r"^(?P<prefix>\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*\s*(?::\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*)?\s*<-\s*)"
+    r"(?P<init>.+?)\.\s*#\s*범위\s*\(\s*(?P<min>[^,\n\)]+)\s*,\s*(?P<max>[^,\n\)]+)\s*,\s*(?P<step>[^\)\n]+)\)\s*(?P<tail>//.*)?$"
 )
 SETUP_COLON_HEADER_RE = re.compile(r"^(?P<indent>\s*)채비\s*:\s*\{\s*(?P<tail>//.*)?$")
 HOOK_START_COLON_RE = re.compile(r"^(?P<indent>\s*)\(\s*(?P<name>시작|처음)\s*\)\s*할때\s*:\s*\{\s*(?P<tail>//.*)?$")
@@ -102,6 +107,8 @@ def convert_line(
     stats = {
         "range_rewrites": 0,
         "range_skipped": 0,
+        "range_hash_rewrites": 0,
+        "range_hash_skipped": 0,
         "setup_colon_rewrites": 0,
         "hook_colon_rewrites": 0,
         "hook_alias_rewrites": 0,
@@ -121,8 +128,26 @@ def convert_line(
         stats["range_rewrites"] = 1
         return rewritten, stats
 
+    range_hash_match = RANGE_HASH_DECL_RE.match(line)
+    if range_hash_match:
+        prefix = range_hash_match.group("prefix")
+        init_expr = normalize_init_expr(range_hash_match.group("init"))
+        min_expr = range_hash_match.group("min").strip()
+        max_expr = range_hash_match.group("max").strip()
+        step_expr = range_hash_match.group("step").strip()
+        tail = (range_hash_match.group("tail") or "").strip()
+        rewritten = f"{prefix}{init_expr} 매김 {{ 범위: {min_expr}..{max_expr}. 간격: {step_expr}. }}."
+        if tail:
+            rewritten = f"{rewritten} {tail}"
+        stats["range_hash_rewrites"] = 1
+        return rewritten, stats
+
     if RANGE_COMMENT_HINT_RE.search(line):
         stats["range_skipped"] = 1
+        return line, stats
+
+    if RANGE_HASH_HINT_RE.search(line):
+        stats["range_hash_skipped"] = 1
         return line, stats
 
     if rewrite_setup_colon:
@@ -177,6 +202,8 @@ def convert_text(text: str, *, rewrite_setup_colon: bool) -> tuple[str, dict[str
     totals = {
         "range_rewrites": 0,
         "range_skipped": 0,
+        "range_hash_rewrites": 0,
+        "range_hash_skipped": 0,
         "setup_colon_rewrites": 0,
         "hook_colon_rewrites": 0,
         "hook_alias_rewrites": 0,
@@ -215,6 +242,8 @@ def main() -> int:
     changed = 0
     total_range_rewrites = 0
     total_range_skipped = 0
+    total_range_hash_rewrites = 0
+    total_range_hash_skipped = 0
     total_setup_colon_rewrites = 0
     total_hook_colon_rewrites = 0
     total_hook_alias_rewrites = 0
@@ -228,6 +257,8 @@ def main() -> int:
             changed += 1
         total_range_rewrites += int(stats["range_rewrites"])
         total_range_skipped += int(stats["range_skipped"])
+        total_range_hash_rewrites += int(stats["range_hash_rewrites"])
+        total_range_hash_skipped += int(stats["range_hash_skipped"])
         total_setup_colon_rewrites += int(stats["setup_colon_rewrites"])
         total_hook_colon_rewrites += int(stats["hook_colon_rewrites"])
         total_hook_alias_rewrites += int(stats["hook_alias_rewrites"])
@@ -250,6 +281,7 @@ def main() -> int:
         f"include_inputs={int(bool(args.include_inputs))} include_preview={int(bool(args.include_preview))} "
         f"rewrite_setup_colon={int(bool(args.rewrite_setup_colon))} "
         f"range_rewrites={total_range_rewrites} range_skipped={total_range_skipped} "
+        f"range_hash_rewrites={total_range_hash_rewrites} range_hash_skipped={total_range_hash_skipped} "
         f"setup_colon_rewrites={total_setup_colon_rewrites} "
         f"hook_colon_rewrites={total_hook_colon_rewrites} "
         f"hook_alias_rewrites={total_hook_alias_rewrites}"
@@ -265,7 +297,9 @@ def main() -> int:
         shown += 1
         print(
             f"[changed] {row['path']} "
-            f"range={row['range_rewrites']} skipped={row['range_skipped']} setup={row['setup_colon_rewrites']} "
+            f"range={row['range_rewrites']} skipped={row['range_skipped']} "
+            f"range_hash={row['range_hash_rewrites']} range_hash_skipped={row['range_hash_skipped']} "
+            f"setup={row['setup_colon_rewrites']} "
             f"hook_colon={row['hook_colon_rewrites']} hook_alias={row['hook_alias_rewrites']}"
         )
 
@@ -284,6 +318,8 @@ def main() -> int:
             "totals": {
                 "range_rewrites": total_range_rewrites,
                 "range_skipped": total_range_skipped,
+                "range_hash_rewrites": total_range_hash_rewrites,
+                "range_hash_skipped": total_range_hash_skipped,
                 "setup_colon_rewrites": total_setup_colon_rewrites,
                 "hook_colon_rewrites": total_hook_colon_rewrites,
                 "hook_alias_rewrites": total_hook_alias_rewrites,
@@ -295,7 +331,8 @@ def main() -> int:
 
     print(
         "check=lesson_migration_autofix detail="
-        f"ok:changed={changed}:range_rewrites={total_range_rewrites}:range_skipped={total_range_skipped}:targets={len(targets)}"
+        f"ok:changed={changed}:range_rewrites={total_range_rewrites}:range_skipped={total_range_skipped}:"
+        f"range_hash_rewrites={total_range_hash_rewrites}:range_hash_skipped={total_range_hash_skipped}:targets={len(targets)}"
     )
     return 0
 

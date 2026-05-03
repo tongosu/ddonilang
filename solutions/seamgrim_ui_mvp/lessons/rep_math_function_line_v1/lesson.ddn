@@ -1,6 +1,6 @@
 설정 {
-  title: rep-math-function-line.
-  desc: representative math graph-first lesson.
+  제목: "일차 함수 그래프".
+  설명: "기울기와 절편을 조절하며 일차 함수 그래프를 확인합니다.".
 }.
 
 채비 {

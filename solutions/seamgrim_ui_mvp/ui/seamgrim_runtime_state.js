@@ -116,6 +116,7 @@ export function normalizeWasmStatePayload(payload) {
   const stateHash = readString(obj.state_hash ?? nestedState.state_hash, "");
   const viewHashRaw = obj.view_hash ?? nestedState.view_hash;
   const viewHash = viewHashRaw === null || viewHashRaw === undefined ? null : readString(viewHashRaw, "");
+  const currentlineContext = obj.currentline_context ?? nestedState.currentline_context ?? null;
 
   return {
     // Keep wrapper/output contract stable for existing wasm packs.
@@ -139,6 +140,7 @@ export function normalizeWasmStatePayload(payload) {
     view_meta: viewMeta,
     observation_manifest: observationManifest,
     view_hash: viewHash,
+    currentline_context: currentlineContext,
   };
 }
 
@@ -302,6 +304,10 @@ function parseLegacyCollectionText(text) {
 function collectOutputTokens(raw, out, depth = 0) {
   if (depth > 6 || raw === null || raw === undefined) return;
   if (typeof raw === "string") {
+    if (raw === "") {
+      out.push("");
+      return;
+    }
     const text = raw.trim();
     if (!text) return;
     const parsed = tryParseJson(text);
@@ -372,20 +378,10 @@ function parseSpace2dFromOutputLines(rawLines) {
     "묶음",
   ]);
 
-  function decodeLegacyFixed64Negative(num) {
-    if (!Number.isFinite(num) || num >= 0) return num;
-    const abs = Math.abs(num);
-    const bucket = Math.floor(abs) - 1;
-    if (!Number.isFinite(bucket) || bucket < 0) return num;
-    const decoded = abs - (2 * bucket) - 2;
-    if (!Number.isFinite(decoded) || decoded > 0) return num;
-    return decoded;
-  }
-
   function readNumber(text) {
     const num = Number(text);
     if (!Number.isFinite(num)) return null;
-    return decodeLegacyFixed64Negative(num);
+    return num;
   }
 
   function parseShape(startIdx) {
@@ -658,12 +654,16 @@ function extractOutputLinesFromObservation(normalized) {
 
   const preferredRows = rows.filter((row) => isOutputKey(row.key));
   const fallbackRows = preferredRows.length ? preferredRows : rows;
+  let firstPreferredLines = [];
 
   for (const row of fallbackRows) {
     const tokens = [];
     collectOutputTokens(row.raw, tokens);
     const lines = tokens.map((token) => normalizeOutputToken(token)).filter(Boolean);
     if (!lines.length) continue;
+    if (preferredRows.length > 0 && firstPreferredLines.length === 0) {
+      firstPreferredLines = lines;
+    }
     const hasKnownHint = lines.some((line) => {
       const lower = line.toLowerCase();
       return (
@@ -680,41 +680,364 @@ function extractOutputLinesFromObservation(normalized) {
     });
     if (hasKnownHint) return lines;
   }
+  if (firstPreferredLines.length > 0) {
+    return firstPreferredLines;
+  }
   return [];
+}
+
+export function extractObservationOutputLinesFromState(state) {
+  const normalized = normalizeWasmStatePayload(state);
+  const lines = extractOutputLinesFromObservation(normalized);
+  return Array.isArray(lines)
+    ? lines.map((line) => normalizeOutputToken(line)).filter(Boolean)
+    : [];
+}
+
+function readConsoleLogEntries(raw, out, depth = 0) {
+  if (depth > 6 || raw === null || raw === undefined) return;
+  if (typeof raw === "string") {
+    const parsed = tryParseJson(raw);
+    if (parsed !== null && (Array.isArray(parsed) || typeof parsed === "object")) {
+      readConsoleLogEntries(parsed, out, depth + 1);
+    }
+    return;
+  }
+  if (Array.isArray(raw)) {
+    raw.forEach((item) => readConsoleLogEntries(item, out, depth + 1));
+    return;
+  }
+  if (!raw || typeof raw !== "object") return;
+  const hasText = Object.prototype.hasOwnProperty.call(raw, "text")
+    || Object.prototype.hasOwnProperty.call(raw, "value")
+    || Object.prototype.hasOwnProperty.call(raw, "message");
+  const text = String(raw.text ?? raw.value ?? raw.message ?? "");
+  if (!text && !hasText) return;
+  const tickValue = Number(raw.tick ?? raw.madi ?? raw.tick_id);
+  const lineNoValue = Number(raw.line_no ?? raw.lineNo ?? raw.index ?? raw.order);
+  const kindText = String(raw.kind ?? raw.level ?? "output").trim().toLowerCase();
+  out.push({
+    tick: Number.isFinite(tickValue) ? Math.max(0, Math.trunc(tickValue)) : 0,
+    line_no: Number.isFinite(lineNoValue) && lineNoValue > 0 ? Math.trunc(lineNoValue) : null,
+    text,
+    kind: ["warn", "error", "output"].includes(kindText) ? kindText : "output",
+  });
+}
+
+function extractDirectConsoleLog(normalized, state) {
+  const candidates = [
+    state?.console_log,
+    state?.output_log,
+    state?.runtime?.console_log,
+    state?.runtime?.output_log,
+    normalized?.resources?.value_json?.console_log,
+    normalized?.resources?.value_json?.output_log,
+    normalized?.resources?.json?.console_log,
+    normalized?.resources?.json?.output_log,
+  ];
+  const out = [];
+  candidates.forEach((candidate) => readConsoleLogEntries(candidate, out));
+  if (!out.length) return [];
+  return out
+    .map((entry, index) => ({
+      tick: Number.isFinite(entry.tick) ? entry.tick : normalized.tick_id,
+      line_no: Number.isFinite(entry.line_no) && entry.line_no > 0 ? entry.line_no : index + 1,
+      text: String(entry.text ?? ""),
+      kind: ["warn", "error", "output"].includes(String(entry.kind ?? "").trim().toLowerCase())
+        ? String(entry.kind).trim().toLowerCase()
+        : "output",
+    }));
+}
+
+function stripStructuredViewOutputLines(rawLines) {
+  const lines = Array.isArray(rawLines)
+    ? rawLines.map((line) => normalizeOutputToken(line)).filter(Boolean)
+    : [];
+  if (!lines.length) return [];
+
+  const spaceMarkers = new Set(["space2d", "2d", "공간", "공간2d"]);
+  const shapeMarkers = new Set(["space2d.shape", "space2d_shape", "shape2d"]);
+  const textMarkers = new Set(["text.overlay", "overlay.text", "subtitle", "자막"]);
+  const shapeKeySet = new Set([
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "cx",
+    "cy",
+    "r",
+    "x",
+    "y",
+    "size",
+    "stroke",
+    "fill",
+    "color",
+    "width",
+    "token",
+    "id",
+    "name",
+    "label",
+    "토큰",
+    "group_id",
+    "group",
+    "groupid",
+    "그룹",
+    "묶음",
+  ]);
+  const textKeySet = new Set(["id", "name", "label", "markdown", "text", "글", "x", "y"]);
+  const out = [];
+  let idx = 0;
+  while (idx < lines.length) {
+    const line = String(lines[idx] ?? "").trim();
+    const lower = line.toLowerCase();
+    if (spaceMarkers.has(lower)) {
+      const n1 = Number(lines[idx + 1]);
+      const n2 = Number(lines[idx + 2]);
+      idx += Number.isFinite(n1) && Number.isFinite(n2) ? 3 : 1;
+      continue;
+    }
+    if (shapeMarkers.has(lower)) {
+      idx += 1;
+      if (idx < lines.length) idx += 1; // shape kind
+      while (idx < lines.length) {
+        const key = String(lines[idx] ?? "").trim();
+        const keyLower = key.toLowerCase();
+        if (!key) {
+          idx += 1;
+          continue;
+        }
+        if (spaceMarkers.has(keyLower) || shapeMarkers.has(keyLower) || textMarkers.has(keyLower) || keyLower === "table.row") {
+          break;
+        }
+        if (!shapeKeySet.has(keyLower)) break;
+        idx += 2;
+      }
+      continue;
+    }
+    if (textMarkers.has(lower)) {
+      idx += 1;
+      while (idx < lines.length) {
+        const key = String(lines[idx] ?? "").trim();
+        const keyLower = key.toLowerCase();
+        if (!key) {
+          idx += 1;
+          continue;
+        }
+        if (spaceMarkers.has(keyLower) || shapeMarkers.has(keyLower) || textMarkers.has(keyLower) || keyLower === "table.row") {
+          break;
+        }
+        if (!textKeySet.has(keyLower)) break;
+        idx += 2;
+      }
+      continue;
+    }
+    out.push(line);
+    idx += 1;
+  }
+  return out;
+}
+
+export function extractObservationOutputLogFromState(state) {
+  const normalized = normalizeWasmStatePayload(state);
+  const direct = extractDirectConsoleLog(normalized, state && typeof state === "object" ? state : {});
+  if (direct.length > 0) {
+    return direct;
+  }
+  const lines = extractOutputLinesFromObservation(normalized);
+  if (!Array.isArray(lines) || !lines.length) return [];
+  const structuredOnlyMarkers = new Set([
+    "table.row",
+    "space2d",
+    "space2d.shape",
+    "space2d_shape",
+    "shape2d",
+    "text.overlay",
+    "overlay.text",
+    "subtitle",
+    "자막",
+  ]);
+  if (lines.some((line) => String(line ?? "").trim().toLowerCase() === "table.row")) {
+    return [];
+  }
+  const nonStructuredLines = stripStructuredViewOutputLines(lines);
+  if (nonStructuredLines.length === 0) {
+    return [];
+  }
+  const filtered = nonStructuredLines
+    .filter((line) => line.length > 0 && !structuredOnlyMarkers.has(line.toLowerCase()));
+  return filtered.map((text, index) => ({
+    tick: Number.isFinite(normalized.tick_id) ? normalized.tick_id : 0,
+    line_no: index + 1,
+    text,
+    kind: "output",
+  }));
 }
 
 export function extractObservationOutputRowsFromState(state) {
   const normalized = normalizeWasmStatePayload(state);
   const lines = extractOutputLinesFromObservation(normalized);
-  if (!Array.isArray(lines) || !lines.length) return [];
+  const normalizedLines = Array.isArray(lines) ? lines : [];
 
   const rows = [];
   let i = 0;
-  while (i < lines.length) {
-    const marker = String(lines[i] ?? "").trim().toLowerCase();
+  while (i < normalizedLines.length) {
+    const marker = String(normalizedLines[i] ?? "").trim().toLowerCase();
     if (marker !== "table.row") {
       i += 1;
       continue;
     }
-    if (i + 2 >= lines.length) {
+    const rowTokens = [];
+    let j = i + 1;
+    while (j < normalizedLines.length) {
+      const token = String(normalizedLines[j] ?? "").trim();
+      if (!token) {
+        j += 1;
+        continue;
+      }
+      if (token.toLowerCase() === "table.row") {
+        break;
+      }
+      rowTokens.push(token);
+      j += 1;
+    }
+    if (rowTokens.length < 2) {
       i += 1;
       continue;
     }
-    const key = String(lines[i + 1] ?? "").trim();
-    const valueToken = String(lines[i + 2] ?? "").trim();
+
+    let key = "";
+    let valueToken = "";
+    if (rowTokens.length >= 4) {
+      key = String(rowTokens[1] ?? "").trim();
+      valueToken = String(rowTokens[2] ?? "").trim();
+    } else {
+      key = String(rowTokens[0] ?? "").trim();
+      valueToken = String(rowTokens[1] ?? "").trim();
+    }
+    if (!key || !valueToken) {
+      i = j;
+      continue;
+    }
+    if (valueToken.toLowerCase() === "table.row" || key.toLowerCase() === "table.row") {
+      i = j;
+      continue;
+    }
     if (!key) {
       i += 1;
       continue;
     }
-    // malformed pair: value 위치에 다음 marker가 오면 현재 row는 버린다.
-    if (valueToken.toLowerCase() === "table.row") {
-      i += 2;
-      continue;
-    }
-    rows.push({ key, value: valueToken });
-    i += 3;
+    rows.push({
+      key,
+      value: valueToken,
+      source: "table.row",
+      syntheticKey: false,
+    });
+    i = j;
   }
-  return rows;
+  if (rows.length > 0) {
+    return rows;
+  }
+
+  const structuredOnlyMarkers = new Set([
+    "space2d",
+    "space2d.shape",
+    "space2d_shape",
+    "shape2d",
+    "text.overlay",
+    "overlay.text",
+    "subtitle",
+    "자막",
+  ]);
+  const hasStructuredMarkers = normalizedLines.some((token) => structuredOnlyMarkers.has(String(token ?? "").trim().toLowerCase()));
+
+  // Legacy/compat output fallback:
+  // `보여주기`가 table.row 마커 없이 값 리스트만 남기는 경우에도
+  // 하위 패널과 fallback 보개가 값을 읽을 수 있도록 행으로 승격한다.
+  const observation = extractObservationChannelsFromState(normalized);
+  const channelKeys = Array.isArray(observation?.channels)
+    ? observation.channels
+        .map((channel) => readChannelKey(channel))
+        .map((key) => String(key ?? "").trim())
+        .filter((key) => {
+          if (!key || key.startsWith("__")) return false;
+          const lower = key.toLowerCase();
+          if (
+            lower.includes("보개_출력_줄들") ||
+            (lower.includes("output") && lower.includes("line")) ||
+            (lower.includes("show") && lower.includes("line"))
+          ) {
+            return false;
+          }
+          return true;
+        })
+    : [];
+  const preferredOrder = ["t", "y", "theta", "omega", "x", "n", "time", "tick", "값", "value"];
+  const rankedKeys = channelKeys
+    .map((key, index) => {
+      const lower = key.toLowerCase();
+      const prefIndex = preferredOrder.findIndex((token) => lower === token || lower.includes(token));
+      return {
+        key,
+        rank: prefIndex >= 0 ? prefIndex : (100 + index),
+      };
+    })
+    .sort((a, b) => a.rank - b.rank)
+    .map((row) => row.key);
+  const observationValues = observation?.all_values && typeof observation.all_values === "object"
+    ? observation.all_values
+    : observation?.values && typeof observation.values === "object"
+      ? observation.values
+      : {};
+  const observationRows = Object.entries(observationValues)
+    .map(([key, raw]) => {
+      const keyText = String(key ?? "").trim();
+      if (!keyText || keyText.startsWith("__")) return null;
+      const lower = keyText.toLowerCase();
+      if (
+        lower.includes("보개_출력_줄들") ||
+        (lower.includes("output") && lower.includes("line")) ||
+        (lower.includes("show") && lower.includes("line"))
+      ) {
+        return null;
+      }
+      if (raw === null || raw === undefined) return null;
+      if (typeof raw === "object") return null;
+      const value = String(raw).trim();
+      if (!value) return null;
+      const rankBase = rankedKeys.indexOf(keyText);
+      const rank = rankBase >= 0 ? rankBase : 200;
+      return { key: keyText, value, rank };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ key, value }) => ({
+      key,
+      value,
+      source: "observation",
+      syntheticKey: false,
+    }));
+  if (hasStructuredMarkers && observationRows.length > 0) {
+    return observationRows;
+  }
+
+  const markerFilteredLines = normalizedLines.filter((token) => !structuredOnlyMarkers.has(String(token ?? "").trim().toLowerCase()));
+  // 보여주기 출력 줄이 전혀 없지만 observation 채널 값이 있으면 그 값을 fallback 행으로 반환.
+  // (단순 값 계산 DDN에서 보여주기만 사용했을 때 흰 격자를 방지하고 콘솔 보개를 활성화한다.)
+  if (markerFilteredLines.length === 0 && observationRows.length > 0) {
+    return observationRows.map((row) => ({ ...row, source: "fallback-line" }));
+  }
+  const fallbackLines = markerFilteredLines.length > 0 ? markerFilteredLines : normalizedLines;
+  return fallbackLines
+    .map((token, index) => {
+      const key = rankedKeys[index] ?? `출력${index + 1}`;
+      return {
+        key,
+        value: String(token ?? "").trim(),
+        source: "fallback-line",
+        syntheticKey: !rankedKeys[index],
+      };
+    })
+    .filter((row) => row.value.length > 0);
 }
 
 function isTableObject(obj) {
@@ -930,13 +1253,16 @@ export function resolveStructuredViewStackFromState(stateLike) {
   };
 }
 
-export function extractStructuredViewsFromState(state, { preferPatch = false } = {}) {
+export function extractStructuredViewsFromState(
+  state,
+  { preferPatch = false, allowObservationOutputFallback = true } = {},
+) {
   const normalized = normalizeWasmStatePayload(state);
   const resources = normalized?.resources?.value ?? {};
   const patch = normalizePatch(normalized.patch);
-  const observationOutputLines = extractOutputLinesFromObservation(normalized);
-  const outputSpace2d = parseSpace2dFromOutputLines(observationOutputLines);
-  const outputText = parseTextFromOutputLines(observationOutputLines);
+  const observationOutputLines = allowObservationOutputFallback ? extractOutputLinesFromObservation(normalized) : [];
+  const outputSpace2d = allowObservationOutputFallback ? parseSpace2dFromOutputLines(observationOutputLines) : null;
+  const outputText = allowObservationOutputFallback ? parseTextFromOutputLines(observationOutputLines) : null;
 
   const preferMetaGraph = isGraphObject(normalized?.view_meta?.graph) ? normalized.view_meta.graph : null;
   const preferMetaSpace2d = isSpace2dObject(normalized?.view_meta?.space2d) ? normalized.view_meta.space2d : null;

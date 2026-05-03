@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 
 (시작)할때 {
@@ -32,10 +31,6 @@
       { (Q < Q1) }인것: { T <- T0 + Q / (m * c1). }
       { (Q >= Q1) 그리고 (Q < Q2) }인것: { T <- Tm. }
       아니면: { T <- Tm + (Q - Q2) / (m * c2). }
-    보임 {
-      Q: Q.
-      T: T.
-    }.
     Q <- Q + (dQ).
   }.
 }.

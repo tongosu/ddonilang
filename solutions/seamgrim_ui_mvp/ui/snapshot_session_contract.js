@@ -246,6 +246,7 @@ function normalizeSessionView(raw) {
     range: rootRange,
     showGrid: Boolean(row.showGrid ?? row.show_grid ?? graphGuides.showGrid ?? space2dGuides.showGrid),
     showAxis: Boolean(row.showAxis ?? row.show_axis ?? graphGuides.showAxis ?? space2dGuides.showAxis),
+    showXAxisTicks: Boolean(row.showXAxisTicks ?? row.show_x_axis_ticks ?? space2dGuides.showXAxisTicks ?? space2dGuides.show_x_axis_ticks),
     graph: {
       auto_fit: Boolean(graph.auto_fit ?? graph.autoFit),
       axis: graphRange,
@@ -264,6 +265,7 @@ function normalizeSessionView(raw) {
       guides: {
         showGrid: Boolean(space2dGuides.showGrid),
         showAxis: Boolean(space2dGuides.showAxis),
+        showXAxisTicks: Boolean(space2dGuides.showXAxisTicks ?? space2dGuides.show_x_axis_ticks),
       },
     },
     dock: {
@@ -291,6 +293,7 @@ function normalizeSessionSpace2dView(raw, view = null) {
     guides: {
       showGrid: Boolean(row?.guides?.showGrid),
       showAxis: Boolean(row?.guides?.showAxis),
+      showXAxisTicks: Boolean(row?.guides?.showXAxisTicks ?? row?.guides?.show_x_axis_ticks),
     },
   };
 }

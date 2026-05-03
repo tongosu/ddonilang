@@ -5,10 +5,12 @@ export class DdnWasmVm {
     free(): void;
     [Symbol.dispose](): void;
     add_view_prefix(prefix: string): void;
+    apply_currentline_cell(source: string, context_json?: string | null): any;
     clear_ai_injections(): void;
     clear_view_prefixes(): void;
     columns(): any;
     get_build_info(): string;
+    get_configured_madi(): bigint;
     get_parse_warnings(): any;
     get_state_hash(): string;
     get_state_json(): any;
@@ -17,6 +19,7 @@ export class DdnWasmVm {
     static new_with_mode(source: string, mode: string): DdnWasmVm;
     reset(keep_params?: boolean | null): any;
     restore_state(state_json: string): any;
+    run_ticks(count: number): any;
     set_dt_f64(dt: number): void;
     set_input(keys_pressed: number, last_key_name: string, pointer_x_i32: number, pointer_y_i32: number, dt: number): void;
     set_keys_pressed(keys_pressed: number): void;
@@ -38,6 +41,10 @@ export function wasm_canon_alrim_plan(source: string): string;
 
 export function wasm_canon_block_editor_plan(source: string): string;
 
+export function wasm_canon_ddn(source: string): string;
+
+export function wasm_canon_exec_policy_map(source: string): string;
+
 export function wasm_canon_flat_json(source: string): string;
 
 export function wasm_canon_maegim_plan(source: string): string;
@@ -50,10 +57,12 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_ddnwasmvm_free: (a: number, b: number) => void;
     readonly ddnwasmvm_add_view_prefix: (a: number, b: number, c: number) => void;
+    readonly ddnwasmvm_apply_currentline_cell: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly ddnwasmvm_clear_ai_injections: (a: number) => void;
     readonly ddnwasmvm_clear_view_prefixes: (a: number) => void;
     readonly ddnwasmvm_columns: (a: number) => number;
     readonly ddnwasmvm_get_build_info: (a: number, b: number) => void;
+    readonly ddnwasmvm_get_configured_madi: (a: number) => bigint;
     readonly ddnwasmvm_get_parse_warnings: (a: number) => number;
     readonly ddnwasmvm_get_state_hash: (a: number, b: number) => void;
     readonly ddnwasmvm_get_state_json: (a: number) => number;
@@ -62,6 +71,7 @@ export interface InitOutput {
     readonly ddnwasmvm_new_with_mode: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnwasmvm_reset: (a: number, b: number, c: number) => void;
     readonly ddnwasmvm_restore_state: (a: number, b: number, c: number, d: number) => void;
+    readonly ddnwasmvm_run_ticks: (a: number, b: number, c: number) => void;
     readonly ddnwasmvm_set_dt_f64: (a: number, b: number) => void;
     readonly ddnwasmvm_set_input: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly ddnwasmvm_set_keys_pressed: (a: number, b: number) => void;
@@ -78,6 +88,8 @@ export interface InitOutput {
     readonly wasm_build_info: (a: number) => void;
     readonly wasm_canon_alrim_plan: (a: number, b: number, c: number) => void;
     readonly wasm_canon_block_editor_plan: (a: number, b: number, c: number) => void;
+    readonly wasm_canon_ddn: (a: number, b: number, c: number) => void;
+    readonly wasm_canon_exec_policy_map: (a: number, b: number, c: number) => void;
     readonly wasm_canon_flat_json: (a: number, b: number, c: number) => void;
     readonly wasm_canon_maegim_plan: (a: number, b: number, c: number) => void;
     readonly wasm_preprocess_source: (a: number, b: number, c: number) => void;

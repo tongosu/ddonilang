@@ -26,7 +26,33 @@ function cloneAxis(axis) {
   return normalized ? { ...normalized } : null;
 }
 
+function colorWithAlpha(color, alpha = 1) {
+  const text = String(color ?? "").trim();
+  const numeric = Number(alpha);
+  const clamped = Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : 1;
+  if (!text || clamped >= 0.999) return text || "#22d3ee";
+  const hex = text.replace(/^#/, "");
+  if (hex.length === 6) {
+    const r = Number.parseInt(hex.slice(0, 2), 16);
+    const g = Number.parseInt(hex.slice(2, 4), 16);
+    const b = Number.parseInt(hex.slice(4, 6), 16);
+    if ([r, g, b].every(Number.isFinite)) {
+      return `rgba(${r}, ${g}, ${b}, ${clamped})`;
+    }
+  }
+  return text;
+}
+
 const INDEX_X_KEY = "__index__";
+const GRAPH_KIND_LINE = "line";
+const GRAPH_KIND_POINT = "point";
+const GRAPH_KIND_STEP = "step";
+const GRAPH_KIND_OPTIONS = Object.freeze([GRAPH_KIND_LINE, GRAPH_KIND_POINT, GRAPH_KIND_STEP]);
+const STATIC_TIME_KEYS = Object.freeze(["t", "time", "시간", "tick", "프레임수"]);
+const GRAPH_RANGE_RECENT_500 = "500";
+const GRAPH_RANGE_RECENT_2000 = "2000";
+const GRAPH_RANGE_ALL = "all";
+const GRAPH_RANGE_OPTIONS = Object.freeze([GRAPH_RANGE_RECENT_500, GRAPH_RANGE_RECENT_2000, GRAPH_RANGE_ALL]);
 const INTERNAL_AXIS_HIDDEN_KEYS = new Set([
   "__wasm_start_once",
   "__wasm_legacy_on_start_done__",
@@ -72,7 +98,7 @@ function pickXAxisByTimeHeuristic(sample, index) {
 }
 
 function pickDefaultTimeKey(keys = []) {
-  const candidates = ["t", "time", "시간", "tick", "프레임수"];
+  const candidates = STATIC_TIME_KEYS;
   const normalizedMap = new Map(
     keys.map((key) => [normalizeKey(key), String(key ?? "").trim()]).filter(([, key]) => Boolean(key)),
   );
@@ -81,6 +107,27 @@ function pickDefaultTimeKey(keys = []) {
     if (found) return found;
   }
   return "";
+}
+
+function normalizeGraphKind(rawKind, fallback = GRAPH_KIND_LINE) {
+  const kind = String(rawKind ?? "").trim().toLowerCase();
+  return GRAPH_KIND_OPTIONS.includes(kind) ? kind : fallback;
+}
+
+function buildDraftObservableKeys(seedKeys = []) {
+  const rows = Array.isArray(seedKeys) ? seedKeys : [];
+  return Array.from(new Set([...STATIC_TIME_KEYS, ...rows].filter(isSelectableAxisKey)));
+}
+
+function normalizeGraphRange(rawRange, fallback = GRAPH_RANGE_RECENT_500) {
+  const range = String(rawRange ?? "").trim().toLowerCase();
+  return GRAPH_RANGE_OPTIONS.includes(range) ? range : fallback;
+}
+
+function resolveGraphMaxPoints(range = GRAPH_RANGE_RECENT_500) {
+  const normalized = normalizeGraphRange(range);
+  if (normalized === GRAPH_RANGE_ALL) return Number.POSITIVE_INFINITY;
+  return normalized === GRAPH_RANGE_RECENT_2000 ? 2000 : 500;
 }
 
 export class DotbogiPanel {
@@ -97,7 +144,8 @@ export class DotbogiPanel {
     this.seedKeys = [];
     this.observableKeys = [];
     this.timeline = [];
-    this.maxPoints = 500;
+    this.maxPointsMode = GRAPH_RANGE_RECENT_500;
+    this.maxPoints = resolveGraphMaxPoints(this.maxPointsMode);
     this.selectedXKey = INDEX_X_KEY;
     this.selectedYKey = "";
     this.preferredXKey = "";
@@ -105,12 +153,18 @@ export class DotbogiPanel {
     this.lockInitialAxis = true;
     this.initialAxisLocked = false;
     this.overlaySeries = [];
+    this.persistedGraph = null;
+    this.preferPersistedGraph = false;
+    this.baseSeriesVisible = true;
+    this.baseSeriesAlpha = 1;
+    this.baseSeriesColor = "#22d3ee";
     this.playbackCursorIndex = null;
     this.graphView = {
       autoFit: true,
       axis: null,
       showGrid: true,
       showAxis: true,
+      kind: GRAPH_KIND_LINE,
     };
     this.drag = {
       active: false,
@@ -257,6 +311,18 @@ export class DotbogiPanel {
 
   setSeedKeys(keys = []) {
     this.seedKeys = Array.isArray(keys) ? keys.map((v) => String(v ?? "").trim()).filter(Boolean) : [];
+    if (!this.timeline.length) {
+      this.observableKeys = buildDraftObservableKeys(this.seedKeys);
+      if (!this.selectedXKey) {
+        this.selectedXKey = pickDefaultTimeKey(this.observableKeys) || INDEX_X_KEY;
+      }
+      if (!this.selectedYKey) {
+        this.selectedYKey = this.observableKeys.find((key) => !STATIC_TIME_KEYS.includes(key)) ?? this.observableKeys[0] ?? "";
+      }
+      this.syncXAxisSelect();
+      this.syncYAxisSelect();
+      this.renderGraph();
+    }
   }
 
   getSelectedAxes() {
@@ -264,6 +330,48 @@ export class DotbogiPanel {
       xKey: this.selectedXKey,
       yKey: this.selectedYKey,
     };
+  }
+
+  getGraphKind() {
+    return normalizeGraphKind(this.graphView.kind, GRAPH_KIND_LINE);
+  }
+
+  setGraphKind(kind = GRAPH_KIND_LINE) {
+    const next = normalizeGraphKind(kind, this.getGraphKind());
+    if (next === this.graphView.kind) return next;
+    this.graphView.kind = next;
+    this.renderGraph();
+    return next;
+  }
+
+  getMaxPointsMode() {
+    return normalizeGraphRange(this.maxPointsMode, GRAPH_RANGE_RECENT_500);
+  }
+
+  getMaxPoints() {
+    return this.maxPoints;
+  }
+
+  trimTimelineToMaxPoints() {
+    if (!Number.isFinite(this.maxPoints)) return;
+    if (this.timeline.length <= this.maxPoints) return;
+    this.timeline = this.timeline.slice(this.timeline.length - this.maxPoints);
+    this.timeline.forEach((item, idx) => {
+      item.index = idx;
+    });
+  }
+
+  setMaxPointsMode(range = GRAPH_RANGE_RECENT_500) {
+    const nextMode = normalizeGraphRange(range, this.getMaxPointsMode());
+    const nextMaxPoints = resolveGraphMaxPoints(nextMode);
+    const changed = nextMode !== this.maxPointsMode || nextMaxPoints !== this.maxPoints;
+    this.maxPointsMode = nextMode;
+    this.maxPoints = nextMaxPoints;
+    this.trimTimelineToMaxPoints();
+    if (changed) {
+      this.resetAxis();
+    }
+    return this.getMaxPointsMode();
   }
 
   setSelectedAxes({ xKey = "", yKey = "" } = {}) {
@@ -277,7 +385,7 @@ export class DotbogiPanel {
     }
     this.syncXAxisSelect();
     this.syncYAxisSelect();
-    this.renderGraph();
+    this.resetAxis();
   }
 
   setPreferredXKey(key) {
@@ -304,7 +412,7 @@ export class DotbogiPanel {
     if (!preserveAxes) {
       this.selectedXKey = INDEX_X_KEY;
       this.selectedYKey = "";
-      this.observableKeys = [];
+      this.observableKeys = buildDraftObservableKeys(this.seedKeys);
       this.syncXAxisSelect();
       this.syncYAxisSelect();
     }
@@ -384,6 +492,95 @@ export class DotbogiPanel {
     this.renderGraph();
   }
 
+  setPersistedGraph(graph = null, { render = true } = {}) {
+    const row = graph && typeof graph === "object" ? graph : null;
+    if (!row) {
+      this.persistedGraph = null;
+      if (render) this.renderGraph();
+      return;
+    }
+    const axis = normalizeAxis(row.axis ?? null);
+    const seriesSource = Array.isArray(row.series) ? row.series : [];
+    const series = seriesSource
+      .map((item, index) => {
+        const points = Array.isArray(item?.points)
+          ? item.points
+            .map((point) => {
+              const x = finite(point?.x);
+              const y = finite(point?.y);
+              if (x === null || y === null) return null;
+              return { x, y };
+            })
+            .filter(Boolean)
+          : [];
+        if (!points.length) return null;
+        return {
+          id: String(item?.id ?? item?.label ?? `persisted_${index + 1}`).trim() || `persisted_${index + 1}`,
+          color: String(item?.color ?? "").trim(),
+          points,
+        };
+      })
+      .filter(Boolean);
+    this.persistedGraph = series.length ? { axis, series } : null;
+    if (render) this.renderGraph();
+  }
+
+  setBaseSeriesDisplay({ visible = true, alpha = 1, color = "#22d3ee", preferPersisted = null } = {}, { render = true } = {}) {
+    this.baseSeriesVisible = visible !== false;
+    const nextAlpha = Number(alpha);
+    this.baseSeriesAlpha = Number.isFinite(nextAlpha) && nextAlpha >= 0 ? nextAlpha : 1;
+    const nextColor = String(color ?? "").trim();
+    if (nextColor) {
+      this.baseSeriesColor = nextColor;
+    }
+    if (typeof preferPersisted === "boolean") {
+      this.preferPersistedGraph = preferPersisted;
+    }
+    if (render) this.renderGraph();
+  }
+
+  exportCurrentGraphSnapshot() {
+    const basePoints = this.buildSeriesPoints();
+    if (basePoints.length && this.selectedYKey) {
+      const axis = cloneAxis(this.getCurrentAxis());
+      return {
+        axis,
+        series: [{
+          id: String(this.selectedYKey ?? "y"),
+          color: this.baseSeriesColor,
+          points: basePoints.map((point) => ({ x: point.x, y: point.y })),
+        }],
+      };
+    }
+    const filtered = Array.isArray(this.persistedGraph?.series)
+      ? this.persistedGraph.series
+        .map((row, index) => {
+          const points = Array.isArray(row?.points)
+            ? row.points
+              .map((point) => {
+                const x = finite(point?.x);
+                const y = finite(point?.y);
+                if (x === null || y === null) return null;
+                return { x, y };
+              })
+              .filter(Boolean)
+            : [];
+          if (!points.length) return null;
+          return {
+            id: String(row?.id ?? `series_${index + 1}`),
+            color: String(row?.color ?? "").trim(),
+            points,
+          };
+        })
+        .filter(Boolean)
+      : [];
+    if (!filtered.length) return null;
+    return {
+      axis: this.getCurrentAxis(),
+      series: filtered,
+    };
+  }
+
   appendObservation(observation) {
     const valuesSource =
       observation && typeof observation.all_values === "object"
@@ -394,12 +591,7 @@ export class DotbogiPanel {
     const values = valuesSource && typeof valuesSource === "object" ? valuesSource : {};
     const nextIndex = this.timeline.length;
     this.timeline.push({ index: nextIndex, values: { ...values } });
-    if (this.timeline.length > this.maxPoints) {
-      this.timeline = this.timeline.slice(this.timeline.length - this.maxPoints);
-      this.timeline.forEach((item, idx) => {
-        item.index = idx;
-      });
-    }
+    this.trimTimelineToMaxPoints();
 
     const observationKeys = Array.isArray(observation?.channels)
       ? observation.channels.map((item, index) => normalizeObservationChannelKey(item, index)).filter(isSelectableAxisKey)
@@ -416,12 +608,20 @@ export class DotbogiPanel {
         this.selectedXKey = timeKey || INDEX_X_KEY;
       }
     }
+    const preferredYCandidate = this.observableKeys.find((key) => !STATIC_TIME_KEYS.includes(key)) ?? this.observableKeys[0] ?? "";
     if (!this.selectedYKey) {
       if (this.preferredYKey && this.observableKeys.includes(this.preferredYKey)) {
         this.selectedYKey = this.preferredYKey;
       } else {
-        this.selectedYKey = this.observableKeys[0] ?? "";
+        this.selectedYKey = preferredYCandidate;
       }
+    } else if (
+      STATIC_TIME_KEYS.includes(this.selectedYKey)
+      && preferredYCandidate
+      && !STATIC_TIME_KEYS.includes(preferredYCandidate)
+      && !this.preferredYKey
+    ) {
+      this.selectedYKey = preferredYCandidate;
     }
     this.syncXAxisSelect();
     this.syncYAxisSelect();
@@ -498,10 +698,8 @@ export class DotbogiPanel {
     const xKey = String(this.selectedXKey ?? INDEX_X_KEY);
     const yKey = this.selectedYKey;
     if (!yKey) return [];
-    const cursor = this.getPlaybackCursor();
     const out = [];
     this.timeline.forEach((sample, index) => {
-      if (index > cursor) return;
       const rawY = finite(sample.values?.[yKey]);
       if (rawY === null) return;
       let rawX = null;
@@ -522,15 +720,37 @@ export class DotbogiPanel {
     const out = [];
     const focusPoints = [];
     const basePoints = this.buildSeriesPoints();
-    if (basePoints.length) {
+    const usePersistedBase = Boolean(this.preferPersistedGraph && this.persistedGraph?.series?.length);
+    if (this.baseSeriesVisible && basePoints.length && !usePersistedBase) {
       const focus = basePoints[basePoints.length - 1];
       if (focus && Number.isFinite(focus.x) && Number.isFinite(focus.y)) {
-        focusPoints.push({ x: focus.x, y: focus.y, color: "#22d3ee" });
+        focusPoints.push({ x: focus.x, y: focus.y, color: this.baseSeriesColor });
       }
       out.push({
         id: this.selectedYKey || "y",
-        color: "#22d3ee",
+        kind: this.getGraphKind(),
+        color: colorWithAlpha(this.baseSeriesColor, this.baseSeriesAlpha),
         points: basePoints.map((row) => ({ x: row.x, y: row.y })),
+      });
+    } else if (this.baseSeriesVisible && this.persistedGraph?.series?.length) {
+      const primary = this.persistedGraph.series[0] ?? null;
+      const primaryPoints = Array.isArray(primary?.points) ? primary.points : [];
+      const focus = primaryPoints[primaryPoints.length - 1] ?? null;
+      if (focus && Number.isFinite(focus.x) && Number.isFinite(focus.y)) {
+        focusPoints.push({ x: focus.x, y: focus.y, color: this.baseSeriesColor });
+      }
+      this.persistedGraph.series.forEach((row, index) => {
+        const points = Array.isArray(row?.points) ? row.points : [];
+        if (!points.length) return;
+        const color = index === 0
+          ? colorWithAlpha(this.baseSeriesColor, this.baseSeriesAlpha)
+          : (String(row?.color ?? "").trim() || undefined);
+        out.push({
+          id: String(row?.id ?? `persisted_${index + 1}`),
+          kind: this.getGraphKind(),
+          color,
+          points,
+        });
       });
     }
     const overlayRows = Array.isArray(this.overlaySeries) ? this.overlaySeries : [];
@@ -540,6 +760,7 @@ export class DotbogiPanel {
       if (!points.length) return;
       out.push({
         id: String(row.id ?? "").trim() || `overlay_${out.length + 1}`,
+        kind: this.getGraphKind(),
         color: String(row.color ?? "").trim() || undefined,
         points,
       });
@@ -571,16 +792,6 @@ export class DotbogiPanel {
   renderGraph() {
     const { series, focusPoints } = this.buildRenderSeries();
     const autoAxis = this.computeAutoAxis();
-    if (
-      this.lockInitialAxis &&
-      this.graphView.autoFit &&
-      !this.initialAxisLocked &&
-      autoAxis
-    ) {
-      this.graphView.axis = autoAxis;
-      this.graphView.autoFit = false;
-      this.initialAxisLocked = true;
-    }
     const axis = this.graphView.autoFit ? autoAxis : this.graphView.axis ?? autoAxis;
     this.emitAxisChange(axis, { autoFit: this.graphView.autoFit });
 

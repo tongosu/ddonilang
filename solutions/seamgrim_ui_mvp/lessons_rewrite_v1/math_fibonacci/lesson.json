@@ -1,0 +1,9 @@
+{
+  "id": "math_fibonacci",
+  "title": "피보나치 수열",
+  "subject": "math",
+  "grade": "middle",
+  "description": "이전 두 항의 합으로 다음 항을 만드는 수열을 시각화합니다.",
+  "keywords": ["피보나치", "수열", "반복"],
+  "quality": "recommended"
+}

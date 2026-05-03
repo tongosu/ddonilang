@@ -35,12 +35,10 @@ export class SliderPanel {
 
     if (this.statusEl) {
       const warningSuffix = this.warnings.length ? ` · 구식 범위주석 ${this.warnings.length}건` : "";
-      if (parsed.source === "maegim_control_json") {
-        this.statusEl.textContent = `control 매김: ${this.specs.length}개${warningSuffix}`;
-      } else if (parsed.source === "prep") {
-        this.statusEl.textContent = `control 채비: ${this.specs.length}개${warningSuffix}`;
+      if (parsed.source === "maegim_control_json" || parsed.source === "maegim_inline") {
+        this.statusEl.textContent = `매김 조절: ${this.specs.length}개${warningSuffix}`;
       } else {
-        this.statusEl.textContent = "control: -";
+        this.statusEl.textContent = `매김 조절: -${warningSuffix}`;
       }
     }
     this.render();
@@ -62,7 +60,7 @@ export class SliderPanel {
     if (!this.specs.length) {
       const empty = document.createElement("div");
       empty.className = "hint";
-      empty.textContent = "조절 가능한 채비 상수가 없습니다.";
+      empty.textContent = "조절 가능한 매김이 없습니다.";
       this.container.appendChild(empty);
       return;
     }

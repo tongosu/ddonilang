@@ -48,12 +48,17 @@ import {
 import { parseLessonDdnMetaHeader } from "./lesson_loader_contract.js";
 import { normalizeViewFamilyList } from "./view_family_contract.js";
 import {
+  normalizeDiagnosticSeverity,
+  normalizeDiagnosticItem,
+} from "./play_diagnostic_contract.js";
+import {
   flattenMirrorInputEntries,
   normalizeWasmStatePayload,
   extractObservationChannelsFromState,
   extractObservationOutputRowsFromState,
   extractStructuredViewsFromState,
 } from "./seamgrim_runtime_state.js";
+import { formatDisplayLabel, formatDisplayPairKey } from "./display_label_contract.js";
 
 // ─── 상수 ─────────────────────────────────────────────────────────────────────
 
@@ -603,17 +608,6 @@ async function runGrammarAnalysis(sourceText) {
 
 // ─── 진단 렌더 ────────────────────────────────────────────────────────────────
 
-function normalizeDiagnosticSeverity(warning) {
-  const raw = String(warning?.severity ?? warning?.level ?? "").trim().toLowerCase();
-  if (raw === "error" || raw === "err" || raw === "fatal") return "error";
-  if (raw === "warn" || raw === "warning") return "warn";
-  if (raw === "info" || raw === "information") return "info";
-  const code = String(warning?.code ?? warning?.kind ?? "").trim().toUpperCase();
-  if (code.startsWith("E_")) return "error";
-  if (code.startsWith("W_")) return "warn";
-  return "info";
-}
-
 function diagnosticHasError(warning) {
   return normalizeDiagnosticSeverity(warning) === "error";
 }
@@ -643,26 +637,35 @@ function normalizePreprocessDiagnostics(diags) {
 
 function renderDiagnostics(warnings) {
   if (!elDiagList || !elDiagEmpty) return;
+  const normalized = Array.isArray(warnings)
+    ? warnings
+      .map((row) => normalizeDiagnosticItem(row))
+      .filter(Boolean)
+    : [];
   elDiagList.innerHTML = "";
-  if (!warnings || warnings.length === 0) {
+  if (normalized.length === 0) {
     elDiagEmpty.style.display = "";
     return { count: 0, hasError: false };
   }
   elDiagEmpty.style.display = "none";
   let hasError = false;
-  for (const w of warnings) {
+  for (const w of normalized) {
     const li   = document.createElement("li");
-    const code = String(w?.code ?? w?.kind ?? "");
+    const code = String(w?.technical_code ?? w?.code ?? w?.kind ?? "");
     const msg  = String(w?.message ?? w?.msg ?? w ?? "");
+    const technicalMessage = String(w?.technical_message ?? "").trim();
     const sev  = normalizeDiagnosticSeverity(w);
     li.className = sev === "error" ? "diag-error" : sev === "warn" ? "diag-warn" : "diag-info";
     if (sev === "error") hasError = true;
     const line = readDiagnosticLineInfo(w);
     const lineInfo = line ? ` [${line}줄]` : "";
     li.textContent = `${code}${lineInfo}: ${msg}`;
+    if (technicalMessage && technicalMessage !== msg) {
+      li.title = technicalMessage;
+    }
     elDiagList.appendChild(li);
   }
-  return { count: warnings.length, hasError };
+  return { count: normalized.length, hasError };
 }
 
 // ─── 출력(관측) 렌더 ──────────────────────────────────────────────────────────
@@ -784,7 +787,7 @@ function setMirrorBogaeStatus(space2d) {
     elMirrorBogaeStatus.textContent = "보개 출력 없음";
     return;
   }
-  elMirrorBogaeStatus.textContent = `점 ${summary.points} · 모양 ${summary.shapes} · drawlist ${summary.drawlist}`;
+  elMirrorBogaeStatus.textContent = `점 ${summary.points} · 모양 ${summary.shapes} · 그림목록 ${summary.drawlist}`;
 }
 
 function renderMirrorBogae(space2d) {
@@ -963,7 +966,10 @@ function extractRequestedViewFamilies(sourceText) {
 function renderMirror(state, { warnings = [], requestedViewFamilies = [] } = {}) {
   if (!elMirror) return { hasContent: false };
   const norm = normalizeWasmStatePayload(state);
-  const structuredViews = extractStructuredViewsFromState(state, { preferPatch: false });
+  const structuredViews = extractStructuredViewsFromState(state, {
+    preferPatch: false,
+    allowObservationOutputFallback: false,
+  });
   renderMirrorBogae(structuredViews?.space2d);
   const maxEntries = viewConfig.block_editor.mirror_full ? 200 : MIRROR_DEFAULT_MAX;
   const resolvedViewFamilies = normalizeViewFamilyList(structuredViews?.families ?? []);
@@ -1023,12 +1029,12 @@ function renderMirror(state, { warnings = [], requestedViewFamilies = [] } = {})
   const rf = norm?.resources?.fixed64 ?? {};
   const rfEntries = Object.entries(rf).slice(0, maxEntries);
   if (rfEntries.length > 0) {
-    sections.push({ title: "수 상태", items: rfEntries.map(([k, v]) => [k, formatValue(v)]) });
+    sections.push({ title: "수 상태", items: rfEntries.map(([k, v]) => [formatDisplayPairKey(k), formatValue(v)]) });
   }
 
   const inputEntries = flattenMirrorInputEntries(norm?.input, { maxEntries });
   if (inputEntries.length > 0) {
-    sections.push({ title: "입력", items: inputEntries.map(([k, v]) => [k, formatValue(v)]) });
+    sections.push({ title: "입력", items: inputEntries.map(([k, v]) => [formatDisplayPairKey(k), formatValue(v)]) });
   }
 
   const rj = norm?.resources?.json ?? {};
@@ -1036,15 +1042,15 @@ function renderMirror(state, { warnings = [], requestedViewFamilies = [] } = {})
   if (rjEntries.length > 0) {
     const maxJsonLen = viewConfig.block_editor.mirror_full ? 240 : 96;
     sections.push({
-      title: "json 상태",
-      items: rjEntries.map(([k, v]) => [k, formatMirrorJsonPreview(v, { maxLen: maxJsonLen })]),
+      title: "JSON 상태",
+      items: rjEntries.map(([k, v]) => [formatDisplayPairKey(k), formatMirrorJsonPreview(v, { maxLen: maxJsonLen })]),
     });
   }
 
   const rv = norm?.resources?.value ?? {};
   const rvEntries = Object.entries(rv).slice(0, maxEntries);
   if (rvEntries.length > 0) {
-    sections.push({ title: "값 자원", items: rvEntries.map(([k, v]) => [k, formatValue(v)]) });
+    sections.push({ title: "값 자원", items: rvEntries.map(([k, v]) => [formatDisplayPairKey(k), formatValue(v)]) });
   }
 
   if (structureSummary) {
@@ -1096,12 +1102,12 @@ function renderMirror(state, { warnings = [], requestedViewFamilies = [] } = {})
     const items = [
       ["점", `${space2dSummary.points}개`],
       ["모양", `${space2dSummary.shapes}개`],
-      ["drawlist", `${space2dSummary.drawlist}개`],
+      [formatDisplayLabel("drawlist"), `${space2dSummary.drawlist}개`],
     ];
     if (space2dSummary.kinds.length > 0) {
       items.push(["모양 종류", space2dSummary.kinds.join(", ")]);
     }
-    sections.push({ title: "모양(space2d)", items });
+    sections.push({ title: "보개", items });
   }
 
   if (overlayStackSummary || overlayTextSummary) {
@@ -1124,20 +1130,20 @@ function renderMirror(state, { warnings = [], requestedViewFamilies = [] } = {})
         items.push(["자막 위치", `${formatValue(overlayTextSummary.x)}, ${formatValue(overlayTextSummary.y)}`]);
       }
     }
-    sections.push({ title: "겹보기(overlay)", items });
+    sections.push({ title: "겹보기", items });
   }
 
-  // expert_mode: json/handle/component resources도 표시
+  // 전문가 모드: JSON/핸들/구성요소 자원도 표시
   if (viewConfig.block_editor.expert_mode) {
     const rh = norm?.resources?.handle ?? {};
     const rhEntries = Object.entries(rh).slice(0, 10);
     if (rhEntries.length > 0) {
-      sections.push({ title: "handle 자원", items: rhEntries.map(([k, v]) => [k, String(v)]) });
+      sections.push({ title: "핸들 자원", items: rhEntries.map(([k, v]) => [formatDisplayPairKey(k), String(v)]) });
     }
     const rc = norm?.resources?.component ?? {};
     const rcEntries = Object.entries(rc).slice(0, 10);
     if (rcEntries.length > 0) {
-      sections.push({ title: "component 자원", items: rcEntries.map(([k, v]) => [k, JSON.stringify(v).slice(0, 60)]) });
+      sections.push({ title: "구성요소 자원", items: rcEntries.map(([k, v]) => [formatDisplayPairKey(k), JSON.stringify(v).slice(0, 60)]) });
     }
   }
 
@@ -1202,13 +1208,20 @@ async function applySource(src) {
       hasObservation: obs.rowCount > 0,
       hasMirror: mirror.hasContent,
     });
-    const hasError = warnings.some((w) => diagnosticHasError(w));
-    setStatus(hasError ? `파서 오류 ${warnings.length}건` : "준비", { isError: hasError });
+    const hasError = Boolean(diag?.hasError);
+    setStatus(hasError ? `파서 오류 ${diag.count}건` : "준비", { isError: hasError });
     setTickCount(0);
     return !hasError;
   } catch (err) {
     setStatus(`오류: ${String(err?.message ?? err)}`, { isError: true });
-    const diag = renderDiagnostics([{ code: "E_RUNTIME", message: String(err?.message ?? err), severity: "error" }]);
+    const diag = renderDiagnostics([
+      {
+        technical_code: "E_RUNTIME_EXEC_FAILED",
+        technical_message: String(err?.message ?? err),
+        user_message: "실행 중 오류가 발생했습니다. 문법/입력값을 확인해 주세요.",
+        severity: "error",
+      },
+    ]);
     syncPlayOutputTabs({
       hasError: true,
       hasDiagnostics: (diag?.count ?? 0) > 0,
@@ -1240,7 +1253,14 @@ function stepFrame() {
   } catch (err) {
     stopLoop();
     setStatus(`런타임 오류: ${String(err?.message ?? err)}`, { isError: true });
-    const diag = renderDiagnostics([{ code: "E_RUNTIME", message: String(err?.message ?? err), severity: "error" }]);
+    const diag = renderDiagnostics([
+      {
+        technical_code: "E_RUNTIME_EXEC_FAILED",
+        technical_message: String(err?.message ?? err),
+        user_message: "실행 중 오류가 발생했습니다. 문법/입력값을 확인해 주세요.",
+        severity: "error",
+      },
+    ]);
     syncPlayOutputTabs({
       hasError: true,
       hasDiagnostics: (diag?.count ?? 0) > 0,

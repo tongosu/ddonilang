@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 
 (시작)할때 {
@@ -17,10 +16,6 @@
   { p <= p_max }인것 일때 {
     lam <- h / p.
 
-    보임 {
-      p: p.
-      lam: lam.
-    }.
     p <- p + (dp).
   }.
 }.

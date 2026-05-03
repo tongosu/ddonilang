@@ -27,11 +27,6 @@ dx <- 0.01.
       sum <- sum + term.
     }.
 
-    보임 {
-      x: x.
-      sum: sum.
-    }.
-
     x <- x + dx.
   }.
 }.

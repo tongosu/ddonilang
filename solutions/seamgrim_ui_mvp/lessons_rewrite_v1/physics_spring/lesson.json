@@ -1,0 +1,9 @@
+{
+  "id": "physics_spring",
+  "title": "용수철 진동",
+  "subject": "physics",
+  "grade": "high",
+  "description": "질량-스프링 시스템의 단진동을 관찰합니다.",
+  "keywords": ["용수철", "단진동", "위상"],
+  "quality": "recommended"
+}

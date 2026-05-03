@@ -35,9 +35,12 @@ UI_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui"
 LESSON_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "lessons"
 SEED_LESSON_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "seed_lessons_v1"
 REWRITE_LESSON_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "lessons_rewrite_v1"
+ACTIVE_ALLOWLIST_PATH = LESSON_DIR / "active_allowlist.detjson"
 SCHEMA_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "schema"
 SAMPLES_DIR = ROOT / "solutions" / "seamgrim_ui_mvp" / "samples"
 PROJECT_HTTP_PREFIX = "/solutions/seamgrim_ui_mvp"
+CATEGORY_REPS_ONLY = "reps_only"
+CATEGORY_FULL = "full"
 SPACE2D_MARKERS = {"space2d", "2d", "공간", "공간2d"}
 SPACE2D_SHAPE_MARKERS = {"space2d.shape", "space2d_shape", "shape2d"}
 SPACE2D_SHAPE_KEYS = {
@@ -81,6 +84,24 @@ _MAEGIM_CONTROL_CACHE: OrderedDict[str, tuple[int, int, str, str]] = OrderedDict
 _MAEGIM_CONTROL_CACHE_LOCK = threading.Lock()
 _MAEGIM_CONTROL_CACHE_MAX_ENTRIES = 512
 NUMERIC_LITERAL_RE = r"[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?"
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = str(os.environ.get(name, "")).strip().lower()
+    if not raw:
+        return bool(default)
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _normalize_catalog_mode(raw: object) -> str:
+    mode = str(raw or "").strip().lower()
+    if mode == CATEGORY_FULL:
+        return CATEGORY_FULL
+    return CATEGORY_REPS_ONLY
+
+
+RUNTIME_CATALOG_MODE = _normalize_catalog_mode(os.environ.get("SEAMGRIM_LESSON_CATALOG_MODE", CATEGORY_REPS_ONLY))
+RUNTIME_ALLOW_LEGACY_LESSONS = _env_flag("SEAMGRIM_ALLOW_LEGACY_LESSONS", False)
 
 
 def resolve_build_dir() -> Path:
@@ -143,6 +164,7 @@ def _build_maegim_control_payload_from_path(lesson_path: Path) -> tuple[dict, st
     payload, source = _build_maegim_control_payload_from_source_text(
         lesson_path.read_text(encoding="utf-8-sig"),
         source_label=str(lesson_path),
+        allow_legacy_fallback=_allow_legacy_maegim_fallback(),
     )
     normalized_text = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     with _MAEGIM_CONTROL_CACHE_LOCK:
@@ -153,7 +175,11 @@ def _build_maegim_control_payload_from_path(lesson_path: Path) -> tuple[dict, st
     return payload, source
 
 
-def _build_maegim_control_payload_from_source_text(source_text: str, source_label: str = "input.ddn") -> tuple[dict, str]:
+def _build_maegim_control_payload_from_source_text(
+    source_text: str,
+    source_label: str = "input.ddn",
+    allow_legacy_fallback: bool = True,
+) -> tuple[dict, str]:
     with tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
@@ -181,19 +207,27 @@ def _build_maegim_control_payload_from_source_text(source_text: str, source_labe
                 payload.setdefault("warnings", [])
                 controls = payload.get("controls")
                 warnings = payload.get("warnings")
+                if not isinstance(controls, list):
+                    controls = []
+                    payload["controls"] = controls
                 # canon 경로가 비어 있거나(controls 없음), legacy 주석 경고를 놓친 경우에는
                 # 실행 서버 계약을 위해 legacy 계획으로 강등한다.
                 legacy_preview = _build_legacy_maegim_control_plan(source_text, source_label)
                 legacy_warnings = legacy_preview.get("warnings")
-                if not isinstance(controls, list) or not controls:
+                if allow_legacy_fallback and not controls:
                     return legacy_preview, "legacy"
                 if (
-                    isinstance(legacy_warnings, list)
+                    allow_legacy_fallback
+                    and isinstance(controls, list)
+                    and controls
+                    and isinstance(legacy_warnings, list)
                     and legacy_warnings
                     and (not isinstance(warnings, list) or not warnings)
                 ):
                     return legacy_preview, "legacy"
                 return payload, "canon"
+        if not allow_legacy_fallback:
+            raise RuntimeError("E_MAEGIM_LEGACY_FALLBACK_DISABLED:canon_failed")
         payload = _build_legacy_maegim_control_plan(source_text, source_label)
         if not isinstance(payload, dict) or str(payload.get("schema") or "").strip() != MAEGIM_CONTROL_SCHEMA:
             raise RuntimeError("invalid maegim control payload schema")
@@ -248,7 +282,7 @@ def _build_control_item(
 def _build_legacy_range_warning(name: str) -> dict:
     return {
         "code": MAEGIM_CONTROL_LEGACY_RANGE_WARNING_CODE,
-        "message": "`// 범위(...)`는 deprecated입니다. `매김 {}`으로 옮기세요.",
+        "message": "`// 범위(...)`는 더 이상 허용되지 않습니다. `매김 { 범위: ... 간격: ... }`로 옮기세요.",
         "name": name,
         "source": "prep_comment",
     }
@@ -446,6 +480,32 @@ def _read_json_file(path: Path) -> dict | None:
         return payload if isinstance(payload, dict) else None
     except Exception:
         return None
+
+
+def _read_active_lesson_allowlist() -> set[str]:
+    payload = _read_json_file(ACTIVE_ALLOWLIST_PATH) or {}
+    lesson_ids = payload.get("lesson_ids")
+    out: set[str] = set()
+    if isinstance(lesson_ids, list):
+        for raw in lesson_ids:
+            lesson_id = str(raw or "").strip()
+            if lesson_id:
+                out.add(lesson_id)
+    return out
+
+
+def _is_release_reps_only_mode() -> bool:
+    return _normalize_catalog_mode(RUNTIME_CATALOG_MODE) == CATEGORY_REPS_ONLY
+
+
+def _is_retired_line_request_blocked() -> bool:
+    return _is_release_reps_only_mode() and not bool(RUNTIME_ALLOW_LEGACY_LESSONS)
+
+
+def _allow_legacy_maegim_fallback() -> bool:
+    if _normalize_catalog_mode(RUNTIME_CATALOG_MODE) == CATEGORY_FULL:
+        return True
+    return bool(RUNTIME_ALLOW_LEGACY_LESSONS)
 
 
 def _normalize_subject(raw: object) -> str:
@@ -675,7 +735,10 @@ def _merge_inventory_row(rows_by_id: dict[str, dict], next_row: dict):
     rows_by_id[lesson_id] = merged
 
 
-def build_lesson_inventory_payload() -> dict:
+def build_lesson_inventory_payload(catalog_mode: str | None = None) -> dict:
+    mode = _normalize_catalog_mode(catalog_mode or RUNTIME_CATALOG_MODE)
+    reps_only = mode == CATEGORY_REPS_ONLY
+    active_allowlist = _read_active_lesson_allowlist()
     rows_by_id: dict[str, dict] = {}
 
     index_payload = _read_json_file(LESSON_DIR / "index.json") or {}
@@ -686,6 +749,8 @@ def build_lesson_inventory_payload() -> dict:
                 continue
             lesson_id = str(row.get("id", "")).strip()
             if not lesson_id:
+                continue
+            if reps_only and active_allowlist and lesson_id not in active_allowlist:
                 continue
             ddn_path, text_path, meta_path = _lesson_paths("lessons", lesson_id)
             maegim_candidates = _infer_maegim_control_candidates([ddn_path], _to_string_list(row.get("maegim_control_path")))
@@ -707,73 +772,74 @@ def build_lesson_inventory_payload() -> dict:
                 },
             )
 
-    seed_payload = _read_json_file(SEED_LESSON_DIR / "seed_manifest.detjson") or {}
-    seed_rows = seed_payload.get("seeds")
-    if isinstance(seed_rows, list):
-        for row in seed_rows:
-            if not isinstance(row, dict):
-                continue
-            lesson_id = str(row.get("seed_id", "")).strip()
-            if not lesson_id:
-                continue
-            fallback_ddn, fallback_text, fallback_meta = _lesson_paths("seed_lessons_v1", lesson_id)
-            ddn_path = str(row.get("lesson_ddn") or "").strip() or fallback_ddn
-            text_path = str(row.get("text_md") or "").strip() or fallback_text
-            maegim_candidates = _infer_maegim_control_candidates(
-                [ddn_path, fallback_ddn],
-                _to_string_list(row.get("maegim_control_path")),
-            )
-            meta_candidates = _existing_meta_candidates([*_read_row_meta_candidates(row), fallback_meta])
-            _merge_inventory_row(
-                rows_by_id,
-                {
-                    "id": lesson_id,
-                    "title": lesson_id,
-                    "description": "Seed lesson",
-                    "grade": "all",
-                    "subject": _normalize_subject(row.get("subject")),
-                    "quality": "recommended",
-                    "source": "seed",
-                    "ddn_path": [ddn_path, fallback_ddn],
-                    "maegim_control_path": maegim_candidates,
-                    "text_path": [text_path, fallback_text],
-                    "meta_path": meta_candidates,
-                },
-            )
+    if mode == CATEGORY_FULL:
+        seed_payload = _read_json_file(SEED_LESSON_DIR / "seed_manifest.detjson") or {}
+        seed_rows = seed_payload.get("seeds")
+        if isinstance(seed_rows, list):
+            for row in seed_rows:
+                if not isinstance(row, dict):
+                    continue
+                lesson_id = str(row.get("seed_id", "")).strip()
+                if not lesson_id:
+                    continue
+                fallback_ddn, fallback_text, fallback_meta = _lesson_paths("seed_lessons_v1", lesson_id)
+                ddn_path = str(row.get("lesson_ddn") or "").strip() or fallback_ddn
+                text_path = str(row.get("text_md") or "").strip() or fallback_text
+                maegim_candidates = _infer_maegim_control_candidates(
+                    [ddn_path, fallback_ddn],
+                    _to_string_list(row.get("maegim_control_path")),
+                )
+                meta_candidates = _existing_meta_candidates([*_read_row_meta_candidates(row), fallback_meta])
+                _merge_inventory_row(
+                    rows_by_id,
+                    {
+                        "id": lesson_id,
+                        "title": lesson_id,
+                        "description": "Seed lesson",
+                        "grade": "all",
+                        "subject": _normalize_subject(row.get("subject")),
+                        "quality": "recommended",
+                        "source": "seed",
+                        "ddn_path": [ddn_path, fallback_ddn],
+                        "maegim_control_path": maegim_candidates,
+                        "text_path": [text_path, fallback_text],
+                        "meta_path": meta_candidates,
+                    },
+                )
 
-    rewrite_payload = _read_json_file(REWRITE_LESSON_DIR / "rewrite_manifest.detjson") or {}
-    rewrite_rows = rewrite_payload.get("generated")
-    if isinstance(rewrite_rows, list):
-        for row in rewrite_rows:
-            if not isinstance(row, dict):
-                continue
-            lesson_id = str(row.get("lesson_id", "")).strip()
-            if not lesson_id:
-                continue
-            fallback_ddn, fallback_text, fallback_meta = _lesson_paths("lessons_rewrite_v1", lesson_id)
-            ddn_path = str(row.get("generated_lesson_ddn") or "").strip() or fallback_ddn
-            text_path = str(row.get("generated_text_md") or "").strip() or fallback_text
-            maegim_candidates = _infer_maegim_control_candidates(
-                [ddn_path, fallback_ddn],
-                _to_string_list(row.get("maegim_control_path")),
-            )
-            meta_candidates = _existing_meta_candidates([*_read_row_meta_candidates(row), fallback_meta])
-            _merge_inventory_row(
-                rows_by_id,
-                {
-                    "id": lesson_id,
-                    "title": lesson_id,
-                    "description": "Rewrite v1",
-                    "grade": "all",
-                    "subject": _normalize_subject(row.get("subject")),
-                    "quality": "reviewed",
-                    "source": "rewrite",
-                    "ddn_path": [ddn_path, fallback_ddn],
-                    "maegim_control_path": maegim_candidates,
-                    "text_path": [text_path, fallback_text],
-                    "meta_path": meta_candidates,
-                },
-            )
+        rewrite_payload = _read_json_file(REWRITE_LESSON_DIR / "rewrite_manifest.detjson") or {}
+        rewrite_rows = rewrite_payload.get("generated")
+        if isinstance(rewrite_rows, list):
+            for row in rewrite_rows:
+                if not isinstance(row, dict):
+                    continue
+                lesson_id = str(row.get("lesson_id", "")).strip()
+                if not lesson_id:
+                    continue
+                fallback_ddn, fallback_text, fallback_meta = _lesson_paths("lessons_rewrite_v1", lesson_id)
+                ddn_path = str(row.get("generated_lesson_ddn") or "").strip() or fallback_ddn
+                text_path = str(row.get("generated_text_md") or "").strip() or fallback_text
+                maegim_candidates = _infer_maegim_control_candidates(
+                    [ddn_path, fallback_ddn],
+                    _to_string_list(row.get("maegim_control_path")),
+                )
+                meta_candidates = _existing_meta_candidates([*_read_row_meta_candidates(row), fallback_meta])
+                _merge_inventory_row(
+                    rows_by_id,
+                    {
+                        "id": lesson_id,
+                        "title": lesson_id,
+                        "description": "Rewrite v1",
+                        "grade": "all",
+                        "subject": _normalize_subject(row.get("subject")),
+                        "quality": "reviewed",
+                        "source": "rewrite",
+                        "ddn_path": [ddn_path, fallback_ddn],
+                        "maegim_control_path": maegim_candidates,
+                        "text_path": [text_path, fallback_text],
+                        "meta_path": meta_candidates,
+                    },
+                )
 
     lessons = sorted(
         [_apply_inventory_meta_fallback(row) for row in rows_by_id.values()],
@@ -782,6 +848,8 @@ def build_lesson_inventory_payload() -> dict:
     return {
         "ok": True,
         "schema": "seamgrim.lesson_inventory.v2",
+        "catalog_mode": mode,
+        "active_allowlist_count": len(active_allowlist),
         "count": len(lessons),
         "lessons": lessons,
     }
@@ -843,6 +911,48 @@ def send_json_text(handler: BaseHTTPRequestHandler, text: str):
     handler.wfile.write(body)
 
 
+def build_api_error_payload(
+    *,
+    status: int,
+    code: str,
+    user_message: str,
+    technical_message: str,
+    path: str = "",
+    extra: dict | None = None,
+) -> dict:
+    normalized_code = str(code or "E_API_UNKNOWN").strip() or "E_API_UNKNOWN"
+    user_text = str(user_message or "요청 처리에 실패했습니다.").strip() or "요청 처리에 실패했습니다."
+    technical_text = str(technical_message or "request failed").strip() or "request failed"
+    payload = {
+        "ok": False,
+        "status": int(status),
+        "code": normalized_code,
+        "technical_code": normalized_code,
+        "user_message": user_text,
+        "technical_message": technical_text,
+        "error": technical_text,
+        "diagnostics": [
+            {
+                "severity": "error",
+                "code": normalized_code,
+                "technical_code": normalized_code,
+                "message": technical_text,
+                "technical_message": technical_text,
+                "user_message": user_text,
+            }
+        ],
+    }
+    normalized_path = str(path or "").strip()
+    if normalized_path:
+        payload["path"] = normalized_path
+    if isinstance(extra, dict):
+        for key, value in extra.items():
+            if key in payload:
+                continue
+            payload[key] = value
+    return payload
+
+
 def try_send_generated_maegim_control(handler: BaseHTTPRequestHandler, root_dir: Path, raw_sub_path: str) -> bool:
     requested_path = (root_dir / raw_sub_path).resolve()
     if root_dir not in requested_path.parents or requested_path.name != MAEGIM_CONTROL_FILENAME:
@@ -857,7 +967,18 @@ def try_send_generated_maegim_control(handler: BaseHTTPRequestHandler, root_dir:
         send_json_text(handler, _to_maegim_control_payload(lesson_path))
         return True
     except Exception as exc:
-        json_response(handler, 500, {"ok": False, "error": str(exc), "schema": MAEGIM_CONTROL_SCHEMA})
+        json_response(
+            handler,
+            500,
+            build_api_error_payload(
+                status=500,
+                code="E_API_MAEGIM_CONTROL_GENERATE_FAILED",
+                user_message="매김 제어 정보를 준비하지 못했습니다.",
+                technical_message=str(exc),
+                path=str(raw_sub_path or ""),
+                extra={"schema": MAEGIM_CONTROL_SCHEMA},
+            ),
+        )
         return True
 
 
@@ -1198,6 +1319,36 @@ def parse_table_row_blocks(lines: list[str]) -> dict | None:
     return finalize_table(columns, rows)
 
 
+def parse_console_output_log(lines: list[str], tick: int = 0) -> list[dict]:
+    structured_only_markers = {
+        "table.row",
+        "space2d",
+        "space2d.shape",
+        "space2d_shape",
+        "shape2d",
+        "text.overlay",
+        "overlay.text",
+        "subtitle",
+        "자막",
+    }
+    out: list[dict] = []
+    for raw in lines:
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        if text.lower() in structured_only_markers:
+            continue
+        out.append(
+            {
+                "tick": max(0, int(tick or 0)),
+                "line_no": len(out) + 1,
+                "text": text,
+                "kind": "output",
+            }
+        )
+    return out
+
+
 def _coerce_table_cell(value: str):
     try:
         return float(value) if "." in value else int(value)
@@ -1277,9 +1428,19 @@ class DdnExecHandler(BaseHTTPRequestHandler):
             return
         if raw_path in ("/api/lessons/inventory", "/api/lesson-inventory"):
             try:
-                json_response(self, 200, build_lesson_inventory_payload())
+                json_response(self, 200, build_lesson_inventory_payload(RUNTIME_CATALOG_MODE))
             except Exception as exc:
-                json_response(self, 500, {"ok": False, "error": str(exc)})
+                json_response(
+                    self,
+                    500,
+                    build_api_error_payload(
+                        status=500,
+                        code="E_API_INVENTORY_BUILD_FAILED",
+                        user_message="교과 목록을 불러오지 못했습니다.",
+                        technical_message=str(exc),
+                        path=raw_path,
+                    ),
+                )
             return
         if raw_path == "/favicon.ico":
             self.send_response(204)
@@ -1302,6 +1463,19 @@ class DdnExecHandler(BaseHTTPRequestHandler):
                 send_file(self, lesson_path)
                 return
         if path.startswith("/seed_lessons_v1/"):
+            if _is_retired_line_request_blocked():
+                json_response(
+                    self,
+                    410,
+                    build_api_error_payload(
+                        status=410,
+                        code="E_SEAMGRIM_RETIRED_LINE_BLOCKED",
+                        user_message="이 교과 라인은 현재 릴리즈 실행선에서 비활성화되었습니다.",
+                        technical_message="retired lesson line is disabled in reps_only release mode",
+                        path=path,
+                    ),
+                )
+                return
             if try_send_generated_maegim_control(self, SEED_LESSON_DIR, path[len("/seed_lessons_v1/"):]):
                 return
             seed_path = (SEED_LESSON_DIR / path[len("/seed_lessons_v1/"):]).resolve()
@@ -1309,6 +1483,19 @@ class DdnExecHandler(BaseHTTPRequestHandler):
                 send_file(self, seed_path)
                 return
         if path.startswith("/lessons_rewrite_v1/"):
+            if _is_retired_line_request_blocked():
+                json_response(
+                    self,
+                    410,
+                    build_api_error_payload(
+                        status=410,
+                        code="E_SEAMGRIM_RETIRED_LINE_BLOCKED",
+                        user_message="이 교과 라인은 현재 릴리즈 실행선에서 비활성화되었습니다.",
+                        technical_message="retired lesson line is disabled in reps_only release mode",
+                        path=path,
+                    ),
+                )
+                return
             if try_send_generated_maegim_control(self, REWRITE_LESSON_DIR, path[len("/lessons_rewrite_v1/"):]):
                 return
             rewrite_path = (REWRITE_LESSON_DIR / path[len("/lessons_rewrite_v1/"):]).resolve()
@@ -1346,13 +1533,37 @@ class DdnExecHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         if parsed.path != "/api/run":
-            json_response(self, 404, {"ok": False, "error": "not found"})
+            json_response(
+                self,
+                404,
+                build_api_error_payload(
+                    status=404,
+                    code="E_API_NOT_FOUND",
+                    user_message="요청 경로를 찾을 수 없습니다.",
+                    technical_message="not found",
+                    path=parsed.path,
+                ),
+            )
             return
         temp_path: Path | None = None
         try:
             length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(length).decode("utf-8-sig")
-            payload = json.loads(body)
+            try:
+                payload = json.loads(body)
+            except Exception:
+                json_response(
+                    self,
+                    400,
+                    build_api_error_payload(
+                        status=400,
+                        code="E_API_RUN_INVALID_JSON",
+                        user_message="실행 요청 형식이 올바르지 않습니다. JSON 본문을 확인해 주세요.",
+                        technical_message="invalid JSON body",
+                        path=parsed.path,
+                    ),
+                )
+                return
             ddn_text = payload.get("ddn_text")
             label = payload.get("label")
             madi_raw = payload.get("madi")
@@ -1365,11 +1576,31 @@ class DdnExecHandler(BaseHTTPRequestHandler):
                 except Exception:
                     madi = None
             if not isinstance(ddn_text, str):
-                json_response(self, 400, {"ok": False, "error": "ddn_text required"})
+                json_response(
+                    self,
+                    400,
+                    build_api_error_payload(
+                        status=400,
+                        code="E_API_RUN_DDN_TEXT_REQUIRED",
+                        user_message="실행할 DDN 본문이 비어 있습니다. 입력을 확인해 주세요.",
+                        technical_message="ddn_text required",
+                        path=parsed.path,
+                    ),
+                )
                 return
             ddn_text = _strip_utf8_bom_prefix(ddn_text)
             if not ddn_text.strip():
-                json_response(self, 400, {"ok": False, "error": "ddn_text required"})
+                json_response(
+                    self,
+                    400,
+                    build_api_error_payload(
+                        status=400,
+                        code="E_API_RUN_DDN_TEXT_REQUIRED",
+                        user_message="실행할 DDN 본문이 비어 있습니다. 입력을 확인해 주세요.",
+                        technical_message="ddn_text required",
+                        path=parsed.path,
+                    ),
+                )
                 return
 
             build_dir = resolve_build_dir()
@@ -1387,6 +1618,7 @@ class DdnExecHandler(BaseHTTPRequestHandler):
             maegim_control_payload, maegim_control_source = _build_maegim_control_payload_from_source_text(
                 ddn_text,
                 source_label="<api-run>",
+                allow_legacy_fallback=_allow_legacy_maegim_fallback(),
             )
             maegim_controls = maegim_control_payload.get("controls", [])
             maegim_warnings = maegim_control_payload.get("warnings", [])
@@ -1411,6 +1643,7 @@ class DdnExecHandler(BaseHTTPRequestHandler):
             text_block = parse_text_blocks(lines)
             table_data = parse_table_blocks(lines)
             structure_data = parse_structure_blocks(lines)
+            console_log = parse_console_output_log(lines, madi)
 
             if not label:
                 label = meta.get("name") or meta.get("desc") or "f(x)"
@@ -1431,6 +1664,7 @@ class DdnExecHandler(BaseHTTPRequestHandler):
 
             payload = {"ok": True, "graph": graph}
             payload["maegim_control"] = maegim_control_payload
+            payload["console_log"] = console_log
             payload["runtime"] = {
                 "schema": "seamgrim.runtime_summary.v1",
                 "maegim_control_count": len(maegim_control_names),
@@ -1438,6 +1672,7 @@ class DdnExecHandler(BaseHTTPRequestHandler):
                 "maegim_control_source": maegim_control_source,
                 "maegim_control_warning_count": len(maegim_warning_codes),
                 "maegim_control_warning_codes": maegim_warning_codes,
+                "console_log_count": len(console_log),
             }
             if space2d_points or space2d_shapes:
                 space2d_payload = {
@@ -1490,9 +1725,40 @@ class DdnExecHandler(BaseHTTPRequestHandler):
                         "source_input_hash": source_hash,
                     },
                 }
+            view_families: list[str] = []
+            view_contract_by_family: dict[str, dict] = {}
+            for family in ["graph", "space2d", "table", "text", "structure"]:
+                family_view = payload.get(family)
+                if not isinstance(family_view, dict):
+                    continue
+                family_schema = str(family_view.get("schema", "")).strip()
+                view_families.append(family)
+                view_contract_by_family[family] = {
+                    "schema": family_schema,
+                    "source": "api_run",
+                    "available": True,
+                }
+            payload["view_contract"] = {
+                "schema": "seamgrim.view_contract.v1",
+                "source": "api_run",
+                "families": view_families,
+                "by_family": view_contract_by_family,
+            }
+            payload["runtime"]["view_families"] = list(view_families)
+            payload["runtime"]["view_contract_schema"] = "seamgrim.view_contract.v1"
             json_response(self, 200, payload)
         except Exception as exc:
-            json_response(self, 500, {"ok": False, "error": str(exc)})
+            json_response(
+                self,
+                500,
+                build_api_error_payload(
+                    status=500,
+                    code="E_API_RUN_EXEC_FAILED",
+                    user_message="실행 중 오류가 발생했습니다. 입력/설정을 확인한 뒤 다시 시도해 주세요.",
+                    technical_message=str(exc),
+                    path=parsed.path,
+                ),
+            )
         finally:
             if temp_path is not None:
                 try:
@@ -1514,17 +1780,35 @@ def parse_args(argv: list[str] | None = None):
         default=int(os.environ.get("DDN_EXEC_SERVER_PORT", "8787")),
         help="bind port (default: env DDN_EXEC_SERVER_PORT or 8787)",
     )
+    parser.add_argument(
+        "--catalog-mode",
+        choices=[CATEGORY_REPS_ONLY, CATEGORY_FULL],
+        default=RUNTIME_CATALOG_MODE,
+        help="lesson inventory exposure mode (default: reps_only)",
+    )
+    parser.add_argument(
+        "--allow-legacy-lessons",
+        action="store_true",
+        default=RUNTIME_ALLOW_LEGACY_LESSONS,
+        help="allow /seed_lessons_v1 and /lessons_rewrite_v1 paths in reps_only mode",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None):
+    global RUNTIME_CATALOG_MODE, RUNTIME_ALLOW_LEGACY_LESSONS
     args = parse_args(argv)
     host = str(args.host).strip() or "127.0.0.1"
     port = int(args.port)
+    RUNTIME_CATALOG_MODE = _normalize_catalog_mode(args.catalog_mode)
+    RUNTIME_ALLOW_LEGACY_LESSONS = bool(args.allow_legacy_lessons)
     if port < 1 or port > 65535:
         raise SystemExit("port must be in 1..65535")
     server = ThreadingHTTPServer((host, port), DdnExecHandler)
-    print(f"Seamgrim ddn exec server running on http://{host}:{port}")
+    print(
+        f"Seamgrim ddn exec server running on http://{host}:{port} "
+        f"(catalog_mode={RUNTIME_CATALOG_MODE}, allow_legacy_lessons={str(RUNTIME_ALLOW_LEGACY_LESSONS).lower()})"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

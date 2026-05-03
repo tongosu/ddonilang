@@ -1,4 +1,3 @@
-
 #기본관찰x: tau
 #기본관찰: DWL
 
@@ -38,13 +37,6 @@
     { dQs < 0 }인것 일때 { dQs <- 0. }.
 
     DWL <- 0.5 * tau * (dQd + dQs).
-
-    보임 {
-      t: t.
-      tau: tau.
-      p: p.
-      DWL: DWL.
-    }.
 
     tau <- tau + dtau.
     t <- t + 1.

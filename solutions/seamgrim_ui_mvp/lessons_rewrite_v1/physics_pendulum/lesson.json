@@ -1,0 +1,9 @@
+{
+  "id": "physics_pendulum",
+  "title": "진자 운동",
+  "subject": "physics",
+  "grade": "middle",
+  "description": "중력과 줄 길이에 따른 진자의 각도 변화를 탐구합니다.",
+  "keywords": ["진자", "각속도", "주기"],
+  "quality": "recommended"
+}

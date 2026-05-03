@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 
 (시작)할때 {
@@ -18,10 +17,6 @@
     n2 <- n * n.
     E <- -E0 / n2.
 
-    보임 {
-      n: n.
-      E: E.
-    }.
     n <- n + (dn).
   }.
 }.

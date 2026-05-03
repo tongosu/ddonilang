@@ -1,0 +1,9 @@
+{
+  "id": "econ_demand_curve",
+  "title": "수요 곡선",
+  "subject": "economics",
+  "grade": "high",
+  "description": "가격과 수요량의 기본 역관계를 확인합니다.",
+  "keywords": ["수요", "가격", "기울기"],
+  "quality": "recommended"
+}

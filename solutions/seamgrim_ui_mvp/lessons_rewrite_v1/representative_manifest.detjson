@@ -1,0 +1,14 @@
+{
+  "schema": "seamgrim.curriculum.representative_manifest.v1",
+  "count": 8,
+  "lessons": [
+    "physics_motion",
+    "physics_projectile",
+    "physics_pendulum",
+    "physics_spring",
+    "econ_supply_demand",
+    "econ_demand_curve",
+    "math_euler",
+    "math_fibonacci"
+  ]
+}

@@ -154,6 +154,31 @@ export class DdnWasmVmClient {
     return this.attachDerived(state, true);
   }
 
+  runTicksParsed(count: number): SeamgrimDerivedState {
+    if (typeof (this.vm as any).run_ticks !== "function") {
+      throw new Error("run_ticks is not available in this wasm build");
+    }
+    const state = parseStateJson((this.vm as any).run_ticks(count));
+    return this.attachDerived(state, true);
+  }
+
+  applyCurrentlineCellParsed(
+    source: string,
+    context: string | Record<string, unknown> | null = null
+  ): SeamgrimDerivedState {
+    if (typeof (this.vm as any).apply_currentline_cell !== "function") {
+      throw new Error("apply_currentline_cell is not available in this wasm build");
+    }
+    const contextJson =
+      context === null || context === undefined
+        ? undefined
+        : typeof context === "string"
+          ? context
+          : JSON.stringify(context);
+    const state = parseStateJson((this.vm as any).apply_currentline_cell(source, contextJson));
+    return this.attachDerived(state, true);
+  }
+
   stepOneWithInputParsed(
     keys_pressed: number,
     last_key_name: string,

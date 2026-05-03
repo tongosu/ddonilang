@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 
 (시작)할때 {
@@ -19,10 +18,6 @@
     Vs <- k*(f - f0).
     { Vs < 0 }인것 일때 {
       Vs <- 0.
-    }.
-    보임 {
-      f: f.
-      Vs: Vs.
     }.
     f <- f + (df).
   }.

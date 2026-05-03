@@ -1,4 +1,3 @@
-
 // stateful-sim preview(auto): range sampler -> step sim
 
 (시작)할때 {
@@ -21,10 +20,6 @@
 
   { V <= V_max }인것 일때 {
     P <- n*R*T / V.
-    보임 {
-      V: V.
-      P: P.
-    }.
     V <- V + (dV).
   }.
 }.

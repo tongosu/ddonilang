@@ -2,29 +2,29 @@
   // 출력은 숫자만. (t, x) 순서.
   // NOTE: 해석해(지수함수)를 쓰지 않고, 오일러(Euler) 적분으로 '감쇠'를 만든다.
 
-  살림.x0 <- 1.
-  살림.v0 <- 0.
-  살림.omega0 <- 2.
-  살림.beta <- 0.15.
-  살림.dt <- 0.01.
-  살림.t_max <- 20.
+  x0 <- 1.
+  v0 <- 0.
+  omega0 <- 2.
+  beta <- 0.15.
+  dt <- 0.01.
+  t_max <- 20.
 
-  살림.x <- 살림.x0.
-  살림.v <- 살림.v0.
-  살림.t <- 0.
+  x <- x0.
+  v <- v0.
+  t <- 0.
 
-  { 살림.t <= 살림.t_max }인것 동안: {
+  { t <= t_max }인것 동안: {
     // (t, x)
     보임 {
-      값1: 살림.t.
-      값2: 살림.x.
+      값1: t.
+      값2: x.
     }.
 
-    살림.a <- (beta=살림.beta, v=살림.v, omega0=살림.omega0, x=살림.x) (#ascii) 수식{ -2*beta*v - (omega0^2)*x }.
+    a <- (beta=beta, v=v, omega0=omega0, x=x) (#ascii) 수식{ -2*beta*v - (omega0^2)*x }.
 
-    살림.v <- (v=살림.v, a=살림.a, dt=살림.dt) (#ascii) 수식{ v + a*dt }.
-    살림.x <- (x=살림.x, v=살림.v, dt=살림.dt) (#ascii) 수식{ x + v*dt }.
+    v <- (v=v, a=a, dt=dt) (#ascii) 수식{ v + a*dt }.
+    x <- (x=x, v=v, dt=dt) (#ascii) 수식{ x + v*dt }.
 
-    살림.t <- 살림.t + 살림.dt.
+    t <- t + dt.
   }.
 }.

@@ -1,32 +1,26 @@
-
 (매마디)마다 {
   // 출력은 숫자만. (x, y) 순서.
 
-  살림.A <- 1.
-  살림.lambda <- 4.
-  살림.pi <- 3.1415926535.
-  살림.omega <- 2.
-  살림.t0 <- 0.
+  A <- 1.
+  lambda <- 4.
+  pi <- 3.1415926535.
+  omega <- 2.
+  t0 <- 0.
 
   // k = 2π/λ
-  살림.k <- (pi=살림.pi, lambda=살림.lambda) (#ascii) 수식{ 2*pi/lambda }.
+  k <- (pi=pi, lambda=lambda) (#ascii) 수식{ 2*pi/lambda }.
 
-  살림.x_min <- 0.
-  살림.x_max <- 20.
-  살림.dx <- 0.05.
+  x_min <- 0.
+  x_max <- 20.
+  dx <- 0.05.
 
-  살림.x <- 살림.x_min.
+  x <- x_min.
 
-  { 살림.x <= 살림.x_max }인것 동안: {
-    살림.phase <- (k=살림.k, x=살림.x, omega=살림.omega, t0=살림.t0) (#ascii) 수식{ k*x - omega*t0 }.
-    살림.s <- (살림.phase) sin.
-    살림.y <- (A=살림.A, s=살림.s) (#ascii) 수식{ A*s }.
+  { x <= x_max }인것 동안: {
+    phase <- (k=k, x=x, omega=omega, t0=t0) (#ascii) 수식{ k*x - omega*t0 }.
+    s <- (phase) sin.
+    y <- (A=A, s=s) (#ascii) 수식{ A*s }.
 
-    보임 {
-      값1: 살림.x.
-      값2: 살림.y.
-    }.
-
-    살림.x <- 살림.x + 살림.dx.
+    x <- x + dx.
   }.
 }.

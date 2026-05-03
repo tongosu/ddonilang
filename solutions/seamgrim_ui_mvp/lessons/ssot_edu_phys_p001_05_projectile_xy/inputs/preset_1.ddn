@@ -1,36 +1,31 @@
-
 (매마디)마다 {
   // 출력은 숫자만. (x, y) 순서.
   // NOTE: y<0(지면 아래)면 출력하지 않고 종료한다.
 
-  살림.v0 <- 20.
-  살림.angle_deg <- 45.
-  살림.g <- 9.8.
-  살림.dt <- 0.05.
-  살림.pi <- 3.1415926535.
+  v0 <- 20.
+  angle_deg <- 45.
+  g <- 9.8.
+  dt <- 0.05.
+  pi <- 3.1415926535.
 
   // deg → rad
-  살림.angle_rad <- (deg=살림.angle_deg, pi=살림.pi) (#ascii) 수식{ deg*pi/180 }.
+  angle_rad <- (deg=angle_deg, pi=pi) (#ascii) 수식{ deg*pi/180 }.
 
-  살림.cos_a <- (살림.angle_rad) cos.
-  살림.sin_a <- (살림.angle_rad) sin.
+  cos_a <- (angle_rad) cos.
+  sin_a <- (angle_rad) sin.
 
-  살림.t <- 0.
+  t <- 0.
 
   반복: {
-    살림.x <- (v0=살림.v0, c=살림.cos_a, t=살림.t) (#ascii) 수식{ v0*c*t }.
-    살림.y <- (v0=살림.v0, s=살림.sin_a, g=살림.g, t=살림.t) (#ascii) 수식{ v0*s*t - (g*t^2)/2 }.
+    x <- (v0=v0, c=cos_a, t=t) (#ascii) 수식{ v0*c*t }.
+    y <- (v0=v0, s=sin_a, g=g, t=t) (#ascii) 수식{ v0*s*t - (g*t^2)/2 }.
 
-    { 살림.y < 0 }인것 일때 {
+    { y < 0 }인것 일때 {
       멈추기.
     }.
 
     // (x, y)
-    보임 {
-      값1: 살림.x.
-      값2: 살림.y.
-    }.
 
-    살림.t <- 살림.t + 살림.dt.
+    t <- t + dt.
   }.
 }.

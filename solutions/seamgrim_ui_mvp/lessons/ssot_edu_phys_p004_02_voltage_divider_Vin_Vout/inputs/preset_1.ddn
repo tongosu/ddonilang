@@ -1,25 +1,19 @@
-
 (매마디)마다 {
   // 출력은 숫자만. (Vin, Vout) 순서.
   // NOTE: 이상적 전압원 + 저항 2개 직렬(전압분배).
 
-  살림.R1 <- 5.
-  살림.R2 <- 10.
+  R1 <- 5.
+  R2 <- 10.
 
-  살림.Vin_min <- 0.
-  살림.Vin_max <- 10.
-  살림.dV <- 0.25.
+  Vin_min <- 0.
+  Vin_max <- 10.
+  dV <- 0.25.
 
-  살림.Vin <- 살림.Vin_min.
+  Vin <- Vin_min.
 
-  { 살림.Vin <= 살림.Vin_max }인것 동안: {
-    살림.Vout <- (Vin=살림.Vin, R1=살림.R1, R2=살림.R2) (#ascii) 수식{ Vin * R2 / (R1 + R2) }.
+  { Vin <= Vin_max }인것 동안: {
+    Vout <- (Vin=Vin, R1=R1, R2=R2) (#ascii) 수식{ Vin * R2 / (R1 + R2) }.
 
-    보임 {
-      값1: 살림.Vin.
-      값2: 살림.Vout.
-    }.
-
-    살림.Vin <- 살림.Vin + 살림.dV.
+    Vin <- Vin + dV.
   }.
 }.
