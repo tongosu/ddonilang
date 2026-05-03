@@ -98,7 +98,7 @@
     {
       "id": "16_space2d_bounce_probe",
       "title": "평면 공 튕김 실험",
-      "description": "평면 보개에서 벽 안을 움직이는 공과 보임 그래프를 함께 확인하는 실험 예제입니다.",
+      "description": "평면 보개에서 공 반지름 기준 벽 충돌, x축 눈금, zoom/pan 좌표 표시, 보임 그래프 rows를 함께 확인하는 실험 예제입니다.",
       "grade": "demo",
       "subject": "space2d",
       "quality": "reviewed",

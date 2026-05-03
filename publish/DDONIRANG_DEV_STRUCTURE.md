@@ -459,16 +459,19 @@ teul-cli run <file.ddn>
 
 ### 9-1. 개요
 
-`solutions/seamgrim_ui_mvp/` — 교육용 수식/그래프/시뮬레이션 웹 UI입니다.
+`solutions/seamgrim_ui_mvp/` — DDN 예제를 실행하고 보개/거울/결과표를 확인하는 교육용 웹 작업실입니다.
 
 ```
 solutions/seamgrim_ui_mvp/
 ├── ui/
-│   ├── index.html     # 4탭 레이아웃 (교과/DDN/실행·시간/도구)
-│   ├── styles.css     # 스타일
-│   └── app.js         # 앱 로직 (6000+ 줄)
+│   ├── index.html                 # 단일 진입점
+│   ├── styles.css                 # 작업실 V2 레이아웃/보개 스타일
+│   ├── app.js                     # 앱 초기화/화면 전환
+│   ├── screens/run.js             # 실행 화면, 공통 실행바, current-line 실행
+│   ├── components/bogae.js        # console/graph/space2d/grid 보개 렌더링
+│   └── seamgrim_runtime_state.js  # 실행 상태/마디/거울 요약
 ├── tools/
-│   ├── ddn_exec_server.py   # DDN 실행 서버 (HTTP → teul-cli)
+│   ├── ddn_exec_server.py   # 정적 서버 + 보조 API
 │   ├── export_graph.py    # DDN → seamgrim.graph.v0 JSON
 │   ├── export_space2d.py  # DDN → seamgrim.space2d.v0 JSON
 │   ├── export_text.py     # DDN → seamgrim.text.v0 JSON
@@ -480,28 +483,27 @@ solutions/seamgrim_ui_mvp/
     └── PLAN.md
 ```
 
-### 9-2. UI 구조 (4탭)
+### 9-2. 작업실 V2 구조
 
-| 탭 | 내용 |
+| 영역 | 내용 |
 |----|------|
-| **교과** | 교과(lesson) 팩 선택, 주제 브라우징 |
-| **DDN** | DDN 편집기 + 실행/내보내기/불러오기 |
-| **실행/시간** | 시간 샘플링, 타임라인 뷰, 파라미터 조정 |
-| **도구** | 실행 서버 설정, 프리셋, 비교 모드, 인스펙터, 로그 |
+| **run-topbar** | 셈그림, 교과, 작업실, 현재 제목, 겹보기, 설정 |
+| **run-control-bar** | 새 작업, 열기, 저장, 실행, 일시정지, 초기화, 한마디씩, 현재마디/마디수, 기본/확대/전체 |
+| **run-layout** | DDN 편집 패널 + 보개 + 부보개 |
+| **보개** | console-grid, graph, space2d, grid2d fixture 계열 보기 |
+| **거울/결과표** | 마디별 기록, output rows, 보임 rows, 진단 요약 |
 
-### 9-3. DDN 실행 서버
+보기 모드:
 
-브라우저 UI에서 DDN을 실행하기 위한 **로컬 HTTP 서버**(포트 8787)입니다.
+- **기본**: 편집 패널 + 보개 + 부보개
+- **확대**: 편집 패널 숨김, 보개와 부보개를 넓게 표시
+- **전체**: 보개 중심 표시, 공통 실행바 유지
 
-```
-[브라우저 UI] --POST /api/run--> [ddn_exec_server.py]
-                                    ↓
-                              [teul-cli run <file.ddn>]
-                                    ↓
-                              stdout 파싱 (그래프/표/구조)
-                                    ↓
-[브라우저 UI] <--JSON 응답------
-```
+### 9-3. 실행 경로
+
+작업실은 WASM 실행을 우선합니다. `ddn_exec_server.py`는 로컬 정적 서버와 보조 API 역할을 하며, 언어 의미를 Python/JS lowering으로 대신 구현하지 않습니다.
+
+current-line 예제는 raw DDN source를 제품 frontdoor에 넣어 실행하고, CLI/WASM parity checker로 같은 기준의 output/resource snapshot을 비교합니다.
 
 ### 9-4. 출력 스키마
 
@@ -511,6 +513,14 @@ solutions/seamgrim_ui_mvp/
 | `seamgrim.space2d.v0` | 2D 공간/도형 데이터 |
 | `seamgrim.text.v0` | 텍스트/해설 데이터 |
 | `seamgrim.table.v0` | 표 데이터 |
+
+### 9-5. 현재 예제 rail
+
+- `06_console_grid_scalar_show.ddn`: console-grid 최소 시작점
+- `09_moyang_pendulum_working.ddn`: `모양 {}` 기반 space2d 진자
+- `10_console_grid_mini_tetris.ddn`: current-line console-grid 테트리스
+- `15_console_grid_maze_probe.ddn`: 콘솔 격자 미로 실험
+- `16_space2d_bounce_probe.ddn`: 평면 공 튕김, x축 눈금/zoom/pan 좌표 검증
 
 ---
 
@@ -570,15 +580,15 @@ codex/
 
 ## 12. 현재 상태와 방향
 
-### 구현 완료
+### 구현 완료/진행
 
 - 문법: 씨앗 정의/호출, 조건, 반복, 파이프, 계약, 훅, 글무늬, 수식, 차림/텐서, 논리 연산
 - 타입: 수(Fixed64), 글, 참거짓, 차림, 모음, 짝맞춤, 묶음, 자원핸들, 단위값, 글무늬값, 수식값
 - 표준 라이브러리: 글/차림/텐서/수학/입력/RNG/묶음/템플릿/수식 내장 함수
 - 도구: teul-cli 40+ 서브커맨드, LSP, 보개 번들, 에셋 매니페스트
 - 검증: 193개 팩 테스트, 골든 비교, 리플레이
-- 시각화: 셈그림 웹 UI (4탭 구성, DDN 실행 서버, 4종 출력 스키마)
-- 데모: 미로, 테트리스
+- 시각화: 셈그림 작업실 V2, WASM 우선 실행, 공통 실행바, 기본/확대/전체 보기, console-grid/graph/space2d 보개
+- 데모: console-grid 미로, 테트리스, space2d 진자/평면 공 튕김, 수식/증명/람다 예제
 
 ### 미구현/진행 중
 
