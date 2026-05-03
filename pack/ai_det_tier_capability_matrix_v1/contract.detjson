@@ -1,0 +1,50 @@
+{
+  "schema": "ddn.ai_det_tier_capability_matrix.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "required_axes": [
+    "ai_model_kind",
+    "hooks",
+    "continue",
+    "iterable",
+    "overlay"
+  ],
+  "gaji_contract_form": "top_level_det_tier_openness",
+  "forbidden_keys": [
+    "requires.det",
+    "requires.open"
+  ],
+  "evidence_targets": [
+    "pack/lang_continue_skip_v1/golden.jsonl",
+    "tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn",
+    "pack/seamgrim_state_hash_view_boundary_smoke_v1/golden.jsonl",
+    "pack/gogae8_w85_ondevice_infer_v1/model.detjson",
+    "pack/gogae8_w85_ondevice_infer_v1/input.detjson"
+  ],
+  "cases": [
+    {
+      "id": "c01_hooks_continue_not_open_world",
+      "topic": "hooks_continue",
+      "runner_mode": "cmd",
+      "runner_target": "pack/lang_continue_skip_v1/c01_foreach_skip_ok/input.ddn"
+    },
+    {
+      "id": "c02_iterable_not_auto_open",
+      "topic": "iterable",
+      "runner_mode": "cmd",
+      "runner_target": "tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn"
+    },
+    {
+      "id": "c03_overlay_view_only_not_state_hash",
+      "topic": "overlay",
+      "runner_mode": "smoke_golden",
+      "runner_target": "smoke_with_view_boundary.v1.json"
+    },
+    {
+      "id": "c04_ai_model_kind_infer_only",
+      "topic": "ai_model_kind",
+      "runner_mode": "cmd",
+      "runner_target": "pack/gogae8_w85_ondevice_infer_v1/model.detjson"
+    }
+  ]
+}

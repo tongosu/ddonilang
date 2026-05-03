@@ -7,7 +7,7 @@
     "expected_observations": [
       {
         "madi": 1,
-        "query": "바탕.점수",
+        "query": "점수",
         "assert": {
           "op": "eq",
           "value": 30

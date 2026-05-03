@@ -1,0 +1,11 @@
+{
+  "schema": "seulgi.train_config.v1",
+  "model_id": "toy_v25_entry_v1",
+  "dataset_hash": "sha256:cdcb59055085b77459cbde7261c98802d5dbcd88a4937ec94ab2071278348166",
+  "recipe_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "ssot_bundle_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "train_seed": 7,
+  "target_score": 100,
+  "max_epochs": 3,
+  "weights_len": 18
+}

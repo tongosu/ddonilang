@@ -1,0 +1,4 @@
+{"id":"c01_primary_single","overlay_compare_case":"cases/c01_primary_single/case.detjson","exit_code":0}
+{"id":"c02_overlay_stack_order","overlay_session_case":"cases/c02_overlay_stack_order/case.detjson","exit_code":0}
+{"id":"c03_visibility_gate","overlay_session_case":"cases/c03_visibility_gate/case.detjson","exit_code":0}
+{"id":"c04_state_hash_excluded","smoke_golden":"smoke_with_view_boundary.v1.json","exit_code":0}

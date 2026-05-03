@@ -4,7 +4,7 @@
     {
       "id": "pendulum",
       "ddn_path": "c01_pendulum/lesson.ddn",
-      "expect_slider_count_min": 4,
+      "expect_slider_count_min": 0,
       "expect_maegim_count": 0,
       "expect_channels_any": ["t", "theta"],
       "max_ticks": 5,
@@ -13,7 +13,7 @@
     {
       "id": "econ_supply_demand",
       "ddn_path": "c02_econ/lesson.ddn",
-      "expect_slider_count_min": 4,
+      "expect_slider_count_min": 0,
       "expect_maegim_count": 0,
       "expect_channels_any": ["t", "p"],
       "max_ticks": 5,

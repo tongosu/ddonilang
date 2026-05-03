@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.lang_lambda_return_runtime.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_returned_lambda_keeps_capture"],
+  "target": "teul-cli run"
+}
+

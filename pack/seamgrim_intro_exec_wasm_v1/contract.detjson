@@ -1,0 +1,64 @@
+{
+  "schema": "ddn.seamgrim.wasm_cli_runtime_parity.pack.contract.v1",
+  "pack_id": "seamgrim_intro_exec_wasm_v1",
+  "state_hash_policy": "report_only",
+  "cases": [
+    {
+      "id": "c01_hello_show",
+      "input": "cases/c01_hello_show/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "hello"
+      ],
+      "expected_wasm_row": {
+        "인사": "hello"
+      }
+    },
+    {
+      "id": "c02_assign_update",
+      "input": "cases/c02_assign_update/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "15"
+      ],
+      "expected_wasm_row": {
+        "점수": 15
+      }
+    },
+    {
+      "id": "c03_if_else",
+      "input": "cases/c03_if_else/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "통과"
+      ],
+      "expected_wasm_row": {
+        "점수": 72,
+        "판정": "통과"
+      }
+    },
+    {
+      "id": "c04_choose_exhaustive",
+      "input": "cases/c04_choose_exhaustive/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "통과"
+      ],
+      "expected_wasm_row": {
+        "점수": 72
+      }
+    },
+    {
+      "id": "c05_intro_combined",
+      "input": "cases/c05_intro_combined/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "통과"
+      ],
+      "expected_wasm_row": {
+        "점수": 72,
+        "판정": "통과"
+      }
+    }
+  ]
+}

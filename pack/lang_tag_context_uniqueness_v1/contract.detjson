@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.lang_tag_context_uniqueness.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "decision": "DR-alpha B: context uniqueness",
+  "cases": ["c01_single_context_tag_ok", "c02_same_context_duplicate_reject"]
+}
+

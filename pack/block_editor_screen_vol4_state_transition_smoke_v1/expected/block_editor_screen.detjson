@@ -1,0 +1,170 @@
+{
+  "canvas_children": 5,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "plan_0001",
+      "kind": "receive_hook_plan"
+    },
+    {
+      "exprs": {},
+      "id": "plan_0002",
+      "kind": "receive_hook_plan"
+    },
+    {
+      "exprs": {},
+      "id": "plan_0003",
+      "kind": "receive_hook_plan"
+    },
+    {
+      "exprs": {},
+      "id": "plan_0004",
+      "kind": "receive_hook_plan"
+    },
+    {
+      "exprs": {},
+      "id": "alrimsi_send_0005",
+      "kind": "alrimsi_send"
+    }
+  ],
+  "generated_preview": "# plan root/seed:플레이어 전투_시작\n# 제 <- (제, \"현재상태\", \"전투\") 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 알림\n# 제 <- (제, \"체력\", 제.체력 - 알림.정보.피해량) 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 피해_받음\n# 만약 정보.피해량 >= 70 이라면 {\n  제 <- (제, \"현재상태\", \"부상\") 짝맞춤.바꾼값.\n}.\n\n# plan root/seed:플레이어 복귀_승인\n# 만약 제.현재상태 == \"부상\" 이라면 {\n  제 <- (제, \"현재상태\", \"복귀\") 짝맞춤.바꾼값.\n}.\n\n(피해량:30) 피해_받음 ~~> 플레이어.",
+  "palette_children": 47,
+  "result_text": "mode=rpg blocks=5 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "# plan root/seed:플레이어 전투_시작\n# 제 <- (제, \"현재상태\", \"전투\") 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 알림\n# 제 <- (제, \"체력\", 제.체력 - 알림.정보.피해량) 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 피해_받음\n# 만약 정보.피해량 >= 70 이라면 {\n  제 <- (제, \"현재상태\", \"부상\") 짝맞춤.바꾼값.\n}.\n\n# plan root/seed:플레이어 복귀_승인\n# 만약 제.현재상태 == \"부상\" 이라면 {\n  제 <- (제, \"현재상태\", \"복귀\") 짝맞춤.바꾼값.\n}.\n\n(피해량:30) 피해_받음 ~~> 플레이어.",
+      "meta": {
+        "mode": "rpg",
+        "title": "Vol4 State Transition"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 5,
+    "canvas_summary": {
+      "block_count": 5,
+      "block_ids": [
+        "plan_0001",
+        "plan_0002",
+        "plan_0003",
+        "plan_0004",
+        "alrimsi_send_0005"
+      ],
+      "block_kinds": [
+        "receive_hook_plan",
+        "receive_hook_plan",
+        "receive_hook_plan",
+        "receive_hook_plan",
+        "alrimsi_send"
+      ],
+      "expr_nodes": [],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "plan_0001",
+          "kind": "receive_hook_plan"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "plan_0002",
+          "kind": "receive_hook_plan"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "plan_0003",
+          "kind": "receive_hook_plan"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "plan_0004",
+          "kind": "receive_hook_plan"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "alrimsi_send_0005",
+          "kind": "alrimsi_send"
+        }
+      ],
+      "total_block_count": 5,
+      "total_expr_count": 0
+    },
+    "error_count": 0,
+    "generated_length": 340,
+    "mode": "rpg",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "choose_exhaustive",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block",
+        "alrimsi_define",
+        "alrimsi_send",
+        "receive_hook",
+        "clamp_min",
+        "clamp_max"
+      ],
+      "category_count": 7,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output",
+        "imja",
+        "state"
+      ]
+    }
+  },
+  "summary_text": "mode=rpg blocks=5 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "# plan root/seed:플레이어 전투_시작\n# 제 <- (제, \"현재상태\", \"전투\") 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 알림\n# 제 <- (제, \"체력\", 제.체력 - 알림.정보.피해량) 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 피해_받음\n# 만약 정보.피해량 >= 70 이라면 {\n  제 <- (제, \"현재상태\", \"부상\") 짝맞춤.바꾼값.\n}.\n\n# plan root/seed:플레이어 복귀_승인\n# 만약 제.현재상태 == \"부상\" 이라면 {\n  제 <- (제, \"현재상태\", \"복귀\") 짝맞춤.바꾼값.\n}.\n\n(피해량:30) 피해_받음 ~~> 플레이어.",
+      "meta": {
+        "mode": "rpg",
+        "title": "Vol4 State Transition"
+      }
+    }
+  ]
+}

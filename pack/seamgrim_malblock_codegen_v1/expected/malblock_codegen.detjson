@@ -1,0 +1,53 @@
+{
+  "cases": [
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "show"
+      ],
+      "canon_hash": "sha256:3f8f631716c5acaf035787730aada11ebda885c3f894a2ebb4da98bbfebf7649",
+      "encoded_hash": "sha256:ca6aa9e5e9e1acb91c68ae862f374bbcbd2e31078e82b2d15b8894078c92d150",
+      "id": "charim_variable_show",
+      "raw_block_count": 0,
+      "run_stdout_contains": [
+        "72"
+      ]
+    },
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "charim_item_var",
+        "if_else",
+        "assign",
+        "assign",
+        "show"
+      ],
+      "canon_hash": "sha256:a937b17ce375f3043b53e0ab5853f3790fe3b80c1fa06dde7d875b0424475433",
+      "encoded_hash": "sha256:21b88e03e71264dc6e3d23aa50b2a267816adba9c71cb08018b49e246c38de88",
+      "id": "if_else_show",
+      "raw_block_count": 0,
+      "run_stdout_contains": [
+        "통과"
+      ]
+    },
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "choose_exhaustive",
+        "choose_branch",
+        "show"
+      ],
+      "canon_hash": "sha256:4a3f99123cddfc7d2aa7a81d9007eb44cbfb459feb625ff75eaea5499027dbea",
+      "encoded_hash": "sha256:2dc682dc4d3b822dfd22ac14ab770f7d492fa641bbe95b669f272ecb72b93123",
+      "id": "choose_exhaustive_show",
+      "raw_block_count": 0,
+      "run_stdout_contains": [
+        "작음"
+      ]
+    }
+  ],
+  "schema": "ddn.seamgrim_malblock_codegen_report.v1"
+}

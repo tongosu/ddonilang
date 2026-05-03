@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.proof_kernel_term_replay.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_replay_symbolic_rewrite"],
+  "target": "teul-cli proof replay"
+}
+

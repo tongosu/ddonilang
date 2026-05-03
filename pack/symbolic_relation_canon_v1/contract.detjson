@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.symbolic_relation_canon.pack.contract.v1",
+  "pack_id": "symbolic_relation_canon_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "target": "teul-cli run"
+}

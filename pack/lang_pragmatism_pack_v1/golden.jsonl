@@ -1,0 +1,3 @@
+{"id":"c01_range_iteration","cmd":["run","pack/stdlib_range_basics/input.ddn"],"stdout":["차림[1, 2, 3]","차림[0, 2, 4]","차림[3, 2, 1]","차림[]","차림[0@m, 1@m, 2@m, 3@m]"],"exit_code":0}
+{"id":"c02_charim_ops","cmd":["run","pack/stdlib_charim_basics/input.ddn"],"stdout":["차림[2, 3, 4]","참","-1","차림[5, 4, 3, 2, 1]","차림[2, 3, 4, 9]","차림[1, 2, 3, 4]"],"exit_code":0}
+{"id":"c03_text_ops","cmd":["run","pack/stdlib_text_basics/input.ddn"],"stdout":["HELLO,WORLD","11","hello,world","hello,worldhello,world","HELLO-WORLD","E","6","HELLO,YOU"],"exit_code":0}

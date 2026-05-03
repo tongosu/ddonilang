@@ -1,0 +1,30 @@
+{
+  "schema": "ddn.lang_template_escape.contract.v1",
+  "pack_id": "lang_template_escape_v1",
+  "valid_cases": [
+    {
+      "id": "c01_template_hangul_escape_and_braces",
+      "input": "cases/c01_template_hangul_escape_and_braces/input.ddn",
+      "expected_stdout": [
+        "안녕 또니",
+        "{그대로}"
+      ],
+      "expected_canon_tokens": [
+        "글무늬{\"안녕 {이름}\\줄",
+        "{{그대로}}"
+      ]
+    }
+  ],
+  "invalid_cases": [
+    {
+      "id": "c02_template_unknown_escape_error",
+      "input": "cases/c02_template_unknown_escape_error/input.ddn",
+      "expected_error": "E_LEX_BAD_ESCAPE"
+    },
+    {
+      "id": "c03_template_bad_placeholder_error",
+      "input": "cases/c03_template_bad_placeholder_error/input.ddn",
+      "expected_error": "글무늬 자리표시자 키가 비어 있습니다"
+    }
+  ]
+}

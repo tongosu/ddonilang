@@ -1,0 +1,5 @@
+{
+  "case_id": "c04_ai_model_kind_infer_only",
+  "topic": "ai_model_kind",
+  "rule": "infer_only"
+}

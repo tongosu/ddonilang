@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/numeric_factor_form_v1/c01_factor_form_ops.ddn"], "stdout_path": "c01_factor_form_ops.expected.txt", "exit_code": 0}

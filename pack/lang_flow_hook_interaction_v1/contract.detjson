@@ -1,0 +1,30 @@
+{
+  "schema": "ddn.lang_flow_hook_interaction.pack.contract.v1",
+  "evidence_tier": "docs_first",
+  "closure_claim": "no",
+  "ordering_contract": [
+    "ordinary_assignment",
+    "flow_fixed_point",
+    "tail_phase_hook"
+  ],
+  "cases": [
+    {
+      "id": "c01_flow_then_hook_snapshot",
+      "case_kind": "ok"
+    },
+    {
+      "id": "c02_no_same_tick_refire",
+      "case_kind": "ok"
+    },
+    {
+      "id": "c03_multiple_flow_source_conflict",
+      "case_kind": "diag",
+      "expected_error": "E_FLOW_MULTIPLE_SOURCE_CONFLICT"
+    },
+    {
+      "id": "c04_flow_cycle_fatal",
+      "case_kind": "diag",
+      "expected_error": "E_FLOW_CIRCULAR_REFERENCE"
+    }
+  ]
+}

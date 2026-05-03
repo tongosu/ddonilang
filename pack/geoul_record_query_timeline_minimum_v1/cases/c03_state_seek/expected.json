@@ -1,0 +1,7 @@
+{
+  "case_id": "c03_state_seek",
+  "command_kind": "seek",
+  "stdout": [
+    "state_hash=blake3:a809f9010ae7bd8073d96a857a1749d928d8c0b8ebcfae024dfbd8a6b2addef3"
+  ]
+}

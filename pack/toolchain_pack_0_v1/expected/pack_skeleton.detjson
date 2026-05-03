@@ -1,0 +1,6 @@
+{
+  "manifest_tokens_present": true,
+  "ok": true,
+  "required_paths_present": true,
+  "schema": "ddn.roadmap_v2.toolchain_pack_0.report.v1"
+}

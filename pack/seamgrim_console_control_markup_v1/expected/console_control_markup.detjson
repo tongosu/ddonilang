@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.seamgrim_console_control_markup.report.v1",
+  "ok": true,
+  "pack_id": "seamgrim_console_control_markup_v1",
+  "command_count": 11,
+  "raw_ansi_escape_output": false,
+  "runtime_truth_owner": false,
+  "line_control_command": "행제어",
+  "render_session_scope": "console_render_session_artifact",
+  "output_entry_style_reset": true,
+  "accessibility_can_disable_motion": true,
+  "examples_checked": 3
+}

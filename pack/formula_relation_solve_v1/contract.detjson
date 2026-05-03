@@ -1,0 +1,14 @@
+{
+  "schema": "ddn.formula_relation_solve.pack.contract.v1",
+  "pack_id": "formula_relation_solve_v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": [
+    "c01_linear_success",
+    "c02_no_solution",
+    "c03_non_unique",
+    "c04_unsupported"
+  ],
+  "target": "teul-cli run"
+}
+

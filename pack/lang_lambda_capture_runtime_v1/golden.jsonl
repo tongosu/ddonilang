@@ -1,0 +1,2 @@
+{"id":"c01_capture_snapshot_after_reassign","cmd":["run","pack/lang_lambda_capture_runtime_v1/input.ddn"],"stdout":["차림[11]"],"exit_code":0}
+

@@ -1,0 +1,1 @@
+{"cmd":["run","pack/bogae_observe_basics/input.ddn","--bogae","web","--bogae-cmd-policy","summary","--bogae-cmd-cap","10"],"bogae_hash":"blake3:5ff1c76f5ec40bff82d3ec21e120aae318f9192e91b55a9668534820431c7074","exit_code":0}

@@ -1,0 +1,8 @@
+{
+  "case_id": "c01_replay_verify",
+  "command_kind": "replay_verify",
+  "stdout": [
+    "verify_ok=true",
+    "first_diverge_madi=null"
+  ]
+}

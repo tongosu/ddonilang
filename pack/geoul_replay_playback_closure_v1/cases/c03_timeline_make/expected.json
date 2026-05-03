@@ -1,0 +1,8 @@
+{
+  "case_id": "c03_timeline_make",
+  "command_kind": "timeline_make",
+  "stdout": [
+    "timeline_written=pack/geoul_replay_playback_closure_v1/out/timeline.detjson"
+  ],
+  "expected_meta": "expected/timeline.detjson"
+}

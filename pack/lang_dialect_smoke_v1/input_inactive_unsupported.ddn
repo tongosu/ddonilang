@@ -1,2 +1,2 @@
-살림.if <- "inactive_unsupported_ok".
-살림.if 보여주기.
+if <- "inactive_unsupported_ok".
+if 보여주기.

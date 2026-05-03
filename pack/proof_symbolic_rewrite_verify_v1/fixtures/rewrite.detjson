@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.proof.symbolic_rewrite.v1",
+  "steps": [
+    {
+      "from": "(x + 1)^2",
+      "to": "x^2 + 2*x + 1"
+    }
+  ]
+}
+

@@ -1,0 +1,2 @@
+{"id":"c01_seum_bridge_verify","cmd":["proof","verify","pack/proof_seum_bridge_v1/fixtures/seum_bridge.detjson"],"stdout":["proof_valid=true kind=seum_bridge"],"exit_code":0}
+

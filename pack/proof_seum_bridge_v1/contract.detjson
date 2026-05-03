@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.proof_seum_bridge.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_seum_bridge_verify"],
+  "target": "teul-cli proof verify"
+}
+

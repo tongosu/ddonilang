@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "prefix_value_json_to_graph",
+      "ok": true,
+      "primary_points": 3,
+      "secondary_points": 2,
+      "series_count": 2,
+      "source": "value-prefix"
+    },
+    {
+      "id": "view_meta_graph_boundary",
+      "ok": true,
+      "state_hash_unchanged": true,
+      "view_source": "view_meta"
+    }
+  ],
+  "ok": true,
+  "schema": "ddn.roadmap_v2.bogae_graph_prefix.report.v1"
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "ddn.model_artifact_closure.pack.contract.v1",
+  "evidence_tier": "golden_closed",
+  "closure_claim": "yes",
+  "backing_runner_checks": [
+    "tests/run_pack_golden.py"
+  ],
+  "evidence_targets": [
+    "pack/gogae8_w85_ondevice_infer_v1/model.detjson",
+    "pack/gogae8_w85_ondevice_infer_v1/input.detjson",
+    "pack/gogae8_w87_eval_suite_v1/eval_config_pass.json",
+    "pack/gogae8_w87_eval_suite_v1/eval_config_fail.json",
+    "pack/gogae8_w87_eval_suite_v1/expected_artifact_pass.detjson",
+    "pack/gogae8_w87_eval_suite_v1/expected_artifact_fail.detjson"
+  ],
+  "cases": [
+    {
+      "id": "c01_infer_only_mlp",
+      "command_kind": "infer"
+    },
+    {
+      "id": "c02_eval_pass_artifact",
+      "command_kind": "eval"
+    },
+    {
+      "id": "c03_eval_fail_artifact",
+      "command_kind": "eval"
+    }
+  ]
+}

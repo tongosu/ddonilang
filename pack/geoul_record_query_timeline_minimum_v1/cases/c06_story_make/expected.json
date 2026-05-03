@@ -1,0 +1,7 @@
+{
+  "case_id": "c06_story_make",
+  "command_kind": "story_make",
+  "stdout": [
+    "story_written=build/tmp/geoul_story.detjson"
+  ]
+}

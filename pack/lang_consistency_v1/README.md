@@ -8,10 +8,10 @@
 
 ## 케이스 구성
 - `c01_logic_alias_canon`: 기본 입력키/입력 판정 정본화 확인
-- `c02_signal_arrow_EXPECT_FAIL`: `살림.a <- 참 ~~> 거짓.` 혼합 문형 실패 코드 고정
+- `c02_signal_arrow_EXPECT_FAIL`: `a <- 참 ~~> 거짓.` 혼합 문형 실패 코드 고정
 - `c03_inputkey_compat_option_run`: compat(`입력키`) + option(`입력키?`) 동작 확인
 - `c04_inputkey_strict_missing_EXPECT_FAIL`: strict(`입력키!`) 미정의 실패 코드 고정
-- `c05_map_dot_nested_write_canon`: `짝맞춤` 중첩 점대입(`살림.공.속도.x <- ...`) 정본화 확인
+- `c05_map_dot_nested_write_canon`: `짝맞춤` 중첩 점대입(`공.속도.x <- ...`) 정본화 확인
 - `c06_map_dot_nested_write_run`: 중첩 점대입 실행 결과(쓰기 경로) 확인
 - `c07_map_dot_nested_write_missing_key_EXPECT_FAIL`: 중첩 점대입 시 부모 키 누락 에러 코드 고정(`E_MAP_DOT_KEY_MISSING`)
 - `c08_map_dot_read_missing_key_EXPECT_FAIL`: 점읽기 시 키 누락 에러 코드 고정(`E_MAP_DOT_KEY_MISSING`)

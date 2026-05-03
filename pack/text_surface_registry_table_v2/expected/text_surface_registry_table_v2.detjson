@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.text_surface_registry_table_v2.report.v1",
+  "ok": true,
+  "pack_id": "text_surface_registry_table_v2",
+  "direct_shortcut_count": 696,
+  "braced_alias_count": 1359,
+  "console_control_commands": 11,
+  "unicode_fallback": "\\문자{U+XXXX}",
+  "unicode_fallback_last_resort": true,
+  "raw_ansi_escape_output": false,
+  "removed_surface_migration": "diagnostic_fixit_only",
+  "implementation_change_allowed_in_this_pack": false
+}

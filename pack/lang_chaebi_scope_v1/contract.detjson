@@ -1,0 +1,31 @@
+{
+  "schema": "ddn.lang_chaebi_scope.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": [
+    {
+      "id": "c01_top_level_chaebi_ok",
+      "case_kind": "ok"
+    },
+    {
+      "id": "c02_chaebi_in_repeat_forbidden",
+      "case_kind": "diag",
+      "expected_error": "E_CHAEBI_IN_LOOP"
+    },
+    {
+      "id": "c03_chaebi_in_hook_forbidden",
+      "case_kind": "diag",
+      "expected_error": "E_CHAEBI_IN_LOOP"
+    },
+    {
+      "id": "c04_chaebi_in_iter_forbidden",
+      "case_kind": "diag",
+      "expected_error": "E_CHAEBI_IN_LOOP"
+    },
+    {
+      "id": "c05_top_level_reassign_warning",
+      "case_kind": "warning",
+      "expected_warning": "W_CHAEBI_REDUNDANT_TOP_REASSIGN"
+    }
+  ]
+}

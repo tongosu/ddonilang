@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.connect_relation_bridge.pack.contract.v1",
+  "pack_id": "connect_relation_bridge_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "target": "teul-cli run"
+}

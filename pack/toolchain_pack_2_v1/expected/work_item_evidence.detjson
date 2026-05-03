@@ -1,0 +1,105 @@
+{
+  "schema": "ddn.roadmap_v2.work_item_evidence_report.v1",
+  "summary": {
+    "closed_item_count": 7,
+    "executed_check_count": 6,
+    "ssot_diff_clean": true,
+    "ssot_untouched_required": true,
+    "ta1_official_closed": true,
+    "ta1_runner_basis_satisfied": true,
+    "tracked_item_count": 7
+  },
+  "work_items": [
+    {
+      "checker": "tests/run_lang_core_0_check.py",
+      "checker_pass": true,
+      "closure_level": "closed",
+      "expected_artifact": "pack/lang_core_0_v1/expected/lang_core_0.detjson",
+      "expected_artifact_exists": true,
+      "id": "가-0",
+      "pack": "pack/lang_core_0_v1",
+      "pack_exists": true,
+      "report": "docs/status/roadmap_v2/가-0_REPORT_20260429.md",
+      "report_exists": true,
+      "status": "닫힘"
+    },
+    {
+      "checker": "tests/run_roadmap_v2_pack_skeleton_check.py",
+      "checker_pass": true,
+      "closure_level": "closed",
+      "expected_artifact": "pack/toolchain_pack_0_v1/expected/pack_skeleton.detjson",
+      "expected_artifact_exists": true,
+      "id": "타-0",
+      "pack": "pack/toolchain_pack_0_v1",
+      "pack_exists": true,
+      "report": "docs/status/roadmap_v2/타-0_REPORT_20260429.md",
+      "report_exists": true,
+      "status": "닫힘"
+    },
+    {
+      "checker": "tests/run_seamgrim_malblock_blocky_design_check.py",
+      "checker_pass": true,
+      "closure_level": "closed",
+      "expected_artifact": "pack/seamgrim_malblock_blocky_design_v1/expected/blocky_design.detjson",
+      "expected_artifact_exists": true,
+      "id": "라-0",
+      "pack": "pack/seamgrim_malblock_blocky_design_v1",
+      "pack_exists": true,
+      "report": "docs/status/roadmap_v2/라-0_REPORT_20260428.md",
+      "report_exists": true,
+      "status": "닫힘"
+    },
+    {
+      "checker": "tests/run_lang_core_1_check.py",
+      "checker_pass": true,
+      "closure_level": "closed",
+      "expected_artifact": "pack/lang_core_1_v1/expected/lang_core_1.detjson",
+      "expected_artifact_exists": true,
+      "id": "가-1",
+      "pack": "pack/lang_core_1_v1",
+      "pack_exists": true,
+      "report": "docs/status/roadmap_v2/가-1_REPORT_20260428.md",
+      "report_exists": true,
+      "status": "닫힘"
+    },
+    {
+      "checker": "tests/run_roadmap_v2_pack_runner_basis_check.py",
+      "checker_pass": true,
+      "closure_level": "closed",
+      "expected_artifact": "pack/toolchain_pack_1_v1/expected/runner_basis.detjson",
+      "expected_artifact_exists": true,
+      "id": "타-1",
+      "pack": "pack/toolchain_pack_1_v1",
+      "pack_exists": true,
+      "report": "docs/status/roadmap_v2/타-1_REPORT_20260428.md",
+      "report_exists": true,
+      "status": "닫힘"
+    },
+    {
+      "checker": "tests/run_seamgrim_editor_run_transaction_check.py",
+      "checker_pass": true,
+      "closure_level": "closed",
+      "expected_artifact": "pack/seamgrim_editor_run_transaction_v1/expected/editor_run_transaction.detjson",
+      "expected_artifact_exists": true,
+      "id": "라-1",
+      "pack": "pack/seamgrim_editor_run_transaction_v1",
+      "pack_exists": true,
+      "report": "docs/status/roadmap_v2/라-1_REPORT_20260428.md",
+      "report_exists": true,
+      "status": "닫힘"
+    },
+    {
+      "checker": "tests/run_roadmap_v2_work_item_evidence_check.py",
+      "checker_pass": "self",
+      "closure_level": "closed",
+      "expected_artifact": "pack/toolchain_pack_2_v1/expected/work_item_evidence.detjson",
+      "expected_artifact_exists": true,
+      "id": "타-2",
+      "pack": "pack/toolchain_pack_2_v1",
+      "pack_exists": true,
+      "report": "docs/status/roadmap_v2/타-2_REPORT_20260503.md",
+      "report_exists": true,
+      "status": "닫힘"
+    }
+  ]
+}

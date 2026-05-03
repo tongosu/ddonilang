@@ -1,0 +1,128 @@
+{
+  "canvas_children": 2,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "raw_0001",
+      "kind": "raw"
+    },
+    {
+      "exprs": {},
+      "id": "alrimsi_send_0002",
+      "kind": "alrimsi_send"
+    }
+  ],
+  "generated_preview": "(이름:글) 첫알림:알림씨 = {\n}.\n\n(이름:글) 둘알림:알림씨 = {\n}.\n\n관제탑:임자 = {\n  제.모드 <- \"대기\".\n  제.마지막 <- \"없음\".\n  제.처리횟수 <- 0.\n\n  (알림 알림.이름 == \"첫알림\")인 알림을 받으면 {\n    제.모드 <- \"경고\".\n    제.마지막 <- 알림.정보.이름.\n    제.처리횟수 <- 제.처리횟수 + 1.\n  }.\n\n  (알림 알림.이름 == \"둘알림\")인 알림을 받으면 {\n    제.모드 <- \"확인\".\n    제.마지막 <- 알림.정보.이름.\n    제.처리횟수 <- 제.처리횟수 + 1.\n  }.\n}.\n\n(시작)할때 {\n  (이름:\"과열\") 첫알림 ~~> 관제탑.\n  (이름:\"운영확인\") 둘알림 ~~> 관제탑.\n}.\n\n(피해량:30) 피해_받음 ~~> 플레이어.",
+  "palette_children": 47,
+  "result_text": "mode=rpg blocks=2 errors=1 · WASM canon 실패: E_GUSEONG_LINK_TOPLEVEL_ONLY 짜임 연결은 최상위 문장에서만 허용됩니다: 제.마지막 <- 알림.정보.이름",
+  "run_calls": [
+    {
+      "ddnText": "(이름:글) 첫알림:알림씨 = {\n}.\n\n(이름:글) 둘알림:알림씨 = {\n}.\n\n관제탑:임자 = {\n  제.모드 <- \"대기\".\n  제.마지막 <- \"없음\".\n  제.처리횟수 <- 0.\n\n  (알림 알림.이름 == \"첫알림\")인 알림을 받으면 {\n    제.모드 <- \"경고\".\n    제.마지막 <- 알림.정보.이름.\n    제.처리횟수 <- 제.처리횟수 + 1.\n  }.\n\n  (알림 알림.이름 == \"둘알림\")인 알림을 받으면 {\n    제.모드 <- \"확인\".\n    제.마지막 <- 알림.정보.이름.\n    제.처리횟수 <- 제.처리횟수 + 1.\n  }.\n}.\n\n(시작)할때 {\n  (이름:\"과열\") 첫알림 ~~> 관제탑.\n  (이름:\"운영확인\") 둘알림 ~~> 관제탑.\n}.\n\n(피해량:30) 피해_받음 ~~> 플레이어.",
+      "meta": {
+        "mode": "rpg",
+        "title": "Vol4 Event Dispatch"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 2,
+    "canvas_summary": {
+      "block_count": 2,
+      "block_ids": [
+        "raw_0001",
+        "alrimsi_send_0002"
+      ],
+      "block_kinds": [
+        "raw",
+        "alrimsi_send"
+      ],
+      "expr_nodes": [],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "raw_0001",
+          "kind": "raw"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "alrimsi_send_0002",
+          "kind": "alrimsi_send"
+        }
+      ],
+      "total_block_count": 2,
+      "total_expr_count": 0
+    },
+    "error_count": 1,
+    "generated_length": 411,
+    "mode": "rpg",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "choose_exhaustive",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block",
+        "alrimsi_define",
+        "alrimsi_send",
+        "receive_hook",
+        "clamp_min",
+        "clamp_max"
+      ],
+      "category_count": 7,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output",
+        "imja",
+        "state"
+      ]
+    }
+  },
+  "summary_text": "mode=rpg blocks=2 errors=1",
+  "text_mode_calls": [
+    {
+      "ddnText": "(이름:글) 첫알림:알림씨 = {\n}.\n\n(이름:글) 둘알림:알림씨 = {\n}.\n\n관제탑:임자 = {\n  제.모드 <- \"대기\".\n  제.마지막 <- \"없음\".\n  제.처리횟수 <- 0.\n\n  (알림 알림.이름 == \"첫알림\")인 알림을 받으면 {\n    제.모드 <- \"경고\".\n    제.마지막 <- 알림.정보.이름.\n    제.처리횟수 <- 제.처리횟수 + 1.\n  }.\n\n  (알림 알림.이름 == \"둘알림\")인 알림을 받으면 {\n    제.모드 <- \"확인\".\n    제.마지막 <- 알림.정보.이름.\n    제.처리횟수 <- 제.처리횟수 + 1.\n  }.\n}.\n\n(시작)할때 {\n  (이름:\"과열\") 첫알림 ~~> 관제탑.\n  (이름:\"운영확인\") 둘알림 ~~> 관제탑.\n}.\n\n(피해량:30) 피해_받음 ~~> 플레이어.",
+      "meta": {
+        "mode": "rpg",
+        "title": "Vol4 Event Dispatch"
+      }
+    }
+  ]
+}

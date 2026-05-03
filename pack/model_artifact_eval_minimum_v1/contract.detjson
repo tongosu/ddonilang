@@ -1,0 +1,24 @@
+{
+  "schema": "ddn.model_artifact_eval_minimum.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "backing_runner_checks": [
+    "tests/run_pack_golden.py"
+  ],
+  "evidence_targets": [
+    "pack/gogae8_w87_eval_suite_v1/eval_config_pass.json",
+    "pack/gogae8_w87_eval_suite_v1/eval_config_fail.json",
+    "pack/gogae8_w87_eval_suite_v1/expected_artifact_pass.detjson",
+    "pack/gogae8_w87_eval_suite_v1/expected_artifact_fail.detjson"
+  ],
+  "cases": [
+    {
+      "id": "c01_eval_pass_artifact",
+      "command_kind": "eval"
+    },
+    {
+      "id": "c02_eval_fail_artifact",
+      "command_kind": "eval"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema": "ddn.numeric.factor_result.v1",
+  "input": "7429",
+  "status": "running",
+  "canonical": null,
+  "factors": [],
+  "route": "deterministic:trial-resumable",
+  "certificate": {
+    "schema": "ddn.numeric.factor_certificate.v1",
+    "kind": "pending_resume_certificate",
+    "product_matches_input": false,
+    "prime_checks": []
+  },
+  "job_hash": "sha256:79b50214feac1bae0f8677e2ee683614d7b292451e0e92b88ed50ff0bc133a4c"
+}

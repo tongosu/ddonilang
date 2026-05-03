@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.roadmap_v2.toolchain_pack_0.contract.v1",
+  "pack_id": "toolchain_pack_0_v1",
+  "required_paths": [
+    "pack",
+    "tests/run_pack_golden.py",
+    "tests/seamgrim_wasm_cli_runtime_parity_runner.mjs",
+    "docs/status/roadmap_v2/REPORT_TEMPLATE.md",
+    "docs/status/roadmap_v2/ROADMAP_V2_EVIDENCE_MANIFEST.md"
+  ],
+  "required_manifest_tokens": [
+    "pack/checker",
+    "검증 명령",
+    "Report Evidence Shape"
+  ]
+}

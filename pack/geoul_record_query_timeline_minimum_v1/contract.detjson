@@ -1,0 +1,43 @@
+{
+  "schema": "ddn.geoul_record_query_timeline_minimum.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "backing_runner_checks": [
+    "tests/run_pack_golden.py"
+  ],
+  "evidence_targets": [
+    "pack/geoul_min_schema_v0/record_ok.jsonl",
+    "tools/teul-cli/tests/golden/W43/W43_G01_geoul_query/out/geoul/manifest.detjson",
+    "tools/teul-cli/tests/golden/W43/W43_G02_geoul_backtrace/out/geoul/manifest.detjson"
+  ],
+  "cases": [
+    {
+      "id": "c01_record_check",
+      "command_kind": "record_check"
+    },
+    {
+      "id": "c02_bundle_hash",
+      "command_kind": "hash"
+    },
+    {
+      "id": "c03_state_seek",
+      "command_kind": "seek"
+    },
+    {
+      "id": "c04_key_query",
+      "command_kind": "query"
+    },
+    {
+      "id": "c05_key_backtrace",
+      "command_kind": "backtrace"
+    },
+    {
+      "id": "c06_story_make",
+      "command_kind": "story_make"
+    },
+    {
+      "id": "c07_timeline_make",
+      "command_kind": "timeline_make"
+    }
+  ]
+}

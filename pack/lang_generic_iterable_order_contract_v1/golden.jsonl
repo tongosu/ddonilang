@@ -1,0 +1,3 @@
+{"id":"c01_declared_order","cmd":["run","tools/teul-cli/tests/golden/W97/W97_G04_foreach_map/main.ddn"],"stdout":["차림[a, 1]","차림[b, 2]"],"exit_code":0}
+{"id":"c02_snapshot_stable_order","cmd":["run","tools/teul-cli/tests/golden/W97/W97_G06_foreach_map_field_update/main.ddn"],"stdout":["짝맞춤{vx=>2, vy=>-1, x=>3, y=>9}","짝맞춤{vx=>-1, vy=>3, x=>4, y=>3}"],"exit_code":0}
+{"id":"c03_exhaustion_count_deterministic","cmd":["run","pack/stdlib_range_basics/input.ddn"],"stdout":["차림[1, 2, 3]","차림[0, 2, 4]","차림[3, 2, 1]","차림[]","차림[0@m, 1@m, 2@m, 3@m]"],"exit_code":0}

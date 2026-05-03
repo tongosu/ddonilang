@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.lang_lambda_store_runtime.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_stored_lambda_reuse"],
+  "target": "teul-cli run"
+}
+

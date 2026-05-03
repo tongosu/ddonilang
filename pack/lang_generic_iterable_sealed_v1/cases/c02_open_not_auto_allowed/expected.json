@@ -1,0 +1,5 @@
+{
+  "case_id": "c02_open_not_auto_allowed",
+  "mode": "open",
+  "rule": "not_auto_allowed"
+}

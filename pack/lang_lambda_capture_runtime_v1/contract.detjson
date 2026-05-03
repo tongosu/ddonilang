@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.lang_lambda_capture_runtime.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_capture_snapshot_after_reassign"],
+  "target": "teul-cli run"
+}
+

@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.text_surface_registry_table.report.v1",
+  "ok": true,
+  "pack_id": "text_surface_registry_table_v1",
+  "counts": {
+    "text_escape": 8,
+    "universal_character_commands": 1,
+    "named_character": 128,
+    "console_markup_commands": 4,
+    "excluded_surfaces": 10
+  },
+  "policy": {
+    "prefix_free_global": true,
+    "no_compat_shim": true,
+    "template_literal_brace": "{{/}}",
+    "unknown_backslash_command": "error",
+    "rich_markup_runtime_truth_owner": false,
+    "implementation_change_allowed_in_this_pack": false
+  },
+  "ssot_contrast_checked": true
+}

@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.proof_numeric_factor_certificate_strength.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_verify_factor_result_strength"],
+  "target": "teul-cli proof verify"
+}
+

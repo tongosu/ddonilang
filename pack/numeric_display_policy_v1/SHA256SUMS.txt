@@ -1,0 +1,2 @@
+sha256:5cac238901ef1d8ea5db37286c91d02c5d77db359b499504321c0359ec5341a3  c01_display_exact_values.expected.txt
+sha256:bfbc232aeecc265c3727d676b3fcc1404ad28ff4700db21e7c4e7027592b4332  golden.jsonl

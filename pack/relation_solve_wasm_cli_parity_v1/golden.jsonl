@@ -1,0 +1,3 @@
+{"id":"c01_linear_success","cmd":["run","pack/relation_solve_wasm_cli_parity_v1/cases/c01_linear_success/input.ddn"],"stdout":[],"exit_code":0}
+{"id":"c02_non_unique","cmd":["run","pack/relation_solve_wasm_cli_parity_v1/cases/c02_non_unique/input.ddn"],"stdout":[],"exit_code":0}
+{"id":"c03_unsupported","cmd":["run","pack/relation_solve_wasm_cli_parity_v1/cases/c03_unsupported/input.ddn"],"stdout":[],"exit_code":0}

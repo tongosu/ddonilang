@@ -1,0 +1,3 @@
+{"id":"c01_active_pan_replay","cmd":["run","tools/teul-cli/tests/golden/W111/W111_G10_lifecycle_transition_call_replays_active_pan/main.ddn"],"stdout":["202"],"exit_code":0}
+{"id":"c02_reset_all_restores_live_input_snapshot","cmd":["run","tools/teul-cli/tests/golden/W111/W111_G35_reset_all_restores_live_input_snapshot/main.ddn","--madi","4","--state","샘.키보드.누르고있음.ArrowRight=1","--sam","pack/gogae5_w49_latency_madi/sam/right_hold_2ticks.input.bin"],"stdout":["0","1"],"exit_code":0}
+{"id":"c03_state_view_boundary","smoke_golden":"smoke_with_view_boundary.v1.json","exit_code":0}

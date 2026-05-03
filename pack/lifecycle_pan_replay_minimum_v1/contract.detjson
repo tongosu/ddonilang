@@ -1,0 +1,31 @@
+{
+  "schema": "ddn.lifecycle_pan_replay_minimum.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "backing_runner_checks": [
+    "tests/run_pack_golden.py",
+    "tests/run_bogae_backend_profile_smoke_check.py"
+  ],
+  "evidence_targets": [
+    "tools/teul-cli/tests/golden/W111/W111_G10_lifecycle_transition_call_replays_active_pan/main.ddn",
+    "tools/teul-cli/tests/golden/W111/W111_G35_reset_all_restores_live_input_snapshot/main.ddn",
+    "pack/lifecycle_reset_grid_input_minimum_v1/golden.jsonl",
+    "pack/seamgrim_state_hash_view_boundary_smoke_v1/golden.jsonl",
+    "pack/bogae_grid2d_smoke_v1/expected/smoke.detjson",
+    "pack/nurimaker_grid_replay_v1/README.md"
+  ],
+  "cases": [
+    {
+      "id": "c01_active_pan_replay",
+      "command_kind": "run"
+    },
+    {
+      "id": "c02_reset_all_restores_live_input_snapshot",
+      "command_kind": "run"
+    },
+    {
+      "id": "c03_state_view_boundary",
+      "command_kind": "smoke_golden"
+    }
+  ]
+}

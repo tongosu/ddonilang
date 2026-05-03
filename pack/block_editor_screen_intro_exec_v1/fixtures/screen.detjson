@@ -1,0 +1,8 @@
+{
+  "schema": "seamgrim.block_editor.screen.fixture.v1",
+  "title": "라-1 입문 실행 Rail",
+  "mode": "seamgrim",
+  "source_ddn": "fixtures/source.ddn",
+  "append_block_kind": ""
+}
+

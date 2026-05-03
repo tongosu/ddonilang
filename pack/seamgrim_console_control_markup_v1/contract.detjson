@@ -1,0 +1,66 @@
+{
+  "schema": "ddn.seamgrim_console_control_markup.contract.v1",
+  "pack_id": "seamgrim_console_control_markup_v1",
+  "design_doc": "docs/context/design/TEXT_SURFACE_REGISTRY_TABLE_V2_20260430.md",
+  "policy": {
+    "raw_ansi_escape_output": false,
+    "runtime_truth_owner": false,
+    "plain_text_degrade_required": true,
+    "line_control_command": "행제어",
+    "render_session_scope": "console_render_session_artifact",
+    "raw_string_preserved": true,
+    "output_entry_style_reset": true,
+    "cursor_screen_line_scope": "console_view_session_artifact_only",
+    "mirror_result_split": "raw_text_and_render_summary",
+    "motion_effect_optional": true,
+    "accessibility_can_disable_motion": true
+  },
+  "commands": [
+    {"command": "색", "surface": "\\색{...}", "kind": "style", "argument_policy": "named_color_or_hex"},
+    {"command": "배경", "surface": "\\배경{...}", "kind": "style", "argument_policy": "named_color_or_hex"},
+    {"command": "스타일", "surface": "\\스타일{...}", "kind": "style", "argument_policy": "style_keyword"},
+    {"command": "되돌림", "surface": "\\되돌림", "kind": "style", "argument_policy": "none"},
+    {"command": "커서", "surface": "\\커서{행=1,칸=1}", "kind": "cursor", "argument_policy": "row_col"},
+    {"command": "이동", "surface": "\\이동{위=1}", "kind": "cursor", "argument_policy": "relative_direction"},
+    {"command": "위치저장", "surface": "\\위치저장", "kind": "cursor", "argument_policy": "none"},
+    {"command": "위치복원", "surface": "\\위치복원", "kind": "cursor", "argument_policy": "none"},
+    {"command": "화면", "surface": "\\화면{지우기}", "kind": "screen", "argument_policy": "screen_action"},
+    {"command": "행제어", "surface": "\\행제어{지우기}", "kind": "screen", "argument_policy": "line_action"},
+    {"command": "움직임", "surface": "\\움직임{깜빡임}", "kind": "motion", "argument_policy": "motion_keyword"}
+  ],
+  "arguments": {
+    "named_colors": ["빨강", "파랑", "초록", "노랑", "검정", "흰색", "회색", "주황", "보라", "분홍", "청록", "남색"],
+    "styles": ["보통", "굵게", "기울임", "밑줄", "반전", "취소선"],
+    "relative_directions": ["위", "아래", "왼", "오른"],
+    "screen_actions": ["지우기"],
+    "line_actions": ["지우기", "끝까지지우기"],
+    "motion_keywords": ["깜빡임", "흔들림", "타자", "끄기"]
+  },
+  "examples": [
+    {
+      "id": "style_and_cursor",
+      "source": "\\색{빨강}\\커서{행=2,칸=4}경고\\되돌림",
+      "expected_ops": ["style.foreground", "cursor.absolute", "text", "style.reset"],
+      "plain_text": "경고"
+    },
+    {
+      "id": "relative_and_clear",
+      "source": "\\위치저장\\이동{아래=1}\\행제어{끝까지지우기}\\위치복원",
+      "expected_ops": ["cursor.save", "cursor.relative", "screen.clear_line_to_end", "cursor.restore"],
+      "plain_text": ""
+    },
+    {
+      "id": "motion_degrade",
+      "source": "\\움직임{타자}hello\\움직임{끄기}",
+      "expected_ops": ["motion.start", "text", "motion.stop"],
+      "plain_text": "hello"
+    }
+  ],
+  "excluded_surfaces": [
+    {"surface": "\\줄{지우기}", "reason": "conflicts_with_text_escape_줄"},
+    {"surface": "\\반전", "reason": "use \\스타일{반전}"},
+    {"surface": "\\반전끝", "reason": "use \\스타일{보통} or \\되돌림"},
+    {"surface": "\\굵게", "reason": "use \\스타일{굵게}"},
+    {"surface": "\\굵게끝", "reason": "use \\스타일{보통} or \\되돌림"}
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "case_id": "c03_multiple_flow_source_conflict",
+  "case_kind": "diag",
+  "expected_error": "E_FLOW_MULTIPLE_SOURCE_CONFLICT"
+}

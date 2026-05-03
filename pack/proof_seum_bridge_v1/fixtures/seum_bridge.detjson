@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.proof.seum_bridge.v1",
+  "claims": [
+    {
+      "schema": "ddn.symbolic.equivalence_certificate.v1",
+      "lhs": "(x + 1)^2",
+      "rhs": "x^2 + 2*x + 1",
+      "lhs_canonical": "x^2 + 2*x + 1",
+      "rhs_canonical": "x^2 + 2*x + 1",
+      "equivalent": true,
+      "method": "mathir_polynomial_normal_form",
+      "certificate_hash": "sha256:bd6a60e68ac219ca4a09f5f8132398d8bafd63c87aa41708a3756d4d03037098"
+    }
+  ]
+}
+

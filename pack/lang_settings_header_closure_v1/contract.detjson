@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.lang_settings_header_closure.pack.contract.v1",
+  "pack_id": "lang_settings_header_closure_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "cases": [
+    "c01_settings_header_stripped",
+    "c02_legacy_boim_forbidden"
+  ]
+}
+

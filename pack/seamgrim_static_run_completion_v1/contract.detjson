@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.seamgrim_static_run_completion.pack.contract.v1",
+  "pack_id": "seamgrim_static_run_completion_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "runner_checks": [
+    "tests/run_seamgrim_product_stabilization_smoke_check.py"
+  ]
+}
+

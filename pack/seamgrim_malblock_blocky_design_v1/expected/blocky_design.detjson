@@ -1,0 +1,42 @@
+{
+  "boundaries": [
+    "DDN source가 정본",
+    "block JSON은 편집 표현",
+    "raw fallback",
+    "텍스트섬",
+    "SSOT 본문을 직접 수정하지 않는다"
+  ],
+  "classifications": [
+    "A. 완전 구조 블록",
+    "B. 반구조 블록",
+    "C. 텍스트섬 블록",
+    "D. raw fallback"
+  ],
+  "families": [
+    "계약",
+    "고르기",
+    "대입",
+    "미지원 원문",
+    "반복/흐름",
+    "보개",
+    "상태머신",
+    "수식/조건식",
+    "실행정책",
+    "알림/event",
+    "조건",
+    "증명/고급 수식",
+    "짜임",
+    "채비",
+    "출력",
+    "훅"
+  ],
+  "goal": "초보자 블록형",
+  "l1_closure_terms": [
+    "채비 -> 조건 -> 출력 -> 고르기",
+    "teul-cli canon --emit ddn",
+    "teul-cli run",
+    "screen/open/build/preview"
+  ],
+  "proposal": "docs/status/roadmap_v2/PROPOSAL_라-0_SEAMGRIM_BLOCKY_EXPRESSION_V1_20260428.md",
+  "schema": "ddn.seamgrim_malblock_blocky_design_report.v1"
+}

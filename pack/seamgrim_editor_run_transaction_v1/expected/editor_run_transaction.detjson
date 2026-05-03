@@ -1,0 +1,25 @@
+{
+  "duplicate_request_blocked": true,
+  "console_bogae_value_only": true,
+  "console_grid_html_fallback": true,
+  "inspector_scene_current_source_only": true,
+  "mirror_observation_fallback": true,
+  "ok": true,
+  "output_row": {
+    "key": "인사",
+    "source": "fallback-line",
+    "value": "hello"
+  },
+  "pending_waits_for_visible": true,
+  "pre_run_bogae_fixed_shell": true,
+  "schema": "ddn.seamgrim.editor_run_transaction.report.v1",
+  "actual_wasm_oneshot_step_output": true,
+  "empty_initial_session_rejected": true,
+  "stale_run_manager_source_guard": true,
+  "stale_session_source_guard": true,
+  "static_hint_output_first": true,
+  "stale_result_guard_present": true,
+  "transaction_order": "load_lesson_enqueue_set_screen_execute",
+  "visible_consumes_once": true,
+  "zero_point_runs_rejected": true
+}

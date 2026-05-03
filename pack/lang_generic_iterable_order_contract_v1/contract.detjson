@@ -1,0 +1,27 @@
+{
+  "schema": "ddn.lang_generic_iterable_order_contract.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "evidence_targets": [
+    "tools/teul-cli/tests/golden/W97/W97_G04_foreach_map/main.ddn",
+    "tools/teul-cli/tests/golden/W97/W97_G06_foreach_map_field_update/main.ddn",
+    "pack/stdlib_range_basics/input.ddn"
+  ],
+  "cases": [
+    {
+      "id": "c01_declared_order",
+      "rule": "declared_order",
+      "runner_target": "tools/teul-cli/tests/golden/W97/W97_G04_foreach_map/main.ddn"
+    },
+    {
+      "id": "c02_snapshot_stable_order",
+      "rule": "snapshot_stable_order",
+      "runner_target": "tools/teul-cli/tests/golden/W97/W97_G06_foreach_map_field_update/main.ddn"
+    },
+    {
+      "id": "c03_exhaustion_count_deterministic",
+      "rule": "exhaustion_count_deterministic",
+      "runner_target": "pack/stdlib_range_basics/input.ddn"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema": "ddn.proof.numeric_factor_certificate.v1",
+  "input": "91",
+  "factors": [
+    {
+      "prime": "7",
+      "exponent": 1
+    },
+    {
+      "prime": "13",
+      "exponent": 1
+    }
+  ]
+}
+

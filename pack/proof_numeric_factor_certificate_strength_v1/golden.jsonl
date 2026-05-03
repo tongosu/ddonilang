@@ -1,0 +1,2 @@
+{"id":"c01_verify_factor_result_strength","cmd":["proof","verify","pack/proof_numeric_factor_certificate_strength_v1/factor_result.detjson"],"stdout":["proof_valid=true kind=numeric_factor_result"],"exit_code":0}
+

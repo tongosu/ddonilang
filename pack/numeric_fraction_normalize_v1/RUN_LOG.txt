@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update numeric_fraction_normalize_v1
+pack golden updated

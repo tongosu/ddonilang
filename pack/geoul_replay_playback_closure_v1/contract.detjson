@@ -1,0 +1,47 @@
+{
+  "schema": "ddn.geoul_replay_playback_closure.pack.contract.v1",
+  "evidence_tier": "golden_closed",
+  "closure_claim": "yes",
+  "backing_runner_checks": [
+    "tests/run_pack_golden.py",
+    "tests/run_bogae_backend_profile_smoke_check.py"
+  ],
+  "evidence_targets": [
+    "pack/geoul_min_schema_v0/record_ok.jsonl",
+    "pack/open_diag_minimal_v1/golden/diag.expected.jsonl",
+    "pack/seamgrim_wasm_v0_smoke/expected/state_hash_trace.detjson",
+    "tools/teul-cli/tests/golden/W35/W35_G01_replay_verify/out/geoul/manifest.detjson",
+    "tools/teul-cli/tests/golden/W41/W41_G01_timeline_ui/out/geoul/story/story.detjson",
+    "tools/teul-cli/tests/golden/W41/W41_G01_timeline_ui/out/geoul/timeline/timeline.detjson",
+    "tools/teul-cli/tests/golden/W43/W43_G01_geoul_query/out/geoul/manifest.detjson",
+    "tools/teul-cli/tests/golden/W43/W43_G02_geoul_backtrace/out/geoul/manifest.detjson",
+    "pack/bogae_grid2d_smoke_v1/expected/smoke.detjson",
+    "pack/nurimaker_grid_replay_v1/README.md"
+  ],
+  "cases": [
+    {
+      "id": "c00_record_check",
+      "command_kind": "record_check"
+    },
+    {
+      "id": "c01_replay_verify",
+      "command_kind": "replay_verify"
+    },
+    {
+      "id": "c02_story_make",
+      "command_kind": "story_make"
+    },
+    {
+      "id": "c03_timeline_make",
+      "command_kind": "timeline_make"
+    },
+    {
+      "id": "c04_key_query",
+      "command_kind": "query"
+    },
+    {
+      "id": "c05_key_backtrace",
+      "command_kind": "backtrace"
+    }
+  ]
+}

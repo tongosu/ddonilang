@@ -1,0 +1,5 @@
+{
+  "case_id": "c01_hooks_continue_not_open_world",
+  "topic": "hooks_continue",
+  "rule": "runtime_open_policy_separate"
+}

@@ -1,0 +1,2 @@
+{"id":"c01_tactic_proves_symbolic_eq","cmd":["proof","prove-symbolic-eq","(x + 1)^2","x^2 + 2*x + 1"],"stdout":["proof_tactic_ok=true kind=symbolic_equivalence equivalent=true"],"exit_code":0}
+

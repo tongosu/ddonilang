@@ -1,0 +1,2 @@
+{"id":"c01_true_each_madi","cmd":["run","pack/lang_hook_while_condition_v1/c01_true_each_madi/input.ddn","--madi","4"],"stdout":["1","2","3"],"exit_code":0}
+{"id":"c02_not_intra_tick_refire","cmd":["run","pack/lang_hook_while_condition_v1/c02_not_intra_tick_refire/input.ddn","--madi","4"],"stdout":["1","2"],"exit_code":0}

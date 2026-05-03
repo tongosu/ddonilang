@@ -1,0 +1,16 @@
+{
+  "case_id": "c05_key_backtrace",
+  "command_kind": "backtrace",
+  "stdout": [
+    "key=점수",
+    "from=0",
+    "to=5",
+    "change_count=6",
+    "change_madi=0 value=1",
+    "change_madi=1 value=7",
+    "change_madi=2 value=8",
+    "change_madi=3 value=14",
+    "change_madi=4 value=15",
+    "change_madi=5 value=16"
+  ]
+}

@@ -1,0 +1,1 @@
+{"id":"c01_factor_result_has_route_certificate","cmd":["numeric","factor","91","--mode","complete"],"stdout_path":"expected.detjson","exit_code":0}

@@ -1,0 +1,2 @@
+{"id":"c01_rewrite_chain","cmd":["proof","rewrite-chain","(x + 1)^2","x^2 + 2*x + 1"],"stdout":["proof_rewrite_ok=true kind=symbolic_rewrite"],"exit_code":0}
+

@@ -1,0 +1,2 @@
+sha256:82edc2b11048fab4d1154619c1c402c15355371a0ec2e2c0499fff74114a54ef  c01_factor_524bit_complete.expected.detjson
+sha256:844f908ed8d8c4e5012bd3b77dfd3518ef3ec48203c2fd076d1a3002130d50a6  golden.jsonl

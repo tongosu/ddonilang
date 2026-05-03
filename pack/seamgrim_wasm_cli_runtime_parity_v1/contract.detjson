@@ -1,0 +1,155 @@
+{
+  "schema": "ddn.seamgrim.wasm_cli_runtime_parity.pack.contract.v1",
+  "pack_id": "seamgrim_wasm_cli_runtime_parity_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "oracle": "teul-cli",
+  "product_path": "wasm/seamgrim",
+  "state_hash_policy": "report_only",
+  "cases": [
+    {
+      "id": "c01_console_grid_scalar",
+      "input": "cases/c01_console_grid_scalar/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["콘솔 보개 예제", "23", "15", "8"],
+      "expected_wasm_row": {"x": 15, "y": 8, "합": 23}
+    },
+    {
+      "id": "c02_moyang_space2d",
+      "input": "cases/c02_moyang_space2d/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout_contains": ["space2d", "line", "circle", "0"],
+      "expected_wasm_value_json_keys": ["보개_그림판_목록"],
+      "expected_wasm_shape_kinds": ["line", "circle"]
+    },
+    {
+      "id": "c03_symbolic_simplify",
+      "input": "cases/c03_symbolic_simplify/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["(#ascii) 수식{ x^2 + 2*x + 1 }", "(#ascii) 수식{ x + 1 }"],
+      "expected_wasm_formula_raw": {"전개": "x^2 + 2*x + 1", "약분": "x + 1"}
+    },
+    {
+      "id": "c04_proof_tactic_equivalence",
+      "input": "cases/c04_proof_tactic_equivalence/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["참"],
+      "expected_wasm_row": {"결과": true},
+      "expected_wasm_pack_fields": {"증거.검증": true, "증거.종류": "symbolic_equivalence"}
+    },
+    {
+      "id": "c05_lambda_store",
+      "input": "cases/c05_lambda_store/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["차림[10]"],
+      "expected_wasm_value_json": {"결과": [10]}
+    },
+    {
+      "id": "c06_chaebi_derived_show",
+      "input": "cases/c06_chaebi_derived_show/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["참"],
+      "expected_cli_wasm_output_log_parity": true,
+      "expected_wasm_output_log_texts": ["참"],
+      "expected_parse_warning_codes": [],
+      "expected_wasm_row": {"점수": 72, "통과함": true}
+    },
+    {
+      "id": "c07_hook_tick_show",
+      "input": "cases/c07_hook_tick_show/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["1"],
+      "expected_cli_wasm_output_log_parity": true,
+      "expected_wasm_output_log_texts": ["1"],
+      "expected_parse_warning_codes": [],
+      "expected_wasm_row": {"t": 1}
+    },
+    {
+      "id": "c08_parse_warning_reassign",
+      "input": "cases/c08_parse_warning_reassign/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["1"],
+      "expected_cli_wasm_output_log_parity": true,
+      "expected_wasm_output_log_texts": ["1"],
+      "expected_parse_warning_codes": ["W_CHAEBI_REDUNDANT_TOP_REASSIGN"],
+      "expected_wasm_row": {"값": 1}
+    },
+    {
+      "id": "c09_boim_structured_view",
+      "input": "cases/c09_legacy_boim_reject/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [],
+      "expected_wasm_output_log_texts": [],
+      "expected_parse_warning_codes": [],
+      "expected_wasm_output_rows": [
+        {"key": "x축", "value": "1"},
+        {"key": "값", "value": "7"}
+      ],
+      "expected_wasm_value_json_keys": ["보개_출력_줄들", "보개_그래프_점목록_f"]
+    },
+    {
+      "id": "c10_setting_madi_count",
+      "input": "cases/c10_setting_madi_count/input.ddn",
+      "ticks": "configured",
+      "expected_configured_madi": 3,
+      "expected_cli_stdout": ["1", "2", "3"],
+      "expected_cli_wasm_output_log_parity": true,
+      "expected_cli_wasm_row_parity": true,
+      "expected_cli_wasm_value_json_keys": [],
+      "expected_wasm_output_log_texts": ["1", "2", "3"],
+      "expected_parse_warning_codes": [],
+      "expected_wasm_row": {"t": 3}
+    },
+    {
+      "id": "c11_show_and_boim_split",
+      "input": "cases/c11_show_and_boim_split/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": ["1"],
+      "expected_cli_wasm_output_log_parity": true,
+      "expected_cli_wasm_output_rows_parity": true,
+      "expected_cli_wasm_row_parity": true,
+      "expected_cli_wasm_value_json_keys": ["보개_출력_줄들", "보개_그래프_점목록_f"],
+      "expected_wasm_output_log_texts": ["1"],
+      "expected_parse_warning_codes": [],
+      "expected_wasm_output_rows": [
+        {"key": "x축", "value": "1"},
+        {"key": "값", "value": "1"}
+      ],
+      "expected_wasm_value_json_keys": ["보개_출력_줄들", "보개_그래프_점목록_f"],
+      "expected_wasm_row": {"t": 1}
+    },
+    {
+      "id": "c12_setting_madi_bad_value",
+      "input": "cases/c12_setting_madi_bad_value/input.ddn",
+      "expect_reject": true,
+      "expected_error_contains": ["E_SETTING_MADI_BAD_VALUE"]
+    },
+    {
+      "id": "c13_bogae_draw_madi_view_sugar",
+      "input": "cases/c13_bogae_draw_madi_view_sugar/input.ddn",
+      "ticks": "configured",
+      "expected_configured_madi": 4,
+      "expected_cli_stdout": [],
+      "expected_cli_wasm_output_rows_parity": true,
+      "expected_cli_wasm_row_parity": true,
+      "expected_cli_wasm_value_json_keys": ["보개_출력_줄들", "보개_그래프_점목록_f"],
+      "expected_wasm_output_log_texts": [],
+      "expected_parse_warning_codes": [],
+      "expected_wasm_output_rows": [
+        {"key": "x축", "value": "1"},
+        {"key": "값", "value": "1"},
+        {"key": "x축", "value": "2"},
+        {"key": "값", "value": "2"}
+      ],
+      "expected_wasm_value_json": {
+        "보개_그래프_점목록_f": [
+          {"x": 1, "y": 1},
+          {"x": 2, "y": 2},
+          {"x": 3, "y": 3},
+          {"x": 4, "y": 4}
+        ]
+      },
+      "expected_wasm_row": {"t": 4, "현재인덱스": 4}
+    }
+  ]
+}

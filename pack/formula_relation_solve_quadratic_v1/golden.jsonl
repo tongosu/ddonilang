@@ -1,0 +1,4 @@
+{"id":"c01_quadratic_single_root","cmd":["run","pack/formula_relation_solve_quadratic_v1/input_single_root.ddn"],"stdout":["#성공(미지수=\"x\", 값=2)"],"exit_code":0}
+{"id":"c02_quadratic_non_unique","cmd":["run","pack/formula_relation_solve_quadratic_v1/input_non_unique.ddn"],"stdout":["#실패(사유=\"non_unique\")"],"exit_code":0}
+{"id":"c03_quadratic_unsupported","cmd":["run","pack/formula_relation_solve_quadratic_v1/input_unsupported.ddn"],"stdout":["#실패(사유=\"unsupported\")"],"exit_code":0}
+

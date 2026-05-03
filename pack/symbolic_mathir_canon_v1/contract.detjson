@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.symbolic_mathir_canon.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_canon_polynomial"],
+  "target": "teul-cli symbolic canon"
+}
+

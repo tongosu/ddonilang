@@ -1,0 +1,2 @@
+{"id":"c01_linear_solution_consistency","cmd":["proof","verify","pack/proof_relation_solve_consistency_v1/fixtures/linear_solution.detjson"],"stdout":["proof_valid=true kind=relation_solve_consistency"],"exit_code":0}
+{"id":"c02_system_solution_consistency","cmd":["proof","verify","pack/proof_relation_solve_consistency_v1/fixtures/system_solution.detjson"],"stdout":["proof_valid=true kind=relation_solve_consistency"],"exit_code":0}

@@ -1,0 +1,3 @@
+{"id":"c01_cli_multivar_collect_terms","cmd":["symbolic","simplify","x*y + y*x + z"],"stdout":["2*x*y + z"],"exit_code":0}
+{"id":"c02_ddn_multivar_collect_terms","cmd":["run","pack/symbolic_multivar_polynomial_v1/input.ddn"],"stdout":["(#ascii) 수식{ 2*x*y + z }"],"exit_code":0}
+

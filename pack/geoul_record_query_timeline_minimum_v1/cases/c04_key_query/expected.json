@@ -1,0 +1,10 @@
+{
+  "case_id": "c04_key_query",
+  "command_kind": "query",
+  "stdout": [
+    "madi=3",
+    "key=점수",
+    "value=14",
+    "state_hash=blake3:a809f9010ae7bd8073d96a857a1749d928d8c0b8ebcfae024dfbd8a6b2addef3"
+  ]
+}

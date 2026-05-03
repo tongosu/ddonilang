@@ -1,0 +1,4 @@
+{"id":"c01_education_preview","cmd":["run","pack/benchmark_baseline_v1/c01_education_preview.ddn"],"stdout":["콘솔 보개 예제","23","15","8"],"exit_code":0}
+{"id":"c02_seamgrim_local_run","cmd":["run","pack/benchmark_baseline_v1/c02_seamgrim_local_run.ddn"],"stdout_path":"expected/c02_stdout.txt","exit_code":0}
+{"id":"c03_nurigym_million_step_baseline","cmd":["nurigym","run","pack/benchmark_baseline_v1/input.nurigym.json","--out","build/benchmark_baseline_v1_nurigym"],"stdout_path":"expected/c03_stdout.txt","exit_code":0}
+

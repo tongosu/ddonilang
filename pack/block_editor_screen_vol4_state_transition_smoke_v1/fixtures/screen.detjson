@@ -1,0 +1,7 @@
+{
+  "schema": "seamgrim.block_editor.screen.fixture.v1",
+  "title": "Vol4 State Transition",
+  "mode": "rpg",
+  "source_ddn": "fixtures/source.ddn"
+}
+

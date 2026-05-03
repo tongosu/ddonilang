@@ -1,0 +1,1 @@
+{"id":"c01_relation_equivalence","cmd":["proof","verify","pack/proof_relation_equivalence_v1/fixtures/relation_equivalence.detjson"],"stdout":["proof_valid=true kind=relation_equivalence"],"exit_code":0}

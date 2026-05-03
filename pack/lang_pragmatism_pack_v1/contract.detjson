@@ -1,0 +1,27 @@
+{
+  "schema": "ddn.lang_pragmatism.pack.contract.v1",
+  "evidence_tier": "golden_closed",
+  "closure_claim": "yes",
+  "evidence_targets": [
+    "pack/stdlib_range_basics/input.ddn",
+    "pack/stdlib_charim_basics/input.ddn",
+    "pack/stdlib_text_basics/input.ddn"
+  ],
+  "cases": [
+    {
+      "id": "c01_range_iteration",
+      "mode": "run",
+      "expect_ok": true
+    },
+    {
+      "id": "c02_charim_ops",
+      "mode": "run",
+      "expect_ok": true
+    },
+    {
+      "id": "c03_text_ops",
+      "mode": "run",
+      "expect_ok": true
+    }
+  ]
+}

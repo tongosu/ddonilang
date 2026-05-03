@@ -1,2 +1,2 @@
-python tests/run_pack_golden.py --update numeric_sized_variants_v1 numeric_type_pin_vs_constructor_v1 numeric_maegim_binding_v1
+python tests/run_pack_golden.py --update numeric_type_pin_vs_constructor_v1
 pack golden updated

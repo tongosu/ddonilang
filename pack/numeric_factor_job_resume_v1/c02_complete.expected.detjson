@@ -1,0 +1,47 @@
+{
+  "schema": "ddn.numeric.factor_result.v1",
+  "input": "7429",
+  "status": "done",
+  "canonical": "17 * 19 * 23",
+  "factors": [
+    {
+      "prime": "17",
+      "exponent": 1
+    },
+    {
+      "prime": "19",
+      "exponent": 1
+    },
+    {
+      "prime": "23",
+      "exponent": 1
+    }
+  ],
+  "route": "deterministic:trial-complete",
+  "certificate": {
+    "schema": "ddn.numeric.factor_certificate.v1",
+    "kind": "complete_trial_certificate",
+    "product_matches_input": true,
+    "prime_checks": [
+      {
+        "value": "17",
+        "method": "trial_division_complete",
+        "checked_divisors_through": "4",
+        "pass": true
+      },
+      {
+        "value": "19",
+        "method": "trial_division_complete",
+        "checked_divisors_through": "4",
+        "pass": true
+      },
+      {
+        "value": "23",
+        "method": "trial_division_complete",
+        "checked_divisors_through": "4",
+        "pass": true
+      }
+    ]
+  },
+  "job_hash": "sha256:135d72f8ba8485c07a6c75fba9474f811a91bf7b71e265ee2d12bb45e0daa1d3"
+}

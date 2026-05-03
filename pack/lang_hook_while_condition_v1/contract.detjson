@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.lang_hook_while_condition.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "semantics": [
+    "tail_phase_checkpoint",
+    "committed_state",
+    "per_madi_once",
+    "not_intra_tick_loop"
+  ],
+  "cases": [
+    {
+      "id": "c01_true_each_madi",
+      "expect_ok": true
+    },
+    {
+      "id": "c02_not_intra_tick_refire",
+      "expect_ok": true
+    }
+  ]
+}

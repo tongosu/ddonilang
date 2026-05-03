@@ -1,0 +1,5 @@
+rel1 <- ((#ascii) 수식{x + y}) =:= ((#ascii) 수식{5}).
+rel2 <- ((#ascii) 수식{x - y}) =:= ((#ascii) 수식{1}).
+rels <- (rel1, rel2) 차림.
+결과 <- (rels) 방정식풀기.
+결과 보여주기.

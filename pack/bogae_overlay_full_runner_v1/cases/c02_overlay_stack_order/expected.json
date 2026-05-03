@@ -1,0 +1,6 @@
+{
+  "case_id": "c02_overlay_stack_order",
+  "invariant": "overlay_stack_z_order",
+  "runner_mode": "overlay_session_case",
+  "runner_ref": "cases/c02_overlay_stack_order/case.detjson"
+}

@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.seamgrim_console_rich_markup.report.v1",
+  "ok": true,
+  "pack_id": "seamgrim_console_rich_markup_v1",
+  "plain_text": "경고!",
+  "console_grid_value": "경고!",
+  "raw_string_preserved": true,
+  "html_rich": true,
+  "unknown_markup_preserved": true,
+  "runtime_truth_owner": "string_value"
+}

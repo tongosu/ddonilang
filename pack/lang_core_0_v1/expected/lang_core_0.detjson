@@ -1,0 +1,16 @@
+{
+  "cli_minimal_stdout": [
+    "hello"
+  ],
+  "ok": true,
+  "schema": "ddn.roadmap_v2.lang_core_0.report.v1",
+  "surfaces": [
+    "채비",
+    "선언",
+    "보여주기",
+    "만약/아니면",
+    "고르기/모든 경우 다룸"
+  ],
+  "wasm_parity_pack": "pack/seamgrim_intro_exec_wasm_v1",
+  "wasm_parity_pass": true
+}

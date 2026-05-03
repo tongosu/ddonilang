@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.connect_subset_lowering.pack.contract.v1",
+  "pack_id": "connect_subset_lowering_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "target": "teul-cli run"
+}

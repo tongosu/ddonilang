@@ -1,0 +1,2 @@
+{"id":"c01_formula_bridge_runtime","cmd":["run","pack/symbolic_ddn_formula_bridge_v1/input.ddn"],"stdout":["(#ascii) 수식{ 2*x + 2 }","(#ascii) 수식{ x^2 + 2*x + 1 }","(#ascii) 수식{ (x - 1)*(x + 1) }","(#ascii) 수식{ 3*x^2 + 2 }","(#ascii) 수식{ x^2 }","참"],"exit_code":0}
+

@@ -1,0 +1,35 @@
+채비 {
+  g:수 <- 9.8.
+  L:수 <- 1.
+  theta0:수 <- 0.65.
+  omega0:수 <- 0.
+  damp:수 <- 0.02.
+  dt:수 <- 0.02.
+  t_max:수 <- 12.
+}.
+
+(시작)할때 {
+  t <- 0.
+  theta <- theta0.
+  omega <- omega0.
+}.
+
+(매마디)마다 {
+  { t <= t_max }인것 일때 {
+    alpha <- -(g / L) * ((theta) sin) - damp * omega.
+    omega <- omega + alpha * dt.
+    theta <- theta + omega * dt.
+
+    bob_x <- L * ((theta) sin).
+    bob_y <- -L * ((theta) cos).
+
+    모양 {
+      선(0, 0, bob_x, bob_y, 색="#94a3b8", 굵기=0.02).
+      원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
+      점(0, 0, 크기=0.045, 색="#f59e0b").
+    }.
+
+    t <- t + dt.
+  }.
+}.
+

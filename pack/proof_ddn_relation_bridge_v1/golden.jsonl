@@ -1,0 +1,1 @@
+{"id":"c01_relation_lowering_bridge","cmd":["run","pack/proof_ddn_relation_bridge_v1/input.ddn"],"stdout":["참","relation_equivalence","참","relation_solve_consistency","참"],"exit_code":0}

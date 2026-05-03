@@ -1,0 +1,5 @@
+{
+  "case_id": "c01_sealed_snapshot_allowed",
+  "mode": "sealed",
+  "rule": "snapshot_sealed"
+}

@@ -1,0 +1,1 @@
+{"id":"c01_connect_relation_bridge","cmd":["run","pack/connect_relation_bridge_v1/input.ddn"],"stdout":["#성공(미지수=\"x\", 값=2)","#성공(해=(x=3, y=2))"],"exit_code":0}

@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.symbolic_diff_integral.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_diff_polynomial", "c02_integrate_polynomial"],
+  "target": "teul-cli symbolic diff/integrate"
+}
+

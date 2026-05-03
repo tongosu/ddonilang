@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.lsp_followon_minimum.pack.contract.v1",
+  "pack_id": "lsp_followon_minimum_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "runner_checks": [
+    "tests/run_lsp_followon_minimum_pack_check.py"
+  ]
+}
+

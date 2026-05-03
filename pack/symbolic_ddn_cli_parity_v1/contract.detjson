@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.symbolic_ddn_cli_parity.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_expand_parity", "c02_diff_parity"],
+  "target": "teul-cli symbolic + run"
+}
+

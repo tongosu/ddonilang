@@ -1,0 +1,15 @@
+{
+  "case_id": "c01_flow_then_hook_snapshot",
+  "case_kind": "ok",
+  "ordering_contract": [
+    "ordinary_assignment",
+    "flow_fixed_point",
+    "tail_phase_hook"
+  ],
+  "after_tick_1": {
+    "입력": 5,
+    "흐름값": 10,
+    "훅실행": 1,
+    "결과": 10
+  }
+}

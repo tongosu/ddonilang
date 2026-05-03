@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.roadmap_v2.lang_core_0.contract.v1",
+  "pack_id": "lang_core_0_v1",
+  "surfaces": [
+    "채비",
+    "선언",
+    "보여주기",
+    "만약/아니면",
+    "고르기/모든 경우 다룸"
+  ],
+  "minimal_ddn": "채비 {\n  인사: 글 <- \"hello\".\n}.\n\n인사 보여주기.\n",
+  "expected_cli_stdout": [
+    "hello"
+  ],
+  "wasm_parity_pack": "pack/seamgrim_intro_exec_wasm_v1"
+}

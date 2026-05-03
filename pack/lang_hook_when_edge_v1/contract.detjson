@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.lang_hook_when_edge.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "semantics": [
+    "tail_phase_checkpoint",
+    "committed_state",
+    "per_madi_max_once",
+    "no_reentry"
+  ],
+  "cases": [
+    {
+      "id": "c01_false_true_edge_once",
+      "expect_ok": true
+    },
+    {
+      "id": "c02_same_madi_no_refire",
+      "expect_ok": true
+    }
+  ]
+}

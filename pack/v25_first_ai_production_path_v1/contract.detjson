@@ -1,0 +1,30 @@
+{
+  "schema": "ddn.v25_first_ai_production_path.pack.contract.v1",
+  "evidence_tier": "golden_closed",
+  "closure_claim": "yes",
+  "backing_runner_checks": [
+    "tests/run_pack_golden.py",
+    "tests/run_train_eval_provenance_check.py"
+  ],
+  "evidence_targets": [
+    "pack/nuri_gym_canon_contract_v1/out/geoul/manifest.detjson",
+    "pack/nuri_gym_canon_contract_v1/expected/dataset_hash.txt",
+    "pack/gogae8_w82_seulgi_train_v2/golden.jsonl",
+    "pack/gogae8_w87_eval_suite_v1/golden.jsonl",
+    "pack/model_artifact_inference_v1/golden.jsonl"
+  ],
+  "cases": [
+    {
+      "id": "c01_dataset_export",
+      "command_kind": "dataset_export"
+    },
+    {
+      "id": "c02_train_artifact",
+      "command_kind": "train"
+    },
+    {
+      "id": "c03_runtime_infer",
+      "command_kind": "infer"
+    }
+  ]
+}

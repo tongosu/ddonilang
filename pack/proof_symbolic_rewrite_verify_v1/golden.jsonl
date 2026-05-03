@@ -1,0 +1,2 @@
+{"id":"c01_rewrite_verify","cmd":["proof","verify","pack/proof_symbolic_rewrite_verify_v1/fixtures/rewrite.detjson"],"stdout":["proof_valid=true kind=symbolic_rewrite"],"exit_code":0}
+

@@ -1,0 +1,7 @@
+{
+  "case_id": "c01_reset_restores_start_snapshot",
+  "command_kind": "run",
+  "stdout": [
+    "7"
+  ]
+}

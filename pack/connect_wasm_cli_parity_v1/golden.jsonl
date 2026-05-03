@@ -1,0 +1,2 @@
+{"id":"c01_connect_relation_lowering","cmd":["run","pack/connect_wasm_cli_parity_v1/cases/c01_connect_relation_lowering/input.ddn"],"stdout":[],"exit_code":0}
+{"id":"c02_connect_relation_solve","cmd":["run","pack/connect_wasm_cli_parity_v1/cases/c02_connect_relation_solve/input.ddn"],"stdout":[],"exit_code":0}

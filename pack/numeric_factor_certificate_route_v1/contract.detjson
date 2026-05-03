@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.numeric_factor_certificate_route.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_factor_result_has_route_certificate"],
+  "target": "teul-cli numeric factor"
+}
+

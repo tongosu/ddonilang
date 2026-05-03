@@ -1,0 +1,2 @@
+{"id":"c01_returned_lambda_keeps_capture","cmd":["run","pack/lang_lambda_return_runtime_v1/input.ddn"],"stdout":["차림[10]"],"exit_code":0}
+

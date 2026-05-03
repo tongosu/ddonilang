@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.symbolic_multivar_polynomial.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_multivar_collect_terms"],
+  "target": "teul-cli symbolic + DDN bridge"
+}
+

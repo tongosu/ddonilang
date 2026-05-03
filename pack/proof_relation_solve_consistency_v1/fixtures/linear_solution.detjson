@@ -1,0 +1,18 @@
+{
+  "schema": "ddn.symbolic.relation_solve_consistency_certificate.v1",
+  "equations": [
+    {
+      "lhs": "2*x + 3",
+      "rhs": "7"
+    }
+  ],
+  "bindings": {
+    "x": {
+      "numerator": "2",
+      "denominator": "1"
+    }
+  },
+  "consistent": true,
+  "method": "mathir_relation_substitution",
+  "certificate_hash": "sha256:fixture"
+}

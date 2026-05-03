@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.lang_inline_lambda_function_pin.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "decision": "DR-beta B: function pin whole surface; stored/returned lambda excluded",
+  "cases": [
+    "c01_function_pin_extension",
+    "c02_stored_lambda_supported",
+    "c03_returned_lambda_supported"
+  ],
+  "target": "teul-cli run"
+}

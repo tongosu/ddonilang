@@ -1,0 +1,7 @@
+{
+  "case_id": "c01_active_pan_replay",
+  "command_kind": "run",
+  "stdout": [
+    "202"
+  ]
+}

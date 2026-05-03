@@ -1,0 +1,3 @@
+{"id":"c01_expand_square","cmd":["symbolic","expand","(x + 1)^2"],"stdout":["x^2 + 2*x + 1"],"exit_code":0}
+{"id":"c02_factor_difference_of_squares","cmd":["symbolic","factor","x^2 - 1"],"stdout":["(x - 1)*(x + 1)"],"exit_code":0}
+

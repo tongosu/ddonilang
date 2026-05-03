@@ -1,0 +1,13 @@
+{
+  "app_handoff_order": "load_lesson_enqueue_set_screen_execute",
+  "initial_layout_mode": "split",
+  "ok": true,
+  "output_row": {
+    "key": "인사",
+    "source": "fallback-line",
+    "value": "hello"
+  },
+  "post_execute_tab": "output",
+  "schema": "ddn.seamgrim.editor_run_handoff.report.v1",
+  "visual_idle_policy": "fixed_bogae_waiting_stage"
+}

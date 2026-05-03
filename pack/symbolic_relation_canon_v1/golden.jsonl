@@ -1,0 +1,1 @@
+{"id":"c01_relation_canonicalization","cmd":["run","pack/symbolic_relation_canon_v1/input.ddn"],"stdout":["x^2 + 2*x + 1","x^2 + 2*x + 1"],"exit_code":0}

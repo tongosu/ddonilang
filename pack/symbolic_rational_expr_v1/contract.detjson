@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.symbolic_rational_expr.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_exact_polynomial_division"],
+  "target": "teul-cli symbolic + DDN bridge"
+}
+

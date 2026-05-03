@@ -1,0 +1,52 @@
+{
+  "schema": "ddn.seamgrim.wasm_cli_runtime_parity.pack.contract.v1",
+  "pack_id": "lang_text_escape_v1",
+  "state_hash_policy": "report_only",
+  "cases": [
+    {
+      "id": "c01_hangul_escape_run",
+      "input": "cases/c01_hangul_escape_run/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "첫",
+        "둘",
+        "A\tB",
+        "그는 \"안녕\"",
+        "C\\D"
+      ]
+    },
+    {
+      "id": "c02_compat_escape_run",
+      "input": "cases/c02_compat_escape_run/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "첫",
+        "둘",
+        "A\tB",
+        "그는 \"안녕\"",
+        "C\\D"
+      ]
+    },
+    {
+      "id": "c03_rich_markup_preserved",
+      "input": "cases/c03_rich_markup_preserved/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [
+        "\\색{빨강}경고\\되돌림"
+      ]
+    },
+    {
+      "id": "c04_carriage_return_canon",
+      "input": "cases/c04_carriage_return_canon/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": []
+    }
+  ],
+  "invalid_cases": [
+    {
+      "id": "c05_unknown_escape_error",
+      "input": "cases/c05_unknown_escape_error/input.ddn",
+      "expected_error": "E_LEX_BAD_ESCAPE"
+    }
+  ]
+}

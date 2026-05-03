@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.seamgrim_console_rich_markup.contract.v1",
+  "pack_id": "seamgrim_console_rich_markup_v1",
+  "input": "input.ddn",
+  "expected_cli_stdout": [
+    "\\색{빨강}\\배경{노랑}\\반전경고\\반전끝\\굵게!\\굵게끝\\되돌림"
+  ],
+  "expected_plain_text": "경고!",
+  "expected_html_tokens": [
+    "#dc2626",
+    "font-weight:700",
+    ">경고<",
+    ">!<"
+  ],
+  "unknown_markup_plain_text": "\\색{분홍}원문"
+}

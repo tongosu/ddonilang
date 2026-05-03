@@ -1,0 +1,341 @@
+{
+  "canvas_children": 3,
+  "expr_summary": [
+    {
+      "exprs": {},
+      "id": "charim_block_0003",
+      "kind": "charim_block"
+    },
+    {
+      "exprs": {
+        "cond": {
+          "fields": {
+            "op": "gte"
+          },
+          "inputs": {
+            "left": [
+              {
+                "fields": {
+                  "path": "점수",
+                  "segments": "점수"
+                },
+                "inputs": {},
+                "kind": "path",
+                "text": "점수"
+              }
+            ],
+            "right": [
+              {
+                "fields": {
+                  "literal_kind": "num",
+                  "value": "70"
+                },
+                "inputs": {},
+                "kind": "literal",
+                "text": "70"
+              }
+            ]
+          },
+          "kind": "binary",
+          "text": "점수 >= 70"
+        }
+      },
+      "id": "if_else_0006",
+      "kind": "if_else"
+    },
+    {
+      "exprs": {},
+      "id": "choose_exhaustive_0011",
+      "kind": "choose_exhaustive"
+    }
+  ],
+  "generated_preview": "채비 {\n  점수:셈수 <- 72.\n\n  판정:글 <- \"\".\n}.\n\n만약 점수 >= 70 이라면 {\n  판정 <- \"통과\".\n} 아니면 {\n  판정 <- \"보충\".\n}.\n\n고르기:\n  판정 == \"통과\": {\n    판정 보여주기.\n  }\n\n  판정 == \"보충\": {\n    판정 보여주기.\n  }\n  모든 경우 다룸.",
+  "palette_children": 40,
+  "result_text": "mode=seamgrim blocks=3 errors=0 · ok",
+  "run_calls": [
+    {
+      "ddnText": "채비 {\n  점수:셈수 <- 72.\n\n  판정:글 <- \"\".\n}.\n\n만약 점수 >= 70 이라면 {\n  판정 <- \"통과\".\n} 아니면 {\n  판정 <- \"보충\".\n}.\n\n고르기:\n  판정 == \"통과\": {\n    판정 보여주기.\n  }\n\n  판정 == \"보충\": {\n    판정 보여주기.\n  }\n  모든 경우 다룸.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "라-1 입문 실행 Rail"
+      }
+    }
+  ],
+  "schema": "seamgrim.web.block_editor_screen_smoke.v1",
+  "screen_summary": {
+    "block_count": 3,
+    "canvas_summary": {
+      "block_count": 3,
+      "block_ids": [
+        "charim_block_0003",
+        "if_else_0006",
+        "choose_exhaustive_0011"
+      ],
+      "block_kinds": [
+        "charim_block",
+        "if_else",
+        "choose_exhaustive"
+      ],
+      "expr_nodes": [
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "72"
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"\""
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "점수 >= 70"
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "점수"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "70"
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"통과\""
+        },
+        {
+          "depth": 0,
+          "kind": "literal",
+          "text": "\"보충\""
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "판정 == \"통과\""
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "판정"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "\"통과\""
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "판정"
+        },
+        {
+          "depth": 0,
+          "kind": "binary",
+          "text": "판정 == \"보충\""
+        },
+        {
+          "depth": 1,
+          "kind": "path",
+          "text": "판정"
+        },
+        {
+          "depth": 1,
+          "kind": "literal",
+          "text": "\"보충\""
+        },
+        {
+          "depth": 0,
+          "kind": "path",
+          "text": "판정"
+        }
+      ],
+      "nested_blocks": [
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "charim_block_0003",
+          "kind": "charim_block"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "charim_item_var_0001",
+          "kind": "charim_item_var"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "charim_item_var_0002",
+          "kind": "charim_item_var"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "if_else_0006",
+          "kind": "if_else"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "assign_0005",
+          "kind": "assign"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "value"
+          ],
+          "expr_kinds": [
+            "literal"
+          ],
+          "id": "assign_0004",
+          "kind": "assign"
+        },
+        {
+          "depth": 0,
+          "expr_keys": [],
+          "expr_kinds": [],
+          "id": "choose_exhaustive_0011",
+          "kind": "choose_exhaustive"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "choose_branch_0008",
+          "kind": "choose_branch"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "path"
+          ],
+          "id": "show_0007",
+          "kind": "show"
+        },
+        {
+          "depth": 1,
+          "expr_keys": [
+            "cond"
+          ],
+          "expr_kinds": [
+            "binary",
+            "path",
+            "literal"
+          ],
+          "id": "choose_branch_0010",
+          "kind": "choose_branch"
+        },
+        {
+          "depth": 2,
+          "expr_keys": [
+            "expr"
+          ],
+          "expr_kinds": [
+            "path"
+          ],
+          "id": "show_0009",
+          "kind": "show"
+        }
+      ],
+      "total_block_count": 11,
+      "total_expr_count": 15
+    },
+    "error_count": 0,
+    "generated_length": 181,
+    "mode": "seamgrim",
+    "palette_summary": {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_const_step",
+        "charim_item_const_split",
+        "charim_item_var",
+        "charim_item_plain",
+        "seed_def",
+        "hook_start",
+        "hook_tick",
+        "repeat",
+        "for_each",
+        "open_block",
+        "break_loop",
+        "assign",
+        "if_then",
+        "if_else",
+        "while_block",
+        "contract_guard",
+        "choose_branch",
+        "choose_else",
+        "choose_exhaustive",
+        "receive_block",
+        "event_react",
+        "send_signal",
+        "return_value",
+        "expr_stmt",
+        "exec_policy_block",
+        "jjaim_block",
+        "prompt_block",
+        "prompt_after",
+        "prompt_condition",
+        "prompt_choose",
+        "show",
+        "inspect_value",
+        "bogae_draw",
+        "bogae_madang_block"
+      ],
+      "category_count": 5,
+      "category_ids": [
+        "charim",
+        "flow",
+        "logic",
+        "prompt",
+        "output"
+      ]
+    }
+  },
+  "summary_text": "mode=seamgrim blocks=3 errors=0",
+  "text_mode_calls": [
+    {
+      "ddnText": "채비 {\n  점수:셈수 <- 72.\n\n  판정:글 <- \"\".\n}.\n\n만약 점수 >= 70 이라면 {\n  판정 <- \"통과\".\n} 아니면 {\n  판정 <- \"보충\".\n}.\n\n고르기:\n  판정 == \"통과\": {\n    판정 보여주기.\n  }\n\n  판정 == \"보충\": {\n    판정 보여주기.\n  }\n  모든 경우 다룸.",
+      "meta": {
+        "mode": "seamgrim",
+        "title": "라-1 입문 실행 Rail"
+      }
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{"id":"c01_stored_lambda_reuse","cmd":["run","pack/lang_lambda_store_runtime_v1/input.ddn"],"stdout":["차림[8, 12]"],"exit_code":0}
+

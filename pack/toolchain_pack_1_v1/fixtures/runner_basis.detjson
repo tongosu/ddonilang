@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.roadmap_v2.pack_runner_basis_contract.v1",
+  "golden_runner": "tests/run_pack_golden.py",
+  "golden_pack": "lang_maegim_smoke_v1",
+  "individual_checkers": [
+    "tests/run_seamgrim_malblock_design_check.py",
+    "tests/run_lang_core_1_check.py",
+    "tests/run_seamgrim_malblock_codegen_check.py"
+  ]
+}

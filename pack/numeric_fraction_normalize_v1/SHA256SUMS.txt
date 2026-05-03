@@ -1,0 +1,2 @@
+sha256:a4c98378bb0840a19485f2720c9c2f26d04bec39832bc2f8358e21d556e37e19  c01_fraction_normalize.expected.txt
+sha256:bfcb47b89202f20acca26c2263ae8e3ba3430fbc65618b13aff09193fba76001  golden.jsonl

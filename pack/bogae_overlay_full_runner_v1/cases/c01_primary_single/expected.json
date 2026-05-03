@@ -1,0 +1,6 @@
+{
+  "case_id": "c01_primary_single",
+  "invariant": "primary_1",
+  "runner_mode": "overlay_compare_case",
+  "runner_ref": "cases/c01_primary_single/case.detjson"
+}

@@ -1,0 +1,2 @@
+{"id":"c01_bridge_surface","cmd":["run","pack/relation_solve_ddn_bridge_v1/input.ddn"],"stdout":["#성공(미지수=\"x\", 값=2)","#실패(사유=\"non_unique\")"],"exit_code":0}
+

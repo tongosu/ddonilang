@@ -1,0 +1,37 @@
+{
+  "schema": "ddn.connect_wasm_cli_parity.pack.contract.v1",
+  "pack_id": "connect_wasm_cli_parity_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "oracle": "teul-cli",
+  "product_path": "wasm/seamgrim",
+  "state_hash_policy": "report_only",
+  "cases": [
+    {
+      "id": "c01_connect_relation_lowering",
+      "input": "cases/c01_connect_relation_lowering/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [],
+      "expected_wasm_pack_fields": {
+        "rel.__관계종류": "방정식",
+        "rel.왼쪽.raw": "2*x + 3",
+        "rel.오른쪽.raw": "7",
+        "direct.__관계종류": "방정식",
+        "direct.왼쪽.raw": "2*x + 3",
+        "direct.오른쪽.raw": "7"
+      }
+    },
+    {
+      "id": "c02_connect_relation_solve",
+      "input": "cases/c02_connect_relation_solve/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [],
+      "expected_wasm_pack_fields": {
+        "결과.__풀이결과종류": "성공",
+        "결과.미지수": "x",
+        "결과.값.__수타입": "큰바른수",
+        "결과.값.값": "2"
+      }
+    }
+  ]
+}

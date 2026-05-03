@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.proof_tactic_rewrite_chain.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_rewrite_chain"],
+  "target": "teul-cli proof rewrite-chain"
+}
+

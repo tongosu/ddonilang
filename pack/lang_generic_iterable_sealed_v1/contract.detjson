@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.lang_generic_iterable_sealed.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "evidence_targets": [
+    "pack/stdlib_charim_basics/input.ddn",
+    "tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn"
+  ],
+  "cases": [
+    {
+      "id": "c01_sealed_snapshot_allowed",
+      "mode": "sealed",
+      "runner_target": "pack/stdlib_charim_basics/input.ddn"
+    },
+    {
+      "id": "c02_open_not_auto_allowed",
+      "mode": "open",
+      "runner_target": "tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn"
+    }
+  ]
+}

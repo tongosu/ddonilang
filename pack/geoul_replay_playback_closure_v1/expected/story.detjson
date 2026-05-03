@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "summary": "frames=5",
+  "scenes": [
+    {"t0": 0, "t1": 4, "kind": "summary", "text": "frames=5"}
+  ],
+  "suggested_intents": [
+    {"agent_id": 1, "recv_seq": 1, "intent": {"kind": "말하기", "text": "frames=5"}}
+  ]
+}

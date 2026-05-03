@@ -1,0 +1,1 @@
+{"id":"c01_hook_template_surface","cmd":["canon","pack/lsp_followon_minimum_v1/input.ddn"],"stdout":["채비 {","  값 <- 0.","}.","(시작)할때 {","  합 <- 값.","}.","(매마디)마다 {","  값 <- 값 + 1.","}."],"exit_code":0}

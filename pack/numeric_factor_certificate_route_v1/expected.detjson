@@ -1,0 +1,37 @@
+{
+  "schema": "ddn.numeric.factor_result.v1",
+  "input": "91",
+  "status": "done",
+  "canonical": "7 * 13",
+  "factors": [
+    {
+      "prime": "7",
+      "exponent": 1
+    },
+    {
+      "prime": "13",
+      "exponent": 1
+    }
+  ],
+  "route": "deterministic:trial-complete",
+  "certificate": {
+    "schema": "ddn.numeric.factor_certificate.v1",
+    "kind": "complete_trial_certificate",
+    "product_matches_input": true,
+    "prime_checks": [
+      {
+        "value": "7",
+        "method": "trial_division_complete",
+        "checked_divisors_through": "2",
+        "pass": true
+      },
+      {
+        "value": "13",
+        "method": "trial_division_complete",
+        "checked_divisors_through": "3",
+        "pass": true
+      }
+    ]
+  },
+  "job_hash": "sha256:992c2ac6148efcf2761d478ba3925a90be5fff179bec403e9102ab87b169b906"
+}

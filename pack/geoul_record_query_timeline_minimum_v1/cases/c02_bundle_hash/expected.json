@@ -1,0 +1,7 @@
+{
+  "case_id": "c02_bundle_hash",
+  "command_kind": "hash",
+  "stdout": [
+    "audit_hash=blake3:52c34bfa9e6864f50986cd44510b2806ca6b5b5bf0a5ec65145e8aa78ccabd41"
+  ]
+}

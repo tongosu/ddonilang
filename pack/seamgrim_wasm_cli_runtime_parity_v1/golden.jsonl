@@ -1,0 +1,5 @@
+{"id":"c01_console_grid_scalar","cmd":["run","pack/seamgrim_wasm_cli_runtime_parity_v1/cases/c01_console_grid_scalar/input.ddn"],"stdout":["콘솔 보개 예제","23","15","8"],"exit_code":0}
+{"id":"c02_moyang_space2d","cmd":["run","pack/seamgrim_wasm_cli_runtime_parity_v1/cases/c02_moyang_space2d/input.ddn"],"stdout":["space2d","space2d.shape","line","x1","0","y1","0","x2","0.6032961308","y2","-0.7975172596","stroke","#94a3b8","width","0.0199999997","space2d.shape","circle","x","0.6032961308","y","-0.7975172596","r","0.0799999998","fill","#38bdf8","stroke","#0ea5e9","width","0.0199999997","0"],"exit_code":0}
+{"id":"c03_symbolic_simplify","cmd":["run","pack/seamgrim_wasm_cli_runtime_parity_v1/cases/c03_symbolic_simplify/input.ddn"],"stdout":["(#ascii) 수식{ x^2 + 2*x + 1 }","(#ascii) 수식{ x + 1 }"],"exit_code":0}
+{"id":"c04_proof_tactic_equivalence","cmd":["run","pack/seamgrim_wasm_cli_runtime_parity_v1/cases/c04_proof_tactic_equivalence/input.ddn"],"stdout":["참"],"exit_code":0}
+{"id":"c05_lambda_store","cmd":["run","pack/seamgrim_wasm_cli_runtime_parity_v1/cases/c05_lambda_store/input.ddn"],"stdout":["차림[10]"],"exit_code":0}

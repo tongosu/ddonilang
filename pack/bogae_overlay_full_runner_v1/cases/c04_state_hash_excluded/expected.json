@@ -1,0 +1,6 @@
+{
+  "case_id": "c04_state_hash_excluded",
+  "invariant": "view_only_state_hash_excluded",
+  "runner_mode": "smoke_golden",
+  "runner_ref": "smoke_with_view_boundary.v1.json"
+}

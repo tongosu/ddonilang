@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update numeric_display_policy_v1
+pack golden updated

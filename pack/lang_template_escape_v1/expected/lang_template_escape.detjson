@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.lang_template_escape.report.v1",
+  "ok": true,
+  "pack_id": "lang_template_escape_v1",
+  "valid_case_count": 1,
+  "invalid_case_count": 2,
+  "template_escape_policy": {
+    "hangul_escape_input": true,
+    "literal_brace_escape": "{{ }}",
+    "placeholder_required": true
+  }
+}

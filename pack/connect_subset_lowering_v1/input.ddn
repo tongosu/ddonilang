@@ -1,0 +1,5 @@
+rel <- ((#ascii) 수식{2*x + 3}, (#ascii) 수식{7}) 잇기.
+direct <- ((#ascii) 수식{2*x + 3}) =:= ((#ascii) 수식{7}).
+
+rel 보여주기.
+direct 보여주기.

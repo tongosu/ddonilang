@@ -1,0 +1,8 @@
+{
+  "case_id": "c02_reset_all_restores_live_input_snapshot",
+  "command_kind": "run",
+  "stdout": [
+    "0",
+    "1"
+  ]
+}

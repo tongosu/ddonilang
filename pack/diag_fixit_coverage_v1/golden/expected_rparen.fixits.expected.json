@@ -3,10 +3,10 @@
     "code": "E_PARSE_EXPECTED_RPAREN",
     "message": "E_PARSE_EXPECTED_RPAREN fix-it 제안",
     "span": {
-      "end_col": 15,
+      "end_col": 12,
       "end_line": 1,
       "file": "input_expected_rparen.ddn",
-      "start_col": 15,
+      "start_col": 12,
       "start_line": 1
     },
     "suggestion": {

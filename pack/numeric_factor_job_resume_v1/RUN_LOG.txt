@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update numeric_factor_kernel_unbounded_v1 numeric_factor_job_resume_v1 numeric_exact_universe_v1
+pack golden updated

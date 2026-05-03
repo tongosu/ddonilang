@@ -1,0 +1,12 @@
+{
+  "case_id": "c01_record_check",
+  "command_kind": "record_check",
+  "stdout": [
+    "schema=geoul.record.v0",
+    "step_count=2",
+    "first_step=0",
+    "last_step=1",
+    "first_state_hash=blake3:aaa",
+    "last_state_hash=blake3:bbb"
+  ]
+}

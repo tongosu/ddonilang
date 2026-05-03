@@ -1,0 +1,7 @@
+{
+  "case_id": "c07_timeline_make",
+  "command_kind": "timeline_make",
+  "stdout": [
+    "timeline_written=build/tmp/geoul_timeline.detjson"
+  ]
+}

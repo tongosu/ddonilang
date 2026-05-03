@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.seamgrim_view_only_state_hash_invariant.pack.contract.v1",
+  "pack_id": "view_only_switch_no_statehash_change_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "runner_checks": [
+    "tests/run_seamgrim_view_only_state_hash_invariant_check.py"
+  ]
+}
+

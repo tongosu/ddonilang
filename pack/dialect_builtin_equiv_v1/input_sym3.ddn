@@ -1,10 +1,10 @@
-살림.x <- -9.
-살림.abs <- (살림.x) abs.
-살림.max <- (살림.abs, 5) max.
-살림.min <- (살림.abs, 5) min.
-살림.항목 <- ("a", "b", "c") 차림.
-살림.len <- (살림.항목) 길이세기.
+x <- -9.
+abs <- (x) abs.
+max <- (abs, 5) max.
+min <- (abs, 5) min.
+항목 <- ("a", "b", "c") 차림.
+len <- (항목) 길이세기.
 { 참 } 인것 ?=> {
-    살림.out <- 살림.abs + 살림.max + 살림.min + 살림.len.
+    out <- abs + max + min + len.
 }
-살림.out 보여주기.
+out 보여주기.

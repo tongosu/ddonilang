@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.lang_core_1_cases.v1",
+  "cases": [
+    {
+      "id": "charim_show",
+      "source": "채비 {\n  점수: 셈수 <- 72.\n}.\n\n점수 보여주기.\n",
+      "expected_stdout_contains": ["72"],
+      "expected_canon_contains": ["채비", "점수", "보여주기"]
+    },
+    {
+      "id": "if_current_line",
+      "source": "채비 {\n  점수: 셈수 <- 72.\n  판정: 글 <- \"\".\n}.\n\n만약 점수 >= 70 이라면 {\n  판정 <- \"통과\".\n}.\n아니면 {\n  판정 <- \"보충\".\n}.\n\n판정 보여주기.\n",
+      "expected_stdout_contains": ["통과"],
+      "expected_canon_contains": ["만약", "이라면", "아니면"]
+    },
+    {
+      "id": "choose_exhaustive",
+      "source": "채비 {\n  x: 셈수 <- 1.\n}.\n\n고르기:\n  x < 10 인 경우 {\n    \"작음\" 보여주기.\n  }\n  모든 경우 다룸.\n",
+      "expected_stdout_contains": ["작음"],
+      "expected_canon_contains": ["고르기", "모든 경우 다룸"]
+    }
+  ]
+}

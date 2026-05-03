@@ -1,0 +1,2 @@
+{"cmd": ["numeric", "factor", "7429", "--mode", "step", "--budget-ops", "1"], "stdout_path": "c01_low_budget_step.expected.detjson", "exit_code": 0}
+{"cmd": ["numeric", "factor", "7429", "--mode", "complete"], "stdout_path": "c02_complete.expected.detjson", "exit_code": 0}

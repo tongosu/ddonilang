@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.benchmark_baseline.pack.contract.v1",
+  "pack_id": "benchmark_baseline_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "axes": [
+    "education_preview",
+    "seamgrim_local_run",
+    "nurigym_million_step_baseline"
+  ],
+  "report_schema": "seamgrim.ci_gate.worker_benchmark.v1"
+}
+

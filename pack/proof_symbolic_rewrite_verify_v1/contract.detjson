@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.proof_symbolic_rewrite_verify.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_rewrite_verify"],
+  "target": "teul-cli proof verify"
+}
+

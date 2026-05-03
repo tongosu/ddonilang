@@ -1,0 +1,4 @@
+{"id":"c01_hooks_continue_not_open_world","cmd":["run","pack/lang_continue_skip_v1/c01_foreach_skip_ok/input.ddn"],"stdout":["4"],"exit_code":0}
+{"id":"c02_iterable_not_auto_open","cmd":["run","tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn"],"expected_error_code":"E_RUNTIME_TYPE_MISMATCH","exit_code":1}
+{"id":"c03_overlay_view_only_not_state_hash","smoke_golden":"smoke_with_view_boundary.v1.json","exit_code":0}
+{"id":"c04_ai_model_kind_infer_only","cmd":["infer","mlp","pack/gogae8_w85_ondevice_infer_v1/model.detjson","pack/gogae8_w85_ondevice_infer_v1/input.detjson","--out","build/tmp/ai_det_matrix_infer_minimum"],"stdout":["{\"schema\":\"seulgi.infer_output.v1\",\"model_hash\":\"blake3:1391c84a4d985d4f30cfd3b34d7042b7c51e31e82b2f2f5944c822ad9d71e8bd\",\"output\":[-9]}"],"exit_code":0}

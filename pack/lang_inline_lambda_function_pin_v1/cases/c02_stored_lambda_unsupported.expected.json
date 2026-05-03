@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.lang_inline_lambda_function_pin.expected.v1",
+  "case": "c02_stored_lambda_unsupported",
+  "status": "unsupported",
+  "diag": "E_INLINE_LAMBDA_STORED_UNSUPPORTED"
+}
+

@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.relation_solve_ddn_bridge.pack.contract.v1",
+  "pack_id": "relation_solve_ddn_bridge_v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_bridge_surface"],
+  "target": "teul-cli run"
+}
+

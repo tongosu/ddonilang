@@ -74,7 +74,7 @@
         "col": 3,
         "kind": "proof_check",
         "line": 10,
-        "target": "살림.거리_0이상"
+        "target": "거리_0이상"
       },
       {
         "binder": "y",

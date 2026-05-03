@@ -1,0 +1,4 @@
+# block_editor_screen_vol4_state_transition_smoke_v1
+
+- 목적: 또니랑 4권 bounded state-transition representative source가 block editor screen에서 decode/encode 가능한지 고정한다.
+

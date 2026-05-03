@@ -1,0 +1,2 @@
+sha256:f1574fefc797dfcdbc88d4d0d2bddb1ee5bc6dde3734e0ac63b9a529fcf27242  c01_exact_promotion.expected.txt
+sha256:226a105b014c1530803fdb6b72fce51e950f73d605a30517f9f616a9f569197a  golden.jsonl

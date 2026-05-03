@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.roadmap_v2.bogae_graph_prefix.contract.v1",
+  "pack_id": "bogae_graph_prefix_v1",
+  "goal": "그래프 prefix resource를 view layer graph로 읽고 runtime truth/state_hash 소유권으로 승격하지 않는다.",
+  "expected_series_count": 2,
+  "expected_primary_points": 3,
+  "expected_secondary_points": 2
+}

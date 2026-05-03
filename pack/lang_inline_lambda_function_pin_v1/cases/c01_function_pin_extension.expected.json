@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.lang_inline_lambda_function_pin.expected.v1",
+  "case": "c01_function_pin_extension",
+  "status": "planned",
+  "contract": "inline lambda literal may bind to any function-pin argument after DR-beta implementation"
+}
+

@@ -1,0 +1,2 @@
+{"id":"c01_factor_certificate","cmd":["proof","verify","pack/proof_numeric_certificate_verify_v1/fixtures/factor.detjson"],"stdout":["proof_valid=true kind=numeric_factor"],"exit_code":0}
+

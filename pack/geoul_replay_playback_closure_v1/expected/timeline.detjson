@@ -1,0 +1,12 @@
+{
+  "frames": 5,
+  "items": [
+    {
+      "kind": "summary",
+      "t0": 0,
+      "t1": 4,
+      "text": "frames=5"
+    }
+  ],
+  "version": 1
+}

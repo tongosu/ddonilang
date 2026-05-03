@@ -5,6 +5,8 @@
   "observation_keys": [
     "섭씨안내",
     "화씨안내",
+    "b",
+    "T0",
     "temp_c"
   ],
   "observation_temperature_strings": {

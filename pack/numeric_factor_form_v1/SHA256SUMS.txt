@@ -1,0 +1,2 @@
+sha256:fcffaa925cbc874dce30ad824164f46096c42fa839d319331868bb8f3f23cd8b  c01_factor_form_ops.expected.txt
+sha256:a5642861c903d7af638f50e15df0c2b90dd99af1834365cb7125f3bcf78e0528  golden.jsonl

@@ -1,0 +1,2 @@
+{"id":"c01_canon_polynomial","cmd":["symbolic","canon","x + x + 2"],"stdout":["2*x + 2"],"exit_code":0}
+

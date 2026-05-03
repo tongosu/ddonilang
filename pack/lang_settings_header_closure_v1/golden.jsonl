@@ -1,0 +1,3 @@
+{"id":"c01_settings_header_stripped","cmd":["canon","pack/lang_settings_header_closure_v1/input.ddn"],"stdout":["x <- 1."],"exit_code":0}
+{"id":"c02_legacy_boim_forbidden","cmd":["canon","pack/lang_settings_header_closure_v1/legacy_boim.ddn"],"expected_error_code":"E_CANON_LEGACY_BOIM_FORBIDDEN","exit_code":1}
+

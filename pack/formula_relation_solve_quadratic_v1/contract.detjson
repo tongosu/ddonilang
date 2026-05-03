@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.formula_relation_solve_quadratic.pack.contract.v1",
+  "pack_id": "formula_relation_solve_quadratic_v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": [
+    "c01_quadratic_single_root",
+    "c02_quadratic_non_unique",
+    "c03_quadratic_unsupported"
+  ],
+  "target": "teul-cli run"
+}
+

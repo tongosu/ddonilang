@@ -1,0 +1,2 @@
+{"id":"c01_false_true_edge_once","cmd":["run","pack/lang_hook_when_edge_v1/c01_false_true_edge_once/input.ddn","--madi","4"],"stdout":["1"],"exit_code":0}
+{"id":"c02_same_madi_no_refire","cmd":["run","pack/lang_hook_when_edge_v1/c02_same_madi_no_refire/input.ddn","--madi","3"],"stdout":["1"],"exit_code":0}

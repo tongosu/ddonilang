@@ -1,0 +1,4 @@
+{
+  "case_id": "c03_deterministic_exhaustion_required",
+  "rule": "deterministic_exhaustion_required"
+}

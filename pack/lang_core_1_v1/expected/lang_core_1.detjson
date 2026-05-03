@@ -1,0 +1,37 @@
+{
+  "cases": [
+    {
+      "canon_contains": [
+        "채비",
+        "점수",
+        "보여주기"
+      ],
+      "id": "charim_show",
+      "run_stdout_contains": [
+        "72"
+      ]
+    },
+    {
+      "canon_contains": [
+        "만약",
+        "이라면",
+        "아니면"
+      ],
+      "id": "if_current_line",
+      "run_stdout_contains": [
+        "통과"
+      ]
+    },
+    {
+      "canon_contains": [
+        "고르기",
+        "모든 경우 다룸"
+      ],
+      "id": "choose_exhaustive",
+      "run_stdout_contains": [
+        "작음"
+      ]
+    }
+  ],
+  "schema": "ddn.lang_core_1_report.v1"
+}

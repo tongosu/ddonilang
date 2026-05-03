@@ -1,0 +1,5 @@
+{
+  "case_id": "c05_state_view_boundary",
+  "command_kind": "smoke_golden",
+  "target": "smoke_with_view_boundary.v1.json"
+}

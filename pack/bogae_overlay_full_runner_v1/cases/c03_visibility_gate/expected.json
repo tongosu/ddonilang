@@ -1,0 +1,6 @@
+{
+  "case_id": "c03_visibility_gate",
+  "invariant": "visibility",
+  "runner_mode": "overlay_session_case",
+  "runner_ref": "cases/c03_visibility_gate/case.detjson"
+}

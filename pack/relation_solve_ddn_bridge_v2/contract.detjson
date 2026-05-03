@@ -1,0 +1,52 @@
+{
+  "schema": "ddn.relation_solve_ddn_bridge.v2.pack.contract.v1",
+  "pack_id": "relation_solve_ddn_bridge_v2",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "target": "teul-cli run",
+  "parity_rails": [
+    "direct_formula_bridge",
+    "cli_tool_wasm"
+  ],
+  "representative_rows": [
+    {
+      "id": "c01_quadratic_success",
+      "input": "input_quadratic_success.ddn",
+      "expected_surface": "#성공(미지수=\"x\", 값=2)",
+      "unsupported_reason": null,
+      "parity_source": [
+        "direct_formula_bridge",
+        "cli_tool_wasm"
+      ]
+    },
+    {
+      "id": "c02_system_2x2_success",
+      "input": "input_system_2x2_success.ddn",
+      "expected_surface": "#성공(해=(x=3, y=2))",
+      "unsupported_reason": null,
+      "parity_source": [
+        "direct_formula_bridge",
+        "cli_tool_wasm"
+      ]
+    },
+    {
+      "id": "c03_unsupported_higher_degree",
+      "input": "input_unsupported_higher_degree.ddn",
+      "expected_surface": "#실패(사유=\"unsupported\")",
+      "unsupported_reason": "higher_degree",
+      "parity_source": [
+        "cli_tool_wasm"
+      ]
+    },
+    {
+      "id": "c04_unsupported_quadratic",
+      "input": "input_unsupported_quadratic.ddn",
+      "expected_surface": "#실패(사유=\"unsupported\")",
+      "unsupported_reason": "unsupported_quadratic",
+      "parity_source": [
+        "direct_formula_bridge",
+        "cli_tool_wasm"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{"id":"c01_single_context_tag_ok","cmd":["check","pack/lang_tag_context_uniqueness_v1/cases/c01_single_context_tag_ok.ddn"],"stdout":[],"exit_code":0}
+{"id":"c02_same_context_duplicate_reject","cmd":["check","pack/lang_tag_context_uniqueness_v1/cases/c02_same_context_duplicate_reject.ddn"],"expected_error_code":"E_TAG_DUPLICATE_IN_CONTEXT","exit_code":1}

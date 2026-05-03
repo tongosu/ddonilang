@@ -1,0 +1,79 @@
+{
+  "schema": "ddn.seamgrim_intro_exec_blocky_cases.v1",
+  "cases": [
+    {
+      "id": "c01_hello_show",
+      "expected_stdout": [
+        "hello"
+      ],
+      "required_block_kinds": [
+        "charim_block",
+        "charim_item_plain",
+        "show"
+      ]
+    },
+    {
+      "id": "c02_assign_update",
+      "expected_stdout": [
+        "15"
+      ],
+      "required_block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "assign",
+        "show"
+      ]
+    },
+    {
+      "id": "c03_if_else",
+      "expected_stdout": [
+        "통과"
+      ],
+      "required_block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "if_else",
+        "assign",
+        "show"
+      ]
+    },
+    {
+      "id": "c04_choose_exhaustive",
+      "expected_stdout": [
+        "통과"
+      ],
+      "required_block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "choose_exhaustive",
+        "choose_branch",
+        "show"
+      ]
+    },
+    {
+      "id": "c05_intro_combined",
+      "expected_stdout": [
+        "통과"
+      ],
+      "required_block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "if_else",
+        "assign",
+        "choose_exhaustive",
+        "choose_branch",
+        "show"
+      ]
+    }
+  ],
+  "required_palette_kinds": [
+    "charim_block",
+    "charim_item_var",
+    "charim_item_plain",
+    "assign",
+    "if_else",
+    "choose_exhaustive",
+    "choose_branch",
+    "show"
+  ]
+}

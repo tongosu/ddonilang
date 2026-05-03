@@ -1,0 +1,26 @@
+{
+  "schema": "ddn.symbolic.relation_solve_consistency_certificate.v1",
+  "equations": [
+    {
+      "lhs": "x + y",
+      "rhs": "5"
+    },
+    {
+      "lhs": "x - y",
+      "rhs": "1"
+    }
+  ],
+  "bindings": {
+    "x": {
+      "numerator": "3",
+      "denominator": "1"
+    },
+    "y": {
+      "numerator": "2",
+      "denominator": "1"
+    }
+  },
+  "consistent": true,
+  "method": "mathir_relation_substitution",
+  "certificate_hash": "sha256:fixture"
+}

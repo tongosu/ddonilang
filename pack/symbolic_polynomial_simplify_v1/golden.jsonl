@@ -1,0 +1,2 @@
+{"id":"c01_collect_like_terms","cmd":["symbolic","simplify","x + x + 2"],"stdout":["2*x + 2"],"exit_code":0}
+

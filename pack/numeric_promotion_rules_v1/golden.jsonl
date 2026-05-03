@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/numeric_promotion_rules_v1/c01_exact_promotion.ddn"], "stdout_path": "c01_exact_promotion.expected.txt", "exit_code": 0}

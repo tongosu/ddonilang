@@ -1,0 +1,25 @@
+{
+  "schema": "ddn.seamgrim_malblock_design_contract.v1",
+  "canonical_truth": "ddn_source",
+  "block_representation": "editor_projection",
+  "required_boundaries": [
+    "block_json_is_not_canonical",
+    "unsupported_ddn_must_be_preserved_as_raw_or_text_island",
+    "generated_ddn_must_pass_canon_before_runtime_claim",
+    "palette_must_not_drop_source_text"
+  ],
+  "required_palette_kinds": [
+    "charim_block",
+    "charim_item_var",
+    "if_else",
+    "choose_exhaustive",
+    "choose_branch",
+    "assign",
+    "show"
+  ],
+  "required_existing_checks": [
+    "tests/run_block_editor_roundtrip_check.py",
+    "tests/run_block_editor_choose_exhaustive_check.py",
+    "tests/run_seamgrim_malblock_codegen_check.py"
+  ]
+}

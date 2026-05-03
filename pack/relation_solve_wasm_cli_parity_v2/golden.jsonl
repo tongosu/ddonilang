@@ -1,0 +1,4 @@
+{"id":"c01_quadratic_success","cmd":["run","pack/relation_solve_wasm_cli_parity_v2/cases/c01_quadratic_single_root/input.ddn"],"stdout":[],"exit_code":0}
+{"id":"c02_system_2x2_success","cmd":["run","pack/relation_solve_wasm_cli_parity_v2/cases/c02_system_success/input.ddn"],"stdout":[],"exit_code":0}
+{"id":"c04_unsupported_quadratic","cmd":["run","pack/relation_solve_wasm_cli_parity_v2/cases/c03_quadratic_unsupported/input.ddn"],"stdout":[],"exit_code":0}
+{"id":"c03_unsupported_higher_degree","cmd":["run","pack/relation_solve_wasm_cli_parity_v2/cases/c04_higher_degree_unsupported/input.ddn"],"stdout":[],"exit_code":0}

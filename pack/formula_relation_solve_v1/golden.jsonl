@@ -1,0 +1,5 @@
+{"id":"c01_linear_success","cmd":["run","pack/formula_relation_solve_v1/input_success.ddn"],"stdout":["#성공(미지수=\"x\", 값=2)"],"exit_code":0}
+{"id":"c02_no_solution","cmd":["run","pack/formula_relation_solve_v1/input_no_solution.ddn"],"stdout":["#실패(사유=\"no_solution\")"],"exit_code":0}
+{"id":"c03_non_unique","cmd":["run","pack/formula_relation_solve_v1/input_non_unique.ddn"],"stdout":["#실패(사유=\"non_unique\")"],"exit_code":0}
+{"id":"c04_unsupported","cmd":["run","pack/formula_relation_solve_v1/input_unsupported.ddn"],"stdout":["#실패(사유=\"unsupported\")"],"exit_code":0}
+

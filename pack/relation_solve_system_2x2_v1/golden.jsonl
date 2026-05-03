@@ -1,0 +1,5 @@
+{"id":"c01_system_success","cmd":["run","pack/relation_solve_system_2x2_v1/input_success.ddn"],"stdout":["#성공(해=(x=3, y=2))"],"exit_code":0}
+{"id":"c02_system_no_solution","cmd":["run","pack/relation_solve_system_2x2_v1/input_no_solution.ddn"],"stdout":["#실패(사유=\"no_solution\")"],"exit_code":0}
+{"id":"c03_system_non_unique","cmd":["run","pack/relation_solve_system_2x2_v1/input_non_unique.ddn"],"stdout":["#실패(사유=\"non_unique\")"],"exit_code":0}
+{"id":"c04_system_unsupported","cmd":["run","pack/relation_solve_system_2x2_v1/input_unsupported.ddn"],"stdout":["#실패(사유=\"unsupported\")"],"exit_code":0}
+

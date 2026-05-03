@@ -1,0 +1,3 @@
+{"id":"c01_diff_polynomial","cmd":["symbolic","diff","x^3 + 2*x","--var","x"],"stdout":["3*x^2 + 2"],"exit_code":0}
+{"id":"c02_integrate_polynomial","cmd":["symbolic","integrate","2*x","--var","x"],"stdout":["x^2"],"exit_code":0}
+

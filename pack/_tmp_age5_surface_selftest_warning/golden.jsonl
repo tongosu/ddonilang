@@ -1,1 +1,0 @@
-{"cmd": ["canon", "pack/_tmp_age5_surface_selftest_warning/c01_warning_mismatch/input.ddn"], "expected_warning_code": "W_AGE5_SURFACE_SELFTEST_NON_EXISTENT"}

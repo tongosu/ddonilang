@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.symbolic_polynomial_simplify.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_collect_like_terms"],
+  "target": "teul-cli symbolic simplify"
+}
+

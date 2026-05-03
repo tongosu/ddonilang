@@ -1,0 +1,7 @@
+{
+  "case_id": "c03_start_next_executes_madang",
+  "command_kind": "run",
+  "stdout": [
+    "110"
+  ]
+}

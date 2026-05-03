@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.seamgrim_first_run_onboarding.pack.contract.v1",
+  "pack_id": "seamgrim_first_run_onboarding_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "runner_checks": [
+    "tests/run_seamgrim_first_run_onboarding_pack_check.py"
+  ]
+}
+

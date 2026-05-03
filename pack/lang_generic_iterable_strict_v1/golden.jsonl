@@ -1,0 +1,3 @@
+{"id":"c01_finite_snapshot_required","cmd":["run","tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn"],"expected_error_code":"E_RUNTIME_TYPE_MISMATCH","exit_code":1}
+{"id":"c02_canonical_order_required","cmd":["run","tools/teul-cli/tests/golden/W97/W97_G04_foreach_map/main.ddn"],"stdout":["차림[a, 1]","차림[b, 2]"],"exit_code":0}
+{"id":"c03_deterministic_exhaustion_required","cmd":["run","pack/stdlib_range_basics/input.ddn"],"stdout":["차림[1, 2, 3]","차림[0, 2, 4]","차림[3, 2, 1]","차림[]","차림[0@m, 1@m, 2@m, 3@m]"],"exit_code":0}

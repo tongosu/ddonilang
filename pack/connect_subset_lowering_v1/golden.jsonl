@@ -1,0 +1,1 @@
+{"id":"c01_connect_lowering_matches_direct_relation","cmd":["run","pack/connect_subset_lowering_v1/input.ddn"],"stdout":["(#ascii) 수식{ 2*x + 3 } =:= (#ascii) 수식{ 7 }","(#ascii) 수식{ 2*x + 3 } =:= (#ascii) 수식{ 7 }"],"exit_code":0}

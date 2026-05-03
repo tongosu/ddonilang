@@ -1,0 +1,4 @@
+{"id":"c01_quadratic_success","cmd":["run","pack/relation_solve_ddn_bridge_v2/input_quadratic_success.ddn"],"stdout":["#성공(미지수=\"x\", 값=2)"],"exit_code":0}
+{"id":"c02_system_2x2_success","cmd":["run","pack/relation_solve_ddn_bridge_v2/input_system_2x2_success.ddn"],"stdout":["#성공(해=(x=3, y=2))"],"exit_code":0}
+{"id":"c03_unsupported_higher_degree","cmd":["run","pack/relation_solve_ddn_bridge_v2/input_unsupported_higher_degree.ddn"],"stdout":["#실패(사유=\"unsupported\")"],"exit_code":0}
+{"id":"c04_unsupported_quadratic","cmd":["run","pack/relation_solve_ddn_bridge_v2/input_unsupported_quadratic.ddn"],"stdout":["#실패(사유=\"unsupported\")"],"exit_code":0}

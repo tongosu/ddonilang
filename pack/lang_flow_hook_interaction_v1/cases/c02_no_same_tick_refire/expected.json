@@ -1,0 +1,13 @@
+{
+  "case_id": "c02_no_same_tick_refire",
+  "case_kind": "ok",
+  "same_tick_refire_forbidden": true,
+  "after_tick_1": {
+    "값": 4,
+    "카운트": 0
+  },
+  "after_tick_2": {
+    "값": 16,
+    "카운트": 1
+  }
+}

@@ -1,3 +1,2 @@
-
-바탕.메시지 <- "age2_kernel_smoke_v1".
-바탕.메시지 보여주기.
+메시지 <- "age2_kernel_smoke_v1".
+메시지 보여주기.

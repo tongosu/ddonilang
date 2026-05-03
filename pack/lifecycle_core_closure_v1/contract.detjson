@@ -1,0 +1,46 @@
+{
+  "schema": "ddn.lifecycle_core_closure.pack.contract.v1",
+  "evidence_tier": "golden_closed",
+  "closure_claim": "yes",
+  "backing_runner_checks": [
+    "tests/run_pack_golden.py",
+    "tests/run_bogae_backend_profile_smoke_check.py"
+  ],
+  "evidence_targets": [
+    "tools/teul-cli/tests/golden/W111/W111_G03_reset_nuri_restores_start_snapshot/main.ddn",
+    "tools/teul-cli/tests/golden/W111/W111_G35_reset_all_restores_live_input_snapshot/main.ddn",
+    "tools/teul-cli/tests/golden/W111/W111_G09_lifecycle_transition_start_next_executes_madang/main.ddn",
+    "tools/teul-cli/tests/golden/W111/W111_G14_lifecycle_next_wraps_last_to_first_madang/main.ddn",
+    "tools/teul-cli/tests/golden/W111/W111_G10_lifecycle_transition_call_replays_active_pan/main.ddn",
+    "pack/seamgrim_state_hash_view_boundary_smoke_v1/golden.jsonl",
+    "pack/bogae_grid2d_smoke_v1/expected/smoke.detjson",
+    "pack/nurimaker_grid_replay_v1/README.md",
+    "pack/nuri_gym_cartpole_shared_sync_v1/golden.jsonl"
+  ],
+  "cases": [
+    {
+      "id": "c01_reset_restores_start_snapshot",
+      "command_kind": "run"
+    },
+    {
+      "id": "c02_reset_all_restores_live_input_snapshot",
+      "command_kind": "run"
+    },
+    {
+      "id": "c03_start_next_executes_madang",
+      "command_kind": "run"
+    },
+    {
+      "id": "c04_next_wraps_last_to_first_madang",
+      "command_kind": "run"
+    },
+    {
+      "id": "c05_active_pan_replay",
+      "command_kind": "run"
+    },
+    {
+      "id": "c06_state_view_boundary",
+      "command_kind": "smoke_golden"
+    }
+  ]
+}

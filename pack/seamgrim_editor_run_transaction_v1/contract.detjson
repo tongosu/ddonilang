@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.seamgrim.editor_run_transaction.contract.v1",
+  "minimal_ddn": "채비 {\n  인사: 글 <- \"hello\".\n}.\n\n인사 보여주기.\n",
+  "expected_output_row": {
+    "key": "인사",
+    "value": "hello"
+  },
+  "expected_status": "done",
+  "expected_post_execute_tab": "output"
+}

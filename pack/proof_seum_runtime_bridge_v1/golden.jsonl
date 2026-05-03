@@ -1,0 +1,2 @@
+{"id":"c01_symbolic_equivalence_pass","cmd":["run","pack/proof_seum_runtime_bridge_v1/input_pass.ddn"],"stdout":["참"],"exit_code":0}
+{"id":"c02_symbolic_equivalence_fail","cmd":["run","pack/proof_seum_runtime_bridge_v1/input_fail.ddn"],"expected_error_code":"E_ECO_DIVERGENCE_DETECTED","exit_code":1}

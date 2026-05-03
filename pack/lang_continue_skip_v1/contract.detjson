@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.lang_continue_skip.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "allowed_context": "~에 대해",
+  "forbidden_diag": "E_RUNTIME_CONTINUE_OUTSIDE_FOREACH",
+  "cases": [
+    {
+      "id": "c01_foreach_skip_ok",
+      "case_kind": "ok"
+    },
+    {
+      "id": "c02_top_level_forbidden",
+      "case_kind": "diag",
+      "expected_error": "E_RUNTIME_CONTINUE_OUTSIDE_FOREACH"
+    },
+    {
+      "id": "c03_hook_body_forbidden",
+      "case_kind": "diag",
+      "expected_error": "E_RUNTIME_CONTINUE_OUTSIDE_FOREACH"
+    },
+    {
+      "id": "c04_repeat_body_forbidden",
+      "case_kind": "diag",
+      "expected_error": "E_RUNTIME_CONTINUE_OUTSIDE_FOREACH"
+    }
+  ]
+}

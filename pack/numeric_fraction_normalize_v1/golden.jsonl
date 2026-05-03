@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/numeric_fraction_normalize_v1/c01_fraction_normalize.ddn"], "stdout_path": "c01_fraction_normalize.expected.txt", "exit_code": 0}

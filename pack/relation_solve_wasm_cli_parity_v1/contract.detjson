@@ -1,0 +1,43 @@
+{
+  "schema": "ddn.relation_solve_wasm_cli_parity.pack.contract.v1",
+  "pack_id": "relation_solve_wasm_cli_parity_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "oracle": "teul-cli",
+  "product_path": "wasm/seamgrim",
+  "state_hash_policy": "report_only",
+  "cases": [
+    {
+      "id": "c01_linear_success",
+      "input": "cases/c01_linear_success/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [],
+      "expected_wasm_pack_fields": {
+        "결과.__풀이결과종류": "성공",
+        "결과.미지수": "x",
+        "결과.값.__수타입": "큰바른수",
+        "결과.값.값": "2"
+      }
+    },
+    {
+      "id": "c02_non_unique",
+      "input": "cases/c02_non_unique/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [],
+      "expected_wasm_pack_fields": {
+        "결과.__풀이결과종류": "실패",
+        "결과.사유": "non_unique"
+      }
+    },
+    {
+      "id": "c03_unsupported",
+      "input": "cases/c03_unsupported/input.ddn",
+      "ticks": 1,
+      "expected_cli_stdout": [],
+      "expected_wasm_pack_fields": {
+        "결과.__풀이결과종류": "실패",
+        "결과.사유": "unsupported"
+      }
+    }
+  ]
+}

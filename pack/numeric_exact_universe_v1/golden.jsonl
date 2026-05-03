@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/numeric_exact_universe_v1/c01_big_exact_arithmetic.ddn"], "stdout_path": "c01_big_exact_arithmetic.expected.txt", "exit_code": 0}

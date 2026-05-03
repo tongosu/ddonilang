@@ -1,0 +1,30 @@
+{
+  "schema": "ddn.lang_generic_iterable_strict.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "evidence_targets": [
+    "pack/stdlib_range_basics/input.ddn",
+    "tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn",
+    "tools/teul-cli/tests/golden/W97/W97_G04_foreach_map/main.ddn"
+  ],
+  "cases": [
+    {
+      "id": "c01_finite_snapshot_required",
+      "rule": "finite_snapshot_required",
+      "runner_mode": "cmd",
+      "runner_target": "tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn"
+    },
+    {
+      "id": "c02_canonical_order_required",
+      "rule": "canonical_order_required",
+      "runner_mode": "cmd",
+      "runner_target": "tools/teul-cli/tests/golden/W97/W97_G04_foreach_map/main.ddn"
+    },
+    {
+      "id": "c03_deterministic_exhaustion_required",
+      "rule": "deterministic_exhaustion_required",
+      "runner_mode": "cmd",
+      "runner_target": "pack/stdlib_range_basics/input.ddn"
+    }
+  ]
+}

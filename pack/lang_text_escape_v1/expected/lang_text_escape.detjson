@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.lang_text_escape.report.v1",
+  "ok": true,
+  "pack_id": "lang_text_escape_v1",
+  "wasm_parity_pass": true,
+  "canon_policy": {
+    "hangul_escape_input": true,
+    "compat_escape_input": true,
+    "canonical_escape_output": "standard",
+    "rich_markup_preserved_as_string": true
+  },
+  "invalid_escape_error": "E_LEX_BAD_ESCAPE"
+}

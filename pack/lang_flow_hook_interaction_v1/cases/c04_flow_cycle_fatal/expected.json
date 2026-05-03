@@ -1,0 +1,5 @@
+{
+  "case_id": "c04_flow_cycle_fatal",
+  "case_kind": "diag",
+  "expected_error": "E_FLOW_CIRCULAR_REFERENCE"
+}

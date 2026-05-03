@@ -1,0 +1,5 @@
+{"id":"c01_cli_expand","cmd":["symbolic","expand","(x + 1)^2"],"stdout":["x^2 + 2*x + 1"],"exit_code":0}
+{"id":"c02_ddn_expand","cmd":["run","pack/symbolic_ddn_cli_parity_v1/input_expand.ddn"],"stdout":["(#ascii) 수식{ x^2 + 2*x + 1 }"],"exit_code":0}
+{"id":"c03_cli_diff","cmd":["symbolic","diff","x^3 + 2*x","--var","x"],"stdout":["3*x^2 + 2"],"exit_code":0}
+{"id":"c04_ddn_diff","cmd":["run","pack/symbolic_ddn_cli_parity_v1/input_diff.ddn"],"stdout":["(#ascii) 수식{ 3*x^2 + 2 }"],"exit_code":0}
+

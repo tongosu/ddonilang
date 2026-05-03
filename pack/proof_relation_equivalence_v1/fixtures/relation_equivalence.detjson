@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.symbolic.relation_equivalence_certificate.v1",
+  "first": {
+    "lhs": "x + 1",
+    "rhs": "0"
+  },
+  "second": {
+    "lhs": "x",
+    "rhs": "-1"
+  },
+  "first_canonical": "x + 1",
+  "second_canonical": "x + 1",
+  "equivalent": true,
+  "method": "mathir_relation_normal_form",
+  "certificate_hash": "sha256:fixture"
+}

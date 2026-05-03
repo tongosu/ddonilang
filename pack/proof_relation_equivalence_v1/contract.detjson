@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.proof_relation_equivalence.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_relation_equivalence"],
+  "target": "teul-cli proof verify"
+}

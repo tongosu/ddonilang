@@ -1,0 +1,2 @@
+{"id":"c01_sealed_snapshot_allowed","cmd":["run","pack/stdlib_charim_basics/input.ddn"],"stdout":["차림[2, 3, 4]","참","-1","차림[5, 4, 3, 2, 1]","차림[2, 3, 4, 9]","차림[1, 2, 3, 4]"],"exit_code":0}
+{"id":"c02_open_not_auto_allowed","cmd":["run","tools/teul-cli/tests/golden/W97/W97_G03_foreach_bad_iterable/main.ddn"],"expected_error_code":"E_RUNTIME_TYPE_MISMATCH","exit_code":1}

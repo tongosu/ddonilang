@@ -1,0 +1,2 @@
+{"id":"c01_replay_symbolic_rewrite","cmd":["proof","replay","pack/proof_kernel_term_replay_v1/fixtures/rewrite.detjson"],"stdout":["proof_replay_valid=true kind=symbolic_rewrite"],"exit_code":0}
+

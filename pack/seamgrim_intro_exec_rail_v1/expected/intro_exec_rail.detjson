@@ -1,0 +1,32 @@
+{
+  "schema": "ddn.seamgrim_intro_exec_rail_report.v1",
+  "status": "closed",
+  "steps": [
+    {
+      "command": [
+        "C:\\Users\\ddongosu\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "tests/run_seamgrim_intro_exec_wasm_check.py"
+      ],
+      "name": "text_ddn_wasm",
+      "ok": true
+    },
+    {
+      "command": [
+        "C:\\Users\\ddongosu\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "tests/run_seamgrim_intro_exec_blocky_check.py"
+      ],
+      "name": "blocky_codegen_wasm",
+      "ok": true
+    },
+    {
+      "command": [
+        "node",
+        "--no-warnings",
+        "tests/seamgrim_block_editor_runner.mjs",
+        "pack/block_editor_screen_intro_exec_v1"
+      ],
+      "name": "block_editor_screen_intro",
+      "ok": true
+    }
+  ]
+}

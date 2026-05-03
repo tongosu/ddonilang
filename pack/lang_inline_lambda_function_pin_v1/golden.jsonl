@@ -1,0 +1,3 @@
+{"id":"c01_function_pin_extension","cmd":["run","pack/lang_inline_lambda_function_pin_v1/cases/c01_function_pin_extension.ddn"],"stdout":["차림[2, 4, 6]"],"exit_code":0}
+{"id":"c02_stored_lambda_supported","cmd":["run","pack/lang_lambda_store_runtime_v1/input.ddn"],"stdout":["차림[8, 12]"],"exit_code":0}
+{"id":"c03_returned_lambda_supported","cmd":["run","pack/lang_lambda_return_runtime_v1/input.ddn"],"stdout":["차림[10]"],"exit_code":0}

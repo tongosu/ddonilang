@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.seamgrim_registry_publish_install_shell.pack.contract.v1",
+  "pack_id": "seamgrim_registry_publish_install_shell_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "no",
+  "runner_checks": [
+    "tests/run_seamgrim_package_registry_surface_check.py",
+    "tests/run_seamgrim_sharing_publishing_surface_check.py",
+    "tests/run_seamgrim_publication_snapshot_surface_check.py"
+  ]
+}
+

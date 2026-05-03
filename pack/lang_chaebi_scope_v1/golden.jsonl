@@ -1,0 +1,5 @@
+{"id":"c01_top_level_chaebi_ok","input_path":"c01_top_level_chaebi_ok/input.ddn","stdout":["1"],"exit_code":0}
+{"id":"c02_chaebi_in_repeat_forbidden","input_path":"c02_chaebi_in_repeat_forbidden/input.ddn","stdout":[],"exit_code":1,"expected_error_code":"E_CHAEBI_IN_LOOP"}
+{"id":"c03_chaebi_in_hook_forbidden","input_path":"c03_chaebi_in_hook_forbidden/input.ddn","stdout":[],"exit_code":1,"expected_error_code":"E_CHAEBI_IN_LOOP"}
+{"id":"c04_chaebi_in_iter_forbidden","input_path":"c04_chaebi_in_iter_forbidden/input.ddn","stdout":[],"exit_code":1,"expected_error_code":"E_CHAEBI_IN_LOOP"}
+{"id":"c05_top_level_reassign_warning","cmd":["canon","pack/lang_chaebi_scope_v1/c05_top_level_reassign_warning/input.ddn"],"stdout_path":"c05_top_level_reassign_warning/expected_canon.ddn","expected_warning_code":"W_CHAEBI_REDUNDANT_TOP_REASSIGN","exit_code":0}

@@ -1,0 +1,111 @@
+{
+  "case_count": 5,
+  "cases": [
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_plain",
+        "show"
+      ],
+      "canon_hash": "sha256:cd9c91ad3ff96c06095bc4ed0211546588ccebd6a836ef141cc7dff4e81b7052",
+      "encoded_hash": "sha256:5f0c1a9c8b7a32d5bc73c0bca961854cc0605cd325ad273172d0ada33626d259",
+      "id": "c01_hello_show",
+      "raw_block_count": 0,
+      "stdout": [
+        "hello"
+      ]
+    },
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "assign",
+        "assign",
+        "assign",
+        "show"
+      ],
+      "canon_hash": "sha256:4bddf254b607df2cef217bc8be41aa8f1240b08aa4f1d6dce0645d9bb0f7dda0",
+      "encoded_hash": "sha256:f6d78674e9069bb75c627229cd85c83365e52435101c2f5cf0a1fd6939ec2c20",
+      "id": "c02_assign_update",
+      "raw_block_count": 0,
+      "stdout": [
+        "15"
+      ]
+    },
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "charim_item_var",
+        "if_else",
+        "assign",
+        "assign",
+        "show"
+      ],
+      "canon_hash": "sha256:a937b17ce375f3043b53e0ab5853f3790fe3b80c1fa06dde7d875b0424475433",
+      "encoded_hash": "sha256:21b88e03e71264dc6e3d23aa50b2a267816adba9c71cb08018b49e246c38de88",
+      "id": "c03_if_else",
+      "raw_block_count": 0,
+      "stdout": [
+        "통과"
+      ]
+    },
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "choose_exhaustive",
+        "choose_branch",
+        "show",
+        "choose_branch",
+        "show"
+      ],
+      "canon_hash": "sha256:9f81025d5ed912ce978dffa868d3e09438139fa4bd850b963f9c06839e90a591",
+      "encoded_hash": "sha256:734659c62cfed8af78685f4718e69f499916c060645d1ba4f623ce2e824cea2a",
+      "id": "c04_choose_exhaustive",
+      "raw_block_count": 0,
+      "stdout": [
+        "통과"
+      ]
+    },
+    {
+      "block_kinds": [
+        "charim_block",
+        "charim_item_var",
+        "charim_item_var",
+        "if_else",
+        "assign",
+        "assign",
+        "choose_exhaustive",
+        "choose_branch",
+        "show",
+        "choose_branch",
+        "show"
+      ],
+      "canon_hash": "sha256:eb603fb4e30741df726d18da1365d9b51549764d03a9f2f191150aa6e1e6b0c4",
+      "encoded_hash": "sha256:180b5ee8b2b437a361a2fdef90968707c83a98bbcb008c1f9f0cebb45fb418ad",
+      "id": "c05_intro_combined",
+      "raw_block_count": 0,
+      "stdout": [
+        "통과"
+      ]
+    }
+  ],
+  "raw_block_count_total": 0,
+  "required_palette_kinds": [
+    "charim_block",
+    "charim_item_var",
+    "charim_item_plain",
+    "assign",
+    "if_else",
+    "choose_exhaustive",
+    "choose_branch",
+    "show"
+  ],
+  "schema": "ddn.seamgrim_intro_exec_blocky_report.v1",
+  "wasm_parity": {
+    "case_count": 5,
+    "ok": true,
+    "pack_id": "seamgrim_intro_exec_blocky_generated"
+  }
+}

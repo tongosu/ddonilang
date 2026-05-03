@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.symbolic_ddn_formula_bridge.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_formula_bridge_runtime"],
+  "target": "teul-cli run"
+}
+

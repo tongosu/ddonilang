@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.seamgrim_malblock_codegen_cases.v1",
+  "cases": [
+    {
+      "id": "charim_variable_show",
+      "description": "채비 변수와 보여주기 block이 executable DDN으로 encode된다.",
+      "expected_stdout_contains": ["72"],
+      "required_block_kinds": ["charim_block", "charim_item_var", "show"]
+    },
+    {
+      "id": "if_else_show",
+      "description": "조건/아니면 + 대입 + 보여주기 block이 current-line if DDN으로 encode된다.",
+      "expected_stdout_contains": ["통과"],
+      "required_block_kinds": ["charim_block", "charim_item_var", "if_else", "assign", "show"]
+    },
+    {
+      "id": "choose_exhaustive_show",
+      "description": "고르기 모든 경우 다룸 block이 executable exhaustive choose DDN으로 encode된다.",
+      "expected_stdout_contains": ["작음"],
+      "required_block_kinds": ["charim_block", "charim_item_var", "choose_exhaustive", "choose_branch", "show"]
+    }
+  ]
+}

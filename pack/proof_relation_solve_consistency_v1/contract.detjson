@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.proof_relation_solve_consistency.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_linear_solution_consistency", "c02_system_solution_consistency"],
+  "target": "teul-cli proof verify"
+}

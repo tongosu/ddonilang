@@ -1,0 +1,1 @@
+{"cmd": ["run", "pack/numeric_display_policy_v1/c01_display_exact_values.ddn"], "stdout_path": "c01_display_exact_values.expected.txt", "exit_code": 0}

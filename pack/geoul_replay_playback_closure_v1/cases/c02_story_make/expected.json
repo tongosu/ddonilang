@@ -1,0 +1,8 @@
+{
+  "case_id": "c02_story_make",
+  "command_kind": "story_make",
+  "stdout": [
+    "story_written=pack/geoul_replay_playback_closure_v1/out/story.detjson"
+  ],
+  "expected_meta": "expected/story.detjson"
+}

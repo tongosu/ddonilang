@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.proof_seum_runtime_bridge.pack.contract.v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "no",
+  "cases": ["c01_symbolic_equivalence_pass", "c02_symbolic_equivalence_fail"],
+  "target": "teul-cli run"
+}
+
