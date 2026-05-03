@@ -296,10 +296,8 @@ impl FormulaLexer {
                 break;
             }
             match token {
-                Token::Ident(name) if self.dialect == FormulaDialect::Ascii1 && name.len() > 1 => {
-                    for ch in name.chars() {
-                        tokens.push(Token::Ident(ch.to_string()));
-                    }
+                Token::Ident(name) if self.dialect == FormulaDialect::Ascii1 => {
+                    tokens.extend(split_ascii1_ident(&name).into_iter().map(Token::Ident));
                 }
                 other => tokens.push(other),
             }
@@ -412,6 +410,22 @@ impl FormulaLexer {
     fn peek(&self) -> Option<char> {
         self.chars.get(self.pos).copied()
     }
+}
+
+fn split_ascii1_ident(name: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut chars = name.chars().peekable();
+    while let Some(first) = chars.next() {
+        let mut ident = String::new();
+        ident.push(first);
+        while matches!(chars.peek(), Some(ch) if ch.is_ascii_digit()) {
+            if let Some(ch) = chars.next() {
+                ident.push(ch);
+            }
+        }
+        out.push(ident);
+    }
+    out
 }
 
 struct FormulaParser {

@@ -172,7 +172,9 @@ fn schema_path_for(source_path: &Path) -> PathBuf {
         })
         .collect::<String>();
     let file_name = format!("{safe_stem}.{digest:016x}.ddn.schema.json");
-    crate::cli::paths::build_dir().join("check_schema").join(file_name)
+    crate::cli::paths::build_dir()
+        .join("check_schema")
+        .join(file_name)
 }
 
 fn escape_json(input: &str) -> String {

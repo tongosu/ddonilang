@@ -19,13 +19,13 @@ use crate::canon;
 use crate::cli::bogae::{
     default_bogae_out_dir, is_bogae_out_dir, resolve_bogae_out_dir, BogaeMode, OverlayConfig,
 };
-use crate::cli::frontdoor_parse::{
-    parse_program_for_runtime, parse_program_for_runtime_with_mode, FrontdoorParseFailure,
-};
 use crate::cli::bogae_console::{render_drawlist_ascii, ConsoleLive, ConsoleRenderConfig};
 use crate::cli::bogae_playback::{write_manifest, write_viewer_assets, PlaybackFrameMeta};
 use crate::cli::bogae_web::write_web_assets;
 use crate::cli::cert;
+use crate::cli::frontdoor_parse::{
+    parse_program_for_runtime, parse_program_for_runtime_with_mode, FrontdoorParseFailure,
+};
 use crate::cli::input_tape::{
     mask_from_bytes, mask_to_bytes, parse_held_mask, read_input_tape, write_input_tape,
     InputRecord, InputTape, KEY_REGISTRY_KEYS,
@@ -139,11 +139,28 @@ fn frontdoor_code_and_detail(message: &str) -> (&'static str, &str) {
                 .trim_start_matches("E_FRONTDOOR_LEGACY_HEADER_FORBIDDEN")
                 .trim_start(),
         )
-    } else if message.starts_with("E_CANON_LEGACY_BOIM_FORBIDDEN") {
+    } else if message.starts_with("E_BATANG_PREFIX_REMOVED") {
         (
-            "E_CANON_LEGACY_BOIM_FORBIDDEN",
+            "E_BATANG_PREFIX_REMOVED",
             message
-                .trim_start_matches("E_CANON_LEGACY_BOIM_FORBIDDEN")
+                .trim_start_matches("E_BATANG_PREFIX_REMOVED")
+                .trim_start(),
+        )
+    } else if message.starts_with("E_SALIM_REMOVED") {
+        (
+            "E_SALIM_REMOVED",
+            message.trim_start_matches("E_SALIM_REMOVED").trim_start(),
+        )
+    } else if message.starts_with("E_PRAGMA_REMOVED") {
+        (
+            "E_PRAGMA_REMOVED",
+            message.trim_start_matches("E_PRAGMA_REMOVED").trim_start(),
+        )
+    } else if message.starts_with("E_LEGACY_RANGE_SYNTAX") {
+        (
+            "E_LEGACY_RANGE_SYNTAX",
+            message
+                .trim_start_matches("E_LEGACY_RANGE_SYNTAX")
                 .trim_start(),
         )
     } else if message.starts_with("E_FRONTDOOR_LANG_PARSER_GAP") {
@@ -251,6 +268,7 @@ pub struct RunOptions {
     pub no_open: bool,
     pub unsafe_open: bool,
     pub run_manifest: Option<PathBuf>,
+    pub summary_json: Option<PathBuf>,
     pub artifact_pins: Vec<ArtifactPin>,
 }
 
@@ -1345,14 +1363,10 @@ fn quantity_to_u64(qty: &Quantity) -> Option<u64> {
 }
 
 fn read_w24_params_from_state(state: &State) -> Option<W24Params> {
-    let entity_count =
-        read_state_u64(state, "개체수").or_else(|| read_state_u64(state, "살림.개체수"))?;
-    let component_count =
-        read_state_u64(state, "컴포넌트수").or_else(|| read_state_u64(state, "살림.컴포넌트수"))?;
-    let archetype_moves = read_state_u64(state, "아키타입_이동")
-        .or_else(|| read_state_u64(state, "살림.아키타입_이동"))?;
-    let perf_cap =
-        read_state_u64(state, "성능_캡").or_else(|| read_state_u64(state, "살림.성능_캡"))?;
+    let entity_count = read_state_u64(state, "개체수")?;
+    let component_count = read_state_u64(state, "컴포넌트수")?;
+    let archetype_moves = read_state_u64(state, "아키타입_이동")?;
+    let perf_cap = read_state_u64(state, "성능_캡")?;
     Some(W24Params {
         entity_count,
         component_count,
@@ -1362,12 +1376,9 @@ fn read_w24_params_from_state(state: &State) -> Option<W24Params> {
 }
 
 fn read_w25_params_from_state(state: &State) -> Option<W25Params> {
-    let query_target_count = read_state_u64(state, "쿼리_대상수")
-        .or_else(|| read_state_u64(state, "살림.쿼리_대상수"))?;
-    let query_batch =
-        read_state_u64(state, "쿼리_배치").or_else(|| read_state_u64(state, "살림.쿼리_배치"))?;
-    let snapshot_fixed = read_state_u64(state, "스냅샷_고정")
-        .or_else(|| read_state_u64(state, "살림.스냅샷_고정"))?;
+    let query_target_count = read_state_u64(state, "쿼리_대상수")?;
+    let query_batch = read_state_u64(state, "쿼리_배치")?;
+    let snapshot_fixed = read_state_u64(state, "스냅샷_고정")?;
     Some(W25Params {
         query_target_count,
         query_batch,
@@ -1376,18 +1387,12 @@ fn read_w25_params_from_state(state: &State) -> Option<W25Params> {
 }
 
 fn read_w26_params_from_state(state: &State) -> Option<W26Params> {
-    let agent_count =
-        read_state_u64(state, "임자수").or_else(|| read_state_u64(state, "살림.임자수"))?;
-    let item_count =
-        read_state_u64(state, "상품수").or_else(|| read_state_u64(state, "살림.상품수"))?;
-    let trade_count =
-        read_state_u64(state, "거래수").or_else(|| read_state_u64(state, "살림.거래수"))?;
-    let starting_balance =
-        read_state_u64(state, "초기_잔고").or_else(|| read_state_u64(state, "살림.초기_잔고"))?;
-    let starting_inventory =
-        read_state_u64(state, "초기_재고").or_else(|| read_state_u64(state, "살림.초기_재고"))?;
-    let base_price =
-        read_state_u64(state, "기본_가격").or_else(|| read_state_u64(state, "살림.기본_가격"))?;
+    let agent_count = read_state_u64(state, "임자수")?;
+    let item_count = read_state_u64(state, "상품수")?;
+    let trade_count = read_state_u64(state, "거래수")?;
+    let starting_balance = read_state_u64(state, "초기_잔고")?;
+    let starting_inventory = read_state_u64(state, "초기_재고")?;
+    let base_price = read_state_u64(state, "기본_가격")?;
     Some(W26Params {
         agent_count,
         item_count,
@@ -1399,16 +1404,11 @@ fn read_w26_params_from_state(state: &State) -> Option<W26Params> {
 }
 
 fn read_w27_params_from_state(state: &State) -> Option<W27Params> {
-    let agent_count =
-        read_state_u64(state, "임자수").or_else(|| read_state_u64(state, "살림.임자수"))?;
-    let trade_count =
-        read_state_u64(state, "거래수").or_else(|| read_state_u64(state, "살림.거래수"))?;
-    let starting_balance =
-        read_state_u64(state, "초기_잔고").or_else(|| read_state_u64(state, "살림.초기_잔고"))?;
-    let min_balance =
-        read_state_u64(state, "잔고_최소").or_else(|| read_state_u64(state, "살림.잔고_최소"))?;
-    let trade_amount =
-        read_state_u64(state, "거래_금액").or_else(|| read_state_u64(state, "살림.거래_금액"))?;
+    let agent_count = read_state_u64(state, "임자수")?;
+    let trade_count = read_state_u64(state, "거래수")?;
+    let starting_balance = read_state_u64(state, "초기_잔고")?;
+    let min_balance = read_state_u64(state, "잔고_최소")?;
+    let trade_amount = read_state_u64(state, "거래_금액")?;
     Some(W27Params {
         agent_count,
         trade_count,
@@ -1419,16 +1419,11 @@ fn read_w27_params_from_state(state: &State) -> Option<W27Params> {
 }
 
 fn read_w28_params_from_state(state: &State) -> Option<W28Params> {
-    let agent_count =
-        read_state_u64(state, "임자수").or_else(|| read_state_u64(state, "살림.임자수"))?;
-    let item_count =
-        read_state_u64(state, "상품수").or_else(|| read_state_u64(state, "살림.상품수"))?;
-    let trade_count =
-        read_state_u64(state, "거래수").or_else(|| read_state_u64(state, "살림.거래수"))?;
-    let base_price =
-        read_state_u64(state, "기본_가격").or_else(|| read_state_u64(state, "살림.기본_가격"))?;
-    let trade_amount =
-        read_state_u64(state, "거래_금액").or_else(|| read_state_u64(state, "살림.거래_금액"))?;
+    let agent_count = read_state_u64(state, "임자수")?;
+    let item_count = read_state_u64(state, "상품수")?;
+    let trade_count = read_state_u64(state, "거래수")?;
+    let base_price = read_state_u64(state, "기본_가격")?;
+    let trade_amount = read_state_u64(state, "거래_금액")?;
     Some(W28Params {
         agent_count,
         item_count,
@@ -1439,14 +1434,10 @@ fn read_w28_params_from_state(state: &State) -> Option<W28Params> {
 }
 
 fn read_w29_params_from_state(state: &State) -> Option<W29Params> {
-    let reactive_max_pass = read_state_u64(state, "반응_패스_최대")
-        .or_else(|| read_state_u64(state, "살림.반응_패스_최대"))?;
-    let alert_chain =
-        read_state_u64(state, "알림_연쇄").or_else(|| read_state_u64(state, "살림.알림_연쇄"))?;
-    let step_value =
-        read_state_u64(state, "반응_증분").or_else(|| read_state_u64(state, "살림.반응_증분"))?;
-    let initial_value =
-        read_state_u64(state, "초기_값").or_else(|| read_state_u64(state, "살림.초기_값"))?;
+    let reactive_max_pass = read_state_u64(state, "반응_패스_최대")?;
+    let alert_chain = read_state_u64(state, "알림_연쇄")?;
+    let step_value = read_state_u64(state, "반응_증분")?;
+    let initial_value = read_state_u64(state, "초기_값")?;
     Some(W29Params {
         reactive_max_pass,
         alert_chain,
@@ -1456,14 +1447,10 @@ fn read_w29_params_from_state(state: &State) -> Option<W29Params> {
 }
 
 fn read_w30_params_from_state(state: &State) -> Option<W30Params> {
-    let proposal_count =
-        read_state_u64(state, "제안_수").or_else(|| read_state_u64(state, "살림.제안_수"))?;
-    let approval_tokens =
-        read_state_u64(state, "승인_토큰").or_else(|| read_state_u64(state, "살림.승인_토큰"))?;
-    let apply_requests =
-        read_state_u64(state, "적용_요청").or_else(|| read_state_u64(state, "살림.적용_요청"))?;
-    let approval_required =
-        read_state_u64(state, "승인_필수").or_else(|| read_state_u64(state, "살림.승인_필수"))?;
+    let proposal_count = read_state_u64(state, "제안_수")?;
+    let approval_tokens = read_state_u64(state, "승인_토큰")?;
+    let apply_requests = read_state_u64(state, "적용_요청")?;
+    let approval_required = read_state_u64(state, "승인_필수")?;
     Some(W30Params {
         proposal_count,
         approval_tokens,
@@ -1473,16 +1460,11 @@ fn read_w30_params_from_state(state: &State) -> Option<W30Params> {
 }
 
 fn read_w31_params_from_state(state: &State) -> Option<W31Params> {
-    let participant_count =
-        read_state_u64(state, "참가자수").or_else(|| read_state_u64(state, "살림.참가자수"))?;
-    let host_inputs = read_state_u64(state, "호스트_입력")
-        .or_else(|| read_state_u64(state, "살림.호스트_입력"))?;
-    let guest_inputs =
-        read_state_u64(state, "손님_입력").or_else(|| read_state_u64(state, "살림.손님_입력"))?;
-    let sync_rounds = read_state_u64(state, "동기_라운드")
-        .or_else(|| read_state_u64(state, "살림.동기_라운드"))?;
-    let starting_value =
-        read_state_u64(state, "시작_값").or_else(|| read_state_u64(state, "살림.시작_값"))?;
+    let participant_count = read_state_u64(state, "참가자수")?;
+    let host_inputs = read_state_u64(state, "호스트_입력")?;
+    let guest_inputs = read_state_u64(state, "손님_입력")?;
+    let sync_rounds = read_state_u64(state, "동기_라운드")?;
+    let starting_value = read_state_u64(state, "시작_값")?;
     Some(W31Params {
         participant_count,
         host_inputs,
@@ -1493,16 +1475,11 @@ fn read_w31_params_from_state(state: &State) -> Option<W31Params> {
 }
 
 fn read_w32_params_from_state(state: &State) -> Option<W32Params> {
-    let diff_count =
-        read_state_u64(state, "차분_개수").or_else(|| read_state_u64(state, "살림.차분_개수"))?;
-    let code_before_len = read_state_u64(state, "코드_길이_전")
-        .or_else(|| read_state_u64(state, "살림.코드_길이_전"))?;
-    let code_after_len = read_state_u64(state, "코드_길이_후")
-        .or_else(|| read_state_u64(state, "살림.코드_길이_후"))?;
-    let state_field_count = read_state_u64(state, "상태_필드_수")
-        .or_else(|| read_state_u64(state, "살림.상태_필드_수"))?;
-    let summary_cap =
-        read_state_u64(state, "요약_캡").or_else(|| read_state_u64(state, "살림.요약_캡"))?;
+    let diff_count = read_state_u64(state, "차분_개수")?;
+    let code_before_len = read_state_u64(state, "코드_길이_전")?;
+    let code_after_len = read_state_u64(state, "코드_길이_후")?;
+    let state_field_count = read_state_u64(state, "상태_필드_수")?;
+    let summary_cap = read_state_u64(state, "요약_캡")?;
     Some(W32Params {
         diff_count,
         code_before_len,
@@ -1513,16 +1490,11 @@ fn read_w32_params_from_state(state: &State) -> Option<W32Params> {
 }
 
 fn read_w33_params_from_state(state: &State) -> Option<W33Params> {
-    let agent_count =
-        read_state_u64(state, "임자수").or_else(|| read_state_u64(state, "살림.임자수"))?;
-    let item_count =
-        read_state_u64(state, "상품수").or_else(|| read_state_u64(state, "살림.상품수"))?;
-    let trade_count =
-        read_state_u64(state, "거래수").or_else(|| read_state_u64(state, "살림.거래수"))?;
-    let query_batch =
-        read_state_u64(state, "쿼리_배치").or_else(|| read_state_u64(state, "살림.쿼리_배치"))?;
-    let reactive_max_pass = read_state_u64(state, "반응_패스_최대")
-        .or_else(|| read_state_u64(state, "살림.반응_패스_최대"))?;
+    let agent_count = read_state_u64(state, "임자수")?;
+    let item_count = read_state_u64(state, "상품수")?;
+    let trade_count = read_state_u64(state, "거래수")?;
+    let query_batch = read_state_u64(state, "쿼리_배치")?;
+    let reactive_max_pass = read_state_u64(state, "반응_패스_최대")?;
     Some(W33Params {
         agent_count,
         item_count,
@@ -1913,10 +1885,7 @@ fn extract_exec_policy_open_allow(program: &Program) -> Vec<String> {
             continue;
         }
         for (key, raw_value) in parse_exec_policy_arg_entries(args) {
-            if !matches!(
-                key.as_str(),
-                "열림허용" | "열림" | "open_allow" | "open"
-            ) {
+            if !matches!(key.as_str(), "열림허용" | "열림" | "open_allow" | "open") {
                 continue;
             }
             let Some(kind) = normalize_open_kind(&raw_value) else {
@@ -2129,6 +2098,9 @@ fn stmt_contains_open_call(stmt: &Stmt) -> bool {
         | Stmt::Return { value, .. }
         | Stmt::Show { value, .. }
         | Stmt::Inspect { value, .. } => expr_contains_open_call(value),
+        Stmt::Boim { entries, .. } => entries
+            .iter()
+            .any(|entry| expr_contains_open_call(&entry.value)),
         Stmt::Receive {
             condition, body, ..
         } => {
@@ -2193,7 +2165,10 @@ fn stmt_contains_open_call(stmt: &Stmt) -> bool {
                     .is_some_and(|body| stmts_contain_open_call(body))
                 || stmts_contain_open_call(else_body)
         }
-        Stmt::Pragma { .. } | Stmt::BogaeDraw { .. } | Stmt::Break { .. } => false,
+        Stmt::Pragma { .. }
+        | Stmt::BogaeDraw { .. }
+        | Stmt::Break { .. }
+        | Stmt::ContinueLoop { .. } => false,
     }
 }
 
@@ -2273,6 +2248,9 @@ fn stmt_contains_input_builtin(stmt: &Stmt) -> bool {
         | Stmt::Return { value, .. }
         | Stmt::Show { value, .. }
         | Stmt::Inspect { value, .. } => expr_contains_input_builtin(value),
+        Stmt::Boim { entries, .. } => entries
+            .iter()
+            .any(|entry| expr_contains_input_builtin(&entry.value)),
         Stmt::Receive {
             condition, body, ..
         } => {
@@ -2339,7 +2317,10 @@ fn stmt_contains_input_builtin(stmt: &Stmt) -> bool {
                     .is_some_and(|body| stmts_contain_input_builtin(body))
                 || stmts_contain_input_builtin(else_body)
         }
-        Stmt::Pragma { .. } | Stmt::BogaeDraw { .. } | Stmt::Break { .. } => false,
+        Stmt::Pragma { .. }
+        | Stmt::BogaeDraw { .. }
+        | Stmt::Break { .. }
+        | Stmt::ContinueLoop { .. } => false,
     }
 }
 
@@ -2414,6 +2395,9 @@ fn stmt_contains_regex_call(stmt: &Stmt) -> bool {
         | Stmt::Return { value, .. }
         | Stmt::Show { value, .. }
         | Stmt::Inspect { value, .. } => expr_contains_regex_call(value),
+        Stmt::Boim { entries, .. } => entries
+            .iter()
+            .any(|entry| expr_contains_regex_call(&entry.value)),
         Stmt::Receive {
             condition, body, ..
         } => {
@@ -2480,7 +2464,10 @@ fn stmt_contains_regex_call(stmt: &Stmt) -> bool {
                     .is_some_and(|body| stmts_contain_regex_call(body))
                 || stmts_contain_regex_call(else_body)
         }
-        Stmt::Pragma { .. } | Stmt::BogaeDraw { .. } | Stmt::Break { .. } => false,
+        Stmt::Pragma { .. }
+        | Stmt::BogaeDraw { .. }
+        | Stmt::Break { .. }
+        | Stmt::ContinueLoop { .. } => false,
     }
 }
 
@@ -2965,6 +2952,103 @@ pub fn run_file(
     run_file_with_emitter(path, madi, seed, options, &mut emitter)
 }
 
+fn extract_setting_madi(source: &str) -> Result<Option<u64>, String> {
+    let mut search_start = 0;
+    while let Some(rel_idx) = source[search_start..].find("설정") {
+        let setting_start = search_start + rel_idx;
+        let after_name = setting_start + "설정".len();
+        let rest = &source[after_name..];
+        let leading_ws = rest
+            .char_indices()
+            .find(|(_, ch)| !ch.is_whitespace())
+            .map(|(idx, _)| idx)
+            .unwrap_or(rest.len());
+        let brace_idx = after_name + leading_ws;
+        if source[brace_idx..].starts_with('{') {
+            if let Some((body, end_idx)) = extract_braced_body(source, brace_idx) {
+                if let Some(value) = parse_madi_from_setting_body(body)? {
+                    return Ok(Some(value));
+                }
+                search_start = end_idx;
+                continue;
+            }
+        }
+        search_start = after_name;
+    }
+    Ok(None)
+}
+
+fn extract_braced_body(source: &str, open_brace_idx: usize) -> Option<(&str, usize)> {
+    let mut depth = 0usize;
+    let mut body_start = None;
+    for (rel_idx, ch) in source[open_brace_idx..].char_indices() {
+        let idx = open_brace_idx + rel_idx;
+        match ch {
+            '{' => {
+                depth += 1;
+                if body_start.is_none() {
+                    body_start = Some(idx + ch.len_utf8());
+                }
+            }
+            '}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return body_start.map(|start| (&source[start..idx], idx + ch.len_utf8()));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn parse_madi_from_setting_body(body: &str) -> Result<Option<u64>, String> {
+    let Some((_, after_key)) = find_setting_key(body, "마디수") else {
+        return Ok(None);
+    };
+    let after_ws = after_key.trim_start();
+    let after_colon = after_ws[1..].trim_start();
+    let raw_value = after_colon
+        .split(|ch| ch == '.' || ch == '\n' || ch == '\r' || ch == '}')
+        .next()
+        .unwrap_or("")
+        .trim();
+    if raw_value.is_empty()
+        || raw_value.starts_with('-')
+        || !raw_value.chars().all(|ch| ch.is_ascii_digit())
+    {
+        return Err(setting_madi_error());
+    }
+    let value = raw_value.parse::<u64>().map_err(|_| setting_madi_error())?;
+    if value == 0 {
+        return Err(setting_madi_error());
+    }
+    Ok(Some(value))
+}
+
+fn find_setting_key<'a>(body: &'a str, key: &str) -> Option<(usize, &'a str)> {
+    let mut search_start = 0;
+    while let Some(rel_idx) = body[search_start..].find(key) {
+        let key_idx = search_start + rel_idx;
+        let before = body[..key_idx].chars().rev().find(|ch| !ch.is_whitespace());
+        let after_key = &body[key_idx + key.len()..];
+        let after_ws = after_key.trim_start();
+        let key_boundary = match before {
+            Some(ch) => ch == '.' || ch == '{' || ch == '\n' || ch == '\r',
+            None => true,
+        };
+        if key_boundary && after_ws.starts_with(':') {
+            return Some((key_idx, after_ws));
+        }
+        search_start = key_idx + key.len();
+    }
+    None
+}
+
+fn setting_madi_error() -> String {
+    "E_SETTING_MADI_BAD_VALUE 설정 마디수는 1 이상의 정수여야 합니다.".to_string()
+}
+
 pub fn run_file_with_emitter(
     path: &Path,
     madi: Option<MadiLimit>,
@@ -2973,6 +3057,7 @@ pub fn run_file_with_emitter(
     emit: &mut dyn RunEmitSink,
 ) -> Result<(), String> {
     let source = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let configured_madi = extract_setting_madi(&source)?;
     let file_label = path.display().to_string();
     let open_source = canonical_open_source_path(path);
     let mut open_allow = parse_open_allow_directives(&source);
@@ -2980,12 +3065,14 @@ pub fn run_file_with_emitter(
         load_open_policy(path).map_err(|message| format!("E_OPEN_POLICY {}", message))?;
     let project_policy = load_project_policy(path)?;
     let parse_mode = resolve_lang_mode(options.lang_mode, &project_policy)?;
-    let (program_for_gate, _prepared_source) =
+    let (program_for_gate, prepared_source) =
         parse_program_for_runtime_with_mode(&source, parse_mode).map_err(|err| match err {
             FrontdoorParseFailure::Guard(message) => message,
             FrontdoorParseFailure::Lex(err) => RunError::Lex(err).format(&file_label),
             FrontdoorParseFailure::Parse(err) => RunError::Parse(err).format(&file_label),
         })?;
+    let parse_warnings = collect_lang_parse_warnings_for_run(&prepared_source);
+    emit_lang_parse_warnings_for_run(&parse_warnings, emit);
     let exec_policy_extract = extract_exec_policy(&program_for_gate)?;
     for kind in extract_exec_policy_open_allow(&program_for_gate) {
         if !open_allow.iter().any(|entry| entry == &kind) {
@@ -3186,7 +3273,7 @@ pub fn run_file_with_emitter(
     let mut ticks = match (madi_arg, options.until_gameover) {
         (Some(MadiLimit::Finite(value)), _) => Some(value),
         (Some(MadiLimit::Infinite), _) => None,
-        (None, false) => Some(1),
+        (None, false) => configured_madi.or(Some(1)),
         (None, true) => None,
     };
     if options.record_sam_path.is_some() && ticks.is_none() {
@@ -3830,6 +3917,21 @@ pub fn run_file_with_emitter(
             options.proof_cert_key.as_deref(),
         )?;
     }
+    if let Some(path) = options.summary_json.as_ref() {
+        write_run_summary_json(
+            path,
+            &source,
+            &prepared_source,
+            configured_madi,
+            ticks,
+            ticks_run,
+            &parse_warnings,
+            &output,
+            &state_hash,
+            &trace_hash,
+        )
+        .map_err(|err| format!("E_RUN_SUMMARY_WRITE {}", err))?;
+    }
 
     if let (Some(BogaeMode::Web), Some(index_path)) = (options.bogae_mode, web_index_path.as_ref())
     {
@@ -3862,6 +3964,220 @@ pub fn run_file_with_emitter(
     Ok(())
 }
 
+fn emit_lang_parse_warnings_for_run(warnings: &[CliParseWarning], emit: &mut dyn RunEmitSink) {
+    for warning in warnings {
+        emit.err(&format!("warning: {} {}", warning.code, warning.message));
+    }
+}
+
+#[derive(Clone, Debug)]
+struct CliParseWarning {
+    code: String,
+    message: String,
+}
+
+fn collect_lang_parse_warnings_for_run(source: &str) -> Vec<CliParseWarning> {
+    let normalized = ddonirang_lang::normalize_for_lang_parity(source);
+    let candidates = [
+        normalized.clone(),
+        ddonirang_lang::wrap_lang_parity_source(&normalized),
+    ];
+    for candidate in candidates {
+        let Ok(mut program) = ddonirang_lang::parse_with_mode(
+            &candidate,
+            "<teul-cli-run-warning>",
+            ddonirang_lang::ParseMode::Strict,
+        ) else {
+            continue;
+        };
+        let Ok(report) = ddonirang_lang::canonicalize(&mut program) else {
+            continue;
+        };
+        return report
+            .warnings
+            .into_iter()
+            .map(|warning| CliParseWarning {
+                code: warning.code.to_string(),
+                message: warning.message,
+            })
+            .collect();
+    }
+    Vec::new()
+}
+
+fn write_run_summary_json(
+    path: &Path,
+    source: &str,
+    prepared_source: &str,
+    configured_madi: Option<u64>,
+    effective_ticks: u64,
+    ticks_run: u64,
+    parse_warnings: &[CliParseWarning],
+    output: &EvalOutput,
+    state_hash: &str,
+    trace_hash: &str,
+) -> Result<(), String> {
+    let canonical_ddn = canon::canonicalize(source, false)
+        .map_err(|err| format!("canon 실패: {err}"))?
+        .ddn;
+    let stdout_lines = output.trace.log_lines();
+    let stdout_line_texts: Vec<String> = stdout_lines.iter().map(|line| (*line).to_string()).collect();
+    let output_log_texts = {
+        let from_state = output_log_texts_from_state(&output.state);
+        if from_state.is_empty() {
+            stdout_line_texts.clone()
+        } else {
+            from_state
+        }
+    };
+    let resources_value_json = state_resources_value_json(&output.state);
+    let payload = json!({
+        "schema": "ddn.teul_cli.run_summary.v1",
+        "canonical_ddn": canonical_ddn,
+        "preprocessed_ddn": prepared_source,
+        "configured_ticks": configured_madi,
+        "effective_ticks": effective_ticks,
+        "ticks_run": ticks_run,
+        "parse_warnings": parse_warnings.iter().map(|warning| {
+            json!({
+                "code": warning.code,
+                "message": warning.message,
+            })
+        }).collect::<Vec<_>>(),
+        "stdout_lines": stdout_line_texts,
+        "output_log_texts": output_log_texts,
+        "output_rows": output_rows_from_state(&output.state),
+        "final_row": final_row_snapshot(&output.state),
+        "resources": {
+            "value_json": resources_value_json,
+        },
+        "state_hash": state_hash,
+        "trace_hash": trace_hash,
+    });
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        }
+    }
+    let text = serde_json::to_string_pretty(&payload).map_err(|err| err.to_string())?;
+    fs::write(path, format!("{text}\n")).map_err(|err| err.to_string())
+}
+
+fn state_resources_value_json(state: &State) -> JsonValue {
+    let mut out = serde_json::Map::new();
+    for (key, value) in &state.resources {
+        out.insert(key.as_str().to_string(), value_to_json(value));
+    }
+    JsonValue::Object(out)
+}
+
+fn final_row_snapshot(state: &State) -> JsonValue {
+    let mut out = serde_json::Map::new();
+    for (key, value) in &state.resources {
+        if let Some(scalar) = value_to_scalar_json(value) {
+            out.insert(key.as_str().to_string(), scalar);
+        }
+    }
+    JsonValue::Object(out)
+}
+
+fn output_log_texts_from_state(state: &State) -> Vec<String> {
+    let Some(Value::List(list)) = state.get(&Key::new("output_log")) else {
+        return Vec::new();
+    };
+    list.items
+        .iter()
+        .filter_map(|item| match item {
+            Value::Map(map) => map.entries.get("\"text\"").or_else(|| {
+                map.entries.iter().find_map(|(_, entry)| match &entry.key {
+                    Value::Str(key) if key == "text" => Some(entry),
+                    _ => None,
+                })
+            }),
+            _ => None,
+        })
+        .map(|entry| entry.value.display())
+        .collect()
+}
+
+fn output_rows_from_state(state: &State) -> Vec<JsonValue> {
+    let Some(Value::List(list)) = state.get(&Key::new("보개_출력_줄들")) else {
+        return Vec::new();
+    };
+    let tokens: Vec<String> = list.items.iter().map(|value| value.display()).collect();
+    let mut rows = Vec::new();
+    let mut idx = 0usize;
+    while idx + 2 < tokens.len() {
+        if tokens[idx].trim().eq_ignore_ascii_case("table.row") {
+            rows.push(json!({
+                "key": tokens[idx + 1],
+                "value": tokens[idx + 2],
+                "source": "table.row",
+            }));
+            idx += 3;
+        } else {
+            idx += 1;
+        }
+    }
+    rows
+}
+
+fn value_to_json(value: &Value) -> JsonValue {
+    match value {
+        Value::None => JsonValue::Null,
+        Value::Bool(v) => JsonValue::Bool(*v),
+        Value::Num(qty) => fixed64_to_json(qty.raw),
+        Value::Str(v) => JsonValue::String(v.clone()),
+        Value::ResourceHandle(handle) => JsonValue::String(format!("자원#{}", handle.to_hex())),
+        Value::Math(math) => json!({
+            "dialect": math.dialect,
+            "raw": math.body,
+        }),
+        Value::Template(template) => JsonValue::String(template.body.clone()),
+        Value::Assertion(assertion) => JsonValue::String(assertion.canon.clone()),
+        Value::Lambda(lambda) => JsonValue::String(lambda.canon()),
+        Value::Dice(dice) => JsonValue::String(dice.display()),
+        Value::Pack(pack) => {
+            let mut out = serde_json::Map::new();
+            for (key, field) in &pack.fields {
+                out.insert(key.clone(), value_to_json(field));
+            }
+            JsonValue::Object(out)
+        }
+        Value::List(list) => JsonValue::Array(list.items.iter().map(value_to_json).collect()),
+        Value::Set(set) => JsonValue::Array(set.items.values().map(value_to_json).collect()),
+        Value::Map(map) => {
+            let mut out = serde_json::Map::new();
+            for entry in map.entries.values() {
+                out.insert(map_key_to_json_key(&entry.key), value_to_json(&entry.value));
+            }
+            JsonValue::Object(out)
+        }
+    }
+}
+
+fn value_to_scalar_json(value: &Value) -> Option<JsonValue> {
+    match value {
+        Value::Bool(_) | Value::Num(_) | Value::Str(_) => Some(value_to_json(value)),
+        _ => None,
+    }
+}
+
+fn map_key_to_json_key(value: &Value) -> String {
+    match value {
+        Value::Str(text) => text.clone(),
+        _ => value.display(),
+    }
+}
+
+fn fixed64_to_json(value: Fixed64) -> JsonValue {
+    let raw = value.raw();
+    if raw % Fixed64::SCALE == 0 {
+        return json!(raw / Fixed64::SCALE);
+    }
+    json!((raw as f64) / (Fixed64::SCALE as f64))
+}
+
 pub fn run_source_with_state_ticks(
     source: &str,
     state: State,
@@ -3876,11 +4192,12 @@ pub fn run_source_with_state_seed_ticks(
     seed: u64,
     ticks: u64,
 ) -> Result<EvalOutput, RunError> {
-    let (program, prepared_source) = parse_program_for_runtime(source).map_err(|err| match err {
-        FrontdoorParseFailure::Guard(message) => RunError::Frontdoor { message },
-        FrontdoorParseFailure::Lex(err) => RunError::Lex(err),
-        FrontdoorParseFailure::Parse(err) => RunError::Parse(err),
-    })?;
+    let (program, prepared_source) =
+        parse_program_for_runtime(source).map_err(|err| match err {
+            FrontdoorParseFailure::Guard(message) => RunError::Frontdoor { message },
+            FrontdoorParseFailure::Lex(err) => RunError::Lex(err),
+            FrontdoorParseFailure::Parse(err) => RunError::Parse(err),
+        })?;
     let evaluator = Evaluator::with_state_seed_open(
         state,
         seed,
@@ -3923,8 +4240,8 @@ where
 {
     let mut tick_error: Option<RunError> = None;
     let mut ticks_run = 0u64;
-    let (program, prepared_source) =
-        parse_program_for_runtime_with_mode(source, parse_mode).map_err(|error| {
+    let (program, prepared_source) = parse_program_for_runtime_with_mode(source, parse_mode)
+        .map_err(|error| {
             let error = match error {
                 FrontdoorParseFailure::Guard(message) => RunError::Frontdoor { message },
                 FrontdoorParseFailure::Lex(error) => RunError::Lex(error),
@@ -4191,6 +4508,7 @@ fn lex_line(err: &LexError) -> usize {
         LexError::UnterminatedString { line, .. } => *line,
         LexError::UnterminatedTemplate { line, .. } => *line,
         LexError::UnterminatedAssertion { line, .. } => *line,
+        LexError::UnterminatedFormula { line, .. } => *line,
         LexError::BadEscape { line, .. } => *line,
         LexError::BadIdentStart { line, .. } => *line,
         LexError::UnexpectedChar { line, .. } => *line,
@@ -4202,6 +4520,7 @@ fn lex_col(err: &LexError) -> usize {
         LexError::UnterminatedString { col, .. } => *col,
         LexError::UnterminatedTemplate { col, .. } => *col,
         LexError::UnterminatedAssertion { col, .. } => *col,
+        LexError::UnterminatedFormula { col, .. } => *col,
         LexError::BadEscape { col, .. } => *col,
         LexError::BadIdentStart { col, .. } => *col,
         LexError::UnexpectedChar { col, .. } => *col,
@@ -4213,6 +4532,7 @@ fn lex_message(err: &LexError) -> String {
         LexError::UnterminatedString { .. } => "문자열이 닫히지 않았습니다".to_string(),
         LexError::UnterminatedTemplate { .. } => "글무늬 블록이 닫히지 않았습니다".to_string(),
         LexError::UnterminatedAssertion { .. } => "세움 블록이 닫히지 않았습니다".to_string(),
+        LexError::UnterminatedFormula { .. } => "수식 블록이 닫히지 않았습니다".to_string(),
         LexError::BadEscape { ch, .. } => format!("잘못된 이스케이프: {}", ch),
         LexError::BadIdentStart { .. } => "식별자는 숫자로 시작할 수 없습니다".to_string(),
         LexError::UnexpectedChar { ch, .. } => format!("예상치 못한 문자: {}", ch),
@@ -4259,6 +4579,8 @@ fn parse_line(err: &ParseError) -> usize {
         ParseError::ImmediateProofIoForbidden { span } => span.start_line,
         ParseError::CaseCompletionRequired { span } => span.start_line,
         ParseError::CaseElseNotLast { span } => span.start_line,
+        ParseError::ChaebiInLoop { span } => span.start_line,
+        ParseError::TagDuplicateInContext { span, .. } => span.start_line,
     }
 }
 
@@ -4302,6 +4624,8 @@ fn parse_col(err: &ParseError) -> usize {
         ParseError::ImmediateProofIoForbidden { span } => span.start_col,
         ParseError::CaseCompletionRequired { span } => span.start_col,
         ParseError::CaseElseNotLast { span } => span.start_col,
+        ParseError::ChaebiInLoop { span } => span.start_col,
+        ParseError::TagDuplicateInContext { span, .. } => span.start_col,
     }
 }
 
@@ -4312,7 +4636,7 @@ fn parse_message(err: &ParseError) -> String {
         ParseError::ExpectedPath { .. } => "경로가 필요합니다".to_string(),
         ParseError::ExpectedTarget { .. } => "대입 대상이 필요합니다".to_string(),
         ParseError::RootHideUndeclared { name, .. } => {
-            format!("바탕숨김에서 미등록 바탕칸 쓰기: {}", name)
+            format!("채비에 선언되지 않은 전역 쓰기: {}", name)
         }
         ParseError::UnsupportedCompoundTarget { .. } => {
             "복합 갱신(+<-, -<-)은 이름 대상만 허용됩니다".to_string()
@@ -4414,6 +4738,12 @@ fn parse_message(err: &ParseError) -> String {
                 .to_string()
         }
         ParseError::CaseElseNotLast { .. } => "`그밖의 경우`는 마지막 분기여야 합니다".to_string(),
+        ParseError::ChaebiInLoop { .. } => {
+            "`채비 {}`는 루프/훅/순회 body 안에서 사용할 수 없습니다".to_string()
+        }
+        ParseError::TagDuplicateInContext { tag, .. } => {
+            format!("같은 문맥 안에서 #태그를 중복 사용할 수 없습니다: {}", tag)
+        }
     }
 }
 
@@ -4441,6 +4771,7 @@ fn runtime_line(err: &RuntimeError) -> usize {
         RuntimeError::Template { span, .. } => span.start_line,
         RuntimeError::Pack { span, .. } => span.start_line,
         RuntimeError::BreakOutsideLoop { span } => span.start_line,
+        RuntimeError::ContinueOutsideForeach { span } => span.start_line,
         RuntimeError::ReturnOutsideSeed { span } => span.start_line,
         RuntimeError::ProofIncomplete { span } => span.start_line,
         RuntimeError::OpenSiteUnknown { span } => span.start_line,
@@ -4483,6 +4814,7 @@ fn runtime_col(err: &RuntimeError) -> usize {
         RuntimeError::Template { span, .. } => span.start_col,
         RuntimeError::Pack { span, .. } => span.start_col,
         RuntimeError::BreakOutsideLoop { span } => span.start_col,
+        RuntimeError::ContinueOutsideForeach { span } => span.start_col,
         RuntimeError::ReturnOutsideSeed { span } => span.start_col,
         RuntimeError::ProofIncomplete { span } => span.start_col,
         RuntimeError::OpenSiteUnknown { span } => span.start_col,
@@ -4525,13 +4857,22 @@ fn runtime_message(err: &RuntimeError) -> String {
             ..
         } => match *verb {
             "시작하기" => {
-                format!("등록되지 않은 시작하기 target: {} (family={})", target, family)
+                format!(
+                    "등록되지 않은 시작하기 target: {} (family={})",
+                    target, family
+                )
             }
             "넘어가기" => {
-                format!("등록되지 않은 넘어가기 target: {} (family={})", target, family)
+                format!(
+                    "등록되지 않은 넘어가기 target: {} (family={})",
+                    target, family
+                )
             }
             "불러오기" => {
-                format!("등록되지 않은 불러오기 target: {} (family={})", target, family)
+                format!(
+                    "등록되지 않은 불러오기 target: {} (family={})",
+                    target, family
+                )
             }
             _ => format!(
                 "등록되지 않은 lifecycle target: {} (동사={}, family={})",
@@ -4578,9 +4919,18 @@ fn runtime_message(err: &RuntimeError) -> String {
             ),
         },
         RuntimeError::LifecycleTargetFamilyAmbiguous { verb, target, .. } => match *verb {
-            "시작하기" => format!("시작하기 target family 애매: {} (판/마당 동시 포함)", target),
-            "넘어가기" => format!("넘어가기 target family 애매: {} (판/마당 동시 포함)", target),
-            "불러오기" => format!("불러오기 target family 애매: {} (판/마당 동시 포함)", target),
+            "시작하기" => format!(
+                "시작하기 target family 애매: {} (판/마당 동시 포함)",
+                target
+            ),
+            "넘어가기" => format!(
+                "넘어가기 target family 애매: {} (판/마당 동시 포함)",
+                target
+            ),
+            "불러오기" => format!(
+                "불러오기 target family 애매: {} (판/마당 동시 포함)",
+                target
+            ),
             _ => format!(
                 "lifecycle target family 애매: {} (동사={} 판/마당 동시 포함)",
                 target, verb
@@ -4600,6 +4950,9 @@ fn runtime_message(err: &RuntimeError) -> String {
         RuntimeError::Pack { message, .. } => message.clone(),
         RuntimeError::BreakOutsideLoop { .. } => {
             "멈추기는 반복 안에서만 사용할 수 있습니다".to_string()
+        }
+        RuntimeError::ContinueOutsideForeach { .. } => {
+            "건너뛰기는 `~에 대해` 반복 안에서만 사용할 수 있습니다".to_string()
         }
         RuntimeError::ReturnOutsideSeed { .. } => {
             "돌려주기는 씨앗 안에서만 사용할 수 있습니다".to_string()
@@ -5561,6 +5914,7 @@ fn binary_op_label(op: &BinaryOp) -> &'static str {
         BinaryOp::Lte => "lte",
         BinaryOp::Gt => "gt",
         BinaryOp::Gte => "gte",
+        BinaryOp::RelationEq => "relation_eq",
     }
 }
 
@@ -5784,6 +6138,10 @@ fn stmt_to_json(stmt: &Stmt) -> JsonValue {
             "value": expr_to_json(value),
         }),
         Stmt::BogaeDraw { .. } => json!({"kind": "bogae_draw"}),
+        Stmt::Boim { entries, .. } => json!({
+            "kind": "boim",
+            "entries": entries.iter().map(binding_to_json).collect::<Vec<_>>(),
+        }),
         Stmt::Hook { kind, body, .. } => json!({
             "kind": "hook",
             "hook_kind": format!("{kind:?}"),
@@ -5880,6 +6238,7 @@ fn stmt_to_json(stmt: &Stmt) -> JsonValue {
             "body": body.iter().map(stmt_to_json).collect::<Vec<_>>(),
         }),
         Stmt::Break { .. } => json!({"kind": "break"}),
+        Stmt::ContinueLoop { .. } => json!({"kind": "continue"}),
         Stmt::Contract {
             kind,
             mode,
@@ -5926,7 +6285,10 @@ fn canonical_body_hash_with_mode(
             let digest = Sha256::digest(output.ddn.as_bytes());
             Ok((format!("sha256:{:x}", digest), "canon"))
         }
-        Err(_) => Ok((fallback_structural_body_hash_with_mode(source, parse_mode)?, "ast_fallback")),
+        Err(_) => Ok((
+            fallback_structural_body_hash_with_mode(source, parse_mode)?,
+            "ast_fallback",
+        )),
     }
 }
 
@@ -5957,14 +6319,16 @@ fn quantifier_kind_label(kind: QuantifierKind) -> &'static str {
     }
 }
 
-fn parse_program_for_proof_with_mode(source: &str, parse_mode: ParseMode) -> Result<Program, String> {
-    let (program, _) = parse_program_for_runtime_with_mode(source, parse_mode).map_err(|err| {
-        match err {
+fn parse_program_for_proof_with_mode(
+    source: &str,
+    parse_mode: ParseMode,
+) -> Result<Program, String> {
+    let (program, _) =
+        parse_program_for_runtime_with_mode(source, parse_mode).map_err(|err| match err {
             FrontdoorParseFailure::Guard(message) => message,
             FrontdoorParseFailure::Lex(err) => format!("{} {}", err.code(), lex_message(&err)),
             FrontdoorParseFailure::Parse(err) => format!("{} {}", err.code(), parse_message(&err)),
-        }
-    })?;
+        })?;
     Ok(program)
 }
 
@@ -6150,7 +6514,13 @@ fn collect_solver_translation_stmt(stmt: &Stmt, items: &mut Vec<JsonValue>) {
         | Stmt::ExportBlock { .. }
         | Stmt::BogaeDraw { .. }
         | Stmt::Break { .. }
+        | Stmt::ContinueLoop { .. }
         | Stmt::Pragma { .. } => {}
+        Stmt::Boim { entries, .. } => {
+            for entry in entries {
+                collect_solver_translation_expr(&entry.value, items);
+            }
+        }
         Stmt::DeclBlock { items: decls, .. } => {
             for decl in decls {
                 if let Some(value) = decl.value.as_ref() {
@@ -6460,7 +6830,8 @@ fn build_proof_detjson_with_mode(
     output: &EvalOutput,
     runtime_error: Option<&RunError>,
 ) -> Result<JsonValue, String> {
-    let (canonical_hash, canonical_hash_method) = canonical_body_hash_with_mode(source, parse_mode)?;
+    let (canonical_hash, canonical_hash_method) =
+        canonical_body_hash_with_mode(source, parse_mode)?;
     let program = parse_program_for_proof_with_mode(source, parse_mode)?;
     let solver_translation = build_solver_translation(&program);
     let solver_translation_hash = json_sha256(&solver_translation)?;
@@ -6733,15 +7104,7 @@ fn write_proof_detjson(
     proof_cert_key: Option<&Path>,
 ) -> Result<(), String> {
     let root = build_proof_detjson_with_mode(
-        entry,
-        seed,
-        ticks,
-        source,
-        parse_mode,
-        state_hash,
-        trace_hash,
-        output,
-        None,
+        entry, seed, ticks, source, parse_mode, state_hash, trace_hash, output, None,
     )?;
     let text = write_pretty_json_file(path, &root)?;
     write_runtime_proof_certificate_sidecars(path, &text, &root, proof_cert_key)?;
@@ -6873,8 +7236,7 @@ mod tests {
     }
 
     fn parse_program_for_test(source: &str) -> Program {
-        let (program, _) =
-            parse_program_for_runtime(source).expect("parse program for runtime");
+        let (program, _) = parse_program_for_runtime(source).expect("parse program for runtime");
         program
     }
 
@@ -6918,8 +7280,136 @@ mod tests {
             no_open: false,
             unsafe_open: false,
             run_manifest: None,
+            summary_json: None,
             artifact_pins: Vec::new(),
         }
+    }
+
+    fn write_temp_ddn(name: &str, source: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        path.push(format!("{}_{}.ddn", name, unique));
+        fs::write(&path, source).expect("write temp ddn");
+        path
+    }
+
+    #[test]
+    fn setting_madi_controls_default_run_ticks() {
+        let source = r#"
+설정 {
+  마디수: 3.
+}.
+
+채비 {
+  t: 수 <- 0.
+}.
+
+(매마디)마다 {
+  t <- t + 1.
+  t 보여주기.
+}.
+"#;
+        let path = write_temp_ddn("setting_madi_ticks", source);
+        let mut emitter = CaptureEmitter::new();
+        run_file_with_emitter(&path, None, 0, default_run_options(), &mut emitter)
+            .expect("run with setting madi");
+        let _ = fs::remove_file(path);
+        assert!(emitter.out.starts_with(&[
+            "1".to_string(),
+            "2".to_string(),
+            "3".to_string()
+        ]));
+    }
+
+    #[test]
+    fn setting_madi_bad_value_rejects_run() {
+        let source = r#"
+설정 {
+  마디수: 0.
+}.
+
+채비 {
+  t: 수 <- 0.
+}.
+"#;
+        let path = write_temp_ddn("setting_madi_bad", source);
+        let mut emitter = CaptureEmitter::new();
+        let err = run_file_with_emitter(&path, None, 0, default_run_options(), &mut emitter)
+            .expect_err("bad setting madi");
+        let _ = fs::remove_file(path);
+        assert!(err.contains("E_SETTING_MADI_BAD_VALUE"), "{err}");
+    }
+
+    #[test]
+    fn run_summary_json_records_stdout_rows_and_resources() {
+        let source = r#"
+설정 {
+  마디수: 2.
+}.
+
+채비 {
+  t: 수 <- 0.
+}.
+
+(매마디)마다 {
+  t <- t + 1.
+  t 보여주기.
+  보임 {
+    x축: t.
+    값: t.
+  }.
+}.
+"#;
+        let path = write_temp_ddn("run_summary_json", source);
+        let mut summary_path = std::env::temp_dir();
+        summary_path.push(format!(
+            "run_summary_json_{}.detjson",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        let mut options = default_run_options();
+        options.summary_json = Some(summary_path.clone());
+        let mut emitter = CaptureEmitter::new();
+        run_file_with_emitter(&path, None, 0, options, &mut emitter).expect("run with summary");
+        let text = fs::read_to_string(&summary_path).expect("summary json");
+        let doc: JsonValue = serde_json::from_str(&text).expect("summary parse");
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(summary_path);
+
+        assert_eq!(doc["schema"], "ddn.teul_cli.run_summary.v1");
+        assert_eq!(doc["configured_ticks"], 2);
+        assert_eq!(doc["ticks_run"], 2);
+        assert_eq!(doc["stdout_lines"], json!(["1", "2"]));
+        assert_eq!(doc["output_log_texts"], json!(["1", "2"]));
+        assert_eq!(doc["final_row"]["t"], json!(2));
+        assert_eq!(doc["resources"]["value_json"]["t"], json!(2));
+        assert_eq!(
+            doc["resources"]["value_json"]["보개_그래프_점목록_f"],
+            json!([{ "x": 1, "y": 1 }, { "x": 2, "y": 2 }])
+        );
+        assert!(emitter.out.starts_with(&["1".to_string(), "2".to_string()]));
+    }
+
+    #[test]
+    fn run_summary_json_write_error_is_reported() {
+        let source = r#"
+채비 {
+  t: 수 <- 1.
+}.
+"#;
+        let path = write_temp_ddn("run_summary_json_bad_path", source);
+        let mut options = default_run_options();
+        options.summary_json = Some(std::env::temp_dir());
+        let mut emitter = CaptureEmitter::new();
+        let err = run_file_with_emitter(&path, None, 0, options, &mut emitter)
+            .expect_err("summary write should fail");
+        let _ = fs::remove_file(path);
+        assert!(err.contains("E_RUN_SUMMARY_WRITE"), "{err}");
     }
 
     fn matic_seed_source() -> &'static str {
@@ -7534,10 +8024,10 @@ mod tests {
     #[test]
     fn normalize_observed_assignment_target_strips_type_and_root_prefixes() {
         assert_eq!(normalize_observed_assignment_target("x:수"), "x");
-        assert_eq!(normalize_observed_assignment_target("살림.x"), "x");
-        assert_eq!(normalize_observed_assignment_target("바탕.x"), "x");
+        assert_eq!(normalize_observed_assignment_target("x"), "x");
+        assert_eq!(normalize_observed_assignment_target("x"), "x");
         assert_eq!(
-            normalize_observed_assignment_target("바탕.공.속도.x:수"),
+            normalize_observed_assignment_target("공.속도.x:수"),
             "공.속도.x"
         );
         assert_eq!(
@@ -7560,7 +8050,7 @@ mod tests {
 
     #[test]
     fn find_last_constant_int_assignment_uses_normalized_typed_root_targets() {
-        let source = "바탕.공.속도.x:수 <- +5.\n";
+        let source = "공.속도.x:수 <- +5.\n";
         assert_eq!(
             find_last_constant_int_assignment(source, 1, "공.속도.x"),
             Some(5)
@@ -7619,13 +8109,13 @@ mod tests {
 
     #[test]
     fn find_last_constant_int_assignment_ignores_root_object_reassignment_for_bare_leaf_target() {
-        let source = "살림.x <- 5.\n살림 <- (\"x\", 7) 짝맞춤.\n";
+        let source = "x <- 5.\n살림 <- (\"x\", 7) 짝맞춤.\n";
         assert_eq!(find_last_constant_int_assignment(source, 2, "x"), Some(5));
     }
 
     #[test]
     fn find_last_constant_int_assignment_ignores_descendant_assignment() {
-        let source = "살림.공.속도.x <- 5.\n살림.공.속도.x.세부 <- 7.\n";
+        let source = "공.속도.x <- 5.\n살림.공.속도.x.세부 <- 7.\n";
         assert_eq!(
             find_last_constant_int_assignment(source, 2, "공.속도.x"),
             Some(5)
@@ -7741,7 +8231,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.x <- +5.\n{ x == 10 }인것 바탕으로(알림)\n",
+            "x <- +5.\n{ x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7771,7 +8261,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.x <- +5.\n{ 살림.x == 10 }인것 바탕으로(알림)\n",
+            "x <- +5.\n{ 살림.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7803,7 +8293,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.y <- +5.\n살림.x <- 5.\n살림.x <- y.\n{ 살림.x == 10 }인것 바탕으로(알림)\n",
+            "y <- +5.\n살림.x <- 5.\n살림.x <- y.\n{ 살림.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7835,7 +8325,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.x <- +5.\n{ 바탕.x == 10 }인것 바탕으로(알림)\n",
+            "x <- +5.\n{ 바탕.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7868,7 +8358,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7901,7 +8391,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7934,7 +8424,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.다른 <- 7.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.다른 <- 7.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7967,7 +8457,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- y.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- y.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -7999,7 +8489,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공.속도.x <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공.속도.x <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8031,7 +8521,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8063,7 +8553,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- y.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- y.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8096,7 +8586,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8128,7 +8618,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.x <- +5.\n{ 살림.x == 10 }인것 바탕으로(알림)\n",
+            "x <- +5.\n{ 살림.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8161,7 +8651,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8194,7 +8684,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8227,7 +8717,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공.다른 <- 7.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공.다른 <- 7.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8260,7 +8750,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n바탕.공.속도.x <- 5.\n바탕.공.속도.x <- y.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n바탕.공.속도.x <- 5.\n바탕.공.속도.x <- y.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8290,7 +8780,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.x <- +5.\n{ x == 10 }인것 바탕으로(알림)\n",
+            "x <- +5.\n{ x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8320,7 +8810,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.x <- +5.\n{ 바탕.x == 10 }인것 바탕으로(알림)\n",
+            "x <- +5.\n{ 바탕.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8352,7 +8842,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.y <- +5.\n바탕.x <- 5.\n바탕.x <- y.\n{ 바탕.x == 10 }인것 바탕으로(알림)\n",
+            "y <- +5.\n바탕.x <- 5.\n바탕.x <- y.\n{ 바탕.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8384,7 +8874,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8416,7 +8906,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n바탕.공.속도.x <- 5.\n바탕.공.속도.x <- y.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n바탕.공.속도.x <- 5.\n바탕.공.속도.x <- y.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8449,7 +8939,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8481,7 +8971,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8513,7 +9003,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.y <- +5.\n{ x == 10 }인것 바탕으로(알림)\n",
+            "y <- +5.\n{ x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8545,7 +9035,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.y <- +5.\nx <- y.\n{ x == 10 }인것 바탕으로(알림)\n",
+            "y <- +5.\nx <- y.\n{ x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8575,7 +9065,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.y <- +5.\nx <- 5.\nx <- y.\n{ x == 10 }인것 바탕으로(알림)\n",
+            "y <- +5.\nx <- 5.\nx <- y.\n{ x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8638,7 +9128,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.y <- +5.\n바탕.x <- 5.\n바탕.x <- y.\n{ x == 10 }인것 바탕으로(알림)\n",
+            "y <- +5.\n바탕.x <- 5.\n바탕.x <- y.\n{ x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8703,7 +9193,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.y <- +5.\n살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- y.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "y <- +5.\n살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- y.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8735,7 +9225,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- (2 + 3).\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.속도.x <- (2 + 3).\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8767,7 +9257,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8800,7 +9290,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공 <- (\"속도\", (\"x\", 7) 짝맞춤) 짝맞춤.\n살림.y <- +5.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8832,7 +9322,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.다른 <- 7.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.다른 <- 7.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8865,7 +9355,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "살림.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.다른 <- 7.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n살림.공.속도.x <- 5.\n살림.공.다른 <- 7.\n살림.y <- +5.\n{ 살림.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8897,7 +9387,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공.다른 <- 7.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공.다른 <- 7.\n{ 공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -8930,7 +9420,7 @@ mod tests {
         append_contract_diags(
             &path,
             "main.ddn",
-            "바탕.공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공.다른 <- 7.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
+            "공 <- (\"속도\", (\"x\", 0) 짝맞춤) 짝맞춤.\n바탕.공.속도.x <- 5.\n바탕.공.다른 <- 7.\n살림.y <- +5.\n{ 바탕.공.속도.x == 10 }인것 바탕으로(알림)\n",
             &events,
             SeulgiHookPolicy::Execute,
         )
@@ -9712,7 +10202,7 @@ y 가 정수 중 딱 하나가 {
         assert_eq!(doc["solver_translation"]["items"][1]["kind"], "proof_check");
         assert_eq!(
             doc["solver_translation"]["items"][1]["target"],
-            JsonValue::String("살림.거리_0이상".to_string())
+            JsonValue::String("거리_0이상".to_string())
         );
         assert_eq!(doc["solver_translation"]["items"][1]["binding_count"], 1);
         assert_eq!(doc["solver_translation"]["quantifier_count"], 1);
@@ -9806,7 +10296,7 @@ y 가 정수 중 딱 하나가 {
         assert_eq!(doc["solver_translation"]["items"][1]["kind"], "proof_check");
         assert_eq!(
             doc["solver_translation"]["items"][1]["target"],
-            JsonValue::String("살림.거리_0이상".to_string())
+            JsonValue::String("거리_0이상".to_string())
         );
         assert_eq!(doc["solver_translation"]["quantifier_count"], 1);
         assert_eq!(doc["solver_translation"]["items"][2]["kind"], "quantifier");
@@ -9903,7 +10393,7 @@ y 가 정수 중 딱 하나가 {
         assert_eq!(doc["solver_translation"]["items"][1]["kind"], "proof_check");
         assert_eq!(
             doc["solver_translation"]["items"][1]["target"],
-            JsonValue::String("살림.거리_0이상".to_string())
+            JsonValue::String("거리_0이상".to_string())
         );
         assert_eq!(doc["solver_translation"]["items"][2]["kind"], "quantifier");
         assert_eq!(
@@ -11159,7 +11649,7 @@ y 가 정수 중 딱 하나가 {
         .expect("write project policy");
         fs::write(
             &input_path,
-            "살림.점수 <- 0.\n(매마디)마다 {\n  살림.점수 <- 살림.점수 + 샘.키보드.누르고있음.ArrowRight.\n}\n",
+            "점수 <- 0.\n(매마디)마다 {\n  살림.점수 <- 살림.점수 + 샘.키보드.누르고있음.ArrowRight.\n}\n",
         )
         .expect("write source");
         let tape = InputTape {

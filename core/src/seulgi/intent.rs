@@ -81,7 +81,12 @@ pub fn intent_bundle_detjson(records: &[IntentRecord]) -> String {
 }
 
 fn export_sort_key(item: &IntentRecord) -> (u64, u64, u64, u64) {
-    (item.accepted_madi, item.agent_id, item.recv_seq, item.target_madi)
+    (
+        item.accepted_madi,
+        item.agent_id,
+        item.recv_seq,
+        item.target_madi,
+    )
 }
 
 fn push_kv_str(out: &mut String, key: &str, value: &str, first: bool) {

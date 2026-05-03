@@ -118,7 +118,8 @@ pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
         return Ok(());
     }
 
-    if matches!(args.emit, EmitKind::ExecPolicyMapJson) && !canon::has_exec_policy_surface(&source) {
+    if matches!(args.emit, EmitKind::ExecPolicyMapJson) && !canon::has_exec_policy_surface(&source)
+    {
         let (ddn, meta, mut warnings) = canonicalize_ddn_strict(&source, path, bridge)?;
         append_block_header_warning_if_needed(&mut warnings, legacy_block_header_colon_count);
         ensure_no_inplace_fixits(path, &args, &fixits_json)?;
@@ -258,7 +259,8 @@ fn detect_forbidden_event_surface_alias(source: &str) -> Option<&'static str> {
         {
             return Some("prefix_form");
         }
-        if trimmed.starts_with('"') && (trimmed.contains(" 일때") || trimmed.contains(" 일때:")) {
+        if trimmed.starts_with('"') && (trimmed.contains(" 일때") || trimmed.contains(" 일때:"))
+        {
             return Some("ilttae_form");
         }
         if trimmed.contains("라는 소식") && trimmed.contains("오면") {
@@ -680,7 +682,7 @@ fn build_parse_fixit(source: &str, file_label: &str, err: &ParseError) -> Option
             "replace",
             Some(name.clone()),
             None,
-            Some("바탕숨김에서는 선언된 이름만 쓸 수 있습니다. 대상을 먼저 선언하거나 경로를 명시하세요.".to_string()),
+            Some("채비에 선언된 이름만 쓸 수 있습니다. 대상을 먼저 선언하거나 bare key를 사용하세요.".to_string()),
         ),
         ParseError::ExpectedExpr { .. } => (
             "replace",
@@ -692,7 +694,7 @@ fn build_parse_fixit(source: &str, file_label: &str, err: &ParseError) -> Option
             "replace",
             span_snippet(source, span),
             None,
-            Some("여기에는 `살림.x` 같은 경로식이 와야 합니다.".to_string()),
+            Some("여기에는 `x` 또는 `공.x` 같은 이름/경로식이 와야 합니다.".to_string()),
         ),
         ParseError::ExpectedTarget { .. } => (
             "replace",
@@ -730,6 +732,12 @@ fn build_parse_fixit(source: &str, file_label: &str, err: &ParseError) -> Option
             None,
             Some("미루기 대입은 `덩이 { ... }` 안에서만 허용됩니다.".to_string()),
         ),
+        ParseError::ChaebiInLoop { .. } => (
+            "replace",
+            span_snippet(source, span),
+            None,
+            Some("`채비 {}`는 루프/훅/순회 body 안에서 사용할 수 없습니다.".to_string()),
+        ),
         ParseError::LifecycleNameDuplicate {
             name, first_span, ..
         } => (
@@ -762,6 +770,7 @@ fn build_parse_fixit(source: &str, file_label: &str, err: &ParseError) -> Option
         | ParseError::HookEveryNMadiIntervalInvalid { .. }
         | ParseError::HookEveryNMadiUnitUnsupported { .. }
         | ParseError::HookEveryNMadiSuffixUnsupported { .. }
+        | ParseError::TagDuplicateInContext { .. }
         | ParseError::CompatMaticEntryDisabled { .. } => (
             "replace",
             span_snippet(source, span),
@@ -824,7 +833,9 @@ fn parse_error_span(err: &ParseError) -> Span {
         | ParseError::ImmediateProofShowForbidden { span }
         | ParseError::ImmediateProofIoForbidden { span }
         | ParseError::CaseCompletionRequired { span }
-        | ParseError::CaseElseNotLast { span } => *span,
+        | ParseError::CaseElseNotLast { span }
+        | ParseError::TagDuplicateInContext { span, .. }
+        | ParseError::ChaebiInLoop { span } => *span,
     }
 }
 
@@ -1079,23 +1090,9 @@ mod tests {
     }
 
     #[test]
-    fn canon_rejects_legacy_boim_surface_for_all_emit_kinds() {
+    fn canon_accepts_boim_surface_for_ddn_emit() {
         let source = "보임 { x: 1. }.";
-        let emits = [
-            EmitKind::Ddn,
-            EmitKind::GuseongFlatJson,
-            EmitKind::AlrimPlanJson,
-            EmitKind::ExecPolicyMapJson,
-            EmitKind::MaegimControlJson,
-            EmitKind::FixitsJson,
-            EmitKind::Both,
-        ];
-        for emit in emits {
-            let err = run_expect_error(source, emit, "legacy_boim_all_emit");
-            assert!(
-                err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"),
-                "emit={emit:?} err={err}"
-            );
-        }
+        let text = run_emit_and_read(source, EmitKind::Ddn, "boim_ddn_emit");
+        assert!(text.contains("보임"), "text={text:?}");
     }
 }

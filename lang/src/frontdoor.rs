@@ -12,9 +12,15 @@ const LEGACY_HEADER_KEYS: &[&str] = &[
     "control",
 ];
 
+fn is_ident_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_' || ('가'..='힣').contains(&ch)
+}
+
 pub fn preprocess_frontdoor_source(input: &str) -> String {
     let stripped = strip_file_leading_setting_block(input);
-    rewrite_inline_maegim_fields(&stripped)
+    let range_spaced = normalize_attached_range_josa(&stripped);
+    let pipeline_lowered = lower_collection_pipeline_sugar(&range_spaced);
+    rewrite_inline_maegim_fields(&pipeline_lowered)
 }
 
 pub fn find_legacy_header(source: &str) -> Option<(usize, &'static str)> {
@@ -43,26 +49,124 @@ pub fn validate_no_legacy_header(source: &str) -> Result<(), String> {
 }
 
 pub fn has_legacy_boim_surface(source: &str) -> bool {
-    let prepared = preprocess_frontdoor_source(source);
-    for line in prepared.lines() {
-        let trimmed = line.trim_start();
-        if !trimmed.starts_with("보임") {
-            continue;
-        }
-        let rest = trimmed["보임".len()..].trim_start();
-        if rest.starts_with('{') || rest.starts_with(':') {
-            return true;
-        }
-    }
+    let _ = source;
     false
 }
 
 pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
-    if has_legacy_boim_surface(source) {
-        return Err(
-            "E_CANON_LEGACY_BOIM_FORBIDDEN legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요."
-                .to_string(),
-        );
+    let _ = source;
+    Ok(())
+}
+
+pub fn find_legacy_root_hide_directive(source: &str) -> Option<(usize, &'static str)> {
+    for (line_no, raw) in source.lines().enumerate() {
+        let line = raw.trim_start();
+        if !line.starts_with('#') {
+            continue;
+        }
+        let rest = line[1..].trim_start();
+        if rest.starts_with("바탕숨김") {
+            return Some((line_no + 1, "바탕숨김"));
+        }
+        if rest.starts_with("암묵살림") {
+            return Some((line_no + 1, "암묵살림"));
+        }
+    }
+    None
+}
+
+pub fn validate_no_legacy_root_hide_directive(source: &str) -> Result<(), String> {
+    if let Some((line, key)) = find_legacy_root_hide_directive(source) {
+        return Err(format!(
+            "E_PRAGMA_REMOVED line={line} key={key} fix=`채비 {{ ... }}` 선언만 허용됩니다"
+        ));
+    }
+    Ok(())
+}
+
+pub fn find_legacy_range_comment(source: &str) -> Option<(usize, &'static str)> {
+    for (line_no, raw) in source.lines().enumerate() {
+        if let Some(idx) = raw.find("//") {
+            let comment = &raw[idx + 2..];
+            if comment.contains("범위(") {
+                return Some((line_no + 1, "// 범위(...)"));
+            }
+        }
+    }
+    None
+}
+
+pub fn validate_no_legacy_range_comment(source: &str) -> Result<(), String> {
+    if let Some((line, _)) = find_legacy_range_comment(source) {
+        return Err(format!(
+            "E_LEGACY_RANGE_SYNTAX line={line} fix=`(값) 매김 {{ 범위: a..b. 간격: c. }}.`"
+        ));
+    }
+    Ok(())
+}
+
+pub fn find_legacy_root_surface(source: &str) -> Option<(usize, &'static str)> {
+    let prepared = preprocess_frontdoor_source(source);
+    for (line_no, raw) in prepared.lines().enumerate() {
+        let chars: Vec<char> = raw.chars().collect();
+        let mut char_index = 0usize;
+        while char_index < chars.len() {
+            let ch = chars[char_index];
+            if ch == '"' {
+                char_index += 1;
+                while char_index < chars.len() {
+                    if chars[char_index] == '"' && chars[char_index.saturating_sub(1)] != '\\' {
+                        char_index += 1;
+                        break;
+                    }
+                    char_index += 1;
+                }
+                continue;
+            }
+            if ch == '/' && chars.get(char_index + 1) == Some(&'/') {
+                break;
+            }
+            let rest = &raw[raw
+                .char_indices()
+                .nth(char_index)
+                .map(|(idx, _)| idx)
+                .unwrap_or(raw.len())..];
+            if rest.starts_with("살림.") {
+                let prev_ok = if char_index == 0 {
+                    true
+                } else {
+                    !is_ident_char(chars[char_index - 1])
+                };
+                if prev_ok {
+                    return Some((line_no + 1, "살림."));
+                }
+            }
+            if rest.starts_with("바탕.") {
+                let prev_ok = if char_index == 0 {
+                    true
+                } else {
+                    !is_ident_char(chars[char_index - 1])
+                };
+                if prev_ok {
+                    return Some((line_no + 1, "바탕."));
+                }
+            }
+            char_index += 1;
+        }
+    }
+    None
+}
+
+pub fn validate_no_legacy_root_surface(source: &str) -> Result<(), String> {
+    if let Some((line, key)) = find_legacy_root_surface(source) {
+        let code = if key == "바탕." {
+            "E_BATANG_PREFIX_REMOVED"
+        } else {
+            "E_SALIM_REMOVED"
+        };
+        return Err(format!(
+            "{code} line={line} key={key} fix=`채비 {{ x:수 <- ... }}`에 선언한 뒤 `x`만 사용하세요"
+        ));
     }
     Ok(())
 }
@@ -91,9 +195,7 @@ fn strip_file_leading_setting_block(input: &str) -> String {
     }
 
     let remain = &input[idx..];
-    if !(remain.starts_with("설정")
-        || remain.starts_with("  설정")
-        || remain.starts_with("\t설정"))
+    if !(remain.starts_with("설정") || remain.starts_with("  설정") || remain.starts_with("\t설정"))
     {
         return input.to_string();
     }
@@ -195,6 +297,194 @@ fn rewrite_inline_maegim_fields(input: &str) -> String {
         }
     }
     out
+}
+
+fn normalize_attached_range_josa(input: &str) -> String {
+    let chars: Vec<char> = input.chars().collect();
+    let mut out = String::with_capacity(input.len());
+    let mut i = 0usize;
+    let mut in_string = false;
+    let mut escape = false;
+    while i < chars.len() {
+        let ch = chars[i];
+        if in_string {
+            out.push(ch);
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+        if ch.is_ascii_digit() {
+            let start = i;
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i + 1 < chars.len() && chars[i] == '.' && chars[i + 1] == '.' {
+                i += 2;
+                while i < chars.len() && chars[i].is_ascii_digit() {
+                    i += 1;
+                }
+                for c in &chars[start..i] {
+                    out.push(*c);
+                }
+                if i < chars.len() && is_attached_josa_start(chars[i]) {
+                    out.push(' ');
+                }
+                continue;
+            }
+            for c in &chars[start..i] {
+                out.push(*c);
+            }
+            continue;
+        }
+        out.push(ch);
+        i += 1;
+    }
+    out
+}
+
+fn is_attached_josa_start(ch: char) -> bool {
+    matches!(ch, '가'..='힣' | 'ㄱ'..='ㅎ' | 'ㅏ'..='ㅣ')
+}
+
+fn lower_collection_pipeline_sugar(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for chunk in input.split_inclusive('\n') {
+        let (line, newline) = split_line_frontdoor(chunk);
+        if let Some(rewritten) = lower_collection_pipeline_line(line) {
+            out.push_str(&rewritten);
+        } else {
+            out.push_str(line);
+        }
+        out.push_str(newline);
+    }
+    out
+}
+
+fn lower_collection_pipeline_line(line: &str) -> Option<String> {
+    if !(line.contains("~을") || line.contains("~를")) || !line.contains("~로") {
+        return None;
+    }
+    let trimmed_end = line.trim_end();
+    let dot_suffix = trimmed_end.ends_with('.');
+    let without_dot = if dot_suffix {
+        trimmed_end[..trimmed_end.len().saturating_sub(1)].trim_end()
+    } else {
+        trimmed_end
+    };
+    let (lhs_prefix, rhs_source) = if let Some((lhs, rhs)) = without_dot.split_once("<-") {
+        (format!("{}<- ", lhs.trim_end()), rhs.trim_start())
+    } else {
+        (String::new(), without_dot)
+    };
+    for func in ["거르기", "변환", "정렬", "합치기"] {
+        let Some(head) = rhs_source.strip_suffix(func) else {
+            continue;
+        };
+        let groups = parse_pipeline_groups(head.trim_end())?;
+        let lowered = match (func, groups.as_slice()) {
+            ("거르기" | "변환" | "정렬", [list, callable]) => {
+                let list = strip_pipeline_suffix(list, &["~을", "~를"])?;
+                let callable = strip_pipeline_suffix(callable, &["~로", "~으로"])?;
+                format!("({list}, {callable}) {func}")
+            }
+            ("합치기", [list, initial, callable]) => {
+                let list = strip_pipeline_suffix(list, &["~을", "~를"])?;
+                let initial = strip_pipeline_suffix(initial, &["~부터"])?;
+                let callable = strip_pipeline_suffix(callable, &["~로", "~으로"])?;
+                format!("({list}, {initial}, {callable}) {func}")
+            }
+            _ => continue,
+        };
+        let prefix_len = line.len().saturating_sub(line.trim_start().len());
+        let prefix = &line[..prefix_len];
+        let mut rendered = String::new();
+        rendered.push_str(prefix);
+        rendered.push_str(&lhs_prefix);
+        rendered.push_str(&lowered);
+        if dot_suffix {
+            rendered.push('.');
+        }
+        return Some(rendered);
+    }
+    None
+}
+
+fn parse_pipeline_groups(input: &str) -> Option<Vec<String>> {
+    let chars: Vec<char> = input.chars().collect();
+    let mut groups = Vec::new();
+    let mut i = 0usize;
+    while i < chars.len() {
+        while i < chars.len() && chars[i].is_whitespace() {
+            i += 1;
+        }
+        if i >= chars.len() {
+            break;
+        }
+        if chars[i] != '(' {
+            return None;
+        }
+        let start = i + 1;
+        i += 1;
+        let mut depth = 1usize;
+        let mut in_string = false;
+        let mut escape = false;
+        while i < chars.len() {
+            let ch = chars[i];
+            if in_string {
+                if escape {
+                    escape = false;
+                } else if ch == '\\' {
+                    escape = true;
+                } else if ch == '"' {
+                    in_string = false;
+                }
+                i += 1;
+                continue;
+            }
+            match ch {
+                '"' => in_string = true,
+                '(' | '[' | '{' => depth += 1,
+                ')' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        let inner: String = chars[start..i].iter().collect();
+                        groups.push(inner.trim().to_string());
+                        i += 1;
+                        break;
+                    }
+                }
+                ']' | '}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+            i += 1;
+        }
+        if depth != 0 {
+            return None;
+        }
+    }
+    if groups.is_empty() { None } else { Some(groups) }
+}
+
+fn strip_pipeline_suffix<'a>(value: &'a str, suffixes: &[&str]) -> Option<&'a str> {
+    let trimmed = value.trim();
+    for suffix in suffixes {
+        if let Some(prefix) = trimmed.strip_suffix(suffix) {
+            return Some(prefix.trim());
+        }
+    }
+    None
 }
 
 fn rewrite_single_line_maegim(line: &str) -> Option<String> {
@@ -554,10 +844,44 @@ mod tests {
     }
 
     #[test]
-    fn validate_no_legacy_boim_surface_detects_block() {
+    fn validate_no_legacy_boim_surface_accepts_boim_block() {
         let source = "보임 { x: 1. }.";
-        let err = validate_no_legacy_boim_surface(source).expect_err("must fail");
-        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
+        validate_no_legacy_boim_surface(source).expect("must pass");
+        assert!(!has_legacy_boim_surface(source));
+    }
+
+    #[test]
+    fn validate_no_legacy_root_surface_detects_salim_prefix() {
+        let source = "살림.x <- 1.";
+        let err = validate_no_legacy_root_surface(source).expect_err("must fail");
+        assert!(err.contains("E_SALIM_REMOVED"));
+    }
+
+    #[test]
+    fn validate_no_legacy_root_surface_detects_batang_prefix() {
+        let source = "바탕.x <- 1.";
+        let err = validate_no_legacy_root_surface(source).expect_err("must fail");
+        assert!(err.contains("E_BATANG_PREFIX_REMOVED"));
+    }
+
+    #[test]
+    fn validate_no_legacy_root_surface_ignores_batang_euro_phrase() {
+        let source = "{ 값 > 0 }인것 바탕으로(알림) 아니면 { }.";
+        validate_no_legacy_root_surface(source).expect("must pass");
+    }
+
+    #[test]
+    fn validate_no_legacy_root_hide_directive_detects_pragma() {
+        let source = "#바탕숨김.\nx <- 1.";
+        let err = validate_no_legacy_root_hide_directive(source).expect_err("must fail");
+        assert!(err.contains("E_PRAGMA_REMOVED"));
+    }
+
+    #[test]
+    fn validate_no_legacy_range_comment_detects_comment() {
+        let source = "g:수 <- 9.8. // 범위(1, 20, 0.1)";
+        let err = validate_no_legacy_range_comment(source).expect_err("must fail");
+        assert!(err.contains("E_LEGACY_RANGE_SYNTAX"));
     }
 
     #[test]

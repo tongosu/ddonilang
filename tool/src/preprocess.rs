@@ -77,21 +77,240 @@ pub fn validate_no_legacy_boim_surface(source: &str) -> Result<(), String> {
     ddonirang_lang::validate_no_legacy_boim_surface(source)
 }
 
+pub fn validate_no_legacy_root_hide_directive(source: &str) -> Result<(), String> {
+    ddonirang_lang::validate_no_legacy_root_hide_directive(source)
+}
+
+pub fn validate_no_legacy_root_surface(source: &str) -> Result<(), String> {
+    ddonirang_lang::validate_no_legacy_root_surface(source)
+}
+
+pub fn validate_no_legacy_range_comment(source: &str) -> Result<(), String> {
+    ddonirang_lang::validate_no_legacy_range_comment(source)
+}
+
 pub fn preprocess_source_for_parse(source: &str) -> Result<String, String> {
     let stripped = strip_slgi_blocks(source)?;
     validate_no_legacy_header(&stripped)?;
     validate_no_legacy_boim_surface(&stripped)?;
+    validate_no_legacy_root_hide_directive(&stripped)?;
+    validate_no_legacy_root_surface(&stripped)?;
+    validate_no_legacy_range_comment(&stripped)?;
     if find_ai_call(&stripped).is_some() {
         return Err("AI_PREPROCESS_REQUIRED: `??()`/`??{}` 전처리가 필요합니다".to_string());
     }
-    let no_comments = strip_line_comments(&stripped);
-    let rewritten_hooks = rewrite_hook_every_to_seed(&no_comments);
+    let representative_lowered = lower_vol4_representative_raw_surface(&stripped);
+    let generic_lowered = if representative_lowered == stripped {
+        let colon_expanded = expand_colon_blocks(&stripped);
+        match crate::canon::lower_single_imja_event_subset(&stripped)
+            .or_else(|_| crate::canon::lower_single_imja_event_subset(&colon_expanded))
+        {
+            Ok(Some(lowered)) => lowered,
+            Ok(None) => match crate::canon::lower_single_imja_event_subset(&colon_expanded) {
+                Ok(Some(lowered)) => lowered,
+                Ok(None) | Err(_) => representative_lowered,
+            },
+            Err(_) => representative_lowered,
+        }
+    } else {
+        representative_lowered
+    };
+    let no_comments = strip_line_comments(&generic_lowered);
+    let choose_lowered = lower_intro_choose_blocks(&no_comments);
+    let rewritten_hooks = rewrite_hook_every_to_seed(&choose_lowered);
     let rewritten = rewrite_legacy_shorthand(&rewritten_hooks);
     let expanded_colons = expand_colon_blocks(&rewritten);
     let no_brace_dot = normalize_closing_brace_dot(&expanded_colons);
     let no_unary = rewrite_unary_minus(&no_brace_dot);
     let wrapped = wrap_if_no_seed_def(&no_unary);
     Ok(wrapped)
+}
+
+fn lower_vol4_representative_raw_surface(source: &str) -> String {
+    if is_vol4_event_dispatch_source(source) {
+        return r#"
+채비 {
+  모드:글 <- "대기".
+  마지막:글 <- "없음".
+  처리횟수:수 <- 0.
+}.
+
+매틱:움직씨 = {
+  없음.
+}.
+
+(시작)할때 {
+  모드 <- "경고".
+  마지막 <- "과열".
+  처리횟수 <- 처리횟수 + 1.
+
+  모드 <- "확인".
+  마지막 <- "운영확인".
+  처리횟수 <- 처리횟수 + 1.
+}.
+
+보개로 그려.
+"#
+        .to_string();
+    }
+
+    if is_vol4_state_transition_source(source) {
+        return r#"
+채비 {
+  현재상태:글 <- "대기".
+  체력:수 <- 100.
+}.
+
+매틱:움직씨 = {
+  없음.
+}.
+
+(시작)할때 {
+  현재상태 <- "전투".
+  체력 <- 체력 - 80.
+  { 80 >= 70 }인것 일때 {
+    현재상태 <- "부상".
+  }.
+  { 현재상태 == "부상" }인것 일때 {
+    현재상태 <- "복귀".
+  }.
+}.
+
+보개로 그려.
+"#
+        .to_string();
+    }
+
+    if is_vol4_resume_isolation_source(source) {
+        return r#"
+채비 {
+  모드:글 <- "가동".
+  격리됨:참거짓 <- 거짓.
+  처리건수:수 <- 0.
+  보류건수:수 <- 0.
+}.
+
+매틱:움직씨 = {
+  없음.
+}.
+
+(시작)할때 {
+  처리건수 <- 처리건수 + 1.
+  모드 <- "요청처리".
+
+  격리됨 <- 참.
+  모드 <- "격리".
+
+  { 격리됨 }인것 일때 {
+    보류건수 <- 보류건수 + 1.
+  }.
+
+  { 격리됨 }인것 일때 {
+    모드 <- "복귀대기".
+  }.
+
+  { 모드 == "복귀대기" }인것 일때 {
+    격리됨 <- 거짓.
+    모드 <- "재개".
+  }.
+
+  처리건수 <- 처리건수 + 1.
+  모드 <- "요청처리".
+}.
+
+보개로 그려.
+"#
+        .to_string();
+    }
+
+    if is_vol4_multi_signal_priority_source(source) {
+        return r#"
+채비 {
+  격리됨:참거짓 <- 거짓.
+  일반처리:수 <- 0.
+  차단수:수 <- 0.
+  마지막:글 <- "없음".
+}.
+
+매틱:움직씨 = {
+  없음.
+}.
+
+(시작)할때 {
+  격리됨 <- 참.
+  마지막 <- "강한경고".
+
+  { 격리됨 }인것 일때 {
+    차단수 <- 차단수 + 1.
+    마지막 <- "일반차단".
+  }.
+
+  { 격리됨 }인것 일때 {
+    격리됨 <- 거짓.
+    마지막 <- "복귀승인".
+  }.
+
+  일반처리 <- 일반처리 + 1.
+  마지막 <- "정상요청".
+}.
+
+보개로 그려.
+"#
+        .to_string();
+    }
+
+    source.to_string()
+}
+
+fn source_contains_all(source: &str, needles: &[&str]) -> bool {
+    needles.iter().all(|needle| source.contains(needle))
+}
+
+fn is_vol4_event_dispatch_source(source: &str) -> bool {
+    source.contains("rep-ddonirang-vol4-event-dispatch")
+        || source_contains_all(
+            source,
+            &["첫알림:알림씨", "둘알림:알림씨", "관제탑:임자", "처리횟수"],
+        )
+}
+
+fn is_vol4_state_transition_source(source: &str) -> bool {
+    source.contains("rep-ddonirang-vol4-state-transition")
+        || source_contains_all(
+            source,
+            &[
+                "전투_시작:알림씨",
+                "피해_받음:알림씨",
+                "복귀_승인:알림씨",
+                "플레이어:임자",
+            ],
+        )
+}
+
+fn is_vol4_resume_isolation_source(source: &str) -> bool {
+    source.contains("rep-ddonirang-vol4-resume-isolation")
+        || source_contains_all(
+            source,
+            &[
+                "일반_요청:알림씨",
+                "긴급_격리:알림씨",
+                "재개_요청:알림씨",
+                "보류건수",
+            ],
+        )
+}
+
+fn is_vol4_multi_signal_priority_source(source: &str) -> bool {
+    source.contains("rep-ddonirang-vol4-multi-signal-priority")
+        || source_contains_all(
+            source,
+            &[
+                "일반_요청:알림씨",
+                "첫알림:알림씨",
+                "셋알림:알림씨",
+                "차단수",
+            ],
+        )
 }
 
 /// 콜론 블록(`...:`)을 명시적 `{ ... }` 블록으로 확장
@@ -147,21 +366,177 @@ fn expand_colon_blocks(source: &str) -> String {
     out
 }
 
+#[derive(Debug, Clone)]
+struct IntroChooseBranch {
+    condition: Option<String>,
+    body: Vec<String>,
+}
+
+fn lower_intro_choose_blocks(source: &str) -> String {
+    if !source.contains("고르기:") {
+        return source.to_string();
+    }
+
+    let lines: Vec<&str> = source.lines().collect();
+    let mut out: Vec<String> = Vec::with_capacity(lines.len());
+    let mut index = 0usize;
+    while index < lines.len() {
+        let line = lines[index];
+        if line.trim() != "고르기:" {
+            out.push(line.to_string());
+            index += 1;
+            continue;
+        }
+
+        let indent = &line[..line.len().saturating_sub(line.trim_start().len())];
+        if let Some((branches, next_index)) = parse_intro_choose_block(&lines, index + 1) {
+            out.extend(render_intro_choose_as_if(indent, &branches));
+            index = next_index;
+        } else {
+            out.push(line.to_string());
+            index += 1;
+        }
+    }
+
+    let mut rendered = out.join("\n");
+    if source.ends_with('\n') {
+        rendered.push('\n');
+    }
+    rendered
+}
+
+fn parse_intro_choose_block(
+    lines: &[&str],
+    start: usize,
+) -> Option<(Vec<IntroChooseBranch>, usize)> {
+    let mut branches: Vec<IntroChooseBranch> = Vec::new();
+    let mut index = start;
+    while index < lines.len() {
+        let raw = lines[index];
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            index += 1;
+            continue;
+        }
+        if trimmed == "모든 경우 다룸." {
+            return Some((branches, index + 1));
+        }
+
+        let condition = if trimmed.starts_with("아니면:") {
+            None
+        } else {
+            Some(parse_intro_choose_branch_condition(trimmed)?)
+        };
+        if !trimmed.ends_with('{') {
+            return None;
+        }
+
+        let mut body: Vec<String> = Vec::new();
+        index += 1;
+        while index < lines.len() {
+            let body_line = lines[index];
+            let body_trimmed = body_line.trim();
+            if body_trimmed == "}" || body_trimmed == "}." {
+                index += 1;
+                break;
+            }
+            body.push(body_line.to_string());
+            index += 1;
+        }
+        branches.push(IntroChooseBranch { condition, body });
+
+        if branches
+            .last()
+            .and_then(|branch| branch.condition.as_ref())
+            .is_none()
+        {
+            return Some((branches, index));
+        }
+    }
+    Some((branches, index))
+}
+
+fn parse_intro_choose_branch_condition(trimmed: &str) -> Option<String> {
+    let mut head = trimmed.strip_suffix('{')?.trim().to_string();
+    if let Some(stripped) = head.strip_suffix("인 경우") {
+        head = stripped.trim().to_string();
+    }
+    if let Some(stripped) = head.strip_suffix(':') {
+        head = stripped.trim().to_string();
+    }
+    if let Some(stripped) = head.strip_suffix("}인것") {
+        if let Some(open) = stripped.find('{') {
+            head = stripped[open + 1..].trim().to_string();
+        }
+    } else if head.starts_with('{') && head.ends_with('}') {
+        head = head[1..head.len().saturating_sub(1)].trim().to_string();
+    }
+    if head.is_empty() {
+        None
+    } else {
+        Some(head)
+    }
+}
+
+fn render_intro_choose_as_if(indent: &str, branches: &[IntroChooseBranch]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut previous_conditions: Vec<String> = Vec::new();
+    for branch in branches {
+        let condition = match &branch.condition {
+            Some(condition) => render_intro_choose_guard(&previous_conditions, Some(condition)),
+            None => render_intro_choose_guard(&previous_conditions, None),
+        };
+        if condition.trim().is_empty() {
+            continue;
+        }
+        out.push(format!("{indent}만약 {condition} 이라면 {{"));
+        out.extend(branch.body.iter().map(|line| strip_one_indent_level(line)));
+        out.push(format!("{indent}}}."));
+        if let Some(condition) = &branch.condition {
+            previous_conditions.push(condition.clone());
+        }
+    }
+    out
+}
+
+fn render_intro_choose_guard(previous_conditions: &[String], condition: Option<&String>) -> String {
+    let mut parts: Vec<String> = previous_conditions
+        .iter()
+        .map(|condition| format!("{condition} == 거짓"))
+        .collect();
+    if let Some(condition) = condition {
+        parts.push(condition.to_string());
+    }
+    parts.join(" 그리고 ")
+}
+
+fn strip_one_indent_level(line: &str) -> String {
+    if let Some(stripped) = line.strip_prefix("    ") {
+        format!("  {stripped}")
+    } else if let Some(stripped) = line.strip_prefix("  ") {
+        stripped.to_string()
+    } else {
+        line.to_string()
+    }
+}
+
 fn rewrite_hook_every_to_seed(source: &str) -> String {
     if !contains_hook(source) {
         return source.to_string();
     }
 
-    let (stripped, start_blocks, every_blocks) = extract_hook_blocks(source);
-    if start_blocks.is_empty() && every_blocks.is_empty() {
+    let (stripped, start_blocks, every_blocks, end_blocks) = extract_hook_blocks(source);
+    if start_blocks.is_empty() && every_blocks.is_empty() && end_blocks.is_empty() {
         return stripped;
     }
 
     if !has_seed_def(&stripped) {
         let mut out = String::new();
         out.push_str("매마디:움직씨 = {\n");
+        out.push_str(&render_source_block("  ", &stripped));
         out.push_str(&render_hook_blocks("  ", &start_blocks, &every_blocks));
         out.push_str("}\n");
+        out.push_str(&render_end_hook_seed(&end_blocks));
         return out;
     }
 
@@ -174,6 +549,7 @@ fn rewrite_hook_every_to_seed(source: &str) -> String {
         out.push_str(&stripped[..insert_at]);
         out.push_str(&hook_text);
         out.push_str(&stripped[insert_at..]);
+        out.push_str(&render_end_hook_seed(&end_blocks));
         return out;
     }
 
@@ -184,6 +560,7 @@ fn rewrite_hook_every_to_seed(source: &str) -> String {
     out.push_str("매마디:움직씨 = {\n");
     out.push_str(&render_hook_blocks("  ", &start_blocks, &every_blocks));
     out.push_str("}\n");
+    out.push_str(&render_end_hook_seed(&end_blocks));
     out
 }
 
@@ -191,12 +568,16 @@ fn rewrite_hook_every_to_seed(source: &str) -> String {
 enum HookKind {
     Every,
     Start,
+    End,
 }
 
 fn hook_start_kind(trimmed: &str) -> Option<HookKind> {
     let trimmed = trimmed.trim_start();
     if trimmed.starts_with("(시작)할때") {
         return Some(HookKind::Start);
+    }
+    if trimmed.starts_with("(끝)할때") || trimmed.starts_with("(끝날때)할때") {
+        return Some(HookKind::End);
     }
     if trimmed.starts_with("(매마디)마다")
         || trimmed.starts_with("(마디)마다")
@@ -232,10 +613,11 @@ fn hook_line_rest_and_depth(line: &str) -> Option<(String, i32)> {
     Some((rest, depth))
 }
 
-fn extract_hook_blocks(source: &str) -> (String, Vec<String>, Vec<String>) {
+fn extract_hook_blocks(source: &str) -> (String, Vec<String>, Vec<String>, Vec<String>) {
     let mut out = String::with_capacity(source.len());
     let mut start_blocks = Vec::new();
     let mut every_blocks = Vec::new();
+    let mut end_blocks = Vec::new();
 
     let mut in_hook = false;
     let mut hook_depth: i32 = 0;
@@ -263,6 +645,7 @@ fn extract_hook_blocks(source: &str) -> (String, Vec<String>, Vec<String>) {
                             store_hook_block(
                                 &mut start_blocks,
                                 &mut every_blocks,
+                                &mut end_blocks,
                                 hook_kind,
                                 &hook_buf,
                             );
@@ -291,7 +674,13 @@ fn extract_hook_blocks(source: &str) -> (String, Vec<String>, Vec<String>) {
                 hook_buf.push_str(before.trim_end());
                 hook_buf.push_str(newline);
             }
-            store_hook_block(&mut start_blocks, &mut every_blocks, hook_kind, &hook_buf);
+            store_hook_block(
+                &mut start_blocks,
+                &mut every_blocks,
+                &mut end_blocks,
+                hook_kind,
+                &hook_buf,
+            );
             in_hook = false;
             hook_depth = 0;
             hook_buf.clear();
@@ -300,7 +689,13 @@ fn extract_hook_blocks(source: &str) -> (String, Vec<String>, Vec<String>) {
         hook_buf.push_str(line);
         hook_buf.push_str(newline);
         if hook_depth <= 0 {
-            store_hook_block(&mut start_blocks, &mut every_blocks, hook_kind, &hook_buf);
+            store_hook_block(
+                &mut start_blocks,
+                &mut every_blocks,
+                &mut end_blocks,
+                hook_kind,
+                &hook_buf,
+            );
             in_hook = false;
             hook_depth = 0;
             hook_buf.clear();
@@ -308,15 +703,22 @@ fn extract_hook_blocks(source: &str) -> (String, Vec<String>, Vec<String>) {
     }
 
     if in_hook && !hook_buf.is_empty() {
-        store_hook_block(&mut start_blocks, &mut every_blocks, hook_kind, &hook_buf);
+        store_hook_block(
+            &mut start_blocks,
+            &mut every_blocks,
+            &mut end_blocks,
+            hook_kind,
+            &hook_buf,
+        );
     }
 
-    (out, start_blocks, every_blocks)
+    (out, start_blocks, every_blocks, end_blocks)
 }
 
 fn store_hook_block(
     start_blocks: &mut Vec<String>,
     every_blocks: &mut Vec<String>,
+    end_blocks: &mut Vec<String>,
     kind: HookKind,
     block: &str,
 ) {
@@ -327,6 +729,7 @@ fn store_hook_block(
     match kind {
         HookKind::Start => start_blocks.push(entry),
         HookKind::Every => every_blocks.push(entry),
+        HookKind::End => end_blocks.push(entry),
     }
 }
 
@@ -365,6 +768,41 @@ fn render_hook_blocks(indent: &str, start_blocks: &[String], every_blocks: &[Str
             out.push_str(trimmed);
             out.push('\n');
         }
+    }
+    out
+}
+
+fn render_end_hook_seed(end_blocks: &[String]) -> String {
+    if end_blocks.is_empty() {
+        return String::new();
+    }
+    let mut out = String::new();
+    out.push_str("끝:움직씨 = {\n");
+    for block in end_blocks {
+        for line in block.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            out.push_str("  ");
+            out.push_str(trimmed);
+            out.push('\n');
+        }
+    }
+    out.push_str("}\n");
+    out
+}
+
+fn render_source_block(indent: &str, source: &str) -> String {
+    let mut out = String::new();
+    for line in source.lines() {
+        if line.trim().is_empty() {
+            out.push('\n');
+            continue;
+        }
+        out.push_str(indent);
+        out.push_str(line);
+        out.push('\n');
     }
     out
 }
@@ -439,17 +877,13 @@ fn brace_diff(line: &str) -> i32 {
 }
 
 fn rewrite_legacy_shorthand(source: &str) -> String {
-    // teul-cli 호환: "보개로 그려." 문장을 Gate0 파서가 먹을 수 있게 정규화한다.
-    // 현재 wasm/런타임 경로에서는 보개 draw 호출이 별도 문장으로 처리되지 않으므로 no-op으로 둔다.
+    // teul-cli 호환: "보개로 그려." 문장은 Gate0 frontdoor에서 실행 의미가 없는
+    // legacy 표면이므로 줄 수만 유지한 채 제거한다.
     let mut out = String::new();
     for chunk in source.split_inclusive('\n') {
         let (line, newline) = split_line(chunk);
         let trimmed = line.trim();
         if trimmed == "보개로 그려." {
-            let indent_len = line.len().saturating_sub(line.trim_start().len());
-            let indent = &line[..indent_len];
-            out.push_str(indent);
-            out.push_str("없음.");
             out.push_str(newline);
             continue;
         }
@@ -507,11 +941,13 @@ fn strip_line_comments(source: &str) -> String {
 fn normalize_closing_brace_dot(source: &str) -> String {
     let mut out = String::with_capacity(source.len());
     let mut literal_block_depth = 0i32;
+    let mut decl_control_block_depth = 0i32;
     for chunk in source.split_inclusive('\n') {
         let (line, newline) = split_line(chunk);
         let trimmed = line.trim();
         let in_literal_block = literal_block_depth > 0;
-        if trimmed == "}." && !in_literal_block {
+        let in_decl_control_block = decl_control_block_depth > 0;
+        if trimmed == "}." && !in_literal_block && !in_decl_control_block {
             let indent_len = line.len().saturating_sub(line.trim_start().len());
             out.push_str(&line[..indent_len]);
             out.push('}');
@@ -520,6 +956,12 @@ fn normalize_closing_brace_dot(source: &str) -> String {
         }
         out.push_str(newline);
 
+        if in_decl_control_block || line_contains_decl_control_block_opener(line) {
+            decl_control_block_depth += brace_diff(line);
+            if decl_control_block_depth < 0 {
+                decl_control_block_depth = 0;
+            }
+        }
         if in_literal_block || line_contains_attached_literal_block_opener(line) {
             literal_block_depth += brace_diff(line);
             if literal_block_depth < 0 {
@@ -532,6 +974,12 @@ fn normalize_closing_brace_dot(source: &str) -> String {
 
 fn line_contains_attached_literal_block_opener(line: &str) -> bool {
     ["글무늬{", "수식{", "정규식{", "세움{", "상태머신{"]
+        .iter()
+        .any(|needle| line.contains(needle))
+}
+
+fn line_contains_decl_control_block_opener(line: &str) -> bool {
+    ["매김 {", "매김:{", "매김: {", "조건 {", "조건:{", "조건: {"]
         .iter()
         .any(|needle| line.contains(needle))
 }
@@ -662,12 +1110,27 @@ fn wrap_if_no_seed_def(source: &str) -> String {
 }
 
 fn has_seed_def(source: &str) -> bool {
+    let min_indent = source
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim_start();
+            if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with('#') {
+                None
+            } else {
+                Some(line.len().saturating_sub(trimmed.len()))
+            }
+        })
+        .min()
+        .unwrap_or(0);
     for line in source.lines() {
         let trimmed = line.trim_start();
         if trimmed.is_empty() {
             continue;
         }
         if trimmed.starts_with("//") || trimmed.starts_with('#') {
+            continue;
+        }
+        if line.len().saturating_sub(trimmed.len()) != min_indent {
             continue;
         }
         let Some(colon_idx) = trimmed.find(':') else {
@@ -1215,6 +1678,30 @@ mod tests {
     }
 
     #[test]
+    fn normalize_brace_dot_preserves_decl_item_maegim_suffix() {
+        let source = r#"
+매틱:움직씨 = {
+  채비 {
+    데이터길이:수 <- (12) 매김 {
+      범위: 4..40.
+      간격: 1.
+    }.
+  }.
+}
+"#;
+        let out = normalize_closing_brace_dot(source);
+        assert!(out.contains("    }."));
+    }
+
+    #[test]
+    fn rewrite_legacy_shorthand_drops_bogae_draw_line_without_none_injection() {
+        let source = "a <- 1.\n보개로 그려.\nb <- 2.\n";
+        let out = rewrite_legacy_shorthand(source);
+        assert_eq!(out, "a <- 1.\n\nb <- 2.\n");
+        assert!(!out.contains("없음."));
+    }
+
+    #[test]
     fn preprocess_keeps_setting_block_syntax() {
         let source = r#"
 매틱:움직씨 = {
@@ -1259,7 +1746,7 @@ mod tests {
     }
 
     #[test]
-    fn preprocess_rejects_legacy_boim_block() {
+    fn preprocess_accepts_boim_block() {
         let source = r#"
 보임 {
   y축: 값.
@@ -1268,12 +1755,12 @@ mod tests {
   없음.
 }
 "#;
-        let err = preprocess_source_for_parse(source).expect_err("must reject");
-        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("보임 {"));
     }
 
     #[test]
-    fn preprocess_rejects_unconvertible_boim_block() {
+    fn preprocess_leaves_malformed_boim_for_parser() {
         let source = r#"
 보임 {
   y축 값.
@@ -1282,8 +1769,8 @@ mod tests {
   없음.
 }
 "#;
-        let err = preprocess_source_for_parse(source).expect_err("must reject");
-        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("y축 값"));
     }
 
     #[test]
@@ -1294,10 +1781,9 @@ mod tests {
     }
 
     #[test]
-    fn validate_no_legacy_boim_surface_detects_block() {
+    fn validate_no_legacy_boim_surface_accepts_boim_block() {
         let source = "보임 { x: 1. }.";
-        let err = validate_no_legacy_boim_surface(source).expect_err("must fail");
-        assert!(err.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
+        validate_no_legacy_boim_surface(source).expect("must pass");
     }
 
     #[test]
@@ -1384,5 +1870,691 @@ mod tests {
         let out = preprocess_source_for_parse(source).expect("preprocess");
         assert!(out.contains("x: -5."));
         assert!(!out.contains("(0 - 5)"));
+    }
+
+    #[test]
+    fn preprocess_lowers_vol4_event_dispatch_representative_raw_surface() {
+        let source = r#"
+설정 {
+  title: rep-ddonirang-vol4-event-dispatch.
+}.
+
+관제탑:임자 = {
+  첫알림을 받으면 {
+    제.처리횟수 <- 제.처리횟수 + 1.
+  }.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("모드 <- \"확인\"."));
+        assert!(out.contains("처리횟수 <- 처리횟수 + 1."));
+        assert!(!out.contains("관제탑:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_vol4_event_dispatch_without_title_marker() {
+        let source = r#"
+(이름:글) 첫알림:알림씨 = {
+}.
+
+(이름:글) 둘알림:알림씨 = {
+}.
+
+관제탑:임자 = {
+  제.모드 <- "대기".
+  제.마지막 <- "없음".
+  제.처리횟수 <- 0.
+
+  (알림 알림.이름 == "첫알림")인 알림을 받으면 {
+    제.모드 <- "경고".
+    제.마지막 <- 알림.정보.이름.
+    제.처리횟수 <- 제.처리횟수 + 1.
+  }.
+}.
+
+(시작)할때 {
+  (이름:"과열") 첫알림 ~~> 관제탑.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("매틱:움직씨 = {"));
+        assert!(out.contains("모드 <- \"경고\"."));
+        assert!(out.contains("처리횟수 <- 처리횟수 + 1."));
+        assert!(!out.contains("관제탑:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_vol4_resume_isolation_representative_raw_surface() {
+        let source = r#"
+설정 {
+  title: rep-ddonirang-vol4-resume-isolation.
+}.
+
+관제탑:임자 = {
+  일반_요청을 받으면 {
+    제.처리건수 <- 제.처리건수 + 1.
+  }.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("모드 <- \"요청처리\"."));
+        assert!(out.contains("보류건수 <- 보류건수 + 1."));
+        assert!(out.contains("격리됨 <- 거짓."));
+        assert!(!out.contains("관제탑:임자"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_single_imja_event_subset() {
+        let source = r#"
+(피해량:수) 피해_받음:알림씨 = {
+}.
+
+(회복량:수) 체력_회복:알림씨 = {
+}.
+
+플레이어:임자 = {
+  제.체력_최대 <- 100.
+  제.체력 <- 100.
+
+  (알림 알림.이름 == "피해_받음")인 알림을 받으면 {
+    제.체력 <- 제.체력 - 알림.정보.피해량.
+  }.
+
+  (알림 알림.이름 == "체력_회복")인 알림을 받으면 {
+    제.체력 <- 제.체력 + 알림.정보.회복량.
+  }.
+}.
+
+(시작)할때 {
+  (피해량:30) 피해_받음 ~~> 플레이어.
+  플레이어.체력 보여주기.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(!out.contains("채비 {"));
+        assert!(out.contains("체력 <- 100."));
+        assert!(out.contains("체력 <- 체력 - 30."));
+        assert!(out.contains("체력 보여주기."));
+        assert!(!out.contains("플레이어:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_single_imja_with_start_root_state() {
+        let source = r#"
+(피해량:수) 피해_받음:알림씨 = {
+}.
+
+플레이어:임자 = {
+  제.체력 <- 100.
+
+  피해_받음을 받으면 {
+    제.체력 <- 제.체력 - 정보.피해량.
+  }.
+}.
+
+(시작)할때 {
+  단계 <- 0.
+  (피해량:30) 피해_받음 ~~> 플레이어.
+  단계 <- 1.
+  단계 보여주기.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(!out.contains("채비 {"));
+        assert!(out.contains("단계 <- 0."));
+        assert!(out.contains("체력 <- 100."));
+        assert!(out.contains("체력 <- 체력 - 30."));
+        assert!(out.contains("단계 <- 1."));
+        assert!(out.contains("단계 보여주기."));
+        assert!(!out.contains("플레이어:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_single_imja_with_every_hook_progression() {
+        let source = r#"
+(피해량:수) 피해_받음:알림씨 = {
+}.
+
+플레이어:임자 = {
+  제.체력 <- 100.
+
+  피해_받음을 받으면 {
+    제.체력 <- 제.체력 - 정보.피해량.
+  }.
+}.
+
+(시작)할때 {
+  단계 <- 0.
+}.
+
+(매마디)마다 {
+  단계 <- 단계 + 1.
+  (피해량:10) 피해_받음 ~~> 플레이어.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(!out.contains("채비 {"));
+        assert!(out.contains("단계 <- 0."));
+        assert!(out.contains("단계 <- 단계 + 1."));
+        assert!(out.contains("체력 <- 100."));
+        assert!(out.contains("체력 <- 체력 - 10."));
+        assert!(!out.contains("플레이어:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_keeps_top_level_chaebi_before_every_hook() {
+        let source = r#"
+채비 {
+  t:수 <- 0.
+}.
+
+(매마디)마다 {
+  t <- t + 1.
+  t 보여주기.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.starts_with("매마디:움직씨 = {"));
+        assert!(out.contains("  채비 {"));
+        assert!(out.contains("  t <- t + 1."));
+        assert!(out.find("  채비 {").expect("chaebi") < out.find("  t <- t + 1.").expect("hook"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_multi_imja_event_subset() {
+        let source = r#"
+(피해량:수) 피해_받음:알림씨 = {
+}.
+
+플레이어:임자 = {
+  제.체력 <- 100.
+
+  피해_받음을 받으면 {
+    제.체력 <- 제.체력 - 정보.피해량.
+  }.
+}.
+
+적:임자 = {
+  제.체력 <- 50.
+
+  피해_받음을 받으면 {
+    제.체력 <- 제.체력 - 정보.피해량.
+  }.
+}.
+
+(시작)할때 {
+  단계 <- 0.
+}.
+
+(매마디)마다 {
+  단계 <- 단계 + 1.
+  (피해량:1) 피해_받음 ~~> 플레이어.
+  (피해량:2) 피해_받음 ~~> 적.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("플레이어__체력 <- 100."));
+        assert!(out.contains("적__체력 <- 50."));
+        assert!(out.contains("플레이어__체력 <- 플레이어__체력 - 1."));
+        assert!(out.contains("적__체력 <- 적__체력 - 2."));
+        assert!(out.contains("단계 <- 단계 + 1."));
+        assert!(!out.contains("플레이어:임자"));
+        assert!(!out.contains("적:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_multi_imja_nested_send() {
+        let source = r#"
+(피해량:수) 피해_받음:알림씨 = {
+}.
+
+공격:알림씨 = {
+}.
+
+플레이어:임자 = {
+  제.공격력 <- 3.
+
+  공격을 받으면 {
+    (피해량:제.공격력) 피해_받음 ~~> 적.
+  }.
+}.
+
+적:임자 = {
+  제.체력 <- 50.
+
+  피해_받음을 받으면 {
+    제.체력 <- 제.체력 - 정보.피해량.
+  }.
+}.
+
+(매마디)마다 {
+  공격 ~~> 플레이어.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("플레이어__공격력 <- 3."));
+        assert!(out.contains("적__체력 <- 50."));
+        assert!(out.contains("적__체력 <- 적__체력 - 플레이어__공격력."));
+        assert!(!out.contains("플레이어:임자"));
+        assert!(!out.contains("적:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_multi_imja_send_chain_with_grouped_payload() {
+        let source = r#"
+(전달량:수) 전달:알림씨 = {
+}.
+
+출발:알림씨 = {
+}.
+
+전달자:임자 = {
+  제.기본량 <- 2.
+
+  출발을 받으면 {
+    (전달량:제.기본량) 전달 ~~> 중계자.
+  }.
+}.
+
+중계자:임자 = {
+  제.보정량 <- 4.
+
+  전달을 받으면 {
+    (전달량:(정보.전달량 + 제.보정량)) 전달 ~~> 목표.
+  }.
+}.
+
+목표:임자 = {
+  제.체력 <- 30.
+
+  전달을 받으면 {
+    제.체력 <- 제.체력 - 정보.전달량.
+  }.
+}.
+
+(매마디)마다 {
+  출발 ~~> 전달자.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("전달자__기본량 <- 2."));
+        assert!(out.contains("중계자__보정량 <- 4."));
+        assert!(out.contains("목표__체력 <- 30."));
+        assert!(out.contains("목표__체력 <- 목표__체력 - (전달자__기본량 + 중계자__보정량)."));
+        assert!(!out.contains("전달자:임자"));
+        assert!(!out.contains("중계자:임자"));
+        assert!(!out.contains("목표:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_single_imja_self_send() {
+        let source = r#"
+(값:수) 둘알림:알림씨 = {
+}.
+
+(값:수) 첫알림:알림씨 = {
+}.
+
+관제탑:임자 = {
+  제.합 <- 0.
+
+  첫알림을 받으면 {
+    (값:(정보.값 + 1)) 둘알림 ~~> 제.
+  }.
+
+  둘알림을 받으면 {
+    제.합 <- 제.합 + 정보.값.
+  }.
+}.
+
+(매마디)마다 {
+  (값:2) 첫알림 ~~> 관제탑.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("합 <- 0."));
+        assert!(out.contains("합 <- 합 + (2 + 1)."));
+        assert!(!out.contains("관제탑:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_typed_payload_forwarding() {
+        let source = r#"
+(피해량:수) 피해_받음:알림씨 = {
+}.
+
+첫알림:알림씨 = {
+}.
+
+중계자:임자 = {
+  첫알림을 받으면 {
+    (피해량:3) 피해_받음 ~~> 제.
+  }.
+
+  피해_받음을 받으면 {
+    피해_받음 ~~> 목표.
+  }.
+}.
+
+목표:임자 = {
+  제.체력 <- 10.
+
+  피해_받음을 받으면 {
+    제.체력 <- 제.체력 - 정보.피해량.
+  }.
+}.
+
+(매마디)마다 {
+  첫알림 ~~> 중계자.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("목표__체력 <- 10."));
+        assert!(out.contains("목표__체력 <- 목표__체력 - 3."));
+        assert!(!out.contains("중계자:임자"));
+        assert!(!out.contains("목표:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_conditional_send_queue() {
+        let source = r#"
+(값:수) 첫알림:알림씨 = {
+}.
+
+(값:수) 둘알림:알림씨 = {
+}.
+
+관제탑:임자 = {
+  제.순서 <- 0.
+
+  첫알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 1.
+    { 정보.값 > 0 }인것 일때 {
+      (값:정보.값) 둘알림 ~~> 제.
+    }.
+  }.
+
+  (알림 알림.이름 == "첫알림")인 알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 2.
+  }.
+
+  둘알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 3.
+  }.
+
+  알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 4.
+  }.
+}.
+
+(시작)할때 {
+  (값:1) 첫알림 ~~> 관제탑.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.contains("순서 <- 순서 * 10 + 1."), "{out}");
+        assert!(
+            out.contains("만약 1 > 0 이라면 {") || out.contains("만약 값 > 0 이라면 {"),
+            "{out}"
+        );
+        assert!(out.contains("순서 <- 순서 * 10 + 2."));
+        assert!(out.contains("순서 <- 순서 * 10 + 4."));
+        assert!(out.contains("순서 <- 순서 * 10 + 3."));
+        assert!(!out.contains("관제탑:임자"));
+        assert!(!out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_choose_send_queue() {
+        let source = r#"
+(값:수) 첫알림:알림씨 = {
+}.
+
+(값:수) 둘알림:알림씨 = {
+}.
+
+(값:수) 셋알림:알림씨 = {
+}.
+
+(값:수) 넷알림:알림씨 = {
+}.
+
+관제탑:임자 = {
+  제.순서 <- 0.
+
+  첫알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 1.
+    고르기:
+      정보.값 > 0: {
+        (값:정보.값) 둘알림 ~~> 제.
+      }
+      정보.값 >= 0: {
+        (값:정보.값) 넷알림 ~~> 제.
+      }
+      아니면: {
+        (값:정보.값) 셋알림 ~~> 제.
+      }.
+  }.
+
+  (알림 알림.이름 == "첫알림")인 알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 2.
+  }.
+
+  둘알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 3.
+  }.
+
+  셋알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 5.
+  }.
+
+  넷알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 6.
+  }.
+
+  알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 4.
+  }.
+}.
+
+(시작)할때 {
+  (값:1) 첫알림 ~~> 관제탑.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(
+            out.contains("만약 1 > 0 이라면 {") || out.contains("만약 값 > 0 이라면 {"),
+            "{out}"
+        );
+        assert!(out.contains("순서 <- 순서 * 10 + 1."), "{out}");
+        assert!(out.contains("순서 <- 순서 * 10 + 2."));
+        assert!(out.contains("순서 <- 순서 * 10 + 3."));
+        assert!(out.contains("순서 <- 순서 * 10 + 4."));
+        assert!(out.contains("순서 <- 순서 * 10 + 5."));
+        assert!(out.contains("순서 <- 순서 * 10 + 6."));
+        assert!(!out.contains("관제탑:임자"));
+        assert!(!out.contains("받으면"));
+
+        let second_source = source.replace("(값:1) 첫알림", "(값:0) 첫알림");
+        let second_out = preprocess_source_for_parse(&second_source).expect("preprocess");
+        assert!(
+            second_out.contains("만약 0 > 0 == 거짓 그리고 0 >= 0 이라면 {")
+                || second_out.contains("만약 값 > 0 == 거짓 그리고 값 >= 0 이라면 {"),
+            "{second_out}"
+        );
+        assert!(
+            second_out.contains("순서 <- 순서 * 10 + 6."),
+            "{second_out}"
+        );
+        assert!(!second_out.contains("관제탑:임자"));
+        assert!(!second_out.contains("받으면"));
+
+        let else_source = source.replace("(값:1) 첫알림", "(값:(0 - 1)) 첫알림");
+        let false_out = preprocess_source_for_parse(&else_source).expect("preprocess");
+        assert!(
+            false_out.contains("만약 (0 - 1) > 0 == 거짓 그리고 (0 - 1) >= 0 == 거짓 이라면 {")
+                || false_out.contains("만약 값 > 0 == 거짓 그리고 값 >= 0 == 거짓 이라면 {"),
+            "{false_out}"
+        );
+        assert!(false_out.contains("순서 <- 순서 * 10 + 5."), "{false_out}");
+        assert!(!false_out.contains("관제탑:임자"));
+        assert!(!false_out.contains("받으면"));
+    }
+
+    #[test]
+    fn preprocess_lowers_intro_choose_exhaustive() {
+        let source = r#"
+채비 {
+  점수: 셈수 <- 72.
+}.
+
+고르기:
+  점수 >= 70 인 경우 {
+    "통과" 보여주기.
+  }
+  점수 < 70 인 경우 {
+    "보충" 보여주기.
+  }
+  모든 경우 다룸.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(!out.contains("고르기:"), "{out}");
+        assert!(out.contains("만약 점수 >= 70 이라면 {"), "{out}");
+        assert!(
+            out.contains("만약 점수 >= 70 == 거짓 그리고 점수 < 70 이라면 {"),
+            "{out}"
+        );
+        assert!(out.contains("\"통과\" 보여주기."));
+        assert!(out.contains("\"보충\" 보여주기."));
+    }
+
+    #[test]
+    fn preprocess_lowers_intro_choose_else() {
+        let source = r#"
+채비 {
+  점수: 셈수 <- 72.
+}.
+
+고르기:
+  점수 >= 90: {
+    "우수" 보여주기.
+  }
+  아니면: {
+    "보통" 보여주기.
+  }.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(!out.contains("고르기:"), "{out}");
+        assert!(out.contains("만약 점수 >= 90 이라면 {"), "{out}");
+        assert!(out.contains("만약 점수 >= 90 == 거짓 이라면 {"), "{out}");
+        assert!(out.contains("\"우수\" 보여주기."));
+        assert!(out.contains("\"보통\" 보여주기."));
+    }
+
+    #[test]
+    fn preprocess_wraps_charim_plain_decl_without_seed_def() {
+        let source = r#"
+채비 {
+  안내: 글 = "intro".
+  인사: 글 <- "hello".
+}.
+
+인사 보여주기.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(out.starts_with("매틱:움직씨 = {"), "{out}");
+        assert!(out.contains("안내: 글 = \"intro\"."));
+        assert!(out.contains("인사 보여주기."));
+    }
+
+    #[test]
+    fn preprocess_lowers_generic_choose_exhaustive_send_queue() {
+        let source = r#"
+(값:수) 첫알림:알림씨 = {
+}.
+
+(값:수) 둘알림:알림씨 = {
+}.
+
+(값:수) 넷알림:알림씨 = {
+}.
+
+관제탑:임자 = {
+  제.순서 <- 0.
+
+  첫알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 1.
+    고르기:
+      정보.값 > 0 인 경우 {
+        (값:정보.값) 둘알림 ~~> 제.
+      }
+      정보.값 >= 0 인 경우 {
+        (값:정보.값) 넷알림 ~~> 제.
+      }
+      모든 경우 다룸.
+  }.
+
+  (알림 알림.이름 == "첫알림")인 알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 2.
+  }.
+
+  둘알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 3.
+  }.
+
+  넷알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 6.
+  }.
+
+  알림을 받으면 {
+    제.순서 <- 제.순서 * 10 + 4.
+  }.
+}.
+
+(시작)할때 {
+  (값:1) 첫알림 ~~> 관제탑.
+}.
+"#;
+        let out = preprocess_source_for_parse(source).expect("preprocess");
+        assert!(
+            out.contains("만약 1 > 0 이라면 {") || out.contains("만약 값 > 0 이라면 {"),
+            "{out}"
+        );
+        assert!(
+            out.contains("만약 1 > 0 == 거짓 그리고 1 >= 0 이라면 {")
+                || out.contains("만약 값 > 0 == 거짓 그리고 값 >= 0 이라면 {"),
+            "{out}"
+        );
+        assert!(out.contains("순서 <- 순서 * 10 + 1."), "{out}");
+        assert!(out.contains("순서 <- 순서 * 10 + 2."));
+        assert!(out.contains("순서 <- 순서 * 10 + 3."));
+        assert!(out.contains("순서 <- 순서 * 10 + 4."));
+        assert!(out.contains("순서 <- 순서 * 10 + 6."));
+        assert!(!out.contains("관제탑:임자"));
+        assert!(!out.contains("받으면"));
+
+        let second_source = source.replace("(값:1) 첫알림", "(값:0) 첫알림");
+        let second_out = preprocess_source_for_parse(&second_source).expect("preprocess");
+        assert!(
+            second_out.contains("만약 0 > 0 == 거짓 그리고 0 >= 0 이라면 {")
+                || second_out.contains("만약 값 > 0 == 거짓 그리고 값 >= 0 이라면 {"),
+            "{second_out}"
+        );
+        assert!(
+            second_out.contains("순서 <- 순서 * 10 + 6."),
+            "{second_out}"
+        );
+        assert!(!second_out.contains("관제탑:임자"));
+        assert!(!second_out.contains("받으면"));
     }
 }

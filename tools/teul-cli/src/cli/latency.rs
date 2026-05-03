@@ -56,10 +56,7 @@ fn build_detjson(policy: LatencyPolicy, events: &[LatencyEvent], current_madi: u
         if idx > 0 {
             out.push(',');
         }
-        let schedule = LatencySchedule::new(
-            ev.deliver_madi.saturating_sub(ev.madi),
-            ev.madi,
-        );
+        let schedule = LatencySchedule::new(ev.deliver_madi.saturating_sub(ev.madi), ev.madi);
         let packet = ScheduledPacket::from_schedule(schedule, current_madi);
         out.push_str("{\"madi\":");
         out.push_str(&ev.madi.to_string());

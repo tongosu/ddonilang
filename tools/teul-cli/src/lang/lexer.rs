@@ -8,6 +8,7 @@ pub enum LexError {
     UnterminatedString { line: usize, col: usize },
     UnterminatedTemplate { line: usize, col: usize },
     UnterminatedAssertion { line: usize, col: usize },
+    UnterminatedFormula { line: usize, col: usize },
     BadEscape { line: usize, col: usize, ch: char },
     BadIdentStart { line: usize, col: usize },
     UnexpectedChar { line: usize, col: usize, ch: char },
@@ -19,6 +20,7 @@ impl LexError {
             LexError::UnterminatedString { .. } => "E_LEX_UNTERM_STRING",
             LexError::UnterminatedTemplate { .. } => "E_LEX_UNTERM_TEMPLATE",
             LexError::UnterminatedAssertion { .. } => "E_LEX_UNTERM_ASSERTION",
+            LexError::UnterminatedFormula { .. } => "E_LEX_UNTERM_FORMULA",
             LexError::BadEscape { .. } => "E_LEX_BAD_ESCAPE",
             LexError::BadIdentStart { .. } => "E_LEX_BAD_IDENT_START",
             LexError::UnexpectedChar { .. } => "E_LEX_UNEXPECTED_CHAR",
@@ -247,6 +249,16 @@ impl Lexer {
             ',' => self.single_char(TokenKind::Comma),
             '^' => self.single_char(TokenKind::Caret),
             '#' => self.read_hash_or_atom(),
+            '=' if self.peek_next() == Some(':') && self.peek_n(2) == Some('=') => {
+                let (start_line, start_col) = (self.line, self.col);
+                self.advance();
+                self.advance();
+                self.advance();
+                Ok(Token::new(
+                    TokenKind::RelationEq,
+                    self.span_from(start_line, start_col),
+                ))
+            }
             '=' if self.peek_next() == Some('=') => {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
@@ -359,25 +371,7 @@ impl Lexer {
             }
             if ch == '\\' {
                 self.advance();
-                let esc = self.peek().ok_or(LexError::UnterminatedString {
-                    line: start_line,
-                    col: start_col,
-                })?;
-                let mapped = match esc {
-                    '"' => '"',
-                    '\\' => '\\',
-                    'n' => '\n',
-                    't' => '\t',
-                    _ => {
-                        return Err(LexError::BadEscape {
-                            line: self.line,
-                            col: self.col,
-                            ch: esc,
-                        })
-                    }
-                };
-                self.advance();
-                value.push(mapped);
+                value.push_str(&self.read_text_escape(start_line, start_col)?);
                 continue;
             }
             self.advance();
@@ -538,6 +532,9 @@ impl Lexer {
         if ident == "세움" && self.peek() == Some('{') {
             return self.read_assertion_block(start_line, start_col);
         }
+        if ident == "수식" && self.peek() == Some('{') {
+            return self.read_formula_block(start_line, start_col);
+        }
 
         if let Some(canon) = self.dialect.canonicalize(&ident) {
             ident = canon.to_string();
@@ -620,6 +617,8 @@ impl Lexer {
             "매마디" => TokenKind::EveryMadi,
             "할때" => TokenKind::Halttae,
             "마다" => TokenKind::Mada,
+            "만약" => TokenKind::Manyak,
+            "이라면" => TokenKind::Iramyeon,
             "일때" => TokenKind::Ilttae,
             "아니면" => TokenKind::Aniramyeon,
             "아니고" => TokenKind::Anigo,
@@ -633,6 +632,7 @@ impl Lexer {
             "미루기" => TokenKind::Reserve,
             "대해" => TokenKind::Daehae,
             "멈추기" => TokenKind::Break,
+            "건너뛰기" => TokenKind::ContinueLoop,
             "그리고" => TokenKind::And,
             "또는" => TokenKind::Or,
             _ => TokenKind::Ident(ident),
@@ -736,6 +736,42 @@ impl Lexer {
         })
     }
 
+    fn read_formula_block(
+        &mut self,
+        start_line: usize,
+        start_col: usize,
+    ) -> Result<Token, LexError> {
+        self.advance();
+        let mut depth = 1usize;
+        let mut body = String::new();
+        while let Some(ch) = self.peek() {
+            if ch == '{' {
+                depth += 1;
+                body.push(ch);
+                self.advance();
+                continue;
+            }
+            if ch == '}' {
+                depth = depth.saturating_sub(1);
+                self.advance();
+                if depth == 0 {
+                    return Ok(Token::new(
+                        TokenKind::FormulaBlock(body),
+                        self.span_from(start_line, start_col),
+                    ));
+                }
+                body.push('}');
+                continue;
+            }
+            body.push(ch);
+            self.advance();
+        }
+        Err(LexError::UnterminatedFormula {
+            line: start_line,
+            col: start_col,
+        })
+    }
+
     fn read_string_value(
         &mut self,
         start_line: usize,
@@ -756,30 +792,107 @@ impl Lexer {
             }
             if ch == '\\' {
                 self.advance();
-                let esc = self.peek().ok_or(LexError::UnterminatedString {
-                    line: start_line,
-                    col: start_col,
-                })?;
-                let mapped = match esc {
-                    '"' => '"',
-                    '\\' => '\\',
-                    'n' => '\n',
-                    't' => '\t',
-                    'r' => '\r',
-                    _ => {
-                        return Err(LexError::BadEscape {
-                            line: self.line,
-                            col: self.col,
-                            ch: esc,
-                        })
-                    }
-                };
-                self.advance();
-                value.push(mapped);
+                value.push_str(&self.read_text_escape(start_line, start_col)?);
                 continue;
             }
             self.advance();
             value.push(ch);
+        }
+        Err(LexError::UnterminatedString {
+            line: start_line,
+            col: start_col,
+        })
+    }
+
+    fn read_text_escape(&mut self, start_line: usize, start_col: usize) -> Result<String, LexError> {
+        if self.peek().is_none() {
+            return Err(LexError::UnterminatedString {
+                line: start_line,
+                col: start_col,
+            });
+        }
+        for (surface, value) in [
+            ("줄", "\n"),
+            ("칸", "\t"),
+            ("앞", "\r"),
+            ("따옴", "\""),
+            ("역빗금", "\\"),
+        ] {
+            if self.match_str(surface) {
+                self.advance_n(surface.chars().count());
+                return Ok(value.to_string());
+            }
+        }
+        for surface in ["반전끝", "굵게끝", "반전", "굵게", "되돌림"] {
+            if self.match_str(surface) {
+                self.advance_n(surface.chars().count());
+                return Ok(format!("\\{}", surface));
+            }
+        }
+        for surface in ["색", "배경"] {
+            if self.match_str(surface) {
+                let saved_pos = self.pos;
+                let saved_line = self.line;
+                let saved_col = self.col;
+                self.advance_n(surface.chars().count());
+                if self.peek() == Some('{') {
+                    let body = self.read_rich_markup_body(start_line, start_col)?;
+                    return Ok(format!("\\{}{{{}}}", surface, body));
+                }
+                self.pos = saved_pos;
+                self.line = saved_line;
+                self.col = saved_col;
+            }
+        }
+        let esc = self.peek().ok_or(LexError::UnterminatedString {
+            line: start_line,
+            col: start_col,
+        })?;
+        let mapped = match esc {
+            '"' => "\"",
+            '\\' => "\\",
+            'n' => "\n",
+            't' => "\t",
+            'r' => "\r",
+            _ => {
+                return Err(LexError::BadEscape {
+                    line: self.line,
+                    col: self.col,
+                    ch: esc,
+                })
+            }
+        };
+        self.advance();
+        Ok(mapped.to_string())
+    }
+
+    fn read_rich_markup_body(
+        &mut self,
+        start_line: usize,
+        start_col: usize,
+    ) -> Result<String, LexError> {
+        if self.peek() != Some('{') {
+            return Err(LexError::BadEscape {
+                line: self.line,
+                col: self.col,
+                ch: self.peek().unwrap_or('\0'),
+            });
+        }
+        self.advance();
+        let mut body = String::new();
+        while let Some(ch) = self.peek() {
+            if ch == '}' {
+                self.advance();
+                return Ok(body);
+            }
+            if ch == '\n' || ch == '\r' {
+                return Err(LexError::UnterminatedString {
+                    line: start_line,
+                    col: start_col,
+                });
+            }
+            body.push(ch);
+            self.advance();
         }
         Err(LexError::UnterminatedString {
             line: start_line,
@@ -1012,8 +1125,14 @@ mod tests {
     #[test]
     fn number_madi_suffix_is_lexed_for_periodic_hook() {
         let tokens = Lexer::tokenize("(3마디)마다 { 없음. }.\n").expect("tokenize");
-        assert!(matches!(tokens.first().map(|token| &token.kind), Some(TokenKind::LParen)));
-        assert!(matches!(tokens.get(1).map(|token| &token.kind), Some(TokenKind::Number(_))));
+        assert!(matches!(
+            tokens.first().map(|token| &token.kind),
+            Some(TokenKind::LParen)
+        ));
+        assert!(matches!(
+            tokens.get(1).map(|token| &token.kind),
+            Some(TokenKind::Number(_))
+        ));
         assert!(matches!(
             tokens.get(2).map(|token| &token.kind),
             Some(TokenKind::Ident(name)) if name == "마디"
@@ -1022,8 +1141,8 @@ mod tests {
 
     #[test]
     fn start_hook_aliases_lex_to_start_token() {
-        let tokens = Lexer::tokenize("(시작)할때 { 없음. }.\n(처음)할때 { 없음. }.\n")
-            .expect("tokenize");
+        let tokens =
+            Lexer::tokenize("(시작)할때 { 없음. }.\n(처음)할때 { 없음. }.\n").expect("tokenize");
         let start_count = tokens
             .iter()
             .filter(|token| matches!(token.kind, TokenKind::Start))

@@ -91,6 +91,9 @@ pub enum RuntimeError {
     BreakOutsideLoop {
         span: Span,
     },
+    ContinueOutsideForeach {
+        span: Span,
+    },
     ReturnOutsideSeed {
         span: Span,
     },
@@ -227,6 +230,7 @@ impl RuntimeError {
             RuntimeError::Template { .. } => "E_TEMPLATE",
             RuntimeError::Pack { .. } => "E_PACK",
             RuntimeError::BreakOutsideLoop { .. } => "E_RUNTIME_BREAK_OUTSIDE_LOOP",
+            RuntimeError::ContinueOutsideForeach { .. } => "E_RUNTIME_CONTINUE_OUTSIDE_FOREACH",
             RuntimeError::ReturnOutsideSeed { .. } => "E_RUNTIME_RETURN_OUTSIDE_SEED",
             RuntimeError::ProofIncomplete { .. } => "E_PROOF_INCOMPLETE",
             RuntimeError::OpenSiteUnknown { .. } => "E_OPEN_SITE_UNKNOWN",

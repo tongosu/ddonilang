@@ -5,6 +5,7 @@ use crate::core::fixed64::Fixed64;
 use crate::core::unit::{format_dim, UnitDim};
 use crate::lang::ast::Expr;
 use ddonirang_core::ResourceHandle;
+use sha2::{Digest, Sha256};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Quantity {
@@ -57,6 +58,10 @@ impl MathValue {
     pub fn display(&self) -> String {
         format!("({}) 수식{{ {} }}", self.dialect, self.body)
     }
+
+    pub fn canon(&self) -> String {
+        self.display()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,15 +100,34 @@ pub struct LambdaValue {
     pub id: u64,
     pub param: String,
     pub body: Expr,
+    pub captured: BTreeMap<String, Value>,
 }
 
 impl PartialEq for LambdaValue {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.canon() == other.canon()
     }
 }
 
 impl Eq for LambdaValue {}
+
+impl LambdaValue {
+    pub fn canon(&self) -> String {
+        let mut base = String::new();
+        base.push_str(&self.param);
+        base.push('\n');
+        base.push_str(&format!("{:?}", self.body));
+        for (key, value) in &self.captured {
+            base.push('\n');
+            base.push_str(key);
+            base.push('=');
+            base.push_str(&value.canon());
+        }
+        let digest = Sha256::digest(base.as_bytes());
+        let hash = digest.iter().map(|b| format!("{b:02x}")).collect::<String>();
+        format!("<씨앗:{}>", hash)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiceValue {
@@ -134,10 +158,28 @@ pub struct PackValue {
 
 impl PackValue {
     pub fn display(&self) -> String {
+        if let Some(text) = format_exact_numeric_pack(&self.fields) {
+            return text;
+        }
+        if let Some(text) = format_relation_pack(&self.fields, ValueFormat::Display) {
+            return text;
+        }
+        if let Some(text) = format_relation_solve_result_pack(&self.fields, ValueFormat::Display) {
+            return text;
+        }
         format_pack(&self.fields, ValueFormat::Display)
     }
 
     pub fn canon(&self) -> String {
+        if let Some(text) = format_exact_numeric_pack(&self.fields) {
+            return text;
+        }
+        if let Some(text) = format_relation_pack(&self.fields, ValueFormat::Canon) {
+            return text;
+        }
+        if let Some(text) = format_relation_solve_result_pack(&self.fields, ValueFormat::Canon) {
+            return text;
+        }
         format_pack(&self.fields, ValueFormat::Canon)
     }
 }
@@ -237,7 +279,7 @@ impl Value {
             Value::Math(math) => math.display(),
             Value::Template(template) => template.display(),
             Value::Assertion(assertion) => assertion.display(),
-            Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
+            Value::Lambda(lambda) => lambda.canon(),
             Value::Dice(dice) => dice.display(),
             Value::Pack(pack) => pack.display(),
             Value::List(list) => list.display(),
@@ -257,7 +299,7 @@ impl Value {
             Value::Math(math) => math.display(),
             Value::Template(template) => template.canon(),
             Value::Assertion(assertion) => assertion.canon(),
-            Value::Lambda(lambda) => format!("<씨앗#{}>", lambda.id),
+            Value::Lambda(lambda) => lambda.canon(),
             Value::Dice(dice) => dice.canon(),
             Value::Pack(pack) => pack.canon(),
             Value::List(list) => list.canon(),
@@ -379,6 +421,108 @@ fn format_pack(fields: &BTreeMap<String, Value>, mode: ValueFormat) -> String {
     }
     out.push('}');
     out
+}
+
+fn format_exact_numeric_pack(fields: &BTreeMap<String, Value>) -> Option<String> {
+    let kind = match fields.get("__정확수종류")? {
+        Value::Str(text) => text.as_str(),
+        _ => return None,
+    };
+    match kind {
+        "큰바른수" => match fields.get("값") {
+            Some(Value::Str(text)) => Some(text.clone()),
+            _ => Some("[큰바른수]".to_string()),
+        },
+        "나눔수" => {
+            let num = match fields.get("분자") {
+                Some(Value::Str(text)) => text.as_str(),
+                _ => "?",
+            };
+            let den = match fields.get("분모") {
+                Some(Value::Str(text)) => text.as_str(),
+                _ => "?",
+            };
+            Some(format!("{num}/{den}"))
+        }
+        "곱수" => match fields.get("정본") {
+            Some(Value::Str(text)) => Some(text.clone()),
+            _ => match fields.get("값") {
+                Some(Value::Str(text)) => Some(text.clone()),
+                _ => Some("[곱수]".to_string()),
+            },
+        },
+        _ => None,
+    }
+}
+
+fn format_relation_pack(fields: &BTreeMap<String, Value>, mode: ValueFormat) -> Option<String> {
+    let kind = match fields.get("__관계종류")? {
+        Value::Str(text) => text.as_str(),
+        _ => return None,
+    };
+    if kind != "방정식" {
+        return None;
+    }
+    let lhs = match fields.get("왼쪽")? {
+        Value::Math(value) => match mode {
+            ValueFormat::Display => value.display(),
+            ValueFormat::Canon => value.canon(),
+        },
+        _ => return None,
+    };
+    let rhs = match fields.get("오른쪽")? {
+        Value::Math(value) => match mode {
+            ValueFormat::Display => value.display(),
+            ValueFormat::Canon => value.canon(),
+        },
+        _ => return None,
+    };
+    Some(format!("{lhs} =:= {rhs}"))
+}
+
+fn format_relation_solve_result_pack(
+    fields: &BTreeMap<String, Value>,
+    mode: ValueFormat,
+) -> Option<String> {
+    let kind = match fields.get("__풀이결과종류")? {
+        Value::Str(text) => text.as_str(),
+        _ => return None,
+    };
+    match kind {
+        "성공" => {
+            if let (Some(Value::Str(variable)), Some(value)) = (fields.get("미지수"), fields.get("값")) {
+                let rendered = match mode {
+                    ValueFormat::Display => value.display(),
+                    ValueFormat::Canon => value.canon(),
+                };
+                return Some(format!("#성공(미지수=\"{variable}\", 값={rendered})"));
+            }
+            let Value::Pack(bindings) = fields.get("해")? else {
+                return None;
+            };
+            let rendered = bindings
+                .fields
+                .iter()
+                .map(|(key, value)| {
+                    let text = match mode {
+                        ValueFormat::Display => value.display(),
+                        ValueFormat::Canon => value.canon(),
+                    };
+                    format!("{key}={text}")
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            Some(format!("#성공(해=({rendered}))"))
+        }
+        "실패" => {
+            let reason = match fields.get("사유")? {
+                Value::Str(text) => text.clone(),
+                _ => return None,
+            };
+            Some(format!("#실패(사유=\"{reason}\")"))
+        }
+        _ => None,
+    }
 }
 
 fn format_list(items: &[Value], mode: ValueFormat) -> String {

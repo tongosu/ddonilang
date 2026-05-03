@@ -70,7 +70,7 @@ pub const FATAL_TERMS: [TermEntry; 12] = [
     },
 ];
 
-pub const LEGACY_TERMS: [TermEntry; 5] = [
+pub const LEGACY_TERMS: [TermEntry; 4] = [
     TermEntry {
         code: "TERM-WARN-001",
         input: "변수",
@@ -90,11 +90,6 @@ pub const LEGACY_TERMS: [TermEntry; 5] = [
         code: "TERM-WARN-004",
         input: "이벤트",
         canonical: "알림씨",
-    },
-    TermEntry {
-        code: "TERM-WARN-005",
-        input: "살림",
-        canonical: "바탕",
     },
 ];
 

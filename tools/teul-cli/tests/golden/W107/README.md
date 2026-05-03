@@ -8,7 +8,7 @@
 ## 읽는 법
 - `patch_candidate_count: 1`은 AGE2 `슬기훅정책: 실행`이 draft patch 후보를 남기는 양수 증거다.
 - `patch_candidate_count: 0`은 같은 표면에서 stale/overwrite/불일치 경계 때문에 patch 후보를 비우는 음수 증거다.
-- `contract target`은 계약식이 bare target이 아니라 `살림.*`, `바탕.*`, cross-root target을 직접 쓰는 경우를 뜻한다.
+- `contract target`은 계약식이 bare target이 아니라 `*`, `*`, cross-root target을 직접 쓰는 경우를 뜻한다.
 
 ## 구간 요약
 
@@ -36,7 +36,7 @@
 
 | 규칙 | 증거 |
 | --- | --- |
-| typed lhs와 `살림.`/`바탕.` prefix는 bare 대상으로 접힌다 | `run.rs` helper test, `G16`~`G19` |
+| typed lhs와 ``/`` prefix는 bare 대상으로 접힌다 | `run.rs` helper test, `G16`~`G19` |
 | exact/ancestor만 영향 있는 최신 대입으로 본다 | helper test, `G28`, `G29` |
 | descendant 경로는 영향 대상으로 보지 않는다 | helper test |
 | bare leaf `x`는 source 루트 객체 재대입을 상위 경로로 보지 않는다 | helper test 2건 |

@@ -240,6 +240,7 @@ impl Normalizer {
                     let name = match kind {
                         MetaBlockKind::Setting => "설정",
                         MetaBlockKind::Bogae => "보개",
+                        MetaBlockKind::Boim => "보임",
                         MetaBlockKind::Seulgi => "슬기",
                         MetaBlockKind::BogeaMadang => unreachable!(),
                         MetaBlockKind::Jjaim => unreachable!(),
@@ -250,7 +251,11 @@ impl Normalizer {
                     self.indent += 1;
                     for entry in entries {
                         self.write_indent();
-                        self.write(entry);
+                        if matches!(kind, MetaBlockKind::Boim) {
+                            self.write(&format_boim_entry(entry));
+                        } else {
+                            self.write(entry);
+                        }
                         self.write(".\n");
                     }
                     self.indent -= 1;
@@ -272,14 +277,51 @@ impl Normalizer {
                 self.write(" 되돌림");
                 self.write_stmt_terminator(stmt);
             }
+            Stmt::Receive {
+                kind,
+                binding,
+                condition,
+                body,
+                ..
+            } => {
+                if let Some(binding) = binding {
+                    self.write("(");
+                    self.write(binding);
+                    if let Some(condition) = condition {
+                        self.write(" ");
+                        self.normalize_expr(condition);
+                    }
+                    self.write(")인 ");
+                }
+                self.write(kind.as_deref().unwrap_or("알림"));
+                self.write("을 받으면 ");
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Send {
+                sender,
+                payload,
+                receiver,
+                ..
+            } => {
+                if let Some(sender) = sender {
+                    self.normalize_expr(sender);
+                    self.write("의 ");
+                }
+                self.normalize_expr(payload);
+                self.write(" ~~> ");
+                self.normalize_expr(receiver);
+                self.write_stmt_terminator(stmt);
+            }
             Stmt::If {
                 condition,
                 then_body,
                 else_body,
                 ..
             } => {
+                self.write("만약 ");
                 self.normalize_expr(condition);
-                self.write(" 일때 ");
+                self.write(" 이라면 ");
                 self.normalize_body(then_body);
                 if let Some(body) = else_body {
                     self.write(" 아니면 ");
@@ -397,6 +439,10 @@ impl Normalizer {
                 self.write("멈추기");
                 self.write_stmt_terminator(stmt);
             }
+            Stmt::ContinueLoop { .. } => {
+                self.write("건너뛰기");
+                self.write_stmt_terminator(stmt);
+            }
             Stmt::Contract {
                 kind,
                 mode,
@@ -447,7 +493,13 @@ impl Normalizer {
             }
             ExprKind::SeedLiteral { param, body } => {
                 self.write("{");
-                self.write(param);
+                if seed_literal_param_count(param) > 1 {
+                    self.write("(");
+                    self.write(param);
+                    self.write(")");
+                } else {
+                    self.write(param);
+                }
                 self.write(" | ");
                 self.normalize_expr(body);
                 self.write("}");
@@ -826,6 +878,8 @@ impl Normalizer {
             Stmt::DeclBlock { mood, .. } => mood,
             Stmt::Mutate { mood, .. } => mood,
             Stmt::Expr { mood, .. } => mood,
+            Stmt::Receive { mood, .. } => mood,
+            Stmt::Send { mood, .. } => mood,
             Stmt::Show { mood, .. } | Stmt::Inspect { mood, .. } => mood,
             Stmt::MetaBlock { mood, .. } => mood,
             Stmt::Pragma { .. } => return,
@@ -842,6 +896,7 @@ impl Normalizer {
             Stmt::ForEach { mood, .. } => mood,
             Stmt::Quantifier { mood, .. } => mood,
             Stmt::Break { mood, .. } => mood,
+            Stmt::ContinueLoop { mood, .. } => mood,
             Stmt::Contract { mood, .. } => mood,
             Stmt::Guard { mood, .. } => mood,
         };
@@ -851,6 +906,13 @@ impl Normalizer {
             _ => self.write("."),
         }
     }
+}
+
+fn format_boim_entry(entry: &str) -> String {
+    let Some((key, value)) = entry.split_once(':') else {
+        return entry.to_string();
+    };
+    format!("{}: {}", key.trim(), value.trim())
 }
 
 /// 편리 함수
@@ -872,6 +934,15 @@ fn collect_call_signatures(program: &CanonProgram) -> HashMap<String, Vec<ParamP
         }
     }
     out
+}
+
+fn seed_literal_param_count(param: &str) -> usize {
+    param
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .count()
+        .max(1)
 }
 
 #[cfg(test)]

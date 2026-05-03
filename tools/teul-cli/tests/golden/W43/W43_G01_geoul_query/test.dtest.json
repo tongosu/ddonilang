@@ -22,7 +22,7 @@
       "cmd": "geoul_query",
       "geoul": "out/geoul",
       "madi": 3,
-      "key": "살림.점수"
+      "key": "점수"
     }
   ],
   "expect": {
@@ -30,7 +30,7 @@
     "state_hash": "ANY",
     "stdout": [
       "madi=3",
-      "key=살림.점수",
+      "key=점수",
       "value=14",
       "state_hash=blake3:a809f9010ae7bd8073d96a857a1749d928d8c0b8ebcfae024dfbd8a6b2addef3"
     ],

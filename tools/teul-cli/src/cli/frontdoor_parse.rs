@@ -5,8 +5,9 @@ use crate::lang::ast::Program;
 use crate::lang::lexer::{LexError, Lexer};
 use crate::lang::parser::{ParseError, ParseMode, Parser};
 use ddonirang_lang::{
-    normalize_for_lang_parity as lang_normalize_for_parity, parse_with_mode as lang_parse_with_mode,
-    wrap_lang_parity_source as lang_wrap_parity_source, ParseMode as LangParseMode,
+    normalize_for_lang_parity as lang_normalize_for_parity,
+    parse_with_mode as lang_parse_with_mode, wrap_lang_parity_source as lang_wrap_parity_source,
+    ParseMode as LangParseMode,
 };
 
 #[derive(Debug)]
@@ -147,15 +148,9 @@ mod tests {
     }
 
     #[test]
-    fn parse_runtime_rejects_legacy_boim_surface() {
+    fn parse_runtime_accepts_boim_surface() {
         let source = "보임 { x: 1. }.";
-        let err = parse_program_for_runtime(source).expect_err("must reject");
-        match err {
-            FrontdoorParseFailure::Guard(message) => {
-                assert!(message.contains("E_CANON_LEGACY_BOIM_FORBIDDEN"));
-            }
-            other => panic!("unexpected error variant: {:?}", other),
-        }
+        parse_program_for_runtime(source).expect("must parse");
     }
 
     #[test]
@@ -226,7 +221,8 @@ mod tests {
 
     #[test]
     fn normalize_for_lang_parity_keeps_wave1_projectile_core_lines() {
-        let source = include_str!("../../../../docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn");
+        let source =
+            include_str!("../../../../docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn");
         let parity = normalize_for_lang_parity(source);
         let wrapped = wrap_lang_parity_source(&parity);
         assert!(wrapped.contains("채비 {"));
@@ -236,7 +232,8 @@ mod tests {
 
     #[test]
     fn validate_lang_frontdoor_parity_accepts_wave1_projectile_wrapped_source() {
-        let source = include_str!("../../../../docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn");
+        let source =
+            include_str!("../../../../docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn");
         let parity = normalize_for_lang_parity(source);
         let wrapped = wrap_lang_parity_source(&parity);
         lang_parse_with_mode(&wrapped, "<wave1-projectile-parity>", LangParseMode::Strict)

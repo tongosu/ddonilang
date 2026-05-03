@@ -91,19 +91,19 @@ pub struct W33Params {
 pub fn compute_w24_state_hash(params: &W24Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.개체수".to_string(),
+        "개체수".to_string(),
         Fixed64::from_i64(params.entity_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.컴포넌트수".to_string(),
+        "컴포넌트수".to_string(),
         Fixed64::from_i64(params.component_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.아키타입_이동".to_string(),
+        "아키타입_이동".to_string(),
         Fixed64::from_i64(params.archetype_moves as i64),
     );
     world.set_resource_fixed64(
-        "살림.성능_캡".to_string(),
+        "성능_캡".to_string(),
         Fixed64::from_i64(params.perf_cap as i64),
     );
 
@@ -151,15 +151,15 @@ pub fn compute_w24_state_hash(params: &W24Params) -> StateHash {
 pub fn compute_w25_state_hash(params: &W25Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.쿼리_대상수".to_string(),
+        "쿼리_대상수".to_string(),
         Fixed64::from_i64(params.query_target_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.쿼리_배치".to_string(),
+        "쿼리_배치".to_string(),
         Fixed64::from_i64(params.query_batch as i64),
     );
     world.set_resource_fixed64(
-        "살림.스냅샷_고정".to_string(),
+        "스냅샷_고정".to_string(),
         Fixed64::from_i64(params.snapshot_fixed as i64),
     );
 
@@ -212,27 +212,27 @@ pub fn compute_w25_state_hash(params: &W25Params) -> StateHash {
 pub fn compute_w26_state_hash(params: &W26Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.임자수".to_string(),
+        "임자수".to_string(),
         Fixed64::from_i64(params.agent_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.상품수".to_string(),
+        "상품수".to_string(),
         Fixed64::from_i64(params.item_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.거래수".to_string(),
+        "거래수".to_string(),
         Fixed64::from_i64(params.trade_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.초기_잔고".to_string(),
+        "초기_잔고".to_string(),
         Fixed64::from_i64(params.starting_balance as i64),
     );
     world.set_resource_fixed64(
-        "살림.초기_재고".to_string(),
+        "초기_재고".to_string(),
         Fixed64::from_i64(params.starting_inventory as i64),
     );
     world.set_resource_fixed64(
-        "살림.기본_가격".to_string(),
+        "기본_가격".to_string(),
         Fixed64::from_i64(params.base_price as i64),
     );
 
@@ -328,18 +328,18 @@ pub fn compute_w26_state_hash(params: &W26Params) -> StateHash {
         }
     }
 
-    world.set_resource_json("살림.소득".to_string(), json_array_i64(&incomes));
-    world.set_resource_json("살림.선호도".to_string(), json_array_i64(&preferences));
-    world.set_resource_json("살림.효용".to_string(), json_array_i64(&utilities));
-    world.set_resource_json("살림.잔고".to_string(), json_array_i64(&balances));
-    world.set_resource_json("살림.재고".to_string(), json_matrix_i64(&inventories));
-    world.set_resource_json("살림.가격".to_string(), json_array_i64(&prices));
-    world.set_resource_json("살림.거래_로그".to_string(), trade_log);
+    world.set_resource_json("소득".to_string(), json_array_i64(&incomes));
+    world.set_resource_json("선호도".to_string(), json_array_i64(&preferences));
+    world.set_resource_json("효용".to_string(), json_array_i64(&utilities));
+    world.set_resource_json("잔고".to_string(), json_array_i64(&balances));
+    world.set_resource_json("재고".to_string(), json_matrix_i64(&inventories));
+    world.set_resource_json("가격".to_string(), json_array_i64(&prices));
+    world.set_resource_json("거래_로그".to_string(), trade_log);
 
-    world.set_resource_fixed64("살림.거래_총액".to_string(), Fixed64::from_i64(total_value));
-    world.set_resource_fixed64("살림.거래_총량".to_string(), Fixed64::from_i64(total_qty));
-    world.set_resource_fixed64("살림.잔고_합".to_string(), Fixed64::from_i64(balance_sum));
-    world.set_resource_fixed64("살림.재고_합".to_string(), Fixed64::from_i64(inventory_sum));
+    world.set_resource_fixed64("거래_총액".to_string(), Fixed64::from_i64(total_value));
+    world.set_resource_fixed64("거래_총량".to_string(), Fixed64::from_i64(total_qty));
+    world.set_resource_fixed64("잔고_합".to_string(), Fixed64::from_i64(balance_sum));
+    world.set_resource_fixed64("재고_합".to_string(), Fixed64::from_i64(inventory_sum));
 
     world.state_hash()
 }
@@ -347,23 +347,23 @@ pub fn compute_w26_state_hash(params: &W26Params) -> StateHash {
 pub fn compute_w27_state_hash(params: &W27Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.임자수".to_string(),
+        "임자수".to_string(),
         Fixed64::from_i64(params.agent_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.거래수".to_string(),
+        "거래수".to_string(),
         Fixed64::from_i64(params.trade_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.초기_잔고".to_string(),
+        "초기_잔고".to_string(),
         Fixed64::from_i64(params.starting_balance as i64),
     );
     world.set_resource_fixed64(
-        "살림.잔고_최소".to_string(),
+        "잔고_최소".to_string(),
         Fixed64::from_i64(params.min_balance as i64),
     );
     world.set_resource_fixed64(
-        "살림.거래_금액".to_string(),
+        "거래_금액".to_string(),
         Fixed64::from_i64(params.trade_amount as i64),
     );
 
@@ -398,10 +398,10 @@ pub fn compute_w27_state_hash(params: &W27Params) -> StateHash {
         balance_sum = balance_sum.saturating_add(*value);
     }
 
-    world.set_resource_json("살림.잔고".to_string(), json_array_i64(&balances));
-    world.set_resource_fixed64("살림.거래_승인".to_string(), Fixed64::from_i64(accepted));
-    world.set_resource_fixed64("살림.거래_거절".to_string(), Fixed64::from_i64(rejected));
-    world.set_resource_fixed64("살림.잔고_합".to_string(), Fixed64::from_i64(balance_sum));
+    world.set_resource_json("잔고".to_string(), json_array_i64(&balances));
+    world.set_resource_fixed64("거래_승인".to_string(), Fixed64::from_i64(accepted));
+    world.set_resource_fixed64("거래_거절".to_string(), Fixed64::from_i64(rejected));
+    world.set_resource_fixed64("잔고_합".to_string(), Fixed64::from_i64(balance_sum));
 
     world.state_hash()
 }
@@ -409,23 +409,23 @@ pub fn compute_w27_state_hash(params: &W27Params) -> StateHash {
 pub fn compute_w28_state_hash(params: &W28Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.임자수".to_string(),
+        "임자수".to_string(),
         Fixed64::from_i64(params.agent_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.상품수".to_string(),
+        "상품수".to_string(),
         Fixed64::from_i64(params.item_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.거래수".to_string(),
+        "거래수".to_string(),
         Fixed64::from_i64(params.trade_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.기본_가격".to_string(),
+        "기본_가격".to_string(),
         Fixed64::from_i64(params.base_price as i64),
     );
     world.set_resource_fixed64(
-        "살림.거래_금액".to_string(),
+        "거래_금액".to_string(),
         Fixed64::from_i64(params.trade_amount as i64),
     );
 
@@ -468,17 +468,14 @@ pub fn compute_w28_state_hash(params: &W28Params) -> StateHash {
         total_value / total_qty
     };
 
-    world.set_resource_fixed64("살림.거래_총액".to_string(), Fixed64::from_i64(total_value));
-    world.set_resource_fixed64("살림.거래_총량".to_string(), Fixed64::from_i64(total_qty));
-    world.set_resource_fixed64("살림.지표_GDP".to_string(), Fixed64::from_i64(total_value));
-    world.set_resource_fixed64("살림.지표_거래량".to_string(), Fixed64::from_i64(total_qty));
-    world.set_resource_fixed64("살림.지표_물가".to_string(), Fixed64::from_i64(avg_price));
-    world.set_resource_json("살림.지표_품목_총량".to_string(), json_array_i64(&item_qty));
-    world.set_resource_json(
-        "살림.지표_품목_총액".to_string(),
-        json_array_i64(&item_value),
-    );
-    world.set_resource_json("살림.지표_프레임".to_string(), frames);
+    world.set_resource_fixed64("거래_총액".to_string(), Fixed64::from_i64(total_value));
+    world.set_resource_fixed64("거래_총량".to_string(), Fixed64::from_i64(total_qty));
+    world.set_resource_fixed64("지표_GDP".to_string(), Fixed64::from_i64(total_value));
+    world.set_resource_fixed64("지표_거래량".to_string(), Fixed64::from_i64(total_qty));
+    world.set_resource_fixed64("지표_물가".to_string(), Fixed64::from_i64(avg_price));
+    world.set_resource_json("지표_품목_총량".to_string(), json_array_i64(&item_qty));
+    world.set_resource_json("지표_품목_총액".to_string(), json_array_i64(&item_value));
+    world.set_resource_json("지표_프레임".to_string(), frames);
 
     world.state_hash()
 }
@@ -486,19 +483,19 @@ pub fn compute_w28_state_hash(params: &W28Params) -> StateHash {
 pub fn compute_w29_state_hash(params: &W29Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.반응_패스_최대".to_string(),
+        "반응_패스_최대".to_string(),
         Fixed64::from_i64(params.reactive_max_pass as i64),
     );
     world.set_resource_fixed64(
-        "살림.알림_연쇄".to_string(),
+        "알림_연쇄".to_string(),
         Fixed64::from_i64(params.alert_chain as i64),
     );
     world.set_resource_fixed64(
-        "살림.반응_증분".to_string(),
+        "반응_증분".to_string(),
         Fixed64::from_i64(params.step_value as i64),
     );
     world.set_resource_fixed64(
-        "살림.초기_값".to_string(),
+        "초기_값".to_string(),
         Fixed64::from_i64(params.initial_value as i64),
     );
 
@@ -512,10 +509,10 @@ pub fn compute_w29_state_hash(params: &W29Params) -> StateHash {
     let final_value = initial.saturating_add(executed.saturating_mul(step));
     let diag_count = if blocked > 0 { 1 } else { 0 };
 
-    world.set_resource_fixed64("살림.반응_실행".to_string(), Fixed64::from_i64(executed));
-    world.set_resource_fixed64("살림.반응_차단".to_string(), Fixed64::from_i64(blocked));
-    world.set_resource_fixed64("살림.누적_값".to_string(), Fixed64::from_i64(final_value));
-    world.set_resource_fixed64("살림.진단_발생".to_string(), Fixed64::from_i64(diag_count));
+    world.set_resource_fixed64("반응_실행".to_string(), Fixed64::from_i64(executed));
+    world.set_resource_fixed64("반응_차단".to_string(), Fixed64::from_i64(blocked));
+    world.set_resource_fixed64("누적_값".to_string(), Fixed64::from_i64(final_value));
+    world.set_resource_fixed64("진단_발생".to_string(), Fixed64::from_i64(diag_count));
 
     world.state_hash()
 }
@@ -523,19 +520,19 @@ pub fn compute_w29_state_hash(params: &W29Params) -> StateHash {
 pub fn compute_w30_state_hash(params: &W30Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.제안_수".to_string(),
+        "제안_수".to_string(),
         Fixed64::from_i64(params.proposal_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.승인_토큰".to_string(),
+        "승인_토큰".to_string(),
         Fixed64::from_i64(params.approval_tokens as i64),
     );
     world.set_resource_fixed64(
-        "살림.적용_요청".to_string(),
+        "적용_요청".to_string(),
         Fixed64::from_i64(params.apply_requests as i64),
     );
     world.set_resource_fixed64(
-        "살림.승인_필수".to_string(),
+        "승인_필수".to_string(),
         Fixed64::from_i64(params.approval_required as i64),
     );
 
@@ -579,24 +576,18 @@ pub fn compute_w30_state_hash(params: &W30Params) -> StateHash {
     }
     log.push(']');
 
+    world.set_resource_fixed64("미리보기_수".to_string(), Fixed64::from_i64(proposal_count));
+    world.set_resource_fixed64("승인_수".to_string(), Fixed64::from_i64(approved));
+    world.set_resource_fixed64("승인_거절".to_string(), Fixed64::from_i64(rejected));
+    world.set_resource_fixed64("적용_허용".to_string(), Fixed64::from_i64(apply_allowed));
+    world.set_resource_fixed64("적용_수".to_string(), Fixed64::from_i64(applied));
     world.set_resource_fixed64(
-        "살림.미리보기_수".to_string(),
-        Fixed64::from_i64(proposal_count),
-    );
-    world.set_resource_fixed64("살림.승인_수".to_string(), Fixed64::from_i64(approved));
-    world.set_resource_fixed64("살림.승인_거절".to_string(), Fixed64::from_i64(rejected));
-    world.set_resource_fixed64(
-        "살림.적용_허용".to_string(),
-        Fixed64::from_i64(apply_allowed),
-    );
-    world.set_resource_fixed64("살림.적용_수".to_string(), Fixed64::from_i64(applied));
-    world.set_resource_fixed64(
-        "살림.승인_차단".to_string(),
+        "승인_차단".to_string(),
         Fixed64::from_i64(blocked_by_approval),
     );
-    world.set_resource_fixed64("살림.검증_통과".to_string(), Fixed64::from_i64(verify_pass));
-    world.set_resource_fixed64("살림.검증_실패".to_string(), Fixed64::from_i64(verify_fail));
-    world.set_resource_json("살림.승인_로그".to_string(), log);
+    world.set_resource_fixed64("검증_통과".to_string(), Fixed64::from_i64(verify_pass));
+    world.set_resource_fixed64("검증_실패".to_string(), Fixed64::from_i64(verify_fail));
+    world.set_resource_json("승인_로그".to_string(), log);
 
     world.state_hash()
 }
@@ -604,23 +595,23 @@ pub fn compute_w30_state_hash(params: &W30Params) -> StateHash {
 pub fn compute_w31_state_hash(params: &W31Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.참가자수".to_string(),
+        "참가자수".to_string(),
         Fixed64::from_i64(params.participant_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.호스트_입력".to_string(),
+        "호스트_입력".to_string(),
         Fixed64::from_i64(params.host_inputs as i64),
     );
     world.set_resource_fixed64(
-        "살림.손님_입력".to_string(),
+        "손님_입력".to_string(),
         Fixed64::from_i64(params.guest_inputs as i64),
     );
     world.set_resource_fixed64(
-        "살림.동기_라운드".to_string(),
+        "동기_라운드".to_string(),
         Fixed64::from_i64(params.sync_rounds as i64),
     );
     world.set_resource_fixed64(
-        "살림.시작_값".to_string(),
+        "시작_값".to_string(),
         Fixed64::from_i64(params.starting_value as i64),
     );
 
@@ -673,16 +664,10 @@ pub fn compute_w31_state_hash(params: &W31Params) -> StateHash {
     }
     log.push(']');
 
-    world.set_resource_fixed64(
-        "살림.공유_입력_승인".to_string(),
-        Fixed64::from_i64(accepted),
-    );
-    world.set_resource_fixed64(
-        "살림.공유_입력_거절".to_string(),
-        Fixed64::from_i64(rejected),
-    );
-    world.set_resource_fixed64("살림.공유_값".to_string(), Fixed64::from_i64(shared_value));
-    world.set_resource_json("살림.공유_로그".to_string(), log);
+    world.set_resource_fixed64("공유_입력_승인".to_string(), Fixed64::from_i64(accepted));
+    world.set_resource_fixed64("공유_입력_거절".to_string(), Fixed64::from_i64(rejected));
+    world.set_resource_fixed64("공유_값".to_string(), Fixed64::from_i64(shared_value));
+    world.set_resource_json("공유_로그".to_string(), log);
 
     world.state_hash()
 }
@@ -690,23 +675,23 @@ pub fn compute_w31_state_hash(params: &W31Params) -> StateHash {
 pub fn compute_w32_state_hash(params: &W32Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.차분_개수".to_string(),
+        "차분_개수".to_string(),
         Fixed64::from_i64(params.diff_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.코드_길이_전".to_string(),
+        "코드_길이_전".to_string(),
         Fixed64::from_i64(params.code_before_len as i64),
     );
     world.set_resource_fixed64(
-        "살림.코드_길이_후".to_string(),
+        "코드_길이_후".to_string(),
         Fixed64::from_i64(params.code_after_len as i64),
     );
     world.set_resource_fixed64(
-        "살림.상태_필드_수".to_string(),
+        "상태_필드_수".to_string(),
         Fixed64::from_i64(params.state_field_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.요약_캡".to_string(),
+        "요약_캡".to_string(),
         Fixed64::from_i64(params.summary_cap as i64),
     );
 
@@ -753,11 +738,11 @@ pub fn compute_w32_state_hash(params: &W32Params) -> StateHash {
         .to_hex()
         .to_string();
 
-    world.set_resource_json("살림.차분_요약".to_string(), summary);
-    world.set_resource_json("살림.패치_해시".to_string(), patch_hash);
-    world.set_resource_json("살림.승인_해시".to_string(), approval_hash);
+    world.set_resource_json("차분_요약".to_string(), summary);
+    world.set_resource_json("패치_해시".to_string(), patch_hash);
+    world.set_resource_json("승인_해시".to_string(), approval_hash);
     world.set_resource_fixed64(
-        "살림.차분_요약_개수".to_string(),
+        "차분_요약_개수".to_string(),
         Fixed64::from_i64(summary_count as i64),
     );
 
@@ -767,23 +752,23 @@ pub fn compute_w32_state_hash(params: &W32Params) -> StateHash {
 pub fn compute_w33_state_hash(params: &W33Params) -> StateHash {
     let mut world = NuriWorld::new();
     world.set_resource_fixed64(
-        "살림.임자수".to_string(),
+        "임자수".to_string(),
         Fixed64::from_i64(params.agent_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.상품수".to_string(),
+        "상품수".to_string(),
         Fixed64::from_i64(params.item_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.거래수".to_string(),
+        "거래수".to_string(),
         Fixed64::from_i64(params.trade_count as i64),
     );
     world.set_resource_fixed64(
-        "살림.쿼리_배치".to_string(),
+        "쿼리_배치".to_string(),
         Fixed64::from_i64(params.query_batch as i64),
     );
     world.set_resource_fixed64(
-        "살림.반응_패스_최대".to_string(),
+        "반응_패스_최대".to_string(),
         Fixed64::from_i64(params.reactive_max_pass as i64),
     );
 
@@ -851,26 +836,23 @@ pub fn compute_w33_state_hash(params: &W33Params) -> StateHash {
         total_value / total_qty
     };
 
-    world.set_resource_fixed64("살림.거래_총액".to_string(), Fixed64::from_i64(total_value));
-    world.set_resource_fixed64("살림.거래_총량".to_string(), Fixed64::from_i64(total_qty));
-    world.set_resource_fixed64("살림.지표_물가".to_string(), Fixed64::from_i64(avg_price));
+    world.set_resource_fixed64("거래_총액".to_string(), Fixed64::from_i64(total_value));
+    world.set_resource_fixed64("거래_총량".to_string(), Fixed64::from_i64(total_qty));
+    world.set_resource_fixed64("지표_물가".to_string(), Fixed64::from_i64(avg_price));
     world.set_resource_fixed64(
-        "살림.쿼리_처리".to_string(),
+        "쿼리_처리".to_string(),
         Fixed64::from_i64(processed.iter().filter(|v| **v).count() as i64),
     );
     world.set_resource_fixed64(
-        "살림.반응_실행".to_string(),
+        "반응_실행".to_string(),
         Fixed64::from_i64(reactive_passes as i64),
     );
-    world.set_resource_fixed64("살림.진단_발생".to_string(), Fixed64::from_i64(diag_count));
-    world.set_resource_fixed64("살림.누적_값".to_string(), Fixed64::from_i64(value_acc));
-    world.set_resource_json("살림.지표_품목_총량".to_string(), json_array_i64(&item_qty));
-    world.set_resource_json(
-        "살림.지표_품목_총액".to_string(),
-        json_array_i64(&item_value),
-    );
-    world.set_resource_json("살림.잔고".to_string(), json_array_i64(&balances));
-    world.set_resource_json("살림.재고".to_string(), json_matrix_i64(&inventories));
+    world.set_resource_fixed64("진단_발생".to_string(), Fixed64::from_i64(diag_count));
+    world.set_resource_fixed64("누적_값".to_string(), Fixed64::from_i64(value_acc));
+    world.set_resource_json("지표_품목_총량".to_string(), json_array_i64(&item_qty));
+    world.set_resource_json("지표_품목_총액".to_string(), json_array_i64(&item_value));
+    world.set_resource_json("잔고".to_string(), json_array_i64(&balances));
+    world.set_resource_json("재고".to_string(), json_matrix_i64(&inventories));
 
     world.state_hash()
 }

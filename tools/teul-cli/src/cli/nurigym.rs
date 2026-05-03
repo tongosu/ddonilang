@@ -1157,7 +1157,11 @@ fn build_step_record(
         out.push_str(",\"applied_action\":");
         out.push_str(&pipeline.applied_action.to_string());
         out.push_str(",\"missing_input\":");
-        out.push_str(if pipeline.missing_input { "true" } else { "false" });
+        out.push_str(if pipeline.missing_input {
+            "true"
+        } else {
+            "false"
+        });
     }
     out.push('}');
     out
@@ -1502,13 +1506,8 @@ where
             actions.push(raw_action);
             evaluated_actions.push(evaluated);
         }
-        let merged_action = merge_actions(
-            merge,
-            &evaluated_actions,
-            noop_action,
-            allowed,
-            last_action,
-        );
+        let merged_action =
+            merge_actions(merge, &evaluated_actions, noop_action, allowed, last_action);
         let mut step = env.step(merged_action)?;
         let last_tick = tick + 1 >= max_steps;
         if last_tick && !step.done {
@@ -1747,12 +1746,17 @@ fn distribute_rewards(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_step_record, evaluate_action, merge_actions, ActionPipelineRecord, AgentRun, EvaluatedAction,
-        OutOfRangeMode, SharedMerge, StepRecord,
+        build_step_record, evaluate_action, merge_actions, ActionPipelineRecord, AgentRun,
+        EvaluatedAction, OutOfRangeMode, SharedMerge, StepRecord,
     };
     use ddonirang_core::fixed64::Fixed64;
 
-    fn eval(agent_id: u64, slot_index: usize, normalized_action: i64, merge_candidate: bool) -> EvaluatedAction {
+    fn eval(
+        agent_id: u64,
+        slot_index: usize,
+        normalized_action: i64,
+        merge_candidate: bool,
+    ) -> EvaluatedAction {
         EvaluatedAction {
             agent_id,
             slot_index,
@@ -1775,7 +1779,11 @@ mod tests {
 
     #[test]
     fn nurigym_priority_merge_prefers_smallest_agent_id() {
-        let evaluated = vec![eval(10, 0, 1, true), eval(2, 1, -1, true), eval(7, 2, 1, true)];
+        let evaluated = vec![
+            eval(10, 0, 1, true),
+            eval(2, 1, -1, true),
+            eval(7, 2, 1, true),
+        ];
         let merged = merge_actions(SharedMerge::Priority, &evaluated, 0, &[-1, 1], 1);
         assert_eq!(merged, -1);
     }
@@ -1831,16 +1839,40 @@ mod tests {
 
     #[test]
     fn nurigym_action_status_valid_noop_missing_cover_four_states() {
-        let valid = evaluate_action(&agent(1), 0, 1, false, &[-1, 1], 0, OutOfRangeMode::StrictError)
-            .expect("valid action");
+        let valid = evaluate_action(
+            &agent(1),
+            0,
+            1,
+            false,
+            &[-1, 1],
+            0,
+            OutOfRangeMode::StrictError,
+        )
+        .expect("valid action");
         assert_eq!(valid.action_status, "맞음");
 
-        let noop = evaluate_action(&agent(1), 0, 0, false, &[-1, 1], 0, OutOfRangeMode::StrictError)
-            .expect("noop action");
+        let noop = evaluate_action(
+            &agent(1),
+            0,
+            0,
+            false,
+            &[-1, 1],
+            0,
+            OutOfRangeMode::StrictError,
+        )
+        .expect("noop action");
         assert_eq!(noop.action_status, "가만히");
 
-        let missing = evaluate_action(&agent(1), 0, 0, true, &[-1, 1], 0, OutOfRangeMode::StrictError)
-            .expect("missing input promoted");
+        let missing = evaluate_action(
+            &agent(1),
+            0,
+            0,
+            true,
+            &[-1, 1],
+            0,
+            OutOfRangeMode::StrictError,
+        )
+        .expect("missing input promoted");
         assert_eq!(missing.action_status, "가만히");
         assert!(missing.missing_input);
 

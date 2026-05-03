@@ -1,5 +1,17 @@
 #![allow(dead_code)]
 
+// Current-line local registry minimum lives here: local install/local publish,
+// `gaji.toml` + `ddn.lock` + publication snapshot guard. Full public registry
+// ecosystem, remote search, and hosted governance stay out of scope.
+// Representative shell:
+// 1) local read/install surface
+//    - teul-cli gaji registry versions --index <index.json> --scope <scope> --name <name>
+//    - teul-cli gaji registry entry --index <index.json> --scope <scope> --name <name> --version <ver>
+// 2) local publish surface
+//    - teul-cli gaji registry publish --index <index.json> ...
+// 3) local verify/snapshot guard
+//    - teul-cli gaji registry verify --index <index.json> --lock ddn.lock
+
 use std::cmp::{Ordering, Reverse};
 use std::collections::BTreeMap;
 use std::fs;

@@ -94,6 +94,8 @@ pub struct Body {
 pub enum MetaBlockKind {
     Setting,
     Bogae,
+    /// 구조화 관찰/출력 행 sugar. view-only이며 state_hash 의미를 바꾸지 않는다.
+    Boim,
     Seulgi,
     /// view-only 연출 블록 (Manim식 보개마당). state_hash 제외.
     /// entries[0] = { } 안의 원본 텍스트 그대로(opaque).
@@ -126,6 +128,23 @@ pub enum Stmt {
         span: Span,
         mood: Mood,
         expr: Expr,
+    },
+    Receive {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        kind: Option<String>,
+        binding: Option<String>,
+        condition: Option<Expr>,
+        body: Body,
+    },
+    Send {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+        sender: Option<Expr>,
+        payload: Expr,
+        receiver: Expr,
     },
     Show {
         id: NodeId,
@@ -212,6 +231,11 @@ pub enum Stmt {
         body: Body,
     },
     Break {
+        id: NodeId,
+        span: Span,
+        mood: Mood,
+    },
+    ContinueLoop {
         id: NodeId,
         span: Span,
         mood: Mood,

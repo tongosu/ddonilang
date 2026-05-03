@@ -27,6 +27,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const PROOF_GUARD_REGISTRY_KEY: &str = "__proof.guard_registry";
+const BOGAE_SHOW_LINES_TAG: &str = "보개_출력_줄들";
+const BOGAE_GRAPH_POINTS_F_TAG: &str = "보개_그래프_점목록_f";
 const EXACT_NUMERIC_KIND_FIELD: &str = "__정확수종류";
 const EXACT_NUMERIC_BIGINT_FIELD: &str = "값";
 const EXACT_NUMERIC_RATIONAL_NUM_FIELD: &str = "분자";
@@ -35,6 +37,17 @@ const EXACT_NUMERIC_FACTOR_VALUE_FIELD: &str = "값";
 const NUMERIC_KIND_BIG_INT: &str = "큰바른수";
 const NUMERIC_KIND_RATIONAL: &str = "나눔수";
 const NUMERIC_KIND_FACTOR: &str = "곱수";
+const RELATION_KIND_FIELD: &str = "__관계종류";
+const RELATION_KIND_EQUATION: &str = "방정식";
+const RELATION_LEFT_FIELD: &str = "왼쪽";
+const RELATION_RIGHT_FIELD: &str = "오른쪽";
+const RELATION_SOLVE_RESULT_KIND_FIELD: &str = "__풀이결과종류";
+const RELATION_SOLVE_RESULT_SUCCESS: &str = "성공";
+const RELATION_SOLVE_RESULT_FAILURE: &str = "실패";
+const RELATION_SOLVE_VAR_FIELD: &str = "미지수";
+const RELATION_SOLVE_VALUE_FIELD: &str = "값";
+const RELATION_SOLVE_BINDINGS_FIELD: &str = "해";
+const RELATION_SOLVE_REASON_FIELD: &str = "사유";
 
 pub struct Evaluator {
     state: State,
@@ -132,6 +145,7 @@ pub enum ProofRuntimeEvent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum FlowControl {
     Continue,
+    ContinueLoop(crate::lang::span::Span),
     Break(crate::lang::span::Span),
     Return(Value, crate::lang::span::Span),
 }
@@ -287,6 +301,7 @@ struct GuardCheckOutcome {
 fn ensure_no_break(flow: FlowControl) -> Result<(), RuntimeError> {
     match flow {
         FlowControl::Continue => Ok(()),
+        FlowControl::ContinueLoop(span) => Err(RuntimeError::ContinueOutsideForeach { span }),
         FlowControl::Break(span) => Err(RuntimeError::BreakOutsideLoop { span }),
         FlowControl::Return(_, span) => Err(RuntimeError::ReturnOutsideSeed { span }),
     }
@@ -929,12 +944,14 @@ impl Evaluator {
                 self.bogae_requested_tick = true;
                 Ok(FlowControl::Continue)
             }
+            Stmt::Boim { entries, .. } => {
+                self.eval_boim(entries)?;
+                Ok(FlowControl::Continue)
+            }
             Stmt::Hook { .. }
             | Stmt::HookWhenBecomes { .. }
             | Stmt::HookWhile { .. }
-            | Stmt::LifecycleBlock { .. } => {
-                Ok(FlowControl::Continue)
-            }
+            | Stmt::LifecycleBlock { .. } => Ok(FlowControl::Continue),
             Stmt::OpenBlock { body, span } => {
                 self.trace.log(format!(
                     "open_block_enter {}:{}",
@@ -991,6 +1008,9 @@ impl Evaluator {
                     }
                     match self.eval_block(body)? {
                         FlowControl::Continue => {}
+                        FlowControl::ContinueLoop(span) => {
+                            return Err(RuntimeError::ContinueOutsideForeach { span });
+                        }
                         FlowControl::Break(_) => break,
                         FlowControl::Return(value, span) => {
                             return Ok(FlowControl::Return(value, span));
@@ -1012,6 +1032,9 @@ impl Evaluator {
                     }
                     match self.eval_block(body)? {
                         FlowControl::Continue => {}
+                        FlowControl::ContinueLoop(span) => {
+                            return Err(RuntimeError::ContinueOutsideForeach { span });
+                        }
                         FlowControl::Break(_) => break,
                         FlowControl::Return(value, span) => {
                             return Ok(FlowControl::Return(value, span));
@@ -1048,7 +1071,7 @@ impl Evaluator {
                 };
                 if item == "입력상태" {
                     return Err(RuntimeError::InvalidPath {
-                        path: format!("살림.{}", item),
+                        path: item.clone(),
                         span: iterable.span(),
                     });
                 }
@@ -1061,6 +1084,7 @@ impl Evaluator {
                     self.state.set(key.clone(), value);
                     match self.eval_block(body)? {
                         FlowControl::Continue => {}
+                        FlowControl::ContinueLoop(_) => continue,
                         FlowControl::Break(_) => break,
                         FlowControl::Return(value, span) => {
                             if let Some(prev_value) = prev.clone() {
@@ -1081,6 +1105,7 @@ impl Evaluator {
             }
             Stmt::Quantifier { .. } => Ok(FlowControl::Continue),
             Stmt::Break { span } => Ok(FlowControl::Break(*span)),
+            Stmt::ContinueLoop { span } => Ok(FlowControl::ContinueLoop(*span)),
             Stmt::Contract {
                 kind,
                 mode,
@@ -1098,6 +1123,10 @@ impl Evaluator {
                             if let Some(body) = then_body {
                                 match self.eval_block(body)? {
                                     FlowControl::Continue => {}
+                                    FlowControl::ContinueLoop(span) => {
+                                        self.commit_contract_frame(frame.frame_id);
+                                        return Ok(FlowControl::ContinueLoop(span));
+                                    }
                                     FlowControl::Break(span) => {
                                         self.commit_contract_frame(frame.frame_id);
                                         return Ok(FlowControl::Break(span));
@@ -1116,6 +1145,10 @@ impl Evaluator {
                         } else {
                             match self.eval_block(else_body)? {
                                 FlowControl::Continue => {}
+                                FlowControl::ContinueLoop(span) => {
+                                    self.commit_contract_frame(frame.frame_id);
+                                    return Ok(FlowControl::ContinueLoop(span));
+                                }
                                 FlowControl::Break(span) => {
                                     self.commit_contract_frame(frame.frame_id);
                                     return Ok(FlowControl::Break(span));
@@ -1138,6 +1171,10 @@ impl Evaluator {
                         if !ok {
                             match self.eval_block(else_body)? {
                                 FlowControl::Continue => {}
+                                FlowControl::ContinueLoop(span) => {
+                                    self.commit_contract_frame(frame.frame_id);
+                                    return Ok(FlowControl::ContinueLoop(span));
+                                }
                                 FlowControl::Break(span) => {
                                     self.commit_contract_frame(frame.frame_id);
                                     return Ok(FlowControl::Break(span));
@@ -1167,6 +1204,10 @@ impl Evaluator {
                         if let Some(body) = then_body {
                             match self.eval_block(body)? {
                                 FlowControl::Continue => {}
+                                FlowControl::ContinueLoop(span) => {
+                                    self.commit_contract_frame(frame.frame_id);
+                                    return Ok(FlowControl::ContinueLoop(span));
+                                }
                                 FlowControl::Break(span) => {
                                     self.commit_contract_frame(frame.frame_id);
                                     return Ok(FlowControl::Break(span));
@@ -1198,10 +1239,18 @@ impl Evaluator {
         let canonical = ddonirang_lang::stdlib::canonicalize_type_alias(type_name);
         match canonical {
             "_" | "값" => Ok(()),
-            "수" => match value {
+            "수" | "셈수" => match value {
                 Value::Num(qty) if qty.dim.is_dimensionless() => Ok(()),
                 Value::Num(_) => Err(RuntimeError::UnitMismatch { span }),
-                _ => Err(type_mismatch_detail("수", value, span)),
+                _ => Err(type_mismatch_detail(
+                    if canonical == "셈수" {
+                        "셈수"
+                    } else {
+                        "수"
+                    },
+                    value,
+                    span,
+                )),
             },
             "바른수" => {
                 if is_dimensionless_integer_value(value) {
@@ -1267,6 +1316,54 @@ impl Evaluator {
             },
             _ => Ok(()),
         }
+    }
+
+    fn eval_boim(&mut self, entries: &[Binding]) -> Result<(), RuntimeError> {
+        let mut evaluated = Vec::with_capacity(entries.len());
+        for entry in entries {
+            evaluated.push((entry.name.clone(), self.eval_expr(&entry.value)?));
+        }
+        if evaluated.is_empty() {
+            return Ok(());
+        }
+
+        let mut tokens = match self.state.get(&Key::new(BOGAE_SHOW_LINES_TAG)).cloned() {
+            Some(Value::List(list)) => list.items,
+            _ => Vec::new(),
+        };
+        for (key, value) in &evaluated {
+            tokens.push(Value::Str("table.row".to_string()));
+            tokens.push(Value::Str(key.clone()));
+            tokens.push(Value::Str(value.display()));
+        }
+        self.state.set(
+            Key::new(BOGAE_SHOW_LINES_TAG),
+            Value::List(ListValue { items: tokens }),
+        );
+
+        let Some(x) = pick_boim_axis_value(&evaluated, &["x축", "t", "시간", "tick"]) else {
+            return Ok(());
+        };
+        let Some(y) = pick_boim_y_value(&evaluated) else {
+            return Ok(());
+        };
+        let mut points = match self
+            .state
+            .get(&Key::new(BOGAE_GRAPH_POINTS_F_TAG))
+            .cloned()
+        {
+            Some(Value::List(list)) => list.items,
+            _ => Vec::new(),
+        };
+        let mut point = BTreeMap::new();
+        insert_value_map_entry(&mut point, "x", Value::Num(quantity_plain(x)));
+        insert_value_map_entry(&mut point, "y", Value::Num(quantity_plain(y)));
+        points.push(Value::Map(MapValue { entries: point }));
+        self.state.set(
+            Key::new(BOGAE_GRAPH_POINTS_F_TAG),
+            Value::List(ListValue { items: points }),
+        );
+        Ok(())
     }
 
     fn eval_pragma(
@@ -1427,6 +1524,7 @@ impl Evaluator {
             }
             match self.eval_stmt(stmt)? {
                 FlowControl::Continue => {}
+                FlowControl::ContinueLoop(span) => return Ok(FlowControl::ContinueLoop(span)),
                 FlowControl::Break(span) => return Ok(FlowControl::Break(span)),
                 FlowControl::Return(value, span) => {
                     return Ok(FlowControl::Return(value, span));
@@ -1576,10 +1674,7 @@ impl Evaluator {
         let family = self.infer_lifecycle_family(target_name, default_family);
         let (pan_named_index, madang_named_index, explicit_target_index) = match target_name {
             Some(target_name) => {
-                let pan_named_index = self
-                    .lifecycle_pan_name_to_index
-                    .get(target_name)
-                    .copied();
+                let pan_named_index = self.lifecycle_pan_name_to_index.get(target_name).copied();
                 let madang_named_index = self
                     .lifecycle_madang_name_to_index
                     .get(target_name)
@@ -1642,9 +1737,11 @@ impl Evaluator {
                 self.run_lifecycle_unit(family, index)?;
             }
             LifecycleTransitionVerb::Next => {
-                let next_index = explicit_target_index.unwrap_or_else(|| match self.lifecycle_active_index(family) {
-                    Some(active) if active + 1 < units_len => active + 1,
-                    Some(_) | None => 0,
+                let next_index = explicit_target_index.unwrap_or_else(|| {
+                    match self.lifecycle_active_index(family) {
+                        Some(active) if active + 1 < units_len => active + 1,
+                        Some(_) | None => 0,
+                    }
                 });
                 self.set_lifecycle_active_index(family, Some(next_index));
                 self.run_lifecycle_unit(family, next_index)?;
@@ -1768,6 +1865,7 @@ impl Evaluator {
                 id: next_lambda_id(),
                 param: param.clone(),
                 body: (*body.clone()),
+                captured: self.lambda_capture_snapshot(),
             })),
             Expr::Call { name, args, span } => self.eval_call(name, args, *span),
             Expr::Formula {
@@ -2018,6 +2116,7 @@ impl Evaluator {
                 let right_ok = is_truthy(&right, span)?;
                 Ok(Value::Bool(left_ok || right_ok))
             }
+            BinaryOp::RelationEq => self.eval_relation_eq(left, right, span),
             BinaryOp::Eq
             | BinaryOp::NotEq
             | BinaryOp::Lt
@@ -2288,7 +2387,7 @@ impl Evaluator {
                 self.unregister_proof_guard(&assertion);
                 Ok(Value::None)
             }
-            "수" => {
+            "수" | "셈수" => {
                 if values.len() != 1 {
                     return Err(RuntimeError::TypeMismatch {
                         expected: "값",
@@ -2303,10 +2402,11 @@ impl Evaluator {
                         Ok(Value::Num(qty.clone()))
                     }
                     Value::Str(text) => {
-                        let raw = Fixed64::parse_literal(text).ok_or(RuntimeError::TypeMismatch {
-                            expected: "number string",
-                            span,
-                        })?;
+                        let raw =
+                            Fixed64::parse_literal(text).ok_or(RuntimeError::TypeMismatch {
+                                expected: "number string",
+                                span,
+                            })?;
                         Ok(Value::Num(Quantity::new(raw, UnitDim::zero())))
                     }
                     other => Err(type_mismatch_detail("number|string", other, span)),
@@ -2333,7 +2433,10 @@ impl Evaluator {
                     });
                 }
                 let raw = parse_integer_like_text(&values[0], span)?;
-                Ok(make_exact_numeric_value(NUMERIC_KIND_BIG_INT, &[(EXACT_NUMERIC_BIGINT_FIELD, raw)]))
+                Ok(make_exact_numeric_value(
+                    NUMERIC_KIND_BIG_INT,
+                    &[(EXACT_NUMERIC_BIGINT_FIELD, raw)],
+                ))
             }
             "나눔수" => {
                 if values.len() != 2 {
@@ -2347,11 +2450,17 @@ impl Evaluator {
                 if is_zero_integer_text(&denominator) {
                     return Err(RuntimeError::MathDivZero { span });
                 }
+                let normalized = ddonirang_numeric::normalize_rational_text(
+                    &numerator,
+                    &denominator,
+                    Some(NUMERIC_KIND_RATIONAL.to_string()),
+                )
+                .map_err(|_| RuntimeError::MathDivZero { span })?;
                 Ok(make_exact_numeric_value(
                     NUMERIC_KIND_RATIONAL,
                     &[
-                        (EXACT_NUMERIC_RATIONAL_NUM_FIELD, numerator),
-                        (EXACT_NUMERIC_RATIONAL_DEN_FIELD, denominator),
+                        (EXACT_NUMERIC_RATIONAL_NUM_FIELD, normalized.num),
+                        (EXACT_NUMERIC_RATIONAL_DEN_FIELD, normalized.den),
                     ],
                 ))
             }
@@ -2363,9 +2472,10 @@ impl Evaluator {
                     });
                 }
                 let raw = parse_integer_like_text(&values[0], span)?;
+                let canon = factor_canon_text(&raw).unwrap_or_else(|| raw.clone());
                 Ok(make_exact_numeric_value(
                     NUMERIC_KIND_FACTOR,
-                    &[(EXACT_NUMERIC_FACTOR_VALUE_FIELD, raw)],
+                    &[(EXACT_NUMERIC_FACTOR_VALUE_FIELD, raw), ("정본", canon)],
                 ))
             }
             "아님" | "아니다" => {
@@ -2621,6 +2731,33 @@ impl Evaluator {
                 Ok(Value::Num(clamped))
             }
             "powi" => {
+                if values.len() == 2 && exact_numeric_kind(&values[0]) == Some(NUMERIC_KIND_FACTOR)
+                {
+                    let Some(base) = exact_text_from_value(&values[0], span)? else {
+                        return Err(type_mismatch_detail("곱수", &values[0], span));
+                    };
+                    let exp = parse_integer_like_value(&values[1], span)?;
+                    if exp < 0 {
+                        return Err(RuntimeError::TypeMismatch {
+                            expected: "non-negative integer exponent",
+                            span,
+                        });
+                    }
+                    let mut value = ddonirang_numeric::ExactText {
+                        num: "1".to_string(),
+                        den: "1".to_string(),
+                        kind: Some(NUMERIC_KIND_FACTOR.to_string()),
+                    };
+                    for _ in 0..exp {
+                        value = ddonirang_numeric::exact_binary_text("*", &value, &base).map_err(
+                            |_| RuntimeError::TypeMismatch {
+                                expected: "exact number",
+                                span,
+                            },
+                        )?;
+                    }
+                    return Ok(exact_text_to_value(value, "*", span)?);
+                }
                 let (base, exp) = expect_two_quantities(&values, span)?;
                 if !exp.dim.is_dimensionless() {
                     return Err(RuntimeError::UnitMismatch { span });
@@ -3942,13 +4079,59 @@ impl Evaluator {
             }
             "미분하기" => {
                 let (math, options) = expect_formula_transform(values, span, "미분하기")?;
-                let transformed = transform_formula_value(math, options, "diff", span)?;
+                let transformed = transform_symbolic_formula_value(math, options, "diff", span)?;
                 Ok(Value::Math(transformed))
             }
             "적분하기" => {
                 let (math, options) = expect_formula_transform(values, span, "적분하기")?;
-                let transformed = transform_formula_value(math, options, "int", span)?;
+                let transformed = transform_symbolic_formula_value(math, options, "int", span)?;
                 Ok(Value::Math(transformed))
+            }
+            "정리하기" => {
+                let math = expect_single_formula(values, span, "정리하기")?;
+                let transformed = transform_symbolic_formula_value(
+                    math,
+                    FormulaTransformOptions::default(),
+                    "simplify",
+                    span,
+                )?;
+                Ok(Value::Math(transformed))
+            }
+            "전개하기" => {
+                let math = expect_single_formula(values, span, "전개하기")?;
+                let transformed = transform_symbolic_formula_value(
+                    math,
+                    FormulaTransformOptions::default(),
+                    "expand",
+                    span,
+                )?;
+                Ok(Value::Math(transformed))
+            }
+            "인수분해하기" => {
+                let math = expect_single_formula(values, span, "인수분해하기")?;
+                let transformed = transform_symbolic_formula_value(
+                    math,
+                    FormulaTransformOptions::default(),
+                    "factor",
+                    span,
+                )?;
+                Ok(Value::Math(transformed))
+            }
+            "동치인가" => {
+                let (left, right) = expect_two_formulas(values, span, "동치인가")?;
+                Ok(Value::Bool(symbolic_formulas_equivalent(&left, &right, span)?))
+            }
+            "잇기" => {
+                let (left, right) = expect_two_formulas(values, span, "잇기")?;
+                Ok(make_relation_pack(left, right))
+            }
+            "증명하기" => {
+                let proof = eval_symbolic_proof_tactic(values, span)?;
+                Ok(Value::Pack(proof))
+            }
+            "방정식풀기" => {
+                let relations = expect_equation_relations(values, span)?;
+                eval_relation_solve_result(&relations, span)
             }
             "맞추기" => {
                 let (template, target) = expect_template_and_text(values, span)?;
@@ -4291,6 +4474,7 @@ impl Evaluator {
                 | "다음으로"
                 | "또는"
                 | "수"
+                | "셈수"
                 | "바른수"
                 | "큰바른수"
                 | "나눔수"
@@ -4315,6 +4499,9 @@ impl Evaluator {
                 | "무작위정수"
                 | "묶음값"
                 | "미분하기"
+                | "동치인가"
+                | "잇기"
+                | "인수분해하기"
                 | "미분.중앙차분"
                 | "바꾸기"
                 | "바닥"
@@ -4345,7 +4532,10 @@ impl Evaluator {
                 | "적분.반암시적오일러"
                 | "적분.사다리꼴"
                 | "적분하기"
+                | "전개하기"
+                | "증명하기"
                 | "정렬"
+                | "정리하기"
                 | "정규식"
                 | "정규나누기"
                 | "정규캡처하기"
@@ -4399,6 +4589,7 @@ impl Evaluator {
                 | "포함하나"
                 | "표준.범위"
                 | "풀기"
+                | "방정식풀기"
                 | "합계"
                 | "합치기"
                 | "살피기"
@@ -4441,7 +4632,7 @@ impl Evaluator {
     ) -> Result<Value, RuntimeError> {
         let mut map: BTreeMap<String, Quantity> = BTreeMap::new();
         for binding in bindings {
-            if dialect == FormulaDialect::Ascii1 && binding.name.chars().count() != 1 {
+            if dialect == FormulaDialect::Ascii1 && !Self::is_ascii1_formula_ident(&binding.name) {
                 return Err(RuntimeError::FormulaIdentNotAscii1 { span: binding.span });
             }
             let value = self.eval_expr(&binding.value)?;
@@ -4459,6 +4650,14 @@ impl Evaluator {
         let qty =
             eval_formula_body(body, dialect, &map).map_err(|err| map_formula_error(err, span))?;
         Ok(Value::Num(qty))
+    }
+
+    fn is_ascii1_formula_ident(name: &str) -> bool {
+        let mut chars = name.chars();
+        let Some(first) = chars.next() else {
+            return false;
+        };
+        first.is_ascii_alphabetic() && chars.all(|ch| ch.is_ascii_digit())
     }
 
     fn eval_formula_fill(
@@ -4537,6 +4736,27 @@ impl Evaluator {
         Ok(Value::Pack(PackValue { fields: map }))
     }
 
+    fn eval_relation_eq(
+        &self,
+        left: Value,
+        right: Value,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
+        let Value::Math(left_math) = left else {
+            return Err(RuntimeError::TypeMismatch {
+                expected: "formula",
+                span,
+            });
+        };
+        let Value::Math(right_math) = right else {
+            return Err(RuntimeError::TypeMismatch {
+                expected: "formula",
+                span,
+            });
+        };
+        Ok(make_relation_pack(left_math, right_math))
+    }
+
     fn parse_assertion_program(
         &self,
         assertion: &AssertionValue,
@@ -4567,6 +4787,10 @@ impl Evaluator {
         values: &PackValue,
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
+        if let Some(passed) = eval_symbolic_assertion_bridge(assertion, values, span)? {
+            return self.record_assertion_check(assertion, values.fields.len(), passed, span);
+        }
+
         let body = self.parse_assertion_program(assertion, span)?;
         let saved_state = self.state.clone();
         let saved_trace = self.trace.clone();
@@ -4600,7 +4824,17 @@ impl Evaluator {
         self.diagnostics.truncate(saved_diag_len);
         self.diagnostic_failures.truncate(saved_failure_len);
 
-        let binding_count = Fixed64::from_int(values.fields.len() as i64);
+        self.record_assertion_check(assertion, values.fields.len(), passed, span)
+    }
+
+    fn record_assertion_check(
+        &mut self,
+        assertion: &AssertionValue,
+        binding_count: usize,
+        passed: bool,
+        span: crate::lang::span::Span,
+    ) -> Result<Value, RuntimeError> {
+        let binding_count_value = Fixed64::from_int(binding_count as i64);
         let failure_code = (!passed).then(|| "E_PROOF_CHECK_FAILED".to_string());
         self.diagnostics.push(DiagnosticRecord {
             tick: self.current_madi.get(),
@@ -4608,7 +4842,7 @@ impl Evaluator {
             lhs: if passed { "1" } else { "0" }.to_string(),
             rhs: "1".to_string(),
             delta: if passed { "0" } else { "1" }.to_string(),
-            threshold: binding_count.format(),
+            threshold: binding_count_value.format(),
             result: if passed {
                 "성공".to_string()
             } else {
@@ -4622,14 +4856,14 @@ impl Evaluator {
                 tick: self.current_madi.get(),
                 name: format!("살피기 {}", assertion.canon),
                 delta: if passed { "0" } else { "1" }.to_string(),
-                threshold: binding_count.format(),
+                threshold: binding_count_value.format(),
                 span,
             });
         }
         self.proof_runtime.push(ProofRuntimeEvent::ProofCheck {
             tick: self.current_madi.get(),
             target: assertion.canon.clone(),
-            binding_count: values.fields.len() as u64,
+            binding_count: binding_count as u64,
             passed,
             error_code: (!passed).then(|| "E_PROOF_CHECK_FAILED".to_string()),
             span,
@@ -4776,6 +5010,9 @@ impl Evaluator {
         right: Value,
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
+        if let Some(value) = eval_exact_binary("+", &left, &right, span)? {
+            return Ok(value);
+        }
         let (l, r) = self.require_numbers(left, right, span)?;
         if l.dim != r.dim {
             return Err(RuntimeError::UnitMismatch { span });
@@ -4792,6 +5029,9 @@ impl Evaluator {
         right: Value,
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
+        if let Some(value) = eval_exact_binary("-", &left, &right, span)? {
+            return Ok(value);
+        }
         let (l, r) = self.require_numbers(left, right, span)?;
         if l.dim != r.dim {
             return Err(RuntimeError::UnitMismatch { span });
@@ -4808,6 +5048,9 @@ impl Evaluator {
         right: Value,
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
+        if let Some(value) = eval_exact_binary("*", &left, &right, span)? {
+            return Ok(value);
+        }
         let (l, r) = self.require_numbers(left, right, span)?;
         Ok(Value::Num(Quantity::new(
             l.raw.saturating_mul(r.raw),
@@ -4821,6 +5064,9 @@ impl Evaluator {
         right: Value,
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
+        if let Some(value) = eval_exact_binary("/", &left, &right, span)? {
+            return Ok(value);
+        }
         let (l, r) = self.require_numbers(left, right, span)?;
         let raw = l
             .raw
@@ -4836,6 +5082,9 @@ impl Evaluator {
         right: Value,
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
+        if let Some(value) = eval_exact_binary("%", &left, &right, span)? {
+            return Ok(value);
+        }
         let (l, r) = self.require_numbers(left, right, span)?;
         if l.dim != r.dim {
             return Err(RuntimeError::UnitMismatch { span });
@@ -4865,19 +5114,41 @@ impl Evaluator {
         args: &[Value],
         span: crate::lang::span::Span,
     ) -> Result<Value, RuntimeError> {
-        if args.len() != 1 {
+        let params = lambda_param_names(&lambda.param);
+        if args.len() != params.len() {
             return Err(RuntimeError::TypeMismatch {
                 expected: "lambda argument",
                 span,
             });
         }
-        let mut state = self.state.clone();
-        state.set(Key::new(lambda.param.clone()), args[0].clone());
+        let mut state = State {
+            resources: lambda
+                .captured
+                .iter()
+                .map(|(key, value)| (Key::new(key.clone()), value.clone()))
+                .collect(),
+        };
+        for (param, arg) in params.iter().zip(args.iter()) {
+            state.set(Key::new(param.clone()), arg.clone());
+        }
         let mut evaluator = Evaluator::with_state_and_seed(state, self.rng_state.get());
+        evaluator.user_seeds = self.user_seeds.clone();
+        evaluator.import_aliases = self.import_aliases.clone();
         evaluator.current_madi.set(self.current_madi.get());
         let result = evaluator.eval_expr(&lambda.body)?;
         self.rng_state.set(evaluator.rng_state.get());
         Ok(result)
+    }
+
+    fn lambda_capture_snapshot(&self) -> BTreeMap<String, Value> {
+        self.state
+            .resources
+            .iter()
+            .filter_map(|(key, value)| match value {
+                Value::Lambda(_) => None,
+                _ => Some((key.as_str().to_string(), value.clone())),
+            })
+            .collect()
     }
 
     fn bind_seed_args(
@@ -5054,6 +5325,16 @@ impl Evaluator {
                     );
                 }
                 Err(RuntimeError::BreakOutsideLoop { span })
+            }
+            Ok(FlowControl::ContinueLoop(span)) => {
+                if is_immediate_proof {
+                    self.record_immediate_proof_diag(
+                        seed_name,
+                        "실패",
+                        Some("E_RUNTIME_CONTINUE_OUTSIDE_FOREACH".to_string()),
+                    );
+                }
+                Err(RuntimeError::ContinueOutsideForeach { span })
             }
             Err(err) => {
                 if is_immediate_proof {
@@ -5447,6 +5728,9 @@ impl Evaluator {
                 _ => {}
             }
         }
+        if let Some(result) = eval_exact_compare(op, &left, &right, span)? {
+            return Ok(Value::Bool(result));
+        }
         let (l, r) = self.require_numbers(left, right, span)?;
         if l.dim != r.dim {
             return Err(RuntimeError::UnitMismatch { span });
@@ -5664,14 +5948,7 @@ fn parse_diagnostic_condition(
 }
 
 fn normalize_diag_state_key(input: &str) -> String {
-    let trimmed = input.trim();
-    if let Some(rest) = trimmed.strip_prefix("살림.") {
-        return rest.to_string();
-    }
-    if let Some(rest) = trimmed.strip_prefix("바탕.") {
-        return rest.to_string();
-    }
-    trimmed.to_string()
+    input.trim().to_string()
 }
 
 fn splitmix64_next(state: u64) -> (u64, u64) {
@@ -5842,6 +6119,61 @@ fn no_op_should_stop(_: u64, _: &State) -> bool {
     false
 }
 
+fn quantity_plain(raw: Fixed64) -> Quantity {
+    Quantity {
+        raw,
+        dim: UnitDim::zero(),
+    }
+}
+
+fn insert_value_map_entry(entries: &mut BTreeMap<String, MapEntry>, key: &str, value: Value) {
+    let key_value = Value::Str(key.to_string());
+    entries.insert(
+        key_value.canon(),
+        MapEntry {
+            key: key_value,
+            value,
+        },
+    );
+}
+
+fn pick_boim_axis_value(rows: &[(String, Value)], keys: &[&str]) -> Option<Fixed64> {
+    for wanted in keys {
+        for (key, value) in rows {
+            if key == wanted {
+                if let Some(number) = boim_value_to_fixed64(value) {
+                    return Some(number);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn pick_boim_y_value(rows: &[(String, Value)]) -> Option<Fixed64> {
+    if let Some(value) = pick_boim_axis_value(rows, &["y축", "값"]) {
+        return Some(value);
+    }
+    for (key, value) in rows {
+        if matches!(key.as_str(), "x축" | "t" | "시간" | "tick") {
+            continue;
+        }
+        if let Some(number) = boim_value_to_fixed64(value) {
+            return Some(number);
+        }
+    }
+    None
+}
+
+fn boim_value_to_fixed64(value: &Value) -> Option<Fixed64> {
+    match value {
+        Value::Num(qty) => Some(qty.raw),
+        Value::Bool(value) => Some(Fixed64::from_int(if *value { 1 } else { 0 })),
+        Value::Str(value) => Fixed64::parse_literal(value),
+        _ => None,
+    }
+}
+
 pub struct EvalOutput {
     pub state: State,
     pub trace: Trace,
@@ -5936,7 +6268,14 @@ fn normalize_integer_text(raw: &str) -> Option<String> {
 }
 
 fn is_zero_integer_text(text: &str) -> bool {
-    text.parse::<i128>().map(|value| value == 0).unwrap_or(false)
+    let trimmed = text.trim().trim_start_matches('+').trim_start_matches('-');
+    !trimmed.is_empty() && trimmed.chars().all(|ch| ch == '0')
+}
+
+fn factor_canon_text(raw: &str) -> Option<String> {
+    let job = ddonirang_numeric::new_factor_job(raw).ok()?;
+    let outcome = ddonirang_numeric::step_factor_job(job, 250_000).ok()?;
+    outcome.result.canonical
 }
 
 fn make_exact_numeric_value(kind: &'static str, fields: &[(&'static str, String)]) -> Value {
@@ -5959,6 +6298,387 @@ fn exact_numeric_kind(value: &Value) -> Option<&str> {
         Some(Value::Str(kind)) => Some(kind.as_str()),
         _ => None,
     }
+}
+
+fn eval_exact_binary(
+    op: &str,
+    left: &Value,
+    right: &Value,
+    span: crate::lang::span::Span,
+) -> Result<Option<Value>, RuntimeError> {
+    if exact_numeric_kind(left).is_none() && exact_numeric_kind(right).is_none() {
+        return Ok(None);
+    }
+    let Some(left_exact) = exact_text_from_value(left, span)? else {
+        return Ok(None);
+    };
+    let Some(right_exact) = exact_text_from_value(right, span)? else {
+        return Ok(None);
+    };
+    let out =
+        ddonirang_numeric::exact_binary_text(op, &left_exact, &right_exact).map_err(|err| {
+            if err == "E_NUMERIC_DIV_ZERO" {
+                RuntimeError::MathDivZero { span }
+            } else {
+                RuntimeError::TypeMismatch {
+                    expected: "exact number",
+                    span,
+                }
+            }
+        })?;
+    Ok(Some(exact_text_to_value(out, op, span)?))
+}
+
+fn eval_exact_compare(
+    op: &BinaryOp,
+    left: &Value,
+    right: &Value,
+    span: crate::lang::span::Span,
+) -> Result<Option<bool>, RuntimeError> {
+    if exact_numeric_kind(left).is_none() && exact_numeric_kind(right).is_none() {
+        return Ok(None);
+    }
+    let Some(left_exact) = exact_text_from_value(left, span)? else {
+        return Ok(None);
+    };
+    let Some(right_exact) = exact_text_from_value(right, span)? else {
+        return Ok(None);
+    };
+    let op_text = match op {
+        BinaryOp::Eq => "==",
+        BinaryOp::NotEq => "!=",
+        BinaryOp::Lt => "<",
+        BinaryOp::Lte => "<=",
+        BinaryOp::Gt => ">",
+        BinaryOp::Gte => ">=",
+        _ => return Ok(None),
+    };
+    let result = ddonirang_numeric::exact_compare_text(op_text, &left_exact, &right_exact)
+        .map_err(|_| RuntimeError::TypeMismatch {
+            expected: "exact number",
+            span,
+        })?;
+    Ok(Some(result))
+}
+
+fn exact_text_from_value(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<Option<ddonirang_numeric::ExactText>, RuntimeError> {
+    match value {
+        Value::Num(qty) if qty.dim.is_dimensionless() => Ok(Some(ddonirang_numeric::ExactText {
+            num: qty.raw.raw().to_string(),
+            den: (1_i64 << 32).to_string(),
+            kind: None,
+        })),
+        Value::Pack(pack) => match exact_numeric_kind(value) {
+            Some(NUMERIC_KIND_BIG_INT) => {
+                let raw = exact_pack_str(pack, EXACT_NUMERIC_BIGINT_FIELD, span)?;
+                Ok(Some(ddonirang_numeric::ExactText {
+                    num: raw,
+                    den: "1".to_string(),
+                    kind: Some(NUMERIC_KIND_BIG_INT.to_string()),
+                }))
+            }
+            Some(NUMERIC_KIND_RATIONAL) => {
+                let num = exact_pack_str(pack, EXACT_NUMERIC_RATIONAL_NUM_FIELD, span)?;
+                let den = exact_pack_str(pack, EXACT_NUMERIC_RATIONAL_DEN_FIELD, span)?;
+                Ok(Some(ddonirang_numeric::ExactText {
+                    num,
+                    den,
+                    kind: Some(NUMERIC_KIND_RATIONAL.to_string()),
+                }))
+            }
+            Some(NUMERIC_KIND_FACTOR) => {
+                let raw = exact_pack_str(pack, EXACT_NUMERIC_FACTOR_VALUE_FIELD, span)?;
+                Ok(Some(ddonirang_numeric::ExactText {
+                    num: raw,
+                    den: "1".to_string(),
+                    kind: Some(NUMERIC_KIND_FACTOR.to_string()),
+                }))
+            }
+            _ => Ok(None),
+        },
+        _ => Ok(None),
+    }
+}
+
+fn exact_pack_str(
+    pack: &PackValue,
+    key: &str,
+    span: crate::lang::span::Span,
+) -> Result<String, RuntimeError> {
+    match pack.fields.get(key) {
+        Some(Value::Str(text)) => Ok(text.clone()),
+        _ => Err(RuntimeError::TypeMismatch {
+            expected: "exact numeric field",
+            span,
+        }),
+    }
+}
+
+fn exact_text_to_value(
+    value: ddonirang_numeric::ExactText,
+    op: &str,
+    _span: crate::lang::span::Span,
+) -> Result<Value, RuntimeError> {
+    if value.kind.as_deref() == Some(NUMERIC_KIND_FACTOR) && value.den == "1" {
+        let raw = value.num;
+        let canon = factor_canon_text(&raw).unwrap_or_else(|| raw.clone());
+        return Ok(make_exact_numeric_value(
+            NUMERIC_KIND_FACTOR,
+            &[(EXACT_NUMERIC_FACTOR_VALUE_FIELD, raw), ("정본", canon)],
+        ));
+    }
+    if op == "/" || value.den != "1" || value.kind.as_deref() == Some(NUMERIC_KIND_RATIONAL) {
+        return Ok(make_exact_numeric_value(
+            NUMERIC_KIND_RATIONAL,
+            &[
+                (EXACT_NUMERIC_RATIONAL_NUM_FIELD, value.num),
+                (EXACT_NUMERIC_RATIONAL_DEN_FIELD, value.den),
+            ],
+        ));
+    }
+    Ok(make_exact_numeric_value(
+        NUMERIC_KIND_BIG_INT,
+        &[(EXACT_NUMERIC_BIGINT_FIELD, value.num)],
+    ))
+}
+
+fn make_relation_pack(
+    left: crate::core::value::MathValue,
+    right: crate::core::value::MathValue,
+) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        RELATION_KIND_FIELD.to_string(),
+        Value::Str(RELATION_KIND_EQUATION.to_string()),
+    );
+    fields.insert(RELATION_LEFT_FIELD.to_string(), Value::Math(left));
+    fields.insert(RELATION_RIGHT_FIELD.to_string(), Value::Math(right));
+    Value::Pack(PackValue { fields })
+}
+
+fn make_relation_solve_success_bindings(bindings: BTreeMap<String, Value>) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        RELATION_SOLVE_RESULT_KIND_FIELD.to_string(),
+        Value::Str(RELATION_SOLVE_RESULT_SUCCESS.to_string()),
+    );
+    if bindings.len() == 1 {
+        if let Some((variable, value)) = bindings.iter().next() {
+            fields.insert(RELATION_SOLVE_VAR_FIELD.to_string(), Value::Str(variable.clone()));
+            fields.insert(RELATION_SOLVE_VALUE_FIELD.to_string(), value.clone());
+        }
+    }
+    fields.insert(
+        RELATION_SOLVE_BINDINGS_FIELD.to_string(),
+        Value::Pack(PackValue { fields: bindings }),
+    );
+    Value::Pack(PackValue { fields })
+}
+
+fn make_relation_solve_failure(reason: &str) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        RELATION_SOLVE_RESULT_KIND_FIELD.to_string(),
+        Value::Str(RELATION_SOLVE_RESULT_FAILURE.to_string()),
+    );
+    fields.insert(
+        RELATION_SOLVE_REASON_FIELD.to_string(),
+        Value::Str(reason.to_string()),
+    );
+    Value::Pack(PackValue { fields })
+}
+
+fn expect_single_equation_relation(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<PackValue, RuntimeError> {
+    let Value::Pack(pack) = value else {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "equation relation",
+            span,
+        });
+    };
+    match pack.fields.get(RELATION_KIND_FIELD) {
+        Some(Value::Str(kind)) if kind == RELATION_KIND_EQUATION => {}
+        _ => {
+            return Err(RuntimeError::TypeMismatch {
+                expected: "equation relation",
+                span,
+            });
+        }
+    }
+    match (
+        pack.fields.get(RELATION_LEFT_FIELD),
+        pack.fields.get(RELATION_RIGHT_FIELD),
+    ) {
+        (Some(Value::Math(_)), Some(Value::Math(_))) => Ok(pack.clone()),
+        _ => Err(RuntimeError::TypeMismatch {
+            expected: "equation relation",
+            span,
+        }),
+    }
+}
+
+fn expect_equation_relations(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<Vec<PackValue>, RuntimeError> {
+    if values.len() != 1 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "equation relation",
+            span,
+        });
+    }
+    match &values[0] {
+        Value::Pack(_) => Ok(vec![expect_single_equation_relation(&values[0], span)?]),
+        Value::List(list) => {
+            if list.items.len() != 2 {
+                return Err(RuntimeError::TypeMismatch {
+                    expected: "2-equation list",
+                    span,
+                });
+            }
+            let mut out = Vec::with_capacity(list.items.len());
+            for item in &list.items {
+                out.push(expect_single_equation_relation(item, span)?);
+            }
+            Ok(out)
+        }
+        _ => Err(RuntimeError::TypeMismatch {
+            expected: "equation relation",
+            span,
+        }),
+    }
+}
+
+fn relation_formula_text(
+    math: &crate::core::value::MathValue,
+    span: crate::lang::span::Span,
+) -> Result<String, RuntimeError> {
+    let dialect =
+        FormulaDialect::from_tag(&math.dialect).ok_or(RuntimeError::TypeMismatch {
+            expected: "formula",
+            span,
+        })?;
+    if !matches!(dialect, FormulaDialect::Ascii | FormulaDialect::Ascii1) {
+        return Err(RuntimeError::Pack {
+            message: "E_SYMBOLIC_UNSUPPORTED_RELATION_SOLVE #ascii 수식만 지원합니다".to_string(),
+            span,
+        });
+    }
+    let analysis = analyze_formula(&math.body, dialect).map_err(|err| map_formula_error(err, span))?;
+    Ok(match analysis.assign_name {
+        Some(assign_name) => format!("({assign_name}) - ({})", analysis.expr_text),
+        None => analysis.expr_text,
+    })
+}
+
+fn relation_binding_value_from_text(
+    binding: &ddonirang_symbolic::SolveBinding,
+    span: crate::lang::span::Span,
+) -> Result<Value, RuntimeError> {
+    let exact = ddonirang_numeric::ExactText {
+        num: binding.numerator.clone(),
+        den: binding.denominator.clone(),
+        kind: Some(if binding.denominator == "1" {
+            NUMERIC_KIND_BIG_INT.to_string()
+        } else {
+            NUMERIC_KIND_RATIONAL.to_string()
+        }),
+    };
+    exact_text_to_value(exact, "=", span)
+}
+
+fn eval_relation_solve_result(
+    relations: &[PackValue],
+    span: crate::lang::span::Span,
+) -> Result<Value, RuntimeError> {
+    // `=:= relation` is the relation input surface; `방정식풀기` remains a bounded solve line.
+    // Current dispatch only covers single-equation solve and 2식 2미지수 exact system solve.
+    let outcome = match relations.len() {
+        1 => {
+            let left = match relations[0].fields.get(RELATION_LEFT_FIELD) {
+                Some(Value::Math(value)) => value,
+                _ => {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "equation relation",
+                        span,
+                    })
+                }
+            };
+            let right = match relations[0].fields.get(RELATION_RIGHT_FIELD) {
+                Some(Value::Math(value)) => value,
+                _ => {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "equation relation",
+                        span,
+                    })
+                }
+            };
+            let left_text = relation_formula_text(left, span)?;
+            let right_text = relation_formula_text(right, span)?;
+            ddonirang_symbolic::solve_relation_equation(&left_text, &right_text)
+        }
+        2 => {
+            let pairs = relations
+                .iter()
+                .map(|relation| {
+                    let left = match relation.fields.get(RELATION_LEFT_FIELD) {
+                        Some(Value::Math(value)) => value,
+                        _ => {
+                            return Err(RuntimeError::TypeMismatch {
+                                expected: "equation relation",
+                                span,
+                            })
+                        }
+                    };
+                    let right = match relation.fields.get(RELATION_RIGHT_FIELD) {
+                        Some(Value::Math(value)) => value,
+                        _ => {
+                            return Err(RuntimeError::TypeMismatch {
+                                expected: "equation relation",
+                                span,
+                            })
+                        }
+                    };
+                    Ok((relation_formula_text(left, span)?, relation_formula_text(right, span)?))
+                })
+                .collect::<Result<Vec<_>, RuntimeError>>()?;
+            ddonirang_symbolic::solve_relation_system(&pairs)
+        }
+        _ => Err("E_SYMBOLIC_UNSUPPORTED_RELATION_SOLVE relation solve arity".to_string()),
+    };
+    let outcome = match outcome {
+        Ok(outcome) => outcome,
+        Err(err) if err.starts_with("E_SYMBOLIC_UNSUPPORTED_RELATION_SOLVE") => {
+            return Ok(make_relation_solve_failure("unsupported"));
+        }
+        Err(err) => {
+            return Err(RuntimeError::Pack {
+                message: err,
+                span,
+            })
+        }
+    };
+
+    Ok(match outcome {
+        ddonirang_symbolic::RelationSolveOutcome::Solution(solution) => {
+            let mut bindings = BTreeMap::new();
+            for (variable, binding) in solution {
+                bindings.insert(variable, relation_binding_value_from_text(&binding, span)?);
+            }
+            make_relation_solve_success_bindings(bindings)
+        }
+        ddonirang_symbolic::RelationSolveOutcome::NoSolution => {
+            make_relation_solve_failure("no_solution")
+        }
+        ddonirang_symbolic::RelationSolveOutcome::NonUnique => {
+            make_relation_solve_failure("non_unique")
+        }
+    })
 }
 
 fn type_mismatch_detail(
@@ -5991,6 +6711,20 @@ fn value_type_name(value: &Value) -> String {
         Value::List(_) => "list".to_string(),
         Value::Set(_) => "set".to_string(),
         Value::Map(_) => "map".to_string(),
+    }
+}
+
+fn lambda_param_names(param: &str) -> Vec<String> {
+    let names: Vec<String> = param
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(ToString::to_string)
+        .collect();
+    if names.is_empty() {
+        vec![param.trim().to_string()]
+    } else {
+        names
     }
 }
 
@@ -6527,6 +7261,160 @@ fn expect_single_assertion(
             span,
         }),
     }
+}
+
+fn eval_symbolic_assertion_bridge(
+    assertion: &AssertionValue,
+    values: &PackValue,
+    span: crate::lang::span::Span,
+) -> Result<Option<bool>, RuntimeError> {
+    if let Some((lhs, rhs)) = parse_symbolic_equivalence_assertion(&assertion.body_source) {
+        let cert = ddonirang_symbolic::prove_equivalent(&lhs, &rhs).map_err(|err| {
+            RuntimeError::FormulaParse {
+                message: format!("E_SYMBOLIC_PROOF_UNSUPPORTED: {err}"),
+                span,
+            }
+        })?;
+        let cert_value = serde_json::to_value(&cert).map_err(|err| RuntimeError::Pack {
+            message: format!("proof certificate serialize failed: {err}"),
+            span,
+        })?;
+        let report = ddonirang_proof::verify_value(&cert_value).map_err(|err| RuntimeError::Pack {
+            message: format!("proof verify failed: {err}"),
+            span,
+        })?;
+        return Ok(Some(report.valid && cert.equivalent));
+    }
+    let Some((lhs, rhs)) = parse_symbolic_relation_assertion(&assertion.body_source) else {
+        return Ok(None);
+    };
+    let bindings = solve_bindings_from_pack(values, span)?;
+    Ok(Some(
+        ddonirang_symbolic::relation_holds(&lhs, &rhs, &bindings).map_err(|err| {
+            RuntimeError::FormulaParse {
+                message: format!("E_SYMBOLIC_PROOF_UNSUPPORTED: {err}"),
+                span,
+            }
+        })?,
+    ))
+}
+
+fn parse_symbolic_equivalence_assertion(raw: &str) -> Option<(String, String)> {
+    let (lhs, rest) = parse_ascii_formula_prefix(raw)?;
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix('=')?.trim_start();
+    let (rhs, rest) = parse_ascii_formula_prefix(rest)?;
+    let rest = rest.trim();
+    if !rest.is_empty() && rest != "." {
+        return None;
+    }
+    Some((lhs, rhs))
+}
+
+fn parse_symbolic_relation_assertion(raw: &str) -> Option<(String, String)> {
+    let (lhs, rest) = parse_ascii_formula_prefix(raw)?;
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix("=:=")?.trim_start();
+    let (rhs, rest) = parse_ascii_formula_prefix(rest)?;
+    let rest = rest.trim();
+    if !rest.is_empty() && rest != "." {
+        return None;
+    }
+    Some((lhs, rhs))
+}
+
+fn solve_binding_from_value(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<ddonirang_symbolic::SolveBinding, RuntimeError> {
+    let Some(exact) = exact_text_from_value(value, span)? else {
+        return Err(type_mismatch_detail("exact numeric", value, span));
+    };
+    Ok(ddonirang_symbolic::SolveBinding {
+        numerator: exact.num,
+        denominator: exact.den,
+    })
+}
+
+fn solve_bindings_from_pack(
+    pack: &PackValue,
+    span: crate::lang::span::Span,
+) -> Result<BTreeMap<String, ddonirang_symbolic::SolveBinding>, RuntimeError> {
+    let mut out = BTreeMap::new();
+    for (name, value) in &pack.fields {
+        out.insert(name.clone(), solve_binding_from_value(value, span)?);
+    }
+    Ok(out)
+}
+
+fn extract_relation_texts_from_value(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<Vec<(String, String)>, RuntimeError> {
+    match value {
+        Value::Pack(_) => {
+            let relation = expect_single_equation_relation(value, span)?;
+            Ok(vec![(
+                relation_formula_text(
+                    match relation.fields.get(RELATION_LEFT_FIELD) {
+                        Some(Value::Math(value)) => value,
+                        _ => {
+                            return Err(RuntimeError::TypeMismatch {
+                                expected: "equation relation",
+                                span,
+                            })
+                        }
+                    },
+                    span,
+                )?,
+                relation_formula_text(
+                    match relation.fields.get(RELATION_RIGHT_FIELD) {
+                        Some(Value::Math(value)) => value,
+                        _ => {
+                            return Err(RuntimeError::TypeMismatch {
+                                expected: "equation relation",
+                                span,
+                            })
+                        }
+                    },
+                    span,
+                )?,
+            )])
+        }
+        Value::List(list) => {
+            let mut out = Vec::with_capacity(list.items.len());
+            for item in &list.items {
+                out.extend(extract_relation_texts_from_value(item, span)?);
+            }
+            Ok(out)
+        }
+        other => Err(type_mismatch_detail("equation relation", other, span)),
+    }
+}
+
+fn parse_ascii_formula_prefix(raw: &str) -> Option<(String, &str)> {
+    let mut rest = raw.trim_start();
+    rest = rest.strip_prefix('(')?.trim_start();
+    rest = rest.strip_prefix("#ascii")?.trim_start();
+    rest = rest.strip_prefix(')')?.trim_start();
+    rest = rest.strip_prefix("수식")?.trim_start();
+    rest = rest.strip_prefix('{')?;
+    let mut depth = 1usize;
+    for (idx, ch) in rest.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    let body = rest[..idx].trim().to_string();
+                    let tail = &rest[idx + ch.len_utf8()..];
+                    return Some((body, tail));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn extract_solver_search_runtime(value: &Value) -> (Option<bool>, Option<String>) {
@@ -7278,6 +8166,45 @@ fn expect_formula_transform(
     Ok((formula, options))
 }
 
+fn expect_single_formula(
+    values: &[Value],
+    span: crate::lang::span::Span,
+    label: &'static str,
+) -> Result<crate::core::value::MathValue, RuntimeError> {
+    if values.len() != 1 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: label,
+            span,
+        });
+    }
+    match &values[0] {
+        Value::Math(value) => Ok(value.clone()),
+        value => Err(type_mismatch_detail("formula", value, span)),
+    }
+}
+
+fn expect_two_formulas(
+    values: &[Value],
+    span: crate::lang::span::Span,
+    label: &'static str,
+) -> Result<(crate::core::value::MathValue, crate::core::value::MathValue), RuntimeError> {
+    if values.len() != 2 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: label,
+            span,
+        });
+    }
+    let left = match &values[0] {
+        Value::Math(value) => value.clone(),
+        value => return Err(type_mismatch_detail("formula", value, span)),
+    };
+    let right = match &values[1] {
+        Value::Math(value) => value.clone(),
+        value => return Err(type_mismatch_detail("formula", value, span)),
+    };
+    Ok((left, right))
+}
+
 fn parse_formula_transform_arg(
     value: &Value,
     label: &'static str,
@@ -7373,7 +8300,7 @@ fn parse_formula_var_name(
     Ok(trimmed.trim_start_matches('#').to_string())
 }
 
-fn transform_formula_value(
+fn transform_symbolic_formula_value(
     math: crate::core::value::MathValue,
     options: FormulaTransformOptions,
     call_name: &'static str,
@@ -7389,11 +8316,7 @@ fn transform_formula_value(
         return Err(RuntimeError::FormulaParse {
             message: format!(
                 "{}는 #ascii 수식만 지원합니다",
-                if call_name == "diff" {
-                    "미분하기"
-                } else {
-                    "적분하기"
-                }
+                symbolic_formula_call_label(call_name)
             ),
             span,
         });
@@ -7405,27 +8328,29 @@ fn transform_formula_value(
     if let Some(assign) = &analysis.assign_name {
         vars.remove(assign);
     }
-    let var_name = match options.var_name {
-        Some(name) => {
-            if !vars.contains(&name) {
-                return Err(RuntimeError::FormulaParse {
-                    message: format!(
-                        "E_CALC_FREEVAR_NOT_FOUND: {} 변수 '{}'가 수식에 없습니다",
-                        if call_name == "diff" {
-                            "미분하기"
-                        } else {
-                            "적분하기"
-                        },
-                        name
-                    ),
-                    span,
-                });
+    let needs_var = matches!(call_name, "diff" | "int");
+    let var_name = if needs_var {
+        let var_name = match options.var_name {
+            Some(name) => {
+                if !vars.contains(&name) {
+                    return Err(RuntimeError::FormulaParse {
+                        message: format!(
+                            "E_CALC_FREEVAR_NOT_FOUND: {} 변수 '{}'가 수식에 없습니다",
+                            symbolic_formula_call_label(call_name),
+                            name
+                        ),
+                        span,
+                    });
+                }
+                name
             }
-            name
-        }
-        None => infer_single_var(&vars, call_name, span)?,
+            None => infer_single_var(&vars, call_name, span)?,
+        };
+        ensure_formula_ident(&var_name, dialect, call_name, span)?;
+        var_name
+    } else {
+        String::new()
     };
-    ensure_formula_ident(&var_name, dialect, call_name, span)?;
 
     if call_name == "diff" && options.include_const.is_some() {
         return Err(RuntimeError::FormulaParse {
@@ -7442,22 +8367,26 @@ fn transform_formula_value(
         });
     }
 
-    let mut expr = if call_name == "diff" {
-        if let Some(order) = options.order {
-            format!(
-                "{}({}, {}, {})",
-                call_name, analysis.expr_text, var_name, order
-            )
-        } else {
-            format!("{}({}, {})", call_name, analysis.expr_text, var_name)
+    let transformed = match call_name {
+        "simplify" => ddonirang_symbolic::simplify(&analysis.expr_text),
+        "expand" => ddonirang_symbolic::expand(&analysis.expr_text),
+        "factor" => ddonirang_symbolic::factor(&analysis.expr_text),
+        "diff" => {
+            let mut out = analysis.expr_text.clone();
+            let order = options.order.unwrap_or(1);
+            for _ in 0..order {
+                out = ddonirang_symbolic::diff(&out, &var_name)
+                    .map_err(|err| symbolic_formula_error(call_name, err, span))?;
+            }
+            Ok(out)
         }
-    } else {
-        format!("{}({}, {})", call_name, analysis.expr_text, var_name)
+        "int" => ddonirang_symbolic::integrate(&analysis.expr_text, &var_name),
+        _ => Err(format!("E_SYMBOLIC_UNKNOWN_TRANSFORM {call_name}")),
     };
+    let mut body = transformed.map_err(|err| symbolic_formula_error(call_name, err, span))?;
     if call_name == "int" && options.include_const.unwrap_or(false) {
-        expr = format!("{} + C", expr);
+        body = format!("{body} + C");
     }
-    let mut body = expr;
     if let Some(assign) = analysis.assign_name {
         body = format!("{} = {}", assign, body);
     }
@@ -7467,6 +8396,189 @@ fn transform_formula_value(
         dialect: math.dialect,
         body: formatted,
     })
+}
+
+fn symbolic_formula_call_label(call_name: &str) -> &'static str {
+    match call_name {
+        "simplify" => "정리하기",
+        "expand" => "전개하기",
+        "factor" => "인수분해하기",
+        "diff" => "미분하기",
+        "int" => "적분하기",
+        _ => "수식변환",
+    }
+}
+
+fn symbolic_formula_error(
+    call_name: &str,
+    message: String,
+    span: crate::lang::span::Span,
+) -> RuntimeError {
+    RuntimeError::FormulaParse {
+        message: format!(
+            "E_SYMBOLIC_FORMULA_UNSUPPORTED: {} ({})",
+            symbolic_formula_call_label(call_name),
+            message
+        ),
+        span,
+    }
+}
+
+fn symbolic_formulas_equivalent(
+    left: &crate::core::value::MathValue,
+    right: &crate::core::value::MathValue,
+    span: crate::lang::span::Span,
+) -> Result<bool, RuntimeError> {
+    let Some(left_dialect) = FormulaDialect::from_tag(&left.dialect) else {
+        return Err(RuntimeError::FormulaParse {
+            message: format!("알 수 없는 수식 방언: {}", left.dialect),
+            span,
+        });
+    };
+    let Some(right_dialect) = FormulaDialect::from_tag(&right.dialect) else {
+        return Err(RuntimeError::FormulaParse {
+            message: format!("알 수 없는 수식 방언: {}", right.dialect),
+            span,
+        });
+    };
+    if left_dialect != FormulaDialect::Ascii || right_dialect != FormulaDialect::Ascii {
+        return Err(RuntimeError::FormulaParse {
+            message: "동치인가는 #ascii 수식만 지원합니다".to_string(),
+            span,
+        });
+    }
+    let left_analysis =
+        analyze_formula(&left.body, left_dialect).map_err(|err| map_formula_error(err, span))?;
+    let right_analysis =
+        analyze_formula(&right.body, right_dialect).map_err(|err| map_formula_error(err, span))?;
+    ddonirang_symbolic::equivalent(&left_analysis.expr_text, &right_analysis.expr_text)
+        .map_err(|err| symbolic_formula_error("equiv", err, span))
+}
+
+fn eval_symbolic_proof_tactic(
+    values: &[Value],
+    span: crate::lang::span::Span,
+) -> Result<PackValue, RuntimeError> {
+    if values.len() != 1 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "proof tactic pack",
+            span,
+        });
+    }
+    let Value::Pack(pack) = &values[0] else {
+        return Err(type_mismatch_detail("pack", &values[0], span));
+    };
+    if let Some(relation_value) = find_pack_value(pack, &["관계", "relation", "식", "equation"]) {
+        let relations = extract_relation_texts_from_value(relation_value, span)?;
+        if let Some(bindings_value) = find_pack_value(pack, &["해", "bindings", "값들"]) {
+            let Value::Pack(bindings_pack) = bindings_value else {
+                return Err(type_mismatch_detail("묶음값", bindings_value, span));
+            };
+            let bindings = solve_bindings_from_pack(bindings_pack, span)?;
+            let verified = ddonirang_symbolic::relation_system_holds(&relations, &bindings)
+                .map_err(|err| symbolic_formula_error("equiv", err, span))?;
+            let mut fields = BTreeMap::new();
+            fields.insert("검증".to_string(), Value::Bool(verified));
+            fields.insert(
+                "종류".to_string(),
+                Value::Str("relation_solve_consistency".to_string()),
+            );
+            fields.insert(
+                "관계수".to_string(),
+                Value::Num(Quantity::new(
+                    Fixed64::from_int(relations.len() as i64),
+                    UnitDim::zero(),
+                )),
+            );
+            return Ok(PackValue { fields });
+        }
+        if relations.len() != 1 {
+            return Err(RuntimeError::Pack {
+                message: "증명하기 relation proof는 단일 관계만 지원합니다".to_string(),
+                span,
+            });
+        }
+        let cert = ddonirang_symbolic::prove_equivalent(&relations[0].0, &relations[0].1)
+            .map_err(|err| symbolic_formula_error("equiv", err, span))?;
+        let cert_value = serde_json::to_value(&cert).map_err(|err| RuntimeError::Pack {
+            message: format!("proof certificate serialize failed: {err}"),
+            span,
+        })?;
+        let report = ddonirang_proof::verify_value(&cert_value).map_err(|err| RuntimeError::Pack {
+            message: format!("proof verify failed: {err}"),
+            span,
+        })?;
+        let mut fields = BTreeMap::new();
+        fields.insert("검증".to_string(), Value::Bool(report.valid && cert.equivalent));
+        fields.insert(
+            "종류".to_string(),
+            Value::Str("relation_equivalence".to_string()),
+        );
+        fields.insert("증거".to_string(), Value::Str(cert.certificate_hash));
+        fields.insert("왼쪽정본".to_string(), Value::Str(cert.lhs_canonical));
+        fields.insert("오른쪽정본".to_string(), Value::Str(cert.rhs_canonical));
+        return Ok(PackValue { fields });
+    }
+    let left = match find_pack_value(pack, &["왼쪽", "left", "lhs"]) {
+        Some(Value::Math(value)) => value.clone(),
+        Some(other) => return Err(type_mismatch_detail("formula", other, span)),
+        None => {
+            return Err(RuntimeError::Pack {
+                message: "증명하기 왼쪽 수식이 없습니다".to_string(),
+                span,
+            })
+        }
+    };
+    let right = match find_pack_value(pack, &["오른쪽", "right", "rhs"]) {
+        Some(Value::Math(value)) => value.clone(),
+        Some(other) => return Err(type_mismatch_detail("formula", other, span)),
+        None => {
+            return Err(RuntimeError::Pack {
+                message: "증명하기 오른쪽 수식이 없습니다".to_string(),
+                span,
+            })
+        }
+    };
+    let Some(left_dialect) = FormulaDialect::from_tag(&left.dialect) else {
+        return Err(RuntimeError::FormulaParse {
+            message: format!("알 수 없는 수식 방언: {}", left.dialect),
+            span,
+        });
+    };
+    let Some(right_dialect) = FormulaDialect::from_tag(&right.dialect) else {
+        return Err(RuntimeError::FormulaParse {
+            message: format!("알 수 없는 수식 방언: {}", right.dialect),
+            span,
+        });
+    };
+    if left_dialect != FormulaDialect::Ascii || right_dialect != FormulaDialect::Ascii {
+        return Err(RuntimeError::FormulaParse {
+            message: "증명하기는 #ascii 수식만 지원합니다".to_string(),
+            span,
+        });
+    }
+    let left_analysis =
+        analyze_formula(&left.body, left_dialect).map_err(|err| map_formula_error(err, span))?;
+    let right_analysis =
+        analyze_formula(&right.body, right_dialect).map_err(|err| map_formula_error(err, span))?;
+    let cert =
+        ddonirang_symbolic::prove_equivalent(&left_analysis.expr_text, &right_analysis.expr_text)
+            .map_err(|err| symbolic_formula_error("equiv", err, span))?;
+    let cert_value = serde_json::to_value(&cert).map_err(|err| RuntimeError::Pack {
+        message: format!("proof certificate serialize failed: {err}"),
+        span,
+    })?;
+    let report = ddonirang_proof::verify_value(&cert_value).map_err(|err| RuntimeError::Pack {
+        message: format!("proof verify failed: {err}"),
+        span,
+    })?;
+    let mut fields = BTreeMap::new();
+    fields.insert("검증".to_string(), Value::Bool(report.valid && cert.equivalent));
+    fields.insert("종류".to_string(), Value::Str("symbolic_equivalence".to_string()));
+    fields.insert("증거".to_string(), Value::Str(cert.certificate_hash));
+    fields.insert("왼쪽정본".to_string(), Value::Str(cert.lhs_canonical));
+    fields.insert("오른쪽정본".to_string(), Value::Str(cert.rhs_canonical));
+    Ok(PackValue { fields })
 }
 
 struct NumericFormulaPrepared {
@@ -8551,6 +9663,67 @@ mod tests {
     }
 
     #[test]
+    fn when_hook_does_not_refire_in_same_madi_after_body_mutation() {
+        let source = r#"
+값 <- 0.
+횟수 <- 0.
+(시작)할때 {
+  값 <- 1.
+}.
+(값 > 0)이 될때 {
+  횟수 <- 횟수 + 1.
+  값 <- 0.
+  값 <- 1.
+}.
+"#;
+        let output = run_source_ticks(source, 3).expect("run");
+        assert_eq!(state_num(&output, "횟수"), Fixed64::from_int(1));
+    }
+
+    #[test]
+    fn while_hook_runs_once_per_madi_not_intra_tick_loop() {
+        let source = r#"
+연료 <- 2.
+횟수 <- 0.
+(연료 > 0)인 동안 {
+  횟수 <- 횟수 + 1.
+  연료 <- 연료 - 1.
+}.
+"#;
+        let output = run_source_ticks(source, 4).expect("run");
+        assert_eq!(state_num(&output, "횟수"), Fixed64::from_int(2));
+        assert_eq!(state_num(&output, "연료"), Fixed64::from_int(0));
+    }
+
+    #[test]
+    fn continue_loop_skips_current_foreach_item() {
+        let source = r#"
+합 <- 0.
+목록 <- [1, 2, 3].
+(x) 목록에 대해 {
+  x == 2 일때 {
+    건너뛰기.
+  }.
+  합 <- 합 + x.
+}.
+"#;
+        let output = run_source_ticks(source, 1).expect("run");
+        assert_eq!(state_num(&output, "합"), Fixed64::from_int(4));
+    }
+
+    #[test]
+    fn continue_loop_outside_foreach_is_runtime_error() {
+        let source = r#"
+건너뛰기.
+"#;
+        let err = match run_source_ticks(source, 1) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_RUNTIME_CONTINUE_OUTSIDE_FOREACH");
+    }
+
+    #[test]
     fn end_hook_runs_after_tick_loop() {
         let source = r#"
 값 <- 0.
@@ -8747,12 +9920,10 @@ mod tests {
             )
             .expect("run");
         assert_eq!(state_num(&output, "값"), Fixed64::from_int(0));
-        assert!(
-            output
-                .state
-                .get(&Key::new("샘.키보드.누르고있음.ArrowRight"))
-                .is_none()
-        );
+        assert!(output
+            .state
+            .get(&Key::new("샘.키보드.누르고있음.ArrowRight"))
+            .is_none());
     }
 
     #[test]
@@ -9521,6 +10692,72 @@ x <- 0.
     }
 
     #[test]
+    fn choose_plain_condition_runs_first_matching_branch() {
+        let source = r#"
+고르기:
+1 < 2: {
+  살림.x <- 1.
+}
+1 == 1: {
+  살림.x <- 2.
+}
+아니면: {
+  살림.x <- 7.
+}.
+"#;
+        let output = run_source_once(source).expect("run");
+        assert_eq!(state_num(&output, "x"), fixed("1"));
+    }
+
+    #[test]
+    fn choose_plain_condition_runs_second_and_else_branches() {
+        let second_source = r#"
+고르기:
+1 > 2: {
+  살림.x <- 1.
+}
+1 == 1: {
+  살림.x <- 2.
+}
+아니면: {
+  살림.x <- 7.
+}.
+"#;
+        let second_output = run_source_once(second_source).expect("run");
+        assert_eq!(state_num(&second_output, "x"), fixed("2"));
+
+        let else_source = r#"
+고르기:
+1 > 2: {
+  살림.x <- 1.
+}
+1 == 2: {
+  살림.x <- 2.
+}
+아니면: {
+  살림.x <- 7.
+}.
+"#;
+        let else_output = run_source_once(else_source).expect("run");
+        assert_eq!(state_num(&else_output, "x"), fixed("7"));
+    }
+
+    #[test]
+    fn choose_plain_condition_canonical_case_runs_fallback_body() {
+        let source = r#"
+고르기:
+1 > 2 인 경우 {
+  살림.x <- 1.
+}
+그밖의 경우 {
+  살림.x <- 7.
+}.
+"#;
+        let output = run_source_once(source).expect("run");
+        assert_eq!(state_num(&output, "x"), fixed("7"));
+    }
+
+    #[test]
     fn immediate_proof_records_success_diagnostic_without_state_mutation() {
         let source = r#"
 검사 밝히기 {
@@ -10080,10 +11317,6 @@ y2 <- (y1, 1, 0.5) 필터.지수평활.
 기상청:임자 = {
   (온도:25) 기상특보 ~~> 관제탑.
 }.
-
-(시작)할때 {
-  () 기상청.
-}.
 "#;
         let output = run_source_once(source).expect("run");
         assert_eq!(state_str(&output, "관제탑.최근보낸이"), "기상청");
@@ -10510,6 +11743,33 @@ y2 <- (y1, 1, 0.5) 필터.지수평활.
         assert_eq!(exact_numeric_kind(big), Some(NUMERIC_KIND_BIG_INT));
         assert_eq!(exact_numeric_kind(rational), Some(NUMERIC_KIND_RATIONAL));
         assert_eq!(exact_numeric_kind(factor), Some(NUMERIC_KIND_FACTOR));
+    }
+
+    #[test]
+    fn numeric_kernel_big_exact_arithmetic_is_not_i128_limited() {
+        let source = r#"
+a <- ("170141183460469231731687303715884105728") 큰바른수.
+b <- ("2") 큰바른수.
+합 <- a + b.
+곱 <- a * b.
+"#;
+        let output = run_source_once(source).expect("run");
+        assert_eq!(
+            output
+                .state
+                .get(&Key::new("합".to_string()))
+                .expect("sum")
+                .display(),
+            "170141183460469231731687303715884105730"
+        );
+        assert_eq!(
+            output
+                .state
+                .get(&Key::new("곱".to_string()))
+                .expect("product")
+                .display(),
+            "340282366920938463463374607431768211456"
+        );
     }
 
     #[test]

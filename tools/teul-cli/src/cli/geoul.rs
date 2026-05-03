@@ -194,17 +194,10 @@ fn parse_query_key(input: &str) -> Result<Key, String> {
     if trimmed.is_empty() {
         return Err("E_GEOUL_KEY_EMPTY key가 비었습니다".to_string());
     }
-    if let Some(rest) = trimmed.strip_prefix("살림.") {
-        if rest.is_empty() {
-            return Err("E_GEOUL_KEY_EMPTY 살림. 뒤가 비었습니다".to_string());
-        }
-        return Ok(Key::new(rest.to_string()));
-    }
-    if let Some(rest) = trimmed.strip_prefix("바탕.") {
-        if rest.is_empty() {
-            return Err("E_GEOUL_KEY_EMPTY 바탕. 뒤가 비었습니다".to_string());
-        }
-        return Ok(Key::new(rest.to_string()));
+    if trimmed.starts_with("살림.") || trimmed.starts_with("바탕.") {
+        return Err(
+            "E_SALIM_REMOVED geoul key는 접두 없이 bare key만 허용합니다. 예: `점수`".to_string(),
+        );
     }
     if let Some(rest) = trimmed.strip_prefix("샘.") {
         if rest.is_empty() {
@@ -219,7 +212,7 @@ fn key_label(key: &Key) -> String {
     if key.as_str().starts_with("샘.") || key.as_str().starts_with("입력상태.") {
         key.as_str().to_string()
     } else {
-        format!("살림.{}", key.as_str())
+        key.as_str().to_string()
     }
 }
 
@@ -461,4 +454,34 @@ fn escape_json(input: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_query_key;
+
+    #[test]
+    fn parse_query_key_accepts_bare_key() {
+        let key = parse_query_key("점수").expect("bare key should parse");
+        assert_eq!(key.as_str(), "점수");
+    }
+
+    #[test]
+    fn parse_query_key_accepts_sample_key() {
+        let key =
+            parse_query_key("샘.키보드.누르고있음.ArrowRight").expect("sample key should parse");
+        assert_eq!(key.as_str(), "샘.키보드.누르고있음.ArrowRight");
+    }
+
+    #[test]
+    fn parse_query_key_rejects_empty() {
+        let err = parse_query_key("   ").expect_err("empty key must fail");
+        assert!(err.contains("E_GEOUL_KEY_EMPTY"));
+    }
+
+    #[test]
+    fn parse_query_key_rejects_legacy_root_prefix() {
+        let err = parse_query_key("살림.점수").expect_err("legacy root must fail");
+        assert!(err.contains("E_SALIM_REMOVED"));
+    }
 }

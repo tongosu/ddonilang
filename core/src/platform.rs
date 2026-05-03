@@ -280,7 +280,7 @@ impl ResourceValue {
             ResourceMapEntry {
                 key: ResourceValue::String("capacity".to_string()),
                 value: ResourceValue::Fixed64(Fixed64::from_i64(
-                    capacity.min(i64::MAX as u64) as i64,
+                    capacity.min(i64::MAX as u64) as i64
                 )),
             },
             ResourceMapEntry {

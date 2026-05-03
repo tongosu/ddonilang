@@ -692,6 +692,21 @@ pub fn transform_function_sigs() -> Vec<FunctionSig> {
             ret: "수",
         },
         FunctionSig {
+            name: "정리하기",
+            params: &["식"],
+            ret: "식",
+        },
+        FunctionSig {
+            name: "전개하기",
+            params: &["식"],
+            ret: "식",
+        },
+        FunctionSig {
+            name: "인수분해하기",
+            params: &["식"],
+            ret: "식",
+        },
+        FunctionSig {
             name: "미분하기",
             params: &["식", "옵션"],
             ret: "식",
@@ -700,6 +715,26 @@ pub fn transform_function_sigs() -> Vec<FunctionSig> {
             name: "적분하기",
             params: &["식", "옵션"],
             ret: "식",
+        },
+        FunctionSig {
+            name: "동치인가",
+            params: &["왼쪽", "오른쪽"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "잇기",
+            params: &["왼쪽", "오른쪽"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "증명하기",
+            params: &["증명요청"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "방정식풀기",
+            params: &["관계"],
+            ret: "묶음",
         },
     ]
 }

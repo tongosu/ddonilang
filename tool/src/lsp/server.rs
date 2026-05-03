@@ -145,6 +145,26 @@ impl LspServer {
                 Stmt::Expr { expr, .. } | Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                     self.collect_from_expr(expr, visualizations)
                 }
+                Stmt::Receive {
+                    condition, body, ..
+                } => {
+                    if let Some(condition) = condition {
+                        self.collect_from_expr(condition, visualizations);
+                    }
+                    self.collect_from_body(body, visualizations);
+                }
+                Stmt::Send {
+                    sender,
+                    payload,
+                    receiver,
+                    ..
+                } => {
+                    if let Some(sender) = sender {
+                        self.collect_from_expr(sender, visualizations);
+                    }
+                    self.collect_from_expr(payload, visualizations);
+                    self.collect_from_expr(receiver, visualizations);
+                }
                 Stmt::Mutate { target, value, .. } => {
                     self.collect_from_expr(target, visualizations);
                     self.collect_from_expr(value, visualizations);
@@ -205,7 +225,7 @@ impl LspServer {
                 Stmt::Quantifier { body, .. } => {
                     self.collect_from_body(body, visualizations);
                 }
-                Stmt::Break { .. } => {}
+                Stmt::Break { .. } | Stmt::ContinueLoop { .. } => {}
                 Stmt::Contract {
                     condition,
                     then_body,
@@ -517,6 +537,26 @@ impl LspServer {
                     }
                     self.check_call_tail_missing_expr(expr, known_seeds, diagnostics);
                 }
+                Stmt::Receive {
+                    condition, body, ..
+                } => {
+                    if let Some(condition) = condition {
+                        self.check_call_tail_missing_expr(condition, known_seeds, diagnostics);
+                    }
+                    self.check_call_tail_missing_body(body, known_seeds, diagnostics);
+                }
+                Stmt::Send {
+                    sender,
+                    payload,
+                    receiver,
+                    ..
+                } => {
+                    if let Some(sender) = sender {
+                        self.check_call_tail_missing_expr(sender, known_seeds, diagnostics);
+                    }
+                    self.check_call_tail_missing_expr(payload, known_seeds, diagnostics);
+                    self.check_call_tail_missing_expr(receiver, known_seeds, diagnostics);
+                }
                 Stmt::Mutate { target, value, .. } => {
                     self.check_call_tail_missing_expr(target, known_seeds, diagnostics);
                     self.check_call_tail_missing_expr(value, known_seeds, diagnostics);
@@ -601,7 +641,7 @@ impl LspServer {
                     self.check_call_tail_missing_expr(condition, known_seeds, diagnostics);
                     self.check_call_tail_missing_body(body, known_seeds, diagnostics);
                 }
-                Stmt::Break { .. } => {}
+                Stmt::Break { .. } | Stmt::ContinueLoop { .. } => {}
                 Stmt::Pragma { .. } | Stmt::MetaBlock { .. } => {}
             }
         }

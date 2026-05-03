@@ -100,8 +100,8 @@ pub fn simulate(policy: LatencyPolicy, count: u64) -> Vec<LatencyEvent> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_replay_header, simulate, LatencyMode, LatencyPolicy, LatencySchedule, ScheduledPacket,
-        LATENCY_DROP_POLICY_LATE_DROP, REPLAY_HEADER_DETERMINISTIC_CREATED_AT,
+        build_replay_header, simulate, LatencyMode, LatencyPolicy, LatencySchedule,
+        ScheduledPacket, LATENCY_DROP_POLICY_LATE_DROP, REPLAY_HEADER_DETERMINISTIC_CREATED_AT,
     };
 
     #[test]

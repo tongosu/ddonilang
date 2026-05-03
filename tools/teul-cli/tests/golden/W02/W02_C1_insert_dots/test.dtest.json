@@ -11,7 +11,7 @@
   },
   "expect": {
     "exit": 0,
-    "stdout_text": "살림.인사 <- \"안녕!\".\n살림.인사 보여주기.\n",
+    "stdout_text": "인사 <- \"안녕!\".\n인사 보여주기.\n",
     "stderr_contains": []
   }
 }

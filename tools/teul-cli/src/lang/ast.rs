@@ -157,6 +157,11 @@ pub enum Stmt {
         #[allow(dead_code)]
         span: Span,
     },
+    Boim {
+        entries: Vec<Binding>,
+        #[allow(dead_code)]
+        span: Span,
+    },
     Hook {
         kind: HookKind,
         body: Vec<Stmt>,
@@ -236,6 +241,10 @@ pub enum Stmt {
         span: Span,
     },
     Break {
+        #[allow(dead_code)]
+        span: Span,
+    },
+    ContinueLoop {
         #[allow(dead_code)]
         span: Span,
     },
@@ -457,6 +466,7 @@ pub enum BinaryOp {
     Mod,
     And,
     Or,
+    RelationEq,
     Eq,
     NotEq,
     Lt,

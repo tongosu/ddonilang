@@ -96,6 +96,8 @@ pub(crate) enum Commands {
         repro_json: Option<PathBuf>,
         #[arg(long = "run-manifest")]
         run_manifest: Option<PathBuf>,
+        #[arg(long = "summary-json")]
+        summary_json: Option<PathBuf>,
         #[arg(long = "artifact")]
         artifact: Vec<String>,
         #[arg(long = "trace-json")]
@@ -168,6 +170,17 @@ pub(crate) enum Commands {
         no_open: bool,
         #[arg(long = "unsafe-open")]
         unsafe_open: bool,
+    },
+    #[command(name = "currentline-run")]
+    CurrentlineRun {
+        #[arg(long = "cell")]
+        cell: PathBuf,
+        #[arg(long = "context-json")]
+        context_json: Option<PathBuf>,
+        #[arg(long = "context-out")]
+        context_out: Option<PathBuf>,
+        #[arg(long = "summary-json")]
+        summary_json: Option<PathBuf>,
     },
     View {
         file: PathBuf,
@@ -318,6 +331,18 @@ pub(crate) enum Commands {
         #[command(subcommand)]
         command: NuriGymCommands,
     },
+    Numeric {
+        #[command(subcommand)]
+        command: NumericCommands,
+    },
+    Symbolic {
+        #[command(subcommand)]
+        command: SymbolicCommands,
+    },
+    Proof {
+        #[command(subcommand)]
+        command: ProofCommands,
+    },
     Gateway {
         #[command(subcommand)]
         command: GatewayCommands,
@@ -425,6 +450,103 @@ enum AiCommands {
         out: Option<PathBuf>,
         #[arg(long)]
         bundle: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum NumericCommands {
+    Factor {
+        integer: Option<String>,
+        #[arg(long, value_enum, default_value_t = NumericFactorModeArg::Complete)]
+        mode: NumericFactorModeArg,
+        #[arg(long)]
+        out: Option<PathBuf>,
+        #[arg(long = "budget-ops", default_value_t = 10_000)]
+        budget_ops: u64,
+        #[arg(long)]
+        resume: Option<PathBuf>,
+        #[arg(long = "job-out")]
+        job_out: Option<PathBuf>,
+    },
+}
+
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq, Eq)]
+enum NumericFactorModeArg {
+    Complete,
+    Step,
+}
+
+#[derive(Subcommand)]
+enum SymbolicCommands {
+    Canon {
+        input: String,
+    },
+    Simplify {
+        input: String,
+    },
+    Expand {
+        input: String,
+    },
+    Factor {
+        input: String,
+    },
+    Diff {
+        input: String,
+        #[arg(long, default_value = "x")]
+        var: String,
+    },
+    Integrate {
+        input: String,
+        #[arg(long, default_value = "x")]
+        var: String,
+    },
+    Equiv {
+        lhs: String,
+        rhs: String,
+    },
+    RelationCanon {
+        lhs: String,
+        rhs: String,
+    },
+    ProveEq {
+        lhs: String,
+        rhs: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProofCommands {
+    Verify {
+        input: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    Replay {
+        input: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    ProveSymbolicEq {
+        lhs: String,
+        rhs: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    ProveRelationEq {
+        first_lhs: String,
+        first_rhs: String,
+        second_lhs: String,
+        second_rhs: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    RewriteChain {
+        from: String,
+        to: String,
+        #[arg(long)]
+        out: Option<PathBuf>,
     },
 }
 
@@ -1244,6 +1366,7 @@ pub(crate) struct RunCommandArgs {
     pub(crate) enable_repro: bool,
     pub(crate) repro_json: Option<PathBuf>,
     pub(crate) run_manifest: Option<PathBuf>,
+    pub(crate) summary_json: Option<PathBuf>,
     pub(crate) artifact: Vec<String>,
     pub(crate) trace_json: Option<PathBuf>,
     pub(crate) proof_out: Option<PathBuf>,
@@ -1297,6 +1420,7 @@ pub(crate) fn execute_run_command(
         enable_repro,
         repro_json,
         run_manifest,
+        summary_json,
         artifact,
         trace_json,
         proof_out,
@@ -1446,6 +1570,7 @@ pub(crate) fn execute_run_command(
         no_open,
         unsafe_open,
         run_manifest,
+        summary_json,
         artifact_pins,
         run_command,
         init_state: state,
@@ -1466,9 +1591,7 @@ fn blocked_release_compat_flag(args: &[String]) -> Option<&str> {
 fn main() {
     let raw_args: Vec<String> = env::args().collect();
     if let Some(flag) = blocked_release_compat_flag(&raw_args[1..]) {
-        eprintln!(
-            "E_CLI_COMPAT_RELEASE_BLOCKED {flag}는 출시 경로에서 완전 비활성화됩니다."
-        );
+        eprintln!("E_CLI_COMPAT_RELEASE_BLOCKED {flag}는 출시 경로에서 완전 비활성화됩니다.");
         std::process::exit(2);
     }
     let cli = Cli::parse_from(raw_args);
@@ -1485,6 +1608,7 @@ fn main() {
             enable_repro,
             repro_json,
             run_manifest,
+            summary_json,
             artifact,
             trace_json,
             proof_out,
@@ -1533,6 +1657,7 @@ fn main() {
                 enable_repro,
                 repro_json,
                 run_manifest,
+                summary_json,
                 artifact,
                 trace_json,
                 proof_out,
@@ -1573,6 +1698,138 @@ fn main() {
                 emitter.err(&err);
                 std::process::exit(1);
             }
+        }
+        Commands::CurrentlineRun {
+            cell,
+            context_json,
+            context_out,
+            summary_json,
+        } => {
+            let mut emitter = cli::run::StdoutRunEmitter;
+            let cell_source = match std::fs::read_to_string(&cell) {
+                Ok(value) => value,
+                Err(err) => {
+                    emitter.err(&format!("E_CURRENTLINE_CELL_READ {} {}", cell.display(), err));
+                    std::process::exit(1);
+                }
+            };
+            let context_text = match context_json.as_ref() {
+                Some(path) if path.exists() => match std::fs::read_to_string(path) {
+                    Ok(value) => Some(value),
+                    Err(err) => {
+                        emitter.err(&format!(
+                            "E_CURRENTLINE_CONTEXT_READ {} {}",
+                            path.display(),
+                            err
+                        ));
+                        std::process::exit(1);
+                    }
+                },
+                _ => None,
+            };
+            let currentline = match ddonirang_lang::apply_currentline_cell(
+                &cell_source,
+                context_text.as_deref(),
+            ) {
+                Ok(value) => value,
+                Err(err) => {
+                    emitter.err(&err);
+                    std::process::exit(1);
+                }
+            };
+            let compiled_path = std::env::temp_dir().join(format!(
+                "ddn-currentline-{}-{}.ddn",
+                std::process::id(),
+                blake3::hash(cell_source.as_bytes()).to_hex()
+            ));
+            if let Err(err) = std::fs::write(&compiled_path, currentline.project_source.as_bytes())
+            {
+                emitter.err(&format!(
+                    "E_CURRENTLINE_COMPILED_WRITE {} {}",
+                    compiled_path.display(),
+                    err
+                ));
+                std::process::exit(1);
+            }
+            let run_args = RunCommandArgs {
+                file: compiled_path.clone(),
+                madi: None,
+                seed: "0x0".to_string(),
+                age_target: None,
+                state: Vec::new(),
+                state_file: Vec::new(),
+                diag_jsonl: None,
+                diag_report_out: None,
+                enable_repro: false,
+                repro_json: None,
+                run_manifest: None,
+                summary_json,
+                artifact: Vec::new(),
+                trace_json: None,
+                proof_out: None,
+                proof_cert_key: None,
+                geoul_out: None,
+                geoul_record_out: None,
+                latency_madi: 0,
+                trace_tier: cli::trace_tier::TraceTierArg::TOff,
+                lang_mode: None,
+                bogae: None,
+                bogae_codec: cli::bogae::BogaeCodec::Bdl1,
+                bogae_out: None,
+                bogae_skin: None,
+                bogae_overlay: None,
+                bogae_cmd_policy: cli::bogae::BogaeCmdPolicy::None,
+                bogae_cmd_cap: None,
+                bogae_cache_log: false,
+                bogae_live: false,
+                console_cell_aspect: cli::bogae_console::ConsoleCellAspect::Auto,
+                console_grid: None,
+                console_panel_cols: 0,
+                until_gameover: false,
+                gameover_key: "게임오버".to_string(),
+                sam: None,
+                record_sam: None,
+                sam_live: None,
+                sam_live_host: "127.0.0.1".to_string(),
+                sam_live_port: 5001,
+                madi_hz: None,
+                open_mode: None,
+                open_log: None,
+                open_bundle: None,
+                no_open: true,
+                unsafe_open: false,
+                run_command_override: Some(format!(
+                    "teul-cli currentline-run --cell {}",
+                    cell.display()
+                )),
+            };
+            if let Err(err) = execute_run_command(run_args, &mut emitter) {
+                emitter.err(&err);
+                std::process::exit(1);
+            }
+            if let Some(path) = context_out {
+                if let Some(parent) = path.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        if let Err(err) = std::fs::create_dir_all(parent) {
+                            emitter.err(&format!(
+                                "E_CURRENTLINE_CONTEXT_OUT_DIR {} {}",
+                                parent.display(),
+                                err
+                            ));
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                if let Err(err) = std::fs::write(&path, currentline.context_json.as_bytes()) {
+                    emitter.err(&format!(
+                        "E_CURRENTLINE_CONTEXT_WRITE {} {}",
+                        path.display(),
+                        err
+                    ));
+                    std::process::exit(1);
+                }
+            }
+            let _ = std::fs::remove_file(compiled_path);
         }
         Commands::View {
             file,
@@ -2213,6 +2470,97 @@ fn main() {
                 }
             }
         },
+        Commands::Numeric { command } => match command {
+            NumericCommands::Factor {
+                integer,
+                mode,
+                out,
+                budget_ops,
+                resume,
+                job_out,
+            } => {
+                let result = match mode {
+                    NumericFactorModeArg::Complete => {
+                        let input = match integer.as_deref() {
+                            Some(value) => value,
+                            None => {
+                                eprintln!(
+                                    "E_NUMERIC_FACTOR_INPUT_REQUIRED complete mode requires integer"
+                                );
+                                std::process::exit(1);
+                            }
+                        };
+                        cli::numeric::run_factor_complete(input, out.as_deref())
+                    }
+                    NumericFactorModeArg::Step => cli::numeric::run_factor_step(
+                        integer.as_deref(),
+                        resume.as_deref(),
+                        budget_ops,
+                        job_out.as_deref(),
+                    ),
+                };
+                if let Err(err) = result {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::Symbolic { command } => {
+            let result = match command {
+                SymbolicCommands::Canon { input } => cli::symbolic::run_canon(&input),
+                SymbolicCommands::Simplify { input } => cli::symbolic::run_simplify(&input),
+                SymbolicCommands::Expand { input } => cli::symbolic::run_expand(&input),
+                SymbolicCommands::Factor { input } => cli::symbolic::run_factor(&input),
+                SymbolicCommands::Diff { input, var } => cli::symbolic::run_diff(&input, &var),
+                SymbolicCommands::Integrate { input, var } => {
+                    cli::symbolic::run_integrate(&input, &var)
+                }
+                SymbolicCommands::Equiv { lhs, rhs } => cli::symbolic::run_equiv(&lhs, &rhs),
+                SymbolicCommands::RelationCanon { lhs, rhs } => {
+                    cli::symbolic::run_relation_canon(&lhs, &rhs)
+                }
+                SymbolicCommands::ProveEq { lhs, rhs, out } => {
+                    cli::symbolic::run_prove_eq(&lhs, &rhs, out.as_deref())
+                }
+            };
+            if let Err(err) = result {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
+        },
+        Commands::Proof { command } => {
+            let result = match command {
+                ProofCommands::Verify { input, out } => {
+                    cli::proof::run_verify(&input, out.as_deref())
+                }
+                ProofCommands::Replay { input, out } => {
+                    cli::proof::run_replay(&input, out.as_deref())
+                }
+                ProofCommands::ProveSymbolicEq { lhs, rhs, out } => {
+                    cli::proof::run_prove_symbolic_eq(&lhs, &rhs, out.as_deref())
+                }
+                ProofCommands::ProveRelationEq {
+                    first_lhs,
+                    first_rhs,
+                    second_lhs,
+                    second_rhs,
+                    out,
+                } => cli::proof::run_prove_relation_eq(
+                    &first_lhs,
+                    &first_rhs,
+                    &second_lhs,
+                    &second_rhs,
+                    out.as_deref(),
+                ),
+                ProofCommands::RewriteChain { from, to, out } => {
+                    cli::proof::run_rewrite_chain(&from, &to, out.as_deref())
+                }
+            };
+            if let Err(err) = result {
+                eprintln!("{}", err);
+                std::process::exit(1);
+            }
+        },
         Commands::Gateway { command } => match command {
             GatewayCommands::Serve {
                 world,
@@ -2280,16 +2628,14 @@ fn main() {
                 current_madi,
                 out,
             } => {
-                if let Err(err) =
-                    cli::latency::run_simulate(
-                        l_madi,
-                        mode.to_core(),
-                        count,
-                        seed,
-                        current_madi,
-                        out.as_deref(),
-                    )
-                {
+                if let Err(err) = cli::latency::run_simulate(
+                    l_madi,
+                    mode.to_core(),
+                    count,
+                    seed,
+                    current_madi,
+                    out.as_deref(),
+                ) {
                     eprintln!("{}", err);
                     std::process::exit(1);
                 }

@@ -28,6 +28,8 @@ pub enum TokenKind {
     KwHeureumssi,
     KwIeumssi,
     KwSemssi,
+    KwManyak,
+    KwIramyeon,
     KwIlttae,
     KwAniramyeon,
     KwBanbok,
@@ -36,6 +38,7 @@ pub enum TokenKind {
     KwDongan,
     KwDaehae,
     KwMeomchugi,
+    KwGeonneottwigi,
     KwDollyeojwo,
     KwTolabogi,
     KwAllyeo,
@@ -81,6 +84,7 @@ pub enum TokenKind {
     Slash,
     Percent,
     Caret,
+    RelationEq,
     EqEq,
     NotEq,
     Lt,
@@ -182,7 +186,11 @@ impl<'a> Lexer<'a> {
             }
             '=' => {
                 self.advance();
-                if self.peek_char() == Some('=') {
+                if self.peek_char() == Some(':') && self.peek_ahead(1) == Some('=') {
+                    self.advance();
+                    self.advance();
+                    TokenKind::RelationEq
+                } else if self.peek_char() == Some('=') {
                     self.advance();
                     TokenKind::EqEq
                 } else {
@@ -468,6 +476,9 @@ impl<'a> Lexer<'a> {
         let no_split = ["길이", "처음으로", "다음으로"];
         let has_underscore = lexeme.contains('_');
         let next_sig = self.peek_non_ws_char();
+        let next_is_postfix_keyword = self.next_non_ws_starts_with("보여주기")
+            || self.next_non_ws_starts_with("돌아보기")
+            || self.next_non_ws_starts_with("돌려줘");
         if !has_underscore && self.peek_char() != Some(':') {
             if matches!(
                 next_sig,
@@ -485,7 +496,7 @@ impl<'a> Lexer<'a> {
                     | Some('}')
                     | Some(',')
                     | Some('|')
-            )
+            ) || next_is_postfix_keyword
                 || no_split.iter().any(|w| *w == lexeme.as_str())
             {
                 return Ok(Token {
@@ -547,50 +558,118 @@ impl<'a> Lexer<'a> {
         let start = self.pos;
         self.advance();
         let mut c = String::new();
+        let mut closed = false;
         while let Some(ch) = self.peek_char() {
             if ch == '"' {
                 self.advance();
+                closed = true;
                 break;
             }
             if ch == '\\' {
                 self.advance();
-                match self.peek_char() {
-                    Some('n') => {
-                        c.push('\n');
-                        self.advance();
-                    }
-                    Some('r') => {
-                        c.push('\r');
-                        self.advance();
-                    }
-                    Some('t') => {
-                        c.push('\t');
-                        self.advance();
-                    }
-                    Some('"') => {
-                        c.push('"');
-                        self.advance();
-                    }
-                    Some('\\') => {
-                        c.push('\\');
-                        self.advance();
-                    }
-                    Some(other) => {
-                        c.push(other);
-                        self.advance();
-                    }
-                    None => return Err(LexError::new(self.pos, "문자열 종료")),
-                }
+                c.push_str(&self.read_string_escape(start)?);
                 continue;
             }
             c.push(ch);
             self.advance();
+        }
+        if !closed {
+            return Err(LexError::new(start, "문자열이 닫히지 않았습니다"));
         }
         Ok(Token {
             kind: TokenKind::StringLit(c),
             span: Span::new(start, self.pos),
             raw: self.source[start..self.pos].to_string(),
         })
+    }
+
+    fn read_string_escape(&mut self, start: usize) -> Result<String, LexError> {
+        if self.is_eof() {
+            return Err(LexError::new(self.pos, "문자열 종료"));
+        }
+        for (surface, value) in [
+            ("줄", "\n"),
+            ("칸", "\t"),
+            ("앞", "\r"),
+            ("따옴", "\""),
+            ("역빗금", "\\"),
+        ] {
+            if self.starts_with(surface) {
+                self.advance_str(surface);
+                return Ok(value.to_string());
+            }
+        }
+        for surface in ["반전끝", "굵게끝", "반전", "굵게", "되돌림"] {
+            if self.starts_with(surface) {
+                self.advance_str(surface);
+                return Ok(format!("\\{}", surface));
+            }
+        }
+        for surface in ["색", "배경"] {
+            if self.starts_with(surface) {
+                let saved = self.pos;
+                self.advance_str(surface);
+                if self.peek_char() == Some('{') {
+                    let body = self.read_rich_markup_braced_body(start, surface)?;
+                    return Ok(format!("\\{}{{{}}}", surface, body));
+                }
+                self.pos = saved;
+            }
+        }
+        match self.peek_char() {
+            Some('n') => {
+                self.advance();
+                Ok("\n".to_string())
+            }
+            Some('r') => {
+                self.advance();
+                Ok("\r".to_string())
+            }
+            Some('t') => {
+                self.advance();
+                Ok("\t".to_string())
+            }
+            Some('"') => {
+                self.advance();
+                Ok("\"".to_string())
+            }
+            Some('\\') => {
+                self.advance();
+                Ok("\\".to_string())
+            }
+            Some(other) => Err(LexError::new(
+                self.pos,
+                &format!("알 수 없는 글 이스케이프: \\{}", other),
+            )),
+            None => Err(LexError::new(self.pos, "문자열 종료")),
+        }
+    }
+
+    fn read_rich_markup_braced_body(
+        &mut self,
+        start: usize,
+        surface: &str,
+    ) -> Result<String, LexError> {
+        if self.peek_char() != Some('{') {
+            return Err(LexError::new(
+                self.pos,
+                &format!("콘솔 {} 표지는 '{{...}}'가 필요합니다", surface),
+            ));
+        }
+        self.advance();
+        let mut body = String::new();
+        while let Some(ch) = self.peek_char() {
+            if ch == '}' {
+                self.advance();
+                return Ok(body);
+            }
+            if ch == '\n' || ch == '\r' {
+                return Err(LexError::new(start, "콘솔 표지 본문이 닫히지 않았습니다"));
+            }
+            body.push(ch);
+            self.advance();
+        }
+        Err(LexError::new(start, "콘솔 표지 본문이 닫히지 않았습니다"))
     }
 
     fn read_atom(&mut self) -> Result<Token, LexError> {
@@ -1050,6 +1129,19 @@ impl<'a> Lexer<'a> {
         }
         None
     }
+    fn next_non_ws_starts_with(&self, s: &str) -> bool {
+        let mut idx = self.pos;
+        while idx < self.source.len() {
+            let Some(ch) = self.source[idx..].chars().next() else {
+                return false;
+            };
+            if !ch.is_whitespace() {
+                return self.source[idx..].starts_with(s);
+            }
+            idx += ch.len_utf8();
+        }
+        false
+    }
     fn advance(&mut self) {
         if let Some(ch) = self.peek_char() {
             self.pos += ch.len_utf8();
@@ -1084,12 +1176,15 @@ fn keyword_kind_for(canon: &str) -> Option<TokenKind> {
         "샘" => Some(TokenKind::KwSam),
         "그리고" => Some(TokenKind::And),
         "또는" => Some(TokenKind::Or),
+        "만약" => Some(TokenKind::KwManyak),
+        "이라면" => Some(TokenKind::KwIramyeon),
         "일때" => Some(TokenKind::KwIlttae),
         "아니면" | "아니라면" => Some(TokenKind::KwAniramyeon),
         "되풀이" | "반복" => Some(TokenKind::KwBanbok),
         "동안" => Some(TokenKind::KwDongan),
         "대해" => Some(TokenKind::KwDaehae),
         "멈추기" => Some(TokenKind::KwMeomchugi),
+        "건너뛰기" => Some(TokenKind::KwGeonneottwigi),
         "되돌림" | "반환" | "돌려줘" => Some(TokenKind::KwDollyeojwo),
         "톺아보기" | "감사" => Some(TokenKind::KwTolabogi),
         "해보고" => Some(TokenKind::KwHaebogo),
@@ -1244,6 +1339,17 @@ mod tests {
         assert!(tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::JjaimBlock(_))));
+    }
+
+    #[test]
+    fn relation_eq_is_lexed_as_single_token() {
+        let mut lexer = Lexer::new("a <- ((#ascii) 수식{x}) =:= ((#ascii) 수식{1}).");
+        let tokens = lexer.tokenize().expect("tokenize");
+        let relation = tokens
+            .iter()
+            .find(|token| matches!(token.kind, TokenKind::RelationEq))
+            .expect("relation eq token");
+        assert_eq!(relation.raw, "=:=");
     }
 
     #[test]

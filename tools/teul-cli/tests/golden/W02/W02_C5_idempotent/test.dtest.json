@@ -11,7 +11,7 @@
   },
   "expect": {
     "exit": 0,
-    "stdout_text": "살림.a <- 1.\n살림.a 보여주기.\n",
+    "stdout_text": "a <- 1.\na 보여주기.\n",
     "stderr_contains": []
   }
 }

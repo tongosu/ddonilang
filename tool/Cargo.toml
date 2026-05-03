@@ -32,6 +32,9 @@ web-sys = { version = "0.3", optional = true, features = ["console"] }
 # 다른 크레이트와의 연결 (경로가 실제 폴더명과 일치해야 함)
 ddonirang-lang = { path = "../lang" }
 ddonirang-core = { path = "../core" }
+ddonirang-numeric = { path = "../numeric" }
+ddonirang-proof = { path = "../proof" }
+ddonirang-symbolic = { path = "../symbolic" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 crossterm = "0.27"

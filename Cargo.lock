@@ -246,6 +246,47 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "ddonirang-core",
+ "regex",
+ "serde_json",
+]
+
+[[package]]
+name = "ddonirang-numeric"
+version = "0.1.0"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-rational",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "ddonirang-proof"
+version = "0.1.0"
+dependencies = [
+ "ddonirang-numeric",
+ "ddonirang-symbolic",
+ "num-bigint",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "ddonirang-symbolic"
+version = "0.1.0"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-rational",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -256,6 +297,9 @@ dependencies = [
  "crossterm",
  "ddonirang-core",
  "ddonirang-lang",
+ "ddonirang-numeric",
+ "ddonirang-proof",
+ "ddonirang-symbolic",
  "hex",
  "js-sys",
  "libm",

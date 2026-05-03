@@ -47,15 +47,7 @@ fn has_root_hide_directive(input: &str) -> bool {
 fn is_bridge_alias_type_name(type_name: &str) -> bool {
     matches!(
         type_name,
-        "글"
-            | "수"
-            | "셈수"
-            | "fixed64"
-            | "sim_num"
-            | "참거짓"
-            | "논"
-            | "bool"
-            | "boolean"
+        "글" | "수" | "셈수" | "fixed64" | "sim_num" | "참거짓" | "논" | "bool" | "boolean"
     )
 }
 
@@ -86,6 +78,8 @@ enum TokenKind {
     None,
     Show,
     Inspect,
+    Manyak,
+    Iramyeon,
     Ilttae,
     Aniramyeon,
     Anigo,
@@ -97,6 +91,7 @@ enum TokenKind {
     During,
     Daehae,
     Break,
+    ContinueLoop,
     Plus,
     PlusEqual,
     PlusArrow,
@@ -108,6 +103,7 @@ enum TokenKind {
     Percent,
     And,
     Or,
+    RelationEq,
     Comma,
     EqEq,
     NotEq,
@@ -380,6 +376,14 @@ impl<'a> Lexer<'a> {
                 kind: TokenKind::RBrace,
             });
         }
+        if ch == '=' && self.peek_next() == Some(':') && self.peek_n(2) == Some('=') {
+            self.bump();
+            self.bump();
+            self.bump();
+            return Ok(Token {
+                kind: TokenKind::RelationEq,
+            });
+        }
         if ch == '=' {
             if self.peek_next() == Some('=') {
                 self.bump();
@@ -495,6 +499,8 @@ impl<'a> Lexer<'a> {
             let kind = match ident.as_str() {
                 "보여주기" => TokenKind::Show,
                 "톺아보기" | "감사" => TokenKind::Inspect,
+                "만약" => TokenKind::Manyak,
+                "이라면" => TokenKind::Iramyeon,
                 "일때" => TokenKind::Ilttae,
                 "아니면" => TokenKind::Aniramyeon,
                 "아니고" => TokenKind::Anigo,
@@ -508,6 +514,7 @@ impl<'a> Lexer<'a> {
                 "동안" => TokenKind::During,
                 "대해" => TokenKind::Daehae,
                 "멈추기" => TokenKind::Break,
+                "건너뛰기" => TokenKind::ContinueLoop,
                 "그리고" => TokenKind::And,
                 "또는" => TokenKind::Or,
                 "참" => TokenKind::True,
@@ -661,27 +668,7 @@ impl<'a> Lexer<'a> {
             }
             if ch == '\\' {
                 self.bump();
-                let escaped = match self.peek() {
-                    Some('"') => '"',
-                    Some('\\') => '\\',
-                    Some('n') => '\n',
-                    Some('r') => '\r',
-                    Some('t') => '\t',
-                    Some(other) => {
-                        return Err(CanonError::new(
-                            "E_CANON_BAD_ESCAPE",
-                            format!("알 수 없는 이스케이프: {}", other),
-                        ))
-                    }
-                    None => {
-                        return Err(CanonError::new(
-                            "E_CANON_UNTERM_STRING",
-                            "문자열이 끝나지 않았습니다.",
-                        ))
-                    }
-                };
-                self.bump();
-                buf.push(escaped);
+                buf.push_str(&self.lex_text_escape()?);
                 continue;
             }
             if ch == '\r' {
@@ -703,6 +690,94 @@ impl<'a> Lexer<'a> {
         Err(CanonError::new(
             "E_CANON_UNTERM_STRING",
             "문자열이 끝나지 않았습니다.",
+        ))
+    }
+
+    fn lex_text_escape(&mut self) -> Result<String, CanonError> {
+        if self.peek().is_none() {
+            return Err(CanonError::new(
+                "E_CANON_UNTERM_STRING",
+                "문자열이 끝나지 않았습니다.",
+            ));
+        }
+        for (surface, value) in [
+            ("줄", "\n"),
+            ("칸", "\t"),
+            ("앞", "\r"),
+            ("따옴", "\""),
+            ("역빗금", "\\"),
+        ] {
+            if self.match_str(surface) {
+                self.advance_n(surface.chars().count());
+                return Ok(value.to_string());
+            }
+        }
+        for surface in ["반전끝", "굵게끝", "반전", "굵게", "되돌림"] {
+            if self.match_str(surface) {
+                self.advance_n(surface.chars().count());
+                return Ok(format!("\\{}", surface));
+            }
+        }
+        for surface in ["색", "배경"] {
+            if self.match_str(surface) {
+                let saved = self.pos;
+                self.advance_n(surface.chars().count());
+                if self.peek() == Some('{') {
+                    let body = self.lex_rich_markup_body()?;
+                    return Ok(format!("\\{}{{{}}}", surface, body));
+                }
+                self.pos = saved;
+            }
+        }
+        let escaped = match self.peek() {
+            Some('"') => "\"",
+            Some('\\') => "\\",
+            Some('n') => "\n",
+            Some('r') => "\r",
+            Some('t') => "\t",
+            Some(other) => {
+                return Err(CanonError::new(
+                    "E_CANON_BAD_ESCAPE",
+                    format!("알 수 없는 이스케이프: {}", other),
+                ))
+            }
+            None => {
+                return Err(CanonError::new(
+                    "E_CANON_UNTERM_STRING",
+                    "문자열이 끝나지 않았습니다.",
+                ))
+            }
+        };
+        self.bump();
+        Ok(escaped.to_string())
+    }
+
+    fn lex_rich_markup_body(&mut self) -> Result<String, CanonError> {
+        if self.peek() != Some('{') {
+            return Err(CanonError::new(
+                "E_CANON_BAD_ESCAPE",
+                "콘솔 표지는 {...} 본문이 필요합니다.",
+            ));
+        }
+        self.bump();
+        let mut body = String::new();
+        while let Some(ch) = self.peek() {
+            if ch == '}' {
+                self.bump();
+                return Ok(body);
+            }
+            if ch == '\r' || ch == '\n' {
+                return Err(CanonError::new(
+                    "E_CANON_BAD_ESCAPE",
+                    "콘솔 표지 본문이 닫히지 않았습니다.",
+                ));
+            }
+            body.push(ch);
+            self.bump();
+        }
+        Err(CanonError::new(
+            "E_CANON_BAD_ESCAPE",
+            "콘솔 표지 본문이 닫히지 않았습니다.",
         ))
     }
 
@@ -752,6 +827,24 @@ impl<'a> Lexer<'a> {
 
     fn peek_n(&self, offset: usize) -> Option<char> {
         self.chars.get(self.pos + offset).copied()
+    }
+
+    fn match_str(&self, token: &str) -> bool {
+        for (idx, ch) in token.chars().enumerate() {
+            if self.peek_n(idx) != Some(ch) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn advance_n(&mut self, count: usize) {
+        for _ in 0..count {
+            if self.is_eof() {
+                break;
+            }
+            self.bump();
+        }
     }
 
     fn is_eof(&self) -> bool {
@@ -832,6 +925,9 @@ enum SurfaceStmt {
     Inspect {
         value: Expr,
     },
+    Boim {
+        entries: Vec<Binding>,
+    },
     BogaeMadangBlock {
         body: String,
     },
@@ -853,7 +949,8 @@ enum SurfaceStmt {
     },
     Choose {
         branches: Vec<SurfaceChooseBranch>,
-        else_body: Vec<SurfaceStmt>,
+        else_body: Option<Vec<SurfaceStmt>>,
+        exhaustive: bool,
     },
     PromptChoose {
         branches: Vec<SurfaceChooseBranch>,
@@ -915,6 +1012,7 @@ enum SurfaceStmt {
         value: Expr,
     },
     Break,
+    ContinueLoop,
 }
 
 #[derive(Debug, Clone)]
@@ -938,6 +1036,9 @@ enum Stmt {
     Inspect {
         value: Expr,
     },
+    Boim {
+        entries: Vec<Binding>,
+    },
     BogaeMadangBlock {
         body: String,
     },
@@ -959,7 +1060,8 @@ enum Stmt {
     },
     Choose {
         branches: Vec<ChooseBranch>,
-        else_body: Vec<Stmt>,
+        else_body: Option<Vec<Stmt>>,
+        exhaustive: bool,
     },
     PromptChoose {
         branches: Vec<ChooseBranch>,
@@ -1021,6 +1123,7 @@ enum Stmt {
         value: Expr,
     },
     Break,
+    ContinueLoop,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1088,6 +1191,9 @@ enum Expr {
         param: String,
         body: Box<Expr>,
     },
+    Grouped {
+        expr: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -1154,6 +1260,7 @@ enum BinaryOp {
     Mod,
     And,
     Or,
+    RelationEq,
     Eq,
     NotEq,
     Lt,
@@ -1188,6 +1295,7 @@ struct Parser {
     bridge: bool,
     deprecated_block_header_colon_count: usize,
     seed_kind_stack: Vec<String>,
+    chaebi_forbidden_depth: usize,
 }
 
 impl Parser {
@@ -1198,6 +1306,7 @@ impl Parser {
             bridge,
             deprecated_block_header_colon_count: 0,
             seed_kind_stack: Vec::new(),
+            chaebi_forbidden_depth: 0,
         }
     }
 
@@ -1257,7 +1366,7 @@ impl Parser {
         if self.peek_is_ident_colon() {
             let name = self.expect_ident()?;
             self.expect(TokenKind::Colon)?;
-            let type_name = self.expect_ident()?;
+            let type_name = self.parse_decl_type_name()?;
             self.expect(TokenKind::Equals)?;
             let value = self.parse_expr()?;
             self.consume_terminator()?;
@@ -1281,6 +1390,11 @@ impl Parser {
             self.consume_terminator()?;
             return Ok(SurfaceStmt::Break);
         }
+        if self.peek_is(|k| matches!(k, TokenKind::ContinueLoop)) {
+            self.advance();
+            self.consume_terminator()?;
+            return Ok(SurfaceStmt::ContinueLoop);
+        }
 
         if self.peek_is(|k| matches!(k, TokenKind::Goreugi)) {
             return self.parse_choose_stmt();
@@ -1292,6 +1406,10 @@ impl Parser {
 
         if self.is_foreach_start() {
             return self.parse_foreach_stmt();
+        }
+
+        if self.is_boim_block_start() {
+            return self.parse_boim_block_stmt();
         }
 
         if self.peek_is(|k| {
@@ -1314,6 +1432,10 @@ impl Parser {
             self.advance();
             self.consume_terminator()?;
             return Ok(SurfaceStmt::BogaeDraw);
+        }
+
+        if self.peek_is(|k| matches!(k, TokenKind::Manyak)) {
+            return self.parse_manyak_if_stmt();
         }
 
         if self.peek_is(|k| matches!(k, TokenKind::LBrace)) {
@@ -1699,6 +1821,12 @@ impl Parser {
             ));
         }
         self.consume_optional_block_header_colon();
+        if self.chaebi_forbidden_depth > 0 {
+            return Err(CanonError::new(
+                "E_CHAEBI_IN_LOOP",
+                "`채비 {}`는 루프/훅/순회 body 안에서 사용할 수 없습니다.",
+            ));
+        }
         self.expect(TokenKind::LBrace)?;
 
         let mut items = Vec::new();
@@ -1747,6 +1875,17 @@ impl Parser {
         self.expect(TokenKind::RBrace)?;
         self.consume_terminator()?;
         Ok(SurfaceStmt::RootDecl { items })
+    }
+
+    fn parse_decl_type_name(&mut self) -> Result<String, CanonError> {
+        if self.peek_is(|k| matches!(k, TokenKind::LParen)) {
+            self.advance();
+            let inner = self.expect_ident()?;
+            self.expect(TokenKind::RParen)?;
+            let outer = self.expect_ident()?;
+            return Ok(format!("({inner}) {outer}"));
+        }
+        self.expect_ident()
     }
 
     fn parse_decl_item_value_and_maegim(
@@ -1826,10 +1965,7 @@ impl Parser {
                 if !Self::is_supported_maegim_nested_section(&name) {
                     return Err(CanonError::new(
                         "E_CANON_MAEGIM_NESTED_SECTION_UNSUPPORTED",
-                        format!(
-                            "`매김` 중첩 섹션은 `가늠`/`갈래`만 허용됩니다: {}",
-                            name
-                        ),
+                        format!("`매김` 중첩 섹션은 `가늠`/`갈래`만 허용됩니다: {}", name),
                     ));
                 }
                 self.expect(TokenKind::LBrace)?;
@@ -1995,12 +2131,16 @@ impl Parser {
                 TokenKind::Number(value) => value,
                 _ => unreachable!("number branch must consume number token"),
             };
-            let interval = raw.parse::<u64>().ok().filter(|value| *value > 0).ok_or_else(|| {
-                CanonError::new(
-                    "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
-                    "(N마디)마다에서 N은 양의 정수여야 합니다.",
-                )
-            })?;
+            let interval = raw
+                .parse::<u64>()
+                .ok()
+                .filter(|value| *value > 0)
+                .ok_or_else(|| {
+                    CanonError::new(
+                        "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID",
+                        "(N마디)마다에서 N은 양의 정수여야 합니다.",
+                    )
+                })?;
             let unit = match self.advance().kind {
                 TokenKind::Ident(text) => text,
                 other => {
@@ -2052,7 +2192,7 @@ impl Parser {
                 "훅 블록 헤더의 `:` 표기는 허용되지 않습니다. `(시작)할때 { ... }`처럼 사용하세요.",
             ));
         }
-        let body = self.parse_block()?;
+        let body = self.parse_block_with_chaebi_restriction()?;
         self.consume_optional_terminator();
         Ok(SurfaceStmt::Hook { name, suffix, body })
     }
@@ -2275,7 +2415,7 @@ impl Parser {
     fn parse_repeat_stmt(&mut self) -> Result<SurfaceStmt, CanonError> {
         self.advance();
         self.consume_optional_block_header_colon();
-        let body = self.parse_block()?;
+        let body = self.parse_block_with_chaebi_restriction()?;
         self.consume_optional_terminator();
         Ok(SurfaceStmt::Repeat { body })
     }
@@ -2283,7 +2423,7 @@ impl Parser {
     fn parse_while_stmt(&mut self, condition: Condition) -> Result<SurfaceStmt, CanonError> {
         self.advance();
         self.consume_optional_block_header_colon();
-        let body = self.parse_block()?;
+        let body = self.parse_block_with_chaebi_restriction()?;
         self.consume_optional_terminator();
         Ok(SurfaceStmt::While { condition, body })
     }
@@ -2384,7 +2524,7 @@ impl Parser {
             }
             self.consume_optional_block_header_colon();
         }
-        let body = self.parse_block()?;
+        let body = self.parse_block_with_chaebi_restriction()?;
         self.consume_optional_terminator();
         Ok(SurfaceStmt::ForEach {
             item,
@@ -2483,6 +2623,7 @@ impl Parser {
         let mut expr = self.parse_range()?;
         loop {
             let op = match self.peek_kind() {
+                TokenKind::RelationEq => Some(BinaryOp::RelationEq),
                 TokenKind::EqEq => Some(BinaryOp::Eq),
                 TokenKind::NotEq => Some(BinaryOp::NotEq),
                 TokenKind::Lt => Some(BinaryOp::Lt),
@@ -2700,8 +2841,12 @@ impl Parser {
 
         if self.peek_is(|k| matches!(k, TokenKind::LBrace)) {
             self.advance();
-            let param = self.expect_ident()?;
-            self.expect(TokenKind::Pipe)?;
+            let Some(param) = self.try_parse_seed_literal_params()? else {
+                return Err(CanonError::new(
+                    "E_CANON_EXPECTED_SEED_PARAM",
+                    "씨앗 인자가 필요합니다.",
+                ));
+            };
             let body = self.parse_expr()?;
             self.expect(TokenKind::RBrace)?;
             return Ok(Expr::SeedLiteral {
@@ -2820,6 +2965,45 @@ impl Parser {
                 "표현식이 필요합니다.",
             )),
         }
+    }
+
+    fn try_parse_seed_literal_params(&mut self) -> Result<Option<String>, CanonError> {
+        if self.peek_is(|k| matches!(k, TokenKind::Ident(_)))
+            && self.peek_n_is(1, |k| matches!(k, TokenKind::Pipe))
+        {
+            let param = self.expect_ident()?;
+            self.expect(TokenKind::Pipe)?;
+            return Ok(Some(param));
+        }
+        if !self.peek_is(|k| matches!(k, TokenKind::LParen)) {
+            return Ok(None);
+        }
+        let checkpoint = self.pos;
+        self.advance();
+        let mut params = Vec::new();
+        loop {
+            if !self.peek_is(|k| matches!(k, TokenKind::Ident(_))) {
+                self.pos = checkpoint;
+                return Ok(None);
+            }
+            params.push(self.expect_ident()?);
+            if self.peek_is(|k| matches!(k, TokenKind::Comma)) {
+                self.advance();
+                continue;
+            }
+            break;
+        }
+        if !self.peek_is(|k| matches!(k, TokenKind::RParen)) {
+            self.pos = checkpoint;
+            return Ok(None);
+        }
+        self.advance();
+        if !self.peek_is(|k| matches!(k, TokenKind::Pipe)) {
+            self.pos = checkpoint;
+            return Ok(None);
+        }
+        self.advance();
+        Ok(Some(params.join(", ")))
     }
 
     fn parse_bindings(&mut self) -> Result<Vec<Binding>, CanonError> {
@@ -2957,10 +3141,23 @@ impl Parser {
         }
     }
 
-    fn parse_if_stmt(&mut self, condition: Condition) -> Result<SurfaceStmt, CanonError> {
-        self.expect(TokenKind::Ilttae)?;
+    fn parse_manyak_if_stmt(&mut self) -> Result<SurfaceStmt, CanonError> {
+        self.expect(TokenKind::Manyak)?;
+        let condition = self.parse_condition_expr(false)?;
+        self.expect(TokenKind::Iramyeon)?;
+        self.parse_if_stmt_from_condition(condition)
+    }
+
+    fn parse_if_stmt_from_condition(
+        &mut self,
+        condition: Condition,
+    ) -> Result<SurfaceStmt, CanonError> {
         let then_body = self.parse_block()?;
-        self.skip_newlines();
+        if let Some(lookahead) = self.find_if_else_lookahead() {
+            self.pos = lookahead;
+        } else {
+            self.skip_newlines();
+        }
         if self.peek_is(|k| matches!(k, TokenKind::Anigo)) {
             self.advance();
             self.skip_newlines();
@@ -2985,6 +3182,46 @@ impl Parser {
             then_body,
             else_body,
         })
+    }
+
+    fn find_if_else_lookahead(&self) -> Option<usize> {
+        let mut lookahead = self.pos;
+        while self
+            .tokens
+            .get(lookahead)
+            .map(|token| matches!(token.kind, TokenKind::Newline))
+            .unwrap_or(false)
+        {
+            lookahead += 1;
+        }
+        if matches!(
+            self.tokens.get(lookahead).map(|token| &token.kind),
+            Some(TokenKind::Dot)
+        ) {
+            lookahead += 1;
+            while self
+                .tokens
+                .get(lookahead)
+                .map(|token| matches!(token.kind, TokenKind::Newline))
+                .unwrap_or(false)
+            {
+                lookahead += 1;
+            }
+        }
+        if self
+            .tokens
+            .get(lookahead)
+            .map(|token| matches!(token.kind, TokenKind::Anigo | TokenKind::Aniramyeon))
+            .unwrap_or(false)
+        {
+            return Some(lookahead);
+        }
+        None
+    }
+
+    fn parse_if_stmt(&mut self, condition: Condition) -> Result<SurfaceStmt, CanonError> {
+        self.expect(TokenKind::Ilttae)?;
+        self.parse_if_stmt_from_condition(condition)
     }
 
     fn parse_contract_stmt(&mut self, condition: Condition) -> Result<SurfaceStmt, CanonError> {
@@ -3027,6 +3264,7 @@ impl Parser {
         self.expect(TokenKind::Colon)?;
         let mut branches = Vec::new();
         let mut else_body: Option<Vec<SurfaceStmt>> = None;
+        let mut exhaustive = false;
 
         loop {
             self.skip_newlines();
@@ -3036,25 +3274,98 @@ impl Parser {
                 else_body = Some(self.parse_block()?);
                 break;
             }
+            if self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "그밖의"))
+                && self.peek_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "경우"))
+            {
+                self.advance();
+                self.advance();
+                else_body = Some(self.parse_block()?);
+                break;
+            }
+            if self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "모든"))
+                && self.peek_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "경우"))
+                && self.peek_n_is(2, |k| matches!(k, TokenKind::Ident(name) if name == "다룸"))
+            {
+                self.advance();
+                self.advance();
+                self.advance();
+                exhaustive = true;
+                break;
+            }
             if self.peek_is(|k| matches!(k, TokenKind::Eof)) {
                 break;
             }
-            let condition = self.parse_condition_expr(true)?;
-            self.expect(TokenKind::Colon)?;
+            let condition = self.parse_choose_branch_condition()?;
+            if self.peek_is(|k| matches!(k, TokenKind::Colon)) {
+                self.advance();
+            } else if self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "인"))
+                && self.peek_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "경우"))
+            {
+                self.advance();
+                self.advance();
+            } else {
+                self.expect(TokenKind::Colon)?;
+            }
             let body = self.parse_block()?;
             branches.push(SurfaceChooseBranch { condition, body });
         }
 
-        let Some(else_body) = else_body else {
+        if else_body.is_none() && !exhaustive {
             return Err(CanonError::new(
                 "E_CANON_CHOOSE_NEEDS_ELSE",
-                "고르기에는 아니면 절이 필요합니다.",
+                "고르기에는 아니면/그밖의 경우 절 또는 모든 경우 다룸. 표지가 필요합니다.",
             ));
-        };
+        }
         self.consume_optional_terminator();
         Ok(SurfaceStmt::Choose {
             branches,
             else_body,
+            exhaustive,
+        })
+    }
+
+    fn parse_choose_branch_condition(&mut self) -> Result<Condition, CanonError> {
+        if !self.peek_is(|k| matches!(k, TokenKind::LBrace)) {
+            let expr = self.parse_expr()?;
+            return Ok(Condition {
+                expr,
+                style: ConditionStyle::Plain,
+                negated: false,
+            });
+        }
+        self.expect(TokenKind::LBrace)?;
+        self.skip_newlines();
+        let expr = self.parse_expr()?;
+        if self.peek_is(|k| matches!(k, TokenKind::Dot)) {
+            self.advance();
+        }
+        self.skip_newlines();
+        self.expect(TokenKind::RBrace)?;
+        self.skip_newlines();
+        if self.peek_is(|k| matches!(k, TokenKind::Ident(name) if name == "인"))
+            && self.peek_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "경우"))
+        {
+            return Ok(Condition {
+                expr,
+                style: ConditionStyle::Plain,
+                negated: false,
+            });
+        }
+        let name = self.expect_ident()?;
+        let negated = match name.as_str() {
+            "인것" => false,
+            "아닌것" => true,
+            _ => {
+                return Err(CanonError::new(
+                    "E_CANON_EXPECTED_THUNK_SUFFIX",
+                    "조건은 { ... }인것/아닌것 또는 { ... } 인 경우 형태여야 합니다.",
+                ))
+            }
+        };
+        Ok(Condition {
+            expr,
+            style: ConditionStyle::Thunk,
+            negated,
         })
     }
 
@@ -3173,6 +3484,13 @@ impl Parser {
         }
         self.expect(TokenKind::RBrace)?;
         Ok(stmts)
+    }
+
+    fn parse_block_with_chaebi_restriction(&mut self) -> Result<Vec<SurfaceStmt>, CanonError> {
+        self.chaebi_forbidden_depth += 1;
+        let body = self.parse_block();
+        self.chaebi_forbidden_depth = self.chaebi_forbidden_depth.saturating_sub(1);
+        body
     }
 
     fn parse_condition_expr(&mut self, require_thunk: bool) -> Result<Condition, CanonError> {
@@ -3386,14 +3704,52 @@ impl Parser {
             )
     }
 
+    fn is_boim_block_start(&self) -> bool {
+        matches!(self.peek_kind(), TokenKind::Ident(ref name) if name == "보임")
+            && (self.peek_n_is(1, |k| matches!(k, TokenKind::LBrace))
+                || (self.peek_n_is(1, |k| matches!(k, TokenKind::Colon))
+                    && self.peek_n_is(2, |k| matches!(k, TokenKind::LBrace))))
+    }
+
+    fn parse_boim_block_stmt(&mut self) -> Result<SurfaceStmt, CanonError> {
+        self.advance();
+        if self.peek_is(|k| matches!(k, TokenKind::Colon)) {
+            self.advance();
+        }
+        self.expect(TokenKind::LBrace)?;
+        self.skip_newlines();
+        let mut entries = Vec::new();
+        while !self.peek_is(|k| matches!(k, TokenKind::RBrace)) {
+            if self.peek_is(|k| matches!(k, TokenKind::Eof)) {
+                return Err(CanonError::new(
+                    "E_CANON_EXPECTED_RBRACE",
+                    "보임 블록 끝에 `}`가 필요합니다.",
+                ));
+            }
+            let name = self.expect_ident()?;
+            self.expect(TokenKind::Colon)?;
+            let value = self.parse_expr()?;
+            if !self.peek_is(|k| matches!(k, TokenKind::Dot)) {
+                return Err(CanonError::new(
+                    "E_CANON_EXPECTED_TERMINATOR",
+                    "보임 항목 끝에 마침표가 필요합니다.",
+                ));
+            }
+            self.advance();
+            self.skip_newlines();
+            entries.push(Binding { name, value });
+        }
+        self.expect(TokenKind::RBrace)?;
+        self.consume_optional_terminator();
+        Ok(SurfaceStmt::Boim { entries })
+    }
+
     fn parse_bogae_madang_block_stmt(&mut self) -> Result<SurfaceStmt, CanonError> {
         let token = self.advance();
         let body = match token.kind {
             TokenKind::BogaeMadangBlock(body) => body,
             TokenKind::BogaeJangmyeonBlock(body) => body,
-            _ => {
-                return Err(self.unexpected_token_error("보개마당/보개장면 블록 파싱 실패"))
-            }
+            _ => return Err(self.unexpected_token_error("보개마당/보개장면 블록 파싱 실패")),
         };
         self.consume_optional_terminator();
         Ok(SurfaceStmt::BogaeMadangBlock { body })
@@ -3404,9 +3760,7 @@ impl Parser {
         let body = match token.kind {
             TokenKind::JjaimBlock(body) => body,
             TokenKind::GuseongBlock(body) => body,
-            _ => {
-                return Err(self.unexpected_token_error("짜임/구성 블록 파싱 실패"))
-            }
+            _ => return Err(self.unexpected_token_error("짜임/구성 블록 파싱 실패")),
         };
         validate_jjaim_block_body(&body)?;
         self.consume_optional_terminator();
@@ -3417,9 +3771,7 @@ impl Parser {
         let token = self.advance();
         let body = match token.kind {
             TokenKind::ExecPolicyBlock(body) => body,
-            _ => {
-                return Err(self.unexpected_token_error("너머 블록 파싱 실패"))
-            }
+            _ => return Err(self.unexpected_token_error("너머 블록 파싱 실패")),
         };
         self.consume_optional_terminator();
         Ok(SurfaceStmt::ExecPolicyBlock { body })
@@ -3649,6 +4001,26 @@ pub fn canonicalize(input: &str, bridge: bool) -> Result<CanonOutput, CanonError
     canonicalize_with_fallback_mode(input, bridge, true)
 }
 
+pub fn lower_single_imja_event_subset(input: &str) -> Result<Option<String>, CanonError> {
+    let prepared = preprocess_frontdoor_source(input);
+    if ddonirang_lang::find_legacy_header(&prepared).is_some()
+        || ddonirang_lang::has_legacy_boim_surface(&prepared)
+    {
+        return Ok(None);
+    }
+    let meta_parse = split_file_meta(&prepared);
+    let root_hide = has_root_hide_directive(&prepared);
+    let tokens = Lexer::tokenize(&meta_parse.stripped)?;
+    let mut parser = Parser::new(tokens, false);
+    let surface = match parser.parse_program() {
+        Ok(surface) => surface,
+        Err(_) => return Ok(None),
+    };
+    let declared = collect_declared_names(&surface);
+    let canonical = surface_to_canonical(surface, &declared, false, "바탕", root_hide)?;
+    Ok(lower_single_imja_event_subset_program(&canonical))
+}
+
 fn canonicalize_with_fallback_mode(
     input: &str,
     bridge: bool,
@@ -3661,13 +4033,8 @@ fn canonicalize_with_fallback_mode(
             format!("line={line} key={key} use=설정{{}}/매김{{}}/설정.보개"),
         ));
     }
-    if ddonirang_lang::has_legacy_boim_surface(&prepared) {
-        return Err(CanonError::new(
-            "E_CANON_LEGACY_BOIM_FORBIDDEN",
-            "legacy `보임 {}` 표면은 금지되었습니다. `설정.보개`/정본 보개 표면으로 전환하세요.",
-        ));
-    }
     let meta_parse = split_file_meta(&prepared);
+    validate_decl_item_maegim_contract(&meta_parse.stripped)?;
     let root_hide = has_root_hide_directive(&prepared);
     let normalized_frontdoor = ddonirang_lang::parse_frontdoor_and_normalize(
         &meta_parse.stripped,
@@ -3675,9 +4042,10 @@ fn canonicalize_with_fallback_mode(
         ddonirang_lang::NormalizationLevel::N1,
     )
     .ok();
-    let parse_source = normalized_frontdoor
-        .as_deref()
-        .unwrap_or(&meta_parse.stripped);
+    // Parse the current-line source first. Frontdoor normalization intentionally
+    // strips some compatibility-only suffixes (notably decl-item `매김 {}`),
+    // so using it as the primary parse input loses control metadata.
+    let parse_source = &meta_parse.stripped;
     let default_root = "바탕";
     let tokens = Lexer::tokenize(parse_source)?;
     let legacy_guseong_alias_seen = tokens
@@ -3690,6 +4058,12 @@ fn canonicalize_with_fallback_mode(
     let surface = match parser.parse_program() {
         Ok(surface) => surface,
         Err(primary_err) => {
+            if matches!(
+                primary_err.code(),
+                "E_CHAEBI_IN_LOOP" | "E_CANON_RECEIVE_OUTSIDE_IMJA" | "E_EVENT_SURFACE_ALIAS_FORBIDDEN"
+            ) {
+                return Err(primary_err);
+            }
             if !allow_frontdoor_fallback {
                 return Err(primary_err);
             }
@@ -3718,7 +4092,8 @@ fn canonicalize_with_fallback_mode(
 
             let fallback_source = normalized.as_deref().unwrap_or(&meta_parse.stripped);
             let fallback_plans = build_frontdoor_fallback_plans(fallback_source)?;
-            let ddn_body = normalized.unwrap_or_else(|| preprocess_frontdoor_source(&meta_parse.stripped));
+            let ddn_body =
+                normalized.unwrap_or_else(|| preprocess_frontdoor_source(&meta_parse.stripped));
             let mut ddn = String::new();
             ddn.push_str(&format_file_meta(&meta_parse.meta));
             ddn.push_str(ddn_body.trim_end());
@@ -3744,368 +4119,11 @@ fn canonicalize_with_fallback_mode(
     let flatten_plan = build_guseong_flatten_plan_surface(&surface)?;
     let guseong_flat_json = flatten_plan.to_json_string()?;
 
-    let mut declared = HashSet::new();
-    for stmt in &surface {
-        match stmt {
-            SurfaceStmt::Decl { name, .. } => {
-                declared.insert(name.clone());
-            }
-            SurfaceStmt::RootDecl { items, .. } => {
-                for item in items {
-                    if item.kind == DeclKind::Gureut {
-                        declared.insert(item.name.clone());
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
+    let declared = collect_declared_names(&surface);
 
     let mut warnings = Vec::new();
-    let mut canonical = Vec::new();
-    for stmt in surface {
-        match stmt {
-            SurfaceStmt::RootDecl { items } => {
-                let items = items
-                    .into_iter()
-                    .map(|item| DeclItem {
-                        name: item.name,
-                        kind: item.kind,
-                        type_name: item.type_name,
-                        value: item.value.map(|expr| {
-                            canonicalize_expr(expr, &declared, bridge, default_root, root_hide)
-                        }),
-                        maegim: item.maegim.map(|spec| MaegimSpec {
-                            fields: spec
-                                .fields
-                                .into_iter()
-                                .map(|binding| Binding {
-                                    name: binding.name,
-                                    value: canonicalize_expr(
-                                        binding.value,
-                                        &declared,
-                                        bridge,
-                                        default_root,
-                                        root_hide,
-                                    ),
-                                })
-                                .collect(),
-                        }),
-                    })
-                    .collect();
-                canonical.push(Stmt::RootDecl { items });
-            }
-            SurfaceStmt::Decl {
-                name,
-                type_name,
-                value,
-            } => {
-                if !is_bridge_alias_type_name(&type_name) {
-                    return Err(CanonError::new(
-                        "E_CANON_BAD_ALIAS",
-                        format!("알 수 없는 별칭입니다: {}", type_name),
-                    ));
-                }
-                let target = Path {
-                    segments: vec![default_root.to_string(), name],
-                };
-                let value = canonicalize_expr(value, &declared, bridge, default_root, root_hide);
-                canonical.push(Stmt::Assign { target, value });
-            }
-            SurfaceStmt::Assign { target, value } => {
-                if root_hide
-                    && !matches!(
-                        target.segments.first().map(|seg| seg.as_str()),
-                        Some("살림" | "바탕" | "샘")
-                    )
-                {
-                    if let Some(name) = target.segments.first() {
-                        if !declared.contains(name) {
-                            return Err(CanonError::new(
-                                "E_CANON_ROOT_HIDE_UNDECLARED",
-                                format!("바탕숨김에서 미등록 바탕칸 쓰기: {}", name),
-                            ));
-                        }
-                    }
-                }
-                let target = canonicalize_path(target, &declared, bridge, default_root, root_hide);
-                let value = canonicalize_expr(value, &declared, bridge, default_root, root_hide);
-                canonical.push(Stmt::Assign { target, value });
-            }
-            SurfaceStmt::SeedDef {
-                name,
-                kind,
-                params,
-                body,
-            } => {
-                let params = params
-                    .into_iter()
-                    .map(|param| Param {
-                        name: param.name,
-                        type_name: param.type_name,
-                        default: param.default.map(|expr| {
-                            canonicalize_expr(expr, &declared, bridge, default_root, root_hide)
-                        }),
-                    })
-                    .collect();
-                let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::SeedDef {
-                    name,
-                    kind,
-                    params,
-                    body,
-                });
-            }
-            SurfaceStmt::Send {
-                sender,
-                payload,
-                receiver,
-            } => {
-                canonical.push(Stmt::Send {
-                    sender: sender.map(|expr| {
-                        canonicalize_expr(expr, &declared, bridge, default_root, root_hide)
-                    }),
-                    payload: canonicalize_expr(payload, &declared, bridge, default_root, root_hide),
-                    receiver: canonicalize_expr(
-                        receiver,
-                        &declared,
-                        bridge,
-                        default_root,
-                        root_hide,
-                    ),
-                });
-            }
-            SurfaceStmt::Show { value } => {
-                let value = canonicalize_expr(value, &declared, bridge, default_root, root_hide);
-                canonical.push(Stmt::Show { value });
-            }
-            SurfaceStmt::Inspect { value } => {
-                let value = canonicalize_expr(value, &declared, bridge, default_root, root_hide);
-                canonical.push(Stmt::Inspect { value });
-            }
-            SurfaceStmt::BogaeMadangBlock { body, .. } => {
-                canonical.push(Stmt::BogaeMadangBlock { body });
-            }
-            SurfaceStmt::JjaimBlock { body, .. } => {
-                canonical.push(Stmt::JjaimBlock { body });
-            }
-            SurfaceStmt::BogaeDraw => {
-                canonical.push(Stmt::BogaeDraw);
-            }
-            SurfaceStmt::If {
-                condition,
-                then_body,
-                else_body,
-            } => {
-                let condition =
-                    canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
-                let then_body =
-                    canonicalize_body(then_body, &declared, bridge, default_root, root_hide)?;
-                let else_body = match else_body {
-                    Some(body) => Some(canonicalize_body(
-                        body,
-                        &declared,
-                        bridge,
-                        default_root,
-                        root_hide,
-                    )?),
-                    None => None,
-                };
-                canonical.push(Stmt::If {
-                    condition,
-                    then_body,
-                    else_body,
-                });
-            }
-            SurfaceStmt::Contract {
-                kind,
-                mode,
-                condition,
-                then_body,
-                else_body,
-            } => {
-                let condition =
-                    canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
-                let else_body =
-                    canonicalize_body(else_body, &declared, bridge, default_root, root_hide)?;
-                let then_body = match then_body {
-                    Some(body) => Some(canonicalize_body(
-                        body,
-                        &declared,
-                        bridge,
-                        default_root,
-                        root_hide,
-                    )?),
-                    None => None,
-                };
-                canonical.push(Stmt::Contract {
-                    kind,
-                    mode,
-                    condition,
-                    then_body,
-                    else_body,
-                });
-            }
-            SurfaceStmt::Repeat { body } => {
-                let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::Repeat { body });
-            }
-            SurfaceStmt::While { condition, body } => {
-                let condition =
-                    canonicalize_condition(condition, &declared, bridge, default_root, root_hide);
-                let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::While { condition, body });
-            }
-            SurfaceStmt::ForEach {
-                item,
-                iterable,
-                body,
-            } => {
-                let iterable =
-                    canonicalize_expr(iterable, &declared, bridge, default_root, root_hide);
-                let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::ForEach {
-                    item,
-                    iterable,
-                    body,
-                });
-            }
-            SurfaceStmt::Hook { name, suffix, body } => {
-                let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::Hook { name, suffix, body });
-            }
-            SurfaceStmt::Receive {
-                kind,
-                binding,
-                condition,
-                body,
-            } => {
-                canonical.push(Stmt::Receive {
-                    kind,
-                    binding,
-                    condition: condition.map(|expr| {
-                        canonicalize_expr(expr, &declared, bridge, default_root, root_hide)
-                    }),
-                    body: canonicalize_body(body, &declared, bridge, default_root, root_hide)?,
-                });
-            }
-            SurfaceStmt::EventReact { kind, body } => {
-                canonical.push(Stmt::EventReact {
-                    kind,
-                    body: canonicalize_body(body, &declared, bridge, default_root, root_hide)?,
-                });
-            }
-            SurfaceStmt::OpenBlock { body } => {
-                let body = canonicalize_body(body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::OpenBlock { body });
-            }
-            SurfaceStmt::Return { value } => {
-                let value = canonicalize_expr(value, &declared, bridge, default_root, root_hide);
-                canonical.push(Stmt::Return { value });
-            }
-            SurfaceStmt::Expr { value } => {
-                let value = canonicalize_expr(value, &declared, bridge, default_root, root_hide);
-                canonical.push(Stmt::Expr { value });
-            }
-            SurfaceStmt::Break => {
-                canonical.push(Stmt::Break);
-            }
-            SurfaceStmt::PromptChoose {
-                branches,
-                else_body,
-            } => {
-                let mut mapped = Vec::new();
-                for branch in branches {
-                    mapped.push(ChooseBranch {
-                        condition: canonicalize_condition(
-                            branch.condition,
-                            &declared,
-                            bridge,
-                            default_root,
-                            root_hide,
-                        ),
-                        body: canonicalize_body(
-                            branch.body,
-                            &declared,
-                            bridge,
-                            default_root,
-                            root_hide,
-                        )?,
-                    });
-                }
-                let else_body = match else_body {
-                    Some(body) => Some(canonicalize_body(
-                        body,
-                        &declared,
-                        bridge,
-                        default_root,
-                        root_hide,
-                    )?),
-                    None => None,
-                };
-                canonical.push(Stmt::PromptChoose {
-                    branches: mapped,
-                    else_body,
-                });
-            }
-            SurfaceStmt::PromptAfter { value, body } => {
-                canonical.push(Stmt::PromptAfter {
-                    value: canonicalize_expr(value, &declared, bridge, default_root, root_hide),
-                    body: canonicalize_body(body, &declared, bridge, default_root, root_hide)?,
-                });
-            }
-            SurfaceStmt::PromptCondition { condition, body } => {
-                canonical.push(Stmt::PromptCondition {
-                    condition: canonicalize_condition(
-                        condition,
-                        &declared,
-                        bridge,
-                        default_root,
-                        root_hide,
-                    ),
-                    body: canonicalize_body(body, &declared, bridge, default_root, root_hide)?,
-                });
-            }
-            SurfaceStmt::PromptBlock { body } => {
-                canonical.push(Stmt::PromptBlock {
-                    body: canonicalize_body(body, &declared, bridge, default_root, root_hide)?,
-                });
-            }
-            SurfaceStmt::ExecPolicyBlock { body } => {
-                canonical.push(Stmt::ExecPolicyBlock { body });
-            }
-            SurfaceStmt::Choose {
-                branches,
-                else_body,
-            } => {
-                let mut mapped = Vec::new();
-                for branch in branches {
-                    mapped.push(ChooseBranch {
-                        condition: canonicalize_condition(
-                            branch.condition,
-                            &declared,
-                            bridge,
-                            default_root,
-                            root_hide,
-                        ),
-                        body: canonicalize_body(
-                            branch.body,
-                            &declared,
-                            bridge,
-                            default_root,
-                            root_hide,
-                        )?,
-                    });
-                }
-                let else_body =
-                    canonicalize_body(else_body, &declared, bridge, default_root, root_hide)?;
-                canonical.push(Stmt::Choose {
-                    branches: mapped,
-                    else_body,
-                });
-            }
-        }
-    }
+    collect_top_level_chaebi_reassign_warnings(&surface, &mut warnings);
+    let canonical = surface_to_canonical(surface, &declared, bridge, default_root, root_hide)?;
 
     let ddn = format_program(&canonical);
     let alrim_plan_json = build_alrim_event_plan(&canonical).to_json_string()?;
@@ -4146,6 +4164,1631 @@ fn canonicalize_with_fallback_mode(
         meta: meta_parse.meta,
         warnings,
     })
+}
+
+fn validate_decl_item_maegim_contract(source: &str) -> Result<(), CanonError> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let line = lines[idx].trim();
+        if !line.contains("매김 {") && !line.contains("조건 {") {
+            idx += 1;
+            continue;
+        }
+        let Some(keyword_idx) = line.find("매김 {").or_else(|| line.find("조건 {")) else {
+            idx += 1;
+            continue;
+        };
+        let before_keyword = line[..keyword_idx].trim_end();
+        if !(before_keyword.ends_with(')')) {
+            return Err(CanonError::new(
+                "E_CANON_MAEGIM_GROUPED_VALUE_REQUIRED",
+                "매김은 `(<식>) 매김 { ... }` 형태만 허용됩니다.",
+            ));
+        }
+
+        let mut has_step = false;
+        let mut has_split_count = false;
+        idx += 1;
+        while idx < lines.len() {
+            let inner = lines[idx].trim();
+            if inner.starts_with("}.") || inner == "}" {
+                break;
+            }
+            if inner.starts_with("간격:") || inner.contains(".간격:") {
+                has_step = true;
+            }
+            if inner.starts_with("분할수:") || inner.contains(".분할수:") {
+                has_split_count = true;
+            }
+            if has_step && has_split_count {
+                return Err(CanonError::new(
+                    "E_CANON_MAEGIM_STEP_SPLIT_CONFLICT",
+                    "`매김`에서 `간격`과 `분할수`는 동시에 사용할 수 없습니다.",
+                ));
+            }
+            idx += 1;
+        }
+        idx += 1;
+    }
+    Ok(())
+}
+
+fn collect_declared_names(surface: &[SurfaceStmt]) -> HashSet<String> {
+    let mut declared = HashSet::new();
+    for stmt in surface {
+        match stmt {
+            SurfaceStmt::Decl { name, .. } => {
+                declared.insert(name.clone());
+            }
+            SurfaceStmt::RootDecl { items, .. } => {
+                for item in items {
+                    if item.kind == DeclKind::Gureut {
+                        declared.insert(item.name.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    declared
+}
+
+fn surface_to_canonical(
+    surface: Vec<SurfaceStmt>,
+    declared: &HashSet<String>,
+    bridge: bool,
+    default_root: &str,
+    root_hide: bool,
+) -> Result<Vec<Stmt>, CanonError> {
+    let mut canonical = Vec::new();
+    for stmt in surface {
+        match stmt {
+            SurfaceStmt::RootDecl { items } => {
+                let items = items
+                    .into_iter()
+                    .map(|item| DeclItem {
+                        name: item.name,
+                        kind: item.kind,
+                        type_name: item.type_name,
+                        value: item.value.map(|expr| {
+                            canonicalize_expr(expr, declared, bridge, default_root, root_hide)
+                        }),
+                        maegim: item.maegim.map(|spec| MaegimSpec {
+                            fields: spec
+                                .fields
+                                .into_iter()
+                                .map(|binding| Binding {
+                                    name: binding.name,
+                                    value: canonicalize_expr(
+                                        binding.value,
+                                        declared,
+                                        bridge,
+                                        default_root,
+                                        root_hide,
+                                    ),
+                                })
+                                .collect(),
+                        }),
+                    })
+                    .collect();
+                canonical.push(Stmt::RootDecl { items });
+            }
+            SurfaceStmt::Decl {
+                name,
+                type_name,
+                value,
+            } => {
+                if !is_bridge_alias_type_name(&type_name) {
+                    return Err(CanonError::new(
+                        "E_CANON_BAD_ALIAS",
+                        format!("알 수 없는 별칭입니다: {}", type_name),
+                    ));
+                }
+                let target = Path {
+                    segments: vec![default_root.to_string(), name],
+                };
+                let value = canonicalize_expr(value, declared, bridge, default_root, root_hide);
+                canonical.push(Stmt::Assign { target, value });
+            }
+            SurfaceStmt::Assign { target, value } => {
+                if root_hide
+                    && !matches!(
+                        target.segments.first().map(|seg| seg.as_str()),
+                        Some("살림" | "바탕" | "샘")
+                    )
+                {
+                    if let Some(name) = target.segments.first() {
+                        if !declared.contains(name) {
+                            return Err(CanonError::new(
+                                "E_CANON_ROOT_HIDE_UNDECLARED",
+                                format!("채비에 선언되지 않은 전역 쓰기: {}", name),
+                            ));
+                        }
+                    }
+                }
+                let target = canonicalize_path(target, declared, bridge, default_root, root_hide);
+                let value = canonicalize_expr(value, declared, bridge, default_root, root_hide);
+                canonical.push(Stmt::Assign { target, value });
+            }
+            SurfaceStmt::SeedDef {
+                name,
+                kind,
+                params,
+                body,
+            } => {
+                let params = params
+                    .into_iter()
+                    .map(|param| Param {
+                        name: param.name,
+                        type_name: param.type_name,
+                        default: param.default.map(|expr| {
+                            canonicalize_expr(expr, declared, bridge, default_root, root_hide)
+                        }),
+                    })
+                    .collect();
+                let body = canonicalize_body(body, declared, bridge, default_root, root_hide)?;
+                canonical.push(Stmt::SeedDef {
+                    name,
+                    kind,
+                    params,
+                    body,
+                });
+            }
+            SurfaceStmt::Send {
+                sender,
+                payload,
+                receiver,
+            } => {
+                canonical.push(Stmt::Send {
+                    sender: sender.map(|expr| {
+                        canonicalize_expr(expr, declared, bridge, default_root, root_hide)
+                    }),
+                    payload: canonicalize_expr(payload, declared, bridge, default_root, root_hide),
+                    receiver: canonicalize_expr(
+                        receiver,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
+                });
+            }
+            SurfaceStmt::Show { value } => {
+                let value = canonicalize_expr(value, declared, bridge, default_root, root_hide);
+                canonical.push(Stmt::Show { value });
+            }
+            SurfaceStmt::Inspect { value } => {
+                let value = canonicalize_expr(value, declared, bridge, default_root, root_hide);
+                canonical.push(Stmt::Inspect { value });
+            }
+            SurfaceStmt::Boim { entries } => {
+                let entries = entries
+                    .into_iter()
+                    .map(|entry| Binding {
+                        name: entry.name,
+                        value: canonicalize_expr(
+                            entry.value,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        ),
+                    })
+                    .collect();
+                canonical.push(Stmt::Boim { entries });
+            }
+            SurfaceStmt::BogaeMadangBlock { body, .. } => {
+                canonical.push(Stmt::BogaeMadangBlock { body });
+            }
+            SurfaceStmt::JjaimBlock { body, .. } => {
+                canonical.push(Stmt::JjaimBlock { body });
+            }
+            SurfaceStmt::BogaeDraw => {
+                canonical.push(Stmt::BogaeDraw);
+            }
+            SurfaceStmt::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let condition =
+                    canonicalize_condition(condition, declared, bridge, default_root, root_hide);
+                let then_body =
+                    canonicalize_body(then_body, declared, bridge, default_root, root_hide)?;
+                let else_body = match else_body {
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
+                    None => None,
+                };
+                canonical.push(Stmt::If {
+                    condition,
+                    then_body,
+                    else_body,
+                });
+            }
+            SurfaceStmt::Contract {
+                kind,
+                mode,
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let condition =
+                    canonicalize_condition(condition, declared, bridge, default_root, root_hide);
+                let else_body =
+                    canonicalize_body(else_body, declared, bridge, default_root, root_hide)?;
+                let then_body = match then_body {
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
+                    None => None,
+                };
+                canonical.push(Stmt::Contract {
+                    kind,
+                    mode,
+                    condition,
+                    then_body,
+                    else_body,
+                });
+            }
+            SurfaceStmt::Repeat { body } => {
+                let body = canonicalize_body(body, declared, bridge, default_root, root_hide)?;
+                canonical.push(Stmt::Repeat { body });
+            }
+            SurfaceStmt::While { condition, body } => {
+                let condition =
+                    canonicalize_condition(condition, declared, bridge, default_root, root_hide);
+                let body = canonicalize_body(body, declared, bridge, default_root, root_hide)?;
+                canonical.push(Stmt::While { condition, body });
+            }
+            SurfaceStmt::ForEach {
+                item,
+                iterable,
+                body,
+            } => {
+                let iterable =
+                    canonicalize_expr(iterable, declared, bridge, default_root, root_hide);
+                let body = canonicalize_body(body, declared, bridge, default_root, root_hide)?;
+                canonical.push(Stmt::ForEach {
+                    item,
+                    iterable,
+                    body,
+                });
+            }
+            SurfaceStmt::Hook { name, suffix, body } => {
+                let body = canonicalize_body(body, declared, bridge, default_root, root_hide)?;
+                canonical.push(Stmt::Hook { name, suffix, body });
+            }
+            SurfaceStmt::Receive {
+                kind,
+                binding,
+                condition,
+                body,
+            } => {
+                canonical.push(Stmt::Receive {
+                    kind,
+                    binding,
+                    condition: condition.map(|expr| {
+                        canonicalize_expr(expr, declared, bridge, default_root, root_hide)
+                    }),
+                    body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
+                });
+            }
+            SurfaceStmt::EventReact { kind, body } => {
+                canonical.push(Stmt::EventReact {
+                    kind,
+                    body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
+                });
+            }
+            SurfaceStmt::OpenBlock { body } => {
+                let body = canonicalize_body(body, declared, bridge, default_root, root_hide)?;
+                canonical.push(Stmt::OpenBlock { body });
+            }
+            SurfaceStmt::Return { value } => {
+                let value = canonicalize_expr(value, declared, bridge, default_root, root_hide);
+                canonical.push(Stmt::Return { value });
+            }
+            SurfaceStmt::Expr { value } => {
+                let value = canonicalize_expr(value, declared, bridge, default_root, root_hide);
+                canonical.push(Stmt::Expr { value });
+            }
+            SurfaceStmt::Break => {
+                canonical.push(Stmt::Break);
+            }
+            SurfaceStmt::ContinueLoop => {
+                canonical.push(Stmt::ContinueLoop);
+            }
+            SurfaceStmt::PromptChoose {
+                branches,
+                else_body,
+            } => {
+                let mut mapped = Vec::new();
+                for branch in branches {
+                    mapped.push(ChooseBranch {
+                        condition: canonicalize_condition(
+                            branch.condition,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        ),
+                        body: canonicalize_body(
+                            branch.body,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        )?,
+                    });
+                }
+                let else_body = match else_body {
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
+                    None => None,
+                };
+                canonical.push(Stmt::PromptChoose {
+                    branches: mapped,
+                    else_body,
+                });
+            }
+            SurfaceStmt::PromptAfter { value, body } => {
+                canonical.push(Stmt::PromptAfter {
+                    value: canonicalize_expr(value, declared, bridge, default_root, root_hide),
+                    body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
+                });
+            }
+            SurfaceStmt::PromptCondition { condition, body } => {
+                canonical.push(Stmt::PromptCondition {
+                    condition: canonicalize_condition(
+                        condition,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    ),
+                    body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
+                });
+            }
+            SurfaceStmt::PromptBlock { body } => {
+                canonical.push(Stmt::PromptBlock {
+                    body: canonicalize_body(body, declared, bridge, default_root, root_hide)?,
+                });
+            }
+            SurfaceStmt::ExecPolicyBlock { body } => {
+                canonical.push(Stmt::ExecPolicyBlock { body });
+            }
+            SurfaceStmt::Choose {
+                branches,
+                else_body,
+                exhaustive,
+            } => {
+                let mut mapped = Vec::new();
+                for branch in branches {
+                    mapped.push(ChooseBranch {
+                        condition: canonicalize_condition(
+                            branch.condition,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        ),
+                        body: canonicalize_body(
+                            branch.body,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        )?,
+                    });
+                }
+                let else_body = match else_body {
+                    Some(body) => Some(canonicalize_body(
+                        body,
+                        declared,
+                        bridge,
+                        default_root,
+                        root_hide,
+                    )?),
+                    None => None,
+                };
+                canonical.push(Stmt::Choose {
+                    branches: mapped,
+                    else_body,
+                    exhaustive,
+                });
+            }
+        }
+    }
+    Ok(canonical)
+}
+
+#[derive(Debug, Clone)]
+struct SimpleActorField {
+    name: String,
+    init: Expr,
+}
+
+#[derive(Debug, Clone)]
+struct SimpleReceiveHandler {
+    kind: Option<String>,
+    binding: Option<String>,
+    condition: Option<Expr>,
+    body: Vec<Stmt>,
+    source_order: usize,
+}
+
+#[derive(Debug, Clone)]
+struct SimpleActorModel {
+    name: String,
+    fields: Vec<SimpleActorField>,
+    handlers: Vec<SimpleReceiveHandler>,
+}
+
+#[derive(Debug, Clone)]
+struct SimpleRootField {
+    name: String,
+    init: Expr,
+}
+
+#[derive(Debug, Clone)]
+struct EventLowerContext<'a> {
+    actor_name: &'a str,
+    actor_names: &'a HashSet<String>,
+    namespace_actor_fields: bool,
+    payload_kind: &'a str,
+    payload_fields: &'a HashMap<String, Expr>,
+    payload_binding: Option<&'a str>,
+    alert_binding: Option<&'a str>,
+}
+
+#[derive(Debug, Clone)]
+struct PendingDispatch {
+    receiver_name: String,
+    payload_kind: String,
+    payload_fields: HashMap<String, Expr>,
+    guard: Option<Expr>,
+    depth: usize,
+}
+
+const MAX_GENERIC_EVENT_CHAIN_DEPTH: usize = 16;
+
+fn lower_single_imja_event_subset_program(program: &[Stmt]) -> Option<String> {
+    let mut actor_defs = Vec::new();
+    let mut start_hooks = Vec::new();
+    let mut every_hooks = Vec::new();
+    let mut top_level_draw = Vec::new();
+    for stmt in program {
+        match stmt {
+            Stmt::SeedDef {
+                name, kind, body, ..
+            } if kind == "임자" => actor_defs.push(build_simple_actor_model(name, body)?),
+            Stmt::SeedDef { kind, .. } if kind == "알림씨" => {}
+            Stmt::Hook { name, suffix, body }
+                if name == "시작" && matches!(suffix, HookSuffix::Halttae) =>
+            {
+                start_hooks.push(body.clone());
+            }
+            Stmt::Hook { suffix, body, .. } if matches!(suffix, HookSuffix::Mada) => {
+                every_hooks.push(body.clone());
+            }
+            Stmt::BogaeDraw => top_level_draw.push(stmt.clone()),
+            _ => return None,
+        }
+    }
+
+    if actor_defs.is_empty() || (start_hooks.is_empty() && every_hooks.is_empty()) {
+        return None;
+    }
+    let actor_names: HashSet<String> = actor_defs.iter().map(|actor| actor.name.clone()).collect();
+    let namespace_actor_fields = actor_defs.len() > 1;
+    let root_extras = collect_simple_root_fields_from_hooks(
+        &start_hooks,
+        &every_hooks,
+        &actor_defs,
+        namespace_actor_fields,
+    )?;
+    let mut out = Vec::new();
+    out.push(Stmt::SeedDef {
+        name: "매틱".to_string(),
+        kind: "움직씨".to_string(),
+        params: Vec::new(),
+        body: vec![Stmt::Expr {
+            value: Expr::Literal(Literal::None),
+        }],
+    });
+
+    let empty_fields = HashMap::new();
+    let top_level_ctx = EventLowerContext {
+        actor_name: "",
+        actor_names: &actor_names,
+        namespace_actor_fields,
+        payload_kind: "",
+        payload_fields: &empty_fields,
+        payload_binding: None,
+        alert_binding: None,
+    };
+    if !actor_defs.is_empty() || !root_extras.is_empty() || !start_hooks.is_empty() {
+        let mut lowered_start = Vec::new();
+        for actor in &actor_defs {
+            for field in &actor.fields {
+                lowered_start.push(Stmt::Assign {
+                    target: Path {
+                        segments: vec![lowered_actor_field_name(
+                            &actor.name,
+                            &field.name,
+                            namespace_actor_fields,
+                        )],
+                    },
+                    value: field.init.clone(),
+                });
+            }
+        }
+        for field in &root_extras {
+            lowered_start.push(Stmt::Assign {
+                target: Path {
+                    segments: vec![field.name.clone()],
+                },
+                value: field.init.clone(),
+            });
+        }
+        for body in &start_hooks {
+            for stmt in body {
+                lower_top_level_stmt(stmt, &actor_defs, &top_level_ctx, &mut lowered_start, 0)?;
+            }
+        }
+        out.push(Stmt::Hook {
+            name: "시작".to_string(),
+            suffix: HookSuffix::Halttae,
+            body: lowered_start,
+        });
+    }
+    for body in &every_hooks {
+        let mut lowered_every = Vec::new();
+        for stmt in body {
+            lower_top_level_stmt(stmt, &actor_defs, &top_level_ctx, &mut lowered_every, 0)?;
+        }
+        out.push(Stmt::Hook {
+            name: "매마디".to_string(),
+            suffix: HookSuffix::Mada,
+            body: lowered_every,
+        });
+    }
+    out.extend(top_level_draw);
+    Some(format_program(&out))
+}
+
+fn build_simple_actor_model(name: &str, body: &[Stmt]) -> Option<SimpleActorModel> {
+    let mut fields = Vec::new();
+    let mut handlers = Vec::new();
+    let mut seen_handler = false;
+    for stmt in body {
+        match stmt {
+            Stmt::Assign { target, value } if !seen_handler => {
+                let (field_name, init_value) = extract_actor_field_assign(target, value, name)?;
+                fields.push(SimpleActorField {
+                    name: field_name,
+                    init: init_value,
+                });
+            }
+            Stmt::Receive {
+                kind,
+                binding,
+                condition,
+                body,
+            } => {
+                seen_handler = true;
+                handlers.push(SimpleReceiveHandler {
+                    kind: kind.clone(),
+                    binding: binding.clone(),
+                    condition: condition.clone(),
+                    body: body.clone(),
+                    source_order: handlers.len(),
+                });
+            }
+            _ => return None,
+        }
+    }
+    if handlers.is_empty() {
+        return None;
+    }
+    Some(SimpleActorModel {
+        name: name.to_string(),
+        fields,
+        handlers,
+    })
+}
+
+fn actor_field_name_from_path(path: &Path, actor_name: &str) -> Option<String> {
+    if path.segments.len() != 2 {
+        return None;
+    }
+    match path.segments[0].as_str() {
+        "제" => Some(path.segments[1].clone()),
+        prefix if prefix == actor_name => Some(path.segments[1].clone()),
+        _ => None,
+    }
+}
+
+fn lowered_actor_field_name(
+    actor_name: &str,
+    field_name: &str,
+    namespace_actor_fields: bool,
+) -> String {
+    if namespace_actor_fields {
+        format!("{actor_name}__{field_name}")
+    } else {
+        field_name.to_string()
+    }
+}
+
+fn root_field_name_from_path(path: &Path) -> Option<String> {
+    if path.segments.len() != 2 {
+        return None;
+    }
+    match path.segments[0].as_str() {
+        "바탕" | "살림" | "샘" => Some(path.segments[1].clone()),
+        _ => None,
+    }
+}
+
+fn extract_actor_field_assign(
+    target: &Path,
+    value: &Expr,
+    actor_name: &str,
+) -> Option<(String, Expr)> {
+    if let Some(field_name) = actor_field_name_from_path(target, actor_name) {
+        return Some((field_name, value.clone()));
+    }
+    if target.segments.len() != 1
+        || !(target.segments[0] == "제" || target.segments[0] == actor_name)
+    {
+        return None;
+    }
+    let Expr::Call { name, args } = value else {
+        return None;
+    };
+    if name != "짝맞춤.바꾼값" || args.len() != 3 {
+        return None;
+    }
+    let Expr::Path(base) = &args[0] else {
+        return None;
+    };
+    if base.segments.len() != 1 || base.segments[0] != target.segments[0] {
+        return None;
+    }
+    let Expr::Literal(Literal::Str(field_name)) = &args[1] else {
+        return None;
+    };
+    Some((field_name.clone(), args[2].clone()))
+}
+
+fn collect_simple_root_fields_from_hooks(
+    start_hooks: &[Vec<Stmt>],
+    every_hooks: &[Vec<Stmt>],
+    actors: &[SimpleActorModel],
+    namespace_actor_fields: bool,
+) -> Option<Vec<SimpleRootField>> {
+    let actor_field_names: HashSet<String> = if namespace_actor_fields {
+        HashSet::new()
+    } else {
+        actors
+            .iter()
+            .flat_map(|actor| actor.fields.iter().map(|field| field.name.clone()))
+            .collect()
+    };
+    let mut extras = Vec::new();
+    let mut seen = HashSet::new();
+    for body in start_hooks {
+        collect_simple_root_fields_from_stmts(body, &actor_field_names, &mut seen, &mut extras)?;
+    }
+    for body in every_hooks {
+        collect_simple_root_fields_from_stmts(body, &actor_field_names, &mut seen, &mut extras)?;
+    }
+    Some(extras)
+}
+
+fn collect_simple_root_fields_from_stmts(
+    stmts: &[Stmt],
+    actor_field_names: &HashSet<String>,
+    seen: &mut HashSet<String>,
+    extras: &mut Vec<SimpleRootField>,
+) -> Option<()> {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Assign { target, value } => {
+                let name = if target.segments.len() == 1 {
+                    Some(target.segments[0].clone())
+                } else {
+                    root_field_name_from_path(target)
+                };
+                let Some(name) = name else {
+                    continue;
+                };
+                if actor_field_names.contains(&name) || !seen.insert(name.clone()) {
+                    continue;
+                }
+                extras.push(SimpleRootField {
+                    name,
+                    init: value.clone(),
+                });
+            }
+            Stmt::If {
+                then_body,
+                else_body,
+                ..
+            } => {
+                collect_simple_root_fields_from_stmts(then_body, actor_field_names, seen, extras)?;
+                if let Some(body) = else_body {
+                    collect_simple_root_fields_from_stmts(body, actor_field_names, seen, extras)?;
+                }
+            }
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
+                for branch in branches {
+                    collect_simple_root_fields_from_stmts(
+                        &branch.body,
+                        actor_field_names,
+                        seen,
+                        extras,
+                    )?;
+                }
+                if let Some(body) = else_body {
+                    collect_simple_root_fields_from_stmts(body, actor_field_names, seen, extras)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    Some(())
+}
+
+fn lower_top_level_stmt(
+    stmt: &Stmt,
+    actors: &[SimpleActorModel],
+    ctx: &EventLowerContext<'_>,
+    out: &mut Vec<Stmt>,
+    depth: usize,
+) -> Option<()> {
+    match stmt {
+        Stmt::Send {
+            sender: _,
+            payload,
+            receiver,
+        } => lower_send_dispatch(payload, receiver, actors, ctx, out, depth),
+        Stmt::Assign { target, value } => {
+            let lowered_target = lower_path(target, ctx)?;
+            if lowered_target.segments.len() != 1 {
+                return None;
+            }
+            out.push(Stmt::Assign {
+                target: lowered_target,
+                value: lower_expr(value, ctx)?,
+            });
+            Some(())
+        }
+        Stmt::If {
+            condition,
+            then_body,
+            else_body,
+        } => {
+            let mut lowered_then = Vec::new();
+            for child in then_body {
+                lower_top_level_stmt(child, actors, ctx, &mut lowered_then, depth)?;
+            }
+            let lowered_else = match else_body {
+                Some(body) => {
+                    let mut lowered = Vec::new();
+                    for child in body {
+                        lower_top_level_stmt(child, actors, ctx, &mut lowered, depth)?;
+                    }
+                    Some(lowered)
+                }
+                None => None,
+            };
+            out.push(Stmt::If {
+                condition: Condition {
+                    expr: lower_expr(&condition.expr, ctx)?,
+                    style: condition.style,
+                    negated: condition.negated,
+                },
+                then_body: lowered_then,
+                else_body: lowered_else,
+            });
+            Some(())
+        }
+        Stmt::Choose {
+            branches,
+            else_body,
+            exhaustive,
+        } => {
+            let mut lowered_branches = Vec::new();
+            for branch in branches {
+                let mut lowered_body = Vec::new();
+                for child in &branch.body {
+                    lower_top_level_stmt(child, actors, ctx, &mut lowered_body, depth)?;
+                }
+                lowered_branches.push(ChooseBranch {
+                    condition: Condition {
+                        expr: lower_expr(&branch.condition.expr, ctx)?,
+                        style: branch.condition.style,
+                        negated: branch.condition.negated,
+                    },
+                    body: lowered_body,
+                });
+            }
+            let lowered_else = match else_body {
+                Some(body) => {
+                    let mut lowered = Vec::new();
+                    for child in body {
+                        lower_top_level_stmt(child, actors, ctx, &mut lowered, depth)?;
+                    }
+                    Some(lowered)
+                }
+                None => None,
+            };
+            out.extend(lower_choose_to_if_stmts(
+                lowered_branches,
+                lowered_else,
+                *exhaustive,
+            ));
+            Some(())
+        }
+        Stmt::Show { value } => {
+            out.push(Stmt::Show {
+                value: lower_expr(value, ctx)?,
+            });
+            Some(())
+        }
+        Stmt::Inspect { value } => {
+            out.push(Stmt::Inspect {
+                value: lower_expr(value, ctx)?,
+            });
+            Some(())
+        }
+        _ => None,
+    }
+}
+
+fn lower_stmt_list(
+    stmts: &[Stmt],
+    actors: &[SimpleActorModel],
+    ctx: &EventLowerContext<'_>,
+    out: &mut Vec<Stmt>,
+    pending: &mut VecDeque<PendingDispatch>,
+    active_send_guard: Option<Expr>,
+    depth: usize,
+) -> Option<()> {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Assign { target, value } => {
+                let (field_name, lowered_value) = if let Some((field_name, lowered_source)) =
+                    extract_actor_field_assign(target, value, ctx.actor_name)
+                {
+                    (field_name, lower_expr(&lowered_source, ctx)?)
+                } else {
+                    let lowered_target = lower_path(target, ctx)?;
+                    (
+                        lowered_target.segments.last()?.clone(),
+                        lower_expr(value, ctx)?,
+                    )
+                };
+                out.push(Stmt::Assign {
+                    target: Path {
+                        segments: vec![lowered_actor_field_name(
+                            ctx.actor_name,
+                            &field_name,
+                            ctx.namespace_actor_fields,
+                        )],
+                    },
+                    value: lowered_value,
+                });
+            }
+            Stmt::Send {
+                sender: _,
+                payload,
+                receiver,
+            } => {
+                pending.push_back(build_pending_dispatch(
+                    payload,
+                    receiver,
+                    ctx,
+                    active_send_guard.clone(),
+                    depth + 1,
+                )?);
+            }
+            Stmt::Show { value } => {
+                out.push(Stmt::Show {
+                    value: lower_expr(value, ctx)?,
+                });
+            }
+            Stmt::Inspect { value } => {
+                out.push(Stmt::Inspect {
+                    value: lower_expr(value, ctx)?,
+                });
+            }
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                let lowered_condition = Condition {
+                    expr: lower_expr(&condition.expr, ctx)?,
+                    style: condition.style,
+                    negated: condition.negated,
+                };
+                let mut lowered_then = Vec::new();
+                lower_stmt_list(
+                    then_body,
+                    actors,
+                    ctx,
+                    &mut lowered_then,
+                    pending,
+                    combine_guard_expr(
+                        active_send_guard.clone(),
+                        Some(condition_to_guard_expr(&lowered_condition, true)),
+                    ),
+                    depth,
+                )?;
+                let lowered_else = match else_body {
+                    Some(body) => {
+                        let mut lowered = Vec::new();
+                        lower_stmt_list(
+                            body,
+                            actors,
+                            ctx,
+                            &mut lowered,
+                            pending,
+                            combine_guard_expr(
+                                active_send_guard.clone(),
+                                Some(condition_to_guard_expr(&lowered_condition, false)),
+                            ),
+                            depth,
+                        )?;
+                        Some(lowered)
+                    }
+                    None => None,
+                };
+                out.push(Stmt::If {
+                    condition: lowered_condition,
+                    then_body: lowered_then,
+                    else_body: lowered_else,
+                });
+            }
+            Stmt::Choose {
+                branches,
+                else_body,
+                exhaustive,
+            } => {
+                let mut lowered_branches = Vec::new();
+                let mut previous_branch_miss_guard: Option<Expr> = None;
+                for branch in branches {
+                    let lowered_condition = Condition {
+                        expr: lower_expr(&branch.condition.expr, ctx)?,
+                        style: branch.condition.style,
+                        negated: branch.condition.negated,
+                    };
+                    let selected_guard = combine_guard_expr(
+                        combine_guard_expr(
+                            active_send_guard.clone(),
+                            previous_branch_miss_guard.clone(),
+                        ),
+                        Some(condition_to_guard_expr(&lowered_condition, true)),
+                    );
+                    let mut lowered_body = Vec::new();
+                    lower_stmt_list(
+                        &branch.body,
+                        actors,
+                        ctx,
+                        &mut lowered_body,
+                        pending,
+                        selected_guard,
+                        depth,
+                    )?;
+                    previous_branch_miss_guard = combine_guard_expr(
+                        previous_branch_miss_guard,
+                        Some(condition_to_guard_expr(&lowered_condition, false)),
+                    );
+                    lowered_branches.push(ChooseBranch {
+                        condition: lowered_condition,
+                        body: lowered_body,
+                    });
+                }
+                let lowered_else = match else_body {
+                    Some(body) => {
+                        let mut lowered = Vec::new();
+                        lower_stmt_list(
+                            body,
+                            actors,
+                            ctx,
+                            &mut lowered,
+                            pending,
+                            combine_guard_expr(
+                                active_send_guard.clone(),
+                                previous_branch_miss_guard,
+                            ),
+                            depth,
+                        )?;
+                        Some(lowered)
+                    }
+                    None => None,
+                };
+                out.extend(lower_choose_to_if_stmts(
+                    lowered_branches,
+                    lowered_else,
+                    *exhaustive,
+                ));
+            }
+            _ => return None,
+        }
+    }
+    Some(())
+}
+
+fn lower_choose_to_if_stmts(
+    branches: Vec<ChooseBranch>,
+    else_body: Option<Vec<Stmt>>,
+    exhaustive: bool,
+) -> Vec<Stmt> {
+    let mut current = else_body.unwrap_or_default();
+    for branch in branches.into_iter().rev() {
+        current = vec![Stmt::If {
+            condition: branch.condition,
+            then_body: branch.body,
+            else_body: if current.is_empty() && exhaustive {
+                None
+            } else {
+                Some(current)
+            },
+        }];
+    }
+    current
+}
+
+fn lower_receiver_name(receiver: &Expr, current_actor_name: &str) -> Option<String> {
+    match receiver {
+        Expr::Path(path) if path.segments.len() == 1 => match path.segments[0].as_str() {
+            "제" if !current_actor_name.is_empty() => Some(current_actor_name.to_string()),
+            _ => Some(path.segments[0].clone()),
+        },
+        _ => None,
+    }
+}
+
+fn lower_send_dispatch(
+    payload: &Expr,
+    receiver: &Expr,
+    actors: &[SimpleActorModel],
+    ctx: &EventLowerContext<'_>,
+    out: &mut Vec<Stmt>,
+    depth: usize,
+) -> Option<()> {
+    let initial = build_pending_dispatch(payload, receiver, ctx, None, depth)?;
+    lower_pending_dispatch_queue(initial, actors, ctx, out)
+}
+
+fn build_pending_dispatch(
+    payload: &Expr,
+    receiver: &Expr,
+    ctx: &EventLowerContext<'_>,
+    guard: Option<Expr>,
+    depth: usize,
+) -> Option<PendingDispatch> {
+    if depth > MAX_GENERIC_EVENT_CHAIN_DEPTH {
+        return None;
+    }
+    let receiver_name = lower_receiver_name(receiver, ctx.actor_name)?;
+    let (payload_kind, payload_fields) =
+        if let Some(forwarded) = extract_forwarded_current_payload(payload, ctx) {
+            forwarded
+        } else {
+            let lowered_payload = lower_expr(payload, ctx)?;
+            extract_event_payload(&lowered_payload)?
+        };
+    Some(PendingDispatch {
+        receiver_name,
+        payload_kind,
+        payload_fields,
+        guard,
+        depth,
+    })
+}
+
+fn lower_pending_dispatch_queue(
+    initial: PendingDispatch,
+    actors: &[SimpleActorModel],
+    ctx: &EventLowerContext<'_>,
+    out: &mut Vec<Stmt>,
+) -> Option<()> {
+    let mut pending = VecDeque::new();
+    pending.push_back(initial);
+    while let Some(dispatch) = pending.pop_front() {
+        let actor = actors
+            .iter()
+            .find(|actor| actor.name == dispatch.receiver_name)?;
+        let dispatch_ctx = EventLowerContext {
+            actor_name: &actor.name,
+            actor_names: ctx.actor_names,
+            namespace_actor_fields: ctx.namespace_actor_fields,
+            payload_kind: &dispatch.payload_kind,
+            payload_fields: &dispatch.payload_fields,
+            payload_binding: None,
+            alert_binding: None,
+        };
+        for handler in ordered_handlers_for_dispatch(&actor.handlers, dispatch_ctx.payload_kind) {
+            let binding_ctx = EventLowerContext {
+                actor_name: dispatch_ctx.actor_name,
+                actor_names: dispatch_ctx.actor_names,
+                namespace_actor_fields: dispatch_ctx.namespace_actor_fields,
+                payload_kind: dispatch_ctx.payload_kind,
+                payload_fields: dispatch_ctx.payload_fields,
+                payload_binding: handler.kind.as_ref().and(handler.binding.as_deref()),
+                alert_binding: handler
+                    .kind
+                    .is_none()
+                    .then_some(handler.binding.as_deref())
+                    .flatten(),
+            };
+            let lowered_condition = match handler.condition.as_ref() {
+                Some(condition) => Some(lower_expr(condition, &binding_ctx)?),
+                None => None,
+            };
+            if matches!(
+                lowered_condition.as_ref().and_then(eval_static_bool_expr),
+                Some(false)
+            ) {
+                continue;
+            }
+            let mut lowered_body = Vec::new();
+            let mut handler_pending = VecDeque::new();
+            lower_stmt_list(
+                &handler.body,
+                actors,
+                &binding_ctx,
+                &mut lowered_body,
+                &mut handler_pending,
+                None,
+                dispatch.depth,
+            )?;
+            let effective_guard = combine_guard_expr(dispatch.guard.clone(), lowered_condition);
+            apply_guard_to_pending_queue(&mut handler_pending, effective_guard.clone());
+            if let Some(guard) = effective_guard {
+                if matches!(eval_static_bool_expr(&guard), Some(true)) {
+                    out.extend(lowered_body);
+                    pending.extend(handler_pending);
+                    continue;
+                }
+                out.push(Stmt::If {
+                    condition: Condition {
+                        expr: guard,
+                        style: ConditionStyle::Plain,
+                        negated: false,
+                    },
+                    then_body: lowered_body,
+                    else_body: None,
+                });
+            } else {
+                out.extend(lowered_body);
+                pending.extend(handler_pending);
+            }
+        }
+    }
+    Some(())
+}
+
+fn ordered_handlers_for_dispatch<'a>(
+    handlers: &'a [SimpleReceiveHandler],
+    payload_kind: &str,
+) -> Vec<&'a SimpleReceiveHandler> {
+    let mut ordered = Vec::new();
+    for rank in 0..4u8 {
+        for handler in handlers {
+            if !handler
+                .kind
+                .as_ref()
+                .is_none_or(|kind| kind == payload_kind)
+            {
+                continue;
+            }
+            if receive_handler_rank(handler) != rank {
+                continue;
+            }
+            ordered.push(handler);
+        }
+    }
+    ordered.sort_by_key(|handler| (receive_handler_rank(handler), handler.source_order));
+    ordered
+}
+
+fn receive_handler_rank(handler: &SimpleReceiveHandler) -> u8 {
+    match (handler.kind.is_some(), handler.condition.is_some()) {
+        (true, true) => 0,
+        (true, false) => 1,
+        (false, true) => 2,
+        (false, false) => 3,
+    }
+}
+
+fn combine_guard_expr(base: Option<Expr>, extra: Option<Expr>) -> Option<Expr> {
+    match (base, extra) {
+        (None, None) => None,
+        (Some(expr), None) | (None, Some(expr)) => Some(expr),
+        (Some(left), Some(right)) => Some(Expr::Binary {
+            left: Box::new(left),
+            op: BinaryOp::And,
+            right: Box::new(right),
+        }),
+    }
+}
+
+fn condition_to_guard_expr(condition: &Condition, truth: bool) -> Expr {
+    let expects_expr_true = if truth {
+        !condition.negated
+    } else {
+        condition.negated
+    };
+    if expects_expr_true {
+        return condition.expr.clone();
+    }
+    Expr::Binary {
+        left: Box::new(condition.expr.clone()),
+        op: BinaryOp::Eq,
+        right: Box::new(Expr::Literal(Literal::Bool(false))),
+    }
+}
+
+fn apply_guard_to_pending_queue(pending: &mut VecDeque<PendingDispatch>, guard: Option<Expr>) {
+    if guard.is_none() {
+        return;
+    }
+    for dispatch in pending.iter_mut() {
+        dispatch.guard = combine_guard_expr(dispatch.guard.clone(), guard.clone());
+    }
+}
+
+fn extract_forwarded_current_payload(
+    payload: &Expr,
+    ctx: &EventLowerContext<'_>,
+) -> Option<(String, HashMap<String, Expr>)> {
+    let Expr::Path(path) = payload else {
+        return None;
+    };
+    if path.segments.len() != 1 || ctx.payload_kind.is_empty() {
+        return None;
+    }
+    let head = path.segments[0].as_str();
+    let matches_current = head == ctx.payload_kind
+        || ctx.payload_binding.is_some_and(|binding| head == binding)
+        || ctx.alert_binding.is_some_and(|binding| head == binding)
+        || (ctx.alert_binding.is_none() && head == "알림");
+    if !matches_current {
+        return None;
+    }
+    Some((ctx.payload_kind.to_string(), ctx.payload_fields.clone()))
+}
+
+fn extract_event_payload(payload: &Expr) -> Option<(String, HashMap<String, Expr>)> {
+    match payload {
+        Expr::Path(path) if path.segments.len() == 1 => {
+            Some((path.segments[0].clone(), HashMap::new()))
+        }
+        Expr::CallIn { name, bindings } => {
+            let mut fields = HashMap::new();
+            for binding in bindings {
+                fields.insert(binding.name.clone(), binding.value.clone());
+            }
+            Some((name.clone(), fields))
+        }
+        Expr::Call { name, args } => {
+            if args.is_empty() {
+                return Some((name.clone(), HashMap::new()));
+            }
+            if args.len() != 1 {
+                return None;
+            }
+            let Expr::Pack { bindings } = &args[0] else {
+                return None;
+            };
+            let mut fields = HashMap::new();
+            for binding in bindings {
+                fields.insert(binding.name.clone(), binding.value.clone());
+            }
+            Some((name.clone(), fields))
+        }
+        _ => None,
+    }
+}
+
+fn lower_path(path: &Path, ctx: &EventLowerContext<'_>) -> Option<Path> {
+    if path.segments.is_empty() {
+        return None;
+    }
+    if let Some(name) = root_field_name_from_path(path) {
+        return Some(Path {
+            segments: vec![name],
+        });
+    }
+    match path.segments[0].as_str() {
+        "제" => {
+            if path.segments.len() != 2 || ctx.actor_name.is_empty() {
+                return None;
+            }
+            Some(Path {
+                segments: vec![lowered_actor_field_name(
+                    ctx.actor_name,
+                    &path.segments[1],
+                    ctx.namespace_actor_fields,
+                )],
+            })
+        }
+        prefix if prefix == ctx.actor_name => {
+            if path.segments.len() != 2 {
+                return None;
+            }
+            Some(Path {
+                segments: vec![lowered_actor_field_name(
+                    ctx.actor_name,
+                    &path.segments[1],
+                    ctx.namespace_actor_fields,
+                )],
+            })
+        }
+        prefix if ctx.actor_names.contains(prefix) => {
+            if path.segments.len() != 2 {
+                return None;
+            }
+            Some(Path {
+                segments: vec![lowered_actor_field_name(
+                    prefix,
+                    &path.segments[1],
+                    ctx.namespace_actor_fields,
+                )],
+            })
+        }
+        _ => Some(path.clone()),
+    }
+}
+
+fn lower_expr(expr: &Expr, ctx: &EventLowerContext<'_>) -> Option<Expr> {
+    match expr {
+        Expr::Literal(_) | Expr::Resource(_) | Expr::Template { .. } | Expr::Formula { .. } => {
+            Some(expr.clone())
+        }
+        Expr::PromptExpr { expr } => Some(Expr::PromptExpr {
+            expr: Box::new(lower_expr(expr, ctx)?),
+        }),
+        Expr::PromptBlock { .. } => Some(expr.clone()),
+        Expr::Path(path) => lower_expr_path(path, ctx),
+        Expr::FieldAccess { target, field } => Some(Expr::FieldAccess {
+            target: Box::new(lower_expr(target, ctx)?),
+            field: field.clone(),
+        }),
+        Expr::Call { name, args } => Some(Expr::Call {
+            name: name.clone(),
+            args: args
+                .iter()
+                .map(|arg| lower_expr(arg, ctx))
+                .collect::<Option<Vec<_>>>()?,
+        }),
+        Expr::CallIn { name, bindings } => Some(Expr::CallIn {
+            name: name.clone(),
+            bindings: bindings
+                .iter()
+                .map(|binding| {
+                    Some(Binding {
+                        name: binding.name.clone(),
+                        value: lower_expr(&binding.value, ctx)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        }),
+        Expr::Pack { bindings } => Some(Expr::Pack {
+            bindings: bindings
+                .iter()
+                .map(|binding| {
+                    Some(Binding {
+                        name: binding.name.clone(),
+                        value: lower_expr(&binding.value, ctx)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        }),
+        Expr::Unit { value, unit } => Some(Expr::Unit {
+            value: Box::new(lower_expr(value, ctx)?),
+            unit: unit.clone(),
+        }),
+        Expr::Unary { op, expr } => Some(Expr::Unary {
+            op: *op,
+            expr: Box::new(lower_expr(expr, ctx)?),
+        }),
+        Expr::Binary { left, op, right } => Some(Expr::Binary {
+            left: Box::new(lower_expr(left, ctx)?),
+            op: *op,
+            right: Box::new(lower_expr(right, ctx)?),
+        }),
+        Expr::Pipe { left, kind, right } => Some(Expr::Pipe {
+            left: Box::new(lower_expr(left, ctx)?),
+            kind: *kind,
+            right: Box::new(lower_expr(right, ctx)?),
+        }),
+        Expr::SeedLiteral { param, body } => Some(Expr::SeedLiteral {
+            param: param.clone(),
+            body: Box::new(lower_expr(body, ctx)?),
+        }),
+        Expr::TemplateApply { bindings, body } => Some(Expr::TemplateApply {
+            bindings: bindings
+                .iter()
+                .map(|binding| {
+                    Some(Binding {
+                        name: binding.name.clone(),
+                        value: lower_expr(&binding.value, ctx)?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+            body: body.clone(),
+        }),
+        Expr::Grouped { expr } => Some(Expr::Grouped {
+            expr: Box::new(lower_expr(expr, ctx)?),
+        }),
+    }
+}
+
+fn group_payload_field_expr(expr: Expr) -> Expr {
+    match expr {
+        Expr::Binary { .. } | Expr::Pipe { .. } => Expr::Grouped {
+            expr: Box::new(expr),
+        },
+        other => other,
+    }
+}
+
+fn lower_expr_path(path: &Path, ctx: &EventLowerContext<'_>) -> Option<Expr> {
+    if path.segments.is_empty() {
+        return None;
+    }
+    if root_field_name_from_path(path).is_some() {
+        return Some(Expr::Path(lower_path(path, ctx)?));
+    }
+    let segs = &path.segments;
+    if segs[0] == "제" || segs[0] == ctx.actor_name || ctx.actor_names.contains(&segs[0]) {
+        return Some(Expr::Path(lower_path(path, ctx)?));
+    }
+    if let Some(binding) = ctx.payload_binding {
+        if segs[0] == binding {
+            if segs.len() != 2 {
+                return None;
+            }
+            return ctx
+                .payload_fields
+                .get(&segs[1])
+                .cloned()
+                .map(group_payload_field_expr);
+        }
+    }
+    if ctx.payload_binding.is_none() && ctx.payload_kind != "" && segs[0] == "정보" {
+        if segs.len() != 2 {
+            return None;
+        }
+        return ctx
+            .payload_fields
+            .get(&segs[1])
+            .cloned()
+            .map(group_payload_field_expr);
+    }
+    if let Some(binding) = ctx.alert_binding {
+        if segs[0] == binding {
+            if segs.len() == 2 && segs[1] == "이름" {
+                return Some(Expr::Literal(Literal::Str(ctx.payload_kind.to_string())));
+            }
+            if segs.len() == 3 && segs[1] == "정보" {
+                return ctx
+                    .payload_fields
+                    .get(&segs[2])
+                    .cloned()
+                    .map(group_payload_field_expr);
+            }
+            return None;
+        }
+    }
+    if ctx.alert_binding.is_none() && ctx.payload_kind != "" && segs[0] == "알림" {
+        if segs.len() == 2 && segs[1] == "이름" {
+            return Some(Expr::Literal(Literal::Str(ctx.payload_kind.to_string())));
+        }
+        if segs.len() == 3 && segs[1] == "정보" {
+            return ctx
+                .payload_fields
+                .get(&segs[2])
+                .cloned()
+                .map(group_payload_field_expr);
+        }
+        return None;
+    }
+    Some(Expr::Path(path.clone()))
+}
+
+fn eval_static_bool_expr(expr: &Expr) -> Option<bool> {
+    match expr {
+        Expr::Grouped { expr } => eval_static_bool_expr(expr),
+        Expr::Literal(Literal::Bool(value)) => Some(*value),
+        Expr::Binary { left, op, right } => {
+            let left_lit = match &**left {
+                Expr::Literal(lit) => lit,
+                _ => return None,
+            };
+            let right_lit = match &**right {
+                Expr::Literal(lit) => lit,
+                _ => return None,
+            };
+            match op {
+                BinaryOp::Eq => Some(format_literal(left_lit) == format_literal(right_lit)),
+                BinaryOp::NotEq => Some(format_literal(left_lit) != format_literal(right_lit)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn collect_top_level_chaebi_reassign_warnings(surface: &[SurfaceStmt], warnings: &mut Vec<String>) {
+    for stmt in surface {
+        let SurfaceStmt::SeedDef { body, .. } = stmt else {
+            continue;
+        };
+        let mut declared_names = HashSet::new();
+        for body_stmt in body {
+            match body_stmt {
+                SurfaceStmt::RootDecl { items } => {
+                    for item in items {
+                        declared_names.insert(item.name.clone());
+                    }
+                }
+                SurfaceStmt::Assign { target, value } => {
+                    if target.segments.len() != 1 {
+                        continue;
+                    }
+                    let Some(name) = target.segments.first() else {
+                        continue;
+                    };
+                    if !declared_names.contains(name) {
+                        continue;
+                    }
+                    if !is_redundant_top_level_chaebi_reassign_value(value) {
+                        continue;
+                    }
+                    warnings.push(format!(
+                        "W_CHAEBI_REDUNDANT_TOP_REASSIGN `채비 {{}}`에서 이미 준비한 `{}`를 같은 최상위에서 다시 대입했습니다. 중복 준비가 아니면 일반 대입만 남기세요.",
+                        name
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn is_redundant_top_level_chaebi_reassign_value(value: &Expr) -> bool {
+    match value {
+        Expr::Literal(_) => true,
+        Expr::Grouped { expr } => is_redundant_top_level_chaebi_reassign_value(expr),
+        _ => false,
+    }
 }
 
 #[derive(Serialize)]
@@ -4662,8 +6305,13 @@ fn build_block_editor_plan_stmt(stmt: &Stmt) -> BlockEditorPlanNode {
         Stmt::Choose {
             branches,
             else_body,
+            exhaustive,
         } => {
-            let mut node = block_plan_node("choose_else");
+            let mut node = block_plan_node(if else_body.is_some() {
+                "choose_else"
+            } else {
+                "choose_exhaustive"
+            });
             node.inputs.insert(
                 "branches".to_string(),
                 branches
@@ -4671,10 +6319,14 @@ fn build_block_editor_plan_stmt(stmt: &Stmt) -> BlockEditorPlanNode {
                     .map(build_block_editor_plan_choose_branch)
                     .collect(),
             );
-            node.inputs.insert(
-                "else".to_string(),
-                else_body.iter().map(build_block_editor_plan_stmt).collect(),
-            );
+            node.fields
+                .insert("exhaustive".to_string(), exhaustive.to_string());
+            if let Some(body) = else_body {
+                node.inputs.insert(
+                    "else".to_string(),
+                    body.iter().map(build_block_editor_plan_stmt).collect(),
+                );
+            }
             node
         }
         Stmt::PromptChoose {
@@ -5139,6 +6791,7 @@ fn build_block_editor_expr_node(expr: &Expr) -> BlockEditorExprNode {
                     BinaryOp::Mod => "mod".to_string(),
                     BinaryOp::And => "and".to_string(),
                     BinaryOp::Or => "or".to_string(),
+                    BinaryOp::RelationEq => "relation_eq".to_string(),
                     BinaryOp::Eq => "eq".to_string(),
                     BinaryOp::NotEq => "neq".to_string(),
                     BinaryOp::Lt => "lt".to_string(),
@@ -5177,6 +6830,14 @@ fn build_block_editor_expr_node(expr: &Expr) -> BlockEditorExprNode {
             node.fields.insert("param".to_string(), param.clone());
             node.inputs
                 .insert("body".to_string(), vec![build_block_editor_expr_node(body)]);
+            node
+        }
+        Expr::Grouped { expr: inner } => {
+            let mut node = block_editor_expr_node("grouped", format_expr(expr));
+            node.inputs.insert(
+                "expr".to_string(),
+                vec![build_block_editor_expr_node(inner)],
+            );
             node
         }
     }
@@ -5920,6 +7581,109 @@ mod tests {
     }
 
     #[test]
+    fn canon_formats_if_as_manyak_iramyeon() {
+        let source = r#"
+(1 < 2) 일때 {
+  살림.x <- 1.
+} 아니면 {
+  살림.x <- 2.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("만약 1 < 2 이라면 {"));
+        assert!(!out.ddn.contains(" 일때 {"));
+    }
+
+    #[test]
+    fn canon_accepts_manyak_if_with_dot_newline_else() {
+        let source = r#"
+만약 1 < 2 이라면 {
+  살림.x <- 1.
+}.
+아니면 {
+  살림.x <- 2.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("만약 1 < 2 이라면 {"));
+        assert!(out.ddn.contains("} 아니면 {"));
+    }
+
+    #[test]
+    fn canon_accepts_choose_plain_condition_without_fallback() {
+        let source = r#"
+고르기:
+1 < 2: {
+  살림.x <- 1.
+}
+아니면: {
+  살림.x <- 2.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("고르기:"));
+        assert!(out.ddn.contains("1 < 2: {"));
+        assert!(out.ddn.contains("아니면: {"));
+        assert!(out
+            .block_editor_plan_json
+            .contains("\"kind\": \"choose_else\""));
+        assert!(!out
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("W_CANON_FALLBACK")));
+    }
+
+    #[test]
+    fn canon_accepts_choose_plain_condition_in_case_with_geubakke() {
+        let source = r#"
+고르기:
+1 < 2 인 경우 {
+  살림.x <- 1.
+}
+그밖의 경우 {
+  살림.x <- 2.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("고르기:"));
+        assert!(out.ddn.contains("1 < 2: {"));
+        assert!(out.ddn.contains("아니면: {"));
+        assert!(out
+            .block_editor_plan_json
+            .contains("\"kind\": \"choose_else\""));
+        assert!(!out
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("W_CANON_FALLBACK")));
+    }
+
+    #[test]
+    fn canon_accepts_choose_plain_condition_in_case_exhaustive() {
+        let source = r#"
+고르기:
+1 < 2 인 경우 {
+  살림.x <- 1.
+}
+모든 경우 다룸.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("고르기:"));
+        assert!(out.ddn.contains("1 < 2: {"));
+        assert!(out.ddn.contains("모든 경우 다룸."));
+        assert!(!out.ddn.contains("아니면: {"));
+        assert!(out
+            .block_editor_plan_json
+            .contains("\"kind\": \"choose_exhaustive\""));
+        assert!(out
+            .block_editor_plan_json
+            .contains("\"exhaustive\": \"true\""));
+        assert!(!out
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("W_CANON_FALLBACK")));
+    }
+
+    #[test]
     fn canon_rejects_maegim_step_and_split_count_together() {
         let source = r#"
 채비 {
@@ -5972,6 +7736,93 @@ mod tests {
             .warnings
             .iter()
             .any(|w| w.contains("W_BLOCK_HEADER_COLON_DEPRECATED")));
+    }
+
+    #[test]
+    fn canon_rejects_decl_block_in_repeat_body() {
+        let source = r#"
+테스트:움직씨 = {
+  반복 {
+    채비 { 값:수 <- 0. }.
+  }.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CHAEBI_IN_LOOP");
+    }
+
+    #[test]
+    fn canon_rejects_decl_block_in_hook_body() {
+        let source = r#"
+테스트:움직씨 = {
+  (처음)할때 {
+    채비 { 값:수 <- 0. }.
+  }.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CHAEBI_IN_LOOP");
+    }
+
+    #[test]
+    fn canon_rejects_decl_block_in_foreach_body() {
+        let source = r#"
+테스트:움직씨 = {
+  채비 {
+    값목록:차림 <- [1, 2, 3].
+  }.
+  (x) 값목록에 대해 {
+    채비 { 값:수 <- x. }.
+  }.
+}.
+"#;
+        let err = match canonicalize(source, false) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CHAEBI_IN_LOOP");
+    }
+
+    #[test]
+    fn canon_warns_top_level_chaebi_reassign() {
+        let source = r#"
+매마디:움직씨 = {
+  채비 {
+    값:수 <- 0.
+  }.
+  값 <- 1.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out
+            .warnings
+            .iter()
+            .any(|w| w.contains("W_CHAEBI_REDUNDANT_TOP_REASSIGN")));
+    }
+
+    #[test]
+    fn canon_skips_top_level_chaebi_derived_reassign_warning() {
+        let source = r#"
+매마디:움직씨 = {
+  채비 {
+    점수:수 <- 72.
+    통과함:참거짓 <- 거짓.
+  }.
+  통과함 <- 점수 >= 70.
+  통과함 보여주기.
+}.
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(!out
+            .warnings
+            .iter()
+            .any(|w| w.contains("W_CHAEBI_REDUNDANT_TOP_REASSIGN")));
     }
 
     #[test]
@@ -6100,7 +7951,7 @@ mod tests {
     }
 
     #[test]
-    fn canon_rejects_legacy_boim_surface_on_frontdoor() {
+    fn canon_accepts_boim_surface_on_frontdoor() {
         let source = r#"
 (매마디)마다 {
   보임 {
@@ -6108,11 +7959,8 @@ mod tests {
   }.
 }.
 "#;
-        let err = match canonicalize(source, false) {
-            Ok(_) => panic!("must reject"),
-            Err(err) => err,
-        };
-        assert_eq!(err.code(), "E_CANON_LEGACY_BOIM_FORBIDDEN");
+        let output = canonicalize(source, false).expect("boim surface must canon");
+        assert!(output.ddn.contains("보임"));
     }
 }
 
@@ -6164,13 +8012,22 @@ fn collect_maegim_controls_from_stmts(stmts: &[Stmt], controls: &mut Vec<MaegimC
                 }
                 collect_maegim_controls_from_stmts(else_body, controls);
             }
-            Stmt::Choose { branches, else_body } => {
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
                 for branch in branches {
                     collect_maegim_controls_from_stmts(&branch.body, controls);
                 }
-                collect_maegim_controls_from_stmts(else_body, controls);
+                if let Some(else_body) = else_body {
+                    collect_maegim_controls_from_stmts(else_body, controls);
+                }
             }
-            Stmt::PromptChoose { branches, else_body } => {
+            Stmt::PromptChoose {
+                branches,
+                else_body,
+            } => {
                 for branch in branches {
                     collect_maegim_controls_from_stmts(&branch.body, controls);
                 }
@@ -6183,7 +8040,10 @@ fn collect_maegim_controls_from_stmts(stmts: &[Stmt], controls: &mut Vec<MaegimC
     }
 }
 
-fn collect_maegim_controls_from_decl_items(items: &[DeclItem], controls: &mut Vec<MaegimControlItem>) {
+fn collect_maegim_controls_from_decl_items(
+    items: &[DeclItem],
+    controls: &mut Vec<MaegimControlItem>,
+) {
     for item in items {
         let Some(maegim) = &item.maegim else {
             continue;
@@ -6409,8 +8269,16 @@ fn collect_alrim_event_handlers(stmts: &[Stmt], scope: &str, out: &mut Vec<Alrim
             Stmt::Choose {
                 branches,
                 else_body,
+                ..
+            } => {
+                for branch in branches {
+                    collect_alrim_event_handlers(&branch.body, scope, out);
+                }
+                if let Some(else_body) = else_body {
+                    collect_alrim_event_handlers(else_body, scope, out);
+                }
             }
-            | Stmt::PromptChoose {
+            Stmt::PromptChoose {
                 branches,
                 else_body: Some(else_body),
             } => {
@@ -6440,6 +8308,7 @@ fn collect_alrim_event_handlers(stmts: &[Stmt], scope: &str, out: &mut Vec<Alrim
             | Stmt::Assign { .. }
             | Stmt::Show { .. }
             | Stmt::Inspect { .. }
+            | Stmt::Boim { .. }
             | Stmt::Send { .. }
             | Stmt::BogaeMadangBlock { .. }
             | Stmt::ExecPolicyBlock { .. }
@@ -6447,7 +8316,8 @@ fn collect_alrim_event_handlers(stmts: &[Stmt], scope: &str, out: &mut Vec<Alrim
             | Stmt::Return { .. }
             | Stmt::Expr { .. }
             | Stmt::BogaeDraw
-            | Stmt::Break => {}
+            | Stmt::Break
+            | Stmt::ContinueLoop => {}
         }
     }
 }
@@ -6722,8 +8592,36 @@ fn collect_guseong_from_surface_stmts(
             SurfaceStmt::Choose {
                 branches,
                 else_body,
+                ..
+            } => {
+                for branch in branches {
+                    collect_guseong_from_surface_stmts(
+                        &branch.body,
+                        declared_instances,
+                        instance_types,
+                        links,
+                        edges,
+                        sink_sources,
+                        linked_instances,
+                        nodes,
+                        link_scope_depth + 1,
+                    )?;
+                }
+                if let Some(else_body) = else_body {
+                    collect_guseong_from_surface_stmts(
+                        else_body,
+                        declared_instances,
+                        instance_types,
+                        links,
+                        edges,
+                        sink_sources,
+                        linked_instances,
+                        nodes,
+                        link_scope_depth + 1,
+                    )?;
+                }
             }
-            | SurfaceStmt::PromptChoose {
+            SurfaceStmt::PromptChoose {
                 branches,
                 else_body: Some(else_body),
             } => {
@@ -6794,13 +8692,15 @@ fn collect_guseong_from_surface_stmts(
             | SurfaceStmt::Send { .. }
             | SurfaceStmt::Show { .. }
             | SurfaceStmt::Inspect { .. }
+            | SurfaceStmt::Boim { .. }
             | SurfaceStmt::BogaeMadangBlock { .. }
             | SurfaceStmt::ExecPolicyBlock { .. }
             | SurfaceStmt::JjaimBlock { .. }
             | SurfaceStmt::BogaeDraw
             | SurfaceStmt::Return { .. }
             | SurfaceStmt::Expr { .. }
-            | SurfaceStmt::Break => {}
+            | SurfaceStmt::Break
+            | SurfaceStmt::ContinueLoop => {}
         }
     }
     Ok(())
@@ -6910,8 +8810,16 @@ fn collect_jjaim_port_blocks_from_surface(
             SurfaceStmt::Choose {
                 branches,
                 else_body,
+                ..
+            } => {
+                for branch in branches {
+                    collect_jjaim_port_blocks_from_surface(&branch.body, out)?;
+                }
+                if let Some(else_body) = else_body {
+                    collect_jjaim_port_blocks_from_surface(else_body, out)?;
+                }
             }
-            | SurfaceStmt::PromptChoose {
+            SurfaceStmt::PromptChoose {
                 branches,
                 else_body: Some(else_body),
             } => {
@@ -6934,12 +8842,14 @@ fn collect_jjaim_port_blocks_from_surface(
             | SurfaceStmt::Send { .. }
             | SurfaceStmt::Show { .. }
             | SurfaceStmt::Inspect { .. }
+            | SurfaceStmt::Boim { .. }
             | SurfaceStmt::BogaeMadangBlock { .. }
             | SurfaceStmt::ExecPolicyBlock { .. }
             | SurfaceStmt::BogaeDraw
             | SurfaceStmt::Return { .. }
             | SurfaceStmt::Expr { .. }
-            | SurfaceStmt::Break => {}
+            | SurfaceStmt::Break
+            | SurfaceStmt::ContinueLoop => {}
         }
     }
     Ok(())
@@ -7698,6 +9608,15 @@ fn canonicalize_expr(
                 root_hide,
             )),
         },
+        Expr::Grouped { expr } => Expr::Grouped {
+            expr: Box::new(canonicalize_expr(
+                *expr,
+                declared,
+                bridge,
+                default_root,
+                root_hide,
+            )),
+        },
     }
 }
 
@@ -7860,7 +9779,7 @@ fn canonicalize_body(
                         if !declared.contains(name) {
                             return Err(CanonError::new(
                                 "E_CANON_ROOT_HIDE_UNDECLARED",
-                                format!("바탕숨김에서 미등록 바탕칸 쓰기: {}", name),
+                                format!("채비에 선언되지 않은 전역 쓰기: {}", name),
                             ));
                         }
                     }
@@ -7879,6 +9798,22 @@ fn canonicalize_body(
                 out.push(Stmt::Inspect {
                     value: canonicalize_expr(value, declared, bridge, default_root, root_hide),
                 });
+            }
+            SurfaceStmt::Boim { entries } => {
+                let entries = entries
+                    .into_iter()
+                    .map(|entry| Binding {
+                        name: entry.name,
+                        value: canonicalize_expr(
+                            entry.value,
+                            declared,
+                            bridge,
+                            default_root,
+                            root_hide,
+                        ),
+                    })
+                    .collect();
+                out.push(Stmt::Boim { entries });
             }
             SurfaceStmt::BogaeMadangBlock { body, .. } => {
                 out.push(Stmt::BogaeMadangBlock { body });
@@ -7954,6 +9889,7 @@ fn canonicalize_body(
             SurfaceStmt::Choose {
                 branches,
                 else_body,
+                exhaustive,
             } => {
                 let mut mapped = Vec::new();
                 for branch in branches {
@@ -7974,15 +9910,20 @@ fn canonicalize_body(
                         )?,
                     });
                 }
-                out.push(Stmt::Choose {
-                    branches: mapped,
-                    else_body: canonicalize_body(
-                        else_body,
+                let else_body = match else_body {
+                    Some(body) => Some(canonicalize_body(
+                        body,
                         declared,
                         bridge,
                         default_root,
                         root_hide,
-                    )?,
+                    )?),
+                    None => None,
+                };
+                out.push(Stmt::Choose {
+                    branches: mapped,
+                    else_body,
+                    exhaustive,
                 });
             }
             SurfaceStmt::PromptChoose {
@@ -8129,6 +10070,9 @@ fn canonicalize_body(
             SurfaceStmt::Break => {
                 out.push(Stmt::Break);
             }
+            SurfaceStmt::ContinueLoop => {
+                out.push(Stmt::ContinueLoop);
+            }
         }
     }
     Ok(out)
@@ -8178,6 +10122,18 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
         }
         Stmt::Inspect { value } => {
             out.push_str(&format!("{}{} 톺아보기.\n", pad, format_expr(value)));
+        }
+        Stmt::Boim { entries } => {
+            out.push_str(&format!("{}보임 {{\n", pad));
+            for entry in entries {
+                out.push_str(&format!(
+                    "{}  {}: {}.\n",
+                    pad,
+                    entry.name,
+                    format_expr(&entry.value)
+                ));
+            }
+            out.push_str(&format!("{}}}.\n", pad));
         }
         Stmt::Send {
             sender,
@@ -8230,7 +10186,11 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             then_body,
             else_body,
         } => {
-            out.push_str(&format!("{}{} 일때 {{\n", pad, format_condition(condition)));
+            out.push_str(&format!(
+                "{}만약 {} 이라면 {{\n",
+                pad,
+                format_if_condition(condition)
+            ));
             for stmt in then_body {
                 format_stmt(stmt, indent + 1, out);
             }
@@ -8282,6 +10242,7 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
         Stmt::Choose {
             branches,
             else_body,
+            exhaustive,
         } => {
             out.push_str(&format!("{}고르기:\n", pad));
             for branch in branches {
@@ -8295,11 +10256,17 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 }
                 out.push_str(&format!("{}  }}\n", pad));
             }
-            out.push_str(&format!("{}  아니면: {{\n", pad));
-            for stmt in else_body {
-                format_stmt(stmt, indent + 2, out);
+            if let Some(body) = else_body {
+                out.push_str(&format!("{}  아니면: {{\n", pad));
+                for stmt in body {
+                    format_stmt(stmt, indent + 2, out);
+                }
+                out.push_str(&format!("{}  }}.\n", pad));
+            } else if *exhaustive {
+                out.push_str(&format!("{}  모든 경우 다룸.\n", pad));
+            } else {
+                out.push_str(&format!("{}  아니면: {{\n{}  }}.\n", pad, pad));
             }
-            out.push_str(&format!("{}  }}.\n", pad));
         }
         Stmt::PromptChoose {
             branches,
@@ -8437,6 +10404,9 @@ fn format_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
         Stmt::Break => {
             out.push_str(&format!("{}멈추기.\n", pad));
         }
+        Stmt::ContinueLoop => {
+            out.push_str(&format!("{}건너뛰기.\n", pad));
+        }
     }
 }
 
@@ -8523,6 +10493,15 @@ fn format_decl_item(item: &DeclItem, indent: usize) -> String {
 
 fn format_expr(expr: &Expr) -> String {
     format_expr_prec(expr, 0)
+}
+
+fn seed_literal_param_count(param: &str) -> usize {
+    param
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .count()
+        .max(1)
 }
 
 fn maegim_field_leaf_name(name: &str) -> &str {
@@ -8763,6 +10742,7 @@ fn format_expr_prec(expr: &Expr, parent_prec: u8) -> String {
             let (prec, op_text) = match op {
                 BinaryOp::Or => (0, "또는"),
                 BinaryOp::And => (1, "그리고"),
+                BinaryOp::RelationEq => (2, "=:="),
                 BinaryOp::Eq => (2, "=="),
                 BinaryOp::NotEq => (2, "!="),
                 BinaryOp::Lt => (2, "<"),
@@ -8801,13 +10781,19 @@ fn format_expr_prec(expr: &Expr, parent_prec: u8) -> String {
         }
         Expr::SeedLiteral { param, body } => {
             let prec = 6;
-            let rendered = format!("{{{} | {}}}", param, format_expr(body));
+            let rendered_param = if seed_literal_param_count(param) > 1 {
+                format!("({param})")
+            } else {
+                param.clone()
+            };
+            let rendered = format!("{{{} | {}}}", rendered_param, format_expr(body));
             if prec < parent_prec {
                 format!("({})", rendered)
             } else {
                 rendered
             }
         }
+        Expr::Grouped { expr } => format!("({})", format_expr(expr)),
     }
 }
 
@@ -8824,6 +10810,14 @@ fn format_condition(condition: &Condition) -> String {
             format!("{{ {} }}{}", expr, suffix)
         }
     }
+}
+
+fn format_if_condition(condition: &Condition) -> String {
+    let expr = format_expr(&condition.expr);
+    if condition.negated {
+        return format!("({}) 아님", expr);
+    }
+    expr
 }
 
 fn format_literal(literal: &Literal) -> String {
@@ -8855,4 +10849,3 @@ fn escape_string(input: &str) -> String {
     }
     out
 }
-

@@ -12,6 +12,8 @@ categories = ["parser-implementations", "compilers"]
 [dependencies]
 ddonirang-core = { path = "../core" }
 blake3 = "1"
+regex = "1.11"
+serde_json = "1.0"
 
 [dev-dependencies]
 # 테스트용

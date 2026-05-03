@@ -25,6 +25,7 @@ use ddonirang_lang::runtime::Value;
 use ddonirang_lang::{canonicalize, normalize, parse_with_mode, NormalizationLevel, ParseMode};
 use ddonirang_lang::{Expr, ExprKind, Literal, SeedDef, SeedKind, Stmt, TopLevelItem};
 use ddonirang_tool::canon as tool_canon;
+pub use ddonirang_tool::canon;
 use preprocess::{
     format_file_meta, preprocess_ai_calls, preprocess_source_for_parse, split_file_meta,
     validate_no_legacy_boim_surface, validate_no_legacy_header, AiMeta,
@@ -1828,7 +1829,10 @@ fn default_schema_output_path() -> std::path::PathBuf {
     paths::build_dir().join("schema").join("ddn.schema.json")
 }
 
-fn read_schema_hash_from_paths(primary: &std::path::Path, legacy: &std::path::Path) -> Option<String> {
+fn read_schema_hash_from_paths(
+    primary: &std::path::Path,
+    legacy: &std::path::Path,
+) -> Option<String> {
     if primary.exists() {
         let data = std::fs::read(primary).ok()?;
         return Some(blake3::hash(&data).to_hex().to_string());
@@ -2230,7 +2234,7 @@ fn try_convert_simple_decl(code: &str) -> Option<(String, String)> {
         return None;
     }
     let indent = &code[..indent_len];
-    let converted = format!("{indent}살림.{name} <- {rhs}");
+    let converted = format!("{indent}{name} <- {rhs}");
     Some((converted, name.to_string()))
 }
 
@@ -5143,7 +5147,10 @@ mod tests {
     #[test]
     fn default_schema_output_path_points_to_build_schema_file() {
         let path = default_schema_output_path();
-        assert_eq!(path.file_name().and_then(|v| v.to_str()), Some("ddn.schema.json"));
+        assert_eq!(
+            path.file_name().and_then(|v| v.to_str()),
+            Some("ddn.schema.json")
+        );
         let parent = path.parent().expect("schema parent");
         assert_eq!(parent.file_name().and_then(|v| v.to_str()), Some("schema"));
     }
@@ -5695,12 +5702,10 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.개체수" | "ㅅ.개체수" => entity_count = Some(value),
-                "살림.컴포넌트수" | "ㅅ.컴포넌트수" => component_count = Some(value),
-                "살림.아키타입_이동" | "ㅅ.아키타입_이동" => {
-                    archetype_moves = Some(value)
-                }
-                "살림.성능_캡" | "ㅅ.성능_캡" => perf_cap = Some(value),
+                "개체수" | "개체수" => entity_count = Some(value),
+                "컴포넌트수" | "컴포넌트수" => component_count = Some(value),
+                "아키타입_이동" | "아키타입_이동" => archetype_moves = Some(value),
+                "성능_캡" | "성능_캡" => perf_cap = Some(value),
                 _ => {}
             }
         }
@@ -5734,11 +5739,9 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.쿼리_대상수" | "ㅅ.쿼리_대상수" => {
-                    query_target_count = Some(value)
-                }
-                "살림.쿼리_배치" | "ㅅ.쿼리_배치" => query_batch = Some(value),
-                "살림.스냅샷_고정" | "ㅅ.스냅샷_고정" => snapshot_fixed = Some(value),
+                "쿼리_대상수" | "쿼리_대상수" => query_target_count = Some(value),
+                "쿼리_배치" | "쿼리_배치" => query_batch = Some(value),
+                "스냅샷_고정" | "스냅샷_고정" => snapshot_fixed = Some(value),
                 _ => {}
             }
         }
@@ -5771,12 +5774,12 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.임자수" | "ㅅ.임자수" => agent_count = Some(value),
-                "살림.상품수" | "ㅅ.상품수" => item_count = Some(value),
-                "살림.거래수" | "ㅅ.거래수" => trade_count = Some(value),
-                "살림.초기_잔고" | "ㅅ.초기_잔고" => starting_balance = Some(value),
-                "살림.초기_재고" | "ㅅ.초기_재고" => starting_inventory = Some(value),
-                "살림.기본_가격" | "ㅅ.기본_가격" => base_price = Some(value),
+                "임자수" | "임자수" => agent_count = Some(value),
+                "상품수" | "상품수" => item_count = Some(value),
+                "거래수" | "거래수" => trade_count = Some(value),
+                "초기_잔고" | "초기_잔고" => starting_balance = Some(value),
+                "초기_재고" | "초기_재고" => starting_inventory = Some(value),
+                "기본_가격" | "기본_가격" => base_price = Some(value),
                 _ => {}
             }
         }
@@ -5820,11 +5823,11 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.임자수" | "ㅅ.임자수" => agent_count = Some(value),
-                "살림.거래수" | "ㅅ.거래수" => trade_count = Some(value),
-                "살림.초기_잔고" | "ㅅ.초기_잔고" => starting_balance = Some(value),
-                "살림.잔고_최소" | "ㅅ.잔고_최소" => min_balance = Some(value),
-                "살림.거래_금액" | "ㅅ.거래_금액" => trade_amount = Some(value),
+                "임자수" | "임자수" => agent_count = Some(value),
+                "거래수" | "거래수" => trade_count = Some(value),
+                "초기_잔고" | "초기_잔고" => starting_balance = Some(value),
+                "잔고_최소" | "잔고_최소" => min_balance = Some(value),
+                "거래_금액" | "거래_금액" => trade_amount = Some(value),
                 _ => {}
             }
         }
@@ -5864,11 +5867,11 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.임자수" | "ㅅ.임자수" => agent_count = Some(value),
-                "살림.상품수" | "ㅅ.상품수" => item_count = Some(value),
-                "살림.거래수" | "ㅅ.거래수" => trade_count = Some(value),
-                "살림.기본_가격" | "ㅅ.기본_가격" => base_price = Some(value),
-                "살림.거래_금액" | "ㅅ.거래_금액" => trade_amount = Some(value),
+                "임자수" | "임자수" => agent_count = Some(value),
+                "상품수" | "상품수" => item_count = Some(value),
+                "거래수" | "거래수" => trade_count = Some(value),
+                "기본_가격" | "기본_가격" => base_price = Some(value),
+                "거래_금액" | "거래_금액" => trade_amount = Some(value),
                 _ => {}
             }
         }
@@ -5907,12 +5910,10 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.반응_패스_최대" | "ㅅ.반응_패스_최대" => {
-                    reactive_max_pass = Some(value)
-                }
-                "살림.알림_연쇄" | "ㅅ.알림_연쇄" => alert_chain = Some(value),
-                "살림.반응_증분" | "ㅅ.반응_증분" => step_value = Some(value),
-                "살림.초기_값" | "ㅅ.초기_값" => initial_value = Some(value),
+                "반응_패스_최대" | "반응_패스_최대" => reactive_max_pass = Some(value),
+                "알림_연쇄" | "알림_연쇄" => alert_chain = Some(value),
+                "반응_증분" | "반응_증분" => step_value = Some(value),
+                "초기_값" | "초기_값" => initial_value = Some(value),
                 _ => {}
             }
         }
@@ -5947,10 +5948,10 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.제안_수" | "ㅅ.제안_수" => proposal_count = Some(value),
-                "살림.승인_토큰" | "ㅅ.승인_토큰" => approval_tokens = Some(value),
-                "살림.적용_요청" | "ㅅ.적용_요청" => apply_requests = Some(value),
-                "살림.승인_필수" | "ㅅ.승인_필수" => approval_required = Some(value),
+                "제안_수" | "제안_수" => proposal_count = Some(value),
+                "승인_토큰" | "승인_토큰" => approval_tokens = Some(value),
+                "적용_요청" | "적용_요청" => apply_requests = Some(value),
+                "승인_필수" | "승인_필수" => approval_required = Some(value),
                 _ => {}
             }
         }
@@ -5986,11 +5987,11 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.참가자수" | "ㅅ.참가자수" => participant_count = Some(value),
-                "살림.호스트_입력" | "ㅅ.호스트_입력" => host_inputs = Some(value),
-                "살림.손님_입력" | "ㅅ.손님_입력" => guest_inputs = Some(value),
-                "살림.동기_라운드" | "ㅅ.동기_라운드" => sync_rounds = Some(value),
-                "살림.시작_값" | "ㅅ.시작_값" => starting_value = Some(value),
+                "참가자수" | "참가자수" => participant_count = Some(value),
+                "호스트_입력" | "호스트_입력" => host_inputs = Some(value),
+                "손님_입력" | "손님_입력" => guest_inputs = Some(value),
+                "동기_라운드" | "동기_라운드" => sync_rounds = Some(value),
+                "시작_값" | "시작_값" => starting_value = Some(value),
                 _ => {}
             }
         }
@@ -6030,17 +6031,11 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.차분_개수" | "ㅅ.차분_개수" => diff_count = Some(value),
-                "살림.코드_길이_전" | "ㅅ.코드_길이_전" => {
-                    code_before_len = Some(value)
-                }
-                "살림.코드_길이_후" | "ㅅ.코드_길이_후" => {
-                    code_after_len = Some(value)
-                }
-                "살림.상태_필드_수" | "ㅅ.상태_필드_수" => {
-                    state_field_count = Some(value)
-                }
-                "살림.요약_캡" | "ㅅ.요약_캡" => summary_cap = Some(value),
+                "차분_개수" | "차분_개수" => diff_count = Some(value),
+                "코드_길이_전" | "코드_길이_전" => code_before_len = Some(value),
+                "코드_길이_후" | "코드_길이_후" => code_after_len = Some(value),
+                "상태_필드_수" | "상태_필드_수" => state_field_count = Some(value),
+                "요약_캡" | "요약_캡" => summary_cap = Some(value),
                 _ => {}
             }
         }
@@ -6080,13 +6075,11 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                 continue;
             };
             match key.as_str() {
-                "살림.임자수" | "ㅅ.임자수" => agent_count = Some(value),
-                "살림.상품수" | "ㅅ.상품수" => item_count = Some(value),
-                "살림.거래수" | "ㅅ.거래수" => trade_count = Some(value),
-                "살림.쿼리_배치" | "ㅅ.쿼리_배치" => query_batch = Some(value),
-                "살림.반응_패스_최대" | "ㅅ.반응_패스_최대" => {
-                    reactive_max_pass = Some(value)
-                }
+                "임자수" | "임자수" => agent_count = Some(value),
+                "상품수" | "상품수" => item_count = Some(value),
+                "거래수" | "거래수" => trade_count = Some(value),
+                "쿼리_배치" | "쿼리_배치" => query_batch = Some(value),
+                "반응_패스_최대" | "반응_패스_최대" => reactive_max_pass = Some(value),
                 _ => {}
             }
         }

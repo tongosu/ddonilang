@@ -10,6 +10,7 @@
 pub mod age_gate;
 pub mod ast;
 pub mod canonicalizer;
+pub mod currentline;
 pub mod dialect;
 pub mod frontdoor;
 pub mod lexer;
@@ -23,11 +24,14 @@ pub mod term_map;
 pub use age_gate::{age_not_available_error, AgeTarget};
 pub use ast::*;
 pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
+pub use currentline::{apply_currentline_cell, CurrentLineResult};
 pub use dialect::DialectConfig;
 pub use frontdoor::{
-    find_legacy_header, has_legacy_boim_surface, normalize_for_lang_parity,
+    find_legacy_header, find_legacy_range_comment, find_legacy_root_hide_directive,
+    find_legacy_root_surface, has_legacy_boim_surface, normalize_for_lang_parity,
     preprocess_frontdoor_source, validate_no_legacy_boim_surface, validate_no_legacy_header,
-    wrap_lang_parity_source,
+    validate_no_legacy_range_comment, validate_no_legacy_root_hide_directive,
+    validate_no_legacy_root_surface, wrap_lang_parity_source,
 };
 pub use lexer::{LexError, Lexer, Token, TokenKind};
 pub use normalizer::{normalize, NormalizationLevel, Normalizer};
@@ -178,6 +182,25 @@ mod integration_tests {
     }
 
     #[test]
+    fn relation_eq_infix_parses_inside_seed_body() {
+        let source = r#"
+검사:셈씨 = {
+    rel <- ((#ascii) 수식{2*x + 3}) =:= ((#ascii) 수식{7}).
+}
+"#;
+        let program = parse(source, "relation_eq.ddoni").expect("parse");
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        let body = seed.body.as_ref().expect("body");
+        let Stmt::Mutate { value, .. } = &body.stmts[0] else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Infix { op, .. } = &value.kind else {
+            panic!("relation infix expected");
+        };
+        assert_eq!(op, "=:=");
+    }
+
+    #[test]
     fn test_call_tail_equivalence_shortens() {
         let source = r#"
 (대상:수) 회복:움직씨 = {
@@ -257,6 +280,18 @@ mod integration_tests {
         let err = parse(source, "test.ddoni").expect_err("josa only");
         assert!(err.message.contains("NAME-LINT-01"));
         assert!(err.message.contains("조사"));
+    }
+
+    #[test]
+    fn test_named_seed_kind_accepts_imja_in_kind_position() {
+        let source = r#"
+기계:임자 = {
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("seed kind imja");
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        assert_eq!(seed.canonical_name, "기계");
+        assert_eq!(seed.seed_kind, SeedKind::Named("임자".to_string()));
     }
 
     #[test]
@@ -454,6 +489,23 @@ mod integration_tests {
         let TopLevelItem::SeedDef(seed) = &program.items[0];
         let body = seed.body.as_ref().unwrap();
         assert!(matches!(body.stmts[0], Stmt::If { .. }));
+    }
+
+    #[test]
+    fn test_manyak_if_parsing_and_normalization() {
+        let source = r#"
+(x:수) 판정:셈씨 = {
+    만약 x < 0 이라면 {
+        "음수" 돌려줘.
+    }.
+    아니면 {
+        "양수" 돌려줘.
+    }.
+}
+"#;
+        let normalized = parse_and_normalize(source, "test.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("만약 x < 0 이라면"));
+        assert!(!normalized.contains(" 일때 "));
     }
 
     #[test]
@@ -826,6 +878,40 @@ mod integration_tests {
         assert_eq!(args[1].josa.as_deref(), Some("에"));
         let normalized = normalize(&program, NormalizationLevel::N1);
         assert!(normalized.contains("3~을 1~에 더하기"));
+    }
+
+    #[test]
+    fn imja_receive_and_signal_send_are_ast_nodes() {
+        let source = r#"
+(값:수) 첫알림:알림씨 = {
+    값 돌려줘.
+}
+
+관제탑:임자 = {
+    첫알림을 받으면 {
+        "받음" 보여주기.
+    }.
+}
+
+테스트:움직씨 = {
+    ((값=1) 첫알림) ~~> 관제탑.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("parse");
+        let TopLevelItem::SeedDef(imja) = &program.items[1];
+        let body = imja.body.as_ref().expect("imja body");
+        assert!(matches!(
+            body.stmts.first(),
+            Some(Stmt::Receive {
+                kind: Some(kind),
+                binding: None,
+                condition: None,
+                ..
+            }) if kind == "첫알림"
+        ));
+        let TopLevelItem::SeedDef(test_seed) = &program.items[2];
+        let body = test_seed.body.as_ref().expect("test body");
+        assert!(matches!(body.stmts.first(), Some(Stmt::Send { .. })));
     }
 
     #[test]
@@ -1658,6 +1744,35 @@ Test:셈씨 = {
     }
 
     #[test]
+    fn test_symbolic_relation_assertion_literal_parses() {
+        let source = r#"
+Test:셈씨 = {
+    검사 <- 세움{
+        (#ascii) 수식{x + y} =:= (#ascii) 수식{5}
+    }.
+}
+"#;
+        let program = parse(source, "assertion_relation.ddoni").expect("assertion relation parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Assertion(assertion) = &value.kind else {
+            panic!("assertion literal expected");
+        };
+        assert_eq!(assertion.canon, "세움{수식관계: x + y =:= 5}");
+    }
+
+    #[test]
     fn test_template_pipe_fill_is_rejected() {
         let source = r#"
 Test:셈씨 = {
@@ -1706,6 +1821,129 @@ Test:셈씨 = {
             }
             _ => panic!("decl block expected"),
         }
+    }
+
+    #[test]
+    fn test_decl_block_in_repeat_body_is_rejected() {
+        let source = r#"
+테스트:합 = {
+    반복 {
+        채비 { 값:수 <- 0. }.
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("decl block in repeat body");
+        assert!(err.message.contains("E_CHAEBI_IN_LOOP"));
+    }
+
+    #[test]
+    fn test_decl_block_in_hook_body_is_rejected() {
+        let source = r#"
+테스트:합 = {
+    (처음)할때 {
+        채비 { 값:수 <- 0. }.
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("decl block in hook body");
+        assert!(err.message.contains("E_CHAEBI_IN_LOOP"));
+    }
+
+    #[test]
+    fn test_top_level_chaebi_reassign_warns() {
+        let source = r#"
+테스트:합 = {
+    채비 { 값:수 <- 0. }.
+    값 <- 1.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").expect("parse");
+        let report = canonicalize(&mut program).expect("canonicalize");
+        assert!(report
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "W_CHAEBI_REDUNDANT_TOP_REASSIGN"));
+    }
+
+    #[test]
+    fn test_top_level_chaebi_derived_reassign_does_not_warn() {
+        let source = r#"
+테스트:합 = {
+    채비 {
+        점수:수 <- 72.
+        통과함:참거짓 <- 거짓.
+    }.
+    통과함 <- 점수 >= 70.
+    통과함 보여주기.
+}
+"#;
+        let mut program = parse(source, "test.ddoni").expect("parse");
+        let report = canonicalize(&mut program).expect("canonicalize");
+        assert!(!report
+            .warnings
+            .iter()
+            .any(|warning| warning.code == "W_CHAEBI_REDUNDANT_TOP_REASSIGN"));
+    }
+
+    #[test]
+    fn test_decl_block_item_with_maegim_suffix_parses() {
+        let source = r#"
+테스트:셈씨 = {
+    채비 {
+        데이터길이:수 <- (12) 매김 {
+            범위: 4..40.
+            간격: 1.
+        }.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("decl block with 매김 parse");
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        let body = seed.body.as_ref().expect("body");
+        match &body.stmts[0] {
+            Stmt::DeclBlock { items, .. } => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].name, "데이터길이");
+            }
+            _ => panic!("decl block expected"),
+        }
+    }
+
+    #[test]
+    fn test_decl_block_item_with_condition_alias_suffix_parses() {
+        let source = r#"
+테스트:셈씨 = {
+    채비 {
+        데이터길이:수 <- (12) 조건 {
+            범위: 4..40.
+            간격: 1.
+        }.
+    }.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("decl block with 조건 parse");
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        let body = seed.body.as_ref().expect("body");
+        match &body.stmts[0] {
+            Stmt::DeclBlock { items, .. } => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].name, "데이터길이");
+            }
+            _ => panic!("decl block expected"),
+        }
+    }
+
+    #[test]
+    fn test_decl_block_none_entry_reports_actionable_error() {
+        let source = r#"
+테스트:셈씨 = {
+    채비 {
+        없음.
+    }.
+}
+"#;
+        let err = parse(source, "test.ddoni").expect_err("decl block none entry must fail");
+        assert!(err.message.contains("채비 항목은 `이름:타입 <- 값.` 형태"));
     }
 
     #[test]
@@ -1854,15 +2092,30 @@ Test:셈씨 = {
     }
 
     #[test]
-    fn test_boim_block_without_colon_is_rejected() {
+    fn test_boim_block_without_colon_parses() {
         let source = r#"
 테스트:셈씨 = {
     보임 { y축: 값. }.
     1 돌려줘.
 }
 "#;
-        let err = parse(source, "test.ddoni").expect_err("legacy boim alias rejected");
-        assert!(err.message.contains("문장 종결") || err.message.contains("설정/보개/슬기"));
+        let program = parse(source, "test.ddoni").expect("boim block parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        match &body.stmts[0] {
+            Stmt::MetaBlock { kind, entries, .. } => {
+                assert!(matches!(kind, MetaBlockKind::Boim));
+                assert_eq!(entries, &vec!["y축:값".to_string()]);
+            }
+            other => panic!("meta block expected, got {other:?}"),
+        }
     }
 
     #[test]
@@ -2350,7 +2603,10 @@ Test:셈씨 = {
             .find(|seed| seed.canonical_name == "테스트")
             .expect("테스트 seed");
         let body = seed.body.as_ref().expect("테스트 body");
-        assert!(matches!(body.stmts.first(), Some(Stmt::HookWhenBecomes { .. })));
+        assert!(matches!(
+            body.stmts.first(),
+            Some(Stmt::HookWhenBecomes { .. })
+        ));
     }
 
     #[test]
@@ -2373,5 +2629,28 @@ Test:셈씨 = {
             .expect("테스트 seed");
         let body = seed.body.as_ref().expect("테스트 body");
         assert!(matches!(body.stmts.first(), Some(Stmt::HookWhile { .. })));
+    }
+
+    #[test]
+    fn test_continue_loop_parses() {
+        let source = r#"
+테스트:움직씨 = {
+    건너뛰기.
+}
+"#;
+        let program = parse(source, "test.ddoni").expect("continue parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "테스트")
+            .expect("테스트 seed");
+        let body = seed.body.as_ref().expect("테스트 body");
+        assert!(matches!(
+            body.stmts.first(),
+            Some(Stmt::ContinueLoop { .. })
+        ));
     }
 }

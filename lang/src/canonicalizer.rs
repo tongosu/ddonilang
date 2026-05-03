@@ -27,6 +27,7 @@ pub fn canonicalize(program: &mut CanonProgram) -> Result<CanonicalizeReport, Pa
     let stdlib_names = collect_stdlib_names();
     lint_tailless_calls(program, &known_seeds, &stdlib_names, &mut warnings);
     lint_deprecated_block_header_colon(program, &mut warnings);
+    lint_redundant_top_level_chaebi_reassign(program, &mut warnings);
     Ok(CanonicalizeReport { warnings })
 }
 
@@ -45,7 +46,9 @@ fn lint_deprecated_block_header_colon(program: &CanonProgram, warnings: &mut Vec
             continue;
         }
         let is_deprecated_header = match &tokens[idx].kind {
-            TokenKind::KwBanbok | TokenKind::KwDongan | TokenKind::KwDaehae | TokenKind::KwBeat => true,
+            TokenKind::KwBanbok | TokenKind::KwDongan | TokenKind::KwDaehae | TokenKind::KwBeat => {
+                true
+            }
             TokenKind::Ident(name) | TokenKind::Josa(name) => {
                 matches!(name.as_str(), "채비" | "설정" | "보개" | "모양" | "슬기")
             }
@@ -66,6 +69,51 @@ fn lint_deprecated_block_header_colon(program: &CanonProgram, warnings: &mut Vec
             ),
         });
     }
+}
+
+fn lint_redundant_top_level_chaebi_reassign(
+    program: &CanonProgram,
+    warnings: &mut Vec<LintWarning>,
+) {
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        let Some(body) = &seed.body else {
+            continue;
+        };
+        let mut declared_names = HashSet::new();
+        for stmt in &body.stmts {
+            match stmt {
+                Stmt::DeclBlock { items, .. } => {
+                    for item in items {
+                        declared_names.insert(item.name.clone());
+                    }
+                }
+                Stmt::Mutate { target, value, .. } => {
+                    let ExprKind::Var(name) = &target.kind else {
+                        continue;
+                    };
+                    if !declared_names.contains(name) {
+                        continue;
+                    }
+                    if !is_redundant_top_level_chaebi_reassign_value(value) {
+                        continue;
+                    }
+                    warnings.push(LintWarning {
+                        code: "W_CHAEBI_REDUNDANT_TOP_REASSIGN",
+                        span: target.span,
+                        message: format!(
+                            "`채비 {{}}`에서 이미 준비한 `{name}`를 같은 최상위에서 다시 대입했습니다. 중복 준비가 아니면 일반 대입만 남기세요."
+                        ),
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn is_redundant_top_level_chaebi_reassign_value(value: &Expr) -> bool {
+    matches!(value.kind, ExprKind::Literal(_))
 }
 
 fn canonicalize_top_level_item(
@@ -131,6 +179,26 @@ fn canonicalize_stmt(
             canonicalize_expr(value, signatures, warnings)?;
         }
         Stmt::Expr { expr, .. } => canonicalize_expr(expr, signatures, warnings)?,
+        Stmt::Receive {
+            condition, body, ..
+        } => {
+            if let Some(condition) = condition {
+                canonicalize_expr(condition, signatures, warnings)?;
+            }
+            canonicalize_body(body, signatures, warnings)?;
+        }
+        Stmt::Send {
+            sender,
+            payload,
+            receiver,
+            ..
+        } => {
+            if let Some(sender) = sender {
+                canonicalize_expr(sender, signatures, warnings)?;
+            }
+            canonicalize_expr(payload, signatures, warnings)?;
+            canonicalize_expr(receiver, signatures, warnings)?;
+        }
         Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
             canonicalize_expr(expr, signatures, warnings)?
         }
@@ -214,7 +282,7 @@ fn canonicalize_stmt(
             canonicalize_type_ref(domain, *span, warnings)?;
             canonicalize_body(body, signatures, warnings)?;
         }
-        Stmt::Break { .. } => {}
+        Stmt::Break { .. } | Stmt::ContinueLoop { .. } => {}
         Stmt::Contract {
             condition,
             then_body,
@@ -267,7 +335,13 @@ fn canonicalize_expr(
         ExprKind::Thunk(body) => canonicalize_body(body, signatures, warnings)?,
         ExprKind::Eval { thunk, .. } => canonicalize_expr(thunk, signatures, warnings)?,
         ExprKind::SeedLiteral { param, body } => {
-            canonicalize_ident(param, expr.span, warnings)?;
+            for part in param.split(',') {
+                let candidate = part.trim();
+                if !candidate.is_empty() {
+                    let mut name = candidate.to_string();
+                    canonicalize_ident(&mut name, expr.span, warnings)?;
+                }
+            }
             canonicalize_expr(body, signatures, warnings)?;
         }
         ExprKind::Pipe { stages } => {
@@ -512,6 +586,26 @@ fn lint_tailless_body(
             Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => {
                 lint_tailless_expr(expr, known_seeds, stdlib_names, warnings);
             }
+            Stmt::Receive {
+                condition, body, ..
+            } => {
+                if let Some(condition) = condition {
+                    lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
+                }
+                lint_tailless_body(body, known_seeds, stdlib_names, warnings);
+            }
+            Stmt::Send {
+                sender,
+                payload,
+                receiver,
+                ..
+            } => {
+                if let Some(sender) = sender {
+                    lint_tailless_expr(sender, known_seeds, stdlib_names, warnings);
+                }
+                lint_tailless_expr(payload, known_seeds, stdlib_names, warnings);
+                lint_tailless_expr(receiver, known_seeds, stdlib_names, warnings);
+            }
             Stmt::MetaBlock { .. } => {}
             Stmt::Pragma { .. } => {}
             Stmt::Mutate { target, value, .. } => {
@@ -597,7 +691,7 @@ fn lint_tailless_body(
                 lint_tailless_expr(condition, known_seeds, stdlib_names, warnings);
                 lint_tailless_body(body, known_seeds, stdlib_names, warnings);
             }
-            Stmt::Break { .. } => {}
+            Stmt::Break { .. } | Stmt::ContinueLoop { .. } => {}
         }
     }
 }
