@@ -172,6 +172,7 @@ Ddonilang is building tools that turn study into experiments, not just games. Th
 - Quick start: `publish/QUICKSTART.md`
 - Development structure: `publish/DDONIRANG_DEV_STRUCTURE.md`
 - Localization policy: `publish/LOCALIZATION.md`
+- 17-language public document sets: `publish/i18n/INDEX.md`
 - CI stabilization note (2026-02-23): `publish/CI_AGGREGATE_GATE_FIX_NOTE_20260223.md`
 
 ---
