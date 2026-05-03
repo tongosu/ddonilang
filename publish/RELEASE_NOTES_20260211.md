@@ -1,5 +1,7 @@
 # Release Notes — 2026-02-11
 
+> 이 문서는 2026-02-11 시점의 historical release note다. 현재 셈그림 작업실/WASM/current-line 상태는 `README.md`, `QUICKSTART.md`, `DDONIRANG_DEV_STRUCTURE.md`를 기준으로 본다.
+
 ## 요약
 이번 릴리스는 AGE2(Open) 기반의 open 정책 강화와 open.net/ffi/gpu 최소 스키마/런타임 API를 확정하고, 이에 대한 pack 검증을 추가했다.
 

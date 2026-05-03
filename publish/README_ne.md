@@ -13,6 +13,13 @@
 - एउटै इनपुटमा एउटै परिणाम आउने निर्धारणलाई आधार बनाउँछ।
 - AI सहकार्यका लागि pack test, canonicalization, replay/trace प्रयोग गर्छ।
 
+## हालको स्थिति
+
+- Rust `ddonirang-lang`, `ddonirang-tool`, `teul-cli` ले DDN syntax, hooks, formulas, observe rows, current-line execution जाँच्छ।
+- Seamgrim workspace WASM-first मार्गमा चल्छ; CLI/WASM parity checks ले एउटै परिणाम अपेक्षा गर्छ।
+- Web workspace मा DDN examples खोल्न सकिन्छ: run, pause, reset, step-by-madi।
+- `solutions/seamgrim_ui_mvp/samples/` मा console-grid, space2d pendulum, Tetris, formula/proof/lambda, maze, bounce-probe examples छन्।
+
 ## किन व्याकरण-आधारित Determinism
 
 - `~` ले role-marker सीमा स्पष्ट बनाउँछ।
@@ -57,8 +64,8 @@ base.door_state <- "closed".
 ## थप विवरण
 
 - Full reference: `README_en.md`
+- Quick start: `QUICKSTART.md`
 
 ## License
 
 - Planned open-source license (to be announced).
-

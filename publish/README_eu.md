@@ -13,6 +13,13 @@
 - Sarrera bera -> emaitza bera printzipioa lehenetsita dago.
 - AI lankidetzarako pack test, canonicalization, replay/trace erabiltzen dira.
 
+## Uneko egoera
+
+- Rust `ddonirang-lang`, `ddonirang-tool` eta `teul-cli` tresnek DDN syntax, hooks, formula, observe rows eta current-line execution egiaztatzen dituzte.
+- Seamgrim workspace-k WASM lehenesten du; CLI/WASM parity checker-ek irteera bera eskatzen dute.
+- Web workspace-n DDN examples ireki eta run, pause, reset, step-by-madi erabil daitezke.
+- `solutions/seamgrim_ui_mvp/samples/` barruan console-grid, space2d pendulum, Tetris, formula/proof/lambda, maze eta bounce-probe examples daude.
+
 ## Zergatik determinismoa gramatikan
 
 - `~` role-marker muga argitzen du.
@@ -57,8 +64,8 @@ base.door_state <- "closed".
 ## Dokumentazio osoa
 
 - Full reference: `README_en.md`
+- Quick start: `QUICKSTART.md`
 
 ## License
 
 - Planned open-source license (to be announced).
-

@@ -13,6 +13,13 @@
 - ಒಂದೇ input ಗೆ ಒಂದೇ output ಬರುತ್ತದೆ ಎಂಬ ನಿಯಮ ಮುಖ್ಯ.
 - AI ಸಹಕಾರಕ್ಕೆ pack test, canonicalization, replay/trace ಮಾರ್ಗಗಳಿವೆ.
 
+## ಪ್ರಸ್ತುತ ಸ್ಥಿತಿ
+
+- Rust `ddonirang-lang`, `ddonirang-tool`, `teul-cli` DDN syntax, hooks, formulas, observe rows, current-line execution ಅನ್ನು ಪರಿಶೀಲಿಸುತ್ತವೆ.
+- Seamgrim workspace WASM-first ಮಾರ್ಗವನ್ನು ಬಳಸುತ್ತದೆ; CLI/WASM parity checks ಒಂದೇ ಫಲಿತಾಂಶವನ್ನು ನಿರೀಕ್ಷಿಸುತ್ತವೆ.
+- Web workspace ನಲ್ಲಿ DDN examples ತೆರೆಯಬಹುದು: run, pause, reset, step-by-madi.
+- `solutions/seamgrim_ui_mvp/samples/` ನಲ್ಲಿ console-grid, space2d pendulum, Tetris, formula/proof/lambda, maze, bounce-probe examples ಇವೆ.
+
 ## ವ್ಯಾಕರಣ-ಆಧಾರಿತ Determinism
 
 - `~` role-marker ಗಡಿ ಸ್ಪಷ್ಟಪಡಿಸುತ್ತದೆ.
@@ -57,8 +64,8 @@ base.door_state <- "closed".
 ## ಸಂಪೂರ್ಣ ಆವೃತ್ತಿ
 
 - Full reference: `README_en.md`
+- Quick start: `QUICKSTART.md`
 
 ## License
 
 - Planned open-source license (to be announced).
-

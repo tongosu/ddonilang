@@ -177,6 +177,9 @@ aiGYM은 또니랑의 **결정성 기반 훈련/실험 환경**을 말합니다.
 ## 추가 문서
 
 - 문서 인덱스: `publish/INDEX.md`
+- 빠른 시작: `publish/QUICKSTART.md`
+- 개발 구조: `publish/DDONIRANG_DEV_STRUCTURE.md`
+- 다국어 운영 기준: `publish/LOCALIZATION.md`
 - CI 안정화 노트(2026-02-23): `publish/CI_AGGREGATE_GATE_FIX_NOTE_20260223.md`
 
 ---

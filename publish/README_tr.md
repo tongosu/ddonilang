@@ -19,6 +19,14 @@ Ddonilang, “düşüncenin doğrudan oyuna dönüştüğü bir dil” hedefiyle
 - **Eğitim/üretim dostu**: Oyunun yanında matematik/fizik/ekonomi deneylerine doğru genişler.
 - **Büyü Dünyası (Ddonilang Dünyası)**: Sözlerin (büyülerin) dünyayı değiştirdiği demo/öğretici evreni geliştiriyoruz.
 
+## Güncel uygulama durumu
+
+- **Dil/runtime**: Rust tabanlı `ddonirang-lang`, `ddonirang-tool` ve `teul-cli`, DDN sözdizimi, hook yürütme, formüller, observe rows ve current-line yürütmeyi doğrular.
+- **CLI/WASM parity**: Seamgrim ürün yolu WASM önceliklidir; temel checker'lar CLI ve WASM çıktılarının aynı ölçüte göre eşleşmesini bekler.
+- **Seamgrim çalışma alanı**: Web çalışma alanında DDN örnekleri açılır; çalıştırma, duraklatma, sıfırlama ve madi adımı izlenebilir.
+- **Bogae görünümleri**: console-grid, graph ve space2d görünümleri; ayna/sonuç tablosu akışlarıyla birlikte çalışır. Bogae yalnızca görünüm katmanıdır; runtime truth DDN runtime ve ayna kayıtlarındadır.
+- **Örnek hattı**: `solutions/seamgrim_ui_mvp/samples/` altında console-grid, space2d sarkaç, Tetris, formül/kanıt/lambda, labirent ve bounce-probe örnekleri vardır.
+
 ---
 
 ## Neden yaptık
@@ -122,15 +130,15 @@ Büyü Dünyası (Ddonilang Dünyası), “sözlerle dünyayı değiştirme” k
 
 ---
 
-## Öğrenmeye yardımcı laboratuvarlar (plan)
+## Öğrenmeye yardımcı laboratuvarlar (devam ediyor)
 
-Ddonilang, oyunun yanında **öğrenmeyi deneye dönüştüren** araçlar da hedefler.  
-Bu kısım belki “birileriyle” birlikte yapılacaktır.
+Ddonilang, oyunun yanında **öğrenmeyi deneye dönüştüren** araçlar da geliştiriyor.
+Güncel odak Seamgrim çalışma alanıdır: çalıştırılabilir DDN örnekleri, Bogae, grafikler ve ayna kayıtları.
 
 ### 1) Semgrim (hareketli matematik çizimleri)
-- Formülleri/geom/füzik kurallarını **“madi zaman çizelgesi”** ile hareketlendirme
-- Aynı kod → aynı kareler (reprodüksiyon)
-- Matematiği **görselleştiren** araç
+- Formül, geometri ve fizik kurallarını **madi zaman çizelgesi** üzerinde çalıştırma
+- Aynı DDN kodu ve aynı giriş aynı observe rows/ayna kayıtlarına yakınsar
+- console-grid, graph ve space2d örnekleri çalışma alanında doğrudan denenebilir
 
 ### 2) Fizik Stüdyosu (Physics 2D)
 - Teori (formül) ↔ deney (Nuri) ↔ grafik (karşılaştırma)
@@ -156,7 +164,7 @@ Bu kısım belki “birileriyle” birlikte yapılacaktır.
 
 ---
 
-## Açık kanallar (plan)
+## Açık kanallar
 
 - **GitHub**: kod + doküman / issue‑tartışma / release tag
 - **YouTube**: 3‑5 dakikalık tanıtım + 30 saniye demo + yol haritası

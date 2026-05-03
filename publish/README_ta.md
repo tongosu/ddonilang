@@ -13,6 +13,13 @@
 - ஒரே inputக்கு ஒரே output கிடைக்குமென்ற நிர்ணயத்தைக் காப்பது இதன் மையம்.
 - AI கூட்டாண்மைக்கு pack test, canonicalization, replay/trace வழிமுறைகள் உள்ளது.
 
+## தற்போதைய நிலை
+
+- Rust `ddonirang-lang`, `ddonirang-tool`, `teul-cli` DDN syntax, hooks, formulas, observe rows, current-line execution ஆகியவற்றைச் சரிபார்க்கின்றன.
+- Seamgrim workspace WASM-first பாதையில் இயங்குகிறது; CLI/WASM parity checks ஒரே output-ஐ எதிர்பார்க்கின்றன.
+- Web workspace-இல் DDN examples திறந்து run, pause, reset, step-by-madi செய்யலாம்.
+- `solutions/seamgrim_ui_mvp/samples/` இல் console-grid, space2d pendulum, Tetris, formula/proof/lambda, maze, bounce-probe examples உள்ளன.
+
 ## ஏன் இலக்கண-அடிப்படையிலான Determinism
 
 - `~` role-marker எல்லையை தெளிவாக்குகிறது.
@@ -57,8 +64,8 @@ base.door_state <- "closed".
 ## முழு ஆவணம்
 
 - Full reference: `README_en.md`
+- Quick start: `QUICKSTART.md`
 
 ## License
 
 - Planned open-source license (to be announced).
-

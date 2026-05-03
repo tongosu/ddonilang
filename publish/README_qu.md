@@ -13,6 +13,13 @@
 - Chay inputqa kikin kaptin, lluqsiypas kikinmi (determinism).
 - AIwan yanapakuq ruwanapaq: pack test, canonicalization, replay/trace.
 
+## Kunan kaq (Current status)
+
+- Rust `ddonirang-lang`, `ddonirang-tool`, `teul-cli` DDN syntax, hooks, formula, observe rows, current-line execution nisqakunata qhawan.
+- Seamgrim workspace WASM-first ñanta hap'in; CLI/WASM parity checks kikin lluqsiyninta mañan.
+- Web workspacepi DDN examples kichayta atikun: run, pause, reset, step-by-madi.
+- `solutions/seamgrim_ui_mvp/samples/` ukupi console-grid, space2d pendulum, Tetris, formula/proof/lambda, maze, bounce-probe examples kan.
+
 ## Imarayku determinism grammarpi
 
 - `~` nisqa role-marker chiqanchay.
@@ -57,8 +64,8 @@ base.door_state <- "closed".
 ## Qillqa aswan hatun
 
 - Full reference: `README_en.md`
+- Quick start: `QUICKSTART.md`
 
 ## License
 
 - Planned open-source license (to be announced).
-

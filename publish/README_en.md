@@ -17,6 +17,14 @@ Ddonilang is a Korean‑first language/tooling project aiming for “a language 
 - **Education/creation‑friendly**: Extends from games to math/physics/economics as experiments.
 - **Spellworld (Ddonilang World)**: A demo/tutorial world where spells (words) change the world.
 
+## Current implementation status
+
+- **Language/runtime**: Rust crates `ddonirang-lang`, `ddonirang-tool`, and `teul-cli` validate DDN syntax, hooks, formulas, observe rows, and current-line execution.
+- **CLI/WASM parity**: The Seamgrim product path is WASM-first, and regression checks compare CLI and WASM outputs under the same criteria.
+- **Seamgrim workspace**: The web workspace can open DDN examples and run, pause, reset, and step through madi execution.
+- **Bogae views**: console-grid, graph, and space2d views are available with mirror/result-table flows. Bogae is a view layer; runtime truth stays in the DDN runtime and mirror records.
+- **Example rail**: `solutions/seamgrim_ui_mvp/samples/` contains console-grid, space2d pendulum, Tetris, formula/proof/lambda, maze, and bounce-probe examples.
+
 ---
 
 ## Why I made it
@@ -117,14 +125,14 @@ Spellworld (Ddonilang World) is a demo/tutorial universe where words (spells) ch
 
 ---
 
-## Learning labs (planned)
+## Learning labs (in progress)
 
-Ddonilang aims to turn study into experiments, not just games.
+Ddonilang is building tools that turn study into experiments, not just games. The current focus is the Seamgrim workspace: executable DDN examples, Bogae views, graphs, and mirror records.
 
 ### 1) Semgrim (moving math drawings)
-- Animate formulas/geometry/physics with a **madi timeline**
-- Same code → same frames (repro)
-- A tool to **make math visible**
+- Run formulas, geometry, and physics on a **madi timeline**
+- Same DDN code and same input converge to the same observe rows and mirror records
+- Try console-grid, graph, and space2d examples directly in the workspace
 
 ### 2) Physics Studio (Physics 2D)
 - Theory (formula) ↔ experiment (Nuri) ↔ graph (comparison)
@@ -150,7 +158,7 @@ Ddonilang aims to turn study into experiments, not just games.
 
 ---
 
-## Public channels (planned)
+## Public channels
 
 - **GitHub**: code + docs / issues & discussions / release tags
 - **YouTube**: 3–5 minute intro + 30‑second demo + roadmap
@@ -161,6 +169,9 @@ Ddonilang aims to turn study into experiments, not just games.
 ## Additional docs
 
 - Document index: `publish/INDEX.md`
+- Quick start: `publish/QUICKSTART.md`
+- Development structure: `publish/DDONIRANG_DEV_STRUCTURE.md`
+- Localization policy: `publish/LOCALIZATION.md`
 - CI stabilization note (2026-02-23): `publish/CI_AGGREGATE_GATE_FIX_NOTE_20260223.md`
 
 ---

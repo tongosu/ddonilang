@@ -1,5 +1,7 @@
 # GitHub Release Draft — 2026-02-11
 
+> Historical draft. Current public entry points are `README.md`, `QUICKSTART.md`, and `DDONIRANG_DEV_STRUCTURE.md`.
+
 ## Highlights
 - AGE2(Open) 정책 강화: `age_target<AGE2`에서 open 모드 차단, `--unsafe-open` 우회 추가.
 - open.net/ffi/gpu 런타임 API 및 open.log v1 스키마 확정.

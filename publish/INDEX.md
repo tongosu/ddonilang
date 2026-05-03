@@ -24,3 +24,10 @@
 | `publish/RELEASE_NOTES_20260211.md` | 릴리스 요약/변경점 | 릴리스 시 |
 | `publish/GITHUB_RELEASE_DRAFT_20260211.md` | GitHub 릴리스 초안 | 릴리스 시 |
 | `publish/CI_AGGREGATE_GATE_FIX_NOTE_20260223.md` | CI 집계 게이트 안정화 작업 기록 | CI 파이프라인 안정화 변경 시 |
+| `publish/LOCALIZATION.md` | 공개 문서 다국어 운영 기준 | README/번역 범위 변경 시 |
+
+## 다국어 운영 메모
+
+- 현재 다국어 문서는 README 계열을 기준으로 한다.
+- 빠른 시작/개발 구조/문법/다운로드 문서는 기준 문서 하나를 유지하고 README에서 연결한다.
+- README 외 문서를 모든 언어로 복제하는 것은 아직 하지 않는다. 실행 명령과 검증 경로가 자주 바뀌기 때문이다.

@@ -13,6 +13,13 @@
 - same input => same output.
 - AI workflow: pack + canon + replay/trace.
 
+## current
+
+- Rust crates validate DDN syntax, hooks, formulas, observe rows, current-line execution.
+- Seamgrim workspace is WASM-first; CLI/WASM parity checks guard product behavior.
+- Web workspace supports run, pause, reset, step-by-madi.
+- samples include console-grid, space2d, Tetris, formula/proof/lambda, maze, bounce-probe.
+
 ## core
 
 - `~` = role boundary
@@ -57,8 +64,8 @@ base.door_state <- "closed".
 ## full
 
 - full reference: `README_en.md`
+- quick start: `QUICKSTART.md`
 
 ## license
 
 - planned open-source license (to be announced)
-
