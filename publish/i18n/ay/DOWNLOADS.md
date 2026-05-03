@@ -1,11 +1,11 @@
 # Downloads (Aymara)
 
-> Starter localized guide; commands and file names stay canonical.
+> Aka qillqata qallta localización ukhamawa. Comandos ukat file sutinakax canonical qhiparaki.
 
-## Distribution location
+## Kawkhans apayaña
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- Public binaries ukax GitHub Releases ukankañapa.
+- git repository ukax user binary janiw imkiti.
 
 ## Target platforms
 
@@ -13,13 +13,13 @@
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## File sutininakaxa wali aski
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## Package layout aski
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -31,8 +31,8 @@ ddonirang-tool-<version>-<os>-<arch>/
 
 ## Checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+Release ukar SHA256SUMS.txt churam. Atisaxa signature yapxatam.
 
-## Source path
+## Source thakhi
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+Jichha desarrollo uñjañatakix source build luram ukat Seamgrim local apayam. QUICKSTART.md uñjam.

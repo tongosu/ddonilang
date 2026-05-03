@@ -1,6 +1,6 @@
 # Development structure (English)
 
-> English public guide.
+> English public document set.
 
 This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
 
@@ -11,10 +11,10 @@ This is a localized public summary. The canonical detailed file is '../../DDONIR
 | core | 'core/' | deterministic engine core |
 | lang | 'lang/' | grammar, parser, canonicalization |
 | tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
+| CLI | 'tools/teul-cli/' | CLI execution and checks |
 | packs | 'pack/' | runnable pack evidence |
 | Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
+| tests | 'tests/' | integration and product tests |
 | publish | 'publish/' | public documents |
 
 ## Seamgrim workspace V2
@@ -29,11 +29,11 @@ This is a localized public summary. The canonical detailed file is '../../DDONIR
 
 - DDN runtime, packs, state hashes, and mirror/replay records own truth.
 - Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- Python/JS may orchestrate checks and UI, but must not replace language semantics with test-only lowering.
 
 ## Current evidence
 
 - CLI/WASM runtime parity
 - Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
+- Seamgrim product smoke
 - Bogae madi/graph UI checks

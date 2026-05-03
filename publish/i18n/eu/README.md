@@ -1,31 +1,30 @@
 # Ddonilang (eu)
 
-> Starter localized guide; commands and file names stay canonical.
+> Hasierako lokalizazioa da. Komandoak eta fitxategi-izenak canonical geratzen dira.
 
-## Current status
+## Hasiera azkarra
 
-- Korean-native DDN is the canonical language surface.
-- Rust 'ddonirang-lang', 'ddonirang-tool', and 'teul-cli' validate syntax, runtime behavior, packs, and current-line execution.
-- Seamgrim is a WASM-first web workspace for DDN examples, Bogae views, mirror records, and result tables.
-- Bogae is a view layer. Runtime truth stays in DDN runtime, packs, state hashes, and mirror/replay records.
+- Iturburutik eraiki: Beharrezkoa: Rust + Cargo
+- Seamgrim workspace abiarazi: Nabigatzailean ireki: http://localhost:8787/
+- Runtime printzipioa: DDN runtime, packs, state hashes eta mirror/replay erregistroek truth dute.
 
-## Main documents
+## Dokumentu nagusiak
 
-- Quick start: 'QUICKSTART.md'
-- Development structure: 'DEV_STRUCTURE.md'
-- Downloads: 'DOWNLOADS.md'
-- Release notes: 'RELEASE_NOTES_20260211.md'
-- Korean canonical public README: '../../README.md'
-- English reference README: '../../README_en.md'
+- QUICKSTART.md
+- DEV_STRUCTURE.md
+- DOWNLOADS.md
+- RELEASE_NOTES_20260211.md
+- ../../README.md
+- ../../README_en.md
 
-## Current examples
+## Uneko adibideak
 
-- console-grid minimal example
-- space2d pendulum and bounce probe
+- console-grid gutxieneko adibidea
+- space2d pendulua eta bounce probe
 - console-grid Tetris
-- formula/proof/lambda examples
-- maze probe
+- formula/proof/lambda adibideak
+- labirinto probe
 
-## Localization status
+## Itzulpen egoera
 
-This document is a starter localization. Native review is still required before treating it as a polished public translation.
+Hasierako lokalizazioa da. Komandoak eta fitxategi-izenak canonical geratzen dira.

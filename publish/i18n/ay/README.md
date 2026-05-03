@@ -1,31 +1,30 @@
 # Ddonilang (ay)
 
-> Starter localized guide; commands and file names stay canonical.
+> Aka qillqata qallta localización ukhamawa. Comandos ukat file sutinakax canonical qhiparaki.
 
-## Current status
+## Jank'aki qallta
 
-- Korean-native DDN is the canonical language surface.
-- Rust 'ddonirang-lang', 'ddonirang-tool', and 'teul-cli' validate syntax, runtime behavior, packs, and current-line execution.
-- Seamgrim is a WASM-first web workspace for DDN examples, Bogae views, mirror records, and result tables.
-- Bogae is a view layer. Runtime truth stays in DDN runtime, packs, state hashes, and mirror/replay records.
+- Source ukat build luraña: Munasi: Rust + Cargo
+- Seamgrim workspace apayaña: Browser ukan jist'araña: http://localhost:8787/
+- Runtime principio: DDN runtime, packs, state hashes, mirror/replay records ukaw truth katuyi.
 
-## Main documents
+## Jach'a qillqatanaka
 
-- Quick start: 'QUICKSTART.md'
-- Development structure: 'DEV_STRUCTURE.md'
-- Downloads: 'DOWNLOADS.md'
-- Release notes: 'RELEASE_NOTES_20260211.md'
-- Korean canonical public README: '../../README.md'
-- English reference README: '../../README_en.md'
+- QUICKSTART.md
+- DEV_STRUCTURE.md
+- DOWNLOADS.md
+- RELEASE_NOTES_20260211.md
+- ../../README.md
+- ../../README_en.md
 
-## Current examples
+## Jichha uñacht'awinaka
 
-- console-grid minimal example
-- space2d pendulum and bounce probe
+- console-grid jisk'a uñacht'awi
+- space2d pendulum ukat bounce probe
 - console-grid Tetris
-- formula/proof/lambda examples
-- maze probe
+- formula/proof/lambda uñacht'awinaka
+- ch'iqhi thakhi probe
 
-## Localization status
+## Localización estado
 
-This document is a starter localization. Native review is still required before treating it as a polished public translation.
+Aka qillqata qallta localización ukhamawa. Comandos ukat file sutinakax canonical qhiparaki.

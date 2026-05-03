@@ -1,34 +1,34 @@
-# Release notes 2026-02-11 (Turkish)
+# Release notları 2026-02-11 (Türkçe)
 
-> Historical release note. Current public entry points are '../../README.md', '../../QUICKSTART.md', and '../../DDONIRANG_DEV_STRUCTURE.md'.
+> Tarihsel release notudur. Güncel genel giriş noktaları '../../README.md', '../../QUICKSTART.md' ve '../../DDONIRANG_DEV_STRUCTURE.md' dosyalarıdır.
 
-## Summary
+## Özet
 
-This release focused on AGE2 Open policy hardening and minimum schemas/runtime APIs for open.net, open.ffi, and open.gpu.
+Bu release AGE2 Open politika güçlendirmesi ve open.net/open.ffi/open.gpu minimum schema/runtime API'lerine odaklandı.
 
-## Highlights
+## Öne çıkanlar
 
-- 'open=record|replay' is blocked when 'age_target < AGE2'.
-- '--unsafe-open' was added as an explicit bypass.
-- open log schemas were added:
+- age_target < AGE2 iken 'open=record|replay' engellenir.
+- '--unsafe-open' açık bypass olarak eklendi.
+- open log schema'ları:
   - 'open.net.v1'
   - 'open.ffi.v1'
   - 'open.gpu.v1'
-- Packs were added:
+- pack'ler:
   - 'pack/open_net_record_replay'
   - 'pack/open_ffi_record_replay'
   - 'pack/open_gpu_record_replay'
 
-## Behavior change
+## Davranış değişikliği
 
-'open=record|replay' is allowed only for 'age_target >= AGE2' unless '--unsafe-open' is used.
+open=record|replay yalnızca age_target >= AGE2 için izinlidir; --unsafe-open açık bypass sağlar.
 
-## Historical test command
+## Tarihsel test komutu
 
 ~~~sh
 python tests/run_pack_golden.py open_net_record_replay open_ffi_record_replay open_gpu_record_replay
 ~~~
 
-## Current status pointer
+## Güncel durum yönlendirmesi
 
-For current Seamgrim/WASM/current-line status, use 'QUICKSTART.md' and 'DEV_STRUCTURE.md' in this language folder.
+Güncel Seamgrim/WASM/current-line durumu için bu klasördeki QUICKSTART.md ve DEV_STRUCTURE.md dosyalarını kullanın.

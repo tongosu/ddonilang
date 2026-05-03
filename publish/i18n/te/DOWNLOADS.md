@@ -1,25 +1,25 @@
-# Downloads (Telugu)
+# downloads (తెలుగు)
 
-> Starter localized guide; commands and file names stay canonical.
+> ఇది starter localization. Commands మరియు file names canonical గానే ఉంటాయి.
 
-## Distribution location
+## distribution location
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- public binaries GitHub Releases లో ఉండాలి.
+- git repository user-facing binaries నిల్వ చేయదు.
 
-## Target platforms
+## target platforms
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## recommended file names
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## recommended package layout
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+release తో SHA256SUMS.txt ఇవ్వండి. సాధ్యమైతే signature జోడించండి.
 
-## Source path
+## source path
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+current development చూడటానికి source build చేసి Seamgrim local నడపండి. QUICKSTART.md చూడండి.

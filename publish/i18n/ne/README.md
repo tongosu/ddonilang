@@ -1,31 +1,30 @@
 # Ddonilang (ne)
 
-> Starter localized guide; commands and file names stay canonical.
+> यो starter localization हो। Commands र file names canonical नै रहन्छन्।
 
-## Current status
+## छिटो सुरु
 
-- Korean-native DDN is the canonical language surface.
-- Rust 'ddonirang-lang', 'ddonirang-tool', and 'teul-cli' validate syntax, runtime behavior, packs, and current-line execution.
-- Seamgrim is a WASM-first web workspace for DDN examples, Bogae views, mirror records, and result tables.
-- Bogae is a view layer. Runtime truth stays in DDN runtime, packs, state hashes, and mirror/replay records.
+- source बाट build: आवश्यक: Rust + Cargo
+- Seamgrim workspace चलाउने: browser मा खोल्नुहोस्: http://localhost:8787/
+- runtime principle: DDN runtime, packs, state hashes, mirror/replay records ले truth राख्छन्।
 
-## Main documents
+## मुख्य कागजात
 
-- Quick start: 'QUICKSTART.md'
-- Development structure: 'DEV_STRUCTURE.md'
-- Downloads: 'DOWNLOADS.md'
-- Release notes: 'RELEASE_NOTES_20260211.md'
-- Korean canonical public README: '../../README.md'
-- English reference README: '../../README_en.md'
+- QUICKSTART.md
+- DEV_STRUCTURE.md
+- DOWNLOADS.md
+- RELEASE_NOTES_20260211.md
+- ../../README.md
+- ../../README_en.md
 
-## Current examples
+## हालका examples
 
-- console-grid minimal example
-- space2d pendulum and bounce probe
+- console-grid न्यूनतम example
+- space2d pendulum र bounce probe
 - console-grid Tetris
-- formula/proof/lambda examples
-- maze probe
+- सूत्र/proof/lambda examples
+- भुलभुलैया probe
 
-## Localization status
+## translation status
 
-This document is a starter localization. Native review is still required before treating it as a polished public translation.
+यो starter localization हो। Commands र file names canonical नै रहन्छन्।

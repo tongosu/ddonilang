@@ -1,39 +1,39 @@
 # Development structure (Aymara)
 
-> Starter localized guide; commands and file names stay canonical.
+> Aka qillqata qallta localización ukhamawa. Comandos ukat file sutinakax canonical qhiparaki.
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+Aka qillqatax público localización resumen ukhamawa. Canonical detalle file '../../DDONIRANG_DEV_STRUCTURE.md' ukawa.
 
 ## Core layers
 
-| Layer | Path | Role |
+| Layer | Path | Lurawi |
 | --- | --- | --- |
 | core | 'core/' | deterministic engine core |
 | lang | 'lang/' | grammar, parser, canonicalization |
 | tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
+| CLI | 'tools/teul-cli/' | CLI apayaña ukat uñakipaña |
 | packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace ukat Bogae views |
+| tests | 'tests/' | integration/product tests |
 | publish | 'publish/' | public documents |
 
 ## Seamgrim workspace V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
-- 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'ui/index.html': maya mantaña chiqapa
+- 'ui/screens/run.js': run screen ukat current-line execution
+- 'ui/components/bogae.js': console/graph/space2d/grid Bogae rendering
+- 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror resumen
+- 'tools/ddn_exec_server.py': local static server ukat helper API
 
-## Runtime principle
+## Runtime principio
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- DDN runtime, packs, state hashes, mirror/replay records ukaw truth katuyi.
+- Bogae ukax view layer; runtime truth janiw katuykiti.
+- Python/JS orchestration ukat UI lurapxaspawa, ukampis language semantics test-only lowering ukamp jan lantintañawa.
 
-## Current evidence
+## Jichha evidence
 
 - CLI/WASM runtime parity
 - Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
+- Seamgrim product smoke
 - Bogae madi/graph UI checks

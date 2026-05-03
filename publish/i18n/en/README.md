@@ -1,22 +1,21 @@
 # Ddonilang (en)
 
-> English public guide.
+> English public document set.
 
-## Current status
+## Quick start
 
-- Korean-native DDN is the canonical language surface.
-- Rust 'ddonirang-lang', 'ddonirang-tool', and 'teul-cli' validate syntax, runtime behavior, packs, and current-line execution.
-- Seamgrim is a WASM-first web workspace for DDN examples, Bogae views, mirror records, and result tables.
-- Bogae is a view layer. Runtime truth stays in DDN runtime, packs, state hashes, and mirror/replay records.
+- Build from source: Requirements: Rust + Cargo
+- Run Seamgrim workspace: Open in the browser: http://localhost:8787/
+- Runtime principle: DDN runtime, packs, state hashes, and mirror/replay records own truth.
 
 ## Main documents
 
-- Quick start: 'QUICKSTART.md'
-- Development structure: 'DEV_STRUCTURE.md'
-- Downloads: 'DOWNLOADS.md'
-- Release notes: 'RELEASE_NOTES_20260211.md'
-- Korean canonical public README: '../../README.md'
-- English reference README: '../../README_en.md'
+- QUICKSTART.md
+- DEV_STRUCTURE.md
+- DOWNLOADS.md
+- RELEASE_NOTES_20260211.md
+- ../../README.md
+- ../../README_en.md
 
 ## Current examples
 
@@ -28,4 +27,4 @@
 
 ## Localization status
 
-This document is a starter localization. Native review is still required before treating it as a polished public translation.
+English public document set.

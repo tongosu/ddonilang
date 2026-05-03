@@ -1,25 +1,25 @@
-# Downloads (Basque)
+# Deskargak (Euskara)
 
-> Starter localized guide; commands and file names stay canonical.
+> Hasierako lokalizazioa da. Komandoak eta fitxategi-izenak canonical geratzen dira.
 
-## Distribution location
+## Banaketa lekua
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- Binary publikoak GitHub Releases-en egon behar dira.
+- git biltegiak ez ditu erabiltzaileentzako binaryak gordetzen.
 
-## Target platforms
+## Helburu plataformak
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## Gomendatutako fitxategi-izenak
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## Gomendatutako pakete egitura
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -31,8 +31,8 @@ ddonirang-tool-<version>-<os>-<arch>/
 
 ## Checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+Release bakoitzarekin SHA256SUMS.txt eman. Ahal bada sinadura gehitu.
 
-## Source path
+## Iturburu bidea
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+Uneko garapena ikusteko iturburutik eraiki eta Seamgrim lokalean exekutatu. Ikusi QUICKSTART.md.

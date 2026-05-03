@@ -1,25 +1,25 @@
-# Downloads (Nepali)
+# downloads (नेपाली)
 
-> Starter localized guide; commands and file names stay canonical.
+> यो starter localization हो। Commands र file names canonical नै रहन्छन्।
 
-## Distribution location
+## distribution location
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- public binaries GitHub Releases मा हुनुपर्छ।
+- git repository ले user-facing binaries राख्दैन।
 
-## Target platforms
+## target platforms
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## recommended file names
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## recommended package layout
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+release सँग SHA256SUMS.txt दिनुहोस्। सम्भव भए signature थप्नुहोस्।
 
-## Source path
+## source path
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+current development हेर्न source build गरेर Seamgrim local चलाउनुहोस्। QUICKSTART.md हेर्नुहोस्।

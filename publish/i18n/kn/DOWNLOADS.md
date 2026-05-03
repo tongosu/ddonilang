@@ -1,25 +1,25 @@
-# Downloads (Kannada)
+# downloads (ಕನ್ನಡ)
 
-> Starter localized guide; commands and file names stay canonical.
+> ಇದು starter localization. Commands ಮತ್ತು file names canonical ಆಗಿಯೇ ಉಳಿಯುತ್ತವೆ.
 
-## Distribution location
+## distribution location
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- public binaries GitHub Releases ನಲ್ಲಿ ಇರಬೇಕು.
+- git repository user-facing binaries ಸಂಗ್ರಹಿಸುವುದಿಲ್ಲ.
 
-## Target platforms
+## target platforms
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## recommended file names
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## recommended package layout
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+release ಜೊತೆಗೆ SHA256SUMS.txt ನೀಡಿ. ಸಾಧ್ಯವಾದರೆ signature ಸೇರಿಸಿ.
 
-## Source path
+## source path
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+current development ಪರಿಶೀಲಿಸಲು source build ಮಾಡಿ Seamgrim local ಆಗಿ ಚಲಾಯಿಸಿ. QUICKSTART.md ನೋಡಿ.

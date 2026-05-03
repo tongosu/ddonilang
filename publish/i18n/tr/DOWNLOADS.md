@@ -1,25 +1,25 @@
-# Downloads (Turkish)
+# İndirmeler (Türkçe)
 
-> Starter localized guide; commands and file names stay canonical.
+> Başlangıç çevirisidir. Komutlar ve dosya adları canonical kalır.
 
-## Distribution location
+## Dağıtım yeri
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- Kullanıcıya açık binary'ler GitHub Releases içinde olmalıdır.
+- git deposu kullanıcı binary'lerini saklamaz.
 
-## Target platforms
+## Hedef platformlar
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## Önerilen dosya adları
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## Önerilen paket yapısı
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## Checksum
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+Release ile SHA256SUMS.txt verin. Mümkünse imza ekleyin.
 
-## Source path
+## Kaynak yolu
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+Güncel geliştirme için kaynaktan derleyip Seamgrim'i yerelde çalıştırın. QUICKSTART.md dosyasına bakın.

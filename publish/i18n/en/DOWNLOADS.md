@@ -1,6 +1,6 @@
 # Downloads (English)
 
-> English public guide.
+> English public document set.
 
 ## Distribution location
 
@@ -31,8 +31,8 @@ ddonirang-tool-<version>-<os>-<arch>/
 
 ## Checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+Provide SHA256SUMS.txt with releases. Add a signature when available.
 
 ## Source path
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+For current development, build from source and run Seamgrim locally. See QUICKSTART.md.

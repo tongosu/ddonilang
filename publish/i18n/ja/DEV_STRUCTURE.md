@@ -1,39 +1,39 @@
-# Development structure (Japanese)
+# 開発構造 (日本語)
 
-> Starter localized guide; commands and file names stay canonical.
+> スターター翻訳です。コマンドとファイル名は canonical のまま維持します。
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+これは公開用の多言語要約です。詳細な基準文書は '../../DDONIRANG_DEV_STRUCTURE.md' です。
 
-## Core layers
+## 主要レイヤー
 
-| Layer | Path | Role |
+| レイヤー | パス | 役割 |
 | --- | --- | --- |
-| core | 'core/' | deterministic engine core |
-| lang | 'lang/' | grammar, parser, canonicalization |
-| tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
-| packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
-| publish | 'publish/' | public documents |
+| core | 'core/' | 決定的エンジンコア |
+| lang | 'lang/' | 文法、パーサー、正本化 |
+| tool | 'tool/' | ランタイム/ツール実装 |
+| CLI | 'tools/teul-cli/' | CLI実行と検証 |
+| packs | 'pack/' | 実行可能な pack evidence |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | Web作業室と보개 |
+| tests | 'tests/' | 統合/製品テスト |
+| publish | 'publish/' | 公開文書 |
 
-## Seamgrim workspace V2
+## 셈그림 作業室 V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
-- 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'ui/index.html': 単一入口
+- 'ui/screens/run.js': 実行画面と current-line 実行
+- 'ui/components/bogae.js': console/graph/space2d/grid の보개レンダリング
+- 'ui/seamgrim_runtime_state.js': madi、runtime state、鏡の要約
+- 'tools/ddn_exec_server.py': ローカル静的サーバーと補助 API
 
-## Runtime principle
+## ランタイム原則
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- DDN runtime、pack、state hash、鏡/replay 記録が truth を所有します。
+- 보개 は view layer で runtime truth を所有しません。
+- Python/JS は orchestration と UI を担当できますが、言語意味を test-only lowering で置き換えてはいけません。
 
-## Current evidence
+## 現在の evidence
 
 - CLI/WASM runtime parity
-- Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
-- Bogae madi/graph UI checks
+- 4巻 raw current-line bundle parity
+- 셈그림 製品 smoke
+- 보개 madi/graph UI check

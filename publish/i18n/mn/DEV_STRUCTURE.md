@@ -1,39 +1,39 @@
-# Development structure (Mongolian)
+# Хөгжүүлэлтийн бүтэц (Монгол)
 
-> Starter localized guide; commands and file names stay canonical.
+> Starter орчуулга. Команд ба файлын нэрс canonical хэвээр байна.
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+Энэ бол олон хэлний нийтийн товч хураангуй. Дэлгэрэнгүй canonical файл нь '../../DDONIRANG_DEV_STRUCTURE.md'.
 
-## Core layers
+## Үндсэн давхаргууд
 
-| Layer | Path | Role |
+| Давхарга | Зам | Үүрэг |
 | --- | --- | --- |
-| core | 'core/' | deterministic engine core |
-| lang | 'lang/' | grammar, parser, canonicalization |
-| tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
-| packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
-| publish | 'publish/' | public documents |
+| core | 'core/' | детерминист engine core |
+| lang | 'lang/' | дүрэм, parser, canonicalization |
+| tool | 'tool/' | runtime/tool хэрэгжилт |
+| CLI | 'tools/teul-cli/' | CLI ажиллуулах ба шалгах |
+| packs | 'pack/' | ажиллах pack evidence |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace ба Bogae view |
+| tests | 'tests/' | integration ба product tests |
+| publish | 'publish/' | нийтийн баримтууд |
 
 ## Seamgrim workspace V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
+- 'ui/index.html': нэг орох цэг
+- 'ui/screens/run.js': ажиллуулах дэлгэц ба current-line execution
+- 'ui/components/bogae.js': console/graph/space2d/grid Bogae rendering
 - 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'tools/ddn_exec_server.py': локал static server ба helper API
 
-## Runtime principle
+## Runtime зарчим
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- DDN runtime, packs, state hashes, mirror/replay records truth-ийг эзэмшинэ.
+- Bogae нь view layer бөгөөд runtime truth эзэмшихгүй.
+- Python/JS orchestration ба UI хийж болно, харин хэлний утгыг test-only lowering-оор орлож болохгүй.
 
-## Current evidence
+## Одоогийн evidence
 
 - CLI/WASM runtime parity
 - Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
+- Seamgrim product smoke
 - Bogae madi/graph UI checks

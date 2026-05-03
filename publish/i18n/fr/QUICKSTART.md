@@ -1,38 +1,38 @@
-# Quick start (French)
+# Démarrage rapide (Français)
 
-> Starter localized guide; commands and file names stay canonical.
+> Traduction starter. Les commandes et noms de fichiers restent canonical.
 
-## 1. Build from source
+## 1. Construire depuis les sources
 
-Requirements: Rust + Cargo
+Pré-requis : Rust + Cargo
 
 ~~~sh
 cargo build --release
 ~~~
 
-Check the CLI:
+Vérifier la CLI :
 
 ~~~sh
 cargo run -q --manifest-path tools/teul-cli/Cargo.toml -- --help
 ~~~
 
-## 2. Run Seamgrim workspace
+## 2. Lancer le workspace Seamgrim
 
-Start the local server:
+Démarrer le serveur local :
 
 ~~~sh
 python solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py
 ~~~
 
-Open:
+Ouvrir dans le navigateur :
 
 ~~~txt
 http://localhost:8787/
 ~~~
 
-The workspace can open examples from 'solutions/seamgrim_ui_mvp/samples/index.json'.
+Le workspace peut ouvrir cet inventaire d'exemples 'solutions/seamgrim_ui_mvp/samples/index.json'.
 
-## 3. Product regression checks
+## 3. Contrôles de régression produit
 
 ~~~sh
 python tests/run_seamgrim_product_stabilization_smoke_check.py
@@ -42,9 +42,9 @@ node tests/seamgrim_run_toolbar_compact_runner.mjs
 python tests/run_ddonirang_vol4_bundle_cli_wasm_parity_check.py
 ~~~
 
-## 4. Binary release path
+## 4. Chemin de release binaire
 
-When release binaries are published, download them from GitHub Releases. Binaries are not stored in the git repository.
+Quand des binaires sont publiés, les télécharger depuis GitHub Releases. Les binaires ne sont pas stockés dans le dépôt git.
 
 - Windows: '.\ddonirang-tool.exe --help'
-- macOS/Linux: 'chmod +x ./ddonirang-tool' then './ddonirang-tool --help'
+- macOS/Linux : d'abord 'chmod +x ./ddonirang-tool', puis './ddonirang-tool --help'

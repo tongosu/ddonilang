@@ -1,11 +1,11 @@
-# Downloads (Quechua)
+# Downloads (Runasimi)
 
-> Starter localized guide; commands and file names stay canonical.
+> Kay qillqa starter localizaciónmi. Comandos hinallataq file sutikuna canonical kachkan.
 
-## Distribution location
+## Maypi rakiy
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- Public binaries GitHub Releasespi kanan.
+- git repository user binarykunata mana waqaychan.
 
 ## Target platforms
 
@@ -13,13 +13,13 @@
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## File sutikuna allinchasqa
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## Package layout allinchasqa
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -31,8 +31,8 @@ ddonirang-tool-<version>-<os>-<arch>/
 
 ## Checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+Releasewan SHA256SUMS.txt quy. Atikuptinqa signature yapay.
 
-## Source path
+## Source ñan
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+Kunan development qhawanapaq source build ruray chaymanta Seamgrim local purichiy. QUICKSTART.md qhaway.

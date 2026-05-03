@@ -1,39 +1,39 @@
-# Development structure (Kannada)
+# development structure (ಕನ್ನಡ)
 
-> Starter localized guide; commands and file names stay canonical.
+> ಇದು starter localization. Commands ಮತ್ತು file names canonical ಆಗಿಯೇ ಉಳಿಯುತ್ತವೆ.
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+ಇದು public localized summary. canonical ವಿವರವಾದ file '../../DDONIRANG_DEV_STRUCTURE.md'.
 
-## Core layers
+## core layers
 
-| Layer | Path | Role |
+| layer | path | ಪಾತ್ರ |
 | --- | --- | --- |
 | core | 'core/' | deterministic engine core |
 | lang | 'lang/' | grammar, parser, canonicalization |
 | tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
+| CLI | 'tools/teul-cli/' | CLI execution ಮತ್ತು checks |
 | packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace ಮತ್ತು Bogae views |
+| tests | 'tests/' | integration/product tests |
 | publish | 'publish/' | public documents |
 
 ## Seamgrim workspace V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
+- 'ui/index.html': ಒಂದು entry point
+- 'ui/screens/run.js': run screen ಮತ್ತು current-line execution
+- 'ui/components/bogae.js': console/graph/space2d/grid Bogae rendering
 - 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'tools/ddn_exec_server.py': local static server ಮತ್ತು helper API
 
-## Runtime principle
+## runtime principle
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- DDN runtime, packs, state hashes, mirror/replay records truth ಹೊಂದಿವೆ.
+- Bogae view layer; runtime truth ಹೊಂದುವುದಿಲ್ಲ.
+- Python/JS orchestration ಮತ್ತು UI ಮಾಡಬಹುದು; language semantics ಅನ್ನು test-only lowering ಮೂಲಕ ಬದಲಿಸಬಾರದು.
 
-## Current evidence
+## current evidence
 
 - CLI/WASM runtime parity
 - Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
+- Seamgrim product smoke
 - Bogae madi/graph UI checks

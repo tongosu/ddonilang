@@ -1,39 +1,39 @@
-# Development structure (French)
+# Structure de développement (Français)
 
-> Starter localized guide; commands and file names stay canonical.
+> Traduction starter. Les commandes et noms de fichiers restent canonical.
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+Ceci est un résumé public localisé. Le fichier canonical détaillé est '../../DDONIRANG_DEV_STRUCTURE.md'.
 
-## Core layers
+## Couches principales
 
-| Layer | Path | Role |
+| Couche | Chemin | Rôle |
 | --- | --- | --- |
-| core | 'core/' | deterministic engine core |
-| lang | 'lang/' | grammar, parser, canonicalization |
-| tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
-| packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
-| publish | 'publish/' | public documents |
+| core | 'core/' | coeur de moteur déterministe |
+| lang | 'lang/' | grammaire, parser, canonicalization |
+| tool | 'tool/' | implémentation runtime/tool |
+| CLI | 'tools/teul-cli/' | exécution CLI et checks |
+| packs | 'pack/' | pack evidence exécutable |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | workspace web et vues Bogae |
+| tests | 'tests/' | tests d'intégration et produit |
+| publish | 'publish/' | documents publics |
 
 ## Seamgrim workspace V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
-- 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'ui/index.html': point d'entrée unique
+- 'ui/screens/run.js': écran d'exécution et exécution current-line
+- 'ui/components/bogae.js': rendu Bogae console/graph/space2d/grid
+- 'ui/seamgrim_runtime_state.js': madi, état runtime et résumé mirror
+- 'tools/ddn_exec_server.py': serveur statique local et API auxiliaire
 
-## Runtime principle
+## Principe runtime
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- Le DDN runtime, les packs, state hashes et enregistrements mirror/replay possèdent la truth.
+- Bogae est une view layer et ne possède pas la runtime truth.
+- Python/JS peuvent orchestrer les checks et l'UI, mais ne doivent pas remplacer la sémantique par du test-only lowering.
 
-## Current evidence
+## Evidence actuelle
 
 - CLI/WASM runtime parity
 - Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
+- Seamgrim product smoke
 - Bogae madi/graph UI checks

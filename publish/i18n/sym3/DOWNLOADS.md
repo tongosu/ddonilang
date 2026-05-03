@@ -1,25 +1,25 @@
-# Downloads (sym3)
+# downloads (sym3)
 
-> Compact symbolic public guide.
+> compact localized set :: commands + file names stay canonical
 
-## Distribution location
+## distribution
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- public_binaries -> GitHub_Releases
+- git_repo stores no user_binaries
 
-## Target platforms
+## targets
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## file_names
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## package_layout
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+ship SHA256SUMS.txt; add signature if possible.
 
-## Source path
+## source_path
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+for current dev: build source + run Seamgrim local; see QUICKSTART.md.

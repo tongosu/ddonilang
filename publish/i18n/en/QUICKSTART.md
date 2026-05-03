@@ -1,6 +1,6 @@
 # Quick start (English)
 
-> English public guide.
+> English public document set.
 
 ## 1. Build from source
 
@@ -24,13 +24,13 @@ Start the local server:
 python solutions/seamgrim_ui_mvp/tools/ddn_exec_server.py
 ~~~
 
-Open:
+Open in the browser:
 
 ~~~txt
 http://localhost:8787/
 ~~~
 
-The workspace can open examples from 'solutions/seamgrim_ui_mvp/samples/index.json'.
+The workspace can open this sample inventory: 'solutions/seamgrim_ui_mvp/samples/index.json'.
 
 ## 3. Product regression checks
 

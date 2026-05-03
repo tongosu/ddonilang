@@ -1,39 +1,39 @@
-# Development structure (Korean)
+# 개발 구조 (한국어)
 
-> Canonical Korean public document set.
+> 한국어 기준 공개 문서 묶음입니다.
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+이 문서는 공개용 다국어 요약입니다. 자세한 기준 문서는 '../../DDONIRANG_DEV_STRUCTURE.md'입니다.
 
-## Core layers
+## 핵심 레이어
 
-| Layer | Path | Role |
+| 레이어 | 경로 | 역할 |
 | --- | --- | --- |
-| core | 'core/' | deterministic engine core |
-| lang | 'lang/' | grammar, parser, canonicalization |
-| tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
-| packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
-| publish | 'publish/' | public documents |
+| core | 'core/' | 결정성 엔진 코어 |
+| lang | 'lang/' | 문법, 파서, 정본화 |
+| tool | 'tool/' | 런타임/도구 구현 |
+| CLI | 'tools/teul-cli/' | CLI 실행과 검증 |
+| packs | 'pack/' | 실행 가능한 pack evidence |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | 웹 작업실과 보개 |
+| tests | 'tests/' | 통합/제품 테스트 |
+| publish | 'publish/' | 공개 문서 |
 
-## Seamgrim workspace V2
+## 셈그림 작업실 V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
-- 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'ui/index.html': 단일 진입점
+- 'ui/screens/run.js': 실행 화면과 current-line 실행
+- 'ui/components/bogae.js': console/graph/space2d/grid 보개 렌더링
+- 'ui/seamgrim_runtime_state.js': 마디, 런타임 상태, 거울 요약
+- 'tools/ddn_exec_server.py': 로컬 정적 서버와 보조 API
 
-## Runtime principle
+## 런타임 원칙
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- DDN 런타임, pack, state hash, 거울/replay 기록이 truth를 소유합니다.
+- 보개는 보기 계층이며 runtime truth를 소유하지 않습니다.
+- Python/JS는 orchestration과 UI를 맡을 수 있지만 언어 의미를 test-only lowering으로 대신하면 안 됩니다.
 
-## Current evidence
+## 현재 evidence
 
 - CLI/WASM runtime parity
-- Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
-- Bogae madi/graph UI checks
+- 4권 raw current-line bundle parity
+- 셈그림 제품 smoke
+- 보개 마디/그래프 UI check

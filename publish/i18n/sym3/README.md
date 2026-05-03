@@ -1,31 +1,30 @@
 # Ddonilang (sym3)
 
-> Compact symbolic public guide.
+> compact localized set :: commands + file names stay canonical
 
-## Current status
+## quick_start
 
-- Korean-native DDN is the canonical language surface.
-- Rust 'ddonirang-lang', 'ddonirang-tool', and 'teul-cli' validate syntax, runtime behavior, packs, and current-line execution.
-- Seamgrim is a WASM-first web workspace for DDN examples, Bogae views, mirror records, and result tables.
-- Bogae is a view layer. Runtime truth stays in DDN runtime, packs, state hashes, and mirror/replay records.
+- build_from_source: requires: Rust + Cargo
+- run_Seamgrim_workspace: open_browser: http://localhost:8787/
+- runtime_principle: DDN_runtime+packs+state_hash+mirror/replay own truth.
 
-## Main documents
+## main_docs
 
-- Quick start: 'QUICKSTART.md'
-- Development structure: 'DEV_STRUCTURE.md'
-- Downloads: 'DOWNLOADS.md'
-- Release notes: 'RELEASE_NOTES_20260211.md'
-- Korean canonical public README: '../../README.md'
-- English reference README: '../../README_en.md'
+- QUICKSTART.md
+- DEV_STRUCTURE.md
+- DOWNLOADS.md
+- RELEASE_NOTES_20260211.md
+- ../../README.md
+- ../../README_en.md
 
-## Current examples
+## current_examples
 
-- console-grid minimal example
-- space2d pendulum and bounce probe
-- console-grid Tetris
-- formula/proof/lambda examples
-- maze probe
+- console_grid_min
+- space2d_pendulum+bounce_probe
+- console_grid_tetris
+- formula/proof/lambda
+- maze_probe
 
-## Localization status
+## localization_status
 
-This document is a starter localization. Native review is still required before treating it as a polished public translation.
+compact localized set :: commands + file names stay canonical

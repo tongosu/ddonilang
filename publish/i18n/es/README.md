@@ -1,31 +1,30 @@
 # Ddonilang (es)
 
-> Starter localized guide; commands and file names stay canonical.
+> Traducción starter. Los comandos y nombres de archivo se mantienen canonical.
 
-## Current status
+## Inicio rápido
 
-- Korean-native DDN is the canonical language surface.
-- Rust 'ddonirang-lang', 'ddonirang-tool', and 'teul-cli' validate syntax, runtime behavior, packs, and current-line execution.
-- Seamgrim is a WASM-first web workspace for DDN examples, Bogae views, mirror records, and result tables.
-- Bogae is a view layer. Runtime truth stays in DDN runtime, packs, state hashes, and mirror/replay records.
+- Construir desde el código fuente: Requisitos: Rust + Cargo
+- Ejecutar el workspace de Seamgrim: Abre en el navegador: http://localhost:8787/
+- Principio de runtime: DDN runtime, packs, state hashes y registros mirror/replay poseen la truth.
 
-## Main documents
+## Documentos principales
 
-- Quick start: 'QUICKSTART.md'
-- Development structure: 'DEV_STRUCTURE.md'
-- Downloads: 'DOWNLOADS.md'
-- Release notes: 'RELEASE_NOTES_20260211.md'
-- Korean canonical public README: '../../README.md'
-- English reference README: '../../README_en.md'
+- QUICKSTART.md
+- DEV_STRUCTURE.md
+- DOWNLOADS.md
+- RELEASE_NOTES_20260211.md
+- ../../README.md
+- ../../README_en.md
 
-## Current examples
+## Ejemplos actuales
 
-- console-grid minimal example
-- space2d pendulum and bounce probe
-- console-grid Tetris
-- formula/proof/lambda examples
-- maze probe
+- ejemplo mínimo console-grid
+- péndulo space2d y bounce probe
+- Tetris console-grid
+- ejemplos de fórmula/prueba/lambda
+- prueba de laberinto
 
-## Localization status
+## Estado de traducción
 
-This document is a starter localization. Native review is still required before treating it as a polished public translation.
+Traducción starter. Los comandos y nombres de archivo se mantienen canonical.

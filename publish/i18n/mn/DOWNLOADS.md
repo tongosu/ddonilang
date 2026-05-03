@@ -1,25 +1,25 @@
-# Downloads (Mongolian)
+# Татах (Монгол)
 
-> Starter localized guide; commands and file names stay canonical.
+> Starter орчуулга. Команд ба файлын нэрс canonical хэвээр байна.
 
-## Distribution location
+## Түгээлтийн байршил
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- Хэрэглэгчийн binary нь GitHub Releases-д байрлана.
+- git repository хэрэглэгчийн binary хадгалахгүй.
 
-## Target platforms
+## Зорилтот платформууд
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## Санал болгосон файлын нэр
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## Санал болгосон package бүтэц
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## Checksum
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+Release-д SHA256SUMS.txt хавсаргана. Боломжтой бол signature нэмнэ.
 
-## Source path
+## Эх кодын зам
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+Одоогийн хөгжүүлэлтийг эх кодоос build хийж Seamgrim-ийг локалаар ажиллуулж шалгана. QUICKSTART.md-г харна уу.

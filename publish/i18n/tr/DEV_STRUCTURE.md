@@ -1,39 +1,39 @@
-# Development structure (Turkish)
+# Geliştirme yapısı (Türkçe)
 
-> Starter localized guide; commands and file names stay canonical.
+> Başlangıç çevirisidir. Komutlar ve dosya adları canonical kalır.
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+Bu yerelleştirilmiş genel özettir. Ayrıntılı kanonik dosya '../../DDONIRANG_DEV_STRUCTURE.md' dosyasıdır.
 
-## Core layers
+## Çekirdek katmanlar
 
-| Layer | Path | Role |
+| Katman | Yol | Rol |
 | --- | --- | --- |
-| core | 'core/' | deterministic engine core |
-| lang | 'lang/' | grammar, parser, canonicalization |
-| tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
-| packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
-| publish | 'publish/' | public documents |
+| core | 'core/' | deterministik motor çekirdeği |
+| lang | 'lang/' | gramer, parser, kanonikleştirme |
+| tool | 'tool/' | runtime/araç uygulaması |
+| CLI | 'tools/teul-cli/' | CLI çalıştırma ve kontroller |
+| packs | 'pack/' | çalıştırılabilir pack evidence |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web çalışma alanı ve Bogae görünümleri |
+| tests | 'tests/' | entegrasyon ve ürün testleri |
+| publish | 'publish/' | genel dokümanlar |
 
 ## Seamgrim workspace V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
-- 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'ui/index.html': tek giriş noktası
+- 'ui/screens/run.js': çalıştırma ekranı ve current-line yürütme
+- 'ui/components/bogae.js': console/graph/space2d/grid Bogae rendering
+- 'ui/seamgrim_runtime_state.js': madi, runtime state, ayna özeti
+- 'tools/ddn_exec_server.py': yerel statik sunucu ve yardımcı API
 
-## Runtime principle
+## Runtime ilkesi
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- DDN runtime, pack'ler, state hash'ler ve ayna/replay kayıtları truth sahibidir.
+- Bogae bir görünüm katmanıdır ve runtime truth sahibi değildir.
+- Python/JS check ve UI orkestrasyonu yapabilir, fakat dil anlamını test-only lowering ile değiştiremez.
 
-## Current evidence
+## Güncel evidence
 
 - CLI/WASM runtime parity
 - Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
+- Seamgrim product smoke
 - Bogae madi/graph UI checks

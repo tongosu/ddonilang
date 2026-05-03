@@ -1,25 +1,25 @@
-# Downloads (Spanish)
+# Descargas (Español)
 
-> Starter localized guide; commands and file names stay canonical.
+> Traducción starter. Los comandos y nombres de archivo se mantienen canonical.
 
-## Distribution location
+## Ubicación de distribución
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- Los binarios públicos deben estar en GitHub Releases.
+- El repositorio git no guarda binarios para usuarios.
 
-## Target platforms
+## Plataformas objetivo
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## Nombres de archivo recomendados
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## Estructura de paquete recomendada
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -31,8 +31,8 @@ ddonirang-tool-<version>-<os>-<arch>/
 
 ## Checksums
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+Incluye SHA256SUMS.txt con las releases. Añade firma cuando esté disponible.
 
-## Source path
+## Ruta desde código fuente
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+Para el desarrollo actual, construye desde source y ejecuta Seamgrim localmente. Consulta QUICKSTART.md.

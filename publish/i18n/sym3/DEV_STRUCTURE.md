@@ -1,39 +1,39 @@
-# Development structure (sym3)
+# dev_structure (sym3)
 
-> Compact symbolic public guide.
+> compact localized set :: commands + file names stay canonical
 
-This is a localized public summary. The canonical detailed file is '../../DDONIRANG_DEV_STRUCTURE.md'.
+localized public summary; canonical detail = '../../DDONIRANG_DEV_STRUCTURE.md'.
 
-## Core layers
+## core_layers
 
-| Layer | Path | Role |
+| layer | path | role |
 | --- | --- | --- |
-| core | 'core/' | deterministic engine core |
-| lang | 'lang/' | grammar, parser, canonicalization |
-| tool | 'tool/' | runtime/tool implementation |
-| CLI | 'tools/teul-cli/' | command-line execution and checks |
-| packs | 'pack/' | runnable pack evidence |
-| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web workspace and Bogae views |
-| tests | 'tests/' | integration and product checks |
-| publish | 'publish/' | public documents |
+| core | 'core/' | det_engine_core |
+| lang | 'lang/' | grammar/parser/canon |
+| tool | 'tool/' | runtime_tool_impl |
+| CLI | 'tools/teul-cli/' | CLI_run_checks |
+| packs | 'pack/' | runnable_pack_evidence |
+| Seamgrim | 'solutions/seamgrim_ui_mvp/' | web_workspace+Bogae_views |
+| tests | 'tests/' | integration_product_tests |
+| publish | 'publish/' | public_docs |
 
-## Seamgrim workspace V2
+## Seamgrim_workspace_V2
 
-- 'ui/index.html': single entry point
-- 'ui/screens/run.js': run screen and current-line execution
-- 'ui/components/bogae.js': console/graph/space2d/grid rendering
-- 'ui/seamgrim_runtime_state.js': madi, runtime state, mirror summary
-- 'tools/ddn_exec_server.py': local static server and helper API
+- 'ui/index.html': single_entry
+- 'ui/screens/run.js': run_screen + current_line
+- 'ui/components/bogae.js': console/graph/space2d/grid render
+- 'ui/seamgrim_runtime_state.js': madi + runtime_state + mirror_summary
+- 'tools/ddn_exec_server.py': local_static_server + helper_API
 
-## Runtime principle
+## runtime_principle
 
-- DDN runtime, packs, state hashes, and mirror/replay records own truth.
-- Bogae is a view layer and must not own runtime truth.
-- Python/JS may orchestrate checks and UI, but they must not replace language/runtime semantics with test-only lowering.
+- DDN_runtime+packs+state_hash+mirror/replay own truth.
+- Bogae == view_layer; not runtime_truth.
+- Python/JS == orchestration/UI only; no test_only_lowering semantics.
 
-## Current evidence
+## current_evidence
 
-- CLI/WASM runtime parity
-- Vol4 raw current-line bundle parity
-- Seamgrim product stabilization smoke
-- Bogae madi/graph UI checks
+- CLI_WASM_runtime_parity
+- vol4_raw_currentline_parity
+- Seamgrim_product_smoke
+- Bogae_madi_graph_UI_checks

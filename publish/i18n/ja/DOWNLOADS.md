@@ -1,25 +1,25 @@
-# Downloads (Japanese)
+# ダウンロード (日本語)
 
-> Starter localized guide; commands and file names stay canonical.
+> スターター翻訳です。コマンドとファイル名は canonical のまま維持します。
 
-## Distribution location
+## 配布場所
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- ユーザー向けバイナリは GitHub Releases に置きます。
+- git リポジトリにはユーザー向けバイナリを入れません。
 
-## Target platforms
+## 対象プラットフォーム
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## 推奨ファイル名
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## 推奨パッケージ構造
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## チェックサム
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+リリースには SHA256SUMS.txt を添付します。可能なら署名も追加します。
 
-## Source path
+## ソース実行
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+現在の開発状態はソースビルドとローカル 셈그림 実行で確認します。QUICKSTART.md を見てください。

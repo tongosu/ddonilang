@@ -1,34 +1,34 @@
-# Release notes 2026-02-11 (Telugu)
+# release notes 2026-02-11 (తెలుగు)
 
-> Historical release note. Current public entry points are '../../README.md', '../../QUICKSTART.md', and '../../DDONIRANG_DEV_STRUCTURE.md'.
+> historical release note. current public entry points '../../README.md', '../../QUICKSTART.md', '../../DDONIRANG_DEV_STRUCTURE.md'.
 
-## Summary
+## సారాంశం
 
-This release focused on AGE2 Open policy hardening and minimum schemas/runtime APIs for open.net, open.ffi, and open.gpu.
+ఈ release AGE2 Open policy hardening మరియు open.net/open.ffi/open.gpu minimum schema/runtime API పై కేంద్రీకృతమైంది.
 
-## Highlights
+## ముఖ్యాంశాలు
 
-- 'open=record|replay' is blocked when 'age_target < AGE2'.
-- '--unsafe-open' was added as an explicit bypass.
-- open log schemas were added:
+- age_target < AGE2 అయితే 'open=record|replay' నిరోధించబడుతుంది.
+- '--unsafe-open' explicit bypass గా జోడించబడింది.
+- open log schemas:
   - 'open.net.v1'
   - 'open.ffi.v1'
   - 'open.gpu.v1'
-- Packs were added:
+- packs:
   - 'pack/open_net_record_replay'
   - 'pack/open_ffi_record_replay'
   - 'pack/open_gpu_record_replay'
 
-## Behavior change
+## behavior change
 
-'open=record|replay' is allowed only for 'age_target >= AGE2' unless '--unsafe-open' is used.
+open=record|replay age_target >= AGE2 లో మాత్రమే; --unsafe-open explicit bypass.
 
-## Historical test command
+## historical test command
 
 ~~~sh
 python tests/run_pack_golden.py open_net_record_replay open_ffi_record_replay open_gpu_record_replay
 ~~~
 
-## Current status pointer
+## current status pointer
 
-For current Seamgrim/WASM/current-line status, use 'QUICKSTART.md' and 'DEV_STRUCTURE.md' in this language folder.
+current Seamgrim/WASM/current-line status కోసం ఈ folder లో QUICKSTART.md మరియు DEV_STRUCTURE.md వాడండి.

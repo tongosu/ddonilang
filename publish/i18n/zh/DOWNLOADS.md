@@ -1,25 +1,25 @@
-# Downloads (Chinese)
+# 下载 (中文)
 
-> Starter localized guide; commands and file names stay canonical.
+> 这是 starter 本地化文档。命令和文件名保持 canonical 写法。
 
-## Distribution location
+## 分发位置
 
-- Public binaries belong in GitHub Releases.
-- The git repository does not store user-facing binaries.
+- 公开二进制文件应放在 GitHub Releases。
+- git 仓库不保存面向用户的二进制文件。
 
-## Target platforms
+## 目标平台
 
 - Windows x64
 - macOS x64/arm64
 - Linux x64/arm64
 
-## Recommended file names
+## 推荐文件名
 
 - 'ddonirang-tool-<version>-windows-x64.zip'
 - 'ddonirang-tool-<version>-macos-arm64.zip'
 - 'ddonirang-tool-<version>-linux-x64.tar.gz'
 
-## Recommended package layout
+## 推荐包结构
 
 ~~~txt
 ddonirang-tool-<version>-<os>-<arch>/
@@ -29,10 +29,10 @@ ddonirang-tool-<version>-<os>-<arch>/
   README.txt
 ~~~
 
-## Checksums
+## 校验和
 
-Provide 'SHA256SUMS.txt' with releases. Add a signature when available.
+发布时提供 SHA256SUMS.txt。可用时添加签名。
 
-## Source path
+## 源码路径
 
-For current development, build from source and run Seamgrim locally. See 'QUICKSTART.md'.
+当前开发状态请从源码构建并本地运行 Seamgrim。见 QUICKSTART.md。

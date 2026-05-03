@@ -1,34 +1,34 @@
-# Release notes 2026-02-11 (Quechua)
+# Release notes 2026-02-11 (Runasimi)
 
-> Historical release note. Current public entry points are '../../README.md', '../../QUICKSTART.md', and '../../DDONIRANG_DEV_STRUCTURE.md'.
+> Ñawpa release note. Kunan público yaykuna '../../README.md', '../../QUICKSTART.md', '../../DDONIRANG_DEV_STRUCTURE.md'.
 
-## Summary
+## Resumen
 
-This release focused on AGE2 Open policy hardening and minimum schemas/runtime APIs for open.net, open.ffi, and open.gpu.
+Kay release AGE2 Open policy hardening, open.net/open.ffi/open.gpu minimum schema/runtime API nisqaman qhawarqan.
 
-## Highlights
+## Hatun willakuykuna
 
-- 'open=record|replay' is blocked when 'age_target < AGE2'.
-- '--unsafe-open' was added as an explicit bypass.
-- open log schemas were added:
+- age_target < AGE2 kaptinqa 'open=record|replay' hark'asqa.
+- '--unsafe-open' qhapaq bypass hina yapasqa.
+- open log schemas:
   - 'open.net.v1'
   - 'open.ffi.v1'
   - 'open.gpu.v1'
-- Packs were added:
+- packs:
   - 'pack/open_net_record_replay'
   - 'pack/open_ffi_record_replay'
   - 'pack/open_gpu_record_replay'
 
-## Behavior change
+## Behavior tikray
 
-'open=record|replay' is allowed only for 'age_target >= AGE2' unless '--unsafe-open' is used.
+open=record|replay age_target >= AGE2 kaptinlla; --unsafe-open qhapaq bypass.
 
-## Historical test command
+## Ñawpa test command
 
 ~~~sh
 python tests/run_pack_golden.py open_net_record_replay open_ffi_record_replay open_gpu_record_replay
 ~~~
 
-## Current status pointer
+## Kunan estado ñiqichay
 
-For current Seamgrim/WASM/current-line status, use 'QUICKSTART.md' and 'DEV_STRUCTURE.md' in this language folder.
+Kunan Seamgrim/WASM/current-line estado qhawanapaq kay folder QUICKSTART.md, DEV_STRUCTURE.md apaykachay.
