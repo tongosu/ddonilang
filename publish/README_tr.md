@@ -59,24 +59,20 @@ Böylece “insan yazsa da AI yazsa da” niyet aynı biçime yakınsar.
 
 ---
 
-## 30 saniyelik tat: “Büyüyle kapı açma”
+## 30 saniyelik tat: Seamgrim'de doğrudan çalışan örnek
 
-Büyü gibi görünen küçük bir örnek.  
-(edat temelli bağlama + çalıştırma kuyruğu + durum ataması)
+Bu, güncel Seamgrim örnek hattında doğrulanan küçük bir DDN örneğidir.
+Eski root-prefix gösterimini kullanmaz ve çalışma alanında doğrudan çalışır.
 
 ```ddn
-taban.kapi_durumu <- "kapalı".
+x <- 15.
+y <- 8.
+합 <- (x + y).
 
-(büyü:söz ~ile) kapıyı_aç:hareket = {
-  { taban.kapi_durumu == "kapalı" } olan ise {
-    taban.kapi_durumu <- "açık".
-    büyüyü göster.
-  } değilse {
-    "Zaten açık."ı göster.
-  }.
-}.
-
-"Açıl!" ile kapıyı_aç.
+"콘솔 보개 예제" 보여주기.
+합 보여주기.
+x 보여주기.
+y 보여주기.
 ```
 
 ---

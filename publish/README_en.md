@@ -55,24 +55,20 @@ Key design choices:
 
 ---
 
-## 30‑second taste: “Open the door with a spell”
+## 30-second taste: runnable Seamgrim example
 
-A tiny example made to feel like magic.  
-(particle‑based binding + execution tail + state assignment)
+This is a current DDN sample used by the Seamgrim example rail.
+It avoids historical root-prefix notation and runs directly in the workspace.
 
 ```ddn
-base.door_state <- "closed".
+x <- 15.
+y <- 8.
+합 <- (x + y).
 
-(spell:word ~with) door_obj_opening:move = {
-  { base.door_state == "closed" } as_thing if {
-    base.door_state <- "open".
-    show spell.
-  } else {
-    show "It's already open.".
-  }.
-}.
-
-"Open up!" with door_obj_opening.
+"콘솔 보개 예제" 보여주기.
+합 보여주기.
+x 보여주기.
+y 보여주기.
 ```
 
 ---
