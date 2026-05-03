@@ -29,6 +29,20 @@ def run_token_check(name: str, text_by_label: dict[str, str], required: dict[str
     }
 
 
+def run_forbidden_token_check(name: str, text_by_label: dict[str, str], forbidden: dict[str, list[str]]) -> dict:
+    hits: list[str] = []
+    for label, tokens in forbidden.items():
+        hay = text_by_label.get(label, "")
+        for token in tokens:
+            if token in hay:
+                hits.append(f"{label}:{token}")
+    return {
+        "name": name,
+        "ok": len(hits) == 0,
+        "missing": hits,
+    }
+
+
 def run_overlay_handler_boundary_check(name: str, run_text: str) -> dict:
     pattern = re.compile(
         r'#btn-overlay-toggle"\)\?\.addEventListener\("click",\s*\(\)\s*=>\s*\{(?P<body>.*?)\}\);',
@@ -44,7 +58,7 @@ def run_overlay_handler_boundary_check(name: str, run_text: str) -> dict:
 
     body = str(match.group("body") or "")
     required = [
-        "this.overlay.toggle()",
+        "this.switchRunTab(SUBPANEL_TAB.OVERLAY)",
     ]
     forbidden = [
         "this.restart(",
@@ -73,6 +87,7 @@ def main() -> int:
     parser.add_argument("--app-js", default="solutions/seamgrim_ui_mvp/ui/app.js")
     parser.add_argument("--browse-js", default="solutions/seamgrim_ui_mvp/ui/screens/browse.js")
     parser.add_argument("--run-js", default="solutions/seamgrim_ui_mvp/ui/screens/run.js")
+    parser.add_argument("--styles-css", default="solutions/seamgrim_ui_mvp/ui/styles.css")
     parser.add_argument("--slider-js", default="solutions/seamgrim_ui_mvp/ui/components/slider_panel.js")
     parser.add_argument("--json-out", help="optional json output path")
     args = parser.parse_args()
@@ -83,6 +98,7 @@ def main() -> int:
         "app": root / args.app_js,
         "browse": root / args.browse_js,
         "run": root / args.run_js,
+        "styles": root / args.styles_css,
         "slider": root / args.slider_js,
     }
 
@@ -107,25 +123,91 @@ def main() -> int:
                     'id="btn-preset-featured-seed-quick-recent"',
                     'id="btn-copy-browse-preset-link"',
                     'id="btn-run-from-editor"',
-                    'id="btn-restart"',
                     'id="filter-quality"',
                     'id="filter-run-launch"',
                     'value="featured_seed_quick_recent"',
+                    'id="btn-open-in-studio"',
+                    'id="studio-source-label"',
+                    'id="btn-studio-new"',
                 ],
             },
         ),
         run_token_check(
-            "run_7030_layout",
+            "panel_studio_unified_shell",
             text_by_label,
             {
                 "html": [
                     'class="run-layout"',
+                    'class="run-control-bar"',
+                    'id="run-ddn-preview"',
+                    'id="studio-inline-warn"',
+                    'id="btn-inline-autofix"',
+                    'id="btn-ddn-open"',
+                    'id="btn-ddn-save"',
+                    'id="btn-run"',
+                    'id="btn-pause"',
+                    'id="btn-reset"',
+                    'id="btn-step"',
+                    'id="btn-run-view-basic"',
+                    'id="btn-run-view-analyze"',
+                    'id="btn-run-view-full"',
+                    '↺ 초기화',
+                    '▷ 한마디씩',
+                    'id="bogae-warn-badge"',
+                    'id="run-error-banner"',
                     'class="bogae-area"',
-                    'class="dotbogi-panel"',
+                    'class="bogae-frame"',
+                    'id="run-main-graph-host"',
+                    'id="run-main-console-host"',
+                    'class="dotbogi-panel subpanel"',
+                    'id="run-tab-btn-console"',
+                    'id="run-tab-btn-output"',
+                    'id="run-tab-btn-overlay"',
+                    'id="run-tab-panel-console"',
+                    'id="run-tab-panel-output"',
+                    'id="run-tab-panel-overlay"',
+                    '결과표',
+                    '겹보기',
+                    'id="run-view-source-badge"',
+                    'id="run-mirror-diagnostics"',
+                    'id="run-onboarding-status"',
+                    'id="run-observe-summary"',
+                    'id="run-overlay-body"',
                     'id="canvas-bogae"',
                     'id="canvas-graph"',
+                    'data-main-visual-mode',
                     'id="select-x-axis"',
                     'id="select-y-axis"',
+                    'id="select-graph-kind"',
+                    'id="select-graph-range"',
+                ],
+                "run": [
+                    '콘솔 보개',
+                    'run-main-console-group',
+                    'run-main-console-group-title',
+                ],
+                "styles": [
+                    'run-observe-console-fallback',
+                    'run-main-console-group',
+                    'run-main-console-code[data-value-type="number"]',
+                ],
+            },
+        ),
+        run_forbidden_token_check(
+            "run_formula_surface_removed",
+            text_by_label,
+            {
+                "html": [
+                    'id="run-tab-btn-formula"',
+                    'id="run-tab-panel-formula"',
+                    'id="run-formula-text"',
+                    'id="run-formula-ddn-preview"',
+                ],
+                "run": [
+                    "bindFormulaSugarUi(",
+                    "applyFormulaSugar(",
+                    "refreshFormulaPreview(",
+                    "run-formula",
                 ],
             },
         ),
@@ -136,11 +218,13 @@ def main() -> int:
                 "app": [
                     'import { BrowseScreen }',
                     'import { EditorScreen, saveDdnToFile }',
-                    'import { RunScreen }',
+                    'import { RunScreen, applyLegacyAutofixToDdn, hasLegacyAutofixCandidate }',
                     "const appState = {",
                     "function setScreen(name)",
                     "createWasmLoader(",
                     "setScreen(\"browse\")",
+                    "const MAIN_TAB_STUDIO = \"studio\"",
+                    "switchMainTab(MAIN_TAB_STUDIO",
                 ],
             },
         ),
@@ -150,12 +234,14 @@ def main() -> int:
             {
                 "app": [
                     "function ensureLessonEntryFromSelection(selection)",
-                    "onLessonSelect: async (selection) => {",
+                    "onLessonSelect: async (selection, { autoExecute = true } = {}) => {",
                     "const lessonId = ensureLessonEntryFromSelection(selection);",
+                    "runScreen.enqueueRunRequest",
                 ],
                 "browse": [
                     "toFederatedLessonItems(payload)",
-                    "void this.onLessonSelect(lesson);",
+                    "void this.onLessonSelect(this.detailLesson, { autoExecute: true });",
+                    "void this.onLessonSelect(lesson, { autoExecute: true });",
                 ],
             },
         ),
@@ -210,6 +296,36 @@ def main() -> int:
                     "stepWasmClientParsed",
                     "this.setHash(hash)",
                     "this.updateRuntimeStatus({ observation, views })",
+                    "enqueueRunRequest(request = {})",
+                    "consumePendingRunRequest()",
+                    "executeRunRequest(request = {})",
+                    "syncInitialBogaeShellVisibility(true);",
+                    "resolveStudioLayoutBounds(",
+                    "resolveBogaeToolbarCompact(",
+                    "resolveRunMainControlLabels(",
+                    "this.syncBogaeToolbarCompactState({ refreshControls: true });",
+                    'seamgrim.ui.studio_editor_ratio.v3',
+                    'seamgrim.ui.studio_editor_ratio.v1',
+                ],
+                "styles": [
+                    ".run-layout.run-layout--dock-only.run-layout--keep-bogae-shell .bogae-area {",
+                    ".run-layout-splitter {",
+                    "display: block;",
+                    ".bogae-frame {",
+                    "aspect-ratio: 16 / 9;",
+                    ".run-control-bar--compact {",
+                    ".run-visual-column.run-visual-column--scroll-fallback {",
+                    ".subpanel-tab-panel {",
+                    ".subpanel-tab-panel > .run-tab-panel {",
+                    "grid-template-columns: repeat(4, minmax(0, 1fr));",
+                    "min-height: 300px;",
+                    ".run-slider-area {",
+                    "max-height: none;",
+                    "#run-tab-panel-graph {",
+                    "#dotbogi-graph {",
+                    "flex: 2 1 360px;",
+                    "#dotbogi-graph #canvas-graph {",
+                    "min-height: 220px;",
                 ],
             },
         ),
@@ -218,14 +334,14 @@ def main() -> int:
             text_by_label,
             {
                 "html": [
-                    'id="btn-run-featured-seed"',
+                    'id="btn-preset-featured-seed-quick-recent"',
                 ],
                 "app": [
                     'import { FEATURED_SEED_IDS } from "./featured_seed_catalog.js";',
                     "const BROWSE_PRESET_QUERY_KEY = \"browsePreset\"",
-                    "const featuredSeedButton = byId(\"btn-run-featured-seed\")",
+                    "const featuredSeedButton = byId(\"btn-preset-featured-seed-quick-recent\")",
                     "const runNextFeaturedSeed = async () => {",
-                    "const openRunWithLesson = (lesson, { launchKind = \"manual\" } = {}) => {",
+                    "const openRunWithLesson = (lesson, { launchKind = \"manual\", autoExecute = false } = {}) => {",
                     "window.addEventListener(\"seamgrim:browse-preset-changed\", (event) => {",
                     "browseScreen.applyBrowsePreset(browsePresetFromLocation)",
                     "shouldTriggerFeaturedSeedQuickPreset(event, {",
@@ -243,7 +359,8 @@ def main() -> int:
             {
                 "slider": [
                     "parseFromDdn(ddnText",
-                    'control 채비: ${this.specs.length}개',
+                    '매김 조절: ${this.specs.length}개',
+                    "조절 가능한 매김이 없습니다.",
                     "this.onCommit(this.getValues())",
                 ],
             },

@@ -219,7 +219,15 @@ from _ci_latest_smoke_contract import (
     LATEST_SMOKE_SKIP_REASON_FLAG_DISABLED,
     LATEST_SMOKE_SKIP_REASON_PENDING_FAILURE_SUMMARY_REGENERATION,
 )
-from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME,
+    SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS,
+    SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATH_BY_NAME,
+    SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATHS,
+    SEAMGRIM_PLATFORM_STEP_SCRIPT_PATH_BY_NAME,
+    SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS,
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+)
 
 # Keep explicit summary-token contracts in this file so static diagnostics checks
 # can validate aggregate-gate surface invariants after helper modularization.
@@ -1802,7 +1810,12 @@ def main() -> int:
         stderr_path = report_path(step_log_dir, f"{base}.stderr.txt", prefix)
         return stdout_path, stderr_path
 
-    def run_and_record(name: str, cmd: list[str]) -> int:
+    def run_and_record(
+        name: str,
+        cmd: list[str],
+        *,
+        env_extra: dict[str, str] | None = None,
+    ) -> int:
         stdout_log_path, stderr_log_path = step_log_paths(name)
         step_result = run_step(
             root,
@@ -1813,6 +1826,7 @@ def main() -> int:
             step_log_failed_only=bool(args.step_log_failed_only),
             stdout_log_path=stdout_log_path,
             stderr_log_path=stderr_log_path,
+            env_extra=env_extra,
         )
         rc = int(step_result.get("returncode", 127))
         record = {
@@ -2279,7 +2293,26 @@ def main() -> int:
         )
         return int(step_result.get("returncode", 127))
 
-    def refresh_status_outputs_for_index() -> int:
+    def refresh_status_outputs_for_index(strict_summary_verify: bool = True) -> int:
+        emit_final_line_cmd = [
+            py,
+            "tools/scripts/emit_ci_final_line.py",
+            "--report-dir",
+            str(report_dir),
+            "--print-failure-digest",
+            "6",
+            "--print-failure-tail-lines",
+            "20",
+            "--failure-brief-out",
+            str(ci_fail_brief_txt),
+            "--triage-json-out",
+            str(ci_fail_triage_json),
+            "--require-final-line",
+        ]
+        if strict_summary_verify:
+            emit_final_line_cmd.append("--fail-on-summary-verify-error")
+        if prefix:
+            emit_final_line_cmd.extend(["--prefix", prefix])
         refresh_cmds: list[tuple[str, list[str]]] = [
             (
                 "refresh_aggregate_status_line",
@@ -2375,23 +2408,7 @@ def main() -> int:
             ),
             (
                 "refresh_ci_emit_artifacts_generate",
-                [
-                    py,
-                    "tools/scripts/emit_ci_final_line.py",
-                    "--report-dir",
-                    str(report_dir),
-                    "--print-failure-digest",
-                    "6",
-                    "--print-failure-tail-lines",
-                    "20",
-                    "--fail-on-summary-verify-error",
-                    "--failure-brief-out",
-                    str(ci_fail_brief_txt),
-                    "--triage-json-out",
-                    str(ci_fail_triage_json),
-                    "--require-final-line",
-                ]
-                + (["--prefix", prefix] if prefix else []),
+                emit_final_line_cmd,
             ),
         ]
         for label, cmd in refresh_cmds:
@@ -2651,7 +2668,17 @@ def main() -> int:
             "--json-out",
             str(ci_sanity_gate_report),
         ]
-        return run_and_record("ci_sanity_gate", cmd)
+        seamgrim_worker_env = {
+            "DDN_SEAMGRIM_CI_GATE_MAX_WORKERS": str(
+                os.environ.get("DDN_SEAMGRIM_CI_GATE_MAX_WORKERS", "14")
+            ).strip()
+            or "14",
+            "DDN_SEAMGRIM_CI_GATE_FAMILY_MAX_WORKERS": str(
+                os.environ.get("DDN_SEAMGRIM_CI_GATE_FAMILY_MAX_WORKERS", "10")
+            ).strip()
+            or "10",
+        }
+        return run_and_record("ci_sanity_gate", cmd, env_extra=seamgrim_worker_env)
 
     def check_ci_profile_split_contract() -> int:
         cmd = [
@@ -2934,12 +2961,104 @@ def main() -> int:
         ]
         return run_and_record("seamgrim_ci_gate_seed_meta_step_check", cmd)
 
+    def check_seamgrim_ci_gate_worker_env_step() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_ci_gate_worker_env_step_check.py",
+        ]
+        return run_and_record("seamgrim_ci_gate_worker_env_step_check", cmd)
+
+    def run_seamgrim_featured_step(step_name: str) -> int:
+        script_path = SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATH_BY_NAME[step_name]
+        cmd = [py, script_path]
+        return run_and_record(step_name, cmd)
+
+    def check_seamgrim_ci_gate_featured_seed_catalog_step() -> int:
+        return run_seamgrim_featured_step("seamgrim_ci_gate_featured_seed_catalog_step_check")
+
+    def check_seamgrim_ci_gate_featured_seed_catalog_autogen_step() -> int:
+        return run_seamgrim_featured_step("seamgrim_ci_gate_featured_seed_catalog_autogen_step_check")
+
     def check_seamgrim_ci_gate_sam_seulgi_family_step() -> int:
         cmd = [
             py,
             "tests/run_seamgrim_ci_gate_sam_seulgi_family_step_check.py",
         ]
         return run_and_record("seamgrim_ci_gate_sam_seulgi_family_step_check", cmd)
+
+    def run_seamgrim_blocker_step(step_name: str) -> int:
+        script_path = SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME[step_name]
+        cmd = [py, script_path]
+        return run_and_record(step_name, cmd)
+
+    def run_seamgrim_platform_step(step_name: str) -> int:
+        script_path = SEAMGRIM_PLATFORM_STEP_SCRIPT_PATH_BY_NAME[step_name]
+        cmd = [py, script_path]
+        return run_and_record(step_name, cmd)
+
+    def check_seamgrim_product_blocker_bundle() -> int:
+        return run_seamgrim_blocker_step("seamgrim_product_blocker_bundle_check")
+
+    def check_seamgrim_observe_output_contract() -> int:
+        return run_seamgrim_blocker_step("seamgrim_observe_output_contract_check")
+
+    def check_seamgrim_runtime_view_source_strict() -> int:
+        return run_seamgrim_blocker_step("seamgrim_runtime_view_source_strict_check")
+
+    def check_seamgrim_view_only_state_hash_invariant() -> int:
+        return run_seamgrim_blocker_step("seamgrim_view_only_state_hash_invariant_check")
+
+    def check_seamgrim_run_legacy_autofix() -> int:
+        return run_seamgrim_blocker_step("seamgrim_run_legacy_autofix_check")
+
+    def check_seamgrim_auth_save_surface() -> int:
+        return run_seamgrim_platform_step("seamgrim_auth_save_surface_check")
+
+    def check_seamgrim_object_revision_surface() -> int:
+        return run_seamgrim_platform_step("seamgrim_object_revision_surface_check")
+
+    def check_seamgrim_sharing_publishing_surface() -> int:
+        return run_seamgrim_platform_step("seamgrim_sharing_publishing_surface_check")
+
+    def check_seamgrim_package_registry_surface() -> int:
+        return run_seamgrim_platform_step("seamgrim_package_registry_surface_check")
+
+    def check_seamgrim_source_management_surface() -> int:
+        return run_seamgrim_platform_step("seamgrim_source_management_surface_check")
+
+    def check_seamgrim_publication_snapshot_surface() -> int:
+        return run_seamgrim_platform_step("seamgrim_publication_snapshot_surface_check")
+
+    def check_seamgrim_review_workflow_surface() -> int:
+        return run_seamgrim_platform_step("seamgrim_review_workflow_surface_check")
+
+    def check_seamgrim_platform_mock_interface_contract() -> int:
+        return run_seamgrim_platform_step("seamgrim_platform_mock_interface_contract_check")
+
+    def check_seamgrim_platform_mock_menu_mode() -> int:
+        return run_seamgrim_platform_step("seamgrim_platform_mock_menu_mode_check")
+
+    def check_seamgrim_platform_mock_adapter_roundtrip() -> int:
+        return run_seamgrim_platform_step("seamgrim_platform_mock_adapter_roundtrip_check")
+
+    def check_seamgrim_platform_mock_payload_snapshot() -> int:
+        return run_seamgrim_platform_step("seamgrim_platform_mock_payload_snapshot_check")
+
+    def check_seamgrim_platform_server_adapter_contract() -> int:
+        return run_seamgrim_platform_step("seamgrim_platform_server_adapter_contract_check")
+
+    def check_seamgrim_platform_route_precedence() -> int:
+        return run_seamgrim_platform_step("seamgrim_platform_route_precedence_check")
+
+    def check_seamgrim_platform_server_action_rail() -> int:
+        return run_seamgrim_platform_step("seamgrim_platform_server_action_rail_check")
+
+    def check_seamgrim_v2_task_batch() -> int:
+        cmd = [
+            py,
+            "tests/run_seamgrim_v2_task_batch_check.py",
+        ]
+        return run_and_record("seamgrim_v2_task_batch_check", cmd)
 
     def check_seamgrim_ci_gate_guideblock_step() -> int:
         cmd = [
@@ -3228,12 +3347,35 @@ def main() -> int:
         check_ci_profile_matrix_gate_selftest()
         check_seamgrim_ci_gate_runtime5_passthrough()
         check_seamgrim_ci_gate_seed_meta_step()
+        check_seamgrim_ci_gate_worker_env_step()
+        check_seamgrim_ci_gate_featured_seed_catalog_step()
+        check_seamgrim_ci_gate_featured_seed_catalog_autogen_step()
         check_seamgrim_ci_gate_sam_seulgi_family_step()
+        check_seamgrim_product_blocker_bundle()
+        check_seamgrim_observe_output_contract()
+        check_seamgrim_runtime_view_source_strict()
+        check_seamgrim_view_only_state_hash_invariant()
+        check_seamgrim_run_legacy_autofix()
+        check_seamgrim_auth_save_surface()
+        check_seamgrim_object_revision_surface()
+        check_seamgrim_sharing_publishing_surface()
+        check_seamgrim_package_registry_surface()
+        check_seamgrim_source_management_surface()
+        check_seamgrim_publication_snapshot_surface()
+        check_seamgrim_review_workflow_surface()
+        check_seamgrim_platform_mock_interface_contract()
+        check_seamgrim_platform_mock_menu_mode()
+        check_seamgrim_platform_mock_adapter_roundtrip()
+        check_seamgrim_platform_mock_payload_snapshot()
+        check_seamgrim_platform_server_adapter_contract()
+        check_seamgrim_platform_route_precedence()
+        check_seamgrim_platform_server_action_rail()
         check_seamgrim_ci_gate_guideblock_step()
         check_seamgrim_ci_gate_lesson_warning_step()
         check_seamgrim_ci_gate_stateful_preview_step()
         check_seamgrim_ci_gate_wasm_web_smoke_step()
         check_seamgrim_ci_gate_wasm_web_smoke_step_selftest()
+        check_seamgrim_v2_task_batch()
         check_ci_sanity_gate()
         check_ci_sync_readiness_selftest()
         check_ci_sync_readiness_diagnostics()
@@ -3336,6 +3478,10 @@ def main() -> int:
             print(line)
         if lines:
             write_summary(summary_path, lines)
+            post_summary_refresh_rc = refresh_status_outputs_for_index(strict_summary_verify=False)
+            if post_summary_refresh_rc != 0:
+                print("[ci-gate] status outputs refresh failed after failure-summary rewrite", file=sys.stderr)
+                return 2
             emit_required_post_summary_rc = check_ci_emit_artifacts_required_post_summary()
             if emit_required_post_summary_rc != 0:
                 print("[ci-gate] final summary emit artifacts required check failed", file=sys.stderr)
@@ -3982,11 +4128,143 @@ def main() -> int:
             seamgrim_ci_gate_seed_meta_step_rc,
             "[ci-gate] fast-fail: seamgrim ci gate seed-meta step check failed",
         )
+    seamgrim_ci_gate_worker_env_step_rc = check_seamgrim_ci_gate_worker_env_step()
+    if args.fast_fail and seamgrim_ci_gate_worker_env_step_rc != 0:
+        return fail_and_exit(
+            seamgrim_ci_gate_worker_env_step_rc,
+            "[ci-gate] fast-fail: seamgrim ci gate worker-env step check failed",
+        )
+    seamgrim_ci_gate_featured_seed_catalog_step_rc = check_seamgrim_ci_gate_featured_seed_catalog_step()
+    if args.fast_fail and seamgrim_ci_gate_featured_seed_catalog_step_rc != 0:
+        return fail_and_exit(
+            seamgrim_ci_gate_featured_seed_catalog_step_rc,
+            "[ci-gate] fast-fail: seamgrim ci gate featured-seed-catalog step check failed",
+        )
+    seamgrim_ci_gate_featured_seed_catalog_autogen_step_rc = check_seamgrim_ci_gate_featured_seed_catalog_autogen_step()
+    if args.fast_fail and seamgrim_ci_gate_featured_seed_catalog_autogen_step_rc != 0:
+        return fail_and_exit(
+            seamgrim_ci_gate_featured_seed_catalog_autogen_step_rc,
+            "[ci-gate] fast-fail: seamgrim ci gate featured-seed-catalog autogen step check failed",
+        )
     seamgrim_ci_gate_sam_seulgi_family_step_rc = check_seamgrim_ci_gate_sam_seulgi_family_step()
     if args.fast_fail and seamgrim_ci_gate_sam_seulgi_family_step_rc != 0:
         return fail_and_exit(
             seamgrim_ci_gate_sam_seulgi_family_step_rc,
             "[ci-gate] fast-fail: seamgrim ci gate sam seulgi family step check failed",
+        )
+    seamgrim_product_blocker_bundle_rc = check_seamgrim_product_blocker_bundle()
+    if args.fast_fail and seamgrim_product_blocker_bundle_rc != 0:
+        return fail_and_exit(
+            seamgrim_product_blocker_bundle_rc,
+            "[ci-gate] fast-fail: seamgrim product blocker bundle check failed",
+        )
+    seamgrim_observe_output_contract_rc = check_seamgrim_observe_output_contract()
+    if args.fast_fail and seamgrim_observe_output_contract_rc != 0:
+        return fail_and_exit(
+            seamgrim_observe_output_contract_rc,
+            "[ci-gate] fast-fail: seamgrim observe output contract check failed",
+        )
+    seamgrim_runtime_view_source_strict_rc = check_seamgrim_runtime_view_source_strict()
+    if args.fast_fail and seamgrim_runtime_view_source_strict_rc != 0:
+        return fail_and_exit(
+            seamgrim_runtime_view_source_strict_rc,
+            "[ci-gate] fast-fail: seamgrim runtime view-source strict check failed",
+        )
+    seamgrim_view_only_state_hash_invariant_rc = check_seamgrim_view_only_state_hash_invariant()
+    if args.fast_fail and seamgrim_view_only_state_hash_invariant_rc != 0:
+        return fail_and_exit(
+            seamgrim_view_only_state_hash_invariant_rc,
+            "[ci-gate] fast-fail: seamgrim view-only state-hash invariant check failed",
+        )
+    seamgrim_run_legacy_autofix_rc = check_seamgrim_run_legacy_autofix()
+    if args.fast_fail and seamgrim_run_legacy_autofix_rc != 0:
+        return fail_and_exit(
+            seamgrim_run_legacy_autofix_rc,
+            "[ci-gate] fast-fail: seamgrim run legacy autofix check failed",
+        )
+    seamgrim_auth_save_surface_rc = check_seamgrim_auth_save_surface()
+    if args.fast_fail and seamgrim_auth_save_surface_rc != 0:
+        return fail_and_exit(
+            seamgrim_auth_save_surface_rc,
+            "[ci-gate] fast-fail: seamgrim auth/save surface check failed",
+        )
+    seamgrim_object_revision_surface_rc = check_seamgrim_object_revision_surface()
+    if args.fast_fail and seamgrim_object_revision_surface_rc != 0:
+        return fail_and_exit(
+            seamgrim_object_revision_surface_rc,
+            "[ci-gate] fast-fail: seamgrim object/revision surface check failed",
+        )
+    seamgrim_sharing_publishing_surface_rc = check_seamgrim_sharing_publishing_surface()
+    if args.fast_fail and seamgrim_sharing_publishing_surface_rc != 0:
+        return fail_and_exit(
+            seamgrim_sharing_publishing_surface_rc,
+            "[ci-gate] fast-fail: seamgrim sharing/publishing surface check failed",
+        )
+    seamgrim_package_registry_surface_rc = check_seamgrim_package_registry_surface()
+    if args.fast_fail and seamgrim_package_registry_surface_rc != 0:
+        return fail_and_exit(
+            seamgrim_package_registry_surface_rc,
+            "[ci-gate] fast-fail: seamgrim package/registry surface check failed",
+        )
+    seamgrim_source_management_surface_rc = check_seamgrim_source_management_surface()
+    if args.fast_fail and seamgrim_source_management_surface_rc != 0:
+        return fail_and_exit(
+            seamgrim_source_management_surface_rc,
+            "[ci-gate] fast-fail: seamgrim source management surface check failed",
+        )
+    seamgrim_publication_snapshot_surface_rc = check_seamgrim_publication_snapshot_surface()
+    if args.fast_fail and seamgrim_publication_snapshot_surface_rc != 0:
+        return fail_and_exit(
+            seamgrim_publication_snapshot_surface_rc,
+            "[ci-gate] fast-fail: seamgrim publication snapshot surface check failed",
+        )
+    seamgrim_review_workflow_surface_rc = check_seamgrim_review_workflow_surface()
+    if args.fast_fail and seamgrim_review_workflow_surface_rc != 0:
+        return fail_and_exit(
+            seamgrim_review_workflow_surface_rc,
+            "[ci-gate] fast-fail: seamgrim review workflow surface check failed",
+        )
+    seamgrim_platform_mock_interface_contract_rc = check_seamgrim_platform_mock_interface_contract()
+    if args.fast_fail and seamgrim_platform_mock_interface_contract_rc != 0:
+        return fail_and_exit(
+            seamgrim_platform_mock_interface_contract_rc,
+            "[ci-gate] fast-fail: seamgrim platform mock interface contract check failed",
+        )
+    seamgrim_platform_mock_menu_mode_rc = check_seamgrim_platform_mock_menu_mode()
+    if args.fast_fail and seamgrim_platform_mock_menu_mode_rc != 0:
+        return fail_and_exit(
+            seamgrim_platform_mock_menu_mode_rc,
+            "[ci-gate] fast-fail: seamgrim platform mock menu mode check failed",
+        )
+    seamgrim_platform_mock_adapter_roundtrip_rc = check_seamgrim_platform_mock_adapter_roundtrip()
+    if args.fast_fail and seamgrim_platform_mock_adapter_roundtrip_rc != 0:
+        return fail_and_exit(
+            seamgrim_platform_mock_adapter_roundtrip_rc,
+            "[ci-gate] fast-fail: seamgrim platform mock adapter roundtrip check failed",
+        )
+    seamgrim_platform_mock_payload_snapshot_rc = check_seamgrim_platform_mock_payload_snapshot()
+    if args.fast_fail and seamgrim_platform_mock_payload_snapshot_rc != 0:
+        return fail_and_exit(
+            seamgrim_platform_mock_payload_snapshot_rc,
+            "[ci-gate] fast-fail: seamgrim platform mock payload snapshot check failed",
+        )
+    seamgrim_platform_server_adapter_contract_rc = check_seamgrim_platform_server_adapter_contract()
+    if args.fast_fail and seamgrim_platform_server_adapter_contract_rc != 0:
+        return fail_and_exit(
+            seamgrim_platform_server_adapter_contract_rc,
+            "[ci-gate] fast-fail: seamgrim platform server adapter contract check failed",
+        )
+    seamgrim_platform_route_precedence_rc = check_seamgrim_platform_route_precedence()
+    if args.fast_fail and seamgrim_platform_route_precedence_rc != 0:
+        return fail_and_exit(
+            seamgrim_platform_route_precedence_rc,
+            "[ci-gate] fast-fail: seamgrim platform route precedence check failed",
+        )
+    seamgrim_platform_server_action_rail_rc = check_seamgrim_platform_server_action_rail()
+    if args.fast_fail and seamgrim_platform_server_action_rail_rc != 0:
+        return fail_and_exit(
+            seamgrim_platform_server_action_rail_rc,
+            "[ci-gate] fast-fail: seamgrim platform server action rail check failed",
         )
     seamgrim_ci_gate_guideblock_step_rc = check_seamgrim_ci_gate_guideblock_step()
     if args.fast_fail and seamgrim_ci_gate_guideblock_step_rc != 0:
@@ -4017,6 +4295,12 @@ def main() -> int:
         return fail_and_exit(
             seamgrim_ci_gate_wasm_web_smoke_step_selftest_rc,
             "[ci-gate] fast-fail: seamgrim ci gate wasm/web smoke step check selftest failed",
+        )
+    seamgrim_v2_task_batch_rc = check_seamgrim_v2_task_batch()
+    if args.fast_fail and seamgrim_v2_task_batch_rc != 0:
+        return fail_and_exit(
+            seamgrim_v2_task_batch_rc,
+            "[ci-gate] fast-fail: seamgrim v2 task batch check failed",
         )
     ci_sanity_gate_rc = check_ci_sanity_gate()
     if args.fast_fail and ci_sanity_gate_rc != 0:
@@ -4324,7 +4608,31 @@ def main() -> int:
             and ci_profile_split_contract_rc == 0
             and ci_profile_matrix_gate_selftest_rc == 0
             and seamgrim_ci_gate_runtime5_passthrough_rc == 0
+            and seamgrim_ci_gate_preview_sync_passthrough_rc == 0
             and seamgrim_ci_gate_seed_meta_step_rc == 0
+            and seamgrim_ci_gate_worker_env_step_rc == 0
+            and seamgrim_ci_gate_featured_seed_catalog_step_rc == 0
+            and seamgrim_ci_gate_featured_seed_catalog_autogen_step_rc == 0
+            and seamgrim_ci_gate_sam_seulgi_family_step_rc == 0
+            and seamgrim_product_blocker_bundle_rc == 0
+            and seamgrim_observe_output_contract_rc == 0
+            and seamgrim_runtime_view_source_strict_rc == 0
+            and seamgrim_view_only_state_hash_invariant_rc == 0
+            and seamgrim_run_legacy_autofix_rc == 0
+            and seamgrim_auth_save_surface_rc == 0
+            and seamgrim_object_revision_surface_rc == 0
+            and seamgrim_sharing_publishing_surface_rc == 0
+            and seamgrim_package_registry_surface_rc == 0
+            and seamgrim_source_management_surface_rc == 0
+            and seamgrim_publication_snapshot_surface_rc == 0
+            and seamgrim_review_workflow_surface_rc == 0
+            and seamgrim_platform_mock_interface_contract_rc == 0
+            and seamgrim_platform_mock_menu_mode_rc == 0
+            and seamgrim_platform_mock_adapter_roundtrip_rc == 0
+            and seamgrim_platform_mock_payload_snapshot_rc == 0
+            and seamgrim_platform_server_adapter_contract_rc == 0
+            and seamgrim_platform_route_precedence_rc == 0
+            and seamgrim_platform_server_action_rail_rc == 0
             and seamgrim_ci_gate_guideblock_step_rc == 0
             and seamgrim_ci_gate_lesson_warning_step_rc == 0
             and seamgrim_ci_gate_stateful_preview_step_rc == 0
@@ -4393,6 +4701,9 @@ def main() -> int:
         ci_gate_report_index_rc = 0
         print("[ci-gate] skip early report-index check (pending failure summary regeneration)")
     else:
+        # Re-sync summary marker with freshly refreshed result artifacts.
+        # This prevents stale summary status when a report prefix is reused.
+        write_emit_artifacts_summary_preview()
         ci_gate_report_index_rc = check_ci_gate_report_index(require_step_contract=False)
         if args.fast_fail and ci_gate_report_index_rc != 0:
             return fail_and_exit(
@@ -4469,6 +4780,10 @@ def main() -> int:
             print(line)
         if lines:
             write_summary(summary_path, lines)
+            post_summary_refresh_rc = refresh_status_outputs_for_index(strict_summary_verify=False)
+            if post_summary_refresh_rc != 0:
+                print("[ci-gate] status outputs refresh failed after failure-summary rewrite", file=sys.stderr)
+                return 2
             emit_required_post_summary_rc = check_ci_emit_artifacts_required_post_summary()
             if emit_required_post_summary_rc != 0:
                 print("[ci-gate] final summary emit artifacts required check failed", file=sys.stderr)
@@ -4525,6 +4840,29 @@ def main() -> int:
         or seamgrim_ci_gate_runtime5_passthrough_rc != 0
         or seamgrim_ci_gate_preview_sync_passthrough_rc != 0
         or seamgrim_ci_gate_seed_meta_step_rc != 0
+        or seamgrim_ci_gate_worker_env_step_rc != 0
+        or seamgrim_ci_gate_featured_seed_catalog_step_rc != 0
+        or seamgrim_ci_gate_featured_seed_catalog_autogen_step_rc != 0
+        or seamgrim_ci_gate_sam_seulgi_family_step_rc != 0
+        or seamgrim_product_blocker_bundle_rc != 0
+        or seamgrim_observe_output_contract_rc != 0
+        or seamgrim_runtime_view_source_strict_rc != 0
+        or seamgrim_view_only_state_hash_invariant_rc != 0
+        or seamgrim_run_legacy_autofix_rc != 0
+        or seamgrim_auth_save_surface_rc != 0
+        or seamgrim_object_revision_surface_rc != 0
+        or seamgrim_sharing_publishing_surface_rc != 0
+        or seamgrim_package_registry_surface_rc != 0
+        or seamgrim_source_management_surface_rc != 0
+        or seamgrim_publication_snapshot_surface_rc != 0
+        or seamgrim_review_workflow_surface_rc != 0
+        or seamgrim_platform_mock_interface_contract_rc != 0
+        or seamgrim_platform_mock_menu_mode_rc != 0
+        or seamgrim_platform_mock_adapter_roundtrip_rc != 0
+        or seamgrim_platform_mock_payload_snapshot_rc != 0
+        or seamgrim_platform_server_adapter_contract_rc != 0
+        or seamgrim_platform_route_precedence_rc != 0
+        or seamgrim_platform_server_action_rail_rc != 0
         or seamgrim_ci_gate_guideblock_step_rc != 0
         or seamgrim_ci_gate_lesson_warning_step_rc != 0
         or seamgrim_ci_gate_stateful_preview_step_rc != 0
@@ -4563,7 +4901,9 @@ def main() -> int:
         or ci_gate_report_index_diagnostics_rc != 0
         or ci_gate_report_index_latest_smoke_rc != 0
         or ci_gate_report_index_rc != 0
+        or seamgrim_ci_gate_worker_env_step_rc != 0
         or seamgrim_ci_gate_sam_seulgi_family_step_rc != 0
+        or seamgrim_product_blocker_bundle_rc != 0
         or ci_aggregate_status_line_selftest_rc != 0
         or ci_combine_reports_age4_selftest_rc != 0
         or ci_combine_reports_age5_selftest_rc != 0
@@ -4647,7 +4987,7 @@ def main() -> int:
         )
         write_summary_line(summary_line_path, summary_compact)
         print(f"[ci-gate-summary-line] {summary_compact}")
-        post_summary_refresh_rc = refresh_status_outputs_for_index()
+        post_summary_refresh_rc = refresh_status_outputs_for_index(strict_summary_verify=False)
         if post_summary_refresh_rc != 0:
             print("[ci-gate] status outputs refresh failed after failure-summary rewrite", file=sys.stderr)
             return 2

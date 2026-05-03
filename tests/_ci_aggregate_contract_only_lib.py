@@ -39,6 +39,10 @@ from _ci_age5_combined_heavy_contract import (
     build_age4_proof_snapshot_text,
 )
 from _ci_aggregate_diag_specs_seamgrim import SEAMGRIM_FOCUS_STEP_SPECS
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+    merge_step_names,
+)
 from _ci_profile_matrix_selftest_lib import (
     build_profile_matrix_snapshot_from_doc,
     build_profile_matrix_triage_payload_from_snapshot,
@@ -842,7 +846,8 @@ def resolve_contract_only_sanity_steps(profile: str) -> tuple[str, ...]:
         "w96_somssi_pack_check",
         "w97_self_heal_pack_check",
     )
-    seamgrim_extra = (
+    seamgrim_extra = merge_step_names(
+        (
         "seamgrim_ci_gate_sam_seulgi_family_step_check",
         "seamgrim_ci_gate_seed_meta_step_check",
         "seamgrim_ci_gate_pack_evidence_tier_runner_check",
@@ -862,9 +867,12 @@ def resolve_contract_only_sanity_steps(profile: str) -> tuple[str, ...]:
         "seamgrim_overlay_session_diag_parity_check",
         "seamgrim_overlay_compare_diag_parity_check",
         "seamgrim_wasm_cli_diag_parity_check",
+        ),
+        SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
     )
     if profile == "seamgrim":
-        return (
+        return merge_step_names(
+            (
             "fixed64_darwin_real_report_contract_check",
             "fixed64_darwin_real_report_live_check",
             "fixed64_darwin_real_report_readiness_check_selftest",
@@ -901,6 +909,8 @@ def resolve_contract_only_sanity_steps(profile: str) -> tuple[str, ...]:
             "seamgrim_overlay_session_diag_parity_check",
             "seamgrim_overlay_compare_diag_parity_check",
             "seamgrim_wasm_cli_diag_parity_check",
+            ),
+            SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
         )
     if profile == "core_lang":
         return base
@@ -921,7 +931,8 @@ def resolve_contract_only_required_steps(profile: str) -> tuple[str, ...]:
         "ci_gate_report_index_diagnostics_check",
         "ci_gate_report_index_latest_smoke_check",
     )
-    seamgrim = (
+    seamgrim = merge_step_names(
+        (
         "seamgrim_ci_gate_sam_seulgi_family_step_check",
         "seamgrim_ci_gate_seed_meta_step_check",
         "seamgrim_ci_gate_pack_evidence_tier_runner_check",
@@ -936,10 +947,12 @@ def resolve_contract_only_required_steps(profile: str) -> tuple[str, ...]:
         "seamgrim_ci_gate_wasm_web_smoke_step_check",
         "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
         "seamgrim_wasm_cli_diag_parity_check",
+        ),
+        SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
     )
     if profile == "core_lang":
         return common
-    return common + seamgrim
+    return merge_step_names(common, seamgrim)
 
 
 def write_contract_only_ci_sanity_report(report_path: Path, profile: str) -> None:

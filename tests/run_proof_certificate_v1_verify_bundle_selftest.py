@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from _teul_cli_freshness import ensure_teul_cli_bin as shared_ensure_teul_cli_bin
+
 
 README_PATH = Path("tests/proof_certificate_v1_verify_bundle/README.md")
 PACK_README = Path("pack/age4_proof_detjson_smoke_v1/README.md")
@@ -39,41 +41,27 @@ def fail(message: str) -> int:
     return 1
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def ensure_teul_cli_bin(root: Path) -> Path:
-    existing = resolve_teul_cli_bin(root)
-    if existing is not None:
-        return existing
-    build = subprocess.run(
-        ["cargo", "build", "--manifest-path", "tools/teul-cli/Cargo.toml"],
-        cwd=root,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        env={**os.environ, "RUST_MIN_STACK": str(64 * 1024 * 1024)},
-    )
-    if build.returncode != 0:
-        raise ValueError(
-            f"cargo build failed stdout={build.stdout!r} stderr={build.stderr!r}"
+    try:
+        return shared_ensure_teul_cli_bin(
+            root,
+            candidates=teul_cli_candidates(root),
+            include_which=False,
+            build_env={"RUST_MIN_STACK": str(64 * 1024 * 1024)},
         )
-    teul_cli_bin = resolve_teul_cli_bin(root)
-    if teul_cli_bin is None:
-        raise ValueError("missing teul-cli binary after cargo build")
-    return teul_cli_bin
+    except FileNotFoundError as exc:
+        raise ValueError("missing teul-cli binary after cargo build") from exc
+    except SystemExit as exc:
+        raise ValueError(f"cargo build failed with exit code: {exc.code}") from exc
 
 
 def run_teul_cli(

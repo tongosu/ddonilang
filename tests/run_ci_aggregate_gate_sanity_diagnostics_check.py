@@ -45,6 +45,7 @@ COMMON_SANITY_STEP_GATE_TOKENS = (
     "w96_somssi_pack_check",
     "w97_self_heal_pack_check",
     "seamgrim_interface_boundary_contract_check",
+    "seamgrim_ci_gate_worker_env_step_check",
     "seamgrim_wasm_cli_diag_parity_check",
 )
 
@@ -87,6 +88,7 @@ COMMON_SANITY_STEP_CHECK_PATH_TOKENS = (
     "tests/run_w96_somssi_pack_check.py",
     "tests/run_w97_self_heal_pack_check.py",
     "tests/run_seamgrim_interface_boundary_contract_check.py",
+    "tests/run_seamgrim_ci_gate_worker_env_step_check.py",
     "tests/run_seamgrim_wasm_cli_diag_parity_check.py",
 )
 
@@ -314,6 +316,7 @@ REQUIRED_TOKEN_MAP = {
         'run_step_if_missing("ci_gate_report_index_selftest", check_ci_gate_report_index_selftest)',
         'run_step_if_missing("ci_gate_report_index_diagnostics_check", check_ci_gate_report_index_diagnostics)',
         'run_step_if_missing("ci_emit_artifacts_baseline_check", check_ci_emit_artifacts_baseline)',
+        "refresh_status_outputs_for_index(strict_summary_verify=False)",
         "check_ci_pack_golden_event_model_selftest",
         "ci_pack_golden_event_model_selftest",
         "tests/run_pack_golden_event_model_selftest.py",
@@ -328,6 +331,9 @@ REQUIRED_TOKEN_MAP = {
         "check_seamgrim_ci_gate_lesson_warning_step",
         "seamgrim_ci_gate_lesson_warning_step_check",
         "tests/run_seamgrim_ci_gate_lesson_warning_step_check.py",
+        "check_seamgrim_ci_gate_worker_env_step",
+        "seamgrim_ci_gate_worker_env_step_check",
+        "tests/run_seamgrim_ci_gate_worker_env_step_check.py",
         "check_seamgrim_ci_gate_stateful_preview_step",
         "seamgrim_ci_gate_stateful_preview_step_check",
         "tests/run_seamgrim_ci_gate_stateful_preview_step_check.py",
@@ -507,8 +513,10 @@ REQUIRED_TOKEN_MAP = {
         "seamgrim_runtime_5min_rewrite_motion_projectile",
         "seamgrim_runtime_5min_moyang_view_boundary",
         "PASS summary requires seamgrim_5min_checklist_ok=1",
-        "PASS summary requires seamgrim_runtime_5min_rewrite_motion_projectile=1",
-        "PASS summary requires seamgrim_runtime_5min_moyang_view_boundary=1",
+        "PASS summary requires seamgrim_runtime_5min_rewrite_motion_projectile=1 when rewrite_motion_projectile_fallback exists",
+        "PASS summary requires seamgrim_runtime_5min_moyang_view_boundary=1 when moyang_view_boundary_pack_check exists",
+        "PASS summary requires seamgrim_runtime_5min_rewrite_motion_projectile=na when rewrite_motion_projectile_fallback is absent",
+        "PASS summary requires seamgrim_runtime_5min_moyang_view_boundary=na when moyang_view_boundary_pack_check is absent",
     ],
     "tests/run_ci_sanity_gate.py": [
         *COMMON_SANITY_STEP_GATE_TOKENS,

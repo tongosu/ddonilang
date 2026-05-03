@@ -43,14 +43,16 @@ async function loadWrappers() {
   const runtimeStateUrl = pathToFileURL(path.join(UI_DIR, "seamgrim_runtime_state.js")).href;
   const canonRuntimeUrl = pathToFileURL(path.join(UI_DIR, "runtime", "wasm_canon_runtime.js")).href;
   const controlParserUrl = pathToFileURL(path.join(UI_DIR, "components", "control_parser.js")).href;
+  const preprocessUrl = pathToFileURL(path.join(UI_DIR, "runtime", "ddn_preprocess.js")).href;
 
-  const [wrapper, , canonRuntimeMod, controlParserMod] = await Promise.all([
+  const [wrapper, , canonRuntimeMod, controlParserMod, preprocessMod] = await Promise.all([
     import(wrapperUrl),
     import(runtimeStateUrl),
     import(canonRuntimeUrl),
     import(controlParserUrl),
+    import(preprocessUrl),
   ]);
-  return { wrapper, canonRuntimeMod, controlParserMod };
+  return { wrapper, canonRuntimeMod, controlParserMod, preprocessMod };
 }
 
 // ── 메타 헤더 제거 (VM 입력용) ───────────────────────────────────────────────
@@ -124,9 +126,20 @@ function stripMetaHeader(text) {
 
 // ── VM 틱 실행 ───────────────────────────────────────────────────────────────
 
-function runTicks(wasmMod, wrapper, sourceText, maxTicks, paramOverride) {
-  const source = stripMaegimAnnotations(stripMetaHeader(sourceText)).trim();
-  const vm = new wasmMod.DdnWasmVm(source);
+function runTicks(wasmMod, wrapper, preprocessMod, sourceText, maxTicks, paramOverride) {
+  const rawSource = stripMaegimAnnotations(stripMetaHeader(sourceText)).trim();
+  const buildCompatSource = () => {
+    const pre = typeof preprocessMod?.preprocessDdnText === "function"
+      ? preprocessMod.preprocessDdnText(sourceText)
+      : { bodyText: sourceText };
+    return stripMaegimAnnotations(stripMetaHeader(pre?.bodyText ?? sourceText)).trim();
+  };
+  let vm;
+  try {
+    vm = new wasmMod.DdnWasmVm(rawSource);
+  } catch (err) {
+    vm = new wasmMod.DdnWasmVm(buildCompatSource());
+  }
   const client = new wrapper.DdnWasmVmClient(vm);
   try {
     client.resetParsed(false);
@@ -165,7 +178,7 @@ function runTicks(wasmMod, wrapper, sourceText, maxTicks, paramOverride) {
 
 // ── 케이스 실행 ──────────────────────────────────────────────────────────────
 
-async function runCase(caseSpec, packDir, wasmMod, wrapper, canonRuntime, controlParser) {
+async function runCase(caseSpec, packDir, wasmMod, wrapper, canonRuntime, controlParser, preprocessMod) {
   const { id, ddn_path, expect_slider_count_min, expect_maegim_count,
           expect_channels_any, max_ticks, param_override } = caseSpec;
 
@@ -210,7 +223,7 @@ async function runCase(caseSpec, packDir, wasmMod, wrapper, canonRuntime, contro
   let rowsA = [];
   let channelsFound = [];
   try {
-    const res = runTicks(wasmMod, wrapper, sourceText, max_ticks, null);
+    const res = runTicks(wasmMod, wrapper, preprocessMod, sourceText, max_ticks, null);
     rowsA = res.rows;
     channelsFound = res.channels;
     ticksOk = rowsA.length > 0;
@@ -222,7 +235,7 @@ async function runCase(caseSpec, packDir, wasmMod, wrapper, canonRuntime, contro
   let deterministicOk = false;
   if (ticksOk) {
     try {
-      const resB = runTicks(wasmMod, wrapper, sourceText, max_ticks, null);
+      const resB = runTicks(wasmMod, wrapper, preprocessMod, sourceText, max_ticks, null);
       deterministicOk = JSON.stringify(rowsA) === JSON.stringify(resB.rows);
     } catch (_) { /* 무시 */ }
   }
@@ -232,7 +245,7 @@ async function runCase(caseSpec, packDir, wasmMod, wrapper, canonRuntime, contro
   let hashBase = rowsA.length > 0 ? rowsA[rowsA.length - 1].state_hash : "";
   if (param_override && ticksOk) {
     try {
-      const resOverride = runTicks(wasmMod, wrapper, sourceText, max_ticks, param_override);
+      const resOverride = runTicks(wasmMod, wrapper, preprocessMod, sourceText, max_ticks, param_override);
       const hashOverride = resOverride.rows.length > 0
         ? resOverride.rows[resOverride.rows.length - 1].state_hash
         : "";
@@ -295,7 +308,7 @@ async function main() {
   }
 
   // 모듈 로드
-  const [wasmMod, { wrapper, canonRuntimeMod, controlParserMod }] = await Promise.all([
+  const [wasmMod, { wrapper, canonRuntimeMod, controlParserMod, preprocessMod }] = await Promise.all([
     loadWasmModule(),
     loadWrappers(),
   ]);
@@ -314,7 +327,7 @@ async function main() {
   const cases = Array.isArray(fixture.cases) ? fixture.cases : [];
   const results = [];
   for (const caseSpec of cases) {
-    const result = await runCase(caseSpec, packDir, wasmMod, wrapper, canonRuntime, controlParserMod);
+    const result = await runCase(caseSpec, packDir, wasmMod, wrapper, canonRuntime, controlParserMod, preprocessMod);
     results.push(result);
   }
 

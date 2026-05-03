@@ -50,7 +50,7 @@ def main() -> int:
         scan_root = Path(temp_dir) / "lessons"
         write_text(
             scan_root / "l01" / "lesson.ddn",
-            "채비: {\n  x: 수 <- 1. //범위(0, 1, 0.1)\n}.\n(처음)할때: {\n}.\n(매틱)마다: {\n}.\n(3마디)마다: {\n}.\n보여주기.\n",
+            "채비: {\n  x: 수 <- 1. //범위(0, 1, 0.1)\n}.\n#범위: x, 0, 1, 0.1\n(처음)할때: {\n}.\n(매틱)마다: {\n}.\n(3마디)마다: {\n}.\n보여주기.\n",
         )
         write_text(
             scan_root / "l02" / "lesson.ddn",
@@ -71,6 +71,8 @@ def main() -> int:
             return fail(f"files without preview mismatch: {payload_without.get('files')}")
         if int(totals_without.get("priority_range_comment", -1)) != 1:
             return fail(f"priority_range_comment without preview mismatch: {totals_without.get('priority_range_comment')}")
+        if int(totals_without.get("priority_range_hash", -1)) != 1:
+            return fail(f"priority_range_hash without preview mismatch: {totals_without.get('priority_range_hash')}")
         if int(totals_without.get("priority_setup_colon", -1)) != 1:
             return fail(f"priority_setup_colon without preview mismatch: {totals_without.get('priority_setup_colon')}")
         if int(totals_without.get("info_legacy_show", -1)) != 1:
@@ -96,7 +98,7 @@ def main() -> int:
             return fail(
                 f"info_legacy_tick_alias without preview mismatch: {totals_without.get('info_legacy_tick_alias')}"
             )
-        if int(totals_without.get("priority_total", -1)) != 2:
+        if int(totals_without.get("priority_total", -1)) != 3:
             return fail(f"priority_total without preview mismatch: {totals_without.get('priority_total')}")
 
         out_with = Path(temp_dir) / "with_preview.detjson"
@@ -109,6 +111,8 @@ def main() -> int:
             return fail(f"files with preview mismatch: {payload_with.get('files')}")
         if int(totals_with.get("priority_range_comment", -1)) != 2:
             return fail(f"priority_range_comment with preview mismatch: {totals_with.get('priority_range_comment')}")
+        if int(totals_with.get("priority_range_hash", -1)) != 1:
+            return fail(f"priority_range_hash with preview mismatch: {totals_with.get('priority_range_hash')}")
         if int(totals_with.get("priority_setup_colon", -1)) != 2:
             return fail(f"priority_setup_colon with preview mismatch: {totals_with.get('priority_setup_colon')}")
         if int(totals_with.get("info_legacy_start_colon", -1)) != 1:
@@ -124,7 +128,7 @@ def main() -> int:
             return fail(f"info_legacy_start_alias with preview mismatch: {totals_with.get('info_legacy_start_alias')}")
         if int(totals_with.get("info_legacy_tick_alias", -1)) != 1:
             return fail(f"info_legacy_tick_alias with preview mismatch: {totals_with.get('info_legacy_tick_alias')}")
-        if int(totals_with.get("priority_total", -1)) != 4:
+        if int(totals_with.get("priority_total", -1)) != 5:
             return fail(f"priority_total with preview mismatch: {totals_with.get('priority_total')}")
 
     print("[lesson-migration-lint-selftest] ok")

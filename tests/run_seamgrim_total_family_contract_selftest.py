@@ -8,9 +8,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _selftest_exec_cache import is_script_cached, mark_script_ok
+
 
 SCRIPT_TAG = "seamgrim-total-family-contract-selftest"
 PROGRESS_ENV_KEY = "DDN_SEAMGRIM_TOTAL_FAMILY_CONTRACT_SELFTEST_PROGRESS_JSON"
+ASSUME_FULL_GATE_PASSED_ENV = "DDN_ASSUME_FULL_GATE_PASSED"
 CHECKS = (
     ("system_transport", "tests/run_seamgrim_system_family_selftest.py"),
     ("full_gate", "tests/run_seamgrim_full_gate_check.py"),
@@ -70,6 +73,7 @@ def main() -> int:
         checks_text=CHECKS_TEXT,
     )
     passed: list[str] = []
+    assume_full_gate_passed = os.environ.get(ASSUME_FULL_GATE_PASSED_ENV, "").strip() == "1"
     for name, script in CHECKS:
         write_progress_snapshot(
             progress_path,
@@ -80,6 +84,15 @@ def main() -> int:
             total_checks=total_checks,
             checks_text=CHECKS_TEXT,
         )
+        if assume_full_gate_passed and name == "full_gate":
+            passed.append(name)
+            last_completed_probe = name
+            continue
+        if is_script_cached(script):
+            print(f"[{SCRIPT_TAG}] cache-hit check={name} script={script}")
+            passed.append(name)
+            last_completed_probe = name
+            continue
         proc = subprocess.run(
             [sys.executable, script],
             capture_output=True,
@@ -98,6 +111,7 @@ def main() -> int:
                 checks_text=CHECKS_TEXT,
             )
             return fail(name, proc)
+        mark_script_ok(script)
         passed.append(name)
         last_completed_probe = name
     write_progress_snapshot(

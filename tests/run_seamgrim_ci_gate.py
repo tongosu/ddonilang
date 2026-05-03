@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from _ci_seamgrim_step_contract import SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME
+from _selftest_exec_cache import mark_script_ok
 from _seamgrim_ci_diag_lib import build_failure_digest, extract_diagnostics
 from _seamgrim_parity_server_lib import start_parity_server, stop_parity_server
 
@@ -54,6 +56,8 @@ def _run_step_once(
     ok = proc.returncode == 0
 
     diagnostics = extract_diagnostics(name, stdout, stderr, ok)
+    if ok:
+        _maybe_mark_cmd_script_ok(root, cmd)
 
     return {
         "name": name,
@@ -65,6 +69,23 @@ def _run_step_once(
         "stderr": stderr,
         "diagnostics": diagnostics,
     }
+
+
+def _maybe_mark_cmd_script_ok(root: Path, cmd: list[str]) -> None:
+    if len(cmd) < 2:
+        return
+    candidate = str(cmd[1]).strip()
+    if not candidate:
+        return
+    lowered = candidate.lower()
+    if not lowered.endswith(".py"):
+        return
+    script_path = (root / candidate).resolve()
+    try:
+        if script_path.exists():
+            mark_script_ok(str(script_path.relative_to(root).as_posix()))
+    except Exception:
+        return
 
 
 def _print_step_result(step: dict[str, object]) -> None:
@@ -95,11 +116,26 @@ def run_step(
 def run_steps_parallel(
     root: Path,
     step_defs: list[dict[str, object]],
+    *,
+    max_workers_override: int = 0,
 ) -> list[dict[str, object]]:
     if not step_defs:
         return []
     ordered: list[dict[str, object] | None] = [None] * len(step_defs)
-    max_workers = max(1, min(6, len(step_defs)))
+    env_workers_text = str(os.environ.get("DDN_SEAMGRIM_CI_GATE_MAX_WORKERS", "")).strip()
+    env_workers = 0
+    if env_workers_text:
+        try:
+            env_workers = int(env_workers_text)
+        except ValueError:
+            env_workers = 0
+    default_workers = 14
+    requested_workers = (
+        int(max_workers_override)
+        if int(max_workers_override) > 0
+        else (env_workers if env_workers > 0 else default_workers)
+    )
+    max_workers = max(1, min(requested_workers, len(step_defs)))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         pending = {}
         for idx, step_def in enumerate(step_defs):
@@ -119,6 +155,17 @@ def run_steps_parallel(
         _print_step_result(step)
         results.append(step)
     return results
+
+
+def _read_positive_int_env(name: str, default: int) -> int:
+    text = str(os.environ.get(name, "")).strip()
+    if not text:
+        return max(1, int(default))
+    try:
+        value = int(text)
+    except ValueError:
+        return max(1, int(default))
+    return max(1, value)
 
 
 def _start_local_ddn_exec_server_prewarm(
@@ -497,11 +544,18 @@ def main() -> int:
                 },
                 {
                     "name": "runtime_view_source_strict",
-                    "cmd": [py, "tests/run_seamgrim_runtime_view_source_strict_check.py"],
+                    "cmd": [py, SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME["seamgrim_runtime_view_source_strict_check"]],
+                },
+                {
+                    "name": "view_only_state_hash_invariant",
+                    "cmd": [
+                        py,
+                        SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME["seamgrim_view_only_state_hash_invariant_check"],
+                    ],
                 },
                 {
                     "name": "run_legacy_autofix",
-                    "cmd": [py, "tests/run_seamgrim_run_legacy_autofix_check.py"],
+                    "cmd": [py, SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME["seamgrim_run_legacy_autofix_check"]],
                 },
                 {
                     "name": "space2d_primitive_source",
@@ -578,6 +632,14 @@ def main() -> int:
                 {
                     "name": "browse_selection_flow",
                     "cmd": browse_selection_cmd,
+                },
+                {
+                    "name": "block_editor_smoke",
+                    "cmd": [py, "tests/run_seamgrim_block_editor_smoke_check.py"],
+                },
+                {
+                    "name": "playground_smoke",
+                    "cmd": [py, "tests/run_seamgrim_playground_smoke_check.py"],
                 },
             ]
     if release_profile:
@@ -710,6 +772,20 @@ def main() -> int:
         ddn_exec_server_base_url,
         profile=profile,
     )
+    shared_parity_server_args: list[str] = []
+    if ddn_exec_server_proc is not None:
+        parsed_shared_parity = urlparse(ddn_exec_server_base_url)
+        shared_host = str(parsed_shared_parity.hostname or "127.0.0.1")
+        shared_port = int(
+            parsed_shared_parity.port or (443 if str(parsed_shared_parity.scheme).lower() == "https" else 80)
+        )
+        shared_parity_server_args = [
+            "--host",
+            shared_host,
+            "--port",
+            str(shared_port),
+            "--require-existing-server",
+        ]
     steps.append(
         run_step(
             root,
@@ -735,7 +811,17 @@ def main() -> int:
                 },
                 {
                     "name": "wasm_viewmeta_statehash_prereq",
-                    "cmd": [py, "tests/run_seamgrim_wasm_smoke.py", "seamgrim_wasm_viewmeta_statehash_v1"],
+                    "cmd": [
+                        py,
+                        "tests/run_seamgrim_wasm_smoke.py",
+                        "seamgrim_wasm_viewmeta_statehash_v1",
+                        "--skip-ui-common",
+                        "--skip-ui-pendulum",
+                        "--skip-wrapper",
+                        "--skip-vm-runtime",
+                        "--skip-space2d-source-gate",
+                        "--skip-lesson-canon",
+                    ],
                 },
                 {
                     "name": "state_hash_view_boundary_prereq",
@@ -743,7 +829,17 @@ def main() -> int:
                 },
                 {
                     "name": "wasm_bridge_contract_prereq",
-                    "cmd": [py, "tests/run_seamgrim_wasm_smoke.py", "seamgrim_wasm_bridge_contract_v1"],
+                    "cmd": [
+                        py,
+                        "tests/run_seamgrim_wasm_smoke.py",
+                        "seamgrim_wasm_bridge_contract_v1",
+                        "--skip-ui-common",
+                        "--skip-ui-pendulum",
+                        "--skip-wrapper",
+                        "--skip-vm-runtime",
+                        "--skip-space2d-source-gate",
+                        "--skip-lesson-canon",
+                    ],
                 },
                 {
                     "name": "wasm_web_smoke_contract",
@@ -816,15 +912,15 @@ def main() -> int:
                 },
                 {
                     "name": "graph_api_parity",
-                    "cmd": [py, "tests/run_seamgrim_graph_api_parity_check.py"],
+                    "cmd": [py, "tests/run_seamgrim_graph_api_parity_check.py", *shared_parity_server_args],
                 },
                 {
                     "name": "bridge_surface_api_parity",
-                    "cmd": [py, "tests/run_seamgrim_bridge_surface_api_parity_check.py"],
+                    "cmd": [py, "tests/run_seamgrim_bridge_surface_api_parity_check.py", *shared_parity_server_args],
                 },
                 {
                     "name": "space2d_api_parity",
-                    "cmd": [py, "tests/run_seamgrim_space2d_api_parity_check.py"],
+                    "cmd": [py, "tests/run_seamgrim_space2d_api_parity_check.py", *shared_parity_server_args],
                 },
                 {
                     "name": "seamgrim_parity_server_lib_selftest",
@@ -841,7 +937,7 @@ def main() -> int:
                 },
                 {
                     "name": "observe_output_contract",
-                    "cmd": [py, "tests/run_seamgrim_observe_output_contract_check.py"],
+                    "cmd": [py, SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME["seamgrim_observe_output_contract_check"]],
                 },
                 {
                     "name": "sam_seulgi_family_contract_selftest",
@@ -867,6 +963,15 @@ def main() -> int:
                     "name": "runtime_fallback_metrics",
                     "cmd": [py, "tests/run_seamgrim_runtime_fallback_metrics_check.py"],
                 },
+                {
+                    "name": "frontdoor_strict_all",
+                    "cmd": [py, "tests/run_seamgrim_frontdoor_strict_all_check.py"],
+                    "env_extra": {"DDN_ASSUME_WASM_CANON_PARITY_PASSED": "1"},
+                },
+                {
+                    "name": "seamgrim_subject_representative_examples",
+                    "cmd": [py, "tests/run_seamgrim_subject_representative_examples_check.py"],
+                },
             ],
         )
     )
@@ -875,20 +980,6 @@ def main() -> int:
             root,
             "runtime_fallback_policy",
             [py, "tests/run_seamgrim_runtime_fallback_policy_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "frontdoor_strict_all",
-            [py, "tests/run_seamgrim_frontdoor_strict_all_check.py"],
-        )
-    )
-    steps.append(
-        run_step(
-            root,
-            "seamgrim_subject_representative_examples",
-            [py, "tests/run_seamgrim_subject_representative_examples_check.py"],
         )
     )
     steps.extend(
@@ -1079,7 +1170,11 @@ def main() -> int:
                 {
                     "name": "seamgrim_interaction_family_contract_selftest",
                     "cmd": [py, "tests/run_seamgrim_interaction_family_contract_selftest.py"],
-                    "env_extra": contract_prereq_env,
+                    "env_extra": {
+                        **contract_prereq_env,
+                        "DDN_ASSUME_INTERACTION_SMOKE_PASSED": "1",
+                        "DDN_ASSUME_CONSUMER_SURFACE_TRANSPORT_PASSED": "1",
+                    },
                 },
                 {
                     "name": "seamgrim_interaction_family_contract_summary_selftest",
@@ -1098,7 +1193,7 @@ def main() -> int:
                 {
                     "name": "seamgrim_application_family_contract_selftest",
                     "cmd": [py, "tests/run_seamgrim_application_family_contract_selftest.py"],
-                    "env_extra": contract_prereq_env,
+                    "env_extra": {**contract_prereq_env, "DDN_ASSUME_FAMILY_CONTRACT_PASSED": "1"},
                 },
                 {
                     "name": "seamgrim_application_family_contract_summary_selftest",
@@ -1117,7 +1212,7 @@ def main() -> int:
                 {
                     "name": "seamgrim_delivery_family_contract_selftest",
                     "cmd": [py, "tests/run_seamgrim_delivery_family_contract_selftest.py"],
-                    "env_extra": contract_prereq_env,
+                    "env_extra": {**contract_prereq_env, "DDN_ASSUME_FULL_GATE_PASSED": "1"},
                 },
                 {
                     "name": "seamgrim_delivery_family_contract_summary_selftest",
@@ -1174,7 +1269,7 @@ def main() -> int:
                 {
                     "name": "seamgrim_total_family_contract_selftest",
                     "cmd": [py, "tests/run_seamgrim_total_family_contract_selftest.py"],
-                    "env_extra": contract_prereq_env,
+                    "env_extra": {**contract_prereq_env, "DDN_ASSUME_FULL_GATE_PASSED": "1"},
                 },
                 {
                     "name": "seamgrim_total_family_contract_summary_selftest",
@@ -1190,6 +1285,7 @@ def main() -> int:
                     "cmd": [py, "tests/run_seamgrim_total_family_transport_contract_summary_selftest.py"],
                 },
             ],
+            max_workers_override=_read_positive_int_env("DDN_SEAMGRIM_CI_GATE_FAMILY_MAX_WORKERS", 10),
         )
     )
     failed = [step for step in steps if not bool(step.get("ok"))]

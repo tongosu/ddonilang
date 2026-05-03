@@ -222,6 +222,8 @@ async function main() {
   } = common;
   const {
     extractObservationChannelsFromState,
+    extractObservationOutputLogFromState,
+    extractObservationOutputLinesFromState,
     extractObservationOutputRowsFromState,
     extractStructuredViewsFromState,
     normalizeWasmStatePayload,
@@ -232,7 +234,7 @@ async function main() {
   const { SliderPanel } = sliderPanelMod;
 
   const preprocessLegacyShow = preprocessDdnText('"안녕"을 보여주기.\n"세계"를 보여주기.\n// "주석"을 보여주기.\n');
-  assert(preprocessLegacyShow.bodyText.includes("매틱:움직씨 = {"), "ddn preprocess: wrap movement seed");
+  assert(preprocessLegacyShow.bodyText.includes("매마디:움직씨 = {"), "ddn preprocess: wrap movement seed");
   assert(preprocessLegacyShow.bodyText.includes("보개_출력_줄들 <- () 차림."), "ddn preprocess: reset show lines");
   assert(
     preprocessLegacyShow.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("안녕") 글로) 추가.'),
@@ -246,7 +248,7 @@ async function main() {
   assert(!preprocessLegacyShow.bodyText.includes('"안녕" 보여주기.'), "ddn preprocess: show canonical removed");
 
   const preprocessBogaeBlock = preprocessDdnText(`
-매틱:움직씨 = {
+매마디:움직씨 = {
   모양: {
     선(0, 0, bob_x, bob_y, 색="#9ca3af", 굵기=0.02).
     원(bob_x, bob_y, r=0.08, 색="#38bdf8", 선색="#0ea5e9", 굵기=0.02).
@@ -275,6 +277,19 @@ async function main() {
   assert(
     preprocessBogaeBlock.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("point") 글로) 추가.'),
     "ddn preprocess: bogae block emits point kind",
+  );
+
+  const preprocessLegacyBogaeAlias = preprocessDdnText(`
+매마디:움직씨 = {
+  보개 {
+    선(0, 0, 1, 1, 색="#9ca3af", 굵기=0.02).
+  }.
+}.
+`);
+  assert(preprocessLegacyBogaeAlias.bodyText.includes("보개 {"), "ddn preprocess: legacy bogae alias no longer rewritten");
+  assert(
+    !preprocessLegacyBogaeAlias.bodyText.includes('보개_출력_줄들 <- (보개_출력_줄들, ("space2d") 글로) 추가.'),
+    "ddn preprocess: legacy bogae alias emits no shape markers",
   );
 
   const preprocessBogaeMadang = preprocessDdnText(`
@@ -313,9 +328,8 @@ async function main() {
 `);
   const lifecycleBody = preprocessLegacyLifecycle.bodyText;
   const lifecycleChabiPos = lifecycleBody.indexOf("채비:");
-  const lifecycleMovementPos = lifecycleBody.indexOf("매틱:움직씨 = {");
+  const lifecycleMovementPos = lifecycleBody.indexOf("매마디:움직씨 = {");
   const lifecycleStartGuardPos = lifecycleBody.indexOf("{ __wasm_start_once <= 0 }인것 일때 {");
-  const lifecycleStartDeclPos = lifecycleBody.indexOf("__wasm_start_once:수 <- 0.");
   const lifecycleStartInitPos = lifecycleBody.indexOf("t <- 0.");
   const lifecycleResetPos = lifecycleBody.indexOf("보개_출력_줄들 <- () 차림.");
   assert(
@@ -330,10 +344,7 @@ async function main() {
     lifecycleStartGuardPos >= 0 && lifecycleStartInitPos > lifecycleStartGuardPos,
     "ddn preprocess: place start body inside wasm start-once guard",
   );
-  assert(
-    lifecycleStartDeclPos >= 0 && lifecycleStartDeclPos < lifecycleMovementPos,
-    "ddn preprocess: declare wasm start guard state inside decl block",
-  );
+  assert(!lifecycleBody.includes("__wasm_start_once:수 <- 0."), "ddn preprocess: start-once helper stays out of decl block");
   assert(
     !lifecycleBody.includes("내부시작완료"),
     "ddn preprocess: remove legacy synthetic guard key",
@@ -357,7 +368,7 @@ async function main() {
 }.
 `);
   const lifecycleAliasBody = preprocessLegacyLifecycleAliases.bodyText;
-  const lifecycleAliasMovementPos = lifecycleAliasBody.indexOf("매틱:움직씨 = {");
+  const lifecycleAliasMovementPos = lifecycleAliasBody.indexOf("매마디:움직씨 = {");
   const lifecycleAliasStartGuardPos = lifecycleAliasBody.indexOf("{ __wasm_start_once <= 0 }인것 일때 {");
   const lifecycleAliasStartInitPos = lifecycleAliasBody.indexOf("t <- 0.");
   assert(
@@ -389,19 +400,23 @@ async function main() {
 }.
 `);
   const lifecycleEveryNBody = preprocessLegacyLifecycleEveryN.bodyText;
-  const lifecycleEveryNDeclPos = lifecycleEveryNBody.indexOf("__wasm_tick_every_3:수 <- 0.");
-  const lifecycleEveryNMovementPos = lifecycleEveryNBody.indexOf("매틱:움직씨 = {");
+  const lifecycleEveryNMovementPos = lifecycleEveryNBody.indexOf("매마디:움직씨 = {");
+  const lifecycleEveryNStartGuardPos = lifecycleEveryNBody.indexOf("{ __wasm_start_once <= 0 }인것 일때 {");
   assert(
     !lifecycleEveryNBody.includes("(3마디)마다") && !lifecycleEveryNBody.includes("(시작)할때"),
     "ddn preprocess: every-n lifecycle hooks rewritten into movement",
   );
   assert(
-    lifecycleEveryNDeclPos >= 0 && lifecycleEveryNDeclPos < lifecycleEveryNMovementPos,
-    "ddn preprocess: every-n lifecycle declares interval state in decl block",
+    lifecycleEveryNStartGuardPos > lifecycleEveryNMovementPos,
+    "ddn preprocess: every-n lifecycle injects start-once guard for interval state",
   );
   assert(
     lifecycleEveryNBody.includes("{ __wasm_tick_every_3 <= 0 }인것 일때 {"),
     "ddn preprocess: every-n lifecycle injects interval guard",
+  );
+  assert(
+    lifecycleEveryNBody.includes("__wasm_tick_every_3 <- 0."),
+    "ddn preprocess: every-n lifecycle initializes interval state inside start-once guard",
   );
   assert(
     lifecycleEveryNBody.includes("__wasm_tick_every_3 <- __wasm_tick_every_3 + 1."),
@@ -487,8 +502,8 @@ async function main() {
   질량: 수 <- 1.0.
 }
 `);
-  assert(controlSplit.source === "prep", "control parser: prep(채비) source");
-  assert(controlSplit.specs.some((item) => item.name === "길이"), "control parser: constant slider included");
+  assert(controlSplit.source === "none", "control parser: plain 채비 without 매김 => none");
+  assert(controlSplit.specs.length === 0, "control parser: constant slider excluded without 매김");
   assert(!controlSplit.specs.some((item) => item.name === "각도"), "control parser: variable excluded from sliders");
   assert(controlSplit.axisKeys.includes("각도"), "control parser: variable exposed as axis key");
   assert(controlSplit.axisKeys.includes("tick"), "control parser: x variable exposed as axis key");
@@ -503,12 +518,9 @@ async function main() {
   dt:수 <- 0.02. // 범위(0.005, 0.1, 0.005)
 }
 `);
-  const gSpec = controlDecimalDefaults.specs.find((item) => item.name === "g");
-  const theta0Spec = controlDecimalDefaults.specs.find((item) => item.name === "theta0");
-  const dtSpec = controlDecimalDefaults.specs.find((item) => item.name === "dt");
-  assert(gSpec && Math.abs(gSpec.value - 9.8) < 1e-9, "control parser: decimal default g");
-  assert(theta0Spec && Math.abs(theta0Spec.value - 0.5) < 1e-9, "control parser: decimal default theta0");
-  assert(dtSpec && Math.abs(dtSpec.value - 0.02) < 1e-9, "control parser: decimal default dt");
+  assert(controlDecimalDefaults.source === "none", "control parser: legacy range comments without 매김 => none");
+  assert(controlDecimalDefaults.specs.length === 0, "control parser: legacy range comments do not create sliders");
+  assert(controlDecimalDefaults.warnings.length === 3, "control parser: legacy range warnings retained");
 
   const controlMaegim = buildControlSpecsFromDdn(`
 채비: {
@@ -524,6 +536,7 @@ async function main() {
 `);
   const maegimGSpec = controlMaegim.specs.find((item) => item.name === "g");
   const maegimThetaSpec = controlMaegim.specs.find((item) => item.name === "theta0");
+  assert(controlMaegim.source === "maegim_inline", "control parser: inline 매김 source");
   assert(maegimGSpec && Math.abs(maegimGSpec.value - 9.8) < 1e-9, "control parser: maegim default g");
   assert(maegimGSpec && maegimGSpec.min === 1 && maegimGSpec.max === 20 && maegimGSpec.step === 0.1, "control parser: maegim range g");
   assert(maegimThetaSpec && maegimThetaSpec.min === -1.2 && maegimThetaSpec.max === 1.2, "control parser: maegim range theta0");
@@ -579,7 +592,8 @@ async function main() {
 `,
     { maegimControlJson: "{broken" },
   );
-  assert(controlFromJsonFallback.source === "prep", "control parser: invalid maegim json fallback");
+  assert(controlFromJsonFallback.source === "none", "control parser: invalid maegim json no prep fallback");
+  assert(controlFromJsonFallback.specs.length === 0, "control parser: invalid maegim json no sliders");
   assert(controlFromJsonFallback.warnings.length === 1, "control parser: invalid maegim json fallback warnings");
   assert(controlFromJsonFallback.warnings[0].name === "g", "control parser: legacy warning keeps name");
   const sliderStatusEl = { textContent: "" };
@@ -769,6 +783,36 @@ async function main() {
   assert(outputLineViews.space2d.shapes.length === 1, "output lines: shape count");
   assert(outputLineViews.space2d.shapes[0].kind === "line", "output lines: line kind");
 
+  const outputLinesNegativeCoordinatePayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [
+      JSON.stringify([
+        "space2d",
+        "space2d.shape",
+        "line",
+        "x1",
+        "-1.5",
+        "y1",
+        "-0.95",
+        "x2",
+        "-1.5",
+        "y2",
+        "0.95",
+        "stroke",
+        "#94a3b8",
+        "width",
+        "0.02",
+      ]),
+    ],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputLineNegativeCoordinateViews = extractStructuredViewsFromState(outputLinesNegativeCoordinatePayload, { preferPatch: false });
+  const negativeCoordinateLine = outputLineNegativeCoordinateViews?.space2d?.shapes?.[0];
+  assert(negativeCoordinateLine?.kind === "line", "output lines negative coordinate: line kind");
+  assert(Math.abs(Number(negativeCoordinateLine?.x1) - (-1.5)) < 1e-9, "output lines negative coordinate: x1 preserved");
+  assert(Math.abs(Number(negativeCoordinateLine?.x2) - (-1.5)) < 1e-9, "output lines negative coordinate: x2 preserved");
+
   const outputLinesLegacyPayload = {
     schema: "seamgrim.state.v0",
     channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
@@ -804,8 +848,8 @@ async function main() {
   assert(outputLineLegacyNegativeWrapViews?.space2d && typeof outputLineLegacyNegativeWrapViews.space2d === "object", "output lines legacy negative wrap: space2d extracted");
   const wrappedLine = outputLineLegacyNegativeWrapViews.space2d.shapes?.[0];
   assert(wrappedLine?.kind === "line", "output lines legacy negative wrap: line kind");
-  assert(Math.abs(Number(wrappedLine?.x2) - (-0.029815)) < 1e-4, "output lines legacy negative wrap: x2 decoded");
-  assert(Math.abs(Number(wrappedLine?.y2) - (-0.999556)) < 1e-4, "output lines legacy negative wrap: y2 decoded");
+  assert(Math.abs(Number(wrappedLine?.x2) - (-1.970185)) < 1e-9, "output lines legacy negative wrap: x2 preserved");
+  assert(Math.abs(Number(wrappedLine?.y2) - (-1.000444)) < 1e-9, "output lines legacy negative wrap: y2 preserved");
 
   const outputLinesResourcePayload = {
     schema: "seamgrim.state.v0",
@@ -900,6 +944,51 @@ async function main() {
   assert(outputRows.length === 2, "output rows: count");
   assert(outputRows[0].key === "a" && outputRows[0].value === "1", "output rows: first pair");
   assert(outputRows[1].key === "b" && outputRows[1].value === "2", "output rows: second pair");
+  assert(
+    outputRows.every((row) => row.source === "table.row" && row.syntheticKey === false),
+    "output rows: preserve table.row metadata",
+  );
+  const outputLines = extractObservationOutputLinesFromState(outputRowsPayload);
+  assert(Array.isArray(outputLines) && outputLines.length === 6, "output lines: raw lines extracted");
+  assert(outputLines[0] === "table.row" && outputLines[1] === "a", "output lines: raw order preserved");
+
+  const outputLogPayload = {
+    schema: "seamgrim.state.v0",
+    tick_id: 7,
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["0", "2", "4"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputLog = extractObservationOutputLogFromState(outputLogPayload);
+  assert(Array.isArray(outputLog) && outputLog.length === 3, "output log: line count");
+  assert(outputLog.every((row) => row.tick === 7), "output log: tick inherited");
+  assert(outputLog[0].line_no === 1 && outputLog[1].line_no === 2, "output log: line number restart");
+  assert(outputLog[2].text === "4" && outputLog[2].kind === "output", "output log: value + kind");
+
+  const directConsoleLogPayload = {
+    schema: "seamgrim.state.v0",
+    tick_id: 3,
+    console_log: [
+      { tick: 3, line_no: 1, text: "0", kind: "output" },
+      { tick: 3, line_no: 2, text: "주의", kind: "warn" },
+      { tick: 4, line_no: 1, text: "실패", kind: "error" },
+    ],
+  };
+  const directConsoleLog = extractObservationOutputLogFromState(directConsoleLogPayload);
+  assert(directConsoleLog.length === 3, "output log direct: count");
+  assert(directConsoleLog[1].kind === "warn", "output log direct: warn keep");
+  assert(directConsoleLog[2].tick === 4 && directConsoleLog[2].kind === "error", "output log direct: tick + error keep");
+
+  const outputRowsTableSchemaPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["table.row", "0", "y", "0", "main", "table.row", "1", "y", "2", "main"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const outputRowsTableSchema = extractObservationOutputRowsFromState(outputRowsTableSchemaPayload);
+  assert(outputRowsTableSchema.length === 2, "output rows table schema: count");
+  assert(outputRowsTableSchema[0].key === "y" && outputRowsTableSchema[0].value === "0", "output rows table schema: first row");
+  assert(outputRowsTableSchema[1].key === "y" && outputRowsTableSchema[1].value === "2", "output rows table schema: second row");
 
   const malformedOutputRowsPayload = {
     schema: "seamgrim.state.v0",
@@ -917,6 +1006,24 @@ async function main() {
     "output rows malformed: row values",
   );
 
+  const malformedTableSchemaPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["table.row", "0", "y", "0", "main", "table.row", "1", "broken", "table.row", "2", "y", "4", "main"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const malformedTableSchemaRows = extractObservationOutputRowsFromState(malformedTableSchemaPayload);
+  assert(malformedTableSchemaRows.length === 3, "output rows malformed table schema: count");
+  assert(
+    malformedTableSchemaRows[0].key === "y" &&
+      malformedTableSchemaRows[0].value === "0" &&
+      malformedTableSchemaRows[1].key === "1" &&
+      malformedTableSchemaRows[1].value === "broken" &&
+      malformedTableSchemaRows[2].key === "y" &&
+      malformedTableSchemaRows[2].value === "4",
+    "output rows malformed table schema: row values",
+  );
+
   const emptyKeyOutputRowsPayload = {
     schema: "seamgrim.state.v0",
     channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
@@ -926,6 +1033,28 @@ async function main() {
   const emptyKeyOutputRows = extractObservationOutputRowsFromState(emptyKeyOutputRowsPayload);
   assert(emptyKeyOutputRows.length === 1, "output rows: empty key row skipped");
   assert(emptyKeyOutputRows[0].key === "b" && emptyKeyOutputRows[0].value === "2", "output rows: empty key skip result");
+
+  const fallbackOutputRowsPayload = {
+    schema: "seamgrim.state.v0",
+    channels: [{ key: "보개_출력_줄들", dtype: "text", role: "state" }],
+    row: [JSON.stringify(["0", "1"])],
+    resources: { json: {}, fixed64: {}, handle: {}, value: {} },
+  };
+  const fallbackOutputRows = extractObservationOutputRowsFromState(fallbackOutputRowsPayload);
+  const fallbackOutputLines = extractObservationOutputLinesFromState(fallbackOutputRowsPayload);
+  assert(fallbackOutputRows.length === 2, "fallback output rows: count");
+  assert(
+    JSON.stringify(fallbackOutputLines) === JSON.stringify(["0", "1"]),
+    "fallback output lines: raw value list",
+  );
+  assert(
+    fallbackOutputRows.every((row) => row.source === "fallback-line"),
+    "fallback output rows: source tag",
+  );
+  assert(
+    fallbackOutputRows.every((row) => row.syntheticKey === true),
+    "fallback output rows: synthetic key tag",
+  );
 
   const manifestPayload = {
     schema: "seamgrim.state.v0",
@@ -2009,11 +2138,46 @@ async function main() {
       points: [{ x: 0, y: 0 }],
       shapes: [{ kind: "line", x1: 0, y1: 0, x2: 1, y2: 1 }],
     },
-    viewState: { autoFit: true, zoom: 1, panPx: 0, panPy: 0 },
+    viewState: {
+      autoFit: true,
+      zoom: 1,
+      panPx: 0,
+      panPy: 0,
+      baseRange: { x_min: -1.5, x_max: 1.5, y_min: -1, y_max: 1 },
+    },
     showGrid: true,
     showAxis: true,
   });
   assert(spaceRendered === true, "render space2d canvas: rendered");
+  const xTickTextStart = renderCanvas.calls.fillText.length;
+  const spaceXTicksRendered = renderSpace2dCanvas2d({
+    canvas: renderCanvas,
+    space2d: {
+      shapes: [
+        { kind: "line", x1: -1.5, y1: -1, x2: 1.5, y2: -1 },
+        { kind: "circle", x: 0.5, y: 0, r: 0.1 },
+      ],
+    },
+    viewState: {
+      autoFit: true,
+      zoom: 1,
+      panPx: 0,
+      panPy: 0,
+      baseRange: { x_min: -1.5, x_max: 1.5, y_min: -1, y_max: 1 },
+    },
+    showAxis: true,
+    showXAxisTicks: true,
+  });
+  assert(spaceXTicksRendered === true, "render space2d x ticks: rendered");
+  const xTickTexts = renderCanvas.calls.fillText.slice(xTickTextStart);
+  assert(
+    xTickTexts.some((text) => /^-?\d/.test(String(text))),
+    "render space2d x ticks: numeric tick labels",
+  );
+  assert(
+    xTickTexts.some((text) => String(text).includes("space2d auto zoom=") && String(text).includes("x=")),
+    "render space2d x ticks: auto range label",
+  );
   const primitiveLineToBefore = renderCanvas.calls.lineTo;
   const primitiveFillBefore = renderCanvas.calls.fill;
   const primitiveRendered = renderSpace2dCanvas2d({

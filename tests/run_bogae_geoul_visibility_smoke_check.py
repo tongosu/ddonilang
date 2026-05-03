@@ -9,6 +9,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as build_teul_cli_cmd_with_freshness
+
 
 STATIC_PACK_INPUT = "pack/bogae_web_viewer_v1/input.ddn"
 SIM_PACK_INPUT = "pack/nurimaker_grid_replay_v1/fixtures/input.ddn"
@@ -47,32 +49,22 @@ def default_tmp_root() -> Path:
     return fallback
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def build_teul_cli_cmd(root: Path, args: list[str]) -> list[str]:
-    teul_cli = resolve_teul_cli_bin(root)
-    if teul_cli is not None:
-        return [str(teul_cli), *args]
-    return [
-        "cargo",
-        "run",
-        "-q",
-        "--manifest-path",
-        str(root / "tools" / "teul-cli" / "Cargo.toml"),
-        "--",
-        *args,
-    ]
+    return build_teul_cli_cmd_with_freshness(
+        root,
+        args,
+        candidates=teul_cli_candidates(root),
+        include_which=True,
+    )
 
 
 def load_json(path: Path) -> dict:

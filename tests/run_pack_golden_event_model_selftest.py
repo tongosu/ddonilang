@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from _run_pack_golden_impl import validate_run_case_contract
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
 
 EVENT_PLAN_SCHEMA = "ddn.alrim_event_plan.v1"
 EVENT_ALIAS_ERROR = "E_EVENT_SURFACE_ALIAS_FORBIDDEN"
@@ -136,32 +137,23 @@ def run_pack(root: Path, pack_name: str) -> subprocess.CompletedProcess[str]:
     return collect_pack_process(proc)
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def build_teul_cli_cmd(root: Path, command_args: list[str]) -> list[str]:
-    teul_cli_bin = resolve_teul_cli_bin(root)
-    if teul_cli_bin is not None:
-        return [str(teul_cli_bin), *command_args]
-    return [
-        "cargo",
-        "run",
-        "-q",
-        "--manifest-path",
-        str(root / "tools" / "teul-cli" / "Cargo.toml"),
-        "--",
-        *command_args,
-    ]
+    return shared_build_teul_cli_cmd(
+        root,
+        command_args,
+        candidates=teul_cli_candidates(root),
+        include_which=False,
+        manifest_path=root / "tools" / "teul-cli" / "Cargo.toml",
+    )
 
 
 def run_teul_cli(root: Path, command_args: list[str]) -> subprocess.CompletedProcess[str]:

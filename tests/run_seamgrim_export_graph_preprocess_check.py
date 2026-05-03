@@ -116,6 +116,31 @@ def test_rewrite_show_object_particle(module) -> None:
         raise AssertionError("show particle token left")
 
 
+def test_rewrite_korean_if_branch(module) -> None:
+    source = """
+채비 {
+  점수: 셈수 <- 72.
+  판정: 글 <- "".
+}.
+
+만약 점수 >= 70 이라면 {
+  판정 <- "통과".
+}.
+아니면 {
+  판정 <- "보충".
+}.
+
+판정 보여주기.
+"""
+    out = module.preprocess_ddn_for_teul(source, strip_draw=False)
+    assert_contains_line(out, r"^\s*\{ 점수 >= 70 \}인것 일때 \{\s*$", "if branch lowered")
+    assert_contains_line(out, r"^\s*아니면 \{\s*$", "else branch kept")
+    if "만약 점수 >= 70 이라면" in out:
+        raise AssertionError("korean if token left after preprocess")
+    if re.search(r"(?m)^\s*\}\.\s*$\n\s*아니면 \{", out):
+        raise AssertionError("if-then terminator remained before else")
+
+
 def test_strip_legacy_hash_header_lines(module) -> None:
     source = """
 #이름: legacy-header
@@ -273,7 +298,11 @@ def test_ddn_exec_server_maegim_cache_source_consistent(ddn_exec_server_module) 
     if not isinstance(cache, dict) or lock is None or not callable(builder) or not callable(resolver):
         raise AssertionError("ddn_exec_server: maegim cache/source helpers missing")
 
-    def fake_builder(source_text: str, source_label: str = "input.ddn") -> tuple[dict, str]:
+    def fake_builder(
+        source_text: str,
+        source_label: str = "input.ddn",
+        allow_legacy_fallback: bool = True,
+    ) -> tuple[dict, str]:
         return {
             "schema": "ddn.maegim_control_plan.v1",
             "source": source_label,
@@ -313,7 +342,11 @@ def test_ddn_exec_server_maegim_cache_lru_bound(ddn_exec_server_module) -> None:
     if cache is None or lock is None or max_entries is None or not callable(builder) or not callable(resolver):
         raise AssertionError("ddn_exec_server: maegim cache lru helpers missing")
 
-    def fake_builder(source_text: str, source_label: str = "input.ddn") -> tuple[dict, str]:
+    def fake_builder(
+        source_text: str,
+        source_label: str = "input.ddn",
+        allow_legacy_fallback: bool = True,
+    ) -> tuple[dict, str]:
         return {
             "schema": "ddn.maegim_control_plan.v1",
             "source": source_label,
@@ -474,6 +507,7 @@ def main() -> int:
         test_flatten_storage_blocks_without_colon_and_type(module)
         test_preprocess_problem_pack(module, root)
         test_rewrite_show_object_particle(module)
+        test_rewrite_korean_if_branch(module)
         test_strip_legacy_hash_header_lines(module)
         test_shape_group_id_rewrite(module)
         test_meta_alias_dictionary(module)

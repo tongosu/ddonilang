@@ -4,8 +4,11 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
 import sys
+import tempfile
+import time
 import uuid
 from pathlib import Path
 
@@ -167,6 +170,59 @@ def main() -> int:
         return fail("validate_graph_export_case_contract(expected_error_code) must raise ValueError")
     except ValueError:
         pass
+
+    with tempfile.TemporaryDirectory(prefix="ddn_pack_golden_freshness_") as tmpdir:
+        temp_root = Path(tmpdir)
+        teul_src = temp_root / "tools" / "teul-cli" / "src"
+        teul_manifest = temp_root / "tools" / "teul-cli" / "Cargo.toml"
+        teul_bin = temp_root / "target" / "debug" / ("teul-cli.exe" if os.name == "nt" else "teul-cli")
+        write_text(teul_manifest, "[package]\nname = \"teul-cli\"\nversion = \"0.0.0\"\n")
+        write_text(teul_src / "main.rs", "fn main() {}\n")
+        write_text(teul_bin, "bin\n")
+
+        source_latest = module.latest_rs_mtime(temp_root)
+        os.utime(teul_bin, (source_latest + 10, source_latest + 10))
+        if not module.is_teul_cli_bin_fresh(temp_root, teul_bin):
+            return fail("is_teul_cli_bin_fresh(fresh) must be true")
+        module._TEUL_CLI_BIN_CACHE = module._UNSET
+        resolved_fresh = module.resolve_teul_cli_bin(temp_root)
+        if resolved_fresh != teul_bin:
+            return fail(f"resolve_teul_cli_bin(fresh) mismatch: expected={teul_bin} got={resolved_fresh}")
+        fresh_cmd = module.build_teul_cli_cmd(temp_root, teul_manifest, ["run", "main.ddn"])
+        if not fresh_cmd or Path(fresh_cmd[0]) != teul_bin:
+            return fail(f"build_teul_cli_cmd(fresh) must prefer binary: got={fresh_cmd}")
+
+        time.sleep(0.01)
+        write_text(teul_src / "lib.rs", "pub fn x() {}\n")
+        stale_source_latest = module.latest_rs_mtime(temp_root)
+        os.utime(teul_bin, (stale_source_latest - 10, stale_source_latest - 10))
+        if module.is_teul_cli_bin_fresh(temp_root, teul_bin):
+            return fail("is_teul_cli_bin_fresh(stale) must be false")
+        module._TEUL_CLI_BIN_CACHE = module._UNSET
+        resolved_stale = module.resolve_teul_cli_bin(temp_root)
+        if resolved_stale is not None:
+            return fail(f"resolve_teul_cli_bin(stale) must be None: got={resolved_stale}")
+        stale_cmd = module.build_teul_cli_cmd(temp_root, teul_manifest, ["run", "main.ddn"])
+        if stale_cmd[:4] != ["cargo", "run", "-q", "--manifest-path"]:
+            return fail(f"build_teul_cli_cmd(stale) must fall back to cargo run: got={stale_cmd}")
+
+        old_env = os.environ.get(module.SKIP_BIN_FRESHNESS_CHECK_ENV_KEY)
+        try:
+            os.environ[module.SKIP_BIN_FRESHNESS_CHECK_ENV_KEY] = "1"
+            if not module.is_teul_cli_bin_fresh(temp_root, teul_bin):
+                return fail("is_teul_cli_bin_fresh(env bypass) must be true")
+            module._TEUL_CLI_BIN_CACHE = module._UNSET
+            resolved_bypass = module.resolve_teul_cli_bin(temp_root)
+            if resolved_bypass is None:
+                return fail("resolve_teul_cli_bin(env bypass) must return a binary path")
+            bypass_cmd = module.build_teul_cli_cmd(temp_root, teul_manifest, ["run", "main.ddn"])
+            if bypass_cmd[:4] == ["cargo", "run", "-q", "--manifest-path"]:
+                return fail(f"build_teul_cli_cmd(env bypass) must not fall back to cargo run: got={bypass_cmd}")
+        finally:
+            if old_env is None:
+                os.environ.pop(module.SKIP_BIN_FRESHNESS_CHECK_ENV_KEY, None)
+            else:
+                os.environ[module.SKIP_BIN_FRESHNESS_CHECK_ENV_KEY] = old_env
 
     temp_name = f"_tmp_pack_golden_metadata_{uuid.uuid4().hex[:8]}"
     pack_dir = root / "pack" / temp_name

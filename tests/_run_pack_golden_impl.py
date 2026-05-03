@@ -10,10 +10,16 @@ import re
 from datetime import datetime, timezone
 import time
 
+from _teul_cli_freshness import (
+    is_teul_cli_bin_fresh as shared_is_teul_cli_bin_fresh,
+    latest_teul_cli_source_mtime,
+)
+
 DIALECT_SMOKE_PACK = "lang_dialect_smoke_v1"
 DIALECT_BUILTIN_EQUIV_PACK = "dialect_builtin_equiv_v1"
 STACK_OVERFLOW_RETRY_MAX = 10
 PROGRESS_ENV_KEY = "DDN_RUN_PACK_GOLDEN_PROGRESS_JSON"
+SKIP_BIN_FRESHNESS_CHECK_ENV_KEY = "DDN_RUN_PACK_GOLDEN_SKIP_BIN_FRESHNESS_CHECK"
 _UNSET = object()
 _TEUL_CLI_BIN_CACHE: Path | None | object = _UNSET
 
@@ -67,7 +73,7 @@ def resolve_teul_cli_bin(root: Path) -> Path | None:
     if _TEUL_CLI_BIN_CACHE is not _UNSET:
         cached = _TEUL_CLI_BIN_CACHE
         if isinstance(cached, Path):
-            if cached.exists():
+            if cached.exists() and is_teul_cli_bin_fresh(root, cached):
                 return cached
         else:
             return None
@@ -79,11 +85,23 @@ def resolve_teul_cli_bin(root: Path) -> Path | None:
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
     for candidate in candidates:
-        if candidate.exists():
+        if candidate.exists() and is_teul_cli_bin_fresh(root, candidate):
             _TEUL_CLI_BIN_CACHE = candidate
             return candidate
     _TEUL_CLI_BIN_CACHE = None
     return None
+
+
+def latest_rs_mtime(root: Path) -> float:
+    return latest_teul_cli_source_mtime(root)
+
+
+def is_teul_cli_bin_fresh(root: Path, candidate: Path) -> bool:
+    return shared_is_teul_cli_bin_fresh(
+        root,
+        candidate,
+        skip_env_keys=(SKIP_BIN_FRESHNESS_CHECK_ENV_KEY,),
+    )
 
 
 def build_teul_cli_cmd(root: Path, manifest: Path, command_args: list[str]) -> list[str]:
@@ -120,6 +138,7 @@ def run_subprocess_with_stack_retry(
 ) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env.setdefault("RUST_MIN_STACK", str(64 * 1024 * 1024))
+    env.setdefault("CARGO_TARGET_DIR", str((cwd / "build" / "cargo-target-pack-golden").resolve()))
     last: subprocess.CompletedProcess[str] | None = None
     for attempt in range(STACK_OVERFLOW_RETRY_MAX):
         proc = subprocess.run(
@@ -153,6 +172,7 @@ def run_subprocess_with_stack_retry_progress(
 ) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env.setdefault("RUST_MIN_STACK", str(64 * 1024 * 1024))
+    env.setdefault("CARGO_TARGET_DIR", str((cwd / "build" / "cargo-target-pack-golden").resolve()))
     last: subprocess.CompletedProcess[str] | None = None
     for attempt in range(STACK_OVERFLOW_RETRY_MAX):
         if progress_hook is not None:
@@ -242,10 +262,18 @@ def iter_packs(root: Path, names: list[str], use_all: bool) -> list[Path]:
         pack_root / "math_calculus_v1",
         pack_root / "math_numeric_diff_v1",
         pack_root / "math_numeric_int_v1",
+        pack_root / "numeric_exact_numbers_smoke_v1",
+        pack_root / "numeric_fraction_normalize_v1",
+        pack_root / "numeric_promotion_rules_v1",
+        pack_root / "numeric_factor_form_v1",
+        pack_root / "numeric_display_policy_v1",
         pack_root / "numeric_sized_variants_v1",
         pack_root / "numeric_type_pin_vs_constructor_v1",
         pack_root / "numeric_maegim_binding_v1",
         pack_root / "numeric_type_alias_korean_v1",
+        pack_root / "numeric_exact_universe_v1",
+        pack_root / "numeric_factor_kernel_unbounded_v1",
+        pack_root / "numeric_factor_job_resume_v1",
         pack_root / "tensor_stdlib_phase0",
         pack_root / "w25_all_block_sugar",
         pack_root / "input_key_alias_ko_v1",

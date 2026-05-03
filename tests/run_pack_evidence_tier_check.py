@@ -41,6 +41,8 @@ def main() -> int:
         docs_report_path = Path(temp_dir) / "pack_evidence_tier_docs.detjson"
         docs_fix_plan_path = Path(temp_dir) / "pack_evidence_tier_docs_fix_plan.md"
         repo_report_path = Path(temp_dir) / "pack_evidence_tier_repo.detjson"
+        support_report_path = Path(temp_dir) / "pack_evidence_tier_support.detjson"
+        product_report_path = Path(temp_dir) / "pack_evidence_tier_product.detjson"
 
         def run_check(
             report_path: Path,
@@ -87,8 +89,18 @@ def main() -> int:
             detail = repo_err.strip() or repo_out.strip() or "repo_profile_strict_failed"
             print(f"check=pack_evidence_tier_check detail=repo_profile_strict_failed:{detail}")
             return 1
+        support_rc, support_out, support_err = run_check(support_report_path, "repo_current_line_support", strict=True)
+        if support_rc != 0:
+            detail = support_err.strip() or support_out.strip() or "support_profile_strict_failed"
+            print(f"check=pack_evidence_tier_check detail=support_profile_strict_failed:{detail}")
+            return 1
+        product_rc, product_out, product_err = run_check(product_report_path, "repo_current_line_product", strict=True)
+        if product_rc != 0:
+            detail = product_err.strip() or product_out.strip() or "product_profile_strict_failed"
+            print(f"check=pack_evidence_tier_check detail=product_profile_strict_failed:{detail}")
+            return 1
 
-        if not docs_report_path.exists() or not repo_report_path.exists():
+        if not docs_report_path.exists() or not repo_report_path.exists() or not support_report_path.exists() or not product_report_path.exists():
             print("check=pack_evidence_tier_check detail=report_missing")
             return 1
         if not docs_fix_plan_path.exists():
@@ -98,11 +110,13 @@ def main() -> int:
         try:
             docs_report = json.loads(docs_report_path.read_text(encoding="utf-8"))
             repo_report = json.loads(repo_report_path.read_text(encoding="utf-8"))
+            support_report = json.loads(support_report_path.read_text(encoding="utf-8"))
+            product_report = json.loads(product_report_path.read_text(encoding="utf-8"))
         except Exception as exc:  # pragma: no cover - defensive parse guard
             print(f"check=pack_evidence_tier_check detail=report_parse_failed:{exc}")
             return 1
 
-        for key_report in (docs_report, repo_report):
+        for key_report in (docs_report, repo_report, support_report, product_report):
             if key_report.get("schema") != "ddn.pack_evidence_tier_check.v1":
                 print("check=pack_evidence_tier_check detail=schema_mismatch")
                 return 1
@@ -128,6 +142,20 @@ def main() -> int:
             print(
                 "check=pack_evidence_tier_check detail="
                 f"repo_issue_count_unexpected:actual={repo_issue_count}:expected={expected_repo_issues}"
+            )
+            return 1
+        support_issue_count = int(support_report.get("issue_count", 0))
+        if support_issue_count != 0:
+            print(
+                "check=pack_evidence_tier_check detail="
+                f"support_issue_count_unexpected:actual={support_issue_count}:expected=0"
+            )
+            return 1
+        product_issue_count = int(product_report.get("issue_count", 0))
+        if product_issue_count != 0:
+            print(
+                "check=pack_evidence_tier_check detail="
+                f"product_issue_count_unexpected:actual={product_issue_count}:expected=0"
             )
             return 1
 
@@ -160,12 +188,27 @@ def main() -> int:
                     "total": int(repo_report.get("total", 0)),
                     "report_path": str(repo_report_path),
                 },
+                "support_profile": {
+                    "name": "repo_current_line_support",
+                    "issue_count": support_issue_count,
+                    "ok_count": int(support_report.get("ok_count", 0)),
+                    "total": int(support_report.get("total", 0)),
+                    "report_path": str(support_report_path),
+                },
+                "product_profile": {
+                    "name": "repo_current_line_product",
+                    "issue_count": product_issue_count,
+                    "ok_count": int(product_report.get("ok_count", 0)),
+                    "total": int(product_report.get("total", 0)),
+                    "report_path": str(product_report_path),
+                },
             }
             report_out.write_text(json.dumps(contract_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
         print(
             "check=pack_evidence_tier_check detail="
-            f"ok:docs_profile_issues={docs_issue_count}:repo_profile_issues={repo_issue_count}"
+            f"ok:docs_profile_issues={docs_issue_count}:repo_profile_issues={repo_issue_count}:"
+            f"support_profile_issues={support_issue_count}:product_profile_issues={product_issue_count}"
         )
         return 0
 

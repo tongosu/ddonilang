@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -95,9 +96,8 @@ def main() -> int:
 
     try:
         cases = load_cases(pack_dir)
-        summaries: list[dict] = []
-        failures: list[str] = []
-        for case in cases:
+
+        def run_case(case: dict) -> tuple[dict, list[str]]:
             input_rel = str(case["input_path"])
             surface = str(case["surface"])
             input_path = pack_dir / input_rel
@@ -108,9 +108,10 @@ def main() -> int:
                 standalone_doc = standalone_future.result()
                 payload = payload_future.result()
             if not isinstance(payload, dict) or not payload.get("ok"):
-                failures.append(f"{surface}:{input_rel}: api run failed")
-                summaries.append({"case": input_rel, "surface": surface, "ok": False, "detail": "api run failed"})
-                continue
+                return (
+                    {"case": input_rel, "surface": surface, "ok": False, "detail": "api run failed"},
+                    [f"{surface}:{input_rel}: api run failed"],
+                )
             api_doc = payload.get(surface, {})
             standalone_meta = standalone_doc.get("meta", {}) if isinstance(standalone_doc, dict) else {}
             api_meta = api_doc.get("meta", {}) if isinstance(api_doc, dict) else {}
@@ -130,22 +131,28 @@ def main() -> int:
                 if not ok:
                     detail_parts.append(label)
             ok = not detail_parts
-            if not ok:
-                failures.append(f"{surface}:{input_rel}: mismatch {','.join(detail_parts)}")
-            summaries.append(
-                {
-                    "case": input_rel,
-                    "surface": surface,
-                    "ok": ok,
-                    "doc_match": doc_match,
-                    "schema_match": schema_match,
-                    "source_input_hash_match": source_hash_match,
-                    "title_match": title_match,
-                    "standalone_source_input_hash": standalone_meta.get("source_input_hash", ""),
-                    "api_source_input_hash": api_meta.get("source_input_hash", ""),
-                    "detail": "ok" if ok else ",".join(detail_parts),
-                }
-            )
+            summary = {
+                "case": input_rel,
+                "surface": surface,
+                "ok": ok,
+                "doc_match": doc_match,
+                "schema_match": schema_match,
+                "source_input_hash_match": source_hash_match,
+                "title_match": title_match,
+                "standalone_source_input_hash": standalone_meta.get("source_input_hash", ""),
+                "api_source_input_hash": api_meta.get("source_input_hash", ""),
+                "detail": "ok" if ok else ",".join(detail_parts),
+            }
+            return summary, ([] if ok else [f"{surface}:{input_rel}: mismatch {','.join(detail_parts)}"])
+
+        summaries: list[dict] = []
+        failures: list[str] = []
+        case_workers = max(1, min(len(cases), os.cpu_count() or 4))
+        with ThreadPoolExecutor(max_workers=case_workers) as case_pool:
+            case_results = list(case_pool.map(run_case, cases))
+        for summary, case_failures in case_results:
+            summaries.append(summary)
+            failures.extend(case_failures)
 
         report = {
             "schema": "ddn.seamgrim_bridge_surface_api_parity.v1",

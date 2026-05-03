@@ -20,6 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 PACK_DIR = ROOT / "pack" / "seamgrim_playground_smoke_v1"
 RUNNER = ROOT / "tests" / "seamgrim_playground_smoke_runner.mjs"
+DIAG_RUNNER = ROOT / "tests" / "seamgrim_playground_diagnostic_contract_runner.mjs"
+LAYOUT_CONTRACT_RUNNER = ROOT / "tests" / "seamgrim_studio_layout_contract_runner.mjs"
 EXPECTED_PATH = PACK_DIR / "expected" / "playground_smoke.detjson"
 
 
@@ -42,12 +44,54 @@ def run_runner(update: bool = False) -> tuple[int, str, str]:
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
+def run_diag_runner() -> tuple[int, str, str]:
+    cmd = ["node", "--no-warnings", str(DIAG_RUNNER)]
+    result = subprocess.run(
+        cmd,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.returncode, result.stdout.strip(), result.stderr.strip()
+
+
+def run_layout_contract_runner() -> tuple[int, str, str]:
+    cmd = ["node", "--no-warnings", str(LAYOUT_CONTRACT_RUNNER)]
+    result = subprocess.run(
+        cmd,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.returncode, result.stdout.strip(), result.stderr.strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="셈그림 플레이그라운드 스모크 검증")
     parser.add_argument("--update", action="store_true", help="golden 파일 갱신")
     args = parser.parse_args()
 
     if args.update:
+        diag_rc, diag_stdout, diag_stderr = run_diag_runner()
+        if diag_rc != 0:
+            print(f"[FAIL] playground diagnostic contract runner 실패 (exit={diag_rc})", file=sys.stderr)
+            if diag_stderr:
+                print(diag_stderr, file=sys.stderr)
+            if diag_stdout:
+                print(diag_stdout, file=sys.stderr)
+            return 1
+        layout_rc, layout_stdout, layout_stderr = run_layout_contract_runner()
+        if layout_rc != 0:
+            print(f"[FAIL] studio layout contract runner 실패 (exit={layout_rc})", file=sys.stderr)
+            if layout_stderr:
+                print(layout_stderr, file=sys.stderr)
+            if layout_stdout:
+                print(layout_stdout, file=sys.stderr)
+            return 1
         rc, stdout, stderr = run_runner(update=True)
         if rc != 0:
             print(f"[FAIL] runner --update 실패 (exit={rc})", file=sys.stderr)
@@ -58,6 +102,23 @@ def main() -> int:
         return 0
 
     # 검증 모드
+    diag_rc, diag_stdout, diag_stderr = run_diag_runner()
+    if diag_rc != 0:
+        print(f"[FAIL] playground diagnostic contract runner 실패 (exit={diag_rc})", file=sys.stderr)
+        if diag_stderr:
+            print(diag_stderr, file=sys.stderr)
+        if diag_stdout:
+            print(diag_stdout, file=sys.stderr)
+        return 1
+    layout_rc, layout_stdout, layout_stderr = run_layout_contract_runner()
+    if layout_rc != 0:
+        print(f"[FAIL] studio layout contract runner 실패 (exit={layout_rc})", file=sys.stderr)
+        if layout_stderr:
+            print(layout_stderr, file=sys.stderr)
+        if layout_stdout:
+            print(layout_stdout, file=sys.stderr)
+        return 1
+
     rc, stdout, stderr = run_runner(update=False)
 
     if rc != 0:

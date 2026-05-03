@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
+
 DISPATCH_TEST_FILTER = "signal_send_dispatch"
 REQUIRED_DISPATCH_TEST_NAMES = (
     "signal_send_dispatch_same_rank_preserves_declaration_order",
@@ -19,33 +21,23 @@ def fail(msg: str) -> int:
     return 1
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def run_teul_cli(root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
-    teul_cli = resolve_teul_cli_bin(root)
-    if teul_cli is not None:
-        cmd = [str(teul_cli), *args]
-    else:
-        cmd = [
-            "cargo",
-            "run",
-            "-q",
-            "--manifest-path",
-            str(root / "tools" / "teul-cli" / "Cargo.toml"),
-            "--",
-            *args,
-        ]
+    cmd = shared_build_teul_cli_cmd(
+        root,
+        args,
+        candidates=teul_cli_candidates(root),
+        include_which=False,
+        manifest_path=root / "tools" / "teul-cli" / "Cargo.toml",
+    )
     return subprocess.run(
         cmd,
         cwd=root,

@@ -14,6 +14,7 @@ from _ci_age5_combined_heavy_contract import (
     AGE5_COMBINED_HEAVY_FULL_SUMMARY_CONTRACT_FIELDS_TEXT,
     AGE5_COMBINED_HEAVY_REPORT_SCHEMA,
 )
+from _ci_seamgrim_step_contract import SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS
 from run_ci_sync_readiness_check import (
     AGE3_BOGAE_GEOUL_VISIBILITY_SMOKE_SCHEMA,
     SEAMGRIM_NUMERIC_FACTOR_POLICY_DEFAULTS,
@@ -579,6 +580,21 @@ def main() -> int:
             "seamgrim_report_sanity_profile_should_be_seamgrim",
         ) != 0:
             return 1
+        blocker_summary_keys = tuple(
+            summary_key for summary_key, _ in SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS
+        )
+        for sanity_key in blocker_summary_keys:
+            if expect(
+                str(seamgrim_report_doc.get(sanity_key, "")) == "1",
+                f"seamgrim_report_{sanity_key}_should_be_1",
+            ) != 0:
+                return 1
+            sync_key = f"ci_sync_readiness_{sanity_key}"
+            if expect(
+                str(seamgrim_report_doc.get(sync_key, "")) == "1",
+                f"seamgrim_report_{sync_key}_should_be_1",
+            ) != 0:
+                return 1
         if expect(
             str(seamgrim_report_doc.get("ci_sanity_seamgrim_pack_evidence_tier_runner_ok", "")) == "1",
             "seamgrim_report_pack_evidence_ok_should_be_1",
@@ -693,6 +709,68 @@ def main() -> int:
             != 0
         ):
             return 1
+
+        for sanity_key in blocker_summary_keys:
+            bad_blocker_summary_report = report_dir / f"bad_{sanity_key}.ci_sync_readiness.detjson"
+            bad_blocker_summary_doc = load_json(seamgrim_report)
+            bad_blocker_summary_doc[sanity_key] = "0"
+            write_json(bad_blocker_summary_report, bad_blocker_summary_doc)
+            proc_bad_blocker_summary = run_report_check(
+                py,
+                root,
+                bad_blocker_summary_report,
+                require_pass=True,
+                sanity_profile="seamgrim",
+            )
+            if (
+                expect(
+                    proc_bad_blocker_summary.returncode != 0,
+                    f"seamgrim_bad_blocker_summary_should_fail:{sanity_key}",
+                    proc_bad_blocker_summary,
+                )
+                != 0
+            ):
+                return 1
+            if (
+                expect_fail_code(
+                    proc_bad_blocker_summary,
+                    CODES["SANITY_SUMMARY_VALUE_INVALID"],
+                    f"seamgrim_bad_blocker_summary_fail_code_should_match:{sanity_key}",
+                )
+                != 0
+            ):
+                return 1
+
+            sync_key = f"ci_sync_readiness_{sanity_key}"
+            bad_blocker_sync_mirror_report = report_dir / f"bad_sync_{sanity_key}.ci_sync_readiness.detjson"
+            bad_blocker_sync_mirror_doc = load_json(seamgrim_report)
+            bad_blocker_sync_mirror_doc[sync_key] = "0"
+            write_json(bad_blocker_sync_mirror_report, bad_blocker_sync_mirror_doc)
+            proc_bad_blocker_sync_mirror = run_report_check(
+                py,
+                root,
+                bad_blocker_sync_mirror_report,
+                require_pass=True,
+                sanity_profile="seamgrim",
+            )
+            if (
+                expect(
+                    proc_bad_blocker_sync_mirror.returncode != 0,
+                    f"seamgrim_bad_blocker_sync_mirror_should_fail:{sanity_key}",
+                    proc_bad_blocker_sync_mirror,
+                )
+                != 0
+            ):
+                return 1
+            if (
+                expect_fail_code(
+                    proc_bad_blocker_sync_mirror,
+                    CODES["SANITY_SUMMARY_VALUE_INVALID"],
+                    f"seamgrim_bad_blocker_sync_mirror_fail_code_should_match:{sanity_key}",
+                )
+                != 0
+            ):
+                return 1
 
         proc_profile_mismatch = run_report_check(py, root, report, require_pass=True, sanity_profile="seamgrim")
         if expect(proc_profile_mismatch.returncode != 0, "report_profile_mismatch_should_fail", proc_profile_mismatch) != 0:

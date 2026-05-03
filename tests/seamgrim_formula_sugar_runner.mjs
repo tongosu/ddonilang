@@ -33,6 +33,9 @@ async function main() {
   assert(parsed.data?.expression === "2*x + 1", "formula sugar: expression");
 
   const ddn = buildFormulaSugarDdn(parsed.data);
+  assert(!ddn.includes("#이름:") && !ddn.includes("#설명:"), "formula sugar: legacy hash meta absent");
+  assert(ddn.includes("설정 {"), "formula sugar: settings meta block");
+  assert(ddn.includes("제목: formula_y."), "formula sugar: settings title");
   assert(ddn.includes("x목록 <- (x_min, x_max, x_step) 범위."), "formula sugar: range call");
   assert(ddn.includes("(x) x목록에 대해: {"), "formula sugar: foreach block");
   assert(ddn.includes("y <- 2*x + 1."), "formula sugar: assignment");

@@ -10,6 +10,8 @@ import sys
 import time
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PACK = ROOT / "pack" / "nurigym_shared_sync_priority_tiebreak_v1"
 REQUIRED_INVARIANTS = {
@@ -41,32 +43,23 @@ def resolve_tmp_root_base() -> Path:
     return fallback
 
 
-def resolve_teul_cli_bin() -> Path | None:
+def teul_cli_candidates() -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         ROOT / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def build_teul_cli_cmd(args: list[str]) -> list[str]:
-    teul_cli = resolve_teul_cli_bin()
-    if teul_cli is not None:
-        return [str(teul_cli), *args]
-    return [
-        "cargo",
-        "run",
-        "-q",
-        "--manifest-path",
-        str(ROOT / "tools" / "teul-cli" / "Cargo.toml"),
-        "--",
-        *args,
-    ]
+    return shared_build_teul_cli_cmd(
+        ROOT,
+        args,
+        candidates=teul_cli_candidates(),
+        include_which=False,
+        manifest_path=ROOT / "tools" / "teul-cli" / "Cargo.toml",
+    )
 
 
 def load_json(path: Path) -> dict:

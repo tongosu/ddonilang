@@ -1,7 +1,7 @@
 {
   "name": "ddn-language",
   "displayName": "Ddonilang (ddn)",
-  "description": "Syntax highlighting for ddn",
+  "description": "Current-line VS Code shell for ddn highlighting and starter snippets",
   "version": "0.0.1",
   "publisher": "ddonilang",
   "engines": {
@@ -22,6 +22,12 @@
         "language": "ddn",
         "scopeName": "source.ddn",
         "path": "./syntaxes/ddn.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "ddn",
+        "path": "./snippets/ddn.code-snippets"
       }
     ]
   }

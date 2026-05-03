@@ -19,6 +19,9 @@ from _ci_age5_combined_heavy_contract import (
     build_age5_combined_heavy_sync_contract_fields,
 )
 from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_STEP_CONTRACT_STEPS,
+    SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS,
+    SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS,
     SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
     merge_step_names,
 )
@@ -64,10 +67,15 @@ SANITY_REQUIRED_PASS_STEPS = (
     "tensor_v0_pack_check",
     "tensor_v0_cli_check",
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_worker_env_step_check",
+    "seamgrim_ci_gate_featured_seed_catalog_step_check",
+    "seamgrim_ci_gate_featured_seed_catalog_autogen_step_check",
     "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_lesson_warning_step_check",
     "seamgrim_ci_gate_stateful_preview_step_check",
+    *SEAMGRIM_BLOCKER_STEP_CONTRACT_STEPS,
+    "seamgrim_v2_task_batch_check",
     "seamgrim_ci_gate_wasm_web_smoke_step_check",
     "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
     "seamgrim_ci_gate_pack_evidence_tier_step_check",
@@ -174,10 +182,15 @@ SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = (
     "ci_profile_matrix_snapshot_helper_selftest",
     "ci_sanity_dynamic_source_profile_split_selftest",
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_worker_env_step_check",
+    "seamgrim_ci_gate_featured_seed_catalog_step_check",
+    "seamgrim_ci_gate_featured_seed_catalog_autogen_step_check",
     "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_lesson_warning_step_check",
     "seamgrim_ci_gate_stateful_preview_step_check",
+    *SEAMGRIM_BLOCKER_STEP_CONTRACT_STEPS,
+    "seamgrim_v2_task_batch_check",
     "seamgrim_ci_gate_wasm_web_smoke_step_check",
     "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
     "seamgrim_ci_gate_pack_evidence_tier_step_check",
@@ -236,6 +249,14 @@ SANITY_SUMMARY_STEP_FIELDS = (
         "ci_sanity_dynamic_source_profile_split_selftest",
         {"full", "core_lang", "seamgrim"},
     ),
+    *[
+        (summary_key, step_name, {"seamgrim"})
+        for summary_key, step_name in SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS
+    ],
+    *[
+        (summary_key, step_name, {"seamgrim"})
+        for summary_key, step_name in SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS
+    ],
     (
         "ci_sanity_fixed64_darwin_real_report_live_check_selftest_ok",
         "fixed64_darwin_real_report_live_check_selftest",
@@ -1888,6 +1909,8 @@ def main() -> int:
                         str(report_dir),
                         "--report-prefix",
                         prefix,
+                        "--ci-sanity-profile",
+                        sanity_profile,
                         "--skip-core-tests",
                         "--fast-fail",
                         "--backup-hygiene",

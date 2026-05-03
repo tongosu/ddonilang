@@ -15,6 +15,10 @@ from _ci_age5_combined_heavy_contract import (
     AGE5_COMBINED_HEAVY_SANITY_CONTRACT_SUMMARY_FIELDS,
     AGE5_COMBINED_HEAVY_SYNC_CONTRACT_SUMMARY_FIELDS,
 )
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS,
+    SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS,
+)
 from ci_check_error_codes import SYNC_READINESS_REPORT_CODES as CODES
 
 
@@ -41,6 +45,8 @@ SANITY_SUMMARY_FIELDS = (
     ("ci_sanity_age3_close_selftest_ok", {"full", "core_lang", "seamgrim"}),
     ("ci_sanity_age5_combined_heavy_policy_selftest_ok", {"full", "core_lang", "seamgrim"}),
     ("ci_sanity_profile_matrix_full_real_smoke_policy_selftest_ok", {"full", "core_lang", "seamgrim"}),
+    *[(summary_key, {"seamgrim"}) for summary_key, _step_name in SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS],
+    *[(summary_key, {"seamgrim"}) for summary_key, _step_name in SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS],
 )
 PACK_GOLDEN_GRAPH_EXPORT_SUMMARY_KEY = "ci_sanity_pack_golden_graph_export_ok"
 PACK_GOLDEN_GRAPH_EXPORT_SYNC_KEY = "ci_sync_readiness_ci_sanity_pack_golden_graph_export_ok"

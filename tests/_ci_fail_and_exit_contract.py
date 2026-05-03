@@ -14,6 +14,7 @@ FAIL_AND_EXIT_BLOCK_REQUIRED_TOKENS = (
     'run_step_if_missing("ci_gate_report_index_selftest", check_ci_gate_report_index_selftest)',
     'run_step_if_missing("ci_gate_report_index_diagnostics_check", check_ci_gate_report_index_diagnostics)',
     'run_step_if_missing("ci_emit_artifacts_baseline_check", check_ci_emit_artifacts_baseline)',
+    "refresh_status_outputs_for_index(strict_summary_verify=False)",
 )
 
 FAIL_AND_EXIT_BLOCK_FORBIDDEN_TOKENS = (

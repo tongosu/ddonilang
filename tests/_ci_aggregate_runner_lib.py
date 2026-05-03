@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 
@@ -45,6 +46,7 @@ def run_step(
     step_log_failed_only: bool,
     stdout_log_path: Path | None = None,
     stderr_log_path: Path | None = None,
+    env_extra: dict[str, str] | None = None,
 ) -> dict[str, object]:
     if stdout_log_path is not None:
         stdout_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -55,6 +57,10 @@ def run_step(
     else:
         print(f"[ci-gate] step={name} cmd={' '.join(cmd)}")
     try:
+        env = None
+        if env_extra:
+            env = os.environ.copy()
+            env.update({str(k): str(v) for k, v in env_extra.items()})
         proc = subprocess.run(
             cmd,
             cwd=root,
@@ -62,6 +68,7 @@ def run_step(
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=env,
         )
     except OSError as exc:
         err_text = f"[ci-gate] step={name} launch_error={exc}\n"

@@ -11,6 +11,11 @@ from _ci_latest_smoke_contract import (
     LATEST_SMOKE_SKIP_REASON_FLAG_DISABLED,
     LATEST_SMOKE_SKIP_REASON_PENDING_FAILURE_SUMMARY_REGENERATION,
 )
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS,
+    SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATHS,
+    SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS,
+)
 
 
 SYNC_READINESS_SELFTEST_TOKENS = [
@@ -104,7 +109,8 @@ LATEST_SMOKE_REASON_BRANCH_TOKENS = [
 ]
 
 SEAMGRIM_SYNC_STEP_TOKENS = [
-    "from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS",
+    "from _ci_seamgrim_step_contract import (",
+    "SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,",
     "report_index_required_steps_seamgrim = list(SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS)",
     "--require-preview-synced",
     "check_seamgrim_ci_gate_preview_sync_passthrough",
@@ -116,9 +122,21 @@ SEAMGRIM_SYNC_STEP_TOKENS = [
     "check_seamgrim_ci_gate_seed_meta_step",
     "seamgrim_ci_gate_seed_meta_step_check",
     "tests/run_seamgrim_ci_gate_seed_meta_step_check.py",
+    "check_seamgrim_ci_gate_worker_env_step",
+    "seamgrim_ci_gate_worker_env_step_check",
+    "tests/run_seamgrim_ci_gate_worker_env_step_check.py",
+    "check_seamgrim_ci_gate_featured_seed_catalog_step",
+    "seamgrim_ci_gate_featured_seed_catalog_step_check",
+    "check_seamgrim_ci_gate_featured_seed_catalog_autogen_step",
+    "seamgrim_ci_gate_featured_seed_catalog_autogen_step_check",
     "check_seamgrim_ci_gate_sam_seulgi_family_step",
     "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "tests/run_seamgrim_ci_gate_sam_seulgi_family_step_check.py",
+    "check_seamgrim_product_blocker_bundle",
+    "check_seamgrim_observe_output_contract",
+    "check_seamgrim_runtime_view_source_strict",
+    "check_seamgrim_view_only_state_hash_invariant",
+    "check_seamgrim_run_legacy_autofix",
     "check_seamgrim_ci_gate_guideblock_step",
     "seamgrim_ci_gate_guideblock_step_check",
     "tests/run_seamgrim_ci_gate_guideblock_step_check.py",
@@ -134,9 +152,42 @@ SEAMGRIM_SYNC_STEP_TOKENS = [
     "check_seamgrim_ci_gate_wasm_web_smoke_step_selftest",
     "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
     "tests/run_seamgrim_ci_gate_wasm_web_smoke_step_check_selftest.py",
+    "check_seamgrim_v2_task_batch",
+    "seamgrim_v2_task_batch_check",
+    "tests/run_seamgrim_v2_task_batch_check.py",
     "--lesson-warning-report-json-out",
     "--lesson-warning-require-zero",
 ]
+SEAMGRIM_SYNC_STEP_TOKENS.extend(
+    [
+        "SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS",
+        "SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME",
+        "def run_seamgrim_blocker_step(step_name: str) -> int:",
+        "script_path = SEAMGRIM_BLOCKER_STEP_SCRIPT_PATH_BY_NAME[step_name]",
+        "return run_seamgrim_blocker_step(",
+        *(step_name for step_name, _script_path in SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS),
+    ]
+)
+SEAMGRIM_SYNC_STEP_TOKENS.extend(
+    [
+        "SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS",
+        "SEAMGRIM_PLATFORM_STEP_SCRIPT_PATH_BY_NAME",
+        "def run_seamgrim_platform_step(step_name: str) -> int:",
+        "script_path = SEAMGRIM_PLATFORM_STEP_SCRIPT_PATH_BY_NAME[step_name]",
+        "return run_seamgrim_platform_step(",
+        *(step_name for step_name, _script_path in SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS),
+    ]
+)
+SEAMGRIM_SYNC_STEP_TOKENS.extend(
+    [
+        "SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATHS",
+        "SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATH_BY_NAME",
+        "def run_seamgrim_featured_step(step_name: str) -> int:",
+        "script_path = SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATH_BY_NAME[step_name]",
+        "return run_seamgrim_featured_step(",
+        *(step_name for step_name, _script_path in SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATHS),
+    ]
+)
 
 GUIDEBLOCK_AND_SANITY_TOKENS = [
     "check_ci_pack_golden_guideblock_selftest",

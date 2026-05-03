@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+from _teul_cli_freshness import ensure_teul_cli_bin as shared_ensure_teul_cli_bin
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,14 +24,14 @@ README_SNIPPETS = {
     ),
 }
 PARSE_FIXIT_PROBES = (
-    ("unexpected_token", "E_PARSE_UNEXPECTED_TOKEN", "살림.x <- 1 2.\n", True),
-    ("expected_expr", "E_PARSE_EXPECTED_EXPR", "살림.x <- .\n", True),
+    ("unexpected_token", "E_PARSE_UNEXPECTED_TOKEN", "x <- 1 2.\n", True),
+    ("expected_expr", "E_PARSE_EXPECTED_EXPR", "x <- .\n", True),
     ("expected_target", "E_PARSE_EXPECTED_TARGET", "(1 + 2) <- 3.\n", True),
-    ("expected_rparen", "E_PARSE_EXPECTED_RPAREN", "살림.x <- (1 + 2.\n", True),
-    ("expected_rbrace", "E_PARSE_EXPECTED_RBRACE", "너머 {\n  살림.x <- () 너머.시각.지금.\n", True),
+    ("expected_rparen", "E_PARSE_EXPECTED_RPAREN", "x <- (1 + 2.\n", True),
+    ("expected_rbrace", "E_PARSE_EXPECTED_RBRACE", "너머 {\n  x <- () 너머.시각.지금.\n", True),
     (
         "maegim_grouped",
-        "E_PARSE_MAEGIM_GROUPED_VALUE_REQUIRED",
+        "E_CANON_MAEGIM_GROUPED_VALUE_REQUIRED",
         "채비 {\n  g:수 = 9.8 매김 {\n    간격: 1.\n  }.\n}.\n",
         True,
     ),
@@ -43,7 +44,7 @@ PARSE_FIXIT_PROBES = (
     (
         "event_alias",
         "E_EVENT_SURFACE_ALIAS_FORBIDDEN",
-        "\"jump\"라는 소식이 오면 {\n  살림.y <- 1.\n}.\n",
+        "\"jump\"라는 소식이 오면 {\n  y <- 1.\n}.\n",
         False,
     ),
     (
@@ -91,41 +92,29 @@ def ensure_snippets(path: Path, snippets: tuple[str, ...]) -> None:
             raise ValueError(f"missing snippet in {path}: {snippet}")
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if __import__("os").name == "nt" else ""
-    candidates = [
+    return [
         root / "target" / "debug" / f"teul-cli{suffix}",
         root / "target" / "release" / f"teul-cli{suffix}",
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"I:/home/urihanl/ddn/codex/target/release/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    which = shutil.which("teul-cli")
-    return Path(which) if which else None
 
 
 def ensure_teul_cli(root: Path) -> Path:
-    found = resolve_teul_cli_bin(root)
-    if found is not None:
-        return found
-    proc = subprocess.run(
-        ["cargo", "build", "--quiet", "--manifest-path", "tools/teul-cli/Cargo.toml"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if proc.returncode != 0:
-        detail = proc.stderr.strip() or proc.stdout.strip() or "cargo build failed"
-        raise ValueError(f"build failed for teul-cli: {detail}")
-    found = resolve_teul_cli_bin(root)
-    if found is None:
-        raise ValueError("missing binary after build: teul-cli")
-    return found
+    try:
+        return shared_ensure_teul_cli_bin(
+            root,
+            candidates=teul_cli_candidates(root),
+            include_which=True,
+            manifest_path=root / "tools" / "teul-cli" / "Cargo.toml",
+        )
+    except FileNotFoundError as exc:
+        raise ValueError("missing binary after build: teul-cli") from exc
+    except SystemExit as exc:
+        raise ValueError(f"build failed for teul-cli: exit={exc.code}") from exc
 
 
 def validate_fixits_payload(payload: list[dict], *, allow_empty: bool) -> None:
@@ -211,10 +200,10 @@ def run_probe(
                 return
             return
 
-        if expect_fixits_json:
-            raise ValueError(f"{name}: missing fixits.json")
         combined = f"{proc.stdout}\n{proc.stderr}"
         if expected_code not in combined:
+            if expect_fixits_json:
+                raise ValueError(f"{name}: missing fixits.json")
             raise ValueError(f"{name}: expected code not found without fixits.json: {expected_code}")
 
 

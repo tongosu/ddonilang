@@ -12,6 +12,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
+
 
 def fail(code: str, msg: str) -> int:
     print(f"[w93-pack-check] fail code={code} msg={msg}", file=sys.stderr)
@@ -46,33 +48,27 @@ def is_stack_overflow_like(proc: subprocess.CompletedProcess[str]) -> bool:
     return False
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
+
+
+def build_teul_cli_cmd(root: Path, args: list[str]) -> list[str]:
+    return shared_build_teul_cli_cmd(
+        root,
+        args,
+        candidates=teul_cli_candidates(root),
+        include_which=False,
+        manifest_path=root / "tools" / "teul-cli" / "Cargo.toml",
+    )
 
 
 def run_teul_cli(root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
-    teul_cli = resolve_teul_cli_bin(root)
-    if teul_cli is not None:
-        cmd = [str(teul_cli), *args]
-    else:
-        cmd = [
-            "cargo",
-            "run",
-            "--manifest-path",
-            "tools/teul-cli/Cargo.toml",
-            "--quiet",
-            "--",
-            *args,
-        ]
+    cmd = build_teul_cli_cmd(root, args)
     env = dict(os.environ)
     env.setdefault("RUST_MIN_STACK", str(64 * 1024 * 1024))
     last: subprocess.CompletedProcess[str] | None = None

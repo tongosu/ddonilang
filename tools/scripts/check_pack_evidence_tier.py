@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-VALID_TIERS = {"golden_closed", "runner_fill", "docs_first"}
+VALID_TIERS = {"golden_closed", "runner_backed", "runner_fill", "docs_first"}
 VALID_STATUS_VALUES = {
     "active",
     "partial",
@@ -46,15 +46,31 @@ REPO_REP10_PACKS = [
 PROFILE_TO_PACKS = {
     "docs_ssot_rep10": DOCS_SSOT_REP10_PACKS,
     "repo_rep10": REPO_REP10_PACKS,
+    "repo_current_line_support": [
+        "lang_pragmatism_pack_v1",
+        "geoul_replay_playback_closure_v1",
+        "benchmark_baseline_v1",
+    ],
+    "repo_current_line_product": [
+        "view_only_switch_no_statehash_change_v1",
+        "seamgrim_static_run_completion_v1",
+        "seamgrim_first_run_onboarding_v1",
+        "seamgrim_registry_publish_install_shell_v1",
+        "lang_settings_header_closure_v1",
+        "lsp_followon_minimum_v1",
+    ],
 }
 PROFILE_TO_PACK_ROOT = {
     "docs_ssot_rep10": "docs/ssot/pack",
     "repo_rep10": "pack",
+    "repo_current_line_support": "pack",
+    "repo_current_line_product": "pack",
 }
-TIER_RE = re.compile(r"(?mi)^\s*evidence_tier\s*:\s*([a-z_]+)\s*$")
-STATUS_RE = re.compile(r"(?mi)^\s*(?:current_status|status)\s*:\s*([a-z_]+)\s*$")
+README_FIELD_RE_TEMPLATE = r"(?mi)^\s*(?:-\s*)?{name}\s*:\s*`?([a-z_]+)`?\s*$"
+TIER_RE = re.compile(README_FIELD_RE_TEMPLATE.format(name="evidence_tier"))
+STATUS_RE = re.compile(README_FIELD_RE_TEMPLATE.format(name="(?:current_status|status)"))
 CLOSURE_CLAIM_RE = re.compile(
-    r"(?mi)^\s*(?:closure_claim|closure_claim_possible|closure)\s*:\s*([a-z_]+)\s*$"
+    r"(?mi)^\s*(?:-\s*)?(?:closure_claim|closure_claim_possible|closure)\s*:\s*`?([a-z_]+)`?\s*$"
 )
 SUGGESTION_HINTS = {
     "bogae_observe_basics": ("golden_closed", "drawlist/hash 결정성 골든 팩"),
@@ -64,6 +80,15 @@ SUGGESTION_HINTS = {
     "bogae_backend_parity_console_web_v1": ("runner_fill", "backend parity skeleton 표기"),
     "bogae_api_catalog_v1_basic": ("golden_closed", "API 카탈로그 기본 결정성"),
     "bogae_web_viewer_v1": ("golden_closed", "viewer 스모크+golden 보유"),
+    "lang_pragmatism_pack_v1": ("golden_closed", "대표 실행 입력 3종이 closure pack으로 고정"),
+    "geoul_replay_playback_closure_v1": ("golden_closed", "replay/query/timeline actual closure"),
+    "benchmark_baseline_v1": ("runner_backed", "측정 schema/report는 runner-backed, 성능 claim은 비범위"),
+    "view_only_switch_no_statehash_change_v1": ("runner_backed", "Seamgrim view-only invariant runner"),
+    "seamgrim_static_run_completion_v1": ("runner_backed", "static run completion product smoke"),
+    "seamgrim_first_run_onboarding_v1": ("runner_backed", "student/teacher onboarding shell runner"),
+    "seamgrim_registry_publish_install_shell_v1": ("runner_backed", "registry/share/publish/install shell surface"),
+    "lang_settings_header_closure_v1": ("runner_backed", "settings header canon/frontdoor closure"),
+    "lsp_followon_minimum_v1": ("runner_backed", "VS Code shell + autofix/snippet minimum"),
     "econ_agent_baseline_market_v1": ("docs_first", "경제 교재/설계 정렬 우선"),
     "econ_agent_lemons_v1": ("docs_first", "경제 교재/설계 정렬 우선"),
     "econ_agent_macro_shock_v1": ("docs_first", "경제 교재/설계 정렬 우선"),
@@ -164,6 +189,20 @@ def normalize_closure_claim(value: str) -> str:
     return norm
 
 
+def load_contract_field(pack_root: Path, pack: str, field: str) -> str:
+    contract_path = pack_root / pack / "contract.detjson"
+    if not contract_path.exists():
+        return ""
+    try:
+        doc = json.loads(contract_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    value = str(doc.get(field, "")).strip()
+    if field == "closure_claim":
+        return normalize_closure_claim(value)
+    return value
+
+
 def write_fix_plan(path: Path, profile: str, pack_root_rel: str, suggestions: list[dict[str, str]]) -> None:
     lines = [
         "# PACK evidence_tier Fix Plan",
@@ -202,6 +241,8 @@ def main() -> int:
     missing_closure_claim: list[str] = []
     invalid_closure_claim: list[dict[str, str]] = []
     closure_tier_violation: list[dict[str, str]] = []
+    contract_tier_mismatch: list[dict[str, str]] = []
+    contract_closure_mismatch: list[dict[str, str]] = []
     ok_items: list[dict[str, str]] = []
     suggestions: list[dict[str, str]] = []
 
@@ -317,6 +358,32 @@ def main() -> int:
                 }
             )
             continue
+        contract_tier = load_contract_field(pack_root, pack, "evidence_tier")
+        if contract_tier and contract_tier != tier:
+            contract_tier_mismatch.append({"pack": pack, "readme": tier, "contract": contract_tier})
+            suggestions.append(
+                {
+                    "pack": pack,
+                    "status": "contract_tier_mismatch",
+                    "current_tier": tier,
+                    "suggested_tier": contract_tier,
+                    "reason": "README evidence_tier와 contract.detjson evidence_tier를 일치시켜야 함",
+                }
+            )
+            continue
+        contract_closure = load_contract_field(pack_root, pack, "closure_claim")
+        if contract_closure and closure_value and contract_closure != closure_value:
+            contract_closure_mismatch.append({"pack": pack, "readme": closure_value, "contract": contract_closure})
+            suggestions.append(
+                {
+                    "pack": pack,
+                    "status": "contract_closure_mismatch",
+                    "current_closure_claim": closure_value,
+                    "suggested_closure_claim": contract_closure,
+                    "reason": "README closure_claim과 contract.detjson closure_claim를 일치시켜야 함",
+                }
+            )
+            continue
         ok_item = {"pack": pack, "tier": tier}
         if status_value:
             ok_item["status"] = status_value
@@ -333,6 +400,8 @@ def main() -> int:
         + len(missing_closure_claim)
         + len(invalid_closure_claim)
         + len(closure_tier_violation)
+        + len(contract_tier_mismatch)
+        + len(contract_closure_mismatch)
     )
     report = {
         "schema": "ddn.pack_evidence_tier_check.v1",
@@ -355,6 +424,8 @@ def main() -> int:
         "missing_closure_claim": missing_closure_claim,
         "invalid_closure_claim": invalid_closure_claim,
         "closure_tier_violation": closure_tier_violation,
+        "contract_tier_mismatch": contract_tier_mismatch,
+        "contract_closure_mismatch": contract_closure_mismatch,
         "suggested_fixes": suggestions,
         "ok_items": ok_items,
     }
@@ -377,7 +448,9 @@ def main() -> int:
         f"invalid_tier={len(invalid_tier)} missing_status={len(missing_status)} "
         f"invalid_status={len(invalid_status)} missing_closure_claim={len(missing_closure_claim)} "
         f"invalid_closure_claim={len(invalid_closure_claim)} "
-        f"closure_tier_violation={len(closure_tier_violation)}"
+        f"closure_tier_violation={len(closure_tier_violation)} "
+        f"contract_tier_mismatch={len(contract_tier_mismatch)} "
+        f"contract_closure_mismatch={len(contract_closure_mismatch)}"
     )
     print(f"check=pack_evidence_tier detail={detail}")
 

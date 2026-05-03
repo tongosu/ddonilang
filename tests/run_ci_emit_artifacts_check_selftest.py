@@ -48,6 +48,11 @@ from _ci_profile_matrix_selftest_lib import (
     build_profile_matrix_snapshot_from_doc,
     expected_profile_matrix_aggregate_summary_contract,
 )
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_STEP_CONTRACT_STEPS,
+    SEAMGRIM_FEATURED_SEED_STEP_CONTRACT_STEPS,
+    SEAMGRIM_PLATFORM_STEP_CONTRACT_STEPS,
+)
 from ci_check_error_codes import EMIT_ARTIFACTS_CODES as CODES
 
 AGE5_COMBINED_HEAVY_SANITY_CONTRACT_SUMMARY_KEYS = (
@@ -318,6 +323,14 @@ def build_case(
     broken_sanity_status: bool = False,
     broken_sanity_required_step_missing: bool = False,
     broken_sanity_required_step_failed: bool = False,
+    broken_sanity_product_blocker_step_missing: bool = False,
+    broken_sanity_product_blocker_step_failed: bool = False,
+    broken_sanity_observe_output_contract_step_missing: bool = False,
+    broken_sanity_observe_output_contract_step_failed: bool = False,
+    broken_sanity_runtime_view_source_strict_step_missing: bool = False,
+    broken_sanity_runtime_view_source_strict_step_failed: bool = False,
+    broken_sanity_run_legacy_autofix_step_missing: bool = False,
+    broken_sanity_run_legacy_autofix_step_failed: bool = False,
     broken_sanity_wired_step_missing: bool = False,
     broken_sanity_wired_step_failed: bool = False,
     broken_sanity_compare_step_missing: bool = False,
@@ -1673,11 +1686,85 @@ def build_case(
                     "cmd": ["python", "x.py"],
                 },
             ]
+            for featured_step in SEAMGRIM_FEATURED_SEED_STEP_CONTRACT_STEPS:
+                sanity_steps.append(
+                    {
+                        "step": featured_step,
+                        "ok": True,
+                        "returncode": 0,
+                        "cmd": ["python", "x.py"],
+                    }
+                )
+                if not any(row.get("step") == featured_step for row in sanity_steps):
+                    return fail(f"internal fixture error: missing featured step {featured_step}")
+            for blocker_step in SEAMGRIM_BLOCKER_STEP_CONTRACT_STEPS:
+                sanity_steps.append(
+                    {
+                        "step": blocker_step,
+                        "ok": True,
+                        "returncode": 0,
+                        "cmd": ["python", "x.py"],
+                    }
+                )
+                if not any(row.get("step") == blocker_step for row in sanity_steps):
+                    return fail(f"internal fixture error: missing blocker step {blocker_step}")
+            for platform_step in SEAMGRIM_PLATFORM_STEP_CONTRACT_STEPS:
+                sanity_steps.append(
+                    {
+                        "step": platform_step,
+                        "ok": True,
+                        "returncode": 0,
+                        "cmd": ["python", "x.py"],
+                    }
+                )
+                if not any(row.get("step") == platform_step for row in sanity_steps):
+                    return fail(f"internal fixture error: missing platform step {platform_step}")
+            if not any(row.get("step") == "seamgrim_v2_task_batch_check" for row in sanity_steps):
+                sanity_steps.append(
+                    {
+                        "step": "seamgrim_v2_task_batch_check",
+                        "ok": True,
+                        "returncode": 0,
+                        "cmd": ["python", "x.py"],
+                    }
+                )
             if broken_sanity_required_step_missing:
                 sanity_steps = [row for row in sanity_steps if row.get("step") != "age5_close_pack_contract_selftest"]
             if broken_sanity_required_step_failed:
                 for row in sanity_steps:
                     if row.get("step") == "seamgrim_overlay_session_diag_parity_check":
+                        row["ok"] = True
+                        row["returncode"] = 1
+                        break
+            if broken_sanity_product_blocker_step_missing:
+                sanity_steps = [row for row in sanity_steps if row.get("step") != "seamgrim_product_blocker_bundle_check"]
+            if broken_sanity_product_blocker_step_failed:
+                for row in sanity_steps:
+                    if row.get("step") == "seamgrim_product_blocker_bundle_check":
+                        row["ok"] = True
+                        row["returncode"] = 1
+                        break
+            if broken_sanity_observe_output_contract_step_missing:
+                sanity_steps = [row for row in sanity_steps if row.get("step") != "seamgrim_observe_output_contract_check"]
+            if broken_sanity_observe_output_contract_step_failed:
+                for row in sanity_steps:
+                    if row.get("step") == "seamgrim_observe_output_contract_check":
+                        row["ok"] = True
+                        row["returncode"] = 1
+                        break
+            if broken_sanity_runtime_view_source_strict_step_missing:
+                sanity_steps = [row for row in sanity_steps if row.get("step") != "seamgrim_runtime_view_source_strict_check"]
+            if broken_sanity_runtime_view_source_strict_step_failed:
+                for row in sanity_steps:
+                    if row.get("step") == "seamgrim_runtime_view_source_strict_check":
+                        row["ok"] = True
+                        row["returncode"] = 1
+                        break
+            if broken_sanity_run_legacy_autofix_step_missing:
+                sanity_steps = [row for row in sanity_steps if row.get("step") != "seamgrim_run_legacy_autofix_check"]
+            if broken_sanity_run_legacy_autofix_step_failed:
+                for row in sanity_steps:
+                    if row.get("step") == "seamgrim_run_legacy_autofix_check":
                         row["ok"] = True
                         row["returncode"] = 1
                         break
@@ -3145,6 +3232,10 @@ def main() -> int:
             rows_with_code(
                 (
                     ("badsanitystepmissing", "broken_sanity_required_step_missing"),
+                    ("badsanityproductblockermissing", "broken_sanity_product_blocker_step_missing"),
+                    ("badsanityobserveoutputmissing", "broken_sanity_observe_output_contract_step_missing"),
+                    ("badsanityviewsourcestrictmissing", "broken_sanity_runtime_view_source_strict_step_missing"),
+                    ("badsanitylegacyautofixmissing", "broken_sanity_run_legacy_autofix_step_missing"),
                     ("badsanitywiredmissing", "broken_sanity_wired_step_missing"),
                     ("badsanitycomparemissing", "broken_sanity_compare_step_missing"),
                     ("badsanitywasmwebselftestmissing", "broken_sanity_wasm_web_selftest_step_missing"),
@@ -3154,6 +3245,10 @@ def main() -> int:
             + rows_with_code(
                 (
                     ("badsanitystepfailed", "broken_sanity_required_step_failed"),
+                    ("badsanityproductblockerfailed", "broken_sanity_product_blocker_step_failed"),
+                    ("badsanityobserveoutputfailed", "broken_sanity_observe_output_contract_step_failed"),
+                    ("badsanityviewsourcestrictfailed", "broken_sanity_runtime_view_source_strict_step_failed"),
+                    ("badsanitylegacyautofixfailed", "broken_sanity_run_legacy_autofix_step_failed"),
                     ("badsanitywiredfailed", "broken_sanity_wired_step_failed"),
                     ("badsanitycomparefailed", "broken_sanity_compare_step_failed"),
                     ("badsanitywasmwebselftestfailed", "broken_sanity_wasm_web_selftest_step_failed"),

@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 import sys
+
+from _teul_cli_freshness import build_teul_cli_cmd
 
 
 def fail(detail: str) -> int:
@@ -15,18 +16,13 @@ def fail(detail: str) -> int:
     return 1
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if __import__("os").name == "nt" else ""
-    candidates = [
+    return [
         root / "target" / "debug" / f"teul-cli{suffix}",
         root / "target" / "release" / f"teul-cli{suffix}",
         Path("I:/home/urihanl/ddn/codex/target/debug/teul-cli.exe"),
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    which = shutil.which("teul-cli")
-    return Path(which) if which else None
 
 
 def parse_numeric_lines(stdout: str) -> list[float]:
@@ -103,10 +99,6 @@ def main() -> int:
     if not lesson.exists():
         return fail(f"lesson_missing:{lesson.as_posix()}")
 
-    teul_cli = resolve_teul_cli_bin(root)
-    if teul_cli is None:
-        return fail("teul_cli_missing")
-
     madi = max(1, int(args.madi))
     original = lesson.read_text(encoding="utf-8")
     preprocessed = preprocess_ddn_for_teul(original, strip_draw=True)
@@ -119,7 +111,12 @@ def main() -> int:
     run_target = tmp_path if tmp_path else lesson
 
     try:
-        cmd = [str(teul_cli), "run", str(run_target), "--madi", str(madi)]
+        cmd = build_teul_cli_cmd(
+            root,
+            ["run", str(run_target), "--madi", str(madi)],
+            candidates=teul_cli_candidates(root),
+            include_which=True,
+        )
         proc = subprocess.run(
             cmd,
             cwd=root,

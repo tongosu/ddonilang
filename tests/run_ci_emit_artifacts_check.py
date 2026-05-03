@@ -44,6 +44,10 @@ from _ci_profile_matrix_selftest_lib import (
     build_profile_matrix_snapshot_from_doc,
     build_profile_matrix_triage_payload_from_snapshot,
 )
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+    merge_step_names,
+)
 from ci_check_error_codes import EMIT_ARTIFACTS_CODES as CODES
 from ci_check_error_codes import SUMMARY_VERIFY_CODES
 
@@ -86,6 +90,7 @@ SANITY_REQUIRED_PASS_STEPS = (
     "tensor_v0_cli_check",
     "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_worker_env_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_lesson_warning_step_check",
     "seamgrim_ci_gate_stateful_preview_step_check",
@@ -188,6 +193,7 @@ SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = (
     "ci_sanity_dynamic_source_profile_split_selftest",
     "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_worker_env_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_lesson_warning_step_check",
     "seamgrim_ci_gate_stateful_preview_step_check",
@@ -203,6 +209,14 @@ SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = (
     "seamgrim_overlay_session_diag_parity_check",
     "seamgrim_overlay_compare_diag_parity_check",
     "seamgrim_wasm_cli_diag_parity_check",
+)
+SANITY_REQUIRED_PASS_STEPS = merge_step_names(
+    SANITY_REQUIRED_PASS_STEPS,
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+)
+SANITY_REQUIRED_PASS_STEPS_SEAMGRIM = merge_step_names(
+    SANITY_REQUIRED_PASS_STEPS_SEAMGRIM,
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
 )
 VALID_SANITY_PROFILES = set(PROFILE_MATRIX_SELFTEST_PROFILES)
 RUNTIME5_SUMMARY_REQUIRED_KEYS = (
@@ -2157,21 +2171,25 @@ def main() -> int:
                     f"summary/runtime5 mismatch key={key} summary={actual} report={expected}",
                     code=CODES["SUMMARY_SELFTEST_STEP_MISMATCH"],
                 )
-        if runtime5_snap["rewrite_ok"] != "1" or runtime5_snap["rewrite_status"] != "ok":
-            return fail(
-                "runtime5 checklist pass artifact requires rewrite item ok=1 status=ok",
-                code=CODES["SUMMARY_SELFTEST_EXPECT_PASS"],
-            )
-        if runtime5_snap["moyang_ok"] != "1" or runtime5_snap["moyang_status"] != "ok":
-            return fail(
-                "runtime5 checklist pass artifact requires moyang item ok=1 status=ok",
-                code=CODES["SUMMARY_SELFTEST_EXPECT_PASS"],
-            )
-        if runtime5_snap["showcase_ok"] != "1" or runtime5_snap["showcase_status"] != "ok":
-            return fail(
-                "runtime5 checklist pass artifact requires showcase item ok=1 status=ok",
-                code=CODES["SUMMARY_SELFTEST_EXPECT_PASS"],
-            )
+        # runtime5 checklist item surface can evolve by profile/task batch.
+        # If an item is intentionally absent, summary/report pair is expected to
+        # use the canonical absent marker: ok="na", status="not_executed".
+        for label, ok_key, status_key in (
+            ("rewrite", "rewrite_ok", "rewrite_status"),
+            ("moyang", "moyang_ok", "moyang_status"),
+            ("showcase", "showcase_ok", "showcase_status"),
+        ):
+            item_ok = str(runtime5_snap.get(ok_key, "")).strip()
+            item_status = str(runtime5_snap.get(status_key, "")).strip()
+            if item_ok == "na" and item_status == "not_executed":
+                continue
+            if item_ok != "1" or item_status != "ok":
+                return fail(
+                    "runtime5 checklist pass artifact requires "
+                    f"{label} item ok=1 status=ok or absent(na/not_executed), "
+                    f"got ok={item_ok} status={item_status}",
+                    code=CODES["SUMMARY_SELFTEST_EXPECT_PASS"],
+                )
 
     sanity_path = artifact_path(index_doc, "ci_sanity_gate")
     if sanity_path is None:

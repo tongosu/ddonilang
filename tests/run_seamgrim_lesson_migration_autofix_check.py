@@ -11,6 +11,8 @@ from pathlib import Path
 REQUIRED_TOTAL_KEYS = (
     "range_rewrites",
     "range_skipped",
+    "range_hash_rewrites",
+    "range_hash_skipped",
     "setup_colon_rewrites",
     "hook_colon_rewrites",
     "hook_alias_rewrites",

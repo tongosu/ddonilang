@@ -44,11 +44,44 @@ async function main() {
     sessionV0: { schema: "seamgrim.session.v0" },
   });
   assert(okReport.bridge_check.ok === true, "inspector bridge: ok case");
+  assert(okReport.view_contract?.strict === true, "inspector view source strict: ok case");
   assert(Array.isArray(okReport.logs) && okReport.logs.length >= 1, "inspector logs: warning included");
   const okText = formatInspectorReportText(okReport);
-  assert(okText.includes("bridge_check: OK"), "inspector text: bridge ok");
-  assert(okText.includes("ddn_meta.name: ddn_name"), "inspector text: ddn meta");
-  assert(okText.includes("ddn_meta.required_views: space2d, graph"), "inspector text: ddn required views");
+  assert(okText.includes("연결 확인: 정상"), "inspector text: bridge ok");
+  assert(okText.includes("DDN 메타 이름: ddn_name"), "inspector text: ddn meta");
+  assert(okText.includes("DDN 필수 보기: 보개, 그래프"), "inspector text: ddn required views");
+  assert(okText.includes("보기 엄격성: 정상"), "inspector text: view source strict ok");
+
+  const sourceFailReport = buildInspectorReport({
+    lesson: { id: "l3" },
+    lastRuntimeHash: "sha256:view-source-fail",
+    parseWarnings: [],
+    lastRuntimeDerived: {
+      graphSource: "observation-fallback",
+      views: {
+        graph: { schema: "seamgrim.graph.v0" },
+        contract: {
+          schema: "seamgrim.view_contract.v1",
+          source: "runtime",
+          families: ["graph"],
+          by_family: {
+            graph: { source: "observation-fallback", schema: "seamgrim.graph.v0", available: true },
+          },
+        },
+      },
+    },
+    sceneSummary: { schema: "seamgrim.scene.v0", hashes: { result_hash: "sha256:out" } },
+    snapshotV0: { schema: "seamgrim.snapshot.v0" },
+    sessionV0: { schema: "seamgrim.session.v0" },
+  });
+  assert(sourceFailReport.view_contract?.strict === false, "inspector view source strict: fail case");
+  assert(
+    Array.isArray(sourceFailReport.view_contract?.non_strict_families) &&
+      sourceFailReport.view_contract.non_strict_families.includes("graph"),
+    "inspector view source strict: non strict families",
+  );
+  const sourceFailText = formatInspectorReportText(sourceFailReport);
+  assert(sourceFailText.includes("보기 엄격성: 실패"), "inspector text: view source strict fail");
 
   const failReport = buildInspectorReport({
     lesson: { id: "l2" },
@@ -66,7 +99,7 @@ async function main() {
     "inspector logs: bridge error",
   );
   const failText = formatInspectorReportText(failReport);
-  assert(failText.includes("bridge_check: FAIL"), "inspector text: bridge fail");
+  assert(failText.includes("연결 확인: 실패"), "inspector text: bridge fail");
 
   console.log("seamgrim inspector contract runner ok");
 }

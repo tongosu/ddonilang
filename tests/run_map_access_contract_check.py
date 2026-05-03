@@ -9,6 +9,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
+
 EXPECTED_CODE = "E_MAP_DOT_KEY_MISSING"
 PROGRESS_ENV_KEY = "DDN_MAP_ACCESS_CONTRACT_CHECK_PROGRESS_JSON"
 _PROGRESS_PARENT_READY: set[str] = set()
@@ -52,18 +54,13 @@ def write_progress_snapshot(
     )
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         root / "target" / "debug" / f"teul-cli{suffix}",
         root / "target" / "release" / f"teul-cli{suffix}",
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    which = shutil.which("teul-cli")
-    return Path(which) if which else None
 
 
 def run_teul_cli(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -80,19 +77,12 @@ def run_teul_cli(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def build_teul_cli_cmd(*args: str) -> list[str]:
     root = Path(__file__).resolve().parent.parent
-    teul_cli_bin = resolve_teul_cli_bin(root)
-    if teul_cli_bin is not None:
-        return [str(teul_cli_bin), *args]
-    cmd = [
-        "cargo",
-        "run",
-        "--manifest-path",
-        "tools/teul-cli/Cargo.toml",
-        "--quiet",
-        "--",
-        *args,
-    ]
-    return cmd
+    return shared_build_teul_cli_cmd(
+        root,
+        list(args),
+        candidates=teul_cli_candidates(root),
+        include_which=True,
+    )
 
 
 def spawn_teul_cli(root: Path, *args: str) -> subprocess.Popen[str]:

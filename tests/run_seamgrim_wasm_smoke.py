@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _selftest_exec_cache import is_script_cached, mark_script_ok
+
 
 def canonical_json(data) -> str:
     return json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -36,6 +38,64 @@ def write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     path.write_text(text, encoding="utf-8")
+
+
+def _cache_key_for_text(path_text: str) -> str:
+    return str(path_text).strip().replace("\\", "/")
+
+
+def _run_node_runner_with_cache(
+    *,
+    root: Path,
+    runner_path: Path,
+    failures: list[str],
+    allow_cache: bool,
+    fallback_detail: str,
+) -> None:
+    key = _cache_key_for_text(runner_path.as_posix())
+    if allow_cache and is_script_cached(key):
+        return
+    result = subprocess.run(
+        ["node", "--no-warnings", str(runner_path)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or fallback_detail
+        failures.append(f"{runner_path}: {detail}")
+        return
+    if allow_cache:
+        mark_script_ok(key)
+
+
+def _run_python_runner_with_cache(
+    *,
+    root: Path,
+    runner_path: Path,
+    failures: list[str],
+    allow_cache: bool,
+    fallback_detail: str,
+) -> None:
+    key = _cache_key_for_text(runner_path.as_posix())
+    if allow_cache and is_script_cached(key):
+        return
+    result = subprocess.run(
+        [sys.executable, str(runner_path)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or fallback_detail
+        failures.append(f"{runner_path}: {detail}")
+        return
+    if allow_cache:
+        mark_script_ok(key)
 
 
 def check_pack(root: Path, pack_dir: Path, update: bool) -> list[str]:
@@ -103,6 +163,11 @@ def main() -> int:
         action="store_true",
         help="skip seamgrim playground/wasm_smoke space2d source UI gate",
     )
+    parser.add_argument(
+        "--skip-lesson-canon",
+        action="store_true",
+        help="skip seamgrim wasm lesson canon smoke (tests/seamgrim_wasm_lesson_canon_runner.mjs)",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -130,13 +195,20 @@ def main() -> int:
     ]
 
     failures: list[str] = []
+    allow_cache = not bool(args.update)
 
     def run_pack_check(name: str) -> list[str]:
         pack_dir = root / "pack" / name
         if not pack_dir.exists():
             return [f"{pack_dir}: missing pack"]
+        pack_cache_key = _cache_key_for_text(pack_dir.as_posix())
+        if allow_cache and is_script_cached(pack_cache_key):
+            return []
         try:
-            return check_pack(root, pack_dir, args.update)
+            failures_local = check_pack(root, pack_dir, args.update)
+            if not failures_local and allow_cache:
+                mark_script_ok(pack_cache_key)
+            return failures_local
         except Exception as exc:
             return [f"{pack_dir}: {exc}"]
 
@@ -147,86 +219,63 @@ def main() -> int:
 
     if not args.skip_ui_common:
         ui_runner = root / "tests" / "seamgrim_ui_common_runner.mjs"
-        result = subprocess.run(
-            ["node", "--no-warnings", str(ui_runner)],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        _run_node_runner_with_cache(
+            root=root,
+            runner_path=ui_runner,
+            failures=failures,
+            allow_cache=allow_cache,
+            fallback_detail="ui common runner failed",
         )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or "ui common runner failed"
-            failures.append(f"{ui_runner}: {detail}")
 
     if not args.skip_ui_pendulum:
         pendulum_runner = root / "tests" / "seamgrim_pendulum_bogae_runner.mjs"
-        result = subprocess.run(
-            ["node", "--no-warnings", str(pendulum_runner)],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        _run_node_runner_with_cache(
+            root=root,
+            runner_path=pendulum_runner,
+            failures=failures,
+            allow_cache=allow_cache,
+            fallback_detail="pendulum runner failed",
         )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or "pendulum runner failed"
-            failures.append(f"{pendulum_runner}: {detail}")
 
     if not args.skip_wrapper:
         wrapper_runner = root / "tests" / "seamgrim_wasm_wrapper_runner.mjs"
-        result = subprocess.run(
-            ["node", "--no-warnings", str(wrapper_runner)],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        _run_node_runner_with_cache(
+            root=root,
+            runner_path=wrapper_runner,
+            failures=failures,
+            allow_cache=allow_cache,
+            fallback_detail="wasm wrapper runner failed",
         )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or "wasm wrapper runner failed"
-            failures.append(f"{wrapper_runner}: {detail}")
 
     if not args.skip_vm_runtime:
         vm_runtime_runner = root / "tests" / "seamgrim_wasm_vm_runtime_runner.mjs"
-        result = subprocess.run(
-            ["node", "--no-warnings", str(vm_runtime_runner)],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        _run_node_runner_with_cache(
+            root=root,
+            runner_path=vm_runtime_runner,
+            failures=failures,
+            allow_cache=allow_cache,
+            fallback_detail="wasm vm runtime runner failed",
         )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or "wasm vm runtime runner failed"
-            failures.append(f"{vm_runtime_runner}: {detail}")
 
-    lesson_canon_runner = root / "tests" / "seamgrim_wasm_lesson_canon_runner.mjs"
-    result = subprocess.run(
-        ["node", "--no-warnings", str(lesson_canon_runner)],
-        cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "wasm lesson canon runner failed"
-        failures.append(f"{lesson_canon_runner}: {detail}")
+    if not args.skip_lesson_canon:
+        lesson_canon_runner = root / "tests" / "seamgrim_wasm_lesson_canon_runner.mjs"
+        _run_node_runner_with_cache(
+            root=root,
+            runner_path=lesson_canon_runner,
+            failures=failures,
+            allow_cache=allow_cache,
+            fallback_detail="wasm lesson canon runner failed",
+        )
 
     if not args.skip_space2d_source_gate:
         space2d_gate = root / "tests" / "run_seamgrim_space2d_source_ui_gate.py"
-        result = subprocess.run(
-            [sys.executable, str(space2d_gate)],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        _run_python_runner_with_cache(
+            root=root,
+            runner_path=space2d_gate,
+            failures=failures,
+            allow_cache=allow_cache,
+            fallback_detail="space2d source ui gate failed",
         )
-        if result.returncode != 0:
-            detail = result.stderr.strip() or result.stdout.strip() or "space2d source ui gate failed"
-            failures.append(f"{space2d_gate}: {detail}")
 
     if failures:
         for item in failures:

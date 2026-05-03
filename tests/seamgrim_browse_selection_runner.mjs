@@ -130,12 +130,14 @@ function createFakeElement(tag = "div") {
   return node;
 }
 
-function createBrowseRoot() {
+function createBrowseRoot({ withDetailPanel = false } = {}) {
   const idMap = new Map();
   const root = createFakeElement("section");
   const tabOfficial = createFakeElement("button");
+  const tabExamples = createFakeElement("button");
   const tabSearch = createFakeElement("button");
   tabOfficial.dataset.tab = "official";
+  tabExamples.dataset.tab = "examples";
   tabSearch.dataset.tab = "search";
 
   const requiredIds = [
@@ -155,9 +157,23 @@ function createBrowseRoot() {
     "browse-legacy-guide-hint",
     "lesson-card-grid",
   ];
+  if (withDetailPanel) {
+    requiredIds.push(
+      "catalog-detail-panel",
+      "detail-subject-badge",
+      "detail-title",
+      "detail-desc",
+      "detail-keywords",
+      "btn-open-in-studio",
+      "btn-detail-close",
+    );
+  }
   requiredIds.forEach((id) => {
     idMap.set(id, createFakeElement("div"));
   });
+  if (withDetailPanel) {
+    idMap.get("catalog-detail-panel")?.classList?.add?.("hidden");
+  }
   idMap.get("filter-sort").value = "recent";
   idMap.get("lesson-card-grid").appendChild = function appendChild(child) {
     this.children.push(child);
@@ -172,7 +188,7 @@ function createBrowseRoot() {
   root.querySelectorAll = (selector) => {
     const key = String(selector ?? "");
     if (key === ".browse-tab[data-tab]") {
-      return [tabOfficial, tabSearch];
+      return [tabOfficial, tabExamples, tabSearch];
     }
     return [];
   };
@@ -180,6 +196,7 @@ function createBrowseRoot() {
   return {
     root,
     tabOfficial,
+    tabExamples,
     tabSearch,
     qualitySelect: idMap.get("filter-quality"),
     seedScopeSelect: idMap.get("filter-seed-scope"),
@@ -187,6 +204,8 @@ function createBrowseRoot() {
     presetFeaturedSeedQuickRecentButton: idMap.get("btn-preset-featured-seed-quick-recent"),
     copyBrowsePresetLinkButton: idMap.get("btn-copy-browse-preset-link"),
     grid: idMap.get("lesson-card-grid"),
+    detailPanel: idMap.get("catalog-detail-panel"),
+    detailOpenBtn: idMap.get("btn-open-in-studio"),
   };
 }
 
@@ -215,8 +234,9 @@ async function main() {
     });
   };
 
-  const { root, tabSearch, qualitySelect, grid } = createBrowseRoot();
+  const { root, tabExamples, tabSearch, qualitySelect, grid } = createBrowseRoot();
   const selected = [];
+  const selectionEvents = [];
   const openedExamples = [];
   let inventoryFetchCount = 0;
   const requestedUrls = [];
@@ -296,6 +316,35 @@ async function main() {
         },
       };
     }
+    if (pathText.includes("/samples/index.json")) {
+      return {
+        ok: true,
+        async json() {
+          return {
+            samples: [
+              {
+                id: "sample_console_v1",
+                title: "sample console",
+                subject: "console-grid",
+                source: "sample",
+                first_run_path: "hello",
+                tags: ["first_run", "hello"],
+                ddn_path: ["/samples/sample_console_v1.ddn"],
+              },
+              {
+                id: "sample_space_v1",
+                title: "sample space",
+                subject: "space2d",
+                source: "sample",
+                first_run_path: "movement",
+                tags: ["first_run", "movement"],
+                ddn_path: ["/samples/sample_space_v1.ddn"],
+              },
+            ],
+          };
+        },
+      };
+    }
     if (pathText.includes("/structure.json")) {
       return {
         ok: true,
@@ -361,8 +410,12 @@ async function main() {
   try {
     const screen = new BrowseScreen({
       root,
-      onLessonSelect: async (lesson) => {
+      onLessonSelect: async (lesson, options = {}) => {
         selected.push(lesson);
+        selectionEvents.push({
+          lessonId: String(lesson?.id ?? ""),
+          autoExecute: Boolean(options?.autoExecute),
+        });
       },
       onCreate: () => {},
       onOpenLegacyGuideExample: ({ lesson, example }) => {
@@ -710,6 +763,7 @@ async function main() {
     assert(selectedById.has("federated_case_v1"), "federated case selected");
     assert(selectedById.has("rewrite_case_v1"), "rewrite case selected");
     assert(selectedById.has("seed_case_v1"), "seed case selected");
+    assert(selectionEvents.every((row) => row.autoExecute === true), "browse selection autoExecute forwarded");
 
     const federated = selectedById.get("federated_case_v1");
     assert(federated?.source === "federated", "federated case source default");
@@ -874,6 +928,40 @@ async function main() {
       openedExamples[0]?.example === "g <- (9.8) 매김 { 범위: 1..20. 간격: 0.1. }.",
       "legacy guide open callback example",
     );
+    const detailRoot = createBrowseRoot({ withDetailPanel: true });
+    const detailSelections = [];
+    const detailScreen = new BrowseScreen({
+      root: detailRoot.root,
+      onLessonSelect: async (lesson, options = {}) => {
+        detailSelections.push({
+          lessonId: String(lesson?.id ?? ""),
+          autoExecute: Boolean(options?.autoExecute),
+        });
+      },
+      onCreate: () => {},
+      onOpenLegacyGuideExample: () => {},
+      onOpenAdvanced: () => {},
+    });
+    detailScreen.init();
+    detailScreen.setLessons([
+      {
+        id: "detail_case_v1",
+        title: "detail case",
+        description: "detail description",
+        grade: "all",
+        subject: "math",
+        source: "official",
+        quality: "reviewed",
+      },
+    ]);
+    const detailCard = detailRoot.grid.children[0];
+    await detailCard.emitAsync("click");
+    assert(detailSelections.length === 0, "detail card click opens panel before selection");
+    assert(detailRoot.detailPanel?.classList?.contains("hidden") === false, "detail panel shown");
+    await detailRoot.detailOpenBtn.emitAsync("click");
+    assert(detailSelections.length === 1, "detail CTA triggers selection");
+    assert(detailSelections[0].lessonId === "detail_case_v1", "detail CTA forwards lesson");
+    assert(detailSelections[0].autoExecute === true, "detail CTA forwards autoExecute");
     const warningSelect = root.querySelector("#filter-warning-status");
     warningSelect.value = "has_legacy_warning";
     await warningSelect.emitAsync("change");
@@ -930,6 +1018,32 @@ async function main() {
     );
     sortSelect.value = "recent";
     await sortSelect.emitAsync("change");
+
+    await tabExamples.emitAsync("click");
+    assert(screen.activeTab === "examples", "browse examples tab activation");
+    assert(Array.isArray(screen.sampleResults) && screen.sampleResults.length === 2, "sample results loaded");
+    assert(Array.isArray(grid.children) && grid.children.length === 2, "sample cards rendered");
+    await grid.children[0].emitAsync("click");
+    const sampleSelected = selected[selected.length - 1];
+    assert(String(sampleSelected?.source ?? "") === "sample", "sample selection source preserved");
+    assert(
+      Array.isArray(sampleSelected?.ddnCandidates) &&
+        sampleSelected.ddnCandidates.includes("/samples/sample_console_v1.ddn"),
+      "sample selection ddn path preserved",
+    );
+    assert(String(sampleSelected?.firstRunPath ?? "") === "hello", "sample selection first_run_path preserved");
+    assert(
+      Array.isArray(sampleSelected?.tags) && sampleSelected.tags.includes("first_run") && sampleSelected.tags.includes("hello"),
+      "sample selection tags preserved",
+    );
+    assert(
+      String(grid.children[0]?.innerHTML ?? "").includes("첫실행 첫 인사"),
+      "sample card renders first-run badge",
+    );
+    assert(
+      String(grid.children[0]?.innerHTML ?? "").includes("첫 시작 첫 인사 · 첫 인사 -> 움직임 -> 매김 조절 -> 되돌려보기/거울"),
+      "sample card renders first-run hint",
+    );
 
     const rewrite = selectedById.get("rewrite_case_v1");
     assert(rewrite?.source === "rewrite", "rewrite case source");

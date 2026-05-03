@@ -163,6 +163,7 @@ def main() -> int:
             "lang_unit_temp_smoke_pack_pass",
             "gate0_contract_abort_state_check_pass",
             "block_editor_roundtrip_check_pass",
+            "seamgrim_vol4_runtime_track_check_pass",
             "seamgrim_wasm_canon_contract_check_pass",
             "proof_runtime_minimum_check_pass",
             "seamgrim_wasm_web_smoke_contract_pass",

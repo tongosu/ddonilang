@@ -17,7 +17,15 @@ from _ci_age3_completion_gate_contract import (
     age3_completion_gate_criteria_summary_key,
 )
 from _ci_age5_combined_heavy_contract import build_age5_combined_heavy_sanity_contract_fields
-from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_SANITY_FAIL_CODE_BY_STEP,
+    SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS,
+    SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS,
+    SEAMGRIM_PLATFORM_SANITY_FAIL_CODE_BY_STEP,
+    SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS,
+    SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS,
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+)
 from _selftest_exec_cache import EXEC_CACHE_ENV_KEY, mark_script_ok, reset_exec_cache
 
 
@@ -64,6 +72,14 @@ SANITY_SUMMARY_STEP_FIELDS = (
         "ci_sanity_dynamic_source_profile_split_selftest",
         {"full", "core_lang", "seamgrim"},
     ),
+    *[
+        (summary_key, step_name, {"seamgrim"})
+        for summary_key, step_name in SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS
+    ],
+    *[
+        (summary_key, step_name, {"seamgrim"})
+        for summary_key, step_name in SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS
+    ],
     (
         "ci_sanity_fixed64_live_summary_fields_selftest_ok",
         "ci_sanity_fixed64_live_summary_fields_selftest",
@@ -360,6 +376,7 @@ SEAMGRIM_PROFILE_STEPS = {
     "external_intent_seulgi_walk_alignment_check_selftest",
     "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_worker_env_step_check",
     "seamgrim_ci_gate_featured_seed_catalog_step_check",
     "seamgrim_ci_gate_featured_seed_catalog_autogen_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
@@ -372,6 +389,7 @@ SEAMGRIM_PROFILE_STEPS = {
     "seamgrim_ci_gate_pack_evidence_tier_runner_check",
     "seamgrim_ci_gate_pack_evidence_tier_report_check",
     "seamgrim_ci_gate_pack_evidence_tier_report_check_selftest",
+    "seamgrim_v2_task_batch_check",
     "seamgrim_interface_boundary_contract_check",
     "seamgrim_overlay_session_wired_consistency_check",
     "seamgrim_overlay_session_diag_parity_check",
@@ -379,6 +397,9 @@ SEAMGRIM_PROFILE_STEPS = {
     "seamgrim_wasm_cli_diag_parity_check",
 }
 SEAMGRIM_PROFILE_STEPS.update(SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS)
+
+SEAMGRIM_BLOCKER_FAIL_CODES: dict[str, str] = SEAMGRIM_BLOCKER_SANITY_FAIL_CODE_BY_STEP
+SEAMGRIM_PLATFORM_FAIL_CODES: dict[str, str] = SEAMGRIM_PLATFORM_SANITY_FAIL_CODE_BY_STEP
 
 
 def clip(text: str, limit: int = 180) -> str:
@@ -3389,6 +3410,50 @@ def emit_step_progress_tokens(step_name: str, step_env: dict[str, str] | None) -
     )
 
 
+def print_slowest_steps(rows: list[dict], limit: int, min_ms: int) -> None:
+    topn = max(0, int(limit))
+    if topn <= 0:
+        return
+    threshold_ms = max(0, int(min_ms))
+    normalized: list[dict[str, object]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        try:
+            elapsed_ms = int(row.get("elapsed_ms", 0))
+        except (TypeError, ValueError):
+            elapsed_ms = 0
+        if elapsed_ms < threshold_ms:
+            continue
+        try:
+            returncode = int(row.get("returncode", 0))
+        except (TypeError, ValueError):
+            returncode = 0
+        normalized.append(
+            {
+                "step": str(row.get("step", "")).strip() or "-",
+                "elapsed_ms": elapsed_ms,
+                "status": str(row.get("status", "")).strip() or "-",
+                "code": str(row.get("code", "")).strip() or "-",
+                "returncode": returncode,
+            }
+        )
+
+    normalized.sort(key=lambda item: int(item.get("elapsed_ms", 0)), reverse=True)
+    selected = normalized[:topn]
+    print(
+        f"ci_sanity_slowest_steps_top={topn} "
+        f"threshold_ms={threshold_ms} "
+        f"selected={len(selected)}"
+    )
+    for idx, row in enumerate(selected, start=1):
+        print(
+            f"ci_sanity_slowest_step_{idx}="
+            f"step:{row['step']},elapsed_ms:{row['elapsed_ms']},"
+            f"status:{row['status']},code:{row['code']},returncode:{row['returncode']}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run CI sanity checks and emit one-line status summary")
     parser.add_argument("--json-out", default="", help="optional path to write sanity result json")
@@ -3407,6 +3472,18 @@ def main() -> int:
         "--only-step",
         default="",
         help="run only this exact step name",
+    )
+    parser.add_argument(
+        "--print-slowest-steps",
+        type=int,
+        default=0,
+        help="print top N slowest steps after run (default: 0=disabled)",
+    )
+    parser.add_argument(
+        "--slowest-min-ms",
+        type=int,
+        default=0,
+        help="minimum elapsed ms threshold for --print-slowest-steps",
     )
     args = parser.parse_args()
 
@@ -3747,6 +3824,11 @@ def main() -> int:
             "E_CI_SANITY_SEED_META_STEP_FAIL",
         ),
         (
+            "seamgrim_ci_gate_worker_env_step_check",
+            [py, "tests/run_seamgrim_ci_gate_worker_env_step_check.py"],
+            "E_CI_SANITY_WORKER_ENV_STEP_FAIL",
+        ),
+        (
             "seamgrim_ci_gate_featured_seed_catalog_step_check",
             [py, "tests/run_seamgrim_ci_gate_featured_seed_catalog_step_check.py"],
             "E_CI_SANITY_FEATURED_SEED_CATALOG_STEP_FAIL",
@@ -3770,6 +3852,27 @@ def main() -> int:
             "seamgrim_ci_gate_stateful_preview_step_check",
             [py, "tests/run_seamgrim_ci_gate_stateful_preview_step_check.py"],
             "E_CI_SANITY_STATEFUL_PREVIEW_STEP_FAIL",
+        ),
+        *[
+            (
+                step_name,
+                [py, script_path],
+                SEAMGRIM_BLOCKER_FAIL_CODES[step_name],
+            )
+            for step_name, script_path in SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS
+        ],
+        *[
+            (
+                step_name,
+                [py, script_path],
+                SEAMGRIM_PLATFORM_FAIL_CODES[step_name],
+            )
+            for step_name, script_path in SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS
+        ],
+        (
+            "seamgrim_v2_task_batch_check",
+            [py, "tests/run_seamgrim_v2_task_batch_check.py"],
+            "E_CI_SANITY_SEAMGRIM_V2_TASK_BATCH_CHECK_FAIL",
         ),
         (
             "seamgrim_ci_gate_wasm_web_smoke_step_check",
@@ -4639,6 +4742,7 @@ def main() -> int:
                 "total_elapsed_ms": int(round((time.perf_counter() - started) * 1000.0)),
             }
             write_json_snapshot(args.json_out, payload)
+            print_slowest_steps(rows, int(args.print_slowest_steps), int(args.slowest_min_ms))
             print(f'ci_sanity_status=fail code={code} step={step_name} msg="{msg}" profile={args.profile}')
             return 1
         rows.append(row)
@@ -4702,6 +4806,7 @@ def main() -> int:
         "total_elapsed_ms": int(round((time.perf_counter() - started) * 1000.0)),
     }
     write_json_snapshot(args.json_out, payload)
+    print_slowest_steps(rows, int(args.print_slowest_steps), int(args.slowest_min_ms))
     print(f'ci_sanity_status=pass code=OK step=all msg="-" profile={args.profile}')
     return 0
 

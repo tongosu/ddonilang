@@ -12,6 +12,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
+
 PROGRESS_ENV_KEY = "DDN_TENSOR_V0_CLI_CHECK_PROGRESS_JSON"
 
 
@@ -54,46 +56,23 @@ def case_label(pack_path: Path, rel_case: str, *, expect_ok: bool) -> str:
     return f"{prefix}.{pack_name}.{case_name}"
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         root / "target" / "debug" / f"teul-cli{suffix}",
         root / "target" / "release" / f"teul-cli{suffix}",
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    which = shutil.which("teul-cli")
-    return Path(which) if which else None
 
 
 def build_teul_cli_cmd(root: Path, args: list[str]) -> list[str]:
-    teul_cli_bin = resolve_teul_cli_bin(root)
-    if teul_cli_bin is not None:
-        return [str(teul_cli_bin), *args]
-
-    if os.name == "nt":
-
-        def ps_quote(text: str) -> str:
-            return "'" + str(text).replace("'", "''") + "'"
-
-        payload = (
-            "cargo run --manifest-path "
-            + ps_quote("tools/teul-cli/Cargo.toml")
-            + " --quiet -- "
-            + " ".join(ps_quote(arg) for arg in args)
-        )
-        return ["powershell", "-NoProfile", "-Command", payload]
-    return [
-        "cargo",
-        "run",
-        "--manifest-path",
-        "tools/teul-cli/Cargo.toml",
-        "--quiet",
-        "--",
-        *args,
-    ]
+    return shared_build_teul_cli_cmd(
+        root,
+        args,
+        candidates=teul_cli_candidates(root),
+        include_which=True,
+        manifest_path=root / "tools" / "teul-cli" / "Cargo.toml",
+    )
 
 
 def run_teul_cli(root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:

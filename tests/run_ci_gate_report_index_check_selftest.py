@@ -51,7 +51,18 @@ from _ci_latest_smoke_contract import (
     LATEST_SMOKE_SKIP_REASON_FLAG_DISABLED,
     LATEST_SMOKE_SKIP_REASON_PENDING_FAILURE_SUMMARY_REGENERATION,
 )
-from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_GATE_REPORT_INDEX_FAILED_STEP_CASES,
+    SEAMGRIM_BLOCKER_GATE_REPORT_INDEX_MISSING_STEP_CASES,
+    SEAMGRIM_FEATURED_GATE_REPORT_INDEX_FAILED_STEP_CASES,
+    SEAMGRIM_FEATURED_GATE_REPORT_INDEX_MISSING_STEP_CASES,
+    SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATHS,
+    SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS,
+    SEAMGRIM_PLATFORM_GATE_REPORT_INDEX_FAILED_STEP_CASES,
+    SEAMGRIM_PLATFORM_GATE_REPORT_INDEX_MISSING_STEP_CASES,
+    SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS,
+    SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS,
+)
 from ci_check_error_codes import GATE_REPORT_INDEX_CODES as CODES
 
 REQUIRED_STEPS_COMMON = (
@@ -460,7 +471,7 @@ def build_sanity_steps(sanity_profile: str) -> list[dict[str, object]]:
 
 
 def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -> Path:
-    case_dir = root / _SHARED_CASE_DIR_NAME
+    case_dir = root / _SHARED_CASE_DIR_NAME / case_name
     case_dir.mkdir(parents=True, exist_ok=True)
 
     summary = case_dir / "ci_gate_summary.txt"
@@ -1184,11 +1195,50 @@ def build_index_case(root: Path, case_name: str, sanity_profile: str = "full") -
                     "cmd": ["python", "tests/run_seamgrim_ci_gate_seed_meta_step_check.py"],
                 },
                 {
+                    "name": "seamgrim_ci_gate_worker_env_step_check",
+                    "returncode": 0,
+                    "ok": True,
+                    "cmd": ["python", "tests/run_seamgrim_ci_gate_worker_env_step_check.py"],
+                },
+                *[
+                    {
+                        "name": step_name,
+                        "returncode": 0,
+                        "ok": True,
+                        "cmd": ["python", script_path],
+                    }
+                    for step_name, script_path in SEAMGRIM_FEATURED_SEED_STEP_SCRIPT_PATHS
+                ],
+                {
                     "name": "seamgrim_ci_gate_sam_seulgi_family_step_check",
                     "returncode": 0,
                     "ok": True,
                     "cmd": ["python", "tests/run_seamgrim_ci_gate_sam_seulgi_family_step_check.py"],
                 },
+                {
+                    "name": "seamgrim_v2_task_batch_check",
+                    "returncode": 0,
+                    "ok": True,
+                    "cmd": ["python", "tests/run_seamgrim_v2_task_batch_check.py"],
+                },
+                *[
+                    {
+                        "name": step_name,
+                        "returncode": 0,
+                        "ok": True,
+                        "cmd": ["python", script_path],
+                    }
+                    for step_name, script_path in SEAMGRIM_BLOCKER_STEP_SCRIPT_PATHS
+                ],
+                *[
+                    {
+                        "name": step_name,
+                        "returncode": 0,
+                        "ok": True,
+                        "cmd": ["python", script_path],
+                    }
+                    for step_name, script_path in SEAMGRIM_PLATFORM_STEP_SCRIPT_PATHS
+                ],
                 {
                     "name": "seamgrim_ci_gate_runtime5_passthrough_check",
                     "returncode": 0,
@@ -1729,6 +1779,27 @@ def main() -> int:
     )
     profile_matrix_timeout_defaults_bad_report["step_timeout_defaults_sec"] = {"core_lang": "bad"}
     write_json(profile_matrix_timeout_defaults_bad_path, profile_matrix_timeout_defaults_bad_report)
+    profile_matrix_timeout_defaults_bad_triage_path = Path(
+        str(profile_matrix_timeout_defaults_bad_doc["reports"]["ci_fail_triage_json"])
+    )
+    profile_matrix_timeout_defaults_bad_snapshot = build_profile_matrix_snapshot_from_doc(
+        profile_matrix_timeout_defaults_bad_report,
+        report_path=str(profile_matrix_timeout_defaults_bad_path),
+    )
+    if not isinstance(profile_matrix_timeout_defaults_bad_snapshot, dict):
+        return fail("profile_matrix timeout defaults bad snapshot build failed")
+    profile_matrix_timeout_defaults_bad_triage_doc = json.loads(
+        profile_matrix_timeout_defaults_bad_triage_path.read_text(encoding="utf-8")
+    )
+    profile_matrix_timeout_defaults_bad_triage_doc["profile_matrix_selftest"] = (
+        build_profile_matrix_triage_payload_from_snapshot(
+            profile_matrix_timeout_defaults_bad_snapshot
+        )
+    )
+    write_json(
+        profile_matrix_timeout_defaults_bad_triage_path,
+        profile_matrix_timeout_defaults_bad_triage_doc,
+    )
     profile_matrix_timeout_defaults_bad_proc = run_check(
         profile_matrix_timeout_defaults_bad_index,
         REQUIRED_STEPS_FULL,
@@ -4336,6 +4407,250 @@ def main() -> int:
             return fail("seamgrim profile missing parity step case must fail")
         if f"fail code={CODES['REQUIRED_STEP_MISSING']}" not in seamgrim_missing_proc.stderr:
             return fail(f"seamgrim profile missing parity step code mismatch: err={seamgrim_missing_proc.stderr}")
+
+        seamgrim_missing_v2_task_batch_index = build_index_case(
+            root,
+            "seamgrim_missing_v2_task_batch_step",
+            sanity_profile="seamgrim",
+        )
+        seamgrim_missing_v2_task_batch_doc = json.loads(
+            seamgrim_missing_v2_task_batch_index.read_text(encoding="utf-8")
+        )
+        seamgrim_missing_v2_task_batch_doc["steps"] = [
+            row
+            for row in seamgrim_missing_v2_task_batch_doc["steps"]
+            if str(row.get("name", "")) != "seamgrim_v2_task_batch_check"
+        ]
+        write_json(seamgrim_missing_v2_task_batch_index, seamgrim_missing_v2_task_batch_doc)
+        seamgrim_missing_v2_task_batch_proc = run_check(
+            seamgrim_missing_v2_task_batch_index,
+            (),
+            sanity_profile="seamgrim",
+            enforce_profile_step_contract=True,
+        )
+        if seamgrim_missing_v2_task_batch_proc.returncode == 0:
+            return fail("seamgrim profile missing v2 task batch step case must fail")
+        if f"fail code={CODES['REQUIRED_STEP_MISSING']}" not in seamgrim_missing_v2_task_batch_proc.stderr:
+            return fail(
+                "seamgrim profile missing v2 task batch step code mismatch: "
+                f"err={seamgrim_missing_v2_task_batch_proc.stderr}"
+            )
+
+        seamgrim_failed_v2_task_batch_index = build_index_case(
+            root,
+            "seamgrim_failed_v2_task_batch_step",
+            sanity_profile="seamgrim",
+        )
+        seamgrim_failed_v2_task_batch_doc = json.loads(
+            seamgrim_failed_v2_task_batch_index.read_text(encoding="utf-8")
+        )
+        if not isinstance(seamgrim_failed_v2_task_batch_doc.get("steps"), list):
+            return fail("seamgrim profile failed v2 task batch step case invalid setup")
+        failed_v2_task_batch_hit = False
+        for row in seamgrim_failed_v2_task_batch_doc["steps"]:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("name", "")) == "seamgrim_v2_task_batch_check":
+                row["ok"] = True
+                row["returncode"] = 1
+                failed_v2_task_batch_hit = True
+                break
+        if not failed_v2_task_batch_hit:
+            return fail("seamgrim profile failed v2 task batch step fixture missing step")
+        write_json(seamgrim_failed_v2_task_batch_index, seamgrim_failed_v2_task_batch_doc)
+        seamgrim_failed_v2_task_batch_proc = run_check(
+            seamgrim_failed_v2_task_batch_index,
+            (),
+            sanity_profile="seamgrim",
+            enforce_profile_step_contract=True,
+        )
+        if seamgrim_failed_v2_task_batch_proc.returncode == 0:
+            return fail("seamgrim profile failed v2 task batch step case must fail")
+        if f"fail code={CODES['STEP_OK_RC_MISMATCH']}" not in seamgrim_failed_v2_task_batch_proc.stderr:
+            return fail(
+                "seamgrim profile failed v2 task batch step code mismatch: "
+                f"err={seamgrim_failed_v2_task_batch_proc.stderr}"
+            )
+
+        for missing_step_name, fail_message, code_message in SEAMGRIM_BLOCKER_GATE_REPORT_INDEX_MISSING_STEP_CASES:
+            seamgrim_missing_blocker_index = build_index_case(
+                root,
+                f"seamgrim_missing_{missing_step_name}",
+                sanity_profile="seamgrim",
+            )
+            seamgrim_missing_blocker_doc = json.loads(
+                seamgrim_missing_blocker_index.read_text(encoding="utf-8")
+            )
+            seamgrim_missing_blocker_doc["steps"] = [
+                row
+                for row in seamgrim_missing_blocker_doc["steps"]
+                if str(row.get("name", "")) != missing_step_name
+            ]
+            write_json(seamgrim_missing_blocker_index, seamgrim_missing_blocker_doc)
+            seamgrim_missing_blocker_proc = run_check(
+                seamgrim_missing_blocker_index,
+                (),
+                sanity_profile="seamgrim",
+                enforce_profile_step_contract=True,
+            )
+            if seamgrim_missing_blocker_proc.returncode == 0:
+                return fail(fail_message)
+            if f"fail code={CODES['REQUIRED_STEP_MISSING']}" not in seamgrim_missing_blocker_proc.stderr:
+                return fail(f"{code_message}: err={seamgrim_missing_blocker_proc.stderr}")
+
+        for failed_step_name, fail_message, code_message in SEAMGRIM_BLOCKER_GATE_REPORT_INDEX_FAILED_STEP_CASES:
+            seamgrim_failed_blocker_index = build_index_case(
+                root,
+                f"seamgrim_failed_{failed_step_name}",
+                sanity_profile="seamgrim",
+            )
+            seamgrim_failed_blocker_doc = json.loads(
+                seamgrim_failed_blocker_index.read_text(encoding="utf-8")
+            )
+            if not isinstance(seamgrim_failed_blocker_doc.get("steps"), list):
+                return fail(f"seamgrim failed blocker case invalid index setup: {failed_step_name}")
+            step_hit = False
+            for row in seamgrim_failed_blocker_doc["steps"]:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("name", "")) == failed_step_name:
+                    row["ok"] = True
+                    row["returncode"] = 1
+                    step_hit = True
+                    break
+            if not step_hit:
+                return fail(f"seamgrim failed blocker case fixture missing step: {failed_step_name}")
+            write_json(seamgrim_failed_blocker_index, seamgrim_failed_blocker_doc)
+            seamgrim_failed_blocker_proc = run_check(
+                seamgrim_failed_blocker_index,
+                (),
+                sanity_profile="seamgrim",
+                enforce_profile_step_contract=True,
+            )
+            if seamgrim_failed_blocker_proc.returncode == 0:
+                return fail(fail_message)
+            if f"fail code={CODES['STEP_OK_RC_MISMATCH']}" not in seamgrim_failed_blocker_proc.stderr:
+                return fail(f"{code_message}: err={seamgrim_failed_blocker_proc.stderr}")
+
+        for missing_step_name, fail_message, code_message in SEAMGRIM_PLATFORM_GATE_REPORT_INDEX_MISSING_STEP_CASES:
+            seamgrim_missing_platform_index = build_index_case(
+                root,
+                f"seamgrim_missing_{missing_step_name}",
+                sanity_profile="seamgrim",
+            )
+            seamgrim_missing_platform_doc = json.loads(
+                seamgrim_missing_platform_index.read_text(encoding="utf-8")
+            )
+            seamgrim_missing_platform_doc["steps"] = [
+                row
+                for row in seamgrim_missing_platform_doc["steps"]
+                if str(row.get("name", "")) != missing_step_name
+            ]
+            write_json(seamgrim_missing_platform_index, seamgrim_missing_platform_doc)
+            seamgrim_missing_platform_proc = run_check(
+                seamgrim_missing_platform_index,
+                (),
+                sanity_profile="seamgrim",
+                enforce_profile_step_contract=True,
+            )
+            if seamgrim_missing_platform_proc.returncode == 0:
+                return fail(fail_message)
+            if f"fail code={CODES['REQUIRED_STEP_MISSING']}" not in seamgrim_missing_platform_proc.stderr:
+                return fail(f"{code_message}: err={seamgrim_missing_platform_proc.stderr}")
+
+        for failed_step_name, fail_message, code_message in SEAMGRIM_PLATFORM_GATE_REPORT_INDEX_FAILED_STEP_CASES:
+            seamgrim_failed_platform_index = build_index_case(
+                root,
+                f"seamgrim_failed_{failed_step_name}",
+                sanity_profile="seamgrim",
+            )
+            seamgrim_failed_platform_doc = json.loads(
+                seamgrim_failed_platform_index.read_text(encoding="utf-8")
+            )
+            if not isinstance(seamgrim_failed_platform_doc.get("steps"), list):
+                return fail(f"seamgrim failed platform case invalid index setup: {failed_step_name}")
+            step_hit = False
+            for row in seamgrim_failed_platform_doc["steps"]:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("name", "")) == failed_step_name:
+                    row["ok"] = True
+                    row["returncode"] = 1
+                    step_hit = True
+                    break
+            if not step_hit:
+                return fail(f"seamgrim failed platform case fixture missing step: {failed_step_name}")
+            write_json(seamgrim_failed_platform_index, seamgrim_failed_platform_doc)
+            seamgrim_failed_platform_proc = run_check(
+                seamgrim_failed_platform_index,
+                (),
+                sanity_profile="seamgrim",
+                enforce_profile_step_contract=True,
+            )
+            if seamgrim_failed_platform_proc.returncode == 0:
+                return fail(fail_message)
+            if f"fail code={CODES['STEP_OK_RC_MISMATCH']}" not in seamgrim_failed_platform_proc.stderr:
+                return fail(f"{code_message}: err={seamgrim_failed_platform_proc.stderr}")
+
+        for missing_step_name, fail_message, code_message in SEAMGRIM_FEATURED_GATE_REPORT_INDEX_MISSING_STEP_CASES:
+            seamgrim_missing_featured_index = build_index_case(
+                root,
+                f"seamgrim_missing_{missing_step_name}",
+                sanity_profile="seamgrim",
+            )
+            seamgrim_missing_featured_doc = json.loads(
+                seamgrim_missing_featured_index.read_text(encoding="utf-8")
+            )
+            seamgrim_missing_featured_doc["steps"] = [
+                row
+                for row in seamgrim_missing_featured_doc["steps"]
+                if str(row.get("name", "")) != missing_step_name
+            ]
+            write_json(seamgrim_missing_featured_index, seamgrim_missing_featured_doc)
+            seamgrim_missing_featured_proc = run_check(
+                seamgrim_missing_featured_index,
+                (),
+                sanity_profile="seamgrim",
+                enforce_profile_step_contract=True,
+            )
+            if seamgrim_missing_featured_proc.returncode == 0:
+                return fail(fail_message)
+            if f"fail code={CODES['REQUIRED_STEP_MISSING']}" not in seamgrim_missing_featured_proc.stderr:
+                return fail(f"{code_message}: err={seamgrim_missing_featured_proc.stderr}")
+
+        for failed_step_name, fail_message, code_message in SEAMGRIM_FEATURED_GATE_REPORT_INDEX_FAILED_STEP_CASES:
+            seamgrim_failed_featured_index = build_index_case(
+                root,
+                f"seamgrim_failed_{failed_step_name}",
+                sanity_profile="seamgrim",
+            )
+            seamgrim_failed_featured_doc = json.loads(
+                seamgrim_failed_featured_index.read_text(encoding="utf-8")
+            )
+            if not isinstance(seamgrim_failed_featured_doc.get("steps"), list):
+                return fail(f"seamgrim failed featured case invalid index setup: {failed_step_name}")
+            step_hit = False
+            for row in seamgrim_failed_featured_doc["steps"]:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("name", "")) == failed_step_name:
+                    row["ok"] = True
+                    row["returncode"] = 1
+                    step_hit = True
+                    break
+            if not step_hit:
+                return fail(f"seamgrim failed featured case fixture missing step: {failed_step_name}")
+            write_json(seamgrim_failed_featured_index, seamgrim_failed_featured_doc)
+            seamgrim_failed_featured_proc = run_check(
+                seamgrim_failed_featured_index,
+                (),
+                sanity_profile="seamgrim",
+                enforce_profile_step_contract=True,
+            )
+            if seamgrim_failed_featured_proc.returncode == 0:
+                return fail(fail_message)
+            if f"fail code={CODES['STEP_OK_RC_MISMATCH']}" not in seamgrim_failed_featured_proc.stderr:
+                return fail(f"{code_message}: err={seamgrim_failed_featured_proc.stderr}")
 
     print("[ci-gate-report-index-selftest] ok")
     return 0

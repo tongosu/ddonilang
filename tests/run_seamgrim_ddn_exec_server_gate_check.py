@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -20,6 +21,16 @@ def fail(detail: str) -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Run seamgrim ddn_exec_server gate check")
+    parser.add_argument(
+        "--profile",
+        choices=["release", "legacy"],
+        default="release",
+        help="ddn_exec_server_check profile (default: release)",
+    )
+    args = parser.parse_args()
+    base_url = "http://127.0.0.1:18788" if str(args.profile) == "legacy" else "http://127.0.0.1:18787"
+
     root = Path(__file__).resolve().parent.parent
     checker = root / "solutions" / "seamgrim_ui_mvp" / "tools" / "ddn_exec_server_check.py"
     proc = subprocess.run(
@@ -27,9 +38,11 @@ def main() -> int:
             sys.executable,
             str(checker),
             "--base-url",
-            "http://127.0.0.1:18787",
+            base_url,
             "--timeout-sec",
             "15",
+            "--profile",
+            str(args.profile),
         ],
         cwd=root,
         capture_output=True,

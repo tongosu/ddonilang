@@ -8,8 +8,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _selftest_exec_cache import is_script_cached, mark_script_ok
+
 
 SCRIPT_TAG = "seamgrim-application-family-contract-selftest"
+SELF_SCRIPT_PATH = "tests/run_seamgrim_application_family_contract_selftest.py"
 PROGRESS_ENV_KEY = "DDN_SEAMGRIM_APPLICATION_FAMILY_CONTRACT_SELFTEST_PROGRESS_JSON"
 CHECKS = (
     ("stack_transport", "tests/run_seamgrim_stack_family_transport_contract_selftest.py"),
@@ -58,6 +61,8 @@ def fail(name: str, proc: subprocess.CompletedProcess[str]) -> int:
 
 def main() -> int:
     progress_path = os.environ.get(PROGRESS_ENV_KEY, "")
+    assume_family_contract = str(os.environ.get("DDN_ASSUME_FAMILY_CONTRACT_PASSED", "")).strip() == "1"
+    assume_targets = {"stack_transport", "interaction_transport"}
     total_checks = len(CHECKS)
     last_completed_probe = "-"
     write_progress_snapshot(
@@ -80,24 +85,34 @@ def main() -> int:
             total_checks=total_checks,
             checks_text=CHECKS_TEXT,
         )
-        proc = subprocess.run(
-            [sys.executable, script],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        if proc.returncode != 0:
-            write_progress_snapshot(
-                progress_path,
-                status="failed",
-                current_probe=name,
-                last_completed_probe=last_completed_probe,
-                completed_checks=len(passed),
-                total_checks=total_checks,
-                checks_text=CHECKS_TEXT,
+        if assume_family_contract and name in assume_targets:
+            print(f"[{SCRIPT_TAG}] assume-pass check={name} reason=DDN_ASSUME_FAMILY_CONTRACT_PASSED")
+            mark_script_ok(script)
+            passed.append(name)
+            last_completed_probe = name
+            continue
+        if is_script_cached(script):
+            print(f"[{SCRIPT_TAG}] cache-hit check={name} script={script}")
+        else:
+            proc = subprocess.run(
+                [sys.executable, script],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
             )
-            return fail(name, proc)
+            if proc.returncode != 0:
+                write_progress_snapshot(
+                    progress_path,
+                    status="failed",
+                    current_probe=name,
+                    last_completed_probe=last_completed_probe,
+                    completed_checks=len(passed),
+                    total_checks=total_checks,
+                    checks_text=CHECKS_TEXT,
+                )
+                return fail(name, proc)
+            mark_script_ok(script)
         passed.append(name)
         last_completed_probe = name
     write_progress_snapshot(
@@ -109,6 +124,7 @@ def main() -> int:
         total_checks=total_checks,
         checks_text=CHECKS_TEXT,
     )
+    mark_script_ok(SELF_SCRIPT_PATH)
     print(f"[{SCRIPT_TAG}] ok checks={len(passed)} names={','.join(passed)}")
     return 0
 

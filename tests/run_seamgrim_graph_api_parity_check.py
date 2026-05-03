@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -85,9 +86,8 @@ def main() -> int:
 
     try:
         cases = load_cases(pack_dir)
-        summaries: list[dict] = []
-        failures: list[str] = []
-        for case in cases:
+
+        def run_case(case: dict) -> tuple[dict, list[str]]:
             input_rel = str(case["input_path"])
             input_path = pack_dir / input_rel
             ddn_text = input_path.read_text(encoding="utf-8")
@@ -97,9 +97,7 @@ def main() -> int:
                 standalone = standalone_future.result()
                 payload = payload_future.result()
             if not isinstance(payload, dict) or not payload.get("ok"):
-                failures.append(f"{input_rel}: api run failed")
-                summaries.append({"case": input_rel, "ok": False, "detail": "api run failed"})
-                continue
+                return {"case": input_rel, "ok": False, "detail": "api run failed"}, [f"{input_rel}: api run failed"]
             api_graph = payload.get("graph", {})
             standalone_meta = standalone.get("meta", {}) if isinstance(standalone, dict) else {}
             api_meta = api_graph.get("meta", {}) if isinstance(api_graph, dict) else {}
@@ -128,25 +126,31 @@ def main() -> int:
                 if not ok:
                     detail_parts.append(label)
             ok = not detail_parts
-            if not ok:
-                failures.append(f"{input_rel}: mismatch {','.join(detail_parts)}")
-            summaries.append(
-                {
-                    "case": input_rel,
-                    "ok": ok,
-                    "points_match": points_match,
-                    "input_hash_match": input_hash_match,
-                    "result_hash_match": result_hash_match,
-                    "input_name_match": input_name_match,
-                    "input_desc_match": input_desc_match,
-                    "graph_schema_match": graph_schema_match,
-                    "standalone_input_hash": standalone_meta.get("source_input_hash", ""),
-                    "api_input_hash": api_meta.get("source_input_hash", ""),
-                    "standalone_result_hash": standalone_meta.get("result_hash", ""),
-                    "api_result_hash": api_meta.get("result_hash", ""),
-                    "detail": "ok" if ok else ",".join(detail_parts),
-                }
-            )
+            summary = {
+                "case": input_rel,
+                "ok": ok,
+                "points_match": points_match,
+                "input_hash_match": input_hash_match,
+                "result_hash_match": result_hash_match,
+                "input_name_match": input_name_match,
+                "input_desc_match": input_desc_match,
+                "graph_schema_match": graph_schema_match,
+                "standalone_input_hash": standalone_meta.get("source_input_hash", ""),
+                "api_input_hash": api_meta.get("source_input_hash", ""),
+                "standalone_result_hash": standalone_meta.get("result_hash", ""),
+                "api_result_hash": api_meta.get("result_hash", ""),
+                "detail": "ok" if ok else ",".join(detail_parts),
+            }
+            return summary, ([] if ok else [f"{input_rel}: mismatch {','.join(detail_parts)}"])
+
+        summaries: list[dict] = []
+        failures: list[str] = []
+        case_workers = max(1, min(len(cases), os.cpu_count() or 4))
+        with ThreadPoolExecutor(max_workers=case_workers) as case_pool:
+            case_results = list(case_pool.map(run_case, cases))
+        for summary, case_failures in case_results:
+            summaries.append(summary)
+            failures.extend(case_failures)
 
         report = {
             "schema": "ddn.seamgrim_graph_api_parity.v1",

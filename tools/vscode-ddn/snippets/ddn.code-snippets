@@ -1,0 +1,75 @@
+{
+  "DDN 설정 헤더": {
+    "prefix": "ddn-settings-header",
+    "body": [
+      "설정 {",
+      "  이름: \"${1:예제}\".",
+      "  설명: \"${2:설명}\".",
+      "}."
+    ],
+    "description": "설정 {} 헤더 기본 템플릿"
+  },
+  "DDN 시작 훅": {
+    "prefix": "ddn-hook-start",
+    "body": [
+      "(시작)할때 {",
+      "  ${1:// 초기화}",
+      "}."
+    ],
+    "description": "(시작)할때 훅 템플릿"
+  },
+  "DDN 매마디 훅": {
+    "prefix": "ddn-hook-every-madi",
+    "body": [
+      "(매마디)마다 {",
+      "  ${1:// 반복 로직}",
+      "}."
+    ],
+    "description": "(매마디)마다 훅 템플릿"
+  },
+  "DDN 조사 호출 예시": {
+    "prefix": "ddn-josa-example",
+    "body": [
+      "${1:값}~을 ${2:처리}."
+    ],
+    "description": "조사 표면 예시"
+  },
+  "DDN 조사 helper 목적격": {
+    "prefix": "ddn-josa-helper-object",
+    "body": [
+      "${1:값}~을 ${2:말이름}."
+    ],
+    "description": "조사 helper 최소선: 목적격 호출"
+  },
+  "DDN 조사 helper 주격": {
+    "prefix": "ddn-josa-helper-subject",
+    "body": [
+      "${1:값}~이 ${2:말이름}."
+    ],
+    "description": "조사 helper candidate-ready: 주격 호출"
+  },
+  "DDN 핀 예시": {
+    "prefix": "ddn-pin-example",
+    "body": [
+      "${1:대상}:입력 <- ${2:값}."
+    ],
+    "description": "핀 고정 표면 예시"
+  },
+  "DDN 핀 helper 고정": {
+    "prefix": "ddn-pin-helper-fixed",
+    "body": [
+      "${1:값}:${2:핀} ${3:말이름}."
+    ],
+    "description": "핀 helper 최소선: 값:핀 호출"
+  },
+  "DDN 보임 구조화 관찰": {
+    "prefix": "ddn-boim-observation",
+    "body": [
+      "보임 {",
+      "  x축: ${1:t}.",
+      "  값: ${2:값}.",
+      "}."
+    ],
+    "description": "보임 {} 구조화 관찰 템플릿"
+  }
+}

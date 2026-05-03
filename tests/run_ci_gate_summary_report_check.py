@@ -1242,6 +1242,25 @@ def main() -> int:
                 )
         runtime5_checklist_path = str(reports.get("seamgrim_5min_checklist", "")).strip()
         if runtime5_checklist_path and Path(runtime5_checklist_path).exists():
+            runtime5_doc = load_json(Path(runtime5_checklist_path))
+            if not isinstance(runtime5_doc, dict):
+                return fail(
+                    f"invalid seamgrim_5min_checklist json: {runtime5_checklist_path}",
+                    code=CODES["PASS_KEY_MISSING"],
+                )
+            runtime5_items = runtime5_doc.get("items")
+            if not isinstance(runtime5_items, list):
+                return fail(
+                    f"seamgrim_5min_checklist items missing: {runtime5_checklist_path}",
+                    code=CODES["PASS_KEY_MISSING"],
+                )
+            runtime5_item_names = set()
+            for row in runtime5_items:
+                if not isinstance(row, dict):
+                    continue
+                row_name = str(row.get("name", "")).strip()
+                if row_name:
+                    runtime5_item_names.add(row_name)
             for key in RUNTIME5_REQUIRED_KEYS:
                 value = kv.get(key, "").strip()
                 if not value:
@@ -1260,21 +1279,24 @@ def main() -> int:
                 )
             if checklist_ok != "1":
                 return fail("PASS summary requires seamgrim_5min_checklist_ok=1", code=CODES["PASS_KEY_MISSING"])
-            for item_key, item_status_key, item_elapsed_key in (
+            for item_key, item_status_key, item_elapsed_key, runtime5_item_name in (
                 (
                     "seamgrim_runtime_5min_rewrite_motion_projectile",
                     "seamgrim_runtime_5min_rewrite_status",
                     "seamgrim_runtime_5min_rewrite_elapsed_ms",
+                    "rewrite_motion_projectile_fallback",
                 ),
                 (
                     "seamgrim_runtime_5min_moyang_view_boundary",
                     "seamgrim_runtime_5min_moyang_status",
                     "seamgrim_runtime_5min_moyang_elapsed_ms",
+                    "moyang_view_boundary_pack_check",
                 ),
                 (
                     "seamgrim_runtime_5min_pendulum_tetris_showcase",
                     "seamgrim_runtime_5min_pendulum_tetris_showcase_status",
                     "seamgrim_runtime_5min_pendulum_tetris_showcase_elapsed_ms",
+                    "pendulum_tetris_showcase_check",
                 ),
             ):
                 item_ok = kv.get(item_key, "").strip()
@@ -1283,33 +1305,54 @@ def main() -> int:
                         f"{item_key} invalid: {item_ok}",
                         code=CODES["PASS_KEY_MISSING"],
                     )
-                if item_ok != "1":
-                    required_ok_message = {
-                        "seamgrim_runtime_5min_rewrite_motion_projectile": (
-                            "PASS summary requires seamgrim_runtime_5min_rewrite_motion_projectile=1"
-                        ),
-                        "seamgrim_runtime_5min_moyang_view_boundary": (
-                            "PASS summary requires seamgrim_runtime_5min_moyang_view_boundary=1"
-                        ),
-                    }.get(item_key, f"PASS summary requires {item_key}=1")
-                    return fail(
-                        required_ok_message,
-                        code=CODES["PASS_KEY_MISSING"],
-                    )
                 item_status = kv.get(item_status_key, "").strip()
                 if item_status not in VALID_RUNTIME5_ITEM_STATUS:
                     return fail(
                         f"{item_status_key} invalid: {item_status}",
                         code=CODES["PASS_KEY_MISSING"],
                     )
-                if item_status != "ok":
-                    return fail(
-                        f"PASS summary requires {item_status_key}=ok",
-                        code=CODES["PASS_KEY_MISSING"],
-                    )
                 item_elapsed_error = validate_runtime5_elapsed(item_elapsed_key, kv.get(item_elapsed_key, ""))
                 if item_elapsed_error:
                     return fail(item_elapsed_error, code=CODES["PASS_KEY_MISSING"])
+                item_present = runtime5_item_name in runtime5_item_names
+                if item_present:
+                    if item_ok != "1":
+                        required_ok_message = {
+                            "seamgrim_runtime_5min_rewrite_motion_projectile": (
+                                "PASS summary requires seamgrim_runtime_5min_rewrite_motion_projectile=1 when rewrite_motion_projectile_fallback exists"
+                            ),
+                            "seamgrim_runtime_5min_moyang_view_boundary": (
+                                "PASS summary requires seamgrim_runtime_5min_moyang_view_boundary=1 when moyang_view_boundary_pack_check exists"
+                            ),
+                        }.get(item_key, f"PASS summary requires {item_key}=1 when {runtime5_item_name} exists")
+                        return fail(
+                            required_ok_message,
+                            code=CODES["PASS_KEY_MISSING"],
+                        )
+                    if item_status != "ok":
+                        return fail(
+                            f"PASS summary requires {item_status_key}=ok when {runtime5_item_name} exists",
+                            code=CODES["PASS_KEY_MISSING"],
+                        )
+                else:
+                    if item_ok != "na":
+                        required_absent_ok_message = {
+                            "seamgrim_runtime_5min_rewrite_motion_projectile": (
+                                "PASS summary requires seamgrim_runtime_5min_rewrite_motion_projectile=na when rewrite_motion_projectile_fallback is absent"
+                            ),
+                            "seamgrim_runtime_5min_moyang_view_boundary": (
+                                "PASS summary requires seamgrim_runtime_5min_moyang_view_boundary=na when moyang_view_boundary_pack_check is absent"
+                            ),
+                        }.get(item_key, f"PASS summary requires {item_key}=na when {runtime5_item_name} is absent")
+                        return fail(
+                            required_absent_ok_message,
+                            code=CODES["PASS_KEY_MISSING"],
+                        )
+                    if item_status != "not_executed":
+                        return fail(
+                            f"PASS summary requires {item_status_key}=not_executed when {runtime5_item_name} is absent",
+                            code=CODES["PASS_KEY_MISSING"],
+                        )
         fixed64_ok_text = kv.get("fixed64_threeway_ok", "").strip()
         if fixed64_ok_text not in {"0", "1"}:
             return fail(f"fixed64_threeway_ok invalid: {fixed64_ok_text}", code=CODES["PASS_KEY_MISSING"])

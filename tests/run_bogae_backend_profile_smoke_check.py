@@ -14,6 +14,9 @@ import sys
 import time
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
+from _teul_cli_freshness import resolve_teul_cli_bin as shared_resolve_teul_cli_bin
+
 
 ROOT = Path(__file__).resolve().parent.parent
 PACK_ROOT = ROOT / "pack"
@@ -72,32 +75,31 @@ def read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def resolve_teul_cli_bin() -> Path | None:
+def teul_cli_candidates() -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         ROOT / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
+
+
+def resolve_teul_cli_bin() -> Path | None:
+    return shared_resolve_teul_cli_bin(
+        ROOT,
+        candidates=teul_cli_candidates(),
+        include_which=False,
+    )
 
 
 def build_teul_cli_cmd(args: list[str]) -> list[str]:
-    teul_cli = resolve_teul_cli_bin()
-    if teul_cli is not None:
-        return [str(teul_cli), *args]
-    return [
-        "cargo",
-        "run",
-        "-q",
-        "--manifest-path",
-        str(ROOT / "tools" / "teul-cli" / "Cargo.toml"),
-        "--",
-        *args,
-    ]
+    return shared_build_teul_cli_cmd(
+        ROOT,
+        args,
+        candidates=teul_cli_candidates(),
+        include_which=False,
+        manifest_path=ROOT / "tools" / "teul-cli" / "Cargo.toml",
+    )
 
 
 def clean_dir(path: Path) -> None:

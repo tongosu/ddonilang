@@ -17,6 +17,7 @@ from _ci_aggregate_contract_only_lib import (
     write_contract_only_profile_matrix_selftest_report,
     write_contract_only_stub_reports,
 )
+from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS
 from _ci_profile_matrix_selftest_lib import (
     PROFILE_MATRIX_SELFTEST_PROFILES,
     PROFILE_MATRIX_STEP_TIMEOUT_DEFAULTS_SEC,
@@ -76,94 +77,116 @@ def main() -> int:
         resolve_contract_only_selected_profiles("", "core_lang") == ["core_lang"],
         "selected profiles parser must use fallback on empty input",
     )
+    core_lang_sanity_steps = resolve_contract_only_sanity_steps("core_lang")
+    full_sanity_steps = resolve_contract_only_sanity_steps("full")
+    seamgrim_sanity_steps = resolve_contract_only_sanity_steps("seamgrim")
+    core_lang_required_steps = resolve_contract_only_required_steps("core_lang")
+    full_required_steps = resolve_contract_only_required_steps("full")
     expect(
-        "seamgrim_wasm_cli_diag_parity_check" not in resolve_contract_only_sanity_steps("core_lang"),
+        "seamgrim_wasm_cli_diag_parity_check" not in core_lang_sanity_steps,
         "core_lang sanity steps must not include seamgrim-only parity step",
     )
     expect(
-        "age3_close_selftest" in resolve_contract_only_sanity_steps("core_lang"),
+        "age3_close_selftest" in core_lang_sanity_steps,
         "core_lang sanity steps must include age3_close_selftest",
     )
     expect(
-        "seamgrim_wasm_cli_diag_parity_check" in resolve_contract_only_sanity_steps("full"),
+        "seamgrim_wasm_cli_diag_parity_check" in full_sanity_steps,
         "full sanity steps must include seamgrim parity step",
     )
     expect(
-        "ci_emit_artifacts_sanity_contract_selftest" in resolve_contract_only_sanity_steps("full"),
+        "ci_emit_artifacts_sanity_contract_selftest" in full_sanity_steps,
         "full sanity steps must include ci_emit_artifacts_sanity_contract_selftest",
     )
     expect(
-        "seamgrim_ci_gate_sam_seulgi_family_step_check" in resolve_contract_only_sanity_steps("full"),
+        "seamgrim_ci_gate_sam_seulgi_family_step_check" in full_sanity_steps,
         "full sanity steps must include seamgrim_ci_gate_sam_seulgi_family_step_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_step_check" in resolve_contract_only_sanity_steps("full"),
+        "seamgrim_ci_gate_pack_evidence_tier_step_check" in full_sanity_steps,
         "full sanity steps must include seamgrim_ci_gate_pack_evidence_tier_step_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest" in resolve_contract_only_sanity_steps("full"),
+        "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest" in full_sanity_steps,
         "full sanity steps must include seamgrim_ci_gate_pack_evidence_tier_step_check_selftest",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_runner_check" in resolve_contract_only_sanity_steps("full"),
+        "seamgrim_ci_gate_pack_evidence_tier_runner_check" in full_sanity_steps,
         "full sanity steps must include seamgrim_ci_gate_pack_evidence_tier_runner_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_report_check" in resolve_contract_only_sanity_steps("full"),
+        "seamgrim_ci_gate_pack_evidence_tier_report_check" in full_sanity_steps,
         "full sanity steps must include seamgrim_ci_gate_pack_evidence_tier_report_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_report_check_selftest" in resolve_contract_only_sanity_steps("full"),
+        "seamgrim_ci_gate_pack_evidence_tier_report_check_selftest" in full_sanity_steps,
         "full sanity steps must include seamgrim_ci_gate_pack_evidence_tier_report_check_selftest",
     )
     expect(
-        "seamgrim_wasm_cli_diag_parity_check" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim_wasm_cli_diag_parity_check" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include seamgrim parity step",
     )
     expect(
-        "ci_emit_artifacts_sanity_contract_selftest" in resolve_contract_only_sanity_steps("seamgrim"),
+        "ci_emit_artifacts_sanity_contract_selftest" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include ci_emit_artifacts_sanity_contract_selftest",
     )
     expect(
-        "seamgrim_ci_gate_sam_seulgi_family_step_check" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim_ci_gate_sam_seulgi_family_step_check" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include seamgrim_ci_gate_sam_seulgi_family_step_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_step_check" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim_ci_gate_pack_evidence_tier_step_check" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include seamgrim_ci_gate_pack_evidence_tier_step_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim_ci_gate_pack_evidence_tier_step_check_selftest" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include seamgrim_ci_gate_pack_evidence_tier_step_check_selftest",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_runner_check" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim_ci_gate_pack_evidence_tier_runner_check" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include seamgrim_ci_gate_pack_evidence_tier_runner_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_report_check" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim_ci_gate_pack_evidence_tier_report_check" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include seamgrim_ci_gate_pack_evidence_tier_report_check",
     )
     expect(
-        "seamgrim_ci_gate_pack_evidence_tier_report_check_selftest" in resolve_contract_only_sanity_steps("seamgrim"),
+        "seamgrim_ci_gate_pack_evidence_tier_report_check_selftest" in seamgrim_sanity_steps,
         "seamgrim sanity steps must include seamgrim_ci_gate_pack_evidence_tier_report_check_selftest",
     )
     expect(
-        "seamgrim_wasm_cli_diag_parity_check" not in resolve_contract_only_required_steps("core_lang"),
+        "seamgrim_wasm_cli_diag_parity_check" not in core_lang_required_steps,
         "core_lang required aggregate steps must exclude seamgrim parity step",
     )
     expect(
-        "ci_gate_report_index_latest_smoke_check" in resolve_contract_only_required_steps("core_lang"),
+        "ci_gate_report_index_latest_smoke_check" in core_lang_required_steps,
         "core_lang required aggregate steps must include report-index latest smoke step",
     )
     expect(
-        "seamgrim_wasm_cli_diag_parity_check" in resolve_contract_only_required_steps("full"),
+        "seamgrim_wasm_cli_diag_parity_check" in full_required_steps,
         "full required aggregate steps must include seamgrim parity step",
     )
     expect(
-        "ci_gate_report_index_latest_smoke_check" in resolve_contract_only_required_steps("full"),
+        "ci_gate_report_index_latest_smoke_check" in full_required_steps,
         "full required aggregate steps must include report-index latest smoke step",
     )
+    for step_name in SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS:
+        expect(
+            step_name in full_sanity_steps,
+            f"full sanity steps must include seamgrim required step {step_name}",
+        )
+        expect(
+            step_name in seamgrim_sanity_steps,
+            f"seamgrim sanity steps must include seamgrim required step {step_name}",
+        )
+        expect(
+            step_name in full_required_steps,
+            f"full required aggregate steps must include seamgrim required step {step_name}",
+        )
+        expect(
+            step_name not in core_lang_required_steps,
+            f"core_lang required aggregate steps must exclude seamgrim required step {step_name}",
+        )
 
     with tempfile.TemporaryDirectory(prefix="ci_aggregate_contract_only_lib_selftest_") as td:
         root = Path(td)

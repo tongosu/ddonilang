@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+from _teul_cli_freshness import build_teul_cli_cmd
 
 
 def fail(detail: str) -> int:
@@ -14,18 +15,13 @@ def fail(detail: str) -> int:
     return 1
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if __import__("os").name == "nt" else ""
-    candidates = [
+    return [
         root / "target" / "debug" / f"teul-cli{suffix}",
         root / "target" / "release" / f"teul-cli{suffix}",
         Path("I:/home/urihanl/ddn/codex/target/debug/teul-cli.exe"),
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    which = shutil.which("teul-cli")
-    return Path(which) if which else None
 
 
 def parse_numeric_lines(stdout: str) -> list[float]:
@@ -89,13 +85,18 @@ def extract_series_points(lines: list[str], series_id: str) -> list[tuple[float,
     return out
 
 
-def run_lesson_output(root: Path, teul_cli: Path, lesson: Path, madi: int) -> tuple[list[float], list[str]]:
+def run_lesson_output(root: Path, lesson: Path, madi: int) -> tuple[list[float], list[str]]:
     source_text = lesson.read_text(encoding="utf-8")
     sanitized_text = strip_legacy_pragma_lines(source_text)
     with tempfile.TemporaryDirectory(prefix="seamgrim_motion_projectile_fallback_") as temp_dir:
         lesson_copy = Path(temp_dir) / lesson.name
         lesson_copy.write_text(sanitized_text, encoding="utf-8")
-        cmd = [str(teul_cli), "run", str(lesson_copy), "--madi", str(max(1, int(madi)))]
+        cmd = build_teul_cli_cmd(
+            root,
+            ["run", str(lesson_copy), "--madi", str(max(1, int(madi)))],
+            candidates=teul_cli_candidates(root),
+            include_which=True,
+        )
         proc = subprocess.run(
             cmd,
             cwd=root,
@@ -234,12 +235,8 @@ def main() -> int:
     if not ok_projectile_shape:
         return fail(projectile_shape_detail)
 
-    teul_cli = resolve_teul_cli_bin(root)
-    if teul_cli is None:
-        return fail("teul_cli_missing")
-
     try:
-        motion_numbers, motion_lines = run_lesson_output(root, teul_cli, motion_lesson, int(args.motion_madi))
+        motion_numbers, motion_lines = run_lesson_output(root, motion_lesson, int(args.motion_madi))
     except Exception as exc:
         return fail(f"motion_run_failed:{exc}")
     ok_motion, motion_detail = check_motion_series(motion_numbers, motion_lines)
@@ -249,7 +246,6 @@ def main() -> int:
     try:
         projectile_numbers, projectile_lines = run_lesson_output(
             root,
-            teul_cli,
             projectile_lesson,
             int(args.projectile_madi),
         )

@@ -8,35 +8,29 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from _teul_cli_freshness import ensure_teul_cli_bin
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "pack" / "proof_certificate_verify_report_provenance_v1"
 
 
-def resolve_teul_cli_bin(root: Path) -> Path:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    build = subprocess.run(
-        ["cargo", "build", "--manifest-path", "tools/teul-cli/Cargo.toml"],
-        cwd=root,
-        env={**os.environ, "RUST_MIN_STACK": str(64 * 1024 * 1024)},
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+
+
+def resolve_teul_cli_bin(root: Path) -> Path:
+    return ensure_teul_cli_bin(
+        root,
+        candidates=teul_cli_candidates(root),
+        include_which=False,
+        build_env={"RUST_MIN_STACK": str(64 * 1024 * 1024)},
     )
-    if build.returncode != 0:
-        raise SystemExit(build.returncode)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError("missing teul-cli binary")
 
 
 def run(cmd: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:

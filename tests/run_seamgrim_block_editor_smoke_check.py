@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -25,34 +27,69 @@ PACK_DIRS = [
 ]
 
 
+def run_pack(pack_dir: Path, update: bool) -> tuple[Path, int, str, str]:
+    cmd = ["node", "--no-warnings", str(RUNNER), str(pack_dir)]
+    if update:
+        cmd.append("--update")
+    proc = subprocess.run(
+        cmd,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return pack_dir, proc.returncode, (proc.stdout or "").strip(), (proc.stderr or "").strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="block editor 화면 smoke 검증")
     parser.add_argument("--update", action="store_true", help="golden 파일 갱신")
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        help="병렬 실행 worker 수(기본: min(3, pack 개수), 1이면 직렬)",
+    )
     args = parser.parse_args()
 
-    for pack_dir in PACK_DIRS:
-        cmd = ["node", "--no-warnings", str(RUNNER), str(pack_dir)]
-        if args.update:
-            cmd.append("--update")
-        proc = subprocess.run(
-            cmd,
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        stdout = (proc.stdout or "").strip()
-        stderr = (proc.stderr or "").strip()
-        if proc.returncode != 0:
+    env_jobs_text = str(os.environ.get("DDN_BLOCK_EDITOR_SMOKE_JOBS", "")).strip()
+    env_jobs = 0
+    if env_jobs_text:
+        try:
+            env_jobs = int(env_jobs_text)
+        except ValueError:
+            env_jobs = 0
+    requested_jobs = int(args.jobs) if int(args.jobs) > 0 else env_jobs
+    default_jobs = 3
+    max_workers = max(1, min(requested_jobs if requested_jobs > 0 else default_jobs, len(PACK_DIRS)))
+
+    indexed_results: list[tuple[Path, int, str, str] | None] = [None] * len(PACK_DIRS)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        pending = {
+            executor.submit(run_pack, pack_dir, bool(args.update)): idx
+            for idx, pack_dir in enumerate(PACK_DIRS)
+        }
+        for future in as_completed(pending):
+            idx = pending[future]
+            indexed_results[idx] = future.result()
+
+    has_failure = False
+    for row in indexed_results:
+        if row is None:
+            continue
+        pack_dir, returncode, stdout, stderr = row
+        if returncode != 0:
+            has_failure = True
             print(f"[FAIL] block editor screen smoke: {pack_dir.name}", file=sys.stderr)
             if stderr:
                 print(stderr, file=sys.stderr)
             if stdout:
                 print(stdout, file=sys.stderr)
-            return 1
+            continue
         print(stdout or f"[ok] block editor screen smoke: {pack_dir.name}")
-    return 0
+
+    return 1 if has_failure else 0
 
 
 if __name__ == "__main__":

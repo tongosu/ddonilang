@@ -11,6 +11,7 @@ from pathlib import Path
 
 REQUIRED_TOTAL_KEYS = (
     "priority_range_comment",
+    "priority_range_hash",
     "priority_setup_colon",
     "info_legacy_show",
     "info_legacy_start_colon",

@@ -71,8 +71,9 @@ def main() -> int:
             {
                 "run": [
                     "deriveRunKindAndChannels(",
-                    'this.isSimCorePolicyEnabled()',
-                    'this.overlay.show()',
+                    "isSimCorePolicyEnabled() {",
+                    'this.renderOverlayTabContent(',
+                    'this.switchRunTab(SUBPANEL_TAB.OVERLAY)',
                 ],
             },
         ),
@@ -160,10 +161,13 @@ def main() -> int:
             {
                 "html": [
                     'id="canvas-bogae"',
-                    'id="overlay-description"',
                     'id="select-x-axis"',
                     'id="select-y-axis"',
+                    'id="select-graph-kind"',
+                    'id="select-graph-range"',
                     'id="btn-overlay-toggle"',
+                    'id="run-tab-btn-overlay"',
+                    'id="run-overlay-body"',
                 ],
             },
         ),

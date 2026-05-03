@@ -3,6 +3,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS,
+    SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS,
+    SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_CASES,
+    SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_CASES,
+)
+
 
 REQUIRED_SYNC_CHECK_TOKENS = [
     "from _ci_seamgrim_step_contract import (",
@@ -14,6 +21,7 @@ REQUIRED_SYNC_CHECK_TOKENS = [
     "SYNC_READINESS_SANITY_CONTRACT_FAIL",
     "SYNC_READINESS_VALIDATE_ONLY_PATH_MISSING",
     "--sanity-profile",
+    "--ci-sanity-profile",
     "sanity_profile",
     "backup_hygiene_selftest",
     "pipeline_emit_flags_check",
@@ -38,10 +46,14 @@ REQUIRED_SYNC_CHECK_TOKENS = [
     "tensor_v0_pack_check",
     "tensor_v0_cli_check",
     "seamgrim_ci_gate_seed_meta_step_check",
+    "seamgrim_ci_gate_worker_env_step_check",
+    "seamgrim_ci_gate_featured_seed_catalog_step_check",
+    "seamgrim_ci_gate_featured_seed_catalog_autogen_step_check",
     "seamgrim_ci_gate_sam_seulgi_family_step_check",
     "seamgrim_ci_gate_runtime5_passthrough_check",
     "seamgrim_ci_gate_lesson_warning_step_check",
     "seamgrim_ci_gate_stateful_preview_step_check",
+    "seamgrim_v2_task_batch_check",
     "seamgrim_ci_gate_wasm_web_smoke_step_check",
     "seamgrim_ci_gate_wasm_web_smoke_step_check_selftest",
     "seamgrim_interface_boundary_contract_check",
@@ -115,6 +127,16 @@ REQUIRED_SYNC_CHECK_TOKENS = [
 ]
 REQUIRED_SYNC_CHECK_TOKENS.extend(
     [
+        "SEAMGRIM_BLOCKER_STEP_CONTRACT_STEPS",
+        "*SEAMGRIM_BLOCKER_STEP_CONTRACT_STEPS,",
+        "SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS",
+        "for summary_key, step_name in SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS",
+        "SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS",
+        "for summary_key, step_name in SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS",
+    ]
+)
+REQUIRED_SYNC_CHECK_TOKENS.extend(
+    [
         "from _ci_age3_completion_gate_contract import (",
         "AGE3_COMPLETION_GATE_CRITERIA_SUMMARY_KEYS,",
         "AGE3_COMPLETION_GATE_CRITERIA_SYNC_FIELD_PAIRS,",
@@ -137,8 +159,21 @@ REQUIRED_SYNC_SELFTEST_TOKENS = [
     "validate_only_bad_should_fail",
     "validate_only_missing_parity_should_fail",
     "validate_missing_parity_msg_should_mention_step",
+    "validate_only_missing_v2_task_batch_should_fail",
+    "validate_missing_v2_task_batch_msg_should_mention_step",
+    "validate_only_failed_v2_task_batch_should_fail",
+    "validate_failed_v2_task_batch_msg_should_mention_step",
     "validate_only_missing_wasm_web_smoke_selftest_should_fail",
     "validate_missing_wasm_web_smoke_selftest_msg_should_mention_step",
+    "SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_CASES",
+    "for (",
+    ") in SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_CASES:",
+    "SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES",
+    ") in SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES:",
+    "SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_CASES",
+    ") in SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_CASES:",
+    "SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES",
+    ") in SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES:",
     "validate_only_missing_age2_close_selftest_should_fail",
     "validate_missing_age2_close_selftest_msg_should_mention_step",
     "validate_only_missing_age3_close_selftest_should_fail",
@@ -155,6 +190,7 @@ REQUIRED_SYNC_SELFTEST_TOKENS = [
     "ci_sanity_age3_bogae_geoul_visibility_smoke_sim_bogae_hash_changes",
     "validate_only_missing_summary_should_fail",
     "validate_bad_summary_msg_should_mention_summary_key",
+    "seamgrim_v2_task_batch_check",
     "seamgrim_wasm_cli_diag_parity_check",
     "validate_only_missing_should_fail",
     "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
@@ -164,6 +200,15 @@ REQUIRED_SYNC_SELFTEST_TOKENS.extend(
     [
         "from _ci_age3_completion_gate_contract import AGE3_COMPLETION_GATE_CRITERIA_SUMMARY_KEYS",
         'summary_fields.update({key: "1" for key in AGE3_COMPLETION_GATE_CRITERIA_SUMMARY_KEYS})',
+    ]
+)
+REQUIRED_SYNC_SELFTEST_TOKENS.extend(
+    [
+        "from _ci_seamgrim_step_contract import (",
+        "SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_CASES,",
+        "SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES,",
+        "SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_CASES,",
+        "SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES,",
     ]
 )
 
@@ -227,6 +272,14 @@ REQUIRED_REPORT_CHECK_TOKENS = [
 ]
 REQUIRED_REPORT_CHECK_TOKENS.extend(
     [
+        "SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS",
+        "for summary_key, _step_name in SEAMGRIM_BLOCKER_SANITY_SUMMARY_STEP_FIELDS",
+        "SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS",
+        "for summary_key, _step_name in SEAMGRIM_PLATFORM_SANITY_SUMMARY_STEP_FIELDS",
+    ]
+)
+REQUIRED_REPORT_CHECK_TOKENS.extend(
+    [
         "from _ci_age3_completion_gate_contract import (",
         "AGE3_COMPLETION_GATE_CRITERIA_SUMMARY_KEYS,",
         "AGE3_COMPLETION_GATE_CRITERIA_SYNC_FIELD_PAIRS,",
@@ -258,6 +311,10 @@ REQUIRED_REPORT_SELFTEST_TOKENS = [
     "bad_emit_artifacts_sanity_fail_code_should_match",
     "bad_emit_artifacts_sync_mirror_should_fail",
     "bad_emit_artifacts_sync_mirror_fail_code_should_match",
+    "seamgrim_bad_blocker_summary_should_fail:",
+    "seamgrim_bad_blocker_summary_fail_code_should_match:",
+    "seamgrim_bad_blocker_sync_mirror_should_fail:",
+    "seamgrim_bad_blocker_sync_mirror_fail_code_should_match:",
     'CODES["SANITY_SUMMARY_VALUE_INVALID"]',
 ]
 REQUIRED_REPORT_SELFTEST_TOKENS.extend(

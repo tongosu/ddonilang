@@ -1200,6 +1200,10 @@ def main() -> int:
             py_cmd("tests/run_block_editor_roundtrip_check.py"),
         ),
         (
+            "seamgrim_vol4_runtime_track_check",
+            py_cmd("tests/run_seamgrim_vol4_runtime_track_check.py"),
+        ),
+        (
             "seamgrim_wasm_canon_contract_check",
             py_cmd(
                 "tests/run_seamgrim_wasm_smoke.py",
@@ -1357,6 +1361,14 @@ def main() -> int:
     if block_editor_roundtrip_stderr:
         emit_text_safely(block_editor_roundtrip_stderr, stream=sys.stderr)
 
+    seamgrim_vol4_runtime_track_rc, seamgrim_vol4_runtime_track_stdout, seamgrim_vol4_runtime_track_stderr = parallel_results[
+        "seamgrim_vol4_runtime_track_check"
+    ]
+    if seamgrim_vol4_runtime_track_stdout:
+        emit_text_safely(seamgrim_vol4_runtime_track_stdout)
+    if seamgrim_vol4_runtime_track_stderr:
+        emit_text_safely(seamgrim_vol4_runtime_track_stderr, stream=sys.stderr)
+
     wasm_canon_contract_rc, wasm_canon_contract_stdout, wasm_canon_contract_stderr = parallel_results[
         "seamgrim_wasm_canon_contract_check"
     ]
@@ -1503,6 +1515,11 @@ def main() -> int:
             "detail": f"exit={block_editor_roundtrip_rc}",
         },
         {
+            "name": "seamgrim_vol4_runtime_track_check_pass",
+            "ok": seamgrim_vol4_runtime_track_rc == 0,
+            "detail": f"exit={seamgrim_vol4_runtime_track_rc}",
+        },
+        {
             "name": "seamgrim_wasm_canon_contract_check_pass",
             "ok": wasm_canon_contract_rc == 0,
             "detail": f"exit={wasm_canon_contract_rc}",
@@ -1614,6 +1631,10 @@ def main() -> int:
         text = block_editor_roundtrip_stderr.strip() or block_editor_roundtrip_stdout.strip() or "-"
         collect_error_codes(text, failure_codes)
         failure_digest.append(f"block_editor_roundtrip_check: {clip(text)}")
+    if seamgrim_vol4_runtime_track_rc != 0:
+        text = seamgrim_vol4_runtime_track_stderr.strip() or seamgrim_vol4_runtime_track_stdout.strip() or "-"
+        collect_error_codes(text, failure_codes)
+        failure_digest.append(f"seamgrim_vol4_runtime_track_check: {clip(text)}")
     if wasm_canon_contract_rc != 0:
         text = wasm_canon_contract_stderr.strip() or wasm_canon_contract_stdout.strip() or "-"
         collect_error_codes(text, failure_codes)

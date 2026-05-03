@@ -85,4 +85,7 @@ jobs:
         run: python tools/teul-cli/tests/run_golden.py --root tools/teul-cli/tests/golden --teul-cli "${{ env.TEUL_CLI_BIN }}" --walk 107
 
       - name: Seamgrim CI Gate
+        env:
+          DDN_SEAMGRIM_CI_GATE_MAX_WORKERS: "14"
+          DDN_SEAMGRIM_CI_GATE_FAMILY_MAX_WORKERS: "10"
         run: python tests/run_seamgrim_ci_gate.py --require-preview-synced --print-drilldown

@@ -28,7 +28,7 @@
 
 ## 빠른 탐색 시작점
 - `CLAUDE.md`: Claude Code 전용 협업 지침 (이 파일과 함께 읽을 것)
-- `docs/ssot/ssot/SSOT_INDEX_v24.0.2.md`: SSOT 목차 (현재 버전: v24.0.2)
+- `docs/ssot/ssot/SSOT_INDEX_v24.12.2.md`: SSOT 목차 (현재 버전: v24.12.2)
 - `docs/context/all/DEV_SUMMARY.md`: 최신 개발 진행 요약 (작업 전 반드시 확인)
 - `docs/status/PROJECT_STATUS.md`: 최근 변경 요약
 - `docs/status/CHANGELOG.md`: 변경 내역
@@ -36,14 +36,16 @@
 ## 기본 규칙
 - 텍스트 파일은 UTF-8(BOM 없음)으로 저장한다.
 - 파일 변경 전 관련 문서를 먼저 확인한다.
+- 정식 언어/런타임 지원을 요구받은 작업은 테스트 전용 Python/JS 변환기나 harness-only lowering으로 완료 처리하지 않는다. Python/JS 테스트 도구는 검증·추출·리포트 보조에만 사용하고, 원문 표면을 받는 구현은 `lang`/`tool`/`tools/teul-cli`/WASM frontdoor의 제품 경로에 들어가야 한다.
+- CLI/WASM parity의 입력은 사용자가 요구한 원문 표면이어야 한다. 내부 lowering이 필요하면 공통 제품 frontdoor 또는 런타임 preprocess 안에 구현하고, 테스트에서만 원문을 다른 DDN으로 바꿔 통과시키는 방식은 금지한다.
 - docs/ssot/ssot/의 SSOT 본문과 `docs/ssot/walks/gogae#/`, `docs/ssot/age/age#/`의 단계/걸음 문서는 작업 전 반드시 읽고 준수한다.
 - SSOT 정본은 `docs/ssot/ssot/`, `docs/ssot/walks/gogae#/`, `docs/ssot/age/age#/`만 인정한다.
-  - 현재 SSOT 버전: **v24.0.2** (파일명: `*_v24.0.2.md`)
-  - 우선순위: `docs/ssot/ssot/`(v24.0.2) > `docs/ssot/walks/gogae#/` + `docs/ssot/age/age#/`. 충돌 시 상위 SSOT 기준으로 진행하고 기록한다.
+  - 현재 SSOT 버전: **v24.12.2** (파일명: `*_v24.12.2.md`)
+  - 우선순위: `docs/ssot/ssot/`(v24.12.2) > `docs/ssot/walks/gogae#/` + `docs/ssot/age/age#/`. 충돌 시 상위 SSOT 기준으로 진행하고 기록한다.
   - 고개별 지침: `docs/ssot/walks/gogae#/`
   - AGE별 지침: `docs/ssot/age/age#/`
   - WALK별 지침: `docs/ssot/walks/gogae#/WALK##/` (SPEC/IMPL_GUIDE/GOLDEN_TESTS)
-- 걸음별 기획안은 `docs/ssot/ssot/SSOT_ROADMAP_CATALOG_v24.0.2.md`의 JIT 원칙(다가오는 1~3걸음만) 기준으로 작성/확인한다.
+- 걸음별 기획안은 `docs/ssot/ssot/SSOT_ROADMAP_CATALOG_v24.12.2.md`의 JIT 원칙(다가오는 1~3걸음만) 기준으로 작성/확인한다.
 - 로드맵은 **설명용 기준**으로만 사용하고, 실제 구현/검증은 `docs/ssot/walks/gogae#/WALK##/{SPEC,IMPL_GUIDE,GOLDEN_TESTS}.md`를 우선한다.
 - 도메인별 가지/팩/샘플은 `docs/ssot/gaji/`, `docs/ssot/pack/`, `docs/ssot/samples/`에서 확인한다.
 - 기존 동작을 깨는 변경은 문서에 이유를 남긴다.

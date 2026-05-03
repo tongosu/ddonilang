@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from _teul_cli_freshness import ensure_teul_cli_bin as shared_ensure_teul_cli_bin
+
 EXPECTED_CODE = "E_CONTRACT_TIER_UNSUPPORTED"
 SUPPORTED_TIER = "D-STRICT"
 UNSUPPORTED_TIERS = ("D-SEALED", "D-APPROX")
@@ -17,35 +19,25 @@ def fail(msg: str) -> int:
     return 1
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if sys.platform.startswith("win") else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
 
 
 def ensure_teul_cli_bin(root: Path) -> Path | None:
-    teul_cli_bin = resolve_teul_cli_bin(root)
-    if teul_cli_bin is not None:
-        return teul_cli_bin
-    build_cmd = ["cargo", "build", "--manifest-path", "tools/teul-cli/Cargo.toml", "--quiet"]
-    build_proc = subprocess.run(
-        build_cmd,
-        cwd=root,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if build_proc.returncode != 0:
+    try:
+        return shared_ensure_teul_cli_bin(
+            root,
+            candidates=teul_cli_candidates(root),
+            include_which=False,
+            manifest_path=root / "tools" / "teul-cli" / "Cargo.toml",
+        )
+    except (SystemExit, FileNotFoundError):
         return None
-    return resolve_teul_cli_bin(root)
 
 
 def run_teul_cli(root: Path, teul_cli_bin: Path, input_path: Path) -> subprocess.CompletedProcess[str]:

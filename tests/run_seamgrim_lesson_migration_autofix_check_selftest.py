@@ -70,7 +70,7 @@ def main() -> int:
 
         write_text(
             lesson_path,
-            "채비: {\n  k:수 <- 1. // 범위(0.1, 5, 0.1)\n}.\n(처음)할때: {\n}.\n(매틱)마다: {\n}.\n(3마디)마다: {\n}.\n",
+            "채비: {\n  k:수 <- 1. // 범위(0.1, 5, 0.1)\n  z:수 <- 2. #범위(1, 3, 0.2)\n}.\n(처음)할때: {\n}.\n(매틱)마다: {\n}.\n(3마디)마다: {\n}.\n",
         )
         write_text(
             input_path,
@@ -100,6 +100,10 @@ def main() -> int:
             return fail(f"dry changed mismatch: {dry_doc.get('changed')}")
         if int(dry_totals.get("range_rewrites", -1)) != 1:
             return fail(f"dry range_rewrites mismatch: {dry_totals.get('range_rewrites')}")
+        if int(dry_totals.get("range_hash_rewrites", -1)) != 1:
+            return fail(f"dry range_hash_rewrites mismatch: {dry_totals.get('range_hash_rewrites')}")
+        if int(dry_totals.get("range_hash_skipped", -1)) != 0:
+            return fail(f"dry range_hash_skipped mismatch: {dry_totals.get('range_hash_skipped')}")
         if int(dry_totals.get("setup_colon_rewrites", -1)) != 0:
             return fail(f"dry setup_colon_rewrites mismatch: {dry_totals.get('setup_colon_rewrites')}")
         if int(dry_totals.get("hook_colon_rewrites", -1)) != 3:
@@ -131,6 +135,10 @@ def main() -> int:
             return fail(f"apply changed mismatch: {apply_doc.get('changed')}")
         if int(apply_totals.get("range_rewrites", -1)) != 2:
             return fail(f"apply range_rewrites mismatch: {apply_totals.get('range_rewrites')}")
+        if int(apply_totals.get("range_hash_rewrites", -1)) != 1:
+            return fail(f"apply range_hash_rewrites mismatch: {apply_totals.get('range_hash_rewrites')}")
+        if int(apply_totals.get("range_hash_skipped", -1)) != 0:
+            return fail(f"apply range_hash_skipped mismatch: {apply_totals.get('range_hash_skipped')}")
         if int(apply_totals.get("setup_colon_rewrites", -1)) != 2:
             return fail(f"apply setup_colon_rewrites mismatch: {apply_totals.get('setup_colon_rewrites')}")
         if int(apply_totals.get("hook_colon_rewrites", -1)) != 3:
@@ -149,6 +157,8 @@ def main() -> int:
             return fail("apply must rewrite interval tick hook colon in lesson")
         if "k:수 <- (1) 매김 { 범위: 0.1..5. 간격: 0.1. }." not in lesson_text:
             return fail("apply must rewrite range comment in lesson")
+        if "z:수 <- (2) 매김 { 범위: 1..3. 간격: 0.2. }." not in lesson_text:
+            return fail("apply must rewrite #range comment in lesson")
 
         input_text = input_path.read_text(encoding="utf-8")
         if "x:수 <- (-3) 매김 { 범위: -3..3. 간격: 0.1. }." not in input_text:

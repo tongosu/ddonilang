@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.vscode.quickfix.prototype.v1",
+  "rail": "parser/frontdoor",
+  "boundary": "prototype_only",
+  "shell_kind": "one-code/one-edit",
+  "bundle_size": 2,
+  "current_codes": [
+    "E_PARSE_EXPECTED_RBRACE",
+    "E_PARSE_EXPECTED_RPAREN"
+  ],
+  "candidates": [
+    {
+      "id": "expected_rbrace_insert",
+      "diagnostic_code": "E_PARSE_EXPECTED_RBRACE",
+      "label": "닫는 중괄호 `}` 추가",
+      "action_kind": "insert_text",
+      "insert_text": "}",
+      "position_hint": "diagnostic_end",
+      "source_pack": "diag_fixit_json_schema_v1",
+      "one_code_one_edit_shell": {
+        "before": "보임 {\n  값: x.\n.",
+        "after": "보임 {\n  값: x.\n}."
+      }
+    },
+    {
+      "id": "expected_rparen_insert",
+      "diagnostic_code": "E_PARSE_EXPECTED_RPAREN",
+      "label": "닫는 괄호 `)` 추가",
+      "action_kind": "insert_text",
+      "insert_text": ")",
+      "position_hint": "diagnostic_end",
+      "source_pack": "diag_fixit_coverage_v1",
+      "one_code_one_edit_shell": {
+        "before": "살림.x <- (1 + 2.\n",
+        "after": "살림.x <- (1 + 2).\n"
+      }
+    }
+  ]
+}

@@ -13,6 +13,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _teul_cli_freshness import build_teul_cli_cmd as shared_build_teul_cli_cmd
+
 PROGRESS_ENV_KEY = "DDN_W97_SELF_HEAL_PACK_CHECK_PROGRESS_JSON"
 
 
@@ -64,17 +66,23 @@ def sha256_bytes(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def resolve_teul_cli_bin(root: Path) -> Path | None:
+def teul_cli_candidates(root: Path) -> list[Path]:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
+    return [
         Path(f"I:/home/urihanl/ddn/codex/target/debug/teul-cli{suffix}"),
         Path(f"C:/ddn/codex/target/debug/teul-cli{suffix}"),
         root / "target" / "debug" / f"teul-cli{suffix}",
     ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
+
+
+def build_teul_cli_cmd(root: Path, args: list[str]) -> list[str]:
+    return shared_build_teul_cli_cmd(
+        root,
+        args,
+        candidates=teul_cli_candidates(root),
+        include_which=False,
+        manifest_path=root / "tools" / "teul-cli" / "Cargo.toml",
+    )
 
 
 def run_teul_cli(
@@ -86,33 +94,7 @@ def run_teul_cli(
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.setdefault("RUST_MIN_STACK", str(64 * 1024 * 1024))
-    teul_cli_bin = resolve_teul_cli_bin(root)
-
-    def build_cmd() -> list[str]:
-        if teul_cli_bin is not None:
-            return [str(teul_cli_bin), *args]
-        if os.name == "nt":
-            def ps_quote(text: str) -> str:
-                return "'" + str(text).replace("'", "''") + "'"
-
-            payload = (
-                "cargo run --manifest-path "
-                + ps_quote("tools/teul-cli/Cargo.toml")
-                + " --quiet -- "
-                + " ".join(ps_quote(arg) for arg in args)
-            )
-            return ["powershell", "-NoProfile", "-Command", payload]
-        return [
-            "cargo",
-            "run",
-            "--manifest-path",
-            "tools/teul-cli/Cargo.toml",
-            "--quiet",
-            "--",
-            *args,
-        ]
-
-    cmd = build_cmd()
+    cmd = build_teul_cli_cmd(root, args)
     last: subprocess.CompletedProcess[str] | None = None
     for attempt in range(10):
         if progress_hook is not None:

@@ -16,6 +16,12 @@ from _ci_age5_combined_heavy_contract import (
     AGE5_COMBINED_HEAVY_REQUIRED_CRITERIA_TEXT,
     AGE5_COMBINED_HEAVY_REQUIRED_REPORTS_TEXT,
 )
+from _ci_seamgrim_step_contract import (
+    SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_CASES,
+    SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES,
+    SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_CASES,
+    SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES,
+)
 from run_ci_sync_readiness_check import (
     AGE3_BOGAE_GEOUL_VISIBILITY_SMOKE_SCHEMA,
     SEAMGRIM_NUMERIC_FACTOR_POLICY_DEFAULTS,
@@ -1096,6 +1102,173 @@ def main() -> int:
         ) != 0:
             return 1
 
+        bad_missing_v2_task_batch_json = report_dir / "sync_readiness.bad_missing_v2_task_batch.detjson"
+        base_sanity_doc_for_v2_task_batch = load_json(sanity_json)
+        if expect(
+            isinstance(base_sanity_doc_for_v2_task_batch, dict),
+            "base_sanity_doc_for_v2_task_batch_should_be_dict",
+        ) != 0:
+            return 1
+        base_steps_for_v2_task_batch = (
+            base_sanity_doc_for_v2_task_batch.get("steps")
+            if isinstance(base_sanity_doc_for_v2_task_batch, dict)
+            else None
+        )
+        if expect(
+            isinstance(base_steps_for_v2_task_batch, list),
+            "base_sanity_steps_for_v2_task_batch_should_be_list",
+        ) != 0:
+            return 1
+        filtered_steps_for_v2_task_batch = [
+            row
+            for row in base_steps_for_v2_task_batch
+            if isinstance(row, dict)
+            and str(row.get("step", row.get("name", ""))).strip() != "seamgrim_v2_task_batch_check"
+        ]
+        if expect(
+            len(filtered_steps_for_v2_task_batch) < len(base_steps_for_v2_task_batch),
+            "filtered_steps_should_remove_seamgrim_v2_task_batch_check",
+        ) != 0:
+            return 1
+        if len(filtered_steps_for_v2_task_batch) + 1 == len(base_steps_for_v2_task_batch):
+            filtered_steps_for_v2_task_batch.append(
+                {
+                    "step": "dummy_preserve_count_v2_task_batch",
+                    "ok": True,
+                    "returncode": 0,
+                    "cmd": ["python", "dummy.py"],
+                }
+            )
+        bad_missing_v2_task_batch_doc = json.loads(
+            json.dumps(base_sanity_doc_for_v2_task_batch, ensure_ascii=False)
+        )
+        bad_missing_v2_task_batch_doc["steps"] = filtered_steps_for_v2_task_batch
+        write_json(bad_missing_v2_task_batch_json, bad_missing_v2_task_batch_doc)
+
+        validate_missing_v2_task_batch_json = report_dir / "sync_readiness.validate_missing_v2_task_batch.detjson"
+        validate_missing_v2_task_batch_cmd = [
+            py,
+            "tests/run_ci_sync_readiness_check.py",
+            "--report-dir",
+            str(report_dir),
+            "--report-prefix",
+            f"{prefix}_validate_missing_v2_task_batch",
+            "--validate-only-sanity-json",
+            str(bad_missing_v2_task_batch_json),
+            "--json-out",
+            str(validate_missing_v2_task_batch_json),
+        ]
+        validate_missing_v2_task_batch_proc = run(validate_missing_v2_task_batch_cmd, cwd=root)
+        if expect(
+            validate_missing_v2_task_batch_proc.returncode != 0,
+            "validate_only_missing_v2_task_batch_should_fail",
+            validate_missing_v2_task_batch_proc,
+        ) != 0:
+            return 1
+        validate_missing_v2_task_batch_doc = load_json(validate_missing_v2_task_batch_json)
+        if expect(
+            str(validate_missing_v2_task_batch_doc.get("status", "")) == "fail",
+            "validate_missing_v2_task_batch_status_should_be_fail",
+        ) != 0:
+            return 1
+        if expect(
+            str(validate_missing_v2_task_batch_doc.get("code", "")) == "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
+            "validate_missing_v2_task_batch_code_should_be_sanity_contract_fail",
+        ) != 0:
+            return 1
+        if expect(
+            str(validate_missing_v2_task_batch_doc.get("step", "")) == "sanity_gate_contract",
+            "validate_missing_v2_task_batch_step_should_be_sanity_gate_contract",
+        ) != 0:
+            return 1
+        if expect(
+            "seamgrim_v2_task_batch_check" in str(validate_missing_v2_task_batch_doc.get("msg", "")),
+            "validate_missing_v2_task_batch_msg_should_mention_step",
+        ) != 0:
+            return 1
+
+        bad_failed_v2_task_batch_json = report_dir / "sync_readiness.bad_failed_v2_task_batch.detjson"
+        base_sanity_doc_for_failed_v2_task_batch = load_json(sanity_json)
+        if expect(
+            isinstance(base_sanity_doc_for_failed_v2_task_batch, dict),
+            "base_sanity_doc_for_failed_v2_task_batch_should_be_dict",
+        ) != 0:
+            return 1
+        base_steps_for_failed_v2_task_batch = (
+            base_sanity_doc_for_failed_v2_task_batch.get("steps")
+            if isinstance(base_sanity_doc_for_failed_v2_task_batch, dict)
+            else None
+        )
+        if expect(
+            isinstance(base_steps_for_failed_v2_task_batch, list),
+            "base_sanity_steps_for_failed_v2_task_batch_should_be_list",
+        ) != 0:
+            return 1
+        failed_v2_task_batch_hit = False
+        rewritten_steps_for_failed_v2_task_batch: list[dict[str, object]] = []
+        for row in base_steps_for_failed_v2_task_batch:
+            if not isinstance(row, dict):
+                continue
+            current_step = str(row.get("step", row.get("name", ""))).strip()
+            updated = json.loads(json.dumps(row, ensure_ascii=False))
+            if current_step == "seamgrim_v2_task_batch_check":
+                updated["ok"] = False
+                updated["returncode"] = 1
+                failed_v2_task_batch_hit = True
+            rewritten_steps_for_failed_v2_task_batch.append(updated)
+        if expect(
+            failed_v2_task_batch_hit,
+            "rewritten_steps_should_touch_seamgrim_v2_task_batch_check",
+        ) != 0:
+            return 1
+        bad_failed_v2_task_batch_doc = json.loads(
+            json.dumps(base_sanity_doc_for_failed_v2_task_batch, ensure_ascii=False)
+        )
+        bad_failed_v2_task_batch_doc["steps"] = rewritten_steps_for_failed_v2_task_batch
+        write_json(bad_failed_v2_task_batch_json, bad_failed_v2_task_batch_doc)
+
+        validate_failed_v2_task_batch_json = report_dir / "sync_readiness.validate_failed_v2_task_batch.detjson"
+        validate_failed_v2_task_batch_cmd = [
+            py,
+            "tests/run_ci_sync_readiness_check.py",
+            "--report-dir",
+            str(report_dir),
+            "--report-prefix",
+            f"{prefix}_validate_failed_v2_task_batch",
+            "--validate-only-sanity-json",
+            str(bad_failed_v2_task_batch_json),
+            "--json-out",
+            str(validate_failed_v2_task_batch_json),
+        ]
+        validate_failed_v2_task_batch_proc = run(validate_failed_v2_task_batch_cmd, cwd=root)
+        if expect(
+            validate_failed_v2_task_batch_proc.returncode != 0,
+            "validate_only_failed_v2_task_batch_should_fail",
+            validate_failed_v2_task_batch_proc,
+        ) != 0:
+            return 1
+        validate_failed_v2_task_batch_doc = load_json(validate_failed_v2_task_batch_json)
+        if expect(
+            str(validate_failed_v2_task_batch_doc.get("status", "")) == "fail",
+            "validate_failed_v2_task_batch_status_should_be_fail",
+        ) != 0:
+            return 1
+        if expect(
+            str(validate_failed_v2_task_batch_doc.get("code", "")) == "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
+            "validate_failed_v2_task_batch_code_should_be_sanity_contract_fail",
+        ) != 0:
+            return 1
+        if expect(
+            str(validate_failed_v2_task_batch_doc.get("step", "")) == "sanity_gate_contract",
+            "validate_failed_v2_task_batch_step_should_be_sanity_gate_contract",
+        ) != 0:
+            return 1
+        if expect(
+            "seamgrim_v2_task_batch_check" in str(validate_failed_v2_task_batch_doc.get("msg", "")),
+            "validate_failed_v2_task_batch_msg_should_mention_step",
+        ) != 0:
+            return 1
+
         bad_missing_wasm_web_selftest_json = report_dir / "sync_readiness.bad_missing_wasm_web_selftest.detjson"
         base_sanity_doc_for_wasm_selftest = load_json(sanity_json)
         if expect(isinstance(base_sanity_doc_for_wasm_selftest, dict), "base_sanity_doc_for_wasm_selftest_should_be_dict") != 0:
@@ -1176,6 +1349,356 @@ def main() -> int:
             "validate_missing_wasm_web_smoke_selftest_msg_should_mention_step",
         ) != 0:
             return 1
+
+        for (
+            missing_step,
+            case_slug,
+            fail_case_label,
+            msg_case_label,
+        ) in SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_CASES:
+            bad_missing_step_json = report_dir / f"sync_readiness.bad_missing_{case_slug}.detjson"
+            base_sanity_doc_for_missing_step = load_json(sanity_json)
+            if expect(
+                isinstance(base_sanity_doc_for_missing_step, dict),
+                f"base_sanity_doc_for_{case_slug}_should_be_dict",
+            ) != 0:
+                return 1
+            base_steps_for_missing_step = (
+                base_sanity_doc_for_missing_step.get("steps")
+                if isinstance(base_sanity_doc_for_missing_step, dict)
+                else None
+            )
+            if expect(
+                isinstance(base_steps_for_missing_step, list),
+                f"base_sanity_steps_for_{case_slug}_should_be_list",
+            ) != 0:
+                return 1
+            filtered_steps_for_missing_step = [
+                row
+                for row in base_steps_for_missing_step
+                if isinstance(row, dict) and str(row.get("step", row.get("name", ""))).strip() != missing_step
+            ]
+            if expect(
+                len(filtered_steps_for_missing_step) < len(base_steps_for_missing_step),
+                f"filtered_steps_should_remove_{missing_step}",
+            ) != 0:
+                return 1
+            if len(filtered_steps_for_missing_step) + 1 == len(base_steps_for_missing_step):
+                filtered_steps_for_missing_step.append(
+                    {
+                        "step": f"dummy_preserve_count_{case_slug}",
+                        "ok": True,
+                        "returncode": 0,
+                        "cmd": ["python", "dummy.py"],
+                    }
+                )
+            bad_missing_step_doc = json.loads(json.dumps(base_sanity_doc_for_missing_step, ensure_ascii=False))
+            bad_missing_step_doc["steps"] = filtered_steps_for_missing_step
+            write_json(bad_missing_step_json, bad_missing_step_doc)
+
+            validate_missing_step_json = report_dir / f"sync_readiness.validate_missing_{case_slug}.detjson"
+            validate_missing_step_cmd = [
+                py,
+                "tests/run_ci_sync_readiness_check.py",
+                "--report-dir",
+                str(report_dir),
+                "--report-prefix",
+                f"{prefix}_validate_missing_{case_slug}",
+                "--validate-only-sanity-json",
+                str(bad_missing_step_json),
+                "--json-out",
+                str(validate_missing_step_json),
+            ]
+            validate_missing_step_proc = run(validate_missing_step_cmd, cwd=root)
+            if expect(
+                validate_missing_step_proc.returncode != 0,
+                fail_case_label,
+                validate_missing_step_proc,
+            ) != 0:
+                return 1
+            validate_missing_step_doc = load_json(validate_missing_step_json)
+            if expect(
+                str(validate_missing_step_doc.get("status", "")) == "fail",
+                f"validate_missing_{case_slug}_status_should_be_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_missing_step_doc.get("code", "")) == "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
+                f"validate_missing_{case_slug}_code_should_be_sanity_contract_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_missing_step_doc.get("step", "")) == "sanity_gate_contract",
+                f"validate_missing_{case_slug}_step_should_be_sanity_gate_contract",
+            ) != 0:
+                return 1
+            if expect(
+                missing_step in str(validate_missing_step_doc.get("msg", "")),
+                msg_case_label,
+            ) != 0:
+                return 1
+
+        for (
+            failed_step,
+            case_slug,
+            fail_case_label,
+            msg_case_label,
+        ) in SEAMGRIM_BLOCKER_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES:
+            bad_failed_step_json = report_dir / f"sync_readiness.bad_failed_{case_slug}.detjson"
+            base_sanity_doc_for_failed_step = load_json(sanity_json)
+            if expect(
+                isinstance(base_sanity_doc_for_failed_step, dict),
+                f"base_sanity_doc_for_failed_{case_slug}_should_be_dict",
+            ) != 0:
+                return 1
+            base_steps_for_failed_step = (
+                base_sanity_doc_for_failed_step.get("steps")
+                if isinstance(base_sanity_doc_for_failed_step, dict)
+                else None
+            )
+            if expect(
+                isinstance(base_steps_for_failed_step, list),
+                f"base_sanity_steps_for_failed_{case_slug}_should_be_list",
+            ) != 0:
+                return 1
+            failed_step_hit = False
+            rewritten_steps_for_failed_step: list[dict[str, object]] = []
+            for row in base_steps_for_failed_step:
+                if not isinstance(row, dict):
+                    continue
+                current_step = str(row.get("step", row.get("name", ""))).strip()
+                updated = json.loads(json.dumps(row, ensure_ascii=False))
+                if current_step == failed_step:
+                    updated["ok"] = False
+                    updated["returncode"] = 1
+                    failed_step_hit = True
+                rewritten_steps_for_failed_step.append(updated)
+            if expect(
+                failed_step_hit,
+                f"rewritten_steps_should_touch_{failed_step}",
+            ) != 0:
+                return 1
+
+            bad_failed_step_doc = json.loads(json.dumps(base_sanity_doc_for_failed_step, ensure_ascii=False))
+            bad_failed_step_doc["steps"] = rewritten_steps_for_failed_step
+            write_json(bad_failed_step_json, bad_failed_step_doc)
+
+            validate_failed_step_json = report_dir / f"sync_readiness.validate_failed_{case_slug}.detjson"
+            validate_failed_step_cmd = [
+                py,
+                "tests/run_ci_sync_readiness_check.py",
+                "--report-dir",
+                str(report_dir),
+                "--report-prefix",
+                f"{prefix}_validate_failed_{case_slug}",
+                "--validate-only-sanity-json",
+                str(bad_failed_step_json),
+                "--json-out",
+                str(validate_failed_step_json),
+            ]
+            validate_failed_step_proc = run(validate_failed_step_cmd, cwd=root)
+            if expect(
+                validate_failed_step_proc.returncode != 0,
+                fail_case_label,
+                validate_failed_step_proc,
+            ) != 0:
+                return 1
+            validate_failed_step_doc = load_json(validate_failed_step_json)
+            if expect(
+                str(validate_failed_step_doc.get("status", "")) == "fail",
+                f"validate_failed_{case_slug}_status_should_be_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_failed_step_doc.get("code", "")) == "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
+                f"validate_failed_{case_slug}_code_should_be_sanity_contract_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_failed_step_doc.get("step", "")) == "sanity_gate_contract",
+                f"validate_failed_{case_slug}_step_should_be_sanity_gate_contract",
+            ) != 0:
+                return 1
+            if expect(
+                failed_step in str(validate_failed_step_doc.get("msg", "")),
+                msg_case_label,
+            ) != 0:
+                return 1
+
+        for (
+            missing_step,
+            case_slug,
+            fail_case_label,
+            msg_case_label,
+        ) in SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_CASES:
+            bad_missing_step_json = report_dir / f"sync_readiness.bad_missing_{case_slug}.detjson"
+            base_sanity_doc_for_missing_step = load_json(sanity_json)
+            if expect(
+                isinstance(base_sanity_doc_for_missing_step, dict),
+                f"base_sanity_doc_for_{case_slug}_should_be_dict",
+            ) != 0:
+                return 1
+            base_steps_for_missing_step = (
+                base_sanity_doc_for_missing_step.get("steps")
+                if isinstance(base_sanity_doc_for_missing_step, dict)
+                else None
+            )
+            if expect(
+                isinstance(base_steps_for_missing_step, list),
+                f"base_sanity_steps_for_{case_slug}_should_be_list",
+            ) != 0:
+                return 1
+            filtered_steps_for_missing_step = [
+                row
+                for row in base_steps_for_missing_step
+                if isinstance(row, dict) and str(row.get("step", row.get("name", ""))).strip() != missing_step
+            ]
+            if expect(
+                len(filtered_steps_for_missing_step) < len(base_steps_for_missing_step),
+                f"filtered_steps_should_remove_{missing_step}",
+            ) != 0:
+                return 1
+            if len(filtered_steps_for_missing_step) + 1 == len(base_steps_for_missing_step):
+                filtered_steps_for_missing_step.append(
+                    {
+                        "step": f"dummy_preserve_count_{case_slug}",
+                        "ok": True,
+                        "returncode": 0,
+                        "cmd": ["python", "dummy.py"],
+                    }
+                )
+            bad_missing_step_doc = json.loads(json.dumps(base_sanity_doc_for_missing_step, ensure_ascii=False))
+            bad_missing_step_doc["steps"] = filtered_steps_for_missing_step
+            write_json(bad_missing_step_json, bad_missing_step_doc)
+
+            validate_missing_step_json = report_dir / f"sync_readiness.validate_missing_{case_slug}.detjson"
+            validate_missing_step_cmd = [
+                py,
+                "tests/run_ci_sync_readiness_check.py",
+                "--report-dir",
+                str(report_dir),
+                "--report-prefix",
+                f"{prefix}_validate_missing_{case_slug}",
+                "--validate-only-sanity-json",
+                str(bad_missing_step_json),
+                "--json-out",
+                str(validate_missing_step_json),
+            ]
+            validate_missing_step_proc = run(validate_missing_step_cmd, cwd=root)
+            if expect(
+                validate_missing_step_proc.returncode != 0,
+                fail_case_label,
+                validate_missing_step_proc,
+            ) != 0:
+                return 1
+            validate_missing_step_doc = load_json(validate_missing_step_json)
+            if expect(
+                str(validate_missing_step_doc.get("status", "")) == "fail",
+                f"validate_missing_{case_slug}_status_should_be_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_missing_step_doc.get("code", "")) == "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
+                f"validate_missing_{case_slug}_code_should_be_sanity_contract_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_missing_step_doc.get("step", "")) == "sanity_gate_contract",
+                f"validate_missing_{case_slug}_step_should_be_sanity_gate_contract",
+            ) != 0:
+                return 1
+            if expect(
+                missing_step in str(validate_missing_step_doc.get("msg", "")),
+                msg_case_label,
+            ) != 0:
+                return 1
+
+        for (
+            failed_step,
+            case_slug,
+            fail_case_label,
+            msg_case_label,
+        ) in SEAMGRIM_FEATURED_SYNC_READINESS_VALIDATE_ONLY_FAILED_CASES:
+            bad_failed_step_json = report_dir / f"sync_readiness.bad_failed_{case_slug}.detjson"
+            base_sanity_doc_for_failed_step = load_json(sanity_json)
+            if expect(
+                isinstance(base_sanity_doc_for_failed_step, dict),
+                f"base_sanity_doc_for_failed_{case_slug}_should_be_dict",
+            ) != 0:
+                return 1
+            base_steps_for_failed_step = (
+                base_sanity_doc_for_failed_step.get("steps")
+                if isinstance(base_sanity_doc_for_failed_step, dict)
+                else None
+            )
+            if expect(
+                isinstance(base_steps_for_failed_step, list),
+                f"base_sanity_steps_for_failed_{case_slug}_should_be_list",
+            ) != 0:
+                return 1
+            failed_step_hit = False
+            rewritten_steps_for_failed_step: list[dict[str, object]] = []
+            for row in base_steps_for_failed_step:
+                if not isinstance(row, dict):
+                    continue
+                current_step = str(row.get("step", row.get("name", ""))).strip()
+                updated = json.loads(json.dumps(row, ensure_ascii=False))
+                if current_step == failed_step:
+                    updated["ok"] = False
+                    updated["returncode"] = 1
+                    failed_step_hit = True
+                rewritten_steps_for_failed_step.append(updated)
+            if expect(
+                failed_step_hit,
+                f"rewritten_steps_should_touch_{failed_step}",
+            ) != 0:
+                return 1
+
+            bad_failed_step_doc = json.loads(json.dumps(base_sanity_doc_for_failed_step, ensure_ascii=False))
+            bad_failed_step_doc["steps"] = rewritten_steps_for_failed_step
+            write_json(bad_failed_step_json, bad_failed_step_doc)
+
+            validate_failed_step_json = report_dir / f"sync_readiness.validate_failed_{case_slug}.detjson"
+            validate_failed_step_cmd = [
+                py,
+                "tests/run_ci_sync_readiness_check.py",
+                "--report-dir",
+                str(report_dir),
+                "--report-prefix",
+                f"{prefix}_validate_failed_{case_slug}",
+                "--validate-only-sanity-json",
+                str(bad_failed_step_json),
+                "--json-out",
+                str(validate_failed_step_json),
+            ]
+            validate_failed_step_proc = run(validate_failed_step_cmd, cwd=root)
+            if expect(
+                validate_failed_step_proc.returncode != 0,
+                fail_case_label,
+                validate_failed_step_proc,
+            ) != 0:
+                return 1
+            validate_failed_step_doc = load_json(validate_failed_step_json)
+            if expect(
+                str(validate_failed_step_doc.get("status", "")) == "fail",
+                f"validate_failed_{case_slug}_status_should_be_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_failed_step_doc.get("code", "")) == "E_SYNC_READINESS_SANITY_CONTRACT_FAIL",
+                f"validate_failed_{case_slug}_code_should_be_sanity_contract_fail",
+            ) != 0:
+                return 1
+            if expect(
+                str(validate_failed_step_doc.get("step", "")) == "sanity_gate_contract",
+                f"validate_failed_{case_slug}_step_should_be_sanity_gate_contract",
+            ) != 0:
+                return 1
+            if expect(
+                failed_step in str(validate_failed_step_doc.get("msg", "")),
+                msg_case_label,
+            ) != 0:
+                return 1
 
         bad_missing_age2_close_selftest_json = report_dir / "sync_readiness.bad_missing_age2_close_selftest.detjson"
         base_sanity_doc_for_age2_close_selftest = load_json(sanity_json)

@@ -56,8 +56,8 @@ FILE_TOKEN_REQUIREMENTS = {
         "seamgrim_wasm_web_step_check_report",
     ),
     "tests/run_ci_gate_report_index_check.py": (
-        '"seamgrim_ci_gate_wasm_web_smoke_step_check"',
-        '"seamgrim_ci_gate_wasm_web_smoke_step_check_selftest"',
+        "from _ci_seamgrim_step_contract import SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS",
+        "PROFILE_REQUIRED_STEPS_SEAMGRIM = SEAMGRIM_PROFILE_REQUIRED_STEP_CONTRACT_STEPS",
     ),
     "tests/run_ci_gate_report_index_check_selftest.py": (
         '"seamgrim_ci_gate_wasm_web_smoke_step_check"',

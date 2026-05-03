@@ -10,6 +10,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+def safe_print(text: str, *, to_stderr: bool = False) -> None:
+    stream = sys.stderr if to_stderr else sys.stdout
+    data = str(text)
+    try:
+        print(data, end="", file=stream)
+        return
+    except UnicodeEncodeError:
+        pass
+    encoded = data.encode(stream.encoding or "utf-8", errors="replace")
+    print(encoded.decode(stream.encoding or "utf-8", errors="replace"), end="", file=stream)
+
+
 def load_json(path: Path) -> dict | None:
     if not path.exists():
         return None
@@ -59,9 +71,9 @@ def run_seamgrim_gate(root: Path, seamgrim_report: Path, ui_report: Path) -> int
         errors="replace",
     )
     if proc.stdout:
-        print(proc.stdout, end="")
+        safe_print(proc.stdout)
     if proc.stderr:
-        print(proc.stderr, end="", file=sys.stderr)
+        safe_print(proc.stderr, to_stderr=True)
     print(f"[age3-close] seamgrim_exit={proc.returncode}")
     return int(proc.returncode)
 
