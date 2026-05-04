@@ -3,6 +3,19 @@
 ## 목적
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
+## 2026-05-04 추가 진행 (저장소 구조 정리 1차)
+- 범위:
+  tracked vs ignored/untracked 기준의 저위험 정리. `docs/ssot/**`는 수정하지 않았다.
+- 작업 상태:
+  기존 셈그림 UI/block 변경은 `pre-structure-cleanup-seamgrim-ui-block-work` stash에 보관해 구조 정리와 섞지 않았다.
+- 반영:
+  루트 `__tmp_*.ddn`, `geoul.diag.jsonl`, `docs/context/roadmap/*.crdownload`, `pack/_tmp_dbg_*` 로컬 부산물을 제거했다.
+  tracked stale archive인 `solutions/seamgrim_ui_mvp/ui.zip`을 제거하고, `.gitignore`에 `solutions/seamgrim_ui_mvp/*.zip`을 추가했다.
+  `tools/vscode-ddn/legacy/README.md`를 추가해 legacy VS Code shell과 현행 shell의 경계를 명시했다.
+- 보류:
+  `pack/**/RUN_LOG.txt`, `SHA256SUMS.txt`, `*.actual.*.detjson` 194개는 tests/golden 참조가 있어 삭제하지 않았다.
+  `tests/run_age*.py` 32개는 aggregate gate와 README 참조가 있어 삭제하지 않았다.
+
 ## 2026-04-05 추가 진행 (Workspace cleanup round 1.5, low-risk apply)
 - 범위:
   문서/안내 중심의 비파괴 적용. 대규모 rename/move/delete 미실행.

@@ -1,6 +1,19 @@
 # CHANGELOG.md
 
 ## Unreleased
+- Cleaned repository structure noise and clarified generated artifact policy.
+  - Stashed pre-existing Seamgrim UI/block worktree edits before cleanup:
+    - `pre-structure-cleanup-seamgrim-ui-block-work`
+  - Removed ignored local leftovers:
+    - root `__tmp_*.ddn`
+    - root `geoul.diag.jsonl`
+    - `docs/context/roadmap/*.crdownload`
+    - `pack/_tmp_dbg_*`
+  - Removed tracked stale archive:
+    - `solutions/seamgrim_ui_mvp/ui.zip`
+  - Added `.gitignore` guard for Seamgrim UI zip archives.
+  - Added `tools/vscode-ddn/legacy/README.md` to mark the legacy VS Code shell as non-current.
+  - Left pack proof/run artifacts and `tests/run_age*.py` in place pending separate reference classification.
 - Closed Task 4/5 for CI snapshot/report flow.
   - Task 4 (snapshot report lock):
     - revalidated profile chain:
