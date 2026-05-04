@@ -1,6 +1,14 @@
 # CHANGELOG.md
 
 ## Unreleased
+- Closed repository cleanup round 3 review candidates.
+  - Added `tests/run_age5_close_review_suite_check.py` to bind AGE5 close review
+    candidates into an explicit suite.
+  - Strengthened `tests/run_test_reference_inventory_check.py` so
+    `review > 0` fails.
+  - Added `repo_structure_hygiene_check` to the end of the Seamgrim product
+    stabilization smoke, with cleanup for ignored root `geoul.diag.jsonl`.
+  - Test inventory now expects `tests=32 referenced=32 review=0`.
 - Added repository structure policy gates and classification reports.
   - Added:
     - `tests/run_repo_structure_hygiene_check.py`

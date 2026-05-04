@@ -8,11 +8,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT = ROOT / "build" / "reports" / "test_reference_inventory.detjson"
+TARGET_EXCLUDES = {
+    "tests/run_age5_close_review_suite_check.py",
+}
 
 
 def git_ls_files(*patterns: str) -> list[str]:
     proc = subprocess.run(
-        ["git", "ls-files", *patterns],
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", *patterns],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -63,7 +66,9 @@ def classify(refs: list[str]) -> str:
 
 
 def main() -> int:
-    age_tests = git_ls_files("tests/run_age*.py")
+    age_tests = [
+        path for path in git_ls_files("tests/run_age*.py") if path not in TARGET_EXCLUDES
+    ]
     corpus = build_corpus()
     entries: list[dict[str, object]] = []
     counts: dict[str, int] = {}
@@ -93,6 +98,7 @@ def main() -> int:
         "schema": "ddn.test_reference_inventory_report.v1",
         "test_count": len(entries),
         "counts": dict(sorted(counts.items())),
+        "target_excludes": sorted(TARGET_EXCLUDES),
         "entries": entries,
     }
     DEFAULT_REPORT.write_text(
@@ -100,12 +106,19 @@ def main() -> int:
         encoding="utf-8",
         newline="\n",
     )
+    review_count = counts.get("review", 0)
+    status = "PASS" if review_count == 0 else "FAIL"
     print(
-        "[test-reference-inventory] PASS "
+        f"[test-reference-inventory] {status} "
         f"tests={len(entries)} referenced={counts.get('referenced', 0)} "
-        f"readme_only={counts.get('readme_only', 0)} review={counts.get('review', 0)} "
+        f"readme_only={counts.get('readme_only', 0)} review={review_count} "
         f"report={DEFAULT_REPORT}"
     )
+    if review_count:
+        for entry in entries:
+            if entry.get("status") == "review":
+                print(f"review: {entry.get('path')}")
+        return 1
     return 0
 
 

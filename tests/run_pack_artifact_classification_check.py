@@ -127,6 +127,10 @@ def main() -> int:
         f"artifacts={len(entries)} keep={counts.get('keep', 0)} "
         f"review={review_count} report={DEFAULT_REPORT}"
     )
+    if review_count:
+        for entry in entries:
+            if entry.get("action") == "review":
+                print(f"review: {entry.get('path')}")
     return 0
 
 

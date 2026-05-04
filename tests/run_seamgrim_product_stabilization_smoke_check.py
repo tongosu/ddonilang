@@ -116,10 +116,23 @@ COMMANDS: tuple[tuple[str, list[str]], ...] = (
         "bogae_graph_prefix_check",
         [sys.executable, "tests/run_bogae_graph_prefix_check.py"],
     ),
+    (
+        "repo_structure_hygiene_check",
+        [sys.executable, "tests/run_repo_structure_hygiene_check.py"],
+    ),
 )
 
 
+def cleanup_ignored_root_runtime_logs() -> None:
+    for name in ["geoul.diag.jsonl"]:
+        path = ROOT / name
+        if path.exists():
+            path.unlink()
+
+
 def run_step(name: str, cmd: list[str]) -> tuple[bool, str]:
+    if name == "repo_structure_hygiene_check":
+        cleanup_ignored_root_runtime_logs()
     try:
         proc = subprocess.run(
             cmd,

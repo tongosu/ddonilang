@@ -3,6 +3,19 @@
 ## 목적
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
+## 2026-05-04 추가 진행 (저장소 구조 정리 3단계: review 후보 닫힘)
+- 범위:
+  `tests/run_age*.py` review 후보를 삭제하지 않고 AGE5 계약 묶음에 연결했다.
+- 추가:
+  `tests/run_age5_close_review_suite_check.py`
+- 변경:
+  `tests/run_test_reference_inventory_check.py`는 `review > 0`이면 실패한다.
+  `tests/run_pack_artifact_classification_check.py`는 review 후보가 생기면 경로를 출력한다.
+  `tests/run_seamgrim_product_stabilization_smoke_check.py`는 마지막에 `repo_structure_hygiene_check`를 실행한다.
+- 정책:
+  제품 smoke 중 생성되는 ignored 루트 `geoul.diag.jsonl`은 hygiene 검사 직전 smoke 내부 cleanup 대상으로 처리한다.
+  tracked 산출물이나 pack/debug 위반은 계속 실패로 남긴다.
+
 ## 2026-05-04 추가 진행 (저장소 구조 정리 2단계: 정책 게이트)
 - 범위:
   삭제가 아니라 자동 분류와 재발 방지 게이트를 추가했다.
