@@ -1,6 +1,19 @@
 # CHANGELOG.md
 
 ## Unreleased
+- Added repository structure policy gates and classification reports.
+  - Added:
+    - `tests/run_repo_structure_hygiene_check.py`
+    - `tests/run_pack_artifact_classification_check.py`
+    - `tests/run_test_reference_inventory_check.py`
+    - `solutions/seamgrim_ui_mvp/lessons/README.md`
+    - `solutions/seamgrim_ui_mvp/lessons_rewrite_v1/README.md`
+  - The hygiene check fails on tracked Seamgrim UI zip archives, root temp files,
+    root runtime logs, partial roadmap downloads, and debug temp pack folders.
+  - The pack artifact classification keeps all 194 tracked pack artifacts under
+    current contracts.
+  - The age-test inventory classifies 30 of 32 `tests/run_age*.py` files as
+    referenced and leaves 2 as review candidates.
 - Cleaned repository structure noise and clarified generated artifact policy.
   - Stashed pre-existing Seamgrim UI/block worktree edits before cleanup:
     - `pre-structure-cleanup-seamgrim-ui-block-work`

@@ -3,6 +3,23 @@
 ## 목적
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
+## 2026-05-04 추가 진행 (저장소 구조 정리 2단계: 정책 게이트)
+- 범위:
+  삭제가 아니라 자동 분류와 재발 방지 게이트를 추가했다.
+- 추가:
+  `tests/run_repo_structure_hygiene_check.py`
+  `tests/run_pack_artifact_classification_check.py`
+  `tests/run_test_reference_inventory_check.py`
+  `solutions/seamgrim_ui_mvp/lessons/README.md`
+  `solutions/seamgrim_ui_mvp/lessons_rewrite_v1/README.md`
+- 정책:
+  `solutions/seamgrim_ui_mvp/*.zip`, 루트 임시 DDN, 루트 `geoul.diag.jsonl`, roadmap `.crdownload`, `pack/_tmp*`, `pack/_dbg*`를 hygiene 위반으로 잡는다.
+  pack 산출물은 삭제하지 않고 `keep/review`로 분류한다.
+  `tests/run_age*.py`는 참조 상태를 `referenced/readme_only/review`로 분류한다.
+- 결과:
+  pack 산출물 194개는 현재 계약상 모두 keep으로 분류된다.
+  `tests/run_age*.py` 32개 중 30개는 referenced, 2개는 review 후보로 분류된다.
+
 ## 2026-05-04 추가 진행 (저장소 구조 정리 1차)
 - 범위:
   tracked vs ignored/untracked 기준의 저위험 정리. `docs/ssot/**`는 수정하지 않았다.
