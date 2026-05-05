@@ -18,7 +18,7 @@
     }
   ],
   "generated_preview": "채비 {\n  값:변수 <- 0.\n}.\n\n(시작)할때 {\n  { 값 < 2 }인것 동안 {\n    값 <- 값 + 1.\n  }.\n\n  { 값 == 2 }인것 바탕으로 아니면 {\n    \"bad\" 보여주기.\n  } 맞으면 {\n    \"ok\" 보여주기.\n  }.\n\n  { 값 >= 0 }인것 다짐하고(알림) 아니면 {\n    \"warn\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
-  "palette_children": 39,
+  "palette_children": 40,
   "result_text": "mode=seamgrim blocks=3 errors=0 · ok",
   "run_calls": [
     {
@@ -272,6 +272,7 @@
         "contract_guard",
         "choose_branch",
         "choose_else",
+        "choose_exhaustive",
         "receive_block",
         "event_react",
         "send_signal",

@@ -107,7 +107,6 @@
           </nav>
           <span class="screen-title" id="editor-title">DDN 편집</span>
           <div class="editor-actions">
-            <button id="btn-block-mode" class="ghost" type="button">⬛ 블록으로</button>
             <button id="btn-run-from-editor" class="btn-primary" type="button">▶ 작업실에서 실행</button>
             <button id="btn-load-ddn" class="ghost" type="button">↑ 불러오기</button>
             <span id="editor-run-gate-reason" class="editor-run-gate-reason">입력 준비됨</span>
@@ -161,38 +160,6 @@
         </section>
       </section>
 
-      <section id="screen-block_editor" class="screen hidden">
-        <header class="topbar">
-          <button id="btn-back-from-block-editor" class="ghost" type="button">← 편집</button>
-          <span class="brand">셈그림</span>
-          <nav class="main-shell-tabs" aria-label="메인 탭">
-            <button class="main-shell-tab" data-main-tab-target="browse" type="button">교과</button>
-            <button class="main-shell-tab active" data-main-tab-target="studio" type="button">작업실</button>
-          </nav>
-          <span class="screen-title" id="block-editor-title">블록 편집</span>
-          <div class="editor-actions">
-            <select id="block-editor-mode">
-              <option value="seamgrim">셈그림</option>
-              <option value="rpg">RPG 박스</option>
-            </select>
-            <button id="btn-block-to-text" class="ghost" type="button">📝 텍스트로</button>
-            <button id="btn-block-run" class="btn-primary" type="button">▶ 작업실에서 실행</button>
-            <button id="btn-advanced-block-editor" class="ghost" type="button">⚙</button>
-          </div>
-        </header>
-
-        <div id="block-editor-wrap">
-          <div id="block-palette"></div>
-          <div id="block-canvas"></div>
-          <div class="block-preview-pane">
-            <div id="block-editor-summary" class="hint">mode=- blocks=0 errors=0</div>
-            <textarea id="block-ddn-preview" spellcheck="false" readonly></textarea>
-          </div>
-        </div>
-
-        <div id="block-editor-result" class="hint"></div>
-      </section>
-
       <section id="screen-run" class="screen hidden" data-main-visual-mode="none">
         <div class="run-main">
           <div class="run-topbar">
@@ -230,7 +197,7 @@
           <div class="run-layout">
             <div class="run-editor-panel">
               <label for="run-ddn-preview" class="run-editor-label">DDN 편집</label>
-              <textarea id="run-ddn-preview" class="run-ddn-preview" spellcheck="false"></textarea>
+              <textarea id="run-ddn-preview" class="run-ddn-preview" title="DDN 편집" spellcheck="false"></textarea>
               <div id="studio-inline-warn" class="studio-inline-warn hidden">
                 <span id="studio-inline-warn-text"></span>
                 <button id="btn-inline-autofix" class="studio-cta-button" type="button">자동수정 적용</button>
@@ -420,7 +387,7 @@
 
             <div class="view-dock-group">
               <span class="view-dock-label">줌/팬</span>
-              <select id="select-dock-target">
+              <select id="select-dock-target" title="줌/팬 대상">
                 <option value="space2d">보개</option>
                 <option value="graph">그래프</option>
               </select>
@@ -443,13 +410,13 @@
             <div class="view-dock-group">
               <span class="view-dock-label">시간(보기)</span>
               <label class="view-dock-check"><input id="chk-dock-loop" type="checkbox" checked />루프</label>
-              <select id="select-dock-speed">
+              <select id="select-dock-speed" title="재생 속도">
                 <option value="0.5">0.5x</option>
                 <option value="1" selected>1.0x</option>
                 <option value="1.5">1.5x</option>
                 <option value="2">2.0x</option>
               </select>
-              <input id="range-dock-time-cursor" type="range" min="0" max="100" value="0" />
+              <input id="range-dock-time-cursor" type="range" title="시간 커서" min="0" max="100" value="0" />
               <span id="text-dock-time" class="view-dock-time">t=- / 틱=-</span>
             </div>
           </div>

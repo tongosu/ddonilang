@@ -154,14 +154,13 @@ export function findFlatLinkSelectionRange(text, link) {
 }
 
 export class EditorScreen {
-  constructor({ root, onBack, onRun, onSave, onOpenAdvanced, onSourceChange, onOpenBlock, onAutofix } = {}) {
+  constructor({ root, onBack, onRun, onSave, onOpenAdvanced, onSourceChange, onAutofix } = {}) {
     this.root = root;
     this.onBack = typeof onBack === "function" ? onBack : () => {};
     this.onRun = typeof onRun === "function" ? onRun : () => {};
     this.onSave = typeof onSave === "function" ? onSave : () => {};
     this.onOpenAdvanced = typeof onOpenAdvanced === "function" ? onOpenAdvanced : () => {};
     this.onSourceChange = typeof onSourceChange === "function" ? onSourceChange : () => {};
-    this.onOpenBlock = typeof onOpenBlock === "function" ? onOpenBlock : () => {};
     this.onAutofix = typeof onAutofix === "function" ? onAutofix : null;
     this.readOnly = false;
     this.focusMatches = [];
@@ -205,12 +204,6 @@ export class EditorScreen {
     });
     this.root.querySelector("#btn-load-ddn")?.addEventListener("click", () => {
       void this.handleLoadFromLocalFile();
-    });
-
-    this.root.querySelector("#btn-block-mode")?.addEventListener("click", () => {
-      this.onOpenBlock(this.getDdn(), {
-        title: String(this.titleEl?.textContent ?? "DDN 편집"),
-      });
     });
 
     this.root.querySelector("#btn-advanced-editor")?.addEventListener("click", () => {

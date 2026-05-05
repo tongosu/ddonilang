@@ -18,7 +18,7 @@
     }
   ],
   "generated_preview": "채비 {\n  x목록:차림 <- (0, 1, 2) 차림.\n}.\n\n(시작)할때 {\n  (x) x목록에 대해 {\n    고르기:\n      { x < 1 }인것: {\n        \"low\" 보여주기.\n      }\n\n      { x < 2 }인것: {\n        \"mid\" 보여주기.\n      }\n      아니면: {\n        \"high\" 보여주기.\n      }.\n  }.\n\n  되풀이 {\n    \"tick\" 보여주기.\n  }.\n\n  너머 {\n    \"side\" 보여주기.\n  }.\n}.\n\n체력 보여주기.",
-  "palette_children": 39,
+  "palette_children": 40,
   "result_text": "mode=seamgrim blocks=3 errors=0 · ok",
   "run_calls": [
     {
@@ -303,6 +303,7 @@
         "contract_guard",
         "choose_branch",
         "choose_else",
+        "choose_exhaustive",
         "receive_block",
         "event_react",
         "send_signal",

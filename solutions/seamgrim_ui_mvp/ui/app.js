@@ -2,7 +2,6 @@ import { createWasmLoader, applyWasmLogicAndDispatchState } from "./wasm_page_co
 import { createLessonCanonHydrator, buildFlatPlanView } from "./runtime/index.js";
 import { BrowseScreen } from "./screens/browse.js";
 import { EditorScreen, saveDdnToFile } from "./screens/editor.js";
-import { BlockEditorScreen } from "./screens/block_editor.js";
 import { RunScreen, applyLegacyAutofixToDdn, hasLegacyAutofixCandidate } from "./screens/run.js";
 import { normalizeViewFamilyList } from "./view_family_contract.js";
 import {
@@ -860,7 +859,7 @@ function trackDdnInputSource({
 }
 
 function setScreen(name) {
-  ["browse", "editor", "block_editor", "run"].forEach((screenName) => {
+  ["browse", "editor", "run"].forEach((screenName) => {
     const node = byId(`screen-${screenName}`);
     if (!node) return;
     node.classList.toggle("hidden", screenName !== name);
@@ -2138,7 +2137,6 @@ async function main() {
   const featuredSeedButton = byId("btn-preset-featured-seed-quick-recent");
   let runScreen = null;
   let editorScreen = null;
-  let blockEditorScreen = null;
   let lastEditorReadinessModel = buildStudioEditorReadinessModel({
     sourceText: "",
     canonDiagCode: "",
@@ -2718,65 +2716,6 @@ async function main() {
       updateEditorReadinessModel(String(result?.text ?? ddnText));
       return result;
     },
-    onOpenBlock: async (ddnText, { title = "블록 편집" } = {}) => {
-      await blockEditorScreen.loadSource(ddnText, { title, mode: "" });
-      setScreen("block_editor");
-    },
-  });
-
-  blockEditorScreen = new BlockEditorScreen({
-    root: byId("screen-block_editor"),
-    onBack: () => {
-      setScreen("editor");
-    },
-    onTextMode: (ddnText, { title = "DDN 편집" } = {}) => {
-      editorScreen.loadLesson(ddnText, {
-        title,
-        readOnly: false,
-      });
-      setScreen("editor");
-    },
-    onRun: async (ddnText, { title = "사용자 DDN" } = {}) => {
-      const baseMeta = appState.currentLesson?.meta ?? {};
-      const ddnMetaHeader = parseLessonDdnMetaHeader(ddnText);
-      const displayMeta = resolveLessonDisplayMeta({
-        baseTitle: title,
-        baseDescription: appState.currentLesson?.description ?? "",
-        tomlMeta: baseMeta,
-        ddnMetaHeader,
-      });
-      const lesson = await lessonCanonHydrator.hydrateLessonCanon({
-        id: appState.currentLesson?.id ?? "custom",
-        title: displayMeta.title || title,
-        description: displayMeta.description || appState.currentLesson?.description || "",
-        subject: appState.currentLesson?.subject ?? "",
-        grade: appState.currentLesson?.grade ?? "",
-        quality: appState.currentLesson?.quality ?? "experimental",
-        requiredViews: normalizeViewFamilyList(
-          baseMeta.required_views ??
-            ddnMetaHeader.requiredViews ??
-            ddnMetaHeader.required_views ??
-            appState.currentLesson?.requiredViews ??
-            [],
-        ),
-        ddnText,
-        maegimControlJson: appState.currentLesson?.maegimControlJson ?? "",
-        textMd: appState.currentLesson?.textMd ?? "",
-        meta: baseMeta,
-        ddnMetaHeader,
-      });
-      appState.currentLesson = lesson;
-      openRunWithLessonWithSource(lesson, {
-        launchKind: "editor_run",
-        autoExecute: true,
-        sourceId: `ddn:block:${lesson.id}`,
-        sourceType: "ddn",
-        derivedFrom: String(appState.currentLesson?.id ?? ""),
-      });
-    },
-    onOpenAdvanced: () => {
-      advanced.toggle();
-    },
   });
 
   runScreen = new RunScreen({
@@ -2877,7 +2816,6 @@ async function main() {
 
   browseScreen.init();
   editorScreen.init();
-  blockEditorScreen.init();
   runScreen.init();
   document.querySelectorAll(".main-shell-tab[data-main-tab-target]").forEach((button) => {
     button.addEventListener("click", () => {

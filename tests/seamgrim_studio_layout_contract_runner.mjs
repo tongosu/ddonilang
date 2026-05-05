@@ -51,11 +51,19 @@ async function main() {
   assert(indexHtml.includes('class="bogae-frame"'), "studio layout contract: bogae frame wrapper missing");
   assert(indexHtml.includes('aria-label="한마디씩"'), "studio layout contract: step aria-label token missing");
   assert(
-    (indexHtml.match(/<span class="brand">셈그림<\/span>/g) ?? []).length >= 4,
-    "studio layout contract: shell brand should be visible on browse/editor/block/run title lines",
+    (indexHtml.match(/<span class="brand">셈그림<\/span>/g) ?? []).length >= 3,
+    "studio layout contract: shell brand should be visible on browse/editor/run title lines",
   );
   assert(!indexHtml.includes("bogae-toolbar"), "studio layout contract: legacy bogae toolbar DOM should be removed");
   assert(indexHtml.includes('class="run-control-bar"'), "studio layout contract: common run control bar missing");
+  assert(indexHtml.includes('id="run-ddn-preview"'), "studio layout contract: DDN textarea missing");
+  assert(!indexHtml.includes(">말블록<"), "studio layout contract: surface block UI should not be exposed");
+  assert(!indexHtml.includes('id="run-editor-tab-surface"'), "studio layout contract: surface block tab should not be exposed");
+  assert(!indexHtml.includes('id="run-surface-blocks"'), "studio layout contract: surface block host should not be exposed");
+  assert(!indexHtml.includes("DDN 블록"), "studio layout contract: DDN source block UI should not be exposed");
+  assert(!indexHtml.includes("쉬운 블록"), "studio layout contract: easy block UI should not be exposed");
+  assert(!indexHtml.includes('id="btn-block-mode"'), "studio layout contract: experimental block entry should not be exposed");
+  assert(!indexHtml.includes('id="screen-block_editor"'), "studio layout contract: block editor screen should not be exposed");
   assert(
     indexHtml.indexOf('class="run-control-bar"') > indexHtml.indexOf('class="run-topbar"')
       && indexHtml.indexOf('class="run-control-bar"') < indexHtml.indexOf('class="run-layout"'),

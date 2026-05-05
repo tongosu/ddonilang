@@ -1,6 +1,11 @@
 # CHANGELOG.md
 
 ## Unreleased
+- Removed block editing entry points from the Seamgrim product UI.
+  - Removed `쉬운 블록`, `DDN 블록`, and `실험 블록` from the visible workspace.
+  - Restored the Run editor panel to a single DDN textarea path.
+  - Disconnected the product shell from `screen-block_editor`; the block editor
+    engine/codec remains only as a legacy module test surface.
 - Closed repository cleanup round 3 review candidates.
   - Added `tests/run_age5_close_review_suite_check.py` to bind AGE5 close review
     candidates into an explicit suite.

@@ -18,7 +18,7 @@
     }
   ],
   "generated_preview": "# plan root/seed:플레이어 알림\n# 제 <- (제, \"체력\", 제.체력 - 알림.정보.피해량) 짝맞춤.바꾼값.\n\n# plan root/seed:플레이어 알림\n# 제 <- (제, \"체력\", 제.체력 + 알림.정보.회복량) 짝맞춤.바꾼값.\n\n(피해량:30) 피해_받음 ~~> 플레이어.",
-  "palette_children": 46,
+  "palette_children": 47,
   "result_text": "mode=rpg blocks=3 errors=0 · ok",
   "run_calls": [
     {
@@ -95,6 +95,7 @@
         "contract_guard",
         "choose_branch",
         "choose_else",
+        "choose_exhaustive",
         "receive_block",
         "event_react",
         "send_signal",

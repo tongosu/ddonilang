@@ -23,7 +23,7 @@
     }
   ],
   "generated_preview": "실행정책 {\n  실행모드: 일반.\n  효과정책: 허용.\n}.\n\n짜임 {\n  형식: 점_틀.\n  입력 {\n    시작점: (수,수) <- (0.0, 0.0).\n  }.\n  출력 {\n    끝점: (수,수) <- (0.0, 0.0).\n  }.\n}.\n\n테스트:움직씨 = {\n  보개마당 {\n      #자막(\"정본 테스트\").\n    }.\n}.\n\n체력 보여주기.",
-  "palette_children": 39,
+  "palette_children": 40,
   "result_text": "mode=seamgrim blocks=4 errors=0 · ok",
   "run_calls": [
     {
@@ -116,6 +116,7 @@
         "contract_guard",
         "choose_branch",
         "choose_else",
+        "choose_exhaustive",
         "receive_block",
         "event_react",
         "send_signal",

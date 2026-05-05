@@ -23,7 +23,7 @@
     }
   ],
   "generated_preview": "(기준:수 = 1) 판정:움직씨 = {\n  기준 되돌림.\n}.\n\n기상청:임자 = {\n  기상특보를 받으면 {\n    알림.이름 보여주기.\n  }.\n\n  (정보 정보.온도 > 40)인 기상특보를 받으면 {\n    (기상청)의 (온도:정보.온도) 경보 ~~> 제.\n  }.\n\n  (알림 알림.이름 == \"경보\")인 알림을 받으면 {\n    알림.정보.온도 보여주기.\n  }.\n}.\n\n\"tick\"라는 알림이 오면 {\n  \"evt\" 보여주기.\n}.\n\n체력 보여주기.",
-  "palette_children": 39,
+  "palette_children": 40,
   "result_text": "mode=seamgrim blocks=4 errors=0 · ok",
   "run_calls": [
     {
@@ -285,6 +285,7 @@
         "contract_guard",
         "choose_branch",
         "choose_else",
+        "choose_exhaustive",
         "receive_block",
         "event_react",
         "send_signal",

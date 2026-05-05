@@ -3,6 +3,20 @@
 ## 목적
 이 문서는 관문 0 작업에서 추가/수정된 코드와 결정 사항을 한곳에 모아 이후 협업 시 빠르게 맥락을 복원할 수 있도록 정리한 기록이다.
 
+## 2026-05-05 추가 진행 (셈그림 블록 UI 제거)
+- 범위:
+  셈그림 작업실 제품 UI에서 `쉬운 블록`, `DDN 블록`, `실험 블록` 진입을 제거했다.
+- 반영:
+  실행 화면 편집 패널은 `run-ddn-preview` textarea 단일 경로로 되돌렸다.
+  편집 화면의 실험 블록 버튼과 `screen-block_editor` 제품 화면 연결을 끊었다.
+  내부 `ui/block_editor/**`와 block editor 테스트는 legacy module 계약으로 유지한다.
+- 검증:
+  `node tests/seamgrim_studio_layout_contract_runner.mjs` PASS
+  `node tests/seamgrim_ui_common_runner.mjs` PASS
+  `python tests/run_seamgrim_ui_age3_gate.py` PASS
+  `python tests/run_seamgrim_block_editor_smoke_check.py` PASS
+  `python tests/run_seamgrim_product_stabilization_smoke_check.py` PASS
+
 ## 2026-05-04 추가 진행 (저장소 구조 정리 3단계: review 후보 닫힘)
 - 범위:
   `tests/run_age*.py` review 후보를 삭제하지 않고 AGE5 계약 묶음에 연결했다.
