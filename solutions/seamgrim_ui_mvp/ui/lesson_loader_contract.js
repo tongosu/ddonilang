@@ -1,10 +1,114 @@
 import { normalizeViewFamilyList } from "./view_family_contract.js";
 
+const CURRICULUM_META_ALIASES = Object.freeze({
+  과목: "subject",
+  학년군: "grade_band",
+  단원: "unit",
+  차시: "lesson",
+  난이도: "difficulty",
+  학습목표: "learning_goals",
+  핵심개념: "core_concepts",
+  선수개념: "prerequisites",
+  오개념: "misconceptions",
+  허용조작: "allowed_controls",
+  필수계기판: "required_views",
+});
+
 function normalizeHeaderKey(raw) {
   return String(raw ?? "")
     .trim()
     .toLowerCase()
     .replace(/[\s_-]+/g, "");
+}
+
+function stripTomlString(raw) {
+  const text = String(raw ?? "").trim();
+  if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
+    return text.slice(1, -1).replace(/\\"/g, '"');
+  }
+  return text;
+}
+
+function splitTomlItems(raw) {
+  const text = String(raw ?? "");
+  const out = [];
+  let current = "";
+  let inString = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === '"' && text[i - 1] !== "\\") {
+      inString = !inString;
+      current += ch;
+      continue;
+    }
+    if (ch === "," && !inString) {
+      const item = current.trim();
+      if (item) out.push(item);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+  const tail = current.trim();
+  if (tail) out.push(tail);
+  return out;
+}
+
+function parseTomlInlineTable(rawValue) {
+  const text = String(rawValue ?? "").trim();
+  if (!text.startsWith("{") || !text.endsWith("}")) return null;
+  const inner = text.slice(1, -1).trim();
+  const out = {};
+  splitTomlItems(inner).forEach((item) => {
+    const match = item.match(/^(?:"([^"]+)"|([A-Za-z0-9_]+))\s*=\s*(.+)$/);
+    if (!match) return;
+    const key = String(match[1] ?? match[2] ?? "").trim();
+    if (!key) return;
+    out[key] = parseTomlValue(match[3]);
+  });
+  return out;
+}
+
+function parseTomlValue(rawValue) {
+  const text = String(rawValue ?? "").trim();
+  if (text.startsWith("[") && text.endsWith("]")) {
+    const inner = text.slice(1, -1).trim();
+    return inner ? splitTomlItems(inner).map(stripTomlString).filter(Boolean) : [];
+  }
+  const table = parseTomlInlineTable(text);
+  if (table) return table;
+  return stripTomlString(text);
+}
+
+function applyCurriculumAliases(out) {
+  Object.entries(CURRICULUM_META_ALIASES).forEach(([alias, canonical]) => {
+    if (out[canonical] === undefined && out[alias] !== undefined) {
+      out[canonical] = out[alias];
+    }
+  });
+  if (out.grade === undefined && out.grade_band !== undefined) {
+    out.grade = out.grade_band;
+  }
+  if (out.required_views !== undefined) {
+    out.required_views = normalizeViewFamilyList(out.required_views);
+  }
+  return out;
+}
+
+export function parseTomlMeta(text) {
+  if (!text) return {};
+  const out = {};
+  const lines = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    const match = trimmed.match(/^(?:"([^"]+)"|([A-Za-z0-9_]+))\s*=\s*(.+)$/);
+    if (!match) return;
+    const key = String(match[1] ?? match[2] ?? "").trim();
+    if (!key) return;
+    out[key] = parseTomlValue(match[3]);
+  });
+  return applyCurriculumAliases(out);
 }
 
 function parseHeaderViewFamilies(rawValue) {

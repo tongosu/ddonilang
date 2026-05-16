@@ -302,6 +302,32 @@ button:disabled {
   padding: 2px 8px;
 }
 
+.detail-curriculum {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.detail-curriculum-section {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+}
+
+.detail-curriculum-title {
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.detail-curriculum-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .detail-actions {
   display: flex;
   gap: 8px;

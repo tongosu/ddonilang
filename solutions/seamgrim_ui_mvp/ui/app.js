@@ -10,6 +10,7 @@ import {
   STUDIO_READINESS_STAGE,
 } from "./studio_edit_run_contract.js";
 import {
+  parseTomlMeta,
   parseLessonDdnMetaHeader,
   resolveLessonDisplayMeta,
 } from "./lesson_loader_contract.js";
@@ -70,7 +71,8 @@ import {
 } from "./platform_server_adapter_contract.js";
 
 const PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/";
-const ACTIVE_ALLOWLIST_PATH = "solutions/seamgrim_ui_mvp/lessons/active_allowlist.detjson";
+const DATA_ROOT = normalizeDataRoot(globalThis?.SEAMGRIM_DATA_ROOT ?? "");
+const ACTIVE_ALLOWLIST_PATH = dataPath("lessons/active_allowlist.detjson");
 const CATALOG_MODE_REPS_ONLY = "reps_only";
 const CATALOG_MODE_FULL = "full";
 const SIM_CORE_POLICY_CLASS = "policy-sim-core";
@@ -1373,6 +1375,16 @@ function normalizePath(path) {
     .trim();
 }
 
+function normalizeDataRoot(raw) {
+  return normalizePath(raw).replace(/\/+$/, "");
+}
+
+function dataPath(path) {
+  const normalized = normalizePath(path);
+  if (!normalized) return DATA_ROOT;
+  return DATA_ROOT ? `${DATA_ROOT}/${normalized}` : normalized;
+}
+
 function isProjectPrefixedHost() {
   try {
     const pathname = String(window?.location?.pathname ?? "").trim();
@@ -1439,32 +1451,68 @@ async function fetchText(pathCandidates) {
   return result.ok ? result.data : null;
 }
 
-function parseTomlMeta(text) {
-  if (!text) return {};
-  const out = {};
-  const lines = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) return;
-    const match = trimmed.match(/^([A-Za-z0-9_]+)\s*=\s*(.+)$/);
-    if (!match) return;
-    const key = match[1].trim();
-    const rawValue = match[2].trim();
-    if (rawValue.startsWith("[") && rawValue.endsWith("]")) {
-      const inner = rawValue.slice(1, -1).trim();
-      const values = inner
-        ? inner.split(",").map((item) => String(item ?? "").trim().replace(/^"(.*)"$/, "$1")).filter(Boolean)
-        : [];
-      out[key] = key === "required_views" ? normalizeViewFamilyList(values) : values;
-      return;
+function metaStringList(value) {
+  return Array.isArray(value) ? value.map((item) => String(item ?? "").trim()).filter(Boolean) : [];
+}
+
+function buildCurriculumMeta(meta) {
+  if (!meta || typeof meta !== "object") return null;
+  if (String(meta.schema ?? "").trim() !== "CurriculumMetaV1") return null;
+  return {
+    schema: "CurriculumMetaV1",
+    lessonId: String(meta.lesson_id ?? "").trim(),
+    title: String(meta.title ?? "").trim(),
+    subject: String(meta.subject ?? "").trim(),
+    gradeBand: String(meta.grade_band ?? meta.grade ?? "").trim(),
+    unit: String(meta.unit ?? "").trim(),
+    lesson: String(meta.lesson ?? "").trim(),
+    difficulty: String(meta.difficulty ?? "").trim(),
+    learningGoals: metaStringList(meta.learning_goals),
+    coreConcepts: metaStringList(meta.core_concepts),
+    prerequisites: metaStringList(meta.prerequisites),
+    misconceptions: metaStringList(meta.misconceptions),
+    allowedControls: metaStringList(meta.allowed_controls),
+    requiredViews: normalizeViewFamilyList(meta.required_views ?? []),
+    evidence: metaStringList(meta.evidence),
+    teacherNotesRef: String(meta.teacher_notes_ref ?? "").trim(),
+    studentSheetRef: String(meta.student_sheet_ref ?? "").trim(),
+  };
+}
+
+function mergeLessonWithCurriculumMeta(lesson, meta) {
+  const curriculumMeta = buildCurriculumMeta(meta);
+  if (!curriculumMeta) return lesson;
+  const requiredViews = curriculumMeta.requiredViews.length
+    ? curriculumMeta.requiredViews
+    : normalizeViewFamilyList(lesson?.requiredViews ?? []);
+  const tags = Array.from(new Set([...(lesson?.tags ?? []), ...curriculumMeta.coreConcepts]));
+  return {
+    ...lesson,
+    title: curriculumMeta.title || lesson.title,
+    description:
+      String(meta.description ?? "").trim() ||
+      curriculumMeta.learningGoals.slice(0, 2).join(" / ") ||
+      lesson.description,
+    grade: curriculumMeta.gradeBand || lesson.grade,
+    subject: normalizeSubject(curriculumMeta.subject || lesson.subject),
+    requiredViews,
+    tags,
+    curriculumMeta,
+  };
+}
+
+async function enrichCatalogLessonsWithMeta(lessons) {
+  const rows = Array.isArray(lessons) ? lessons : [];
+  const enriched = [];
+  for (const lesson of rows) {
+    const metaRaw = await fetchText(lesson?.metaCandidates ?? []);
+    if (!metaRaw) {
+      enriched.push(lesson);
+      continue;
     }
-    if (rawValue.startsWith('"') && rawValue.endsWith('"')) {
-      out[key] = rawValue.slice(1, -1);
-      return;
-    }
-    out[key] = rawValue;
-  });
-  return out;
+    enriched.push(mergeLessonWithCurriculumMeta(lesson, parseTomlMeta(metaRaw)));
+  }
+  return enriched;
 }
 
 function prioritizeLessonCandidates(candidates, source) {
@@ -1606,9 +1654,9 @@ function lessonPathsFromId(prefix, lessonId) {
 
 function sourceToLessonPrefix(source) {
   const normalized = String(source ?? "").trim().toLowerCase();
-  if (normalized === "seed") return "solutions/seamgrim_ui_mvp/seed_lessons_v1";
-  if (normalized === "rewrite") return "solutions/seamgrim_ui_mvp/lessons_rewrite_v1";
-  return "solutions/seamgrim_ui_mvp/lessons";
+  if (normalized === "seed") return dataPath("seed_lessons_v1");
+  if (normalized === "rewrite") return dataPath("lessons_rewrite_v1");
+  return dataPath("lessons");
 }
 
 function toStringArray(value) {
@@ -1766,6 +1814,40 @@ function filterCatalogByAllowlist(merged, allowlist) {
   });
 }
 
+async function mergeSeedLessonsIntoCatalog(merged, { featuredOnly = false } = {}) {
+  const seedManifest = await fetchJson(dataPath("seed_lessons_v1/seed_manifest.detjson"));
+  const seeds = Array.isArray(seedManifest?.seeds) ? seedManifest.seeds : [];
+  seeds.forEach((seed) => {
+    const id = String(seed.seed_id ?? "").trim();
+    if (!id) return;
+    if (featuredOnly && !FEATURED_SEED_IDS.includes(id)) return;
+    const fallback = lessonPathsFromId(dataPath("seed_lessons_v1"), id);
+    mergeLessonEntry(
+      merged,
+      toLessonEntry({
+        id,
+        title: id,
+        description: "Seed lesson",
+        grade: "all",
+        subject: seed.subject,
+        quality: "recommended",
+        source: "seed",
+        ddnCandidates: [seed.lesson_ddn, fallback.ddn],
+        maegimControlCandidates: deriveMaegimControlCandidates(
+          [seed.lesson_ddn, fallback.ddn],
+          resolveSelectionCandidates(seed, ["maegimControlCandidates", "maegim_control_path"]),
+        ),
+        textCandidates: [seed.text_md, fallback.text],
+        graphCandidates: [fallback.graph],
+        tableCandidates: [fallback.table],
+        space2dCandidates: [fallback.space2d],
+        structureCandidates: [fallback.structure],
+        metaCandidates: resolveSelectionCandidates(seed, ["metaCandidates", "meta_path", "meta_toml"]),
+      }),
+    );
+  });
+}
+
 async function loadCatalogLessons() {
   const catalogMode = resolveCatalogMode();
   appState.catalogMode = catalogMode;
@@ -1782,13 +1864,13 @@ async function loadCatalogLessons() {
   }
 
   if (merged.size === 0) {
-    const indexJson = await fetchJson("solutions/seamgrim_ui_mvp/lessons/index.json");
+    const indexJson = await fetchJson(dataPath("lessons/index.json"));
     const indexLessons = Array.isArray(indexJson?.lessons) ? indexJson.lessons : [];
     indexLessons.forEach((row) => {
       const id = String(row.id ?? "").trim();
       if (!id) return;
       if (repsOnly && activeAllowlist.size > 0 && !activeAllowlist.has(id)) return;
-      const paths = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons", id);
+      const paths = lessonPathsFromId(dataPath("lessons"), id);
       const rowMetaCandidates = resolveSelectionCandidates(row, ["metaCandidates", "meta_path"]);
       mergeLessonEntry(
         merged,
@@ -1814,43 +1896,14 @@ async function loadCatalogLessons() {
     });
 
     if (!repsOnly) {
-      const seedManifest = await fetchJson("solutions/seamgrim_ui_mvp/seed_lessons_v1/seed_manifest.detjson");
-      const seeds = Array.isArray(seedManifest?.seeds) ? seedManifest.seeds : [];
-      seeds.forEach((seed) => {
-        const id = String(seed.seed_id ?? "").trim();
-        if (!id) return;
-        const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/seed_lessons_v1", id);
-        mergeLessonEntry(
-          merged,
-          toLessonEntry({
-            id,
-            title: id,
-            description: "Seed lesson",
-            grade: "all",
-            subject: seed.subject,
-            quality: "recommended",
-            source: "seed",
-            ddnCandidates: [seed.lesson_ddn, fallback.ddn],
-            maegimControlCandidates: deriveMaegimControlCandidates(
-              [seed.lesson_ddn, fallback.ddn],
-              resolveSelectionCandidates(seed, ["maegimControlCandidates", "maegim_control_path"]),
-            ),
-            textCandidates: [seed.text_md, fallback.text],
-            graphCandidates: [fallback.graph],
-            tableCandidates: [fallback.table],
-            space2dCandidates: [fallback.space2d],
-            structureCandidates: [fallback.structure],
-            metaCandidates: resolveSelectionCandidates(seed, ["metaCandidates", "meta_path", "meta_toml"]),
-          }),
-        );
-      });
+      await mergeSeedLessonsIntoCatalog(merged);
 
-      const rewriteManifest = await fetchJson("solutions/seamgrim_ui_mvp/lessons_rewrite_v1/rewrite_manifest.detjson");
+      const rewriteManifest = await fetchJson(dataPath("lessons_rewrite_v1/rewrite_manifest.detjson"));
       const generated = Array.isArray(rewriteManifest?.generated) ? rewriteManifest.generated : [];
       generated.forEach((row) => {
         const id = String(row.lesson_id ?? "").trim();
         if (!id) return;
-        const fallback = lessonPathsFromId("solutions/seamgrim_ui_mvp/lessons_rewrite_v1", id);
+        const fallback = lessonPathsFromId(dataPath("lessons_rewrite_v1"), id);
         mergeLessonEntry(
           merged,
           toLessonEntry({
@@ -1878,7 +1931,12 @@ async function loadCatalogLessons() {
     }
   }
 
-  const lessons = Array.from(merged.values()).sort((a, b) => String(a.title).localeCompare(String(b.title), "ko"));
+  if (repsOnly) {
+    await mergeSeedLessonsIntoCatalog(merged, { featuredOnly: true });
+  }
+
+  let lessons = Array.from(merged.values()).sort((a, b) => String(a.title).localeCompare(String(b.title), "ko"));
+  lessons = await enrichCatalogLessonsWithMeta(lessons);
   if (lessons.length === 0) {
     throw new Error(
       "교과 카탈로그를 찾지 못했습니다. ddn_exec_server.py(8787)로 실행했는지 확인하세요.",
@@ -1920,7 +1978,7 @@ async function loadLessonById(lessonId) {
     ddnMetaHeader,
   });
 
-  const lesson = await lessonCanonHydrator.hydrateLessonCanon({
+  const lessonBase = mergeLessonWithCurriculumMeta({
     ...base,
     title: displayMeta.title || base.title,
     description: displayMeta.description || base.description,
@@ -1939,7 +1997,9 @@ async function loadLessonById(lessonId) {
     structureCandidates: base.structureCandidates,
     ddnMetaHeader,
     meta,
-  });
+  }, meta);
+
+  const lesson = await lessonCanonHydrator.hydrateLessonCanon(lessonBase);
 
   appState.currentLesson = lesson;
   appState.lessonsById.set(lesson.id, lesson);

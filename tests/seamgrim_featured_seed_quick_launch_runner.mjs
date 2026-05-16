@@ -29,6 +29,7 @@ async function main() {
   const FEATURED = Array.isArray(catalogMod?.FEATURED_SEED_IDS) ? [...catalogMod.FEATURED_SEED_IDS] : [];
 
   const REQUIRED_FEATURED = [
+    "roguelike_grid_pathfind_v1",
     "bio_sir_transition_visual_seed_v2",
     "econ_tax_shock_supply_demand_seed_v1",
     "econ_inventory_price_feedback_seed_v2",
@@ -50,8 +51,8 @@ async function main() {
 
   const available = resolveAvailableFeaturedSeedIds(FEATURED, lessonsById);
   assert(Array.isArray(available) && available.length === FEATURED.length, "available ids count");
-  assert(available[0] === "bio_sir_transition_visual_seed_v2", "available order keep 0");
-  assert(available[2] === "econ_inventory_price_feedback_seed_v2", "available order keep 2");
+  assert(available[0] === "roguelike_grid_pathfind_v1", "available order keep 0");
+  assert(available[3] === "econ_inventory_price_feedback_seed_v2", "available order keep 3");
   const deduped = resolveAvailableFeaturedSeedIds([...FEATURED, FEATURED[0]], lessonsById);
   assert(Array.isArray(deduped) && deduped.length === FEATURED.length, "available ids dedupe count");
   assert(deduped[0] === FEATURED[0], "available ids dedupe order keep 0");
@@ -63,7 +64,7 @@ async function main() {
     cursor: -1,
   });
   assert(pickFromCurrent.nextId === "econ_inventory_price_feedback_seed_v2", "current-id next pick");
-  assert(pickFromCurrent.nextCursor === 2, "current-id cursor");
+  assert(pickFromCurrent.nextCursor === 3, "current-id cursor");
 
   const pickWrap = pickNextFeaturedSeedLaunch({
     featuredSeedIds: FEATURED,
@@ -71,16 +72,16 @@ async function main() {
     currentLessonId: "",
     cursor: FEATURED.length - 1,
   });
-  assert(pickWrap.nextId === "bio_sir_transition_visual_seed_v2", "cursor wrap pick");
+  assert(pickWrap.nextId === "roguelike_grid_pathfind_v1", "cursor wrap pick");
   assert(pickWrap.nextCursor === 0, "cursor wrap nextCursor");
 
   const pickFromInvalidCursor = pickNextFeaturedSeedLaunch({
     featuredSeedIds: FEATURED,
     lessonsById,
-    currentLessonId: "bio_sir_transition_visual_seed_v2",
+    currentLessonId: "roguelike_grid_pathfind_v1",
     cursor: 999,
   });
-  assert(pickFromInvalidCursor.nextId === "econ_tax_shock_supply_demand_seed_v1", "invalid cursor fallback to current");
+  assert(pickFromInvalidCursor.nextId === "bio_sir_transition_visual_seed_v2", "invalid cursor fallback to current");
   assert(pickFromInvalidCursor.nextCursor === 1, "invalid cursor nextCursor");
 
   const subsetLessonsById = new Map([

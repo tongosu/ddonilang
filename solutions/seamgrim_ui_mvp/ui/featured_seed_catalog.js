@@ -1,4 +1,5 @@
 export const FEATURED_SEED_IDS = Object.freeze([
+  "roguelike_grid_pathfind_v1",
   "bio_sir_transition_visual_seed_v2",
   "econ_tax_shock_supply_demand_seed_v1",
   "econ_inventory_price_feedback_seed_v2",

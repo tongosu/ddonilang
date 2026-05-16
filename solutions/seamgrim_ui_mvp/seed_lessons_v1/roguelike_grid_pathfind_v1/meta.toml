@@ -1,0 +1,17 @@
+schema = "CurriculumMetaV1"
+lesson_id = "roguelike_grid_pathfind_v1"
+title = "격자 길찾기 첫실행"
+subject = "game"
+grade_band = "all"
+unit = "격자와 길찾기"
+lesson = "대표예제-격자-1"
+difficulty = "basic"
+learning_goals = ["벽이 있는 격자에서 경로를 찾는다", "입력사상으로 플레이어 이동을 재현한다"]
+core_concepts = ["std_grid", "std_input_map", "pathfind", "console_grid"]
+prerequisites = ["좌표", "차림"]
+misconceptions = ["렌더 격자가 state_hash truth를 소유한다"]
+allowed_controls = ["InputSnapshot fixture"]
+required_views = ["console_grid", "grid2d"]
+evidence = ["python tests/run_seamgrim_grid_pathfind_lesson_check.py"]
+teacher_notes_ref = "text.md"
+student_sheet_ref = "text.md"

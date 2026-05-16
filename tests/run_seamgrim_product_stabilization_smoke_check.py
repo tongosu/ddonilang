@@ -82,6 +82,7 @@ COMMANDS: tuple[tuple[str, list[str]], ...] = (
     ("seamgrim_run_manager_compare_runner", ["node", "tests/seamgrim_run_manager_compare_runner.mjs"]),
     ("seamgrim_studio_layout_contract_runner", ["node", "tests/seamgrim_studio_layout_contract_runner.mjs"]),
     ("seamgrim_korean_display_label_runner", ["node", "tests/seamgrim_korean_display_label_runner.mjs"]),
+    ("seamgrim_featured_seed_quick_launch_runner", ["node", "tests/seamgrim_featured_seed_quick_launch_runner.mjs"]),
     ("seamgrim_layout_modes_check", [sys.executable, "tests/run_seamgrim_layout_modes_check.py"]),
     ("seamgrim_observe_output_contract_check", [sys.executable, "tests/run_seamgrim_observe_output_contract_check.py"]),
     (
@@ -95,6 +96,18 @@ COMMANDS: tuple[tuple[str, list[str]], ...] = (
     (
         "seamgrim_wasm_cli_runtime_parity_check",
         [sys.executable, "tests/run_seamgrim_wasm_cli_runtime_parity_check.py"],
+    ),
+    (
+        "seamgrim_featured_seed_catalog_sync_check",
+        [sys.executable, "solutions/seamgrim_ui_mvp/tools/sync_featured_seed_catalog.py", "--check"],
+    ),
+    (
+        "seamgrim_grid_pathfind_lesson_check",
+        [sys.executable, "tests/run_seamgrim_grid_pathfind_lesson_check.py"],
+    ),
+    (
+        "seamgrim_live_repl_check",
+        [sys.executable, "tests/run_seamgrim_live_repl_check.py"],
     ),
     (
         "runtime_support_integrity_audit_check",

@@ -2,6 +2,7 @@
   "schema": "seamgrim.curriculum.seed_manifest.v1",
   "version": 1,
   "featured_seed_ids": [
+    "roguelike_grid_pathfind_v1",
     "bio_sir_transition_visual_seed_v2",
     "econ_tax_shock_supply_demand_seed_v1",
     "econ_inventory_price_feedback_seed_v2",
@@ -14,6 +15,15 @@
     "swarm_boids_alignment_seed_v1"
   ],
   "seeds": [
+    {
+      "subject": "game",
+      "seed_id": "roguelike_grid_pathfind_v1",
+      "lesson_ddn": "solutions/seamgrim_ui_mvp/seed_lessons_v1/roguelike_grid_pathfind_v1/lesson.ddn",
+      "text_md": "solutions/seamgrim_ui_mvp/seed_lessons_v1/roguelike_grid_pathfind_v1/text.md",
+      "meta_toml": "solutions/seamgrim_ui_mvp/seed_lessons_v1/roguelike_grid_pathfind_v1/meta.toml",
+      "template_id": "roguelike_grid_pathfind_v1",
+      "controls": []
+    },
     {
       "subject": "economy",
       "seed_id": "econ_inventory_price_feedback_seed_v1",

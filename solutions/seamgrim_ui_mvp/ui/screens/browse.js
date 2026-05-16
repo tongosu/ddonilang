@@ -72,6 +72,27 @@ function normalizeStringList(value) {
     : [];
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderDetailList(title, rows) {
+  const items = normalizeStringList(rows);
+  if (items.length === 0) return "";
+  return `
+    <section class="detail-curriculum-section">
+      <div class="detail-curriculum-title">${escapeHtml(title)}</div>
+      <ul class="detail-curriculum-list">
+        ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </section>
+  `;
+}
+
 function isFeaturedSeedLesson(lesson) {
   const lessonId = String(lesson?.id ?? "").trim();
   if (!lessonId || !FEATURED_SEED_IDS.includes(lessonId)) return false;
@@ -250,6 +271,7 @@ export class BrowseScreen {
     this.detailTitleEl = this.root.querySelector("#detail-title");
     this.detailDescEl = this.root.querySelector("#detail-desc");
     this.detailKeywordsEl = this.root.querySelector("#detail-keywords");
+    this.detailCurriculumEl = this.root.querySelector("#detail-curriculum");
     this.detailOpenBtn = this.root.querySelector("#btn-open-in-studio");
     this.detailCloseBtn = this.root.querySelector("#btn-detail-close");
     this.loadBrowsePrefs();
@@ -1129,10 +1151,38 @@ export class BrowseScreen {
       this.detailDescEl.textContent = String(this.detailLesson.description ?? "").trim() || "설명 없음";
     }
     if (this.detailKeywordsEl) {
-      const keywords = Array.isArray(this.detailLesson.keywords) ? this.detailLesson.keywords : [];
+      const curriculumMeta = this.detailLesson.curriculumMeta && typeof this.detailLesson.curriculumMeta === "object"
+        ? this.detailLesson.curriculumMeta
+        : null;
+      const keywords = Array.isArray(this.detailLesson.keywords) ? this.detailLesson.keywords : curriculumMeta?.coreConcepts ?? [];
       this.detailKeywordsEl.innerHTML = keywords.length
-        ? keywords.map((keyword) => `<span class="detail-keyword">${String(keyword ?? "").trim()}</span>`).join("")
+        ? keywords.map((keyword) => `<span class="detail-keyword">${escapeHtml(String(keyword ?? "").trim())}</span>`).join("")
         : "";
+    }
+    if (this.detailCurriculumEl) {
+      const curriculumMeta = this.detailLesson.curriculumMeta && typeof this.detailLesson.curriculumMeta === "object"
+        ? this.detailLesson.curriculumMeta
+        : null;
+      if (!curriculumMeta) {
+        this.detailCurriculumEl.innerHTML = "";
+      } else {
+        const titleRows = [
+          curriculumMeta.unit ? `단원: ${curriculumMeta.unit}` : "",
+          curriculumMeta.lesson ? `차시: ${curriculumMeta.lesson}` : "",
+          curriculumMeta.difficulty ? `난이도: ${curriculumMeta.difficulty}` : "",
+          curriculumMeta.requiredViews?.length ? `필수보기: ${curriculumMeta.requiredViews.join(", ")}` : "",
+        ].filter(Boolean);
+        const refRows = [
+          curriculumMeta.teacherNotesRef ? `교사용: ${curriculumMeta.teacherNotesRef}` : "",
+          curriculumMeta.studentSheetRef ? `학생용: ${curriculumMeta.studentSheetRef}` : "",
+        ].filter(Boolean);
+        this.detailCurriculumEl.innerHTML = [
+          renderDetailList("차시 정보", titleRows),
+          renderDetailList("학습목표", curriculumMeta.learningGoals),
+          renderDetailList("핵심개념", curriculumMeta.coreConcepts),
+          renderDetailList("자료", refRows),
+        ].join("");
+      }
     }
     this.detailPanelEl.classList.remove("hidden");
   }

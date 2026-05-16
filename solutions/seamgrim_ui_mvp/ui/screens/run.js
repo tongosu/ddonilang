@@ -3029,6 +3029,9 @@ export class RunScreen {
     this.activeRunRequestId = "";
     this.completedRunRequestId = "";
     this.runRequestSequence = 0;
+    this.liveReplDebounceMs = 400;
+    this.liveReplTimer = null;
+    this.liveReplSequence = 0;
     this.boundKeyDownHandler = (event) => {
       this.handleViewHotkeys(event);
       this.handleRuntimeInputKeyDown(event);
@@ -3098,6 +3101,9 @@ export class RunScreen {
     this.runErrorBannerEl = this.root.querySelector("#run-error-banner");
     this.runErrorTextEl = this.root.querySelector("#run-error-text");
     this.runErrorActionBtn = this.root.querySelector("#btn-run-error-action");
+    this.runWarningPlatformLoginBtn = this.root.querySelector("#btn-run-warning-platform-login");
+    this.runWarningPlatformRequestAccessBtn = this.root.querySelector("#btn-run-warning-platform-request-access");
+    this.runWarningPlatformOpenLocalSaveBtn = this.root.querySelector("#btn-run-warning-platform-open-local-save");
     this.runErrorDismissBtn = this.root.querySelector("#btn-run-error-dismiss");
     this.bogaeWarnBadgeEl = this.root.querySelector("#bogae-warn-badge");
     this.runMirrorDiagnosticsEl = this.root.querySelector("#run-mirror-diagnostics");
@@ -3249,6 +3255,7 @@ export class RunScreen {
       this.syncLegacyAutofixAvailability();
       this.markRuntimeDirtyForSourceEdit();
       this.scheduleInlineWarningRefresh(next);
+      this.scheduleLiveReplRestart(next);
       this.onSourceChange?.(next);
     });
     this.runDdnPreviewEl?.addEventListener("keydown", (event) => {
@@ -4204,6 +4211,35 @@ export class RunScreen {
 
   clearPendingAutoExecute() {
     this.pendingRunRequest = null;
+  }
+
+  cancelLiveReplRestart() {
+    if (this.liveReplTimer) {
+      clearTimeout(this.liveReplTimer);
+      this.liveReplTimer = null;
+    }
+  }
+
+  scheduleLiveReplRestart(sourceText = "") {
+    this.cancelLiveReplRestart();
+    if (!this.screenVisible || !this.lesson) return false;
+    const text = String(sourceText ?? this.baseDdn ?? this.runDdnPreviewEl?.value ?? "");
+    if (!text.trim()) return false;
+    const sequence = this.liveReplSequence + 1;
+    this.liveReplSequence = sequence;
+    this.liveReplTimer = setTimeout(() => {
+      this.liveReplTimer = null;
+      if (sequence !== this.liveReplSequence) return;
+      const latest = String(this.runDdnPreviewEl?.value ?? this.baseDdn ?? text);
+      this.enqueueRunRequest({
+        id: `live-repl:${Date.now()}:${sequence}:${hashRunSourceText(latest)}`,
+        sourceText: latest,
+        launchKind: "live_repl",
+        sourceType: this.sourceKind || "lesson",
+        createdAtMs: Date.now(),
+      });
+    }, this.liveReplDebounceMs);
+    return true;
   }
 
   consumePendingRunRequest() {
@@ -6751,6 +6787,7 @@ export class RunScreen {
     this.lesson = lesson;
     this.lastLaunchKind = normalizeRunLaunchKind(launchKind);
     this.clearPendingAutoExecute();
+    this.cancelLiveReplRestart();
     this.baseDdn = String(lesson?.ddnText ?? "");
     if (hasLegacyAutofixCandidate(this.baseDdn)) {
       const autofix = applyLegacyAutofixToDdn(this.baseDdn);
@@ -7724,6 +7761,7 @@ export class RunScreen {
     if (this.screenVisible === next) return;
     this.screenVisible = next;
     if (!next) {
+      this.cancelLiveReplRestart();
       this.clearRuntimeInputState();
       this.clearViewPlaybackTimer();
       this.flushOverlaySession();
