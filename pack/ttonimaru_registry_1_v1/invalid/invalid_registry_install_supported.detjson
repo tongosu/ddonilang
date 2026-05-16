@@ -1,0 +1,83 @@
+{
+  "expected_error": "E_TTONIMARU_SERVER_REGISTRY_INSTALL_FORBIDDEN",
+  "schema": "ddn.ttonimaru.server_mvp.v1",
+  "id": "invalid_registry_install_supported",
+  "consumes_charter": "ttonimaru_platform_charter_v1",
+  "server_stack": {
+    "api": "fastapi",
+    "persistence": "sqlite",
+    "tests": "pytest"
+  },
+  "auth": {
+    "mode": "dev_bearer_tokens",
+    "internal_v0_required": true,
+    "tokens": [
+      {
+        "token": "dev-owner-token",
+        "actor_id": "local-owner",
+        "roles": [
+          "owner",
+          "publisher"
+        ]
+      },
+      {
+        "token": "dev-viewer-token",
+        "actor_id": "local-viewer",
+        "roles": [
+          "viewer"
+        ]
+      }
+    ],
+    "team_internal_membership_enforced": false
+  },
+  "object_mapping": {
+    "lesson": "catalog_source_not_mutated",
+    "project": "authoring_object",
+    "revision": "append_only_snapshot",
+    "artifact": "revision_pinned_publication",
+    "workspace": "ui_session_route_slot"
+  },
+  "endpoints": {
+    "internal_v0": [
+      "POST /internal/v0/projects",
+      "GET /internal/v0/projects/{project_id}",
+      "POST /internal/v0/projects/{project_id}/save",
+      "GET /internal/v0/projects/{project_id}/revisions",
+      "GET /internal/v0/revisions/{revision_id}",
+      "POST /internal/v0/revisions/{revision_id}/publish"
+    ],
+    "api_v1": [
+      "GET /api/v1/publications/{publication_id}",
+      "GET /api/v1/publications/{publication_id}/manifest",
+      "GET /api/v1/registry/packages/{scope}/{name}",
+      "GET /api/v1/registry/packages/{scope}/{name}/{version}"
+    ]
+  },
+  "alias_url": {
+    "path_pattern": "/u/{owner}/{slug}",
+    "redirect_only": true,
+    "status_code": 302,
+    "target": "/api/v1/publications/{publication_id}"
+  },
+  "data_policy": {
+    "revision_append_only": true,
+    "publication_immutable": true,
+    "publication_revision_pin_required": true,
+    "state_hash_generated_by_server": false,
+    "runtime_truth_owner": false,
+    "state_hash_owner": false,
+    "replay_owner": false
+  },
+  "registry_stub": {
+    "schema": "ddn.ttonimaru.package_metadata_stub.v1",
+    "status_code": 200,
+    "status": "stub",
+    "install_supported": true,
+    "update_supported": false,
+    "remove_supported": false,
+    "public_registry_final": false
+  },
+  "excluded_scope": [
+    "public_registry_final"
+  ]
+}

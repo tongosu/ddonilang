@@ -1,0 +1,74 @@
+{
+  "expected_error": "E_TTONIMARU_REVISION_PIN_REQUIRED",
+  "schema": "ddn.ttonimaru.platform_charter.v1",
+  "id": "invalid_missing_revision_pin",
+  "product_name": "ttonimaru",
+  "layer": "platform_shell",
+  "runtime_truth_owner": false,
+  "state_hash_owner": false,
+  "replay_owner": false,
+  "objects": [
+    "lesson",
+    "project",
+    "package",
+    "artifact"
+  ],
+  "share_kinds": [
+    "link",
+    "clone",
+    "package"
+  ],
+  "visibility": [
+    "private",
+    "team",
+    "internal",
+    "public"
+  ],
+  "roles": [
+    "owner",
+    "editor",
+    "viewer",
+    "publisher"
+  ],
+  "catalogs": [
+    {
+      "kind": "lesson_catalog",
+      "object_kind": "lesson"
+    },
+    {
+      "kind": "package_catalog",
+      "object_kind": "package"
+    },
+    {
+      "kind": "project_catalog",
+      "object_kind": "project"
+    }
+  ],
+  "publication_policy": {
+    "revision_pin_required": false,
+    "published_artifact_immutable": true,
+    "draft_auto_reflect_public": false,
+    "republish_mode": "new_artifact"
+  },
+  "api_ledgers": {
+    "internal_v0": {
+      "path_prefix": "/internal/v0",
+      "stability": "breakable",
+      "mutation": true,
+      "audience": "authoring"
+    },
+    "api_v1": {
+      "path_prefix": "/api/v1",
+      "stability": "add_only",
+      "mutation": false,
+      "audience": "public_read"
+    },
+    "alias_url": {
+      "path_pattern": "/u/{owner}/{slug}",
+      "redirect_only": true
+    }
+  },
+  "excluded_scope": [
+    "server_mvp"
+  ]
+}

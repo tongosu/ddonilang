@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.ttonimaru.publication_manifest.v1",
+  "required": [
+    "publication_id",
+    "revision_id",
+    "project_id",
+    "owner_id",
+    "slug",
+    "visibility",
+    "ddn_source_hash",
+    "state_hash",
+    "published_at",
+    "immutable"
+  ],
+  "immutable": true,
+  "runtime_truth_owner": false,
+  "state_hash_generated_by_server": false
+}
+

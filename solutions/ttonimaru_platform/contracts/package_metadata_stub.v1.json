@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.ttonimaru.package_metadata_stub.v1",
+  "status": "stub",
+  "install_supported": false,
+  "update_supported": false,
+  "remove_supported": false,
+  "public_registry_final": false
+}
+

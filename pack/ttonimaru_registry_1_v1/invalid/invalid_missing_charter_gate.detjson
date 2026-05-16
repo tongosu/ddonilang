@@ -1,0 +1,56 @@
+{
+  "expected_error": "E_TTONIMARU_SERVER_CHARTER_GATE_INVALID",
+  "schema": "ddn.ttonimaru.server_mvp.v1",
+  "id": "invalid_missing_charter_gate",
+  "consumes_charter": "missing",
+  "server_stack": {
+    "api": "fastapi",
+    "persistence": "sqlite",
+    "tests": "pytest"
+  },
+  "auth": {
+    "mode": "dev_bearer_tokens",
+    "internal_v0_required": true,
+    "tokens": [],
+    "team_internal_membership_enforced": false
+  },
+  "object_mapping": {
+    "lesson": "catalog_source_not_mutated",
+    "project": "authoring_object",
+    "revision": "append_only_snapshot",
+    "artifact": "revision_pinned_publication",
+    "workspace": "ui_session_route_slot"
+  },
+  "endpoints": {
+    "internal_v0": [],
+    "api_v1": []
+  },
+  "alias_url": {
+    "path_pattern": "/u/{owner}/{slug}",
+    "redirect_only": true,
+    "status_code": 302,
+    "target": "/api/v1/publications/{publication_id}"
+  },
+  "data_policy": {
+    "revision_append_only": true,
+    "publication_immutable": true,
+    "publication_revision_pin_required": true,
+    "state_hash_generated_by_server": false,
+    "runtime_truth_owner": false,
+    "state_hash_owner": false,
+    "replay_owner": false
+  },
+  "registry_stub": {
+    "schema": "ddn.ttonimaru.package_metadata_stub.v1",
+    "status_code": 200,
+    "status": "stub",
+    "install_supported": false,
+    "update_supported": false,
+    "remove_supported": false,
+    "public_registry_final": false
+  },
+  "excluded_scope": [
+    "public_registry_final"
+  ]
+}
+

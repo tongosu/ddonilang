@@ -1,0 +1,2 @@
+"""Ttonimaru platform shell MVP."""
+
