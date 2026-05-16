@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "error-explain-catalog-meta-v1",
+  "card_kind": "error_explain",
+  "origin": "report",
+  "target": "pack/education_curriculum_template_v1",
+  "request": {
+    "요청": "CurriculumMetaV1 required_views 오류를 설명한다",
+    "필요": ["오류 코드", "실패 필드"],
+    "현재": "unknown view family가 fixture에 들어왔다",
+    "대안": "",
+    "제약": ["설명만 생성", "fixture 자동 수정 금지"],
+    "출력": "explanation"
+  },
+  "prompt_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "response": {
+    "status": "accepted_for_review",
+    "summary": "오류 설명을 리뷰 대상으로 채택했다",
+    "response_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "question_card_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": false,
+    "state_hash_owner": false
+  },
+  "evidence": []
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.econ_age4_ready.expected.v1",
+  "case_id": "baseline_market",
+  "input_path": "cases/baseline_market/input.ddn",
+  "expected_stdout": [
+    "case=baseline_market",
+    "price",
+    "60",
+    "quantity",
+    "20"
+  ],
+  "expected_values": {
+    "price": 60,
+    "quantity": 20
+  }
+}

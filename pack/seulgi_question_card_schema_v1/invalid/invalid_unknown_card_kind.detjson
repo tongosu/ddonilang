@@ -1,0 +1,25 @@
+{
+  "expected_error": "E_SEULGI_QUESTION_CARD_KIND_UNKNOWN",
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "unknown-kind-question",
+  "card_kind": "auto_patch",
+  "origin": "human",
+  "target": "tools/teul-cli/src/runtime/eval.rs",
+  "request": {
+    "요청": "알 수 없는 카드 종류를 검증한다",
+    "필요": [],
+    "현재": "",
+    "대안": "",
+    "제약": [],
+    "출력": "checker"
+  },
+  "prompt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "response": null,
+  "question_card_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": false,
+    "state_hash_owner": false
+  },
+  "evidence": []
+}

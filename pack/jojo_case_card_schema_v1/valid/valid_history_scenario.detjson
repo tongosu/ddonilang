@@ -1,0 +1,47 @@
+{
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "history_trade_route_scenario_v1",
+  "title": "Historical trade route scenario",
+  "domain": "history",
+  "case_kind": "historical_scenario",
+  "theory_basis": [
+    "scenario comparison",
+    "trade route dependency"
+  ],
+  "educational_goal": "Compare how route availability changes a simplified historical trade scenario.",
+  "assumptions": [
+    "events are simplified for classroom use",
+    "scenario branches are deterministic",
+    "source interpretation is separate from runtime truth"
+  ],
+  "inputs": [],
+  "outputs": [
+    "route_open",
+    "trade_volume_index"
+  ],
+  "view_requirements": [
+    {
+      "kind": "space2d",
+      "purpose": "Show simplified route positions as a view artifact."
+    },
+    {
+      "kind": "text",
+      "purpose": "Describe scenario assumptions and limits."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "route_open",
+      "trade_volume_index"
+    ],
+    "view_only_fields": [
+      "map_label",
+      "route_color"
+    ]
+  },
+  "limits": [
+    "This case is for education, not a complete historical reconstruction.",
+    "The scenario does not make present-day policy claims."
+  ],
+  "evidence": []
+}

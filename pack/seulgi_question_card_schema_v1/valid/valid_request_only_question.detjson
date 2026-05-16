@@ -1,0 +1,24 @@
+{
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "request-only-ssot-drift-v1",
+  "card_kind": "ssot_drift_question",
+  "origin": "human",
+  "target": "docs/status/roadmap_v2/ROADMAP_V2_TRACKER.md",
+  "request": {
+    "요청": "로드맵 상태와 실제 evidence가 어긋나는지 확인한다",
+    "필요": [],
+    "현재": "",
+    "대안": "",
+    "제약": [],
+    "출력": "review_notes"
+  },
+  "prompt_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "response": null,
+  "question_card_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": false,
+    "state_hash_owner": false
+  },
+  "evidence": []
+}

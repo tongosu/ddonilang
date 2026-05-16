@@ -1,0 +1,25 @@
+{
+  "expected_error": "E_SEULGI_QUESTION_PROMPT_HASH_INVALID",
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "bad-prompt-hash-question",
+  "card_kind": "proposal",
+  "origin": "codex",
+  "target": "docs/status/roadmap_v2",
+  "request": {
+    "요청": "prompt_hash 형식을 검증한다",
+    "필요": [],
+    "현재": "",
+    "대안": "",
+    "제약": [],
+    "출력": "checker"
+  },
+  "prompt_hash": "sha256:not-a-hash",
+  "response": null,
+  "question_card_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": false,
+    "state_hash_owner": false
+  },
+  "evidence": []
+}

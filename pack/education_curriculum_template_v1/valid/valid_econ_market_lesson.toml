@@ -1,0 +1,17 @@
+schema = "CurriculumMetaV1"
+lesson_id = "econ_age4_ready_baseline_tax_ceiling_v1"
+title = "기준 시장과 정책 변화"
+subject = "economics"
+grade_band = "secondary"
+unit = "수요와 공급"
+lesson = "대표예제-경제-1"
+difficulty = "basic"
+learning_goals = ["균형가격과 균형거래량을 계산한다", "세금과 가격상한의 결과를 비교한다"]
+core_concepts = ["partial equilibrium", "linear demand", "linear supply", "tax incidence"]
+prerequisites = ["일차식", "좌표평면"]
+misconceptions = ["세금은 항상 소비자만 부담한다"]
+allowed_controls = []
+required_views = ["text", "table", "graph"]
+evidence = ["python tests/run_econ_age4_ready_baseline_tax_ceiling_check.py"]
+teacher_notes_ref = "README.md"
+student_sheet_ref = "README.md"

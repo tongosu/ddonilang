@@ -1,0 +1,21 @@
+a <- 100.
+b <- 2.
+c <- 20.
+d <- 2.
+tau <- 20.
+
+denom <- b + d.
+quantity <- (a - c - tau) / denom.
+consumer_price <- a - (b * quantity).
+producer_price <- consumer_price - tau.
+tax_revenue <- tau * quantity.
+
+"case=per_unit_tax" 보여주기.
+"quantity" 보여주기.
+quantity 보여주기.
+"consumer_price" 보여주기.
+consumer_price 보여주기.
+"producer_price" 보여주기.
+producer_price 보여주기.
+"tax_revenue" 보여주기.
+tax_revenue 보여주기.

@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "code-help-eval-refactor-v1",
+  "card_kind": "code_help",
+  "origin": "codex",
+  "target": "tools/teul-cli/src/runtime/eval.rs",
+  "request": {
+    "요청": "runtime eval 경계에서 중복된 helper를 정리하는 제안을 작성한다",
+    "필요": ["기존 테스트 유지", "state_hash 경계 유지"],
+    "현재": "eval.rs에 유사한 값 검증 흐름이 반복된다",
+    "대안": "작은 pure helper로만 추출하고 runtime 의미는 바꾸지 않는다",
+    "제약": ["AI 응답 자동 반영 금지", "리뷰 후 수동 반영"],
+    "출력": "proposal"
+  },
+  "prompt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "response": {
+    "status": "proposed",
+    "summary": "중복 helper 추출안을 제안했지만 코드는 자동 반영하지 않는다",
+    "response_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "question_card_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": false,
+    "state_hash_owner": false
+  },
+  "evidence": ["python tests/run_seulgi_question_card_schema_check.py"]
+}

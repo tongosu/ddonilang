@@ -1,0 +1,20 @@
+{
+  "expected_error": "E_SEULGI_QUESTION_POLICY_MISSING",
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "missing-policy-question",
+  "card_kind": "pack_skeleton",
+  "origin": "toolchain",
+  "target": "pack/seulgi_question_card_schema_v1",
+  "request": {
+    "요청": "policy 누락을 검증한다",
+    "필요": [],
+    "현재": "",
+    "대안": "",
+    "제약": [],
+    "출력": "checker"
+  },
+  "prompt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "response": null,
+  "question_card_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "evidence": []
+}

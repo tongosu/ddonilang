@@ -1,0 +1,33 @@
+{
+  "expected_error": "E_JOJO_CARD_THEORY_BASIS_EMPTY",
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "invalid_empty_theory_basis",
+  "title": "Empty theory basis",
+  "domain": "economics",
+  "case_kind": "reduced_form_model",
+  "theory_basis": [],
+  "educational_goal": "Exercise empty theory basis validation.",
+  "assumptions": [
+    "fixture only"
+  ],
+  "inputs": [],
+  "outputs": [
+    "result"
+  ],
+  "view_requirements": [
+    {
+      "kind": "text",
+      "purpose": "Show validation failure."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "result"
+    ],
+    "view_only_fields": []
+  },
+  "limits": [
+    "Fixture only."
+  ],
+  "evidence": []
+}

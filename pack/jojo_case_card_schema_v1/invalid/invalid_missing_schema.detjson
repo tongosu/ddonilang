@@ -1,0 +1,34 @@
+{
+  "expected_error": "E_JOJO_CARD_SCHEMA_MISSING",
+  "id": "invalid_missing_schema",
+  "title": "Missing schema",
+  "domain": "economics",
+  "case_kind": "reduced_form_model",
+  "theory_basis": [
+    "competitive partial equilibrium"
+  ],
+  "educational_goal": "Exercise missing schema validation.",
+  "assumptions": [
+    "fixture only"
+  ],
+  "inputs": [],
+  "outputs": [
+    "result"
+  ],
+  "view_requirements": [
+    {
+      "kind": "text",
+      "purpose": "Show validation failure."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "result"
+    ],
+    "view_only_fields": []
+  },
+  "limits": [
+    "Fixture only."
+  ],
+  "evidence": []
+}

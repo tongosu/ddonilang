@@ -1,0 +1,38 @@
+{
+  "expected_error": "E_JOJO_CARD_TRUTH_VIEW_OVERLAP",
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "invalid_truth_view_overlap",
+  "title": "Truth view overlap",
+  "domain": "history",
+  "case_kind": "historical_scenario",
+  "theory_basis": [
+    "scenario comparison"
+  ],
+  "educational_goal": "Exercise truth/view overlap validation.",
+  "assumptions": [
+    "fixture only"
+  ],
+  "inputs": [],
+  "outputs": [
+    "result"
+  ],
+  "view_requirements": [
+    {
+      "kind": "space2d",
+      "purpose": "Show validation failure."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "result",
+      "map_label"
+    ],
+    "view_only_fields": [
+      "map_label"
+    ]
+  },
+  "limits": [
+    "Fixture only."
+  ],
+  "evidence": []
+}

@@ -1,0 +1,20 @@
+a <- 100.
+b <- 2.
+c <- 20.
+d <- 2.
+ceiling_price <- 50.
+
+demand_qty <- (a - ceiling_price) / b.
+supply_qty <- (ceiling_price - c) / d.
+trade_qty <- supply_qty.
+shortage <- demand_qty - supply_qty.
+
+"case=price_ceiling_shortage" 보여주기.
+"demand_qty" 보여주기.
+demand_qty 보여주기.
+"supply_qty" 보여주기.
+supply_qty 보여주기.
+"trade_qty" 보여주기.
+trade_qty 보여주기.
+"shortage" 보여주기.
+shortage 보여주기.

@@ -1,0 +1,28 @@
+{
+  "expected_error": "E_SEULGI_QUESTION_RESPONSE_HASH_MISSING",
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "response-hash-missing-question",
+  "card_kind": "error_explain",
+  "origin": "report",
+  "target": "pack/seulgi_question_card_schema_v1",
+  "request": {
+    "요청": "response_hash 누락을 검증한다",
+    "필요": [],
+    "현재": "",
+    "대안": "",
+    "제약": [],
+    "출력": "checker"
+  },
+  "prompt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "response": {
+    "status": "proposed",
+    "summary": "response_hash가 없다"
+  },
+  "question_card_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": false,
+    "state_hash_owner": false
+  },
+  "evidence": []
+}

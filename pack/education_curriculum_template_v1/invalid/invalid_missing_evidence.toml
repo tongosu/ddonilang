@@ -1,0 +1,13 @@
+expected_error = "E_EDU_CURRICULUM_EVIDENCE_EMPTY"
+schema = "CurriculumMetaV1"
+lesson_id = "missing_evidence_lesson"
+title = "근거 없음"
+subject = "math"
+grade_band = "all"
+unit = "검증"
+lesson = "invalid"
+difficulty = "basic"
+learning_goals = ["근거 목록을 검증한다"]
+core_concepts = ["evidence"]
+required_views = ["text"]
+evidence = []

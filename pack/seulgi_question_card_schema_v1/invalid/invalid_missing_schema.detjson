@@ -1,0 +1,24 @@
+{
+  "expected_error": "E_SEULGI_QUESTION_SCHEMA_MISSING",
+  "id": "missing-schema-question",
+  "card_kind": "code_help",
+  "origin": "human",
+  "target": "tools/teul-cli/src/runtime/eval.rs",
+  "request": {
+    "요청": "스키마 누락을 검증한다",
+    "필요": [],
+    "현재": "",
+    "대안": "",
+    "제약": [],
+    "출력": "checker"
+  },
+  "prompt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "response": null,
+  "question_card_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": false,
+    "state_hash_owner": false
+  },
+  "evidence": []
+}

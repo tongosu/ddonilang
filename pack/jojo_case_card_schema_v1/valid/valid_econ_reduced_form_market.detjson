@@ -1,0 +1,65 @@
+{
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "econ_reduced_form_market_v1",
+  "title": "Reduced-form linear market equilibrium",
+  "domain": "economics",
+  "case_kind": "reduced_form_model",
+  "theory_basis": [
+    "competitive partial equilibrium",
+    "linear inverse demand and supply",
+    "comparative statics"
+  ],
+  "educational_goal": "Show how a reduced-form supply and demand model produces a deterministic market equilibrium.",
+  "assumptions": [
+    "single competitive market",
+    "linear inverse demand",
+    "linear inverse supply",
+    "no externalities"
+  ],
+  "inputs": [
+    "demand_intercept",
+    "demand_slope",
+    "supply_intercept",
+    "supply_slope"
+  ],
+  "outputs": [
+    "equilibrium_price",
+    "equilibrium_quantity"
+  ],
+  "view_requirements": [
+    {
+      "kind": "text",
+      "purpose": "Summarize the model assumptions and equilibrium result."
+    },
+    {
+      "kind": "table",
+      "purpose": "List input parameters and computed output values."
+    },
+    {
+      "kind": "graph",
+      "purpose": "Display demand and supply curves as a view artifact."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "demand_intercept",
+      "demand_slope",
+      "supply_intercept",
+      "supply_slope",
+      "equilibrium_price",
+      "equilibrium_quantity"
+    ],
+    "view_only_fields": [
+      "curve_color",
+      "axis_label"
+    ]
+  },
+  "limits": [
+    "This case is for education, not economic forecasting.",
+    "This case is not investment, legal, or policy advice."
+  ],
+  "evidence": [
+    "jojo_case_card_schema_v1",
+    "tests/run_jojo_case_card_schema_check.py"
+  ]
+}

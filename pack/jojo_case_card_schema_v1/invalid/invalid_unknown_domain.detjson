@@ -1,0 +1,35 @@
+{
+  "expected_error": "E_JOJO_CARD_DOMAIN_UNKNOWN",
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "invalid_unknown_domain",
+  "title": "Unknown domain",
+  "domain": "biology",
+  "case_kind": "reduced_form_model",
+  "theory_basis": [
+    "fixture theory"
+  ],
+  "educational_goal": "Exercise unknown domain validation.",
+  "assumptions": [
+    "fixture only"
+  ],
+  "inputs": [],
+  "outputs": [
+    "result"
+  ],
+  "view_requirements": [
+    {
+      "kind": "text",
+      "purpose": "Show validation failure."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "result"
+    ],
+    "view_only_fields": []
+  },
+  "limits": [
+    "Fixture only."
+  ],
+  "evidence": []
+}

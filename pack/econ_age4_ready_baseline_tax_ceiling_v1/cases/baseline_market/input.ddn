@@ -1,0 +1,14 @@
+a <- 100.
+b <- 2.
+c <- 20.
+d <- 2.
+
+denom <- b + d.
+quantity <- (a - c) / denom.
+price <- ((a * d) + (b * c)) / denom.
+
+"case=baseline_market" 보여주기.
+"price" 보여주기.
+price 보여주기.
+"quantity" 보여주기.
+quantity 보여주기.

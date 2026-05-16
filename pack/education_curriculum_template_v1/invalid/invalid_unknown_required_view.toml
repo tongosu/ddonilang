@@ -1,0 +1,13 @@
+expected_error = "E_EDU_CURRICULUM_REQUIRED_VIEW_UNKNOWN"
+schema = "CurriculumMetaV1"
+lesson_id = "unknown_view_lesson"
+title = "알 수 없는 보기"
+subject = "math"
+grade_band = "all"
+unit = "검증"
+lesson = "invalid"
+difficulty = "basic"
+learning_goals = ["보기 이름을 검증한다"]
+core_concepts = ["view"]
+required_views = ["hologram"]
+evidence = ["checker"]

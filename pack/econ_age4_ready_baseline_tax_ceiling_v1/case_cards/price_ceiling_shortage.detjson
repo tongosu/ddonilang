@@ -1,0 +1,73 @@
+{
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "price_ceiling_shortage",
+  "title": "Binding price ceiling shortage",
+  "domain": "economics",
+  "case_kind": "reduced_form_model",
+  "theory_basis": [
+    "competitive partial equilibrium",
+    "linear inverse demand and supply",
+    "comparative statics",
+    "price ceiling shortage"
+  ],
+  "educational_goal": "Compute demand, supply, trade quantity, and shortage under a binding price ceiling.",
+  "assumptions": [
+    "single competitive market",
+    "price ceiling is below the baseline equilibrium price",
+    "inverse demand and supply are linear",
+    "parameters are fixed for first-run evidence"
+  ],
+  "inputs": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "ceiling_price"
+  ],
+  "outputs": [
+    "demand_qty",
+    "supply_qty",
+    "trade_qty",
+    "shortage"
+  ],
+  "view_requirements": [
+    {
+      "kind": "text",
+      "purpose": "Summarize the shortage under the ceiling."
+    },
+    {
+      "kind": "table",
+      "purpose": "Show demand, supply, trade, and shortage values."
+    },
+    {
+      "kind": "graph",
+      "purpose": "Display the binding ceiling against the demand and supply curves as a view artifact."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "ceiling_price",
+      "demand_qty",
+      "supply_qty",
+      "trade_qty",
+      "shortage"
+    ],
+    "view_only_fields": [
+      "axis_label",
+      "curve_color",
+      "ceiling_line_color"
+    ]
+  },
+  "limits": [
+    "This case is for education, not economic forecasting.",
+    "This case is not investment, legal, or policy advice."
+  ],
+  "evidence": [
+    "econ_age4_ready_baseline_tax_ceiling_v1",
+    "tests/run_econ_age4_ready_baseline_tax_ceiling_check.py"
+  ]
+}

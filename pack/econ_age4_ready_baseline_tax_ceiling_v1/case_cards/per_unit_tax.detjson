@@ -1,0 +1,72 @@
+{
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "per_unit_tax",
+  "title": "Per-unit tax incidence in a linear market",
+  "domain": "economics",
+  "case_kind": "reduced_form_model",
+  "theory_basis": [
+    "competitive partial equilibrium",
+    "linear inverse demand and supply",
+    "comparative statics",
+    "tax incidence"
+  ],
+  "educational_goal": "Compute quantity, consumer price, producer price, and revenue after a per-unit tax.",
+  "assumptions": [
+    "single competitive market",
+    "tax shifts the supply price wedge",
+    "inverse demand and supply are linear",
+    "parameters are fixed for first-run evidence"
+  ],
+  "inputs": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "tau"
+  ],
+  "outputs": [
+    "quantity",
+    "consumer_price",
+    "producer_price",
+    "tax_revenue"
+  ],
+  "view_requirements": [
+    {
+      "kind": "text",
+      "purpose": "Summarize the tax wedge and revenue."
+    },
+    {
+      "kind": "table",
+      "purpose": "Compare quantity and prices under tax."
+    },
+    {
+      "kind": "graph",
+      "purpose": "Display the demand curve and tax-shifted supply relation as a view artifact."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "tau",
+      "quantity",
+      "consumer_price",
+      "producer_price",
+      "tax_revenue"
+    ],
+    "view_only_fields": [
+      "axis_label",
+      "curve_color"
+    ]
+  },
+  "limits": [
+    "This case is for education, not economic forecasting.",
+    "This case is not investment, legal, or policy advice."
+  ],
+  "evidence": [
+    "econ_age4_ready_baseline_tax_ceiling_v1",
+    "tests/run_econ_age4_ready_baseline_tax_ceiling_check.py"
+  ]
+}

@@ -1,0 +1,12 @@
+expected_error = "E_EDU_CURRICULUM_SCHEMA_MISSING"
+lesson_id = "missing_schema_lesson"
+title = "스키마 누락"
+subject = "math"
+grade_band = "all"
+unit = "검증"
+lesson = "invalid"
+difficulty = "basic"
+learning_goals = ["스키마 누락을 확인한다"]
+core_concepts = ["schema"]
+required_views = ["text"]
+evidence = ["checker"]

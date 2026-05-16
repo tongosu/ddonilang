@@ -1,0 +1,25 @@
+{
+  "expected_error": "E_SEULGI_QUESTION_AUTO_APPLY_FORBIDDEN",
+  "schema": "ddn.seulgi.question_card.v1",
+  "id": "auto-apply-true-question",
+  "card_kind": "code_help",
+  "origin": "codex",
+  "target": "tools/teul-cli/src/runtime/eval.rs",
+  "request": {
+    "요청": "auto_apply true 금지를 검증한다",
+    "필요": [],
+    "현재": "",
+    "대안": "",
+    "제약": ["자동 반영 금지"],
+    "출력": "checker"
+  },
+  "prompt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "response": null,
+  "question_card_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy": {
+    "runtime_ast_persisted": false,
+    "auto_apply": true,
+    "state_hash_owner": false
+  },
+  "evidence": []
+}

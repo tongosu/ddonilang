@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.econ_age4_ready.expected.v1",
+  "case_id": "per_unit_tax",
+  "input_path": "cases/per_unit_tax/input.ddn",
+  "expected_stdout": [
+    "case=per_unit_tax",
+    "quantity",
+    "15",
+    "consumer_price",
+    "70",
+    "producer_price",
+    "50",
+    "tax_revenue",
+    "300"
+  ],
+  "expected_values": {
+    "quantity": 15,
+    "consumer_price": 70,
+    "producer_price": 50,
+    "tax_revenue": 300
+  }
+}

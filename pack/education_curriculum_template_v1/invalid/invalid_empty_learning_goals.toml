@@ -1,0 +1,13 @@
+expected_error = "E_EDU_CURRICULUM_LEARNING_GOALS_EMPTY"
+schema = "CurriculumMetaV1"
+lesson_id = "empty_learning_goals_lesson"
+title = "학습목표 없음"
+subject = "math"
+grade_band = "all"
+unit = "검증"
+lesson = "invalid"
+difficulty = "basic"
+learning_goals = []
+core_concepts = ["goal"]
+required_views = ["text"]
+evidence = ["checker"]

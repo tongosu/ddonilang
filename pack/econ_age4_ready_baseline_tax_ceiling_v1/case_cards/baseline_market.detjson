@@ -1,0 +1,65 @@
+{
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "baseline_market",
+  "title": "Baseline linear market equilibrium",
+  "domain": "economics",
+  "case_kind": "reduced_form_model",
+  "theory_basis": [
+    "competitive partial equilibrium",
+    "linear inverse demand and supply",
+    "comparative statics"
+  ],
+  "educational_goal": "Compute the deterministic equilibrium price and quantity of a reduced-form linear market.",
+  "assumptions": [
+    "single competitive market",
+    "inverse demand is P = a - bQ",
+    "inverse supply is P = c + dQ",
+    "parameters are fixed for first-run evidence"
+  ],
+  "inputs": [
+    "a",
+    "b",
+    "c",
+    "d"
+  ],
+  "outputs": [
+    "price",
+    "quantity"
+  ],
+  "view_requirements": [
+    {
+      "kind": "text",
+      "purpose": "Summarize the equilibrium result."
+    },
+    {
+      "kind": "table",
+      "purpose": "Show parameters and computed values."
+    },
+    {
+      "kind": "graph",
+      "purpose": "Display demand and supply curves as a view artifact."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "price",
+      "quantity"
+    ],
+    "view_only_fields": [
+      "axis_label",
+      "curve_color"
+    ]
+  },
+  "limits": [
+    "This case is for education, not economic forecasting.",
+    "This case is not investment, legal, or policy advice."
+  ],
+  "evidence": [
+    "econ_age4_ready_baseline_tax_ceiling_v1",
+    "tests/run_econ_age4_ready_baseline_tax_ceiling_check.py"
+  ]
+}

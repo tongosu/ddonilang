@@ -1,0 +1,51 @@
+{
+  "schema": "ddn.jojo.case_card.v1",
+  "id": "large_number_matching_market_v1",
+  "title": "Large-number matching market simulation",
+  "domain": "economics",
+  "case_kind": "large_number_simulation",
+  "theory_basis": [
+    "law of large numbers",
+    "agent matching model"
+  ],
+  "educational_goal": "Show how repeated deterministic agent matching can approximate aggregate market behavior.",
+  "assumptions": [
+    "fixed population size",
+    "deterministic replay seed",
+    "bounded buyer and seller values"
+  ],
+  "inputs": [
+    "agent_count",
+    "replay_seed"
+  ],
+  "outputs": [
+    "matched_count",
+    "average_trade_price"
+  ],
+  "view_requirements": [
+    {
+      "kind": "table",
+      "purpose": "List aggregate outcomes by run step."
+    },
+    {
+      "kind": "text",
+      "purpose": "Explain that the aggregate pattern is a simulation result, not a forecast."
+    }
+  ],
+  "truth_contract": {
+    "state_hash_fields": [
+      "agent_count",
+      "replay_seed",
+      "matched_count",
+      "average_trade_price"
+    ],
+    "view_only_fields": [
+      "row_highlight"
+    ]
+  },
+  "limits": [
+    "This case is for education, not economic forecasting.",
+    "The simulation is not policy or investment advice."
+  ],
+  "evidence": []
+}
