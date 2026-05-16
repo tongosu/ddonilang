@@ -32,6 +32,109 @@
       ],
       "canvas_height": 48,
       "canvas_width": 64,
+      "cell_grid_cell_count": 14,
+      "cell_grid_family": "grid2d",
+      "cell_grid_renderer": "cell_grid",
+      "cell_grid_role": "world_grid",
+      "cell_grid_sample_cells": [
+        {
+          "col": 0,
+          "row": 0,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "source": "tile",
+          "tag": "tile",
+          "text": "1",
+          "tile_kind": 1
+        },
+        {
+          "col": 2,
+          "row": 0,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 3,
+          "row": 0,
+          "source": "tile",
+          "tag": "tile",
+          "text": "2",
+          "tile_kind": 2
+        },
+        {
+          "col": 0,
+          "row": 1,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 1,
+          "row": 1,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 2,
+          "row": 1,
+          "source": "tile",
+          "tag": "tile",
+          "text": "3",
+          "tile_kind": 3
+        },
+        {
+          "col": 3,
+          "row": 1,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 0,
+          "row": 2,
+          "source": "tile",
+          "tag": "tile",
+          "text": "1",
+          "tile_kind": 1
+        },
+        {
+          "col": 1,
+          "row": 2,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 2,
+          "row": 2,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 3,
+          "row": 2,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        }
+      ],
+      "cell_grid_schema": "seamgrim.cell_grid_render.v1",
       "draw_calls": {
         "actors": 2,
         "background": 1,
@@ -150,6 +253,109 @@
       ],
       "canvas_height": 48,
       "canvas_width": 64,
+      "cell_grid_cell_count": 14,
+      "cell_grid_family": "grid2d",
+      "cell_grid_renderer": "cell_grid",
+      "cell_grid_role": "world_grid",
+      "cell_grid_sample_cells": [
+        {
+          "col": 0,
+          "row": 0,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 1,
+          "row": 0,
+          "source": "tile",
+          "tag": "tile",
+          "text": "1",
+          "tile_kind": 1
+        },
+        {
+          "col": 2,
+          "row": 0,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 3,
+          "row": 0,
+          "source": "tile",
+          "tag": "tile",
+          "text": "2",
+          "tile_kind": 2
+        },
+        {
+          "col": 0,
+          "row": 1,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 1,
+          "row": 1,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 2,
+          "row": 1,
+          "source": "tile",
+          "tag": "tile",
+          "text": "3",
+          "tile_kind": 3
+        },
+        {
+          "col": 3,
+          "row": 1,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 0,
+          "row": 2,
+          "source": "tile",
+          "tag": "tile",
+          "text": "1",
+          "tile_kind": 1
+        },
+        {
+          "col": 1,
+          "row": 2,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        },
+        {
+          "col": 2,
+          "row": 2,
+          "source": "tile",
+          "tag": "tile",
+          "text": "4",
+          "tile_kind": 4
+        },
+        {
+          "col": 3,
+          "row": 2,
+          "source": "tile",
+          "tag": "floor",
+          "text": "0",
+          "tile_kind": 0
+        }
+      ],
+      "cell_grid_schema": "seamgrim.cell_grid_render.v1",
       "draw_calls": {
         "actors": 2,
         "background": 1,

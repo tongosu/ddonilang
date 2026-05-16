@@ -1,5 +1,7 @@
 ﻿import { renderSpace2dCanvas2d } from "../wasm_page_common.js";
 
+import { consoleLinesToCellGrid, renderCellGridCanvas2d } from "../runtime/cell_grid_renderer.js";
+
 function finiteRangeFromCamera(space2d) {
   const camera = space2d?.camera;
   const xMin = Number(camera?.x_min);
@@ -362,103 +364,6 @@ export class Bogae {
     this.view.range = null;
     this.initialRangeLocked = false;
     this.drag.active = false;
-
-    const rect = typeof canvas.getBoundingClientRect === "function" ? canvas.getBoundingClientRect() : null;
-    const parentRect =
-      typeof canvas.parentElement?.getBoundingClientRect === "function"
-        ? canvas.parentElement.getBoundingClientRect()
-        : null;
-    const displayW = Math.max(
-      1,
-      Math.round(Number(canvas.clientWidth || rect?.width || canvas.parentElement?.clientWidth || parentRect?.width || 640)),
-    );
-    const displayH = Math.max(
-      1,
-      Math.round(Number(canvas.clientHeight || rect?.height || canvas.parentElement?.clientHeight || parentRect?.height || 360)),
-    );
-    if (!displayW || !displayH) return;
-
-    // 캔버스 해상도를 표시 크기에 맞춤 (devicePixelRatio 불필요, CSS가 맞춤)
-    if (canvas.width !== displayW || canvas.height !== displayH) {
-      canvas.width = displayW;
-      canvas.height = displayH;
-    }
-
-    const ctx = canvas.getContext("2d");
-    const W = canvas.width;
-    const H = canvas.height;
-
-    // ── 셀 크기 계산 ──────────────────────────────────────────────────────────
-    // 너비를 기준으로 폰트 크기를 자동 조정 (60열 기준)
-    const FONT_PX = Math.max(11, Math.min(16, Math.floor(W / 58)));
-    const CELL_W = Math.round(FONT_PX * 0.62); // 모노스페이스 ASCII 비율
-    const CELL_H = Math.round(FONT_PX * 1.75);
-    const COLS = Math.floor(W / CELL_W);
-    const ROWS = Math.floor(H / CELL_H);
-
-    // ── 배경 ──────────────────────────────────────────────────────────────────
-    ctx.fillStyle = "#080c18";
-    ctx.fillRect(0, 0, W, H);
-
-    // ── 격자선 ────────────────────────────────────────────────────────────────
-    ctx.strokeStyle = "rgba(30, 70, 140, 0.28)";
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    for (let c = 0; c <= COLS; c++) {
-      ctx.moveTo(c * CELL_W, 0);
-      ctx.lineTo(c * CELL_W, H);
-    }
-    for (let r = 0; r <= ROWS; r++) {
-      ctx.moveTo(0, r * CELL_H);
-      ctx.lineTo(W, r * CELL_H);
-    }
-    ctx.stroke();
-
-    // ── 텍스트 렌더 ───────────────────────────────────────────────────────────
-    ctx.font = `${FONT_PX}px "Courier New", Courier, monospace`;
-    ctx.textBaseline = "middle";
-
-    const allLines = Array.isArray(lines) ? lines.map((l) => String(l ?? "")) : [];
-    // 화면에 넘치면 최근 줄부터 (터미널 스크롤 동작)
-    const visibleLines = allLines.length > ROWS ? allLines.slice(-ROWS) : allLines;
-
-    for (let rowIdx = 0; rowIdx < visibleLines.length; rowIdx++) {
-      const line = visibleLines[rowIdx];
-      const cellY = rowIdx * CELL_H + CELL_H / 2;
-
-      let colIdx = 0;
-      for (let i = 0; i < line.length && colIdx < COLS; i++) {
-        const ch = line[i];
-        const cellX = colIdx * CELL_W + 1;
-
-        // 문자별 색상
-        if (ch >= "0" && ch <= "9" || ch === ".") {
-          ctx.fillStyle = "#7dd3fc"; // 숫자: 파랑
-        } else if (ch === "=" || ch === ":" || ch === "[" || ch === "]") {
-          ctx.fillStyle = "#475569"; // 구분자: 어두운 회색
-        } else if (ch === " ") {
-          colIdx += 1;
-          continue; // 공백은 스킵 (격자가 배경 역할)
-        } else {
-          ctx.fillStyle = "#cbd5e1"; // 일반 텍스트: 밝은 회색
-        }
-
-        ctx.fillText(ch, cellX, cellY);
-
-        // CJK(한국어 등) 문자는 셀 2칸 차지
-        const charW = ctx.measureText(ch).width;
-        colIdx += charW > CELL_W * 1.3 ? 2 : 1;
-      }
-    }
-
-    // ── 빈 격자 안내문 (출력 없을 때) ────────────────────────────────────────
-    if (allLines.length === 0) {
-      ctx.fillStyle = "rgba(71, 85, 105, 0.6)";
-      ctx.font = `${FONT_PX + 1}px "Courier New", Courier, monospace`;
-      ctx.textBaseline = "middle";
-      const msg = "콘솔 출력 없음";
-      const msgW = ctx.measureText(msg).width;
-      ctx.fillText(msg, (W - msgW) / 2, H / 2);
-    }
+    renderCellGridCanvas2d(canvas, consoleLinesToCellGrid(lines));
   }
 }

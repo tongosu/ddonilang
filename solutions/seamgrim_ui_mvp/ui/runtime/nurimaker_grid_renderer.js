@@ -1,3 +1,9 @@
+import {
+  grid2dFixtureToCellGrid,
+  renderCellGridCanvas2d,
+  summarizeCellGridRender,
+} from "./cell_grid_renderer.js";
+
 const DEFAULT_TILE_PALETTE = Object.freeze({
   0: "#f6f1e8",
   1: "#2e3440",
@@ -119,6 +125,7 @@ export class NurimakerGridRenderer {
     this.actorList = normalizeActorList(options.actorList);
     this.clickHandlers = new Set();
     this.lastRenderSummary = null;
+    this.lastCellGrid = null;
     this.handleCanvasClick = this.handleCanvasClick.bind(this);
     if (this.canvas && typeof this.canvas.addEventListener === "function") {
       this.canvas.addEventListener("click", this.handleCanvasClick);
@@ -168,6 +175,10 @@ export class NurimakerGridRenderer {
     return cloneJson(this.actorList);
   }
 
+  getLastCellGrid() {
+    return cloneJson(this.lastCellGrid);
+  }
+
   pickCellFromClientPoint(clientX, clientY) {
     const gridState = this.gridState;
     if (!this.canvas || !gridState) return null;
@@ -200,6 +211,11 @@ export class NurimakerGridRenderer {
   render() {
     const gridState = this.gridState;
     const canvas = this.canvas;
+    const cellGrid = grid2dFixtureToCellGrid(
+      { grid: gridState, actors: this.actorList },
+      { actorList: this.actorList },
+    );
+    this.lastCellGrid = cellGrid;
     if (!canvas || typeof canvas.getContext !== "function") {
       this.lastRenderSummary = {
         schema: "seamgrim.nurimaker.grid_render.v1",
@@ -213,61 +229,20 @@ export class NurimakerGridRenderer {
           row: actor.row,
           col: actor.col,
         })),
+        ...summarizeCellGridRender(cellGrid),
       };
       return this.lastRenderSummary;
     }
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      throw new Error("NurimakerGridRenderer: 2d context를 가져오지 못했습니다.");
-    }
-
     const width = gridState.gridW * gridState.tileSize;
     const height = gridState.gridH * gridState.tileSize;
-    canvas.width = width;
-    canvas.height = height;
-
-    if (typeof ctx.clearRect === "function") {
-      ctx.clearRect(0, 0, width, height);
-    }
-    ctx.fillStyle = gridState.background;
-    if (typeof ctx.fillRect === "function") {
-      ctx.fillRect(0, 0, width, height);
-    }
-
-    let tileDrawCount = 0;
-    let actorDrawCount = 0;
-    for (let row = 0; row < gridState.gridH; row += 1) {
-      for (let col = 0; col < gridState.gridW; col += 1) {
-        const kind = toFiniteInt(gridState.tiles[row]?.[col], 0, 0);
-        const fill = String(gridState.palette[String(kind)] ?? DEFAULT_TILE_PALETTE[0]);
-        const x = col * gridState.tileSize;
-        const y = row * gridState.tileSize;
-        ctx.fillStyle = fill;
-        ctx.fillRect(x, y, gridState.tileSize, gridState.tileSize);
-        if (typeof ctx.strokeRect === "function") {
-          ctx.strokeStyle = gridState.gridLineColor;
-          ctx.strokeRect(x, y, gridState.tileSize, gridState.tileSize);
-        }
-        tileDrawCount += 1;
-      }
-    }
-
-    this.actorList.forEach((actor) => {
-      if (actor.row >= gridState.gridH || actor.col >= gridState.gridW) return;
-      const inset = Math.max(2, Math.floor(gridState.tileSize * 0.18));
-      const x = actor.col * gridState.tileSize + inset;
-      const y = actor.row * gridState.tileSize + inset;
-      const size = Math.max(2, gridState.tileSize - inset * 2);
-      ctx.fillStyle = actor.fill;
-      ctx.fillRect(x, y, size, size);
-      if (typeof ctx.fillText === "function") {
-        ctx.fillStyle = "#111111";
-        ctx.font = `${Math.max(8, Math.floor(gridState.tileSize * 0.42))}px sans-serif`;
-        ctx.fillText(String(actor.label), x + Math.max(1, Math.floor(size * 0.22)), y + Math.max(10, Math.floor(size * 0.72)));
-      }
-      actorDrawCount += 1;
+    const drawSummary = renderCellGridCanvas2d(canvas, cellGrid, {
+      gridState,
+      actorList: this.actorList,
     });
+    if (!drawSummary) {
+      throw new Error("NurimakerGridRenderer: 2d context를 가져오지 못했습니다.");
+    }
 
     this.lastRenderSummary = {
       schema: "seamgrim.nurimaker.grid_render.v1",
@@ -286,9 +261,10 @@ export class NurimakerGridRenderer {
       palette_keys: Object.keys(gridState.palette).sort((a, b) => Number(a) - Number(b)),
       draw_calls: {
         background: 1,
-        tiles: tileDrawCount,
-        actors: actorDrawCount,
+        tiles: Number(drawSummary.tiles ?? 0),
+        actors: Number(drawSummary.actors ?? 0),
       },
+      ...summarizeCellGridRender(cellGrid),
     };
     return this.lastRenderSummary;
   }
