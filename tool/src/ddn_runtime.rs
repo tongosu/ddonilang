@@ -1,6 +1,6 @@
 #[cfg(test)]
 use std::cell::Cell;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::gate0_registry;
@@ -129,6 +129,303 @@ const INPUT_KEY_BINDINGS: [(&str, u64, &[&str]); 9] = [
 
 fn value_from_flag_number(value: i64) -> Value {
     Value::Fixed64(Fixed64::from_i64(value))
+}
+
+const STD_GRID_KIND: &str = "표준.격자";
+const STD_INPUT_MAP_KIND: &str = "표준.입력사상";
+
+fn fixed_value(value: i64) -> Value {
+    Value::Fixed64(Fixed64::from_i64(value))
+}
+
+fn std_grid_error(message: &str) -> EvalError {
+    EvalError::from(message.to_string())
+}
+
+fn make_std_grid(width: i64, height: i64, default_value: Value) -> Result<Value, EvalError> {
+    if width <= 0 || height <= 0 {
+        return Err(std_grid_error("격자 크기는 1 이상이어야 합니다"));
+    }
+    let cell_count = width
+        .checked_mul(height)
+        .ok_or_else(|| std_grid_error("격자 크기가 너무 큽니다"))?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__kind".to_string(),
+        Value::String(STD_GRID_KIND.to_string()),
+    );
+    fields.insert("너비".to_string(), fixed_value(width));
+    fields.insert("높이".to_string(), fixed_value(height));
+    fields.insert(
+        "칸들".to_string(),
+        Value::List(vec![default_value; cell_count as usize]),
+    );
+    Ok(Value::Pack(fields))
+}
+
+fn std_grid_fields(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_grid_error("격자 인자가 필요합니다"));
+    };
+    match fields.get("__kind") {
+        Some(Value::String(kind)) if kind == STD_GRID_KIND => Ok(fields),
+        _ => Err(std_grid_error("격자 인자가 필요합니다")),
+    }
+}
+
+fn std_grid_dims(fields: &BTreeMap<String, Value>) -> Result<(i64, i64), EvalError> {
+    let width = fields
+        .get("너비")
+        .ok_or_else(|| std_grid_error("격자 너비가 없습니다"))
+        .and_then(value_to_i64)?;
+    let height = fields
+        .get("높이")
+        .ok_or_else(|| std_grid_error("격자 높이가 없습니다"))
+        .and_then(value_to_i64)?;
+    if width <= 0 || height <= 0 {
+        return Err(std_grid_error("격자 크기는 1 이상이어야 합니다"));
+    }
+    Ok((width, height))
+}
+
+fn std_grid_cells(fields: &BTreeMap<String, Value>) -> Result<&Vec<Value>, EvalError> {
+    let Some(Value::List(cells)) = fields.get("칸들") else {
+        return Err(std_grid_error("격자 칸 목록이 없습니다"));
+    };
+    Ok(cells)
+}
+
+fn std_grid_index(fields: &BTreeMap<String, Value>, x: i64, y: i64) -> Result<usize, EvalError> {
+    let (width, height) = std_grid_dims(fields)?;
+    if x < 0 || y < 0 || x >= width || y >= height {
+        return Err(std_grid_error("격자 좌표가 범위를 벗어났습니다"));
+    }
+    Ok((y * width + x) as usize)
+}
+
+fn std_grid_inside(value: &Value, x: i64, y: i64) -> Result<bool, EvalError> {
+    let fields = std_grid_fields(value)?;
+    let (width, height) = std_grid_dims(fields)?;
+    Ok(x >= 0 && y >= 0 && x < width && y < height)
+}
+
+fn value_matches_any(target: &Value, blocked: &Value) -> bool {
+    match blocked {
+        Value::List(items) => items.iter().any(|item| values_equal(target, item)),
+        other => values_equal(target, other),
+    }
+}
+
+fn std_grid_pathfind(
+    grid: &Value,
+    start_x: i64,
+    start_y: i64,
+    goal_x: i64,
+    goal_y: i64,
+    blocked_values: &Value,
+) -> Result<Value, EvalError> {
+    let fields = std_grid_fields(grid)?;
+    let (width, height) = std_grid_dims(fields)?;
+    let start = std_grid_index(fields, start_x, start_y)?;
+    let goal = std_grid_index(fields, goal_x, goal_y)?;
+    let cells = std_grid_cells(fields)?;
+    if start >= cells.len() || goal >= cells.len() {
+        return Err(std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"));
+    }
+    if value_matches_any(&cells[start], blocked_values)
+        || value_matches_any(&cells[goal], blocked_values)
+    {
+        return Ok(Value::List(Vec::new()));
+    }
+
+    let cell_count = (width * height) as usize;
+    let mut visited = vec![false; cell_count];
+    let mut prev: Vec<Option<usize>> = vec![None; cell_count];
+    let mut queue = VecDeque::new();
+    visited[start] = true;
+    queue.push_back((start_x, start_y));
+
+    const DIRS: [(i64, i64); 4] = [(0, -1), (1, 0), (0, 1), (-1, 0)];
+    while let Some((x, y)) = queue.pop_front() {
+        let current = (y * width + x) as usize;
+        if current == goal {
+            break;
+        }
+        for (dx, dy) in DIRS {
+            let nx = x + dx;
+            let ny = y + dy;
+            if nx < 0 || ny < 0 || nx >= width || ny >= height {
+                continue;
+            }
+            let next = (ny * width + nx) as usize;
+            if next >= cells.len()
+                || visited[next]
+                || value_matches_any(&cells[next], blocked_values)
+            {
+                continue;
+            }
+            visited[next] = true;
+            prev[next] = Some(current);
+            queue.push_back((nx, ny));
+        }
+    }
+
+    if !visited[goal] {
+        return Ok(Value::List(Vec::new()));
+    }
+
+    let mut route = Vec::new();
+    let mut cursor = goal;
+    loop {
+        let x = (cursor as i64) % width;
+        let y = (cursor as i64) / width;
+        route.push(Value::List(vec![fixed_value(x), fixed_value(y)]));
+        if cursor == start {
+            break;
+        }
+        cursor =
+            prev[cursor].ok_or_else(|| std_grid_error("격자 길찾기 경로를 복원할 수 없습니다"))?;
+    }
+    route.reverse();
+    Ok(Value::List(route))
+}
+
+fn expect_unit_value(value: &Value) -> Result<UnitValue, EvalError> {
+    match value {
+        Value::Fixed64(raw) => Ok(UnitValue {
+            value: *raw,
+            dim: UnitDim::NONE,
+        }),
+        Value::Unit(unit) => Ok(*unit),
+        _ => Err("수 값이 필요합니다".to_string().into()),
+    }
+}
+
+fn unit_value_to_runtime_value(value: UnitValue) -> Value {
+    if value.dim == UnitDim::NONE {
+        Value::Fixed64(value.value)
+    } else {
+        Value::Unit(value)
+    }
+}
+
+fn ensure_same_unit_dim(left: &UnitValue, right: &UnitValue) -> Result<(), EvalError> {
+    if left.dim != right.dim {
+        return Err("단위 차원이 맞지 않습니다".to_string().into());
+    }
+    Ok(())
+}
+
+fn ensure_dimensionless_unit(value: &UnitValue) -> Result<(), EvalError> {
+    if value.dim != UnitDim::NONE {
+        return Err("무차원 수가 필요합니다".to_string().into());
+    }
+    Ok(())
+}
+
+fn make_std_input_map(bindings: BTreeMap<String, Value>) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__kind".to_string(),
+        Value::String(STD_INPUT_MAP_KIND.to_string()),
+    );
+    for (key, value) in bindings {
+        fields.insert(key, value);
+    }
+    Value::Pack(fields)
+}
+
+fn std_input_map_fields(value: &Value) -> Result<BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(EvalError::from("입력사상 인자가 필요합니다".to_string()));
+    };
+    if matches!(fields.get("__kind"), Some(Value::String(kind)) if kind == STD_INPUT_MAP_KIND) {
+        return Ok(fields.clone());
+    }
+    Ok(fields.clone())
+}
+
+fn input_map_key_aliases(action: &str) -> &'static [&'static str] {
+    match action {
+        "왼쪽" => &["ArrowLeft", "left", "a", "j", "왼쪽", "왼쪽화살표", "좌"],
+        "오른쪽" => &[
+            "ArrowRight",
+            "right",
+            "d",
+            "l",
+            "오른쪽",
+            "오른쪽화살표",
+            "우",
+        ],
+        "위" => &["ArrowUp", "up", "w", "i", "위", "위쪽", "위쪽화살표", "상"],
+        "아래" => &[
+            "ArrowDown",
+            "down",
+            "s",
+            "k",
+            "아래",
+            "아래쪽",
+            "아래쪽화살표",
+            "하",
+        ],
+        "확인" => &[
+            "Space",
+            "Enter",
+            "space",
+            "enter",
+            "스페이스",
+            "스페이스바",
+            "엔터",
+            "엔터키",
+        ],
+        "취소" => &["Escape", "escape", "이스케이프", "이스케이프키"],
+        _ => &[],
+    }
+}
+
+fn input_map_value_keys(map: &BTreeMap<String, Value>, action: &str) -> Vec<String> {
+    let mut keys = Vec::new();
+    if let Some(value) = map
+        .get(action)
+        .or_else(|| map.get(&format!("동작.{action}")))
+        .or_else(|| map.get(&format!("키.{action}")))
+    {
+        match value {
+            Value::String(text) => keys.push(text.clone()),
+            Value::List(items) => {
+                keys.extend(
+                    items
+                        .iter()
+                        .map(value_to_string)
+                        .filter(|key| !key.is_empty()),
+                );
+            }
+            other => {
+                let rendered = value_to_string(other);
+                if !rendered.is_empty() {
+                    keys.push(rendered);
+                }
+            }
+        }
+    }
+    if keys.is_empty() {
+        keys.extend(
+            input_map_key_aliases(action)
+                .iter()
+                .map(|key| key.to_string()),
+        );
+    }
+    keys
+}
+
+fn input_map_action_pressed(
+    input: &InputState,
+    map: &BTreeMap<String, Value>,
+    action: &str,
+) -> bool {
+    input_map_value_keys(map, action)
+        .iter()
+        .any(|key| matches!(input_pressed(input, key), Value::Bool(true)))
 }
 
 fn seed_keyboard_flag_for_key(
@@ -1225,9 +1522,10 @@ impl DdnRunner {
         let update = if let Some(update) = ctx.program.functions.get(seed_name) {
             update
         } else if seed_name == "매마디" {
-            ctx.program.functions.get("매틱").ok_or_else(|| {
-                format!("업데이트 함수 '{}'를 찾을 수 없습니다", seed_name)
-            })?
+            ctx.program
+                .functions
+                .get("매틱")
+                .ok_or_else(|| format!("업데이트 함수 '{}'를 찾을 수 없습니다", seed_name))?
         } else if missing_is_noop {
             return Ok(DdnRunOutput {
                 patch: Patch {
@@ -2466,10 +2764,13 @@ impl<'a> EvalContext<'a> {
 
     fn resolve_entity_name(&self, expr: &Expr) -> Result<String, EvalError> {
         match &expr.kind {
-            ExprKind::Var(name) if name == "제" => self
-                .current_seed_name
-                .clone()
-                .ok_or_else(|| "E_RUNTIME_JE_OUTSIDE_IMJA: `제`는 임자 안에서만 사용할 수 있습니다".to_string().into()),
+            ExprKind::Var(name) if name == "제" => {
+                self.current_seed_name.clone().ok_or_else(|| {
+                    "E_RUNTIME_JE_OUTSIDE_IMJA: `제`는 임자 안에서만 사용할 수 있습니다"
+                        .to_string()
+                        .into()
+                })
+            }
             ExprKind::Var(name) => Ok(name.clone()),
             ExprKind::FieldAccess { target, field } => {
                 let base = self.resolve_entity_name(target)?;
@@ -2588,12 +2889,18 @@ impl<'a> EvalContext<'a> {
             Value::Pack(fields)
         };
         let restore = if let Some(name) = binding {
-            Some((name.to_string(), locals.insert(name.to_string(), bound_value)))
+            Some((
+                name.to_string(),
+                locals.insert(name.to_string(), bound_value),
+            ))
         } else {
             None
         };
         let should_run = condition
-            .map(|expr| self.eval_expr(locals, expr).and_then(|value| is_truthy(&value)))
+            .map(|expr| {
+                self.eval_expr(locals, expr)
+                    .and_then(|value| is_truthy(&value))
+            })
             .transpose()?
             .unwrap_or(true);
         if should_run {
@@ -3481,6 +3788,168 @@ impl<'a> EvalContext<'a> {
                     })
                     .collect::<Vec<_>>();
                 Ok(Value::List(pairs))
+            }
+            "격자.만들기" => {
+                if args.len() != 3 {
+                    return Err("격자.만들기는 인자 3개를 받습니다".to_string().into());
+                }
+                let width = value_to_i64(&args[0])?;
+                let height = value_to_i64(&args[1])?;
+                make_std_grid(width, height, args[2].clone())
+            }
+            "격자.너비" => {
+                if args.len() != 1 {
+                    return Err("격자.너비는 인자 1개를 받습니다".to_string().into());
+                }
+                let fields = std_grid_fields(&args[0])?;
+                let (width, _) = std_grid_dims(fields)?;
+                Ok(fixed_value(width))
+            }
+            "격자.높이" => {
+                if args.len() != 1 {
+                    return Err("격자.높이는 인자 1개를 받습니다".to_string().into());
+                }
+                let fields = std_grid_fields(&args[0])?;
+                let (_, height) = std_grid_dims(fields)?;
+                Ok(fixed_value(height))
+            }
+            "격자.값" => {
+                if args.len() != 3 {
+                    return Err("격자.값은 인자 3개를 받습니다".to_string().into());
+                }
+                let fields = std_grid_fields(&args[0])?;
+                let idx = std_grid_index(fields, value_to_i64(&args[1])?, value_to_i64(&args[2])?)?;
+                let cells = std_grid_cells(fields)?;
+                Ok(cells.get(idx).cloned().unwrap_or(Value::None))
+            }
+            "격자.바꾼값" => {
+                if args.len() != 4 {
+                    return Err("격자.바꾼값은 인자 4개를 받습니다".to_string().into());
+                }
+                let fields = std_grid_fields(&args[0])?;
+                let idx = std_grid_index(fields, value_to_i64(&args[1])?, value_to_i64(&args[2])?)?;
+                let mut next = fields.clone();
+                let mut cells = std_grid_cells(fields)?.clone();
+                if idx >= cells.len() {
+                    return Err("격자 칸 목록이 크기와 맞지 않습니다".to_string().into());
+                }
+                cells[idx] = args[3].clone();
+                next.insert("칸들".to_string(), Value::List(cells));
+                Ok(Value::Pack(next))
+            }
+            "격자.안인가" => {
+                if args.len() != 3 {
+                    return Err("격자.안인가는 인자 3개를 받습니다".to_string().into());
+                }
+                Ok(Value::Bool(std_grid_inside(
+                    &args[0],
+                    value_to_i64(&args[1])?,
+                    value_to_i64(&args[2])?,
+                )?))
+            }
+            "격자.막혔나" => {
+                if args.len() != 4 {
+                    return Err("격자.막혔나는 인자 4개를 받습니다".to_string().into());
+                }
+                if !std_grid_inside(&args[0], value_to_i64(&args[1])?, value_to_i64(&args[2])?)? {
+                    return Ok(Value::Bool(true));
+                }
+                let fields = std_grid_fields(&args[0])?;
+                let idx = std_grid_index(fields, value_to_i64(&args[1])?, value_to_i64(&args[2])?)?;
+                let cell = std_grid_cells(fields)?
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or(Value::None);
+                Ok(Value::Bool(value_matches_any(&cell, &args[3])))
+            }
+            "격자.길찾기" => {
+                if args.len() != 6 {
+                    return Err("격자.길찾기는 인자 6개를 받습니다".to_string().into());
+                }
+                std_grid_pathfind(
+                    &args[0],
+                    value_to_i64(&args[1])?,
+                    value_to_i64(&args[2])?,
+                    value_to_i64(&args[3])?,
+                    value_to_i64(&args[4])?,
+                    &args[5],
+                )
+            }
+            "물리1d.위치갱신" => {
+                if args.len() != 3 {
+                    return Err("물리1d.위치갱신은 인자 3개를 받습니다".to_string().into());
+                }
+                let position = expect_unit_value(&args[0])?;
+                let velocity = expect_unit_value(&args[1])?;
+                let dt = expect_unit_value(&args[2])?;
+                ensure_dimensionless_unit(&dt)?;
+                ensure_same_unit_dim(&position, &velocity)?;
+                Ok(unit_value_to_runtime_value(UnitValue {
+                    value: position
+                        .value
+                        .saturating_add(velocity.value.saturating_mul(dt.value)),
+                    dim: position.dim,
+                }))
+            }
+            "물리1d.속도갱신" => {
+                if args.len() != 3 {
+                    return Err("물리1d.속도갱신은 인자 3개를 받습니다".to_string().into());
+                }
+                let velocity = expect_unit_value(&args[0])?;
+                let acceleration = expect_unit_value(&args[1])?;
+                let dt = expect_unit_value(&args[2])?;
+                ensure_dimensionless_unit(&dt)?;
+                ensure_same_unit_dim(&velocity, &acceleration)?;
+                Ok(unit_value_to_runtime_value(UnitValue {
+                    value: velocity
+                        .value
+                        .saturating_add(acceleration.value.saturating_mul(dt.value)),
+                    dim: velocity.dim,
+                }))
+            }
+            "물리1d.탄성충돌1d" => {
+                if args.len() != 4 {
+                    return Err("물리1d.탄성충돌1d는 인자 4개를 받습니다".to_string().into());
+                }
+                let m1 = expect_unit_value(&args[0])?;
+                let v1 = expect_unit_value(&args[1])?;
+                let m2 = expect_unit_value(&args[2])?;
+                let v2 = expect_unit_value(&args[3])?;
+                ensure_dimensionless_unit(&m1)?;
+                ensure_dimensionless_unit(&m2)?;
+                ensure_same_unit_dim(&v1, &v2)?;
+                let denom = m1.value.saturating_add(m2.value);
+                if denom.raw_i64() == 0 {
+                    return Err("물리1d.탄성충돌1d 질량 합은 0이 될 수 없습니다"
+                        .to_string()
+                        .into());
+                }
+                let two = Fixed64::from_i64(2);
+                let next_v1_num = m1
+                    .value
+                    .saturating_sub(m2.value)
+                    .saturating_mul(v1.value)
+                    .saturating_add(two.saturating_mul(m2.value).saturating_mul(v2.value));
+                let next_v2_num = two
+                    .saturating_mul(m1.value)
+                    .saturating_mul(v1.value)
+                    .saturating_add(m2.value.saturating_sub(m1.value).saturating_mul(v2.value));
+                let next_v1 = next_v1_num
+                    .try_div(denom)
+                    .map_err(|_| EvalError::from("0으로 나눌 수 없습니다".to_string()))?;
+                let next_v2 = next_v2_num
+                    .try_div(denom)
+                    .map_err(|_| EvalError::from("0으로 나눌 수 없습니다".to_string()))?;
+                Ok(Value::List(vec![
+                    unit_value_to_runtime_value(UnitValue {
+                        value: next_v1,
+                        dim: v1.dim,
+                    }),
+                    unit_value_to_runtime_value(UnitValue {
+                        value: next_v2,
+                        dim: v1.dim,
+                    }),
+                ]))
             }
             "채우기" => {
                 if args.len() != 2 {
@@ -4915,6 +5384,46 @@ impl<'a> EvalContext<'a> {
                 }
                 let key = value_to_string(&args[0]);
                 Ok(input_just_pressed(&self.input, &key))
+            }
+            "입력사상.만들기" => {
+                if args.is_empty() {
+                    return Ok(make_std_input_map(BTreeMap::new()));
+                }
+                if args.len() != 1 {
+                    return Err("입력사상.만들기는 인자 0개 또는 1개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let Value::Pack(fields) = &args[0] else {
+                    return Err("입력사상.만들기는 묶음 인자를 받습니다".to_string().into());
+                };
+                Ok(make_std_input_map(fields.clone()))
+            }
+            "입력사상.방향" => {
+                if args.len() != 1 {
+                    return Err("입력사상.방향은 인자 1개를 받습니다".to_string().into());
+                }
+                let map = std_input_map_fields(&args[0])?;
+                let left = input_map_action_pressed(&self.input, &map, "왼쪽") as i64;
+                let right = input_map_action_pressed(&self.input, &map, "오른쪽") as i64;
+                let up = input_map_action_pressed(&self.input, &map, "위") as i64;
+                let down = input_map_action_pressed(&self.input, &map, "아래") as i64;
+                Ok(Value::List(vec![
+                    fixed_value(right - left),
+                    fixed_value(down - up),
+                ]))
+            }
+            "입력사상.동작" => {
+                if args.len() != 2 {
+                    return Err("입력사상.동작은 인자 2개를 받습니다".to_string().into());
+                }
+                let map = std_input_map_fields(&args[0])?;
+                let action = value_to_string(&args[1]);
+                Ok(Value::Bool(input_map_action_pressed(
+                    &self.input,
+                    &map,
+                    &action,
+                )))
             }
             "무작위" => {
                 if !args.is_empty() {

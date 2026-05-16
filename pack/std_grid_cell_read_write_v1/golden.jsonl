@@ -1,0 +1,2 @@
+{"stdout": ["3", "2", ".", "#", "."]}
+{"input_path": "out_of_bounds.ddn", "stdout": [], "stderr": ["E_PACK pack/std_grid_cell_read_write_v1/out_of_bounds.ddn:2:6 격자 좌표가 범위를 벗어났습니다"], "exit_code": 1, "expected_error_code": "E_PACK"}

@@ -48,6 +48,8 @@ const RELATION_SOLVE_VAR_FIELD: &str = "미지수";
 const RELATION_SOLVE_VALUE_FIELD: &str = "값";
 const RELATION_SOLVE_BINDINGS_FIELD: &str = "해";
 const RELATION_SOLVE_REASON_FIELD: &str = "사유";
+const STD_GRID_KIND: &str = "표준.격자";
+const STD_INPUT_MAP_KIND: &str = "표준.입력사상";
 
 pub struct Evaluator {
     state: State,
@@ -3780,6 +3782,203 @@ impl Evaluator {
                     .map_err(|err| map_formula_error(err, span))?;
                 Ok(Value::Num(qty))
             }
+            "격자.만들기" => {
+                if values.len() != 3 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "width, height, default",
+                        span,
+                    });
+                }
+                let width = quantity_to_int(&expect_quantity_value(&values[0], span)?, span)?;
+                let height = quantity_to_int(&expect_quantity_value(&values[1], span)?, span)?;
+                make_std_grid(width, height, values[2].clone(), span)
+            }
+            "격자.너비" => {
+                if values.len() != 1 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid",
+                        span,
+                    });
+                }
+                let fields = std_grid_fields(&values[0], span)?;
+                let (width, _) = std_grid_dims(fields, span)?;
+                Ok(fixed_value(width))
+            }
+            "격자.높이" => {
+                if values.len() != 1 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid",
+                        span,
+                    });
+                }
+                let fields = std_grid_fields(&values[0], span)?;
+                let (_, height) = std_grid_dims(fields, span)?;
+                Ok(fixed_value(height))
+            }
+            "격자.값" => {
+                if values.len() != 3 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid, x, y",
+                        span,
+                    });
+                }
+                let fields = std_grid_fields(&values[0], span)?;
+                let x = quantity_to_int(&expect_quantity_value(&values[1], span)?, span)?;
+                let y = quantity_to_int(&expect_quantity_value(&values[2], span)?, span)?;
+                let idx = std_grid_index(fields, x, y, span)?;
+                Ok(std_grid_cells(fields, span)?
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or(Value::None))
+            }
+            "격자.바꾼값" => {
+                if values.len() != 4 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid, x, y, value",
+                        span,
+                    });
+                }
+                let fields = std_grid_fields(&values[0], span)?;
+                let x = quantity_to_int(&expect_quantity_value(&values[1], span)?, span)?;
+                let y = quantity_to_int(&expect_quantity_value(&values[2], span)?, span)?;
+                let idx = std_grid_index(fields, x, y, span)?;
+                let mut next_fields = fields.clone();
+                let mut cells = std_grid_cells(fields, span)?.clone();
+                if idx >= cells.len() {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid cells matching size",
+                        span,
+                    });
+                }
+                cells[idx] = values[3].clone();
+                next_fields.insert("칸들".to_string(), Value::List(ListValue { items: cells }));
+                Ok(Value::Pack(PackValue {
+                    fields: next_fields,
+                }))
+            }
+            "격자.안인가" => {
+                if values.len() != 3 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid, x, y",
+                        span,
+                    });
+                }
+                let x = quantity_to_int(&expect_quantity_value(&values[1], span)?, span)?;
+                let y = quantity_to_int(&expect_quantity_value(&values[2], span)?, span)?;
+                Ok(Value::Bool(std_grid_inside(&values[0], x, y, span)?))
+            }
+            "격자.막혔나" => {
+                if values.len() != 4 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid, x, y, blocked values",
+                        span,
+                    });
+                }
+                let x = quantity_to_int(&expect_quantity_value(&values[1], span)?, span)?;
+                let y = quantity_to_int(&expect_quantity_value(&values[2], span)?, span)?;
+                if !std_grid_inside(&values[0], x, y, span)? {
+                    return Ok(Value::Bool(true));
+                }
+                let fields = std_grid_fields(&values[0], span)?;
+                let idx = std_grid_index(fields, x, y, span)?;
+                let cell = std_grid_cells(fields, span)?
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or(Value::None);
+                let blocked = match &values[3] {
+                    Value::List(list) => list.items.iter().any(|item| item == &cell),
+                    other => other == &cell,
+                };
+                Ok(Value::Bool(blocked))
+            }
+            "격자.길찾기" => {
+                if values.len() != 6 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "grid, start x, start y, goal x, goal y, blocked values",
+                        span,
+                    });
+                }
+                let start_x = quantity_to_int(&expect_quantity_value(&values[1], span)?, span)?;
+                let start_y = quantity_to_int(&expect_quantity_value(&values[2], span)?, span)?;
+                let goal_x = quantity_to_int(&expect_quantity_value(&values[3], span)?, span)?;
+                let goal_y = quantity_to_int(&expect_quantity_value(&values[4], span)?, span)?;
+                std_grid_pathfind(&values[0], start_x, start_y, goal_x, goal_y, &values[5], span)
+            }
+            "물리1d.위치갱신" => {
+                if values.len() != 3 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "position, velocity, dt",
+                        span,
+                    });
+                }
+                let position = expect_quantity_value(&values[0], span)?;
+                let velocity = expect_quantity_value(&values[1], span)?;
+                let dt = expect_quantity_value(&values[2], span)?;
+                ensure_dimensionless(&dt, span)?;
+                ensure_same_dim(&position, &velocity, span)?;
+                Ok(Value::Num(Quantity::new(
+                    position.raw.saturating_add(velocity.raw.saturating_mul(dt.raw)),
+                    position.dim,
+                )))
+            }
+            "물리1d.속도갱신" => {
+                if values.len() != 3 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "velocity, acceleration, dt",
+                        span,
+                    });
+                }
+                let velocity = expect_quantity_value(&values[0], span)?;
+                let acceleration = expect_quantity_value(&values[1], span)?;
+                let dt = expect_quantity_value(&values[2], span)?;
+                ensure_dimensionless(&dt, span)?;
+                ensure_same_dim(&velocity, &acceleration, span)?;
+                Ok(Value::Num(Quantity::new(
+                    velocity.raw.saturating_add(acceleration.raw.saturating_mul(dt.raw)),
+                    velocity.dim,
+                )))
+            }
+            "물리1d.탄성충돌1d" => {
+                if values.len() != 4 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "m1, v1, m2, v2",
+                        span,
+                    });
+                }
+                let m1 = expect_quantity_value(&values[0], span)?;
+                let v1 = expect_quantity_value(&values[1], span)?;
+                let m2 = expect_quantity_value(&values[2], span)?;
+                let v2 = expect_quantity_value(&values[3], span)?;
+                ensure_dimensionless(&m1, span)?;
+                ensure_dimensionless(&m2, span)?;
+                ensure_same_dim(&v1, &v2, span)?;
+                let denom = m1.raw.saturating_add(m2.raw);
+                if denom.raw() == 0 {
+                    return Err(RuntimeError::MathDivZero { span });
+                }
+                let two = Fixed64::from_int(2);
+                let next_v1_num = m1
+                    .raw
+                    .saturating_sub(m2.raw)
+                    .saturating_mul(v1.raw)
+                    .saturating_add(two.saturating_mul(m2.raw).saturating_mul(v2.raw));
+                let next_v2_num = two
+                    .saturating_mul(m1.raw)
+                    .saturating_mul(v1.raw)
+                    .saturating_add(m2.raw.saturating_sub(m1.raw).saturating_mul(v2.raw));
+                let next_v1 = next_v1_num
+                    .checked_div(denom)
+                    .ok_or(RuntimeError::MathDivZero { span })?;
+                let next_v2 = next_v2_num
+                    .checked_div(denom)
+                    .ok_or(RuntimeError::MathDivZero { span })?;
+                Ok(Value::List(ListValue {
+                    items: vec![
+                        Value::Num(Quantity::new(next_v1, v1.dim)),
+                        Value::Num(Quantity::new(next_v2, v1.dim)),
+                    ],
+                }))
+            }
             "눌렸나" => {
                 let key = expect_single_string(values, span)?;
                 let pressed =
@@ -3792,6 +3991,51 @@ impl Evaluator {
                 let pressed = read_state_flag(&self.state, &format!("샘.키보드.눌림.{}", key))
                     || read_state_flag(&self.state, &format!("입력상태.키_눌림.{}", key));
                 Ok(Value::Bool(pressed))
+            }
+            "입력사상.만들기" => {
+                if values.is_empty() {
+                    return Ok(make_std_input_map(BTreeMap::new()));
+                }
+                if values.len() != 1 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "no args or pack",
+                        span,
+                    });
+                }
+                let Value::Pack(pack) = &values[0] else {
+                    return Err(type_mismatch_detail("pack", &values[0], span));
+                };
+                Ok(make_std_input_map(pack.fields.clone()))
+            }
+            "입력사상.방향" => {
+                if values.len() != 1 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "input map",
+                        span,
+                    });
+                }
+                let map = std_input_map_fields(&values[0], span)?;
+                let left = input_map_action_pressed(&self.state, &map, "왼쪽") as i64;
+                let right = input_map_action_pressed(&self.state, &map, "오른쪽") as i64;
+                let up = input_map_action_pressed(&self.state, &map, "위") as i64;
+                let down = input_map_action_pressed(&self.state, &map, "아래") as i64;
+                Ok(Value::List(ListValue {
+                    items: vec![fixed_value(right - left), fixed_value(down - up)],
+                }))
+            }
+            "입력사상.동작" => {
+                if values.len() != 2 {
+                    return Err(RuntimeError::TypeMismatch {
+                        expected: "input map, action",
+                        span,
+                    });
+                }
+                let map = std_input_map_fields(&values[0], span)?;
+                let action = match &values[1] {
+                    Value::Str(text) => text.clone(),
+                    other => return Err(type_mismatch_detail("string", other, span)),
+                };
+                Ok(Value::Bool(input_map_action_pressed(&self.state, &map, &action)))
             }
             "입력키" => {
                 if !values.is_empty() {
@@ -4459,12 +4703,26 @@ impl Evaluator {
                 | "글바꾸기!"
                 | "글바꾸기"
                 | "글자뽑기"
+                | "격자.만들기"
+                | "격자.너비"
+                | "격자.높이"
+                | "격자.값"
+                | "격자.바꾼값"
+                | "격자.안인가"
+                | "격자.막혔나"
+                | "격자.길찾기"
+                | "물리1d.위치갱신"
+                | "물리1d.속도갱신"
+                | "물리1d.탄성충돌1d"
                 | "기억하기"
                 | "길이"
                 | "끝나나"
                 | "입력키"
                 | "입력키?"
                 | "입력키!"
+                | "입력사상.만들기"
+                | "입력사상.방향"
+                | "입력사상.동작"
                 | "눌렸나"
                 | "다듬기"
                 | "대문자로바꾸기"
@@ -5912,6 +6170,268 @@ fn parse_string_option(text: &str) -> String {
         return trimmed[1..trimmed.len() - 1].replace("\\\"", "\"");
     }
     trimmed.to_string()
+}
+
+fn fixed_value(value: i64) -> Value {
+    Value::Num(Quantity::new(Fixed64::from_int(value), UnitDim::zero()))
+}
+
+fn make_std_grid(
+    width: i64,
+    height: i64,
+    default_value: Value,
+    span: crate::lang::span::Span,
+) -> Result<Value, RuntimeError> {
+    if width <= 0 || height <= 0 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "positive grid size",
+            span,
+        });
+    }
+    let cell_count = width
+        .checked_mul(height)
+        .ok_or(RuntimeError::TypeMismatch {
+            expected: "grid size within range",
+            span,
+        })?;
+    let mut fields = BTreeMap::new();
+    fields.insert("__kind".to_string(), Value::Str(STD_GRID_KIND.to_string()));
+    fields.insert("너비".to_string(), fixed_value(width));
+    fields.insert("높이".to_string(), fixed_value(height));
+    fields.insert(
+        "칸들".to_string(),
+        Value::List(ListValue {
+            items: vec![default_value; cell_count as usize],
+        }),
+    );
+    Ok(Value::Pack(PackValue { fields }))
+}
+
+fn std_grid_fields<'a>(
+    value: &'a Value,
+    span: crate::lang::span::Span,
+) -> Result<&'a BTreeMap<String, Value>, RuntimeError> {
+    let Value::Pack(pack) = value else {
+        return Err(type_mismatch_detail("격자", value, span));
+    };
+    match pack.fields.get("__kind") {
+        Some(Value::Str(kind)) if kind == STD_GRID_KIND => Ok(&pack.fields),
+        _ => Err(type_mismatch_detail("격자", value, span)),
+    }
+}
+
+fn std_grid_dims(
+    fields: &BTreeMap<String, Value>,
+    span: crate::lang::span::Span,
+) -> Result<(i64, i64), RuntimeError> {
+    let width = fields
+        .get("너비")
+        .ok_or(RuntimeError::TypeMismatch {
+            expected: "grid width",
+            span,
+        })
+        .and_then(|value| quantity_to_int(&expect_quantity_value(value, span)?, span))?;
+    let height = fields
+        .get("높이")
+        .ok_or(RuntimeError::TypeMismatch {
+            expected: "grid height",
+            span,
+        })
+        .and_then(|value| quantity_to_int(&expect_quantity_value(value, span)?, span))?;
+    if width <= 0 || height <= 0 {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "positive grid size",
+            span,
+        });
+    }
+    Ok((width, height))
+}
+
+fn std_grid_cells<'a>(
+    fields: &'a BTreeMap<String, Value>,
+    span: crate::lang::span::Span,
+) -> Result<&'a Vec<Value>, RuntimeError> {
+    let Some(Value::List(cells)) = fields.get("칸들") else {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "grid cells",
+            span,
+        });
+    };
+    Ok(&cells.items)
+}
+
+fn std_grid_index(
+    fields: &BTreeMap<String, Value>,
+    x: i64,
+    y: i64,
+    span: crate::lang::span::Span,
+) -> Result<usize, RuntimeError> {
+    let (width, height) = std_grid_dims(fields, span)?;
+    if x < 0 || y < 0 || x >= width || y >= height {
+        return Err(RuntimeError::Pack {
+            message: "격자 좌표가 범위를 벗어났습니다".to_string(),
+            span,
+        });
+    }
+    Ok((y * width + x) as usize)
+}
+
+fn std_grid_inside(
+    value: &Value,
+    x: i64,
+    y: i64,
+    span: crate::lang::span::Span,
+) -> Result<bool, RuntimeError> {
+    let fields = std_grid_fields(value, span)?;
+    let (width, height) = std_grid_dims(fields, span)?;
+    Ok(x >= 0 && y >= 0 && x < width && y < height)
+}
+
+fn std_grid_pathfind(
+    grid: &Value,
+    start_x: i64,
+    start_y: i64,
+    goal_x: i64,
+    goal_y: i64,
+    blocked_values: &Value,
+    span: crate::lang::span::Span,
+) -> Result<Value, RuntimeError> {
+    let fields = std_grid_fields(grid, span)?;
+    let (width, height) = std_grid_dims(fields, span)?;
+    let start = std_grid_index(fields, start_x, start_y, span)?;
+    let goal = std_grid_index(fields, goal_x, goal_y, span)?;
+    let cells = std_grid_cells(fields, span)?;
+    if start >= cells.len() || goal >= cells.len() {
+        return Err(RuntimeError::TypeMismatch {
+            expected: "grid cells matching size",
+            span,
+        });
+    }
+    let is_blocked = |cell: &Value| match blocked_values {
+        Value::List(list) => list.items.iter().any(|item| item == cell),
+        other => other == cell,
+    };
+    if is_blocked(&cells[start]) || is_blocked(&cells[goal]) {
+        return Ok(Value::List(ListValue { items: Vec::new() }));
+    }
+
+    let cell_count = (width * height) as usize;
+    let mut visited = vec![false; cell_count];
+    let mut prev: Vec<Option<usize>> = vec![None; cell_count];
+    let mut queue = VecDeque::new();
+    visited[start] = true;
+    queue.push_back((start_x, start_y));
+
+    const DIRS: [(i64, i64); 4] = [(0, -1), (1, 0), (0, 1), (-1, 0)];
+    while let Some((x, y)) = queue.pop_front() {
+        let current = (y * width + x) as usize;
+        if current == goal {
+            break;
+        }
+        for (dx, dy) in DIRS {
+            let nx = x + dx;
+            let ny = y + dy;
+            if nx < 0 || ny < 0 || nx >= width || ny >= height {
+                continue;
+            }
+            let next = (ny * width + nx) as usize;
+            if next >= cells.len() || visited[next] || is_blocked(&cells[next]) {
+                continue;
+            }
+            visited[next] = true;
+            prev[next] = Some(current);
+            queue.push_back((nx, ny));
+        }
+    }
+
+    if !visited[goal] {
+        return Ok(Value::List(ListValue { items: Vec::new() }));
+    }
+
+    let mut route = Vec::new();
+    let mut cursor = goal;
+    loop {
+        let x = (cursor as i64) % width;
+        let y = (cursor as i64) / width;
+        route.push(Value::List(ListValue {
+            items: vec![fixed_value(x), fixed_value(y)],
+        }));
+        if cursor == start {
+            break;
+        }
+        cursor = prev[cursor].ok_or(RuntimeError::TypeMismatch {
+            expected: "restorable grid path",
+            span,
+        })?;
+    }
+    route.reverse();
+    Ok(Value::List(ListValue { items: route }))
+}
+
+fn make_std_input_map(fields: BTreeMap<String, Value>) -> Value {
+    let mut next = BTreeMap::new();
+    next.insert("__kind".to_string(), Value::Str(STD_INPUT_MAP_KIND.to_string()));
+    next.extend(fields);
+    Value::Pack(PackValue { fields: next })
+}
+
+fn std_input_map_fields(
+    value: &Value,
+    span: crate::lang::span::Span,
+) -> Result<BTreeMap<String, Value>, RuntimeError> {
+    let Value::Pack(pack) = value else {
+        return Err(type_mismatch_detail("입력사상", value, span));
+    };
+    Ok(pack.fields.clone())
+}
+
+fn input_map_key_aliases(action: &str) -> &'static [&'static str] {
+    match action {
+        "왼쪽" => &["ArrowLeft", "left", "a", "j", "왼쪽", "왼쪽화살표", "좌"],
+        "오른쪽" => &["ArrowRight", "right", "d", "l", "오른쪽", "오른쪽화살표", "우"],
+        "위" => &["ArrowUp", "up", "w", "i", "위", "위쪽", "위쪽화살표", "상"],
+        "아래" => &["ArrowDown", "down", "s", "k", "아래", "아래쪽", "아래쪽화살표", "하"],
+        "확인" => &["Space", "Enter", "space", "enter", "스페이스", "스페이스바", "엔터", "엔터키"],
+        "취소" => &["Escape", "escape", "이스케이프", "이스케이프키"],
+        _ => &[],
+    }
+}
+
+fn input_map_value_keys(map: &BTreeMap<String, Value>, action: &str) -> Vec<String> {
+    let mut keys = Vec::new();
+    if let Some(value) = map
+        .get(action)
+        .or_else(|| map.get(&format!("동작.{action}")))
+        .or_else(|| map.get(&format!("키.{action}")))
+    {
+        match value {
+            Value::Str(text) => keys.push(text.clone()),
+            Value::List(items) => keys.extend(
+                items
+                    .items
+                    .iter()
+                    .map(Value::display)
+                    .filter(|key| !key.is_empty()),
+            ),
+            other => {
+                let rendered = other.display();
+                if !rendered.is_empty() {
+                    keys.push(rendered);
+                }
+            }
+        }
+    }
+    if keys.is_empty() {
+        keys.extend(input_map_key_aliases(action).iter().map(|key| key.to_string()));
+    }
+    keys
+}
+
+fn input_map_action_pressed(state: &State, map: &BTreeMap<String, Value>, action: &str) -> bool {
+    input_map_value_keys(map, action).iter().any(|key| {
+        read_state_flag(state, &format!("샘.키보드.누르고있음.{}", key))
+            || read_state_flag(state, &format!("입력상태.키_누르고있음.{}", key))
+    })
 }
 
 fn parse_diagnostic_condition(

@@ -518,6 +518,86 @@ pub fn input_function_sigs() -> Vec<FunctionSig> {
             params: &["키"],
             ret: "참거짓",
         },
+        FunctionSig {
+            name: "입력사상.만들기",
+            params: &["묶음?"],
+            ret: "입력사상",
+        },
+        FunctionSig {
+            name: "입력사상.방향",
+            params: &["입력사상"],
+            ret: "차림<정수>",
+        },
+        FunctionSig {
+            name: "입력사상.동작",
+            params: &["입력사상", "이름"],
+            ret: "참거짓",
+        },
+    ]
+}
+
+pub fn grid_function_sigs() -> Vec<FunctionSig> {
+    vec![
+        FunctionSig {
+            name: "격자.만들기",
+            params: &["너비", "높이", "기본값"],
+            ret: "격자",
+        },
+        FunctionSig {
+            name: "격자.너비",
+            params: &["격자"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "격자.높이",
+            params: &["격자"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "격자.값",
+            params: &["격자", "x", "y"],
+            ret: "값?",
+        },
+        FunctionSig {
+            name: "격자.바꾼값",
+            params: &["격자", "x", "y", "값"],
+            ret: "격자",
+        },
+        FunctionSig {
+            name: "격자.안인가",
+            params: &["격자", "x", "y"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "격자.막혔나",
+            params: &["격자", "x", "y", "막힌값들"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "격자.길찾기",
+            params: &["격자", "시작x", "시작y", "목표x", "목표y", "막힌값들"],
+            ret: "차림<차림<정수>>",
+        },
+    ]
+}
+
+pub fn physics_1d_function_sigs() -> Vec<FunctionSig> {
+    vec![
+        FunctionSig {
+            name: "물리1d.위치갱신",
+            params: &["위치", "속도", "dt"],
+            ret: "수",
+        },
+        FunctionSig {
+            name: "물리1d.속도갱신",
+            params: &["속도", "가속도", "dt"],
+            ret: "수",
+        },
+        FunctionSig {
+            name: "물리1d.탄성충돌1d",
+            params: &["질량1", "속도1", "질량2", "속도2"],
+            ret: "차림<수>",
+        },
     ]
 }
 
@@ -882,6 +962,8 @@ pub fn minimal_stdlib_sigs() -> Vec<FunctionSig> {
     out.extend(container_function_sigs());
     out.extend(stream_function_sigs());
     out.extend(input_function_sigs());
+    out.extend(grid_function_sigs());
+    out.extend(physics_1d_function_sigs());
     out.extend(resource_function_sigs());
     out.extend(random_function_sigs());
     out.extend(math_function_sigs());

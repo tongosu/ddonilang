@@ -1,0 +1,1 @@
+{"input_path": "input.ddn", "stdout": [], "stderr": ["E_PACK pack/std_grid_pathfind_bounds_diag_v1/input.ddn:2:6 격자 좌표가 범위를 벗어났습니다"], "exit_code": 1, "expected_error_code": "E_PACK"}
