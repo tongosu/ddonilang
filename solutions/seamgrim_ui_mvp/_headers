@@ -1,0 +1,12 @@
+/ui/wasm/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: no-store, max-age=0
+
+/ui/*.html
+  Cache-Control: no-cache
+
+/ui/*.js
+  Cache-Control: no-cache
+
+/ui/*.css
+  Cache-Control: no-cache
