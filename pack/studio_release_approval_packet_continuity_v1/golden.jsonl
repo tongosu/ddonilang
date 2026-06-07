@@ -1,0 +1,1 @@
+{"cmd":["run","pack/studio_release_approval_packet_continuity_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1","studio release approval packet continuity sealed","continuity schema: ddn.studio.release_approval_packet_continuity.v1","state: AWAIT_EXPLICIT_RELEASE_APPROVAL","next: STUDIO_BENCHMARK_LTS_MATRIX_V1"]}

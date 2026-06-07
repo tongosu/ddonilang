@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.studio.rc_checker_cost_trim.v1",
+  "id": "STUDIO_RC_CHECKER_COST_TRIM_V1",
+  "target_checker": "tests/run_studio_public_release_execution_gate_check.py",
+  "before": {
+    "execution_gate_direct_preflight_calls": [
+      "tests/run_studio_public_release_smoke_matrix_check.py",
+      "tests/run_studio_public_release_asset_plan_check.py",
+      "tests/run_studio_release_candidate_check.py"
+    ]
+  },
+  "after": {
+    "execution_gate_direct_preflight_calls": [
+      "tests/run_studio_public_release_smoke_matrix_check.py"
+    ],
+    "reason": "smoke matrix already invokes asset plan; asset plan already invokes release candidate"
+  },
+  "preserved_contract_preflight_ids": [
+    "smoke_matrix",
+    "asset_plan",
+    "release_candidate",
+    "docs_ssot_clean"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1"
+}

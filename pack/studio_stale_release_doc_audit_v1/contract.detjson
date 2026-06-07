@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_stale_release_doc_audit_v1",
+  "kind": "studio_stale_release_doc_audit",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_STALE_RELEASE_DOC_AUDIT_V1",
+  "audit": "pack/studio_stale_release_doc_audit_v1/audit.detjson",
+  "report": "docs/studio/STALE_RELEASE_DOC_AUDIT_V1.md",
+  "based_on": "STUDIO_RELEASE_APPROVAL_FAST_CHECK_V1",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "next_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "requires_docs_ssot_clean": true
+}

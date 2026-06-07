@@ -1,0 +1,1 @@
+{"id":"c01_studio_release_pre_execution_dry_run_marker","cmd":["run","pack/studio_release_pre_execution_dry_run_v1/input.ddn"],"stdout":["STUDIO_RELEASE_PRE_EXECUTION_DRY_RUN_V1","studio release pre-execution dry run sealed","next: STUDIO_RELEASE_DRY_RUN_TEXT_SUMMARY_V1"],"exit_code":0}

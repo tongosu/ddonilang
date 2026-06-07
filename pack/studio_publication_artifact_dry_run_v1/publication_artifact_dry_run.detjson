@@ -1,0 +1,111 @@
+{
+  "schema": "ddn.studio.publication_artifact_dry_run.v1",
+  "work_item": "STUDIO_PUBLICATION_ARTIFACT_DRY_RUN_V1",
+  "based_on": "STUDIO_LOCAL_RELEASE_REHEARSAL_CHECK_V1",
+  "primary_coordinate": "타-3",
+  "support_coordinate": "마-3",
+  "publication_artifact_dry_run_claim": true,
+  "product_code_change": true,
+  "product_ui_change": true,
+  "runtime_claim": false,
+  "artifact_generation_claim": false,
+  "archive_generation_claim": false,
+  "publication_checksum_generation_claim": false,
+  "artifact_signing_claim": false,
+  "release_approval_claim": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "lts_certification_claim": false,
+  "benchmark_execution_claim": false,
+  "performance_baseline_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "public_link_creation_claim": false,
+  "install_enablement_claim": false,
+  "publication_snapshot_emit_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "permission_system_claim": false,
+  "active_allowlist_mutation": false,
+  "source_local_release_rehearsal": "pack/studio_local_release_rehearsal_check_v1/local_release_rehearsal_check.detjson",
+  "source_release_asset_plan": "pack/studio_public_release_asset_plan_v1/release_assets.detjson",
+  "planned_artifacts": [
+    {
+      "id": "studio-static-bundle",
+      "planned_path": "build/studio_release/studio-static-bundle.zip",
+      "kind": "static_bundle",
+      "generated_now": false
+    },
+    {
+      "id": "studio-local-package-sample",
+      "planned_path": "build/studio_release/studio-local-package-sample.detjson",
+      "kind": "local_package_sample",
+      "generated_now": false
+    },
+    {
+      "id": "studio-rc-matrix",
+      "planned_path": "build/studio_release/studio-rc-matrix.detjson",
+      "kind": "release_candidate_matrix",
+      "generated_now": false
+    },
+    {
+      "id": "studio-checksum-manifest",
+      "planned_path": "build/studio_release/SHA256SUMS.txt",
+      "kind": "checksum_manifest",
+      "generated_now": false
+    }
+  ],
+  "checksum_policy": {
+    "algorithm": "sha256",
+    "manifest_path": "build/studio_release/SHA256SUMS.txt",
+    "ordering": "path_lexicographic",
+    "scope": "local_build_artifacts_only",
+    "signing": "excluded_v1_approval_gated",
+    "generated_now": false
+  },
+  "all_planned_artifacts_generated_now": false,
+  "changed_product_files": [
+    "solutions/seamgrim_ui_mvp/ui/studio_publication_artifact_dry_run.js",
+    "solutions/seamgrim_ui_mvp/ui/app.js",
+    "solutions/seamgrim_ui_mvp/ui/index.html",
+    "solutions/seamgrim_ui_mvp/ui/styles.css",
+    "tests/studio_publication_artifact_dry_run_runner.mjs"
+  ],
+  "closure_tier": "닫힘-동작",
+  "browser_runner": "tests/studio_publication_artifact_dry_run_runner.mjs",
+  "preflight_commands": [
+    "node tests/studio_publication_artifact_dry_run_runner.mjs",
+    "python tests/run_studio_local_release_rehearsal_check.py",
+    "python tests/run_studio_public_release_asset_plan_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "blocked_in_dry_run": [
+    "artifact_generation",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication",
+    "artifact_signing",
+    "release_approval",
+    "release_execution",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "public_link_create",
+    "package_install_enable",
+    "publication_snapshot_emit",
+    "cloud_sync",
+    "account_setup",
+    "permission_system_change"
+  ],
+  "post_super_long_plan": {
+    "closed": 4,
+    "total": 8,
+    "percent": 50
+  },
+  "roadmap_v2_product_behavior": {
+    "closed": 90,
+    "total": 90,
+    "percent": 100
+  },
+  "next_item": "STUDIO_TEACHER_FEEDBACK_LOOP_SEED_V1"
+}

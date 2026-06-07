@@ -1,0 +1,1 @@
+{"id":"c01_studio_classroom_mode_marker","cmd":["run","pack/studio_classroom_mode_v1/input.ddn"],"stdout":["STUDIO_CLASSROOM_MODE_V1","studio classroom mode browser smoke sealed","next: STUDIO_LOCAL_SHARE_AND_PACKAGING_V1"],"exit_code":0}

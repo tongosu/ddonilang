@@ -1,0 +1,18 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_release_notes_draft_v1",
+  "kind": "studio_release_notes_draft",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_RELEASE_NOTES_DRAFT_V1",
+  "release_notes": "docs/studio/RELEASE_NOTES_DRAFT_V1.md",
+  "manifest": "pack/studio_release_notes_draft_v1/release_notes_manifest.detjson",
+  "based_on": "STUDIO_DOC_INDEX_REFRESH_V1",
+  "release_status": "local_draft_only",
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_RELEASE_NOTES_TEXT_EXPORT_V1",
+  "requires_docs_ssot_clean": true
+}

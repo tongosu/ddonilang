@@ -1,0 +1,1 @@
+{"id":"c01_studio_diagnostic_fixit_preview_marker","cmd":["run","pack/studio_diagnostic_fixit_preview_v1/input.ddn"],"stdout":["STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1","studio diagnostic fix-it preview browser smoke sealed","next: STUDIO_CLASSROOM_MODE_V1"],"exit_code":0}

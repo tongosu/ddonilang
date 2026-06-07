@@ -1,0 +1,1 @@
+{"id":"c01_studio_rc_checker_cost_trim_marker","cmd":["run","pack/studio_rc_checker_cost_trim_v1/input.ddn"],"stdout":["STUDIO_RC_CHECKER_COST_TRIM_V1","studio rc checker cost trim sealed","next: STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1"],"exit_code":0}

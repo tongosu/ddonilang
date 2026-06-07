@@ -1,0 +1,1 @@
+{"id":"c01_studio_release_approval_status_snapshot_marker","cmd":["run","pack/studio_release_approval_status_snapshot_v1/input.ddn"],"stdout":["STUDIO_RELEASE_APPROVAL_STATUS_SNAPSHOT_V1","studio release approval status snapshot sealed","next: STUDIO_RELEASE_APPROVAL_FAST_CHECK_V1"],"exit_code":0}

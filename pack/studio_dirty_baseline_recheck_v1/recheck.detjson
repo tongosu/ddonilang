@@ -1,0 +1,58 @@
+{
+  "schema": "ddn.studio.dirty_baseline_recheck.v1",
+  "id": "STUDIO_DIRTY_BASELINE_RECHECK_V1",
+  "date": "2026-06-05",
+  "based_on": "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1",
+  "observed_status": {
+    "tracked_dirty_min": 116,
+    "untracked_min": 612,
+    "docs_ssot_clean": true,
+    "dirty_areas": [
+      "lang/**",
+      "tool/**",
+      "tools/teul-cli/**",
+      "core/src/nurigym/**",
+      "pack/nuri_gym_*",
+      "pack/proof_*",
+      "tools/teul-cli/tests/golden/W24-W33"
+    ]
+  },
+  "logical_separation": {
+    "studio_productization_claims_dirty_runtime_changes": false,
+    "dirty_changes_reverted": false,
+    "dirty_changes_committed": false,
+    "docs_ssot_changed": false,
+    "nurigym_a2_closed": false,
+    "sagi_3_claim": false
+  },
+  "progress": {
+    "work_unit_done": 6,
+    "work_unit_total": 6,
+    "planning_done": 2,
+    "planning_total": 2,
+    "era1_done": 5,
+    "era1_total": 5,
+    "super_long_done": 5,
+    "super_long_total": 18,
+    "super_long_percent": 28,
+    "ma_branch_closed_maru": 0,
+    "ma_branch_total_maru": 6,
+    "ma3_done": 1,
+    "ma3_required": 4,
+    "ma3_percent": 25,
+    "roadmap_v2_closed_cells": 21,
+    "roadmap_v2_total_cells": 90,
+    "roadmap_v2_percent": 23
+  },
+  "selected_next_item": "STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1",
+  "false_claims": {
+    "runtime_surface_claim": false,
+    "lesson_schema_change": false,
+    "active_allowlist_change": false,
+    "nurigym_a2_claim": false,
+    "public_release_claim": false,
+    "github_release_claim": false,
+    "public_upload_claim": false,
+    "docs_ssot_change": false
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_numeric_curriculum_track_v1",
+  "kind": "studio_numeric_curriculum_track",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "closed_by": "STUDIO_NUMERIC_CURRICULUM_TRACK_V1",
+  "based_on": "LINEAR_INEQUALITY_SOLVE_MINIMUM_V1",
+  "numeric_evidence": [
+    "ode_tick_loop_lesson_baseline_v1",
+    "ode_method_comparison_v1",
+    "numeric_root_finding_bisection_v1",
+    "polynomial_solve_minimum_v1",
+    "constraint_solve_rebase_v1",
+    "linear_inequality_solve_minimum_v1",
+    "connect_flow_v1v_closure_v1"
+  ],
+  "studio_lesson_anchors": [
+    "rep_math_function_line_v1",
+    "rep_phys_projectile_xy_v1",
+    "rep_econ_supply_demand_tax_v1"
+  ],
+  "track_modules": [
+    "simulation_time_step",
+    "root_finding",
+    "exact_polynomial",
+    "linear_inequality_interval",
+    "post_solve_range_reporting"
+  ],
+  "next_item": "SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1",
+  "requires_docs_ssot_clean": true
+}

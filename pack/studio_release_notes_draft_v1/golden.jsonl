@@ -1,0 +1,1 @@
+{"id":"c01_studio_release_notes_draft_marker","cmd":["run","pack/studio_release_notes_draft_v1/input.ddn"],"stdout":["STUDIO_RELEASE_NOTES_DRAFT_V1","studio release notes draft sealed","next: STUDIO_RELEASE_NOTES_TEXT_EXPORT_V1"],"exit_code":0}

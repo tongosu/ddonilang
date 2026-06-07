@@ -1,0 +1,25 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_post_release_gate_maintenance_queue_v1",
+  "kind": "studio_post_release_gate_maintenance_queue",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1",
+  "queue": "pack/studio_post_release_gate_maintenance_queue_v1/maintenance_queue.detjson",
+  "requires": [
+    "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1",
+    "pack/studio_public_release_execution_gate_v1/contract.detjson",
+    "tests/run_studio_public_release_execution_gate_check.py"
+  ],
+  "release_execution_selected": false,
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "generic_next_dev_request_is_approval": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "cloud_sync_claim": false,
+  "public_registry_claim": false,
+  "asset_generation_claim": false,
+  "execution_claim": false,
+  "next_item": "STUDIO_RC_CHECKER_COST_TRIM_V1",
+  "requires_docs_ssot_clean": true
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "ddn.studio.release_approval_packet_text_export.v1",
+  "id": "STUDIO_RELEASE_APPROVAL_PACKET_TEXT_EXPORT_V1",
+  "source_packet": "docs/studio/RELEASE_APPROVAL_PACKET_V1.md",
+  "text_export": "docs/studio/RELEASE_APPROVAL_PACKET_V1.txt",
+  "based_on": "STUDIO_RELEASE_APPROVAL_PACKET_V1",
+  "approval_packet_manifest": "pack/studio_release_approval_packet_v1/approval_packet.detjson",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "required_sections": [
+    "Studio Release Approval Packet V1",
+    "Review materials:",
+    "Preflight commands:",
+    "Blocked until approval:",
+    "Current claims:",
+    "Decision boundary:"
+  ],
+  "required_tokens": [
+    "STUDIO_PUBLIC_RELEASE_EXECUTION_V1",
+    "release_execution_claim=false",
+    "public_release_claim=false",
+    "github_release_claim=false",
+    "public_upload_claim=false",
+    "asset_generation_claim=false",
+    "execution_approval_claim=false"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "next_boundary": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1"
+}

@@ -1,0 +1,78 @@
+{
+  "schema": "ddn.studio.private_productization_rebase.v1",
+  "id": "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1",
+  "based_on": "STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1",
+  "current_release_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "required_release_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "selected_next_item": "SEAMGRIM_WORKBENCH_POLISH_V2",
+  "inventory": [
+    {
+      "id": "SEAMGRIM_WORKBENCH_SHELL_V1",
+      "doc": "SEAMGRIM_WORKBENCH_SHELL_V1.md",
+      "pack": "pack/seamgrim_workbench_shell_v1",
+      "checker": "tests/run_seamgrim_workbench_shell_check.py",
+      "status": "closed"
+    },
+    {
+      "id": "SEAMGRIM_LESSON_AUTHORING_FLOW_V1",
+      "doc": "SEAMGRIM_LESSON_AUTHORING_FLOW_V1.md",
+      "pack": "pack/seamgrim_lesson_authoring_flow_v1",
+      "checker": "tests/run_seamgrim_lesson_authoring_flow_check.py",
+      "status": "closed"
+    },
+    {
+      "id": "MALBLOCK_AUTHORING_UI_V1",
+      "doc": "MALBLOCK_AUTHORING_UI_V1.md",
+      "pack": "pack/malblock_authoring_ui_v1",
+      "checker": "tests/run_malblock_authoring_ui_check.py",
+      "status": "closed"
+    },
+    {
+      "id": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
+      "doc": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md",
+      "pack": "pack/studio_diagnostic_fixit_preview_v1",
+      "checker": "tests/run_studio_diagnostic_fixit_preview_check.py",
+      "status": "closed"
+    },
+    {
+      "id": "STUDIO_CLASSROOM_MODE_V1",
+      "doc": "STUDIO_CLASSROOM_MODE_V1.md",
+      "pack": "pack/studio_classroom_mode_v1",
+      "checker": "tests/run_studio_classroom_mode_check.py",
+      "status": "closed"
+    },
+    {
+      "id": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
+      "doc": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
+      "pack": "pack/studio_local_share_and_packaging_v1",
+      "checker": "tests/run_studio_local_share_and_packaging_check.py",
+      "status": "closed"
+    },
+    {
+      "id": "STUDIO_RELEASE_CANDIDATE_V1",
+      "doc": "STUDIO_RELEASE_CANDIDATE_V1.md",
+      "pack": "pack/studio_release_candidate_v1",
+      "checker": "tests/run_studio_release_candidate_check.py",
+      "status": "closed"
+    }
+  ],
+  "selected_next_scope": [
+    "workbench_shell_ergonomics",
+    "navigation_and_screen_transition_clarity",
+    "warning_and_diagnostic_panel_readability",
+    "session_restore_edge_case_evidence",
+    "shell_browser_smoke_coverage"
+  ],
+  "deferred_items": [
+    "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+    "MALBLOCK_ROUNDTRIP_STABILITY_V1",
+    "STUDIO_DIAGNOSTIC_FIXIT_APPLY_GATE_V1",
+    "STUDIO_PUBLIC_RELEASE_EXECUTION_V1"
+  ],
+  "release_execution_selected": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false
+}

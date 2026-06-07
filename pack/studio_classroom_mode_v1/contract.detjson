@@ -1,0 +1,18 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_classroom_mode_v1",
+  "kind": "studio_classroom_mode_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_CLASSROOM_MODE_V1",
+  "browser_runner": "tests/studio_classroom_mode_browser_runner.mjs",
+  "covers": [
+    "assignment_list",
+    "run_result_summary",
+    "suite_check_view",
+    "exportable_report_text",
+    "local_only_no_account_cloud"
+  ],
+  "next_item": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
+  "requires_docs_ssot_clean": true
+}

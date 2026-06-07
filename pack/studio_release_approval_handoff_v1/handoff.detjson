@@ -1,0 +1,36 @@
+{
+  "schema": "ddn.studio.release_approval_handoff.v1",
+  "id": "STUDIO_RELEASE_APPROVAL_HANDOFF_V1",
+  "based_on": "STUDIO_RELEASE_APPROVAL_PACKET_TEXT_EXPORT_V1",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "generic_next_dev_request_is_approval": false,
+  "review_packet": [
+    "docs/studio/RELEASE_APPROVAL_PACKET_V1.md",
+    "docs/studio/RELEASE_APPROVAL_PACKET_V1.txt",
+    "docs/studio/RELEASE_PRE_EXECUTION_DRY_RUN_SUMMARY_V1.txt",
+    "docs/studio/RELEASE_NOTES_DRAFT_V1.txt"
+  ],
+  "preflight_commands": [
+    "python tests/run_studio_public_release_smoke_matrix_check.py",
+    "python tests/run_studio_public_release_asset_plan_check.py",
+    "python tests/run_studio_release_candidate_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "blocked_until_approval": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "next_boundary": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1"
+}

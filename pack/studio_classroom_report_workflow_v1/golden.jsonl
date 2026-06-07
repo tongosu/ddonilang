@@ -1,0 +1,1 @@
+{"cmd":["run","pack/studio_classroom_report_workflow_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_CLASSROOM_REPORT_WORKFLOW_V1","studio classroom report workflow sealed","classroom report workflow schema: seamgrim.classroom_report_workflow.v1","coordinate: 마-3 + 하-3","next: STUDIO_LESSON_AUTHORING_RUN_INTEGRATION_V1"]}

@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_browser_smoke_flake_audit_v1",
+  "kind": "studio_browser_smoke_flake_audit",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+  "audit": "pack/studio_browser_smoke_flake_audit_v1/browser_smoke_audit.detjson",
+  "based_on": "STUDIO_RC_CHECKER_COST_TRIM_V1",
+  "smoke_matrix": "pack/studio_public_release_smoke_matrix_v1/smoke_matrix.detjson",
+  "browser_smoke_count": 6,
+  "requires_playwright_chromium_probe": true,
+  "requires_browser_runner_timeout_seconds": 120,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_DOC_INDEX_REFRESH_V1",
+  "requires_docs_ssot_clean": true
+}

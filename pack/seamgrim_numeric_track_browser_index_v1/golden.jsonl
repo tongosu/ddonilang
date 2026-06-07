@@ -1,0 +1,1 @@
+{"id":"c01_seamgrim_numeric_track_browser_index_marker","cmd":["run","pack/seamgrim_numeric_track_browser_index_v1/input.ddn"],"stdout":["SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1","studio numeric track browser index sealed","anchors: rep_math_function_line_v1, rep_phys_projectile_xy_v1, rep_econ_supply_demand_tax_v1","next: SEAMGRIM_NUMERIC_TRACK_LESSON_PREVIEW_V1"],"exit_code":0}

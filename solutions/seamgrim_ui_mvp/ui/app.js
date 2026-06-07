@@ -15,6 +15,152 @@ import {
   resolveLessonDisplayMeta,
 } from "./lesson_loader_contract.js";
 import {
+  buildLessonLibraryCurationSnapshot,
+  formatLessonLibraryCurationText,
+} from "./lesson_library_curation.js";
+import {
+  buildNumericTrackIndexSnapshot,
+  buildNumericTrackReportExport,
+  formatNumericTrackIndexText,
+  formatNumericTrackReportExportText,
+} from "./numeric_curriculum_track.js";
+import {
+  DEFAULT_TEACHER_FEEDBACK_SEED_ROWS,
+  buildTeacherFeedbackSurfacePreview,
+  formatTeacherFeedbackSurfacePreviewText,
+  renderTeacherFeedbackSurfacePreview,
+} from "./studio_teacher_feedback_surface_preview.js";
+import {
+  DEFAULT_CLASSROOM_OPERATIONS_TRIAGE_ROWS,
+  buildClassroomOperationsPanelPreview,
+  formatClassroomOperationsPanelPreviewText,
+  renderClassroomOperationsPanelPreview,
+} from "./studio_classroom_operations_panel_preview.js";
+import {
+  DEFAULT_BENCHMARK_BASELINE_INPUTS,
+  DEFAULT_BENCHMARK_CLASSROOM_PANEL_ROWS,
+  buildBenchmarkBaselineLocalSnapshot,
+  formatBenchmarkBaselineLocalSnapshotText,
+  renderBenchmarkBaselineLocalSnapshot,
+} from "./studio_benchmark_baseline_local_snapshot.js";
+import {
+  DEFAULT_RELEASE_REVIEW_MATERIALS,
+  DEFAULT_RELEASE_REVIEW_SNAPSHOT_ROWS,
+  buildReleaseReviewPacketDashboard,
+  formatReleaseReviewPacketDashboardText,
+  renderReleaseReviewPacketDashboard,
+} from "./studio_release_review_packet_dashboard.js";
+import {
+  DEFAULT_LESSON_PUBLICATION_CANDIDATE_IDS,
+  DEFAULT_LESSON_PUBLICATION_DASHBOARD_ROWS,
+  DEFAULT_LESSON_PUBLICATION_REVIEW_GATES,
+  buildLessonPublicationReviewSurface,
+  formatLessonPublicationReviewSurfaceText,
+  renderLessonPublicationReviewSurface,
+} from "./studio_lesson_publication_review_surface.js";
+import {
+  DEFAULT_MA3_REGRESSION_GATE_EVIDENCE,
+  buildMa3RegressionGateMatrix,
+  formatMa3RegressionGateMatrixText,
+  renderMa3RegressionGateMatrix,
+} from "./studio_ma3_regression_gate_matrix.js";
+import {
+  DEFAULT_MA3_NEXT_QUEUE_LOCK_ROWS,
+  buildMa3NextQueueCoordinateLock,
+  formatMa3NextQueueCoordinateLockText,
+  renderMa3NextQueueCoordinateLock,
+} from "./studio_ma3_next_queue_coordinate_lock.js";
+import {
+  DEFAULT_OPERATIONS_PREVIEW_STAGE_CLOSURE_ROWS,
+  buildOperationsPreviewStageClosure,
+  formatOperationsPreviewStageClosureText,
+  renderOperationsPreviewStageClosure,
+} from "./studio_operations_preview_stage_closure.js";
+import {
+  DEFAULT_PRODUCTIZATION_STAGE_REBASE_ROWS,
+  buildProductizationStageRebase,
+  formatProductizationStageRebaseText,
+  renderProductizationStageRebase,
+} from "./studio_productization_stage_rebase.js";
+import {
+  DEFAULT_NUMERIC_TRACK_CONSOLIDATION_ROWS,
+  buildSeamgrimNumericTrackConsolidation,
+  formatSeamgrimNumericTrackConsolidationText,
+  renderSeamgrimNumericTrackConsolidation,
+} from "./seamgrim_numeric_track_consolidation.js";
+import {
+  DEFAULT_NUMERIC_REPORT_WORKFLOW_STAGE_ROWS,
+  buildNumericReportWorkflowStage,
+  formatNumericReportWorkflowStageText,
+  renderNumericReportWorkflowStage,
+} from "./studio_numeric_report_workflow_stage.js";
+import {
+  DEFAULT_NUMERIC_RESULT_REPORT_STAGE_ROWS,
+  buildNumericResultReportStage,
+  formatNumericResultReportStageText,
+  renderNumericResultReportStage,
+} from "./studio_numeric_result_report_stage.js";
+import {
+  DEFAULT_PRODUCTIZATION_STAGE_CLOSURE_ROWS,
+  buildProductizationStageClosure,
+  formatProductizationStageClosureText,
+  renderProductizationStageClosure,
+} from "./studio_productization_stage_closure.js";
+import {
+  DEFAULT_POST_SUPER_LONG_REBASE_ROWS,
+  buildPostSuperLongRebase,
+  formatPostSuperLongRebaseText,
+  renderPostSuperLongRebase,
+} from "./studio_post_super_long_rebase.js";
+import {
+  DEFAULT_PUBLIC_RELEASE_APPROVAL_RECHECK_ROWS,
+  buildPublicReleaseApprovalRecheck,
+  formatPublicReleaseApprovalRecheckText,
+  renderPublicReleaseApprovalRecheck,
+} from "./studio_public_release_approval_recheck.js";
+import {
+  DEFAULT_LOCAL_RELEASE_REHEARSAL_ROWS,
+  buildLocalReleaseRehearsalCheck,
+  formatLocalReleaseRehearsalCheckText,
+  renderLocalReleaseRehearsalCheck,
+} from "./studio_local_release_rehearsal_check.js";
+import {
+  DEFAULT_PUBLICATION_ARTIFACT_DRY_RUN_ROWS,
+  buildPublicationArtifactDryRun,
+  formatPublicationArtifactDryRunText,
+  renderPublicationArtifactDryRun,
+} from "./studio_publication_artifact_dry_run.js";
+import {
+  DEFAULT_TEACHER_FEEDBACK_LOOP_SEED_ROWS,
+  buildTeacherFeedbackLoopSeed,
+  formatTeacherFeedbackLoopSeedText,
+  renderTeacherFeedbackLoopSeed,
+} from "./studio_teacher_feedback_loop_seed.js";
+import {
+  DEFAULT_CLASSROOM_OPERATIONS_TRIAGE_UI_ROWS,
+  buildClassroomOperationsTriage,
+  formatClassroomOperationsTriageText,
+  renderClassroomOperationsTriage,
+} from "./studio_classroom_operations_triage.js";
+import {
+  DEFAULT_BENCHMARK_BASELINE_PREP_INPUT_ROWS,
+  buildBenchmarkBaselinePrepDryRun,
+  formatBenchmarkBaselinePrepDryRunText,
+  renderBenchmarkBaselinePrepDryRun,
+} from "./studio_benchmark_baseline_prep_dry_run.js";
+import {
+  DEFAULT_NEXT_ROADMAP_V2_COORDINATE_LOCK_DECISIONS,
+  buildNextRoadmapV2CoordinateLock,
+  formatNextRoadmapV2CoordinateLockText,
+  renderNextRoadmapV2CoordinateLock,
+} from "./studio_next_roadmap_v2_coordinate_lock.js";
+import {
+  DEFAULT_MA3_NEXT_DEVELOPMENT_QUEUE_ROWS,
+  buildMa3NextDevelopmentQueueRebase,
+  formatMa3NextDevelopmentQueueRebaseText,
+  renderMa3NextDevelopmentQueueRebase,
+} from "./studio_ma3_next_development_queue_rebase.js";
+import {
   resolveAvailableFeaturedSeedIds,
   pickNextFeaturedSeedLaunch,
   shouldTriggerFeaturedSeedQuickLaunch,
@@ -139,8 +285,25 @@ const appState = {
     engineStatus: "idle",
     primaryViewFamily: "sim",
     activeSubpanelTab: "graph",
+    localSaveStatus: "저장 대기",
   },
   lessonsById: new Map(),
+  lessonLibraryCuration: null,
+  numericTrackIndex: null,
+  numericTrackReportExport: null,
+  numericResultReportStage: null,
+  productizationStageClosure: null,
+  postSuperLongRebase: null,
+  publicReleaseApprovalRecheck: null,
+  localReleaseRehearsalCheck: null,
+  publicationArtifactDryRun: null,
+  teacherFeedbackLoopSeed: null,
+  classroomOperationsTriage: null,
+  benchmarkBaselinePrepDryRun: null,
+  nextRoadmapV2CoordinateLock: null,
+  ma3NextDevelopmentQueueRebase: null,
+  teacherFeedbackSurfacePreview: null,
+  classroomOperationsPanelPreview: null,
   screenListeners: new Set(),
   quickLaunch: {
     featuredSeedCursor: -1,
@@ -664,6 +827,7 @@ function setRuntimeSnapshotBundleV0({ snapshot = null, session = null } = {}) {
     window.__SEAMGRIM_SNAPSHOT_V0__ = appState.runtimeSnapshotV0;
     window.__SEAMGRIM_SESSION_V0__ = appState.runtimeSessionV0;
   }
+  updateShellStatusRail();
 }
 
 function restoreRuntimeSnapshotBundleV0() {
@@ -860,6 +1024,68 @@ function trackDdnInputSource({
   });
 }
 
+function resolveShellScreenLabel(screenName = appState.currentScreen) {
+  const screen = String(screenName ?? "").trim();
+  if (screen === "browse") return "교과";
+  if (screen === "editor") return "편집";
+  if (screen === "run") return "작업실";
+  return "교과";
+}
+
+function resolveShellSessionStatus() {
+  if (appState.runtimeSessionV0) return "세션 복원됨";
+  if (appState.runtimeSnapshotV0) return "결과 복원됨";
+  return "세션 대기";
+}
+
+function buildShellStatusModel() {
+  const sourceLabel = String(appState.studio?.sourceLabel ?? "").trim() || "새 작업";
+  const saveStatus = String(appState.studio?.localSaveStatus ?? "").trim() || "저장 대기";
+  const sessionStatus = resolveShellSessionStatus();
+  return {
+    screenLabel: resolveShellScreenLabel(),
+    sourceLabel,
+    saveStatus,
+    sessionStatus,
+  };
+}
+
+function setShellChipText(rail, selector, text, status = "") {
+  const node = rail?.querySelector?.(selector);
+  if (!node) return;
+  const value = String(text ?? "").trim();
+  node.textContent = value;
+  node.title = value;
+  if (status) {
+    node.dataset.status = status;
+  } else {
+    delete node.dataset.status;
+  }
+}
+
+function updateShellStatusRail() {
+  if (typeof document === "undefined") return;
+  const rails = document.querySelectorAll?.("[data-shell-status-rail]") ?? [];
+  if (!rails.length) return;
+  const status = buildShellStatusModel();
+  rails.forEach((rail) => {
+    setShellChipText(rail, "[data-shell-current-screen]", status.screenLabel, "active");
+    setShellChipText(rail, "[data-shell-source-label]", status.sourceLabel);
+    setShellChipText(
+      rail,
+      "[data-shell-save-status]",
+      status.saveStatus,
+      status.saveStatus === "저장 대기" ? "" : "saved",
+    );
+    setShellChipText(
+      rail,
+      "[data-shell-session-status]",
+      status.sessionStatus,
+      status.sessionStatus === "세션 대기" ? "" : "restored",
+    );
+  });
+}
+
 function setScreen(name) {
   ["browse", "editor", "run"].forEach((screenName) => {
     const node = byId(`screen-${screenName}`);
@@ -892,6 +1118,7 @@ function setScreen(name) {
       // ignore screen listener errors
     }
   });
+  updateShellStatusRail();
 }
 
 function onScreenChange(listener) {
@@ -1122,6 +1349,8 @@ function saveCurrentWork(target = "local", { ddnText = "" } = {}) {
   );
   if (mode === "local") {
     saveDdnToFile(String(ddnText ?? ""), "lesson.ddn");
+    appState.studio.localSaveStatus = "로컬 저장됨";
+    updateShellStatusRail();
     return true;
   }
   if (mode === "server") {
@@ -1798,11 +2027,371 @@ async function loadActiveLessonAllowlist() {
   const payload = await fetchJson(ACTIVE_ALLOWLIST_PATH);
   const rows = Array.isArray(payload?.lesson_ids) ? payload.lesson_ids : [];
   const out = new Set();
+  const rawIds = [];
+  const duplicateIds = [];
+  const seen = new Set();
   rows.forEach((raw) => {
     const lessonId = String(raw ?? "").trim();
-    if (lessonId) out.add(lessonId);
+    if (!lessonId) return;
+    rawIds.push(lessonId);
+    if (seen.has(lessonId) && !duplicateIds.includes(lessonId)) {
+      duplicateIds.push(lessonId);
+    }
+    seen.add(lessonId);
+    out.add(lessonId);
   });
+  out.schema = String(payload?.schema ?? "").trim();
+  out.mode = String(payload?.mode ?? "").trim();
+  out.rawIds = rawIds;
+  out.duplicateIds = duplicateIds;
   return out;
+}
+
+function publishLessonLibraryCurationSnapshot(snapshot) {
+  const row = snapshot && typeof snapshot === "object" ? snapshot : null;
+  appState.lessonLibraryCuration = row;
+  try {
+    window.__SEAMGRIM_LESSON_LIBRARY_CURATION__ = row;
+    window.__SEAMGRIM_LESSON_LIBRARY_CURATION_TEXT__ = row
+      ? formatLessonLibraryCurationText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+}
+
+function publishNumericTrackIndexSnapshot(snapshot) {
+  const row = snapshot && typeof snapshot === "object" ? snapshot : null;
+  appState.numericTrackIndex = row;
+  try {
+    window.__SEAMGRIM_NUMERIC_TRACK_INDEX__ = row;
+    window.__SEAMGRIM_NUMERIC_TRACK_INDEX_TEXT__ = row
+      ? formatNumericTrackIndexText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+}
+
+function publishNumericTrackReportExport(report) {
+  const row = report && typeof report === "object" ? report : null;
+  appState.numericTrackReportExport = row;
+  try {
+    window.__SEAMGRIM_NUMERIC_TRACK_REPORT_EXPORT__ = row;
+    window.__SEAMGRIM_NUMERIC_TRACK_REPORT_EXPORT_TEXT__ = row
+      ? formatNumericTrackReportExportText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+}
+
+function publishTeacherFeedbackSurfacePreview(preview) {
+  const row = preview && typeof preview === "object" ? preview : null;
+  appState.teacherFeedbackSurfacePreview = row;
+  try {
+    window.__SEAMGRIM_TEACHER_FEEDBACK_SURFACE_PREVIEW__ = row;
+    window.__SEAMGRIM_TEACHER_FEEDBACK_SURFACE_PREVIEW_TEXT__ = row
+      ? formatTeacherFeedbackSurfacePreviewText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderTeacherFeedbackSurfacePreview(byId("teacher-feedback-preview-panel"), row);
+}
+
+function publishClassroomOperationsPanelPreview(panel) {
+  const row = panel && typeof panel === "object" ? panel : null;
+  appState.classroomOperationsPanelPreview = row;
+  try {
+    window.__SEAMGRIM_CLASSROOM_OPERATIONS_PANEL_PREVIEW__ = row;
+    window.__SEAMGRIM_CLASSROOM_OPERATIONS_PANEL_PREVIEW_TEXT__ = row
+      ? formatClassroomOperationsPanelPreviewText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderClassroomOperationsPanelPreview(byId("classroom-operations-panel-preview"), row);
+}
+
+function publishBenchmarkBaselineLocalSnapshot(snapshot) {
+  const row = snapshot && typeof snapshot === "object" ? snapshot : null;
+  appState.benchmarkBaselineLocalSnapshot = row;
+  try {
+    window.__SEAMGRIM_BENCHMARK_BASELINE_LOCAL_SNAPSHOT__ = row;
+    window.__SEAMGRIM_BENCHMARK_BASELINE_LOCAL_SNAPSHOT_TEXT__ = row
+      ? formatBenchmarkBaselineLocalSnapshotText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderBenchmarkBaselineLocalSnapshot(byId("benchmark-baseline-local-snapshot"), row);
+}
+
+function publishReleaseReviewPacketDashboard(dashboard) {
+  const row = dashboard && typeof dashboard === "object" ? dashboard : null;
+  appState.releaseReviewPacketDashboard = row;
+  try {
+    window.__SEAMGRIM_RELEASE_REVIEW_PACKET_DASHBOARD__ = row;
+    window.__SEAMGRIM_RELEASE_REVIEW_PACKET_DASHBOARD_TEXT__ = row
+      ? formatReleaseReviewPacketDashboardText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderReleaseReviewPacketDashboard(byId("release-review-packet-dashboard"), row);
+}
+
+function publishLessonPublicationReviewSurface(surface) {
+  const row = surface && typeof surface === "object" ? surface : null;
+  appState.lessonPublicationReviewSurface = row;
+  try {
+    window.__SEAMGRIM_LESSON_PUBLICATION_REVIEW_SURFACE__ = row;
+    window.__SEAMGRIM_LESSON_PUBLICATION_REVIEW_SURFACE_TEXT__ = row
+      ? formatLessonPublicationReviewSurfaceText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderLessonPublicationReviewSurface(byId("lesson-publication-review-surface"), row);
+}
+
+function publishMa3RegressionGateMatrix(matrix) {
+  const row = matrix && typeof matrix === "object" ? matrix : null;
+  appState.ma3RegressionGateMatrix = row;
+  try {
+    window.__SEAMGRIM_MA3_REGRESSION_GATE_MATRIX__ = row;
+    window.__SEAMGRIM_MA3_REGRESSION_GATE_MATRIX_TEXT__ = row
+      ? formatMa3RegressionGateMatrixText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderMa3RegressionGateMatrix(byId("ma3-regression-gate-matrix"), row);
+}
+
+function publishMa3NextQueueCoordinateLock(lock) {
+  const row = lock && typeof lock === "object" ? lock : null;
+  appState.ma3NextQueueCoordinateLock = row;
+  try {
+    window.__SEAMGRIM_MA3_NEXT_QUEUE_COORDINATE_LOCK__ = row;
+    window.__SEAMGRIM_MA3_NEXT_QUEUE_COORDINATE_LOCK_TEXT__ = row
+      ? formatMa3NextQueueCoordinateLockText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderMa3NextQueueCoordinateLock(byId("ma3-next-queue-coordinate-lock"), row);
+}
+
+function publishOperationsPreviewStageClosure(closure) {
+  const row = closure && typeof closure === "object" ? closure : null;
+  appState.operationsPreviewStageClosure = row;
+  try {
+    window.__SEAMGRIM_OPERATIONS_PREVIEW_STAGE_CLOSURE__ = row;
+    window.__SEAMGRIM_OPERATIONS_PREVIEW_STAGE_CLOSURE_TEXT__ = row
+      ? formatOperationsPreviewStageClosureText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderOperationsPreviewStageClosure(byId("operations-preview-stage-closure"), row);
+}
+
+function publishProductizationStageRebase(rebase) {
+  const row = rebase && typeof rebase === "object" ? rebase : null;
+  appState.productizationStageRebase = row;
+  try {
+    window.__SEAMGRIM_PRODUCTIZATION_STAGE_REBASE__ = row;
+    window.__SEAMGRIM_PRODUCTIZATION_STAGE_REBASE_TEXT__ = row
+      ? formatProductizationStageRebaseText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderProductizationStageRebase(byId("productization-stage-rebase"), row);
+}
+
+function publishSeamgrimNumericTrackConsolidation(consolidation) {
+  const row = consolidation && typeof consolidation === "object" ? consolidation : null;
+  appState.seamgrimNumericTrackConsolidation = row;
+  try {
+    window.__SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION__ = row;
+    window.__SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_TEXT__ = row
+      ? formatSeamgrimNumericTrackConsolidationText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderSeamgrimNumericTrackConsolidation(byId("seamgrim-numeric-track-consolidation"), row);
+}
+
+function publishNumericReportWorkflowStage(stage) {
+  const row = stage && typeof stage === "object" ? stage : null;
+  appState.numericReportWorkflowStage = row;
+  try {
+    window.__SEAMGRIM_NUMERIC_REPORT_WORKFLOW_STAGE__ = row;
+    window.__SEAMGRIM_NUMERIC_REPORT_WORKFLOW_STAGE_TEXT__ = row
+      ? formatNumericReportWorkflowStageText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderNumericReportWorkflowStage(byId("numeric-report-workflow-stage"), row);
+}
+
+function publishNumericResultReportStage(stage) {
+  const row = stage && typeof stage === "object" ? stage : null;
+  appState.numericResultReportStage = row;
+  try {
+    window.__SEAMGRIM_NUMERIC_RESULT_REPORT_STAGE__ = row;
+    window.__SEAMGRIM_NUMERIC_RESULT_REPORT_STAGE_TEXT__ = row
+      ? formatNumericResultReportStageText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderNumericResultReportStage(byId("numeric-result-report-stage"), row);
+}
+
+function publishProductizationStageClosure(closure) {
+  const row = closure && typeof closure === "object" ? closure : null;
+  appState.productizationStageClosure = row;
+  try {
+    window.__SEAMGRIM_PRODUCTIZATION_STAGE_CLOSURE__ = row;
+    window.__SEAMGRIM_PRODUCTIZATION_STAGE_CLOSURE_TEXT__ = row
+      ? formatProductizationStageClosureText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderProductizationStageClosure(byId("productization-stage-closure"), row);
+}
+
+function publishPostSuperLongRebase(rebase) {
+  const row = rebase && typeof rebase === "object" ? rebase : null;
+  appState.postSuperLongRebase = row;
+  try {
+    window.__SEAMGRIM_POST_SUPER_LONG_REBASE__ = row;
+    window.__SEAMGRIM_POST_SUPER_LONG_REBASE_TEXT__ = row
+      ? formatPostSuperLongRebaseText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderPostSuperLongRebase(byId("post-super-long-rebase"), row);
+}
+
+function publishPublicReleaseApprovalRecheck(recheck) {
+  const row = recheck && typeof recheck === "object" ? recheck : null;
+  appState.publicReleaseApprovalRecheck = row;
+  try {
+    window.__SEAMGRIM_PUBLIC_RELEASE_APPROVAL_RECHECK__ = row;
+    window.__SEAMGRIM_PUBLIC_RELEASE_APPROVAL_RECHECK_TEXT__ = row
+      ? formatPublicReleaseApprovalRecheckText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderPublicReleaseApprovalRecheck(byId("public-release-approval-recheck"), row);
+}
+
+function publishLocalReleaseRehearsalCheck(rehearsal) {
+  const row = rehearsal && typeof rehearsal === "object" ? rehearsal : null;
+  appState.localReleaseRehearsalCheck = row;
+  try {
+    window.__SEAMGRIM_LOCAL_RELEASE_REHEARSAL_CHECK__ = row;
+    window.__SEAMGRIM_LOCAL_RELEASE_REHEARSAL_CHECK_TEXT__ = row
+      ? formatLocalReleaseRehearsalCheckText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderLocalReleaseRehearsalCheck(byId("local-release-rehearsal-check"), row);
+}
+
+function publishPublicationArtifactDryRun(dryRun) {
+  const row = dryRun && typeof dryRun === "object" ? dryRun : null;
+  appState.publicationArtifactDryRun = row;
+  try {
+    window.__SEAMGRIM_PUBLICATION_ARTIFACT_DRY_RUN__ = row;
+    window.__SEAMGRIM_PUBLICATION_ARTIFACT_DRY_RUN_TEXT__ = row
+      ? formatPublicationArtifactDryRunText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderPublicationArtifactDryRun(byId("publication-artifact-dry-run"), row);
+}
+
+function publishTeacherFeedbackLoopSeed(seed) {
+  const row = seed && typeof seed === "object" ? seed : null;
+  appState.teacherFeedbackLoopSeed = row;
+  try {
+    window.__SEAMGRIM_TEACHER_FEEDBACK_LOOP_SEED__ = row;
+    window.__SEAMGRIM_TEACHER_FEEDBACK_LOOP_SEED_TEXT__ = row
+      ? formatTeacherFeedbackLoopSeedText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderTeacherFeedbackLoopSeed(byId("teacher-feedback-loop-seed"), row);
+}
+
+function publishClassroomOperationsTriage(triage) {
+  const row = triage && typeof triage === "object" ? triage : null;
+  appState.classroomOperationsTriage = row;
+  try {
+    window.__SEAMGRIM_CLASSROOM_OPERATIONS_TRIAGE__ = row;
+    window.__SEAMGRIM_CLASSROOM_OPERATIONS_TRIAGE_TEXT__ = row
+      ? formatClassroomOperationsTriageText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderClassroomOperationsTriage(byId("classroom-operations-triage"), row);
+}
+
+function publishBenchmarkBaselinePrepDryRun(prep) {
+  const row = prep && typeof prep === "object" ? prep : null;
+  appState.benchmarkBaselinePrepDryRun = row;
+  try {
+    window.__SEAMGRIM_BENCHMARK_BASELINE_PREP_DRY_RUN__ = row;
+    window.__SEAMGRIM_BENCHMARK_BASELINE_PREP_DRY_RUN_TEXT__ = row
+      ? formatBenchmarkBaselinePrepDryRunText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderBenchmarkBaselinePrepDryRun(byId("benchmark-baseline-prep-dry-run"), row);
+}
+
+function publishNextRoadmapV2CoordinateLock(lock) {
+  const row = lock && typeof lock === "object" ? lock : null;
+  appState.nextRoadmapV2CoordinateLock = row;
+  try {
+    window.__SEAMGRIM_NEXT_ROADMAP_V2_COORDINATE_LOCK__ = row;
+    window.__SEAMGRIM_NEXT_ROADMAP_V2_COORDINATE_LOCK_TEXT__ = row
+      ? formatNextRoadmapV2CoordinateLockText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderNextRoadmapV2CoordinateLock(byId("next-roadmap-v2-coordinate-lock"), row);
+}
+
+function publishMa3NextDevelopmentQueueRebase(rebase) {
+  const row = rebase && typeof rebase === "object" ? rebase : null;
+  appState.ma3NextDevelopmentQueueRebase = row;
+  try {
+    window.__SEAMGRIM_MA3_NEXT_DEVELOPMENT_QUEUE_REBASE__ = row;
+    window.__SEAMGRIM_MA3_NEXT_DEVELOPMENT_QUEUE_REBASE_TEXT__ = row
+      ? formatMa3NextDevelopmentQueueRebaseText(row)
+      : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+  renderMa3NextDevelopmentQueueRebase(byId("ma3-next-development-queue-rebase"), row);
 }
 
 function filterCatalogByAllowlist(merged, allowlist) {
@@ -1815,7 +2404,9 @@ function filterCatalogByAllowlist(merged, allowlist) {
 }
 
 async function mergeSeedLessonsIntoCatalog(merged, { featuredOnly = false } = {}) {
-  const seedManifest = await fetchJson(dataPath("seed_lessons_v1/seed_manifest.detjson"));
+  const seedManifest =
+    (await fetchJson(dataPath("seed_lessons_v1/seed_manifest.detjson"))) ??
+    (await fetchJson("solutions/seamgrim_ui_mvp/seed_lessons_v1/seed_manifest.detjson"));
   const seeds = Array.isArray(seedManifest?.seeds) ? seedManifest.seeds : [];
   seeds.forEach((seed) => {
     const id = String(seed.seed_id ?? "").trim();
@@ -1864,7 +2455,9 @@ async function loadCatalogLessons() {
   }
 
   if (merged.size === 0) {
-    const indexJson = await fetchJson(dataPath("lessons/index.json"));
+    const indexJson =
+      (await fetchJson(dataPath("lessons/index.json"))) ??
+      (await fetchJson("solutions/seamgrim_ui_mvp/lessons/index.json"));
     const indexLessons = Array.isArray(indexJson?.lessons) ? indexJson.lessons : [];
     indexLessons.forEach((row) => {
       const id = String(row.id ?? "").trim();
@@ -1898,7 +2491,9 @@ async function loadCatalogLessons() {
     if (!repsOnly) {
       await mergeSeedLessonsIntoCatalog(merged);
 
-      const rewriteManifest = await fetchJson(dataPath("lessons_rewrite_v1/rewrite_manifest.detjson"));
+      const rewriteManifest =
+        (await fetchJson(dataPath("lessons_rewrite_v1/rewrite_manifest.detjson"))) ??
+        (await fetchJson("solutions/seamgrim_ui_mvp/lessons_rewrite_v1/rewrite_manifest.detjson"));
       const generated = Array.isArray(rewriteManifest?.generated) ? rewriteManifest.generated : [];
       generated.forEach((row) => {
         const id = String(row.lesson_id ?? "").trim();
@@ -1945,6 +2540,15 @@ async function loadCatalogLessons() {
   lessons.forEach((lesson) => {
     appState.lessonsById.set(lesson.id, lesson);
   });
+  publishLessonLibraryCurationSnapshot(
+    buildLessonLibraryCurationSnapshot({
+      lessons,
+      allowlist: activeAllowlist,
+      catalogMode,
+    }),
+  );
+  publishNumericTrackIndexSnapshot(buildNumericTrackIndexSnapshot(lessons));
+  publishNumericTrackReportExport(buildNumericTrackReportExport(lessons));
   return lessons;
 }
 
@@ -2235,6 +2839,7 @@ async function main() {
       ...appState.studio,
       ...next,
     };
+    updateShellStatusRail();
     return appState.studio;
   };
 
@@ -2877,6 +3482,76 @@ async function main() {
   browseScreen.init();
   editorScreen.init();
   runScreen.init();
+  publishTeacherFeedbackSurfacePreview(buildTeacherFeedbackSurfacePreview({
+    seedRows: DEFAULT_TEACHER_FEEDBACK_SEED_ROWS,
+  }));
+  publishClassroomOperationsPanelPreview(buildClassroomOperationsPanelPreview({
+    triageRows: DEFAULT_CLASSROOM_OPERATIONS_TRIAGE_ROWS,
+  }));
+  publishBenchmarkBaselineLocalSnapshot(buildBenchmarkBaselineLocalSnapshot({
+    plannedInputs: DEFAULT_BENCHMARK_BASELINE_INPUTS,
+    panelRows: DEFAULT_BENCHMARK_CLASSROOM_PANEL_ROWS,
+  }));
+  publishReleaseReviewPacketDashboard(buildReleaseReviewPacketDashboard({
+    snapshotRows: DEFAULT_RELEASE_REVIEW_SNAPSHOT_ROWS,
+    reviewMaterials: DEFAULT_RELEASE_REVIEW_MATERIALS,
+  }));
+  publishLessonPublicationReviewSurface(buildLessonPublicationReviewSurface({
+    reviewGates: DEFAULT_LESSON_PUBLICATION_REVIEW_GATES,
+    dashboardRows: DEFAULT_LESSON_PUBLICATION_DASHBOARD_ROWS,
+    candidateIds: DEFAULT_LESSON_PUBLICATION_CANDIDATE_IDS,
+  }));
+  publishMa3RegressionGateMatrix(buildMa3RegressionGateMatrix({
+    evidenceRows: DEFAULT_MA3_REGRESSION_GATE_EVIDENCE,
+  }));
+  publishMa3NextQueueCoordinateLock(buildMa3NextQueueCoordinateLock({
+    lockRows: DEFAULT_MA3_NEXT_QUEUE_LOCK_ROWS,
+  }));
+  publishOperationsPreviewStageClosure(buildOperationsPreviewStageClosure({
+    closureRows: DEFAULT_OPERATIONS_PREVIEW_STAGE_CLOSURE_ROWS,
+  }));
+  publishProductizationStageRebase(buildProductizationStageRebase({
+    rebaseRows: DEFAULT_PRODUCTIZATION_STAGE_REBASE_ROWS,
+  }));
+  publishSeamgrimNumericTrackConsolidation(buildSeamgrimNumericTrackConsolidation({
+    consolidationRows: DEFAULT_NUMERIC_TRACK_CONSOLIDATION_ROWS,
+  }));
+  publishNumericReportWorkflowStage(buildNumericReportWorkflowStage({
+    workflowRows: DEFAULT_NUMERIC_REPORT_WORKFLOW_STAGE_ROWS,
+  }));
+  publishNumericResultReportStage(buildNumericResultReportStage({
+    resultRows: DEFAULT_NUMERIC_RESULT_REPORT_STAGE_ROWS,
+  }));
+  publishProductizationStageClosure(buildProductizationStageClosure({
+    closureRows: DEFAULT_PRODUCTIZATION_STAGE_CLOSURE_ROWS,
+  }));
+  publishPostSuperLongRebase(buildPostSuperLongRebase({
+    followupRows: DEFAULT_POST_SUPER_LONG_REBASE_ROWS,
+  }));
+  publishPublicReleaseApprovalRecheck(buildPublicReleaseApprovalRecheck({
+    approvalRows: DEFAULT_PUBLIC_RELEASE_APPROVAL_RECHECK_ROWS,
+  }));
+  publishLocalReleaseRehearsalCheck(buildLocalReleaseRehearsalCheck({
+    rehearsalRows: DEFAULT_LOCAL_RELEASE_REHEARSAL_ROWS,
+  }));
+  publishPublicationArtifactDryRun(buildPublicationArtifactDryRun({
+    artifactRows: DEFAULT_PUBLICATION_ARTIFACT_DRY_RUN_ROWS,
+  }));
+  publishTeacherFeedbackLoopSeed(buildTeacherFeedbackLoopSeed({
+    seedRows: DEFAULT_TEACHER_FEEDBACK_LOOP_SEED_ROWS,
+  }));
+  publishClassroomOperationsTriage(buildClassroomOperationsTriage({
+    triageRows: DEFAULT_CLASSROOM_OPERATIONS_TRIAGE_UI_ROWS,
+  }));
+  publishBenchmarkBaselinePrepDryRun(buildBenchmarkBaselinePrepDryRun({
+    inputRows: DEFAULT_BENCHMARK_BASELINE_PREP_INPUT_ROWS,
+  }));
+  publishNextRoadmapV2CoordinateLock(buildNextRoadmapV2CoordinateLock({
+    decisions: DEFAULT_NEXT_ROADMAP_V2_COORDINATE_LOCK_DECISIONS,
+  }));
+  publishMa3NextDevelopmentQueueRebase(buildMa3NextDevelopmentQueueRebase({
+    queueRows: DEFAULT_MA3_NEXT_DEVELOPMENT_QUEUE_ROWS,
+  }));
   document.querySelectorAll(".main-shell-tab[data-main-tab-target]").forEach((button) => {
     button.addEventListener("click", () => {
       const target = normalizeMainTabTarget(button?.dataset?.mainTabTarget, MAIN_TAB_BROWSE);

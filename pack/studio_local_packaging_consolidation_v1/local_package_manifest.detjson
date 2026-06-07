@@ -1,0 +1,48 @@
+{
+  "schema": "ddn.studio.local_packaging_consolidation.v1",
+  "work_item": "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1",
+  "based_on": "STUDIO_BROWSER_SMOKE_MATRIX_HARDENING_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinate": "타-3",
+  "product_code_change": false,
+  "runtime_claim": false,
+  "archive_generation_claim": false,
+  "file_export_claim": false,
+  "public_upload_claim": false,
+  "github_release_claim": false,
+  "registry_publish_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "local_package_helper": {
+    "path": "solutions/seamgrim_ui_mvp/ui/studio_local_share_package.js",
+    "contracts": [
+      "buildStudioLocalPackageManifest",
+      "buildStudioLocalPackagePayload",
+      "importStudioLocalPackagePayload",
+      "validateStudioStaticBundle",
+      "formatStudioLocalPackageIndexText"
+    ]
+  },
+  "required_static_files": [
+    "index.html",
+    "app.js",
+    "styles.css"
+  ],
+  "evidence": {
+    "local_share_packaging_checker": "tests/run_studio_local_share_and_packaging_check.py",
+    "local_share_packaging_runner": "tests/studio_local_share_and_packaging_browser_runner.mjs",
+    "browser_smoke_matrix": "pack/studio_browser_smoke_matrix_hardening_v1/smoke_matrix.detjson",
+    "browser_smoke_matrix_checker": "tests/run_studio_browser_smoke_matrix_hardening_check.py"
+  },
+  "blocked_actions": [
+    "archive_generate",
+    "file_export_write",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing"
+  ],
+  "next_item": "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1"
+}

@@ -1,0 +1,1 @@
+{"id":"c01_studio_public_release_smoke_matrix_marker","cmd":["run","pack/studio_public_release_smoke_matrix_v1/input.ddn"],"stdout":["STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1","studio public release smoke matrix sealed","next: STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1"],"exit_code":0}

@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_rc_checker_cost_trim_v1",
+  "kind": "studio_rc_checker_cost_trim",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_RC_CHECKER_COST_TRIM_V1",
+  "cost_trim": "pack/studio_rc_checker_cost_trim_v1/cost_trim.detjson",
+  "trimmed_checker": "tests/run_studio_public_release_execution_gate_check.py",
+  "aggregate_gate": "tests/run_studio_public_release_smoke_matrix_check.py",
+  "direct_duplicate_asset_plan_call": false,
+  "direct_duplicate_release_candidate_call": false,
+  "preserves_execution_gate_contract": true,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+  "requires_docs_ssot_clean": true
+}

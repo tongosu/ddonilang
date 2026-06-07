@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_public_release_smoke_matrix_v1",
+  "kind": "studio_public_release_smoke_matrix",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1",
+  "smoke_matrix": "pack/studio_public_release_smoke_matrix_v1/smoke_matrix.detjson",
+  "requires": [
+    "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1",
+    "pack/studio_public_release_asset_plan_v1/contract.detjson",
+    "tests/run_studio_public_release_asset_plan_check.py"
+  ],
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "cloud_sync_claim": false,
+  "public_registry_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1",
+  "requires_docs_ssot_clean": true
+}

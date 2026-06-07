@@ -1,0 +1,44 @@
+{
+  "schema": "ddn.studio.release_approval_chain_closure.v1",
+  "id": "STUDIO_RELEASE_APPROVAL_CHAIN_CLOSURE_V1",
+  "based_on": "STUDIO_RELEASE_APPROVAL_HANDOFF_TEXT_EXPORT_V1",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "generic_next_dev_request_is_approval": false,
+  "closed_packs": [
+    "pack/studio_public_release_execution_gate_v1",
+    "pack/studio_release_approval_readiness_recheck_v1",
+    "pack/studio_release_pre_execution_dry_run_v1",
+    "pack/studio_release_dry_run_text_summary_v1",
+    "pack/studio_release_approval_packet_v1",
+    "pack/studio_release_approval_packet_text_export_v1",
+    "pack/studio_release_approval_handoff_v1",
+    "pack/studio_release_approval_handoff_text_export_v1"
+  ],
+  "review_docs": [
+    "docs/studio/RELEASE_NOTES_DRAFT_V1.md",
+    "docs/studio/RELEASE_NOTES_DRAFT_V1.txt",
+    "docs/studio/RELEASE_PRE_EXECUTION_DRY_RUN_V1.md",
+    "docs/studio/RELEASE_PRE_EXECUTION_DRY_RUN_SUMMARY_V1.txt",
+    "docs/studio/RELEASE_APPROVAL_PACKET_V1.md",
+    "docs/studio/RELEASE_APPROVAL_PACKET_V1.txt",
+    "docs/studio/RELEASE_APPROVAL_HANDOFF_V1.md",
+    "docs/studio/RELEASE_APPROVAL_HANDOFF_V1.txt"
+  ],
+  "blocked_until_approval": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "next_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL"
+}

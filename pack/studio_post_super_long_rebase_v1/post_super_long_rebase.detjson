@@ -1,0 +1,132 @@
+{
+  "schema": "ddn.studio.post_super_long_rebase.v1",
+  "work_item": "STUDIO_POST_SUPER_LONG_REBASE_V1",
+  "based_on": "STUDIO_PRODUCTIZATION_STAGE_CLOSURE_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinate": "타-3",
+  "post_super_long_rebase_claim": true,
+  "product_code_change": true,
+  "product_ui_change": true,
+  "runtime_claim": false,
+  "release_approval_claim": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "lts_certification_claim": false,
+  "benchmark_execution_claim": false,
+  "performance_baseline_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "public_link_creation_claim": false,
+  "install_enablement_claim": false,
+  "publication_snapshot_emit_claim": false,
+  "archive_generation_claim": false,
+  "publication_checksum_generation_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "permission_system_claim": false,
+  "active_allowlist_mutation": false,
+  "lesson_schema_change": false,
+  "parser_frontdoor_change": false,
+  "solver_implementation_change": false,
+  "source_productization_stage_closure": "pack/studio_productization_stage_closure_v1/productization_stage_closure.detjson",
+  "changed_product_files": [
+    "solutions/seamgrim_ui_mvp/ui/studio_post_super_long_rebase.js",
+    "solutions/seamgrim_ui_mvp/ui/app.js",
+    "solutions/seamgrim_ui_mvp/ui/index.html",
+    "solutions/seamgrim_ui_mvp/ui/styles.css"
+  ],
+  "super_long_plan": {
+    "closed": 18,
+    "total": 18,
+    "percent": 100,
+    "status": "sealed"
+  },
+  "post_super_long_plan": {
+    "closed": 1,
+    "total": 8,
+    "percent": 13,
+    "items": [
+      {
+        "id": "STUDIO_POST_SUPER_LONG_REBASE_V1",
+        "coordinate": "마-3",
+        "status": "closed",
+        "claim": "post-super-long denominator lock"
+      },
+      {
+        "id": "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1",
+        "coordinate": "마-3",
+        "status": "next",
+        "claim": "approval readiness recheck only"
+      },
+      {
+        "id": "STUDIO_LOCAL_RELEASE_REHEARSAL_CHECK_V1",
+        "coordinate": "마-3",
+        "status": "planned",
+        "claim": "local rehearsal check only"
+      },
+      {
+        "id": "STUDIO_PUBLICATION_ARTIFACT_DRY_RUN_V1",
+        "coordinate": "타-3",
+        "status": "planned",
+        "claim": "dry-run artifact manifest only"
+      },
+      {
+        "id": "STUDIO_TEACHER_FEEDBACK_LOOP_SEED_V1",
+        "coordinate": "하-3",
+        "status": "planned",
+        "claim": "local feedback seed only"
+      },
+      {
+        "id": "STUDIO_CLASSROOM_OPERATIONS_TRIAGE_V1",
+        "coordinate": "하-3",
+        "status": "planned",
+        "claim": "local triage evidence only"
+      },
+      {
+        "id": "STUDIO_BENCHMARK_BASELINE_PREP_DRY_RUN_V1",
+        "coordinate": "타-3",
+        "status": "planned",
+        "claim": "baseline prep dry-run only"
+      },
+      {
+        "id": "STUDIO_NEXT_ROADMAP_V2_COORDINATE_LOCK_V1",
+        "coordinate": "마-3",
+        "status": "planned",
+        "claim": "next ROADMAP_V2 coordinate lock"
+      }
+    ]
+  },
+  "blocked_actions": [
+    "release_approval",
+    "release_execution",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "public_link_create",
+    "package_install_enable",
+    "publication_snapshot_emit",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication",
+    "lts_certification_publish",
+    "benchmark_baseline_publish",
+    "cloud_sync",
+    "account_setup",
+    "permission_system_change",
+    "artifact_signing"
+  ],
+  "progress": {
+    "super_long_behavior_closed": 18,
+    "super_long_total": 18,
+    "super_long_percent": 100,
+    "current_stage_closed": 1,
+    "current_stage_total": 8,
+    "current_stage_percent": 13,
+    "roadmap_v2_behavior_closed": 90,
+    "roadmap_v2_total": 90,
+    "roadmap_v2_percent": 100
+  },
+  "closure_tier": "닫힘-동작",
+  "browser_runner": "tests/studio_post_super_long_rebase_runner.mjs",
+  "next_item": "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1"
+}

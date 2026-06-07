@@ -1,0 +1,68 @@
+{
+  "schema": "ddn.studio.browser_smoke_flake_audit.v1",
+  "id": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+  "based_on": "STUDIO_RC_CHECKER_COST_TRIM_V1",
+  "smoke_matrix": "pack/studio_public_release_smoke_matrix_v1/smoke_matrix.detjson",
+  "browser_smokes": [
+    {
+      "id": "SEAMGRIM_WORKBENCH_SHELL_V1",
+      "checker": "tests/run_seamgrim_workbench_shell_check.py",
+      "runner": "tests/seamgrim_workbench_shell_browser_runner.mjs",
+      "ok_line": "seamgrim_workbench_shell_browser: ok"
+    },
+    {
+      "id": "SEAMGRIM_LESSON_AUTHORING_FLOW_V1",
+      "checker": "tests/run_seamgrim_lesson_authoring_flow_check.py",
+      "runner": "tests/seamgrim_lesson_authoring_flow_browser_runner.mjs",
+      "ok_line": "seamgrim_lesson_authoring_flow_browser: ok"
+    },
+    {
+      "id": "MALBLOCK_AUTHORING_UI_V1",
+      "checker": "tests/run_malblock_authoring_ui_check.py",
+      "runner": "tests/malblock_authoring_ui_browser_runner.mjs",
+      "ok_line": "malblock_authoring_ui_browser: ok"
+    },
+    {
+      "id": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
+      "checker": "tests/run_studio_diagnostic_fixit_preview_check.py",
+      "runner": "tests/studio_diagnostic_fixit_preview_browser_runner.mjs",
+      "ok_line": "studio_diagnostic_fixit_preview_browser: ok"
+    },
+    {
+      "id": "STUDIO_CLASSROOM_MODE_V1",
+      "checker": "tests/run_studio_classroom_mode_check.py",
+      "runner": "tests/studio_classroom_mode_browser_runner.mjs",
+      "ok_line": "studio_classroom_mode_browser: ok"
+    },
+    {
+      "id": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
+      "checker": "tests/run_studio_local_share_and_packaging_check.py",
+      "runner": "tests/studio_local_share_and_packaging_browser_runner.mjs",
+      "ok_line": "studio_local_share_and_packaging_browser: ok"
+    }
+  ],
+  "runner_policy": {
+    "playwright_chromium_headless": true,
+    "local_static_server_free_port": true,
+    "chromium_unsafe_port_retry": true,
+    "console_error_failure": true,
+    "pageerror_failure": true,
+    "requestfailed_failure": true,
+    "http_400_failure_with_documented_local_fallbacks": true,
+    "cleanup_required": [
+      "context.close",
+      "browser.close",
+      "closeServer"
+    ]
+  },
+  "checker_policy": {
+    "playwright_probe": true,
+    "browser_runner_timeout_seconds": 120,
+    "fixed_ok_line_required": true,
+    "docs_ssot_clean_required": true
+  },
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_DOC_INDEX_REFRESH_V1"
+}

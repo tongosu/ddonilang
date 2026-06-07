@@ -16,6 +16,12 @@
             <button class="main-shell-tab active" data-main-tab-target="browse" type="button">교과</button>
             <button class="main-shell-tab" data-main-tab-target="studio" type="button">작업실</button>
           </nav>
+          <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
+            <span class="shell-status-chip" data-shell-current-screen>교과</span>
+            <span class="shell-status-chip" data-shell-source-label>새 작업</span>
+            <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
+            <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
+          </div>
           <button id="btn-advanced-browse" class="ghost" type="button">⚙</button>
         </header>
 
@@ -23,11 +29,27 @@
           <button class="browse-tab active" data-tab="official" type="button">★ 공식 교과</button>
           <button class="browse-tab" data-tab="examples" type="button">◇ 예제</button>
           <button class="browse-tab" data-tab="search" type="button">🔍 검색</button>
+          <button id="btn-filter-numeric-track" class="ghost" type="button">수치 트랙</button>
+          <button id="btn-filter-numeric-track-results" class="ghost" type="button">수치 결과</button>
           <button id="btn-preset-featured-seed-quick-recent" class="ghost" type="button">Alt+6 최근 보기</button>
+          <button id="btn-copy-numeric-track-result-summary" class="ghost" type="button">수치 결과 요약 복사</button>
+          <button id="btn-toggle-numeric-track-result-timeline" class="ghost" type="button">수치 결과 흐름</button>
           <button id="btn-copy-browse-preset-link" class="ghost" type="button">프리셋 링크 복사</button>
           <button class="browse-tab" type="button" disabled title="AGE5">커뮤니티</button>
           <button id="btn-create" class="btn-primary" type="button">+ 만들기</button>
         </div>
+
+        <section id="numeric-track-result-timeline-panel" class="numeric-track-timeline-panel hidden" aria-label="수치 결과 흐름">
+          <div class="numeric-track-timeline-header">
+            <strong>수치 결과 흐름</strong>
+            <span>최근 저장된 수치 트랙 실행 결과</span>
+            <button id="btn-compare-numeric-track-results" class="ghost" type="button">최근 2개 비교</button>
+            <button id="btn-show-numeric-track-result-compare-history" class="ghost" type="button">비교 이력</button>
+          </div>
+          <ol id="numeric-track-result-timeline-list" class="numeric-track-timeline-list"></ol>
+          <div id="numeric-track-result-compare-panel" class="numeric-track-compare-panel hidden"></div>
+          <div id="numeric-track-result-compare-history-panel" class="numeric-track-compare-history-panel hidden"></div>
+        </section>
 
         <div class="browse-filters">
           <select id="filter-grade">
@@ -82,6 +104,138 @@
         </div>
 
         <div id="browse-legacy-guide-hint" class="hint browse-legacy-guide-hint hidden"></div>
+        <section
+          id="teacher-feedback-preview-panel"
+          class="teacher-feedback-preview-panel"
+          data-teacher-feedback-preview-panel
+          aria-label="교사 피드백 미리보기"
+        ></section>
+        <section
+          id="classroom-operations-panel-preview"
+          class="classroom-operations-panel-preview"
+          data-classroom-operations-panel-preview
+          aria-label="수업 운영 패널 미리보기"
+        ></section>
+        <section
+          id="benchmark-baseline-local-snapshot"
+          class="benchmark-baseline-local-snapshot"
+          data-benchmark-baseline-local-snapshot
+          aria-label="Benchmark baseline 로컬 스냅샷"
+        ></section>
+        <section
+          id="release-review-packet-dashboard"
+          class="release-review-packet-dashboard"
+          data-release-review-packet-dashboard
+          aria-label="릴리스 검토 패킷 대시보드"
+        ></section>
+        <section
+          id="lesson-publication-review-surface"
+          class="lesson-publication-review-surface"
+          data-lesson-publication-review-surface
+          aria-label="수업 공개 검토 표면"
+        ></section>
+        <section
+          id="ma3-regression-gate-matrix"
+          class="ma3-regression-gate-matrix"
+          data-ma3-regression-gate-matrix
+          aria-label="마-3 회귀 게이트 매트릭스"
+        ></section>
+        <section
+          id="ma3-next-queue-coordinate-lock"
+          class="ma3-next-queue-coordinate-lock"
+          data-ma3-next-queue-coordinate-lock
+          aria-label="마-3 다음 큐 좌표 잠금"
+        ></section>
+        <section
+          id="operations-preview-stage-closure"
+          class="operations-preview-stage-closure"
+          data-operations-preview-stage-closure
+          aria-label="Studio operations preview stage closure"
+        ></section>
+        <section
+          id="productization-stage-rebase"
+          class="productization-stage-rebase"
+          data-productization-stage-rebase
+          aria-label="Studio productization stage rebase"
+        ></section>
+        <section
+          id="seamgrim-numeric-track-consolidation"
+          class="seamgrim-numeric-track-consolidation"
+          data-seamgrim-numeric-track-consolidation
+          aria-label="Seamgrim numeric track consolidation"
+        ></section>
+        <section
+          id="numeric-report-workflow-stage"
+          class="numeric-report-workflow-stage"
+          data-numeric-report-workflow-stage
+          aria-label="Studio numeric report workflow consolidation stage"
+        ></section>
+        <section
+          id="numeric-result-report-stage"
+          class="numeric-result-report-stage"
+          data-numeric-result-report-stage
+          aria-label="Studio numeric result report consolidation stage"
+        ></section>
+        <section
+          id="productization-stage-closure"
+          class="productization-stage-closure"
+          data-productization-stage-closure
+          aria-label="Studio productization stage closure"
+        ></section>
+        <section
+          id="post-super-long-rebase"
+          class="post-super-long-rebase"
+          data-post-super-long-rebase
+          aria-label="Studio post-super-long follow-up rebase"
+        ></section>
+        <section
+          id="public-release-approval-recheck"
+          class="public-release-approval-recheck"
+          data-public-release-approval-recheck
+          aria-label="Studio public release approval recheck"
+        ></section>
+        <section
+          id="local-release-rehearsal-check"
+          class="local-release-rehearsal-check"
+          data-local-release-rehearsal-check
+          aria-label="Studio local release rehearsal check"
+        ></section>
+        <section
+          id="publication-artifact-dry-run"
+          class="publication-artifact-dry-run"
+          data-publication-artifact-dry-run
+          aria-label="Studio publication artifact dry-run"
+        ></section>
+        <section
+          id="teacher-feedback-loop-seed"
+          class="teacher-feedback-loop-seed"
+          data-teacher-feedback-loop-seed
+          aria-label="Studio teacher feedback loop seed"
+        ></section>
+        <section
+          id="classroom-operations-triage"
+          class="classroom-operations-triage"
+          data-classroom-operations-triage
+          aria-label="Studio classroom operations triage"
+        ></section>
+        <section
+          id="benchmark-baseline-prep-dry-run"
+          class="benchmark-baseline-prep-dry-run"
+          data-benchmark-baseline-prep-dry-run
+          aria-label="Studio benchmark baseline prep dry-run"
+        ></section>
+        <section
+          id="next-roadmap-v2-coordinate-lock"
+          class="next-roadmap-v2-coordinate-lock"
+          data-next-roadmap-v2-coordinate-lock
+          aria-label="Studio next ROADMAP_V2 coordinate lock"
+        ></section>
+        <section
+          id="ma3-next-development-queue-rebase"
+          class="ma3-next-development-queue-rebase"
+          data-ma3-next-development-queue-rebase
+          aria-label="Studio MA3 next development queue rebase"
+        ></section>
         <div class="catalog-body">
           <div id="lesson-card-grid" class="card-grid"></div>
           <aside id="catalog-detail-panel" class="catalog-detail-panel hidden">
@@ -92,6 +246,7 @@
             <div id="detail-curriculum" class="detail-curriculum"></div>
             <div class="detail-actions">
               <button id="btn-open-in-studio" class="btn-primary" type="button">작업실에서 실행하기</button>
+              <button id="btn-copy-numeric-track-report" class="ghost hidden" type="button">수치 보고서 복사</button>
               <button id="btn-detail-close" class="ghost" type="button">닫기</button>
             </div>
           </aside>
@@ -106,6 +261,12 @@
             <button class="main-shell-tab" data-main-tab-target="browse" type="button">교과</button>
             <button class="main-shell-tab active" data-main-tab-target="studio" type="button">작업실</button>
           </nav>
+          <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
+            <span class="shell-status-chip" data-shell-current-screen>작업실</span>
+            <span class="shell-status-chip" data-shell-source-label>새 작업</span>
+            <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
+            <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
+          </div>
           <span class="screen-title" id="editor-title">DDN 편집</span>
           <div class="editor-actions">
             <button id="btn-run-from-editor" class="btn-primary" type="button">▶ 작업실에서 실행</button>
@@ -169,12 +330,26 @@
               <button class="main-shell-tab" data-main-tab-target="browse" type="button">교과</button>
               <button class="main-shell-tab active" data-main-tab-target="studio" type="button">작업실</button>
             </nav>
+            <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
+              <span class="shell-status-chip" data-shell-current-screen>작업실</span>
+              <span class="shell-status-chip" data-shell-source-label>새 작업</span>
+              <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
+              <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
+            </div>
             <span id="run-lesson-title" class="lesson-title-display">-</span>
             <button id="btn-overlay-toggle" class="ghost" type="button">겹보기</button>
             <button id="btn-advanced-run" class="ghost" type="button">⚙</button>
           </div>
           <div class="run-control-bar">
             <span id="studio-source-label" class="studio-source-label">새 작업</span>
+            <div id="run-preset-rail" class="run-preset-rail" data-run-preset-rail aria-label="실행 프리셋">
+              <span class="run-preset-chip" data-run-preset-launch-kind>수동</span>
+              <span class="run-preset-chip" data-run-preset-onboarding>기본 시작</span>
+              <span class="run-preset-chip" data-run-preset-layout>layout: split</span>
+              <span class="run-preset-chip" data-run-preset-views>보기: -</span>
+              <span class="run-preset-chip hidden" data-run-preset-numeric-track>수치트랙: -</span>
+              <span class="run-preset-chip hidden" data-run-result-numeric-link>수치결과: -</span>
+            </div>
             <button id="btn-studio-new" class="ghost" type="button">+ 새로 만들기</button>
             <span class="run-control-sep"></span>
             <button id="btn-ddn-open" type="button">↑ 열기</button>

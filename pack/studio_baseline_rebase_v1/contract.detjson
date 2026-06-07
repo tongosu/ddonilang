@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_baseline_rebase_v1",
+  "kind": "planning_inventory_marker",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_BASELINE_REBASE_V1",
+  "next_item": "SEAMGRIM_WORKBENCH_SHELL_V1",
+  "requires_docs_ssot_clean": true,
+  "inventory_groups": [
+    "seamgrim_ui_shell",
+    "lesson_loader",
+    "block_editor_roundtrip",
+    "wasm_runtime",
+    "studio_report_checkers"
+  ]
+}

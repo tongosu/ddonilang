@@ -1,0 +1,55 @@
+{
+  "schema": "ddn.studio.private_productization_queue.v1",
+  "id": "STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1",
+  "based_on": "STUDIO_RELEASE_APPROVAL_WAIT_STATE_CLOSURE_V1",
+  "current_release_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "required_release_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "release_execution_selected": false,
+  "generic_next_dev_request_is_approval": false,
+  "automatic_next_release_item": false,
+  "next_recommended_item": "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1",
+  "queue": [
+    {
+      "id": "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1",
+      "kind": "checker_documentation_only",
+      "summary": "Re-inventory current private Studio productization baseline before choosing the next implementation slice."
+    },
+    {
+      "id": "SEAMGRIM_WORKBENCH_POLISH_V2",
+      "kind": "private_product_hardening",
+      "summary": "Improve local workbench ergonomics after rebase."
+    },
+    {
+      "id": "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+      "kind": "private_product_hardening",
+      "summary": "Curate local lesson and library metadata paths."
+    },
+    {
+      "id": "MALBLOCK_ROUNDTRIP_STABILITY_V1",
+      "kind": "private_product_hardening",
+      "summary": "Harden block-to-DDN and DDN-to-block roundtrip evidence."
+    },
+    {
+      "id": "STUDIO_DIAGNOSTIC_FIXIT_APPLY_GATE_V1",
+      "kind": "approval_gated_private_feature_rebase",
+      "summary": "Evaluate an explicit apply gate for diagnostic fix-it after preview-only closure."
+    }
+  ],
+  "blocked_until_release_approval": [
+    "studio_public_release_execution",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false
+}

@@ -1,0 +1,1 @@
+{"id":"c01_seamgrim_numeric_track_lesson_preview_marker","cmd":["run","pack/seamgrim_numeric_track_lesson_preview_v1/input.ddn"],"stdout":["SEAMGRIM_NUMERIC_TRACK_LESSON_PREVIEW_V1","studio numeric track lesson preview sealed","preview schema: seamgrim.numeric_track_lesson_preview.v1","next: SEAMGRIM_NUMERIC_TRACK_REPORT_EXPORT_V1"],"exit_code":0}

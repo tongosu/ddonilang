@@ -1,0 +1,1 @@
+{"id":"c01_studio_release_candidate_marker","cmd":["run","pack/studio_release_candidate_v1/input.ddn"],"stdout":["STUDIO_RELEASE_CANDIDATE_V1","studio release candidate matrix sealed","next: explicit user selection required"],"exit_code":0}

@@ -1,0 +1,25 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_numeric_track_result_compare_history_report_table_status_badge_a11y_status_v1",
+  "kind": "studio_numeric_track_result_compare_history_report_table_status_badge_a11y_status",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "replay_claim": false,
+  "closed_by": "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_V1",
+  "based_on": "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_EXPORT_V1",
+  "browser_runner": "tests/seamgrim_numeric_track_result_compare_history_report_table_status_badge_a11y_status_runner.mjs",
+  "track_id": "studio_numeric_curriculum_track_v1",
+  "result_compare_history_report_table_status_badge_a11y_status_schema": "seamgrim.numeric_track_result_compare_history_report_table_status_badge_a11y_status.v1",
+  "source_schema": "seamgrim.numeric_track_result_compare_history_report_table_status_badge_a11y_export.v1",
+  "status_claim": "metadata_status",
+  "covers": [
+    "numeric_track_result_compare_history_report_table_status_badge_a11y_status_model",
+    "numeric_track_result_compare_history_report_table_status_badge_a11y_status_text",
+    "numeric_track_result_compare_history_report_table_status_badge_a11y_status_dom",
+    "numeric_track_compare_history_report_table_status_badge_a11y_status_no_replay_boundary"
+  ],
+  "next_item": "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_V1",
+  "requires_docs_ssot_clean": true
+}

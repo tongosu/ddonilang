@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_private_productization_queue_v1",
+  "kind": "studio_private_productization_queue",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1",
+  "queue": "pack/studio_private_productization_queue_v1/queue.detjson",
+  "report": "docs/studio/PRIVATE_PRODUCTIZATION_QUEUE_V1.md",
+  "based_on": "STUDIO_RELEASE_APPROVAL_WAIT_STATE_CLOSURE_V1",
+  "current_release_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "next_recommended_item": "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1",
+  "release_execution_selected": false,
+  "generic_next_dev_request_is_approval": false,
+  "automatic_next_release_item": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "requires_docs_ssot_clean": true
+}

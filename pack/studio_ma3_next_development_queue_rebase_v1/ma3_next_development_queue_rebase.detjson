@@ -1,0 +1,145 @@
+{
+  "schema": "ddn.studio.ma3_next_development_queue_rebase.v1",
+  "work_item": "STUDIO_MA3_NEXT_DEVELOPMENT_QUEUE_REBASE_V1",
+  "based_on": "STUDIO_NEXT_ROADMAP_V2_COORDINATE_LOCK_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinates": [
+    "하-3",
+    "타-3"
+  ],
+  "ma3_next_development_queue_rebase_claim": true,
+  "explicit_next_development_selection_claim": true,
+  "selected_default_coordinate": "마-3",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": true,
+  "new_automatic_queue_claim": false,
+  "release_approval_claim": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "benchmark_execution_claim": false,
+  "performance_baseline_generation_claim": false,
+  "performance_baseline_publication_claim": false,
+  "lts_certification_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "public_link_creation_claim": false,
+  "install_enablement_claim": false,
+  "publication_snapshot_emit_claim": false,
+  "archive_generation_claim": false,
+  "publication_checksum_generation_claim": false,
+  "artifact_signing_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "permission_system_claim": false,
+  "result_replay_claim": false,
+  "source_coordinate_lock": "pack/studio_next_roadmap_v2_coordinate_lock_v1/next_roadmap_v2_coordinate_lock.detjson",
+  "changed_product_files": [
+    "solutions/seamgrim_ui_mvp/ui/studio_ma3_next_development_queue_rebase.js",
+    "solutions/seamgrim_ui_mvp/ui/app.js",
+    "solutions/seamgrim_ui_mvp/ui/index.html",
+    "solutions/seamgrim_ui_mvp/ui/styles.css",
+    "tests/studio_ma3_next_development_queue_rebase_runner.mjs"
+  ],
+  "closure_tier": "닫힘-동작",
+  "browser_runner": "tests/studio_ma3_next_development_queue_rebase_runner.mjs",
+  "queue_plan": {
+    "closed": 1,
+    "total": 8,
+    "percent": 13,
+    "status": "open",
+    "items": [
+      {
+        "id": "STUDIO_MA3_NEXT_DEVELOPMENT_QUEUE_REBASE_V1",
+        "coordinate": "마-3",
+        "status": "closed",
+        "claim": "explicit next development denominator lock"
+      },
+      {
+        "id": "STUDIO_TEACHER_FEEDBACK_SURFACE_PREVIEW_V1",
+        "coordinate": "하-3",
+        "status": "next",
+        "claim": "local teacher feedback preview surface only"
+      },
+      {
+        "id": "STUDIO_CLASSROOM_OPERATIONS_PANEL_PREVIEW_V1",
+        "coordinate": "하-3",
+        "status": "planned",
+        "claim": "local classroom operations panel preview only"
+      },
+      {
+        "id": "STUDIO_BENCHMARK_BASELINE_LOCAL_SNAPSHOT_V1",
+        "coordinate": "타-3",
+        "status": "planned",
+        "claim": "local benchmark baseline snapshot only"
+      },
+      {
+        "id": "STUDIO_RELEASE_REVIEW_PACKET_DASHBOARD_V1",
+        "coordinate": "마-3",
+        "status": "planned",
+        "claim": "approval-safe release review dashboard only"
+      },
+      {
+        "id": "STUDIO_LESSON_PUBLICATION_REVIEW_SURFACE_V1",
+        "coordinate": "마-3",
+        "status": "planned",
+        "claim": "local lesson publication review surface only"
+      },
+      {
+        "id": "STUDIO_MA3_REGRESSION_GATE_MATRIX_V1",
+        "coordinate": "타-3",
+        "status": "planned",
+        "claim": "local regression gate matrix only"
+      },
+      {
+        "id": "STUDIO_MA3_NEXT_QUEUE_COORDINATE_LOCK_V1",
+        "coordinate": "마-3",
+        "status": "planned",
+        "claim": "next queue coordinate lock only"
+      }
+    ]
+  },
+  "preflight_commands": [
+    "node tests/studio_ma3_next_development_queue_rebase_runner.mjs",
+    "python tests/run_studio_next_roadmap_v2_coordinate_lock_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "blocked_actions": [
+    "release_approval",
+    "release_execution",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "public_link_create",
+    "package_install_enable",
+    "publication_snapshot_emit",
+    "archive_generation",
+    "checksum_manifest_generation_for_publication",
+    "artifact_signing",
+    "benchmark_execution",
+    "performance_baseline_generation",
+    "performance_baseline_publication",
+    "lts_certification_publish",
+    "cloud_sync",
+    "account_setup",
+    "permission_system_change",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation"
+  ],
+  "previous_followup_plan": {
+    "closed": 8,
+    "total": 8,
+    "percent": 100,
+    "status": "sealed"
+  },
+  "roadmap_v2_product_behavior": {
+    "closed": 89,
+    "total": 90,
+    "percent": 99
+  },
+  "next_item": "STUDIO_TEACHER_FEEDBACK_SURFACE_PREVIEW_V1"
+}

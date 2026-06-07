@@ -1,0 +1,1 @@
+{"id":"c01_studio_release_approval_chain_closure_marker","cmd":["run","pack/studio_release_approval_chain_closure_v1/input.ddn"],"stdout":["STUDIO_RELEASE_APPROVAL_CHAIN_CLOSURE_V1","studio release approval chain closure sealed","next: AWAIT_EXPLICIT_RELEASE_APPROVAL"],"exit_code":0}

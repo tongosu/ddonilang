@@ -1,0 +1,126 @@
+{
+  "schema": "ddn.studio.next_roadmap_v2_coordinate_lock.v1",
+  "work_item": "STUDIO_NEXT_ROADMAP_V2_COORDINATE_LOCK_V1",
+  "based_on": "STUDIO_BENCHMARK_BASELINE_PREP_DRY_RUN_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinate": "타-3",
+  "next_roadmap_v2_coordinate_lock_claim": true,
+  "selected_default_coordinate": "마-3",
+  "next_state": "AWAIT_NEXT_DEVELOPMENT_SELECTION",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": true,
+  "new_automatic_queue_claim": false,
+  "benchmark_execution_claim": false,
+  "performance_baseline_generation_claim": false,
+  "performance_baseline_publication_claim": false,
+  "lts_certification_claim": false,
+  "release_approval_claim": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "public_link_creation_claim": false,
+  "install_enablement_claim": false,
+  "publication_snapshot_emit_claim": false,
+  "archive_generation_claim": false,
+  "publication_checksum_generation_claim": false,
+  "artifact_signing_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "permission_system_claim": false,
+  "result_replay_claim": false,
+  "source_benchmark_baseline_prep_dry_run": "pack/studio_benchmark_baseline_prep_dry_run_v1/benchmark_baseline_prep_dry_run.detjson",
+  "source_post_super_long_rebase": "pack/studio_post_super_long_rebase_v1/post_super_long_rebase.detjson",
+  "changed_product_files": [
+    "solutions/seamgrim_ui_mvp/ui/studio_next_roadmap_v2_coordinate_lock.js",
+    "solutions/seamgrim_ui_mvp/ui/app.js",
+    "solutions/seamgrim_ui_mvp/ui/index.html",
+    "solutions/seamgrim_ui_mvp/ui/styles.css",
+    "tests/studio_next_roadmap_v2_coordinate_lock_runner.mjs"
+  ],
+  "closure_tier": "닫힘-동작",
+  "browser_runner": "tests/studio_next_roadmap_v2_coordinate_lock_runner.mjs",
+  "coordinate_decisions": [
+    {
+      "id": "default_next_coordinate",
+      "decision": "마-3",
+      "reason": "Studio-first productization remains the default next ROADMAP_V2 coordinate after the follow-up queue closes.",
+      "locked": true,
+      "opens_new_queue": false,
+      "runtime_claim": false
+    },
+    {
+      "id": "studio_first_continuity",
+      "decision": "preserve_studio_first",
+      "reason": "The closed super-long and post-super-long evidence stays centered on Studio productization.",
+      "locked": true,
+      "opens_new_queue": false,
+      "runtime_claim": false
+    },
+    {
+      "id": "post_followup_denominator_closed",
+      "decision": "8/8_closed",
+      "reason": "The post-super-long follow-up denominator is complete and should not be extended implicitly.",
+      "locked": true,
+      "opens_new_queue": false,
+      "runtime_claim": false
+    },
+    {
+      "id": "release_execution_still_approval_gated",
+      "decision": "approval_phrase_required",
+      "reason": "Release execution remains blocked without the exact approval phrase.",
+      "locked": true,
+      "opens_new_queue": false,
+      "runtime_claim": false
+    },
+    {
+      "id": "next_queue_requires_explicit_selection",
+      "decision": "AWAIT_NEXT_DEVELOPMENT_SELECTION",
+      "reason": "A new denominator or implementation queue requires the next explicit development selection.",
+      "locked": true,
+      "opens_new_queue": false,
+      "runtime_claim": false
+    }
+  ],
+  "preflight_commands": [
+    "node tests/studio_next_roadmap_v2_coordinate_lock_runner.mjs",
+    "python tests/run_studio_benchmark_baseline_prep_dry_run_check.py",
+    "python tests/run_studio_post_super_long_rebase_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "blocked_actions": [
+    "new_automatic_queue_open",
+    "release_approval",
+    "release_execution",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "public_link_create",
+    "package_install_enable",
+    "publication_snapshot_emit",
+    "archive_generation",
+    "checksum_manifest_generation_for_publication",
+    "artifact_signing",
+    "benchmark_execution",
+    "performance_baseline_generation",
+    "performance_baseline_publication",
+    "lts_certification_publish",
+    "cloud_sync",
+    "account_setup",
+    "permission_system_change"
+  ],
+  "post_super_long_plan": {
+    "closed": 8,
+    "total": 8,
+    "percent": 100,
+    "status": "sealed"
+  },
+  "roadmap_v2_product_behavior": {
+    "closed": 88,
+    "total": 90,
+    "percent": 98
+  },
+  "next_item": null
+}

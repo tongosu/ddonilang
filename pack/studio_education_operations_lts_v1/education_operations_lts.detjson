@@ -1,0 +1,120 @@
+{
+  "schema": "ddn.studio.education_operations_lts.v1",
+  "work_item": "STUDIO_EDUCATION_OPERATIONS_LTS_V1",
+  "based_on": "STUDIO_BENCHMARK_LTS_MATRIX_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinate": "타-3",
+  "education_operations_lts_readiness_claim": true,
+  "lts_certification_claim": false,
+  "product_code_change": false,
+  "runtime_claim": false,
+  "benchmark_execution_claim": false,
+  "performance_baseline_claim": false,
+  "release_approval_claim": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "public_link_creation_claim": false,
+  "install_enablement_claim": false,
+  "publication_snapshot_emit_claim": false,
+  "archive_generation_claim": false,
+  "publication_checksum_generation_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "permission_system_claim": false,
+  "active_allowlist_mutation": false,
+  "source_benchmark_lts_matrix": "pack/studio_benchmark_lts_matrix_v1/benchmark_lts_matrix.detjson",
+  "operations_domains": [
+    {
+      "id": "classroom_reporting",
+      "doc": "STUDIO_CLASSROOM_REPORT_WORKFLOW_V1.md",
+      "checker": "tests/run_studio_classroom_report_workflow_check.py",
+      "pack": "studio_classroom_report_workflow_v1",
+      "required": true
+    },
+    {
+      "id": "lesson_authoring_run",
+      "doc": "STUDIO_LESSON_AUTHORING_RUN_INTEGRATION_V1.md",
+      "checker": "tests/run_studio_lesson_authoring_run_integration_check.py",
+      "pack": "studio_lesson_authoring_run_integration_v1",
+      "required": true
+    },
+    {
+      "id": "malblock_workbench",
+      "doc": "STUDIO_MALBLOCK_WORKBENCH_INTEGRATION_V1.md",
+      "checker": "tests/run_studio_malblock_workbench_integration_check.py",
+      "pack": "studio_malblock_workbench_integration_v1",
+      "required": true
+    },
+    {
+      "id": "diagnostic_fixit",
+      "doc": "STUDIO_DIAGNOSTIC_FIXIT_INTEGRATION_V1.md",
+      "checker": "tests/run_studio_diagnostic_fixit_integration_check.py",
+      "pack": "studio_diagnostic_fixit_integration_v1",
+      "required": true
+    },
+    {
+      "id": "numeric_result_reporting",
+      "doc": "STUDIO_NUMERIC_RESULT_REPORT_CONSOLIDATION_V1.md",
+      "checker": "tests/run_studio_numeric_result_report_consolidation_check.py",
+      "pack": "studio_numeric_result_report_consolidation_v1",
+      "required": true
+    },
+    {
+      "id": "public_lesson_publication_prep",
+      "doc": "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md",
+      "checker": "tests/run_studio_public_lesson_publication_prep_check.py",
+      "pack": "studio_public_lesson_publication_prep_v1",
+      "required": true
+    },
+    {
+      "id": "registry_share_seed",
+      "doc": "STUDIO_REGISTRY_SHARE_SEED_V1.md",
+      "checker": "tests/run_studio_registry_share_seed_check.py",
+      "pack": "studio_registry_share_seed_v1",
+      "required": true
+    },
+    {
+      "id": "release_approval_continuity",
+      "doc": "STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1.md",
+      "checker": "tests/run_studio_release_approval_packet_continuity_check.py",
+      "pack": "studio_release_approval_packet_continuity_v1",
+      "required": true
+    },
+    {
+      "id": "benchmark_lts_matrix",
+      "doc": "STUDIO_BENCHMARK_LTS_MATRIX_V1.md",
+      "checker": "tests/run_studio_benchmark_lts_matrix_check.py",
+      "pack": "studio_benchmark_lts_matrix_v1",
+      "required": true
+    }
+  ],
+  "deferred_post_plan_decisions": [
+    "explicit public release approval",
+    "real LTS certification",
+    "real performance benchmark baseline publication",
+    "cloud/account operations",
+    "permission systems",
+    "post-super-long roadmap rebase"
+  ],
+  "blocked_actions": [
+    "lts_certification_publish",
+    "benchmark_baseline_publish",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication",
+    "public_link_create",
+    "package_install_enable",
+    "publication_snapshot_emit",
+    "permission_system_change"
+  ],
+  "super_long_plan_closed": true,
+  "next_item": "STUDIO_POST_SUPER_LONG_REBASE_V1"
+}

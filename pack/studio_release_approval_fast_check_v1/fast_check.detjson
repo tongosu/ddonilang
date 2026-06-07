@@ -1,0 +1,37 @@
+{
+  "schema": "ddn.studio.release_approval_fast_check.v1",
+  "id": "STUDIO_RELEASE_APPROVAL_FAST_CHECK_V1",
+  "based_on": "STUDIO_RELEASE_APPROVAL_STATUS_SNAPSHOT_V1",
+  "current_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "nested_readiness_execution": false,
+  "structural_sources": [
+    "pack/studio_release_approval_status_snapshot_v1/status_snapshot.detjson",
+    "pack/studio_post_approval_chain_maintenance_queue_v1/maintenance_queue.detjson",
+    "pack/studio_release_approval_chain_closure_v1/closure.detjson",
+    "pack/studio_release_approval_handoff_v1/handoff.detjson",
+    "pack/studio_release_approval_packet_v1/approval_packet.detjson",
+    "pack/studio_release_pre_execution_dry_run_v1/dry_run.detjson",
+    "pack/studio_release_approval_readiness_recheck_v1/readiness.detjson",
+    "pack/studio_public_release_execution_gate_v1/execution_gate.detjson"
+  ],
+  "blocked_until_approval": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication"
+  ],
+  "release_execution_selected": false,
+  "generic_next_dev_request_is_approval": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "next_item": "STUDIO_STALE_RELEASE_DOC_AUDIT_V1"
+}

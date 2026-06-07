@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_diagnostic_fixit_preview_v1",
+  "kind": "studio_diagnostic_fixit_preview_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
+  "browser_runner": "tests/studio_diagnostic_fixit_preview_browser_runner.mjs",
+  "covers": [
+    "diagnostic_normalization_reuse",
+    "block_header_colon_preview",
+    "missing_close_preview",
+    "hash_header_preview",
+    "unsupported_diagnostic_row",
+    "diff_text",
+    "preview_text_formatter"
+  ],
+  "next_item": "STUDIO_CLASSROOM_MODE_V1",
+  "requires_docs_ssot_clean": true
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "ddn.studio.release_notes_draft.v1",
+  "id": "STUDIO_RELEASE_NOTES_DRAFT_V1",
+  "release_notes": "docs/studio/RELEASE_NOTES_DRAFT_V1.md",
+  "based_on": "STUDIO_DOC_INDEX_REFRESH_V1",
+  "release_status": "local_draft_only",
+  "highlight_items": [
+    "STUDIO_BASELINE_REBASE_V1",
+    "SEAMGRIM_WORKBENCH_SHELL_V1",
+    "SEAMGRIM_LESSON_AUTHORING_FLOW_V1",
+    "MALBLOCK_AUTHORING_UI_V1",
+    "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
+    "STUDIO_CLASSROOM_MODE_V1",
+    "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
+    "STUDIO_RELEASE_CANDIDATE_V1",
+    "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1",
+    "STUDIO_RC_CHECKER_COST_TRIM_V1",
+    "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+    "STUDIO_DOC_INDEX_REFRESH_V1"
+  ],
+  "verification_packs": [
+    "studio_release_candidate_v1",
+    "studio_public_release_smoke_matrix_v1",
+    "studio_public_release_execution_gate_v1",
+    "studio_browser_smoke_flake_audit_v1",
+    "studio_doc_index_refresh_v1"
+  ],
+  "blocked_actions": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "public_checksum_manifest_generation"
+  ],
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_RELEASE_NOTES_TEXT_EXPORT_V1"
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_release_pre_execution_dry_run_v1",
+  "kind": "studio_release_pre_execution_dry_run",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_RELEASE_PRE_EXECUTION_DRY_RUN_V1",
+  "dry_run": "pack/studio_release_pre_execution_dry_run_v1/dry_run.detjson",
+  "report": "docs/studio/RELEASE_PRE_EXECUTION_DRY_RUN_V1.md",
+  "based_on": "STUDIO_RELEASE_APPROVAL_READINESS_RECHECK_V1",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "dry_run_only": true,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_RELEASE_DRY_RUN_TEXT_SUMMARY_V1",
+  "requires_docs_ssot_clean": true
+}

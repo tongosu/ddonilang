@@ -1,0 +1,62 @@
+{
+  "schema": "ddn.studio.public_release_prep.matrix.v1",
+  "work_item": "STUDIO_PUBLIC_RELEASE_PREP_REBASE_V1",
+  "based_on": "STUDIO_RELEASE_CANDIDATE_V1",
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "cloud_sync_claim": false,
+  "public_registry_claim": false,
+  "gates": [
+    {
+      "id": "rc_checker",
+      "command": "python tests/run_studio_release_candidate_check.py",
+      "required": true
+    },
+    {
+      "id": "rc_pack_golden",
+      "command": "python tests/run_pack_golden.py studio_release_candidate_v1",
+      "required": true
+    },
+    {
+      "id": "local_packaging_checker",
+      "command": "python tests/run_studio_local_share_and_packaging_check.py",
+      "required": true
+    },
+    {
+      "id": "docs_ssot_clean",
+      "command": "git status --short -- docs/ssot",
+      "required": true
+    }
+  ],
+  "blocked_actions": [
+    {
+      "id": "github_release_create",
+      "requires_explicit_approval": true
+    },
+    {
+      "id": "public_upload",
+      "requires_explicit_approval": true
+    },
+    {
+      "id": "registry_publish",
+      "requires_explicit_approval": true
+    },
+    {
+      "id": "cloud_sync",
+      "requires_explicit_approval": true
+    },
+    {
+      "id": "account_setup",
+      "requires_explicit_approval": true
+    },
+    {
+      "id": "artifact_signing",
+      "requires_explicit_approval": true
+    }
+  ],
+  "next_options": [
+    "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1",
+    "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1",
+    "STUDIO_PUBLIC_RELEASE_EXECUTION_V1"
+  ]
+}

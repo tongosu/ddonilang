@@ -1,0 +1,8 @@
+# seamgrim_numeric_track_result_compare_history_report_table_status_badge_a11y_export_v1
+
+Studio numeric track result compare history report table status badge accessibility export evidence.
+
+This pack seals `SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_EXPORT_V1`.
+
+The product artifact schema is
+`seamgrim.numeric_track_result_compare_history_report_table_status_badge_a11y_export.v1`.

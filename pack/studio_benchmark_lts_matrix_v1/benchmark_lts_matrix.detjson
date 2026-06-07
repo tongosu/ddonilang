@@ -1,0 +1,88 @@
+{
+  "schema": "ddn.studio.benchmark_lts_matrix.v1",
+  "work_item": "STUDIO_BENCHMARK_LTS_MATRIX_V1",
+  "based_on": "STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinate": "타-3",
+  "product_code_change": false,
+  "runtime_claim": false,
+  "benchmark_execution_claim": false,
+  "performance_baseline_claim": false,
+  "lts_certification_claim": false,
+  "release_approval_claim": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "public_link_creation_claim": false,
+  "install_enablement_claim": false,
+  "publication_snapshot_emit_claim": false,
+  "archive_generation_claim": false,
+  "publication_checksum_generation_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "permission_system_claim": false,
+  "active_allowlist_mutation": false,
+  "source_continuity": "pack/studio_release_approval_packet_continuity_v1/continuity.detjson",
+  "matrix_entries": [
+    {
+      "id": "approval_continuity",
+      "kind": "approval_chain",
+      "checker": "tests/run_studio_release_approval_packet_continuity_check.py",
+      "pack": "studio_release_approval_packet_continuity_v1",
+      "required": true
+    },
+    {
+      "id": "registry_share_seed",
+      "kind": "registry_seed",
+      "checker": "tests/run_studio_registry_share_seed_check.py",
+      "pack": "studio_registry_share_seed_v1",
+      "required": true
+    },
+    {
+      "id": "browser_smoke_matrix",
+      "kind": "browser_smoke",
+      "checker": "tests/run_studio_browser_smoke_matrix_hardening_check.py",
+      "pack": "studio_browser_smoke_matrix_hardening_v1",
+      "required": true
+    },
+    {
+      "id": "local_packaging",
+      "kind": "local_packaging",
+      "checker": "tests/run_studio_local_packaging_consolidation_check.py",
+      "pack": "studio_local_packaging_consolidation_v1",
+      "required": true
+    },
+    {
+      "id": "public_lesson_publication_prep",
+      "kind": "publication_prep",
+      "checker": "tests/run_studio_public_lesson_publication_prep_check.py",
+      "pack": "studio_public_lesson_publication_prep_v1",
+      "required": true
+    }
+  ],
+  "deferred_heavy_gates": [
+    "full CI profile matrix",
+    "real performance benchmark baseline",
+    "public release execution",
+    "cloud/account integration"
+  ],
+  "blocked_actions": [
+    "benchmark_baseline_publish",
+    "lts_certification_publish",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication",
+    "public_link_create",
+    "package_install_enable",
+    "publication_snapshot_emit",
+    "permission_system_change"
+  ],
+  "next_item": "STUDIO_EDUCATION_OPERATIONS_LTS_V1"
+}

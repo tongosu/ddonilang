@@ -1,0 +1,27 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_numeric_track_lesson_preview_v1",
+  "kind": "studio_numeric_track_lesson_preview",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "closed_by": "SEAMGRIM_NUMERIC_TRACK_LESSON_PREVIEW_V1",
+  "based_on": "SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1",
+  "browser_runner": "tests/seamgrim_numeric_track_lesson_preview_runner.mjs",
+  "track_id": "studio_numeric_curriculum_track_v1",
+  "preview_schema": "seamgrim.numeric_track_lesson_preview.v1",
+  "lesson_anchors": [
+    "rep_math_function_line_v1",
+    "rep_phys_projectile_xy_v1",
+    "rep_econ_supply_demand_tax_v1"
+  ],
+  "covers": [
+    "numeric_track_lesson_preview_model",
+    "numeric_track_detail_panel_sections",
+    "numeric_track_detail_preview_text",
+    "numeric_track_detail_browser_instrumentation"
+  ],
+  "next_item": "SEAMGRIM_NUMERIC_TRACK_REPORT_EXPORT_V1",
+  "requires_docs_ssot_clean": true
+}

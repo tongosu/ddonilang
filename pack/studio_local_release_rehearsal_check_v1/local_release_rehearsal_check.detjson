@@ -1,0 +1,92 @@
+{
+  "schema": "ddn.studio.local_release_rehearsal_check.v1",
+  "work_item": "STUDIO_LOCAL_RELEASE_REHEARSAL_CHECK_V1",
+  "based_on": "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinate": "타-3",
+  "local_rehearsal_check_claim": true,
+  "product_code_change": true,
+  "product_ui_change": true,
+  "runtime_claim": false,
+  "release_approval_claim": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "archive_generation_claim": false,
+  "publication_checksum_generation_claim": false,
+  "artifact_signing_claim": false,
+  "lts_certification_claim": false,
+  "benchmark_execution_claim": false,
+  "performance_baseline_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "public_link_creation_claim": false,
+  "install_enablement_claim": false,
+  "publication_snapshot_emit_claim": false,
+  "cloud_sync_claim": false,
+  "account_setup_claim": false,
+  "permission_system_claim": false,
+  "active_allowlist_mutation": false,
+  "source_approval_recheck": "pack/studio_public_release_approval_recheck_v1/public_release_approval_recheck.detjson",
+  "source_pre_execution_dry_run": "pack/studio_release_pre_execution_dry_run_v1/dry_run.detjson",
+  "source_release_asset_plan": "pack/studio_public_release_asset_plan_v1/release_assets.detjson",
+  "source_approval_continuity": "pack/studio_release_approval_packet_continuity_v1/continuity.detjson",
+  "dry_run_only": true,
+  "planned_asset_ids": [
+    "studio-static-bundle",
+    "studio-local-package-sample",
+    "studio-rc-matrix",
+    "studio-checksum-manifest"
+  ],
+  "all_planned_assets_generated_now": false,
+  "changed_product_files": [
+    "solutions/seamgrim_ui_mvp/ui/studio_local_release_rehearsal_check.js",
+    "solutions/seamgrim_ui_mvp/ui/app.js",
+    "solutions/seamgrim_ui_mvp/ui/index.html",
+    "solutions/seamgrim_ui_mvp/ui/styles.css",
+    "tests/studio_local_release_rehearsal_check_runner.mjs"
+  ],
+  "rehearsal_rows": [
+    "approval_recheck_anchor",
+    "pre_execution_dry_run_anchor",
+    "asset_plan_anchor",
+    "approval_continuity_anchor",
+    "publication_artifact_handoff"
+  ],
+  "closure_tier": "닫힘-동작",
+  "browser_runner": "tests/studio_local_release_rehearsal_check_runner.mjs",
+  "preflight_commands": [
+    "node tests/studio_local_release_rehearsal_check_runner.mjs",
+    "python tests/run_studio_public_release_approval_recheck_check.py",
+    "python tests/run_studio_release_pre_execution_dry_run_check.py",
+    "python tests/run_studio_public_release_asset_plan_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "blocked_in_rehearsal": [
+    "release_approval",
+    "release_execution",
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "public_link_create",
+    "package_install_enable",
+    "publication_snapshot_emit",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication",
+    "artifact_signing",
+    "cloud_sync",
+    "account_setup",
+    "permission_system_change"
+  ],
+  "post_super_long_plan": {
+    "closed": 3,
+    "total": 8,
+    "percent": 38
+  },
+  "roadmap_v2_product_behavior": {
+    "closed": 90,
+    "total": 90,
+    "percent": 100
+  },
+  "next_item": "STUDIO_PUBLICATION_ARTIFACT_DRY_RUN_V1"
+}

@@ -1,0 +1,35 @@
+{
+  "schema": "ddn.studio.release_approval_readiness_recheck.v1",
+  "id": "STUDIO_RELEASE_APPROVAL_READINESS_RECHECK_V1",
+  "based_on": "STUDIO_RELEASE_NOTES_TEXT_EXPORT_V1",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "generic_next_dev_request_is_approval": false,
+  "preflight_ids": [
+    "smoke_matrix",
+    "asset_plan",
+    "release_candidate",
+    "docs_ssot_clean"
+  ],
+  "blocked_until_approval": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication"
+  ],
+  "cross_checked_sources": [
+    "pack/studio_public_release_execution_gate_v1/execution_gate.detjson",
+    "pack/studio_release_notes_text_export_v1/text_export_manifest.detjson",
+    "docs/studio/RELEASE_NOTES_DRAFT_V1.md",
+    "docs/studio/RELEASE_NOTES_DRAFT_V1.txt"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_RELEASE_PRE_EXECUTION_DRY_RUN_V1"
+}

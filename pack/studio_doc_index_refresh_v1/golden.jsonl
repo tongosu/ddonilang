@@ -1,0 +1,1 @@
+{"id":"c01_studio_doc_index_refresh_marker","cmd":["run","pack/studio_doc_index_refresh_v1/input.ddn"],"stdout":["STUDIO_DOC_INDEX_REFRESH_V1","studio doc index refresh sealed","next: STUDIO_RELEASE_NOTES_DRAFT_V1"],"exit_code":0}

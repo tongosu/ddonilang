@@ -1,0 +1,26 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_numeric_track_result_reopen_v1",
+  "kind": "studio_numeric_track_result_reopen",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "replay_claim": false,
+  "closed_by": "SEAMGRIM_NUMERIC_TRACK_RESULT_REOPEN_V1",
+  "based_on": "SEAMGRIM_NUMERIC_TRACK_RESULT_TIMELINE_VIEW_V1",
+  "browser_runner": "tests/seamgrim_numeric_track_result_reopen_runner.mjs",
+  "track_id": "studio_numeric_curriculum_track_v1",
+  "result_reopen_schema": "seamgrim.numeric_track_result_reopen_target.v1",
+  "source_schema": "seamgrim.numeric_track_result_timeline_view.v1",
+  "reopen_action": "browse_detail",
+  "covers": [
+    "numeric_track_result_reopen_target_model",
+    "numeric_track_result_reopen_target_text",
+    "numeric_track_timeline_reopen_button",
+    "numeric_track_reopen_detail_panel",
+    "numeric_track_reopen_no_replay_claim"
+  ],
+  "next_item": "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_V1",
+  "requires_docs_ssot_clean": true
+}

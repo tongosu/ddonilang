@@ -1,0 +1,1 @@
+{"cmd":["run","pack/studio_public_lesson_publication_prep_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1","studio public lesson publication prep sealed","publication prep schema: ddn.studio.public_lesson_publication_prep.v1","candidate lessons: 12","next: STUDIO_REGISTRY_SHARE_SEED_V1"]}

@@ -1,0 +1,60 @@
+{
+  "schema": "ddn.studio.public_release.asset_plan.v1",
+  "work_item": "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1",
+  "based_on": "STUDIO_PUBLIC_RELEASE_PREP_REBASE_V1",
+  "asset_generation_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "cloud_sync_claim": false,
+  "public_registry_claim": false,
+  "checksum_policy": {
+    "algorithm": "sha256",
+    "manifest_path": "build/studio_release/SHA256SUMS.txt",
+    "ordering": "path_lexicographic",
+    "scope": "local_build_artifacts_only",
+    "signing": "excluded_v1_approval_gated"
+  },
+  "assets": [
+    {
+      "id": "studio-static-bundle",
+      "planned_path": "build/studio_release/studio-static-bundle.zip",
+      "source": "solutions/seamgrim_ui_mvp/ui",
+      "kind": "static_bundle",
+      "required_files": [
+        "index.html",
+        "app.js",
+        "styles.css"
+      ],
+      "generated_now": false
+    },
+    {
+      "id": "studio-local-package-sample",
+      "planned_path": "build/studio_release/studio-local-package-sample.detjson",
+      "source": "pack/studio_local_share_and_packaging_v1",
+      "kind": "local_package_sample",
+      "generated_now": false
+    },
+    {
+      "id": "studio-rc-matrix",
+      "planned_path": "build/studio_release/studio-rc-matrix.detjson",
+      "source": "pack/studio_release_candidate_v1/rc_matrix.detjson",
+      "kind": "release_candidate_matrix",
+      "generated_now": false
+    },
+    {
+      "id": "studio-checksum-manifest",
+      "planned_path": "build/studio_release/SHA256SUMS.txt",
+      "source": "planned local release artifacts",
+      "kind": "checksum_manifest",
+      "generated_now": false
+    }
+  ],
+  "blocked_actions": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing"
+  ]
+}

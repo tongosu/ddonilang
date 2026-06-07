@@ -1,0 +1,33 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_release_candidate_v1",
+  "kind": "studio_release_candidate_closure",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_RELEASE_CANDIDATE_V1",
+  "matrix": "pack/studio_release_candidate_v1/rc_matrix.detjson",
+  "bundled_packs": [
+    "studio_baseline_rebase_v1",
+    "seamgrim_workbench_shell_v1",
+    "seamgrim_lesson_authoring_flow_v1",
+    "malblock_authoring_ui_v1",
+    "studio_diagnostic_fixit_preview_v1",
+    "studio_classroom_mode_v1",
+    "studio_local_share_and_packaging_v1"
+  ],
+  "checkers": [
+    "tests/run_studio_baseline_rebase_check.py",
+    "tests/run_seamgrim_workbench_shell_check.py",
+    "tests/run_seamgrim_lesson_authoring_flow_check.py",
+    "tests/run_malblock_authoring_ui_check.py",
+    "tests/run_studio_diagnostic_fixit_preview_check.py",
+    "tests/run_studio_classroom_mode_check.py",
+    "tests/run_studio_local_share_and_packaging_check.py"
+  ],
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "cloud_sync_claim": false,
+  "public_registry_claim": false,
+  "next_item": "explicit_user_selection_required",
+  "requires_docs_ssot_clean": true
+}

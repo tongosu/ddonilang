@@ -1,0 +1,59 @@
+{
+  "schema": "ddn.studio.release_pre_execution_dry_run.v1",
+  "id": "STUDIO_RELEASE_PRE_EXECUTION_DRY_RUN_V1",
+  "based_on": "STUDIO_RELEASE_APPROVAL_READINESS_RECHECK_V1",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "dry_run_only": true,
+  "preflight_commands": [
+    "python tests/run_studio_public_release_smoke_matrix_check.py",
+    "python tests/run_studio_public_release_asset_plan_check.py",
+    "python tests/run_studio_release_candidate_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "planned_assets": [
+    {
+      "id": "studio-static-bundle",
+      "planned_path": "build/studio_release/studio-static-bundle.zip",
+      "generated_now": false
+    },
+    {
+      "id": "studio-local-package-sample",
+      "planned_path": "build/studio_release/studio-local-package-sample.detjson",
+      "generated_now": false
+    },
+    {
+      "id": "studio-rc-matrix",
+      "planned_path": "build/studio_release/studio-rc-matrix.detjson",
+      "generated_now": false
+    },
+    {
+      "id": "studio-checksum-manifest",
+      "planned_path": "build/studio_release/SHA256SUMS.txt",
+      "generated_now": false
+    }
+  ],
+  "blocked_in_dry_run": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing",
+    "publication_archive_generation",
+    "checksum_manifest_generation_for_publication"
+  ],
+  "evidence_inputs": [
+    "pack/studio_release_approval_readiness_recheck_v1",
+    "pack/studio_release_notes_text_export_v1",
+    "pack/studio_public_release_asset_plan_v1",
+    "pack/studio_public_release_execution_gate_v1",
+    "docs/studio/RELEASE_NOTES_DRAFT_V1.md",
+    "docs/studio/RELEASE_NOTES_DRAFT_V1.txt"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_RELEASE_DRY_RUN_TEXT_SUMMARY_V1"
+}

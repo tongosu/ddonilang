@@ -1,0 +1,69 @@
+{
+  "schema": "ddn.studio.browser_smoke_matrix_hardening.v1",
+  "work_item": "STUDIO_BROWSER_SMOKE_MATRIX_HARDENING_V1",
+  "based_on": "STUDIO_NUMERIC_RESULT_REPORT_CONSOLIDATION_V1",
+  "primary_coordinate": "마-3",
+  "support_coordinate": "타-3",
+  "product_code_change": false,
+  "runtime_claim": false,
+  "public_release_claim": false,
+  "direct_runner_policy": {
+    "run_each_browser_runner_directly": true,
+    "fixed_ok_line_required": true,
+    "docs_ssot_clean_required": true,
+    "latest_prior_checker_required": "tests/run_studio_numeric_result_report_consolidation_check.py"
+  },
+  "browser_smokes": [
+    {
+      "id": "STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1",
+      "checker": "tests/run_studio_numeric_report_workflow_consolidation_check.py",
+      "runner": "tests/studio_numeric_report_workflow_consolidation_runner.mjs",
+      "ok_line": "studio_numeric_report_workflow_consolidation: ok",
+      "pack": "studio_numeric_report_workflow_consolidation_v1"
+    },
+    {
+      "id": "STUDIO_CLASSROOM_REPORT_WORKFLOW_V1",
+      "checker": "tests/run_studio_classroom_report_workflow_check.py",
+      "runner": "tests/studio_classroom_report_workflow_runner.mjs",
+      "ok_line": "studio_classroom_report_workflow: ok",
+      "pack": "studio_classroom_report_workflow_v1"
+    },
+    {
+      "id": "STUDIO_LESSON_AUTHORING_RUN_INTEGRATION_V1",
+      "checker": "tests/run_studio_lesson_authoring_run_integration_check.py",
+      "runner": "tests/studio_lesson_authoring_run_integration_runner.mjs",
+      "ok_line": "studio_lesson_authoring_run_integration: ok",
+      "pack": "studio_lesson_authoring_run_integration_v1"
+    },
+    {
+      "id": "STUDIO_MALBLOCK_WORKBENCH_INTEGRATION_V1",
+      "checker": "tests/run_studio_malblock_workbench_integration_check.py",
+      "runner": "tests/studio_malblock_workbench_integration_runner.mjs",
+      "ok_line": "studio_malblock_workbench_integration: ok",
+      "pack": "studio_malblock_workbench_integration_v1"
+    },
+    {
+      "id": "STUDIO_DIAGNOSTIC_FIXIT_INTEGRATION_V1",
+      "checker": "tests/run_studio_diagnostic_fixit_integration_check.py",
+      "runner": "tests/studio_diagnostic_fixit_integration_runner.mjs",
+      "ok_line": "studio_diagnostic_fixit_integration: ok",
+      "pack": "studio_diagnostic_fixit_integration_v1"
+    },
+    {
+      "id": "STUDIO_NUMERIC_RESULT_REPORT_CONSOLIDATION_V1",
+      "checker": "tests/run_studio_numeric_result_report_consolidation_check.py",
+      "runner": "tests/studio_numeric_result_report_consolidation_runner.mjs",
+      "ok_line": "studio_numeric_result_report_consolidation: ok",
+      "pack": "studio_numeric_result_report_consolidation_v1"
+    }
+  ],
+  "blocked_actions": [
+    "github_release_create",
+    "public_upload",
+    "registry_publish",
+    "cloud_sync",
+    "account_setup",
+    "artifact_signing"
+  ],
+  "next_item": "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1"
+}

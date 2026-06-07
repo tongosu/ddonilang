@@ -1,0 +1,1 @@
+{"id":"c01_studio_post_release_gate_maintenance_queue_marker","cmd":["run","pack/studio_post_release_gate_maintenance_queue_v1/input.ddn"],"stdout":["STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1","studio post release gate maintenance queue sealed","next: STUDIO_RC_CHECKER_COST_TRIM_V1"],"exit_code":0}

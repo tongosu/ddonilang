@@ -1,0 +1,7 @@
+"STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1" 보여주기.
+"studio public release approval recheck sealed" 보여주기.
+"approval recheck schema: ddn.studio.public_release_approval_recheck.v1" 보여주기.
+"state: AWAIT_EXPLICIT_RELEASE_APPROVAL" 보여주기.
+"follow-up plan: 2/8 = 25%" 보여주기.
+"roadmap v2 behavior: 90/90 = 100%" 보여주기.
+"next: STUDIO_LOCAL_RELEASE_REHEARSAL_CHECK_V1" 보여주기.

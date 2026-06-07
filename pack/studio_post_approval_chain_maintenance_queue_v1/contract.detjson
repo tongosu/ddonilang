@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_post_approval_chain_maintenance_queue_v1",
+  "kind": "studio_post_approval_chain_maintenance_queue",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_POST_APPROVAL_CHAIN_MAINTENANCE_QUEUE_V1",
+  "queue": "pack/studio_post_approval_chain_maintenance_queue_v1/maintenance_queue.detjson",
+  "report": "docs/studio/POST_APPROVAL_CHAIN_MAINTENANCE_QUEUE_V1.md",
+  "based_on": "STUDIO_RELEASE_APPROVAL_CHAIN_CLOSURE_V1",
+  "current_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "release_execution_selected": false,
+  "generic_next_dev_request_is_approval": false,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "next_item": "STUDIO_RELEASE_APPROVAL_STATUS_SNAPSHOT_V1",
+  "requires_docs_ssot_clean": true
+}

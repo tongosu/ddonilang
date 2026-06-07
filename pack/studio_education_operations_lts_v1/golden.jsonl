@@ -1,0 +1,1 @@
+{"cmd":["run","pack/studio_education_operations_lts_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_EDUCATION_OPERATIONS_LTS_V1","studio education operations LTS readiness sealed","education operations schema: ddn.studio.education_operations_lts.v1","operations domains: 9","super-long plan: 18/18 = 100%","next: STUDIO_POST_SUPER_LONG_REBASE_V1"]}

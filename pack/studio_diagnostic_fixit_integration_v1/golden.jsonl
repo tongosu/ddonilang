@@ -1,0 +1,1 @@
+{"cmd":["run","pack/studio_diagnostic_fixit_integration_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_DIAGNOSTIC_FIXIT_INTEGRATION_V1","studio diagnostic fix-it integration sealed","diagnostic fix-it integration schema: seamgrim.diagnostic_fixit_integration.v1","coordinate: 마-3 + 타-3","next: STUDIO_NUMERIC_RESULT_REPORT_CONSOLIDATION_V1"]}

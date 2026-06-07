@@ -1,0 +1,17 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_doc_index_refresh_v1",
+  "kind": "studio_doc_index_refresh",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_DOC_INDEX_REFRESH_V1",
+  "index": "docs/studio/INDEX.md",
+  "manifest": "pack/studio_doc_index_refresh_v1/studio_doc_index.detjson",
+  "based_on": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+  "indexed_work_item_count": 16,
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_RELEASE_NOTES_DRAFT_V1",
+  "requires_docs_ssot_clean": true
+}

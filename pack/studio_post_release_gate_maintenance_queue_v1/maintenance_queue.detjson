@@ -1,0 +1,45 @@
+{
+  "schema": "ddn.studio.post_release_gate.maintenance_queue.v1",
+  "work_item": "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1",
+  "based_on": "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1",
+  "release_execution_selected": false,
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "generic_next_dev_request_is_approval": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "cloud_sync_claim": false,
+  "public_registry_claim": false,
+  "asset_generation_claim": false,
+  "execution_claim": false,
+  "queue": [
+    {
+      "id": "STUDIO_RC_CHECKER_COST_TRIM_V1",
+      "kind": "maintenance",
+      "reason": "release-prep checkers currently re-run nested browser smoke gates",
+      "product_code_change": false,
+      "selected_next": true
+    },
+    {
+      "id": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+      "kind": "maintenance",
+      "reason": "audit Playwright timeout and local-server smoke stability",
+      "product_code_change": false,
+      "selected_next": false
+    },
+    {
+      "id": "STUDIO_DOC_INDEX_REFRESH_V1",
+      "kind": "documentation",
+      "reason": "refresh non-SSOT Studio index/status pointers",
+      "product_code_change": false,
+      "selected_next": false
+    },
+    {
+      "id": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1",
+      "kind": "approval_gated_execution",
+      "reason": "actual public release execution requires exact approval phrase",
+      "product_code_change": false,
+      "selected_next": false,
+      "requires_explicit_approval": true
+    }
+  ]
+}

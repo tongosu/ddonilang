@@ -1,0 +1,1 @@
+{"id":"c01_studio_release_dry_run_text_summary_marker","cmd":["run","pack/studio_release_dry_run_text_summary_v1/input.ddn"],"stdout":["STUDIO_RELEASE_DRY_RUN_TEXT_SUMMARY_V1","studio release dry-run text summary sealed","next: STUDIO_PUBLIC_RELEASE_EXECUTION_V1 requires exact approval"],"exit_code":0}

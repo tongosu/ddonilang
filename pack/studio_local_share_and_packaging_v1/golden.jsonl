@@ -1,0 +1,1 @@
+{"id":"c01_studio_local_share_and_packaging_marker","cmd":["run","pack/studio_local_share_and_packaging_v1/input.ddn"],"stdout":["STUDIO_LOCAL_SHARE_AND_PACKAGING_V1","studio local share and packaging browser smoke sealed","next: STUDIO_RELEASE_CANDIDATE_V1"],"exit_code":0}

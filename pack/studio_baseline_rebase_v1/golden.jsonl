@@ -1,0 +1,1 @@
+{"id":"c01_studio_baseline_rebase_marker","cmd":["run","pack/studio_baseline_rebase_v1/input.ddn"],"stdout":["STUDIO_BASELINE_REBASE_V1","studio baseline inventory sealed","next: SEAMGRIM_WORKBENCH_SHELL_V1"],"exit_code":0}

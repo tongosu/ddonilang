@@ -1,0 +1,1 @@
+{"cmd":["run","pack/studio_benchmark_lts_matrix_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_BENCHMARK_LTS_MATRIX_V1","studio benchmark LTS matrix sealed","benchmark LTS matrix schema: ddn.studio.benchmark_lts_matrix.v1","matrix entries: 5","next: STUDIO_EDUCATION_OPERATIONS_LTS_V1"]}

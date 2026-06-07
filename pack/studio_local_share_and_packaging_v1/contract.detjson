@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_local_share_and_packaging_v1",
+  "kind": "studio_local_share_and_packaging_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
+  "browser_runner": "tests/studio_local_share_and_packaging_browser_runner.mjs",
+  "covers": [
+    "static_bundle_manifest",
+    "local_server_smoke",
+    "lesson_import_export",
+    "report_import_export",
+    "package_index_text",
+    "local_only_no_registry_cloud"
+  ],
+  "next_item": "STUDIO_RELEASE_CANDIDATE_V1",
+  "requires_docs_ssot_clean": true
+}

@@ -1,0 +1,1 @@
+{"id":"c01_studio_release_approval_packet_marker","cmd":["run","pack/studio_release_approval_packet_v1/input.ddn"],"stdout":["STUDIO_RELEASE_APPROVAL_PACKET_V1","studio release approval packet sealed","next: STUDIO_PUBLIC_RELEASE_EXECUTION_V1 requires exact approval"],"exit_code":0}

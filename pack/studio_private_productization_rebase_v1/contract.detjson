@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_private_productization_rebase_v1",
+  "kind": "studio_private_productization_rebase",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1",
+  "inventory": "pack/studio_private_productization_rebase_v1/rebase.detjson",
+  "report": "docs/studio/PRIVATE_PRODUCTIZATION_REBASE_V1.md",
+  "based_on": "STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1",
+  "current_release_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "selected_next_item": "SEAMGRIM_WORKBENCH_POLISH_V2",
+  "release_execution_selected": false,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "asset_generation_claim": false,
+  "execution_approval_claim": false,
+  "requires_docs_ssot_clean": true
+}

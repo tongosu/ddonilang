@@ -1,0 +1,125 @@
+{
+  "schema": "ddn.studio.doc_index_refresh.v1",
+  "id": "STUDIO_DOC_INDEX_REFRESH_V1",
+  "index": "docs/studio/INDEX.md",
+  "based_on": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+  "work_items": [
+    {
+      "id": "STUDIO_BASELINE_REBASE_V1",
+      "doc": "STUDIO_BASELINE_REBASE_V1.md",
+      "pack": "studio_baseline_rebase_v1",
+      "checker": "tests/run_studio_baseline_rebase_check.py"
+    },
+    {
+      "id": "SEAMGRIM_WORKBENCH_SHELL_V1",
+      "doc": "SEAMGRIM_WORKBENCH_SHELL_V1.md",
+      "pack": "seamgrim_workbench_shell_v1",
+      "checker": "tests/run_seamgrim_workbench_shell_check.py"
+    },
+    {
+      "id": "SEAMGRIM_LESSON_AUTHORING_FLOW_V1",
+      "doc": "SEAMGRIM_LESSON_AUTHORING_FLOW_V1.md",
+      "pack": "seamgrim_lesson_authoring_flow_v1",
+      "checker": "tests/run_seamgrim_lesson_authoring_flow_check.py"
+    },
+    {
+      "id": "MALBLOCK_AUTHORING_UI_V1",
+      "doc": "MALBLOCK_AUTHORING_UI_V1.md",
+      "pack": "malblock_authoring_ui_v1",
+      "checker": "tests/run_malblock_authoring_ui_check.py"
+    },
+    {
+      "id": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
+      "doc": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md",
+      "pack": "studio_diagnostic_fixit_preview_v1",
+      "checker": "tests/run_studio_diagnostic_fixit_preview_check.py"
+    },
+    {
+      "id": "STUDIO_CLASSROOM_MODE_V1",
+      "doc": "STUDIO_CLASSROOM_MODE_V1.md",
+      "pack": "studio_classroom_mode_v1",
+      "checker": "tests/run_studio_classroom_mode_check.py"
+    },
+    {
+      "id": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
+      "doc": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
+      "pack": "studio_local_share_and_packaging_v1",
+      "checker": "tests/run_studio_local_share_and_packaging_check.py"
+    },
+    {
+      "id": "STUDIO_RELEASE_CANDIDATE_V1",
+      "doc": "STUDIO_RELEASE_CANDIDATE_V1.md",
+      "pack": "studio_release_candidate_v1",
+      "checker": "tests/run_studio_release_candidate_check.py"
+    },
+    {
+      "id": "STUDIO_PUBLIC_RELEASE_PREP_REBASE_V1",
+      "doc": "STUDIO_PUBLIC_RELEASE_PREP_REBASE_V1.md",
+      "pack": "studio_public_release_prep_rebase_v1",
+      "checker": "tests/run_studio_public_release_prep_rebase_check.py"
+    },
+    {
+      "id": "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1",
+      "doc": "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1.md",
+      "pack": "studio_public_release_asset_plan_v1",
+      "checker": "tests/run_studio_public_release_asset_plan_check.py"
+    },
+    {
+      "id": "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1",
+      "doc": "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1.md",
+      "pack": "studio_public_release_smoke_matrix_v1",
+      "checker": "tests/run_studio_public_release_smoke_matrix_check.py"
+    },
+    {
+      "id": "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1",
+      "doc": "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1.md",
+      "pack": "studio_public_release_execution_gate_v1",
+      "checker": "tests/run_studio_public_release_execution_gate_check.py"
+    },
+    {
+      "id": "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1",
+      "doc": "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1.md",
+      "pack": "studio_post_release_gate_maintenance_queue_v1",
+      "checker": "tests/run_studio_post_release_gate_maintenance_queue_check.py"
+    },
+    {
+      "id": "STUDIO_RC_CHECKER_COST_TRIM_V1",
+      "doc": "STUDIO_RC_CHECKER_COST_TRIM_V1.md",
+      "pack": "studio_rc_checker_cost_trim_v1",
+      "checker": "tests/run_studio_rc_checker_cost_trim_check.py"
+    },
+    {
+      "id": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
+      "doc": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1.md",
+      "pack": "studio_browser_smoke_flake_audit_v1",
+      "checker": "tests/run_studio_browser_smoke_flake_audit_check.py"
+    },
+    {
+      "id": "STUDIO_DOC_INDEX_REFRESH_V1",
+      "doc": "STUDIO_DOC_INDEX_REFRESH_V1.md",
+      "pack": "studio_doc_index_refresh_v1",
+      "checker": "tests/run_studio_doc_index_refresh_check.py"
+    }
+  ],
+  "local_docs": [
+    "docs/studio/README.md",
+    "docs/studio/00_overview.md",
+    "docs/studio/10_standard_lab_bench.md",
+    "docs/studio/20_tamgu_lab_mode.md",
+    "docs/studio/30_compare_and_learning_loop.md",
+    "docs/studio/40_lab_catalog.md",
+    "docs/studio/90_glossary.md",
+    "docs/studio/99_open_questions.md",
+    "docs/studio/edu_lab_ui_storyboard_v0.md",
+    "docs/studio/bench/bench_meta_v0.md",
+    "docs/studio/bench/bench_toml_schema.md",
+    "docs/studio/packs/studio_spring_oscillator.md",
+    "docs/studio/templates/bench.toml.template",
+    "docs/studio/templates/lab_doc.template.md",
+    "docs/studio/templates/pack_README.template.md"
+  ],
+  "release_execution_claim": false,
+  "public_release_claim": false,
+  "asset_generation_claim": false,
+  "next_item": "STUDIO_RELEASE_NOTES_DRAFT_V1"
+}
