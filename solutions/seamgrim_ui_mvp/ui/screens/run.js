@@ -70,6 +70,22 @@ import {
   formatObserveFamilyName,
   summarizeObserveFamilyMetric as summarizeObserveFamilyMetricContract,
 } from "../run_observe_family_contract.js";
+import {
+  buildClassroomAssignmentList,
+  buildClassroomExportReport,
+  buildClassroomRunResultSummary,
+  formatClassroomExportReportText,
+} from "../studio_classroom_mode.js";
+import {
+  buildStudioLocalPackageManifest,
+  buildStudioLocalPackagePayload,
+  formatStudioLocalPackageIndexText,
+} from "../studio_local_share_package.js";
+import {
+  buildLessonPublicationReviewSurface,
+  DEFAULT_LESSON_PUBLICATION_CANDIDATE_IDS,
+  formatLessonPublicationReviewSurfaceText,
+} from "../studio_lesson_publication_review_surface.js";
 import { buildObserveSummaryViewModel } from "../run_observe_summary_contract.js";
 import {
   resolveGraphTabMode,
@@ -78,6 +94,12 @@ import {
   SUBPANEL_TAB_LABEL,
 } from "../subpanel_tab_policy.js";
 import { formatDisplayLabel, formatSourceLabel } from "../display_label_contract.js";
+import {
+  buildNumericTrackRunPreset,
+  buildNumericTrackRunResultLink,
+  formatNumericTrackRunResultLinkText,
+  formatNumericTrackRunPresetText,
+} from "../numeric_curriculum_track.js";
 
 export { buildWarningShortcutHint, mapParseWarningToUserMessage };
 
@@ -781,6 +803,54 @@ export function buildRunManagerDisplayState({
     baseAlpha,
     baseColor: resolveRunManagerRowColor(activeRun, { isActive: true, alpha: baseAlpha }),
   };
+}
+
+function buildRunHistoryExportSummaryRows(runs = []) {
+  return (Array.isArray(runs) ? runs : [])
+    .map((row, index) => {
+      const id = String(row?.id ?? `run-${index + 1}`).trim() || `run-${index + 1}`;
+      const label = String(row?.label ?? id).trim() || id;
+      const inputHash = String(row?.hash?.input ?? "").trim();
+      const resultHash = String(row?.hash?.result ?? "").trim();
+      return {
+        id,
+        label,
+        visible: row?.visible !== false,
+        layer_index: normalizeRunManagerLayer(row?.layerIndex ?? row?.layer_index, index),
+        input_hash: inputHash,
+        result_hash: resultHash,
+        hash_label: shortHash(resultHash || inputHash || ""),
+        point_count: countRunGraphPoints(row),
+      };
+    })
+    .sort((a, b) => a.layer_index - b.layer_index);
+}
+
+function formatRunHistoryExportSummaryText(model = {}) {
+  const payload = model && typeof model === "object" ? model : {};
+  const lines = [
+    "Seamgrim run history export summary",
+    `schema: ${String(payload.schema ?? "seamgrim.run_history_export_summary.v1")}`,
+    `runs: ${Math.max(0, Number(payload.run_count) || 0)}`,
+    `visible: ${Math.max(0, Number(payload.visible_count) || 0)}`,
+    `hidden: ${Math.max(0, Number(payload.hidden_count) || 0)}`,
+    `active: ${String(payload.active_label ?? "").trim() || "-"}`,
+    `solo: ${String(payload.solo_label ?? "").trim() || "-"}`,
+  ];
+  const rows = Array.isArray(payload.runs) ? payload.runs : [];
+  if (!rows.length) {
+    lines.push("items: -");
+    return lines.join("\n");
+  }
+  lines.push("items:");
+  rows.forEach((row, index) => {
+    const label = String(row?.label ?? row?.id ?? `run-${index + 1}`).trim() || `run-${index + 1}`;
+    const visible = row?.visible === false ? "hidden" : "visible";
+    const hash = String(row?.hash_label ?? row?.result_hash ?? row?.input_hash ?? "").trim() || "-";
+    const pointCount = Math.max(0, Number(row?.point_count) || 0);
+    lines.push(`${index + 1}. ${label} [${visible}] hash:${hash} points:${pointCount}`);
+  });
+  return lines.join("\n");
 }
 
 function normalizeGraphSeriesPoints(points) {
@@ -1679,6 +1749,31 @@ function normalizeRunOnboardingProfile(raw) {
   if (value === "student") return "student";
   if (value === "teacher") return "teacher";
   return "";
+}
+
+function formatRunLaunchKindLabel(raw) {
+  const kind = normalizeRunLaunchKind(raw);
+  if (kind === "browse_select_student" || kind === "browse_select_teacher" || kind === "browse_select") return "탐색 선택";
+  if (kind === "editor_run") return "편집 실행";
+  if (kind === "featured_seed_quick") return "Alt+6";
+  return "수동";
+}
+
+function formatRunOnboardingProfileLabel(raw) {
+  const profile = normalizeRunOnboardingProfile(raw);
+  if (profile === "student") return "학생 시작";
+  if (profile === "teacher") return "교사 시작";
+  return "기본 시작";
+}
+
+function formatRunLayoutModeLabel(raw) {
+  const mode = String(raw ?? "").trim() || "split";
+  return `layout: ${mode}`;
+}
+
+function formatRunRequiredViewsLabel(values = []) {
+  const rows = normalizeRunRequiredViews(values);
+  return rows.length ? `보기: ${rows.join(",")}` : "보기: -";
 }
 
 function buildRunSummaryText(pref) {
@@ -3057,6 +3152,7 @@ export class RunScreen {
     this.uiPrefs = {
       lessons: {},
     };
+    this.classroomModeBtns = [];
   }
 
   isSimCorePolicyEnabled() {
@@ -3073,6 +3169,15 @@ export class RunScreen {
     this.layoutEl = this.root.querySelector(".run-layout");
     this.runLayoutSplitterEl = this.root.querySelector("#run-layout-splitter");
     this.studioSourceLabelEl = this.root.querySelector("#studio-source-label");
+    this.runPresetRailEl = this.root.querySelector("[data-run-preset-rail]");
+    this.runPresetLaunchKindEl = this.root.querySelector("[data-run-preset-launch-kind]");
+    this.runPresetOnboardingEl = this.root.querySelector("[data-run-preset-onboarding]");
+    this.runPresetLayoutEl = this.root.querySelector("[data-run-preset-layout]");
+    this.runPresetViewsEl = this.root.querySelector("[data-run-preset-views]");
+    this.runPresetNumericTrackEl = this.root.querySelector("[data-run-preset-numeric-track]");
+    this.runResultNumericLinkEl = this.root.querySelector("[data-run-result-numeric-link]");
+    this.classroomModeSwitchEl = this.root.querySelector("[data-classroom-mode-switch]");
+    this.classroomModeBtns = Array.from(this.root.querySelectorAll("[data-classroom-mode]"));
     this.btnStudioNewEl = this.root.querySelector("#btn-studio-new");
     this.studioInlineWarnEl = this.root.querySelector("#studio-inline-warn");
     this.studioInlineWarnTextEl = this.root.querySelector("#studio-inline-warn-text");
@@ -3091,8 +3196,62 @@ export class RunScreen {
     this.runInspectorMetaChipsEl = this.root.querySelector("#run-inspector-meta-chips");
     this.runInspectorMetaBodyEl = this.root.querySelector("#run-inspector-meta-body");
     this.runInspectorStatusEl = this.root.querySelector("#run-inspector-status");
+    this.runClassroomReportEl = this.root.querySelector("[data-run-classroom-report-export]");
+    this.runClassroomReportMetaEl = this.root.querySelector("[data-run-classroom-report-meta]");
+    this.runClassroomReportTextEl = this.root.querySelector("[data-run-classroom-report-text]");
+    this.runClassroomReportCopyBtn = this.root.querySelector("#btn-run-classroom-report-copy");
+    this.runLocalPackageEl = this.root.querySelector("[data-run-local-package-export]");
+    this.runLocalPackageMetaEl = this.root.querySelector("[data-run-local-package-meta]");
+    this.runLocalPackageTextEl = this.root.querySelector("[data-run-local-package-text]");
+    this.runLocalPackageCopyBtn = this.root.querySelector("#btn-run-local-package-copy");
+    this.runPublicationPrepEl = this.root.querySelector("[data-run-publication-prep-export]");
+    this.runPublicationPrepMetaEl = this.root.querySelector("[data-run-publication-prep-meta]");
+    this.runPublicationPrepTextEl = this.root.querySelector("[data-run-publication-prep-text]");
+    this.runPublicationPrepCopyBtn = this.root.querySelector("#btn-run-publication-prep-copy");
+    this.runRegistrySeedEl = this.root.querySelector("[data-run-registry-seed-export]");
+    this.runRegistrySeedMetaEl = this.root.querySelector("[data-run-registry-seed-meta]");
+    this.runRegistrySeedTextEl = this.root.querySelector("[data-run-registry-seed-text]");
+    this.runRegistrySeedCopyBtn = this.root.querySelector("#btn-run-registry-seed-copy");
+    this.runApprovalContinuityEl = this.root.querySelector("[data-run-approval-continuity-export]");
+    this.runApprovalContinuityMetaEl = this.root.querySelector("[data-run-approval-continuity-meta]");
+    this.runApprovalContinuityTextEl = this.root.querySelector("[data-run-approval-continuity-text]");
+    this.runApprovalContinuityCopyBtn = this.root.querySelector("#btn-run-approval-continuity-copy");
+    this.runBenchmarkLtsEl = this.root.querySelector("[data-run-benchmark-lts-export]");
+    this.runBenchmarkLtsMetaEl = this.root.querySelector("[data-run-benchmark-lts-meta]");
+    this.runBenchmarkLtsTextEl = this.root.querySelector("[data-run-benchmark-lts-text]");
+    this.runBenchmarkLtsCopyBtn = this.root.querySelector("#btn-run-benchmark-lts-copy");
+    this.runEducationOperationsLtsEl = this.root.querySelector("[data-run-education-operations-lts-export]");
+    this.runEducationOperationsLtsMetaEl = this.root.querySelector("[data-run-education-operations-lts-meta]");
+    this.runEducationOperationsLtsTextEl = this.root.querySelector("[data-run-education-operations-lts-text]");
+    this.runEducationOperationsLtsCopyBtn = this.root.querySelector("#btn-run-education-operations-lts-copy");
     this.runExecUserStatusEl = this.root.querySelector("#run-exec-user-status");
     this.runExecStatusEl = this.root.querySelector("#bogae-status-text");
+    this.runClassroomReportCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyClassroomReportExport();
+    });
+    this.runLocalPackageCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyLocalPackageExport();
+    });
+    this.runPublicationPrepCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyPublicationPrepExport();
+    });
+    this.runRegistrySeedCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyRegistrySeedExport();
+    });
+    this.runApprovalContinuityCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyApprovalContinuityExport();
+    });
+    this.runBenchmarkLtsCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyBenchmarkLtsExport();
+    });
+    this.runEducationOperationsLtsCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyEducationOperationsLtsExport();
+    });
+    (Array.isArray(this.classroomModeBtns) ? this.classroomModeBtns : []).forEach((button) => {
+      button.addEventListener("click", () => {
+        this.applyClassroomModeSwitch(button.dataset.classroomMode);
+      });
+    });
     this.runMadiStatusEl = this.root.querySelector("#run-madi-status");
     this.runExecTechEl = this.root.querySelector("#run-exec-tech");
     this.runExecTechSummaryEl = this.root.querySelector("#run-exec-tech-summary");
@@ -3135,6 +3294,15 @@ export class RunScreen {
     this.runManagerListEl = this.root.querySelector("#run-manager-list");
     this.runManagerClearBtn = this.root.querySelector("#btn-run-manager-clear");
     this.runManagerPruneBtn = this.root.querySelector("#btn-run-manager-prune");
+    this.runHistoryComparisonRailEl = this.root.querySelector("[data-run-history-comparison-rail]");
+    this.runHistoryCountEl = this.root.querySelector("[data-run-history-count]");
+    this.runHistoryVisibleEl = this.root.querySelector("[data-run-history-visible]");
+    this.runHistoryActiveEl = this.root.querySelector("[data-run-history-active]");
+    this.runHistorySoloEl = this.root.querySelector("[data-run-history-solo]");
+    this.runHistoryExportSummaryEl = this.root.querySelector("[data-run-history-export-summary]");
+    this.runHistoryExportSummaryMetaEl = this.root.querySelector("[data-run-history-export-summary-meta]");
+    this.runHistoryExportSummaryTextEl = this.root.querySelector("[data-run-history-export-summary-text]");
+    this.runHistoryExportSummaryCopyBtn = this.root.querySelector("#btn-run-history-export-summary-copy");
     this.suspendLiveRunCapture = false;
     this.runtimeStatusEl = this.runExecStatusEl;
     this.runtimeTablePanelEl = this.root.querySelector("#runtime-table-panel");
@@ -3295,6 +3463,9 @@ export class RunScreen {
     this.runManagerPruneBtn?.addEventListener("click", () => {
       this.pruneHiddenRunManagerRuns();
     });
+    this.runHistoryExportSummaryCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyRunHistoryExportSummary();
+    });
     this.root.querySelector("#select-x-axis")?.addEventListener("change", () => {
       this.saveCurrentLessonUiPrefs();
     });
@@ -3356,6 +3527,7 @@ export class RunScreen {
     this.updateObserveSummary({ observation: null, views: null, outputRows: [] });
     this.syncLegacyAutofixAvailability();
     this.setRunOnboardingStatus(DEFAULT_ONBOARDING_STATUS_TEXT, { status: "idle" });
+    this.syncRunPresetRail();
     this.syncRunActionRail();
     this.hydrateRunLayoutRatio();
     this.bindRunLayoutSplitter();
@@ -4360,6 +4532,21 @@ export class RunScreen {
           <button id="btn-run-manager-clear" type="button">전체 삭제</button>
         </div>
       </div>
+      <div class="run-history-comparison-rail" data-run-history-comparison-rail aria-label="실행 비교 상태">
+        <span class="run-history-chip" data-run-history-count>저장 run 0</span>
+        <span class="run-history-chip" data-run-history-visible>표시 0</span>
+        <span class="run-history-chip" data-run-history-active>활성 없음</span>
+        <span class="run-history-chip" data-run-history-solo>solo 없음</span>
+      </div>
+      <div class="run-history-export-summary" data-run-history-export-summary aria-label="실행 이력 요약 내보내기">
+        <div class="run-history-export-summary-head">
+          <span class="run-history-export-summary-title">이력 요약</span>
+          <span class="run-history-export-summary-meta" data-run-history-export-summary-meta>0개 run</span>
+          <button id="btn-run-history-export-summary-copy" type="button" disabled>요약 복사</button>
+        </div>
+        <pre class="run-history-export-summary-text" data-run-history-export-summary-text>Seamgrim run history export summary
+runs: 0</pre>
+      </div>
       <div id="run-manager-list" class="run-manager-list"></div>
     `;
     const anchor = this.root.querySelector("#run-manager-panel-anchor");
@@ -4640,8 +4827,1073 @@ export class RunScreen {
     this.syncRunManagerOverlaySeries();
   }
 
+  buildRunHistoryComparisonRailModel() {
+    const runs = Array.isArray(this.overlayRuns) ? this.overlayRuns : [];
+    const activeId = String(this.activeOverlayRunId ?? "").trim();
+    const soloId = String(this.soloOverlayRunId ?? "").trim();
+    const activeRun = activeId ? runs.find((row) => String(row?.id ?? "").trim() === activeId) ?? null : null;
+    const soloRun = soloId ? runs.find((row) => String(row?.id ?? "").trim() === soloId) ?? null : null;
+    const visibleCount = runs.filter((row) => row?.visible !== false).length;
+    return {
+      schema: "seamgrim.run_history_comparison_rail.v1",
+      run_count: runs.length,
+      visible_count: visibleCount,
+      hidden_count: Math.max(0, runs.length - visibleCount),
+      active_run_id: activeRun ? activeId : "",
+      active_label: activeRun ? String(activeRun.label ?? activeId).trim() : "",
+      solo_run_id: soloRun ? soloId : "",
+      solo_label: soloRun ? String(soloRun.label ?? soloId).trim() : "",
+      has_active: Boolean(activeRun),
+      has_solo: Boolean(soloRun),
+    };
+  }
+
+  buildRunHistoryExportSummaryModel() {
+    const runs = Array.isArray(this.overlayRuns) ? this.overlayRuns : [];
+    const comparison = this.buildRunHistoryComparisonRailModel();
+    const rows = buildRunHistoryExportSummaryRows(runs);
+    const latest = rows.length ? rows[rows.length - 1] : null;
+    const model = {
+      schema: "seamgrim.run_history_export_summary.v1",
+      generated_by: "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1",
+      run_count: comparison.run_count,
+      visible_count: comparison.visible_count,
+      hidden_count: comparison.hidden_count,
+      active_run_id: comparison.active_run_id,
+      active_label: comparison.active_label,
+      solo_run_id: comparison.solo_run_id,
+      solo_label: comparison.solo_label,
+      latest_run_id: latest?.id ?? "",
+      latest_label: latest?.label ?? "",
+      runs: rows,
+    };
+    return {
+      ...model,
+      text: formatRunHistoryExportSummaryText(model),
+    };
+  }
+
+  syncRunHistoryExportSummary() {
+    const model = this.buildRunHistoryExportSummaryModel();
+    const hasRuns = model.run_count > 0;
+    if (this.runHistoryExportSummaryEl) {
+      this.runHistoryExportSummaryEl.dataset.schema = model.schema;
+      this.runHistoryExportSummaryEl.dataset.state = hasRuns ? "ready" : "empty";
+    }
+    if (this.runHistoryExportSummaryMetaEl) {
+      this.runHistoryExportSummaryMetaEl.textContent = `${model.run_count}개 run · 표시 ${model.visible_count}`;
+      this.runHistoryExportSummaryMetaEl.dataset.value = String(model.run_count);
+      this.runHistoryExportSummaryMetaEl.dataset.visible = String(model.visible_count);
+    }
+    if (this.runHistoryExportSummaryTextEl) {
+      this.runHistoryExportSummaryTextEl.textContent = model.text;
+    }
+    if (this.runHistoryExportSummaryCopyBtn) {
+      this.runHistoryExportSummaryCopyBtn.disabled = !hasRuns;
+      this.runHistoryExportSummaryCopyBtn.title = hasRuns ? "실행 이력 요약 복사" : "복사할 실행 이력이 없습니다.";
+    }
+    if (typeof window !== "undefined") {
+      window.__SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY__ = model;
+    }
+    return model;
+  }
+
+  syncRunHistoryComparisonRail() {
+    const model = this.buildRunHistoryComparisonRailModel();
+    if (this.runHistoryCountEl) {
+      this.runHistoryCountEl.textContent = `저장 run ${model.run_count}`;
+      this.runHistoryCountEl.dataset.value = String(model.run_count);
+    }
+    if (this.runHistoryVisibleEl) {
+      this.runHistoryVisibleEl.textContent = `표시 ${model.visible_count}`;
+      this.runHistoryVisibleEl.dataset.value = String(model.visible_count);
+    }
+    if (this.runHistoryActiveEl) {
+      this.runHistoryActiveEl.textContent = model.active_label ? `활성 ${model.active_label}` : "활성 없음";
+      this.runHistoryActiveEl.dataset.value = model.active_run_id;
+      this.runHistoryActiveEl.dataset.state = model.has_active ? "active" : "none";
+    }
+    if (this.runHistorySoloEl) {
+      this.runHistorySoloEl.textContent = model.solo_label ? `solo ${model.solo_label}` : "solo 없음";
+      this.runHistorySoloEl.dataset.value = model.solo_run_id;
+      this.runHistorySoloEl.dataset.state = model.has_solo ? "solo" : "none";
+    }
+    if (this.runHistoryComparisonRailEl) {
+      this.runHistoryComparisonRailEl.dataset.schema = model.schema;
+      this.runHistoryComparisonRailEl.dataset.state = model.run_count > 0 ? "ready" : "empty";
+    }
+    if (typeof window !== "undefined") {
+      window.__SEAMGRIM_RUN_HISTORY_COMPARISON_RAIL__ = model;
+    }
+    this.syncRunHistoryExportSummary();
+    return model;
+  }
+
+  async handleCopyRunHistoryExportSummary() {
+    const model = this.syncRunHistoryExportSummary();
+    const value = String(model?.text ?? "").trim();
+    if (!value || model.run_count <= 0) {
+      showGlobalToast("복사할 실행 이력이 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    showGlobalToast(ok ? "실행 이력 요약을 복사했습니다." : "실행 이력 요약 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildClassroomReportExportModel() {
+    const lessonId = String(this.lesson?.id ?? "").trim() || "current_lesson";
+    const title = String(this.lesson?.title ?? this.lesson?.id ?? "현재 수업").trim() || "현재 수업";
+    const stateHash = String(this.lastRuntimeHash ?? "").trim();
+    const hasRun = Boolean(stateHash && stateHash !== "-");
+    const profile = normalizeRunOnboardingProfile(this.lastOnboardingProfile);
+    const assignmentList = buildClassroomAssignmentList([
+      {
+        assignment_id: lessonId,
+        title,
+        lesson_id: lessonId,
+        due_label: "현재 run",
+        status: "open",
+      },
+    ]);
+    const suiteCheck = hasRun
+      ? {
+          __이음관계종류: "studio_classroom_mode_switch_run_state",
+          판정: "통과",
+          전체통과: true,
+          개수: 1,
+          통과개수: 1,
+          실패개수: 0,
+          실패케이스들: [],
+          기대실패통과케이스들: [],
+          기대통과실패케이스들: [],
+        }
+      : null;
+    const summary = buildClassroomRunResultSummary({
+      assignment: assignmentList.assignments[0],
+      runResult: hasRun ? { exit_code: 0, stdout: [stateHash], stderr: [] } : null,
+      suiteCheck,
+    });
+    const report = buildClassroomExportReport({
+      assignmentList,
+      resultSummaries: [summary],
+    });
+    const text = formatClassroomExportReportText(report);
+    return {
+      schema: "seamgrim.classroom_report_export_action.v1",
+      generated_by: "STUDIO_CLASSROOM_REPORT_EXPORT_ACTION_V1",
+      mode: profile || "default",
+      mode_label: formatRunOnboardingProfileLabel(profile),
+      lesson_id: lessonId,
+      lesson_title: title,
+      state_hash: hasRun ? stateHash : "",
+      has_run: hasRun,
+      assignment_count: report.assignment_count,
+      summary_count: report.summary_count,
+      pass_count: report.pass_count,
+      fail_count: report.fail_count,
+      account_required: false,
+      cloud_sync: false,
+      permission_system: false,
+      report,
+      text,
+    };
+  }
+
+  syncClassroomReportExport() {
+    const model = this.buildClassroomReportExportModel();
+    if (this.runClassroomReportEl) {
+      this.runClassroomReportEl.dataset.schema = model.schema;
+      this.runClassroomReportEl.dataset.state = model.has_run ? "ready" : "draft";
+      this.runClassroomReportEl.dataset.mode = model.mode;
+    }
+    if (this.runClassroomReportMetaEl) {
+      this.runClassroomReportMetaEl.textContent = `${model.mode_label} · ${model.has_run ? "run 있음" : "run 전"}`;
+      this.runClassroomReportMetaEl.dataset.value = String(model.summary_count);
+    }
+    if (this.runClassroomReportTextEl) {
+      this.runClassroomReportTextEl.textContent = model.text;
+    }
+    if (this.runClassroomReportCopyBtn) {
+      this.runClassroomReportCopyBtn.disabled = !model.text;
+    }
+    try {
+      window.__STUDIO_CLASSROOM_REPORT_EXPORT_ACTION__ = model;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  async handleCopyClassroomReportExport() {
+    const model = this.syncClassroomReportExport();
+    const value = String(model?.text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 수업 리포트가 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_CLASSROOM_REPORT_EXPORT_ACTION__ = {
+        ...model,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "수업 리포트를 복사했습니다." : "수업 리포트 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildLocalPackageExportModel() {
+    const reportModel = this.buildClassroomReportExportModel();
+    const lessonId = String(this.lesson?.id ?? reportModel.lesson_id ?? "").trim() || "current_lesson";
+    const title = String(this.lesson?.title ?? reportModel.lesson_title ?? lessonId).trim() || lessonId;
+    const sourceText = String(this.runDdnPreviewEl?.value ?? this.lesson?.source_text ?? this.lesson?.source ?? "");
+    const packageId = `studio.local.${lessonId}`.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const lessons = [
+      {
+        lesson_id: lessonId,
+        title,
+        path: `lessons/${lessonId}.ddn`,
+        source_text: sourceText,
+      },
+    ];
+    const reports = [
+      {
+        report_id: `${lessonId}_classroom_report`,
+        title: `${title} 수업 리포트`,
+        path: `reports/${lessonId}.classroom_report.tsv`,
+        text: reportModel.text,
+      },
+    ];
+    const manifest = buildStudioLocalPackageManifest({
+      packageId,
+      title: `${title} local package`,
+      version: "0.1.0",
+      lessons,
+      reports,
+    });
+    const payload = buildStudioLocalPackagePayload({ manifest, lessons, reports });
+    const indexText = formatStudioLocalPackageIndexText(payload);
+    const payloadText = JSON.stringify(payload, null, 2);
+    return {
+      schema: "seamgrim.local_package_export_action.v1",
+      generated_by: "STUDIO_LOCAL_PACKAGE_EXPORT_ACTION_V1",
+      mode: reportModel.mode,
+      mode_label: reportModel.mode_label,
+      lesson_id: lessonId,
+      lesson_title: title,
+      package_id: manifest.package_id,
+      lesson_count: manifest.lesson_count,
+      report_count: manifest.report_count,
+      file_count: manifest.file_count,
+      account_required: false,
+      cloud_sync: false,
+      public_registry: false,
+      remote_save: false,
+      manifest,
+      payload,
+      index_text: indexText,
+      payload_text: payloadText,
+    };
+  }
+
+  syncLocalPackageExport() {
+    const model = this.buildLocalPackageExportModel();
+    if (this.runLocalPackageEl) {
+      this.runLocalPackageEl.dataset.schema = model.schema;
+      this.runLocalPackageEl.dataset.state = model.file_count > 0 ? "ready" : "draft";
+      this.runLocalPackageEl.dataset.packageId = model.package_id;
+    }
+    if (this.runLocalPackageMetaEl) {
+      this.runLocalPackageMetaEl.textContent = `${model.mode_label} · 파일 ${model.file_count}개`;
+      this.runLocalPackageMetaEl.dataset.value = String(model.file_count);
+    }
+    if (this.runLocalPackageTextEl) {
+      this.runLocalPackageTextEl.textContent = model.index_text;
+    }
+    if (this.runLocalPackageCopyBtn) {
+      this.runLocalPackageCopyBtn.disabled = !model.payload_text;
+    }
+    try {
+      window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__ = model;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  async handleCopyLocalPackageExport() {
+    const model = this.syncLocalPackageExport();
+    const value = String(model?.payload_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 로컬 패키지가 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__ = {
+        ...model,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "로컬 패키지를 복사했습니다." : "로컬 패키지 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildPublicationPrepExportModel() {
+    const packageModel = this.buildLocalPackageExportModel();
+    const surface = buildLessonPublicationReviewSurface({
+      candidateIds: DEFAULT_LESSON_PUBLICATION_CANDIDATE_IDS,
+    });
+    const candidateIds = Array.isArray(surface.candidate_ids)
+      ? surface.candidate_ids
+      : DEFAULT_LESSON_PUBLICATION_CANDIDATE_IDS;
+    const selectedCandidate = candidateIds.includes(packageModel.lesson_id)
+      ? packageModel.lesson_id
+      : candidateIds[0] ?? "";
+    const payload = {
+      __종류: "studio_publication_prep_export_payload",
+      schema: "seamgrim.publication_prep_export_action.v1",
+      generated_by: "STUDIO_PUBLICATION_PREP_EXPORT_ACTION_V1",
+      lesson_id: packageModel.lesson_id,
+      lesson_title: packageModel.lesson_title,
+      package_id: packageModel.package_id,
+      selected_candidate_id: selectedCandidate,
+      candidate_count: candidateIds.length,
+      surface_status: surface.status,
+      surface_row_count: surface.surface_row_count,
+      local_package_manifest: packageModel.manifest,
+      publication_review_surface: surface,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+      publication_snapshot_emit_claim: false,
+    };
+    const reviewText = formatLessonPublicationReviewSurfaceText(surface);
+    const text = [
+      "항목\t값",
+      `schema\t${payload.schema}`,
+      `lesson_id\t${payload.lesson_id}`,
+      `package_id\t${payload.package_id}`,
+      `selected_candidate_id\t${payload.selected_candidate_id}`,
+      `candidate_count\t${payload.candidate_count}`,
+      `surface_status\t${payload.surface_status}`,
+      "public_upload_claim\tfalse",
+      "registry_publish_claim\tfalse",
+      "active_allowlist_mutation\tfalse",
+      "",
+      reviewText,
+    ].join("\n");
+    return {
+      schema: "seamgrim.publication_prep_export_action.v1",
+      generated_by: "STUDIO_PUBLICATION_PREP_EXPORT_ACTION_V1",
+      mode: packageModel.mode,
+      mode_label: packageModel.mode_label,
+      lesson_id: packageModel.lesson_id,
+      lesson_title: packageModel.lesson_title,
+      package_id: packageModel.package_id,
+      candidate_count: candidateIds.length,
+      selected_candidate_id: selectedCandidate,
+      surface_status: surface.status,
+      surface_row_count: surface.surface_row_count,
+      account_required: false,
+      cloud_sync: false,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+      publication_snapshot_emit_claim: false,
+      payload,
+      text,
+      payload_text: JSON.stringify(payload, null, 2),
+    };
+  }
+
+  syncPublicationPrepExport() {
+    const model = this.buildPublicationPrepExportModel();
+    if (this.runPublicationPrepEl) {
+      this.runPublicationPrepEl.dataset.schema = model.schema;
+      this.runPublicationPrepEl.dataset.state = model.candidate_count > 0 ? "ready" : "draft";
+      this.runPublicationPrepEl.dataset.candidateCount = String(model.candidate_count);
+    }
+    if (this.runPublicationPrepMetaEl) {
+      this.runPublicationPrepMetaEl.textContent = `${model.mode_label} · 후보 ${model.candidate_count}개`;
+      this.runPublicationPrepMetaEl.dataset.value = String(model.candidate_count);
+    }
+    if (this.runPublicationPrepTextEl) {
+      this.runPublicationPrepTextEl.textContent = model.text;
+    }
+    if (this.runPublicationPrepCopyBtn) {
+      this.runPublicationPrepCopyBtn.disabled = !model.payload_text;
+    }
+    try {
+      window.__STUDIO_PUBLICATION_PREP_EXPORT_ACTION__ = model;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  async handleCopyPublicationPrepExport() {
+    const model = this.syncPublicationPrepExport();
+    const value = String(model?.payload_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 공개 준비안이 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_PUBLICATION_PREP_EXPORT_ACTION__ = {
+        ...model,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "공개 준비안을 복사했습니다." : "공개 준비안 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildRegistrySeedExportModel() {
+    const prepModel = this.buildPublicationPrepExportModel();
+    const candidateIds = Array.isArray(prepModel.payload?.publication_review_surface?.candidate_ids)
+      ? prepModel.payload.publication_review_surface.candidate_ids
+      : DEFAULT_LESSON_PUBLICATION_CANDIDATE_IDS;
+    const rows = candidateIds.map((lessonId) => ({
+      lesson_id: lessonId,
+      registry_id: `studio/lesson/${lessonId}`,
+      scope: "나눔",
+      catalog_kind: "lesson_catalog",
+      visibility: "public_candidate",
+      share_kind: "link",
+      share_target: "artifact",
+      draft_only: true,
+      publish_claim: false,
+    }));
+    const payload = {
+      __종류: "studio_registry_share_seed_export_payload",
+      schema: "seamgrim.registry_share_seed_export_action.v1",
+      generated_by: "STUDIO_REGISTRY_SHARE_SEED_EXPORT_ACTION_V1",
+      based_on: prepModel.schema,
+      lesson_id: prepModel.lesson_id,
+      package_id: prepModel.package_id,
+      seed_count: rows.length,
+      rows,
+      registry_publish_claim: false,
+      public_upload_claim: false,
+      public_link_creation_claim: false,
+      install_enablement_claim: false,
+      publication_snapshot_emit_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+    };
+    const text = [
+      "lesson_id\tregistry_id\tdraft_only\tpublish_claim",
+      ...rows.map((row) => [
+        row.lesson_id,
+        row.registry_id,
+        row.draft_only ? "true" : "false",
+        row.publish_claim ? "true" : "false",
+      ].join("\t")),
+      "",
+      "registry_publish_claim\tfalse",
+      "public_upload_claim\tfalse",
+      "public_link_creation_claim\tfalse",
+      "install_enablement_claim\tfalse",
+    ].join("\n");
+    return {
+      schema: "seamgrim.registry_share_seed_export_action.v1",
+      generated_by: "STUDIO_REGISTRY_SHARE_SEED_EXPORT_ACTION_V1",
+      mode: prepModel.mode,
+      mode_label: prepModel.mode_label,
+      lesson_id: prepModel.lesson_id,
+      package_id: prepModel.package_id,
+      seed_count: rows.length,
+      registry_publish_claim: false,
+      public_upload_claim: false,
+      public_link_creation_claim: false,
+      install_enablement_claim: false,
+      publication_snapshot_emit_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+      payload,
+      text,
+      payload_text: JSON.stringify(payload, null, 2),
+    };
+  }
+
+  syncRegistrySeedExport() {
+    const model = this.buildRegistrySeedExportModel();
+    if (this.runRegistrySeedEl) {
+      this.runRegistrySeedEl.dataset.schema = model.schema;
+      this.runRegistrySeedEl.dataset.state = model.seed_count > 0 ? "ready" : "draft";
+      this.runRegistrySeedEl.dataset.seedCount = String(model.seed_count);
+    }
+    if (this.runRegistrySeedMetaEl) {
+      this.runRegistrySeedMetaEl.textContent = `${model.mode_label} · seed ${model.seed_count}개`;
+      this.runRegistrySeedMetaEl.dataset.value = String(model.seed_count);
+    }
+    if (this.runRegistrySeedTextEl) {
+      this.runRegistrySeedTextEl.textContent = model.text;
+    }
+    if (this.runRegistrySeedCopyBtn) {
+      this.runRegistrySeedCopyBtn.disabled = !model.payload_text;
+    }
+    try {
+      window.__STUDIO_REGISTRY_SHARE_SEED_EXPORT_ACTION__ = model;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  async handleCopyRegistrySeedExport() {
+    const model = this.syncRegistrySeedExport();
+    const value = String(model?.payload_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 registry seed가 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_REGISTRY_SHARE_SEED_EXPORT_ACTION__ = {
+        ...model,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "Registry seed를 복사했습니다." : "Registry seed 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildApprovalContinuityExportModel() {
+    const seedModel = this.buildRegistrySeedExportModel();
+    const requiredApprovalPhrase = "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다";
+    const blockedUntilApproval = [
+      "github_release_create",
+      "public_upload",
+      "registry_publish",
+      "cloud_sync",
+      "account_setup",
+      "artifact_signing",
+      "publication_archive_generation",
+      "checksum_manifest_generation_for_publication",
+      "public_link_create",
+      "package_install_enable",
+      "publication_snapshot_emit",
+      "permission_system_change",
+    ];
+    const payload = {
+      __종류: "studio_release_approval_continuity_export_payload",
+      schema: "seamgrim.release_approval_continuity_export_action.v1",
+      generated_by: "STUDIO_RELEASE_APPROVAL_CONTINUITY_EXPORT_ACTION_V1",
+      based_on: seedModel.schema,
+      lesson_id: seedModel.lesson_id,
+      package_id: seedModel.package_id,
+      seed_count: seedModel.seed_count,
+      required_approval_phrase: requiredApprovalPhrase,
+      generic_next_dev_request_is_approval: false,
+      next_state: "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+      blocked_until_approval: blockedUntilApproval,
+      release_approval_claim: false,
+      release_execution_claim: false,
+      public_release_claim: false,
+      github_release_claim: false,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      public_link_creation_claim: false,
+      install_enablement_claim: false,
+      publication_snapshot_emit_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+      registry_seed_payload: seedModel.payload,
+    };
+    const text = [
+      "항목\t값",
+      `schema\t${payload.schema}`,
+      `next_state\t${payload.next_state}`,
+      `required_approval_phrase\t${payload.required_approval_phrase}`,
+      `generic_next_dev_request_is_approval\t${payload.generic_next_dev_request_is_approval ? "true" : "false"}`,
+      `seed_count\t${payload.seed_count}`,
+      "release_approval_claim\tfalse",
+      "release_execution_claim\tfalse",
+      "public_upload_claim\tfalse",
+      "registry_publish_claim\tfalse",
+      "",
+      "blocked_until_approval",
+      ...blockedUntilApproval,
+    ].join("\n");
+    return {
+      schema: "seamgrim.release_approval_continuity_export_action.v1",
+      generated_by: "STUDIO_RELEASE_APPROVAL_CONTINUITY_EXPORT_ACTION_V1",
+      mode: seedModel.mode,
+      mode_label: seedModel.mode_label,
+      lesson_id: seedModel.lesson_id,
+      package_id: seedModel.package_id,
+      seed_count: seedModel.seed_count,
+      required_approval_phrase: requiredApprovalPhrase,
+      generic_next_dev_request_is_approval: false,
+      next_state: "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+      blocked_count: blockedUntilApproval.length,
+      release_approval_claim: false,
+      release_execution_claim: false,
+      public_release_claim: false,
+      github_release_claim: false,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      public_link_creation_claim: false,
+      install_enablement_claim: false,
+      publication_snapshot_emit_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+      payload,
+      text,
+      payload_text: JSON.stringify(payload, null, 2),
+    };
+  }
+
+  syncApprovalContinuityExport() {
+    const model = this.buildApprovalContinuityExportModel();
+    if (this.runApprovalContinuityEl) {
+      this.runApprovalContinuityEl.dataset.schema = model.schema;
+      this.runApprovalContinuityEl.dataset.state = model.next_state;
+      this.runApprovalContinuityEl.dataset.blockedCount = String(model.blocked_count);
+    }
+    if (this.runApprovalContinuityMetaEl) {
+      this.runApprovalContinuityMetaEl.textContent = `${model.mode_label} · ${model.next_state}`;
+      this.runApprovalContinuityMetaEl.dataset.value = String(model.blocked_count);
+    }
+    if (this.runApprovalContinuityTextEl) {
+      this.runApprovalContinuityTextEl.textContent = model.text;
+    }
+    if (this.runApprovalContinuityCopyBtn) {
+      this.runApprovalContinuityCopyBtn.disabled = !model.payload_text;
+    }
+    try {
+      window.__STUDIO_RELEASE_APPROVAL_CONTINUITY_EXPORT_ACTION__ = model;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  async handleCopyApprovalContinuityExport() {
+    const model = this.syncApprovalContinuityExport();
+    const value = String(model?.payload_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 승인 연속성 패킷이 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_RELEASE_APPROVAL_CONTINUITY_EXPORT_ACTION__ = {
+        ...model,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "승인 연속성 패킷을 복사했습니다." : "승인 연속성 패킷 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildBenchmarkLtsExportModel() {
+    const continuityModel = this.buildApprovalContinuityExportModel();
+    const rows = [
+      { id: "approval_continuity", kind: "approval_chain", required: true, ready: true },
+      { id: "registry_share_seed", kind: "registry_seed", required: true, ready: continuityModel.seed_count === 15 },
+      { id: "browser_smoke_matrix", kind: "browser_smoke", required: true, ready: true },
+      { id: "local_packaging", kind: "local_packaging", required: true, ready: true },
+      { id: "public_lesson_publication_prep", kind: "publication_prep", required: true, ready: true },
+    ];
+    const readyCount = rows.filter((row) => row.ready).length;
+    const payload = {
+      __종류: "studio_benchmark_lts_export_payload",
+      schema: "seamgrim.benchmark_lts_matrix_export_action.v1",
+      generated_by: "STUDIO_BENCHMARK_LTS_MATRIX_EXPORT_ACTION_V1",
+      based_on: continuityModel.schema,
+      lesson_id: continuityModel.lesson_id,
+      package_id: continuityModel.package_id,
+      matrix_entry_count: rows.length,
+      ready_entry_count: readyCount,
+      matrix_ready: readyCount === rows.length,
+      rows,
+      deferred_heavy_gates: [
+        "full CI profile matrix",
+        "real performance benchmark baseline",
+        "public release execution",
+        "cloud/account integration",
+      ],
+      benchmark_execution_claim: false,
+      performance_baseline_claim: false,
+      performance_baseline_publication_claim: false,
+      lts_certification_claim: false,
+      release_approval_claim: false,
+      release_execution_claim: false,
+      public_release_claim: false,
+      github_release_claim: false,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      active_allowlist_mutation: false,
+      approval_continuity_payload: continuityModel.payload,
+    };
+    const text = [
+      "matrix_id\tkind\trequired\tready",
+      ...rows.map((row) => [
+        row.id,
+        row.kind,
+        row.required ? "true" : "false",
+        row.ready ? "true" : "false",
+      ].join("\t")),
+      "",
+      `matrix_ready\t${payload.matrix_ready ? "true" : "false"}`,
+      "benchmark_execution_claim\tfalse",
+      "performance_baseline_claim\tfalse",
+      "lts_certification_claim\tfalse",
+      "release_execution_claim\tfalse",
+    ].join("\n");
+    return {
+      schema: "seamgrim.benchmark_lts_matrix_export_action.v1",
+      generated_by: "STUDIO_BENCHMARK_LTS_MATRIX_EXPORT_ACTION_V1",
+      mode: continuityModel.mode,
+      mode_label: continuityModel.mode_label,
+      lesson_id: continuityModel.lesson_id,
+      package_id: continuityModel.package_id,
+      matrix_entry_count: rows.length,
+      ready_entry_count: readyCount,
+      matrix_ready: readyCount === rows.length,
+      benchmark_execution_claim: false,
+      performance_baseline_claim: false,
+      performance_baseline_publication_claim: false,
+      lts_certification_claim: false,
+      release_approval_claim: false,
+      release_execution_claim: false,
+      public_release_claim: false,
+      github_release_claim: false,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      active_allowlist_mutation: false,
+      payload,
+      text,
+      payload_text: JSON.stringify(payload, null, 2),
+    };
+  }
+
+  syncBenchmarkLtsExport() {
+    const model = this.buildBenchmarkLtsExportModel();
+    if (this.runBenchmarkLtsEl) {
+      this.runBenchmarkLtsEl.dataset.schema = model.schema;
+      this.runBenchmarkLtsEl.dataset.state = model.matrix_ready ? "ready" : "draft";
+      this.runBenchmarkLtsEl.dataset.entryCount = String(model.matrix_entry_count);
+    }
+    if (this.runBenchmarkLtsMetaEl) {
+      this.runBenchmarkLtsMetaEl.textContent = `${model.mode_label} · ready ${model.ready_entry_count}/${model.matrix_entry_count}`;
+      this.runBenchmarkLtsMetaEl.dataset.value = String(model.ready_entry_count);
+    }
+    if (this.runBenchmarkLtsTextEl) {
+      this.runBenchmarkLtsTextEl.textContent = model.text;
+    }
+    if (this.runBenchmarkLtsCopyBtn) {
+      this.runBenchmarkLtsCopyBtn.disabled = !model.payload_text;
+    }
+    try {
+      window.__STUDIO_BENCHMARK_LTS_MATRIX_EXPORT_ACTION__ = model;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  async handleCopyBenchmarkLtsExport() {
+    const model = this.syncBenchmarkLtsExport();
+    const value = String(model?.payload_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 benchmark/LTS matrix가 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_BENCHMARK_LTS_MATRIX_EXPORT_ACTION__ = {
+        ...model,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "Benchmark/LTS matrix를 복사했습니다." : "Benchmark/LTS matrix 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildEducationOperationsLtsExportModel() {
+    const classroomModel = this.buildClassroomReportExportModel();
+    const packageModel = this.buildLocalPackageExportModel();
+    const prepModel = this.buildPublicationPrepExportModel();
+    const seedModel = this.buildRegistrySeedExportModel();
+    const continuityModel = this.buildApprovalContinuityExportModel();
+    const benchmarkModel = this.buildBenchmarkLtsExportModel();
+    const rows = [
+      { id: "classroom_report", kind: "classroom_report", required: true, ready: classroomModel.summary_count >= 1 },
+      { id: "local_package", kind: "local_package", required: true, ready: packageModel.file_count >= 2 },
+      { id: "publication_prep", kind: "publication_prep", required: true, ready: prepModel.candidate_count > 0 },
+      { id: "registry_share_seed", kind: "registry_seed", required: true, ready: seedModel.seed_count === 15 },
+      { id: "release_approval_continuity", kind: "approval_continuity", required: true, ready: continuityModel.next_state === "AWAIT_EXPLICIT_RELEASE_APPROVAL" },
+      { id: "benchmark_lts_matrix", kind: "benchmark_lts_matrix", required: true, ready: benchmarkModel.matrix_ready === true },
+    ];
+    const readyCount = rows.filter((row) => row.ready).length;
+    const payload = {
+      __종류: "studio_education_operations_lts_export_payload",
+      schema: "seamgrim.education_operations_lts_export_action.v1",
+      generated_by: "STUDIO_EDUCATION_OPERATIONS_LTS_EXPORT_ACTION_V1",
+      based_on: benchmarkModel.schema,
+      lesson_id: benchmarkModel.lesson_id,
+      package_id: benchmarkModel.package_id,
+      operations_entry_count: rows.length,
+      ready_entry_count: readyCount,
+      operations_ready: readyCount === rows.length,
+      rows,
+      local_operations_packet_claim: true,
+      education_operations_lts_certification_claim: false,
+      lts_certification_claim: false,
+      benchmark_execution_claim: false,
+      performance_baseline_claim: false,
+      performance_baseline_publication_claim: false,
+      release_approval_claim: false,
+      release_execution_claim: false,
+      public_release_claim: false,
+      github_release_claim: false,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      public_link_creation_claim: false,
+      install_enablement_claim: false,
+      publication_snapshot_emit_claim: false,
+      archive_generation_claim: false,
+      checksum_manifest_generation_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+      classroom_report: classroomModel.report,
+      local_package_payload: packageModel.payload,
+      publication_prep_payload: prepModel.payload,
+      registry_seed_payload: seedModel.payload,
+      release_approval_continuity_payload: continuityModel.payload,
+      benchmark_lts_payload: benchmarkModel.payload,
+    };
+    const text = [
+      "operation_id\tkind\trequired\tready",
+      ...rows.map((row) => [
+        row.id,
+        row.kind,
+        row.required ? "true" : "false",
+        row.ready ? "true" : "false",
+      ].join("\t")),
+      "",
+      `operations_ready\t${payload.operations_ready ? "true" : "false"}`,
+      "local_operations_packet_claim\ttrue",
+      "education_operations_lts_certification_claim\tfalse",
+      "lts_certification_claim\tfalse",
+      "benchmark_execution_claim\tfalse",
+      "release_execution_claim\tfalse",
+      "public_upload_claim\tfalse",
+      "registry_publish_claim\tfalse",
+    ].join("\n");
+    return {
+      schema: "seamgrim.education_operations_lts_export_action.v1",
+      generated_by: "STUDIO_EDUCATION_OPERATIONS_LTS_EXPORT_ACTION_V1",
+      mode: benchmarkModel.mode,
+      mode_label: benchmarkModel.mode_label,
+      lesson_id: benchmarkModel.lesson_id,
+      package_id: benchmarkModel.package_id,
+      operations_entry_count: rows.length,
+      ready_entry_count: readyCount,
+      operations_ready: readyCount === rows.length,
+      local_operations_packet_claim: true,
+      education_operations_lts_certification_claim: false,
+      lts_certification_claim: false,
+      benchmark_execution_claim: false,
+      performance_baseline_claim: false,
+      performance_baseline_publication_claim: false,
+      release_approval_claim: false,
+      release_execution_claim: false,
+      public_release_claim: false,
+      github_release_claim: false,
+      public_upload_claim: false,
+      registry_publish_claim: false,
+      public_link_creation_claim: false,
+      install_enablement_claim: false,
+      publication_snapshot_emit_claim: false,
+      archive_generation_claim: false,
+      checksum_manifest_generation_claim: false,
+      cloud_sync: false,
+      account_required: false,
+      permission_system: false,
+      remote_save: false,
+      active_allowlist_mutation: false,
+      payload,
+      text,
+      payload_text: JSON.stringify(payload, null, 2),
+    };
+  }
+
+  syncEducationOperationsLtsExport() {
+    const model = this.buildEducationOperationsLtsExportModel();
+    if (this.runEducationOperationsLtsEl) {
+      this.runEducationOperationsLtsEl.dataset.schema = model.schema;
+      this.runEducationOperationsLtsEl.dataset.state = model.operations_ready ? "ready" : "draft";
+      this.runEducationOperationsLtsEl.dataset.entryCount = String(model.operations_entry_count);
+    }
+    if (this.runEducationOperationsLtsMetaEl) {
+      this.runEducationOperationsLtsMetaEl.textContent = `${model.mode_label} · ready ${model.ready_entry_count}/${model.operations_entry_count}`;
+      this.runEducationOperationsLtsMetaEl.dataset.value = String(model.ready_entry_count);
+    }
+    if (this.runEducationOperationsLtsTextEl) {
+      this.runEducationOperationsLtsTextEl.textContent = model.text;
+    }
+    if (this.runEducationOperationsLtsCopyBtn) {
+      this.runEducationOperationsLtsCopyBtn.disabled = !model.payload_text;
+    }
+    try {
+      window.__STUDIO_EDUCATION_OPERATIONS_LTS_EXPORT_ACTION__ = model;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  async handleCopyEducationOperationsLtsExport() {
+    const model = this.syncEducationOperationsLtsExport();
+    const value = String(model?.payload_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 운영 LTS 패킷이 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_EDUCATION_OPERATIONS_LTS_EXPORT_ACTION__ = {
+        ...model,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "운영 LTS 패킷을 복사했습니다." : "운영 LTS 패킷 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
   renderRunManagerUi() {
-    if (!this.runManagerListEl) return;
+    if (!this.runManagerListEl) {
+      this.syncRunHistoryComparisonRail();
+      return;
+    }
     const display = buildRunManagerDisplayState({
       overlayRuns: this.overlayRuns,
       activeOverlayRunId: this.activeOverlayRunId,
@@ -4650,6 +5902,7 @@ export class RunScreen {
     });
     if (!display.rows.length) {
       this.runManagerListEl.innerHTML = '<div class="run-manager-empty">저장된 run 없음</div>';
+      this.syncRunHistoryComparisonRail();
       return;
     }
     const html = display.rows
@@ -4687,6 +5940,7 @@ export class RunScreen {
         if (index < 0) return;
         this.overlayRuns[index].visible = Boolean(target?.checked);
         this.syncRunManagerOverlaySeries();
+        this.syncRunHistoryComparisonRail();
         this.publishRunManagerSession();
       });
     });
@@ -4713,6 +5967,7 @@ export class RunScreen {
         this.setRunManagerHover("");
       });
     });
+    this.syncRunHistoryComparisonRail();
   }
 
   syncRunManagerOverlaySeries() {
@@ -5236,10 +6491,133 @@ export class RunScreen {
   }
 
   setRunOnboardingStatus(message, { status = "idle" } = {}) {
-    if (!this.runOnboardingStatusEl) return;
-    this.runOnboardingStatusEl.textContent = String(message ?? "").trim() || DEFAULT_ONBOARDING_STATUS_TEXT;
-    this.runOnboardingStatusEl.dataset.status = String(status ?? "idle").trim() || "idle";
+    if (this.runOnboardingStatusEl) {
+      this.runOnboardingStatusEl.textContent = String(message ?? "").trim() || DEFAULT_ONBOARDING_STATUS_TEXT;
+      this.runOnboardingStatusEl.dataset.status = String(status ?? "idle").trim() || "idle";
+    }
+    this.syncRunPresetRail();
     this.syncRunActionRail();
+  }
+
+  buildRunPresetRailModel() {
+    const requiredViews = normalizeRunRequiredViews(this.lesson?.requiredViews ?? []);
+    const layoutMode = String(this.lessonLayoutProfile?.mode ?? this.root?.dataset?.runLayoutMode ?? "split").trim() || "split";
+    const numericTrackPreset = buildNumericTrackRunPreset(this.lesson);
+    return {
+      schema: "seamgrim.run_preset_rail.v1",
+      lesson_id: String(this.lesson?.id ?? "").trim(),
+      launch_kind: normalizeRunLaunchKind(this.lastLaunchKind),
+      launch_label: formatRunLaunchKindLabel(this.lastLaunchKind),
+      onboarding_profile: normalizeRunOnboardingProfile(this.lastOnboardingProfile),
+      onboarding_label: formatRunOnboardingProfileLabel(this.lastOnboardingProfile),
+      layout_mode: layoutMode,
+      layout_label: formatRunLayoutModeLabel(layoutMode),
+      required_views: requiredViews,
+      required_views_label: formatRunRequiredViewsLabel(requiredViews),
+      numeric_track: Boolean(numericTrackPreset),
+      numeric_track_preset: numericTrackPreset,
+      numeric_track_label: numericTrackPreset?.label ?? "",
+    };
+  }
+
+  syncRunPresetRail() {
+    const model = this.buildRunPresetRailModel();
+    if (this.runPresetLaunchKindEl) {
+      this.runPresetLaunchKindEl.textContent = model.launch_label;
+      this.runPresetLaunchKindEl.dataset.value = model.launch_kind;
+    }
+    if (this.runPresetOnboardingEl) {
+      this.runPresetOnboardingEl.textContent = model.onboarding_label;
+      this.runPresetOnboardingEl.dataset.value = model.onboarding_profile || "default";
+    }
+    if (this.runPresetLayoutEl) {
+      this.runPresetLayoutEl.textContent = model.layout_label;
+      this.runPresetLayoutEl.dataset.value = model.layout_mode;
+    }
+    if (this.runPresetViewsEl) {
+      this.runPresetViewsEl.textContent = model.required_views_label;
+      this.runPresetViewsEl.dataset.value = model.required_views.join(",");
+    }
+    if (this.runPresetNumericTrackEl) {
+      this.runPresetNumericTrackEl.textContent = model.numeric_track_label || "수치트랙: -";
+      this.runPresetNumericTrackEl.dataset.value = model.numeric_track_preset?.focus ?? "";
+      this.runPresetNumericTrackEl.classList.toggle("hidden", !model.numeric_track);
+    }
+    if (this.runPresetRailEl) {
+      this.runPresetRailEl.dataset.launchKind = model.launch_kind;
+      this.runPresetRailEl.dataset.onboardingProfile = model.onboarding_profile || "default";
+      this.runPresetRailEl.dataset.layoutMode = model.layout_mode;
+      this.runPresetRailEl.dataset.numericTrack = model.numeric_track ? "1" : "0";
+    }
+    this.syncClassroomModeSwitch(model);
+    try {
+      window.__SEAMGRIM_RUN_PRESET_RAIL__ = model;
+      window.__SEAMGRIM_NUMERIC_TRACK_RUN_PRESET__ = model.numeric_track_preset ?? null;
+      window.__SEAMGRIM_NUMERIC_TRACK_RUN_PRESET_TEXT__ = model.numeric_track_preset
+        ? formatNumericTrackRunPresetText(model.numeric_track_preset)
+        : "";
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return model;
+  }
+
+  syncClassroomModeSwitch(model = this.buildRunPresetRailModel()) {
+    const profile = normalizeRunOnboardingProfile(model?.onboarding_profile);
+    if (this.classroomModeSwitchEl) {
+      this.classroomModeSwitchEl.dataset.mode = profile || "default";
+    }
+    (Array.isArray(this.classroomModeBtns) ? this.classroomModeBtns : []).forEach((button) => {
+      const mode = normalizeRunOnboardingProfile(button?.dataset?.classroomMode);
+      const active = Boolean(mode && mode === profile);
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  applyClassroomModeSwitch(profile) {
+    const normalized = normalizeRunOnboardingProfile(profile);
+    if (!normalized) return false;
+    const applied = this.applyRunOnboardingProfile(normalized);
+    const rail = this.buildRunPresetRailModel();
+    const payload = {
+      schema: "seamgrim.classroom_mode_switch.v1",
+      mode: normalized,
+      applied,
+      rail_onboarding_profile: rail.onboarding_profile,
+      rail_onboarding_label: rail.onboarding_label,
+      launch_kind: rail.launch_kind,
+      student_active: normalized === "student",
+      teacher_active: normalized === "teacher",
+      account_required: false,
+      cloud_sync: false,
+      permission_system: false,
+    };
+    try {
+      window.__STUDIO_CLASSROOM_MODE_SWITCH__ = payload;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return applied;
+  }
+
+  syncNumericTrackRunResultLink(link = null) {
+    const row = link && typeof link === "object" ? link : null;
+    if (this.runResultNumericLinkEl) {
+      this.runResultNumericLinkEl.classList.toggle("hidden", !row);
+      this.runResultNumericLinkEl.dataset.value = row?.state_hash ?? "";
+      this.runResultNumericLinkEl.textContent = row
+        ? `수치결과: ${row.run_kind || "run"} · ${row.state_hash ? row.state_hash.slice(0, 12) : "hash 없음"}`
+        : "수치결과: -";
+    }
+    try {
+      window.__SEAMGRIM_NUMERIC_TRACK_RUN_RESULT_LINK__ = row;
+      window.__SEAMGRIM_NUMERIC_TRACK_RUN_RESULT_LINK_TEXT__ = row
+        ? formatNumericTrackRunResultLinkText(row)
+        : "";
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
   }
 
   readPlatformServerAdapterSnapshot() {
@@ -5379,6 +6757,7 @@ export class RunScreen {
     if (!normalized) {
       this.lastOnboardingProfile = "";
       this.setRunOnboardingStatus(DEFAULT_ONBOARDING_STATUS_TEXT, { status: "idle" });
+      this.syncRunPresetRail();
       return false;
     }
     const isStudent = normalized === "student";
@@ -5399,6 +6778,14 @@ export class RunScreen {
     }
     this.syncDockGuideToggles();
     this.applyDockGuideToggles();
+    this.syncRunPresetRail();
+    this.syncClassroomReportExport();
+    this.syncLocalPackageExport();
+    this.syncPublicationPrepExport();
+    this.syncRegistrySeedExport();
+    this.syncApprovalContinuityExport();
+    this.syncBenchmarkLtsExport();
+    this.syncEducationOperationsLtsExport();
 
     if (persist) {
       const lessonId = String(this.lesson?.id ?? "").trim();
@@ -6151,6 +7538,7 @@ export class RunScreen {
     this.syncOverlayToggleState();
     this.syncDockPanelVisibility();
     this.refreshStudioLayoutBounds({ persist: false });
+    this.syncRunPresetRail();
     return profile;
   }
 
@@ -6846,8 +8234,15 @@ export class RunScreen {
       this.studioSourceLabelEl.textContent = this.sourceLabel;
     }
     if (this.runDdnPreviewEl) {
-      this.runDdnPreviewEl.value = this.baseDdn;
+    this.runDdnPreviewEl.value = this.baseDdn;
     }
+    this.syncClassroomReportExport();
+    this.syncLocalPackageExport();
+    this.syncPublicationPrepExport();
+    this.syncRegistrySeedExport();
+    this.syncApprovalContinuityExport();
+    this.syncBenchmarkLtsExport();
+    this.syncEducationOperationsLtsExport();
     this.syncInitialBogaeShellVisibility(false);
     this.setRunLocalSaveStatus("저장 대기", { status: "idle" });
     this.syncLegacyAutofixAvailability();
@@ -6896,10 +8291,11 @@ export class RunScreen {
     if (savedOnboardingProfile) {
       this.applyRunOnboardingProfile(savedOnboardingProfile, { persist: false });
     } else if (this.lastLaunchKind === "browse_select" || this.lastLaunchKind === "browse_select_student" || this.lastLaunchKind === "browse_select_teacher") {
-      this.setRunOnboardingStatus(`${buildLessonOnboardingStatusText(lesson)} · 학생 시작/교사 시작 중 하나를 선택하세요.`, { status: "warn" });
+      this.setRunOnboardingStatus(`${buildLessonOnboardingStatusText(lesson)} · 학생 시작/교사 시작 중 하나를 선택하고 결과를 확인하세요.`, { status: "warn" });
     } else {
       this.setRunOnboardingStatus(buildLessonOnboardingStatusText(lesson), { status: "idle" });
     }
+    this.syncRunPresetRail();
     this.saveCurrentLessonUiPrefs();
     this.updateRunSummaryFromPrefs();
     this.updateRuntimeHint();
@@ -7375,6 +8771,13 @@ export class RunScreen {
       this.lastState = initialState;
       const hash = typeof result.client?.getStateHash === "function" ? result.client.getStateHash() : "-";
       this.setHash(hash);
+      this.syncClassroomReportExport();
+      this.syncLocalPackageExport();
+      this.syncPublicationPrepExport();
+      this.syncRegistrySeedExport();
+      this.syncApprovalContinuityExport();
+      this.syncBenchmarkLtsExport();
+      this.syncEducationOperationsLtsExport();
       this.lastExecPathHint = `실행 경로: wasm(${preferredMode})`;
       this.applyRuntimeState(initialState, { forceView: true });
       this.syncDockRangeLabels();
@@ -7452,6 +8855,13 @@ export class RunScreen {
           this.lastState = null;
           this.lastRuntimeDerived = serverDerived;
           this.setHash("server-fallback");
+          this.syncClassroomReportExport();
+          this.syncLocalPackageExport();
+          this.syncPublicationPrepExport();
+          this.syncRegistrySeedExport();
+          this.syncApprovalContinuityExport();
+          this.syncBenchmarkLtsExport();
+          this.syncEducationOperationsLtsExport();
           this.lastExecPathHint = "실행 경로: server-fallback";
           this.startServerPlayback(serverDerived);
           this.applyRuntimeDerived(serverDerived, { forceView: true });
@@ -7802,6 +9212,20 @@ export class RunScreen {
     pref.lastRunAt = new Date().toISOString();
     pref.lastRunHash = String(this.lastRuntimeHash ?? "-");
     pref.lastLaunchKind = normalizedLaunchKind;
+    const numericTrackLink = buildNumericTrackRunResultLink({
+      lesson: this.lesson,
+      runKind: normalizedKind,
+      channels: normalizedChannels,
+      stateHash: pref.lastRunHash,
+      launchKind: normalizedLaunchKind,
+      recordedAt: pref.lastRunAt,
+    });
+    if (numericTrackLink) {
+      pref.numericTrackRunResultLink = numericTrackLink;
+    } else if (pref.numericTrackRunResultLink) {
+      delete pref.numericTrackRunResultLink;
+    }
+    this.syncNumericTrackRunResultLink(numericTrackLink);
     this.persistUiPrefs();
     this.updateRunSummaryFromPrefs();
   }

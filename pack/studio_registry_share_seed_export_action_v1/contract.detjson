@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_registry_share_seed_export_action_v1",
+  "kind": "studio_registry_share_seed_export_action_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_REGISTRY_SHARE_SEED_EXPORT_ACTION_V1",
+  "browser_runner": "tests/studio_registry_share_seed_export_action_runner.mjs",
+  "workflow_schema": "seamgrim.registry_share_seed_export_action.v1",
+  "super_long_behavior_closed_before": "14/18 = 78%",
+  "super_long_behavior_closed_after": "15/18 = 83%",
+  "seed_count": 15,
+  "covers": [
+    "run_screen_registry_seed_preview",
+    "user_clicked_registry_seed_copy",
+    "clipboard_seed_payload_json",
+    "browser_instrumentation",
+    "draft_only_seed_rows",
+    "local_only_no_registry_publish_public_upload_public_link_install_cloud_account"
+  ],
+  "requires_docs_ssot_clean": true
+}

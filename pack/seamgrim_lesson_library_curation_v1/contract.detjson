@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_lesson_library_curation_v1",
+  "kind": "studio_lesson_library_curation",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+  "browser_runner": "tests/seamgrim_lesson_library_curation_runner.mjs",
+  "based_on": "SEAMGRIM_WORKBENCH_POLISH_V2",
+  "covers": [
+    "active_allowlist_snapshot",
+    "allowlist_missing_id_detection",
+    "allowlist_duplicate_id_detection",
+    "subject_grade_source_counts",
+    "required_view_counts",
+    "browser_loaded_curation_snapshot"
+  ],
+  "active_allowlist_count": 15,
+  "active_subject_counts": {
+    "cs": 8,
+    "econ": 2,
+    "math": 2,
+    "physics": 2,
+    "science": 1
+  },
+  "next_item": "SEAMGRIM_LESSON_RUN_PRESET_RAIL_V1",
+  "requires_docs_ssot_clean": true
+}

@@ -1,1 +1,1 @@
-{"cmd":["run","pack/studio_registry_share_seed_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_REGISTRY_SHARE_SEED_V1","studio registry share seed sealed","registry share seed schema: ddn.studio.registry_share_seed.v1","seed rows: 12","next: STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1"]}
+{"cmd":["run","pack/studio_registry_share_seed_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_REGISTRY_SHARE_SEED_V1","studio registry share seed sealed","registry share seed schema: ddn.studio.registry_share_seed.v1","seed rows: 15","next: STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1"]}

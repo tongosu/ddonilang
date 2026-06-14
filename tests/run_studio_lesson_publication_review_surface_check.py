@@ -81,7 +81,7 @@ def require_docs_ssot_clean() -> None:
 def expected_rows() -> list[dict[str, object]]:
     common = {
         "surface_kind": "local_lesson_publication_review_surface",
-        "candidate_count": 12,
+        "candidate_count": 15,
         "surface_only": True,
         "generated_now": False,
         "public_upload_claim": False,
@@ -141,9 +141,9 @@ def check_docs() -> None:
         "Support coordinate: `타-3`",
         "닫힘-동작",
         "surface rows: 6/6 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: 새 마-3 개발 계획 6/8 = 75%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         "studio_lesson_publication_review_surface_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -156,9 +156,9 @@ def check_docs() -> None:
             "STUDIO_LESSON_PUBLICATION_REVIEW_SURFACE_V1",
             "studio_lesson_publication_review_surface_runner.mjs",
             "surface rows: 6/6 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: 새 마-3 개발 계획 6/8 = 75%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -176,7 +176,7 @@ def check_ui_source() -> None:
             "public_upload_claim: false",
             "registry_publish_claim: false",
             "active_allowlist_mutation: false",
-            "super_long_behavior_closed: 18",
+            "super_long_behavior_closed: 9",
             "current_stage_percent: 75",
             "roadmap_v2_percent: 100",
         ],
@@ -237,15 +237,15 @@ def check_contract_and_surface() -> None:
         "closed_by": "STUDIO_LESSON_PUBLICATION_REVIEW_SURFACE_V1",
         "based_on": "STUDIO_RELEASE_REVIEW_PACKET_DASHBOARD_V1",
         "surface_row_count": 6,
-        "candidate_count": 12,
+        "candidate_count": 15,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "surface_rows_closed": 6,
         "surface_rows_total": 6,
         "surface_rows_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 6,
         "current_stage_total": 8,
         "current_stage_percent": 75,
@@ -293,16 +293,16 @@ def check_contract_and_surface() -> None:
     ):
         if surface.get(flag) is not expected:
             fail(f"surface {flag} expected {expected!r}, got {surface.get(flag)!r}")
-    if surface.get("candidate_count") != 12:
+    if surface.get("candidate_count") != 15:
         fail(f"candidate count mismatch: {surface.get('candidate_count')!r}")
-    if len(surface.get("candidate_lesson_ids", [])) != 12:
-        fail("surface candidate lesson list must contain 12 ids")
+    if len(surface.get("candidate_lesson_ids", [])) != 15:
+        fail("surface candidate lesson list must contain 15 ids")
     if surface.get("surface_rows") != expected_rows():
         fail(f"surface rows mismatch: {surface.get('surface_rows')!r}")
     if surface.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 6,
         "current_stage_total": 8,
         "current_stage_percent": 75,
@@ -324,18 +324,18 @@ def check_source_alignment() -> None:
         fail(f"source dashboard schema mismatch: {dashboard.get('schema')!r}")
     if prep.get("schema") != "ddn.studio.public_lesson_publication_prep.v1":
         fail(f"source prep schema mismatch: {prep.get('schema')!r}")
-    if dashboard.get("next_item") != "STUDIO_LESSON_PUBLICATION_REVIEW_SURFACE_V1":
+    if dashboard.get("next_item") != "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1":
         fail(f"source dashboard next item mismatch: {dashboard.get('next_item')!r}")
-    if dashboard.get("progress", {}).get("super_long_behavior_closed") != 18:
+    if dashboard.get("progress", {}).get("super_long_behavior_closed") != 8:
         fail(f"source dashboard progress mismatch: {dashboard.get('progress')!r}")
-    if dashboard.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
+    if dashboard.get("progress", {}).get("roadmap_v2_behavior_closed") != 6:
         fail(f"source dashboard roadmap closed mismatch: {dashboard.get('progress')!r}")
-    if dashboard.get("progress", {}).get("roadmap_v2_percent") != 100:
+    if dashboard.get("progress", {}).get("roadmap_v2_percent") != 7:
         fail(f"source dashboard roadmap percent mismatch: {dashboard.get('progress')!r}")
-    if prep.get("candidate_count") != 12:
+    if prep.get("candidate_count") != 15:
         fail(f"source prep candidate count mismatch: {prep.get('candidate_count')!r}")
-    if len(prep.get("candidate_lesson_ids", [])) != 12:
-        fail("source prep candidate lesson list must contain 12 ids")
+    if len(prep.get("candidate_lesson_ids", [])) != 15:
+        fail("source prep candidate lesson list must contain 15 ids")
 
     prep_gates = set(prep.get("review_gates", []))
     required_gates = {row["source_review_gate"] for row in expected_rows()}
@@ -361,9 +361,9 @@ def check_golden() -> None:
         "studio lesson publication review surface behavior sealed",
         "lesson publication review surface schema: ddn.studio.lesson_publication_review_surface.v1",
         "surface rows: 6/6 = 100%",
-        "overall super-long behavior: 18/18 = 100%",
+        "official studio local progress: 9/18 = 50%",
         "current stage: 6/8 = 75%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior-closed: 90/90 = 100%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_lesson_publication_review_surface_v1/input.ddn"]:

@@ -95,7 +95,7 @@ def check_docs() -> None:
         "ddn.studio.registry_share_seed.v1",
         "Primary coordinate: `마-3`",
         "Support coordinate: `타-3`",
-        "12 draft-only registry seed rows",
+        "15 draft-only registry seed rows",
         "No registry publication",
         "No public link creation",
         "No package install enablement",
@@ -167,7 +167,7 @@ def check_contract_and_manifest() -> None:
         "based_on": "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1",
         "manifest": "pack/studio_registry_share_seed_v1/registry_share_seed.detjson",
         "publication_prep": "pack/studio_public_lesson_publication_prep_v1/publication_prep.detjson",
-        "seed_count": 12,
+        "seed_count": 15,
         "package_scope": "나눔",
         "catalog_kind": "lesson_catalog",
         "visibility": "public_candidate",
@@ -223,7 +223,7 @@ def check_contract_and_manifest() -> None:
     ):
         if manifest.get(flag) is not False:
             fail(f"manifest {flag} expected false, got {manifest.get(flag)!r}")
-    if manifest.get("seed_count") != 12:
+    if manifest.get("seed_count") != 15:
         fail(f"seed count mismatch: {manifest.get('seed_count')!r}")
     if manifest.get("next_item") != NEXT:
         fail(f"manifest next item mismatch: {manifest.get('next_item')!r}")
@@ -233,7 +233,7 @@ def check_seed_rows() -> None:
     manifest = json.loads(read(MANIFEST))
     prep = json.loads(read(PUBLICATION_PREP))
     rows = manifest.get("rows")
-    if not isinstance(rows, list) or len(rows) != 12:
+    if not isinstance(rows, list) or len(rows) != 15:
         fail(f"seed rows mismatch: {rows!r}")
     row_lesson_ids = [row.get("lesson_id") for row in rows]
     prep_lesson_ids = prep.get("candidate_lesson_ids")
@@ -310,7 +310,7 @@ def check_golden() -> None:
         "STUDIO_REGISTRY_SHARE_SEED_V1",
         "studio registry share seed sealed",
         "registry share seed schema: ddn.studio.registry_share_seed.v1",
-        "seed rows: 12",
+        "seed rows: 15",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_registry_share_seed_v1/input.ddn"]:

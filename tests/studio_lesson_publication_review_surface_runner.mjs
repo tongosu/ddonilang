@@ -141,11 +141,11 @@ async function main() {
     assert(surface.lesson_schema_change === false, "surface must not change lesson schema");
     assert(surface.active_allowlist_mutation === false, "surface must not mutate allowlist");
     assert(surface.status === "lesson_publication_review_surface_ready", `status mismatch: ${surface.status}`);
-    assert(surface.candidate_count === 12, `candidate count mismatch: ${surface.candidate_count}`);
+    assert(surface.candidate_count === 15, `candidate count mismatch: ${surface.candidate_count}`);
     assert(surface.surface_row_count === 6, `surface count mismatch: ${surface.surface_row_count}`);
     assert(surface.ready_stage_count === 6, `ready stage mismatch: ${surface.ready_stage_count}`);
-    assert(surface.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(surface.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(surface.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(surface.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(surface.progress.current_stage_closed === 6, "current stage closed mismatch");
     assert(surface.progress.current_stage_percent === 75, "current stage percent mismatch");
     assert(surface.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
@@ -180,7 +180,7 @@ async function main() {
     assert(domResult.firstTitle.includes("후보 수업"), `first title mismatch: ${domResult.firstTitle}`);
     assert(domResult.registryTitle.includes("Registry/share"), `registry title mismatch: ${domResult.registryTitle}`);
     assert(domResult.registryLane === "registry_share_handoff", `registry lane mismatch: ${domResult.registryLane}`);
-    assert(domResult.candidateCount === "12", `dom candidate count mismatch: ${domResult.candidateCount}`);
+    assert(domResult.candidateCount === "15", `dom candidate count mismatch: ${domResult.candidateCount}`);
     assert(domResult.copied === "true", "copy state not marked");
     assert(domResult.globalSchema === "ddn.studio.lesson_publication_review_surface.v1", "global schema mismatch");
     assert(String(domResult.globalText).includes("surface_id\tsurface_lane"), "global text missing surface header");

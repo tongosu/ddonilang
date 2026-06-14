@@ -23,7 +23,7 @@
   "based_on": "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1",
   "manifest": "pack/studio_registry_share_seed_v1/registry_share_seed.detjson",
   "publication_prep": "pack/studio_public_lesson_publication_prep_v1/publication_prep.detjson",
-  "seed_count": 12,
+  "seed_count": 15,
   "package_scope": "나눔",
   "catalog_kind": "lesson_catalog",
   "visibility": "public_candidate",

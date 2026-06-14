@@ -95,7 +95,7 @@ def check_docs() -> None:
         "ddn.studio.public_lesson_publication_prep.v1",
         "Primary coordinate: `마-3`",
         "Support coordinate: `타-3`",
-        "12 representative lesson publication candidates",
+        "15 representative lesson publication candidates",
         "No public upload",
         "No registry publication",
         "No active allowlist mutation",
@@ -163,7 +163,7 @@ def check_contract_and_manifest() -> None:
         "closed_by": "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1",
         "based_on": "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1",
         "manifest": "pack/studio_public_lesson_publication_prep_v1/publication_prep.detjson",
-        "candidate_count": 12,
+        "candidate_count": 15,
         "active_allowlist": "solutions/seamgrim_ui_mvp/lessons/active_allowlist.detjson",
         "lesson_index": "solutions/seamgrim_ui_mvp/lessons/index.json",
         "local_packaging_consolidation_checker": "tests/run_studio_local_packaging_consolidation_check.py",
@@ -216,7 +216,7 @@ def check_contract_and_manifest() -> None:
             fail(f"manifest {flag} expected false, got {manifest.get(flag)!r}")
     if manifest.get("candidate_source") != "active_allowlist":
         fail(f"candidate source mismatch: {manifest.get('candidate_source')!r}")
-    if manifest.get("candidate_count") != 12:
+    if manifest.get("candidate_count") != 15:
         fail(f"candidate count mismatch: {manifest.get('candidate_count')!r}")
     if manifest.get("next_item") != NEXT:
         fail(f"manifest next item mismatch: {manifest.get('next_item')!r}")
@@ -267,7 +267,7 @@ def check_golden() -> None:
         "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1",
         "studio public lesson publication prep sealed",
         "publication prep schema: ddn.studio.public_lesson_publication_prep.v1",
-        "candidate lessons: 12",
+        "candidate lessons: 15",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_public_lesson_publication_prep_v1/input.ddn"]:

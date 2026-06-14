@@ -44,6 +44,11 @@ REQUIRED_SUBJECT_REPRESENTATIVE = (
         "ssot_pack": "edu_seamgrim_rep_phys_projectile_xy_v1",
     },
     {
+        "lesson_id": "rep_physics_velocity_history_v1",
+        "subject": "physics",
+        "ssot_pack": "",
+    },
+    {
         "lesson_id": "rep_cs_linear_search_timeline_v1",
         "subject": "cs",
         "ssot_pack": "edu_seamgrim_rep_cs_linear_search_timeline_v1",
@@ -52,6 +57,51 @@ REQUIRED_SUBJECT_REPRESENTATIVE = (
         "lesson_id": "rep_science_phase_change_timeline_v1",
         "subject": "science",
         "ssot_pack": "edu_seamgrim_rep_science_phase_change_timeline_v1",
+    },
+    {
+        "lesson_id": "rep_grid_game_state_drop_v1",
+        "subject": "math",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_econ_growth_compound_v1",
+        "subject": "econ",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_ddonirang_vol2_filter_v1",
+        "subject": "cs",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_ddonirang_vol2_map_v1",
+        "subject": "cs",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_ddonirang_vol2_pipeline_v1",
+        "subject": "cs",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_ddonirang_vol4_event_dispatch_v1",
+        "subject": "cs",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_ddonirang_vol4_state_transition_v1",
+        "subject": "cs",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_ddonirang_vol4_resume_isolation_v1",
+        "subject": "cs",
+        "ssot_pack": "",
+    },
+    {
+        "lesson_id": "rep_ddonirang_vol4_multi_signal_priority_v1",
+        "subject": "cs",
+        "ssot_pack": "",
     },
 )
 

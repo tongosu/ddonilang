@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_publication_prep_export_action_v1",
+  "kind": "studio_publication_prep_export_action_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_PUBLICATION_PREP_EXPORT_ACTION_V1",
+  "browser_runner": "tests/studio_publication_prep_export_action_runner.mjs",
+  "workflow_schema": "seamgrim.publication_prep_export_action.v1",
+  "super_long_behavior_closed_before": "13/18 = 72%",
+  "super_long_behavior_closed_after": "14/18 = 78%",
+  "candidate_count": 15,
+  "covers": [
+    "run_screen_publication_prep_preview",
+    "user_clicked_publication_prep_copy",
+    "clipboard_prep_payload_json",
+    "browser_instrumentation",
+    "local_package_manifest_bridge",
+    "lesson_publication_review_surface_bridge",
+    "local_only_no_public_upload_registry_cloud_account_remote_save"
+  ],
+  "requires_docs_ssot_clean": true
+}

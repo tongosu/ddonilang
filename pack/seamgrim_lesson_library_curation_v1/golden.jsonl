@@ -1,0 +1,1 @@
+{"id":"c01_seamgrim_lesson_library_curation_marker","cmd":["run","pack/seamgrim_lesson_library_curation_v1/input.ddn"],"stdout":["SEAMGRIM_LESSON_LIBRARY_CURATION_V1","studio lesson library curation snapshot sealed","active_allowlist_count: 15","next: SEAMGRIM_LESSON_RUN_PRESET_RAIL_V1"],"exit_code":0}

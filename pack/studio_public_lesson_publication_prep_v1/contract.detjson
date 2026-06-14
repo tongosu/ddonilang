@@ -19,7 +19,7 @@
   "closed_by": "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1",
   "based_on": "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1",
   "manifest": "pack/studio_public_lesson_publication_prep_v1/publication_prep.detjson",
-  "candidate_count": 12,
+  "candidate_count": 15,
   "active_allowlist": "solutions/seamgrim_ui_mvp/lessons/active_allowlist.detjson",
   "lesson_index": "solutions/seamgrim_ui_mvp/lessons/index.json",
   "local_packaging_consolidation_checker": "tests/run_studio_local_packaging_consolidation_check.py",

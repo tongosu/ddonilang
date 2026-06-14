@@ -3622,6 +3622,60 @@
       ],
       "source": "representative_v1",
       "ssot_pack": ""
+    },
+    {
+      "id": "rep_grid_game_state_drop_v1",
+      "title": "대표 · 격자 상태 · 낙하 조각",
+      "description": "격자게임상태와 낙하 조각의 한틱 진행을 보개로 관찰한다",
+      "required_views": [
+        "space2d",
+        "table"
+      ],
+      "grade": "middle",
+      "subject": "math",
+      "level": "intro",
+      "goals": [
+        "격자 상태가 틱마다 바뀌는 과정을 관찰한다",
+        "낙하 조각 위치와 격자 보개를 함께 읽는다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
+      "id": "rep_physics_velocity_history_v1",
+      "title": "대표 · 물리 · 속도 기록",
+      "description": "이력으로 등가속도 운동의 속도 변화를 기록하고 그래프로 읽는다",
+      "required_views": [
+        "graph",
+        "table"
+      ],
+      "grade": "middle",
+      "subject": "physics",
+      "level": "intro",
+      "goals": [
+        "속도가 일정한 가속도에서 어떻게 누적되는지 관찰한다",
+        "이력에 쌓인 최근 속도와 기록 길이를 표로 확인한다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
+    },
+    {
+      "id": "rep_econ_growth_compound_v1",
+      "title": "대표 · 경제 · 복리 성장",
+      "description": "생산성과 성장률이 자본 축적에 주는 영향을 그래프와 표로 읽는다",
+      "required_views": [
+        "graph",
+        "table"
+      ],
+      "grade": "high",
+      "subject": "econ",
+      "level": "intro",
+      "goals": [
+        "성장률이 누적될 때 자본과 산출이 어떻게 변하는지 관찰한다",
+        "생산성 변화가 산출 경로를 바꾸는 과정을 표로 확인한다"
+      ],
+      "source": "representative_v1",
+      "ssot_pack": ""
     }
   ]
 }

@@ -28,8 +28,11 @@ const CANDIDATE_IDS = [
   "rep_econ_supply_demand_tax_v1",
   "rep_math_function_line_v1",
   "rep_phys_projectile_xy_v1",
+  "rep_physics_velocity_history_v1",
   "rep_cs_linear_search_timeline_v1",
   "rep_science_phase_change_timeline_v1",
+  "rep_grid_game_state_drop_v1",
+  "rep_econ_growth_compound_v1",
   "rep_ddonirang_vol2_filter_v1",
   "rep_ddonirang_vol2_map_v1",
   "rep_ddonirang_vol2_pipeline_v1",
@@ -46,7 +49,7 @@ const SURFACE_DEFS = [
     source_dashboard_row: null,
     surface_lane: "candidate_catalog",
     title: "후보 수업 카탈로그",
-    summary: "12개 후보 수업이 로컬 lesson index 기준으로 검토 가능한지 보여줍니다.",
+    summary: "15개 후보 수업이 로컬 lesson index 기준으로 검토 가능한지 보여줍니다.",
   },
   {
     id: "active_allowlist_review_surface",
@@ -168,7 +171,7 @@ export function buildLessonPublicationReviewSurface({
   ));
   const stages = [
     ["surface_row_alignment", rows.length === SURFACE_DEFS.length],
-    ["candidate_count_alignment", asArray(candidateIds).length === 12],
+    ["candidate_count_alignment", asArray(candidateIds).length === 15],
     ["review_gate_alignment", DEFAULT_LESSON_PUBLICATION_REVIEW_GATES.every((gate) => asArray(reviewGates).includes(gate))],
     ["dashboard_anchor_alignment", rows.filter((row) => row.source_dashboard_row).length === 3],
     ["local_only_boundary", localOnly],
@@ -221,9 +224,9 @@ export function buildLessonPublicationReviewSurface({
     surface_rows: rows,
     stages,
     progress: {
-      super_long_behavior_closed: 18,
+      super_long_behavior_closed: 9,
       super_long_total: 18,
-      super_long_percent: 100,
+      super_long_percent: 50,
       current_stage_closed: 6,
       current_stage_total: 8,
       current_stage_percent: 75,
