@@ -382,6 +382,15 @@ pub(crate) enum Commands {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+    Evolve {
+        #[command(subcommand)]
+        command: EvolveCommands,
+    },
+    #[command(name = "evolving-universe", alias = "evolving_universe")]
+    EvolvingUniverse {
+        #[command(subcommand)]
+        command: EvolvingUniverseCommands,
+    },
     Bundle {
         #[command(subcommand)]
         command: BundleCommands,
@@ -1206,6 +1215,40 @@ enum SocialCommands {
 }
 
 #[derive(Subcommand)]
+enum EvolveCommands {
+    Run {
+        #[arg(long = "pack")]
+        pack: PathBuf,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    Emit {
+        #[arg(long = "pack")]
+        pack: PathBuf,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        meta: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum EvolvingUniverseCommands {
+    Run {
+        #[arg(long = "pack")]
+        pack: PathBuf,
+        #[arg(long)]
+        seed: Option<u64>,
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
 enum HealCommands {
     Run {
         #[arg(long = "pack")]
@@ -1709,7 +1752,11 @@ fn main() {
             let cell_source = match std::fs::read_to_string(&cell) {
                 Ok(value) => value,
                 Err(err) => {
-                    emitter.err(&format!("E_CURRENTLINE_CELL_READ {} {}", cell.display(), err));
+                    emitter.err(&format!(
+                        "E_CURRENTLINE_CELL_READ {} {}",
+                        cell.display(),
+                        err
+                    ));
                     std::process::exit(1);
                 }
             };
@@ -1727,16 +1774,15 @@ fn main() {
                 },
                 _ => None,
             };
-            let currentline = match ddonirang_lang::apply_currentline_cell(
-                &cell_source,
-                context_text.as_deref(),
-            ) {
-                Ok(value) => value,
-                Err(err) => {
-                    emitter.err(&err);
-                    std::process::exit(1);
-                }
-            };
+            let currentline =
+                match ddonirang_lang::apply_currentline_cell(&cell_source, context_text.as_deref())
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        emitter.err(&err);
+                        std::process::exit(1);
+                    }
+                };
             let compiled_path = std::env::temp_dir().join(format!(
                 "ddn-currentline-{}-{}.ddn",
                 std::process::id(),
@@ -2527,7 +2573,7 @@ fn main() {
                 eprintln!("{}", err);
                 std::process::exit(1);
             }
-        },
+        }
         Commands::Proof { command } => {
             let result = match command {
                 ProofCommands::Verify { input, out } => {
@@ -2560,7 +2606,7 @@ fn main() {
                 eprintln!("{}", err);
                 std::process::exit(1);
             }
-        },
+        }
         Commands::Gateway { command } => match command {
             GatewayCommands::Serve {
                 world,
@@ -2704,6 +2750,45 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::Evolve { command } => match command {
+            EvolveCommands::Run { pack, seed, out } => {
+                let options = cli::evolve::EvolveRunOptions { pack, seed, out };
+                if let Err(err) = cli::evolve::run(options) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+            EvolveCommands::Emit {
+                pack,
+                seed,
+                out,
+                meta,
+            } => {
+                let options = cli::evolve::EvolveEmitOptions {
+                    pack,
+                    seed,
+                    out,
+                    meta,
+                };
+                if let Err(err) = cli::evolve::emit(options) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
+        Commands::EvolvingUniverse { command } => match command {
+            EvolvingUniverseCommands::Run { pack, seed, out } => {
+                let options = cli::evolving_universe::EvolvingUniverseOptions {
+                    pack,
+                    seed,
+                    out,
+                };
+                if let Err(err) = cli::evolving_universe::run(options) {
+                    eprintln!("{}", err);
+                    std::process::exit(1);
+                }
+            }
+        },
         Commands::Bundle { command } => match command {
             BundleCommands::Parity {
                 bundle_in,

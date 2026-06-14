@@ -1,0 +1,1 @@
+{"input_path":"input.ddn","cli":["--madi","1","--seed","0x2a","--no-open"],"stdout":["DSTRICT_VELOCITY_VERLET_V1","0.96875","-0.24609375","0.9990386962","hash:blake3:velocity-verlet-q32.32:x1=0.96875:v1=-0.24609375:e1=0.9990386962"],"exit_code":0}

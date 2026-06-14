@@ -1,0 +1,2 @@
+{"id":"c01_bounded_solver_pass","cmd":["run","pack/bounded_equation_solver_v1/input_pass.ddn"],"stdout":["#성공(미지수=\"x\", 값=2)","endpoint_solve_range_check","성공","통과","0"],"exit_code":0}
+{"id":"c02_bounded_solver_fail","cmd":["run","pack/bounded_equation_solver_v1/input_fail.ddn"],"stdout":["endpoint_solve_range_check","실패","1","전구.왼핀.전류","below_min","-5","0"],"exit_code":0}

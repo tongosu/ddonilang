@@ -22,6 +22,14 @@ pub fn canonicalize_stdlib_alias(name: &str) -> &str {
         "흐름비우기" => "흐름.비우기",
         "흐름잘라보기" => "흐름.잘라보기",
         "흐름최근N" => "흐름.잘라보기",
+        "이력.만들기" => "흐름.만들기",
+        "이력.밀어넣기" => "흐름.밀어넣기",
+        "이력.차림" => "흐름.차림",
+        "이력.최근값" => "흐름.최근값",
+        "이력.길이" => "흐름.길이",
+        "이력.용량" => "흐름.용량",
+        "이력.비우기" => "흐름.비우기",
+        "이력.잘라보기" => "흐름.잘라보기",
         "올림" => "천장",
         "내림" => "바닥",
         "절댓값" => "abs",
@@ -32,6 +40,7 @@ pub fn canonicalize_stdlib_alias(name: &str) -> &str {
         "최솟값" => "min",
         "지니계수" => "지니",
         "백분위수" => "분위수",
+        "적분.속도_베를레" => "적분.속도베를레",
         // 수 타입 생성자 별칭
         "fixed64" => "셈수",
         "sim_num" => "셈수",
@@ -439,6 +448,46 @@ pub fn stream_function_sigs() -> Vec<FunctionSig> {
             ret: "차림<T>",
         },
         FunctionSig {
+            name: "이력.만들기",
+            params: &["용량", "초기값차림?"],
+            ret: "흐름",
+        },
+        FunctionSig {
+            name: "이력.밀어넣기",
+            params: &["흐름", "값"],
+            ret: "흐름",
+        },
+        FunctionSig {
+            name: "이력.차림",
+            params: &["흐름"],
+            ret: "차림<T>",
+        },
+        FunctionSig {
+            name: "이력.최근값",
+            params: &["흐름"],
+            ret: "T?",
+        },
+        FunctionSig {
+            name: "이력.길이",
+            params: &["흐름"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "이력.용량",
+            params: &["흐름"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "이력.비우기",
+            params: &["흐름"],
+            ret: "흐름",
+        },
+        FunctionSig {
+            name: "이력.잘라보기",
+            params: &["흐름", "개수"],
+            ret: "차림<T>",
+        },
+        FunctionSig {
             name: "흐름만들기",
             params: &["용량", "초기값차림?"],
             ret: "흐름",
@@ -581,6 +630,41 @@ pub fn grid_function_sigs() -> Vec<FunctionSig> {
     ]
 }
 
+pub fn block_piece_function_sigs() -> Vec<FunctionSig> {
+    vec![
+        FunctionSig {
+            name: "블록조각.만들기",
+            params: &["칸들"],
+            ret: "블록조각",
+        },
+        FunctionSig {
+            name: "블록조각.칸목록",
+            params: &["블록조각"],
+            ret: "차림<차림<정수>>",
+        },
+        FunctionSig {
+            name: "블록조각.이동",
+            params: &["블록조각", "dx", "dy"],
+            ret: "블록조각",
+        },
+        FunctionSig {
+            name: "블록조각.회전",
+            params: &["블록조각", "방향"],
+            ret: "블록조각",
+        },
+        FunctionSig {
+            name: "블록조각.충돌?",
+            params: &["블록조각", "격자", "막힌값들"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "블록조각.고정",
+            params: &["블록조각", "격자", "값"],
+            ret: "격자",
+        },
+    ]
+}
+
 pub fn physics_1d_function_sigs() -> Vec<FunctionSig> {
     vec![
         FunctionSig {
@@ -646,6 +730,303 @@ pub fn random_function_sigs() -> Vec<FunctionSig> {
             params: &["주사위씨", "후보"],
             ret: "T",
         },
+        FunctionSig {
+            name: "무작위가방.만들기",
+            params: &["시앗", "후보들"],
+            ret: "무작위가방",
+        },
+        FunctionSig {
+            name: "무작위가방.꺼내기",
+            params: &["무작위가방"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "무작위가방.미리보기",
+            params: &["무작위가방", "개수"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "무작위가방.남은것",
+            params: &["무작위가방"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "무작위가방.비었나",
+            params: &["무작위가방"],
+            ret: "참거짓",
+        },
+    ]
+}
+
+pub fn grid_game_state_function_sigs() -> Vec<FunctionSig> {
+    vec![
+        FunctionSig {
+            name: "격자게임상태.초기화",
+            params: &[],
+            ret: "격자게임상태",
+        },
+        FunctionSig {
+            name: "격자게임상태.만들기",
+            params: &["상태"],
+            ret: "격자게임상태",
+        },
+        FunctionSig {
+            name: "격자게임상태.상태",
+            params: &["격자게임상태"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "격자게임상태.틱",
+            params: &["격자게임상태"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "격자게임상태.상태인가",
+            params: &["격자게임상태", "상태"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "격자게임상태.바꾸기",
+            params: &["격자게임상태", "상태"],
+            ret: "격자게임상태",
+        },
+        FunctionSig {
+            name: "격자게임상태.멈춤",
+            params: &["격자게임상태"],
+            ret: "격자게임상태",
+        },
+        FunctionSig {
+            name: "격자게임상태.재개",
+            params: &["격자게임상태"],
+            ret: "격자게임상태",
+        },
+    ]
+}
+
+pub fn grid_game_playable_function_sigs() -> Vec<FunctionSig> {
+    vec![
+        FunctionSig {
+            name: "테트로미노.이름목록",
+            params: &[],
+            ret: "차림<글>",
+        },
+        FunctionSig {
+            name: "테트로미노.만들기",
+            params: &["이름"],
+            ret: "블록조각",
+        },
+        FunctionSig {
+            name: "테트로미노.목록",
+            params: &[],
+            ret: "차림<블록조각>",
+        },
+        FunctionSig {
+            name: "격자줄.찬줄목록",
+            params: &["격자", "빈값"],
+            ret: "차림<정수>",
+        },
+        FunctionSig {
+            name: "격자줄.지우기",
+            params: &["격자", "빈값"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "낙하조각.만들기",
+            params: &["조각", "x", "y"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "낙하조각.조각",
+            params: &["낙하조각"],
+            ret: "블록조각",
+        },
+        FunctionSig {
+            name: "낙하조각.위치",
+            params: &["낙하조각"],
+            ret: "차림<정수>",
+        },
+        FunctionSig {
+            name: "낙하조각.배치",
+            params: &["낙하조각"],
+            ret: "차림<차림<정수>>",
+        },
+        FunctionSig {
+            name: "낙하조각.이동",
+            params: &["낙하조각", "dx", "dy"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "낙하조각.회전",
+            params: &["낙하조각", "방향"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "격자게임.놓을수있나",
+            params: &["낙하조각", "격자", "막힌값들"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "격자게임.입력적용",
+            params: &["낙하조각", "입력사상"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "격자게임.중력틱",
+            params: &["낙하조각"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "격자게임.고정",
+            params: &["낙하조각", "격자", "값"],
+            ret: "격자",
+        },
+        FunctionSig {
+            name: "격자게임.스폰",
+            params: &["조각", "x", "y"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "격자게임.다음조각",
+            params: &["무작위가방"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "격자게임.한틱",
+            params: &["격자게임세션", "입력사상"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "격자게임.회전시도",
+            params: &["낙하조각", "격자", "막힌값들", "방향"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "격자게임홀드.초기화",
+            params: &[],
+            ret: "격자게임홀드",
+        },
+        FunctionSig {
+            name: "격자게임홀드.칸",
+            params: &["격자게임홀드"],
+            ret: "블록조각|없음",
+        },
+        FunctionSig {
+            name: "격자게임홀드.썼나",
+            params: &["격자게임홀드"],
+            ret: "참거짓",
+        },
+        FunctionSig {
+            name: "격자게임홀드.교체",
+            params: &["격자게임홀드", "낙하조각", "무작위가방", "x", "y"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "격자게임홀드.초기화턴",
+            params: &["격자게임홀드"],
+            ret: "격자게임홀드",
+        },
+        FunctionSig {
+            name: "격자게임점수.초기화",
+            params: &[],
+            ret: "격자게임점수",
+        },
+        FunctionSig {
+            name: "격자게임점수.더하기",
+            params: &["격자게임점수", "지운줄수"],
+            ret: "격자게임점수",
+        },
+        FunctionSig {
+            name: "격자게임점수.점수",
+            params: &["격자게임점수"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "격자게임점수.줄수",
+            params: &["격자게임점수"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "격자게임점수.레벨",
+            params: &["격자게임점수"],
+            ret: "정수",
+        },
+        FunctionSig {
+            name: "격자게임세션.만들기",
+            params: &["격자", "가방", "상태", "점수", "낙하조각"],
+            ret: "격자게임세션",
+        },
+        FunctionSig {
+            name: "격자게임세션.격자",
+            params: &["격자게임세션"],
+            ret: "격자",
+        },
+        FunctionSig {
+            name: "격자게임세션.가방",
+            params: &["격자게임세션"],
+            ret: "무작위가방",
+        },
+        FunctionSig {
+            name: "격자게임세션.상태",
+            params: &["격자게임세션"],
+            ret: "격자게임상태",
+        },
+        FunctionSig {
+            name: "격자게임세션.점수",
+            params: &["격자게임세션"],
+            ret: "격자게임점수",
+        },
+        FunctionSig {
+            name: "격자게임세션.낙하조각",
+            params: &["격자게임세션"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "격자게임세션.바꾸기",
+            params: &["격자게임세션", "격자", "가방", "상태", "점수", "낙하조각"],
+            ret: "격자게임세션",
+        },
+        FunctionSig {
+            name: "격자게임보기.칸목록",
+            params: &["격자게임세션", "빈값", "낙하값"],
+            ret: "차림<묶음>",
+        },
+        FunctionSig {
+            name: "격자게임보기.문자판",
+            params: &["격자게임세션", "빈값", "낙하값"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "격자게임보기.상태요약",
+            params: &["격자게임세션"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "격자게임보기.유령조각",
+            params: &["격자게임세션", "막힌값들"],
+            ret: "낙하조각",
+        },
+        FunctionSig {
+            name: "격자게임보기.유령보개목록",
+            params: &[
+                "격자게임세션",
+                "빈값",
+                "낙하값",
+                "유령값",
+                "칸크기",
+                "막힌값들",
+            ],
+            ret: "차림<묶음>",
+        },
+        FunctionSig {
+            name: "격자게임보기.보개목록",
+            params: &["격자게임세션", "빈값", "낙하값", "칸크기"],
+            ret: "차림<묶음>",
+        },
+        FunctionSig {
+            name: "격자게임보기.보개크기",
+            params: &["격자게임세션", "칸크기"],
+            ret: "묶음",
+        },
     ]
 }
 
@@ -697,6 +1078,16 @@ pub fn math_function_sigs() -> Vec<FunctionSig> {
             ret: "(위치, 속도)",
         },
         FunctionSig {
+            name: "적분.속도베를레",
+            params: &["위치", "속도", "가속도", "다음가속도", "dt"],
+            ret: "(다음위치, 다음속도)",
+        },
+        FunctionSig {
+            name: "적분.속도_베를레",
+            params: &["위치", "속도", "가속도", "다음가속도", "dt"],
+            ret: "(다음위치, 다음속도)",
+        },
+        FunctionSig {
             name: "보간.선형",
             params: &["시작", "끝", "t(0..1)"],
             ret: "값",
@@ -725,6 +1116,21 @@ pub fn math_function_sigs() -> Vec<FunctionSig> {
             name: "적분.사다리꼴",
             params: &["수식값", "변수", "시작", "끝", "스텝"],
             ret: "(근사값, 오차추정, 사용한방법)",
+        },
+        FunctionSig {
+            name: "수치해.이분법",
+            params: &["수식값", "변수", "하한", "상한", "반복횟수"],
+            ret: "(근, 잔차, 반복횟수, 사용한방법)",
+        },
+        FunctionSig {
+            name: "다항식.풀기",
+            params: &["수식값", "변수"],
+            ret: "풀이결과",
+        },
+        FunctionSig {
+            name: "선형부등식.풀기",
+            params: &["조건들", "변수"],
+            ret: "묶음",
         },
     ]
 }
@@ -814,6 +1220,141 @@ pub fn transform_function_sigs() -> Vec<FunctionSig> {
         FunctionSig {
             name: "방정식풀기",
             params: &["관계"],
+            ret: "묶음",
+        },
+    ]
+}
+
+pub fn connect_relation_function_sigs() -> Vec<FunctionSig> {
+    vec![
+        FunctionSig {
+            name: "이음관계.관계목록",
+            params: &["이음관계"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "이음관계.정규화",
+            params: &["이음관계"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.방정식목록",
+            params: &["이음관계"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "이음관계.방정식화",
+            params: &["이음관계"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.값관계목록",
+            params: &["방정식묶음", "값들"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "이음관계.값주입",
+            params: &["방정식묶음", "값들"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀기",
+            params: &["이음관계", "값들"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀이값목록",
+            params: &["방정식묶음", "풀이결과"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "이음관계.풀이원복",
+            params: &["방정식묶음", "풀이결과"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.범위위반목록",
+            params: &["풀이원복결과", "범위들"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "이음관계.범위검사",
+            params: &["풀이원복결과", "범위들"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위위반목록",
+            params: &["이음관계", "값들", "범위들"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위검사",
+            params: &["이음관계", "값들", "범위들"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위행목록",
+            params: &["이음관계", "값들", "범위들"],
+            ret: "차림",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위보고서",
+            params: &["이음관계", "값들", "범위들"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.보고서문자표",
+            params: &["보고서"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위문자표",
+            params: &["이음관계", "값들", "범위들"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위케이스",
+            params: &["케이스"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위스위트",
+            params: &["케이스들"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위스위트문자표",
+            params: &["스위트"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위스위트상세문자표",
+            params: &["스위트"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위실행상세문자표",
+            params: &["케이스들"],
+            ret: "글",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위스위트요약",
+            params: &["스위트"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위실행요약",
+            params: &["케이스들"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위스위트판정",
+            params: &["요약"],
+            ret: "묶음",
+        },
+        FunctionSig {
+            name: "이음관계.풀고범위실행판정",
+            params: &["케이스들"],
             ret: "묶음",
         },
     ]
@@ -963,12 +1504,16 @@ pub fn minimal_stdlib_sigs() -> Vec<FunctionSig> {
     out.extend(stream_function_sigs());
     out.extend(input_function_sigs());
     out.extend(grid_function_sigs());
+    out.extend(block_piece_function_sigs());
     out.extend(physics_1d_function_sigs());
     out.extend(resource_function_sigs());
     out.extend(random_function_sigs());
+    out.extend(grid_game_state_function_sigs());
+    out.extend(grid_game_playable_function_sigs());
     out.extend(math_function_sigs());
     out.extend(pack_function_sigs());
     out.extend(transform_function_sigs());
+    out.extend(connect_relation_function_sigs());
     out.extend(logic_function_sigs());
     out.extend(age1_runtime_function_sigs());
     out.extend(numeric_type_constructor_sigs());
@@ -990,6 +1535,11 @@ mod tests {
         assert!(sigs.iter().any(|s| s.name == "흐름.차림"));
         assert!(sigs.iter().any(|s| s.name == "흐름.비우기"));
         assert!(sigs.iter().any(|s| s.name == "흐름.잘라보기"));
+        assert!(sigs.iter().any(|s| s.name == "이력.만들기"));
+        assert!(sigs.iter().any(|s| s.name == "이력.밀어넣기"));
+        assert!(sigs.iter().any(|s| s.name == "이력.차림"));
+        assert!(sigs.iter().any(|s| s.name == "이력.비우기"));
+        assert!(sigs.iter().any(|s| s.name == "이력.잘라보기"));
         assert!(sigs.iter().any(|s| s.name == "첫번째"));
         assert!(sigs.iter().any(|s| s.name == "정렬"));
         assert!(sigs.iter().any(|s| s.name == "포함하나"));
@@ -1017,6 +1567,698 @@ mod tests {
     }
 
     #[test]
+    fn numeric_root_finding_v1_stdlib_signature_is_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        let sig = sigs
+            .iter()
+            .find(|sig| sig.name == "수치해.이분법")
+            .expect("수치해.이분법 signature");
+        assert_eq!(
+            sig.params,
+            &["수식값", "변수", "하한", "상한", "반복횟수"]
+        );
+        assert_eq!(sig.ret, "(근, 잔차, 반복횟수, 사용한방법)");
+    }
+
+    #[test]
+    fn polynomial_solve_minimum_v1_stdlib_signature_is_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        let sig = sigs
+            .iter()
+            .find(|sig| sig.name == "다항식.풀기")
+            .expect("다항식.풀기 signature");
+        assert_eq!(sig.params, &["수식값", "변수"]);
+        assert_eq!(sig.ret, "풀이결과");
+    }
+
+    #[test]
+    fn linear_inequality_solve_minimum_v1_stdlib_signature_is_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        let sig = sigs
+            .iter()
+            .find(|sig| sig.name == "선형부등식.풀기")
+            .expect("선형부등식.풀기 signature");
+        assert_eq!(sig.params, &["조건들", "변수"]);
+        assert_eq!(sig.ret, "묶음");
+    }
+
+    #[test]
+    fn connect_jitgi_stdlib_signature_is_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        let sig = sigs
+            .iter()
+            .find(|sig| sig.name == "잇기")
+            .expect("잇기 signature");
+        assert_eq!(sig.params, &["왼쪽", "오른쪽"]);
+        assert_eq!(sig.ret, "묶음");
+    }
+
+    #[test]
+    fn connect_endpoint_normalize_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.관계목록", &["이음관계"][..], "차림"),
+            ("이음관계.정규화", &["이음관계"][..], "묶음"),
+            ("이음관계.방정식목록", &["이음관계"][..], "차림"),
+            ("이음관계.방정식화", &["이음관계"][..], "묶음"),
+            ("이음관계.값관계목록", &["방정식묶음", "값들"][..], "차림"),
+            ("이음관계.값주입", &["방정식묶음", "값들"][..], "묶음"),
+            ("이음관계.풀기", &["이음관계", "값들"][..], "묶음"),
+            (
+                "이음관계.풀이값목록",
+                &["방정식묶음", "풀이결과"][..],
+                "차림",
+            ),
+            ("이음관계.풀이원복", &["방정식묶음", "풀이결과"][..], "묶음"),
+            (
+                "이음관계.범위위반목록",
+                &["풀이원복결과", "범위들"][..],
+                "차림",
+            ),
+            ("이음관계.범위검사", &["풀이원복결과", "범위들"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_formula_relation_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.방정식목록", &["이음관계"][..], "차림"),
+            ("이음관계.방정식화", &["이음관계"][..], "묶음"),
+            ("이음관계.값관계목록", &["방정식묶음", "값들"][..], "차림"),
+            ("이음관계.값주입", &["방정식묶음", "값들"][..], "묶음"),
+            ("이음관계.풀기", &["이음관계", "값들"][..], "묶음"),
+            (
+                "이음관계.풀이값목록",
+                &["방정식묶음", "풀이결과"][..],
+                "차림",
+            ),
+            ("이음관계.풀이원복", &["방정식묶음", "풀이결과"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_solve_result_remap_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            (
+                "이음관계.풀이값목록",
+                &["방정식묶음", "풀이결과"][..],
+                "차림",
+            ),
+            ("이음관계.풀이원복", &["방정식묶음", "풀이결과"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_value_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.값관계목록", &["방정식묶음", "값들"][..], "차림"),
+            ("이음관계.값주입", &["방정식묶음", "값들"][..], "묶음"),
+            ("이음관계.풀기", &["이음관계", "값들"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_stdlib_signature_is_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        let sig = sigs
+            .iter()
+            .find(|sig| sig.name == "이음관계.풀기")
+            .expect("이음관계.풀기 signature");
+        assert_eq!(sig.params, &["이음관계", "값들"]);
+        assert_eq!(sig.ret, "묶음");
+    }
+
+    #[test]
+    fn connect_endpoint_unit_boundary_stdlib_signatures_stay_existing_surface() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.값관계목록", &["방정식묶음", "값들"][..], "차림"),
+            ("이음관계.값주입", &["방정식묶음", "값들"][..], "묶음"),
+            ("이음관계.풀이원복", &["방정식묶음", "풀이결과"][..], "묶음"),
+            ("이음관계.풀기", &["이음관계", "값들"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_range_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            (
+                "이음관계.범위위반목록",
+                &["풀이원복결과", "범위들"][..],
+                "차림",
+            ),
+            ("이음관계.범위검사", &["풀이원복결과", "범위들"][..], "묶음"),
+            (
+                "이음관계.풀고범위위반목록",
+                &["이음관계", "값들", "범위들"][..],
+                "차림",
+            ),
+            (
+                "이음관계.풀고범위검사",
+                &["이음관계", "값들", "범위들"][..],
+                "묶음",
+            ),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_range_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            (
+                "이음관계.풀고범위위반목록",
+                &["이음관계", "값들", "범위들"][..],
+                "차림",
+            ),
+            (
+                "이음관계.풀고범위검사",
+                &["이음관계", "값들", "범위들"][..],
+                "묶음",
+            ),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_report_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            (
+                "이음관계.풀고범위행목록",
+                &["이음관계", "값들", "범위들"][..],
+                "차림",
+            ),
+            (
+                "이음관계.풀고범위보고서",
+                &["이음관계", "값들", "범위들"][..],
+                "묶음",
+            ),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_text_report_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.보고서문자표", &["보고서"][..], "글"),
+            (
+                "이음관계.풀고범위문자표",
+                &["이음관계", "값들", "범위들"][..],
+                "글",
+            ),
+            ("이음관계.풀고범위케이스", &["케이스"][..], "묶음"),
+            ("이음관계.풀고범위스위트", &["케이스들"][..], "묶음"),
+            ("이음관계.풀고범위스위트문자표", &["스위트"][..], "글"),
+            ("이음관계.풀고범위스위트상세문자표", &["스위트"][..], "글"),
+            ("이음관계.풀고범위실행상세문자표", &["케이스들"][..], "글"),
+            ("이음관계.풀고범위스위트요약", &["스위트"][..], "묶음"),
+            ("이음관계.풀고범위실행요약", &["케이스들"][..], "묶음"),
+            ("이음관계.풀고범위스위트판정", &["요약"][..], "묶음"),
+            ("이음관계.풀고범위실행판정", &["케이스들"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.풀고범위케이스", &["케이스"][..], "묶음"),
+            ("이음관계.풀고범위스위트", &["케이스들"][..], "묶음"),
+            ("이음관계.풀고범위스위트문자표", &["스위트"][..], "글"),
+            ("이음관계.풀고범위스위트상세문자표", &["스위트"][..], "글"),
+            ("이음관계.풀고범위실행상세문자표", &["케이스들"][..], "글"),
+            ("이음관계.풀고범위스위트요약", &["스위트"][..], "묶음"),
+            ("이음관계.풀고범위실행요약", &["케이스들"][..], "묶음"),
+            ("이음관계.풀고범위스위트판정", &["요약"][..], "묶음"),
+            ("이음관계.풀고범위실행판정", &["케이스들"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_detail_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.풀고범위스위트상세문자표", &["스위트"][..], "글"),
+            ("이음관계.풀고범위실행상세문자표", &["케이스들"][..], "글"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_summary_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.풀고범위스위트요약", &["스위트"][..], "묶음"),
+            ("이음관계.풀고범위실행요약", &["케이스들"][..], "묶음"),
+            ("이음관계.풀고범위스위트판정", &["요약"][..], "묶음"),
+            ("이음관계.풀고범위실행판정", &["케이스들"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_check_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("이음관계.풀고범위스위트판정", &["요약"][..], "묶음"),
+            ("이음관계.풀고범위실행판정", &["케이스들"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_grid_closure_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for name in [
+            "격자.만들기",
+            "격자.너비",
+            "격자.높이",
+            "격자.값",
+            "격자.바꾼값",
+            "격자.안인가",
+            "격자.막혔나",
+            "격자.길찾기",
+        ] {
+            assert!(sigs.iter().any(|sig| sig.name == name), "{name}");
+        }
+    }
+
+    #[test]
+    fn std_unit_closure_physics_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for name in ["물리1d.위치갱신", "물리1d.속도갱신", "물리1d.탄성충돌1d"] {
+            assert!(sigs.iter().any(|sig| sig.name == name), "{name}");
+        }
+    }
+
+    #[test]
+    fn std_input_map_closure_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("입력키", &[][..], "글"),
+            ("입력키?", &[][..], "글?"),
+            ("입력키!", &[][..], "글"),
+            ("입력사상.만들기", &["묶음?"][..], "입력사상"),
+            ("입력사상.방향", &["입력사상"][..], "차림<정수>"),
+            ("입력사상.동작", &["입력사상", "이름"][..], "참거짓"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_block_piece_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("블록조각.만들기", &["칸들"][..], "블록조각"),
+            ("블록조각.칸목록", &["블록조각"][..], "차림<차림<정수>>"),
+            ("블록조각.이동", &["블록조각", "dx", "dy"][..], "블록조각"),
+            ("블록조각.회전", &["블록조각", "방향"][..], "블록조각"),
+            (
+                "블록조각.충돌?",
+                &["블록조각", "격자", "막힌값들"][..],
+                "참거짓",
+            ),
+            ("블록조각.고정", &["블록조각", "격자", "값"][..], "격자"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_random_bag_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("무작위가방.만들기", &["시앗", "후보들"][..], "무작위가방"),
+            ("무작위가방.꺼내기", &["무작위가방"][..], "묶음"),
+            ("무작위가방.미리보기", &["무작위가방", "개수"][..], "차림"),
+            ("무작위가방.남은것", &["무작위가방"][..], "차림"),
+            ("무작위가방.비었나", &["무작위가방"][..], "참거짓"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_grid_game_state_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("격자게임상태.초기화", &[][..], "격자게임상태"),
+            ("격자게임상태.만들기", &["상태"][..], "격자게임상태"),
+            ("격자게임상태.상태", &["격자게임상태"][..], "글"),
+            ("격자게임상태.틱", &["격자게임상태"][..], "정수"),
+            (
+                "격자게임상태.상태인가",
+                &["격자게임상태", "상태"][..],
+                "참거짓",
+            ),
+            (
+                "격자게임상태.바꾸기",
+                &["격자게임상태", "상태"][..],
+                "격자게임상태",
+            ),
+            ("격자게임상태.멈춤", &["격자게임상태"][..], "격자게임상태"),
+            ("격자게임상태.재개", &["격자게임상태"][..], "격자게임상태"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_tetromino_catalog_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("테트로미노.이름목록", &[][..], "차림<글>"),
+            ("테트로미노.만들기", &["이름"][..], "블록조각"),
+            ("테트로미노.목록", &[][..], "차림<블록조각>"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_grid_line_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("격자줄.찬줄목록", &["격자", "빈값"][..], "차림<정수>"),
+            ("격자줄.지우기", &["격자", "빈값"][..], "묶음"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_falling_piece_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            ("낙하조각.만들기", &["조각", "x", "y"][..], "낙하조각"),
+            ("낙하조각.조각", &["낙하조각"][..], "블록조각"),
+            ("낙하조각.위치", &["낙하조각"][..], "차림<정수>"),
+            ("낙하조각.배치", &["낙하조각"][..], "차림<차림<정수>>"),
+            ("낙하조각.이동", &["낙하조각", "dx", "dy"][..], "낙하조각"),
+            ("낙하조각.회전", &["낙하조각", "방향"][..], "낙하조각"),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_grid_game_playable_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for name in [
+            "격자게임.놓을수있나",
+            "격자게임.입력적용",
+            "격자게임.중력틱",
+            "격자게임.고정",
+            "격자게임.스폰",
+            "격자게임.다음조각",
+            "격자게임.한틱",
+            "격자게임.회전시도",
+            "격자게임홀드.초기화",
+            "격자게임홀드.칸",
+            "격자게임홀드.썼나",
+            "격자게임홀드.교체",
+            "격자게임홀드.초기화턴",
+            "격자게임점수.초기화",
+            "격자게임점수.더하기",
+            "격자게임점수.점수",
+            "격자게임점수.줄수",
+            "격자게임점수.레벨",
+            "격자게임세션.만들기",
+            "격자게임세션.격자",
+            "격자게임세션.가방",
+            "격자게임세션.상태",
+            "격자게임세션.점수",
+            "격자게임세션.낙하조각",
+            "격자게임세션.바꾸기",
+            "격자게임보기.칸목록",
+            "격자게임보기.문자판",
+            "격자게임보기.상태요약",
+            "격자게임보기.유령조각",
+            "격자게임보기.유령보개목록",
+            "격자게임보기.보개목록",
+            "격자게임보기.보개크기",
+        ] {
+            assert!(sigs.iter().any(|sig| sig.name == name), "{name}");
+        }
+    }
+
+    #[test]
+    fn std_grid_game_view_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            (
+                "격자게임보기.칸목록",
+                &["격자게임세션", "빈값", "낙하값"][..],
+                "차림<묶음>",
+            ),
+            (
+                "격자게임보기.문자판",
+                &["격자게임세션", "빈값", "낙하값"][..],
+                "글",
+            ),
+            ("격자게임보기.상태요약", &["격자게임세션"][..], "묶음"),
+            (
+                "격자게임보기.보개목록",
+                &["격자게임세션", "빈값", "낙하값", "칸크기"][..],
+                "차림<묶음>",
+            ),
+            (
+                "격자게임보기.보개크기",
+                &["격자게임세션", "칸크기"][..],
+                "묶음",
+            ),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_grid_game_bogae_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            (
+                "격자게임보기.보개목록",
+                &["격자게임세션", "빈값", "낙하값", "칸크기"][..],
+                "차림<묶음>",
+            ),
+            (
+                "격자게임보기.보개크기",
+                &["격자게임세션", "칸크기"][..],
+                "묶음",
+            ),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn std_grid_game_rules_stdlib_signatures_are_preserved() {
+        let sigs = minimal_stdlib_sigs();
+        for (name, params, ret) in [
+            (
+                "격자게임.회전시도",
+                &["낙하조각", "격자", "막힌값들", "방향"][..],
+                "묶음",
+            ),
+            ("격자게임홀드.초기화", &[][..], "격자게임홀드"),
+            ("격자게임홀드.칸", &["격자게임홀드"][..], "블록조각|없음"),
+            ("격자게임홀드.썼나", &["격자게임홀드"][..], "참거짓"),
+            (
+                "격자게임홀드.교체",
+                &["격자게임홀드", "낙하조각", "무작위가방", "x", "y"][..],
+                "묶음",
+            ),
+            (
+                "격자게임홀드.초기화턴",
+                &["격자게임홀드"][..],
+                "격자게임홀드",
+            ),
+            (
+                "격자게임보기.유령조각",
+                &["격자게임세션", "막힌값들"][..],
+                "낙하조각",
+            ),
+            (
+                "격자게임보기.유령보개목록",
+                &[
+                    "격자게임세션",
+                    "빈값",
+                    "낙하값",
+                    "유령값",
+                    "칸크기",
+                    "막힌값들",
+                ][..],
+                "차림<묶음>",
+            ),
+        ] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(sig.params, params, "{name} params");
+            assert_eq!(sig.ret, ret, "{name} ret");
+        }
+    }
+
+    #[test]
+    fn velocity_verlet_stdlib_surface_acceptance_v1_signature_is_present() {
+        let sigs = minimal_stdlib_sigs();
+        for name in ["적분.속도베를레", "적분.속도_베를레"] {
+            let sig = sigs
+                .iter()
+                .find(|sig| sig.name == name)
+                .unwrap_or_else(|| panic!("{name} signature"));
+            assert_eq!(
+                sig.params,
+                &["위치", "속도", "가속도", "다음가속도", "dt"],
+                "{name} params"
+            );
+            assert_eq!(sig.ret, "(다음위치, 다음속도)", "{name} ret");
+        }
+        assert_eq!(
+            canonicalize_stdlib_alias("적분.속도_베를레"),
+            "적분.속도베를레"
+        );
+    }
+
+    #[test]
     fn canonicalize_stdlib_aliases_map_to_single_canonical_names() {
         assert_eq!(canonicalize_stdlib_alias("길이세기"), "길이");
         assert_eq!(canonicalize_stdlib_alias("값뽑기"), "차림.값");
@@ -1028,10 +2270,28 @@ mod tests {
         assert_eq!(canonicalize_stdlib_alias("흐름비우기"), "흐름.비우기");
         assert_eq!(canonicalize_stdlib_alias("흐름잘라보기"), "흐름.잘라보기");
         assert_eq!(canonicalize_stdlib_alias("흐름최근N"), "흐름.잘라보기");
+        assert_eq!(canonicalize_stdlib_alias("이력.만들기"), "흐름.만들기");
+        assert_eq!(
+            canonicalize_stdlib_alias("이력.밀어넣기"),
+            "흐름.밀어넣기"
+        );
+        assert_eq!(canonicalize_stdlib_alias("이력.차림"), "흐름.차림");
+        assert_eq!(canonicalize_stdlib_alias("이력.최근값"), "흐름.최근값");
+        assert_eq!(canonicalize_stdlib_alias("이력.길이"), "흐름.길이");
+        assert_eq!(canonicalize_stdlib_alias("이력.용량"), "흐름.용량");
+        assert_eq!(canonicalize_stdlib_alias("이력.비우기"), "흐름.비우기");
+        assert_eq!(
+            canonicalize_stdlib_alias("이력.잘라보기"),
+            "흐름.잘라보기"
+        );
         assert_eq!(canonicalize_stdlib_alias("절댓값"), "abs");
         assert_eq!(canonicalize_stdlib_alias("최솟값"), "min");
         assert_eq!(canonicalize_stdlib_alias("지니계수"), "지니");
         assert_eq!(canonicalize_stdlib_alias("백분위수"), "분위수");
+        assert_eq!(
+            canonicalize_stdlib_alias("적분.속도_베를레"),
+            "적분.속도베를레"
+        );
         assert_eq!(canonicalize_stdlib_alias("fixed64"), "셈수");
         assert_eq!(canonicalize_stdlib_alias("sim_num"), "셈수");
         assert_eq!(canonicalize_stdlib_alias("셈수"), "셈수");

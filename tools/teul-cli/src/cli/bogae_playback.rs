@@ -44,14 +44,22 @@ pub fn write_viewer_assets(
     fs::write(&js_path, build_viewer_js()).map_err(|e| e.to_string())?;
     fs::write(&overlay_path, overlay.to_detjson()).map_err(|e| e.to_string())?;
 
+    let skin_target = viewer_dir.join("skin.detjson");
     if let Some(skin_path) = skin_source {
-        let target = viewer_dir.join("skin.detjson");
-        if fs::copy(skin_path, &target).is_ok() {
+        if fs::copy(skin_path, &skin_target).is_ok() {
             copy_skin_assets(&viewer_dir, skin_path);
+        } else {
+            fs::write(&skin_target, build_empty_skin_text()).map_err(|e| e.to_string())?;
         }
+    } else {
+        fs::write(&skin_target, build_empty_skin_text()).map_err(|e| e.to_string())?;
     }
 
     Ok(index_path)
+}
+
+fn build_empty_skin_text() -> &'static str {
+    "{\n  \"symbols\": []\n}\n"
 }
 
 fn build_manifest_text(
@@ -1427,4 +1435,145 @@ fn is_relative_asset(uri: &str) -> bool {
         return false;
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn std_grid_game_bogae_web_playback_viewer_assets_expose_controls() {
+        let index_html = build_index_html(false);
+        let live_html = build_index_html(true);
+        let viewer_js = build_viewer_js();
+        let manifest = build_manifest_text(
+            0,
+            4,
+            &[PlaybackFrameMeta {
+                madi: 0,
+                state_hash: "blake3:state".to_string(),
+                hash: "blake3:bogae".to_string(),
+                cmd_count: 65,
+                file: "frames/000000.bdl1.detbin".to_string(),
+            }],
+            "BDL1",
+        );
+
+        for required in [
+            "btn-play",
+            "btn-step-back",
+            "btn-step-forward",
+            "seek",
+            "ov-grid",
+            "ov-bounds",
+            "ov-delta",
+            "status",
+        ] {
+            assert!(
+                index_html.contains(required),
+                "index.html missing {required}"
+            );
+            assert!(live_html.contains(required), "live.html missing {required}");
+            assert!(viewer_js.contains(required), "viewer.js missing {required}");
+        }
+
+        assert!(index_html.contains("Bogae Playback Viewer"));
+        assert!(live_html.contains("Bogae Live Viewer"));
+        assert!(live_html.contains("data-live=\"1\""));
+        assert!(viewer_js.contains("../manifest.detjson"));
+        assert!(viewer_js.contains("frameMeta.file"));
+        assert!(viewer_js.contains("setupInputCapture"));
+        assert!(manifest.contains("\"kind\": \"bogae_web_playback_v1\""));
+        assert!(manifest.contains("\"codec\": \"BDL1\""));
+        assert!(manifest.contains("\"file\": \"frames/000000.bdl1.detbin\""));
+    }
+
+    #[test]
+    fn std_grid_game_bogae_viewer_js_dom_input_and_playback_markers_exist() {
+        let viewer_js = build_viewer_js();
+        for required in [
+            "function handleKeyDown",
+            "function handleKeyUp",
+            "function clearInput",
+            "window.addEventListener(\"blur\", clearInput)",
+            "document.addEventListener(\"visibilitychange\"",
+            "if (ev.repeat)",
+            "sendInputEvent(code, \"down\")",
+            "sendInputEvent(code, \"up\")",
+            "fetch(`../manifest.detjson${stamp}`",
+            "await loadFrame(latest)",
+            "step(-1)",
+            "step(1)",
+            "updateOverlayFromToggles",
+        ] {
+            assert!(viewer_js.contains(required), "viewer.js missing {required}");
+        }
+    }
+
+    #[test]
+    fn std_grid_game_bogae_browser_dom_viewer_asset_markers_exist() {
+        let index_html = build_index_html(false);
+        let live_html = build_index_html(true);
+        let viewer_js = build_viewer_js();
+
+        for required in [
+            "<canvas id=\"canvas\"></canvas>",
+            "btn-play",
+            "btn-step-back",
+            "btn-step-forward",
+            "seek",
+            "ov-grid",
+            "ov-bounds",
+            "ov-delta",
+            "status",
+        ] {
+            assert!(
+                index_html.contains(required),
+                "index.html missing {required}"
+            );
+            assert!(live_html.contains(required), "live.html missing {required}");
+        }
+
+        assert!(index_html.contains("Bogae Playback Viewer"));
+        assert!(live_html.contains("Bogae Live Viewer"));
+        assert!(live_html.contains("data-live=\"1\""));
+        for required in [
+            "const canvas = document.getElementById(\"canvas\")",
+            "const ctx = canvas.getContext(\"2d\")",
+            "fetch(`../manifest.detjson${stamp}`",
+            "await loadFrame(0)",
+            "await loadFrame(latest)",
+            "btnStepForward.addEventListener(\"click\"",
+            "seek.addEventListener(\"input\"",
+            "ovGrid.addEventListener(\"change\"",
+            "setControlsEnabled(false)",
+            "setControlsEnabled(true)",
+        ] {
+            assert!(viewer_js.contains(required), "viewer.js missing {required}");
+        }
+    }
+
+    #[test]
+    fn std_grid_game_bogae_browser_input_delivery_viewer_markers_exist() {
+        let live_html = build_index_html(true);
+        let viewer_js = build_viewer_js();
+
+        assert!(live_html.contains("data-live=\"1\""));
+        for required in [
+            "params.get(\"input\")",
+            "state.live = isLive",
+            "function sendInputEvent",
+            "function clearInput",
+            "encodeURIComponent(code)",
+            "encodeURIComponent(kind)",
+            "if (ev.repeat)",
+            "window.addEventListener(\"keydown\", handleKeyDown",
+            "window.addEventListener(\"keyup\", handleKeyUp",
+            "window.addEventListener(\"blur\", clearInput)",
+            "document.addEventListener(\"visibilitychange\"",
+            "clearInput();",
+        ] {
+            assert!(viewer_js.contains(required), "viewer.js missing {required}");
+        }
+    }
 }

@@ -6586,7 +6586,7 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
             .find(|event| event.reason == "CONTRACT_PRE")
             .expect("contract diag");
         assert_eq!(diag.contract_kind.as_deref(), Some("pre"));
-        assert_eq!(diag.mode.as_deref(), Some("중단"));
+        assert_eq!(diag.mode.as_deref(), Some("물림"));
     }
 
     #[test]
@@ -7120,7 +7120,7 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
     (값=1.5) 받기.
 }
 "#,
-                vec!["E_RUNTIME_TYPE_MISMATCH", "핀=값", "기대=정수", "실제=수"],
+                vec!["E_RUNTIME_TYPE_MISMATCH", "핀=값", "기대=바른수", "실제=수"],
             ),
             (
                 "unit mismatch",
@@ -7170,7 +7170,7 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                     "E_RUNTIME_TYPE_MISMATCH",
                     "핀=모음",
                     "기대=(글)모음",
-                    "실제=모음(요소: 정수)",
+                    "실제=모음(요소: 바른수)",
                 ],
             ),
             (
@@ -7187,7 +7187,7 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
                     "E_RUNTIME_TYPE_MISMATCH",
                     "핀=표",
                     "기대=(글, 수)짝맞춤",
-                    "실제=짝맞춤(열쇠: 정수)",
+                    "실제=짝맞춤(열쇠: 바른수)",
                 ],
             ),
             (
@@ -7200,7 +7200,7 @@ E_STATE_TRANSITION_ACTION_ARG_UNRESOLVED: 기록:다음상태",
     1 해서 () 받기.
 }
 "#,
-                vec!["E_RUNTIME_TYPE_MISMATCH", "핀=값", "기대=글", "실제=정수"],
+                vec!["E_RUNTIME_TYPE_MISMATCH", "핀=값", "기대=글", "실제=바른수"],
             ),
         ];
 

@@ -20,7 +20,136 @@ pub fn preprocess_frontdoor_source(input: &str) -> String {
     let stripped = strip_file_leading_setting_block(input);
     let range_spaced = normalize_attached_range_josa(&stripped);
     let pipeline_lowered = lower_collection_pipeline_sugar(&range_spaced);
-    rewrite_inline_maegim_fields(&pipeline_lowered)
+    let connect_endpoint_lowered = lower_connect_endpoint_relation(&pipeline_lowered);
+    rewrite_inline_maegim_fields(&connect_endpoint_lowered)
+}
+
+pub fn connect_endpoint_relation_seum_rows(source: &str) -> Option<Vec<String>> {
+    let trimmed = source.trim();
+    let body = trimmed.strip_suffix('.')?.trim_end();
+    let rhs = if let Some((_target, expr)) = body.split_once("<-") {
+        expr.trim()
+    } else {
+        body
+    };
+    let relation_set = parse_connect_endpoint_relation(rhs)?;
+    format_connect_endpoint_relation_seum_rows(&relation_set)
+}
+
+pub fn owner_inner_seum_canon_rows(source: &str) -> Option<Vec<String>> {
+    let prepared = preprocess_frontdoor_source(source);
+    let program =
+        crate::parse_with_mode(&prepared, "<owner-inner-seum>", crate::ParseMode::Strict).ok()?;
+    let mut rows = Vec::new();
+    for item in &program.items {
+        let crate::TopLevelItem::SeedDef(seed) = item;
+        if !matches!(&seed.seed_kind, crate::SeedKind::Named(name) if name == "임자") {
+            continue;
+        }
+        let Some(body) = &seed.body else {
+            continue;
+        };
+        collect_owner_inner_seum_rows_from_body(body, &mut rows);
+    }
+    if rows.is_empty() {
+        None
+    } else {
+        Some(rows)
+    }
+}
+
+pub fn owner_state_symbol_table_rows(source: &str) -> Option<Vec<String>> {
+    let prepared = preprocess_frontdoor_source(source);
+    let program =
+        crate::parse_with_mode(&prepared, "<owner-state-symbol-table>", crate::ParseMode::Strict)
+            .ok()?;
+    let mut rows = Vec::new();
+    for item in &program.items {
+        let crate::TopLevelItem::SeedDef(seed) = item;
+        if !matches!(&seed.seed_kind, crate::SeedKind::Named(name) if name == "임자") {
+            continue;
+        }
+        let Some(body) = &seed.body else {
+            continue;
+        };
+        collect_owner_state_symbol_rows_from_body(&prepared, &seed.canonical_name, body, &mut rows);
+    }
+    if rows.is_empty() {
+        None
+    } else {
+        Some(rows)
+    }
+}
+
+fn collect_owner_inner_seum_rows_from_body(body: &crate::Body, rows: &mut Vec<String>) {
+    for stmt in &body.stmts {
+        match stmt {
+            crate::Stmt::Expr { expr, .. } => {
+                if let crate::ExprKind::Assertion(assertion) = &expr.kind {
+                    rows.push(assertion.canon.clone());
+                }
+            }
+            crate::Stmt::Receive { body, .. } => {
+                // Event bodies are reaction code, not owner-local model relation rows.
+                let _ = body;
+            }
+            _ => {}
+        }
+    }
+}
+
+fn collect_owner_state_symbol_rows_from_body(
+    source: &str,
+    owner: &str,
+    body: &crate::Body,
+    rows: &mut Vec<String>,
+) {
+    for stmt in &body.stmts {
+        match stmt {
+            crate::Stmt::DeclBlock { items, .. } => {
+                for item in items {
+                    let value = item
+                        .value
+                        .as_ref()
+                        .map(|expr| source_span_text(source, expr.span).unwrap_or("<expr>"))
+                        .unwrap_or("<unset>");
+                    let kind = match item.kind {
+                        crate::DeclKind::Gureut => "state",
+                        crate::DeclKind::Butbak => "constant",
+                    };
+                    rows.push(format!(
+                        "owner={owner};symbol={};type={};kind={kind};initializer={value}",
+                        item.name,
+                        type_ref_label(&item.type_ref)
+                    ));
+                }
+            }
+            crate::Stmt::Receive { body, .. } => {
+                // Event bodies are reaction code, not owner-local state declarations.
+                let _ = body;
+            }
+            _ => {}
+        }
+    }
+}
+
+fn source_span_text(source: &str, span: crate::Span) -> Option<&str> {
+    source.get(span.start..span.end).map(str::trim)
+}
+
+fn type_ref_label(type_ref: &crate::TypeRef) -> String {
+    match type_ref {
+        crate::TypeRef::Named(name) => name.clone(),
+        crate::TypeRef::Applied { name, args } => {
+            let args = args
+                .iter()
+                .map(type_ref_label)
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("{name}<{args}>")
+        }
+        crate::TypeRef::Infer => "_".to_string(),
+    }
 }
 
 pub fn find_legacy_header(source: &str) -> Option<(usize, &'static str)> {
@@ -474,7 +603,11 @@ fn parse_pipeline_groups(input: &str) -> Option<Vec<String>> {
             return None;
         }
     }
-    if groups.is_empty() { None } else { Some(groups) }
+    if groups.is_empty() {
+        None
+    } else {
+        Some(groups)
+    }
 }
 
 fn strip_pipeline_suffix<'a>(value: &'a str, suffixes: &[&str]) -> Option<&'a str> {
@@ -555,6 +688,381 @@ fn split_line_frontdoor(chunk: &str) -> (&str, &str) {
         return (stripped, "\n");
     }
     (chunk, "")
+}
+
+fn lower_connect_endpoint_relation(source: &str) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut pending = Vec::new();
+    for chunk in source.split_inclusive('\n') {
+        let (line, newline) = split_line_frontdoor(chunk);
+        if let Some(assignment) = parse_connect_endpoint_assignment_line(line, newline) {
+            if pending
+                .last()
+                .is_some_and(|previous: &ConnectEndpointAssignmentLine<'_>| {
+                    previous.target == assignment.target && previous.indent == assignment.indent
+                })
+            {
+                pending.push(assignment);
+            } else {
+                flush_connect_endpoint_assignment_block(&mut out, &mut pending);
+                pending.push(assignment);
+            }
+            continue;
+        }
+        flush_connect_endpoint_assignment_block(&mut out, &mut pending);
+        if let Some(lowered) = lower_connect_endpoint_relation_line(line) {
+            out.push_str(&lowered);
+        } else {
+            out.push_str(line);
+        }
+        out.push_str(newline);
+    }
+    flush_connect_endpoint_assignment_block(&mut out, &mut pending);
+    if !source.ends_with('\n') && source.is_empty() {
+        return source.to_string();
+    }
+    out
+}
+
+struct ConnectEndpointAssignmentLine<'a> {
+    indent: &'a str,
+    target: &'a str,
+    relation: ConnectEndpointRelationSet<'a>,
+    newline: &'a str,
+}
+
+fn parse_connect_endpoint_assignment_line<'a>(
+    line: &'a str,
+    newline: &'a str,
+) -> Option<ConnectEndpointAssignmentLine<'a>> {
+    let indent_len = line.len() - line.trim_start().len();
+    let indent = &line[..indent_len];
+    let trimmed = line.trim();
+    let body = trimmed.strip_suffix('.')?.trim_end();
+    let (target, rhs) = body.split_once("<-")?;
+    let target = target.trim();
+    if target.is_empty() {
+        return None;
+    }
+    let relation = parse_connect_endpoint_relation(rhs.trim())?;
+    Some(ConnectEndpointAssignmentLine {
+        indent,
+        target,
+        relation,
+        newline,
+    })
+}
+
+fn flush_connect_endpoint_assignment_block(
+    out: &mut String,
+    pending: &mut Vec<ConnectEndpointAssignmentLine<'_>>,
+) {
+    if pending.is_empty() {
+        return;
+    }
+    if pending.len() == 1 {
+        let assignment = pending.pop().expect("pending assignment");
+        out.push_str(assignment.indent);
+        out.push_str(assignment.target);
+        out.push_str(" <- ");
+        out.push_str(&format_connect_endpoint_pack(&assignment.relation));
+        out.push('.');
+        out.push_str(assignment.newline);
+        return;
+    }
+
+    let first = &pending[0];
+    let relations = pending
+        .iter()
+        .map(|assignment| format_connect_endpoint_pack(&assignment.relation))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let pack = format!(
+        "(__이음관계종류: \"endpoint_statement_set\", 대상: \"{}\", 개수: {}, 이음들: ({}) 차림)",
+        escape_frontdoor_string(first.target),
+        pending.len(),
+        relations
+    );
+    out.push_str(first.indent);
+    out.push_str(first.target);
+    out.push_str(" <- ");
+    out.push_str(&pack);
+    out.push('.');
+    out.push_str(
+        pending
+            .last()
+            .map(|assignment| assignment.newline)
+            .unwrap_or(""),
+    );
+    pending.clear();
+}
+
+fn lower_connect_endpoint_relation_line(line: &str) -> Option<String> {
+    let indent_len = line.len() - line.trim_start().len();
+    let indent = &line[..indent_len];
+    let trimmed = line.trim();
+    let body = trimmed.strip_suffix('.')?.trim_end();
+    let (prefix, rhs) = if let Some((target, expr)) = body.split_once("<-") {
+        (Some(target.trim()), expr.trim())
+    } else {
+        (None, body)
+    };
+    let relation = parse_connect_endpoint_relation(rhs)?;
+    let pack = format_connect_endpoint_pack(&relation);
+    Some(match prefix {
+        Some(target) => format!("{indent}{target} <- {pack}."),
+        None => format!("{indent}{pack}."),
+    })
+}
+
+struct ConnectEndpointRelation<'a> {
+    left: &'a str,
+    right: &'a str,
+    channel: &'a str,
+    rule: ConnectEndpointRule,
+    carried_property: Option<&'a str>,
+    carrier_rule: Option<ConnectEndpointRule>,
+}
+
+struct ConnectEndpointRelationSet<'a> {
+    left: &'a str,
+    right: &'a str,
+    relations: Vec<ConnectEndpointRelation<'a>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConnectEndpointRule {
+    Equality,
+    Flow,
+    ReverseFlow,
+    CarriedProperty,
+}
+
+fn parse_connect_endpoint_relation(input: &str) -> Option<ConnectEndpointRelationSet<'_>> {
+    let rest = input.strip_suffix("잇기")?.trim_end();
+    let inner_start = rest.rfind('(')?;
+    let inner = rest[inner_start + 1..].trim().strip_suffix(')')?.trim();
+    let endpoints_part = rest[..inner_start].trim_end();
+    let endpoints_part = endpoints_part
+        .strip_suffix("을")
+        .or_else(|| endpoints_part.strip_suffix("를"))?
+        .trim_end();
+    let (left, right) = split_connect_endpoints(endpoints_part)?;
+    if !left.contains('.') || !right.contains('.') {
+        return None;
+    }
+    let mut relations = Vec::new();
+    for segment in inner.split(',') {
+        relations.push(parse_connect_endpoint_inner_rule(
+            left,
+            right,
+            segment.trim(),
+        )?);
+    }
+    if relations.is_empty() {
+        return None;
+    }
+    resolve_connect_carried_properties(&mut relations)?;
+    Some(ConnectEndpointRelationSet {
+        left,
+        right,
+        relations,
+    })
+}
+
+fn parse_connect_endpoint_inner_rule<'a>(
+    left: &'a str,
+    right: &'a str,
+    inner: &'a str,
+) -> Option<ConnectEndpointRelation<'a>> {
+    let (channel, rule) = if let Some(channel) = inner
+        .strip_suffix("은 같게")
+        .or_else(|| inner.strip_suffix("는 같게"))
+    {
+        (channel.trim(), ConnectEndpointRule::Equality)
+    } else if let Some(channel) = inner
+        .strip_suffix("은 흐르게")
+        .or_else(|| inner.strip_suffix("는 흐르게"))
+    {
+        (channel.trim(), ConnectEndpointRule::Flow)
+    } else if let Some(channel) = inner
+        .strip_suffix("은 거슬러 흐르게")
+        .or_else(|| inner.strip_suffix("는 거슬러 흐르게"))
+    {
+        (channel.trim(), ConnectEndpointRule::ReverseFlow)
+    } else if let Some((_property, carrier_channel)) = parse_connect_carried_property_inner(inner) {
+        (carrier_channel, ConnectEndpointRule::CarriedProperty)
+    } else {
+        return None;
+    };
+    if channel.is_empty() || channel.contains(char::is_whitespace) {
+        return None;
+    }
+    let carried_property = if let ConnectEndpointRule::CarriedProperty = rule {
+        let (property, _) = parse_connect_carried_property_inner(inner)?;
+        if property.is_empty() || property.contains(char::is_whitespace) {
+            return None;
+        }
+        Some(property)
+    } else {
+        None
+    };
+    Some(ConnectEndpointRelation {
+        left,
+        right,
+        channel,
+        rule,
+        carried_property,
+        carrier_rule: None,
+    })
+}
+
+fn parse_connect_carried_property_inner(input: &str) -> Option<(&str, &str)> {
+    let base = input.strip_suffix("에 실리게")?.trim_end();
+    for marker in ["이 ", "가 "] {
+        if let Some((property, carrier_channel)) = base.split_once(marker) {
+            let property = property.trim();
+            let carrier_channel = carrier_channel.trim();
+            if !property.is_empty() && !carrier_channel.is_empty() {
+                return Some((property, carrier_channel));
+            }
+        }
+    }
+    None
+}
+
+fn resolve_connect_carried_properties(relations: &mut [ConnectEndpointRelation<'_>]) -> Option<()> {
+    for idx in 0..relations.len() {
+        if relations[idx].rule != ConnectEndpointRule::CarriedProperty {
+            continue;
+        }
+        let carrier_rules = relations
+            .iter()
+            .filter(|relation| {
+                relation.channel == relations[idx].channel
+                    && matches!(
+                        relation.rule,
+                        ConnectEndpointRule::Flow | ConnectEndpointRule::ReverseFlow
+                    )
+            })
+            .map(|relation| relation.rule)
+            .collect::<Vec<_>>();
+        let [carrier_rule] = carrier_rules.as_slice() else {
+            return None;
+        };
+        relations[idx].carrier_rule = Some(*carrier_rule);
+    }
+    Some(())
+}
+
+fn split_connect_endpoints(input: &str) -> Option<(&str, &str)> {
+    for marker in ["과 ", "와 "] {
+        if let Some((left, right)) = input.split_once(marker) {
+            let left = left.trim();
+            let right = right.trim();
+            if !left.is_empty() && !right.is_empty() {
+                return Some((left, right));
+            }
+        }
+    }
+    None
+}
+
+fn format_connect_endpoint_pack(relation_set: &ConnectEndpointRelationSet<'_>) -> String {
+    if relation_set.relations.len() == 1 {
+        return format_connect_endpoint_relation_pack(&relation_set.relations[0]);
+    }
+    let relations = relation_set
+        .relations
+        .iter()
+        .map(format_connect_endpoint_relation_pack)
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "(__이음관계종류: \"endpoint_relation_set\", 왼쪽끝: \"{}\", 오른쪽끝: \"{}\", 관계들: ({}) 차림)",
+        escape_frontdoor_string(relation_set.left),
+        escape_frontdoor_string(relation_set.right),
+        relations
+    )
+}
+
+fn format_connect_endpoint_relation_pack(relation: &ConnectEndpointRelation<'_>) -> String {
+    let left_path = format!("{}.{}", relation.left, relation.channel);
+    let right_path = format!("{}.{}", relation.right, relation.channel);
+    match relation.rule {
+        ConnectEndpointRule::Equality => format!(
+            "(__이음관계종류: \"endpoint_equality\", 왼쪽: \"{}\", 오른쪽: \"{}\", 규칙: \"같게\", 채널: \"{}\")",
+            escape_frontdoor_string(&left_path),
+            escape_frontdoor_string(&right_path),
+            escape_frontdoor_string(relation.channel)
+        ),
+        ConnectEndpointRule::Flow | ConnectEndpointRule::ReverseFlow => {
+            let (rule, direction) = match relation.rule {
+                ConnectEndpointRule::Flow => ("흐르게", "왼쪽에서오른쪽"),
+                ConnectEndpointRule::ReverseFlow => ("거슬러 흐르게", "오른쪽에서왼쪽"),
+                ConnectEndpointRule::Equality | ConnectEndpointRule::CarriedProperty => {
+                    unreachable!("non-flow handled elsewhere")
+                }
+            };
+            format!(
+                "(__이음관계종류: \"endpoint_flow\", 왼쪽: \"{}\", 오른쪽: \"{}\", 규칙: \"{}\", 채널: \"{}\", 부호규약: \"left_plus_right_zero\", 방향: \"{}\")",
+                escape_frontdoor_string(&left_path),
+                escape_frontdoor_string(&right_path),
+                escape_frontdoor_string(rule),
+                escape_frontdoor_string(relation.channel),
+                escape_frontdoor_string(direction)
+            )
+        }
+        ConnectEndpointRule::CarriedProperty => {
+            let (carrier_rule, carrier_direction) = match relation
+                .carrier_rule
+                .expect("carried property carrier rule resolved")
+            {
+                ConnectEndpointRule::Flow => ("흐르게", "왼쪽에서오른쪽"),
+                ConnectEndpointRule::ReverseFlow => ("거슬러 흐르게", "오른쪽에서왼쪽"),
+                ConnectEndpointRule::Equality | ConnectEndpointRule::CarriedProperty => {
+                    unreachable!("carried property carrier must be flow")
+                }
+            };
+            format!(
+                "(__이음관계종류: \"endpoint_carried_property\", 왼쪽운반자: \"{}\", 오른쪽운반자: \"{}\", 속성: \"{}\", 운반채널: \"{}\", 규칙: \"실리게\", 운반규칙: \"{}\", 운반방향: \"{}\")",
+                escape_frontdoor_string(&left_path),
+                escape_frontdoor_string(&right_path),
+                escape_frontdoor_string(
+                    relation
+                        .carried_property
+                        .expect("carried property value parsed")
+                ),
+                escape_frontdoor_string(relation.channel),
+                escape_frontdoor_string(carrier_rule),
+                escape_frontdoor_string(carrier_direction)
+            )
+        }
+    }
+}
+
+fn format_connect_endpoint_relation_seum_rows(
+    relation_set: &ConnectEndpointRelationSet<'_>,
+) -> Option<Vec<String>> {
+    let mut rows = Vec::with_capacity(relation_set.relations.len());
+    for relation in &relation_set.relations {
+        let left_path = format!("{}.{}", relation.left, relation.channel);
+        let right_path = format!("{}.{}", relation.right, relation.channel);
+        match relation.rule {
+            ConnectEndpointRule::Equality => {
+                rows.push(format!("{left_path} =:= {right_path}."));
+            }
+            ConnectEndpointRule::Flow | ConnectEndpointRule::ReverseFlow => {
+                rows.push(format!("{left_path} + {right_path} =:= 0."));
+            }
+            ConnectEndpointRule::CarriedProperty => return None,
+        }
+    }
+    Some(rows)
+}
+
+fn escape_frontdoor_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn strip_decl_item_maegim_suffix_for_lang_parity(source: &str) -> String {
@@ -903,5 +1411,285 @@ mod tests {
         let wrapped = wrap_lang_parity_source("x <- 1.");
         assert!(wrapped.contains("프론트도어_패리티_검사:움직씨"));
         assert!(wrapped.contains("x <- 1."));
+    }
+
+    #[test]
+    fn connect_endpoint_equal_lowers_to_endpoint_relation_pack() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_equality\""));
+        assert!(out.contains("왼쪽: \"전지.양극.전압\""));
+        assert!(out.contains("오른쪽: \"전구.왼핀.전압\""));
+        assert!(out.contains("규칙: \"같게\""));
+        assert!(out.contains("채널: \"전압\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_equal.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint equality must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_flow_lowers_to_endpoint_flow_pack() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_flow\""));
+        assert!(out.contains("왼쪽: \"전지.양극.전류\""));
+        assert!(out.contains("오른쪽: \"전구.왼핀.전류\""));
+        assert!(out.contains("규칙: \"흐르게\""));
+        assert!(out.contains("채널: \"전류\""));
+        assert!(out.contains("부호규약: \"left_plus_right_zero\""));
+        assert!(out.contains("방향: \"왼쪽에서오른쪽\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_flow.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint flow must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_reverse_flow_lowers_to_endpoint_flow_pack() {
+        let src = "이음관계 <- 가계1.구매끝과 장터.소매끝을 (돈은 거슬러 흐르게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_flow\""));
+        assert!(out.contains("왼쪽: \"가계1.구매끝.돈\""));
+        assert!(out.contains("오른쪽: \"장터.소매끝.돈\""));
+        assert!(out.contains("규칙: \"거슬러 흐르게\""));
+        assert!(out.contains("채널: \"돈\""));
+        assert!(out.contains("부호규약: \"left_plus_right_zero\""));
+        assert!(out.contains("방향: \"오른쪽에서왼쪽\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_reverse_flow.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint reverse flow must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_carried_property_surface() {
+        assert_endpoint_connect_rejected(
+            "이음관계 <- 전지.양극과 전구.왼핀을 (재화가 돈에 실리게) 잇기.",
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_carried_property_forward_lowers_to_relation_set_pack() {
+        let src = "이음관계 <- 은행.대출창구와 기업1.차입끝을 (대출금은 흐르게, 위험이 대출금에 실리게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_relation_set\""));
+        assert!(out.contains("__이음관계종류: \"endpoint_flow\""));
+        assert!(out.contains("채널: \"대출금\""));
+        assert!(out.contains("방향: \"왼쪽에서오른쪽\""));
+        assert!(out.contains("__이음관계종류: \"endpoint_carried_property\""));
+        assert!(out.contains("왼쪽운반자: \"은행.대출창구.대출금\""));
+        assert!(out.contains("오른쪽운반자: \"기업1.차입끝.대출금\""));
+        assert!(out.contains("속성: \"위험\""));
+        assert!(out.contains("운반채널: \"대출금\""));
+        assert!(out.contains("규칙: \"실리게\""));
+        assert!(out.contains("운반규칙: \"흐르게\""));
+        assert!(out.contains("운반방향: \"왼쪽에서오른쪽\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_carried_property_forward.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint carried property must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_carried_property_reverse_lowers_to_relation_set_pack() {
+        let src = "이음관계 <- 가계1.구매끝과 장터.소매끝을 (돈은 거슬러 흐르게, 재화가 돈에 실리게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_relation_set\""));
+        assert!(out.contains("규칙: \"거슬러 흐르게\""));
+        assert!(out.contains("방향: \"오른쪽에서왼쪽\""));
+        assert!(out.contains("__이음관계종류: \"endpoint_carried_property\""));
+        assert!(out.contains("왼쪽운반자: \"가계1.구매끝.돈\""));
+        assert!(out.contains("오른쪽운반자: \"장터.소매끝.돈\""));
+        assert!(out.contains("속성: \"재화\""));
+        assert!(out.contains("운반규칙: \"거슬러 흐르게\""));
+        assert!(out.contains("운반방향: \"오른쪽에서왼쪽\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_carried_property_reverse.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint reverse carried property must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_multi_inner_lowers_to_relation_set_pack() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_relation_set\""));
+        assert!(out.contains("왼쪽끝: \"전지.양극\""));
+        assert!(out.contains("오른쪽끝: \"전구.왼핀\""));
+        assert!(out.contains("관계들: ("));
+        assert!(out.contains("__이음관계종류: \"endpoint_equality\""));
+        assert!(out.contains("왼쪽: \"전지.양극.전압\""));
+        assert!(out.contains("오른쪽: \"전구.왼핀.전압\""));
+        assert!(out.contains("__이음관계종류: \"endpoint_flow\""));
+        assert!(out.contains("왼쪽: \"전지.양극.전류\""));
+        assert!(out.contains("오른쪽: \"전구.왼핀.전류\""));
+        assert!(out.contains("방향: \"왼쪽에서오른쪽\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_multi_inner.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint multi inner relation set must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_multi_inner_exposes_seum_rows() {
+        let src = "전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.";
+        let rows = connect_endpoint_relation_seum_rows(src).expect("seum rows");
+        assert_eq!(
+            rows,
+            vec![
+                "전지.양극.전압 =:= 전구.왼핀.전압.",
+                "전지.양극.전류 + 전구.왼핀.전류 =:= 0.",
+            ]
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_seum_rows_accept_assignment_surface() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.";
+        let rows = connect_endpoint_relation_seum_rows(src).expect("seum rows");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], "전지.양극.전압 =:= 전구.왼핀.전압.");
+        assert_eq!(rows[1], "전지.양극.전류 + 전구.왼핀.전류 =:= 0.");
+    }
+
+    #[test]
+    fn connect_block_surface_has_no_seum_rows() {
+        assert!(connect_endpoint_relation_seum_rows("잇기 { 전압은 같게. }.").is_none());
+    }
+
+    #[test]
+    fn connect_endpoint_multi_inner_econ_lowers_in_source_order() {
+        let src = "이음관계 <- 가계1.구매끝과 장터.소매끝을 (체결값은 같게, 재화는 흐르게, 돈은 거슬러 흐르게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        let equality_idx = out.find("채널: \"체결값\"").expect("equality channel");
+        let flow_idx = out.find("채널: \"재화\"").expect("flow channel");
+        let reverse_idx = out.find("채널: \"돈\"").expect("reverse channel");
+        assert!(equality_idx < flow_idx && flow_idx < reverse_idx);
+        assert!(out.contains("__이음관계종류: \"endpoint_relation_set\""));
+        assert!(out.contains("방향: \"왼쪽에서오른쪽\""));
+        assert!(out.contains("방향: \"오른쪽에서왼쪽\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_multi_inner_econ.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint economic multi inner relation set must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_statement_append_same_pair_lowers_to_statement_set() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.\n이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_statement_set\""));
+        assert!(out.contains("대상: \"이음관계\""));
+        assert!(out.contains("개수: 2"));
+        assert!(out.contains("__이음관계종류: \"endpoint_equality\""));
+        assert!(out.contains("__이음관계종류: \"endpoint_flow\""));
+        assert_eq!(out.matches("이음관계 <-").count(), 1);
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        let prepared = preprocess_frontdoor_source(&wrapped);
+        crate::parse_frontdoor_with_mode(
+            &prepared,
+            "connect_endpoint_statement_append_same_pair.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered endpoint statement append must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_statement_append_mixed_pair_lowers_to_statement_set() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.\n이음관계 <- 은행.대출창구와 기업1.차입끝을 (대출금은 흐르게, 위험이 대출금에 실리게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(out.contains("__이음관계종류: \"endpoint_statement_set\""));
+        assert!(out.contains("전지.양극.전압"));
+        assert!(out.contains("은행.대출창구.대출금"));
+        assert!(out.contains("__이음관계종류: \"endpoint_relation_set\""));
+        assert!(out.contains("__이음관계종류: \"endpoint_carried_property\""));
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        let prepared = preprocess_frontdoor_source(&wrapped);
+        crate::parse_frontdoor_with_mode(
+            &prepared,
+            "connect_endpoint_statement_append_mixed_pair.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect("lowered mixed endpoint statement append must parse");
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_statement_append_boundary_non_endpoint_breaks_block() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.\ndt <- 1.\n이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(!out.contains("__이음관계종류: \"endpoint_statement_set\""));
+        assert_eq!(out.matches("이음관계 <-").count(), 2);
+        assert!(out.contains("__이음관계종류: \"endpoint_equality\""));
+        assert!(out.contains("__이음관계종류: \"endpoint_flow\""));
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_statement_append_boundary_other_target_breaks_block() {
+        let src = "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.\n다른이음 <- 전지.음극과 전구.오른핀을 (전류는 흐르게) 잇기.\n이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.";
+        let out = preprocess_frontdoor_source(src);
+        assert!(!out.contains("__이음관계종류: \"endpoint_statement_set\""));
+        assert_eq!(out.matches("이음관계 <-").count(), 2);
+        assert_eq!(out.matches("다른이음 <-").count(), 1);
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_unsupported_multi_inner_sentence_surface() {
+        assert_endpoint_connect_rejected(
+            "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 재화가 돈에 실리게) 잇기.",
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_duplicate_carrier_flow_surface() {
+        assert_endpoint_connect_rejected(
+            "이음관계 <- 가계1.구매끝과 장터.소매끝을 (돈은 흐르게, 돈은 거슬러 흐르게, 재화가 돈에 실리게) 잇기.",
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_empty_multi_inner_sentence_surface() {
+        assert_endpoint_connect_rejected(
+            "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, ) 잇기.",
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_whole_object_shorthand_surface() {
+        assert_endpoint_connect_rejected("이음관계 <- 전구와 전지를 (전압은 같게) 잇기.");
+    }
+
+    fn assert_endpoint_connect_rejected(src: &str) {
+        let out = preprocess_frontdoor_source(src);
+        assert_eq!(out, src);
+        let wrapped = format!("매틱:움직씨 = {{\n  {src}\n}}");
+        let err = crate::parse_frontdoor_with_mode(
+            &wrapped,
+            "connect_endpoint_unsupported.ddn",
+            crate::ParseMode::Strict,
+        )
+        .expect_err("unsupported endpoint connect is not V1C surface");
+        assert!(!err.message.is_empty());
     }
 }

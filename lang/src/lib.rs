@@ -27,11 +27,13 @@ pub use canonicalizer::{canonicalize, CanonicalizeReport, LintWarning};
 pub use currentline::{apply_currentline_cell, CurrentLineResult};
 pub use dialect::DialectConfig;
 pub use frontdoor::{
-    find_legacy_header, find_legacy_range_comment, find_legacy_root_hide_directive,
-    find_legacy_root_surface, has_legacy_boim_surface, normalize_for_lang_parity,
+    connect_endpoint_relation_seum_rows, find_legacy_header, find_legacy_range_comment,
+    find_legacy_root_hide_directive, find_legacy_root_surface, has_legacy_boim_surface,
+    normalize_for_lang_parity, owner_inner_seum_canon_rows, owner_state_symbol_table_rows,
     preprocess_frontdoor_source, validate_no_legacy_boim_surface, validate_no_legacy_header,
     validate_no_legacy_range_comment, validate_no_legacy_root_hide_directive,
-    validate_no_legacy_root_surface, wrap_lang_parity_source,
+    validate_no_legacy_root_surface,
+    wrap_lang_parity_source,
 };
 pub use lexer::{LexError, Lexer, Token, TokenKind};
 pub use normalizer::{normalize, NormalizationLevel, Normalizer};
@@ -198,6 +200,31 @@ mod integration_tests {
             panic!("relation infix expected");
         };
         assert_eq!(op, "=:=");
+    }
+
+    #[test]
+    fn prime_derivative_identifiers_parse_and_normalize() {
+        let source = r#"
+검사:셈씨 = {
+    위치' <- 속도.
+    위치'' 보여주기.
+}
+"#;
+        let normalized =
+            parse_and_normalize(source, "prime.ddoni", NormalizationLevel::N1).unwrap();
+        assert!(normalized.contains("위치' <- 속도"));
+        assert!(normalized.contains("위치'' 보여주기"));
+    }
+
+    #[test]
+    fn triple_prime_derivative_identifier_is_rejected() {
+        let source = r#"
+검사:셈씨 = {
+    위치''' <- 1.
+}
+"#;
+        let err = parse(source, "prime_bad.ddoni").expect_err("triple prime rejected");
+        assert!(err.message.contains("알 수 없는 문자"));
     }
 
     #[test]
@@ -912,6 +939,75 @@ mod integration_tests {
         let TopLevelItem::SeedDef(test_seed) = &program.items[2];
         let body = test_seed.body.as_ref().expect("test body");
         assert!(matches!(body.stmts.first(), Some(Stmt::Send { .. })));
+    }
+
+    #[test]
+    fn imja_owner_inner_seum_and_seongjil_parse_boundary() {
+        let source = r#"
+공:임자 = {
+    성질 {
+        위치: 수 <- 0.
+        속도: 수 <- 0.
+    }.
+    세움 {
+        위치' =:= 속도.
+    }.
+    힘가해짐을 받으면 {
+        속도 <- 속도 + 힘.
+    }.
+}
+"#;
+        let program = parse(source, "owner_inner_seum.ddoni").expect("parse owner inner seum");
+        let TopLevelItem::SeedDef(seed) = &program.items[0];
+        assert_eq!(seed.canonical_name, "공");
+        assert_eq!(seed.seed_kind, SeedKind::Named("임자".to_string()));
+        let body = seed.body.as_ref().expect("owner body");
+        assert!(matches!(body.stmts[0], Stmt::DeclBlock { .. }));
+        let Stmt::Expr { expr, .. } = &body.stmts[1] else {
+            panic!("owner-local seum expression expected");
+        };
+        let ExprKind::Assertion(assertion) = &expr.kind else {
+            panic!("assertion expected");
+        };
+        assert_eq!(assertion.canon, "세움{\n    위치' =:= 속도.\n}");
+        assert!(matches!(body.stmts[2], Stmt::Receive { .. }));
+
+        let rows = owner_inner_seum_canon_rows(source).expect("owner inner seum rows");
+        assert_eq!(rows, vec!["세움{\n    위치' =:= 속도.\n}"]);
+    }
+
+    #[test]
+    fn imja_owner_state_symbol_table_rows_stay_owner_scoped() {
+        let source = r#"
+공:임자 = {
+    성질 {
+        위치: 수 <- 0.
+        속도: 수 <- 0.
+        이름: 글 = "공".
+    }.
+    세움 {
+        위치' =:= 속도.
+    }.
+    힘가해짐을 받으면 {
+        속도 <- 속도 + 힘.
+    }.
+}
+
+바깥:움직씨 = {
+    채비 {
+        위치: 수 <- 9.
+    }.
+}
+"#;
+        let rows = owner_state_symbol_table_rows(source).expect("owner state rows");
+        assert_eq!(
+            rows,
+            vec![
+                "owner=공;symbol=위치;type=수;kind=state;initializer=0",
+                "owner=공;symbol=속도;type=수;kind=state;initializer=0",
+                "owner=공;symbol=이름;type=글;kind=constant;initializer=\"공\"",
+            ]
+        );
     }
 
     #[test]
@@ -1753,6 +1849,68 @@ Test:셈씨 = {
 }
 "#;
         let program = parse(source, "assertion_relation.ddoni").expect("assertion relation parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Assertion(assertion) = &value.kind else {
+            panic!("assertion literal expected");
+        };
+        assert_eq!(assertion.canon, "세움{수식관계: x + y =:= 5}");
+    }
+
+    #[test]
+    fn test_seumssi_v1b_surface_alias_parses_to_canonical_seum() {
+        let source = r#"
+Test:셈씨 = {
+    검사 <- 세움씨{
+        { 거리 > 0 }인것 바탕으로(물림) 아니면 {
+            없음.
+        }.
+    }.
+}
+"#;
+        let program = parse(source, "seumssi_v1b.ddoni").expect("seumssi alias parse");
+        let seed = program
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TopLevelItem::SeedDef(seed) => Some(seed),
+            })
+            .find(|seed| seed.canonical_name == "Test")
+            .expect("Test seed");
+        let body = seed.body.as_ref().expect("body");
+        let stmt = body.stmts.first().expect("stmt");
+        let Stmt::Mutate { value, .. } = stmt else {
+            panic!("mutate expected");
+        };
+        let ExprKind::Assertion(assertion) = &value.kind else {
+            panic!("assertion literal expected");
+        };
+        assert!(assertion.body_source.contains("{ 거리 > 0 }인것"));
+        assert!(assertion.canon.starts_with("세움{"));
+        assert!(!assertion.canon.starts_with("세움씨{"));
+    }
+
+    #[test]
+    fn test_seumssi_v1b_relation_bridge_canon_matches_seum() {
+        let source = r#"
+Test:셈씨 = {
+    검사 <- 세움씨{
+        (#ascii) 수식{x + y} =:= (#ascii) 수식{5}
+    }.
+}
+"#;
+        let program = parse(source, "seumssi_relation_v1b.ddoni").expect("seumssi relation parse");
         let seed = program
             .items
             .iter()

@@ -9,6 +9,6 @@
   },
   "expect": {
     "exit": 0,
-    "state_hash": "blake3:87206ada2e429afd8fbc3e52fa945d2997a58885e918d24c570952a765378bc0"
+    "state_hash": "blake3:772f022a41767c31e96e8a58e6a99616cc6a6006d30c703a2bde5cd7d4a69eb1"
   }
 }

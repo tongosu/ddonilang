@@ -1,0 +1,1 @@
+{"id":"c01_symbolic_minimum_product_path","cmd":["run","pack/symbolic_minimum_v1/input.ddn"],"stdout":["SYMBOLIC_MINIMUM_V1","(#ascii) 수식{ x^2 + 2*x + 1 }","(#ascii) 수식{ 2*x + 2 }","(#ascii) 수식{ (x - 1)*(x + 1) }","(#ascii) 수식{ 3*x^2 + 2 }","참"],"exit_code":0}

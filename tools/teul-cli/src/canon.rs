@@ -4060,7 +4060,14 @@ fn canonicalize_with_fallback_mode(
         Err(primary_err) => {
             if matches!(
                 primary_err.code(),
-                "E_CHAEBI_IN_LOOP" | "E_CANON_RECEIVE_OUTSIDE_IMJA" | "E_EVENT_SURFACE_ALIAS_FORBIDDEN"
+                "E_CHAEBI_IN_LOOP"
+                    | "E_CANON_RECEIVE_OUTSIDE_IMJA"
+                    | "E_EVENT_SURFACE_ALIAS_FORBIDDEN"
+                    | "E_CANON_HOOK_EVERY_N_MADI_INTERVAL_INVALID"
+                    | "E_CANON_HOOK_EVERY_N_MADI_UNIT_UNSUPPORTED"
+                    | "E_CANON_HOOK_EVERY_N_MADI_SUFFIX_UNSUPPORTED"
+                    | "E_CANON_MAEGIM_NESTED_SECTION_UNSUPPORTED"
+                    | "E_CANON_MAEGIM_NESTED_FIELD_UNSUPPORTED"
             ) {
                 return Err(primary_err);
             }
@@ -7043,6 +7050,18 @@ mod tests {
     }
 
     #[test]
+    fn canon_relation_eq_infix_preserves_product_path() {
+        let source = r#"
+관계 <- ((#ascii) 수식{2*x + 3}) =:= ((#ascii) 수식{7}).
+"#;
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("=:= "));
+        assert!(out
+            .block_editor_plan_json
+            .contains("\"op\": \"relation_eq\""));
+    }
+
+    #[test]
     fn canon_accepts_receive_hooks_surface() {
         let source = r#"
 관제탑:임자 = {
@@ -7168,17 +7187,15 @@ mod tests {
     }
 
     #[test]
-    fn canon_rejects_hook_colon_header_surface() {
+    fn canon_passthroughs_hook_colon_header_surface() {
         let source = r#"
 (매마디)마다: {
   "tick" 보여주기.
 }.
 "#;
-        let err = match canonicalize(source, false) {
-            Ok(_) => panic!("must reject"),
-            Err(err) => err,
-        };
-        assert_eq!(err.code(), "E_BLOCK_HEADER_COLON_FORBIDDEN");
+        let out = canonicalize(source, false).expect("canonicalize");
+        assert!(out.ddn.contains("(매마디)마다:"));
+        assert!(out.warnings.iter().any(|warning| warning == "W_CANON_PASSTHROUGH"));
     }
 
     #[test]

@@ -973,9 +973,16 @@ fn normalize_closing_brace_dot(source: &str) -> String {
 }
 
 fn line_contains_attached_literal_block_opener(line: &str) -> bool {
-    ["글무늬{", "수식{", "정규식{", "세움{", "상태머신{"]
-        .iter()
-        .any(|needle| line.contains(needle))
+    [
+        "글무늬{",
+        "수식{",
+        "정규식{",
+        "세움{",
+        "세움씨{",
+        "상태머신{",
+    ]
+    .iter()
+    .any(|needle| line.contains(needle))
 }
 
 fn line_contains_decl_control_block_opener(line: &str) -> bool {
@@ -1666,7 +1673,7 @@ mod tests {
         let source = r#"
 매틱:움직씨 = {
   검사 <- 세움{
-    { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+    { 거리 > 0 }인것 바탕으로(물림) 아니면 {
       없음.
     }.
   }.

@@ -4021,7 +4021,10 @@ fn write_run_summary_json(
         .map_err(|err| format!("canon 실패: {err}"))?
         .ddn;
     let stdout_lines = output.trace.log_lines();
-    let stdout_line_texts: Vec<String> = stdout_lines.iter().map(|line| (*line).to_string()).collect();
+    let stdout_line_texts: Vec<String> = stdout_lines
+        .iter()
+        .map(|line| (*line).to_string())
+        .collect();
     let output_log_texts = {
         let from_state = output_log_texts_from_state(&output.state);
         if from_state.is_empty() {
@@ -6376,7 +6379,10 @@ fn collect_solver_translation_expr(expr: &Expr, items: &mut Vec<JsonValue>) {
                 );
                 let target = match args.as_slice() {
                     [arg, ..] => match &arg.expr {
-                        Expr::Path(path) => Some(JsonValue::String(path.segments.join("."))),
+                        Expr::Path(path) => Some(JsonValue::String(
+                            normalize_observed_assignment_target(&path.segments.join("."))
+                                .to_string(),
+                        )),
                         Expr::Assertion { assertion, .. } => {
                             Some(JsonValue::String(assertion.canon.clone()))
                         }
@@ -6387,9 +6393,12 @@ fn collect_solver_translation_expr(expr: &Expr, items: &mut Vec<JsonValue>) {
                                 || binding.name == "target"
                             {
                                 match &binding.value {
-                                    Expr::Path(path) => {
-                                        Some(JsonValue::String(path.segments.join(".")))
-                                    }
+                                    Expr::Path(path) => Some(JsonValue::String(
+                                        normalize_observed_assignment_target(
+                                            &path.segments.join("."),
+                                        )
+                                        .to_string(),
+                                    )),
                                     Expr::Assertion { assertion, .. } => {
                                         Some(JsonValue::String(assertion.canon.clone()))
                                     }
@@ -7297,6 +7306,122 @@ mod tests {
     }
 
     #[test]
+    fn std_grid_game_bogae_live_playback_writer_updates_manifest_after_frame_push() {
+        let mut dir = std::env::temp_dir();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        dir.push(format!("std_grid_game_bogae_live_writer_{unique}"));
+        let _ = fs::remove_dir_all(&dir);
+
+        let mut writer =
+            LivePlaybackWriter::new(&dir, None, OverlayConfig::empty(), BogaeCodec::Bdl1)
+                .unwrap_or_else(|err| panic!("{}", err.format("live-writer-test")));
+        let initial: JsonValue =
+            serde_json::from_str(&fs::read_to_string(dir.join("manifest.detjson")).unwrap())
+                .expect("initial manifest");
+        assert_eq!(initial["kind"], "bogae_web_playback_v1");
+        assert_eq!(initial["codec"], "BDL1");
+        assert_eq!(initial["start_madi"], 0);
+        assert_eq!(initial["end_madi"], 0);
+        assert_eq!(initial["frames"], json!([]));
+        assert!(dir.join("viewer/index.html").is_file());
+        assert!(dir.join("viewer/live.html").is_file());
+        assert!(dir.join("viewer/viewer.js").is_file());
+        assert!(dir.join("viewer/overlay.detjson").is_file());
+
+        let drawlist = crate::core::bogae::BogaeDrawListV1 {
+            width_px: 32,
+            height_px: 32,
+            cmds: Vec::new(),
+        };
+        let detbin = crate::core::bogae::encode_drawlist_detbin(&drawlist);
+        let hash = crate::core::bogae::hash_drawlist_detbin(&detbin);
+        let output = BogaeOutput {
+            drawlist,
+            detbin,
+            hash: hash.clone(),
+            codec: BogaeCodec::Bdl1,
+        };
+        writer
+            .push_frame(7, "blake3:statehash".to_string(), &output)
+            .unwrap_or_else(|err| panic!("{}", err.format("live-writer-test")));
+
+        let updated: JsonValue =
+            serde_json::from_str(&fs::read_to_string(dir.join("manifest.detjson")).unwrap())
+                .expect("updated manifest");
+        assert_eq!(updated["start_madi"], 7);
+        assert_eq!(updated["end_madi"], 8);
+        let frames = updated["frames"].as_array().expect("frames");
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0]["madi"], 7);
+        assert_eq!(frames[0]["state_hash"], "blake3:statehash");
+        assert_eq!(frames[0]["bogae_hash"], hash);
+        assert_eq!(frames[0]["cmd_count"], 0);
+        assert_eq!(frames[0]["file"], "frames/000000.bdl1.detbin");
+        assert!(dir.join("frames/000000.bdl1.detbin").is_file());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn std_grid_game_bogae_finite_live_loop_manifest_preserves_frame_hashes() {
+        let mut dir = std::env::temp_dir();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time")
+            .as_nanos();
+        dir.push(format!("std_grid_game_bogae_finite_live_loop_{unique}"));
+        let _ = fs::remove_dir_all(&dir);
+
+        let mut writer =
+            LivePlaybackWriter::new(&dir, None, OverlayConfig::empty(), BogaeCodec::Bdl1)
+                .unwrap_or_else(|err| panic!("{}", err.format("finite-live-loop-test")));
+
+        let drawlist = crate::core::bogae::BogaeDrawListV1 {
+            width_px: 32,
+            height_px: 32,
+            cmds: Vec::new(),
+        };
+        let detbin = crate::core::bogae::encode_drawlist_detbin(&drawlist);
+        let hash = crate::core::bogae::hash_drawlist_detbin(&detbin);
+        let output = BogaeOutput {
+            drawlist,
+            detbin,
+            hash: hash.clone(),
+            codec: BogaeCodec::Bdl1,
+        };
+
+        writer
+            .push_frame(0, "blake3:state-a".to_string(), &output)
+            .unwrap_or_else(|err| panic!("{}", err.format("finite-live-loop-test")));
+        writer
+            .push_frame(1, "blake3:state-b".to_string(), &output)
+            .unwrap_or_else(|err| panic!("{}", err.format("finite-live-loop-test")));
+
+        let manifest: JsonValue =
+            serde_json::from_str(&fs::read_to_string(dir.join("manifest.detjson")).unwrap())
+                .expect("finite live manifest");
+        assert_eq!(manifest["kind"], "bogae_web_playback_v1");
+        assert_eq!(manifest["codec"], "BDL1");
+        assert_eq!(manifest["start_madi"], 0);
+        assert_eq!(manifest["end_madi"], 2);
+        let frames = manifest["frames"].as_array().expect("frames");
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0]["state_hash"], "blake3:state-a");
+        assert_eq!(frames[1]["state_hash"], "blake3:state-b");
+        assert_eq!(frames[0]["bogae_hash"], hash);
+        assert_eq!(frames[1]["bogae_hash"], hash);
+        assert_eq!(frames[0]["file"], "frames/000000.bdl1.detbin");
+        assert_eq!(frames[1]["file"], "frames/000001.bdl1.detbin");
+        assert!(dir.join("frames/000000.bdl1.detbin").is_file());
+        assert!(dir.join("frames/000001.bdl1.detbin").is_file());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn setting_madi_controls_default_run_ticks() {
         let source = r#"
 설정 {
@@ -7317,11 +7442,9 @@ mod tests {
         run_file_with_emitter(&path, None, 0, default_run_options(), &mut emitter)
             .expect("run with setting madi");
         let _ = fs::remove_file(path);
-        assert!(emitter.out.starts_with(&[
-            "1".to_string(),
-            "2".to_string(),
-            "3".to_string()
-        ]));
+        assert!(emitter
+            .out
+            .starts_with(&["1".to_string(), "2".to_string(), "3".to_string()]));
     }
 
     #[test]
@@ -7415,7 +7538,7 @@ mod tests {
     fn matic_seed_source() -> &'static str {
         r#"
 매틱:움직씨 = {
-  살림.t <- 1.
+  t <- 1.
 }.
 "#
     }
@@ -7529,7 +7652,7 @@ mod tests {
             &mut emitter,
         )
         .expect_err("strict run must fail");
-        assert!(err.contains("E_LANG_COMPAT_MATIC_ENTRY_DISABLED"));
+        assert!(err.contains("E_LANG_COMPAT_MATIC_ENTRY_DISABLED"), "{err}");
         let _ = fs::remove_file(path);
     }
 
@@ -9435,7 +9558,7 @@ mod tests {
 
     #[test]
     fn build_proof_detjson_marks_clean_run_as_verified() {
-        let source = "#이름: proof_clean\nx <- 1.\n";
+        let source = "설정 { 문서 { 이름: \"proof_clean\". }. }.\nx <- 1.\n";
         let output = EvalOutput {
             state: State::new(),
             trace: Trace::new(),
@@ -9575,7 +9698,7 @@ y 가 정수 중 딱 하나가 {
             doc["solver_translation"]["items"][3]["completion"],
             "exhaustive"
         );
-        assert_eq!(doc["canonical_body_hash_method"], "ast_fallback");
+        assert_eq!(doc["canonical_body_hash_method"], "canon");
         assert_eq!(
             doc["solver_translation_hash"],
             JsonValue::String(json_sha256(&doc["solver_translation"]).expect("solver hash"))
@@ -11371,7 +11494,7 @@ y 가 정수 중 딱 하나가 {
         let key_dir = dir.join("cert");
         fs::write(
             &input_path,
-            "#이름: proof_abort\nx <- 1.\n{ 거짓 }인것 바탕으로(물림) 아니면 {\n}.\nx 보여주기.\n",
+            "설정 { 문서 { 이름: \"proof_abort\". }. }.\nx <- 1.\n{ 거짓 }인것 바탕으로(물림) 아니면 {\n}.\nx 보여주기.\n",
         )
         .expect("write source");
         crate::cli::cert::run_keygen(&key_dir, Some("proof-certificate-v1-abort-test"))
@@ -11649,7 +11772,7 @@ y 가 정수 중 딱 하나가 {
         .expect("write project policy");
         fs::write(
             &input_path,
-            "점수 <- 0.\n(매마디)마다 {\n  살림.점수 <- 살림.점수 + 샘.키보드.누르고있음.ArrowRight.\n}\n",
+            "점수 <- 0.\n(매마디)마다 {\n  점수 <- 점수 + 샘.키보드.누르고있음.ArrowRight.\n}\n",
         )
         .expect("write source");
         let tape = InputTape {

@@ -390,3 +390,79 @@ fn write_response(stream: &mut TcpStream, status: &str, body: &str) -> Result<()
         .write_all(response.as_bytes())
         .map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+
+    fn free_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind free port");
+        listener.local_addr().expect("local addr").port()
+    }
+
+    fn send_request(port: u16, request: &str) -> String {
+        let mut stream =
+            TcpStream::connect(("127.0.0.1", port)).expect("connect live input server");
+        stream.write_all(request.as_bytes()).expect("write request");
+        let mut response = String::new();
+        stream.read_to_string(&mut response).expect("read response");
+        response
+    }
+
+    #[test]
+    fn std_grid_game_bogae_live_web_input_server_routes_update_mask() {
+        let port = free_port();
+        let mut input = LiveInput::new(SamLiveMode::Web, "127.0.0.1".to_string(), port, 1000, None)
+            .expect("live input");
+        let expected_url = format!("http://127.0.0.1:{port}/input");
+        assert_eq!(input.input_url(), Some(expected_url.as_str()));
+
+        let down = send_request(
+            port,
+            "GET /input?code=ArrowLeft&kind=down HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        );
+        assert!(down.starts_with("HTTP/1.1 200 OK"), "{down}");
+        assert!(down.contains("Access-Control-Allow-Origin: *"), "{down}");
+        let tick = input.sample_tick(0);
+        assert_eq!(tick.held, 0b0000_0001);
+        assert_eq!(tick.pressed, 0b0000_0001);
+        assert_eq!(tick.released, 0);
+
+        let up = send_request(
+            port,
+            "GET /input?code=ArrowLeft&kind=up HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        );
+        assert!(up.starts_with("HTTP/1.1 200 OK"), "{up}");
+        let tick = input.sample_tick(0);
+        assert_eq!(tick.held, 0);
+        assert_eq!(tick.pressed, 0);
+        assert_eq!(tick.released, 0b0000_0001);
+
+        let down = send_request(
+            port,
+            "GET /input?code=ArrowLeft&kind=down HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        );
+        assert!(down.starts_with("HTTP/1.1 200 OK"), "{down}");
+        let tick = input.sample_tick(0);
+        assert_eq!(tick.held, 0b0000_0001);
+
+        let clear = send_request(
+            port,
+            "GET /input?kind=clear HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+        );
+        assert!(clear.starts_with("HTTP/1.1 200 OK"), "{clear}");
+        let tick = input.sample_tick(0);
+        assert_eq!(tick.held, 0);
+        assert_eq!(tick.released, 0b0000_0001);
+
+        let options = send_request(port, "OPTIONS /input HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        assert!(options.starts_with("HTTP/1.1 204 No Content"), "{options}");
+        assert!(
+            options.contains("Access-Control-Allow-Methods: GET, OPTIONS"),
+            "{options}"
+        );
+
+        input.finish().expect("finish live input");
+    }
+}

@@ -489,6 +489,10 @@ impl Parser {
             return Ok(Some(self.parse_decl_block(kind)?));
         }
 
+        if self.is_zero_arg_prefix_call_stmt() {
+            return Ok(Some(self.parse_zero_arg_prefix_call_stmt()?));
+        }
+
         if let Some(hook) = self.try_parse_hook()? {
             return Ok(Some(hook));
         }
@@ -590,6 +594,10 @@ impl Parser {
 
         if let Some(stmt) = self.try_parse_receive_stmt()? {
             return Ok(Some(stmt));
+        }
+
+        if self.is_zero_arg_prefix_call_stmt() {
+            return Ok(Some(self.parse_zero_arg_prefix_call_stmt()?));
         }
 
         let expr = self.parse_expr()?;
@@ -874,6 +882,29 @@ impl Parser {
             return path.segments.get(1).cloned();
         }
         None
+    }
+
+    fn is_zero_arg_prefix_call_stmt(&self) -> bool {
+        self.peek_kind_is(|k| matches!(k, TokenKind::LParen))
+            && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::RParen))
+            && (self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Salim))
+                || self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Ident(name) if name != "의")))
+    }
+
+    fn parse_zero_arg_prefix_call_stmt(&mut self) -> Result<Stmt, ParseError> {
+        let start_span = self.advance().span;
+        self.advance();
+        let (name, name_span) = self.parse_call_name()?;
+        let span = start_span.merge(name_span);
+        self.consume_terminator()?;
+        Ok(Stmt::Expr {
+            value: Expr::Call {
+                name,
+                args: Vec::new(),
+                span,
+            },
+            span,
+        })
     }
 
     fn rewrite_bare_reset_call(expr: Expr) -> Expr {
@@ -1802,7 +1833,9 @@ impl Parser {
     }
 
     fn peek_decl_block_kind(&self) -> Option<DeclKind> {
-        if !self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "채비")) {
+        if !self.peek_kind_is(|k| {
+            matches!(k, TokenKind::Ident(name) if name == "채비" || (name == "성질" && self.in_imja_seed_body()))
+        }) {
             return None;
         }
         if self.peek_next_non_newline_is(|k| matches!(k, TokenKind::LBrace | TokenKind::Colon)) {
@@ -2147,9 +2180,9 @@ impl Parser {
         let TokenKind::Ident(keyword) = &self.tokens[self.pos - 1].kind else {
             unreachable!("decl block keyword must be identifier")
         };
-        if keyword != "채비" {
+        if keyword != "채비" && !(keyword == "성질" && self.in_imja_seed_body()) {
             return Err(ParseError::UnexpectedToken {
-                expected: "'채비 {'",
+                expected: "'채비 {' 또는 임자 내부 '성질 {'",
                 found: TokenKind::Ident(keyword.clone()),
                 span: start_span,
             });
@@ -3025,9 +3058,9 @@ impl Parser {
         let mut iterable = self.parse_expr()?;
         let is_modu = self.peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "모두"));
         if !is_modu
-            && self.peek_kind_is(|k| {
-                matches!(k, TokenKind::Josa(name) | TokenKind::Ident(name) if name == "에")
-            })
+            && self.peek_kind_is(
+                |k| matches!(k, TokenKind::Josa(name) | TokenKind::Ident(name) if name == "에"),
+            )
         {
             self.advance();
         }
@@ -4885,6 +4918,20 @@ impl Parser {
 
     fn parse_primary(&mut self) -> Result<Expr, ParseError> {
         if self.peek_kind_is(|k| matches!(k, TokenKind::LParen)) {
+            if self.peek_kind_n_is(1, |k| matches!(k, TokenKind::RParen))
+                && (self.peek_kind_n_is(2, |k| matches!(k, TokenKind::Salim))
+                    || self
+                        .peek_kind_n_is(2, |k| matches!(k, TokenKind::Ident(name) if name != "의")))
+            {
+                let start_span = self.advance().span;
+                self.advance();
+                let (name, name_span) = self.parse_call_name()?;
+                return Ok(Expr::Call {
+                    name,
+                    args: Vec::new(),
+                    span: start_span.merge(name_span),
+                });
+            }
             if self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Atom(_))) {
                 let start_span = self.peek().span;
                 return self.parse_formula_expr(None, start_span);
@@ -6371,10 +6418,7 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
-            panic!("seed def expected");
-        };
-        let Stmt::DeclBlock { items, .. } = &body[0] else {
+        let Stmt::DeclBlock { items, .. } = &program.stmts[0] else {
             panic!("decl block expected");
         };
         assert_eq!(items.len(), 2);
@@ -6391,10 +6435,7 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
-            panic!("seed def expected");
-        };
-        let Stmt::DeclBlock { items, .. } = &body[0] else {
+        let Stmt::DeclBlock { items, .. } = &program.stmts[0] else {
             panic!("decl block expected");
         };
         let value = items[0].value.as_ref().expect("decl value");
@@ -6417,10 +6458,7 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
-            panic!("seed def expected");
-        };
-        let Stmt::DeclBlock { items, .. } = &body[0] else {
+        let Stmt::DeclBlock { items, .. } = &program.stmts[0] else {
             panic!("decl block expected");
         };
         let item = &items[0];
@@ -6443,10 +6481,7 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
-            panic!("seed def expected");
-        };
-        let Stmt::DeclBlock { items, .. } = &body[0] else {
+        let Stmt::DeclBlock { items, .. } = &program.stmts[0] else {
             panic!("decl block expected");
         };
         let item = &items[0];
@@ -6474,10 +6509,7 @@ mod tests {
 "#;
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
-        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
-            panic!("seed def expected");
-        };
-        let Stmt::DeclBlock { items, .. } = &body[0] else {
+        let Stmt::DeclBlock { items, .. } = &program.stmts[0] else {
             panic!("decl block expected");
         };
         let maegim = items[0].maegim.as_ref().expect("maegim");
@@ -6605,7 +6637,7 @@ mod tests {
         assert!(program
             .stmts
             .iter()
-            .any(|stmt| matches!(stmt, Stmt::SeedDef { .. })));
+            .any(|stmt| matches!(stmt, Stmt::DeclBlock { .. })));
     }
 
     #[test]
@@ -6654,6 +6686,18 @@ mod tests {
         let err = Parser::parse_with_default_root(tokens, "살림").expect_err("must fail");
         assert_eq!(err.code(), "E_CHAEBI_IN_LOOP");
         assert!(matches!(err, ParseError::ChaebiInLoop { .. }));
+    }
+
+    #[test]
+    fn parse_zero_arg_prefix_call_statement() {
+        let source = r#"
+막:움직씨 = {
+}.
+() 막.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(matches!(program.stmts.last(), Some(Stmt::Expr { .. })));
     }
 
     #[test]
@@ -7276,6 +7320,47 @@ mod tests {
     }
 
     #[test]
+    fn parse_seumssi_v1b_surface_alias_to_canonical_seum() {
+        let source = r#"
+검사 <- 세움씨{
+  { 거리 > 0 }인것 바탕으로(물림) 아니면 {
+    없음.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Assign {
+            value: Expr::Assertion { assertion, .. },
+            ..
+        }) = program.stmts.first()
+        else {
+            panic!("assertion assignment expected");
+        };
+        assert!(assertion.canon.starts_with("세움{"));
+        assert!(!assertion.canon.starts_with("세움씨{"));
+    }
+
+    #[test]
+    fn parse_seumssi_v1b_relation_bridge_canon_matches_seum() {
+        let source = r#"
+검사 <- 세움씨{
+  (#ascii) 수식{x + y} =:= (#ascii) 수식{5}
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Assign {
+            value: Expr::Assertion { assertion, .. },
+            ..
+        }) = program.stmts.first()
+        else {
+            panic!("assertion assignment expected");
+        };
+        assert_eq!(assertion.canon, "세움{수식관계: x + y =:= 5}");
+    }
+
+    #[test]
     fn parse_accepts_unary_plus_literal_assignment() {
         let source = "x <- +5.\ny <- (+5).\n";
         let tokens = Lexer::tokenize(source).expect("tokenize");
@@ -7655,6 +7740,32 @@ mod tests {
                 } if name == "관제탑" && kind == "임자"
             )
         }));
+    }
+
+    #[test]
+    fn parse_imja_owner_inner_seongjil_and_seum_boundary() {
+        let source = r#"
+공:임자 = {
+  성질 {
+    위치: 수 <- 0.
+    속도: 수 <- 0.
+  }.
+  세움 {
+    위치' =:= 속도.
+  }.
+  힘가해짐을 받으면 {
+    속도 <- 속도 + 힘.
+  }.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Stmt::SeedDef { body, .. } = &program.stmts[0] else {
+            panic!("seed def expected");
+        };
+        assert!(matches!(body[0], Stmt::DeclBlock { .. }));
+        assert!(matches!(body[1], Stmt::Expr { .. }));
+        assert!(matches!(body[2], Stmt::Receive { .. }));
     }
 
     #[test]

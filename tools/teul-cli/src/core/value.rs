@@ -124,7 +124,10 @@ impl LambdaValue {
             base.push_str(&value.canon());
         }
         let digest = Sha256::digest(base.as_bytes());
-        let hash = digest.iter().map(|b| format!("{b:02x}")).collect::<String>();
+        let hash = digest
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
         format!("<씨앗:{}>", hash)
     }
 }
@@ -490,7 +493,9 @@ fn format_relation_solve_result_pack(
     };
     match kind {
         "성공" => {
-            if let (Some(Value::Str(variable)), Some(value)) = (fields.get("미지수"), fields.get("값")) {
+            if let (Some(Value::Str(variable)), Some(value)) =
+                (fields.get("미지수"), fields.get("값"))
+            {
                 let rendered = match mode {
                     ValueFormat::Display => value.display(),
                     ValueFormat::Canon => value.canon(),

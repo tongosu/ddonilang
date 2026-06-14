@@ -101,8 +101,8 @@ fn cells_from_context(context_json: Option<&str>) -> Result<Vec<String>, String>
     let Some(raw) = context_json.map(str::trim).filter(|raw| !raw.is_empty()) else {
         return Ok(Vec::new());
     };
-    let value: JsonValue = serde_json::from_str(raw)
-        .map_err(|err| format!("E_CURRENTLINE_CONTEXT_JSON {err}"))?;
+    let value: JsonValue =
+        serde_json::from_str(raw).map_err(|err| format!("E_CURRENTLINE_CONTEXT_JSON {err}"))?;
     let mut cells = Vec::new();
     if let Some(prelude) = value.get("prelude_source").and_then(JsonValue::as_str) {
         if !prelude.trim().is_empty() {
@@ -156,7 +156,8 @@ impl CurrentLineSession {
         for stmt in split_statements(body) {
             if let Some(caps) = decl_re.captures(stmt.trim()) {
                 let key = flatten_name(caps.get(1).unwrap().as_str(), None);
-                let value = self.eval_expr(caps.get(2).unwrap().as_str(), None, &BTreeMap::new())?;
+                let value =
+                    self.eval_expr(caps.get(2).unwrap().as_str(), None, &BTreeMap::new())?;
                 self.state.insert(key, value);
             }
         }
@@ -166,7 +167,8 @@ impl CurrentLineSession {
     fn define_actor(&mut self, actor: &str, body: &str) -> Result<(), String> {
         self.handlers.entry(actor.to_string()).or_default();
         let decl_re = Regex::new(r"(?s)^([가-힣A-Za-z_][가-힣A-Za-z0-9_]*)\s*:\s*[가-힣A-Za-z_][가-힣A-Za-z0-9_]*\s*<-\s*(.+)$").unwrap();
-        let handler_re = Regex::new(r#"(?s)^"([^"]+)"라는\s+알림이\s+오면\s*\{(.*)\}\s*$"#).unwrap();
+        let handler_re =
+            Regex::new(r#"(?s)^"([^"]+)"라는\s+알림이\s+오면\s*\{(.*)\}\s*$"#).unwrap();
         let hook_re = Regex::new(r"(?s)^\(지금상태\)바뀔때마다\s*\{(.*)\}\s*$").unwrap();
         for stmt in split_statements(body) {
             let stmt = stmt.trim();
@@ -252,7 +254,11 @@ impl CurrentLineSession {
             return Ok(false);
         };
         let else_body = next_stmt
-            .and_then(|it| Regex::new(r"(?s)^아니면\s*\{(.*)\}\s*$").unwrap().captures(it))
+            .and_then(|it| {
+                Regex::new(r"(?s)^아니면\s*\{(.*)\}\s*$")
+                    .unwrap()
+                    .captures(it)
+            })
             .map(|caps| caps[1].to_string());
         if truthy(&self.eval_expr(&caps[1], actor, binds)?) {
             self.execute_block(&caps[2], actor, binds)?;
@@ -296,8 +302,7 @@ impl CurrentLineSession {
             Regex::new(r"(?s)^([가-힣A-Za-z_][가-힣A-Za-z0-9_.]*)\s*<-\s*(.+)$").unwrap();
         if let Some(caps) = assign_re.captures(stmt) {
             let value = self.eval_expr(&caps[2], actor, binds)?;
-            self.state
-                .insert(flatten_name(&caps[1], actor), value);
+            self.state.insert(flatten_name(&caps[1], actor), value);
             return Ok(());
         }
         let show_re = Regex::new(r"(?s)^(.+?)\s+보여주기\s*$").unwrap();
@@ -363,7 +368,8 @@ impl CurrentLineSession {
         actor: Option<&str>,
         binds: &BTreeMap<String, CellValue>,
     ) -> Result<(), String> {
-        let re = Regex::new(r"(?s)^([가-힣A-Za-z_][가-힣A-Za-z0-9_]*)에\s+따라\s*\{(.*)\}\s*$").unwrap();
+        let re =
+            Regex::new(r"(?s)^([가-힣A-Za-z_][가-힣A-Za-z0-9_]*)에\s+따라\s*\{(.*)\}\s*$").unwrap();
         let Some(caps) = re.captures(stmt) else {
             return Ok(());
         };
@@ -722,7 +728,12 @@ fn remove_imja_blocks(source: &str) -> Result<(String, Vec<(String, String)>), S
     Ok((out, bodies))
 }
 
-fn find_matching(text: &str, open_index: usize, open_ch: char, close_ch: char) -> Result<usize, String> {
+fn find_matching(
+    text: &str,
+    open_index: usize,
+    open_ch: char,
+    close_ch: char,
+) -> Result<usize, String> {
     let mut depth = 0i32;
     let mut in_string = false;
     let mut escaped = false;
@@ -804,9 +815,7 @@ fn split_binary(expr: &str, op: &str) -> Option<(String, String)> {
             } else if depth == 0 && expr[idx..].starts_with(op) {
                 let before = expr[..idx].chars().next_back().unwrap_or(' ');
                 let after = expr[idx + op.len()..].chars().next().unwrap_or(' ');
-                if (op == "+" || op == "-")
-                    && (!before.is_whitespace() || !after.is_whitespace())
-                {
+                if (op == "+" || op == "-") && (!before.is_whitespace() || !after.is_whitespace()) {
                     prev = ch;
                     continue;
                 }

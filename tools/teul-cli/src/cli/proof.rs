@@ -44,8 +44,11 @@ pub fn run_rewrite_chain(from: &str, to: &str, out: Option<&Path>) -> Result<(),
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        fs::write(path, serde_json::to_string_pretty(&proof).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
+        fs::write(
+            path,
+            serde_json::to_string_pretty(&proof).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
     }
     println!("proof_rewrite_ok={} kind={}", report.valid, report.kind);
     Ok(())
@@ -58,8 +61,9 @@ pub fn run_prove_relation_eq(
     second_rhs: &str,
     out: Option<&Path>,
 ) -> Result<(), String> {
-    let cert =
-        ddonirang_symbolic::prove_relation_equivalent(first_lhs, first_rhs, second_lhs, second_rhs)?;
+    let cert = ddonirang_symbolic::prove_relation_equivalent(
+        first_lhs, first_rhs, second_lhs, second_rhs,
+    )?;
     let value = serde_json::to_value(&cert).map_err(|e| e.to_string())?;
     let report = ddonirang_proof::verify_value(&value)?;
     if let Some(path) = out {

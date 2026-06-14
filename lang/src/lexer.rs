@@ -397,7 +397,7 @@ impl<'a> Lexer<'a> {
             }
             self.pos = checkpoint;
         }
-        if text == "세움" {
+        if text == "세움" || text == "세움씨" {
             let checkpoint = self.pos;
             self.skip_inline_whitespace();
             if self.peek_char() == Some('{') {
@@ -441,13 +441,15 @@ impl<'a> Lexer<'a> {
         if let Some(canon) = self.dialect.canonicalize_keyword(text) {
             lexeme = canon.to_string();
         }
-        if lexeme == "입력키" || lexeme == "찾기" || lexeme == "글바꾸기" {
+        if lexeme == "입력키" || lexeme == "찾기" || lexeme == "글바꾸기" || lexeme == "충돌"
+        {
             if let Some(suffix) = self.peek_char() {
                 let can_use_suffix = matches!(suffix, '?' | '!')
                     && !(suffix == '?' && self.peek_ahead(1) == Some('?'))
                     && !self.peek_ahead(1).map(is_ident_continue).unwrap_or(false)
                     && !(lexeme == "찾기" && suffix == '!')
-                    && !(lexeme == "글바꾸기" && suffix == '?');
+                    && !(lexeme == "글바꾸기" && suffix == '?')
+                    && !(lexeme == "충돌" && suffix == '!');
                 if can_use_suffix {
                     lexeme.push(suffix);
                     self.advance();
@@ -461,6 +463,7 @@ impl<'a> Lexer<'a> {
                 raw: lexeme,
             });
         }
+        self.append_prime_derivative_suffix(&mut lexeme);
 
         let josa_list = [
             "를", "을", "가", "이", "은", "는", "에게", "의", "로", "으로", "와", "과", "에",
@@ -479,7 +482,7 @@ impl<'a> Lexer<'a> {
         let next_is_postfix_keyword = self.next_non_ws_starts_with("보여주기")
             || self.next_non_ws_starts_with("돌아보기")
             || self.next_non_ws_starts_with("돌려줘");
-        if !has_underscore && self.peek_char() != Some(':') {
+        if !has_underscore && !lexeme.contains('\'') && self.peek_char() != Some(':') {
             if matches!(
                 next_sig,
                 Some('<')
@@ -994,11 +997,21 @@ impl<'a> Lexer<'a> {
                 raw: lexeme,
             });
         }
+        self.append_prime_derivative_suffix(&mut lexeme);
         Ok(Token {
             kind: TokenKind::Ident(lexeme.clone()),
             span: Span::new(start, self.pos),
             raw: lexeme,
         })
+    }
+
+    fn append_prime_derivative_suffix(&mut self, lexeme: &mut String) {
+        let mut count = 0usize;
+        while count < 2 && self.peek_char() == Some('\'') {
+            lexeme.push('\'');
+            self.advance();
+            count += 1;
+        }
     }
 
     fn try_read_sym3_token(&mut self) -> Option<Token> {
@@ -1383,5 +1396,24 @@ mod tests {
         assert!(tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "n목록")));
+    }
+
+    #[test]
+    fn prime_derivative_suffix_is_part_of_identifier() {
+        let mut lexer = Lexer::new("위치' <- 위치''.");
+        let tokens = lexer.tokenize().expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "위치'")));
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::Ident(ref name) if name == "위치''")));
+    }
+
+    #[test]
+    fn third_prime_derivative_marker_is_rejected_by_lexer() {
+        let mut lexer = Lexer::new("위치''' <- 1.");
+        let err = lexer.tokenize().expect_err("third prime must fail");
+        assert_eq!(err.message, "알 수 없는 문자");
     }
 }

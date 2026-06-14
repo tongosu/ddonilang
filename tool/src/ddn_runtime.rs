@@ -133,12 +133,52 @@ fn value_from_flag_number(value: i64) -> Value {
 
 const STD_GRID_KIND: &str = "표준.격자";
 const STD_INPUT_MAP_KIND: &str = "표준.입력사상";
+const STD_BLOCK_PIECE_KIND: &str = "std_block_piece";
+const STD_BLOCK_PIECE_KIND_FIELD: &str = "__종류";
+const STD_BLOCK_PIECE_CELLS_FIELD: &str = "칸들";
+const STD_RANDOM_BAG_KIND: &str = "std_random_bag";
+const STD_RANDOM_BAG_DRAW_KIND: &str = "std_random_bag_draw";
+const STD_RANDOM_BAG_KIND_FIELD: &str = "__종류";
+const STD_RANDOM_BAG_SEED_FIELD: &str = "시앗";
+const STD_RANDOM_BAG_STATE_FIELD: &str = "상태";
+const STD_RANDOM_BAG_ORIGINAL_FIELD: &str = "원본";
+const STD_RANDOM_BAG_REMAINING_FIELD: &str = "남은것";
+const STD_RANDOM_BAG_DRAWS_FIELD: &str = "뽑은수";
+const STD_RANDOM_BAG_VALUE_FIELD: &str = "값";
+const STD_RANDOM_BAG_BAG_FIELD: &str = "가방";
+const STD_GRID_GAME_STATE_KIND: &str = "std_grid_game_state";
+const STD_GRID_GAME_STATE_KIND_FIELD: &str = "__종류";
+const STD_GRID_GAME_STATE_STATE_FIELD: &str = "상태";
+const STD_GRID_GAME_STATE_PREV_FIELD: &str = "이전상태";
+const STD_GRID_GAME_STATE_TICK_FIELD: &str = "틱";
+const STD_GRID_LINE_CLEAR_KIND: &str = "std_grid_line_clear";
+const STD_FALLING_PIECE_KIND: &str = "std_falling_piece";
+const STD_GRID_GAME_SCORE_KIND: &str = "std_grid_game_score";
+const STD_GRID_GAME_SESSION_KIND: &str = "std_grid_game_session";
+const STD_GRID_GAME_TICK_KIND: &str = "std_grid_game_tick";
+const STD_GRID_GAME_NEXT_PIECE_KIND: &str = "std_grid_game_next_piece";
+const STD_GRID_GAME_VIEW_SUMMARY_KIND: &str = "std_grid_game_view_summary";
+const STD_GRID_GAME_HOLD_KIND: &str = "std_grid_game_hold_queue";
+const STD_GRID_GAME_HOLD_SWAP_KIND: &str = "std_grid_game_hold_swap";
+const STD_GRID_GAME_ROTATION_TRY_KIND: &str = "std_grid_game_rotation_try";
 
 fn fixed_value(value: i64) -> Value {
     Value::Fixed64(Fixed64::from_i64(value))
 }
 
 fn std_grid_error(message: &str) -> EvalError {
+    EvalError::from(message.to_string())
+}
+
+fn std_block_piece_error(message: &str) -> EvalError {
+    EvalError::from(message.to_string())
+}
+
+fn std_random_bag_error(message: &str) -> EvalError {
+    EvalError::from(message.to_string())
+}
+
+fn std_grid_game_state_error(message: &str) -> EvalError {
     EvalError::from(message.to_string())
 }
 
@@ -207,6 +247,1112 @@ fn std_grid_inside(value: &Value, x: i64, y: i64) -> Result<bool, EvalError> {
     let fields = std_grid_fields(value)?;
     let (width, height) = std_grid_dims(fields)?;
     Ok(x >= 0 && y >= 0 && x < width && y < height)
+}
+
+fn std_block_piece_cell_from_value(value: &Value) -> Result<(i64, i64), EvalError> {
+    let Value::List(items) = value else {
+        return Err(std_block_piece_error("블록조각 칸은 차림[x, y]여야 합니다"));
+    };
+    if items.len() != 2 {
+        return Err(std_block_piece_error(
+            "블록조각 칸은 좌표 2개를 가져야 합니다",
+        ));
+    }
+    Ok((value_to_i64(&items[0])?, value_to_i64(&items[1])?))
+}
+
+fn sort_std_block_piece_cells(cells: &mut Vec<(i64, i64)>) {
+    cells.sort_by_key(|(x, y)| (*y, *x));
+}
+
+fn std_block_piece_cells_value(cells: &[(i64, i64)]) -> Value {
+    Value::List(
+        cells
+            .iter()
+            .map(|(x, y)| Value::List(vec![fixed_value(*x), fixed_value(*y)]))
+            .collect(),
+    )
+}
+
+fn std_block_piece_cells_from_value(value: &Value) -> Result<Vec<(i64, i64)>, EvalError> {
+    let Value::List(items) = value else {
+        return Err(std_block_piece_error(
+            "블록조각 칸 목록은 차림이어야 합니다",
+        ));
+    };
+    let mut cells = items
+        .iter()
+        .map(std_block_piece_cell_from_value)
+        .collect::<Result<Vec<_>, _>>()?;
+    sort_std_block_piece_cells(&mut cells);
+    Ok(cells)
+}
+
+fn make_std_block_piece(mut cells: Vec<(i64, i64)>) -> Value {
+    sort_std_block_piece_cells(&mut cells);
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        STD_BLOCK_PIECE_KIND_FIELD.to_string(),
+        Value::String(STD_BLOCK_PIECE_KIND.to_string()),
+    );
+    fields.insert(
+        STD_BLOCK_PIECE_CELLS_FIELD.to_string(),
+        std_block_piece_cells_value(&cells),
+    );
+    Value::Pack(fields)
+}
+
+fn std_block_piece_cells(value: &Value) -> Result<Vec<(i64, i64)>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_block_piece_error("블록조각 인자가 필요합니다"));
+    };
+    match fields.get(STD_BLOCK_PIECE_KIND_FIELD) {
+        Some(Value::String(kind)) if kind == STD_BLOCK_PIECE_KIND => {}
+        _ => return Err(std_block_piece_error("블록조각 인자가 필요합니다")),
+    }
+    let cells = fields
+        .get(STD_BLOCK_PIECE_CELLS_FIELD)
+        .ok_or_else(|| std_block_piece_error("블록조각 칸 목록이 없습니다"))?;
+    std_block_piece_cells_from_value(cells)
+}
+
+fn std_block_piece_collides(
+    piece: &Value,
+    grid: &Value,
+    blocked_values: &Value,
+) -> Result<bool, EvalError> {
+    let cells = std_block_piece_cells(piece)?;
+    let fields = std_grid_fields(grid)?;
+    let grid_cells = std_grid_cells(fields)?;
+    for (x, y) in cells {
+        if !std_grid_inside(grid, x, y)? {
+            return Ok(true);
+        }
+        let idx = std_grid_index(fields, x, y)?;
+        let cell = grid_cells.get(idx).cloned().unwrap_or(Value::None);
+        if value_matches_any(&cell, blocked_values) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn std_block_piece_lock(piece: &Value, grid: &Value, value: Value) -> Result<Value, EvalError> {
+    let cells = std_block_piece_cells(piece)?;
+    let fields = std_grid_fields(grid)?;
+    let mut next = fields.clone();
+    let mut grid_cells = std_grid_cells(fields)?.clone();
+    for (x, y) in cells {
+        let idx = std_grid_index(fields, x, y)?;
+        if idx >= grid_cells.len() {
+            return Err(std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"));
+        }
+        grid_cells[idx] = value.clone();
+    }
+    next.insert("칸들".to_string(), Value::List(grid_cells));
+    Ok(Value::Pack(next))
+}
+
+fn splitmix64_next(state: u64) -> (u64, u64) {
+    let next_state = state.wrapping_add(0x9E3779B97F4A7C15);
+    let mut z = next_state;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+    (next_state, z ^ (z >> 31))
+}
+
+fn u64_state_text(value: u64) -> String {
+    format!("0x{value:016x}")
+}
+
+fn parse_u64_state_text(text: &str) -> Result<u64, EvalError> {
+    if let Some(hex) = text.strip_prefix("0x") {
+        return u64::from_str_radix(hex, 16)
+            .map_err(|_| std_random_bag_error("무작위가방 상태가 올바르지 않습니다"));
+    }
+    text.parse::<u64>()
+        .map_err(|_| std_random_bag_error("무작위가방 상태가 올바르지 않습니다"))
+}
+
+fn make_std_random_bag(
+    seed: u64,
+    state: u64,
+    original: Vec<Value>,
+    remaining: Vec<Value>,
+    draws: i64,
+) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        STD_RANDOM_BAG_KIND_FIELD.to_string(),
+        Value::String(STD_RANDOM_BAG_KIND.to_string()),
+    );
+    fields.insert(
+        STD_RANDOM_BAG_SEED_FIELD.to_string(),
+        fixed_value(seed as i64),
+    );
+    fields.insert(
+        STD_RANDOM_BAG_STATE_FIELD.to_string(),
+        Value::String(u64_state_text(state)),
+    );
+    fields.insert(
+        STD_RANDOM_BAG_ORIGINAL_FIELD.to_string(),
+        Value::List(original),
+    );
+    fields.insert(
+        STD_RANDOM_BAG_REMAINING_FIELD.to_string(),
+        Value::List(remaining),
+    );
+    fields.insert(STD_RANDOM_BAG_DRAWS_FIELD.to_string(), fixed_value(draws));
+    Value::Pack(fields)
+}
+
+fn std_random_bag_fields(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_random_bag_error("무작위가방 인자가 필요합니다"));
+    };
+    match fields.get(STD_RANDOM_BAG_KIND_FIELD) {
+        Some(Value::String(kind)) if kind == STD_RANDOM_BAG_KIND => Ok(fields),
+        _ => Err(std_random_bag_error("무작위가방 인자가 필요합니다")),
+    }
+}
+
+fn std_random_bag_list_field(
+    fields: &BTreeMap<String, Value>,
+    field: &str,
+) -> Result<Vec<Value>, EvalError> {
+    let Some(Value::List(items)) = fields.get(field) else {
+        return Err(std_random_bag_error("무작위가방 차림 필드가 없습니다"));
+    };
+    Ok(items.clone())
+}
+
+fn std_random_bag_state(fields: &BTreeMap<String, Value>) -> Result<u64, EvalError> {
+    match fields.get(STD_RANDOM_BAG_STATE_FIELD) {
+        Some(Value::String(text)) => parse_u64_state_text(text),
+        Some(value) => Ok(value_to_i64(value)? as u64),
+        None => Err(std_random_bag_error("무작위가방 상태가 없습니다")),
+    }
+}
+
+fn std_random_bag_seed(fields: &BTreeMap<String, Value>) -> Result<u64, EvalError> {
+    fields
+        .get(STD_RANDOM_BAG_SEED_FIELD)
+        .ok_or_else(|| std_random_bag_error("무작위가방 시앗이 없습니다"))
+        .and_then(value_to_i64)
+        .map(|seed| seed as u64)
+}
+
+fn std_random_bag_draws(fields: &BTreeMap<String, Value>) -> Result<i64, EvalError> {
+    fields
+        .get(STD_RANDOM_BAG_DRAWS_FIELD)
+        .ok_or_else(|| std_random_bag_error("무작위가방 뽑은수가 없습니다"))
+        .and_then(value_to_i64)
+}
+
+fn std_random_bag_draw_once(bag: &Value) -> Result<(Value, Value), EvalError> {
+    let fields = std_random_bag_fields(bag)?;
+    let seed = std_random_bag_seed(fields)?;
+    let original = std_random_bag_list_field(fields, STD_RANDOM_BAG_ORIGINAL_FIELD)?;
+    if original.is_empty() {
+        return Err(std_random_bag_error(
+            "무작위가방 원본 후보들은 비어 있을 수 없습니다",
+        ));
+    }
+    let mut remaining = std_random_bag_list_field(fields, STD_RANDOM_BAG_REMAINING_FIELD)?;
+    if remaining.is_empty() {
+        remaining = original.clone();
+    }
+    let (next_state, sample) = splitmix64_next(std_random_bag_state(fields)?);
+    let idx = (sample % remaining.len() as u64) as usize;
+    let value = remaining.remove(idx);
+    let next_bag = make_std_random_bag(
+        seed,
+        next_state,
+        original,
+        remaining,
+        std_random_bag_draws(fields)?.saturating_add(1),
+    );
+    Ok((value, next_bag))
+}
+
+fn is_allowed_grid_game_state(state: &str) -> bool {
+    matches!(state, "준비" | "진행" | "잠금지연" | "정리" | "끝" | "멈춤")
+}
+
+fn value_to_grid_game_state_name(value: &Value) -> Result<String, EvalError> {
+    let Value::String(state) = value else {
+        return Err(std_grid_game_state_error(
+            "격자게임상태 이름은 글이어야 합니다",
+        ));
+    };
+    if !is_allowed_grid_game_state(state) {
+        return Err(std_grid_game_state_error(&format!(
+            "격자게임상태를 지원하지 않습니다: {state}"
+        )));
+    }
+    Ok(state.clone())
+}
+
+fn make_std_grid_game_state(state: &str, previous: Value, tick: i64) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        STD_GRID_GAME_STATE_KIND_FIELD.to_string(),
+        Value::String(STD_GRID_GAME_STATE_KIND.to_string()),
+    );
+    fields.insert(
+        STD_GRID_GAME_STATE_STATE_FIELD.to_string(),
+        Value::String(state.to_string()),
+    );
+    fields.insert(STD_GRID_GAME_STATE_PREV_FIELD.to_string(), previous);
+    fields.insert(
+        STD_GRID_GAME_STATE_TICK_FIELD.to_string(),
+        fixed_value(tick),
+    );
+    Value::Pack(fields)
+}
+
+fn std_grid_game_state_fields(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_grid_game_state_error("격자게임상태 인자가 필요합니다"));
+    };
+    match fields.get(STD_GRID_GAME_STATE_KIND_FIELD) {
+        Some(Value::String(kind)) if kind == STD_GRID_GAME_STATE_KIND => Ok(fields),
+        _ => Err(std_grid_game_state_error("격자게임상태 인자가 필요합니다")),
+    }
+}
+
+fn std_grid_game_state_state(fields: &BTreeMap<String, Value>) -> Result<String, EvalError> {
+    let Some(Value::String(state)) = fields.get(STD_GRID_GAME_STATE_STATE_FIELD) else {
+        return Err(std_grid_game_state_error("격자게임상태 상태가 없습니다"));
+    };
+    if !is_allowed_grid_game_state(state) {
+        return Err(std_grid_game_state_error(&format!(
+            "격자게임상태를 지원하지 않습니다: {state}"
+        )));
+    }
+    Ok(state.clone())
+}
+
+fn std_grid_game_state_previous(fields: &BTreeMap<String, Value>) -> Value {
+    fields
+        .get(STD_GRID_GAME_STATE_PREV_FIELD)
+        .cloned()
+        .unwrap_or(Value::None)
+}
+
+fn std_grid_game_state_tick(fields: &BTreeMap<String, Value>) -> Result<i64, EvalError> {
+    fields
+        .get(STD_GRID_GAME_STATE_TICK_FIELD)
+        .ok_or_else(|| std_grid_game_state_error("격자게임상태 틱이 없습니다"))
+        .and_then(value_to_i64)
+}
+
+fn std_grid_game_error(message: &str) -> EvalError {
+    EvalError::from(message.to_string())
+}
+
+fn tetromino_names() -> [&'static str; 7] {
+    ["I", "O", "T", "S", "Z", "J", "L"]
+}
+
+fn tetromino_cells(name: &str) -> Result<Vec<(i64, i64)>, EvalError> {
+    match name {
+        "I" => Ok(vec![(-1, 0), (0, 0), (1, 0), (2, 0)]),
+        "O" => Ok(vec![(0, 0), (1, 0), (0, 1), (1, 1)]),
+        "T" => Ok(vec![(-1, 0), (0, 0), (1, 0), (0, 1)]),
+        "S" => Ok(vec![(0, 0), (1, 0), (-1, 1), (0, 1)]),
+        "Z" => Ok(vec![(-1, 0), (0, 0), (0, 1), (1, 1)]),
+        "J" => Ok(vec![(-1, 0), (-1, 1), (0, 1), (1, 1)]),
+        "L" => Ok(vec![(1, 0), (-1, 1), (0, 1), (1, 1)]),
+        _ => Err(std_grid_game_error(&format!(
+            "테트로미노를 지원하지 않습니다: {name}"
+        ))),
+    }
+}
+
+fn value_to_tetromino_name(value: &Value) -> Result<String, EvalError> {
+    let Value::String(name) = value else {
+        return Err(std_grid_game_error("테트로미노 이름은 글이어야 합니다"));
+    };
+    let _ = tetromino_cells(name)?;
+    Ok(name.clone())
+}
+
+fn std_grid_line_full_rows(grid: &Value, empty_value: &Value) -> Result<Vec<i64>, EvalError> {
+    let fields = std_grid_fields(grid)?;
+    let (width, height) = std_grid_dims(fields)?;
+    let cells = std_grid_cells(fields)?;
+    let mut rows = Vec::new();
+    for y in 0..height {
+        let mut full = true;
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            let cell = cells
+                .get(idx)
+                .ok_or_else(|| std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"))?;
+            if values_equal(cell, empty_value) {
+                full = false;
+                break;
+            }
+        }
+        if full {
+            rows.push(y);
+        }
+    }
+    Ok(rows)
+}
+
+fn std_grid_line_clear(grid: &Value, empty_value: Value) -> Result<Value, EvalError> {
+    let fields = std_grid_fields(grid)?;
+    let (width, height) = std_grid_dims(fields)?;
+    let cells = std_grid_cells(fields)?;
+    let full_rows = std_grid_line_full_rows(grid, &empty_value)?;
+    let full_set: BTreeSet<i64> = full_rows.iter().copied().collect();
+    let mut kept_rows = Vec::new();
+    for y in 0..height {
+        if full_set.contains(&y) {
+            continue;
+        }
+        let start = (y * width) as usize;
+        let end = start + width as usize;
+        kept_rows.extend_from_slice(
+            cells
+                .get(start..end)
+                .ok_or_else(|| std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"))?,
+        );
+    }
+    let mut next_cells = vec![empty_value.clone(); full_rows.len() * width as usize];
+    next_cells.extend(kept_rows);
+    let mut next_fields = fields.clone();
+    next_fields.insert("칸들".to_string(), Value::List(next_cells));
+    let mut result = BTreeMap::new();
+    result.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_LINE_CLEAR_KIND.to_string()),
+    );
+    result.insert("격자".to_string(), Value::Pack(next_fields));
+    result.insert("지운줄수".to_string(), fixed_value(full_rows.len() as i64));
+    result.insert(
+        "지운줄목록".to_string(),
+        Value::List(full_rows.into_iter().map(fixed_value).collect()),
+    );
+    Ok(Value::Pack(result))
+}
+
+fn make_std_falling_piece(piece: Value, x: i64, y: i64) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_FALLING_PIECE_KIND.to_string()),
+    );
+    fields.insert("조각".to_string(), piece);
+    fields.insert("x".to_string(), fixed_value(x));
+    fields.insert("y".to_string(), fixed_value(y));
+    Value::Pack(fields)
+}
+
+fn std_falling_piece_fields(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_grid_game_error("낙하조각 인자가 필요합니다"));
+    };
+    match fields.get("__종류") {
+        Some(Value::String(kind)) if kind == STD_FALLING_PIECE_KIND => Ok(fields),
+        _ => Err(std_grid_game_error("낙하조각 인자가 필요합니다")),
+    }
+}
+
+fn std_falling_piece_parts(value: &Value) -> Result<(Value, i64, i64), EvalError> {
+    let fields = std_falling_piece_fields(value)?;
+    let piece = fields
+        .get("조각")
+        .cloned()
+        .ok_or_else(|| std_grid_game_error("낙하조각 조각이 없습니다"))?;
+    let x = fields
+        .get("x")
+        .ok_or_else(|| std_grid_game_error("낙하조각 x가 없습니다"))
+        .and_then(value_to_i64)?;
+    let y = fields
+        .get("y")
+        .ok_or_else(|| std_grid_game_error("낙하조각 y가 없습니다"))
+        .and_then(value_to_i64)?;
+    Ok((piece, x, y))
+}
+
+fn std_falling_piece_cells(value: &Value) -> Result<Vec<(i64, i64)>, EvalError> {
+    let (piece, x, y) = std_falling_piece_parts(value)?;
+    Ok(std_block_piece_cells(&piece)?
+        .into_iter()
+        .map(|(cx, cy)| (cx + x, cy + y))
+        .collect())
+}
+
+fn std_falling_piece_block(value: &Value) -> Result<Value, EvalError> {
+    Ok(make_std_block_piece(std_falling_piece_cells(value)?))
+}
+
+fn std_falling_piece_rotate(value: &Value, direction: &str) -> Result<Value, EvalError> {
+    let (piece, x, y) = std_falling_piece_parts(value)?;
+    let rotated_cells = std_block_piece_cells(&piece)?
+        .into_iter()
+        .map(|(cx, cy)| match direction {
+            "오른쪽" => Ok((-cy, cx)),
+            "왼쪽" => Ok((cy, -cx)),
+            "뒤집기" => Ok((-cx, -cy)),
+            _ => Err(std_grid_game_error(&format!(
+                "낙하조각 회전 방향을 지원하지 않습니다: {direction}"
+            ))),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(make_std_falling_piece(
+        make_std_block_piece(rotated_cells),
+        x,
+        y,
+    ))
+}
+
+fn make_std_grid_game_score(score: i64, lines: i64) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_SCORE_KIND.to_string()),
+    );
+    fields.insert("점수".to_string(), fixed_value(score));
+    fields.insert("줄수".to_string(), fixed_value(lines));
+    fields.insert("레벨".to_string(), fixed_value(1 + lines.div_euclid(10)));
+    Value::Pack(fields)
+}
+
+fn std_grid_game_score_fields(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_grid_game_error("격자게임점수 인자가 필요합니다"));
+    };
+    match fields.get("__종류") {
+        Some(Value::String(kind)) if kind == STD_GRID_GAME_SCORE_KIND => Ok(fields),
+        _ => Err(std_grid_game_error("격자게임점수 인자가 필요합니다")),
+    }
+}
+
+fn std_score_int_field(fields: &BTreeMap<String, Value>, field: &str) -> Result<i64, EvalError> {
+    fields
+        .get(field)
+        .ok_or_else(|| std_grid_game_error(&format!("격자게임점수 {field}가 없습니다")))
+        .and_then(value_to_i64)
+}
+
+fn std_grid_game_score_add(score: &Value, cleared: i64) -> Result<Value, EvalError> {
+    if !(0..=4).contains(&cleared) {
+        return Err(std_grid_game_error("지운줄수는 0..4 범위여야 합니다"));
+    }
+    let fields = std_grid_game_score_fields(score)?;
+    let current_score = std_score_int_field(fields, "점수")?;
+    let current_lines = std_score_int_field(fields, "줄수")?;
+    let level = 1 + current_lines.div_euclid(10);
+    let add = match cleared {
+        0 => 0,
+        1 => 100 * level,
+        2 => 300 * level,
+        3 => 500 * level,
+        4 => 800 * level,
+        _ => unreachable!(),
+    };
+    Ok(make_std_grid_game_score(
+        current_score.saturating_add(add),
+        current_lines.saturating_add(cleared),
+    ))
+}
+
+fn make_std_grid_game_session(
+    grid: Value,
+    bag: Value,
+    state: Value,
+    score: Value,
+    falling: Value,
+) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_SESSION_KIND.to_string()),
+    );
+    fields.insert("격자".to_string(), grid);
+    fields.insert("가방".to_string(), bag);
+    fields.insert("상태".to_string(), state);
+    fields.insert("점수".to_string(), score);
+    fields.insert("낙하조각".to_string(), falling);
+    Value::Pack(fields)
+}
+
+fn std_grid_game_session_fields(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_grid_game_error("격자게임세션 인자가 필요합니다"));
+    };
+    match fields.get("__종류") {
+        Some(Value::String(kind)) if kind == STD_GRID_GAME_SESSION_KIND => Ok(fields),
+        _ => Err(std_grid_game_error("격자게임세션 인자가 필요합니다")),
+    }
+}
+
+fn std_session_field(fields: &BTreeMap<String, Value>, field: &str) -> Result<Value, EvalError> {
+    fields
+        .get(field)
+        .cloned()
+        .ok_or_else(|| std_grid_game_error(&format!("격자게임세션 {field}가 없습니다")))
+}
+
+fn std_grid_game_next_piece(bag: &Value) -> Result<Value, EvalError> {
+    let (name_value, next_bag) = std_random_bag_draw_once(bag)?;
+    let name = value_to_tetromino_name(&name_value)?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_NEXT_PIECE_KIND.to_string()),
+    );
+    fields.insert("이름".to_string(), Value::String(name.clone()));
+    fields.insert(
+        "조각".to_string(),
+        make_std_block_piece(tetromino_cells(&name)?),
+    );
+    fields.insert("가방".to_string(), next_bag);
+    Ok(Value::Pack(fields))
+}
+
+fn make_std_grid_game_hold(piece: Value, used: bool) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_HOLD_KIND.to_string()),
+    );
+    fields.insert("조각".to_string(), piece);
+    fields.insert("썼나".to_string(), Value::Bool(used));
+    Value::Pack(fields)
+}
+
+fn std_grid_game_hold_fields(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(std_grid_game_error("격자게임홀드 인자가 필요합니다"));
+    };
+    match fields.get("__종류") {
+        Some(Value::String(kind)) if kind == STD_GRID_GAME_HOLD_KIND => Ok(fields),
+        _ => Err(std_grid_game_error("격자게임홀드 인자가 필요합니다")),
+    }
+}
+
+fn std_grid_game_hold_piece(fields: &BTreeMap<String, Value>) -> Result<Value, EvalError> {
+    let piece = fields.get("조각").cloned().unwrap_or(Value::None);
+    if !matches!(piece, Value::None) {
+        let _ = std_block_piece_cells(&piece)?;
+    }
+    Ok(piece)
+}
+
+fn std_grid_game_hold_used(fields: &BTreeMap<String, Value>) -> Result<bool, EvalError> {
+    match fields.get("썼나") {
+        Some(Value::Bool(flag)) => Ok(*flag),
+        _ => Err(std_grid_game_error("격자게임홀드 썼나 값이 없습니다")),
+    }
+}
+
+fn make_std_grid_game_hold_swap(hold: Value, falling: Value, bag: Value) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_HOLD_SWAP_KIND.to_string()),
+    );
+    fields.insert("홀드".to_string(), hold);
+    fields.insert("낙하조각".to_string(), falling);
+    fields.insert("가방".to_string(), bag);
+    Value::Pack(fields)
+}
+
+fn std_grid_game_hold_swap(
+    hold: &Value,
+    falling: &Value,
+    bag: &Value,
+    x: i64,
+    y: i64,
+) -> Result<Value, EvalError> {
+    let hold_fields = std_grid_game_hold_fields(hold)?;
+    if std_grid_game_hold_used(hold_fields)? {
+        return Err(std_grid_game_error(
+            "격자게임홀드는 이번 턴에 이미 썼습니다",
+        ));
+    }
+    let (current_piece, _, _) = std_falling_piece_parts(falling)?;
+    let held_piece = std_grid_game_hold_piece(hold_fields)?;
+    if matches!(held_piece, Value::None) {
+        let next = std_grid_game_next_piece(bag)?;
+        let Value::Pack(next_fields) = &next else {
+            unreachable!()
+        };
+        let next_piece = std_session_field(next_fields, "조각")?;
+        let next_bag = std_session_field(next_fields, "가방")?;
+        Ok(make_std_grid_game_hold_swap(
+            make_std_grid_game_hold(current_piece, true),
+            make_std_falling_piece(next_piece, x, y),
+            next_bag,
+        ))
+    } else {
+        Ok(make_std_grid_game_hold_swap(
+            make_std_grid_game_hold(current_piece, true),
+            make_std_falling_piece(held_piece, x, y),
+            bag.clone(),
+        ))
+    }
+}
+
+fn std_grid_game_placeable(
+    falling: &Value,
+    grid: &Value,
+    blocked: &Value,
+) -> Result<bool, EvalError> {
+    std_block_piece_collides(&std_falling_piece_block(falling)?, grid, blocked).map(|v| !v)
+}
+
+fn std_grid_game_rotation_try(
+    falling: &Value,
+    grid: &Value,
+    blocked: &Value,
+    direction: &str,
+) -> Result<Value, EvalError> {
+    let rotated = std_falling_piece_rotate(falling, direction)?;
+    let (piece, x, y) = std_falling_piece_parts(&rotated)?;
+    for (dx, dy) in [(0, 0), (-1, 0), (1, 0), (-2, 0), (2, 0), (0, -1)] {
+        let candidate = make_std_falling_piece(piece.clone(), x + dx, y + dy);
+        if std_grid_game_placeable(&candidate, grid, blocked)? {
+            return Ok(make_std_grid_game_rotation_try(candidate, true, dx, dy));
+        }
+    }
+    Ok(make_std_grid_game_rotation_try(
+        falling.clone(),
+        false,
+        0,
+        0,
+    ))
+}
+
+fn make_std_grid_game_rotation_try(falling: Value, success: bool, dx: i64, dy: i64) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_ROTATION_TRY_KIND.to_string()),
+    );
+    fields.insert("낙하조각".to_string(), falling);
+    fields.insert("성공".to_string(), Value::Bool(success));
+    fields.insert(
+        "오프셋".to_string(),
+        Value::List(vec![fixed_value(dx), fixed_value(dy)]),
+    );
+    Value::Pack(fields)
+}
+
+fn std_grid_game_apply_input(
+    falling: &Value,
+    input_map: &Value,
+    input: &InputState,
+) -> Result<Value, EvalError> {
+    let input_fields = std_input_map_fields(input_map)?;
+    let mut candidate = falling.clone();
+    if input_map_action_pressed(input, &input_fields, "왼쪽") {
+        let (piece, x, y) = std_falling_piece_parts(&candidate)?;
+        candidate = make_std_falling_piece(piece, x - 1, y);
+    }
+    if input_map_action_pressed(input, &input_fields, "오른쪽") {
+        let (piece, x, y) = std_falling_piece_parts(&candidate)?;
+        candidate = make_std_falling_piece(piece, x + 1, y);
+    }
+    if input_map_action_pressed(input, &input_fields, "아래") {
+        let (piece, x, y) = std_falling_piece_parts(&candidate)?;
+        candidate = make_std_falling_piece(piece, x, y + 1);
+    }
+    if input_map_action_pressed(input, &input_fields, "위")
+        || input_map_action_pressed(input, &input_fields, "회전")
+    {
+        let (piece, x, y) = std_falling_piece_parts(&candidate)?;
+        let rotated_cells = std_block_piece_cells(&piece)?
+            .into_iter()
+            .map(|(cx, cy)| (-cy, cx))
+            .collect();
+        candidate = make_std_falling_piece(make_std_block_piece(rotated_cells), x, y);
+    }
+    Ok(candidate)
+}
+
+fn std_grid_game_tick(
+    session: &Value,
+    input_map: &Value,
+    input: &InputState,
+) -> Result<Value, EvalError> {
+    let fields = std_grid_game_session_fields(session)?;
+    let grid = std_session_field(fields, "격자")?;
+    let bag = std_session_field(fields, "가방")?;
+    let state = std_session_field(fields, "상태")?;
+    let score = std_session_field(fields, "점수")?;
+    let falling = std_session_field(fields, "낙하조각")?;
+    let state_name = std_grid_game_state_state(std_grid_game_state_fields(&state)?)?;
+    if state_name == "멈춤" || state_name == "끝" {
+        let mut tick_fields = BTreeMap::new();
+        tick_fields.insert(
+            "__종류".to_string(),
+            Value::String(STD_GRID_GAME_TICK_KIND.to_string()),
+        );
+        tick_fields.insert("세션".to_string(), session.clone());
+        tick_fields.insert("고정됐나".to_string(), Value::Bool(false));
+        tick_fields.insert("지운줄수".to_string(), fixed_value(0));
+        return Ok(Value::Pack(tick_fields));
+    }
+
+    let candidate = std_grid_game_apply_input(&falling, input_map, input)?;
+    let blocked = Value::List(vec![Value::String("X".to_string())]);
+    let active = if std_grid_game_placeable(&candidate, &grid, &blocked)? {
+        candidate
+    } else {
+        falling
+    };
+    let (piece, x, y) = std_falling_piece_parts(&active)?;
+    let gravity = make_std_falling_piece(piece, x, y + 1);
+    let (next_session, locked, cleared) = if std_grid_game_placeable(&gravity, &grid, &blocked)? {
+        (
+            make_std_grid_game_session(grid, bag, state, score, gravity),
+            false,
+            0,
+        )
+    } else {
+        let locked_grid = std_block_piece_lock(
+            &std_falling_piece_block(&active)?,
+            &grid,
+            Value::String("X".to_string()),
+        )?;
+        let cleared_pack = std_grid_line_clear(&locked_grid, Value::String(".".to_string()))?;
+        let Value::Pack(cleared_fields) = &cleared_pack else {
+            unreachable!()
+        };
+        let next_grid = std_session_field(cleared_fields, "격자")?;
+        let cleared_count = std_score_int_field(cleared_fields, "지운줄수")?;
+        let next_score = std_grid_game_score_add(&score, cleared_count)?;
+        let next_piece_pack = std_grid_game_next_piece(&bag)?;
+        let Value::Pack(next_fields) = &next_piece_pack else {
+            unreachable!()
+        };
+        let next_bag = std_session_field(next_fields, "가방")?;
+        let next_piece = std_session_field(next_fields, "조각")?;
+        let grid_fields = std_grid_fields(&next_grid)?;
+        let (width, _) = std_grid_dims(grid_fields)?;
+        let spawn = make_std_falling_piece(next_piece, width.div_euclid(2) - 1, 0);
+        let next_state = if std_grid_game_placeable(&spawn, &next_grid, &blocked)? {
+            state
+        } else {
+            make_std_grid_game_state("끝", Value::None, 0)
+        };
+        (
+            make_std_grid_game_session(next_grid, next_bag, next_state, next_score, spawn),
+            true,
+            cleared_count,
+        )
+    };
+    let mut tick_fields = BTreeMap::new();
+    tick_fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_TICK_KIND.to_string()),
+    );
+    tick_fields.insert("세션".to_string(), next_session);
+    tick_fields.insert("고정됐나".to_string(), Value::Bool(locked));
+    tick_fields.insert("지운줄수".to_string(), fixed_value(cleared));
+    Ok(Value::Pack(tick_fields))
+}
+
+fn std_grid_game_view_cell(x: i64, y: i64, value: Value, source: &str) -> Value {
+    let mut fields = BTreeMap::new();
+    fields.insert("x".to_string(), fixed_value(x));
+    fields.insert("y".to_string(), fixed_value(y));
+    fields.insert("값".to_string(), value);
+    fields.insert("원천".to_string(), Value::String(source.to_string()));
+    Value::Pack(fields)
+}
+
+fn std_grid_game_view_project(
+    session: &Value,
+    empty_value: &Value,
+    falling_value: Value,
+) -> Result<(i64, i64, Vec<Value>), EvalError> {
+    let session_fields = std_grid_game_session_fields(session)?;
+    let grid = std_session_field(session_fields, "격자")?;
+    let falling = std_session_field(session_fields, "낙하조각")?;
+    let grid_fields = std_grid_fields(&grid)?;
+    let (width, height) = std_grid_dims(grid_fields)?;
+    let cells = std_grid_cells(grid_fields)?;
+    let expected_len = width
+        .checked_mul(height)
+        .ok_or_else(|| std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"))?
+        as usize;
+    if cells.len() != expected_len {
+        return Err(std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"));
+    }
+
+    let overlay = std_falling_piece_cells(&falling)?
+        .into_iter()
+        .filter(|(x, y)| *x >= 0 && *y >= 0 && *x < width && *y < height)
+        .collect::<BTreeSet<_>>();
+    let mut out = Vec::with_capacity(expected_len);
+    for y in 0..height {
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            if overlay.contains(&(x, y)) {
+                out.push(std_grid_game_view_cell(x, y, falling_value.clone(), "낙하"));
+            } else {
+                let cell = cells[idx].clone();
+                let source = if values_equal(&cell, empty_value) {
+                    "빈칸"
+                } else {
+                    "고정"
+                };
+                out.push(std_grid_game_view_cell(x, y, cell, source));
+            }
+        }
+    }
+    Ok((width, height, out))
+}
+
+fn std_grid_game_view_cells(
+    session: &Value,
+    empty_value: &Value,
+    falling_value: Value,
+) -> Result<Value, EvalError> {
+    let (_, _, cells) = std_grid_game_view_project(session, empty_value, falling_value)?;
+    Ok(Value::List(cells))
+}
+
+fn std_grid_game_ghost_piece(session: &Value, blocked: &Value) -> Result<Value, EvalError> {
+    let session_fields = std_grid_game_session_fields(session)?;
+    let grid = std_session_field(session_fields, "격자")?;
+    let falling = std_session_field(session_fields, "낙하조각")?;
+    if !std_grid_game_placeable(&falling, &grid, blocked)? {
+        return Ok(falling);
+    }
+    let mut current = falling;
+    loop {
+        let (piece, x, y) = std_falling_piece_parts(&current)?;
+        let next = make_std_falling_piece(piece, x, y + 1);
+        if std_grid_game_placeable(&next, &grid, blocked)? {
+            current = next;
+        } else {
+            return Ok(current);
+        }
+    }
+}
+
+fn std_grid_game_ghost_view_project(
+    session: &Value,
+    empty_value: &Value,
+    falling_value: Value,
+    ghost_value: Value,
+    blocked: &Value,
+) -> Result<(i64, i64, Vec<Value>), EvalError> {
+    let session_fields = std_grid_game_session_fields(session)?;
+    let grid = std_session_field(session_fields, "격자")?;
+    let falling = std_session_field(session_fields, "낙하조각")?;
+    let ghost = std_grid_game_ghost_piece(session, blocked)?;
+    let grid_fields = std_grid_fields(&grid)?;
+    let (width, height) = std_grid_dims(grid_fields)?;
+    let cells = std_grid_cells(grid_fields)?;
+    let expected_len = width
+        .checked_mul(height)
+        .ok_or_else(|| std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"))?
+        as usize;
+    if cells.len() != expected_len {
+        return Err(std_grid_error("격자 칸 목록이 크기와 맞지 않습니다"));
+    }
+
+    let ghost_overlay = std_falling_piece_cells(&ghost)?
+        .into_iter()
+        .filter(|(x, y)| *x >= 0 && *y >= 0 && *x < width && *y < height)
+        .collect::<BTreeSet<_>>();
+    let falling_overlay = std_falling_piece_cells(&falling)?
+        .into_iter()
+        .filter(|(x, y)| *x >= 0 && *y >= 0 && *x < width && *y < height)
+        .collect::<BTreeSet<_>>();
+    let mut out = Vec::with_capacity(expected_len);
+    for y in 0..height {
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            if falling_overlay.contains(&(x, y)) {
+                out.push(std_grid_game_view_cell(x, y, falling_value.clone(), "낙하"));
+            } else if ghost_overlay.contains(&(x, y)) {
+                out.push(std_grid_game_view_cell(x, y, ghost_value.clone(), "유령"));
+            } else {
+                let cell = cells[idx].clone();
+                let source = if values_equal(&cell, empty_value) {
+                    "빈칸"
+                } else {
+                    "고정"
+                };
+                out.push(std_grid_game_view_cell(x, y, cell, source));
+            }
+        }
+    }
+    Ok((width, height, out))
+}
+
+fn std_grid_game_view_text(
+    session: &Value,
+    empty_value: &Value,
+    falling_value: Value,
+) -> Result<Value, EvalError> {
+    let (width, height, cells) = std_grid_game_view_project(session, empty_value, falling_value)?;
+    let mut rows = Vec::new();
+    for y in 0..height {
+        let mut row = String::new();
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            let Value::Pack(fields) = &cells[idx] else {
+                unreachable!()
+            };
+            if let Some(value) = fields.get("값") {
+                row.push_str(&value_to_string(value));
+            }
+        }
+        rows.push(row);
+    }
+    Ok(Value::String(rows.join("\n")))
+}
+
+fn std_grid_game_view_summary(session: &Value) -> Result<Value, EvalError> {
+    let session_fields = std_grid_game_session_fields(session)?;
+    let state = std_session_field(session_fields, "상태")?;
+    let score = std_session_field(session_fields, "점수")?;
+    let falling = std_session_field(session_fields, "낙하조각")?;
+    let state_fields = std_grid_game_state_fields(&state)?;
+    let score_fields = std_grid_game_score_fields(&score)?;
+    let (_, x, y) = std_falling_piece_parts(&falling)?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String(STD_GRID_GAME_VIEW_SUMMARY_KIND.to_string()),
+    );
+    fields.insert(
+        "상태".to_string(),
+        Value::String(std_grid_game_state_state(state_fields)?),
+    );
+    fields.insert(
+        "틱".to_string(),
+        fixed_value(std_grid_game_state_tick(state_fields)?),
+    );
+    fields.insert(
+        "점수".to_string(),
+        fixed_value(std_score_int_field(score_fields, "점수")?),
+    );
+    fields.insert(
+        "줄수".to_string(),
+        fixed_value(std_score_int_field(score_fields, "줄수")?),
+    );
+    fields.insert(
+        "레벨".to_string(),
+        fixed_value(std_score_int_field(score_fields, "레벨")?),
+    );
+    fields.insert(
+        "낙하조각위치".to_string(),
+        Value::List(vec![fixed_value(x), fixed_value(y)]),
+    );
+    Ok(Value::Pack(fields))
+}
+
+fn std_grid_game_bogae_color(source: &str) -> &'static str {
+    match source {
+        "낙하" => "#ffcc00ff",
+        "유령" => "#88ffffff",
+        "고정" => "#4a90e2ff",
+        _ => "#111111ff",
+    }
+}
+
+fn std_grid_game_bogae_rects(cells: Vec<Value>, cell: i64) -> Result<Value, EvalError> {
+    let mut items = Vec::with_capacity(cells.len());
+    for value in cells {
+        let Value::Pack(cell_fields) = value else {
+            return Err(std_grid_error("격자게임보기 칸 묶음이 필요합니다"));
+        };
+        let x = cell_fields
+            .get("x")
+            .ok_or_else(|| std_grid_error("격자게임보기 칸 x가 없습니다"))
+            .and_then(value_to_i64)?;
+        let y = cell_fields
+            .get("y")
+            .ok_or_else(|| std_grid_error("격자게임보기 칸 y가 없습니다"))
+            .and_then(value_to_i64)?;
+        let source = match cell_fields.get("원천") {
+            Some(Value::String(source)) => source.as_str(),
+            _ => return Err(std_grid_error("격자게임보기 칸 원천이 없습니다")),
+        };
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            "id".to_string(),
+            Value::String(format!("격자게임셀_{y}_{x}")),
+        );
+        fields.insert("결".to_string(), Value::String("#보개/2D.Rect".to_string()));
+        fields.insert("x".to_string(), fixed_value(x.saturating_mul(cell)));
+        fields.insert("y".to_string(), fixed_value(y.saturating_mul(cell)));
+        fields.insert("w".to_string(), fixed_value(cell));
+        fields.insert("h".to_string(), fixed_value(cell));
+        fields.insert(
+            "채움색".to_string(),
+            Value::String(std_grid_game_bogae_color(source).to_string()),
+        );
+        items.push(Value::Pack(fields));
+    }
+    Ok(Value::List(items))
+}
+
+fn std_grid_game_bogae_drawlist(
+    session: &Value,
+    empty_value: &Value,
+    falling_value: Value,
+    cell_size: &Value,
+) -> Result<Value, EvalError> {
+    let cell = value_to_i64(cell_size)?;
+    if cell <= 0 {
+        return Err(std_grid_error("보개 칸크기는 1 이상이어야 합니다"));
+    }
+    let (_, _, cells) = std_grid_game_view_project(session, empty_value, falling_value)?;
+    std_grid_game_bogae_rects(cells, cell)
+}
+
+fn std_grid_game_ghost_bogae_drawlist(
+    session: &Value,
+    empty_value: &Value,
+    falling_value: Value,
+    ghost_value: Value,
+    cell_size: &Value,
+    blocked: &Value,
+) -> Result<Value, EvalError> {
+    let cell = value_to_i64(cell_size)?;
+    if cell <= 0 {
+        return Err(std_grid_error("보개 칸크기는 1 이상이어야 합니다"));
+    }
+    let (_, _, cells) = std_grid_game_ghost_view_project(
+        session,
+        empty_value,
+        falling_value,
+        ghost_value,
+        blocked,
+    )?;
+    std_grid_game_bogae_rects(cells, cell)
+}
+
+fn std_grid_game_bogae_size(session: &Value, cell_size: &Value) -> Result<Value, EvalError> {
+    let cell = value_to_i64(cell_size)?;
+    if cell <= 0 {
+        return Err(std_grid_error("보개 칸크기는 1 이상이어야 합니다"));
+    }
+    let session_fields = std_grid_game_session_fields(session)?;
+    let grid = std_session_field(session_fields, "격자")?;
+    let grid_fields = std_grid_fields(&grid)?;
+    let (width, height) = std_grid_dims(grid_fields)?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String("std_grid_game_bogae_size".to_string()),
+    );
+    fields.insert("가로".to_string(), fixed_value(width.saturating_mul(cell)));
+    fields.insert("세로".to_string(), fixed_value(height.saturating_mul(cell)));
+    Ok(Value::Pack(fields))
 }
 
 fn value_matches_any(target: &Value, blocked: &Value) -> bool {
@@ -556,6 +1702,7 @@ pub struct DdnProgram {
     #[allow(dead_code)]
     program: CanonProgram,
     functions: HashMap<String, SeedDef>,
+    top_level_decl_names: HashSet<String>,
     #[allow(dead_code)]
     file_meta: FileMeta,
     parse_warnings: Vec<DdnParseWarning>,
@@ -575,6 +1722,7 @@ impl DdnProgram {
         validate_no_legacy_header(source)?;
         validate_no_legacy_boim_surface(source)?;
         let meta_parse = split_file_meta(source);
+        let top_level_decl_names = collect_top_level_decl_names(&meta_parse.stripped);
         let configured_madi = extract_setting_madi(&meta_parse.stripped)?;
         let cleaned = preprocess_source_for_parse(&meta_parse.stripped)?;
         let prepared = ddonirang_lang::preprocess_frontdoor_source(&cleaned);
@@ -611,6 +1759,7 @@ impl DdnProgram {
         Ok(Self {
             program,
             functions,
+            top_level_decl_names,
             file_meta: meta_parse.meta,
             parse_warnings,
             configured_madi,
@@ -623,6 +1772,121 @@ impl DdnProgram {
 
     pub fn configured_madi(&self) -> Option<u64> {
         self.configured_madi
+    }
+}
+
+fn collect_top_level_decl_names(source: &str) -> HashSet<String> {
+    let mut names = HashSet::new();
+    let mut depth = 0usize;
+    let mut i = 0usize;
+    let mut in_string = false;
+    while i < source.len() {
+        let rest = &source[i..];
+        let Some(ch) = rest.chars().next() else {
+            break;
+        };
+        if in_string {
+            if ch == '"' && !source[..i].ends_with('\\') {
+                in_string = false;
+            }
+            i += ch.len_utf8();
+            continue;
+        }
+        if ch == '"' {
+            in_string = true;
+            i += ch.len_utf8();
+            continue;
+        }
+        if depth == 0 && rest.starts_with("채비") && is_ident_boundary(source, i, "채비") {
+            let mut cursor = i + "채비".len();
+            cursor = skip_ws(source, cursor);
+            if source[cursor..].starts_with(':') {
+                cursor += ':'.len_utf8();
+                cursor = skip_ws(source, cursor);
+            }
+            if source[cursor..].starts_with('{') {
+                if let Some(close) = find_matching_brace(source, cursor) {
+                    collect_decl_names_from_block(&source[cursor + 1..close], &mut names);
+                    i = close + '}'.len_utf8();
+                    continue;
+                }
+            }
+        }
+        match ch {
+            '{' => depth += 1,
+            '}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        i += ch.len_utf8();
+    }
+    names
+}
+
+fn is_ident_boundary(source: &str, start: usize, keyword: &str) -> bool {
+    let before = source[..start].chars().next_back();
+    let after = source[start + keyword.len()..].chars().next();
+    !before.is_some_and(is_ident_char) && !after.is_some_and(is_ident_char)
+}
+
+fn is_ident_char(ch: char) -> bool {
+    ch == '_' || ch.is_alphanumeric()
+}
+
+fn skip_ws(source: &str, mut idx: usize) -> usize {
+    while idx < source.len() {
+        let Some(ch) = source[idx..].chars().next() else {
+            break;
+        };
+        if !ch.is_whitespace() {
+            break;
+        }
+        idx += ch.len_utf8();
+    }
+    idx
+}
+
+fn find_matching_brace(source: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut i = open;
+    while i < source.len() {
+        let ch = source[i..].chars().next()?;
+        if in_string {
+            if ch == '"' && !source[..i].ends_with('\\') {
+                in_string = false;
+            }
+            i += ch.len_utf8();
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        i += ch.len_utf8();
+    }
+    None
+}
+
+fn collect_decl_names_from_block(block: &str, names: &mut HashSet<String>) {
+    for line in block.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let Some(colon) = trimmed.find(':') else {
+            continue;
+        };
+        let name = trimmed[..colon].trim();
+        if !name.is_empty() && name.chars().all(is_ident_char) {
+            names.insert(name.to_string());
+        }
     }
 }
 
@@ -1574,6 +2838,7 @@ struct EvalContext<'a> {
     flow_stack: Vec<Option<Value>>,
     tick_id: u64,
     const_scopes: Vec<HashSet<String>>,
+    pending_top_level_decl_names: HashSet<String>,
     factor_route_counts: BTreeMap<String, u64>,
     factor_bits_total: u128,
     factor_bits_min: Option<u64>,
@@ -1704,6 +2969,7 @@ impl<'a> EvalContext<'a> {
             flow_stack: Vec::new(),
             tick_id,
             const_scopes: Vec::new(),
+            pending_top_level_decl_names: program.top_level_decl_names.clone(),
             factor_route_counts: BTreeMap::new(),
             factor_bits_total: 0,
             factor_bits_min: None,
@@ -2159,6 +3425,8 @@ impl<'a> EvalContext<'a> {
         match stmt {
             Stmt::DeclBlock { items, .. } => {
                 for item in items {
+                    let is_top_level_decl =
+                        self.pending_top_level_decl_names.remove(&item.name);
                     let value = if let Some(expr) = &item.value {
                         match self.eval_expr(locals, expr) {
                             Ok(val) => val,
@@ -2201,13 +3469,18 @@ impl<'a> EvalContext<'a> {
                             return Err(type_mismatch_error(&item.name, &detail.expected, &detail.actual));
                         }
                     }
-                    let value = if item.value.is_some() && self.resource_exists(&item.name) {
+                    let value = if item.value.is_some()
+                        && !is_top_level_decl
+                        && self.resource_exists(&item.name)
+                    {
                         self.get_resource(&item.name).unwrap_or(value)
                     } else {
                         value
                     };
                     locals.insert(item.name.clone(), value);
-                    if item.value.is_some() && !self.resource_exists(&item.name) {
+                    if item.value.is_some()
+                        && (is_top_level_decl || !self.resource_exists(&item.name))
+                    {
                         let initial = locals
                             .get(&item.name)
                             .cloned()
@@ -3523,11 +4796,9 @@ impl<'a> EvalContext<'a> {
     }
 
     fn next_rng_u64(&mut self) -> u64 {
-        self.rng_state = self.rng_state.wrapping_add(0x9E3779B97F4A7C15);
-        let mut z = self.rng_state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
-        z ^ (z >> 31)
+        let (state, value) = splitmix64_next(self.rng_state);
+        self.rng_state = state;
+        value
     }
 
     fn next_rng_fixed64(&mut self) -> Fixed64 {
@@ -3875,6 +5146,66 @@ impl<'a> EvalContext<'a> {
                     &args[5],
                 )
             }
+            "블록조각.만들기" => {
+                if args.len() != 1 {
+                    return Err("블록조각.만들기는 인자 1개를 받습니다".to_string().into());
+                }
+                let cells = std_block_piece_cells_from_value(&args[0])?;
+                Ok(make_std_block_piece(cells))
+            }
+            "블록조각.칸목록" => {
+                if args.len() != 1 {
+                    return Err("블록조각.칸목록은 인자 1개를 받습니다".to_string().into());
+                }
+                let cells = std_block_piece_cells(&args[0])?;
+                Ok(std_block_piece_cells_value(&cells))
+            }
+            "블록조각.이동" => {
+                if args.len() != 3 {
+                    return Err("블록조각.이동은 인자 3개를 받습니다".to_string().into());
+                }
+                let cells = std_block_piece_cells(&args[0])?;
+                let dx = value_to_i64(&args[1])?;
+                let dy = value_to_i64(&args[2])?;
+                Ok(make_std_block_piece(
+                    cells.into_iter().map(|(x, y)| (x + dx, y + dy)).collect(),
+                ))
+            }
+            "블록조각.회전" => {
+                if args.len() != 2 {
+                    return Err("블록조각.회전은 인자 2개를 받습니다".to_string().into());
+                }
+                let cells = std_block_piece_cells(&args[0])?;
+                let Value::String(direction) = &args[1] else {
+                    return Err("블록조각.회전은 글 방향을 받습니다".to_string().into());
+                };
+                let rotated = cells
+                    .into_iter()
+                    .map(|(x, y)| match direction.as_str() {
+                        "오른쪽" => Ok((-y, x)),
+                        "왼쪽" => Ok((y, -x)),
+                        "뒤집기" => Ok((-x, -y)),
+                        _ => Err(
+                            format!("블록조각 회전 방향을 지원하지 않습니다: {direction}").into(),
+                        ),
+                    })
+                    .collect::<Result<Vec<_>, EvalError>>()?;
+                Ok(make_std_block_piece(rotated))
+            }
+            "블록조각.충돌?" => {
+                if args.len() != 3 {
+                    return Err("블록조각.충돌?은 인자 3개를 받습니다".to_string().into());
+                }
+                Ok(Value::Bool(std_block_piece_collides(
+                    &args[0], &args[1], &args[2],
+                )?))
+            }
+            "블록조각.고정" => {
+                if args.len() != 3 {
+                    return Err("블록조각.고정은 인자 3개를 받습니다".to_string().into());
+                }
+                std_block_piece_lock(&args[0], &args[1], args[2].clone())
+            }
             "물리1d.위치갱신" => {
                 if args.len() != 3 {
                     return Err("물리1d.위치갱신은 인자 3개를 받습니다".to_string().into());
@@ -4133,10 +5464,55 @@ impl<'a> EvalContext<'a> {
                 let (left, right) = expect_two_formulas(&args, "잇기")?;
                 Ok(make_relation_pack(left, right))
             }
+            "이음관계.관계목록" => eval_endpoint_relation_list(&args),
+            "이음관계.정규화" => eval_endpoint_relation_normalize(&args),
+            "이음관계.방정식목록" => eval_endpoint_formula_relation_list(&args),
+            "이음관계.방정식화" => eval_endpoint_formula_relation_set(&args),
+            "이음관계.값관계목록" => eval_endpoint_boundary_value_relation_list(&args),
+            "이음관계.값주입" => eval_endpoint_boundary_value_injection(&args),
+            "이음관계.풀기" => eval_endpoint_explicit_solve(&args),
+            "이음관계.풀이값목록" => eval_endpoint_solve_result_value_list(&args),
+            "이음관계.풀이원복" => eval_endpoint_solve_result_remap(&args),
+            "이음관계.범위위반목록" => eval_endpoint_boundary_range_violation_list(&args),
+            "이음관계.범위검사" => eval_endpoint_boundary_range_check(&args),
+            "이음관계.풀고범위위반목록" => {
+                eval_endpoint_explicit_solve_range_violation_list(&args)
+            }
+            "이음관계.풀고범위검사" => eval_endpoint_explicit_solve_range_check(&args),
+            "이음관계.풀고범위행목록" => eval_endpoint_solve_range_report_rows(&args),
+            "이음관계.풀고범위보고서" => eval_endpoint_solve_range_report(&args),
+            "이음관계.보고서문자표" => eval_endpoint_solve_range_text_report(&args),
+            "이음관계.풀고범위문자표" => {
+                eval_endpoint_explicit_solve_range_text_report(&args)
+            }
+            "이음관계.풀고범위케이스" => eval_endpoint_solve_range_case(&args),
+            "이음관계.풀고범위스위트" => eval_endpoint_solve_range_case_suite(&args),
+            "이음관계.풀고범위스위트문자표" => {
+                eval_endpoint_solve_range_case_suite_text(&args)
+            }
+            "이음관계.풀고범위스위트상세문자표" => {
+                eval_endpoint_solve_range_case_suite_detail_text(&args)
+            }
+            "이음관계.풀고범위실행상세문자표" => {
+                eval_endpoint_solve_range_case_suite_run_detail_text(&args)
+            }
+            "이음관계.풀고범위스위트요약" => {
+                eval_endpoint_solve_range_case_suite_summary(&args)
+            }
+            "이음관계.풀고범위실행요약" => {
+                eval_endpoint_solve_range_case_suite_run_summary(&args)
+            }
+            "이음관계.풀고범위스위트판정" => {
+                eval_endpoint_solve_range_case_suite_check(&args)
+            }
+            "이음관계.풀고범위실행판정" => {
+                eval_endpoint_solve_range_case_suite_run_check(&args)
+            }
             "방정식풀기" => {
                 let relations = expect_equation_relations(&args)?;
                 eval_relation_solve_result(&relations)
             }
+            "다항식.풀기" => eval_polynomial_solve_result(&args),
             "증명하기" => {
                 let proof = eval_symbolic_proof_tactic(&args)?;
                 Ok(Value::Pack(proof))
@@ -5174,6 +6550,23 @@ impl<'a> EvalContext<'a> {
                     Value::String("사다리꼴".to_string()),
                 ]))
             }
+            "수치해.이분법" => {
+                let (formula, var_name, lower, upper, iterations) =
+                    expect_numeric_bisection_args(&args, "수치해.이분법")?;
+                let prepared = prepare_numeric_formula(&formula, &var_name, "수치해.이분법")?;
+                let (root, residual, used_iterations) =
+                    numeric_bisection_root(&prepared, lower, upper, iterations)?;
+                Ok(Value::List(vec![
+                    unit_value_to_value(root),
+                    unit_value_to_value(residual),
+                    unit_value_to_value(UnitValue {
+                        value: Fixed64::from_i64(used_iterations as i64),
+                        dim: UnitDim::NONE,
+                    }),
+                    Value::String("이분법".to_string()),
+                ]))
+            }
+            "선형부등식.풀기" => eval_linear_inequality_solve(&args),
             "abs" => {
                 if args.len() != 1 {
                     return Err("abs는 인자 1개를 받습니다".to_string().into());
@@ -5459,6 +6852,524 @@ impl<'a> EvalContext<'a> {
                 let idx = (self.next_rng_u64() % items.len() as u64) as usize;
                 Ok(items[idx].clone())
             }
+            "무작위가방.만들기" => {
+                if args.len() != 2 {
+                    return Err("무작위가방.만들기는 인자 2개를 받습니다".to_string().into());
+                }
+                let seed = value_to_i64(&args[0])? as u64;
+                let Value::List(candidates) = &args[1] else {
+                    return Err("무작위가방.만들기는 후보 차림을 받습니다"
+                        .to_string()
+                        .into());
+                };
+                if candidates.is_empty() {
+                    return Err("무작위가방 후보들은 비어 있을 수 없습니다"
+                        .to_string()
+                        .into());
+                }
+                Ok(make_std_random_bag(
+                    seed,
+                    seed,
+                    candidates.clone(),
+                    candidates.clone(),
+                    0,
+                ))
+            }
+            "무작위가방.꺼내기" => {
+                if args.len() != 1 {
+                    return Err("무작위가방.꺼내기는 인자 1개를 받습니다".to_string().into());
+                }
+                let (value, bag) = std_random_bag_draw_once(&args[0])?;
+                let mut fields = BTreeMap::new();
+                fields.insert(
+                    STD_RANDOM_BAG_KIND_FIELD.to_string(),
+                    Value::String(STD_RANDOM_BAG_DRAW_KIND.to_string()),
+                );
+                fields.insert(STD_RANDOM_BAG_VALUE_FIELD.to_string(), value);
+                fields.insert(STD_RANDOM_BAG_BAG_FIELD.to_string(), bag);
+                Ok(Value::Pack(fields))
+            }
+            "무작위가방.미리보기" => {
+                if args.len() != 2 {
+                    return Err("무작위가방.미리보기는 인자 2개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let count = value_to_i64(&args[1])?;
+                if count < 0 {
+                    return Err("무작위가방.미리보기 개수는 0 이상이어야 합니다"
+                        .to_string()
+                        .into());
+                }
+                let mut bag = args[0].clone();
+                let mut values = Vec::new();
+                for _ in 0..count {
+                    let (value, next_bag) = std_random_bag_draw_once(&bag)?;
+                    values.push(value);
+                    bag = next_bag;
+                }
+                Ok(Value::List(values))
+            }
+            "무작위가방.남은것" => {
+                if args.len() != 1 {
+                    return Err("무작위가방.남은것은 인자 1개를 받습니다".to_string().into());
+                }
+                let fields = std_random_bag_fields(&args[0])?;
+                Ok(Value::List(std_random_bag_list_field(
+                    fields,
+                    STD_RANDOM_BAG_REMAINING_FIELD,
+                )?))
+            }
+            "무작위가방.비었나" => {
+                if args.len() != 1 {
+                    return Err("무작위가방.비었나는 인자 1개를 받습니다".to_string().into());
+                }
+                let fields = std_random_bag_fields(&args[0])?;
+                Ok(Value::Bool(
+                    std_random_bag_list_field(fields, STD_RANDOM_BAG_REMAINING_FIELD)?.is_empty(),
+                ))
+            }
+            "격자게임상태.초기화" => {
+                if !args.is_empty() {
+                    return Err("격자게임상태.초기화는 인자 0개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                Ok(make_std_grid_game_state("준비", Value::None, 0))
+            }
+            "격자게임상태.만들기" => {
+                if args.len() != 1 {
+                    return Err("격자게임상태.만들기는 인자 1개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let state = value_to_grid_game_state_name(&args[0])?;
+                Ok(make_std_grid_game_state(&state, Value::None, 0))
+            }
+            "격자게임상태.상태" => {
+                if args.len() != 1 {
+                    return Err("격자게임상태.상태는 인자 1개를 받습니다".to_string().into());
+                }
+                Ok(Value::String(std_grid_game_state_state(
+                    std_grid_game_state_fields(&args[0])?,
+                )?))
+            }
+            "격자게임상태.틱" => {
+                if args.len() != 1 {
+                    return Err("격자게임상태.틱은 인자 1개를 받습니다".to_string().into());
+                }
+                Ok(fixed_value(std_grid_game_state_tick(
+                    std_grid_game_state_fields(&args[0])?,
+                )?))
+            }
+            "격자게임상태.상태인가" => {
+                if args.len() != 2 {
+                    return Err("격자게임상태.상태인가는 인자 2개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let current = std_grid_game_state_state(std_grid_game_state_fields(&args[0])?)?;
+                let expected = value_to_grid_game_state_name(&args[1])?;
+                Ok(Value::Bool(current == expected))
+            }
+            "격자게임상태.바꾸기" => {
+                if args.len() != 2 {
+                    return Err("격자게임상태.바꾸기는 인자 2개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let fields = std_grid_game_state_fields(&args[0])?;
+                let state = value_to_grid_game_state_name(&args[1])?;
+                Ok(make_std_grid_game_state(
+                    &state,
+                    Value::String(std_grid_game_state_state(fields)?),
+                    std_grid_game_state_tick(fields)?.saturating_add(1),
+                ))
+            }
+            "격자게임상태.멈춤" => {
+                if args.len() != 1 {
+                    return Err("격자게임상태.멈춤은 인자 1개를 받습니다".to_string().into());
+                }
+                let fields = std_grid_game_state_fields(&args[0])?;
+                let state = std_grid_game_state_state(fields)?;
+                let previous = if state == "멈춤" {
+                    std_grid_game_state_previous(fields)
+                } else {
+                    Value::String(state)
+                };
+                Ok(make_std_grid_game_state(
+                    "멈춤",
+                    previous,
+                    std_grid_game_state_tick(fields)?.saturating_add(1),
+                ))
+            }
+            "격자게임상태.재개" => {
+                if args.len() != 1 {
+                    return Err("격자게임상태.재개는 인자 1개를 받습니다".to_string().into());
+                }
+                let fields = std_grid_game_state_fields(&args[0])?;
+                let state = std_grid_game_state_state(fields)?;
+                if state != "멈춤" {
+                    return Ok(args[0].clone());
+                }
+                let previous = match std_grid_game_state_previous(fields) {
+                    Value::String(candidate)
+                        if is_allowed_grid_game_state(&candidate) && candidate != "멈춤" =>
+                    {
+                        candidate
+                    }
+                    _ => "진행".to_string(),
+                };
+                Ok(make_std_grid_game_state(
+                    &previous,
+                    Value::None,
+                    std_grid_game_state_tick(fields)?.saturating_add(1),
+                ))
+            }
+            "테트로미노.이름목록" => {
+                if !args.is_empty() {
+                    return Err("테트로미노.이름목록은 인자 0개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                Ok(Value::List(
+                    tetromino_names()
+                        .into_iter()
+                        .map(|name| Value::String(name.to_string()))
+                        .collect(),
+                ))
+            }
+            "테트로미노.만들기" => {
+                if args.len() != 1 {
+                    return Err("테트로미노.만들기는 인자 1개를 받습니다".to_string().into());
+                }
+                let name = value_to_tetromino_name(&args[0])?;
+                Ok(make_std_block_piece(tetromino_cells(&name)?))
+            }
+            "테트로미노.목록" => {
+                if !args.is_empty() {
+                    return Err("테트로미노.목록은 인자 0개를 받습니다".to_string().into());
+                }
+                Ok(Value::List(
+                    tetromino_names()
+                        .into_iter()
+                        .map(|name| {
+                            make_std_block_piece(tetromino_cells(name).expect("known tetromino"))
+                        })
+                        .collect(),
+                ))
+            }
+            "격자줄.찬줄목록" => {
+                if args.len() != 2 {
+                    return Err("격자줄.찬줄목록은 인자 2개를 받습니다".to_string().into());
+                }
+                Ok(Value::List(
+                    std_grid_line_full_rows(&args[0], &args[1])?
+                        .into_iter()
+                        .map(fixed_value)
+                        .collect(),
+                ))
+            }
+            "격자줄.지우기" => {
+                if args.len() != 2 {
+                    return Err("격자줄.지우기는 인자 2개를 받습니다".to_string().into());
+                }
+                std_grid_line_clear(&args[0], args[1].clone())
+            }
+            "낙하조각.만들기" | "격자게임.스폰" => {
+                if args.len() != 3 {
+                    return Err("낙하조각.만들기는 인자 3개를 받습니다".to_string().into());
+                }
+                let _ = std_block_piece_cells(&args[0])?;
+                let x = value_to_i64(&args[1])?;
+                let y = value_to_i64(&args[2])?;
+                Ok(make_std_falling_piece(args[0].clone(), x, y))
+            }
+            "낙하조각.조각" => {
+                if args.len() != 1 {
+                    return Err("낙하조각.조각은 인자 1개를 받습니다".to_string().into());
+                }
+                let (piece, _, _) = std_falling_piece_parts(&args[0])?;
+                Ok(piece)
+            }
+            "낙하조각.위치" => {
+                if args.len() != 1 {
+                    return Err("낙하조각.위치는 인자 1개를 받습니다".to_string().into());
+                }
+                let (_, x, y) = std_falling_piece_parts(&args[0])?;
+                Ok(Value::List(vec![fixed_value(x), fixed_value(y)]))
+            }
+            "낙하조각.배치" => {
+                if args.len() != 1 {
+                    return Err("낙하조각.배치는 인자 1개를 받습니다".to_string().into());
+                }
+                Ok(std_block_piece_cells_value(&std_falling_piece_cells(
+                    &args[0],
+                )?))
+            }
+            "낙하조각.이동" => {
+                if args.len() != 3 {
+                    return Err("낙하조각.이동은 인자 3개를 받습니다".to_string().into());
+                }
+                let (piece, x, y) = std_falling_piece_parts(&args[0])?;
+                Ok(make_std_falling_piece(
+                    piece,
+                    x + value_to_i64(&args[1])?,
+                    y + value_to_i64(&args[2])?,
+                ))
+            }
+            "낙하조각.회전" => {
+                if args.len() != 2 {
+                    return Err("낙하조각.회전은 인자 2개를 받습니다".to_string().into());
+                }
+                let Value::String(direction) = &args[1] else {
+                    return Err("낙하조각 회전 방향은 글이어야 합니다".to_string().into());
+                };
+                std_falling_piece_rotate(&args[0], direction)
+            }
+            "격자게임.놓을수있나" => {
+                if args.len() != 3 {
+                    return Err("격자게임.놓을수있나는 인자 3개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                Ok(Value::Bool(std_grid_game_placeable(
+                    &args[0], &args[1], &args[2],
+                )?))
+            }
+            "격자게임.입력적용" => {
+                if args.len() != 2 {
+                    return Err("격자게임.입력적용은 인자 2개를 받습니다".to_string().into());
+                }
+                std_grid_game_apply_input(&args[0], &args[1], &self.input)
+            }
+            "격자게임.중력틱" => {
+                if args.len() != 1 {
+                    return Err("격자게임.중력틱은 인자 1개를 받습니다".to_string().into());
+                }
+                let (piece, x, y) = std_falling_piece_parts(&args[0])?;
+                Ok(make_std_falling_piece(piece, x, y + 1))
+            }
+            "격자게임.고정" => {
+                if args.len() != 3 {
+                    return Err("격자게임.고정은 인자 3개를 받습니다".to_string().into());
+                }
+                std_block_piece_lock(
+                    &std_falling_piece_block(&args[0])?,
+                    &args[1],
+                    args[2].clone(),
+                )
+            }
+            "격자게임.다음조각" => {
+                if args.len() != 1 {
+                    return Err("격자게임.다음조각은 인자 1개를 받습니다".to_string().into());
+                }
+                std_grid_game_next_piece(&args[0])
+            }
+            "격자게임.한틱" => {
+                if args.len() != 2 {
+                    return Err("격자게임.한틱은 인자 2개를 받습니다".to_string().into());
+                }
+                std_grid_game_tick(&args[0], &args[1], &self.input)
+            }
+            "격자게임.회전시도" => {
+                if args.len() != 4 {
+                    return Err("격자게임.회전시도는 인자 4개를 받습니다".to_string().into());
+                }
+                let Value::String(direction) = &args[3] else {
+                    return Err("격자게임.회전시도 방향은 글이어야 합니다"
+                        .to_string()
+                        .into());
+                };
+                std_grid_game_rotation_try(&args[0], &args[1], &args[2], direction)
+            }
+            "격자게임홀드.초기화" => {
+                if !args.is_empty() {
+                    return Err("격자게임홀드.초기화는 인자 0개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                Ok(make_std_grid_game_hold(Value::None, false))
+            }
+            "격자게임홀드.칸" => {
+                if args.len() != 1 {
+                    return Err("격자게임홀드.칸은 인자 1개를 받습니다".to_string().into());
+                }
+                std_grid_game_hold_piece(std_grid_game_hold_fields(&args[0])?)
+            }
+            "격자게임홀드.썼나" => {
+                if args.len() != 1 {
+                    return Err("격자게임홀드.썼나는 인자 1개를 받습니다".to_string().into());
+                }
+                Ok(Value::Bool(std_grid_game_hold_used(
+                    std_grid_game_hold_fields(&args[0])?,
+                )?))
+            }
+            "격자게임홀드.교체" => {
+                if args.len() != 5 {
+                    return Err("격자게임홀드.교체는 인자 5개를 받습니다".to_string().into());
+                }
+                std_grid_game_hold_swap(
+                    &args[0],
+                    &args[1],
+                    &args[2],
+                    value_to_i64(&args[3])?,
+                    value_to_i64(&args[4])?,
+                )
+            }
+            "격자게임홀드.초기화턴" => {
+                if args.len() != 1 {
+                    return Err("격자게임홀드.초기화턴은 인자 1개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let piece = std_grid_game_hold_piece(std_grid_game_hold_fields(&args[0])?)?;
+                Ok(make_std_grid_game_hold(piece, false))
+            }
+            "격자게임점수.초기화" => {
+                if !args.is_empty() {
+                    return Err("격자게임점수.초기화는 인자 0개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                Ok(make_std_grid_game_score(0, 0))
+            }
+            "격자게임점수.더하기" => {
+                if args.len() != 2 {
+                    return Err("격자게임점수.더하기는 인자 2개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_score_add(&args[0], value_to_i64(&args[1])?)
+            }
+            "격자게임점수.점수" | "격자게임점수.줄수" | "격자게임점수.레벨" =>
+            {
+                if args.len() != 1 {
+                    return Err("격자게임점수 접근자는 인자 1개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let field = match func {
+                    "격자게임점수.점수" => "점수",
+                    "격자게임점수.줄수" => "줄수",
+                    _ => "레벨",
+                };
+                Ok(fixed_value(std_score_int_field(
+                    std_grid_game_score_fields(&args[0])?,
+                    field,
+                )?))
+            }
+            "격자게임세션.만들기" => {
+                if args.len() != 5 {
+                    return Err("격자게임세션.만들기는 인자 5개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                Ok(make_std_grid_game_session(
+                    args[0].clone(),
+                    args[1].clone(),
+                    args[2].clone(),
+                    args[3].clone(),
+                    args[4].clone(),
+                ))
+            }
+            "격자게임세션.격자"
+            | "격자게임세션.가방"
+            | "격자게임세션.상태"
+            | "격자게임세션.점수"
+            | "격자게임세션.낙하조각" => {
+                if args.len() != 1 {
+                    return Err("격자게임세션 접근자는 인자 1개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let field = match func {
+                    "격자게임세션.격자" => "격자",
+                    "격자게임세션.가방" => "가방",
+                    "격자게임세션.상태" => "상태",
+                    "격자게임세션.점수" => "점수",
+                    _ => "낙하조각",
+                };
+                std_session_field(std_grid_game_session_fields(&args[0])?, field)
+            }
+            "격자게임세션.바꾸기" => {
+                if args.len() != 6 {
+                    return Err("격자게임세션.바꾸기는 인자 6개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                let _ = std_grid_game_session_fields(&args[0])?;
+                Ok(make_std_grid_game_session(
+                    args[1].clone(),
+                    args[2].clone(),
+                    args[3].clone(),
+                    args[4].clone(),
+                    args[5].clone(),
+                ))
+            }
+            "격자게임보기.칸목록" => {
+                if args.len() != 3 {
+                    return Err("격자게임보기.칸목록은 인자 3개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_view_cells(&args[0], &args[1], args[2].clone())
+            }
+            "격자게임보기.문자판" => {
+                if args.len() != 3 {
+                    return Err("격자게임보기.문자판은 인자 3개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_view_text(&args[0], &args[1], args[2].clone())
+            }
+            "격자게임보기.상태요약" => {
+                if args.len() != 1 {
+                    return Err("격자게임보기.상태요약은 인자 1개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_view_summary(&args[0])
+            }
+            "격자게임보기.유령조각" => {
+                if args.len() != 2 {
+                    return Err("격자게임보기.유령조각은 인자 2개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_ghost_piece(&args[0], &args[1])
+            }
+            "격자게임보기.유령보개목록" => {
+                if args.len() != 6 {
+                    return Err("격자게임보기.유령보개목록은 인자 6개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_ghost_bogae_drawlist(
+                    &args[0],
+                    &args[1],
+                    args[2].clone(),
+                    args[3].clone(),
+                    &args[4],
+                    &args[5],
+                )
+            }
+            "격자게임보기.보개목록" => {
+                if args.len() != 4 {
+                    return Err("격자게임보기.보개목록은 인자 4개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_bogae_drawlist(&args[0], &args[1], args[2].clone(), &args[3])
+            }
+            "격자게임보기.보개크기" => {
+                if args.len() != 2 {
+                    return Err("격자게임보기.보개크기는 인자 2개를 받습니다"
+                        .to_string()
+                        .into());
+                }
+                std_grid_game_bogae_size(&args[0], &args[1])
+            }
 
             _ => {
                 let seed = self
@@ -5663,7 +7574,7 @@ impl<'a> EvalContext<'a> {
             sub_reason: Some(sub_reason.to_string()),
             mode: Some(match mode {
                 ddonirang_lang::ContractMode::Alert => "알림".to_string(),
-                ddonirang_lang::ContractMode::Abort => "중단".to_string(),
+                ddonirang_lang::ContractMode::Abort => "물림".to_string(),
             }),
             contract_kind: Some(contract_kind.to_string()),
             origin: origin.clone(),
@@ -5978,7 +7889,7 @@ impl<'a> EvalContext<'a> {
                 PatchOp::EmitSignal {
                     signal: Signal::Diag { event },
                     targets,
-                } if event.rule_id == "L0-CONTRACT-01" && event.mode.as_deref() == Some("중단") => {
+                } if event.rule_id == "L0-CONTRACT-01" && event.mode.as_deref() == Some("물림") => {
                     Some(PatchOp::EmitSignal {
                         signal: Signal::Diag {
                             event: event.clone(),
@@ -6535,6 +8446,7 @@ impl<'a> EvalContext<'a> {
             flow_stack: self.flow_stack.clone(),
             tick_id: self.tick_id,
             const_scopes: self.const_scopes.clone(),
+            pending_top_level_decl_names: self.pending_top_level_decl_names.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
@@ -6580,6 +8492,7 @@ impl<'a> EvalContext<'a> {
             flow_stack: self.flow_stack.clone(),
             tick_id: self.tick_id,
             const_scopes: self.const_scopes.clone(),
+            pending_top_level_decl_names: self.pending_top_level_decl_names.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
@@ -6682,6 +8595,7 @@ impl<'a> EvalContext<'a> {
             flow_stack: self.flow_stack.clone(),
             tick_id: self.tick_id,
             const_scopes: self.const_scopes.clone(),
+            pending_top_level_decl_names: self.pending_top_level_decl_names.clone(),
             factor_route_counts: self.factor_route_counts.clone(),
             factor_bits_total: self.factor_bits_total,
             factor_bits_min: self.factor_bits_min,
@@ -7388,6 +9302,84 @@ fn expect_numeric_integral_args(
     Ok((formula, var_name, start, end, step))
 }
 
+fn expect_numeric_bisection_args(
+    args: &[Value],
+    label: &'static str,
+) -> Result<(Formula, String, UnitValue, UnitValue, usize), EvalError> {
+    if args.len() != 5 {
+        return Err(format!("{label}는 인자 5개를 받습니다").to_string().into());
+    }
+    let formula = match &args[0] {
+        Value::Formula(value) => value.clone(),
+        _ => {
+            return Err(format!("{label}는 수식값 인자가 필요합니다")
+                .to_string()
+                .into())
+        }
+    };
+    let raw_var = match &args[1] {
+        Value::String(text) => text.clone(),
+        _ => {
+            return Err(format!("{label} 변수 이름이 글이어야 합니다")
+                .to_string()
+                .into())
+        }
+    };
+    let var_name = raw_var.trim().trim_start_matches('#').to_string();
+    if var_name.is_empty() {
+        return Err(
+            format!("E_CALC_NUMERIC_BAD_VAR: {label} 변수 이름이 비어 있습니다")
+                .to_string()
+                .into(),
+        );
+    }
+    let lower = unit_value_from_value(&args[2])?;
+    let upper = unit_value_from_value(&args[3])?;
+    let iterations = unit_value_from_value(&args[4])?;
+    if lower.dim != upper.dim {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: lower.dim,
+            right: upper.dim,
+        }));
+    }
+    if iterations.dim != UnitDim::NONE {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: iterations.dim,
+            right: UnitDim::NONE,
+        }));
+    }
+    let iteration_count = fixed64_to_nonnegative_index(iterations.value)?;
+    if iteration_count == 0 {
+        return Err(
+            "E_CALC_NUMERIC_BAD_ITERATION: 수치해.이분법 반복횟수는 1 이상이어야 합니다"
+                .to_string()
+                .into(),
+        );
+    }
+    Ok((formula, var_name, lower, upper, iteration_count))
+}
+
+fn expect_polynomial_solve_args(
+    args: &[Value],
+    label: &'static str,
+) -> Result<(Formula, String), EvalError> {
+    if args.len() != 2 {
+        return Err(format!("{label}는 인자 2개를 받습니다").into());
+    }
+    let formula = match &args[0] {
+        Value::Formula(value) => value.clone(),
+        _ => return Err(format!("{label} 첫 번째 인자는 수식값이어야 합니다").into()),
+    };
+    let var_name = match &args[1] {
+        Value::String(value) => value.trim().trim_start_matches('#').to_string(),
+        _ => return Err(format!("{label} 두 번째 인자는 변수 글이어야 합니다").into()),
+    };
+    if var_name.is_empty() {
+        return Err(format!("E_CALC_NUMERIC_BAD_VAR: {label} 변수 이름이 비어 있습니다").into());
+    }
+    Ok((formula, var_name))
+}
+
 fn prepare_numeric_formula(
     formula: &Formula,
     var_name: &str,
@@ -7421,6 +9413,264 @@ fn prepare_numeric_formula(
         parsed,
         var_name: var_name.to_string(),
     })
+}
+
+fn eval_polynomial_solve_result(args: &[Value]) -> Result<Value, EvalError> {
+    let (formula, var_name) = expect_polynomial_solve_args(args, "다항식.풀기")?;
+    let _prepared = prepare_numeric_formula(&formula, &var_name, "다항식.풀기")?;
+    let zero = Formula {
+        raw: "0".to_string(),
+        dialect: formula.dialect.clone(),
+        explicit_tag: formula.explicit_tag,
+    };
+    let Value::Pack(relation) = make_relation_pack(formula, zero) else {
+        return Err("다항식.풀기 relation pack 생성 실패".to_string().into());
+    };
+    eval_relation_solve_result(&[relation])
+}
+
+#[derive(Clone, Copy)]
+struct LinearInequalityBound {
+    value: Fixed64,
+    inclusive: bool,
+}
+
+#[derive(Default)]
+struct LinearInequalityInterval {
+    lower: Option<LinearInequalityBound>,
+    upper: Option<LinearInequalityBound>,
+    empty: bool,
+}
+
+fn tighten_linear_lower(interval: &mut LinearInequalityInterval, value: Fixed64, inclusive: bool) {
+    let next = LinearInequalityBound { value, inclusive };
+    match interval.lower {
+        None => interval.lower = Some(next),
+        Some(current)
+            if value > current.value || (value == current.value && !inclusive && current.inclusive) =>
+        {
+            interval.lower = Some(next);
+        }
+        _ => {}
+    }
+}
+
+fn tighten_linear_upper(interval: &mut LinearInequalityInterval, value: Fixed64, inclusive: bool) {
+    let next = LinearInequalityBound { value, inclusive };
+    match interval.upper {
+        None => interval.upper = Some(next),
+        Some(current)
+            if value < current.value || (value == current.value && !inclusive && current.inclusive) =>
+        {
+            interval.upper = Some(next);
+        }
+        _ => {}
+    }
+}
+
+fn linear_zero_condition_satisfies(compare: &str, rhs: Fixed64) -> bool {
+    let zero = Fixed64::ZERO;
+    match compare {
+        "<=" | "이하" => zero <= rhs,
+        "<" | "미만" => zero < rhs,
+        ">=" | "이상" => zero >= rhs,
+        ">" | "초과" => zero > rhs,
+        _ => false,
+    }
+}
+
+fn apply_linear_inequality_constraint(
+    interval: &mut LinearInequalityInterval,
+    slope: Fixed64,
+    rhs: Fixed64,
+    compare: &str,
+) -> Result<(), EvalError> {
+    if slope.to_raw() == 0 {
+        if !linear_zero_condition_satisfies(compare, rhs) {
+            interval.empty = true;
+        }
+        return Ok(());
+    }
+    let bound = rhs
+        .try_div(slope)
+        .map_err(|_| "E_LINEAR_INEQUALITY_DIV_ZERO: 선형부등식 경계 계산 중 0으로 나눌 수 없습니다".to_string())?;
+    let inclusive = matches!(compare, "<=" | ">=" | "이하" | "이상");
+    let slope_positive = slope.to_raw() > 0;
+    match (compare, slope_positive) {
+        ("<=" | "<" | "이하" | "미만", true) | (">=" | ">" | "이상" | "초과", false) => {
+            tighten_linear_upper(interval, bound, inclusive)
+        }
+        ("<=" | "<" | "이하" | "미만", false) | (">=" | ">" | "이상" | "초과", true) => {
+            tighten_linear_lower(interval, bound, inclusive)
+        }
+        _ => {
+            return Err(
+                "E_LINEAR_INEQUALITY_BAD_COMPARE: 비교는 이하, 미만, 이상, 초과 중 하나여야 합니다"
+                    .to_string()
+                    .into(),
+            )
+        }
+    }
+    Ok(())
+}
+
+fn linear_inequality_pack_string_field(
+    fields: &BTreeMap<String, Value>,
+    field: &str,
+) -> Result<String, EvalError> {
+    match fields.get(field) {
+        Some(Value::String(value)) => Ok(value.clone()),
+        Some(_) => Err(format!("선형부등식 조건 {field} 필드는 글이어야 합니다").into()),
+        None => Err(format!("선형부등식 조건에 {field} 필드가 필요합니다").into()),
+    }
+}
+
+fn linear_inequality_pack_formula_field(
+    fields: &BTreeMap<String, Value>,
+    field: &str,
+) -> Result<Formula, EvalError> {
+    match fields.get(field) {
+        Some(Value::Formula(value)) => Ok(value.clone()),
+        Some(_) => Err(format!("선형부등식 조건 {field} 필드는 수식값이어야 합니다").into()),
+        None => Err(format!("선형부등식 조건에 {field} 필드가 필요합니다").into()),
+    }
+}
+
+fn linear_inequality_pack_unit_field(
+    fields: &BTreeMap<String, Value>,
+    field: &str,
+) -> Result<UnitValue, EvalError> {
+    match fields.get(field) {
+        Some(value) => unit_value_from_value(value),
+        None => Err(format!("선형부등식 조건에 {field} 필드가 필요합니다").into()),
+    }
+}
+
+fn eval_linear_inequality_solve(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 2 {
+        return Err("선형부등식.풀기는 인자 2개를 받습니다".to_string().into());
+    }
+    let conditions = match &args[0] {
+        Value::List(items) => items,
+        _ => return Err("선형부등식.풀기 첫 번째 인자는 조건 차림이어야 합니다".to_string().into()),
+    };
+    let var_name = match &args[1] {
+        Value::String(value) => value.trim().trim_start_matches('#').to_string(),
+        _ => return Err("선형부등식.풀기 두 번째 인자는 변수 글이어야 합니다".to_string().into()),
+    };
+    if var_name.is_empty() {
+        return Err("E_LINEAR_INEQUALITY_BAD_VAR: 변수 이름이 비어 있습니다"
+            .to_string()
+            .into());
+    }
+
+    let mut interval = LinearInequalityInterval::default();
+    for condition in conditions {
+        let Value::Pack(fields) = condition else {
+            return Err("선형부등식 조건은 묶음이어야 합니다".to_string().into());
+        };
+        let formula = linear_inequality_pack_formula_field(fields, "식")?;
+        let compare = linear_inequality_pack_string_field(fields, "비교")?;
+        let boundary = linear_inequality_pack_unit_field(fields, "경계")?;
+        let prepared = prepare_numeric_formula(&formula, &var_name, "선형부등식.풀기")?;
+        let y0 = eval_numeric_formula_at(
+            &prepared,
+            UnitValue {
+                value: Fixed64::from_i64(0),
+                dim: UnitDim::NONE,
+            },
+            "선형부등식.풀기",
+        )?;
+        let y1 = eval_numeric_formula_at(
+            &prepared,
+            UnitValue {
+                value: Fixed64::from_i64(1),
+                dim: UnitDim::NONE,
+            },
+            "선형부등식.풀기",
+        )?;
+        let y2 = eval_numeric_formula_at(
+            &prepared,
+            UnitValue {
+                value: Fixed64::from_i64(2),
+                dim: UnitDim::NONE,
+            },
+            "선형부등식.풀기",
+        )?;
+        for rhs in [y1, y2, boundary] {
+            if y0.dim != rhs.dim {
+                return Err(unit_error(UnitError::DimensionMismatch {
+                    left: y0.dim,
+                    right: rhs.dim,
+                }));
+            }
+        }
+        let slope01 = y1.value.saturating_sub(y0.value);
+        let slope12 = y2.value.saturating_sub(y1.value);
+        if slope01 != slope12 {
+            return Err("E_LINEAR_INEQUALITY_NONLINEAR: V1은 1변수 선형 부등식만 지원합니다"
+                .to_string()
+                .into());
+        }
+        let rhs = boundary.value.saturating_sub(y0.value);
+        apply_linear_inequality_constraint(&mut interval, slope01, rhs, compare.trim())?;
+    }
+
+    if let (Some(lower), Some(upper)) = (interval.lower, interval.upper) {
+        if lower.value > upper.value
+            || (lower.value == upper.value && (!lower.inclusive || !upper.inclusive))
+        {
+            interval.empty = true;
+        }
+    }
+
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__종류".to_string(),
+        Value::String("linear_inequality_solution".to_string()),
+    );
+    fields.insert("변수".to_string(), Value::String(var_name));
+    fields.insert(
+        "제약개수".to_string(),
+        unit_value_to_value(UnitValue {
+            value: Fixed64::from_i64(conditions.len() as i64),
+            dim: UnitDim::NONE,
+        }),
+    );
+    if interval.empty {
+        fields.insert("상태".to_string(), Value::String("공집합".to_string()));
+    } else {
+        fields.insert(
+            "상태".to_string(),
+            Value::String(if interval.lower.is_none() && interval.upper.is_none() {
+                "전체"
+            } else {
+                "구간"
+            }
+            .to_string()),
+        );
+        if let Some(lower) = interval.lower {
+            fields.insert(
+                "하한".to_string(),
+                unit_value_to_value(UnitValue {
+                    value: lower.value,
+                    dim: UnitDim::NONE,
+                }),
+            );
+            fields.insert("하한포함".to_string(), Value::Bool(lower.inclusive));
+        }
+        if let Some(upper) = interval.upper {
+            fields.insert(
+                "상한".to_string(),
+                unit_value_to_value(UnitValue {
+                    value: upper.value,
+                    dim: UnitDim::NONE,
+                }),
+            );
+            fields.insert("상한포함".to_string(), Value::Bool(upper.inclusive));
+        }
+    }
+    Ok(Value::Pack(fields))
 }
 
 fn eval_numeric_formula_at(
@@ -7489,6 +9739,109 @@ fn numeric_trapezoid_integral(
         value: approx,
         dim: y_dim.unwrap_or(UnitDim::NONE).add(start.dim),
     })
+}
+
+fn fixed64_sign(value: Fixed64) -> i8 {
+    match value.raw_i64().cmp(&0) {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    }
+}
+
+fn numeric_bisection_root(
+    prepared: &NumericFormulaPrepared,
+    mut lower: UnitValue,
+    mut upper: UnitValue,
+    iterations: usize,
+) -> Result<(UnitValue, UnitValue, usize), EvalError> {
+    if upper.value < lower.value {
+        std::mem::swap(&mut lower, &mut upper);
+    }
+
+    let mut f_lower = eval_numeric_formula_at(prepared, lower, "수치해.이분법")?;
+    let mut f_upper = eval_numeric_formula_at(prepared, upper, "수치해.이분법")?;
+    if f_lower.dim != f_upper.dim {
+        return Err(unit_error(UnitError::DimensionMismatch {
+            left: f_lower.dim,
+            right: f_upper.dim,
+        }));
+    }
+    if f_lower.value.raw_i64() == 0 {
+        return Ok((
+            lower,
+            UnitValue {
+                value: Fixed64::ZERO,
+                dim: f_lower.dim,
+            },
+            0,
+        ));
+    }
+    if f_upper.value.raw_i64() == 0 {
+        return Ok((
+            upper,
+            UnitValue {
+                value: Fixed64::ZERO,
+                dim: f_upper.dim,
+            },
+            0,
+        ));
+    }
+    if fixed64_sign(f_lower.value) == fixed64_sign(f_upper.value) {
+        return Err(
+            "E_CALC_NUMERIC_BRACKET_SIGN: 수치해.이분법 하한/상한 함수값의 부호가 달라야 합니다"
+                .to_string()
+                .into(),
+        );
+    }
+
+    let two = Fixed64::from_i64(2);
+    let mut best_root = lower;
+    let mut best_residual = f_lower;
+    let mut used_iterations = 0_usize;
+    for idx in 1..=iterations {
+        let mid_value = lower
+            .value
+            .saturating_add(upper.value)
+            .try_div(two)
+            .map_err(|_| "수치해.이분법 계산 중 0으로 나눌 수 없습니다".to_string())?;
+        let mid = UnitValue {
+            value: mid_value,
+            dim: lower.dim,
+        };
+        let f_mid = eval_numeric_formula_at(prepared, mid, "수치해.이분법")?;
+        if f_lower.dim != f_mid.dim {
+            return Err(unit_error(UnitError::DimensionMismatch {
+                left: f_lower.dim,
+                right: f_mid.dim,
+            }));
+        }
+        best_root = mid;
+        best_residual = UnitValue {
+            value: fixed64_abs(f_mid.value),
+            dim: f_mid.dim,
+        };
+        used_iterations = idx;
+
+        if f_mid.value.raw_i64() == 0 {
+            break;
+        }
+        if fixed64_sign(f_lower.value) != fixed64_sign(f_mid.value) {
+            upper = mid;
+            f_upper = f_mid;
+        } else {
+            lower = mid;
+            f_lower = f_mid;
+        }
+        if f_lower.dim != f_upper.dim {
+            return Err(unit_error(UnitError::DimensionMismatch {
+                left: f_lower.dim,
+                right: f_upper.dim,
+            }));
+        }
+    }
+
+    Ok((best_root, best_residual, used_iterations))
 }
 
 fn fixed64_sqrt(value: Fixed64) -> Option<Fixed64> {
@@ -8494,6 +10847,1866 @@ fn make_relation_pack(left: Formula, right: Formula) -> Value {
     Value::Pack(fields)
 }
 
+fn eval_endpoint_relation_list(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err("endpoint connect relation 1개가 필요합니다"
+            .to_string()
+            .into());
+    }
+    let mut items = Vec::new();
+    flatten_endpoint_relation_value(&values[0], &mut items)?;
+    Ok(Value::List(items))
+}
+
+fn eval_endpoint_relation_normalize(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err("endpoint connect relation 1개가 필요합니다"
+            .to_string()
+            .into());
+    }
+    let mut items = Vec::new();
+    flatten_endpoint_relation_value(&values[0], &mut items)?;
+    let count = items.len() as i64;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_relation_flat_set".to_string()),
+    );
+    fields.insert("개수".to_string(), fixed_value(count));
+    fields.insert("관계들".to_string(), Value::List(items));
+    Ok(Value::Pack(fields))
+}
+
+struct EndpointFormulaRelationBridge {
+    relations: Vec<Value>,
+    mappings: Vec<Value>,
+}
+
+fn eval_endpoint_formula_relation_list(values: &[Value]) -> Result<Value, EvalError> {
+    let bridge = endpoint_formula_relation_bridge(values)?;
+    Ok(Value::List(bridge.relations))
+}
+
+fn eval_endpoint_formula_relation_set(values: &[Value]) -> Result<Value, EvalError> {
+    let bridge = endpoint_formula_relation_bridge(values)?;
+    let relation_count = bridge.relations.len() as i64;
+    let mapping_count = bridge.mappings.len() as i64;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_formula_relation_set".to_string()),
+    );
+    fields.insert("개수".to_string(), fixed_value(relation_count));
+    fields.insert("변수개수".to_string(), fixed_value(mapping_count));
+    fields.insert("관계들".to_string(), Value::List(bridge.relations));
+    fields.insert("변수사상".to_string(), Value::List(bridge.mappings));
+    Ok(Value::Pack(fields))
+}
+
+struct EndpointBoundaryValueInjection {
+    relations: Vec<Value>,
+    injected_relations: Vec<Value>,
+    injected_values: Vec<Value>,
+    mappings: Vec<Value>,
+}
+
+fn eval_endpoint_boundary_value_relation_list(values: &[Value]) -> Result<Value, EvalError> {
+    let injected = endpoint_boundary_value_injection(values)?;
+    Ok(Value::List(injected.injected_relations))
+}
+
+fn eval_endpoint_boundary_value_injection(values: &[Value]) -> Result<Value, EvalError> {
+    let injected = endpoint_boundary_value_injection(values)?;
+    let relation_count = injected.relations.len() as i64;
+    let mapping_count = injected.mappings.len() as i64;
+    let injected_count = injected.injected_values.len() as i64;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_formula_relation_set_with_values".to_string()),
+    );
+    fields.insert("개수".to_string(), fixed_value(relation_count));
+    fields.insert("변수개수".to_string(), fixed_value(mapping_count));
+    fields.insert("주입개수".to_string(), fixed_value(injected_count));
+    fields.insert("관계들".to_string(), Value::List(injected.relations));
+    fields.insert("변수사상".to_string(), Value::List(injected.mappings));
+    fields.insert(
+        "주입값들".to_string(),
+        Value::List(injected.injected_values),
+    );
+    Ok(Value::Pack(fields))
+}
+
+fn eval_endpoint_explicit_solve(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 2 {
+        return Err(
+            "endpoint connect relation과 boundary value 차림이 필요합니다"
+                .to_string()
+                .into(),
+        );
+    }
+    let formula_set = eval_endpoint_formula_relation_set(&[values[0].clone()])?;
+    let solve_source = match &values[1] {
+        Value::List(items) if items.is_empty() => formula_set,
+        Value::List(_) => {
+            eval_endpoint_boundary_value_injection(&[formula_set, values[1].clone()])?
+        }
+        _ => eval_endpoint_boundary_value_injection(&[formula_set, values[1].clone()])?,
+    };
+    let formula_fields = expect_endpoint_formula_relation_mapping_source(&solve_source)?;
+    let relation_list = endpoint_relation_list_field(formula_fields, "관계들")?.to_vec();
+    let relation_arg = Value::List(relation_list);
+    let solve_result = match expect_equation_relations(&[relation_arg])
+        .and_then(|relations| eval_relation_solve_result(&relations))
+    {
+        Ok(result) => result,
+        Err(_) => make_relation_solve_failure("unsupported"),
+    };
+    eval_endpoint_solve_result_remap(&[solve_source, solve_result])
+}
+
+fn eval_endpoint_explicit_solve_range_violation_list(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 3 {
+        return Err(
+            "endpoint connect relation, boundary value 차림, range 차림이 필요합니다"
+                .to_string()
+                .into(),
+        );
+    }
+    let solve_result = eval_endpoint_explicit_solve(&[values[0].clone(), values[1].clone()])?;
+    eval_endpoint_boundary_range_violation_list(&[solve_result, values[2].clone()])
+}
+
+fn eval_endpoint_explicit_solve_range_check(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 3 {
+        return Err(
+            "endpoint connect relation, boundary value 차림, range 차림이 필요합니다"
+                .to_string()
+                .into(),
+        );
+    }
+    let solve_result = eval_endpoint_explicit_solve(&[values[0].clone(), values[1].clone()])?;
+    let range_check =
+        eval_endpoint_boundary_range_check(&[solve_result.clone(), values[2].clone()])?;
+    let Value::Pack(solve_pack) = &solve_result else {
+        return Err("endpoint solve result 묶음이 필요합니다".to_string().into());
+    };
+    let Value::Pack(range_pack) = &range_check else {
+        return Err("endpoint range check 묶음이 필요합니다".to_string().into());
+    };
+    let solve_kind = endpoint_relation_string_field(solve_pack, "풀이결과종류")?.to_string();
+    let check_kind = endpoint_relation_string_field(range_pack, "검사결과")?.to_string();
+    let violation_count = range_pack
+        .get("위반개수")
+        .cloned()
+        .ok_or_else(|| EvalError::from("endpoint range check 위반개수가 필요합니다".to_string()))?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_solve_range_check".to_string()),
+    );
+    fields.insert("풀이결과".to_string(), solve_result);
+    fields.insert("범위검사".to_string(), range_check);
+    fields.insert("풀이결과종류".to_string(), Value::String(solve_kind));
+    fields.insert("검사결과".to_string(), Value::String(check_kind));
+    fields.insert("위반개수".to_string(), violation_count);
+    Ok(Value::Pack(fields))
+}
+
+struct EndpointSolveRangeReport {
+    check: Value,
+    rows: Vec<Value>,
+    solve_kind: String,
+    check_kind: String,
+    value_count: usize,
+    missing_count: usize,
+    range_count: usize,
+    violation_count: usize,
+}
+
+fn eval_endpoint_solve_range_report_rows(values: &[Value]) -> Result<Value, EvalError> {
+    let report = endpoint_solve_range_report(values)?;
+    Ok(Value::List(report.rows))
+}
+
+fn eval_endpoint_solve_range_report(values: &[Value]) -> Result<Value, EvalError> {
+    let report = endpoint_solve_range_report(values)?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_solve_range_report".to_string()),
+    );
+    fields.insert("검사".to_string(), report.check);
+    fields.insert("풀이결과종류".to_string(), Value::String(report.solve_kind));
+    fields.insert("검사결과".to_string(), Value::String(report.check_kind));
+    fields.insert("행개수".to_string(), fixed_value(report.rows.len() as i64));
+    fields.insert("값개수".to_string(), fixed_value(report.value_count as i64));
+    fields.insert(
+        "누락개수".to_string(),
+        fixed_value(report.missing_count as i64),
+    );
+    fields.insert(
+        "범위개수".to_string(),
+        fixed_value(report.range_count as i64),
+    );
+    fields.insert(
+        "위반개수".to_string(),
+        fixed_value(report.violation_count as i64),
+    );
+    fields.insert("행들".to_string(), Value::List(report.rows));
+    Ok(Value::Pack(fields))
+}
+
+fn eval_endpoint_solve_range_text_report(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_report_text_error(
+            "connect_report_text_expected_solve_range_report",
+        ));
+    }
+    Ok(Value::String(endpoint_solve_range_text_table(&values[0])?))
+}
+
+fn eval_endpoint_explicit_solve_range_text_report(values: &[Value]) -> Result<Value, EvalError> {
+    let report = eval_endpoint_solve_range_report(values)?;
+    Ok(Value::String(endpoint_solve_range_text_table(&report)?))
+}
+
+fn eval_endpoint_solve_range_case(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    }
+    endpoint_solve_range_case_result(&values[0])
+}
+
+fn eval_endpoint_solve_range_case_suite(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    }
+    let Value::List(cases) = &values[0] else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    };
+    let mut results = Vec::new();
+    let mut passed = 0usize;
+    for case in cases {
+        let result = endpoint_solve_range_case_result(case)?;
+        let Value::Pack(result_pack) = &result else {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_malformed_case",
+            ));
+        };
+        let pass = match result_pack.get("통과여부") {
+            Some(Value::Bool(pass)) => *pass,
+            _ => {
+                return Err(endpoint_case_suite_error(
+                    "connect_case_suite_malformed_case",
+                ))
+            }
+        };
+        if pass {
+            passed += 1;
+        }
+        results.push(result);
+    }
+    Ok(endpoint_solve_range_case_suite_pack(results, passed))
+}
+
+fn eval_endpoint_solve_range_case_suite_text(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_text_expected_suite",
+        ));
+    }
+    Ok(Value::String(endpoint_solve_range_case_suite_text(
+        &values[0],
+    )?))
+}
+
+fn eval_endpoint_solve_range_case_suite_detail_text(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_detail_expected_suite",
+        ));
+    }
+    Ok(Value::String(endpoint_solve_range_case_suite_detail_text(
+        &values[0],
+    )?))
+}
+
+fn eval_endpoint_solve_range_case_suite_run_detail_text(
+    values: &[Value],
+) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    }
+    let suite = eval_endpoint_solve_range_case_suite(values)?;
+    Ok(Value::String(endpoint_solve_range_case_suite_detail_text(
+        &suite,
+    )?))
+}
+
+fn eval_endpoint_solve_range_case_suite_summary(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_summary_expected_suite",
+        ));
+    }
+    endpoint_solve_range_case_suite_summary(&values[0])
+}
+
+fn eval_endpoint_solve_range_case_suite_run_summary(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    }
+    let suite = eval_endpoint_solve_range_case_suite(values)?;
+    endpoint_solve_range_case_suite_summary(&suite)
+}
+
+fn eval_endpoint_solve_range_case_suite_check(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_check_expected_summary",
+        ));
+    }
+    endpoint_solve_range_case_suite_check(&values[0])
+}
+
+fn eval_endpoint_solve_range_case_suite_run_check(values: &[Value]) -> Result<Value, EvalError> {
+    if values.len() != 1 {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    }
+    let summary = eval_endpoint_solve_range_case_suite_run_summary(values)?;
+    endpoint_solve_range_case_suite_check(&summary)
+}
+
+fn endpoint_solve_range_case_result(case: &Value) -> Result<Value, EvalError> {
+    let Value::Pack(case_pack) = case else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    };
+    let name = endpoint_relation_string_field(case_pack, "이름")
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_malformed_case"))?
+        .to_string();
+    let relation = case_pack
+        .get("이음관계")
+        .cloned()
+        .ok_or_else(|| endpoint_case_suite_error("connect_case_suite_malformed_case"))?;
+    let values = case_pack
+        .get("값들")
+        .cloned()
+        .ok_or_else(|| endpoint_case_suite_error("connect_case_suite_malformed_case"))?;
+    let ranges = case_pack
+        .get("범위들")
+        .cloned()
+        .ok_or_else(|| endpoint_case_suite_error("connect_case_suite_malformed_case"))?;
+    let expected = match case_pack.get("기대검사결과") {
+        Some(Value::String(value)) if value == "통과" || value == "실패" => value.clone(),
+        Some(_) => {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_invalid_expected_result",
+            ))
+        }
+        None => "통과".to_string(),
+    };
+    let report = eval_endpoint_solve_range_report(&[relation, values, ranges])?;
+    let Value::Pack(report_pack) = &report else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_malformed_case",
+        ));
+    };
+    let actual = endpoint_relation_string_field(report_pack, "검사결과")
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_malformed_case"))?
+        .to_string();
+    let text = endpoint_solve_range_text_table(&report)?;
+    let passed = expected == actual;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_solve_range_case_result".to_string()),
+    );
+    fields.insert("이름".to_string(), Value::String(name));
+    fields.insert("기대검사결과".to_string(), Value::String(expected));
+    fields.insert("실제검사결과".to_string(), Value::String(actual));
+    fields.insert("통과여부".to_string(), Value::Bool(passed));
+    fields.insert("보고서".to_string(), report);
+    fields.insert("문자표".to_string(), Value::String(text));
+    Ok(Value::Pack(fields))
+}
+
+fn endpoint_solve_range_case_suite_pack(results: Vec<Value>, passed: usize) -> Value {
+    let total = results.len();
+    let failed = total.saturating_sub(passed);
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_solve_range_case_suite".to_string()),
+    );
+    fields.insert("개수".to_string(), fixed_value(total as i64));
+    fields.insert("통과개수".to_string(), fixed_value(passed as i64));
+    fields.insert("실패개수".to_string(), fixed_value(failed as i64));
+    fields.insert("전체통과".to_string(), Value::Bool(failed == 0));
+    fields.insert("결과들".to_string(), Value::List(results));
+    Value::Pack(fields)
+}
+
+fn endpoint_solve_range_case_suite_text(suite: &Value) -> Result<String, EvalError> {
+    let Value::Pack(suite_pack) = suite else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_text_expected_suite",
+        ));
+    };
+    if endpoint_relation_kind(suite_pack)
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_text_expected_suite"))?
+        != "endpoint_solve_range_case_suite"
+    {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_text_expected_suite",
+        ));
+    }
+    let results = endpoint_relation_list_field(suite_pack, "결과들")
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_text_expected_suite"))?;
+    let mut lines = vec!["이름\t기대\t실제\t통과".to_string()];
+    for result in results {
+        let Value::Pack(result_pack) = result else {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_text_expected_suite",
+            ));
+        };
+        if endpoint_relation_kind(result_pack)
+            .map_err(|_| endpoint_case_suite_error("connect_case_suite_text_expected_suite"))?
+            != "endpoint_solve_range_case_result"
+        {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_text_expected_suite",
+            ));
+        }
+        let name = endpoint_relation_string_field(result_pack, "이름")
+            .map_err(|_| endpoint_case_suite_error("connect_case_suite_text_expected_suite"))?;
+        let expected = endpoint_relation_string_field(result_pack, "기대검사결과")
+            .map_err(|_| endpoint_case_suite_error("connect_case_suite_text_expected_suite"))?;
+        let actual = endpoint_relation_string_field(result_pack, "실제검사결과")
+            .map_err(|_| endpoint_case_suite_error("connect_case_suite_text_expected_suite"))?;
+        let passed = match result_pack.get("통과여부") {
+            Some(Value::Bool(true)) => "참",
+            Some(Value::Bool(false)) => "거짓",
+            _ => {
+                return Err(endpoint_case_suite_error(
+                    "connect_case_suite_text_expected_suite",
+                ))
+            }
+        };
+        lines.push(format!("{name}\t{expected}\t{actual}\t{passed}"));
+    }
+    Ok(lines.join("\n"))
+}
+
+fn endpoint_solve_range_case_suite_detail_text(suite: &Value) -> Result<String, EvalError> {
+    let summary = endpoint_solve_range_case_suite_text(suite)
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_detail_expected_suite"))?;
+    let Value::Pack(suite_pack) = suite else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_detail_expected_suite",
+        ));
+    };
+    if endpoint_relation_kind(suite_pack)
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_detail_expected_suite"))?
+        != "endpoint_solve_range_case_suite"
+    {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_detail_expected_suite",
+        ));
+    }
+    let results = endpoint_relation_list_field(suite_pack, "결과들")
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_detail_expected_suite"))?;
+    let mut sections = vec![summary];
+    for result in results {
+        sections.push(endpoint_solve_range_case_detail_section(result)?);
+    }
+    Ok(sections.join("\n\n"))
+}
+
+fn endpoint_solve_range_case_detail_section(result: &Value) -> Result<String, EvalError> {
+    let Value::Pack(result_pack) = result else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_detail_malformed_case_result",
+        ));
+    };
+    if endpoint_relation_kind(result_pack)
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_detail_malformed_case_result"))?
+        != "endpoint_solve_range_case_result"
+    {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_detail_malformed_case_result",
+        ));
+    }
+    let name = endpoint_relation_string_field(result_pack, "이름").map_err(|_| {
+        endpoint_case_suite_error("connect_case_suite_detail_malformed_case_result")
+    })?;
+    let expected = endpoint_relation_string_field(result_pack, "기대검사결과").map_err(|_| {
+        endpoint_case_suite_error("connect_case_suite_detail_malformed_case_result")
+    })?;
+    let actual = endpoint_relation_string_field(result_pack, "실제검사결과").map_err(|_| {
+        endpoint_case_suite_error("connect_case_suite_detail_malformed_case_result")
+    })?;
+    let passed = match result_pack.get("통과여부") {
+        Some(Value::Bool(true)) => "참",
+        Some(Value::Bool(false)) => "거짓",
+        _ => {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_detail_malformed_case_result",
+            ))
+        }
+    };
+    let text = endpoint_relation_string_field(result_pack, "문자표").map_err(|_| {
+        endpoint_case_suite_error("connect_case_suite_detail_malformed_case_result")
+    })?;
+    Ok(format!(
+        "## {name}\n기대\t{expected}\n실제\t{actual}\n통과\t{passed}\n{text}"
+    ))
+}
+
+fn endpoint_solve_range_case_suite_summary(suite: &Value) -> Result<Value, EvalError> {
+    let Value::Pack(suite_pack) = suite else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_summary_expected_suite",
+        ));
+    };
+    if endpoint_relation_kind(suite_pack)
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_summary_expected_suite"))?
+        != "endpoint_solve_range_case_suite"
+    {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_summary_expected_suite",
+        ));
+    }
+    let results = endpoint_relation_list_field(suite_pack, "결과들")
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_summary_expected_suite"))?;
+
+    let mut pass_names = Vec::new();
+    let mut fail_names = Vec::new();
+    let mut expected_fail_actual_pass = Vec::new();
+    let mut expected_pass_actual_fail = Vec::new();
+
+    for result in results {
+        let Value::Pack(result_pack) = result else {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_summary_malformed_case_result",
+            ));
+        };
+        if endpoint_relation_kind(result_pack).map_err(|_| {
+            endpoint_case_suite_error("connect_case_suite_summary_malformed_case_result")
+        })? != "endpoint_solve_range_case_result"
+        {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_summary_malformed_case_result",
+            ));
+        }
+        let name = endpoint_relation_string_field(result_pack, "이름")
+            .map_err(|_| {
+                endpoint_case_suite_error("connect_case_suite_summary_malformed_case_result")
+            })?
+            .to_string();
+        let expected =
+            endpoint_relation_string_field(result_pack, "기대검사결과").map_err(|_| {
+                endpoint_case_suite_error("connect_case_suite_summary_malformed_case_result")
+            })?;
+        let actual = endpoint_relation_string_field(result_pack, "실제검사결과").map_err(|_| {
+            endpoint_case_suite_error("connect_case_suite_summary_malformed_case_result")
+        })?;
+        let passed = match result_pack.get("통과여부") {
+            Some(Value::Bool(pass)) => *pass,
+            _ => {
+                return Err(endpoint_case_suite_error(
+                    "connect_case_suite_summary_malformed_case_result",
+                ))
+            }
+        };
+        if passed {
+            pass_names.push(name.clone());
+        } else {
+            fail_names.push(name.clone());
+        }
+        if expected == "실패" && actual == "통과" {
+            expected_fail_actual_pass.push(name.clone());
+        }
+        if expected == "통과" && actual == "실패" {
+            expected_pass_actual_fail.push(name);
+        }
+    }
+
+    let total = results.len();
+    let passed = pass_names.len();
+    let failed = fail_names.len();
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_solve_range_case_suite_summary".to_string()),
+    );
+    fields.insert("개수".to_string(), fixed_value(total as i64));
+    fields.insert("통과개수".to_string(), fixed_value(passed as i64));
+    fields.insert("실패개수".to_string(), fixed_value(failed as i64));
+    fields.insert("전체통과".to_string(), Value::Bool(failed == 0));
+    fields.insert(
+        "통과케이스들".to_string(),
+        Value::List(pass_names.into_iter().map(Value::String).collect()),
+    );
+    fields.insert(
+        "실패케이스들".to_string(),
+        Value::List(fail_names.into_iter().map(Value::String).collect()),
+    );
+    fields.insert(
+        "기대실패통과케이스들".to_string(),
+        Value::List(
+            expected_fail_actual_pass
+                .into_iter()
+                .map(Value::String)
+                .collect(),
+        ),
+    );
+    fields.insert(
+        "기대통과실패케이스들".to_string(),
+        Value::List(
+            expected_pass_actual_fail
+                .into_iter()
+                .map(Value::String)
+                .collect(),
+        ),
+    );
+    Ok(Value::Pack(fields))
+}
+
+fn endpoint_solve_range_case_suite_check(summary: &Value) -> Result<Value, EvalError> {
+    let Value::Pack(summary_pack) = summary else {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_check_expected_summary",
+        ));
+    };
+    if endpoint_relation_kind(summary_pack)
+        .map_err(|_| endpoint_case_suite_error("connect_case_suite_check_expected_summary"))?
+        != "endpoint_solve_range_case_suite_summary"
+    {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_check_expected_summary",
+        ));
+    }
+
+    let overall = match summary_pack.get("전체통과") {
+        Some(Value::Bool(value)) => *value,
+        _ => {
+            return Err(endpoint_case_suite_error(
+                "connect_case_suite_check_malformed_summary",
+            ))
+        }
+    };
+    let count = endpoint_case_suite_check_count(summary_pack, "개수")?;
+    let passed = endpoint_case_suite_check_count(summary_pack, "통과개수")?;
+    let failed = endpoint_case_suite_check_count(summary_pack, "실패개수")?;
+    let fail_cases = endpoint_case_suite_check_string_list(summary_pack, "실패케이스들")?;
+    let expected_fail_actual_pass =
+        endpoint_case_suite_check_string_list(summary_pack, "기대실패통과케이스들")?;
+    let expected_pass_actual_fail =
+        endpoint_case_suite_check_string_list(summary_pack, "기대통과실패케이스들")?;
+
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_solve_range_case_suite_check".to_string()),
+    );
+    fields.insert(
+        "판정".to_string(),
+        Value::String(if overall { "통과" } else { "실패" }.to_string()),
+    );
+    fields.insert("전체통과".to_string(), Value::Bool(overall));
+    fields.insert("개수".to_string(), count);
+    fields.insert("통과개수".to_string(), passed);
+    fields.insert("실패개수".to_string(), failed);
+    fields.insert("실패케이스들".to_string(), Value::List(fail_cases));
+    fields.insert(
+        "기대실패통과케이스들".to_string(),
+        Value::List(expected_fail_actual_pass),
+    );
+    fields.insert(
+        "기대통과실패케이스들".to_string(),
+        Value::List(expected_pass_actual_fail),
+    );
+    fields.insert("요약".to_string(), summary.clone());
+    Ok(Value::Pack(fields))
+}
+
+fn endpoint_case_suite_check_count(
+    fields: &BTreeMap<String, Value>,
+    name: &str,
+) -> Result<Value, EvalError> {
+    match fields.get(name) {
+        Some(Value::Fixed64(_)) => Ok(fields.get(name).expect("count field").clone()),
+        _ => Err(endpoint_case_suite_error(
+            "connect_case_suite_check_malformed_summary",
+        )),
+    }
+}
+
+fn endpoint_case_suite_check_string_list(
+    fields: &BTreeMap<String, Value>,
+    name: &str,
+) -> Result<Vec<Value>, EvalError> {
+    let list = endpoint_relation_list_field(fields, name).map_err(|_| {
+        endpoint_case_suite_error("connect_case_suite_check_malformed_summary")
+    })?;
+    if list.iter().any(|item| !matches!(item, Value::String(_))) {
+        return Err(endpoint_case_suite_error(
+            "connect_case_suite_check_malformed_summary",
+        ));
+    }
+    Ok(list.to_vec())
+}
+
+fn endpoint_case_suite_error(marker: &'static str) -> EvalError {
+    EvalError::from(marker.to_string())
+}
+
+fn endpoint_solve_range_text_table(report: &Value) -> Result<String, EvalError> {
+    let Value::Pack(report_pack) = report else {
+        return Err(endpoint_report_text_error(
+            "connect_report_text_expected_solve_range_report",
+        ));
+    };
+    if endpoint_relation_kind(report_pack).map_err(|_| {
+        endpoint_report_text_error("connect_report_text_expected_solve_range_report")
+    })? != "endpoint_solve_range_report"
+    {
+        return Err(endpoint_report_text_error(
+            "connect_report_text_expected_solve_range_report",
+        ));
+    }
+    let rows = endpoint_relation_list_field(report_pack, "행들")
+        .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?;
+    let mut lines = vec!["변수\t경로\t값상태\t값\t범위상태\t하한\t상한\t위반".to_string()];
+    for row in rows {
+        let Value::Pack(row_pack) = row else {
+            return Err(endpoint_report_text_error(
+                "connect_report_text_malformed_row",
+            ));
+        };
+        if endpoint_relation_kind(row_pack)
+            .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?
+            != "endpoint_solve_range_report_row"
+        {
+            return Err(endpoint_report_text_error(
+                "connect_report_text_malformed_row",
+            ));
+        }
+        let variable = endpoint_relation_string_field(row_pack, "변수")
+            .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?;
+        let path = endpoint_relation_string_field(row_pack, "경로")
+            .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?;
+        let value_status = endpoint_relation_string_field(row_pack, "값상태")
+            .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?;
+        let range_status = endpoint_relation_string_field(row_pack, "범위상태")
+            .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?;
+        let value = row_pack.get("값").map(value_to_string).unwrap_or_default();
+        let lower = row_pack
+            .get("하한")
+            .map(value_to_string)
+            .unwrap_or_default();
+        let upper = row_pack
+            .get("상한")
+            .map(value_to_string)
+            .unwrap_or_default();
+        let violations = endpoint_relation_list_field(row_pack, "위반들")
+            .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?;
+        let mut reasons = Vec::new();
+        for violation in violations {
+            let Value::Pack(violation_pack) = violation else {
+                return Err(endpoint_report_text_error(
+                    "connect_report_text_malformed_row",
+                ));
+            };
+            reasons.push(
+                endpoint_relation_string_field(violation_pack, "이유")
+                    .map_err(|_| endpoint_report_text_error("connect_report_text_malformed_row"))?
+                    .to_string(),
+            );
+        }
+        lines.push(format!(
+            "{variable}\t{path}\t{value_status}\t{value}\t{range_status}\t{lower}\t{upper}\t{}",
+            reasons.join("|")
+        ));
+    }
+    Ok(lines.join("\n"))
+}
+
+fn endpoint_report_text_error(marker: &'static str) -> EvalError {
+    EvalError::from(marker.to_string())
+}
+
+fn endpoint_solve_range_report(values: &[Value]) -> Result<EndpointSolveRangeReport, EvalError> {
+    if values.len() != 3 {
+        return Err(
+            "endpoint connect relation, boundary value 차림, range 차림이 필요합니다"
+                .to_string()
+                .into(),
+        );
+    }
+    let check = eval_endpoint_explicit_solve_range_check(values)?;
+    let Value::Pack(check_pack) = &check else {
+        return Err("endpoint solve range check 묶음이 필요합니다"
+            .to_string()
+            .into());
+    };
+    let solve_result = check_pack
+        .get("풀이결과")
+        .cloned()
+        .ok_or_else(|| EvalError::from("endpoint solve result가 필요합니다".to_string()))?;
+    let range_check = check_pack
+        .get("범위검사")
+        .cloned()
+        .ok_or_else(|| EvalError::from("endpoint range check가 필요합니다".to_string()))?;
+    let solve_pack = expect_endpoint_solve_result_value(&solve_result)?;
+    let Value::Pack(range_pack) = &range_check else {
+        return Err("endpoint range check 묶음이 필요합니다".to_string().into());
+    };
+    let solve_kind = endpoint_relation_string_field(solve_pack, "풀이결과종류")?.to_string();
+    let check_kind = endpoint_relation_string_field(range_pack, "검사결과")?.to_string();
+    let mappings = endpoint_relation_list_field(solve_pack, "변수사상")?;
+    let value_by_path = endpoint_solve_result_values_by_path(solve_pack)?;
+    let ranges = endpoint_range_bounds(&values[2])?;
+    let mut range_by_path: BTreeMap<String, (Option<Value>, Option<Value>)> = BTreeMap::new();
+    for range in &ranges {
+        range_by_path.insert(range.path.clone(), (range.min.clone(), range.max.clone()));
+    }
+    let mut violations_by_path: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    let violations = endpoint_relation_list_field(range_pack, "위반들")?;
+    for violation in violations {
+        let Value::Pack(violation_pack) = violation else {
+            return Err("endpoint range violation 묶음이 필요합니다"
+                .to_string()
+                .into());
+        };
+        let path = endpoint_relation_string_field(violation_pack, "경로")?;
+        violations_by_path
+            .entry(path.to_string())
+            .or_default()
+            .push(violation.clone());
+    }
+
+    let mut rows = Vec::new();
+    let mut value_count = 0usize;
+    let mut missing_count = 0usize;
+    for mapping in mappings {
+        let Value::Pack(mapping_pack) = mapping else {
+            return Err("endpoint variable mapping 묶음이 필요합니다"
+                .to_string()
+                .into());
+        };
+        let variable = endpoint_relation_string_field(mapping_pack, "변수")?;
+        let path = endpoint_relation_string_field(mapping_pack, "경로")?;
+        let row_violations = violations_by_path.get(path).cloned().unwrap_or_default();
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            "__이음관계종류".to_string(),
+            Value::String("endpoint_solve_range_report_row".to_string()),
+        );
+        fields.insert("변수".to_string(), Value::String(variable.to_string()));
+        fields.insert("경로".to_string(), Value::String(path.to_string()));
+        if let Some(value) = value_by_path.get(path) {
+            fields.insert("값상태".to_string(), Value::String("값있음".to_string()));
+            fields.insert("값".to_string(), value.clone());
+            value_count += 1;
+        } else {
+            fields.insert("값상태".to_string(), Value::String("누락".to_string()));
+            missing_count += 1;
+        }
+        if let Some((min, max)) = range_by_path.get(path) {
+            fields.insert(
+                "범위상태".to_string(),
+                Value::String(if row_violations.is_empty() {
+                    "통과".to_string()
+                } else {
+                    "실패".to_string()
+                }),
+            );
+            if let Some(min) = min {
+                fields.insert("하한".to_string(), min.clone());
+            }
+            if let Some(max) = max {
+                fields.insert("상한".to_string(), max.clone());
+            }
+        } else {
+            fields.insert(
+                "범위상태".to_string(),
+                Value::String("범위없음".to_string()),
+            );
+        }
+        fields.insert(
+            "위반개수".to_string(),
+            fixed_value(row_violations.len() as i64),
+        );
+        fields.insert("위반들".to_string(), Value::List(row_violations));
+        rows.push(Value::Pack(fields));
+    }
+
+    Ok(EndpointSolveRangeReport {
+        check,
+        rows,
+        solve_kind,
+        check_kind,
+        value_count,
+        missing_count,
+        range_count: ranges.len(),
+        violation_count: violations.len(),
+    })
+}
+
+fn eval_endpoint_solve_result_value_list(values: &[Value]) -> Result<Value, EvalError> {
+    let remapped = endpoint_solve_result_remap(values)?;
+    Ok(Value::List(remapped.values))
+}
+
+fn eval_endpoint_solve_result_remap(values: &[Value]) -> Result<Value, EvalError> {
+    let remapped = endpoint_solve_result_remap(values)?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_solve_result".to_string()),
+    );
+    fields.insert("풀이결과종류".to_string(), Value::String(remapped.kind));
+    fields.insert("값들".to_string(), Value::List(remapped.values));
+    fields.insert(
+        "누락변수들".to_string(),
+        Value::List(remapped.missing_variables),
+    );
+    fields.insert("변수사상".to_string(), Value::List(remapped.mappings));
+    fields.insert("원래풀이".to_string(), remapped.original);
+    Ok(Value::Pack(fields))
+}
+
+struct EndpointSolveResultRemap {
+    kind: String,
+    values: Vec<Value>,
+    missing_variables: Vec<Value>,
+    mappings: Vec<Value>,
+    original: Value,
+}
+
+#[derive(Clone, Copy)]
+struct EndpointUnitSeed {
+    dim: UnitDim,
+}
+
+struct EndpointBoundaryNumber {
+    value: Value,
+    formula_text: String,
+    unit_dim: Option<UnitDim>,
+    unit_symbol: Option<String>,
+}
+
+fn endpoint_solve_result_remap(values: &[Value]) -> Result<EndpointSolveResultRemap, EvalError> {
+    if values.len() != 2 {
+        return Err(
+            "endpoint formula relation set과 relation solve result가 필요합니다"
+                .to_string()
+                .into(),
+        );
+    }
+    let formula_set = expect_endpoint_formula_relation_mapping_source(&values[0])?;
+    let mappings_list = endpoint_relation_list_field(formula_set, "변수사상")?;
+    let mut mappings = Vec::new();
+    let mut ordered_mapping = Vec::new();
+    for item in mappings_list {
+        let Value::Pack(mapping_pack) = item else {
+            return Err("endpoint variable mapping 묶음이 필요합니다"
+                .to_string()
+                .into());
+        };
+        let variable = endpoint_relation_string_field(mapping_pack, "변수")?;
+        let path = endpoint_relation_string_field(mapping_pack, "경로")?;
+        if ordered_mapping
+            .iter()
+            .any(|(known, _): &(String, String)| known == variable)
+        {
+            return Err("endpoint variable mapping 변수는 유일해야 합니다"
+                .to_string()
+                .into());
+        }
+        ordered_mapping.push((variable.to_string(), path.to_string()));
+        mappings.push(item.clone());
+    }
+    let unit_components = endpoint_unit_components(formula_set, &ordered_mapping)?;
+
+    let solve_result = expect_relation_solve_result(&values[1])?;
+    let original = values[1].clone();
+    let result_kind = relation_solve_result_kind(solve_result)?;
+    if result_kind != RELATION_SOLVE_RESULT_SUCCESS {
+        return Ok(EndpointSolveResultRemap {
+            kind: "실패".to_string(),
+            values: Vec::new(),
+            missing_variables: ordered_mapping
+                .iter()
+                .map(|(variable, _)| Value::String(variable.clone()))
+                .collect(),
+            mappings,
+            original,
+        });
+    }
+
+    let bindings = match solve_result.get(RELATION_SOLVE_BINDINGS_FIELD) {
+        Some(Value::Pack(bindings)) => bindings,
+        _ => {
+            return Err("relation solve result 해 묶음이 필요합니다"
+                .to_string()
+                .into())
+        }
+    };
+    for variable in bindings.keys() {
+        if !ordered_mapping
+            .iter()
+            .any(|(mapped_variable, _)| mapped_variable == variable)
+        {
+            return Err("endpoint_variable_mapping relation solve binding이 endpoint 변수사상에 포함되어야 합니다"
+                .to_string()
+                .into());
+        }
+    }
+
+    let mut remapped_values = Vec::new();
+    let mut missing_variables = Vec::new();
+    for (variable, path) in &ordered_mapping {
+        if let Some(value) = bindings.get(variable) {
+            let value = match unit_components.get(variable) {
+                Some(seed) => {
+                    let raw = endpoint_solve_numeric_value(value)?;
+                    unit_value_to_value(UnitValue {
+                        value: raw,
+                        dim: seed.dim,
+                    })
+                }
+                None => value.clone(),
+            };
+            let mut item = BTreeMap::new();
+            item.insert("변수".to_string(), Value::String(variable.clone()));
+            item.insert("경로".to_string(), Value::String(path.clone()));
+            item.insert("값".to_string(), value);
+            remapped_values.push(Value::Pack(item));
+        } else {
+            missing_variables.push(Value::String(variable.clone()));
+        }
+    }
+    let kind = if missing_variables.is_empty() {
+        "성공"
+    } else {
+        "부분성공"
+    };
+    Ok(EndpointSolveResultRemap {
+        kind: kind.to_string(),
+        values: remapped_values,
+        missing_variables,
+        mappings,
+        original,
+    })
+}
+
+fn expect_endpoint_formula_relation_set(
+    value: &Value,
+) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err("endpoint_formula_relation_set 묶음이 필요합니다"
+            .to_string()
+            .into());
+    };
+    match fields.get("__이음관계종류") {
+        Some(Value::String(kind)) if kind == "endpoint_formula_relation_set" => Ok(fields),
+        _ => Err("endpoint_formula_relation_set 묶음이 필요합니다"
+            .to_string()
+            .into()),
+    }
+}
+
+fn expect_endpoint_formula_relation_mapping_source(
+    value: &Value,
+) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err("endpoint_formula_relation_set 묶음이 필요합니다"
+            .to_string()
+            .into());
+    };
+    match fields.get("__이음관계종류") {
+        Some(Value::String(kind))
+            if kind == "endpoint_formula_relation_set"
+                || kind == "endpoint_formula_relation_set_with_values" =>
+        {
+            Ok(fields)
+        }
+        _ => Err("endpoint_formula_relation_set 묶음이 필요합니다"
+            .to_string()
+            .into()),
+    }
+}
+
+fn endpoint_boundary_value_injection(
+    values: &[Value],
+) -> Result<EndpointBoundaryValueInjection, EvalError> {
+    if values.len() != 2 {
+        return Err(endpoint_boundary_value_error(
+            "connect_boundary_value_expected_formula_set",
+        ));
+    }
+    let formula_set = expect_endpoint_formula_relation_set(&values[0]).map_err(|_| {
+        endpoint_boundary_value_error("connect_boundary_value_expected_formula_set")
+    })?;
+    let original_relations = endpoint_relation_list_field(formula_set, "관계들")?;
+    let mappings_list = endpoint_relation_list_field(formula_set, "변수사상")?;
+
+    let mut path_to_variable = BTreeMap::new();
+    let mut mappings = Vec::new();
+    for item in mappings_list {
+        let Value::Pack(mapping_pack) = item else {
+            return Err(endpoint_boundary_value_error(
+                "connect_boundary_value_malformed_item",
+            ));
+        };
+        let variable = endpoint_relation_string_field(mapping_pack, "변수")?;
+        let path = endpoint_relation_string_field(mapping_pack, "경로")?;
+        path_to_variable.insert(path.to_string(), variable.to_string());
+        mappings.push(item.clone());
+    }
+
+    let Value::List(value_items) = &values[1] else {
+        return Err(endpoint_boundary_value_error(
+            "connect_boundary_value_malformed_item",
+        ));
+    };
+    let mut seen_paths = BTreeSet::new();
+    let mut injected_relations = Vec::new();
+    let mut injected_values = Vec::new();
+    for item in value_items {
+        let Value::Pack(value_pack) = item else {
+            return Err(endpoint_boundary_value_error(
+                "connect_boundary_value_malformed_item",
+            ));
+        };
+        let path = endpoint_boundary_value_path(value_pack)?;
+        if !seen_paths.insert(path.to_string()) {
+            return Err(endpoint_boundary_value_error(
+                "connect_boundary_value_duplicate_path",
+            ));
+        }
+        let Some(variable) = path_to_variable.get(path) else {
+            return Err(endpoint_boundary_value_error(
+                "connect_boundary_value_unknown_path",
+            ));
+        };
+        let boundary = endpoint_boundary_value_number(value_pack)?;
+        injected_relations.push(make_relation_pack(
+            endpoint_formula_value(variable),
+            endpoint_formula_value(&boundary.formula_text),
+        ));
+        let mut injected = BTreeMap::new();
+        injected.insert("변수".to_string(), Value::String(variable.clone()));
+        injected.insert("경로".to_string(), Value::String(path.to_string()));
+        injected.insert("값".to_string(), boundary.value);
+        if let Some(dim) = boundary.unit_dim {
+            injected.insert("단위차원".to_string(), Value::String(dim.format()));
+        }
+        if let Some(symbol) = boundary.unit_symbol {
+            injected.insert("단위기호".to_string(), Value::String(symbol));
+        }
+        injected_values.push(Value::Pack(injected));
+    }
+
+    let mut relations = original_relations.to_vec();
+    relations.extend(injected_relations.clone());
+    Ok(EndpointBoundaryValueInjection {
+        relations,
+        injected_relations,
+        injected_values,
+        mappings,
+    })
+}
+
+fn endpoint_boundary_value_path(fields: &BTreeMap<String, Value>) -> Result<&str, EvalError> {
+    match fields.get("경로") {
+        Some(Value::String(path)) => Ok(path.as_str()),
+        _ => Err(endpoint_boundary_value_error(
+            "connect_boundary_value_malformed_item",
+        )),
+    }
+}
+
+fn endpoint_boundary_value_number(
+    fields: &BTreeMap<String, Value>,
+) -> Result<EndpointBoundaryNumber, EvalError> {
+    match fields.get("값") {
+        Some(Value::Fixed64(value)) => Ok(EndpointBoundaryNumber {
+            value: Value::Fixed64(*value),
+            formula_text: value.to_string(),
+            unit_dim: None,
+            unit_symbol: None,
+        }),
+        Some(Value::Unit(unit)) => Ok(EndpointBoundaryNumber {
+            value: Value::Unit(*unit),
+            formula_text: unit.value.to_string(),
+            unit_dim: (!unit.is_dimensionless()).then_some(unit.dim),
+            unit_symbol: (!unit.is_dimensionless()).then(|| {
+                unit.display_symbol()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| unit.dim.format())
+            }),
+        }),
+        Some(_) => Err(endpoint_boundary_value_error(
+            "connect_boundary_value_non_numeric",
+        )),
+        None => Err(endpoint_boundary_value_error(
+            "connect_boundary_value_malformed_item",
+        )),
+    }
+}
+
+fn endpoint_unit_components(
+    formula_set: &BTreeMap<String, Value>,
+    ordered_mapping: &[(String, String)],
+) -> Result<BTreeMap<String, EndpointUnitSeed>, EvalError> {
+    let kind = match formula_set.get("__이음관계종류") {
+        Some(Value::String(kind)) => kind.as_str(),
+        _ => "",
+    };
+    if kind != "endpoint_formula_relation_set_with_values" {
+        return Ok(BTreeMap::new());
+    }
+
+    let known_variables: BTreeSet<String> = ordered_mapping
+        .iter()
+        .map(|(variable, _)| variable.clone())
+        .collect();
+    let mut parent: BTreeMap<String, String> = known_variables
+        .iter()
+        .map(|variable| (variable.clone(), variable.clone()))
+        .collect();
+
+    if let Ok(relations) = endpoint_relation_list_field(formula_set, "관계들") {
+        for relation in relations {
+            let Value::Pack(relation_pack) = relation else {
+                continue;
+            };
+            let mut vars = BTreeSet::new();
+            if let Some(Value::Formula(left)) = relation_pack.get(RELATION_LEFT_FIELD) {
+                for variable in endpoint_variables_in_formula(&relation_formula_text(left)?) {
+                    if known_variables.contains(&variable) {
+                        vars.insert(variable);
+                    }
+                }
+            }
+            if let Some(Value::Formula(right)) = relation_pack.get(RELATION_RIGHT_FIELD) {
+                for variable in endpoint_variables_in_formula(&relation_formula_text(right)?) {
+                    if known_variables.contains(&variable) {
+                        vars.insert(variable);
+                    }
+                }
+            }
+            let mut vars = vars.into_iter();
+            if let Some(first) = vars.next() {
+                for variable in vars {
+                    endpoint_union(&mut parent, &first, &variable);
+                }
+            }
+        }
+    }
+
+    let mut component_units: BTreeMap<String, UnitDim> = BTreeMap::new();
+    if let Some(Value::List(injected)) = formula_set.get("주입값들") {
+        for item in injected {
+            let Value::Pack(pack) = item else {
+                continue;
+            };
+            let variable = endpoint_relation_string_field(pack, "변수")?;
+            let Some(Value::Unit(unit)) = pack.get("값") else {
+                continue;
+            };
+            if unit.is_dimensionless() {
+                continue;
+            }
+            let root = endpoint_find(&mut parent, variable);
+            if let Some(existing) = component_units.get(&root).copied() {
+                if existing != unit.dim {
+                    let marker = if endpoint_currency_pair(existing, unit.dim) {
+                        "connect_unit_boundary_incompatible_unit"
+                    } else {
+                        "connect_unit_boundary_dim_conflict"
+                    };
+                    return Err(endpoint_boundary_value_error(marker));
+                }
+            } else {
+                component_units.insert(root, unit.dim);
+            }
+        }
+    }
+
+    let mut by_variable = BTreeMap::new();
+    for variable in known_variables {
+        let root = endpoint_find(&mut parent, &variable);
+        if let Some(dim) = component_units.get(&root).copied() {
+            by_variable.insert(variable, EndpointUnitSeed { dim });
+        }
+    }
+    Ok(by_variable)
+}
+
+fn endpoint_variables_in_formula(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i + 6 <= bytes.len() {
+        if &bytes[i..i + 3] == b"ep_"
+            && bytes[i + 3].is_ascii_digit()
+            && bytes[i + 4].is_ascii_digit()
+            && bytes[i + 5].is_ascii_digit()
+        {
+            out.push(text[i..i + 6].to_string());
+            i += 6;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+fn endpoint_find(parent: &mut BTreeMap<String, String>, variable: &str) -> String {
+    let current = parent
+        .get(variable)
+        .cloned()
+        .unwrap_or_else(|| variable.to_string());
+    if current == variable {
+        return current;
+    }
+    let root = endpoint_find(parent, &current);
+    parent.insert(variable.to_string(), root.clone());
+    root
+}
+
+fn endpoint_union(parent: &mut BTreeMap<String, String>, left: &str, right: &str) {
+    let left_root = endpoint_find(parent, left);
+    let right_root = endpoint_find(parent, right);
+    if left_root != right_root {
+        parent.insert(right_root, left_root);
+    }
+}
+
+fn endpoint_currency_pair(left: UnitDim, right: UnitDim) -> bool {
+    (left == UnitDim::KRW && right == UnitDim::USD)
+        || (left == UnitDim::USD && right == UnitDim::KRW)
+}
+
+fn endpoint_solve_numeric_value(value: &Value) -> Result<Fixed64, EvalError> {
+    match value {
+        Value::Fixed64(raw) => Ok(*raw),
+        Value::Unit(unit) if unit.is_dimensionless() => Ok(unit.value),
+        _ => numeric_pack_approx(value)
+            .ok_or_else(|| endpoint_boundary_value_error("connect_boundary_value_non_numeric")),
+    }
+}
+
+fn endpoint_boundary_value_error(marker: &'static str) -> EvalError {
+    marker.to_string().into()
+}
+
+struct EndpointRangeBound {
+    path: String,
+    min: Option<Value>,
+    max: Option<Value>,
+    min_inclusive: bool,
+    max_inclusive: bool,
+}
+
+struct EndpointBoundaryRangeCheck {
+    violations: Vec<Value>,
+    range_count: usize,
+}
+
+fn eval_endpoint_boundary_range_violation_list(values: &[Value]) -> Result<Value, EvalError> {
+    let checked = endpoint_boundary_range_check(values)?;
+    Ok(Value::List(checked.violations))
+}
+
+fn eval_endpoint_boundary_range_check(values: &[Value]) -> Result<Value, EvalError> {
+    let checked = endpoint_boundary_range_check(values)?;
+    let mut fields = BTreeMap::new();
+    fields.insert(
+        "__이음관계종류".to_string(),
+        Value::String("endpoint_range_check".to_string()),
+    );
+    fields.insert(
+        "검사결과".to_string(),
+        Value::String(if checked.violations.is_empty() {
+            "통과".to_string()
+        } else {
+            "실패".to_string()
+        }),
+    );
+    fields.insert(
+        "범위개수".to_string(),
+        fixed_value(checked.range_count as i64),
+    );
+    fields.insert(
+        "위반개수".to_string(),
+        fixed_value(checked.violations.len() as i64),
+    );
+    fields.insert("위반들".to_string(), Value::List(checked.violations));
+    Ok(Value::Pack(fields))
+}
+
+fn endpoint_boundary_range_check(
+    values: &[Value],
+) -> Result<EndpointBoundaryRangeCheck, EvalError> {
+    if values.len() != 2 {
+        return Err(endpoint_boundary_range_error(
+            "connect_boundary_range_expected_solve_result",
+        ));
+    }
+    let solve_result = expect_endpoint_solve_result_value(&values[0])?;
+    let known_paths = endpoint_solve_result_mapping_paths(solve_result)?;
+    let value_by_path = endpoint_solve_result_values_by_path(solve_result)?;
+    let ranges = endpoint_range_bounds(&values[1])?;
+
+    let mut violations = Vec::new();
+    for range in &ranges {
+        if !known_paths.contains(&range.path) {
+            return Err(endpoint_boundary_range_error(
+                "connect_boundary_range_unknown_path",
+            ));
+        }
+        let Some(value) = value_by_path.get(&range.path) else {
+            let mut fields = endpoint_range_violation_base(&range.path, "missing_value");
+            if let Some(min) = &range.min {
+                fields.insert("하한".to_string(), min.clone());
+            }
+            if let Some(max) = &range.max {
+                fields.insert("상한".to_string(), max.clone());
+            }
+            violations.push(Value::Pack(fields));
+            continue;
+        };
+        if let Some(min) = &range.min {
+            let ord = endpoint_compare_range_numbers(value, min)?;
+            let below = if range.min_inclusive {
+                ord == std::cmp::Ordering::Less
+            } else {
+                ord != std::cmp::Ordering::Greater
+            };
+            if below {
+                let mut fields = endpoint_range_violation_base(&range.path, "below_min");
+                fields.insert("값".to_string(), value.clone());
+                fields.insert("하한".to_string(), min.clone());
+                if let Some(max) = &range.max {
+                    fields.insert("상한".to_string(), max.clone());
+                }
+                violations.push(Value::Pack(fields));
+                continue;
+            }
+        }
+        if let Some(max) = &range.max {
+            let ord = endpoint_compare_range_numbers(value, max)?;
+            let above = if range.max_inclusive {
+                ord == std::cmp::Ordering::Greater
+            } else {
+                ord != std::cmp::Ordering::Less
+            };
+            if above {
+                let mut fields = endpoint_range_violation_base(&range.path, "above_max");
+                fields.insert("값".to_string(), value.clone());
+                if let Some(min) = &range.min {
+                    fields.insert("하한".to_string(), min.clone());
+                }
+                fields.insert("상한".to_string(), max.clone());
+                violations.push(Value::Pack(fields));
+            }
+        }
+    }
+    Ok(EndpointBoundaryRangeCheck {
+        violations,
+        range_count: ranges.len(),
+    })
+}
+
+fn expect_endpoint_solve_result_value(
+    value: &Value,
+) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err(endpoint_boundary_range_error(
+            "connect_boundary_range_expected_solve_result",
+        ));
+    };
+    match fields.get("__이음관계종류") {
+        Some(Value::String(kind)) if kind == "endpoint_solve_result" => Ok(fields),
+        _ => Err(endpoint_boundary_range_error(
+            "connect_boundary_range_expected_solve_result",
+        )),
+    }
+}
+
+fn endpoint_solve_result_mapping_paths(
+    solve_result: &BTreeMap<String, Value>,
+) -> Result<BTreeSet<String>, EvalError> {
+    let mappings = endpoint_relation_list_field(solve_result, "변수사상")?;
+    let mut out = BTreeSet::new();
+    for item in mappings {
+        let Value::Pack(pack) = item else {
+            return Err(endpoint_boundary_range_error(
+                "connect_boundary_range_expected_solve_result",
+            ));
+        };
+        out.insert(endpoint_relation_string_field(pack, "경로")?.to_string());
+    }
+    Ok(out)
+}
+
+fn endpoint_solve_result_values_by_path(
+    solve_result: &BTreeMap<String, Value>,
+) -> Result<BTreeMap<String, Value>, EvalError> {
+    let values = endpoint_relation_list_field(solve_result, "값들")?;
+    let mut out = BTreeMap::new();
+    for item in values {
+        let Value::Pack(pack) = item else {
+            return Err(endpoint_boundary_range_error(
+                "connect_boundary_range_expected_solve_result",
+            ));
+        };
+        let path = endpoint_relation_string_field(pack, "경로")?;
+        let Some(value) = pack.get("값") else {
+            return Err(endpoint_boundary_range_error(
+                "connect_boundary_range_expected_solve_result",
+            ));
+        };
+        out.insert(path.to_string(), value.clone());
+    }
+    Ok(out)
+}
+
+fn endpoint_range_bounds(value: &Value) -> Result<Vec<EndpointRangeBound>, EvalError> {
+    let Value::List(items) = value else {
+        return Err(endpoint_boundary_range_error(
+            "connect_boundary_range_malformed_item",
+        ));
+    };
+    let mut seen_paths = BTreeSet::new();
+    let mut ranges = Vec::new();
+    for item in items {
+        let Value::Pack(pack) = item else {
+            return Err(endpoint_boundary_range_error(
+                "connect_boundary_range_malformed_item",
+            ));
+        };
+        let path = endpoint_range_path(pack)?.to_string();
+        if !seen_paths.insert(path.clone()) {
+            return Err(endpoint_boundary_range_error(
+                "connect_boundary_range_duplicate_path",
+            ));
+        }
+        let min = endpoint_optional_range_number(pack, "최소")?;
+        let max = endpoint_optional_range_number(pack, "최대")?;
+        if min.is_none() && max.is_none() {
+            return Err(endpoint_boundary_range_error(
+                "connect_boundary_range_malformed_item",
+            ));
+        }
+        let min_inclusive = endpoint_optional_bool(pack, "최소포함", true)?;
+        let max_inclusive = endpoint_optional_bool(pack, "최대포함", true)?;
+        ranges.push(EndpointRangeBound {
+            path,
+            min,
+            max,
+            min_inclusive,
+            max_inclusive,
+        });
+    }
+    Ok(ranges)
+}
+
+fn endpoint_range_path(fields: &BTreeMap<String, Value>) -> Result<&str, EvalError> {
+    match fields.get("경로") {
+        Some(Value::String(path)) => Ok(path.as_str()),
+        _ => Err(endpoint_boundary_range_error(
+            "connect_boundary_range_malformed_item",
+        )),
+    }
+}
+
+fn endpoint_optional_range_number(
+    fields: &BTreeMap<String, Value>,
+    field: &str,
+) -> Result<Option<Value>, EvalError> {
+    match fields.get(field) {
+        Some(Value::Fixed64(_)) | Some(Value::Unit(_)) => Ok(fields.get(field).cloned()),
+        Some(_) => Err(endpoint_boundary_range_error(
+            "connect_boundary_range_non_numeric",
+        )),
+        None => Ok(None),
+    }
+}
+
+fn endpoint_optional_bool(
+    fields: &BTreeMap<String, Value>,
+    field: &str,
+    default: bool,
+) -> Result<bool, EvalError> {
+    match fields.get(field) {
+        Some(Value::Bool(value)) => Ok(*value),
+        Some(_) => Err(endpoint_boundary_range_error(
+            "connect_boundary_range_malformed_item",
+        )),
+        None => Ok(default),
+    }
+}
+
+fn endpoint_compare_range_numbers(
+    left: &Value,
+    right: &Value,
+) -> Result<std::cmp::Ordering, EvalError> {
+    let left_exact = exact_numeric_from_value(left)?;
+    let right_exact = exact_numeric_from_value(right)?;
+    if let (Some(left), Some(right)) = (left_exact, right_exact) {
+        return Ok(exact_cmp(&left, &right));
+    }
+    let left = endpoint_range_numeric_unit(left)?;
+    let right = endpoint_range_numeric_unit(right)?;
+    if left.dim != right.dim {
+        let marker = if endpoint_currency_pair(left.dim, right.dim) {
+            "connect_boundary_range_incompatible_unit"
+        } else {
+            "connect_boundary_range_dim_conflict"
+        };
+        return Err(endpoint_boundary_range_error(marker));
+    }
+    Ok(left.value.cmp(&right.value))
+}
+
+fn endpoint_range_numeric_unit(value: &Value) -> Result<UnitValue, EvalError> {
+    match value {
+        Value::Fixed64(raw) => Ok(UnitValue {
+            value: *raw,
+            dim: UnitDim::NONE,
+        }),
+        Value::Unit(unit) => Ok(*unit),
+        _ => Err(endpoint_boundary_range_error(
+            "connect_boundary_range_non_numeric",
+        )),
+    }
+}
+
+fn endpoint_range_violation_base(path: &str, reason: &str) -> BTreeMap<String, Value> {
+    let mut fields = BTreeMap::new();
+    fields.insert("경로".to_string(), Value::String(path.to_string()));
+    fields.insert("이유".to_string(), Value::String(reason.to_string()));
+    fields
+}
+
+fn endpoint_boundary_range_error(marker: &'static str) -> EvalError {
+    marker.to_string().into()
+}
+
+fn expect_relation_solve_result(value: &Value) -> Result<&BTreeMap<String, Value>, EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err("relation solve result 묶음이 필요합니다".to_string().into());
+    };
+    relation_solve_result_kind(fields)?;
+    Ok(fields)
+}
+
+fn relation_solve_result_kind(fields: &BTreeMap<String, Value>) -> Result<&str, EvalError> {
+    match fields.get(RELATION_SOLVE_RESULT_KIND_FIELD) {
+        Some(Value::String(kind)) => Ok(kind.as_str()),
+        _ => Err("relation solve result kind가 필요합니다".to_string().into()),
+    }
+}
+
+fn endpoint_formula_relation_bridge(
+    values: &[Value],
+) -> Result<EndpointFormulaRelationBridge, EvalError> {
+    if values.len() != 1 {
+        return Err("endpoint connect relation 1개가 필요합니다"
+            .to_string()
+            .into());
+    }
+    let mut flat_relations = Vec::new();
+    flatten_endpoint_relation_value(&values[0], &mut flat_relations)?;
+
+    let mut variables: BTreeMap<String, String> = BTreeMap::new();
+    let mut mappings = Vec::new();
+    let mut relation_packs = Vec::new();
+    for relation in flat_relations {
+        let Value::Pack(fields) = relation else {
+            return Err("endpoint connect relation 묶음이 필요합니다"
+                .to_string()
+                .into());
+        };
+        match endpoint_relation_kind(&fields)? {
+            "endpoint_equality" => {
+                let left = endpoint_formula_variable_for_field(
+                    &fields,
+                    "왼쪽",
+                    &mut variables,
+                    &mut mappings,
+                )?;
+                let right = endpoint_formula_variable_for_field(
+                    &fields,
+                    "오른쪽",
+                    &mut variables,
+                    &mut mappings,
+                )?;
+                relation_packs.push(make_relation_pack(
+                    endpoint_formula_value(&left),
+                    endpoint_formula_value(&right),
+                ));
+            }
+            "endpoint_flow" => {
+                let convention = endpoint_relation_string_field(&fields, "부호규약")?;
+                if convention != "left_plus_right_zero" {
+                    return Err(
+                        "endpoint flow는 left_plus_right_zero 부호규약만 방정식화할 수 있습니다"
+                            .to_string()
+                            .into(),
+                    );
+                }
+                let left = endpoint_formula_variable_for_field(
+                    &fields,
+                    "왼쪽",
+                    &mut variables,
+                    &mut mappings,
+                )?;
+                let right = endpoint_formula_variable_for_field(
+                    &fields,
+                    "오른쪽",
+                    &mut variables,
+                    &mut mappings,
+                )?;
+                relation_packs.push(make_relation_pack(
+                    endpoint_formula_value(&format!("{left} + {right}")),
+                    endpoint_formula_value("0"),
+                ));
+            }
+            "endpoint_carried_property" => {
+                return Err("endpoint_carried_property는 방정식화 대상이 아닙니다"
+                    .to_string()
+                    .into());
+            }
+            _ => {
+                return Err("지원하지 않는 endpoint relation은 방정식화할 수 없습니다"
+                    .to_string()
+                    .into());
+            }
+        }
+    }
+
+    Ok(EndpointFormulaRelationBridge {
+        relations: relation_packs,
+        mappings,
+    })
+}
+
+fn flatten_endpoint_relation_value(value: &Value, out: &mut Vec<Value>) -> Result<(), EvalError> {
+    let Value::Pack(fields) = value else {
+        return Err("endpoint connect relation 묶음이 필요합니다"
+            .to_string()
+            .into());
+    };
+    match endpoint_relation_kind(fields)? {
+        "endpoint_equality" | "endpoint_flow" | "endpoint_carried_property" => {
+            out.push(value.clone());
+            Ok(())
+        }
+        "endpoint_relation_set" => {
+            let relations = endpoint_relation_list_field(fields, "관계들")?;
+            for item in relations {
+                flatten_endpoint_relation_value(item, out)?;
+            }
+            Ok(())
+        }
+        "endpoint_relation_flat_set" => {
+            let relations = endpoint_relation_list_field(fields, "관계들")?;
+            for item in relations {
+                flatten_endpoint_relation_value(item, out)?;
+            }
+            Ok(())
+        }
+        "endpoint_statement_set" => {
+            let statements = endpoint_relation_list_field(fields, "이음들")?;
+            for item in statements {
+                flatten_endpoint_relation_value(item, out)?;
+            }
+            Ok(())
+        }
+        _ => Err("지원하지 않는 endpoint connect relation입니다"
+            .to_string()
+            .into()),
+    }
+}
+
+fn endpoint_formula_variable_for_field(
+    fields: &BTreeMap<String, Value>,
+    field: &str,
+    variables: &mut BTreeMap<String, String>,
+    mappings: &mut Vec<Value>,
+) -> Result<String, EvalError> {
+    let path = endpoint_relation_string_field(fields, field)?;
+    if let Some(variable) = variables.get(path) {
+        return Ok(variable.clone());
+    }
+    let variable = format!("ep_{:03}", variables.len() + 1);
+    variables.insert(path.to_string(), variable.clone());
+    let mut mapping = BTreeMap::new();
+    mapping.insert("변수".to_string(), Value::String(variable.clone()));
+    mapping.insert("경로".to_string(), Value::String(path.to_string()));
+    mappings.push(Value::Pack(mapping));
+    Ok(variable)
+}
+
+fn endpoint_relation_string_field<'a>(
+    fields: &'a BTreeMap<String, Value>,
+    field: &str,
+) -> Result<&'a str, EvalError> {
+    match fields.get(field) {
+        Some(Value::String(value)) => Ok(value.as_str()),
+        _ => Err(format!("endpoint connect relation field '{field}' 글이 필요합니다").into()),
+    }
+}
+
+fn endpoint_formula_value(body: &str) -> Formula {
+    Formula {
+        raw: body.to_string(),
+        dialect: FormulaDialect::Ascii,
+        explicit_tag: true,
+    }
+}
+
+fn endpoint_relation_kind(fields: &BTreeMap<String, Value>) -> Result<&str, EvalError> {
+    match fields.get("__이음관계종류") {
+        Some(Value::String(kind)) => Ok(kind.as_str()),
+        _ => Err("endpoint connect relation kind가 필요합니다"
+            .to_string()
+            .into()),
+    }
+}
+
+fn endpoint_relation_list_field<'a>(
+    fields: &'a BTreeMap<String, Value>,
+    field: &str,
+) -> Result<&'a [Value], EvalError> {
+    match fields.get(field) {
+        Some(Value::List(items)) => Ok(items),
+        _ => Err(format!("endpoint connect relation field '{field}' 차림이 필요합니다").into()),
+    }
+}
+
 fn make_relation_solve_success_bindings(bindings: BTreeMap<String, Value>) -> Value {
     let mut fields = BTreeMap::new();
     fields.insert(
@@ -9114,7 +13327,7 @@ fn state_machine_canon(machine: &StateMachine) -> String {
     }
     for check in &machine.on_transition_checks {
         out.push(' ');
-        out.push_str("전이마다 ");
+        out.push_str("바뀔때마다 ");
         out.push_str(check);
         out.push_str(" 살피기.");
     }
@@ -12536,9 +16749,34 @@ fn position_to_line_col(source: &str, byte_pos: usize) -> (u32, u32) {
 mod tests {
     use super::*;
     use ddonirang_lang::runtime::Value as RuntimeValue;
-    use std::sync::Mutex;
+    use std::sync::{Mutex, MutexGuard};
 
     static AGE_TARGET_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    struct AgeTargetTestGuard {
+        _lock: MutexGuard<'static, ()>,
+        previous: AgeTarget,
+    }
+
+    impl AgeTargetTestGuard {
+        fn new(age: AgeTarget) -> Self {
+            let lock = AGE_TARGET_TEST_LOCK
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            let previous = default_age_target();
+            set_default_age_target(age);
+            Self {
+                _lock: lock,
+                previous,
+            }
+        }
+    }
+
+    impl Drop for AgeTargetTestGuard {
+        fn drop(&mut self) {
+            set_default_age_target(self.previous);
+        }
+    }
 
     struct FactorizationTestOverrideGuard {
         previous_iters: usize,
@@ -12581,6 +16819,24 @@ mod tests {
             Some(other) => panic!("{} must be Fixed64, got {:?}", key, other),
             None => panic!("{} missing", key),
         }
+    }
+
+    fn linear_inequality_test_condition(body: &str, compare: &str, boundary: i64) -> RuntimeValue {
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            "식".to_string(),
+            RuntimeValue::Formula(Formula {
+                raw: body.to_string(),
+                dialect: FormulaDialect::Ascii,
+                explicit_tag: true,
+            }),
+        );
+        fields.insert("비교".to_string(), RuntimeValue::String(compare.to_string()));
+        fields.insert(
+            "경계".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(boundary)),
+        );
+        RuntimeValue::Pack(fields)
     }
 
     #[test]
@@ -13344,11 +17600,175 @@ mod tests {
     }
 
     #[test]
+    fn numeric_root_finding_v1_bisection_returns_root_residual_iteration_method() {
+        let script = r#"
+매틱:움직씨 = {
+    r <- (((#ascii) 수식{x - 2}), "x", 0, 4, 8) 수치해.이분법.
+    근 <- (r, 0) 차림.값.
+    잔차 <- (r, 1) 차림.값.
+    반복값 <- (r, 2) 차림.값.
+    방법 <- (r, 3) 차림.값.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_root_finding_v1.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("근".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("잔차".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("반복값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        defaults.insert("방법".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        assert_eq!(extract_fixed(&output.resources, "근"), Fixed64::from_i64(2));
+        assert_eq!(extract_fixed(&output.resources, "잔차"), Fixed64::ZERO);
+        assert_eq!(extract_fixed(&output.resources, "반복값"), Fixed64::from_i64(1));
+        match output.resources.get("방법") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "이분법"),
+            other => panic!("방법 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn numeric_root_finding_v1_rejects_unbracketed_root() {
+        let script = r#"
+매틱:움직씨 = {
+    r <- (((#ascii) 수식{x^2 + 1}), "x", -1, 1, 8) 수치해.이분법.
+}
+"#;
+        let program = DdnProgram::from_source(script, "numeric_root_finding_v1_bad.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let err = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.contains("E_CALC_NUMERIC_BRACKET_SIGN"),
+            "expected bracket sign guard, got {err}"
+        );
+    }
+
+    #[test]
+    fn polynomial_solve_minimum_v1_reuses_exact_quadratic_relation_solver() {
+        let script = r#"
+매틱:움직씨 = {
+    f <- (#ascii) 수식{x^2 - 4*x + 4}.
+    결과 <- (f, "x") 다항식.풀기.
+    미지수 <- 결과.미지수.
+    값 <- 결과.값.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "polynomial_solve_minimum_v1.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("미지수".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("값".to_string(), RuntimeValue::Fixed64(Fixed64::ZERO));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        match output.resources.get("미지수") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "x"),
+            other => panic!("미지수 must be string, got {:?}", other),
+        }
+        let Some(RuntimeValue::Pack(value_pack)) = output.resources.get("값") else {
+            panic!("값 must be exact numeric pack");
+        };
+        assert_eq!(
+            value_pack.get("__수타입"),
+            Some(&RuntimeValue::String("큰바른수".to_string()))
+        );
+        assert_eq!(
+            value_pack.get("값"),
+            Some(&RuntimeValue::String("2".to_string()))
+        );
+    }
+
+    #[test]
+    fn polynomial_solve_minimum_v1_preserves_non_unique_boundary() {
+        let script = r#"
+매틱:움직씨 = {
+    f <- (#ascii) 수식{x^2 - 5*x + 6}.
+    결과 <- (f, "x") 다항식.풀기.
+    사유 <- 결과.사유.
+}
+"#;
+        let program = DdnProgram::from_source(
+            script,
+            "polynomial_solve_minimum_v1_non_unique.ddn",
+        )
+        .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("사유".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+
+        match output.resources.get("사유") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "non_unique"),
+            other => panic!("사유 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn linear_inequality_solve_minimum_v1_returns_bounded_interval() {
+        let conditions = Value::List(vec![
+            linear_inequality_test_condition("2*x + 1", "이하", 9),
+            linear_inequality_test_condition("x - 1", "이상", 2),
+        ]);
+        let solved = eval_linear_inequality_solve(&[conditions, Value::String("x".to_string())])
+            .expect("solve");
+        let Value::Pack(output) = solved else {
+            panic!("solution must be pack");
+        };
+        match output.get("상태") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "구간"),
+            other => panic!("상태 must be string, got {:?}", other),
+        }
+        assert_eq!(output.get("하한"), Some(&unit_value_to_value(UnitValue {
+            value: Fixed64::from_i64(3),
+            dim: UnitDim::NONE,
+        })));
+        assert_eq!(output.get("상한"), Some(&unit_value_to_value(UnitValue {
+            value: Fixed64::from_i64(4),
+            dim: UnitDim::NONE,
+        })));
+        assert_eq!(output.get("하한포함"), Some(&RuntimeValue::Bool(true)));
+        assert_eq!(output.get("상한포함"), Some(&RuntimeValue::Bool(true)));
+    }
+
+    #[test]
+    fn linear_inequality_solve_minimum_v1_detects_empty_interval() {
+        let conditions = Value::List(vec![
+            linear_inequality_test_condition("x", "미만", 1),
+            linear_inequality_test_condition("x", "초과", 1),
+        ]);
+        let solved = eval_linear_inequality_solve(&[conditions, Value::String("x".to_string())])
+            .expect("solve");
+        let Value::Pack(output) = solved else {
+            panic!("solution must be pack");
+        };
+        match output.get("상태") {
+            Some(RuntimeValue::String(value)) => assert_eq!(value, "공집합"),
+            other => panic!("상태 must be string, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn contract_pre_abort_restores_state_before_else_body() {
         let script = r#"
 매틱:움직씨 = {
     x <- 5.
-    { x > 10 }인것 바탕으로(중단) 아니면 {
+    { x > 10 }인것 바탕으로(물림) 아니면 {
         x <- x + 1.
     }
     y <- 1.
@@ -13368,7 +17788,7 @@ mod tests {
         assert!(!output.resources.contains_key("y"));
         let events = contract_diag_events(&output);
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].mode.as_deref(), Some("중단"));
+        assert_eq!(events[0].mode.as_deref(), Some("물림"));
         assert_eq!(events[0].contract_kind.as_deref(), Some("pre"));
     }
 
@@ -13377,7 +17797,7 @@ mod tests {
         let script = r#"
 매틱:움직씨 = {
     y <- 5.
-    { y < 5 }인것 다짐하고(중단) 아니면 {
+    { y < 5 }인것 다짐하고(물림) 아니면 {
         y <- y + 1.
     }
     z <- 1.
@@ -13397,7 +17817,7 @@ mod tests {
         assert!(!output.resources.contains_key("z"));
         let events = contract_diag_events(&output);
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].mode.as_deref(), Some("중단"));
+        assert_eq!(events[0].mode.as_deref(), Some("물림"));
         assert_eq!(events[0].contract_kind.as_deref(), Some("post"));
     }
 
@@ -13459,13 +17879,11 @@ mod tests {
 
     #[test]
     fn state_machine_builtins_progress_and_store_value() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age1);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
         let script = r#"
 매틱:움직씨 = {
     전이_안전 <- 세움{
-        { 현재상태 != 다음상태 }인것 바탕으로(중단) 아니면 {
+        { 현재상태 != 다음상태 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
@@ -13475,7 +17893,7 @@ mod tests {
         빨강 에서 초록 으로.
         초록 에서 노랑 으로.
         노랑 에서 빨강 으로.
-        전이마다 전이_안전 살피기.
+        바뀔때마다 전이_안전 살피기.
     }.
     현재 <- (기계) 처음으로.
     다음 <- (기계, 현재) 다음으로.
@@ -13483,7 +17901,6 @@ mod tests {
 }
 "#;
         let program = DdnProgram::from_source(script, "state_machine.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -13532,13 +17949,11 @@ mod tests {
 
     #[test]
     fn state_machine_transition_check_failure_aborts_next_state() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age1);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
         let script = r#"
 매틱:움직씨 = {
     전이_실패 <- 세움{
-        { 현재상태 == 다음상태 }인것 바탕으로(중단) 아니면 {
+        { 현재상태 == 다음상태 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
@@ -13546,14 +17961,13 @@ mod tests {
         빨강, 초록 으로 이뤄짐.
         빨강 으로 시작.
         빨강 에서 초록 으로.
-        전이마다 전이_실패 살피기.
+        바뀔때마다 전이_실패 살피기.
     }.
     현재 <- (기계) 처음으로.
     다음 <- (기계, 현재) 다음으로.
 }
 "#;
         let program = DdnProgram::from_source(script, "state_machine_fail.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -13570,16 +17984,14 @@ mod tests {
 
     #[test]
     fn state_machine_transition_check_requires_resolved_assertion() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age1);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
         let script = r#"
 매틱:움직씨 = {
     기계 <- 상태머신{
         빨강, 초록 으로 이뤄짐.
         빨강 으로 시작.
         빨강 에서 초록 으로.
-        전이마다 전이_안전 살피기.
+        바뀔때마다 전이_안전 살피기.
     }.
     현재 <- (기계) 처음으로.
     다음 <- (기계, 현재) 다음으로.
@@ -13587,7 +17999,6 @@ mod tests {
 "#;
         let program =
             DdnProgram::from_source(script, "state_machine_unresolved.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -13604,9 +18015,7 @@ mod tests {
 
     #[test]
     fn state_machine_guard_selects_first_passing_transition_and_runs_action() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age1);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
         let script = r#"
 (현재상태:글, 다음상태:글) 기록:움직씨 = {
     횟수 <- 횟수 + 1.
@@ -13615,12 +18024,12 @@ mod tests {
 
 매틱:움직씨 = {
     거짓_거름 <- 세움{
-        { 현재상태 == 다음상태 }인것 바탕으로(중단) 아니면 {
+        { 현재상태 == 다음상태 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
     참_거름 <- 세움{
-        { 현재상태 != 다음상태 }인것 바탕으로(중단) 아니면 {
+        { 현재상태 != 다음상태 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
@@ -13629,7 +18038,7 @@ mod tests {
         빨강 으로 시작.
         빨강 에서 초록 으로 걸러서 거짓_거름 하고 기록.
         빨강 에서 파랑 으로 걸러서 참_거름 하고 기록.
-        전이마다 참_거름 살피기.
+        바뀔때마다 참_거름 살피기.
     }.
     현재 <- (기계) 처음으로.
     다음 <- (기계, 현재) 다음으로.
@@ -13637,7 +18046,6 @@ mod tests {
 "#;
         let program =
             DdnProgram::from_source(script, "state_machine_guard_action.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -13675,13 +18083,11 @@ mod tests {
 
     #[test]
     fn state_machine_guard_rejected_when_all_candidates_fail() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age1);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
         let script = r#"
 매틱:움직씨 = {
     거짓_거름 <- 세움{
-        { 현재상태 == 다음상태 }인것 바탕으로(중단) 아니면 {
+        { 현재상태 == 다음상태 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
@@ -13697,7 +18103,6 @@ mod tests {
 "#;
         let program =
             DdnProgram::from_source(script, "state_machine_guard_rejected.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -13714,7 +18119,6 @@ mod tests {
 
     #[test]
     fn state_machine_is_age1_feature_gated() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
     기계 <- 상태머신{
@@ -13726,13 +18130,11 @@ mod tests {
     }.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age0);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age0);
         let err = match DdnProgram::from_source(script, "state_machine_age0.ddn") {
             Ok(_) => panic!("age gate"),
             Err(err) => err,
         };
-        set_default_age_target(old_age);
         assert!(
             err.contains("E_AGE_NOT_AVAILABLE"),
             "expected age gate, got {err}"
@@ -13745,13 +18147,11 @@ mod tests {
 
     #[test]
     fn assertion_check_returns_true_and_stores_value() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age1);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
         let script = r#"
 매틱:움직씨 = {
     검사 <- 세움{
-        { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+        { 거리 > 0 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
@@ -13759,7 +18159,6 @@ mod tests {
 }
 "#;
         let program = DdnProgram::from_source(script, "assertion_ok.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -13781,14 +18180,12 @@ mod tests {
 
     #[test]
     fn assertion_check_failure_emits_diag_and_keeps_state_clean() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age1);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
         let script = r#"
 매틱:움직씨 = {
     x <- 1.
     검사 <- 세움{
-        { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+        { 거리 > 0 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
@@ -13796,7 +18193,6 @@ mod tests {
 }
 "#;
         let program = DdnProgram::from_source(script, "assertion_fail.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -13817,24 +18213,21 @@ mod tests {
 
     #[test]
     fn assertion_is_age1_feature_gated() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
     검사 <- 세움{
-        { 거리 > 0 }인것 바탕으로(중단) 아니면 {
+        { 거리 > 0 }인것 바탕으로(물림) 아니면 {
             없음.
         }.
     }.
     결과 <- (거리=3)인 검사 살피기.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age0);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age0);
         let err = match DdnProgram::from_source(script, "assertion_age0.ddn") {
             Ok(_) => panic!("age gate"),
             Err(err) => err,
         };
-        set_default_age_target(old_age);
         assert!(
             err.contains("E_AGE_NOT_AVAILABLE"),
             "expected age gate, got {err}"
@@ -13846,8 +18239,39 @@ mod tests {
     }
 
     #[test]
+    fn seumssi_v1b_surface_alias_runs_as_canonical_seum() {
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age1);
+        let script = r#"
+매틱:움직씨 = {
+    검사 <- 세움씨{
+        { 거리 > 0 }인것 바탕으로(물림) 아니면 {
+            없음.
+        }.
+    }.
+    결과 <- (거리=3)인 검사 살피기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "seumssi_v1b.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let output = runner
+            .run_update(&world, &empty_input(), &HashMap::new())
+            .expect("run update");
+        match output.resources.get("검사") {
+            Some(RuntimeValue::Assertion(assertion)) => {
+                assert!(assertion.canon.starts_with("세움{"));
+                assert!(!assertion.canon.starts_with("세움씨{"));
+            }
+            other => panic!("검사 must be assertion, got {:?}", other),
+        }
+        match output.resources.get("결과") {
+            Some(RuntimeValue::Bool(value)) => assert!(*value),
+            other => panic!("결과 must be bool, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn regex_builtins_run_deterministically() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
     맞음 <- ("ab12", 정규식{"^[A-Z]{2}[0-9]+$", "i"}) 정규맞추기.
@@ -13867,10 +18291,8 @@ mod tests {
     조각수 <- (조각) 길이.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age3);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age3);
         let program = DdnProgram::from_source(script, "regex.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -14197,11 +18619,9 @@ mod tests {
     바꿈 <- ("ab-12", 정규식{"(?P<word>[a-z]+)-(?P<num>[0-9]+)", "i"}, "${missing}") 정규바꾸기.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age3);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age3);
         let program =
             DdnProgram::from_source(script, "regex_replacement_invalid.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -14223,11 +18643,9 @@ mod tests {
     바꿈 <- ("ab-12", 정규식{"([a-z]+)-([0-9]+)", "i"}, "$10") 정규바꾸기.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age3);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age3);
         let program = DdnProgram::from_source(script, "regex_replacement_numeric_invalid.ddn")
             .expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -14271,10 +18689,8 @@ mod tests {
             ),
         ];
         for (file_name, script) in cases {
-            let old_age = default_age_target();
-            set_default_age_target(AgeTarget::Age3);
+            let _age = AgeTargetTestGuard::new(AgeTarget::Age3);
             let program = DdnProgram::from_source(script, file_name).expect("parse");
-            set_default_age_target(old_age);
             let mut runner = DdnRunner::new(program, "매틱");
             let world = NuriWorld::new();
             let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -14330,6 +18746,806 @@ mod tests {
             Some(RuntimeValue::Bool(value)) => assert!(*value),
             other => panic!("같음 must be bool, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn std_grid_closure_runtime_pathfind_and_physics_smoke() {
+        let script = r##"
+매틱:움직씨 = {
+    길 <- ".".
+    벽 <- "#".
+    격0 <- (4, 3, 길) 격자.만들기.
+    격1 <- (격0, 1, 0, 벽) 격자.바꾼값.
+    격2 <- (격1, 1, 1, 벽) 격자.바꾼값.
+    격3 <- (격2, 3, 1, 벽) 격자.바꾼값.
+    경로 <- (격3, 0, 0, 3, 2, (벽) 차림) 격자.길찾기.
+    경로길이 <- (경로) 길이.
+    다음위치 <- (10, 2, 3) 물리1d.위치갱신.
+}
+"##;
+        let program = DdnProgram::from_source(script, "std_grid_closure.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert(
+            "경로길이".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(0)),
+        );
+        defaults.insert(
+            "다음위치".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(0)),
+        );
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            extract_fixed(&output.resources, "경로길이"),
+            Fixed64::from_i64(6)
+        );
+        assert_eq!(
+            extract_fixed(&output.resources, "다음위치"),
+            Fixed64::from_i64(16)
+        );
+    }
+
+    #[test]
+    fn std_block_piece_geometry_moves_and_rotates() {
+        let script = r#"
+매틱:움직씨 = {
+    조각 <- (((0, 0) 차림, (1, 0) 차림, (0, 1) 차림) 차림) 블록조각.만들기.
+    원본 <- (조각) 블록조각.칸목록.
+    이동 <- ((조각, 2, 1) 블록조각.이동) 블록조각.칸목록.
+    오른쪽 <- ((조각, "오른쪽") 블록조각.회전) 블록조각.칸목록.
+    왼쪽 <- ((조각, "왼쪽") 블록조각.회전) 블록조각.칸목록.
+    뒤집기 <- ((조각, "뒤집기") 블록조각.회전) 블록조각.칸목록.
+}
+"#;
+        let program =
+            DdnProgram::from_source(script, "std_block_piece_geometry.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["원본", "이동", "오른쪽", "왼쪽", "뒤집기"] {
+            defaults.insert(key.to_string(), RuntimeValue::List(Vec::new()));
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("원본").map(value_to_string),
+            Some("차림[차림[0, 0], 차림[1, 0], 차림[0, 1]]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("이동").map(value_to_string),
+            Some("차림[차림[2, 1], 차림[3, 1], 차림[2, 2]]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("오른쪽").map(value_to_string),
+            Some("차림[차림[-1, 0], 차림[0, 0], 차림[0, 1]]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("왼쪽").map(value_to_string),
+            Some("차림[차림[0, -1], 차림[0, 0], 차림[1, 0]]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("뒤집기").map(value_to_string),
+            Some("차림[차림[0, -1], 차림[-1, 0], 차림[0, 0]]".to_string())
+        );
+    }
+
+    #[test]
+    fn std_block_piece_grid_bridge_collides_and_locks() {
+        let script = r##"
+매틱:움직씨 = {
+    빈칸 <- ".".
+    벽 <- "#".
+    격0 <- (4, 3, 빈칸) 격자.만들기.
+    격1 <- (격0, 3, 1, 벽) 격자.바꾼값.
+    조각 <- (((0, 0) 차림, (1, 0) 차림, (0, 1) 차림) 차림) 블록조각.만들기.
+    안쪽 <- (조각, 1, 1) 블록조각.이동.
+    벽쪽 <- (조각, 2, 1) 블록조각.이동.
+    바깥 <- (조각, -1, 0) 블록조각.이동.
+    안쪽충돌 <- (안쪽, 격1, (벽) 차림) 블록조각.충돌?.
+    벽충돌 <- (벽쪽, 격1, (벽) 차림) 블록조각.충돌?.
+    밖충돌 <- (바깥, 격1, (벽) 차림) 블록조각.충돌?.
+    고정격 <- (안쪽, 격1, "X") 블록조각.고정.
+    고정값 <- (고정격, 1, 1) 격자.값.
+    원래벽 <- (고정격, 3, 1) 격자.값.
+}
+"##;
+        let program =
+            DdnProgram::from_source(script, "std_block_piece_grid_bridge.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["안쪽충돌", "벽충돌", "밖충돌"] {
+            defaults.insert(key.to_string(), RuntimeValue::Bool(false));
+        }
+        defaults.insert("고정값".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("원래벽".to_string(), RuntimeValue::String(String::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("안쪽충돌"),
+            Some(&RuntimeValue::Bool(false))
+        );
+        assert_eq!(
+            output.resources.get("벽충돌"),
+            Some(&RuntimeValue::Bool(true))
+        );
+        assert_eq!(
+            output.resources.get("밖충돌"),
+            Some(&RuntimeValue::Bool(true))
+        );
+        assert_eq!(
+            output.resources.get("고정값"),
+            Some(&RuntimeValue::String("X".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("원래벽"),
+            Some(&RuntimeValue::String("#".to_string()))
+        );
+    }
+
+    #[test]
+    fn std_random_bag_draws_refills_and_previews() {
+        let script = r#"
+매틱:움직씨 = {
+    가방0 <- (0, ("I", "O", "T") 차림) 무작위가방.만들기.
+    미리 <- (가방0, 5) 무작위가방.미리보기.
+    뽑1 <- (가방0) 무작위가방.꺼내기.
+    값1 <- 뽑1.값.
+    가방1 <- 뽑1.가방.
+    뽑2 <- (가방1) 무작위가방.꺼내기.
+    값2 <- 뽑2.값.
+    가방2 <- 뽑2.가방.
+    뽑3 <- (가방2) 무작위가방.꺼내기.
+    값3 <- 뽑3.값.
+    가방3 <- 뽑3.가방.
+    빈가 <- (가방3) 무작위가방.비었나.
+    남은3 <- (가방3) 무작위가방.남은것.
+    뽑4 <- (가방3) 무작위가방.꺼내기.
+    값4 <- 뽑4.값.
+    남은4 <- (뽑4.가방) 무작위가방.남은것.
+}
+"#;
+        let program = DdnProgram::from_source(script, "std_random_bag.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("미리".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("값1".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("값2".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("값3".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("값4".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("빈가".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("남은3".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("남은4".to_string(), RuntimeValue::List(Vec::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("미리").map(value_to_string),
+            Some("차림[O, I, T, O, T]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("값1"),
+            Some(&RuntimeValue::String("O".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("값2"),
+            Some(&RuntimeValue::String("I".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("값3"),
+            Some(&RuntimeValue::String("T".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("빈가"),
+            Some(&RuntimeValue::Bool(true))
+        );
+        assert_eq!(
+            output.resources.get("남은3").map(value_to_string),
+            Some("차림[]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("값4"),
+            Some(&RuntimeValue::String("O".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("남은4").map(value_to_string),
+            Some("차림[I, T]".to_string())
+        );
+    }
+
+    #[test]
+    fn std_grid_game_state_lifecycle_pause_resume() {
+        let script = r#"
+매틱:움직씨 = {
+    초기 <- () 격자게임상태.초기화.
+    상태0 <- (초기) 격자게임상태.상태.
+    틱0 <- (초기) 격자게임상태.틱.
+    진행 <- (초기, "진행") 격자게임상태.바꾸기.
+    진행인가 <- (진행, "진행") 격자게임상태.상태인가.
+    멈춤 <- (진행) 격자게임상태.멈춤.
+    멈춤상태 <- (멈춤) 격자게임상태.상태.
+    재개 <- (멈춤) 격자게임상태.재개.
+    재개상태 <- (재개) 격자게임상태.상태.
+    재개틱 <- (재개) 격자게임상태.틱.
+}
+"#;
+        let program = DdnProgram::from_source(script, "std_grid_game_state.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("상태0".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert(
+            "틱0".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(-1)),
+        );
+        defaults.insert("진행인가".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("멈춤상태".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("재개상태".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert(
+            "재개틱".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(-1)),
+        );
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("상태0"),
+            Some(&RuntimeValue::String("준비".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("틱0"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(0)))
+        );
+        assert_eq!(
+            output.resources.get("진행인가"),
+            Some(&RuntimeValue::Bool(true))
+        );
+        assert_eq!(
+            output.resources.get("멈춤상태"),
+            Some(&RuntimeValue::String("멈춤".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("재개상태"),
+            Some(&RuntimeValue::String("진행".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("재개틱"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(3)))
+        );
+    }
+
+    #[test]
+    fn std_grid_game_playable_catalog_lines_falling_score_and_tick() {
+        let script = r#"
+매틱:움직씨 = {
+    이름들 <- () 테트로미노.이름목록.
+    아이 <- ("I") 테트로미노.만들기.
+    아이칸 <- (아이) 블록조각.칸목록.
+    빈 <- ".".
+    격0 <- (4, 3, 빈) 격자.만들기.
+    격1 <- (격0, 1, 1, "P") 격자.바꾼값.
+    격2 <- (격1, 0, 2, "X") 격자.바꾼값.
+    격3 <- (격2, 1, 2, "X") 격자.바꾼값.
+    격4 <- (격3, 2, 2, "X") 격자.바꾼값.
+    격5 <- (격4, 3, 2, "X") 격자.바꾼값.
+    찬줄 <- (격5, 빈) 격자줄.찬줄목록.
+    지움 <- (격5, 빈) 격자줄.지우기.
+    지운수 <- 지움.지운줄수.
+    격후 <- 지움.격자.
+    아래중 <- (격후, 1, 2) 격자.값.
+    오 <- ("O") 테트로미노.만들기.
+    낙0 <- (오, 2, 3) 낙하조각.만들기.
+    배치0 <- (낙0) 낙하조각.배치.
+    점0 <- () 격자게임점수.초기화.
+    점1 <- (점0, 4) 격자게임점수.더하기.
+    점2 <- (점1, 4) 격자게임점수.더하기.
+    점3 <- (점2, 2) 격자게임점수.더하기.
+    점4 <- (점3, 1) 격자게임점수.더하기.
+    점수4 <- (점4) 격자게임점수.점수.
+    줄4 <- (점4) 격자게임점수.줄수.
+    레벨4 <- (점4) 격자게임점수.레벨.
+    격 <- (4, 4, 빈) 격자.만들기.
+    가방 <- (0, ("O", "I") 차림) 무작위가방.만들기.
+    상태0 <- () 격자게임상태.초기화.
+    진행상태 <- (상태0, "진행") 격자게임상태.바꾸기.
+    낙 <- (오, 1, 0) 낙하조각.만들기.
+    세션 <- (격, 가방, 진행상태, 점0, 낙) 격자게임세션.만들기.
+    조작맵 <- () 입력사상.만들기.
+    틱 <- (세션, 조작맵) 격자게임.한틱.
+    고정 <- 틱.고정됐나.
+    다음세션 <- 틱.세션.
+    다음낙 <- (다음세션) 격자게임세션.낙하조각.
+    위치 <- (다음낙) 낙하조각.위치.
+}
+"#;
+        let program = DdnProgram::from_source(script, "std_grid_game_playable.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["이름들", "아이칸", "찬줄", "배치0", "위치"] {
+            defaults.insert(key.to_string(), RuntimeValue::List(Vec::new()));
+        }
+        for key in ["지운수", "점수4", "줄4", "레벨4"] {
+            defaults.insert(
+                key.to_string(),
+                RuntimeValue::Fixed64(Fixed64::from_i64(-1)),
+            );
+        }
+        defaults.insert("아래중".to_string(), RuntimeValue::String(String::new()));
+        defaults.insert("고정".to_string(), RuntimeValue::Bool(true));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("이름들").map(value_to_string),
+            Some("차림[I, O, T, S, Z, J, L]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("아이칸").map(value_to_string),
+            Some("차림[차림[-1, 0], 차림[0, 0], 차림[1, 0], 차림[2, 0]]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("찬줄").map(value_to_string),
+            Some("차림[2]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("지운수"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(1)))
+        );
+        assert_eq!(
+            output.resources.get("아래중"),
+            Some(&RuntimeValue::String("P".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("배치0").map(value_to_string),
+            Some("차림[차림[2, 3], 차림[3, 3], 차림[2, 4], 차림[3, 4]]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("점수4"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(2100)))
+        );
+        assert_eq!(
+            output.resources.get("줄4"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(11)))
+        );
+        assert_eq!(
+            output.resources.get("레벨4"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(2)))
+        );
+        assert_eq!(
+            output.resources.get("고정"),
+            Some(&RuntimeValue::Bool(false))
+        );
+        assert_eq!(
+            output.resources.get("위치").map(value_to_string),
+            Some("차림[1, 1]".to_string())
+        );
+    }
+
+    #[test]
+    fn std_grid_game_view_projects_text_cells_and_summary() {
+        let script = r#"
+매틱:움직씨 = {
+    빈 <- ".".
+    격0 <- (4, 4, 빈) 격자.만들기.
+    격1 <- (격0, 0, 3, "X") 격자.바꾼값.
+    가방 <- (0, ("O", "I") 차림) 무작위가방.만들기.
+    상태0 <- () 격자게임상태.초기화.
+    진행 <- (상태0, "진행") 격자게임상태.바꾸기.
+    점 <- () 격자게임점수.초기화.
+    오 <- ("O") 테트로미노.만들기.
+    낙 <- (오, 1, 0) 낙하조각.만들기.
+    세션 <- (격1, 가방, 진행, 점, 낙) 격자게임세션.만들기.
+    칸목록 <- (세션, 빈, "O") 격자게임보기.칸목록.
+    칸수 <- (칸목록) 길이.
+    칸0 <- (칸목록, 0) 차림.값.
+    칸1 <- (칸목록, 1) 차림.값.
+    칸12 <- (칸목록, 12) 차림.값.
+    원천0 <- 칸0.원천.
+    원천1 <- 칸1.원천.
+    원천12 <- 칸12.원천.
+    값1 <- 칸1.값.
+    문자판 <- (세션, 빈, "O") 격자게임보기.문자판.
+    요약 <- (세션) 격자게임보기.상태요약.
+    요약종류 <- 요약.__종류.
+    요약틱 <- 요약.틱.
+    요약점수 <- 요약.점수.
+    요약줄수 <- 요약.줄수.
+    요약레벨 <- 요약.레벨.
+    요약위치 <- 요약.낙하조각위치.
+}
+"#;
+        let program = DdnProgram::from_source(script, "std_grid_game_view.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert(
+            "칸수".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(-1)),
+        );
+        for key in ["원천0", "원천1", "원천12", "값1", "문자판", "요약종류"] {
+            defaults.insert(key.to_string(), RuntimeValue::String(String::new()));
+        }
+        for key in ["요약틱", "요약점수", "요약줄수", "요약레벨"] {
+            defaults.insert(
+                key.to_string(),
+                RuntimeValue::Fixed64(Fixed64::from_i64(-1)),
+            );
+        }
+        defaults.insert("요약위치".to_string(), RuntimeValue::List(Vec::new()));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("칸수"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(16)))
+        );
+        assert_eq!(
+            output.resources.get("원천0"),
+            Some(&RuntimeValue::String("빈칸".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("원천1"),
+            Some(&RuntimeValue::String("낙하".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("원천12"),
+            Some(&RuntimeValue::String("고정".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("값1"),
+            Some(&RuntimeValue::String("O".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("문자판"),
+            Some(&RuntimeValue::String(".OO.\n.OO.\n....\nX...".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("요약종류"),
+            Some(&RuntimeValue::String(
+                "std_grid_game_view_summary".to_string()
+            ))
+        );
+        assert_eq!(
+            output.resources.get("요약틱"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(1)))
+        );
+        assert_eq!(
+            output.resources.get("요약점수"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(0)))
+        );
+        assert_eq!(
+            output.resources.get("요약줄수"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(0)))
+        );
+        assert_eq!(
+            output.resources.get("요약레벨"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(1)))
+        );
+        assert_eq!(
+            output.resources.get("요약위치").map(value_to_string),
+            Some("차림[1, 0]".to_string())
+        );
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("요약") else {
+            panic!("요약 must be pack");
+        };
+        assert_eq!(
+            fields.get("상태"),
+            Some(&RuntimeValue::String("진행".to_string()))
+        );
+    }
+
+    #[test]
+    fn std_grid_game_bogae_projects_rect_drawlist_and_size() {
+        let script = r##"
+매틱:움직씨 = {
+    빈 <- ".".
+    격0 <- (4, 4, 빈) 격자.만들기.
+    격1 <- (격0, 0, 3, "X") 격자.바꾼값.
+    가방 <- (0, ("O", "I") 차림) 무작위가방.만들기.
+    상태0 <- () 격자게임상태.초기화.
+    진행 <- (상태0, "진행") 격자게임상태.바꾸기.
+    점 <- () 격자게임점수.초기화.
+    오 <- ("O") 테트로미노.만들기.
+    낙 <- (오, 1, 0) 낙하조각.만들기.
+    세션 <- (격1, 가방, 진행, 점, 낙) 격자게임세션.만들기.
+    목록 <- (세션, 빈, "O", 8) 격자게임보기.보개목록.
+    크기 <- (세션, 8) 격자게임보기.보개크기.
+    칸수 <- (목록) 길이.
+    첫 <- (목록, 0) 차림.값.
+    둘 <- (목록, 1) 차림.값.
+    고정 <- (목록, 12) 차림.값.
+    첫id <- 첫.id.
+    첫결 <- 첫.결.
+    첫x <- 첫.x.
+    첫색 <- 첫.채움색.
+    둘id <- 둘.id.
+    둘x <- 둘.x.
+    둘색 <- 둘.채움색.
+    고정id <- 고정.id.
+    고정y <- 고정.y.
+    고정색 <- 고정.채움색.
+    가로 <- 크기.가로.
+    세로 <- 크기.세로.
+}
+"##;
+        let program = DdnProgram::from_source(script, "std_grid_game_bogae.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert(
+            "칸수".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(-1)),
+        );
+        for key in ["첫id", "첫결", "첫색", "둘id", "둘색", "고정id", "고정색"] {
+            defaults.insert(key.to_string(), RuntimeValue::String(String::new()));
+        }
+        for key in ["첫x", "둘x", "고정y", "가로", "세로"] {
+            defaults.insert(
+                key.to_string(),
+                RuntimeValue::Fixed64(Fixed64::from_i64(-1)),
+            );
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("칸수"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(16)))
+        );
+        assert_eq!(
+            output.resources.get("첫id"),
+            Some(&RuntimeValue::String("격자게임셀_0_0".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("첫결"),
+            Some(&RuntimeValue::String("#보개/2D.Rect".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("첫x"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(0)))
+        );
+        assert_eq!(
+            output.resources.get("첫색"),
+            Some(&RuntimeValue::String("#111111ff".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("둘id"),
+            Some(&RuntimeValue::String("격자게임셀_0_1".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("둘x"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(8)))
+        );
+        assert_eq!(
+            output.resources.get("둘색"),
+            Some(&RuntimeValue::String("#ffcc00ff".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("고정id"),
+            Some(&RuntimeValue::String("격자게임셀_3_0".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("고정y"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(24)))
+        );
+        assert_eq!(
+            output.resources.get("고정색"),
+            Some(&RuntimeValue::String("#4a90e2ff".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("가로"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(32)))
+        );
+        assert_eq!(
+            output.resources.get("세로"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(32)))
+        );
+    }
+
+    #[test]
+    fn std_grid_game_rules_hold_ghost_and_wall_kick_helpers() {
+        let script = r##"
+매틱:움직씨 = {
+    빈 <- ".".
+    막힘 <- ("X") 차림.
+    격 <- (4, 6, 빈) 격자.만들기.
+    가방0 <- (0, ("I", "O") 차림) 무작위가방.만들기.
+    상태0 <- () 격자게임상태.초기화.
+    진행 <- (상태0, "진행") 격자게임상태.바꾸기.
+    점 <- () 격자게임점수.초기화.
+    티 <- ("T") 테트로미노.만들기.
+    오 <- ("O") 테트로미노.만들기.
+    낙T <- (티, 0, 1) 낙하조각.만들기.
+    낙O <- (오, 1, 0) 낙하조각.만들기.
+    홀드0 <- () 격자게임홀드.초기화.
+    안씀 <- (홀드0) 격자게임홀드.썼나.
+    교체1 <- (홀드0, 낙T, 가방0, 2, 0) 격자게임홀드.교체.
+    홀드1 <- 교체1.홀드.
+    홀드1칸 <- (홀드1) 격자게임홀드.칸.
+    홀드1씀 <- (홀드1) 격자게임홀드.썼나.
+    낙1 <- 교체1.낙하조각.
+    낙1위치 <- (낙1) 낙하조각.위치.
+    홀드2준비 <- (홀드1) 격자게임홀드.초기화턴.
+    홀드2씀 <- (홀드2준비) 격자게임홀드.썼나.
+    세션 <- (격, 가방0, 진행, 점, 낙O) 격자게임세션.만들기.
+    유령 <- (세션, 막힘) 격자게임보기.유령조각.
+    유령위치 <- (유령) 낙하조각.위치.
+    유령보개 <- (세션, 빈, "O", "G", 4, 막힘) 격자게임보기.유령보개목록.
+    낙하칸 <- (유령보개, 1) 차림.값.
+    유령칸 <- (유령보개, 17) 차림.값.
+    낙하색 <- 낙하칸.채움색.
+    유령색 <- 유령칸.채움색.
+    회전 <- (낙T, 격, 막힘, "오른쪽") 격자게임.회전시도.
+    회전성공 <- 회전.성공.
+    회전오프셋 <- 회전.오프셋.
+    회전낙 <- 회전.낙하조각.
+    회전위치 <- (회전낙) 낙하조각.위치.
+}
+"##;
+        let program = DdnProgram::from_source(script, "std_grid_game_rules.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["홀드1칸", "낙1위치", "유령위치", "회전오프셋", "회전위치"] {
+            defaults.insert(key.to_string(), RuntimeValue::None);
+        }
+        for key in ["안씀", "홀드1씀", "홀드2씀", "회전성공"] {
+            defaults.insert(key.to_string(), RuntimeValue::Bool(false));
+        }
+        for key in ["낙하색", "유령색"] {
+            defaults.insert(key.to_string(), RuntimeValue::String(String::new()));
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("안씀"),
+            Some(&RuntimeValue::Bool(false))
+        );
+        assert_eq!(
+            output.resources.get("홀드1칸").map(value_to_string),
+            Some("(__종류: std_block_piece, 칸들: 차림[차림[-1, 0], 차림[0, 0], 차림[1, 0], 차림[0, 1]])".to_string())
+        );
+        assert_eq!(
+            output.resources.get("홀드1씀"),
+            Some(&RuntimeValue::Bool(true))
+        );
+        assert_eq!(
+            output.resources.get("낙1위치").map(value_to_string),
+            Some("차림[2, 0]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("홀드2씀"),
+            Some(&RuntimeValue::Bool(false))
+        );
+        assert_eq!(
+            output.resources.get("유령위치").map(value_to_string),
+            Some("차림[1, 4]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("낙하색"),
+            Some(&RuntimeValue::String("#ffcc00ff".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("유령색"),
+            Some(&RuntimeValue::String("#88ffffff".to_string()))
+        );
+        assert_eq!(
+            output.resources.get("회전성공"),
+            Some(&RuntimeValue::Bool(true))
+        );
+        assert_eq!(
+            output.resources.get("회전오프셋").map(value_to_string),
+            Some("차림[1, 0]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("회전위치").map(value_to_string),
+            Some("차림[1, 1]".to_string())
+        );
+    }
+
+    #[test]
+    fn std_unit_closure_temperature_smoke() {
+        let script = r#"
+매틱:움직씨 = {
+    온도동치 <- 25@C == 77@F.
+    온도차이확인 <- (30@C - 20@C) == 10@K.
+}
+"#;
+        let program = DdnProgram::from_source(script, "std_unit_closure.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("온도동치".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("온도차이확인".to_string(), RuntimeValue::Bool(false));
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        for key in ["온도동치", "온도차이확인"] {
+            match output.resources.get(key) {
+                Some(RuntimeValue::Bool(value)) => assert!(*value, "{key}"),
+                other => panic!("{key} must be bool, got {:?}", other),
+            }
+        }
+    }
+
+    #[test]
+    fn std_input_map_closure_runtime_maps_explicit_and_default_keys() {
+        let explicit_map = make_std_input_map(BTreeMap::from([
+            (
+                "왼쪽".to_string(),
+                RuntimeValue::String("ArrowLeft".to_string()),
+            ),
+            (
+                "오른쪽".to_string(),
+                RuntimeValue::String("ArrowRight".to_string()),
+            ),
+            (
+                "위".to_string(),
+                RuntimeValue::String("ArrowUp".to_string()),
+            ),
+            (
+                "아래".to_string(),
+                RuntimeValue::String("ArrowDown".to_string()),
+            ),
+            (
+                "확인".to_string(),
+                RuntimeValue::String("Space".to_string()),
+            ),
+        ]));
+        let explicit_fields = std_input_map_fields(&explicit_map).expect("input map fields");
+        let input_state = InputState::new(KEY_D, 0);
+        assert!(input_map_action_pressed(
+            &input_state,
+            &explicit_fields,
+            "오른쪽"
+        ));
+        assert!(!input_map_action_pressed(
+            &input_state,
+            &explicit_fields,
+            "확인"
+        ));
+
+        let script = r#"
+매틱:움직씨 = {
+    기본 <- () 입력사상.만들기.
+    방향 <- (기본) 입력사상.방향.
+    오른쪽 <- (기본, "오른쪽") 입력사상.동작.
+    확인 <- (기본, "확인") 입력사상.동작.
+}
+"#;
+        let program = DdnProgram::from_source(script, "std_input_map_closure.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut input = empty_input();
+        input.keys_pressed = KEY_D;
+        input.last_key_name = "ArrowRight".to_string();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("방향".to_string(), RuntimeValue::List(Vec::new()));
+        defaults.insert("오른쪽".to_string(), RuntimeValue::Bool(false));
+        defaults.insert("확인".to_string(), RuntimeValue::Bool(true));
+        let output = runner
+            .run_update(&world, &input, &defaults)
+            .expect("run update");
+        assert_eq!(
+            output.resources.get("방향").map(value_to_string),
+            Some("차림[1, 0]".to_string())
+        );
+        assert_eq!(
+            output.resources.get("오른쪽"),
+            Some(&RuntimeValue::Bool(true))
+        );
+        assert_eq!(
+            output.resources.get("확인"),
+            Some(&RuntimeValue::Bool(false))
+        );
     }
 
     #[test]
@@ -14395,19 +19611,16 @@ mod tests {
 
     #[test]
     fn regex_is_age3_feature_gated() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
     결과 <- ("a1", 정규식{"[0-9]+"}) 정규찾기.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age2);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age2);
         let err = match DdnProgram::from_source(script, "regex_age2.ddn") {
             Ok(_) => panic!("age gate"),
             Err(err) => err,
         };
-        set_default_age_target(old_age);
         assert!(
             err.contains("E_AGE_NOT_AVAILABLE"),
             "expected age gate code, got {err}"
@@ -14420,7 +19633,6 @@ mod tests {
 
     #[test]
     fn quantifier_is_age4_feature_gated() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
     n 이 자연수 낱낱에 대해 {
@@ -14428,13 +19640,11 @@ mod tests {
     }.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age3);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age3);
         let err = match DdnProgram::from_source(script, "quantifier_age3.ddn") {
             Ok(_) => panic!("age gate"),
             Err(err) => err,
         };
-        set_default_age_target(old_age);
         assert!(
             err.contains("E_AGE_NOT_AVAILABLE"),
             "expected age gate code, got {err}"
@@ -14447,7 +19657,6 @@ mod tests {
 
     #[test]
     fn quantifier_statement_runs_as_proof_only_noop() {
-        let _age_lock = AGE_TARGET_TEST_LOCK.lock().expect("age test lock");
         let script = r#"
 매틱:움직씨 = {
     결과 <- 3.
@@ -14456,10 +19665,8 @@ mod tests {
     }.
 }
 "#;
-        let old_age = default_age_target();
-        set_default_age_target(AgeTarget::Age4);
+        let _age = AgeTargetTestGuard::new(AgeTarget::Age4);
         let program = DdnProgram::from_source(script, "quantifier_age4.ddn").expect("parse");
-        set_default_age_target(old_age);
         let mut runner = DdnRunner::new(program, "매틱");
         let world = NuriWorld::new();
         let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
@@ -14569,6 +19776,2590 @@ mod tests {
     }
 
     #[test]
+    fn relation_eq_infix_runtime_stores_relation_pack() {
+        let script = r#"
+매틱:움직씨 = {
+    관계 <- ((#ascii) 수식{2*x + 3}) =:= ((#ascii) 수식{7}).
+}
+"#;
+        let program = DdnProgram::from_source(script, "relation_eq_pack.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("관계") else {
+            panic!("관계 must be relation pack");
+        };
+        assert_eq!(
+            fields.get(RELATION_KIND_FIELD),
+            Some(&RuntimeValue::String(RELATION_KIND_EQUATION.to_string()))
+        );
+        assert!(matches!(
+            fields.get(RELATION_LEFT_FIELD),
+            Some(RuntimeValue::Formula(_))
+        ));
+        assert!(matches!(
+            fields.get(RELATION_RIGHT_FIELD),
+            Some(RuntimeValue::Formula(_))
+        ));
+    }
+
+    #[test]
+    fn connect_jitgi_runtime_matches_relation_eq_pack() {
+        let script = r#"
+매틱:움직씨 = {
+    잇기관계 <- ((#ascii) 수식{2*x + 3}, (#ascii) 수식{7}) 잇기.
+    직접관계 <- ((#ascii) 수식{2*x + 3}) =:= ((#ascii) 수식{7}).
+}
+"#;
+        let program = DdnProgram::from_source(script, "connect_jitgi_pack.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("잇기관계".to_string(), RuntimeValue::None);
+        defaults.insert("직접관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(jitgi)) = output.resources.get("잇기관계") else {
+            panic!("잇기관계 must be relation pack");
+        };
+        let Some(RuntimeValue::Pack(direct)) = output.resources.get("직접관계") else {
+            panic!("직접관계 must be relation pack");
+        };
+        assert_eq!(jitgi, direct);
+        assert_eq!(
+            jitgi.get(RELATION_KIND_FIELD),
+            Some(&RuntimeValue::String(RELATION_KIND_EQUATION.to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_equal_runtime_stores_endpoint_relation_pack() {
+        let script = r#"
+매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_equal.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint relation pack");
+        };
+        assert_eq!(
+            fields.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_equality".to_string()))
+        );
+        assert_eq!(
+            fields.get("왼쪽"),
+            Some(&RuntimeValue::String("전지.양극.전압".to_string()))
+        );
+        assert_eq!(
+            fields.get("오른쪽"),
+            Some(&RuntimeValue::String("전구.왼핀.전압".to_string()))
+        );
+        assert_eq!(
+            fields.get("규칙"),
+            Some(&RuntimeValue::String("같게".to_string()))
+        );
+        assert_eq!(
+            fields.get("채널"),
+            Some(&RuntimeValue::String("전압".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_flow_runtime_stores_endpoint_flow_pack() {
+        let script = r#"
+매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.
+}
+"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_flow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint flow pack");
+        };
+        assert_eq!(
+            fields.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_flow".to_string()))
+        );
+        assert_eq!(
+            fields.get("왼쪽"),
+            Some(&RuntimeValue::String("전지.양극.전류".to_string()))
+        );
+        assert_eq!(
+            fields.get("오른쪽"),
+            Some(&RuntimeValue::String("전구.왼핀.전류".to_string()))
+        );
+        assert_eq!(
+            fields.get("규칙"),
+            Some(&RuntimeValue::String("흐르게".to_string()))
+        );
+        assert_eq!(
+            fields.get("채널"),
+            Some(&RuntimeValue::String("전류".to_string()))
+        );
+        assert_eq!(
+            fields.get("부호규약"),
+            Some(&RuntimeValue::String("left_plus_right_zero".to_string()))
+        );
+        assert_eq!(
+            fields.get("방향"),
+            Some(&RuntimeValue::String("왼쪽에서오른쪽".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_reverse_flow_runtime_stores_endpoint_flow_pack() {
+        let script = r#"
+매틱:움직씨 = {
+    이음관계 <- 가계1.구매끝과 장터.소매끝을 (돈은 거슬러 흐르게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_reverse_flow.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint reverse flow pack");
+        };
+        assert_eq!(
+            fields.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_flow".to_string()))
+        );
+        assert_eq!(
+            fields.get("왼쪽"),
+            Some(&RuntimeValue::String("가계1.구매끝.돈".to_string()))
+        );
+        assert_eq!(
+            fields.get("오른쪽"),
+            Some(&RuntimeValue::String("장터.소매끝.돈".to_string()))
+        );
+        assert_eq!(
+            fields.get("규칙"),
+            Some(&RuntimeValue::String("거슬러 흐르게".to_string()))
+        );
+        assert_eq!(
+            fields.get("채널"),
+            Some(&RuntimeValue::String("돈".to_string()))
+        );
+        assert_eq!(
+            fields.get("부호규약"),
+            Some(&RuntimeValue::String("left_plus_right_zero".to_string()))
+        );
+        assert_eq!(
+            fields.get("방향"),
+            Some(&RuntimeValue::String("오른쪽에서왼쪽".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_carried_property_runtime_surface() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (재화가 돈에 실리게) 잇기.
+}"#;
+        assert!(DdnProgram::from_source(script, "connect_endpoint_carried.ddn").is_err());
+    }
+
+    #[test]
+    fn connect_endpoint_carried_property_forward_runtime_stores_relation_set_pack() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 은행.대출창구와 기업1.차입끝을 (대출금은 흐르게, 위험이 대출금에 실리게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_carried_forward.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint relation set pack");
+        };
+        assert_eq!(
+            fields.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_relation_set".to_string()))
+        );
+        let Some(RuntimeValue::List(relations)) = fields.get("관계들") else {
+            panic!("관계들 must be a list");
+        };
+        assert_eq!(relations.len(), 2);
+        let RuntimeValue::Pack(carried) = &relations[1] else {
+            panic!("carried relation must be a pack");
+        };
+        assert_eq!(
+            carried.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_carried_property".to_string()
+            ))
+        );
+        assert_eq!(
+            carried.get("왼쪽운반자"),
+            Some(&RuntimeValue::String("은행.대출창구.대출금".to_string()))
+        );
+        assert_eq!(
+            carried.get("오른쪽운반자"),
+            Some(&RuntimeValue::String("기업1.차입끝.대출금".to_string()))
+        );
+        assert_eq!(
+            carried.get("속성"),
+            Some(&RuntimeValue::String("위험".to_string()))
+        );
+        assert_eq!(
+            carried.get("운반채널"),
+            Some(&RuntimeValue::String("대출금".to_string()))
+        );
+        assert_eq!(
+            carried.get("운반규칙"),
+            Some(&RuntimeValue::String("흐르게".to_string()))
+        );
+        assert_eq!(
+            carried.get("운반방향"),
+            Some(&RuntimeValue::String("왼쪽에서오른쪽".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_carried_property_reverse_runtime_stores_relation_set_pack() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 가계1.구매끝과 장터.소매끝을 (돈은 거슬러 흐르게, 재화가 돈에 실리게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_carried_reverse.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint relation set pack");
+        };
+        let Some(RuntimeValue::List(relations)) = fields.get("관계들") else {
+            panic!("관계들 must be a list");
+        };
+        assert_eq!(relations.len(), 2);
+        let RuntimeValue::Pack(carried) = &relations[1] else {
+            panic!("carried relation must be a pack");
+        };
+        assert_eq!(
+            carried.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_carried_property".to_string()
+            ))
+        );
+        assert_eq!(
+            carried.get("속성"),
+            Some(&RuntimeValue::String("재화".to_string()))
+        );
+        assert_eq!(
+            carried.get("운반채널"),
+            Some(&RuntimeValue::String("돈".to_string()))
+        );
+        assert_eq!(
+            carried.get("운반규칙"),
+            Some(&RuntimeValue::String("거슬러 흐르게".to_string()))
+        );
+        assert_eq!(
+            carried.get("운반방향"),
+            Some(&RuntimeValue::String("오른쪽에서왼쪽".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_multi_inner_runtime_stores_relation_set_pack() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_multi.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint relation set pack");
+        };
+        assert_eq!(
+            fields.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_relation_set".to_string()))
+        );
+        assert_eq!(
+            fields.get("왼쪽끝"),
+            Some(&RuntimeValue::String("전지.양극".to_string()))
+        );
+        assert_eq!(
+            fields.get("오른쪽끝"),
+            Some(&RuntimeValue::String("전구.왼핀".to_string()))
+        );
+        let Some(RuntimeValue::List(relations)) = fields.get("관계들") else {
+            panic!("관계들 must be a list");
+        };
+        assert_eq!(relations.len(), 2);
+        let RuntimeValue::Pack(first) = &relations[0] else {
+            panic!("first relation must be a pack");
+        };
+        let RuntimeValue::Pack(second) = &relations[1] else {
+            panic!("second relation must be a pack");
+        };
+        assert_eq!(
+            first.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_equality".to_string()))
+        );
+        assert_eq!(
+            first.get("채널"),
+            Some(&RuntimeValue::String("전압".to_string()))
+        );
+        assert_eq!(
+            second.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_flow".to_string()))
+        );
+        assert_eq!(
+            second.get("채널"),
+            Some(&RuntimeValue::String("전류".to_string()))
+        );
+        assert_eq!(
+            second.get("방향"),
+            Some(&RuntimeValue::String("왼쪽에서오른쪽".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_multi_inner_econ_runtime_preserves_source_order() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 가계1.구매끝과 장터.소매끝을 (체결값은 같게, 재화는 흐르게, 돈은 거슬러 흐르게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_multi_econ.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint relation set pack");
+        };
+        let Some(RuntimeValue::List(relations)) = fields.get("관계들") else {
+            panic!("관계들 must be a list");
+        };
+        assert_eq!(relations.len(), 3);
+        let channels = relations
+            .iter()
+            .map(|item| {
+                let RuntimeValue::Pack(fields) = item else {
+                    panic!("relation item must be a pack");
+                };
+                fields.get("채널").cloned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            channels,
+            vec![
+                Some(RuntimeValue::String("체결값".to_string())),
+                Some(RuntimeValue::String("재화".to_string())),
+                Some(RuntimeValue::String("돈".to_string()))
+            ]
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_statement_append_same_pair_runtime_stores_statement_set_pack() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_statement_append_same.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint statement set pack");
+        };
+        assert_eq!(
+            fields.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_statement_set".to_string()))
+        );
+        assert_eq!(
+            fields.get("대상"),
+            Some(&RuntimeValue::String("이음관계".to_string()))
+        );
+        let Some(RuntimeValue::List(items)) = fields.get("이음들") else {
+            panic!("이음들 must be a list");
+        };
+        assert_eq!(items.len(), 2);
+        let RuntimeValue::Pack(first) = &items[0] else {
+            panic!("first statement must be a pack");
+        };
+        let RuntimeValue::Pack(second) = &items[1] else {
+            panic!("second statement must be a pack");
+        };
+        assert_eq!(
+            first.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_equality".to_string()))
+        );
+        assert_eq!(
+            second.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_flow".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_statement_append_mixed_pair_runtime_stores_statement_set_pack() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    이음관계 <- 은행.대출창구와 기업1.차입끝을 (대출금은 흐르게, 위험이 대출금에 실리게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_statement_append_mixed.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(fields)) = output.resources.get("이음관계") else {
+            panic!("이음관계 must be endpoint statement set pack");
+        };
+        let Some(RuntimeValue::List(items)) = fields.get("이음들") else {
+            panic!("이음들 must be a list");
+        };
+        assert_eq!(items.len(), 2);
+        let RuntimeValue::Pack(second) = &items[1] else {
+            panic!("second statement must be a pack");
+        };
+        assert_eq!(
+            second.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_relation_set".to_string()))
+        );
+        let Some(RuntimeValue::List(relations)) = second.get("관계들") else {
+            panic!("mixed second statement 관계들 must be a list");
+        };
+        assert_eq!(relations.len(), 2);
+        let RuntimeValue::Pack(carried) = &relations[1] else {
+            panic!("carried relation must be a pack");
+        };
+        assert_eq!(
+            carried.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_carried_property".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_normalize_single_runtime_returns_one_relation() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    목록 <- (이음관계) 이음관계.관계목록.
+    정규 <- (이음관계) 이음관계.정규화.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_normalize_single.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        defaults.insert("목록".to_string(), RuntimeValue::None);
+        defaults.insert("정규".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::List(list)) = output.resources.get("목록") else {
+            panic!("목록 must be a list");
+        };
+        assert_eq!(list.len(), 1);
+        let RuntimeValue::Pack(first) = &list[0] else {
+            panic!("first relation must be a pack");
+        };
+        assert_eq!(
+            first.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_equality".to_string()))
+        );
+        let Some(RuntimeValue::Pack(normalized)) = output.resources.get("정규") else {
+            panic!("정규 must be a pack");
+        };
+        assert_eq!(
+            normalized.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_relation_flat_set".to_string()
+            ))
+        );
+        assert!(matches!(
+            normalized.get("개수"),
+            Some(RuntimeValue::Fixed64(value)) if value.int_part() == 1
+        ));
+    }
+
+    #[test]
+    fn connect_endpoint_normalize_statement_set_flattens_nested_relation_set() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    이음관계 <- 은행.대출창구와 기업1.차입끝을 (대출금은 흐르게, 위험이 대출금에 실리게) 잇기.
+    목록 <- (이음관계) 이음관계.관계목록.
+    정규 <- (이음관계) 이음관계.정규화.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_normalize_statement_set.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        defaults.insert("목록".to_string(), RuntimeValue::None);
+        defaults.insert("정규".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::List(list)) = output.resources.get("목록") else {
+            panic!("목록 must be a list");
+        };
+        assert_eq!(list.len(), 3);
+        let kinds = list
+            .iter()
+            .map(|item| {
+                let RuntimeValue::Pack(fields) = item else {
+                    panic!("relation item must be a pack");
+                };
+                fields.get("__이음관계종류").cloned()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kinds,
+            vec![
+                Some(RuntimeValue::String("endpoint_equality".to_string())),
+                Some(RuntimeValue::String("endpoint_flow".to_string())),
+                Some(RuntimeValue::String(
+                    "endpoint_carried_property".to_string()
+                )),
+            ]
+        );
+        let Some(RuntimeValue::Pack(normalized)) = output.resources.get("정규") else {
+            panic!("정규 must be a pack");
+        };
+        assert!(matches!(
+            normalized.get("개수"),
+            Some(RuntimeValue::Fixed64(value)) if value.int_part() == 3
+        ));
+        let Some(RuntimeValue::List(relations)) = normalized.get("관계들") else {
+            panic!("normalized 관계들 must be a list");
+        };
+        assert_eq!(relations.len(), 3);
+    }
+
+    #[test]
+    fn connect_endpoint_formula_relation_bridge_maps_endpoint_paths_to_ascii_vars() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전압은 흐르게) 잇기.
+    관계들 <- (이음관계) 이음관계.방정식목록.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_formula_relation_bridge.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        defaults.insert("관계들".to_string(), RuntimeValue::None);
+        defaults.insert("방정식묶음".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::List(relations)) = output.resources.get("관계들") else {
+            panic!("관계들 must be a list");
+        };
+        assert_eq!(relations.len(), 2);
+        let RuntimeValue::Pack(first_relation) = &relations[0] else {
+            panic!("first formula relation must be a pack");
+        };
+        assert_eq!(
+            first_relation.get("__관계종류"),
+            Some(&RuntimeValue::String("방정식".to_string()))
+        );
+        let Some(RuntimeValue::Formula(left)) = first_relation.get("왼쪽") else {
+            panic!("first left must be formula");
+        };
+        let Some(RuntimeValue::Formula(right)) = first_relation.get("오른쪽") else {
+            panic!("first right must be formula");
+        };
+        assert_eq!(left.raw, "ep_001");
+        assert_eq!(right.raw, "ep_002");
+
+        let Some(RuntimeValue::Pack(set)) = output.resources.get("방정식묶음") else {
+            panic!("방정식묶음 must be a pack");
+        };
+        assert_eq!(
+            set.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_formula_relation_set".to_string()
+            ))
+        );
+        let Some(RuntimeValue::List(mappings)) = set.get("변수사상") else {
+            panic!("변수사상 must be a list");
+        };
+        assert_eq!(mappings.len(), 2);
+        let RuntimeValue::Pack(first_mapping) = &mappings[0] else {
+            panic!("first mapping must be a pack");
+        };
+        assert_eq!(
+            first_mapping.get("변수"),
+            Some(&RuntimeValue::String("ep_001".to_string()))
+        );
+        assert_eq!(
+            first_mapping.get("경로"),
+            Some(&RuntimeValue::String("전지.양극.전압".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_formula_relation_solve_uses_explicit_relation_list() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전압은 흐르게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+    관계들 <- 방정식묶음.관계들.
+    결과 <- (관계들) 방정식풀기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_formula_relation_solve.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        defaults.insert("방정식묶음".to_string(), RuntimeValue::None);
+        defaults.insert("관계들".to_string(), RuntimeValue::None);
+        defaults.insert("결과".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(result)) = output.resources.get("결과") else {
+            panic!("결과 must be a pack");
+        };
+        assert_eq!(
+            result.get("__풀이결과종류"),
+            Some(&RuntimeValue::String("성공".to_string()))
+        );
+        let Some(RuntimeValue::Pack(bindings)) = result.get("해") else {
+            panic!("해 must be a pack");
+        };
+        assert!(bindings.contains_key("ep_001"));
+        assert!(bindings.contains_key("ep_002"));
+    }
+
+    #[test]
+    fn connect_endpoint_formula_relation_rejects_carried_property_metadata() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 은행.대출창구와 기업1.차입끝을 (대출금은 흐르게, 위험이 대출금에 실리게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_formula_relation_unsupported.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        defaults.insert("방정식묶음".to_string(), RuntimeValue::None);
+        assert!(runner
+            .run_update(&world, &empty_input(), &defaults)
+            .is_err());
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_value_injection_appends_relation_packs() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_boundary_value_injection.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "방정식묶음"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let formula_set = output
+            .resources
+            .get("방정식묶음")
+            .expect("방정식묶음")
+            .clone();
+        let value_list = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let injected_relation_list =
+            eval_endpoint_boundary_value_relation_list(&[formula_set.clone(), value_list.clone()])
+                .expect("value relation list");
+        let RuntimeValue::List(injected_relations) = injected_relation_list else {
+            panic!("값관계들 must be a list");
+        };
+        assert_eq!(injected_relations.len(), 1);
+        let RuntimeValue::Pack(injected_relation) = &injected_relations[0] else {
+            panic!("injected relation must be a pack");
+        };
+        assert_eq!(
+            injected_relation.get("__관계종류"),
+            Some(&RuntimeValue::String("방정식".to_string()))
+        );
+        let Some(RuntimeValue::Formula(left)) = injected_relation.get("왼쪽") else {
+            panic!("injected left must be formula");
+        };
+        let Some(RuntimeValue::Formula(right)) = injected_relation.get("오른쪽") else {
+            panic!("injected right must be formula");
+        };
+        assert_eq!(left.raw, "ep_001");
+        assert_eq!(right.raw, "5");
+
+        let injected_set =
+            eval_endpoint_boundary_value_injection(&[formula_set, value_list]).expect("inject");
+        let RuntimeValue::Pack(set) = injected_set else {
+            panic!("주입묶음 must be a pack");
+        };
+        assert_eq!(
+            set.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_formula_relation_set_with_values".to_string()
+            ))
+        );
+        assert_eq!(
+            set.get("개수"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(2)))
+        );
+        assert_eq!(
+            set.get("주입개수"),
+            Some(&RuntimeValue::Fixed64(Fixed64::from_i64(1)))
+        );
+        let Some(RuntimeValue::List(all_relations)) = set.get("관계들") else {
+            panic!("combined 관계들 must be a list");
+        };
+        assert_eq!(all_relations.len(), 2);
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_value_solve_remap_accepts_injected_formula_set() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_boundary_value_solve.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "방정식묶음"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let formula_set = output
+            .resources
+            .get("방정식묶음")
+            .expect("방정식묶음")
+            .clone();
+        let value_list = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let injected_set =
+            eval_endpoint_boundary_value_injection(&[formula_set.clone(), value_list])
+                .expect("inject");
+        let RuntimeValue::Pack(injected_fields) = &injected_set else {
+            panic!("주입묶음 must be a pack");
+        };
+        let relations_value = injected_fields.get("관계들").expect("관계들").clone();
+        let relations = expect_equation_relations(&[relations_value]).expect("relations");
+        let solve = eval_relation_solve_result(&relations).expect("solve");
+        let remapped = eval_endpoint_solve_result_remap(&[injected_set, solve]).expect("remap");
+        let RuntimeValue::Pack(remap) = remapped else {
+            panic!("원복 must be a pack");
+        };
+        assert_eq!(
+            remap.get("풀이결과종류"),
+            Some(&RuntimeValue::String("성공".to_string()))
+        );
+        let Some(RuntimeValue::List(values)) = remap.get("값들") else {
+            panic!("값들 must be a list");
+        };
+        assert_eq!(values.len(), 2);
+        let RuntimeValue::Pack(first) = &values[0] else {
+            panic!("first value must be a pack");
+        };
+        assert_eq!(
+            first.get("경로"),
+            Some(&RuntimeValue::String("전지.양극.전압".to_string()))
+        );
+        assert_eq!(first.get("값").map(value_to_string).as_deref(), Some("5"));
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_value_rejects_unsupported_inputs() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_boundary_value_bad_base.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for key in ["이음관계", "방정식묶음"] {
+            defaults.insert(key.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let formula_set = output
+            .resources
+            .get("방정식묶음")
+            .expect("방정식묶음")
+            .clone();
+
+        let duplicate =
+            endpoint_boundary_test_values(&[("전지.양극.전압", 5), ("전지.양극.전압", 6)]);
+        let err = eval_endpoint_boundary_value_injection(&[formula_set.clone(), duplicate])
+            .expect_err("duplicate must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_value_duplicate_path"),
+            "{err}"
+        );
+
+        let unknown = endpoint_boundary_test_values(&[("없는.끝.전압", 5)]);
+        let err = eval_endpoint_boundary_value_injection(&[formula_set.clone(), unknown])
+            .expect_err("unknown must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_value_unknown_path"),
+            "{err}"
+        );
+
+        let bad_value = endpoint_boundary_test_values_raw(vec![(
+            "전지.양극.전압",
+            RuntimeValue::String("5".to_string()),
+        )]);
+        let err = eval_endpoint_boundary_value_injection(&[formula_set, bad_value])
+            .expect_err("non numeric must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_value_non_numeric"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_equal_value_returns_endpoint_values() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_explicit_solve_equal.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let remapped = eval_endpoint_explicit_solve(&[relation, values]).expect("explicit solve");
+        let RuntimeValue::Pack(remap) = remapped else {
+            panic!("원복 must be a pack");
+        };
+        assert_eq!(
+            remap.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_solve_result".to_string()))
+        );
+        assert_eq!(
+            remap.get("풀이결과종류"),
+            Some(&RuntimeValue::String("성공".to_string()))
+        );
+        let Some(RuntimeValue::List(values)) = remap.get("값들") else {
+            panic!("값들 must be a list");
+        };
+        assert_eq!(values.len(), 2);
+        let RuntimeValue::Pack(first) = &values[0] else {
+            panic!("first value must be a pack");
+        };
+        let RuntimeValue::Pack(second) = &values[1] else {
+            panic!("second value must be a pack");
+        };
+        assert_eq!(first.get("값").map(value_to_string).as_deref(), Some("5"));
+        assert_eq!(second.get("값").map(value_to_string).as_deref(), Some("5"));
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_flow_value_returns_opposite_endpoint_value() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_explicit_solve_flow.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let values = endpoint_boundary_test_values(&[("전지.양극.전류", 5)]);
+        let remapped = eval_endpoint_explicit_solve(&[relation, values]).expect("explicit solve");
+        let RuntimeValue::Pack(remap) = remapped else {
+            panic!("원복 must be a pack");
+        };
+        let Some(RuntimeValue::List(values)) = remap.get("값들") else {
+            panic!("값들 must be a list");
+        };
+        let RuntimeValue::Pack(left) = &values[0] else {
+            panic!("left value must be a pack");
+        };
+        let RuntimeValue::Pack(right) = &values[1] else {
+            panic!("right value must be a pack");
+        };
+        assert_eq!(left.get("값").map(value_to_string).as_deref(), Some("5"));
+        assert_eq!(right.get("값").map(value_to_string).as_deref(), Some("-5"));
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_flat_set_skips_public_normalize_step() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    정규 <- (이음관계) 이음관계.정규화.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_explicit_solve_flat.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "정규"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let flat = output.resources.get("정규").expect("정규").clone();
+        let values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let remapped = eval_endpoint_explicit_solve(&[flat, values]).expect("explicit solve");
+        let RuntimeValue::Pack(remap) = remapped else {
+            panic!("원복 must be a pack");
+        };
+        assert_eq!(
+            remap.get("풀이결과종류"),
+            Some(&RuntimeValue::String("성공".to_string()))
+        );
+        let Some(RuntimeValue::List(values)) = remap.get("값들") else {
+            panic!("값들 must be a list");
+        };
+        assert_eq!(values.len(), 2);
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_rejects_unsupported_and_boundary_errors() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 은행.대출창구와 기업1.차입끝을 (대출금은 흐르게, 위험이 대출금에 실리게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_explicit_solve_unsupported.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        assert!(eval_endpoint_explicit_solve(&[relation, RuntimeValue::List(vec![])]).is_err());
+
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_explicit_solve_duplicate.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let duplicate =
+            endpoint_boundary_test_values(&[("전지.양극.전압", 5), ("전지.양극.전압", 6)]);
+        let err =
+            eval_endpoint_explicit_solve(&[relation, duplicate]).expect_err("duplicate must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_value_duplicate_path"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_unit_boundary_injection_records_unit_metadata() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_unit_boundary_injection.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "방정식묶음"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let formula_set = output
+            .resources
+            .get("방정식묶음")
+            .expect("방정식묶음")
+            .clone();
+        let value_list = endpoint_boundary_test_values_unit(&[("전지.양극.전압", 5, UnitDim::KRW)]);
+        let injected_relation_list =
+            eval_endpoint_boundary_value_relation_list(&[formula_set.clone(), value_list.clone()])
+                .expect("value relation list");
+        let RuntimeValue::List(injected_relations) = injected_relation_list else {
+            panic!("값관계들 must be a list");
+        };
+        let RuntimeValue::Pack(relation) = &injected_relations[0] else {
+            panic!("injected relation must be a pack");
+        };
+        let Some(RuntimeValue::Formula(right)) = relation.get("오른쪽") else {
+            panic!("injected right must be formula");
+        };
+        assert_eq!(right.raw, "5");
+
+        let injected_set =
+            eval_endpoint_boundary_value_injection(&[formula_set, value_list]).expect("inject");
+        let RuntimeValue::Pack(set) = injected_set else {
+            panic!("주입묶음 must be a pack");
+        };
+        let Some(RuntimeValue::List(injected)) = set.get("주입값들") else {
+            panic!("주입값들 must be a list");
+        };
+        let RuntimeValue::Pack(first) = &injected[0] else {
+            panic!("injected value must be a pack");
+        };
+        assert_eq!(
+            first.get("값").map(value_to_string).as_deref(),
+            Some("5@KRW")
+        );
+        assert_eq!(
+            first.get("단위차원"),
+            Some(&RuntimeValue::String("KRW".to_string()))
+        );
+        assert_eq!(
+            first.get("단위기호"),
+            Some(&RuntimeValue::String("KRW".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_unit_boundary_solve_remap_restores_unit_values() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.
+}"#;
+        let program = DdnProgram::from_source(script, "connect_endpoint_unit_boundary_solve.ddn")
+            .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let values = endpoint_boundary_test_values_unit(&[("전지.양극.전류", 5, UnitDim::KRW)]);
+        let remapped = eval_endpoint_explicit_solve(&[relation, values]).expect("explicit solve");
+        let RuntimeValue::Pack(remap) = remapped else {
+            panic!("원복 must be a pack");
+        };
+        let Some(RuntimeValue::List(values)) = remap.get("값들") else {
+            panic!("값들 must be a list");
+        };
+        let RuntimeValue::Pack(left) = &values[0] else {
+            panic!("left value must be a pack");
+        };
+        let RuntimeValue::Pack(right) = &values[1] else {
+            panic!("right value must be a pack");
+        };
+        assert_eq!(
+            left.get("값").map(value_to_string).as_deref(),
+            Some("5@KRW")
+        );
+        assert_eq!(
+            right.get("값").map(value_to_string).as_deref(),
+            Some("-5@KRW")
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_unit_boundary_rejects_dim_and_currency_conflicts() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_unit_boundary_conflict.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "방정식묶음"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let formula_set = output
+            .resources
+            .get("방정식묶음")
+            .expect("방정식묶음")
+            .clone();
+
+        let dim_values = endpoint_boundary_test_values_unit(&[
+            ("전지.양극.전압", 1, UnitDim::LENGTH),
+            ("전구.왼핀.전압", 1, UnitDim::FORCE),
+        ]);
+        let injected = eval_endpoint_boundary_value_injection(&[formula_set.clone(), dim_values])
+            .expect("inject dim conflict");
+        let err = eval_endpoint_solve_result_remap(&[injected, endpoint_fake_solve_result()])
+            .expect_err("dimension conflict must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_unit_boundary_dim_conflict"),
+            "{err}"
+        );
+
+        let currency_values = endpoint_boundary_test_values_unit(&[
+            ("전지.양극.전압", 1, UnitDim::KRW),
+            ("전구.왼핀.전압", 1, UnitDim::USD),
+        ]);
+        let injected = eval_endpoint_boundary_value_injection(&[formula_set, currency_values])
+            .expect("inject currency conflict");
+        let err = eval_endpoint_solve_result_remap(&[injected, endpoint_fake_solve_result()])
+            .expect_err("currency conflict must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_unit_boundary_incompatible_unit"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_range_check_pass_and_violation() {
+        let remap = endpoint_range_solved_result("전압", 5, None);
+        let pass = endpoint_range_test_values_raw(vec![(
+            "전지.양극.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let checked =
+            eval_endpoint_boundary_range_check(&[remap.clone(), pass]).expect("range check");
+        let RuntimeValue::Pack(check) = checked else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_range_check".to_string()))
+        );
+        assert_eq!(
+            check.get("검사결과"),
+            Some(&RuntimeValue::String("통과".to_string()))
+        );
+        assert_eq!(check.get("위반개수"), Some(&fixed_value(0)));
+
+        let fail = endpoint_range_test_values_raw(vec![(
+            "전지.양극.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(4))),
+        )]);
+        let checked = eval_endpoint_boundary_range_check(&[remap, fail]).expect("range check");
+        let RuntimeValue::Pack(check) = checked else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check.get("검사결과"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        let Some(RuntimeValue::List(violations)) = check.get("위반들") else {
+            panic!("위반들 must be a list");
+        };
+        let RuntimeValue::Pack(first) = &violations[0] else {
+            panic!("violation must be a pack");
+        };
+        assert_eq!(
+            first.get("이유"),
+            Some(&RuntimeValue::String("above_max".to_string()))
+        );
+        assert_eq!(first.get("값").map(value_to_string).as_deref(), Some("5"));
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_range_pass_and_fail() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_explicit_solve_range_pass.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let ranges = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let checked =
+            eval_endpoint_explicit_solve_range_check(&[relation.clone(), values.clone(), ranges])
+                .expect("explicit solve range");
+        let RuntimeValue::Pack(check) = checked else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_solve_range_check".to_string()
+            ))
+        );
+        assert_eq!(
+            check.get("풀이결과종류"),
+            Some(&RuntimeValue::String("성공".to_string()))
+        );
+        assert_eq!(
+            check.get("검사결과"),
+            Some(&RuntimeValue::String("통과".to_string()))
+        );
+        assert_eq!(check.get("위반개수"), Some(&fixed_value(0)));
+        let ranges = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(4))),
+        )]);
+        let checked =
+            eval_endpoint_explicit_solve_range_check(&[relation, values, ranges]).expect("fail");
+        let RuntimeValue::Pack(check) = checked else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check.get("검사결과"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        let Some(RuntimeValue::Pack(range_check)) = check.get("범위검사") else {
+            panic!("범위검사 must be a pack");
+        };
+        let Some(RuntimeValue::List(violations)) = range_check.get("위반들") else {
+            panic!("위반들 must be a list");
+        };
+        let RuntimeValue::Pack(first) = &violations[0] else {
+            panic!("violation must be a pack");
+        };
+        assert_eq!(
+            first.get("이유"),
+            Some(&RuntimeValue::String("above_max".to_string()))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_explicit_solve_range_missing_and_error_propagation() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_explicit_solve_range_missing.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let ranges = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let checked = eval_endpoint_explicit_solve_range_check(&[
+            relation.clone(),
+            RuntimeValue::List(vec![]),
+            ranges,
+        ])
+        .expect("missing value check");
+        let RuntimeValue::Pack(check) = checked else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check.get("검사결과"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        let Some(RuntimeValue::Pack(range_check)) = check.get("범위검사") else {
+            panic!("범위검사 must be a pack");
+        };
+        let Some(RuntimeValue::List(violations)) = range_check.get("위반들") else {
+            panic!("위반들 must be a list");
+        };
+        let RuntimeValue::Pack(first) = &violations[0] else {
+            panic!("violation must be a pack");
+        };
+        assert_eq!(
+            first.get("이유"),
+            Some(&RuntimeValue::String("missing_value".to_string()))
+        );
+        assert!(!first.contains_key("값"));
+
+        let duplicate_range = endpoint_range_test_values_raw(vec![
+            (
+                "전구.왼핀.전압",
+                Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+                None,
+            ),
+            (
+                "전구.왼핀.전압",
+                None,
+                Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+            ),
+        ]);
+        let err = eval_endpoint_explicit_solve_range_check(&[
+            relation,
+            endpoint_boundary_test_values(&[("전지.양극.전압", 5)]),
+            duplicate_range,
+        ])
+        .expect_err("duplicate range path must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_range_duplicate_path"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_report_pass_rows_are_endpoint_ordered() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_solve_range_report_pass.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let ranges = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let report =
+            eval_endpoint_solve_range_report(&[relation.clone(), values.clone(), ranges.clone()])
+                .expect("report");
+        let rows =
+            eval_endpoint_solve_range_report_rows(&[relation, values, ranges]).expect("rows");
+        let RuntimeValue::Pack(report) = report else {
+            panic!("report must be a pack");
+        };
+        assert_eq!(
+            report.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_solve_range_report".to_string()
+            ))
+        );
+        assert_eq!(
+            report.get("검사결과"),
+            Some(&RuntimeValue::String("통과".to_string()))
+        );
+        assert_eq!(report.get("행개수"), Some(&fixed_value(2)));
+        assert_eq!(report.get("값개수"), Some(&fixed_value(2)));
+        assert_eq!(report.get("누락개수"), Some(&fixed_value(0)));
+        let Some(RuntimeValue::List(report_rows)) = report.get("행들") else {
+            panic!("행들 must be a list");
+        };
+        let RuntimeValue::List(row_list) = rows else {
+            panic!("rows must be a list");
+        };
+        assert_eq!(report_rows.len(), 2);
+        assert_eq!(row_list.len(), 2);
+        let RuntimeValue::Pack(left) = &report_rows[0] else {
+            panic!("left row must be a pack");
+        };
+        let RuntimeValue::Pack(right) = &report_rows[1] else {
+            panic!("right row must be a pack");
+        };
+        assert_eq!(
+            left.get("범위상태"),
+            Some(&RuntimeValue::String("범위없음".to_string()))
+        );
+        assert_eq!(
+            right.get("범위상태"),
+            Some(&RuntimeValue::String("통과".to_string()))
+        );
+        assert_eq!(right.get("하한").map(value_to_string).as_deref(), Some("0"));
+        assert_eq!(
+            right.get("상한").map(value_to_string).as_deref(),
+            Some("10")
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_report_missing_rows_distinguish_range_presence() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_solve_range_report_missing.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let ranges = endpoint_range_test_values_raw(vec![(
+            "전지.양극.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let report =
+            eval_endpoint_solve_range_report(&[relation, RuntimeValue::List(vec![]), ranges])
+                .expect("report");
+        let RuntimeValue::Pack(report) = report else {
+            panic!("report must be a pack");
+        };
+        assert_eq!(
+            report.get("풀이결과종류"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        assert_eq!(
+            report.get("검사결과"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        assert_eq!(report.get("누락개수"), Some(&fixed_value(2)));
+        let Some(RuntimeValue::List(rows)) = report.get("행들") else {
+            panic!("행들 must be a list");
+        };
+        let RuntimeValue::Pack(left) = &rows[0] else {
+            panic!("left row must be a pack");
+        };
+        let RuntimeValue::Pack(right) = &rows[1] else {
+            panic!("right row must be a pack");
+        };
+        assert_eq!(
+            left.get("값상태"),
+            Some(&RuntimeValue::String("누락".to_string()))
+        );
+        assert_eq!(
+            left.get("범위상태"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        let Some(RuntimeValue::List(violations)) = left.get("위반들") else {
+            panic!("violations must be a list");
+        };
+        let RuntimeValue::Pack(first) = &violations[0] else {
+            panic!("violation must be a pack");
+        };
+        assert_eq!(
+            first.get("이유"),
+            Some(&RuntimeValue::String("missing_value".to_string()))
+        );
+        assert!(!first.contains_key("값"));
+        assert_eq!(
+            right.get("값상태"),
+            Some(&RuntimeValue::String("누락".to_string()))
+        );
+        assert_eq!(
+            right.get("범위상태"),
+            Some(&RuntimeValue::String("범위없음".to_string()))
+        );
+        assert_eq!(right.get("위반개수"), Some(&fixed_value(0)));
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_text_report_formats_tsv_rows() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_solve_range_text_report.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let relation = output.resources.get("이음관계").expect("이음관계").clone();
+        let values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let ranges = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let report =
+            eval_endpoint_solve_range_report(&[relation.clone(), values.clone(), ranges.clone()])
+                .expect("report");
+        let text = eval_endpoint_solve_range_text_report(&[report]).expect("text");
+        let direct = eval_endpoint_explicit_solve_range_text_report(&[relation, values, ranges])
+            .expect("direct text");
+        let RuntimeValue::String(text) = text else {
+            panic!("text report must be a string");
+        };
+        let RuntimeValue::String(direct) = direct else {
+            panic!("direct text report must be a string");
+        };
+        assert_eq!(text, direct);
+        assert!(text.starts_with("변수\t경로\t값상태\t값\t범위상태\t하한\t상한\t위반"));
+        assert!(text.contains("ep_001\t전지.양극.전압\t값있음\t5\t범위없음\t\t\t"));
+        assert!(text.contains("ep_002\t전구.왼핀.전압\t값있음\t5\t통과\t0\t10\t"));
+        assert!(!text.ends_with('\n'));
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_text_report_rejects_non_report_input() {
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            "아무것".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(1)),
+        );
+        let err = eval_endpoint_solve_range_text_report(&[RuntimeValue::Pack(fields)])
+            .expect_err("non report must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_report_text_expected_solve_range_report"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_records_expectation_matrix() {
+        let pass_script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let pass_program =
+            DdnProgram::from_source(pass_script, "connect_endpoint_case_suite_pass.ddn")
+                .expect("parse");
+        let mut pass_runner = DdnRunner::new(pass_program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let pass_output = pass_runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let pass_relation = pass_output
+            .resources
+            .get("이음관계")
+            .expect("이음관계")
+            .clone();
+
+        let fail_script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.
+}"#;
+        let fail_program =
+            DdnProgram::from_source(fail_script, "connect_endpoint_case_suite_fail.ddn")
+                .expect("parse");
+        let mut fail_runner = DdnRunner::new(fail_program, "매틱");
+        let fail_output = fail_runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let fail_relation = fail_output
+            .resources
+            .get("이음관계")
+            .expect("이음관계")
+            .clone();
+
+        let pass_values = endpoint_boundary_test_values(&[("전지.양극.전압", 5)]);
+        let pass_ranges = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let fail_values = endpoint_boundary_test_values(&[("전지.양극.전류", 5)]);
+        let fail_ranges = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전류",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+
+        fn case(
+            name: &str,
+            relation: RuntimeValue,
+            values: RuntimeValue,
+            ranges: RuntimeValue,
+            expected: Option<&str>,
+        ) -> RuntimeValue {
+            let mut fields = BTreeMap::new();
+            fields.insert("이름".to_string(), RuntimeValue::String(name.to_string()));
+            fields.insert("이음관계".to_string(), relation);
+            fields.insert("값들".to_string(), values);
+            fields.insert("범위들".to_string(), ranges);
+            if let Some(expected) = expected {
+                fields.insert(
+                    "기대검사결과".to_string(),
+                    RuntimeValue::String(expected.to_string()),
+                );
+            }
+            RuntimeValue::Pack(fields)
+        }
+
+        let suite = eval_endpoint_solve_range_case_suite(&[RuntimeValue::List(vec![
+            case(
+                "pass-default",
+                pass_relation.clone(),
+                pass_values.clone(),
+                pass_ranges.clone(),
+                None,
+            ),
+            case(
+                "expected-fail",
+                fail_relation.clone(),
+                fail_values.clone(),
+                fail_ranges.clone(),
+                Some("실패"),
+            ),
+            case(
+                "unexpected-fail",
+                fail_relation,
+                fail_values,
+                fail_ranges,
+                None,
+            ),
+            case(
+                "unexpected-success",
+                pass_relation,
+                pass_values,
+                pass_ranges,
+                Some("실패"),
+            ),
+        ])])
+        .expect("suite");
+        let RuntimeValue::Pack(suite_pack) = &suite else {
+            panic!("suite must be a pack");
+        };
+        assert_eq!(
+            suite_pack.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_solve_range_case_suite".to_string()
+            ))
+        );
+        assert_eq!(suite_pack.get("전체통과"), Some(&RuntimeValue::Bool(false)));
+        assert_eq!(suite_pack.get("통과개수"), Some(&fixed_value(2)));
+        assert_eq!(suite_pack.get("실패개수"), Some(&fixed_value(2)));
+        let text = eval_endpoint_solve_range_case_suite_text(&[suite]).expect("suite text");
+        let RuntimeValue::String(text) = text else {
+            panic!("suite text must be a string");
+        };
+        assert!(text.starts_with("이름\t기대\t실제\t통과"));
+        assert!(text.contains("pass-default\t통과\t통과\t참"));
+        assert!(text.contains("expected-fail\t실패\t실패\t참"));
+        assert!(text.contains("unexpected-fail\t통과\t실패\t거짓"));
+        assert!(text.contains("unexpected-success\t실패\t통과\t거짓"));
+        assert!(!text.ends_with('\n'));
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_rejects_bad_inputs() {
+        let mut bad_expected = BTreeMap::new();
+        bad_expected.insert("이름".to_string(), RuntimeValue::String("bad".to_string()));
+        bad_expected.insert("이음관계".to_string(), RuntimeValue::None);
+        bad_expected.insert("값들".to_string(), RuntimeValue::List(Vec::new()));
+        bad_expected.insert("범위들".to_string(), RuntimeValue::List(Vec::new()));
+        bad_expected.insert(
+            "기대검사결과".to_string(),
+            RuntimeValue::String("모름".to_string()),
+        );
+        let err = eval_endpoint_solve_range_case(&[RuntimeValue::Pack(bad_expected)])
+            .expect_err("bad expected result must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_invalid_expected_result"),
+            "{err}"
+        );
+
+        let mut not_suite = BTreeMap::new();
+        not_suite.insert(
+            "아무것".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(1)),
+        );
+        let err = eval_endpoint_solve_range_case_suite_text(&[RuntimeValue::Pack(not_suite)])
+            .expect_err("non suite must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_text_expected_suite"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_detail_formats_sections() {
+        let pass_script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게) 잇기.
+}"#;
+        let pass_program =
+            DdnProgram::from_source(pass_script, "connect_endpoint_case_suite_detail_pass.ddn")
+                .expect("parse");
+        let mut pass_runner = DdnRunner::new(pass_program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        defaults.insert("이음관계".to_string(), RuntimeValue::None);
+        let pass_output = pass_runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let pass_relation = pass_output
+            .resources
+            .get("이음관계")
+            .expect("이음관계")
+            .clone();
+
+        let flow_script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전류는 흐르게) 잇기.
+}"#;
+        let flow_program =
+            DdnProgram::from_source(flow_script, "connect_endpoint_case_suite_detail_flow.ddn")
+                .expect("parse");
+        let mut flow_runner = DdnRunner::new(flow_program, "매틱");
+        let flow_output = flow_runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let flow_relation = flow_output
+            .resources
+            .get("이음관계")
+            .expect("이음관계")
+            .clone();
+
+        fn case(
+            name: &str,
+            relation: RuntimeValue,
+            values: RuntimeValue,
+            ranges: RuntimeValue,
+        ) -> RuntimeValue {
+            let mut fields = BTreeMap::new();
+            fields.insert("이름".to_string(), RuntimeValue::String(name.to_string()));
+            fields.insert("이음관계".to_string(), relation);
+            fields.insert("값들".to_string(), values);
+            fields.insert("범위들".to_string(), ranges);
+            RuntimeValue::Pack(fields)
+        }
+
+        let cases = RuntimeValue::List(vec![
+            case(
+                "voltage-pass",
+                pass_relation,
+                endpoint_boundary_test_values(&[("전지.양극.전압", 5)]),
+                endpoint_range_test_values_raw(vec![(
+                    "전구.왼핀.전압",
+                    Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+                    Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+                )]),
+            ),
+            case(
+                "flow-pass",
+                flow_relation,
+                endpoint_boundary_test_values(&[("전지.양극.전류", 5)]),
+                endpoint_range_test_values_raw(vec![(
+                    "전구.왼핀.전류",
+                    Some(RuntimeValue::Fixed64(Fixed64::from_i64(-10))),
+                    Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+                )]),
+            ),
+        ]);
+        let suite = eval_endpoint_solve_range_case_suite(&[cases.clone()]).expect("suite");
+        let detail =
+            eval_endpoint_solve_range_case_suite_detail_text(&[suite]).expect("detail text");
+        let direct =
+            eval_endpoint_solve_range_case_suite_run_detail_text(&[cases]).expect("direct detail");
+        let RuntimeValue::String(detail) = detail else {
+            panic!("detail must be a string");
+        };
+        let RuntimeValue::String(direct) = direct else {
+            panic!("direct detail must be a string");
+        };
+        assert_eq!(detail, direct);
+        assert!(detail.starts_with("이름\t기대\t실제\t통과"));
+        assert!(
+            detail.contains("\n\n## voltage-pass\n기대\t통과\n실제\t통과\n통과\t참\n변수\t경로")
+        );
+        assert!(detail.contains("\n\n## flow-pass\n기대\t통과\n실제\t통과\n통과\t참\n변수\t경로"));
+        assert!(detail.contains("ep_002\t전구.왼핀.전류\t값있음\t-5\t통과\t-10\t0\t"));
+        assert!(!detail.ends_with('\n'));
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_detail_rejects_bad_inputs() {
+        let mut not_suite = BTreeMap::new();
+        not_suite.insert(
+            "아무것".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(1)),
+        );
+        let err =
+            eval_endpoint_solve_range_case_suite_detail_text(&[RuntimeValue::Pack(not_suite)])
+                .expect_err("non suite must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_detail_expected_suite"),
+            "{err}"
+        );
+
+        let mut bad_result = BTreeMap::new();
+        bad_result.insert(
+            "__이음관계종류".to_string(),
+            RuntimeValue::String("endpoint_solve_range_case_result".to_string()),
+        );
+        bad_result.insert("이름".to_string(), RuntimeValue::String("bad".to_string()));
+        bad_result.insert(
+            "기대검사결과".to_string(),
+            RuntimeValue::String("통과".to_string()),
+        );
+        bad_result.insert(
+            "실제검사결과".to_string(),
+            RuntimeValue::String("통과".to_string()),
+        );
+        bad_result.insert("통과여부".to_string(), RuntimeValue::Bool(true));
+        let mut suite = BTreeMap::new();
+        suite.insert(
+            "__이음관계종류".to_string(),
+            RuntimeValue::String("endpoint_solve_range_case_suite".to_string()),
+        );
+        suite.insert(
+            "결과들".to_string(),
+            RuntimeValue::List(vec![RuntimeValue::Pack(bad_result)]),
+        );
+        let err = eval_endpoint_solve_range_case_suite_detail_text(&[RuntimeValue::Pack(suite)])
+            .expect_err("malformed case result must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_detail_malformed_case_result"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_summary_records_mismatch_lists() {
+        fn case_result(name: &str, expected: &str, actual: &str, passed: bool) -> RuntimeValue {
+            let mut fields = BTreeMap::new();
+            fields.insert(
+                "__이음관계종류".to_string(),
+                RuntimeValue::String("endpoint_solve_range_case_result".to_string()),
+            );
+            fields.insert("이름".to_string(), RuntimeValue::String(name.to_string()));
+            fields.insert(
+                "기대검사결과".to_string(),
+                RuntimeValue::String(expected.to_string()),
+            );
+            fields.insert(
+                "실제검사결과".to_string(),
+                RuntimeValue::String(actual.to_string()),
+            );
+            fields.insert("통과여부".to_string(), RuntimeValue::Bool(passed));
+            RuntimeValue::Pack(fields)
+        }
+
+        let suite = endpoint_solve_range_case_suite_pack(
+            vec![
+                case_result("expected-pass-actual-pass", "통과", "통과", true),
+                case_result("expected-fail-actual-fail", "실패", "실패", true),
+                case_result("expected-pass-actual-fail", "통과", "실패", false),
+                case_result("expected-fail-actual-pass", "실패", "통과", false),
+            ],
+            2,
+        );
+        let summary =
+            eval_endpoint_solve_range_case_suite_summary(&[suite]).expect("suite summary");
+        let RuntimeValue::Pack(summary_pack) = summary else {
+            panic!("summary must be a pack");
+        };
+        assert_eq!(
+            summary_pack.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_solve_range_case_suite_summary".to_string()
+            ))
+        );
+        assert_eq!(summary_pack.get("개수"), Some(&fixed_value(4)));
+        assert_eq!(summary_pack.get("통과개수"), Some(&fixed_value(2)));
+        assert_eq!(summary_pack.get("실패개수"), Some(&fixed_value(2)));
+        assert_eq!(
+            summary_pack.get("전체통과"),
+            Some(&RuntimeValue::Bool(false))
+        );
+        assert_eq!(
+            summary_pack.get("통과케이스들"),
+            Some(&RuntimeValue::List(vec![
+                RuntimeValue::String("expected-pass-actual-pass".to_string()),
+                RuntimeValue::String("expected-fail-actual-fail".to_string()),
+            ]))
+        );
+        assert_eq!(
+            summary_pack.get("실패케이스들"),
+            Some(&RuntimeValue::List(vec![
+                RuntimeValue::String("expected-pass-actual-fail".to_string()),
+                RuntimeValue::String("expected-fail-actual-pass".to_string()),
+            ]))
+        );
+        assert_eq!(
+            summary_pack.get("기대실패통과케이스들"),
+            Some(&RuntimeValue::List(vec![RuntimeValue::String(
+                "expected-fail-actual-pass".to_string()
+            )]))
+        );
+        assert_eq!(
+            summary_pack.get("기대통과실패케이스들"),
+            Some(&RuntimeValue::List(vec![RuntimeValue::String(
+                "expected-pass-actual-fail".to_string()
+            )]))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_summary_rejects_bad_inputs() {
+        let mut not_suite = BTreeMap::new();
+        not_suite.insert(
+            "아무것".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(1)),
+        );
+        let err = eval_endpoint_solve_range_case_suite_summary(&[RuntimeValue::Pack(not_suite)])
+            .expect_err("non suite must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_summary_expected_suite"),
+            "{err}"
+        );
+
+        let mut bad_result = BTreeMap::new();
+        bad_result.insert(
+            "__이음관계종류".to_string(),
+            RuntimeValue::String("endpoint_solve_range_case_result".to_string()),
+        );
+        bad_result.insert("이름".to_string(), RuntimeValue::String("bad".to_string()));
+        bad_result.insert(
+            "기대검사결과".to_string(),
+            RuntimeValue::String("통과".to_string()),
+        );
+        bad_result.insert(
+            "실제검사결과".to_string(),
+            RuntimeValue::String("통과".to_string()),
+        );
+        let mut suite = BTreeMap::new();
+        suite.insert(
+            "__이음관계종류".to_string(),
+            RuntimeValue::String("endpoint_solve_range_case_suite".to_string()),
+        );
+        suite.insert(
+            "결과들".to_string(),
+            RuntimeValue::List(vec![RuntimeValue::Pack(bad_result)]),
+        );
+        let err = eval_endpoint_solve_range_case_suite_summary(&[RuntimeValue::Pack(suite)])
+            .expect_err("malformed result must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_summary_malformed_case_result"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_check_records_pass_fail() {
+        let mut summary = BTreeMap::new();
+        summary.insert(
+            "__이음관계종류".to_string(),
+            RuntimeValue::String("endpoint_solve_range_case_suite_summary".to_string()),
+        );
+        summary.insert("개수".to_string(), fixed_value(4));
+        summary.insert("통과개수".to_string(), fixed_value(2));
+        summary.insert("실패개수".to_string(), fixed_value(2));
+        summary.insert("전체통과".to_string(), RuntimeValue::Bool(false));
+        summary.insert(
+            "실패케이스들".to_string(),
+            RuntimeValue::List(vec![
+                RuntimeValue::String("expected-pass-actual-fail".to_string()),
+                RuntimeValue::String("expected-fail-actual-pass".to_string()),
+            ]),
+        );
+        summary.insert(
+            "기대실패통과케이스들".to_string(),
+            RuntimeValue::List(vec![RuntimeValue::String(
+                "expected-fail-actual-pass".to_string(),
+            )]),
+        );
+        summary.insert(
+            "기대통과실패케이스들".to_string(),
+            RuntimeValue::List(vec![RuntimeValue::String(
+                "expected-pass-actual-fail".to_string(),
+            )]),
+        );
+
+        let check = eval_endpoint_solve_range_case_suite_check(&[RuntimeValue::Pack(summary)])
+            .expect("suite check");
+        let RuntimeValue::Pack(check_pack) = check else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check_pack.get("__이음관계종류"),
+            Some(&RuntimeValue::String(
+                "endpoint_solve_range_case_suite_check".to_string()
+            ))
+        );
+        assert_eq!(
+            check_pack.get("판정"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        assert_eq!(check_pack.get("개수"), Some(&fixed_value(4)));
+        assert_eq!(check_pack.get("통과개수"), Some(&fixed_value(2)));
+        assert_eq!(check_pack.get("실패개수"), Some(&fixed_value(2)));
+        assert_eq!(check_pack.get("전체통과"), Some(&RuntimeValue::Bool(false)));
+        assert_eq!(
+            check_pack.get("기대실패통과케이스들"),
+            Some(&RuntimeValue::List(vec![RuntimeValue::String(
+                "expected-fail-actual-pass".to_string()
+            )]))
+        );
+        assert_eq!(
+            check_pack.get("기대통과실패케이스들"),
+            Some(&RuntimeValue::List(vec![RuntimeValue::String(
+                "expected-pass-actual-fail".to_string()
+            )]))
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_solve_range_case_suite_check_rejects_bad_inputs() {
+        let mut not_summary = BTreeMap::new();
+        not_summary.insert(
+            "아무것".to_string(),
+            RuntimeValue::Fixed64(Fixed64::from_i64(1)),
+        );
+        let err =
+            eval_endpoint_solve_range_case_suite_check(&[RuntimeValue::Pack(not_summary)])
+                .expect_err("non summary must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_check_expected_summary"),
+            "{err}"
+        );
+
+        let mut malformed = BTreeMap::new();
+        malformed.insert(
+            "__이음관계종류".to_string(),
+            RuntimeValue::String("endpoint_solve_range_case_suite_summary".to_string()),
+        );
+        malformed.insert("전체통과".to_string(), RuntimeValue::Bool(true));
+        let err = eval_endpoint_solve_range_case_suite_check(&[RuntimeValue::Pack(malformed)])
+            .expect_err("malformed summary must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_case_suite_check_malformed_summary"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_range_missing_value_is_soft_violation() {
+        let remap = endpoint_partial_range_solve_result();
+        let range = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+        )]);
+        let checked = eval_endpoint_boundary_range_check(&[remap, range]).expect("range check");
+        let RuntimeValue::Pack(check) = checked else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check.get("검사결과"),
+            Some(&RuntimeValue::String("실패".to_string()))
+        );
+        let Some(RuntimeValue::List(violations)) = check.get("위반들") else {
+            panic!("위반들 must be a list");
+        };
+        let RuntimeValue::Pack(first) = &violations[0] else {
+            panic!("violation must be a pack");
+        };
+        assert_eq!(
+            first.get("이유"),
+            Some(&RuntimeValue::String("missing_value".to_string()))
+        );
+        assert!(!first.contains_key("값"));
+        assert_eq!(first.get("하한").map(value_to_string).as_deref(), Some("0"));
+        assert_eq!(
+            first.get("상한").map(value_to_string).as_deref(),
+            Some("10")
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_range_unit_policy_and_errors() {
+        let remap = endpoint_range_solved_result("전류", 5, Some(UnitDim::KRW));
+        let pass = endpoint_range_test_values_raw(vec![(
+            "전구.왼핀.전류",
+            Some(RuntimeValue::Unit(UnitValue {
+                value: Fixed64::from_i64(-10),
+                dim: UnitDim::KRW,
+            })),
+            Some(RuntimeValue::Unit(UnitValue {
+                value: Fixed64::from_i64(0),
+                dim: UnitDim::KRW,
+            })),
+        )]);
+        let checked =
+            eval_endpoint_boundary_range_check(&[remap.clone(), pass]).expect("range check");
+        let RuntimeValue::Pack(check) = checked else {
+            panic!("check must be a pack");
+        };
+        assert_eq!(
+            check.get("검사결과"),
+            Some(&RuntimeValue::String("통과".to_string()))
+        );
+
+        let incompatible = endpoint_range_test_values_raw(vec![(
+            "전지.양극.전류",
+            None,
+            Some(RuntimeValue::Unit(UnitValue {
+                value: Fixed64::from_i64(10),
+                dim: UnitDim::USD,
+            })),
+        )]);
+        let err = eval_endpoint_boundary_range_check(&[remap.clone(), incompatible])
+            .expect_err("incompatible unit must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_range_incompatible_unit"),
+            "{err}"
+        );
+
+        let dim_conflict = endpoint_range_test_values_raw(vec![(
+            "전지.양극.전류",
+            None,
+            Some(RuntimeValue::Unit(UnitValue {
+                value: Fixed64::from_i64(10),
+                dim: UnitDim::LENGTH,
+            })),
+        )]);
+        let err = eval_endpoint_boundary_range_check(&[remap, dim_conflict])
+            .expect_err("dimension conflict must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_range_dim_conflict"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn connect_endpoint_boundary_range_rejects_unsupported_inputs() {
+        let remap = endpoint_range_solved_result("전압", 5, None);
+        let duplicate = endpoint_range_test_values_raw(vec![
+            (
+                "전지.양극.전압",
+                Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+                None,
+            ),
+            (
+                "전지.양극.전압",
+                None,
+                Some(RuntimeValue::Fixed64(Fixed64::from_i64(10))),
+            ),
+        ]);
+        let err = eval_endpoint_boundary_range_check(&[remap.clone(), duplicate])
+            .expect_err("duplicate path must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_range_duplicate_path"),
+            "{err}"
+        );
+
+        let unknown = endpoint_range_test_values_raw(vec![(
+            "없는.끝.전압",
+            Some(RuntimeValue::Fixed64(Fixed64::from_i64(0))),
+            None,
+        )]);
+        let err = eval_endpoint_boundary_range_check(&[remap.clone(), unknown])
+            .expect_err("unknown path must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_range_unknown_path"),
+            "{err}"
+        );
+
+        let mut bad = BTreeMap::new();
+        bad.insert(
+            "경로".to_string(),
+            RuntimeValue::String("전지.양극.전압".to_string()),
+        );
+        bad.insert("최소".to_string(), RuntimeValue::String("0".to_string()));
+        let err = eval_endpoint_boundary_range_check(&[
+            remap,
+            RuntimeValue::List(vec![RuntimeValue::Pack(bad)]),
+        ])
+        .expect_err("non numeric must fail");
+        assert!(
+            err.to_string()
+                .contains("connect_boundary_range_non_numeric"),
+            "{err}"
+        );
+    }
+
+    fn endpoint_boundary_test_values(items: &[(&str, i64)]) -> RuntimeValue {
+        endpoint_boundary_test_values_raw(
+            items
+                .iter()
+                .map(|(path, value)| (*path, RuntimeValue::Fixed64(Fixed64::from_i64(*value))))
+                .collect(),
+        )
+    }
+
+    fn endpoint_range_solved_result(
+        channel: &str,
+        left_value: i64,
+        unit: Option<UnitDim>,
+    ) -> RuntimeValue {
+        let left_path = format!("전지.양극.{channel}");
+        let right_path = format!("전구.왼핀.{channel}");
+        let left = match unit {
+            Some(dim) => RuntimeValue::Unit(UnitValue {
+                value: Fixed64::from_i64(left_value),
+                dim,
+            }),
+            None => RuntimeValue::Fixed64(Fixed64::from_i64(left_value)),
+        };
+        let right = match unit {
+            Some(dim) => RuntimeValue::Unit(UnitValue {
+                value: Fixed64::from_i64(-left_value),
+                dim,
+            }),
+            None => RuntimeValue::Fixed64(Fixed64::from_i64(left_value)),
+        };
+        endpoint_range_solve_result_from_values(vec![
+            ("ep_001", &left_path, Some(left)),
+            ("ep_002", &right_path, Some(right)),
+        ])
+    }
+
+    fn endpoint_partial_range_solve_result() -> RuntimeValue {
+        endpoint_range_solve_result_from_values(vec![
+            (
+                "ep_001",
+                "전지.양극.전압",
+                Some(RuntimeValue::Fixed64(Fixed64::from_i64(5))),
+            ),
+            ("ep_002", "전구.왼핀.전압", None),
+        ])
+    }
+
+    fn endpoint_range_solve_result_from_values(
+        entries: Vec<(&str, &str, Option<RuntimeValue>)>,
+    ) -> RuntimeValue {
+        let mut mappings = Vec::new();
+        let mut values = Vec::new();
+        let mut missing = Vec::new();
+        for (variable, path, value) in entries {
+            let mut mapping = BTreeMap::new();
+            mapping.insert(
+                "변수".to_string(),
+                RuntimeValue::String(variable.to_string()),
+            );
+            mapping.insert("경로".to_string(), RuntimeValue::String(path.to_string()));
+            mappings.push(RuntimeValue::Pack(mapping));
+            if let Some(value) = value {
+                let mut item = BTreeMap::new();
+                item.insert(
+                    "변수".to_string(),
+                    RuntimeValue::String(variable.to_string()),
+                );
+                item.insert("경로".to_string(), RuntimeValue::String(path.to_string()));
+                item.insert("값".to_string(), value);
+                values.push(RuntimeValue::Pack(item));
+            } else {
+                missing.push(RuntimeValue::String(variable.to_string()));
+            }
+        }
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            "__이음관계종류".to_string(),
+            RuntimeValue::String("endpoint_solve_result".to_string()),
+        );
+        fields.insert(
+            "풀이결과종류".to_string(),
+            RuntimeValue::String(if missing.is_empty() {
+                "성공".to_string()
+            } else {
+                "부분성공".to_string()
+            }),
+        );
+        fields.insert("값들".to_string(), RuntimeValue::List(values));
+        fields.insert("누락변수들".to_string(), RuntimeValue::List(missing));
+        fields.insert("변수사상".to_string(), RuntimeValue::List(mappings));
+        fields.insert("원래풀이".to_string(), endpoint_fake_solve_result());
+        RuntimeValue::Pack(fields)
+    }
+
+    fn endpoint_range_test_values_raw(
+        items: Vec<(&str, Option<RuntimeValue>, Option<RuntimeValue>)>,
+    ) -> RuntimeValue {
+        RuntimeValue::List(
+            items
+                .into_iter()
+                .map(|(path, min, max)| {
+                    let mut fields = BTreeMap::new();
+                    fields.insert("경로".to_string(), RuntimeValue::String(path.to_string()));
+                    if let Some(min) = min {
+                        fields.insert("최소".to_string(), min);
+                    }
+                    if let Some(max) = max {
+                        fields.insert("최대".to_string(), max);
+                    }
+                    RuntimeValue::Pack(fields)
+                })
+                .collect(),
+        )
+    }
+
+    fn endpoint_fake_solve_result() -> RuntimeValue {
+        let mut bindings = BTreeMap::new();
+        bindings.insert("ep_001".to_string(), fixed_value(1));
+        bindings.insert("ep_002".to_string(), fixed_value(1));
+        let mut result = BTreeMap::new();
+        result.insert(
+            RELATION_SOLVE_RESULT_KIND_FIELD.to_string(),
+            RuntimeValue::String(RELATION_SOLVE_RESULT_SUCCESS.to_string()),
+        );
+        result.insert(
+            RELATION_SOLVE_BINDINGS_FIELD.to_string(),
+            RuntimeValue::Pack(bindings),
+        );
+        RuntimeValue::Pack(result)
+    }
+
+    fn endpoint_boundary_test_values_unit(items: &[(&str, i64, UnitDim)]) -> RuntimeValue {
+        endpoint_boundary_test_values_raw(
+            items
+                .iter()
+                .map(|(path, value, dim)| {
+                    (
+                        *path,
+                        RuntimeValue::Unit(UnitValue {
+                            value: Fixed64::from_i64(*value),
+                            dim: *dim,
+                        }),
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    fn endpoint_boundary_test_values_raw(items: Vec<(&str, RuntimeValue)>) -> RuntimeValue {
+        RuntimeValue::List(
+            items
+                .into_iter()
+                .map(|(path, value)| {
+                    let mut fields = BTreeMap::new();
+                    fields.insert("경로".to_string(), RuntimeValue::String(path.to_string()));
+                    fields.insert("값".to_string(), value);
+                    RuntimeValue::Pack(fields)
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn connect_endpoint_solve_result_remap_success_returns_endpoint_values() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전압은 흐르게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+    관계들 <- 방정식묶음.관계들.
+    풀이 <- (관계들) 방정식풀기.
+    원복 <- (방정식묶음, 풀이) 이음관계.풀이원복.
+    값들 <- (방정식묶음, 풀이) 이음관계.풀이값목록.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_solve_result_remap_success.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "방정식묶음", "관계들", "풀이", "원복", "값들"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(remap)) = output.resources.get("원복") else {
+            panic!("원복 must be a pack");
+        };
+        assert_eq!(
+            remap.get("__이음관계종류"),
+            Some(&RuntimeValue::String("endpoint_solve_result".to_string()))
+        );
+        assert_eq!(
+            remap.get("풀이결과종류"),
+            Some(&RuntimeValue::String("성공".to_string()))
+        );
+        let Some(RuntimeValue::List(values)) = remap.get("값들") else {
+            panic!("값들 must be a list");
+        };
+        assert_eq!(values.len(), 2);
+        let RuntimeValue::Pack(first) = &values[0] else {
+            panic!("first value must be a pack");
+        };
+        assert_eq!(
+            first.get("변수"),
+            Some(&RuntimeValue::String("ep_001".to_string()))
+        );
+        assert_eq!(
+            first.get("경로"),
+            Some(&RuntimeValue::String("전지.양극.전압".to_string()))
+        );
+        let Some(RuntimeValue::List(value_list)) = output.resources.get("값들") else {
+            panic!("풀이값목록 must be a list");
+        };
+        assert_eq!(value_list.len(), 2);
+    }
+
+    #[test]
+    fn connect_endpoint_solve_result_remap_partial_records_missing_variables() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전압은 흐르게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+    부분관계 <- ((#ascii) 수식{ep_001}) =:= ((#ascii) 수식{0}).
+    부분풀이 <- (부분관계) 방정식풀기.
+    원복 <- (방정식묶음, 부분풀이) 이음관계.풀이원복.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_solve_result_remap_partial.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "방정식묶음", "부분관계", "부분풀이", "원복"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        let output = runner
+            .run_update(&world, &empty_input(), &defaults)
+            .expect("run update");
+        let Some(RuntimeValue::Pack(remap)) = output.resources.get("원복") else {
+            panic!("원복 must be a pack");
+        };
+        assert_eq!(
+            remap.get("풀이결과종류"),
+            Some(&RuntimeValue::String("부분성공".to_string()))
+        );
+        let Some(RuntimeValue::List(values)) = remap.get("값들") else {
+            panic!("값들 must be a list");
+        };
+        assert_eq!(values.len(), 1);
+        let Some(RuntimeValue::List(missing)) = remap.get("누락변수들") else {
+            panic!("누락변수들 must be a list");
+        };
+        assert_eq!(missing, &vec![RuntimeValue::String("ep_002".to_string())]);
+    }
+
+    #[test]
+    fn connect_endpoint_solve_result_remap_rejects_unknown_solver_binding() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전압은 흐르게) 잇기.
+    방정식묶음 <- (이음관계) 이음관계.방정식화.
+    나쁜관계 <- ((#ascii) 수식{ep_999}) =:= ((#ascii) 수식{0}).
+    나쁜풀이 <- (나쁜관계) 방정식풀기.
+    원복 <- (방정식묶음, 나쁜풀이) 이음관계.풀이원복.
+}"#;
+        let program =
+            DdnProgram::from_source(script, "connect_endpoint_solve_result_remap_bad.ddn")
+                .expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let mut defaults: HashMap<String, RuntimeValue> = HashMap::new();
+        for name in ["이음관계", "방정식묶음", "나쁜관계", "나쁜풀이", "원복"] {
+            defaults.insert(name.to_string(), RuntimeValue::None);
+        }
+        assert!(runner
+            .run_update(&world, &empty_input(), &defaults)
+            .is_err());
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_unsupported_multi_inner_sentence_runtime_surface() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 재화가 돈에 실리게) 잇기.
+}"#;
+        assert!(DdnProgram::from_source(script, "connect_endpoint_multi_unsupported.ddn").is_err());
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_duplicate_carrier_flow_runtime_surface() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 가계1.구매끝과 장터.소매끝을 (돈은 흐르게, 돈은 거슬러 흐르게, 재화가 돈에 실리게) 잇기.
+}"#;
+        assert!(DdnProgram::from_source(script, "connect_endpoint_duplicate_carrier.ddn").is_err());
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_empty_multi_inner_sentence_runtime_surface() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, ) 잇기.
+}"#;
+        assert!(DdnProgram::from_source(script, "connect_endpoint_multi_empty.ddn").is_err());
+    }
+
+    #[test]
+    fn connect_endpoint_rejects_whole_object_shorthand_runtime_surface() {
+        let script = r#"매틱:움직씨 = {
+    이음관계 <- 전구와 전지를 (전압은 같게) 잇기.
+}"#;
+        assert!(DdnProgram::from_source(script, "connect_endpoint_unsupported.ddn").is_err());
+    }
+
+    #[test]
     fn relation_solve_surface_handles_quadratic_single_root() {
         let script = r#"
 매틱:움직씨 = {
@@ -14641,6 +22432,50 @@ mod tests {
         assert_eq!(
             bindings.get("y"),
             Some(&make_big_int_pack_from_bigint(&BigInt::from(2)))
+        );
+    }
+
+    #[test]
+    fn butbak_decl_reassignment_fails_in_runtime() {
+        let script = r#"
+채비 {
+    상수:수 = 1.
+}.
+
+상수 <- 2.
+"#;
+        let program = DdnProgram::from_source(script, "butbak_reassign_fail.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let err = match runner.run_update(&world, &empty_input(), &HashMap::new()) {
+            Ok(_) => panic!("butbak reassignment must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string().contains("붙박이는 재대입할 수 없습니다"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn non_butbak_decl_reassignment_still_runs_in_runtime() {
+        let script = r#"
+채비 {
+    점수:수 <- 0.
+}.
+
+점수 <- 1.
+"#;
+        let program =
+            DdnProgram::from_source(script, "non_butbak_reassign_runs.ddn").expect("parse");
+        let mut runner = DdnRunner::new(program, "매틱");
+        let world = NuriWorld::new();
+        let output = runner
+            .run_update(&world, &empty_input(), &HashMap::new())
+            .expect("run update");
+        assert_eq!(
+            extract_fixed(&output.resources, "점수"),
+            Fixed64::from_i64(1)
         );
     }
 

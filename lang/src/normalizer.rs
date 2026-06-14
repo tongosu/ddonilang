@@ -655,8 +655,11 @@ impl Normalizer {
     }
 
     fn render_bound_arg_text(&self, arg: &ArgBinding, func: &str) -> Option<String> {
-        let expr = self.render_expr_inline(&arg.expr)?;
+        let mut expr = self.render_expr_inline(&arg.expr)?;
         if let Some(josa) = self.preferred_param_josa(func, arg) {
+            if let Some(pin) = arg.resolved_pin.as_deref() {
+                expr = self.strip_existing_param_josa(func, pin, &expr);
+            }
             return Some(format!("{expr}~{josa}"));
         }
         if let Some(pin) = &arg.resolved_pin {
@@ -677,6 +680,21 @@ impl Normalizer {
             .iter()
             .find(|candidate| self.is_unique_param_josa(params, pin, candidate))
             .map(|candidate| candidate.as_str())
+    }
+
+    fn strip_existing_param_josa(&self, func: &str, pin: &str, expr: &str) -> String {
+        let Some(params) = self.call_signatures.get(func) else {
+            return expr.to_string();
+        };
+        let Some(param) = params.iter().find(|param| param.pin_name == pin) else {
+            return expr.to_string();
+        };
+        for candidate in &param.josa_list {
+            if expr.ends_with(candidate) && expr.len() > candidate.len() {
+                return expr[..expr.len() - candidate.len()].to_string();
+            }
+        }
+        expr.to_string()
     }
 
     fn is_unique_param_josa(&self, params: &[ParamPin], pin: &str, josa: &str) -> bool {

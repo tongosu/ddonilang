@@ -1,3 +1,4 @@
+pub mod bandit;
 pub mod cartpole;
 pub mod gridmaze;
 pub mod pendulum;

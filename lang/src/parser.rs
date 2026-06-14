@@ -231,7 +231,9 @@ impl Parser {
             } else if self.check(&TokenKind::Arrow) || self.check(&TokenKind::Equals) {
                 TypeRef::Infer
             } else {
-                return Err(self.error("선언 항목은 `이름:타입 <- 값.` 또는 `이름 <- 값.` 형태여야 합니다"));
+                return Err(
+                    self.error("선언 항목은 `이름:타입 <- 값.` 또는 `이름 <- 값.` 형태여야 합니다")
+                );
             };
             let mut josa_list = Vec::new();
             while self.check(&TokenKind::Tilde) {
@@ -738,10 +740,11 @@ impl Parser {
                 Some(TokenKind::RParen) => {
                     depth = depth.saturating_sub(1);
                     if depth == 0 {
-                        return self
-                            .tokens
-                            .get(idx + 1)
-                            .is_some_and(|token| Self::token_text_is(&token.kind, "인"));
+                        let Some(in_token) = self.tokens.get(idx + 1) else {
+                            return false;
+                        };
+                        return Self::token_text_is(&in_token.kind, "인")
+                            && self.receive_tail_starts_at(idx + 2);
                     }
                 }
                 Some(TokenKind::Eof) | None => return false,
@@ -751,18 +754,46 @@ impl Parser {
         false
     }
 
+    fn receive_tail_starts_at(&self, idx: usize) -> bool {
+        let Some(token) = self.tokens.get(idx) else {
+            return false;
+        };
+        let text = match &token.kind {
+            TokenKind::Ident(text) | TokenKind::Josa(text) => text,
+            _ => return false,
+        };
+        let after_kind_idx = if text
+            .strip_suffix('를')
+            .or_else(|| text.strip_suffix('을'))
+            .is_some()
+        {
+            idx + 1
+        } else if self.tokens.get(idx + 1).is_some_and(
+            |token| matches!(&token.kind, TokenKind::Josa(josa) if josa == "을" || josa == "를"),
+        ) {
+            idx + 2
+        } else {
+            return false;
+        };
+        self.tokens
+            .get(after_kind_idx)
+            .is_some_and(|token| Self::token_text_is(&token.kind, "받으면"))
+    }
+
     fn try_consume_receive_kind_name(&mut self) -> Option<(Option<String>, Span)> {
         let start = self.current_span();
         let text = match &self.current().kind {
             TokenKind::Ident(text) | TokenKind::Josa(text) => text.clone(),
             _ => return None,
         };
-        let kind = if let Some(raw) = text.strip_suffix('를').or_else(|| text.strip_suffix('을')) {
+        let kind = if let Some(raw) = text.strip_suffix('를').or_else(|| text.strip_suffix('을'))
+        {
             self.advance();
             raw.to_string()
-        } else if self.peek_kind_n_is(1, |kind| {
-            matches!(kind, TokenKind::Josa(josa) if josa == "을" || josa == "를")
-        }) {
+        } else if self.peek_kind_n_is(
+            1,
+            |kind| matches!(kind, TokenKind::Josa(josa) if josa == "을" || josa == "를"),
+        ) {
             self.advance();
             self.advance();
             text
@@ -1242,6 +1273,7 @@ impl Parser {
         }
         match name.as_str() {
             "채비" => Some(DeclKind::Gureut),
+            "성질" if self.in_imja_seed_body() => Some(DeclKind::Gureut),
             _ => None,
         }
     }
@@ -1272,10 +1304,10 @@ impl Parser {
     fn parse_decl_block(&mut self, _kind: DeclKind) -> Result<Stmt, ParseError> {
         let s = self.current_span();
         let keyword = self.advance().raw.clone(); // consume keyword ident
-        if keyword != "채비" {
+        if keyword != "채비" && !(keyword == "성질" && self.in_imja_seed_body()) {
             return Err(ParseError {
                 span: s,
-                message: "선언 블록 머릿말은 `채비`만 사용합니다".to_string(),
+                message: "선언 블록 머릿말은 `채비`만 사용합니다. `성질`은 `임자` 본문 안에서만 허용됩니다".to_string(),
             });
         }
         self.expect_colon_or_lbrace("선언 블록 본문")?;
@@ -2215,11 +2247,10 @@ impl Parser {
                 let span = self
                     .to_ast_span(t.span)
                     .merge(&self.to_ast_span(close.span));
-
                 if !saw_pack {
                     if self.check_adjacent_in(close.span.end) {
                         self.advance();
-                        let mut value_expr = self.parse_primary()?;
+                        let mut value_expr = self.parse_primary_inner(false)?;
                         value_expr = self.parse_index_suffix(value_expr)?;
                         value_expr = self.parse_at_suffix(value_expr)?;
                         let func_token = self.expect_ident("함수")?;
@@ -2729,6 +2760,21 @@ impl Parser {
         self.validate_ident_token_allow_reserved(token, &[])
     }
 
+    fn validate_call_name_segment(
+        &self,
+        token: &Token,
+        current_name: Option<&str>,
+    ) -> Result<(), ParseError> {
+        let name = match &token.kind {
+            TokenKind::Ident(name) | TokenKind::Josa(name) => name.as_str(),
+            _ => return Ok(()),
+        };
+        if name == "상태" && current_name == Some("격자게임상태") {
+            return Ok(());
+        }
+        self.validate_ident_token(token)
+    }
+
     fn validate_ident_token_allow_reserved(
         &self,
         token: &Token,
@@ -2767,6 +2813,15 @@ impl Parser {
                 ),
             });
         }
+        if !is_valid_prime_derivative_ident(name) {
+            return Err(ParseError {
+                span: self.to_ast_span(token.span),
+                message: format!(
+                    "NAME-LINT-02: prime 미분 표기는 식별자 끝의 1~2개 `'`만 허용합니다: {}",
+                    name
+                ),
+            });
+        }
         Ok(())
     }
 
@@ -2780,7 +2835,13 @@ impl Parser {
         if self.should_skip_decl_control_call_name() {
             return Ok(None);
         }
-        let first = self.expect_ident("함수")?;
+        let first = if self.check_ident() {
+            let token = self.advance();
+            self.validate_call_name_segment(&token, None)?;
+            token
+        } else {
+            return Err(self.error("함수"));
+        };
         let mut name = first.raw.clone();
         let mut span = self.to_ast_span(first.span);
         let mut end = first.span.end;
@@ -2799,7 +2860,16 @@ impl Parser {
                 break;
             }
             self.advance();
-            let next = self.expect_ident("함수")?;
+            let next = if matches!(
+                self.current().kind,
+                TokenKind::Ident(_) | TokenKind::Josa(_)
+            ) {
+                let token = self.advance();
+                self.validate_call_name_segment(&token, Some(&name))?;
+                token
+            } else {
+                return Err(self.error("함수"));
+            };
             name.push('.');
             name.push_str(&next.raw);
             span = span.merge(&self.to_ast_span(next.span));
@@ -3190,20 +3260,24 @@ impl Parser {
             Stmt::Expr { expr, .. } => self.expr_has_mutation(expr),
             Stmt::Receive {
                 condition, body, ..
-            } => condition
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_mutation(expr))
-                || self.body_has_mutation(body),
+            } => {
+                condition
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_mutation(expr))
+                    || self.body_has_mutation(body)
+            }
             Stmt::Send {
                 sender,
                 payload,
                 receiver,
                 ..
-            } => sender
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_mutation(expr))
-                || self.expr_has_mutation(payload)
-                || self.expr_has_mutation(receiver),
+            } => {
+                sender
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_mutation(expr))
+                    || self.expr_has_mutation(payload)
+                    || self.expr_has_mutation(receiver)
+            }
             Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => self.expr_has_mutation(expr),
             Stmt::Return { value, .. } => self.expr_has_mutation(value),
             Stmt::If {
@@ -3278,20 +3352,24 @@ impl Parser {
             Stmt::Expr { expr, .. } => self.expr_has_eval_do(expr),
             Stmt::Receive {
                 condition, body, ..
-            } => condition
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_eval_do(expr))
-                || self.body_has_eval_do(body),
+            } => {
+                condition
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_eval_do(expr))
+                    || self.body_has_eval_do(body)
+            }
             Stmt::Send {
                 sender,
                 payload,
                 receiver,
                 ..
-            } => sender
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_eval_do(expr))
-                || self.expr_has_eval_do(payload)
-                || self.expr_has_eval_do(receiver),
+            } => {
+                sender
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_eval_do(expr))
+                    || self.expr_has_eval_do(payload)
+                    || self.expr_has_eval_do(receiver)
+            }
             Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => self.expr_has_eval_do(expr),
             Stmt::Return { value, .. } => self.expr_has_eval_do(value),
             Stmt::If {
@@ -3366,20 +3444,24 @@ impl Parser {
             Stmt::Expr { expr, .. } => self.expr_has_random(expr),
             Stmt::Receive {
                 condition, body, ..
-            } => condition
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_random(expr))
-                || self.body_has_random(body),
+            } => {
+                condition
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_random(expr))
+                    || self.body_has_random(body)
+            }
             Stmt::Send {
                 sender,
                 payload,
                 receiver,
                 ..
-            } => sender
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_random(expr))
-                || self.expr_has_random(payload)
-                || self.expr_has_random(receiver),
+            } => {
+                sender
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_random(expr))
+                    || self.expr_has_random(payload)
+                    || self.expr_has_random(receiver)
+            }
             Stmt::Show { expr, .. } | Stmt::Inspect { expr, .. } => self.expr_has_random(expr),
             Stmt::Return { value, .. } => self.expr_has_random(value),
             Stmt::If {
@@ -3455,20 +3537,24 @@ impl Parser {
             Stmt::Expr { expr, .. } => self.expr_has_show(expr),
             Stmt::Receive {
                 condition, body, ..
-            } => condition
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_show(expr))
-                || self.body_has_show(body),
+            } => {
+                condition
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_show(expr))
+                    || self.body_has_show(body)
+            }
             Stmt::Send {
                 sender,
                 payload,
                 receiver,
                 ..
-            } => sender
-                .as_ref()
-                .map_or(false, |expr| self.expr_has_show(expr))
-                || self.expr_has_show(payload)
-                || self.expr_has_show(receiver),
+            } => {
+                sender
+                    .as_ref()
+                    .map_or(false, |expr| self.expr_has_show(expr))
+                    || self.expr_has_show(payload)
+                    || self.expr_has_show(receiver)
+            }
             Stmt::Return { value, .. } => self.expr_has_show(value),
             Stmt::If {
                 condition,
@@ -5867,6 +5953,22 @@ fn parse_symbolic_equivalence_assertion(raw: &str) -> Option<(String, String)> {
         return None;
     }
     Some((lhs, rhs))
+}
+
+fn is_valid_prime_derivative_ident(name: &str) -> bool {
+    let mut trailing_primes = 0usize;
+    let mut seen_non_prime = false;
+    for ch in name.chars().rev() {
+        if ch == '\'' && !seen_non_prime {
+            trailing_primes += 1;
+            continue;
+        }
+        if ch == '\'' {
+            return false;
+        }
+        seen_non_prime = true;
+    }
+    trailing_primes <= 2
 }
 
 fn parse_symbolic_relation_assertion(raw: &str) -> Option<(String, String)> {

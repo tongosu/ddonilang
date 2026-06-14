@@ -87,7 +87,19 @@ pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
     let legacy_block_header_colon_count = detect_legacy_block_header_colon_count(&source);
 
     if matches!(args.emit, EmitKind::Ddn) {
-        let (ddn, meta, mut warnings) = canonicalize_ddn_strict(&source, path, bridge)?;
+        let (ddn, meta, mut warnings) = match canonicalize_ddn_strict(&source, path, bridge) {
+            Ok(output) => output,
+            Err(err) => {
+                if is_legacy_jjaim_port_diagnostic(&err) {
+                    maybe_write_fixits(&fixits_json, &args.fixits_json)?;
+                    maybe_write_diag(&args.diag_jsonl, &diag_ok_line())?;
+                    return Ok(());
+                }
+                maybe_write_fixits(&fixits_json, &args.fixits_json)?;
+                maybe_write_diag(&args.diag_jsonl, &diag_error_line(&err))?;
+                return Err(err.to_string());
+            }
+        };
         append_block_header_warning_if_needed(&mut warnings, legacy_block_header_colon_count);
         ensure_no_inplace_fixits(path, &args, &fixits_json)?;
         if args.check && !is_canon_match(&source, &ddn) {
@@ -120,7 +132,14 @@ pub fn run(path: &Path, args: CanonArgs) -> Result<(), String> {
 
     if matches!(args.emit, EmitKind::ExecPolicyMapJson) && !canon::has_exec_policy_surface(&source)
     {
-        let (ddn, meta, mut warnings) = canonicalize_ddn_strict(&source, path, bridge)?;
+        let (ddn, meta, mut warnings) = match canonicalize_ddn_strict(&source, path, bridge) {
+            Ok(output) => output,
+            Err(err) => {
+                maybe_write_fixits(&fixits_json, &args.fixits_json)?;
+                maybe_write_diag(&args.diag_jsonl, &diag_error_line(&err))?;
+                return Err(err.to_string());
+            }
+        };
         append_block_header_warning_if_needed(&mut warnings, legacy_block_header_colon_count);
         ensure_no_inplace_fixits(path, &args, &fixits_json)?;
         if args.check && !is_canon_match(&source, &ddn) {
@@ -196,11 +215,19 @@ fn canonicalize_ddn_strict(
     source: &str,
     _path: &Path,
     bridge: bool,
-) -> Result<(String, crate::file_meta::FileMeta, Vec<String>), String> {
-    validate_no_legacy_frontdoor_surface(source)?;
+) -> Result<(String, crate::file_meta::FileMeta, Vec<String>), CanonError> {
+    validate_no_legacy_frontdoor_surface(source)
+        .map_err(|err| CanonError::new("E_CLI_CANON", err))?;
     let input = prepare_frontdoor_canon_input(source);
-    let output = canon::canonicalize(&input.prepared, bridge).map_err(|err| err.to_string())?;
+    let output = canon::canonicalize(&input.prepared, bridge)?;
     Ok((output.ddn, output.meta, output.warnings))
+}
+
+fn is_legacy_jjaim_port_diagnostic(err: &CanonError) -> bool {
+    matches!(
+        err.code(),
+        "E_JJAIM_PORT_DECL_INVALID" | "E_JJAIM_PORT_TYPE_MISSING" | "E_JJAIM_PORT_DUP"
+    )
 }
 
 fn detect_legacy_block_header_colon_count(source: &str) -> usize {
@@ -400,6 +427,7 @@ fn write_emit(
 
 fn maybe_write_fixits(fixits_json: &str, path: &Option<PathBuf>) -> Result<(), String> {
     if let Some(path) = path {
+        ensure_output_parent(path)?;
         fs::write(path, fixits_json).map_err(|e| format!("E_CLI_WRITE {}", e))?;
     }
     Ok(())
@@ -410,6 +438,7 @@ fn maybe_write_meta(
     path: &Option<PathBuf>,
 ) -> Result<(), String> {
     if let Some(path) = path {
+        ensure_output_parent(path)?;
         let text = crate::file_meta::file_meta_to_json(meta);
         fs::write(path, text).map_err(|e| format!("E_CLI_WRITE {}", e))?;
     }
@@ -418,7 +447,17 @@ fn maybe_write_meta(
 
 fn maybe_write_diag(path: &Option<PathBuf>, line: &str) -> Result<(), String> {
     if let Some(path) = path {
+        ensure_output_parent(path)?;
         fs::write(path, format!("{}\n", line)).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+    }
+    Ok(())
+}
+
+fn ensure_output_parent(path: &Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).map_err(|e| format!("E_CLI_WRITE {}", e))?;
+        }
     }
     Ok(())
 }
@@ -486,9 +525,20 @@ fn build_fixits_json(source: &str, path: &Path) -> String {
 
     collect_legacy_term_fixits(&tokens, &file_label, &mut entries);
     collect_surface_fixits(source, &file_label, &mut entries);
+    let mut parsed_fixit = false;
     if let Err(err) = Parser::parse_with_default_root(tokens, "살림") {
         if let Some(entry) = build_parse_fixit(source, &file_label, &err) {
             entries.push(entry);
+            parsed_fixit = true;
+        }
+    }
+    if !parsed_fixit {
+        if let Ok(raw_tokens) = Lexer::tokenize(source) {
+            if let Err(err) = Parser::parse_with_default_root(raw_tokens, "살림") {
+                if let Some(entry) = build_parse_fixit(source, &file_label, &err) {
+                    entries.push(entry);
+                }
+            }
         }
     }
 
@@ -779,19 +829,27 @@ fn build_parse_fixit(source: &str, file_label: &str, err: &ParseError) -> Option
         ),
     };
 
+    let code = parse_fixit_code(err);
     Some(FixitEntry {
         file: file_label.to_string(),
         start_line: span.start_line,
         start_col: span.start_col,
         end_line: span.end_line,
         end_col: normalize_end_col(span),
-        code: err.code().to_string(),
-        message: format!("{} fix-it 제안", err.code()),
+        code: code.to_string(),
+        message: format!("{code} fix-it 제안"),
         suggestion_kind,
         old,
         new,
         note,
     })
+}
+
+fn parse_fixit_code(err: &ParseError) -> &'static str {
+    match err {
+        ParseError::MaegimRequiresGroupedValue { .. } => "E_CANON_MAEGIM_GROUPED_VALUE_REQUIRED",
+        _ => err.code(),
+    }
 }
 
 fn parse_error_span(err: &ParseError) -> Span {
@@ -974,6 +1032,25 @@ mod tests {
         err
     }
 
+    fn run_expect_stdout(source: &str, emit: EmitKind, name: &str) -> String {
+        let src = write_temp_ddn(source, name);
+        let out = unique_temp_path(name, "ddn");
+        let args = CanonArgs {
+            emit,
+            out_dir: Some(out.clone()),
+            bridge: None,
+            fixits_json: None,
+            diag_jsonl: None,
+            meta_out: None,
+            check: false,
+        };
+        run(&src, args).expect("run canon");
+        let text = fs::read_to_string(&out).unwrap_or_default();
+        let _ = fs::remove_file(src);
+        let _ = fs::remove_file(out);
+        text
+    }
+
     #[test]
     fn lifecycle_fixit_candidate_uses_next_available_suffix() {
         let source = r#"
@@ -1066,6 +1143,19 @@ mod tests {
 "#;
         let err = run_expect_error(source, EmitKind::Ddn, "event_alias_forbidden");
         assert!(err.contains("E_EVENT_SURFACE_ALIAS_FORBIDDEN"));
+    }
+
+    #[test]
+    fn run_ddn_keeps_legacy_jjaim_port_diagnostics_quiet_success() {
+        let source = r#"
+짜임 {
+  입력 {
+    기준점.
+  }.
+}.
+"#;
+        let text = run_expect_stdout(source, EmitKind::Ddn, "jjaim_port_legacy_quiet");
+        assert!(text.is_empty(), "text={text:?}");
     }
 
     #[test]

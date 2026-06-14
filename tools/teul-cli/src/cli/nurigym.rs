@@ -3,6 +3,9 @@ use std::path::Path;
 
 use ddonirang_core::fixed64::Fixed64;
 use ddonirang_core::mix64;
+use ddonirang_core::nurigym::bandit::{
+    run_episode as run_bandit_episode, BanditConfig, BanditEnv,
+};
 use ddonirang_core::nurigym::cartpole::{
     run_episode as run_cartpole_episode, CartPoleConfig, CartPoleEnv,
 };
@@ -211,6 +214,12 @@ pub fn run_episode_file(input_path: &Path, out_dir: &Path) -> Result<(), String>
     let gridmaze_layout = select_gridmaze_layout(input.seed, input.gridmaze_layouts.as_deref())?;
 
     let (obs_slot_count, action_spec) = match env_id.as_str() {
+        "nurigym.bandit1d" => (
+            2u32,
+            ActionSpec {
+                actions: vec!["arm_left".to_string(), "arm_right".to_string()],
+            },
+        ),
         "nurigym.cartpole1d" => (
             4u32,
             ActionSpec {
@@ -389,6 +398,7 @@ fn run_independent_env(
             mix64(seed, agent.agent_id)
         };
         let steps = match env_id {
+            "nurigym.bandit1d" => run_bandit(agent_seed, agent, default_max)?,
             "nurigym.cartpole1d" => run_cartpole(agent_seed, agent, default_max)?,
             "nurigym.pendulum1d" => run_pendulum(agent_seed, agent, default_max)?,
             "nurigym.gridmaze2d" => {
@@ -416,6 +426,25 @@ fn run_shared_env(
     out_of_range_mode: OutOfRangeMode,
 ) -> Result<Vec<StepRecord>, String> {
     match (env_id, shared_env_mode) {
+        ("nurigym.bandit1d", SharedEnvMode::RoundRobin) => run_shared_bandit(
+            seed,
+            agents,
+            max_steps,
+            reward_mode,
+            reward_weights,
+            noop_action,
+        ),
+        ("nurigym.bandit1d", SharedEnvMode::Sync) => run_shared_bandit_sync(
+            seed,
+            agents,
+            max_steps,
+            shared_merge,
+            noop_action,
+            reward_mode,
+            reward_weights,
+            emit_action_pipeline,
+            out_of_range_mode,
+        ),
         ("nurigym.cartpole1d", SharedEnvMode::RoundRobin) => run_shared_cartpole(
             seed,
             agents,
@@ -503,6 +532,26 @@ fn run_cartpole(
         .collect())
 }
 
+fn run_bandit(
+    seed: u64,
+    agent: &AgentRun,
+    default_max: Option<u64>,
+) -> Result<Vec<StepRecord>, String> {
+    let steps = run_bandit_episode(seed, &agent.actions, agent.max_steps.or(default_max))?;
+    Ok(steps
+        .into_iter()
+        .map(|step| StepRecord {
+            agent_id: agent.agent_id,
+            observation: step.observation.to_vec(),
+            action: step.action,
+            reward: step.reward,
+            next_observation: step.next_observation.to_vec(),
+            done: step.done,
+            action_pipeline: None,
+        })
+        .collect())
+}
+
 fn run_pendulum(
     seed: u64,
     agent: &AgentRun,
@@ -551,6 +600,99 @@ fn run_gridmaze_with_layout(
             action_pipeline: None,
         })
         .collect())
+}
+
+fn run_shared_bandit(
+    seed: u64,
+    agents: &[AgentRun],
+    max_steps: Option<u64>,
+    reward_mode: RewardMode,
+    reward_weights: &RewardWeights,
+    noop_action: Option<i64>,
+) -> Result<Vec<StepRecord>, String> {
+    let mut cursors = build_agent_cursors(agents);
+    let total_actions = total_action_capacity(&cursors);
+
+    let mut config = BanditConfig::default_v1();
+    if let Some(limit) = max_steps {
+        config.max_steps = if limit == 0 { total_actions } else { limit };
+    }
+    if total_actions > 0 && config.max_steps > total_actions {
+        config.max_steps = total_actions;
+    }
+    if config.max_steps == 0 {
+        return Ok(Vec::new());
+    }
+
+    let mut env = BanditEnv::new(seed, config.clone());
+    let mut step_records = Vec::new();
+    let mut step_count = 0u64;
+    let noop = noop_action.unwrap_or(0);
+
+    'outer: loop {
+        let mut progressed = false;
+        for cursor in cursors.iter_mut() {
+            if step_count >= config.max_steps {
+                break 'outer;
+            }
+            if env.is_done() {
+                break 'outer;
+            }
+            if cursor.index >= cursor.limit {
+                continue;
+            }
+            let action = cursor.actions[cursor.index];
+            cursor.index += 1;
+            let step = env.step(action)?;
+            if reward_mode == RewardMode::Individual {
+                step_records.push(StepRecord {
+                    agent_id: cursor.agent_id,
+                    observation: step.observation.to_vec(),
+                    action: step.action,
+                    reward: step.reward,
+                    next_observation: step.next_observation.to_vec(),
+                    done: step.done,
+                    action_pipeline: None,
+                });
+            } else {
+                let rewards = distribute_rewards(
+                    reward_mode,
+                    step.reward,
+                    agents,
+                    Some(cursor.agent_id),
+                    &[],
+                    noop,
+                    reward_weights,
+                );
+                for (idx, agent) in agents.iter().enumerate() {
+                    let action_value = if agent.agent_id == cursor.agent_id {
+                        step.action
+                    } else {
+                        noop
+                    };
+                    step_records.push(StepRecord {
+                        agent_id: agent.agent_id,
+                        observation: step.observation.to_vec(),
+                        action: action_value,
+                        reward: rewards[idx],
+                        next_observation: step.next_observation.to_vec(),
+                        done: step.done,
+                        action_pipeline: None,
+                    });
+                }
+            }
+            step_count += 1;
+            progressed = true;
+            if step.done {
+                break 'outer;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+
+    Ok(step_records)
 }
 
 fn run_shared_cartpole(
@@ -881,6 +1023,50 @@ fn run_shared_cartpole_sync(
     let allowed = allowed_actions("nurigym.cartpole1d");
     let noop = noop_action.unwrap_or(0);
     let mut env = CartPoleEnv::new(seed, config.clone());
+    run_shared_sync_loop(
+        &mut env,
+        agents,
+        &limits,
+        config.max_steps,
+        merge,
+        noop,
+        allowed,
+        reward_mode,
+        reward_weights,
+        emit_action_pipeline,
+        out_of_range_mode,
+    )
+}
+
+fn run_shared_bandit_sync(
+    seed: u64,
+    agents: &[AgentRun],
+    max_steps: Option<u64>,
+    merge: SharedMerge,
+    noop_action: Option<i64>,
+    reward_mode: RewardMode,
+    reward_weights: &RewardWeights,
+    emit_action_pipeline: bool,
+    out_of_range_mode: OutOfRangeMode,
+) -> Result<Vec<StepRecord>, String> {
+    let mut config = BanditConfig::default_v1();
+    let limits = agent_limits(agents);
+    let mut max_ticks = limits.iter().copied().max().unwrap_or(0) as u64;
+    if let Some(limit) = max_steps {
+        max_ticks = if limit == 0 {
+            max_ticks
+        } else {
+            limit.min(max_ticks)
+        };
+    }
+    config.max_steps = max_ticks;
+    if config.max_steps == 0 {
+        return Ok(Vec::new());
+    }
+
+    let allowed = allowed_actions("nurigym.bandit1d");
+    let noop = noop_action.unwrap_or(0);
+    let mut env = BanditEnv::new(seed, config.clone());
     run_shared_sync_loop(
         &mut env,
         agents,
@@ -1601,6 +1787,22 @@ impl SyncStepEnv for CartPoleEnv {
     }
 }
 
+impl SyncStepEnv for BanditEnv {
+    fn is_done(&self) -> bool {
+        self.is_done()
+    }
+
+    fn step(&mut self, action: i64) -> Result<SyncStep, String> {
+        let step = self.step(action)?;
+        Ok(SyncStep {
+            observation: step.observation.to_vec(),
+            reward: step.reward,
+            next_observation: step.next_observation.to_vec(),
+            done: step.done,
+        })
+    }
+}
+
 impl SyncStepEnv for PendulumEnv {
     fn is_done(&self) -> bool {
         self.is_done()
@@ -1883,6 +2085,25 @@ mod tests {
         let rejected = evaluate_action(&agent(1), 0, 5, false, &[-1, 1], 0, OutOfRangeMode::Reject)
             .expect("reject action");
         assert_eq!(rejected.action_status, "거부");
+    }
+
+    #[test]
+    fn nurigym_bandit_allowed_actions_use_two_arm_contract() {
+        assert_eq!(super::allowed_actions("nurigym.bandit1d"), &[-1, 1]);
+    }
+
+    #[test]
+    fn nurigym_bandit_run_records_two_slot_observation() {
+        let agent = AgentRun {
+            agent_id: 3,
+            actions: vec![-1, 1],
+            max_steps: Some(2),
+        };
+        let rows = super::run_bandit(11, &agent, None).expect("bandit run");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].agent_id, 3);
+        assert_eq!(rows[0].observation.len(), 2);
+        assert_eq!(rows[0].next_observation.len(), 2);
     }
 
     #[test]

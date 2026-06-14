@@ -504,11 +504,32 @@ fn write_context_header(
 
 fn append_file_block(out: &mut Vec<u8>, file: &PromptFile) {
     push_line(out, &format!("===== BEGIN {} =====", file.name));
-    out.extend_from_slice(&file.bytes);
+    append_trimmed_trailing_ws_lines(out, &file.bytes);
     if !file.bytes.ends_with(b"\n") {
         out.push(b'\n');
     }
     push_line(out, &format!("===== END {} =====", file.name));
+}
+
+fn append_trimmed_trailing_ws_lines(out: &mut Vec<u8>, bytes: &[u8]) {
+    let mut start = 0;
+    while start < bytes.len() {
+        let mut end = start;
+        while end < bytes.len() && bytes[end] != b'\n' {
+            end += 1;
+        }
+        let mut trimmed_end = end;
+        while trimmed_end > start && matches!(bytes[trimmed_end - 1], b' ' | b'\t') {
+            trimmed_end -= 1;
+        }
+        out.extend_from_slice(&bytes[start..trimmed_end]);
+        if end < bytes.len() {
+            out.push(b'\n');
+            start = end + 1;
+        } else {
+            break;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -547,6 +568,9 @@ mod tests {
         assert!(!output.contains(&b'\r'));
         let output_str = String::from_utf8(output.clone()).expect("utf8");
         assert!(output_str.starts_with("[또니랑 코드 생성 규약]"));
+        assert!(!output_str
+            .lines()
+            .any(|line| line.ends_with(' ') || line.ends_with('\t')));
 
         let ctx_index = output_str.find("[컨텍스트]\n").expect("context header");
         let mut lines = output_str[ctx_index..].lines();
@@ -583,12 +607,12 @@ mod tests {
             cursor = &cursor[start + begin.len()..];
             let end_pos = cursor.find(&end).expect("end marker");
             let body = &cursor[..end_pos];
-            let file_text = std::str::from_utf8(&file.bytes).expect("utf8 file");
-            let mut expected_body = file_text.to_string();
-            if !file_text.ends_with('\n') {
-                expected_body.push('\n');
+            let mut expected_body = Vec::new();
+            append_trimmed_trailing_ws_lines(&mut expected_body, &file.bytes);
+            if !file.bytes.ends_with(b"\n") {
+                expected_body.push(b'\n');
             }
-            assert_eq!(body, expected_body);
+            assert_eq!(body.as_bytes(), expected_body);
             cursor = &cursor[end_pos + end.len()..];
         }
     }

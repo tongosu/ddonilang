@@ -141,6 +141,16 @@ impl Lexer {
         }
     }
 
+    fn skip_inline_space_after_ident(&mut self) {
+        while let Some(ch) = self.peek() {
+            if ch == ' ' || ch == '\t' || ch == '\r' {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+    }
+
     fn read_comment(&mut self) {
         while let Some(ch) = self.peek() {
             if ch == '\n' {
@@ -526,36 +536,69 @@ impl Lexer {
             }
         }
 
-        if ident == "글무늬" && self.peek() == Some('{') {
-            return self.read_template_block(start_line, start_col);
+        if ident == "글무늬" {
+            let checkpoint = (self.pos, self.line, self.col);
+            self.skip_inline_space_after_ident();
+            if self.peek() == Some('{') {
+                return self.read_template_block(start_line, start_col);
+            }
+            self.pos = checkpoint.0;
+            self.line = checkpoint.1;
+            self.col = checkpoint.2;
         }
-        if ident == "세움" && self.peek() == Some('{') {
-            return self.read_assertion_block(start_line, start_col);
+        if ident == "세움" || ident == "세움씨" {
+            let checkpoint = (self.pos, self.line, self.col);
+            self.skip_inline_space_after_ident();
+            if self.peek() == Some('{') {
+                return self.read_assertion_block(start_line, start_col);
+            }
+            self.pos = checkpoint.0;
+            self.line = checkpoint.1;
+            self.col = checkpoint.2;
         }
-        if ident == "수식" && self.peek() == Some('{') {
-            return self.read_formula_block(start_line, start_col);
+        if ident == "수식" {
+            let checkpoint = (self.pos, self.line, self.col);
+            self.skip_inline_space_after_ident();
+            if self.peek() == Some('{') {
+                return self.read_formula_block(start_line, start_col);
+            }
+            self.pos = checkpoint.0;
+            self.line = checkpoint.1;
+            self.col = checkpoint.2;
         }
 
         if let Some(canon) = self.dialect.canonicalize(&ident) {
             ident = canon.to_string();
         }
-        if ident == "입력키" || ident == "찾기" || ident == "글바꾸기" {
+        if ident == "입력키" || ident == "찾기" || ident == "글바꾸기" || ident == "충돌"
+        {
             if let Some(suffix) = self.peek() {
                 let can_use_suffix = matches!(suffix, '?' | '!')
                     && !(suffix == '?' && self.peek_next() == Some('?'))
                     && !self.peek_next().map(is_ident_continue).unwrap_or(false)
                     && !(ident == "찾기" && suffix == '!')
-                    && !(ident == "글바꾸기" && suffix == '?');
+                    && !(ident == "글바꾸기" && suffix == '?')
+                    && !(ident == "충돌" && suffix == '!');
                 if can_use_suffix {
                     ident.push(suffix);
                     self.advance();
                 }
             }
         }
+        self.append_prime_derivative_suffix(&mut ident);
 
         let kind = self.classify_ident(ident);
 
         Ok(Token::new(kind, self.span_from(start_line, start_col)))
+    }
+
+    fn append_prime_derivative_suffix(&mut self, ident: &mut String) {
+        let mut count = 0usize;
+        while count < 2 && self.peek() == Some('\'') {
+            ident.push('\'');
+            self.advance();
+            count += 1;
+        }
     }
 
     fn read_josa(&mut self) -> Result<Token, LexError> {
@@ -804,7 +847,11 @@ impl Lexer {
         })
     }
 
-    fn read_text_escape(&mut self, start_line: usize, start_col: usize) -> Result<String, LexError> {
+    fn read_text_escape(
+        &mut self,
+        start_line: usize,
+        start_col: usize,
+    ) -> Result<String, LexError> {
         if self.peek().is_none() {
             return Err(LexError::UnterminatedString {
                 line: start_line,
@@ -1081,6 +1128,23 @@ mod tests {
         assert!(en_tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::Ilttae)));
+    }
+
+    #[test]
+    fn prime_derivative_suffix_is_part_of_identifier() {
+        let tokens = Lexer::tokenize("위치' <- 위치''.\n").expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "위치'")));
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(&token.kind, TokenKind::Ident(name) if name == "위치''")));
+    }
+
+    #[test]
+    fn third_prime_derivative_marker_is_rejected_by_lexer() {
+        let err = Lexer::tokenize("위치''' <- 1.\n").expect_err("third prime must fail");
+        assert!(matches!(err, LexError::UnexpectedChar { ch: '\'', .. }));
     }
 
     #[test]

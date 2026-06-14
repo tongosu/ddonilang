@@ -626,10 +626,15 @@ impl DdnWasmVm {
         let state_text = state
             .as_string()
             .ok_or_else(|| JsValue::from_str("apply_currentline_cell: state JSON 누락"))?;
-        let mut payload: JsonValue = serde_json::from_str(&state_text)
-            .map_err(|err| JsValue::from_str(&format!("apply_currentline_cell: state JSON 파싱 실패: {err}")))?;
+        let mut payload: JsonValue = serde_json::from_str(&state_text).map_err(|err| {
+            JsValue::from_str(&format!(
+                "apply_currentline_cell: state JSON 파싱 실패: {err}"
+            ))
+        })?;
         let context: JsonValue = serde_json::from_str(&result.context_json).map_err(|err| {
-            JsValue::from_str(&format!("apply_currentline_cell: context JSON 생성 실패: {err}"))
+            JsValue::from_str(&format!(
+                "apply_currentline_cell: context JSON 생성 실패: {err}"
+            ))
         })?;
         if let Some(map) = payload.as_object_mut() {
             map.insert("currentline_context".to_string(), context.clone());
@@ -1450,6 +1455,7 @@ a.기준점 <- b.꼭짓점.
         ));
     }
 
+    #[cfg(target_arch = "wasm32")]
     #[test]
     fn wasm_vm_constructor_build_info_contains_pkg() {
         let vm = DdnWasmVm::new(SAMPLE_GUSEONG_SOURCE).expect("vm constructor");

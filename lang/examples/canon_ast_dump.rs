@@ -317,7 +317,38 @@ fn collect_calls_from_stmt(stmt: &Stmt, out: &mut Vec<CallDet>) {
         | Stmt::While { body, .. }
         | Stmt::ForEach { body, .. }
         | Stmt::Quantifier { body, .. }
-        | Stmt::Guard { body, .. } => collect_calls_from_body(body, out),
+        | Stmt::Guard { body, .. }
+        | Stmt::BeatBlock { body, .. }
+        | Stmt::Hook { body, .. } => collect_calls_from_body(body, out),
+        Stmt::Receive {
+            condition, body, ..
+        } => {
+            if let Some(condition) = condition {
+                collect_calls_from_expr(condition, out);
+            }
+            collect_calls_from_body(body, out);
+        }
+        Stmt::Send {
+            sender,
+            payload,
+            receiver,
+            ..
+        } => {
+            if let Some(sender) = sender {
+                collect_calls_from_expr(sender, out);
+            }
+            collect_calls_from_expr(payload, out);
+            collect_calls_from_expr(receiver, out);
+        }
+        Stmt::HookWhenBecomes {
+            condition, body, ..
+        }
+        | Stmt::HookWhile {
+            condition, body, ..
+        } => {
+            collect_calls_from_expr(condition, out);
+            collect_calls_from_body(body, out);
+        }
         Stmt::Contract {
             condition,
             then_body,
@@ -330,7 +361,10 @@ fn collect_calls_from_stmt(stmt: &Stmt, out: &mut Vec<CallDet>) {
             }
             collect_calls_from_body(else_body, out);
         }
-        Stmt::Pragma { .. } | Stmt::MetaBlock { .. } | Stmt::Break { .. } => {}
+        Stmt::Pragma { .. }
+        | Stmt::MetaBlock { .. }
+        | Stmt::Break { .. }
+        | Stmt::ContinueLoop { .. } => {}
     }
 }
 

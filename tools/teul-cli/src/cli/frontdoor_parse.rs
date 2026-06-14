@@ -220,6 +220,33 @@ mod tests {
     }
 
     #[test]
+    fn parse_runtime_accepts_prime_derivative_identifiers() {
+        let source = "위치' <- 1.\n위치'' <- 위치' + 1.\n위치'' 보여주기.";
+        parse_program_for_runtime(source).expect("runtime frontdoor must accept prime idents");
+        validate_lang_frontdoor_parity(source).expect("lang parity must accept prime idents");
+    }
+
+    #[test]
+    fn parse_runtime_accepts_imja_owner_inner_seongjil_and_seum_boundary() {
+        let source = r#"
+공:임자 = {
+  성질 {
+    위치: 수 <- 0.
+    속도: 수 <- 0.
+  }.
+  세움 {
+    위치' =:= 속도.
+  }.
+  힘가해짐을 받으면 {
+    속도 <- 속도 + 힘.
+  }.
+}
+"#;
+        parse_program_for_runtime(source).expect("runtime frontdoor must accept owner-inner seum boundary");
+        validate_lang_frontdoor_parity(source).expect("lang parity must accept owner-inner seum boundary");
+    }
+
+    #[test]
     fn normalize_for_lang_parity_keeps_wave1_projectile_core_lines() {
         let source =
             include_str!("../../../../docs/ssot/pack/edu_phys_p001_05_projectile_xy/lesson.ddn");
