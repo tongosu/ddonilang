@@ -11,15 +11,15 @@
         "kind": "circle",
         "x": 3,
         "y": 0,
-        "r": 0.099999,
+        "r": 0.1,
         "fill": "#38bdf8",
         "stroke": "#0ea5e9",
-        "width": 0.019999
+        "width": 0.02
       },
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2,
         "fill_text_count": 1
@@ -34,15 +34,15 @@
         "kind": "circle",
         "x": 3,
         "y": 0,
-        "r": 0.219999,
+        "r": 0.22,
         "fill": "#f97316",
         "stroke": "#0ea5e9",
-        "width": 0.019999
+        "width": 0.02
       },
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2,
         "fill_text_count": 1
@@ -57,15 +57,15 @@
         "kind": "circle",
         "x": 3,
         "y": 0,
-        "r": 0.099999,
+        "r": 0.1,
         "fill": "#f97316",
         "stroke": "#0ea5e9",
-        "width": 0.019999
+        "width": 0.02
       },
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2,
         "fill_text_count": 1

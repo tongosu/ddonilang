@@ -29,5 +29,5 @@
   "rendered_table": true,
   "rendered_contains_celsius": true,
   "rendered_contains_fahrenheit": true,
-  "rendered_html_excerpt": "<table class=\"runtime-table\"><thead><tr><th data-col-key=\"t\">t</th><th data-col-key=\"celsius\">celsius</th><th data-col-key=\"fahrenheit\">fahrenheit</th></tr></thead><tbody><tr><td data-col-key=\"t\"><span class=\"runtime-table-celltext\">0</span"
+  "rendered_html_excerpt": "<table class=\"runtime-table\"><thead><tr><th data-col-key=\"t\">시간</th><th data-col-key=\"celsius\">celsius</th><th data-col-key=\"fahrenheit\">fahrenheit</th></tr></thead><tbody><tr><td data-col-key=\"t\"><span class=\"runtime-table-celltext\">0</spa"
 }

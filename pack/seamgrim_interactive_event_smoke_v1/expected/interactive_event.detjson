@@ -36,7 +36,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -74,7 +74,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -112,7 +112,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -150,7 +150,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -188,7 +188,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -226,7 +226,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -264,7 +264,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -302,7 +302,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -340,7 +340,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -378,7 +378,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
@@ -416,7 +416,7 @@
       "rendered": true,
       "render_calls": {
         "arc": 1,
-        "fill": 0,
+        "fill": 1,
         "stroke": 2,
         "line_to": 2
       }
