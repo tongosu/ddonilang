@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const OK = "studio_local_package_export_action: ok";
+const LEGACY_LOCAL_PACKAGE_COPY_BUTTON_ID = "btn-run-local-package-copy";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -99,7 +100,7 @@ async function main() {
   const failures = [];
   try {
     browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ viewport: { width: 1360, height: 860 }, locale: "ko-KR" });
+    const context = await browser.newContext({ viewport: { width: 1360, height: 860 }, locale: "ko-KR", acceptDownloads: true });
     await context.addInitScript(() => {
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
@@ -138,8 +139,13 @@ async function main() {
       const tools = document.querySelector("#run-inspector-tools");
       if (tools) tools.open = true;
     });
-    await page.click("#btn-run-local-package-copy");
+    await page.click("#btn-run-teacher-package-copy");
     await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__?.copied === true);
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.click("#btn-run-teacher-package-download"),
+    ]);
+    await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_DOWNLOAD_ACTION__?.downloaded === true);
 
     const state = await page.evaluate(() => ({
       schema: document.querySelector("[data-run-local-package-export]")?.dataset?.schema ?? "",
@@ -148,10 +154,15 @@ async function main() {
       meta: document.querySelector("[data-run-local-package-meta]")?.textContent?.trim() ?? "",
       metaValue: document.querySelector("[data-run-local-package-meta]")?.dataset?.value ?? "",
       indexText: document.querySelector("[data-run-local-package-text]")?.textContent ?? "",
+      saveButtonText: document.querySelector("#btn-run-teacher-package-download")?.textContent?.trim() ?? "",
       copied: window.__STUDIO_LOCAL_PACKAGE_COPIED_TEXT__ ?? "",
       payload: window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__ ?? null,
+      downloadPayload: window.__STUDIO_LOCAL_PACKAGE_DOWNLOAD_ACTION__ ?? null,
     }));
     const copiedPayload = JSON.parse(state.copied);
+    const downloadedPath = await download.path();
+    const downloadedText = downloadedPath ? await fs.readFile(downloadedPath, "utf-8") : "";
+    const downloadedPayload = JSON.parse(downloadedText);
 
     assert(state.schema === "seamgrim.local_package_export_action.v1", `schema mismatch: ${state.schema}`);
     assert(state.state === "ready", `state mismatch: ${state.state}`);
@@ -161,6 +172,7 @@ async function main() {
     assert(state.indexText.startsWith("구분\t경로\t제목\t크기"), "index header mismatch");
     assert(state.indexText.includes("\nlesson\tlessons/"), `lesson index row missing:\n${state.indexText}`);
     assert(state.indexText.includes("\nreport\treports/"), `report index row missing:\n${state.indexText}`);
+    assert(state.saveButtonText.startsWith("배포 저장 "), `save button text mismatch: ${state.saveButtonText}`);
     assert(copiedPayload.__종류 === "studio_local_package_payload", "clipboard payload kind mismatch");
     assert(copiedPayload.manifest?.__종류 === "studio_local_package_manifest", "clipboard manifest kind mismatch");
     assert(copiedPayload.manifest?.account_required === false, "account boundary mismatch");
@@ -171,6 +183,36 @@ async function main() {
     assert(state.payload?.lesson_count === 1 && state.payload?.report_count === 1, "instrumentation counts mismatch");
     assert(state.payload?.account_required === false && state.payload?.cloud_sync === false && state.payload?.public_registry === false && state.payload?.remote_save === false, "instrumentation boundary mismatch");
     assert(state.payload?.payload_text.trim() === state.copied, "payload text clipboard mismatch");
+    assert(state.downloadPayload?.downloaded === true, "download instrumentation mismatch");
+    assert(String(state.downloadPayload?.file_name ?? "").endsWith(".json"), "download filename mismatch");
+    assert(download.suggestedFilename() === state.downloadPayload.file_name, "suggested filename mismatch");
+    assert(downloadedPayload.__종류 === "studio_local_package_payload", "downloaded payload kind mismatch");
+    assert(downloadedText.trim() === state.copied, "downloaded payload text mismatch");
+
+    await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
+    await waitVisible(page, "#screen-browse");
+    await page.setInputFiles("#input-local-package-file", downloadedPath);
+    await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__?.imported === true);
+    await waitVisible(page, "#screen-run");
+    const importState = await page.evaluate(() => ({
+      importAction: window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ ?? null,
+      rail: window.__SEAMGRIM_RUN_PRESET_RAIL__ ?? null,
+      runText: document.querySelector("#run-ddn-preview")?.value ?? "",
+      sourceLabel: document.querySelector("[data-shell-source-label]")?.textContent?.trim() ?? "",
+      classroomMode: document.querySelector("[data-classroom-mode-switch]")?.dataset?.mode ?? "",
+      studentPressed: document.querySelector("[data-classroom-mode='student']")?.getAttribute("aria-pressed") ?? "",
+      teacherPressed: document.querySelector("[data-classroom-mode='teacher']")?.getAttribute("aria-pressed") ?? "",
+    }));
+    assert(importState.importAction?.schema === "seamgrim.local_package_import_action.v1", "import action schema mismatch");
+    assert(importState.importAction?.package_id === downloadedPayload.manifest.package_id, "import package id mismatch");
+    assert(importState.importAction?.lesson_id === downloadedPayload.lessons[0].lesson_id, "import lesson id mismatch");
+    assert(importState.importAction?.account_required === false && importState.importAction?.cloud_sync === false && importState.importAction?.public_registry === false, "import boundary mismatch");
+    assert(importState.rail?.launch_kind === "local_package_import", `import launch kind mismatch: ${importState.rail?.launch_kind}`);
+    assert(importState.rail?.launch_label === "배포 열기", `import launch label mismatch: ${importState.rail?.launch_label}`);
+    assert(importState.rail?.onboarding_profile === "student", `import onboarding mismatch: ${importState.rail?.onboarding_profile}`);
+    assert(importState.classroomMode === "student" && importState.studentPressed === "true" && importState.teacherPressed === "false", "import should open in student mode");
+    assert(importState.runText.trim() === String(downloadedPayload.lessons[0].source_text ?? "").trim(), "imported run source mismatch");
+    assert(importState.sourceLabel.includes(downloadedPayload.lessons[0].title), `imported source label mismatch: ${importState.sourceLabel}`);
 
     if (failures.length > 0) throw new Error(failures.join("\n"));
     await context.close();

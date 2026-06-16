@@ -480,6 +480,8 @@ async function main() {
     await qualitySelect.emitAsync("change");
     assert(Array.isArray(grid.children) && grid.children.length === 3, "quality filter reset restores cards");
 
+    const previousDevSurfaces = globalThis.SEAMGRIM_DEV_SURFACES;
+    globalThis.SEAMGRIM_DEV_SURFACES = true;
     const featuredRoot = createBrowseRoot();
     globalThis.window?.localStorage?.setItem(
       "seamgrim.ui.run_prefs.v1",
@@ -742,6 +744,7 @@ async function main() {
       copyBrowsePresetLinkButton?.disabled === true,
       "browse preset copy button disabled after preset reset",
     );
+    globalThis.SEAMGRIM_DEV_SURFACES = previousDevSurfaces;
 
     await tabSearch.emitAsync("click");
     assert(screen.activeTab === "search", "browse search tab activation");
@@ -794,8 +797,16 @@ async function main() {
     );
     const federatedCard = grid.children.find((card) => String(card?.dataset?.lessonId ?? "") === "federated_case_v1");
     assert(
-      String(federatedCard?.innerHTML ?? "").includes("구식범위주석 2건"),
-      "browse card renders legacy warning badge",
+      !String(federatedCard?.innerHTML ?? "").includes("구식범위주석 2건"),
+      "browse card hides legacy warning badge by default",
+    );
+    const previousWarningBadgeDevSurfaces = globalThis.SEAMGRIM_DEV_SURFACES;
+    globalThis.SEAMGRIM_DEV_SURFACES = true;
+    const federatedDevCard = screen.createLessonCard(federated);
+    globalThis.SEAMGRIM_DEV_SURFACES = previousWarningBadgeDevSurfaces;
+    assert(
+      String(federatedDevCard?.innerHTML ?? "").includes("구식범위주석 2건"),
+      "browse card renders legacy warning badge in dev surfaces",
     );
     const previewProbe = createFakeElement("div");
     await screen.hydrateLessonPreview(previewProbe, federated);
@@ -1041,8 +1052,16 @@ async function main() {
       "sample card renders first-run badge",
     );
     assert(
-      String(grid.children[0]?.innerHTML ?? "").includes("첫 시작 첫 인사 · 첫 인사 -> 움직임 -> 매김 조절 -> 되돌려보기/거울"),
-      "sample card renders first-run hint",
+      !String(grid.children[0]?.innerHTML ?? "").includes("첫 시작 첫 인사 · 첫 인사 -> 움직임 -> 매김 조절 -> 되돌려보기/거울"),
+      "sample card hides first-run hint by default",
+    );
+    const previousFirstRunDevSurfaces = globalThis.SEAMGRIM_DEV_SURFACES;
+    globalThis.SEAMGRIM_DEV_SURFACES = true;
+    const sampleDevCard = screen.createLessonCard(sampleSelected);
+    globalThis.SEAMGRIM_DEV_SURFACES = previousFirstRunDevSurfaces;
+    assert(
+      String(sampleDevCard?.innerHTML ?? "").includes("첫 시작 첫 인사 · 첫 인사 -> 움직임 -> 매김 조절 -> 되돌려보기/거울"),
+      "sample card renders first-run hint in dev surfaces",
     );
 
     const rewrite = selectedById.get("rewrite_case_v1");

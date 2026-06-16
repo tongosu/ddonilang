@@ -48,17 +48,17 @@ def run_step(root: Path, name: str, cmd: list[str]) -> dict[str, object]:
     }
 
 
-def strip_legacy_pragma_lines(text: str) -> str:
-    source = str(text or "")
-    lines = source.splitlines()
-    filtered = [line for line in lines if not str(line).lstrip().startswith("#")]
-    rendered = "\n".join(filtered)
-    if source.endswith("\n"):
-        rendered += "\n"
-    return rendered
+def preprocess_seed_cli_source(root: Path, text: str) -> str:
+    tools_dir = root / "solutions" / "seamgrim_ui_mvp" / "tools"
+    if str(tools_dir) not in sys.path:
+        sys.path.insert(0, str(tools_dir))
+    from export_graph import preprocess_ddn_for_teul  # type: ignore
 
 
-def run_seed_cli_step_with_pragma_strip(root: Path, name: str, lesson_rel: str, madi: int) -> dict[str, object]:
+    return preprocess_ddn_for_teul(str(text or ""), strip_draw=True)
+
+
+def run_seed_cli_step_with_product_preprocess(root: Path, name: str, lesson_rel: str, madi: int) -> dict[str, object]:
     lesson_path = root / str(lesson_rel)
     if not lesson_path.exists():
         return {
@@ -71,7 +71,18 @@ def run_seed_cli_step_with_pragma_strip(root: Path, name: str, lesson_rel: str, 
             "stderr": f"lesson_missing:{lesson_path}",
         }
     source_text = lesson_path.read_text(encoding="utf-8")
-    sanitized_text = strip_legacy_pragma_lines(source_text)
+    try:
+        sanitized_text = preprocess_seed_cli_source(root, source_text)
+    except Exception as exc:
+        return {
+            "name": name,
+            "ok": False,
+            "elapsed_ms": 0,
+            "cmd": [],
+            "returncode": 127,
+            "stdout": "",
+            "stderr": f"seed_preprocess_failed:{exc}",
+        }
     with tempfile.TemporaryDirectory(prefix="seamgrim_runtime_5min_seed_") as temp_dir:
         lesson_copy = Path(temp_dir) / lesson_path.name
         lesson_copy.write_text(sanitized_text, encoding="utf-8")
@@ -198,7 +209,7 @@ def main() -> int:
 
     if not args.skip_seed_cli:
         steps.append(
-            run_seed_cli_step_with_pragma_strip(
+            run_seed_cli_step_with_product_preprocess(
                 root,
                 "seed_econ_inventory_price_feedback",
                 "solutions/seamgrim_ui_mvp/seed_lessons_v1/econ_inventory_price_feedback_seed_v1/lesson.ddn",
@@ -206,7 +217,7 @@ def main() -> int:
             )
         )
         steps.append(
-            run_seed_cli_step_with_pragma_strip(
+            run_seed_cli_step_with_product_preprocess(
                 root,
                 "seed_bio_sir_transition",
                 "solutions/seamgrim_ui_mvp/seed_lessons_v1/bio_sir_transition_seed_v1/lesson.ddn",

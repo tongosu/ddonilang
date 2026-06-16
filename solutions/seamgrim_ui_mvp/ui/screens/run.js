@@ -137,6 +137,38 @@ const RUN_HINT_VIEW_SOURCE_WARN_LABEL = "보기소스경고";
 const PLATFORM_SERVER_EXCHANGE_EVENT = "seamgrim:platform-server-adapter-exchange";
 const PLATFORM_UI_ACTION_EVENT = "seamgrim:platform-ui-action";
 const PLATFORM_UI_ACTION_LOGIN = "login";
+const ADVANCED_EXPORTS_QUERY_KEY = "advancedExports";
+
+function shouldEnableAdvancedExports() {
+  try {
+    if (globalThis?.SEAMGRIM_ADVANCED_EXPORTS === true) return true;
+    const params = new URLSearchParams(globalThis?.location?.search ?? "");
+    const raw = String(params.get(ADVANCED_EXPORTS_QUERY_KEY) ?? "").trim().toLowerCase();
+    return raw === "1" || raw === "true" || raw === "yes";
+  } catch (_) {
+    return false;
+  }
+}
+
+function buildSafeJsonDownloadName(value, fallback = "seamgrim-teacher-package") {
+  const base = String(value ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const stem = base || fallback;
+  return stem.toLowerCase().endsWith(".json") ? stem : `${stem}.json`;
+}
+
+function saveJsonTextToFile(text, filename = "seamgrim-teacher-package.json") {
+  const blob = new Blob([String(text ?? "")], { type: "application/json;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = buildSafeJsonDownloadName(filename);
+  document.body?.appendChild?.(link);
+  link.click();
+  link.remove?.();
+  setTimeout(() => URL.revokeObjectURL(link.href), 800);
+}
 
 function buildLessonOnboardingStatusText(lesson, fallback = DEFAULT_ONBOARDING_STATUS_TEXT) {
   const step = resolveFirstRunStepByTarget({
@@ -176,13 +208,13 @@ const LEGACY_HOOK_COLON_RE = /^\s*\(\s*(?:시작|처음|매마디|매틱|[1-9][0
 const LEGACY_HOOK_ALIAS_RE = /\(\s*(?:처음|매틱)\s*\)\s*(?:할때|마다)/u;
 const LEGACY_SETTING_ALIAS_RE = /^\s*(?:title|desc)\s*:/imu;
 const LEGACY_MAX_MADI_RE = /최대마디/u;
-const RUN_MAIN_EXECUTE_LABEL_DEFAULT = "▶ 작업실에서 실행";
+const RUN_MAIN_EXECUTE_LABEL_DEFAULT = "▶ 수업 실행";
 const RUN_MAIN_EXECUTE_LABEL_COMPACT = "▶ 실행";
 const RUN_MAIN_EXECUTE_LABEL_RESUME = "▶ 재개";
 const RUN_MAIN_PAUSE_LABEL_DEFAULT = "⏸ 일시정지";
 const RUN_MAIN_PAUSE_LABEL_COMPACT = "⏸ 일시정지";
 const RUN_MAIN_RESET_LABEL = "↺ 초기화";
-const RUN_MAIN_STEP_LABEL = "▷ 한마디씩";
+const RUN_MAIN_STEP_LABEL = "▷ 한 단계씩";
 const RUN_FINITE_LIVE_FPS = 6;
 const EMPTY_INITIAL_WASM_STATE_HASH = "blake3:352bd266dae53c6e6a29244011cfa029813d0ab8434b2a2b830a487d882832ba";
 
@@ -287,9 +319,9 @@ export function resolveRunMainControlLabels({ isPaused = false, compact = false 
 
 function formatCompactStateHash(hashText) {
   const value = String(hashText ?? "").trim();
-  if (!value || value === "-") return "state_hash: -";
-  if (value.length <= 28) return `state_hash: ${value}`;
-  return `state_hash: ${value.slice(0, 12)}...${value.slice(-8)}`;
+  if (!value || value === "-") return "상태 기록: -";
+  if (value.length <= 28) return `상태 기록: ${value}`;
+  return `상태 기록: ${value.slice(0, 12)}...${value.slice(-8)}`;
 }
 
 function hashRunSourceText(text) {
@@ -1741,6 +1773,7 @@ function normalizeRunLaunchKind(raw) {
   if (kind === "browse_select_teacher") return "browse_select_teacher";
   if (kind === "editor_run") return "editor_run";
   if (kind === "featured_seed_quick") return "featured_seed_quick";
+  if (kind === "local_package_import") return "local_package_import";
   return "manual";
 }
 
@@ -1756,6 +1789,7 @@ function formatRunLaunchKindLabel(raw) {
   if (kind === "browse_select_student" || kind === "browse_select_teacher" || kind === "browse_select") return "탐색 선택";
   if (kind === "editor_run") return "편집 실행";
   if (kind === "featured_seed_quick") return "Alt+6";
+  if (kind === "local_package_import") return "배포 열기";
   return "수동";
 }
 
@@ -1768,16 +1802,26 @@ function formatRunOnboardingProfileLabel(raw) {
 
 function formatRunLayoutModeLabel(raw) {
   const mode = String(raw ?? "").trim() || "split";
-  return `layout: ${mode}`;
+  if (mode === "split" || mode === "horizontal") return "화면: 나눠 보기";
+  if (mode === "vertical") return "화면: 위아래 보기";
+  if (mode === "full") return "화면: 크게 보기";
+  return `화면: ${mode}`;
 }
 
 function formatRunRequiredViewsLabel(values = []) {
   const rows = normalizeRunRequiredViews(values);
-  return rows.length ? `보기: ${rows.join(",")}` : "보기: -";
+  const labels = rows.map((row) => {
+    if (row === "graph") return "그래프";
+    if (row === "table") return "표";
+    if (row === "space2d") return "그림";
+    if (row === "text") return "설명";
+    return row;
+  });
+  return labels.length ? `보기: ${labels.join(", ")}` : "보기: 기본";
 }
 
 function buildRunSummaryText(pref) {
-  if (!pref || typeof pref !== "object") return "최근 실행: 기록 없음";
+  if (!pref || typeof pref !== "object") return "최근 실행 기록 없음";
   const kind = String(pref.lastRunKind ?? "").trim();
   const channels = Math.max(0, Number.isFinite(Number(pref.lastRunChannels)) ? Math.trunc(Number(pref.lastRunChannels)) : 0);
   const timeLabel = formatRecentTimeLabel(pref.lastRunAt);
@@ -1785,18 +1829,18 @@ function buildRunSummaryText(pref) {
   const shortHash = hash && hash !== "-" ? hash.slice(0, 12) : "";
   let label = "";
   if (kind === "space2d") {
-    label = `최근 실행: 보개 출력 · 채널=${channels}`;
+    label = `최근 실행 · 그림 출력 ${channels}개`;
   } else if (kind === "obs_only") {
-    label = `최근 실행: 보개 없음 · 채널=${channels}`;
+    label = `최근 실행 · 기록 ${channels}개`;
   } else if (kind === "empty") {
-    label = "최근 실행: 출력 없음";
+    label = "최근 실행 · 출력 없음";
   } else if (kind === "error") {
-    label = "최근 실행: 실패";
+    label = "최근 실행 · 실패";
   } else {
-    label = "최근 실행: 기록 없음";
+    label = "최근 실행 기록 없음";
   }
   if (shortHash) {
-    label = `${label} · hash:${shortHash}`;
+    label = `${label} · 기록ID:${shortHash}`;
   }
   return timeLabel ? `${label} · ${timeLabel}` : label;
 }
@@ -2007,7 +2051,7 @@ function summarizeObserveSpace2dMetric(runtimeView) {
   const shapes = Array.isArray(runtimeView?.shapes) ? runtimeView.shapes.length : 0;
   const drawlist = Array.isArray(runtimeView?.drawlist) ? runtimeView.drawlist.length : 0;
   const total = points + shapes + drawlist;
-  if (!total) return "보개 출력 없음";
+  if (!total) return "그림 출력 없음";
   return `${total}개 요소 (점 ${points} · 도형 ${shapes} · 그림목록 ${drawlist})`;
 }
 
@@ -2123,9 +2167,9 @@ function groupConsoleOutputLogEntries(outputLog = []) {
 function buildConsoleLogGroupTitle(group) {
   const tick = Number.isFinite(Number(group?.tick)) ? Math.max(0, Math.trunc(Number(group.tick))) : 0;
   const kind = String(group?.kind ?? "output").trim().toLowerCase();
-  if (kind === "warn") return `[${tick}마디] 경고`;
-  if (kind === "error") return `[${tick}마디] 오류`;
-  return `[${tick}마디] 출력`;
+  if (kind === "warn") return `[${tick}단계] 경고`;
+  if (kind === "error") return `[${tick}단계] 오류`;
+  return `[${tick}단계] 출력`;
 }
 
 const CONSOLE_RICH_COLOR_MAP = Object.freeze({
@@ -2369,15 +2413,15 @@ function buildObserveOutputRowsTableHtml(outputRows = [], { maxRows = 24, output
   const shownRows = rows.slice(-limit);
   if (outputMeta.consolePreferred) {
     const noteText = outputMeta.syntheticFallbackOnly
-      ? "결과표 출력 없음, 콘솔 출력으로 표시합니다."
-      : "보임표 행 출력 대신 현재 관찰값을 콘솔 출력으로 보여줍니다.";
+      ? "결과표 출력 없음, 기본 출력으로 표시합니다."
+      : "보임표 행 출력 대신 현재 관찰값을 기본 출력으로 보여줍니다.";
     const normalizedOutputLog = normalizeConsoleOutputLog(outputLog);
     const fallbackConsoleLog = outputMeta.syntheticFallbackOnly && normalizedOutputLog.length > 0
       ? normalizedOutputLog
       : buildConsoleLogFromOutputRows(shownRows);
     const log = buildConsoleLogHtml(fallbackConsoleLog, {
       noteText,
-      emptyText: "콘솔 출력 없음",
+      emptyText: "출력 없음",
     });
     return {
       html: `<div class="run-observe-console-fallback">${log.html}</div>`,
@@ -2737,8 +2781,8 @@ function buildMainConsoleVisualHtml({ outputRows = [], outputLines = [], outputL
   const consoleLinesHtml = !outputMeta.hasTableRows && hasConsoleLines
     ? `
       <section class="run-main-console-card">
-        <h3 class="run-main-console-title">콘솔 보개</h3>
-        <div class="run-main-console-body">${buildConsoleLogHtml(consoleLogEntries, { emptyText: "콘솔 출력 없음", showGroupTitles: false, showLineNumbers: false }).html}</div>
+        <h3 class="run-main-console-title">기본 출력</h3>
+        <div class="run-main-console-body">${buildConsoleLogHtml(consoleLogEntries, { emptyText: "출력 없음", showGroupTitles: false, showLineNumbers: false }).html}</div>
       </section>
     `
     : "";
@@ -3153,6 +3197,7 @@ export class RunScreen {
       lessons: {},
     };
     this.classroomModeBtns = [];
+    this.advancedExportsEnabled = false;
   }
 
   isSimCorePolicyEnabled() {
@@ -3200,10 +3245,13 @@ export class RunScreen {
     this.runClassroomReportMetaEl = this.root.querySelector("[data-run-classroom-report-meta]");
     this.runClassroomReportTextEl = this.root.querySelector("[data-run-classroom-report-text]");
     this.runClassroomReportCopyBtn = this.root.querySelector("#btn-run-classroom-report-copy");
+    this.runTeacherReportCopyBtn = this.root.querySelector("#btn-run-teacher-report-copy");
     this.runLocalPackageEl = this.root.querySelector("[data-run-local-package-export]");
     this.runLocalPackageMetaEl = this.root.querySelector("[data-run-local-package-meta]");
     this.runLocalPackageTextEl = this.root.querySelector("[data-run-local-package-text]");
     this.runLocalPackageCopyBtn = this.root.querySelector("#btn-run-local-package-copy");
+    this.runTeacherPackageCopyBtn = this.root.querySelector("#btn-run-teacher-package-copy");
+    this.runTeacherPackageDownloadBtn = this.root.querySelector("#btn-run-teacher-package-download");
     this.runPublicationPrepEl = this.root.querySelector("[data-run-publication-prep-export]");
     this.runPublicationPrepMetaEl = this.root.querySelector("[data-run-publication-prep-meta]");
     this.runPublicationPrepTextEl = this.root.querySelector("[data-run-publication-prep-text]");
@@ -3224,13 +3272,23 @@ export class RunScreen {
     this.runEducationOperationsLtsMetaEl = this.root.querySelector("[data-run-education-operations-lts-meta]");
     this.runEducationOperationsLtsTextEl = this.root.querySelector("[data-run-education-operations-lts-text]");
     this.runEducationOperationsLtsCopyBtn = this.root.querySelector("#btn-run-education-operations-lts-copy");
+    this.syncAdvancedExportVisibility();
     this.runExecUserStatusEl = this.root.querySelector("#run-exec-user-status");
     this.runExecStatusEl = this.root.querySelector("#bogae-status-text");
     this.runClassroomReportCopyBtn?.addEventListener("click", () => {
       void this.handleCopyClassroomReportExport();
     });
+    this.runTeacherReportCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyClassroomReportExport();
+    });
     this.runLocalPackageCopyBtn?.addEventListener("click", () => {
       void this.handleCopyLocalPackageExport();
+    });
+    this.runTeacherPackageCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyLocalPackageExport();
+    });
+    this.runTeacherPackageDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadLocalPackageExport();
     });
     this.runPublicationPrepCopyBtn?.addEventListener("click", () => {
       void this.handleCopyPublicationPrepExport();
@@ -3338,7 +3396,7 @@ export class RunScreen {
     this.runResetBtn?.setAttribute("aria-label", RUN_MAIN_RESET_LABEL);
     this.runResetBtn?.setAttribute("title", "초기화");
     this.runStepBtn?.setAttribute("aria-label", RUN_MAIN_STEP_LABEL);
-    this.runStepBtn?.setAttribute("title", "한마디씩");
+    this.runStepBtn?.setAttribute("title", "한 단계씩");
     this.dockSpaceRangeEl = this.root.querySelector("#dock-space-range");
     this.dockGraphRangeEl = this.root.querySelector("#dock-graph-range");
     this.dockTargetSelectEl = this.root.querySelector("#select-dock-target");
@@ -3742,8 +3800,8 @@ export class RunScreen {
       this.runStepBtn.setAttribute(
         "title",
         engineMode === RUN_ENGINE_MODE_ONESHOT
-          ? "정적 실행에는 다음 마디가 없습니다."
-          : (reachedMaxMadi ? "마디수 끝에 도달했습니다." : "한마디씩"),
+          ? "정적 실행에는 다음 단계가 없습니다."
+          : (reachedMaxMadi ? "마지막 단계에 도달했습니다." : "한 단계씩"),
       );
     }
     if (this.runExecUserStatusEl) {
@@ -3779,11 +3837,11 @@ export class RunScreen {
     const current = Math.max(0, Math.trunc(Number(this.runtimeTickCounter) || 0));
     const max = this.resolveRuntimeMaxMadiLimit();
     const maxText = max > 0 ? String(max) : "-";
-    const text = `${current}/${maxText}마디`;
+    const text = `${current}/${maxText}단계`;
     this.runMadiStatusEl.textContent = text;
     this.runMadiStatusEl.title = max > 0
-      ? `현재마디 ${current} / 마디수 ${max}`
-      : `현재마디 ${current} / 마디수 없음`;
+      ? `현재 단계 ${current} / 전체 단계 ${max}`
+      : `현재 단계 ${current} / 전체 단계 없음`;
     this.runMadiStatusEl.setAttribute?.("aria-label", this.runMadiStatusEl.title);
   }
 
@@ -3861,7 +3919,7 @@ export class RunScreen {
   async handleCopyRunStateHash() {
     const value = String(this.lastRuntimeHash ?? "-").trim();
     if (!value || value === "-") {
-      showGlobalToast("복사할 state_hash가 없습니다.", { kind: "error" });
+      showGlobalToast("복사할 상태 기록이 없습니다.", { kind: "error" });
       return false;
     }
     let ok = false;
@@ -3873,7 +3931,7 @@ export class RunScreen {
     } catch (_) {
       ok = false;
     }
-    showGlobalToast(ok ? "state_hash를 복사했습니다." : "state_hash 복사에 실패했습니다.", {
+    showGlobalToast(ok ? "상태 기록을 복사했습니다." : "상태 기록 복사에 실패했습니다.", {
       kind: ok ? "success" : "error",
     });
     return ok;
@@ -3883,7 +3941,7 @@ export class RunScreen {
     if (!this.bogaeWarnBadgeEl) return;
     const count = Array.isArray(this.lastParseWarnings) ? this.lastParseWarnings.length : 0;
     this.bogaeWarnBadgeEl.classList.toggle("hidden", count <= 0);
-    this.bogaeWarnBadgeEl.title = count > 0 ? `경고 ${count}개 — 거울 탭에서 상세 확인` : "";
+    this.bogaeWarnBadgeEl.title = count > 0 ? `경고 ${count}개 - 검증 탭에서 상세 확인` : "";
   }
 
   handleMirrorDiagnosticsChipClick(event) {
@@ -4118,7 +4176,7 @@ export class RunScreen {
     }
     if (!this.runOverlayBodyEl) return;
     if (!text) {
-      this.runOverlayBodyEl.innerHTML = '<div class="runtime-text-empty">겹보기 설명 없음</div>';
+      this.runOverlayBodyEl.innerHTML = '<div class="runtime-text-empty">설명 없음</div>';
       return;
     }
     this.runOverlayBodyEl.innerHTML = markdownToHtml(text);
@@ -4827,6 +4885,22 @@ runs: 0</pre>
     this.syncRunManagerOverlaySeries();
   }
 
+  syncAdvancedExportVisibility() {
+    this.advancedExportsEnabled = shouldEnableAdvancedExports();
+    // Temporary compatibility: retire these advanced export panels from the teacher UI after legacy runner coverage is moved.
+    [
+      this.runPublicationPrepEl,
+      this.runRegistrySeedEl,
+      this.runApprovalContinuityEl,
+      this.runBenchmarkLtsEl,
+      this.runEducationOperationsLtsEl,
+    ].forEach((element) => {
+      if (!element) return;
+      element.classList.toggle("hidden", !this.advancedExportsEnabled);
+      element.setAttribute("aria-hidden", this.advancedExportsEnabled ? "false" : "true");
+    });
+  }
+
   buildRunHistoryComparisonRailModel() {
     const runs = Array.isArray(this.overlayRuns) ? this.overlayRuns : [];
     const activeId = String(this.activeOverlayRunId ?? "").trim();
@@ -5027,6 +5101,16 @@ runs: 0</pre>
     if (this.runClassroomReportCopyBtn) {
       this.runClassroomReportCopyBtn.disabled = !model.text;
     }
+    if (this.runTeacherReportCopyBtn) {
+      this.runTeacherReportCopyBtn.disabled = !model.text;
+      this.runTeacherReportCopyBtn.dataset.summaryCount = String(model.summary_count);
+      this.runTeacherReportCopyBtn.textContent = model.summary_count > 0
+        ? `리포트 복사 ${model.summary_count}`
+        : "리포트 복사";
+      this.runTeacherReportCopyBtn.title = model.text
+        ? `수업 리포트 ${model.summary_count}건 복사`
+        : "복사할 수업 리포트가 없습니다.";
+    }
     try {
       window.__STUDIO_CLASSROOM_REPORT_EXPORT_ACTION__ = model;
     } catch (_) {
@@ -5089,7 +5173,7 @@ runs: 0</pre>
     ];
     const manifest = buildStudioLocalPackageManifest({
       packageId,
-      title: `${title} local package`,
+      title: `${title} 교사용 배포 묶음`,
       version: "0.1.0",
       lessons,
       reports,
@@ -5136,6 +5220,26 @@ runs: 0</pre>
     if (this.runLocalPackageCopyBtn) {
       this.runLocalPackageCopyBtn.disabled = !model.payload_text;
     }
+    if (this.runTeacherPackageCopyBtn) {
+      this.runTeacherPackageCopyBtn.disabled = !model.payload_text;
+      this.runTeacherPackageCopyBtn.dataset.fileCount = String(model.file_count);
+      this.runTeacherPackageCopyBtn.textContent = model.file_count > 0
+        ? `배포 복사 ${model.file_count}`
+        : "배포 복사";
+      this.runTeacherPackageCopyBtn.title = model.payload_text
+        ? `교사용 배포 묶음 ${model.file_count}개 파일 복사`
+        : "복사할 교사용 배포 묶음이 없습니다.";
+    }
+    if (this.runTeacherPackageDownloadBtn) {
+      this.runTeacherPackageDownloadBtn.disabled = !model.payload_text;
+      this.runTeacherPackageDownloadBtn.dataset.fileCount = String(model.file_count);
+      this.runTeacherPackageDownloadBtn.textContent = model.file_count > 0
+        ? `배포 저장 ${model.file_count}`
+        : "배포 저장";
+      this.runTeacherPackageDownloadBtn.title = model.payload_text
+        ? `교사용 배포 묶음 ${model.file_count}개 파일 저장`
+        : "저장할 교사용 배포 묶음이 없습니다.";
+    }
     try {
       window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__ = model;
     } catch (_) {
@@ -5148,7 +5252,7 @@ runs: 0</pre>
     const model = this.syncLocalPackageExport();
     const value = String(model?.payload_text ?? "").trim();
     if (!value) {
-      showGlobalToast("복사할 로컬 패키지가 없습니다.", { kind: "error" });
+      showGlobalToast("복사할 교사용 배포 묶음이 없습니다.", { kind: "error" });
       return false;
     }
     let ok = false;
@@ -5168,7 +5272,37 @@ runs: 0</pre>
     } catch (_) {
       // ignore browser instrumentation errors
     }
-    showGlobalToast(ok ? "로컬 패키지를 복사했습니다." : "로컬 패키지 복사에 실패했습니다.", {
+    showGlobalToast(ok ? "교사용 배포 묶음을 복사했습니다." : "교사용 배포 묶음 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadLocalPackageExport() {
+    const model = this.buildLocalPackageExportModel();
+    const value = String(model?.payload_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("저장할 교사용 배포 묶음이 없습니다.", { kind: "error" });
+      return false;
+    }
+    const fileName = buildSafeJsonDownloadName(model?.package_id, "seamgrim-teacher-package");
+    let ok = false;
+    try {
+      saveJsonTextToFile(value, fileName);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_LOCAL_PACKAGE_DOWNLOAD_ACTION__ = {
+        ...model,
+        downloaded: ok,
+        file_name: fileName,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "교사용 배포 파일을 저장했습니다." : "교사용 배포 파일 저장에 실패했습니다.", {
       kind: ok ? "success" : "error",
     });
     return ok;
@@ -6303,8 +6437,8 @@ runs: 0</pre>
     ]);
     this.setObserveGuideStatus(
       focused
-        ? `DDN 편집 영역으로 이동했습니다. L${Math.max(1, Number(focused?.line || 1))}에서 보임표 행 항목을 점검하세요.`
-        : "DDN 편집 영역으로 이동했습니다. 보임 출력 항목을 점검하세요.",
+        ? `교과 원문으로 이동했습니다. L${Math.max(1, Number(focused?.line || 1))}에서 보임표 행 항목을 점검하세요.`
+        : "교과 원문으로 이동했습니다. 보임 출력 항목을 점검하세요.",
       { ttlMs: 4200 },
     );
     return true;
@@ -6539,7 +6673,7 @@ runs: 0</pre>
       this.runPresetViewsEl.dataset.value = model.required_views.join(",");
     }
     if (this.runPresetNumericTrackEl) {
-      this.runPresetNumericTrackEl.textContent = model.numeric_track_label || "수치트랙: -";
+      this.runPresetNumericTrackEl.textContent = model.numeric_track_label || "수업보기: -";
       this.runPresetNumericTrackEl.dataset.value = model.numeric_track_preset?.focus ?? "";
       this.runPresetNumericTrackEl.classList.toggle("hidden", !model.numeric_track);
     }
@@ -6607,8 +6741,8 @@ runs: 0</pre>
       this.runResultNumericLinkEl.classList.toggle("hidden", !row);
       this.runResultNumericLinkEl.dataset.value = row?.state_hash ?? "";
       this.runResultNumericLinkEl.textContent = row
-        ? `수치결과: ${row.run_kind || "run"} · ${row.state_hash ? row.state_hash.slice(0, 12) : "hash 없음"}`
-        : "수치결과: -";
+        ? `결과기록: ${row.run_kind || "run"} · ${row.state_hash ? row.state_hash.slice(0, 12) : "기록ID 없음"}`
+        : "결과기록: -";
     }
     try {
       window.__SEAMGRIM_NUMERIC_TRACK_RUN_RESULT_LINK__ = row;
@@ -6768,7 +6902,7 @@ runs: 0</pre>
         this.dockTargetSelectEl.value = "space2d";
       }
       this.switchRunTab(SUBPANEL_TAB.OVERLAY);
-      this.setRunOnboardingStatus(`학생 시작 적용: 겹보기 + 주보개 점검 · ${SEAMGRIM_FIRST_RUN_PATH_TEXT}`, { status: "ok" });
+      this.setRunOnboardingStatus(`학생 시작 적용: 설명 + 그림 점검 · ${SEAMGRIM_FIRST_RUN_PATH_TEXT}`, { status: "ok" });
     } else {
       const moved = this.focusObserveFamily("graph");
       if (!moved) {
@@ -7105,7 +7239,7 @@ runs: 0</pre>
     const nextSpaceRange = spaceRange || this.bogae?.getCurrentRange?.() || null;
     const nextGraphRange = graphAxis || this.dotbogi?.getCurrentAxis?.() || null;
     if (this.dockSpaceRangeEl) {
-      this.dockSpaceRangeEl.textContent = `보개: ${formatAxisRange(nextSpaceRange)}`;
+      this.dockSpaceRangeEl.textContent = `그림: ${formatAxisRange(nextSpaceRange)}`;
     }
     if (this.dockGraphRangeEl) {
       this.dockGraphRangeEl.textContent = `그래프: ${formatAxisRange(nextGraphRange)}`;
@@ -7784,7 +7918,7 @@ runs: 0</pre>
       String(this.lastOverlayMarkdown ?? "").trim() || String(this.lastRuntimeTextMarkdown ?? "").trim(),
     );
     this.overlayToggleBtn.disabled = !hasMarkdown;
-    this.overlayToggleBtn.title = hasMarkdown ? "겹보기 탭 열기" : "표시할 겹보기 설명이 없습니다.";
+    this.overlayToggleBtn.title = hasMarkdown ? "설명 탭 열기" : "표시할 설명이 없습니다.";
   }
 
   isEditableTarget(target) {
@@ -7953,10 +8087,10 @@ runs: 0</pre>
     if (!this.runMirrorHashEl || !this.runMirrorKvEl) return;
     const hashText = String(this.lastRuntimeHash ?? "-").trim() || "-";
     this.runMirrorHashEl.textContent = formatCompactStateHash(hashText);
-    this.runMirrorHashEl.title = hashText === "-" ? "state_hash 없음" : `전체 state_hash: ${hashText}`;
+    this.runMirrorHashEl.title = hashText === "-" ? "상태 기록 없음" : `전체 상태 기록: ${hashText}`;
     if (this.runCopyHashBtn) {
       this.runCopyHashBtn.disabled = hashText === "-";
-      this.runCopyHashBtn.title = hashText === "-" ? "복사할 state_hash가 없습니다." : "현재 state_hash 복사";
+      this.runCopyHashBtn.title = hashText === "-" ? "복사할 상태 기록이 없습니다." : "현재 상태 기록 복사";
     }
     const world = stateJson && typeof stateJson === "object" && stateJson.world && typeof stateJson.world === "object"
       ? stateJson.world
@@ -8813,7 +8947,7 @@ runs: 0</pre>
         } else {
           this.executionPaused = true;
           this.haltLoop();
-          this.lastExecPathHint = "한마디 실행 준비";
+          this.lastExecPathHint = "한 단계 실행 준비";
           this.updateRuntimeHint();
           this.setEngineStatus("paused");
         }
@@ -8886,7 +9020,7 @@ runs: 0</pre>
             } else {
               this.executionPaused = true;
               this.haltLoop();
-              this.lastExecPathHint = "한마디 실행 준비";
+              this.lastExecPathHint = "한 단계 실행 준비";
               this.updateRuntimeHint();
               this.setEngineStatus("paused");
             }
