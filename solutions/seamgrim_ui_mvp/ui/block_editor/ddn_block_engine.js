@@ -147,8 +147,16 @@ export class DdnBlockEngine {
   }
 
   appendPaletteBlock(blockDef) {
+    return this.insertPaletteBlock(blockDef, this._blocks.length);
+  }
+
+  insertPaletteBlock(blockDef, index = this._blocks.length) {
     const next = instantiateBlock(blockDef);
-    this._blocks.push(next);
+    const rawIndex = Number(index);
+    const targetIndex = Number.isFinite(rawIndex)
+      ? Math.max(0, Math.min(this._blocks.length, Math.trunc(rawIndex)))
+      : this._blocks.length;
+    this._blocks.splice(targetIndex, 0, next);
     this.render();
     this.onChange?.(this.getBlocks());
     return next;
@@ -222,6 +230,19 @@ export class DdnBlockEngine {
     return true;
   }
 
+  moveBlock(blockId, index) {
+    const currentIndex = this._blocks.findIndex((item) => String(item?.id ?? "") === String(blockId ?? ""));
+    if (currentIndex < 0) return false;
+    const rawIndex = Number(index);
+    if (!Number.isFinite(rawIndex)) return false;
+    const [block] = this._blocks.splice(currentIndex, 1);
+    const targetIndex = Math.max(0, Math.min(this._blocks.length, Math.trunc(rawIndex)));
+    this._blocks.splice(targetIndex, 0, block);
+    this.render();
+    this.onChange?.(this.getBlocks());
+    return true;
+  }
+
   render() {
     this._renderPalette();
     this._renderCanvas();
@@ -247,7 +268,9 @@ export class DdnBlockEngine {
         const button = this.createElement("button");
         button.className = "block-category__item";
         button.textContent = String(blockDef?.label ?? blockDef?.kind ?? "");
-        button.dataset = { kind: String(blockDef?.kind ?? "") };
+        if (button.dataset && typeof button.dataset === "object") {
+          button.dataset.kind = String(blockDef?.kind ?? "");
+        }
         if (typeof button.addEventListener === "function") {
           button.addEventListener("click", () => {
             this.appendPaletteBlock(blockDef);
@@ -281,11 +304,10 @@ export class DdnBlockEngine {
   _renderBlockCard(block, depth = 0) {
     const card = this.createElement("div");
     card.className = `ddn-block ddn-block--${String(block?.kind ?? "unknown")}`;
-    card.dataset = {
-      ...(card.dataset ?? {}),
-      depth: String(depth),
-      blockId: String(block?.id ?? ""),
-    };
+    if (card.dataset && typeof card.dataset === "object") {
+      card.dataset.depth = String(depth);
+      card.dataset.blockId = String(block?.id ?? "");
+    }
 
     const header = this.createElement("div");
     header.className = "ddn-block__header";
@@ -361,11 +383,10 @@ export class DdnBlockEngine {
   _renderExprNode(node, blockId, exprKey, exprPath = [], depth = 0) {
     const wrap = this.createElement("div");
     wrap.className = "ddn-expr";
-    wrap.dataset = {
-      ...(wrap.dataset ?? {}),
-      depth: String(depth),
-      kind: String(node?.kind ?? ""),
-    };
+    if (wrap.dataset && typeof wrap.dataset === "object") {
+      wrap.dataset.depth = String(depth);
+      wrap.dataset.kind = String(node?.kind ?? "");
+    }
 
     const head = this.createElement("div");
     head.className = "ddn-expr__head";

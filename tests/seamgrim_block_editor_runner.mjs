@@ -18,6 +18,10 @@ function formatJson(value) {
   return `${JSON.stringify(sortJson(value), null, 2)}\n`;
 }
 
+function normalizeTextForCompare(value) {
+  return String(value ?? "").replace(/\r\n/g, "\n");
+}
+
 function summarizeExprNode(node) {
   if (!node || typeof node !== "object") return null;
   const inputs = Object.fromEntries(
@@ -145,7 +149,9 @@ async function main() {
   ]);
 
   const fixture = await readJson(path.join(packDir, "fixtures", "screen.detjson"));
-  const sourceText = await fs.readFile(path.join(packDir, String(fixture.source_ddn ?? "fixtures/source.ddn")), "utf8");
+  const sourceText = normalizeTextForCompare(
+    await fs.readFile(path.join(packDir, String(fixture.source_ddn ?? "fixtures/source.ddn")), "utf8"),
+  );
   const wasmBytes = await fs.readFile(
     path.join(rootDir, "solutions", "seamgrim_ui_mvp", "ui", "wasm", "ddonirang_tool_bg.wasm"),
   );
@@ -272,7 +278,7 @@ async function main() {
     return;
   }
   const expectedText = await fs.readFile(expectedPath, "utf8");
-  if (expectedText !== actualText) {
+  if (normalizeTextForCompare(expectedText) !== normalizeTextForCompare(actualText)) {
     console.error(`block editor screen smoke mismatch: ${path.relative(rootDir, expectedPath)}`);
     process.exit(1);
   }

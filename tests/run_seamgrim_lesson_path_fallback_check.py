@@ -41,7 +41,7 @@ def main() -> int:
         "const metaRaw = await fetchText(base.metaCandidates);",
         "function ensureLessonEntryFromSelection(selection)",
         "resolveSelectionCandidates(selection, [\"ddnCandidates\", \"ddn_path\", \"lesson_ddn_path\"])",
-        "onLessonSelect: async (selection) => {",
+        "onLessonSelect: async (selection, { autoExecute = true } = {}) => {",
         "const lessonId = ensureLessonEntryFromSelection(selection);",
     ]
     ok, missing = has_all_patterns(text, required_tokens)
@@ -50,7 +50,7 @@ def main() -> int:
         return 1
 
     browse_tokens = [
-        "void this.onLessonSelect(lesson);",
+        "void this.onLessonSelect(lesson, { autoExecute: true });",
     ]
     ok_browse, missing_browse = has_all_patterns(browse_text, browse_tokens)
     if not ok_browse:

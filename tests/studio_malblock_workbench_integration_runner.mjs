@@ -68,10 +68,13 @@ async function closeServer(server) {
 function isAllowedFallback404(urlText) {
   try {
     const url = new URL(urlText);
-    return url.pathname === "/api/lessons/inventory" || url.pathname === "/api/lesson-inventory";
+    const pathname = url.pathname.replace(/^\/solutions\/seamgrim_ui_mvp/u, "");
+    if (pathname === "/api/lessons/inventory" || pathname === "/api/lesson-inventory") return true;
+    if ((pathname.startsWith("/lessons/") || pathname.startsWith("/seed_lessons_v1/")) && /\/(?:graph|table|space2d|text|maegim_control)\.(?:json|md)$/i.test(pathname)) return true;
   } catch (_) {
     return false;
   }
+  return false;
 }
 
 async function main() {

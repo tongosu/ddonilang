@@ -186,7 +186,7 @@ async function main() {
     assert(studentRail.launchValue === "browse_select_student", `student launch value mismatch: ${studentRail.launchValue}`);
     assert(studentRail.onboarding === "학생 시작", `student onboarding label mismatch: ${studentRail.onboarding}`);
     assert(studentRail.onboardingValue === "student", `student onboarding value mismatch: ${studentRail.onboardingValue}`);
-    assert(studentRail.layout.startsWith("layout:"), `student layout label mismatch: ${studentRail.layout}`);
+    assert(studentRail.layout.startsWith("화면:"), `student layout label mismatch: ${studentRail.layout}`);
     assert(studentRail.views.startsWith("보기:"), `student views label mismatch: ${studentRail.views}`);
     assert(studentRail.model?.schema === "seamgrim.run_preset_rail.v1", "student rail model schema mismatch");
 

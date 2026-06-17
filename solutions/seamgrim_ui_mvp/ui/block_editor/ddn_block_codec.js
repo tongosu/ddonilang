@@ -192,7 +192,7 @@ function pickObjectParticle(text) {
 }
 
 function renderRawBodyBlock(keyword, body) {
-  const raw = String(body ?? "");
+  const raw = String(body ?? "").replace(/\r\n/g, "\n");
   return `${keyword} {${raw}}.`.trim();
 }
 
