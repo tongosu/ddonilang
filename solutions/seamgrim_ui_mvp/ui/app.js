@@ -2475,7 +2475,7 @@ async function main() {
   const catalogMode = resolveCatalogMode();
   appState.catalogMode = catalogMode;
   const featuredSeedEnabled = catalogMode === CATALOG_MODE_FULL;
-  const featuredSeedButton = byId("btn-preset-featured-seed-quick-recent");
+  const getFeaturedSeedButton = () => byId("btn-preset-featured-seed-quick-recent");
   let runScreen = null;
   let editorScreen = null;
   let lastEditorReadinessModel = buildStudioEditorReadinessModel({
@@ -2645,6 +2645,7 @@ async function main() {
       : [];
 
   const updateFeaturedSeedQuickAction = () => {
+    const featuredSeedButton = getFeaturedSeedButton();
     if (!featuredSeedButton) return;
     if (!featuredSeedEnabled) {
       featuredSeedButton.disabled = true;
@@ -3271,7 +3272,7 @@ async function main() {
       void switchMainTab(target, { launchKind: "manual" });
     });
   });
-  featuredSeedButton?.addEventListener("click", () => {
+  getFeaturedSeedButton()?.addEventListener("click", () => {
     void runNextFeaturedSeed();
   });
   if (typeof window !== "undefined" && window?.addEventListener) {

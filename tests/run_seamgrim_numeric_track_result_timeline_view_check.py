@@ -134,7 +134,8 @@ def check_product_tokens() -> None:
             "__SEAMGRIM_NUMERIC_TRACK_RESULT_TIMELINE_VIEW_TEXT__",
         ],
     )
-    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["btn-toggle-numeric-track-result-timeline", "numeric-track-result-timeline-panel", "수치 결과 흐름"])
+    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "screens" / "browse.js", ["btn-toggle-numeric-track-result-timeline", "수치 결과 흐름"])
+    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["numeric-track-result-timeline-panel"])
     require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css", ["numeric-track-timeline-panel", "numeric-track-timeline-row"])
     require_contains(RUNNER, ["seamgrim_numeric_track_result_timeline_view: ok", "seamgrim.numeric_track_result_timeline_view.v1", "latest timeline row"])
 

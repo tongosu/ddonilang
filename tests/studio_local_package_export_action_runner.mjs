@@ -135,17 +135,19 @@ async function main() {
       advancedBrowseDisplay: getComputedStyle(document.querySelector("#btn-advanced-browse")).display,
       advancedEditorDisplay: getComputedStyle(document.querySelector("#btn-advanced-editor")).display,
       advancedRunDisplay: getComputedStyle(document.querySelector("#btn-advanced-run")).display,
-      numericTrackDisplay: getComputedStyle(document.querySelector("#btn-filter-numeric-track")).display,
-      numericResultsDisplay: getComputedStyle(document.querySelector("#btn-filter-numeric-track-results")).display,
-      featuredSeedDisplay: getComputedStyle(document.querySelector("#btn-preset-featured-seed-quick-recent")).display,
-      numericSummaryDisplay: getComputedStyle(document.querySelector("#btn-copy-numeric-track-result-summary")).display,
-      numericTimelineDisplay: getComputedStyle(document.querySelector("#btn-toggle-numeric-track-result-timeline")).display,
-      presetLinkDisplay: getComputedStyle(document.querySelector("#btn-copy-browse-preset-link")).display,
-      seedScopeDisplay: getComputedStyle(document.querySelector("#filter-seed-scope")).display,
-      runStatusDisplay: getComputedStyle(document.querySelector("#filter-run-status")).display,
-      runLaunchDisplay: getComputedStyle(document.querySelector("#filter-run-launch")).display,
-      warningStatusDisplay: getComputedStyle(document.querySelector("#filter-warning-status")).display,
-      sortDisplay: getComputedStyle(document.querySelector("#filter-sort")).display,
+      numericTrackExists: Boolean(document.querySelector("#btn-filter-numeric-track")),
+      numericResultsExists: Boolean(document.querySelector("#btn-filter-numeric-track-results")),
+      featuredSeedExists: Boolean(document.querySelector("#btn-preset-featured-seed-quick-recent")),
+      numericSummaryExists: Boolean(document.querySelector("#btn-copy-numeric-track-result-summary")),
+      numericTimelineExists: Boolean(document.querySelector("#btn-toggle-numeric-track-result-timeline")),
+      presetLinkExists: Boolean(document.querySelector("#btn-copy-browse-preset-link")),
+      qualityExists: Boolean(document.querySelector("#filter-quality")),
+      seedScopeExists: Boolean(document.querySelector("#filter-seed-scope")),
+      runStatusExists: Boolean(document.querySelector("#filter-run-status")),
+      runLaunchExists: Boolean(document.querySelector("#filter-run-launch")),
+      warningStatusExists: Boolean(document.querySelector("#filter-warning-status")),
+      launchProfileExists: Boolean(document.querySelector("#filter-launch-profile")),
+      sortExists: Boolean(document.querySelector("#filter-sort")),
     }));
     assert(defaultDevSurfaceState.templateExists === false, "dev surface template should not ship in the default teacher UI");
     assert(defaultDevSurfaceState.bodyEnabled === false, "dev surfaces should not be enabled by default");
@@ -153,17 +155,19 @@ async function main() {
     assert(defaultDevSurfaceState.advancedBrowseDisplay === "none", `advanced browse button should be hidden by default: ${defaultDevSurfaceState.advancedBrowseDisplay}`);
     assert(defaultDevSurfaceState.advancedEditorDisplay === "none", `advanced editor button should be hidden by default: ${defaultDevSurfaceState.advancedEditorDisplay}`);
     assert(defaultDevSurfaceState.advancedRunDisplay === "none", `advanced run button should be hidden by default: ${defaultDevSurfaceState.advancedRunDisplay}`);
-    assert(defaultDevSurfaceState.numericTrackDisplay === "none", `numeric track filter should be hidden by default: ${defaultDevSurfaceState.numericTrackDisplay}`);
-    assert(defaultDevSurfaceState.numericResultsDisplay === "none", `numeric result filter should be hidden by default: ${defaultDevSurfaceState.numericResultsDisplay}`);
-    assert(defaultDevSurfaceState.featuredSeedDisplay === "none", `featured seed shortcut should be hidden by default: ${defaultDevSurfaceState.featuredSeedDisplay}`);
-    assert(defaultDevSurfaceState.numericSummaryDisplay === "none", `numeric summary export should be hidden by default: ${defaultDevSurfaceState.numericSummaryDisplay}`);
-    assert(defaultDevSurfaceState.numericTimelineDisplay === "none", `numeric timeline should be hidden by default: ${defaultDevSurfaceState.numericTimelineDisplay}`);
-    assert(defaultDevSurfaceState.presetLinkDisplay === "none", `preset link copy should be hidden by default: ${defaultDevSurfaceState.presetLinkDisplay}`);
-    assert(defaultDevSurfaceState.seedScopeDisplay === "none", `seed scope filter should be hidden by default: ${defaultDevSurfaceState.seedScopeDisplay}`);
-    assert(defaultDevSurfaceState.runStatusDisplay === "none", `run status filter should be hidden by default: ${defaultDevSurfaceState.runStatusDisplay}`);
-    assert(defaultDevSurfaceState.runLaunchDisplay === "none", `run launch filter should be hidden by default: ${defaultDevSurfaceState.runLaunchDisplay}`);
-    assert(defaultDevSurfaceState.warningStatusDisplay === "none", `legacy warning filter should be hidden by default: ${defaultDevSurfaceState.warningStatusDisplay}`);
-    assert(defaultDevSurfaceState.sortDisplay === "none", `sort filter should be hidden by default: ${defaultDevSurfaceState.sortDisplay}`);
+    assert(defaultDevSurfaceState.numericTrackExists === false, "numeric track filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.numericResultsExists === false, "numeric result filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.featuredSeedExists === false, "featured seed shortcut should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.numericSummaryExists === false, "numeric summary export should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.numericTimelineExists === false, "numeric timeline should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.presetLinkExists === false, "preset link copy should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.qualityExists === false, "quality filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.seedScopeExists === false, "seed scope filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.runStatusExists === false, "run status filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.runLaunchExists === false, "run launch filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.warningStatusExists === false, "legacy warning filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.launchProfileExists === false, "launch profile filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.sortExists === false, "sort filter should not exist in the default teacher DOM");
     await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await waitVisible(page, "#screen-run");

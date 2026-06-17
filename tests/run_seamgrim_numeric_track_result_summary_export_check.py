@@ -132,7 +132,7 @@ def check_product_tokens() -> None:
             "__SEAMGRIM_NUMERIC_TRACK_RESULT_SUMMARY_EXPORT_TEXT__",
         ],
     )
-    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["btn-copy-numeric-track-result-summary", "수치 결과 요약 복사"])
+    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "screens" / "browse.js", ["btn-copy-numeric-track-result-summary", "수치 결과 요약 복사"])
     require_contains(RUNNER, ["seamgrim_numeric_track_result_summary_export: ok", "seamgrim.numeric_track_result_summary_export.v1", "result_count\\t2"])
 
 

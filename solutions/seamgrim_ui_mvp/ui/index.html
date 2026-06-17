@@ -31,13 +31,6 @@
           <button class="browse-tab" data-tab="search" type="button">🔍 검색</button>
           <button id="btn-open-local-package" class="ghost" type="button">배포 열기</button>
           <input id="input-local-package-file" type="file" accept=".json,application/json" class="hidden" />
-          <button id="btn-filter-numeric-track" class="ghost" type="button">그래프·표 수업</button>
-          <button id="btn-filter-numeric-track-results" class="ghost" type="button">수치 결과</button>
-          <button id="btn-preset-featured-seed-quick-recent" class="ghost" type="button">Alt+6 최근 보기</button>
-          <button id="btn-copy-numeric-track-result-summary" class="ghost" type="button">수치 결과 요약 복사</button>
-          <button id="btn-toggle-numeric-track-result-timeline" class="ghost" type="button">수치 결과 흐름</button>
-          <button id="btn-copy-browse-preset-link" class="ghost" type="button">프리셋 링크 복사</button>
-          <button class="browse-tab" type="button" disabled title="AGE5">커뮤니티</button>
           <button id="btn-create" class="btn-primary" type="button">+ 만들기</button>
         </div>
 
@@ -59,49 +52,6 @@
           </select>
           <select id="filter-subject">
             <option value="">과목: 전체</option>
-          </select>
-          <select id="filter-quality">
-            <option value="">품질: 전체</option>
-            <option value="recommended">품질: 추천</option>
-            <option value="reviewed">품질: 검수완료</option>
-            <option value="experimental">품질: 실험용</option>
-          </select>
-          <select id="filter-seed-scope">
-            <option value="">seed: 전체</option>
-            <option value="featured_seed">seed: 신규 10종만</option>
-            <option value="seed_only">seed: 전체</option>
-          </select>
-          <select id="filter-run-status">
-            <option value="">최근 실행: 전체</option>
-            <option value="success">최근 실행: 성공</option>
-            <option value="error">최근 실행: 실패</option>
-            <option value="none">최근 실행: 미실행</option>
-          </select>
-          <select id="filter-run-launch">
-            <option value="">실행 경로: 전체</option>
-            <option value="featured_seed_quick">실행 경로: Alt+6</option>
-            <option value="browse_select">실행 경로: 탐색 선택</option>
-            <option value="editor_run">실행 경로: 편집 실행</option>
-            <option value="manual">실행 경로: 수동/기타</option>
-            <option value="none">실행 경로: 기록 없음</option>
-          </select>
-          <select id="filter-warning-status">
-            <option value="">구식 범위주석: 전체</option>
-            <option value="has_legacy_warning">구식 범위주석: 있음</option>
-            <option value="clean">구식 범위주석: 없음</option>
-          </select>
-          <select id="filter-launch-profile">
-            <option value="">실행 시작: 기본</option>
-            <option value="student">실행 시작: 학생</option>
-            <option value="teacher">실행 시작: 교사</option>
-          </select>
-          <select id="filter-sort">
-            <option value="teacher">정렬: 교과 우선</option>
-            <option value="recent">정렬: 최근 실행순</option>
-            <option value="featured_seed_quick_recent">정렬: Alt+6 최근 우선</option>
-            <option value="featured_seed">정렬: 신규 seed 우선</option>
-            <option value="default">정렬: 기본</option>
-            <option value="legacy_warning">정렬: 구식 범위주석 많은순</option>
           </select>
           <input id="filter-query" type="text" placeholder="검색어 입력..." />
         </div>

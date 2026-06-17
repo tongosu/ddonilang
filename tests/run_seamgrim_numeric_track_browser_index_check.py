@@ -132,7 +132,7 @@ def check_product_tokens() -> None:
             "buildNumericTrackIndexSnapshot",
         ],
     )
-    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["btn-filter-numeric-track", "그래프·표 수업"])
+    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "screens" / "browse.js", ["btn-filter-numeric-track", "그래프·표 수업"])
     require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css", ["#btn-filter-numeric-track.active", ".badge-numeric-track"])
 
 
