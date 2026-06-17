@@ -136,7 +136,7 @@ async function main() {
       advancedEditorDisplay: getComputedStyle(document.querySelector("#btn-advanced-editor")).display,
       advancedRunDisplay: getComputedStyle(document.querySelector("#btn-advanced-run")).display,
     }));
-    assert(defaultDevSurfaceState.templateExists === true, "dev surface template should remain available for opt-in tests");
+    assert(defaultDevSurfaceState.templateExists === false, "dev surface template should not ship in the default teacher UI");
     assert(defaultDevSurfaceState.bodyEnabled === false, "dev surfaces should not be enabled by default");
     assert(defaultDevSurfaceState.devRootExists === false, "dev surface root should not mount on the default teacher UI");
     assert(defaultDevSurfaceState.advancedBrowseDisplay === "none", `advanced browse button should be hidden by default: ${defaultDevSurfaceState.advancedBrowseDisplay}`);

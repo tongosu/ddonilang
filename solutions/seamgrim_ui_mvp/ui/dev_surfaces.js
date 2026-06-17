@@ -7,6 +7,70 @@ function setWindowPayload(dataKey, textKey, formatter, row) {
   }
 }
 
+const DEV_SURFACE_CONTAINERS = [
+  ["teacher-feedback-preview-panel", "교사 피드백 미리보기"],
+  ["classroom-operations-panel-preview", "수업 운영 패널 미리보기"],
+  ["benchmark-baseline-local-snapshot", "Benchmark baseline 로컬 스냅샷"],
+  ["release-review-packet-dashboard", "릴리스 검토 패킷 대시보드"],
+  ["lesson-publication-review-surface", "수업 공개 검토 표면"],
+  ["ma3-regression-gate-matrix", "마-3 회귀 게이트 매트릭스"],
+  ["ma3-next-queue-coordinate-lock", "마-3 다음 큐 좌표 잠금"],
+  ["operations-preview-stage-closure", "Studio operations preview stage closure"],
+  ["productization-stage-rebase", "Studio productization stage rebase"],
+  ["seamgrim-numeric-track-consolidation", "Seamgrim numeric track consolidation"],
+  ["numeric-report-workflow-stage", "Studio numeric report workflow consolidation stage"],
+  ["numeric-result-report-stage", "Studio numeric result report consolidation stage"],
+  ["productization-stage-closure", "Studio productization stage closure"],
+  ["post-super-long-rebase", "Studio post-super-long follow-up rebase"],
+  ["public-release-approval-recheck", "Studio public release approval recheck"],
+  ["local-release-rehearsal-check", "Studio local release rehearsal check"],
+  ["publication-artifact-dry-run", "Studio publication artifact dry-run"],
+  ["teacher-feedback-loop-seed", "Studio teacher feedback loop seed"],
+  ["classroom-operations-triage", "Studio classroom operations triage"],
+  ["benchmark-baseline-prep-dry-run", "Studio benchmark baseline prep dry-run"],
+  ["next-roadmap-v2-coordinate-lock", "Studio next ROADMAP_V2 coordinate lock"],
+  ["ma3-next-development-queue-rebase", "Studio MA3 next development queue rebase"],
+  ["free-lab-first-run", "자유 실험 첫실행"],
+  ["free-lab-experiment-report", "자유 실험 보고서"],
+  ["free-lab-ui-pack", "자유 실험 UI pack"],
+  ["free-lab-share-pack", "자유 실험 share pack"],
+  ["free-lab-research-workflow", "자유 실험 research workflow"],
+  ["rpg-box-authoring-ui", "RPG Box authoring UI"],
+  ["rpg-story-package", "RPG story package"],
+  ["rpg-engine-adapter-lts", "RPG engine adapter LTS"],
+  ["ttonimaru-publication-read-api", "Ttonimaru publication read API"],
+  ["ttonimaru-project-share-ui", "Ttonimaru project share UI"],
+  ["ttonimaru-public-registry-seed", "Ttonimaru public registry seed"],
+  ["ttonimaru-platform-hardening", "Ttonimaru platform hardening"],
+  ["toolchain-diagnostic-ui-lsp", "Toolchain diagnostic UI LSP"],
+  ["toolchain-registry-verification", "Toolchain registry verification"],
+  ["toolchain-benchmark-lts", "Toolchain benchmark LTS"],
+  ["social-world-bridge-pack", "Social world bridge pack"],
+  ["social-world-policy-ghost-ui", "Social world policy ghost UI"],
+  ["social-world-template-registry", "Social world template registry"],
+  ["social-world-lts-readiness", "Social world LTS readiness"],
+  ["education-assessment-pack", "Education assessment pack"],
+  ["education-classroom-ui-pack", "Education classroom UI pack"],
+  ["education-publication-pack", "Education publication pack"],
+  ["education-operations-lts", "Education operations LTS"],
+  ["question-card-smoke", "Question card smoke"],
+  ["question-card-validation", "AI output validation"],
+  ["question-card-dev-assist", "Development assist UI"],
+  ["question-card-author-tool-share", "Author tool share"],
+  ["question-card-workflow-hardening", "AI workflow hardening"],
+  ["seulgi-proposal-ui", "Seulgi proposal UI"],
+  ["seulgi-replay-safe-workflow", "Seulgi replay-safe workflow"],
+];
+
+function createDevSurfaceContainer([id, label]) {
+  const section = document.createElement("section");
+  section.id = id;
+  section.className = id;
+  section.setAttribute(`data-${id}`, "");
+  section.setAttribute("aria-label", label);
+  return section;
+}
+
 function renderSurface({ dataKey, textKey, formatter, render, elementId, row }) {
   const payload = row && typeof row === "object" ? row : null;
   setWindowPayload(dataKey, textKey, formatter, payload);
@@ -17,13 +81,14 @@ function renderSurface({ dataKey, textKey, formatter, render, elementId, row }) 
 
 function ensureDevSurfaceDom() {
   if (document.getElementById("dev-surface-root")) return true;
-  const template = document.getElementById("dev-surface-template");
   const catalog = document.querySelector("#screen-browse .catalog-body");
-  if (!template || !template.content || !catalog) return false;
+  if (!catalog) return false;
   const root = document.createElement("div");
   root.id = "dev-surface-root";
   root.className = "dev-surface-root";
-  root.appendChild(template.content.cloneNode(true));
+  for (const definition of DEV_SURFACE_CONTAINERS) {
+    root.appendChild(createDevSurfaceContainer(definition));
+  }
   catalog.after(root);
   return true;
 }
