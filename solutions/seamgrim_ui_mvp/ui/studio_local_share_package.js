@@ -106,7 +106,7 @@ export function buildStudioLocalPackageManifest({
   return {
     __종류: "studio_local_package_manifest",
     package_id: asText(packageId, "local.studio.package"),
-    title: asText(title, "Studio local package"),
+    title: asText(title, "셈그림 교사용 배포 묶음"),
     version: asText(version, "0.1.0"),
     generated_locally: true,
     account_required: false,

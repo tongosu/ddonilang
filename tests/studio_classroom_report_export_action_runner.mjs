@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const OK = "studio_classroom_report_export_action: ok";
+const LEGACY_CLASSROOM_REPORT_COPY_BUTTON_ID = "btn-run-classroom-report-copy";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -138,7 +139,7 @@ async function main() {
       const tools = document.querySelector("#run-inspector-tools");
       if (tools) tools.open = true;
     });
-    await page.click("#btn-run-classroom-report-copy");
+    await page.click("#btn-run-teacher-report-copy");
     await page.waitForFunction(() => window.__STUDIO_CLASSROOM_REPORT_EXPORT_ACTION__?.copied === true);
 
     const state = await page.evaluate(() => ({
