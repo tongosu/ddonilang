@@ -81,7 +81,7 @@ export function mapParseWarningToUserMessage(code, technicalMessage) {
     return "active 실행선에서는 # 헤더를 사용할 수 없습니다. 설정 {}와 매김 {}를 사용하세요.";
   }
   if (normalizedCode === "E_SEAMGRIM_RETIRED_LINE_BLOCKED") {
-    return "이 자료는 현재 실행선에서 비활성화되었습니다. 대표 교과 목록에서 다시 선택해 주세요.";
+    return "이 자료는 현재 실행선에서 비활성화되었습니다. 교과 목록에서 다시 선택해 주세요.";
   }
   if (normalizedCode === "E_LANG_COMPAT_MATIC_ENTRY_DISABLED") {
     return "레거시 마틱 진입 표면은 비활성화되었습니다. 현재 표면으로 수정해 주세요.";

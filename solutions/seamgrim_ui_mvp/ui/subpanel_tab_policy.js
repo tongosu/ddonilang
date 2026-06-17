@@ -7,11 +7,11 @@ export const SUBPANEL_TAB = Object.freeze({
 });
 
 export const SUBPANEL_TAB_LABEL = Object.freeze({
-  [SUBPANEL_TAB.MAEGIM]: "매김",
+  [SUBPANEL_TAB.MAEGIM]: "조절",
   [SUBPANEL_TAB.OUTPUT]: "결과표",
-  [SUBPANEL_TAB.MIRROR]: "거울",
+  [SUBPANEL_TAB.MIRROR]: "검증",
   [SUBPANEL_TAB.GRAPH]: "그래프",
-  [SUBPANEL_TAB.OVERLAY]: "겹보기",
+  [SUBPANEL_TAB.OVERLAY]: "설명",
 });
 
 export function resolveSubpanelTabs(_primaryFamily = "sim") {

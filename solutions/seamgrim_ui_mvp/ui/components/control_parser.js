@@ -405,8 +405,8 @@ export function parsePrepBlockAssignments(text) {
             });
             if (tail.includes("범위(")) {
               warnings.push({
-                code: "E_LEGACY_RANGE_SYNTAX",
-                message: "`// 범위(...)`는 더 이상 허용되지 않습니다. `매김 { 범위: a..b. 간격: c. }`로 옮기세요.",
+                code: "W_LEGACY_RANGE_COMMENT_DEPRECATED",
+                message: "`// 범위(...)`는 폐기 대상입니다. `매김 { 범위: a..b. 간격: c. }`로 옮기세요.",
                 name,
                 source: "legacy_range_comment",
               });

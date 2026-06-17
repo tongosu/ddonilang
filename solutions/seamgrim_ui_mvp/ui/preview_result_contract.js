@@ -177,7 +177,7 @@ export function wrapPreviewResultHtml(result, { className = "preview-result-card
 
 export function buildPreviewSummaryStripHtml(
   result,
-  { className = "preview-summary-strip", label = "대표 보기" } = {},
+  { className = "preview-summary-strip", label = "미리보기 ·" } = {},
 ) {
   if (!result?.html) return "";
   const classes = [String(className ?? "").trim()].filter(Boolean).join(" ");
@@ -187,8 +187,8 @@ export function buildPreviewSummaryStripHtml(
   const classAttr = classes ? ` class="${escAttr(classes)}"` : "";
   const titleAttr = tooltip ? ` title="${escAttr(tooltip)}"` : "";
   return `<div${classAttr} data-preview-family="${escAttr(family)}" data-preview-mode="${escAttr(mode)}"${titleAttr}>` +
-    `<span class="preview-summary-label">${escAttr(label)}</span>` +
-    `<span class="preview-summary-family">${escAttr(familyLabel(family))}</span>` +
+    `<span class="preview-summary-label">${escAttr(label)}</span> ` +
+    `<span class="preview-summary-family">${escAttr(familyLabel(family))}</span> ` +
     `<span class="preview-summary-text">${escAttr(tooltip || familyLabel(family))}</span>` +
     `</div>`;
 }
@@ -198,7 +198,7 @@ export function buildPreviewResultCollectionHtml(
   {
     preferredFamilies = [],
     summaryClassName = "preview-summary-strip",
-    summaryLabel = "대표 보기",
+    summaryLabel = "미리보기 ·",
     cardClassName = "preview-result-card",
   } = {},
 ) {
@@ -216,7 +216,7 @@ export function buildPreviewResultCollection(
   {
     preferredFamilies = [],
     summaryClassName = "preview-summary-strip",
-    summaryLabel = "대표 보기",
+    summaryLabel = "미리보기 ·",
     cardClassName = "preview-result-card",
   } = {},
 ) {

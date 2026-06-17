@@ -1022,7 +1022,7 @@ function renderMirror(state, { warnings = [], requestedViewFamilies = [] } = {})
       ["보기",  viewFamilies.length ? viewFamilies.join(", ") : "—"],
       ["미해석 보기", missingFamilies.length ? missingFamilies.join(", ") : "—"],
       ["겹보기 레이어", overlayStackSummary ? `${overlayStackSummary.count}개` : "0개"],
-      ["대표 보기", previewViewModel?.summaryText || "—"],
+      ["미리보기", previewViewModel?.summaryText || "—"],
     ]},
   ];
 

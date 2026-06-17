@@ -345,8 +345,8 @@ export class Bogae {
       showGrid: Boolean(this.view.showGrid),
       showAxis: Boolean(this.view.showAxis),
       showXAxisTicks: Boolean(this.view.showXAxisTicks),
-      emptyText: "보개 출력 없음",
-      noPointsText: "보개 도형 없음",
+      emptyText: "그림 출력 없음",
+      noPointsText: "그림 도형 없음",
     });
     this.emitRangeChange();
   }
