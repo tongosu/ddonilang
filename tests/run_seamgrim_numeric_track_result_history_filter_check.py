@@ -134,7 +134,7 @@ def check_product_tokens() -> None:
     )
     require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["btn-filter-numeric-track-results", "수치 결과"])
     require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css", ["btn-filter-numeric-track-results", "badge-numeric-track-result"])
-    require_contains(RUNNER, ["seamgrim_numeric_track_result_history_filter: ok", "seamgrim.numeric_track_result_history_filter.v1", "수치결과"])
+    require_contains(RUNNER, ["seamgrim_numeric_track_result_history_filter: ok", "seamgrim.numeric_track_result_history_filter.v1", "결과기록"])
 
 
 def check_contract() -> None:

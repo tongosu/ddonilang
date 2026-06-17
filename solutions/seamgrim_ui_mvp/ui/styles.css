@@ -132,7 +132,19 @@ textarea {
 
 body:not(.dev-surfaces-enabled) #btn-advanced-browse,
 body:not(.dev-surfaces-enabled) #btn-advanced-editor,
-body:not(.dev-surfaces-enabled) #btn-advanced-run {
+body:not(.dev-surfaces-enabled) #btn-advanced-run,
+body:not(.dev-surfaces-enabled) #btn-filter-numeric-track,
+body:not(.dev-surfaces-enabled) #btn-filter-numeric-track-results,
+body:not(.dev-surfaces-enabled) #btn-preset-featured-seed-quick-recent,
+body:not(.dev-surfaces-enabled) #btn-copy-numeric-track-result-summary,
+body:not(.dev-surfaces-enabled) #btn-toggle-numeric-track-result-timeline,
+body:not(.dev-surfaces-enabled) #btn-copy-browse-preset-link,
+body:not(.dev-surfaces-enabled) #filter-seed-scope,
+body:not(.dev-surfaces-enabled) #filter-run-status,
+body:not(.dev-surfaces-enabled) #filter-run-launch,
+body:not(.dev-surfaces-enabled) #filter-warning-status,
+body:not(.dev-surfaces-enabled) #filter-sort,
+body:not(.dev-surfaces-enabled) .browse-tab[disabled][title="AGE5"] {
   display: none !important;
 }
 

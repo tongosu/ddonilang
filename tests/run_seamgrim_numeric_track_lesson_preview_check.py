@@ -119,9 +119,9 @@ def check_product_tokens() -> None:
             "formatNumericTrackLessonPreviewText",
             "__SEAMGRIM_NUMERIC_TRACK_DETAIL_PREVIEW__",
             "__SEAMGRIM_NUMERIC_TRACK_DETAIL_PREVIEW_TEXT__",
-            "수치 트랙",
+            "그래프·표 수업",
             "수치 근거",
-            "dataset.numericTrack",
+            'setElementDatasetValue(this.detailPanelEl, "numericTrack"',
         ],
     )
     require_contains(

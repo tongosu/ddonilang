@@ -129,7 +129,7 @@ def check_product_tokens() -> None:
             "btn-copy-numeric-track-report",
             "handleCopyNumericTrackReport",
             "formatNumericTrackReportExportText",
-            "수치 트랙 보고서를 복사했습니다.",
+            "그래프·표 수업 보고서를 복사했습니다.",
         ],
     )
     require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["btn-copy-numeric-track-report", "수치 보고서 복사"])

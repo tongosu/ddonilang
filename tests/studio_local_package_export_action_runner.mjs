@@ -135,6 +135,17 @@ async function main() {
       advancedBrowseDisplay: getComputedStyle(document.querySelector("#btn-advanced-browse")).display,
       advancedEditorDisplay: getComputedStyle(document.querySelector("#btn-advanced-editor")).display,
       advancedRunDisplay: getComputedStyle(document.querySelector("#btn-advanced-run")).display,
+      numericTrackDisplay: getComputedStyle(document.querySelector("#btn-filter-numeric-track")).display,
+      numericResultsDisplay: getComputedStyle(document.querySelector("#btn-filter-numeric-track-results")).display,
+      featuredSeedDisplay: getComputedStyle(document.querySelector("#btn-preset-featured-seed-quick-recent")).display,
+      numericSummaryDisplay: getComputedStyle(document.querySelector("#btn-copy-numeric-track-result-summary")).display,
+      numericTimelineDisplay: getComputedStyle(document.querySelector("#btn-toggle-numeric-track-result-timeline")).display,
+      presetLinkDisplay: getComputedStyle(document.querySelector("#btn-copy-browse-preset-link")).display,
+      seedScopeDisplay: getComputedStyle(document.querySelector("#filter-seed-scope")).display,
+      runStatusDisplay: getComputedStyle(document.querySelector("#filter-run-status")).display,
+      runLaunchDisplay: getComputedStyle(document.querySelector("#filter-run-launch")).display,
+      warningStatusDisplay: getComputedStyle(document.querySelector("#filter-warning-status")).display,
+      sortDisplay: getComputedStyle(document.querySelector("#filter-sort")).display,
     }));
     assert(defaultDevSurfaceState.templateExists === false, "dev surface template should not ship in the default teacher UI");
     assert(defaultDevSurfaceState.bodyEnabled === false, "dev surfaces should not be enabled by default");
@@ -142,6 +153,17 @@ async function main() {
     assert(defaultDevSurfaceState.advancedBrowseDisplay === "none", `advanced browse button should be hidden by default: ${defaultDevSurfaceState.advancedBrowseDisplay}`);
     assert(defaultDevSurfaceState.advancedEditorDisplay === "none", `advanced editor button should be hidden by default: ${defaultDevSurfaceState.advancedEditorDisplay}`);
     assert(defaultDevSurfaceState.advancedRunDisplay === "none", `advanced run button should be hidden by default: ${defaultDevSurfaceState.advancedRunDisplay}`);
+    assert(defaultDevSurfaceState.numericTrackDisplay === "none", `numeric track filter should be hidden by default: ${defaultDevSurfaceState.numericTrackDisplay}`);
+    assert(defaultDevSurfaceState.numericResultsDisplay === "none", `numeric result filter should be hidden by default: ${defaultDevSurfaceState.numericResultsDisplay}`);
+    assert(defaultDevSurfaceState.featuredSeedDisplay === "none", `featured seed shortcut should be hidden by default: ${defaultDevSurfaceState.featuredSeedDisplay}`);
+    assert(defaultDevSurfaceState.numericSummaryDisplay === "none", `numeric summary export should be hidden by default: ${defaultDevSurfaceState.numericSummaryDisplay}`);
+    assert(defaultDevSurfaceState.numericTimelineDisplay === "none", `numeric timeline should be hidden by default: ${defaultDevSurfaceState.numericTimelineDisplay}`);
+    assert(defaultDevSurfaceState.presetLinkDisplay === "none", `preset link copy should be hidden by default: ${defaultDevSurfaceState.presetLinkDisplay}`);
+    assert(defaultDevSurfaceState.seedScopeDisplay === "none", `seed scope filter should be hidden by default: ${defaultDevSurfaceState.seedScopeDisplay}`);
+    assert(defaultDevSurfaceState.runStatusDisplay === "none", `run status filter should be hidden by default: ${defaultDevSurfaceState.runStatusDisplay}`);
+    assert(defaultDevSurfaceState.runLaunchDisplay === "none", `run launch filter should be hidden by default: ${defaultDevSurfaceState.runLaunchDisplay}`);
+    assert(defaultDevSurfaceState.warningStatusDisplay === "none", `legacy warning filter should be hidden by default: ${defaultDevSurfaceState.warningStatusDisplay}`);
+    assert(defaultDevSurfaceState.sortDisplay === "none", `sort filter should be hidden by default: ${defaultDevSurfaceState.sortDisplay}`);
     await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await waitVisible(page, "#screen-run");

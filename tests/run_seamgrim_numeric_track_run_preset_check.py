@@ -109,7 +109,7 @@ def check_product_tokens() -> None:
             "formatNumericTrackRunPresetText",
             "seamgrim.numeric_track_run_preset.v1",
             "recommended_views",
-            "수치트랙:",
+            "수업보기:",
             "근/구간",
         ],
     )
@@ -124,7 +124,7 @@ def check_product_tokens() -> None:
             "numeric_track_preset",
         ],
     )
-    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["data-run-preset-numeric-track", "수치트랙: -"])
+    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["data-run-preset-numeric-track", "수업보기: -"])
     require_contains(RUNNER, ["seamgrim_numeric_track_run_preset: ok", "seamgrim.numeric_track_run_preset.v1", "data-run-preset-numeric-track"])
 
 

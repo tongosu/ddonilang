@@ -123,7 +123,7 @@ def check_product_tokens() -> None:
             "numericTrackRunResultLink",
         ],
     )
-    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["data-run-result-numeric-link", "수치결과: -"])
+    require_contains(ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html", ["data-run-result-numeric-link", "결과기록: -"])
     require_contains(RUNNER, ["seamgrim_numeric_track_run_result_link: ok", "seamgrim.numeric_track_run_result_link.v1", "blake3:"])
 
 
