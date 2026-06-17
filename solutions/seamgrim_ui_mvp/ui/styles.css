@@ -7272,6 +7272,31 @@ button.card-warning-badge {
   display: none;
 }
 
+#screen-run [data-shell-current-screen],
+#screen-run [data-shell-source-label],
+#screen-run [data-shell-save-status],
+#screen-run [data-shell-session-status] {
+  display: none !important;
+}
+
+#screen-run[data-onboarding-profile="student"] .run-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#screen-run[data-onboarding-profile="student"] .run-editor-panel,
+#screen-run[data-onboarding-profile="student"] .run-layout-splitter,
+#screen-run[data-onboarding-profile="student"] [data-run-preset-rail],
+#screen-run[data-onboarding-profile="student"] #btn-studio-new,
+#screen-run[data-onboarding-profile="student"] #btn-ddn-open,
+#screen-run[data-onboarding-profile="student"] #btn-ddn-save,
+#screen-run[data-onboarding-profile="student"] #run-local-save-status,
+#screen-run[data-onboarding-profile="student"] #btn-run-teacher-report-copy,
+#screen-run[data-onboarding-profile="student"] #btn-run-teacher-package-copy,
+#screen-run[data-onboarding-profile="student"] #btn-run-teacher-package-download,
+#screen-run[data-onboarding-profile="student"] #run-inspector-tools {
+  display: none !important;
+}
+
 .run-layout.run-layout--split {
   grid-template-columns: minmax(0, calc(var(--editor-ratio) * 100%)) 6px minmax(0, 1fr);
 }

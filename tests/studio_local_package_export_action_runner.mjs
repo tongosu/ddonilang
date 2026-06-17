@@ -172,8 +172,51 @@ async function main() {
     await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await waitVisible(page, "#screen-run");
     await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
-    await page.click("[data-classroom-mode='teacher']");
-    await page.waitForFunction(() => window.__STUDIO_CLASSROOM_MODE_SWITCH__?.mode === "teacher");
+    const studentStartUi = await page.evaluate(() => {
+      const display = (selector) => {
+        const node = document.querySelector(selector);
+        return node ? getComputedStyle(node).display : "";
+      };
+      return {
+        profile: document.querySelector("#screen-run")?.dataset?.onboardingProfile ?? "",
+        sourcePanelDisplay: display(".run-editor-panel"),
+        sourceLabelDisplay: display("#screen-run [data-shell-source-label]"),
+        saveStatusDisplay: display("#screen-run [data-shell-save-status]"),
+        sessionStatusDisplay: display("#screen-run [data-shell-session-status]"),
+        presetRailDisplay: display("#screen-run [data-run-preset-rail]"),
+        newDisplay: display("#btn-studio-new"),
+        openDisplay: display("#btn-ddn-open"),
+        saveDisplay: display("#btn-ddn-save"),
+        teacherReportDisplay: display("#btn-run-teacher-report-copy"),
+        teacherPackageCopyDisplay: display("#btn-run-teacher-package-copy"),
+        teacherPackageDownloadDisplay: display("#btn-run-teacher-package-download"),
+        inspectorToolsDisplay: display("#run-inspector-tools"),
+        bodyText: document.querySelector("#screen-run")?.innerText ?? "",
+      };
+    });
+    assert(studentStartUi.profile === "student", `student profile mismatch: ${studentStartUi.profile}`);
+    assert(studentStartUi.sourcePanelDisplay === "none", `student source panel should be hidden: ${studentStartUi.sourcePanelDisplay}`);
+    assert(studentStartUi.sourceLabelDisplay === "none", `student source label should be hidden: ${studentStartUi.sourceLabelDisplay}`);
+    assert(studentStartUi.saveStatusDisplay === "none", `student save status should be hidden: ${studentStartUi.saveStatusDisplay}`);
+    assert(studentStartUi.sessionStatusDisplay === "none", `student session status should be hidden: ${studentStartUi.sessionStatusDisplay}`);
+    assert(studentStartUi.presetRailDisplay === "none", `student preset rail should be hidden: ${studentStartUi.presetRailDisplay}`);
+    assert(studentStartUi.newDisplay === "none", `student new button should be hidden: ${studentStartUi.newDisplay}`);
+    assert(studentStartUi.openDisplay === "none", `student open button should be hidden: ${studentStartUi.openDisplay}`);
+    assert(studentStartUi.saveDisplay === "none", `student save button should be hidden: ${studentStartUi.saveDisplay}`);
+    assert(studentStartUi.teacherReportDisplay === "none", `student report copy should be hidden: ${studentStartUi.teacherReportDisplay}`);
+    assert(studentStartUi.teacherPackageCopyDisplay === "none", `student package copy should be hidden: ${studentStartUi.teacherPackageCopyDisplay}`);
+    assert(studentStartUi.teacherPackageDownloadDisplay === "none", `student package download should be hidden: ${studentStartUi.teacherPackageDownloadDisplay}`);
+    assert(studentStartUi.inspectorToolsDisplay === "none", `student inspector tools should be hidden: ${studentStartUi.inspectorToolsDisplay}`);
+    assert(!studentStartUi.bodyText.includes("교과 원문"), "student mode should not show source text panel label");
+    assert(!studentStartUi.bodyText.includes("저장 대기"), "student mode should not show save status");
+    assert(!studentStartUi.bodyText.includes("세션 복원됨"), "student mode should not show session restore status");
+    assert(!studentStartUi.bodyText.includes("+ 새로 만들기"), "student mode should not show new draft button");
+    assert(!studentStartUi.bodyText.includes("배포 복사"), "student mode should not show teacher package copy button");
+    await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
+    await waitVisible(page, "#screen-browse");
+    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+    await waitVisible(page, "#screen-run");
+    await page.waitForFunction(() => document.querySelector("#screen-run")?.dataset?.onboardingProfile === "teacher");
     await page.click("#run-tab-btn-mirror");
     await page.evaluate(() => {
       const tools = document.querySelector("#run-inspector-tools");

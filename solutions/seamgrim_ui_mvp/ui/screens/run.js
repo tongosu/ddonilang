@@ -6698,6 +6698,9 @@ runs: 0</pre>
 
   syncClassroomModeSwitch(model = this.buildRunPresetRailModel()) {
     const profile = normalizeRunOnboardingProfile(model?.onboarding_profile);
+    if (this.root?.dataset) {
+      this.root.dataset.onboardingProfile = profile || "default";
+    }
     if (this.classroomModeSwitchEl) {
       this.classroomModeSwitchEl.dataset.mode = profile || "default";
     }
