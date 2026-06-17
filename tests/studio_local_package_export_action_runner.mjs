@@ -128,6 +128,20 @@ async function main() {
 
     await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
+    const defaultDevSurfaceState = await page.evaluate(() => ({
+      bodyEnabled: document.body.classList.contains("dev-surfaces-enabled"),
+      devRootExists: Boolean(document.querySelector("#dev-surface-root")),
+      templateExists: Boolean(document.querySelector("#dev-surface-template")),
+      advancedBrowseDisplay: getComputedStyle(document.querySelector("#btn-advanced-browse")).display,
+      advancedEditorDisplay: getComputedStyle(document.querySelector("#btn-advanced-editor")).display,
+      advancedRunDisplay: getComputedStyle(document.querySelector("#btn-advanced-run")).display,
+    }));
+    assert(defaultDevSurfaceState.templateExists === true, "dev surface template should remain available for opt-in tests");
+    assert(defaultDevSurfaceState.bodyEnabled === false, "dev surfaces should not be enabled by default");
+    assert(defaultDevSurfaceState.devRootExists === false, "dev surface root should not mount on the default teacher UI");
+    assert(defaultDevSurfaceState.advancedBrowseDisplay === "none", `advanced browse button should be hidden by default: ${defaultDevSurfaceState.advancedBrowseDisplay}`);
+    assert(defaultDevSurfaceState.advancedEditorDisplay === "none", `advanced editor button should be hidden by default: ${defaultDevSurfaceState.advancedEditorDisplay}`);
+    assert(defaultDevSurfaceState.advancedRunDisplay === "none", `advanced run button should be hidden by default: ${defaultDevSurfaceState.advancedRunDisplay}`);
     await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await waitVisible(page, "#screen-run");
