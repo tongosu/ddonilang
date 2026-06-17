@@ -17,6 +17,7 @@ STAGE = PACK / "numeric_report_workflow_stage.detjson"
 SOURCE_CONSOLIDATION = ROOT / "pack" / "seamgrim_numeric_track_consolidation_v1" / "numeric_track_consolidation.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_numeric_report_workflow_stage.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 NUMERIC_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "numeric_curriculum_track.js"
@@ -146,6 +147,7 @@ def check_required_files() -> None:
         SOURCE_CONSOLIDATION,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         NUMERIC_MODULE,
@@ -169,14 +171,14 @@ def check_docs() -> None:
         "workflow_ready",
         "workflow rows: 5/5 = 100%",
         "report workflow stages: 17/17 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: Studio productization rebase 3/5 = 60%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
         NEXT,
         "docs/ssot/**",
     ]
     require_contains(DOC, doc_tokens)
-    require_contains(REPORT, ["ddn.studio.numeric_report_workflow_stage.v1", "6/6 = 100%", "17/17 = 100%", "18/18 = 100%", "3/5 = 60%", "90/90 = 100%"])
+    require_contains(REPORT, ["ddn.studio.numeric_report_workflow_stage.v1", "6/6 = 100%", "17/17 = 100%", "9/18 = 50%", "3/5 = 60%", "51/90 = 57%"])
     require_contains(
         INDEX,
         [
@@ -192,9 +194,9 @@ def check_docs() -> None:
             "STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1",
             "studio_numeric_report_stage_runner.mjs",
             "workflow rows: 5/5 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: Studio productization rebase 3/5 = 60%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -232,23 +234,23 @@ def check_product_tokens() -> None:
             "renderNumericReportWorkflowStage",
             "workflow_ready_stage_count: 17",
             "new_export_wrapper_claim: false",
-            "super_long_behavior_closed: 18",
-            "super_long_percent: 100",
+            "super_long_behavior_closed: 9",
+            "super_long_percent: 50",
             "current_stage_percent: 60",
-            "roadmap_v2_behavior_closed: 90",
-            "roadmap_v2_percent: 100",
+            "roadmap_v2_behavior_closed: 51",
+            "roadmap_v2_percent: 57",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_numeric_report_workflow_stage.js",
-            "publishNumericReportWorkflowStage",
             "__SEAMGRIM_NUMERIC_REPORT_WORKFLOW_STAGE__",
             "buildNumericReportWorkflowStage",
         ],
     )
-    require_contains(INDEX_HTML, ["numeric-report-workflow-stage", "data-numeric-report-workflow-stage"])
+    require_contains(DEV_SURFACES_JS, ["numeric-report-workflow-stage", "elementId: \"numeric-report-workflow-stage\""])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(STYLES_CSS, [".numeric-report-workflow-stage", ".numeric-report-stage-btn.active"])
     require_contains(STAGE_RUNNER, ["studio_numeric_report_stage: ok", "numeric_report_workflow_stage_ready", "workflow_ready_stage_count"])
     require_contains(
@@ -291,15 +293,15 @@ def check_contract_and_stage() -> None:
         "workflow_row_count": 5,
         "work_unit_closed": 6,
         "work_unit_total": 6,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 3,
         "current_stage_total": 5,
         "current_stage_percent": 60,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
         "next_item": NEXT,
         "requires_docs_ssot_clean": True,
     }
@@ -315,15 +317,15 @@ def check_contract_and_stage() -> None:
     if stage.get("workflow_rows") != expected_rows():
         fail(f"stage rows mismatch: {stage.get('workflow_rows')!r}")
     if stage.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 3,
         "current_stage_total": 5,
         "current_stage_percent": 60,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
     }:
         fail(f"stage progress mismatch: {stage.get('progress')!r}")
     for flag, expected_value in (
@@ -351,9 +353,9 @@ def check_source_alignment() -> None:
         fail(f"source next item mismatch: {source.get('next_item')!r}")
     if source.get("progress", {}).get("current_stage_percent") != 40:
         fail(f"source progress mismatch: {source.get('progress')!r}")
-    if source.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
+    if source.get("progress", {}).get("roadmap_v2_behavior_closed") != 51:
         fail(f"source roadmap closed mismatch: {source.get('progress')!r}")
-    if source.get("progress", {}).get("roadmap_v2_percent") != 100:
+    if source.get("progress", {}).get("roadmap_v2_percent") != 57:
         fail(f"source roadmap progress mismatch: {source.get('progress')!r}")
 
 
@@ -365,8 +367,8 @@ def check_golden() -> None:
         "numeric report workflow consolidation schema: seamgrim.numeric_report_workflow_consolidation.v1",
         "coordinate: 마-3",
         "current stage: 3/5 = 60%",
-        "overall super-long behavior: 18/18 = 100%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "overall super-long behavior: 9/18 = 50%",
+        "roadmap v2 behavior: 51/90 = 57%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_numeric_report_workflow_consolidation_v1/input.ddn"]:

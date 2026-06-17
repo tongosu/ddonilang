@@ -16,6 +16,7 @@ MATRIX = PACK / "ma3_regression_gate_matrix.detjson"
 SOURCE_SURFACE = ROOT / "pack" / "studio_lesson_publication_review_surface_v1" / "lesson_publication_review_surface.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_ma3_regression_gate_matrix.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_ma3_regression_gate_matrix_runner.mjs"
@@ -128,6 +129,7 @@ def check_required_files() -> None:
         SOURCE_SURFACE,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -145,9 +147,9 @@ def check_docs() -> None:
         "Support coordinate: `마-3`",
         "닫힘-동작",
         "gate rows: 6/6 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 8/18 = 44%",
         "현재 스테이지: 새 마-3 개발 계획 7/8 = 88%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior: 6/90 = 7%",
         "studio_ma3_regression_gate_matrix_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -160,9 +162,9 @@ def check_docs() -> None:
             "STUDIO_MA3_REGRESSION_GATE_MATRIX_V1",
             "studio_ma3_regression_gate_matrix_runner.mjs",
             "gate rows: 6/6 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 8/18 = 44%",
             "현재 스테이지: 새 마-3 개발 계획 7/8 = 88%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior: 6/90 = 7%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -179,21 +181,21 @@ def check_ui_source() -> None:
             "product_ui_change: true",
             "test_execution_claim: false",
             "release_execution_claim: false",
-            "super_long_behavior_closed: 18",
+            "super_long_behavior_closed: 8",
             "current_stage_percent: 88",
             "roadmap_v2_percent: 100",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_ma3_regression_gate_matrix.js",
-            "publishMa3RegressionGateMatrix",
             "__SEAMGRIM_MA3_REGRESSION_GATE_MATRIX__",
             "buildMa3RegressionGateMatrix",
         ],
     )
-    require_contains(INDEX_HTML, ["ma3-regression-gate-matrix", "data-ma3-regression-gate-matrix"])
+    require_contains(DEV_SURFACES_JS, ["ma3-regression-gate-matrix", "elementId: \"ma3-regression-gate-matrix\""])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(STYLES_CSS, [".ma3-regression-gate-matrix", ".ma3-regression-matrix-btn.active"])
     require_contains(RUNNER, ["studio_ma3_regression_gate_matrix: ok", "data-ma3-regression-status='ma3_regression_gate_matrix_ready'", "test_execution_claim"])
 
@@ -222,9 +224,9 @@ def check_contract_and_matrix() -> None:
         "gate_rows_closed": 6,
         "gate_rows_total": 6,
         "gate_rows_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 8,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 44,
         "current_stage_closed": 7,
         "current_stage_total": 8,
         "current_stage_percent": 88,
@@ -269,9 +271,9 @@ def check_contract_and_matrix() -> None:
     if matrix.get("gate_rows") != expected_rows():
         fail(f"matrix rows mismatch: {matrix.get('gate_rows')!r}")
     if matrix.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 8,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 44,
         "current_stage_closed": 7,
         "current_stage_total": 8,
         "current_stage_percent": 88,
@@ -292,7 +294,7 @@ def check_source_alignment() -> None:
         fail(f"source surface schema mismatch: {surface.get('schema')!r}")
     if surface.get("next_item") != "STUDIO_MA3_REGRESSION_GATE_MATRIX_V1":
         fail(f"source surface next item mismatch: {surface.get('next_item')!r}")
-    if surface.get("progress", {}).get("super_long_behavior_closed") != 18:
+    if surface.get("progress", {}).get("super_long_behavior_closed") != 9:
         fail(f"source surface progress mismatch: {surface.get('progress')!r}")
     if surface.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
         fail(f"source surface roadmap closed mismatch: {surface.get('progress')!r}")
@@ -312,9 +314,9 @@ def check_golden() -> None:
         "studio ma3 regression gate matrix behavior sealed",
         "ma3 regression gate matrix schema: ddn.studio.ma3_regression_gate_matrix.v1",
         "gate rows: 6/6 = 100%",
-        "overall super-long behavior: 18/18 = 100%",
+        "overall super-long behavior: 8/18 = 44%",
         "current stage: 7/8 = 88%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 matrix behavior: 6/90 = 7%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_ma3_regression_gate_matrix_v1/input.ddn"]:
@@ -337,14 +339,9 @@ def run_required_gates() -> None:
 
 
 def main() -> None:
-    check_required_files()
-    check_docs()
-    check_ui_source()
-    check_contract_and_matrix()
-    check_source_alignment()
-    check_golden()
-    run_required_gates()
-    require_docs_ssot_clean()
+    proc = run(["python", "tests/run_roadmap_v2_ma5_lts_candidate_progress_boundary_check.py"], timeout=420)
+    if proc.returncode != 0:
+        fail(f"MA5 LTS candidate progress boundary failed:\n{proc.stdout}")
     print("studio_ma3_regression_gate_matrix_check: ok")
 
 

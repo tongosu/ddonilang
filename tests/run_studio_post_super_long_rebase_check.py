@@ -18,6 +18,7 @@ CHECKER = ROOT / "tests" / "run_studio_post_super_long_rebase_check.py"
 SOURCE = ROOT / "pack" / "studio_productization_stage_closure_v1" / "productization_stage_closure.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_post_super_long_rebase.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_post_super_long_rebase_runner.mjs"
@@ -148,6 +149,7 @@ def check_required_files() -> None:
         SOURCE,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -162,13 +164,13 @@ def check_docs() -> None:
         "ddn.studio.post_super_long_rebase.v1",
         "Primary coordinate: `마-3`",
         "Support coordinate: `타-3`",
-        "does not extend the closed super-long denominator",
+        "V6.1 baseline of 9/18",
         "작업 단위: 6/6 = 100% (`닫힘-동작`)",
         "follow-up rows: 8/8 = 100%",
         "rebase stages: 5/5 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: post-super-long follow-up 1/8 = 13%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
         "No release approval",
         "No release execution",
         "No LTS certification",
@@ -176,7 +178,7 @@ def check_docs() -> None:
         "docs/ssot/**",
     ]
     require_contains(DOC, doc_tokens)
-    require_contains(REPORT, ["ddn.studio.post_super_long_rebase.v1", "6/6 = 100%", "8/8 = 100%", "18/18 = 100%", "1/8 = 13%", "90/90 = 100%"])
+    require_contains(REPORT, ["ddn.studio.post_super_long_rebase.v1", "6/6 = 100%", "8/8 = 100%", "9/18 = 50%", "1/8 = 13%", "51/90 = 57%"])
     require_contains(
         INDEX,
         [
@@ -192,9 +194,9 @@ def check_docs() -> None:
             "STUDIO_POST_SUPER_LONG_REBASE_V1",
             "ddn.studio.post_super_long_rebase.v1",
             NEXT,
-            "전체 초장기 계획 18/18 = 100%",
+            "전체 초장기 계획 9/18 = 50%",
             "post-super-long follow-up 1/8 = 13%",
-            "ROADMAP_V2 product behavior baseline 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline 51/90 = 57%",
         ],
     )
     require_contains(
@@ -203,9 +205,9 @@ def check_docs() -> None:
             "STUDIO_POST_SUPER_LONG_REBASE_V1",
             "studio_post_super_long_rebase_runner.mjs",
             "follow-up rows: 8/8 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: post-super-long follow-up 1/8 = 13%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -219,24 +221,24 @@ def check_product_tokens() -> None:
             "buildPostSuperLongRebase",
             "formatPostSuperLongRebaseText",
             "renderPostSuperLongRebase",
-            "super_long_behavior_closed: 18",
+            "super_long_behavior_closed: 9",
             "current_stage_percent: 13",
-            "roadmap_v2_behavior_closed: 90",
-            "roadmap_v2_percent: 100",
+            "roadmap_v2_behavior_closed: 51",
+            "roadmap_v2_percent: 57",
             "release_execution_claim: false",
             "runtime_claim: false",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_post_super_long_rebase.js",
-            "publishPostSuperLongRebase",
             "__SEAMGRIM_POST_SUPER_LONG_REBASE__",
             "buildPostSuperLongRebase",
         ],
     )
-    require_contains(INDEX_HTML, ["post-super-long-rebase", "data-post-super-long-rebase"])
+    require_contains(DEV_SURFACES_JS, ["post-super-long-rebase", "elementId: \"post-super-long-rebase\""])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(STYLES_CSS, [".post-super-long-rebase", ".post-super-rebase-btn.active"])
     require_contains(RUNNER, ["studio_post_super_long_rebase: ok", "post_super_long_rebased", "followup\\t1/8"])
 
@@ -280,9 +282,9 @@ def check_contract_and_rebase() -> None:
         "browser_runner": "tests/studio_post_super_long_rebase_runner.mjs",
         "primary_coordinate": "마-3",
         "support_coordinate": "타-3",
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "post_super_long_closed": 1,
@@ -291,9 +293,9 @@ def check_contract_and_rebase() -> None:
         "ma_followup_closed": 1,
         "ma_followup_total": 8,
         "ma_followup_percent": 13,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
         "next_item": NEXT,
         "requires_docs_ssot_clean": True,
     }
@@ -309,15 +311,15 @@ def check_contract_and_rebase() -> None:
     if rebase.get("post_super_long_plan", {}).get("items") != expected_items():
         fail(f"post-super-long items mismatch: {rebase.get('post_super_long_plan', {}).get('items')!r}")
     if rebase.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 1,
         "current_stage_total": 8,
         "current_stage_percent": 13,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
     }:
         fail(f"rebase progress mismatch: {rebase.get('progress')!r}")
     for flag, expected_value in (
@@ -348,18 +350,18 @@ def check_source_alignment() -> None:
         fail(f"source schema mismatch: {source.get('schema')!r}")
     if source.get("next_item") != "STUDIO_POST_SUPER_LONG_REBASE_V1":
         fail(f"source next item mismatch: {source.get('next_item')!r}")
-    if source.get("progress", {}).get("super_long_percent") != 100:
+    if source.get("progress", {}).get("super_long_percent") != 50:
         fail(f"source progress mismatch: {source.get('progress')!r}")
-    if source.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
+    if source.get("progress", {}).get("roadmap_v2_behavior_closed") != 51:
         fail(f"source roadmap closed mismatch: {source.get('progress')!r}")
-    if source.get("progress", {}).get("roadmap_v2_percent") != 100:
+    if source.get("progress", {}).get("roadmap_v2_percent") != 57:
         fail(f"source roadmap progress mismatch: {source.get('progress')!r}")
     rebase = load_json(REBASE)
     if rebase.get("super_long_plan") != {
-        "closed": 18,
+        "closed": 9,
         "total": 18,
-        "percent": 100,
-        "status": "sealed",
+        "percent": 50,
+        "status": "v6_1_frozen",
     }:
         fail(f"super-long seal mismatch: {rebase.get('super_long_plan')!r}")
     blocked = set(rebase.get("blocked_actions", []))
@@ -392,8 +394,8 @@ def check_golden() -> None:
         "studio post-super-long rebase sealed",
         "post-super-long schema: ddn.studio.post_super_long_rebase.v1",
         "follow-up plan: 1/8 = 13%",
-        "super-long plan remains: 18/18 = 100%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "super-long plan remains: 9/18 = 50%",
+        "roadmap v2 behavior: 51/90 = 57%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_post_super_long_rebase_v1/input.ddn"]:

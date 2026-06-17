@@ -16,6 +16,7 @@ CLOSURE = PACK / "operations_preview_stage_closure.detjson"
 SOURCE_LOCK = ROOT / "pack" / "studio_ma3_next_queue_coordinate_lock_v1" / "ma3_next_queue_coordinate_lock.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_operations_preview_stage_closure.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_operations_preview_stage_closure_runner.mjs"
@@ -181,6 +182,7 @@ def check_required_files() -> None:
         SOURCE_LOCK,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -198,9 +200,9 @@ def check_docs() -> None:
         "Support coordinate: `타-3`",
         "닫힘-동작",
         "closure rows: 8/8 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: 새 마-3 개발 계획 8/8 = 100%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
         "studio_operations_preview_stage_closure_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -213,9 +215,9 @@ def check_docs() -> None:
             "STUDIO_OPERATIONS_PREVIEW_STAGE_CLOSURE_V1",
             "studio_operations_preview_stage_closure_runner.mjs",
             "closure rows: 8/8 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: 새 마-3 개발 계획 8/8 = 100%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -232,21 +234,21 @@ def check_ui_source() -> None:
             "stage_closure_only: true",
             "product_ui_change: true",
             "release_execution_claim: false",
-            "super_long_behavior_closed: 18",
+            "super_long_behavior_closed: 9",
             "current_stage_percent: 100",
-            "roadmap_v2_percent: 100",
+            "roadmap_v2_percent: 57",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_operations_preview_stage_closure.js",
-            "publishOperationsPreviewStageClosure",
             "__SEAMGRIM_OPERATIONS_PREVIEW_STAGE_CLOSURE__",
             "buildOperationsPreviewStageClosure",
         ],
     )
-    require_contains(INDEX_HTML, ["operations-preview-stage-closure", "data-operations-preview-stage-closure"])
+    require_contains(DEV_SURFACES_JS, ["operations-preview-stage-closure", "elementId: \"operations-preview-stage-closure\""])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(STYLES_CSS, [".operations-preview-stage-closure", ".operations-stage-closure-btn.active"])
     require_contains(
         RUNNER,
@@ -288,15 +290,15 @@ def check_contract_and_closure() -> None:
         "closure_rows_closed": 8,
         "closure_rows_total": 8,
         "closure_rows_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 8,
         "current_stage_total": 8,
         "current_stage_percent": 100,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
         "closure_tier": "닫힘-동작",
         "next_item": NEXT,
         "requires_docs_ssot_clean": True,
@@ -337,15 +339,15 @@ def check_contract_and_closure() -> None:
     if closure.get("closure_rows") != expected_rows():
         fail(f"closure rows mismatch: {closure.get('closure_rows')!r}")
     if closure.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 8,
         "current_stage_total": 8,
         "current_stage_percent": 100,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
     }:
         fail(f"progress mismatch: {closure.get('progress')!r}")
     if closure.get("closure_tier") != "닫힘-동작":
@@ -360,11 +362,11 @@ def check_source_alignment() -> None:
         fail(f"source lock schema mismatch: {source_lock.get('schema')!r}")
     if source_lock.get("next_item") != "STUDIO_OPERATIONS_PREVIEW_STAGE_CLOSURE_V1":
         fail(f"source lock next item mismatch: {source_lock.get('next_item')!r}")
-    if source_lock.get("progress", {}).get("super_long_behavior_closed") != 18:
+    if source_lock.get("progress", {}).get("super_long_behavior_closed") != 9:
         fail(f"source lock progress mismatch: {source_lock.get('progress')!r}")
-    if source_lock.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
+    if source_lock.get("progress", {}).get("roadmap_v2_behavior_closed") != 51:
         fail(f"source lock roadmap closed mismatch: {source_lock.get('progress')!r}")
-    if source_lock.get("progress", {}).get("roadmap_v2_percent") != 100:
+    if source_lock.get("progress", {}).get("roadmap_v2_percent") != 57:
         fail(f"source lock roadmap percent mismatch: {source_lock.get('progress')!r}")
     lock_ids = [row.get("id") for row in source_lock.get("lock_rows", [])]
     if "next_stage_handoff_lock" not in lock_ids:
@@ -383,8 +385,8 @@ def check_golden() -> None:
         "operations preview stage closure schema: ddn.studio.operations_preview_stage_closure.v1",
         "closure rows: 8/8 = 100%",
         "current stage: 8/8 = 100%",
-        "overall super-long behavior: 18/18 = 100%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "overall super-long behavior: 9/18 = 50%",
+        "roadmap v2 behavior: 51/90 = 57%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_operations_preview_stage_closure_v1/input.ddn"]:

@@ -20,6 +20,7 @@ SOURCE_CONTINUITY = ROOT / "pack" / "studio_release_approval_packet_continuity_v
 SOURCE_CLOSURE = ROOT / "pack" / "studio_release_approval_chain_closure_v1" / "closure.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_public_release_approval_recheck.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_public_release_approval_recheck_runner.mjs"
@@ -138,6 +139,7 @@ def check_required_files() -> None:
         SOURCE_CLOSURE,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -160,16 +162,16 @@ def check_docs() -> None:
         "작업 단위: 6/6 = 100% (`닫힘-동작`)",
         "approval rows: 5/5 = 100%",
         "approval recheck stages: 6/6 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: post-super-long follow-up 2/8 = 25%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
         "No release approval",
         "No release execution",
         NEXT,
         "docs/ssot/**",
     ]
     require_contains(DOC, doc_tokens)
-    require_contains(REPORT, ["ddn.studio.public_release_approval_recheck.v1", "6/6 = 100%", "18/18 = 100%", "2/8 = 25%", "90/90 = 100%"])
+    require_contains(REPORT, ["ddn.studio.public_release_approval_recheck.v1", "6/6 = 100%", "9/18 = 50%", "2/8 = 25%", "51/90 = 57%"])
     require_contains(
         INDEX,
         [
@@ -185,9 +187,9 @@ def check_docs() -> None:
             "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1",
             "ddn.studio.public_release_approval_recheck.v1",
             "local Studio approval recheck panel",
-            "전체 초장기 계획 18/18 = 100%",
+            "전체 초장기 계획 9/18 = 50%",
             "post-super-long follow-up 2/8 = 25%",
-            "ROADMAP_V2 product behavior baseline 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline 51/90 = 57%",
             NEXT,
         ],
     )
@@ -197,9 +199,9 @@ def check_docs() -> None:
             "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1",
             "studio_public_release_approval_recheck_runner.mjs",
             "approval rows: 5/5 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: post-super-long follow-up 2/8 = 25%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -219,19 +221,19 @@ def check_product_tokens() -> None:
             "release_approval_claim: false",
             "release_execution_claim: false",
             "current_stage_percent: 25",
-            "roadmap_v2_percent: 100",
+            "roadmap_v2_percent: 57",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_public_release_approval_recheck.js",
-            "publishPublicReleaseApprovalRecheck",
             "__SEAMGRIM_PUBLIC_RELEASE_APPROVAL_RECHECK__",
             "buildPublicReleaseApprovalRecheck",
         ],
     )
-    require_contains(INDEX_HTML, ["public-release-approval-recheck", "data-public-release-approval-recheck"])
+    require_contains(DEV_SURFACES_JS, ["public-release-approval-recheck", "elementId: \"public-release-approval-recheck\""])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(STYLES_CSS, [".public-release-approval-recheck", ".approval-recheck-btn.active"])
     require_contains(RUNNER, ["studio_public_release_approval_recheck: ok", "approval_recheck_waiting", "required_approval_phrase"])
 
@@ -281,9 +283,9 @@ def check_contract_and_recheck() -> None:
         "next_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
         "primary_coordinate": "마-3",
         "support_coordinate": "타-3",
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "post_super_long_closed": 2,
@@ -292,9 +294,9 @@ def check_contract_and_recheck() -> None:
         "ma_followup_closed": 2,
         "ma_followup_total": 8,
         "ma_followup_percent": 25,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
         "next_item": NEXT,
         "requires_docs_ssot_clean": True,
     }
@@ -308,15 +310,15 @@ def check_contract_and_recheck() -> None:
     if recheck.get("approval_rows") != expected_rows():
         fail(f"approval rows mismatch: {recheck.get('approval_rows')!r}")
     if recheck.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 2,
         "current_stage_total": 8,
         "current_stage_percent": 25,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
     }:
         fail(f"recheck progress mismatch: {recheck.get('progress')!r}")
     for flag, expected_value in (
@@ -361,9 +363,9 @@ def check_source_alignment() -> None:
         fail(f"source rebase next item mismatch: {rebase.get('next_item')!r}")
     if rebase.get("progress", {}).get("current_stage_percent") != 13:
         fail(f"source rebase progress mismatch: {rebase.get('progress')!r}")
-    if rebase.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
+    if rebase.get("progress", {}).get("roadmap_v2_behavior_closed") != 51:
         fail(f"source rebase ROADMAP_V2 closed mismatch: {rebase.get('progress')!r}")
-    if rebase.get("progress", {}).get("roadmap_v2_percent") != 100:
+    if rebase.get("progress", {}).get("roadmap_v2_percent") != 57:
         fail(f"source rebase ROADMAP_V2 percent mismatch: {rebase.get('progress')!r}")
     if continuity.get("required_approval_phrase") != REQUIRED_APPROVAL:
         fail(f"continuity approval phrase mismatch: {continuity.get('required_approval_phrase')!r}")
@@ -396,7 +398,7 @@ def check_golden() -> None:
         "approval recheck schema: ddn.studio.public_release_approval_recheck.v1",
         "state: AWAIT_EXPLICIT_RELEASE_APPROVAL",
         "follow-up plan: 2/8 = 25%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior: 51/90 = 57%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_public_release_approval_recheck_v1/input.ddn"]:

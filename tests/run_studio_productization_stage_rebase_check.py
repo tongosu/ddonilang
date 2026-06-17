@@ -16,6 +16,7 @@ REBASE = PACK / "productization_stage_rebase.detjson"
 SOURCE_CLOSURE = ROOT / "pack" / "studio_operations_preview_stage_closure_v1" / "operations_preview_stage_closure.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_productization_stage_rebase.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_productization_stage_rebase_runner.mjs"
@@ -152,6 +153,7 @@ def check_required_files() -> None:
         SOURCE_CLOSURE,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -169,9 +171,9 @@ def check_docs() -> None:
         "Support coordinate: `타-3`",
         "닫힘-동작",
         "rebase rows: 5/5 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: Studio productization rebase 1/5 = 20%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
         "studio_productization_stage_rebase_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -184,9 +186,9 @@ def check_docs() -> None:
             "STUDIO_PRODUCTIZATION_STAGE_REBASE_V1",
             "studio_productization_stage_rebase_runner.mjs",
             "rebase rows: 5/5 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: Studio productization rebase 1/5 = 20%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -204,21 +206,21 @@ def check_ui_source() -> None:
             "stage_rebase_only: true",
             "product_ui_change: true",
             "release_execution_claim: false",
-            "super_long_behavior_closed: 18",
+            "super_long_behavior_closed: 9",
             "current_stage_percent: 20",
-            "roadmap_v2_percent: 100",
+            "roadmap_v2_percent: 57",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_productization_stage_rebase.js",
-            "publishProductizationStageRebase",
             "__SEAMGRIM_PRODUCTIZATION_STAGE_REBASE__",
             "buildProductizationStageRebase",
         ],
     )
-    require_contains(INDEX_HTML, ["productization-stage-rebase", "data-productization-stage-rebase"])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
+    require_contains(DEV_SURFACES_JS, ["productization-stage-rebase", "elementId: \"productization-stage-rebase\""])
     require_contains(STYLES_CSS, [".productization-stage-rebase", ".productization-rebase-btn.active"])
     require_contains(
         RUNNER,
@@ -260,15 +262,15 @@ def check_contract_and_rebase() -> None:
         "rebase_rows_closed": 5,
         "rebase_rows_total": 5,
         "rebase_rows_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 1,
         "current_stage_total": 5,
         "current_stage_percent": 20,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
         "closure_tier": "닫힘-동작",
         "next_item": NEXT,
         "requires_docs_ssot_clean": True,
@@ -311,15 +313,15 @@ def check_contract_and_rebase() -> None:
     if rebase.get("rebase_rows") != expected_rows():
         fail(f"rebase rows mismatch: {rebase.get('rebase_rows')!r}")
     if rebase.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 1,
         "current_stage_total": 5,
         "current_stage_percent": 20,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
     }:
         fail(f"progress mismatch: {rebase.get('progress')!r}")
     if rebase.get("closure_tier") != "닫힘-동작":
@@ -336,9 +338,9 @@ def check_source_alignment() -> None:
         fail(f"source closure next item mismatch: {source_closure.get('next_item')!r}")
     if source_closure.get("progress", {}).get("current_stage_percent") != 100:
         fail(f"source closure progress mismatch: {source_closure.get('progress')!r}")
-    if source_closure.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
+    if source_closure.get("progress", {}).get("roadmap_v2_behavior_closed") != 51:
         fail(f"source closure roadmap closed mismatch: {source_closure.get('progress')!r}")
-    if source_closure.get("progress", {}).get("roadmap_v2_percent") != 100:
+    if source_closure.get("progress", {}).get("roadmap_v2_percent") != 57:
         fail(f"source closure roadmap percent mismatch: {source_closure.get('progress')!r}")
     closure_ids = [row.get("id") for row in source_closure.get("closure_rows", [])]
     if "operations_preview_stage_closure" not in closure_ids:
@@ -355,8 +357,8 @@ def check_golden() -> None:
         "productization stage rebase schema: ddn.studio.productization_stage_rebase.v1",
         "rebase rows: 5/5 = 100%",
         "current stage: 1/5 = 20%",
-        "overall super-long behavior: 18/18 = 100%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "overall super-long behavior: 9/18 = 50%",
+        "roadmap v2 behavior: 51/90 = 57%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_productization_stage_rebase_v1/input.ddn"]:

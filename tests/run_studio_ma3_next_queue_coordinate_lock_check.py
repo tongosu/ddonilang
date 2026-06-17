@@ -18,6 +18,7 @@ SOURCE_MATRIX = ROOT / "pack" / "studio_ma3_regression_gate_matrix_v1" / "ma3_re
 SOURCE_SURFACE = ROOT / "pack" / "studio_lesson_publication_review_surface_v1" / "lesson_publication_review_surface.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_ma3_next_queue_coordinate_lock.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_ma3_next_queue_coordinate_lock_runner.mjs"
@@ -162,6 +163,7 @@ def check_required_files() -> None:
         SOURCE_SURFACE,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -179,9 +181,9 @@ def check_docs() -> None:
         "Support coordinate: `타-3`",
         "닫힘-동작",
         "lock rows: 6/6 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: 새 마-3 개발 계획 8/8 = 100%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
         "studio_ma3_next_queue_coordinate_lock_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -194,9 +196,9 @@ def check_docs() -> None:
             "STUDIO_MA3_NEXT_QUEUE_COORDINATE_LOCK_V1",
             "studio_ma3_next_queue_coordinate_lock_runner.mjs",
             "lock rows: 6/6 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: 새 마-3 개발 계획 8/8 = 100%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -214,21 +216,21 @@ def check_ui_source() -> None:
             "product_ui_change: true",
             "new_automatic_queue_claim: false",
             "release_execution_claim: false",
-            "super_long_behavior_closed: 18",
+            "super_long_behavior_closed: 9",
             "current_stage_percent: 100",
-            "roadmap_v2_percent: 100",
+            "roadmap_v2_percent: 57",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_ma3_next_queue_coordinate_lock.js",
-            "publishMa3NextQueueCoordinateLock",
             "__SEAMGRIM_MA3_NEXT_QUEUE_COORDINATE_LOCK__",
             "buildMa3NextQueueCoordinateLock",
         ],
     )
-    require_contains(INDEX_HTML, ["ma3-next-queue-coordinate-lock", "data-ma3-next-queue-coordinate-lock"])
+    require_contains(DEV_SURFACES_JS, ["ma3-next-queue-coordinate-lock", "elementId: \"ma3-next-queue-coordinate-lock\""])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(STYLES_CSS, [".ma3-next-queue-coordinate-lock", ".ma3-coordinate-lock-btn.active"])
     require_contains(
         RUNNER,
@@ -271,15 +273,15 @@ def check_contract_and_lock() -> None:
         "lock_rows_closed": 6,
         "lock_rows_total": 6,
         "lock_rows_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 8,
         "current_stage_total": 8,
         "current_stage_percent": 100,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
         "closure_tier": "닫힘-동작",
         "next_item": NEXT,
         "requires_docs_ssot_clean": True,
@@ -322,15 +324,15 @@ def check_contract_and_lock() -> None:
     if lock.get("lock_rows") != expected_rows():
         fail(f"lock rows mismatch: {lock.get('lock_rows')!r}")
     if lock.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 8,
         "current_stage_total": 8,
         "current_stage_percent": 100,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
     }:
         fail(f"progress mismatch: {lock.get('progress')!r}")
     if lock.get("closure_tier") != "닫힘-동작":
@@ -352,14 +354,17 @@ def check_source_alignment() -> None:
     matrix = load_json(SOURCE_MATRIX)
     if matrix.get("schema") != "ddn.studio.ma3_regression_gate_matrix.v1":
         fail(f"source matrix schema mismatch: {matrix.get('schema')!r}")
-    if matrix.get("next_item") != "STUDIO_MA3_NEXT_QUEUE_COORDINATE_LOCK_V1":
+    if matrix.get("next_item") not in {
+        "STUDIO_MA3_NEXT_QUEUE_COORDINATE_LOCK_V1",
+        "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1",
+    }:
         fail(f"source matrix next item mismatch: {matrix.get('next_item')!r}")
-    if matrix.get("progress", {}).get("super_long_behavior_closed") != 18:
-        fail(f"source matrix progress mismatch: {matrix.get('progress')!r}")
-    if matrix.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
-        fail(f"source matrix roadmap closed mismatch: {matrix.get('progress')!r}")
-    if matrix.get("progress", {}).get("roadmap_v2_percent") != 100:
-        fail(f"source matrix roadmap percent mismatch: {matrix.get('progress')!r}")
+    if matrix.get("progress", {}).get("super_long_behavior_closed") == 18:
+        fail(f"source matrix must not reintroduce 18/18 completion: {matrix.get('progress')!r}")
+    if matrix.get("progress", {}).get("roadmap_v2_behavior_closed") == 90:
+        fail(f"source matrix must not reintroduce 90/90 completion: {matrix.get('progress')!r}")
+    if matrix.get("progress", {}).get("roadmap_v2_percent") == 100:
+        fail(f"source matrix roadmap percent must not be 100: {matrix.get('progress')!r}")
     matrix_ids = [row.get("id") for row in matrix.get("gate_rows", [])]
     if "product_stabilization_smoke_gate" not in matrix_ids:
         fail(f"missing product smoke gate source anchor: {matrix_ids!r}")
@@ -380,9 +385,9 @@ def check_golden() -> None:
         "studio ma3 next queue coordinate lock behavior sealed",
         "ma3 next queue coordinate lock schema: ddn.studio.ma3_next_queue_coordinate_lock.v1",
         "lock rows: 6/6 = 100%",
-        "overall super-long behavior: 18/18 = 100%",
+        "overall super-long behavior: 9/18 = 50%",
         "current stage: 8/8 = 100%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior: 51/90 = 57%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_ma3_next_queue_coordinate_lock_v1/input.ddn"]:

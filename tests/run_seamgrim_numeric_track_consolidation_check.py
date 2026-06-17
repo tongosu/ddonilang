@@ -17,6 +17,7 @@ CONSOLIDATION = PACK / "numeric_track_consolidation.detjson"
 SOURCE_REBASE = ROOT / "pack" / "studio_productization_stage_rebase_v1" / "productization_stage_rebase.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "seamgrim_numeric_track_consolidation.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 BROWSE_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "screens" / "browse.js"
@@ -146,6 +147,7 @@ def check_required_files() -> None:
         SOURCE_REBASE,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         BROWSE_JS,
@@ -189,16 +191,18 @@ def check_docs() -> None:
         "28 browser runners",
         "16 runner filenames longer than 60 characters",
         "2 longer than 100 characters",
+        "deferred micro-slice candidates: 1/1 = 100% recorded",
+        "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1",
         "baseline repair: 1/1 = 100%",
         "numeric consolidated gates: 2/2 = 100%",
         "consolidation rows: 5/5 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: Studio productization rebase 2/5 = 40%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
         "docs/ssot/**",
     ]
     require_contains(DOC, tokens)
-    require_contains(REPORT, ["28 total", "16/28 = 57%", "2/28 = 7%", "5/5 = 100%", "18/18 = 100%", "2/5 = 40%", "90/90 = 100%"])
+    require_contains(REPORT, ["28 total", "16/28 = 57%", "2/28 = 7%", "1/1 = 100% recorded", "5/5 = 100%", "9/18 = 50%", "2/5 = 40%", "51/90 = 57%"])
     require_contains(
         INDEX,
         [
@@ -214,9 +218,9 @@ def check_docs() -> None:
             "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1",
             "seamgrim_numeric_track_consolidation_runner.mjs",
             "consolidation rows: 5/5 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: Studio productization rebase 2/5 = 40%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 matrix behavior baseline: 51/90 = 57%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -249,24 +253,26 @@ def check_product_tokens() -> None:
             "formatSeamgrimNumericTrackConsolidationText",
             "renderSeamgrimNumericTrackConsolidation",
             "legacy_numeric_runner_count: 28",
+            "deferred_micro_slice_count: 1",
+            "micro_slice_wrapper_name_over_60",
             "new_long_runner_claim: false",
-            "super_long_behavior_closed: 18",
-            "super_long_percent: 100",
+            "super_long_behavior_closed: 9",
+            "super_long_percent: 50",
             "current_stage_percent: 40",
-            "roadmap_v2_behavior_closed: 90",
-            "roadmap_v2_percent: 100",
+            "roadmap_v2_behavior_closed: 51",
+            "roadmap_v2_percent: 57",
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "seamgrim_numeric_track_consolidation.js",
-            "publishSeamgrimNumericTrackConsolidation",
             "__SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION__",
             "buildSeamgrimNumericTrackConsolidation",
         ],
     )
-    require_contains(INDEX_HTML, ["seamgrim-numeric-track-consolidation", "data-seamgrim-numeric-track-consolidation"])
+    require_contains(DEV_SURFACES_JS, ["seamgrim-numeric-track-consolidation", "elementId: \"seamgrim-numeric-track-consolidation\""])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(STYLES_CSS, [".seamgrim-numeric-track-consolidation", ".numeric-consolidation-btn.active"])
     require_contains(RUNNER, ["seamgrim_numeric_track_consolidation: ok", "numeric_track_consolidated", "new_long_runner_claim"])
 
@@ -292,6 +298,12 @@ def check_contract_and_manifest() -> None:
         "legacy_numeric_runner_count": 28,
         "legacy_numeric_runner_over_60": 16,
         "legacy_numeric_runner_over_100": 2,
+        "deferred_micro_slice_candidate": "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1",
+        "deferred_micro_slice_reason": "micro_slice_wrapper_name_over_60",
+        "deferred_micro_slice_candidate_name_length": 108,
+        "deferred_micro_slice_runner_name_length": 118,
+        "fold_deferred_micro_slice_into_existing_consolidation": True,
+        "deferred_micro_slice_count": 1,
         "baseline_repair_closed": 1,
         "baseline_repair_total": 1,
         "consolidated_gate_closed": 2,
@@ -303,15 +315,15 @@ def check_contract_and_manifest() -> None:
         "new_long_runner_claim": False,
         "work_unit_closed": 6,
         "work_unit_total": 6,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 2,
         "current_stage_total": 5,
         "current_stage_percent": 40,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
         "closure_tier": "닫힘-동작",
         "next_item": NEXT,
         "requires_docs_ssot_clean": True,
@@ -343,18 +355,28 @@ def check_contract_and_manifest() -> None:
             fail(f"manifest {flag} expected {expected_value!r}, got {manifest.get(flag)!r}")
     if manifest.get("legacy_numeric_runner_count") != 28:
         fail(f"manifest legacy runner count mismatch: {manifest.get('legacy_numeric_runner_count')!r}")
+    if manifest.get("deferred_micro_slice_candidate") != {
+        "id": "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1",
+        "reason": "micro_slice_wrapper_name_over_60",
+        "name_length": 108,
+        "runner_name_length": 118,
+        "fold_into_existing_consolidation": True,
+    }:
+        fail(f"manifest deferred micro-slice candidate mismatch: {manifest.get('deferred_micro_slice_candidate')!r}")
+    if manifest.get("deferred_micro_slice_count") != 1:
+        fail(f"manifest deferred micro-slice count mismatch: {manifest.get('deferred_micro_slice_count')!r}")
     if manifest.get("consolidation_rows") != expected_rows():
         fail(f"manifest rows mismatch: {manifest.get('consolidation_rows')!r}")
     if manifest.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 2,
         "current_stage_total": 5,
         "current_stage_percent": 40,
-        "roadmap_v2_behavior_closed": 90,
+        "roadmap_v2_behavior_closed": 51,
         "roadmap_v2_total": 90,
-        "roadmap_v2_percent": 100,
+        "roadmap_v2_percent": 57,
     }:
         fail(f"manifest progress mismatch: {manifest.get('progress')!r}")
     if manifest.get("next_item") != NEXT:
@@ -369,9 +391,9 @@ def check_source_alignment() -> None:
         fail(f"source rebase next item mismatch: {source.get('next_item')!r}")
     if source.get("progress", {}).get("current_stage_percent") != 20:
         fail(f"source rebase progress mismatch: {source.get('progress')!r}")
-    if source.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
+    if source.get("progress", {}).get("roadmap_v2_behavior_closed") != 51:
         fail(f"source rebase ROADMAP closed mismatch: {source.get('progress')!r}")
-    if source.get("progress", {}).get("roadmap_v2_percent") != 100:
+    if source.get("progress", {}).get("roadmap_v2_percent") != 57:
         fail(f"source rebase ROADMAP percent mismatch: {source.get('progress')!r}")
 
 
@@ -382,10 +404,11 @@ def check_golden() -> None:
         "seamgrim numeric track consolidation sealed",
         "preferred gates: numeric_report_workflow + numeric_result_report",
         "legacy numeric runners: 28 total, 16 over 60 chars, 2 over 100 chars",
+        "deferred micro-slice: SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1 folded into consolidation",
         "baseline repair: browse detail dataset guard",
         "current stage: 2/5 = 40%",
-        "overall super-long behavior: 18/18 = 100%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "overall super-long behavior: 9/18 = 50%",
+        "roadmap v2 behavior: 51/90 = 57%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/seamgrim_numeric_track_consolidation_v1/input.ddn"]:
