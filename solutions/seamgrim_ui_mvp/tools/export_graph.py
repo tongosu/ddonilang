@@ -1190,8 +1190,31 @@ def strip_legacy_hash_header_lines(input_text: str) -> str:
     return "\n".join(kept)
 
 
+LEGACY_RANGE_DECL_RE = re.compile(
+    r"^(?P<prefix>\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*\s*(?::\s*[A-Za-z_가-힣][A-Za-z0-9_가-힣.]*)?\s*(?:<-|=)\s*)"
+    r"(?P<init>.+?)\.\s*//\s*범위\s*\(\s*(?P<min>[^,\n\)]+)\s*,\s*(?P<max>[^,\n\)]+)\s*,\s*(?P<step>[^\)\n]+)\)\s*$"
+)
+
+
+def rewrite_legacy_range_comments(input_text: str) -> str:
+    """실행 전처리에서는 deprecated `// 범위(...)` 메타를 제거하고 값 대입만 남긴다."""
+    out: list[str] = []
+    for line in input_text.splitlines():
+        match = LEGACY_RANGE_DECL_RE.match(line)
+        if not match:
+            out.append(line)
+            continue
+        init_expr = str(match.group("init") or "").strip()
+        out.append(f"{match.group('prefix')}{init_expr}.")
+    rendered = "\n".join(out)
+    if input_text.endswith("\n"):
+        rendered += "\n"
+    return rendered
+
+
 def preprocess_ddn_for_teul(input_text: str, strip_draw: bool = True) -> str:
     text = strip_legacy_hash_header_lines(input_text)
+    text = rewrite_legacy_range_comments(text)
     text, _ = strip_bogae_scene_blocks(text)
     text = flatten_storage_blocks(text)
     text = rewrite_legacy_formula_assignments(text)
