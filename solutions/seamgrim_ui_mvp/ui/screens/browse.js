@@ -96,6 +96,12 @@ const TEACHER_CATALOG_SUBJECT_RANK = Object.freeze({
   game: 20,
   cs: 30,
 });
+const TEACHER_DEFAULT_COURSE_SUBJECTS = Object.freeze([
+  "physics",
+  "math",
+  "econ",
+  "science",
+]);
 const TEACHER_CATALOG_LESSON_RANK = Object.freeze({
   rep_physics_velocity_history_v1: 0,
   rep_phys_projectile_xy_v1: 1,
@@ -140,6 +146,10 @@ function normalizeSubject(subject) {
   if (!raw) return "";
   if (raw === "economy") return "econ";
   return raw;
+}
+
+function isTeacherDefaultCourseSubject(subject) {
+  return TEACHER_DEFAULT_COURSE_SUBJECTS.includes(normalizeSubject(subject));
 }
 
 function normalizeGrade(grade) {
@@ -1677,7 +1687,7 @@ export class BrowseScreen {
     if (this.subjectSelect) {
       const subjects = Array.from(new Set(this.lessons.map((lesson) => normalizeSubject(lesson.subject)).filter(Boolean))).sort();
       this.subjectSelect.innerHTML = [
-        '<option value="">과목: 전체</option>',
+        '<option value="">과목: 대표 교과</option>',
         ...subjects.map((subject) => `<option value="${subject}">${formatSubjectLabel(subject)}</option>`),
       ].join("");
       this.subjectSelect.value = this.filter.subject;
@@ -1867,12 +1877,19 @@ export class BrowseScreen {
     const query = String(this.filter.query ?? "").trim().toLowerCase();
     const numericTrackOnly = Boolean(this.filter.numericTrack);
     const numericTrackResultsOnly = Boolean(this.filter.numericTrackResults);
+    const defaultCourseOnly = this.activeTab === "official"
+      && !subject
+      && !query
+      && !numericTrackOnly
+      && !numericTrackResultsOnly
+      && !shouldShowLegacyBrowseControls();
 
     const filtered = this.currentPool().filter((lesson) => {
       if (numericTrackOnly && !isNumericTrackLesson(lesson)) return false;
       if (numericTrackResultsOnly && !this.getLessonNumericTrackRunResultLink(lesson?.id)) return false;
       if (grade && normalizeGrade(lesson.grade) !== grade) return false;
       if (subject && normalizeSubject(lesson.subject) !== subject) return false;
+      if (defaultCourseOnly && !isTeacherDefaultCourseSubject(lesson.subject)) return false;
       if (hasQualityFilter && normalizeQuality(lesson.quality) !== quality) return false;
       if (seedScope === "featured_seed" && !isFeaturedSeedLesson(lesson)) return false;
       if (seedScope === "seed_only" && normalizeSource(lesson?.source) !== "seed") return false;

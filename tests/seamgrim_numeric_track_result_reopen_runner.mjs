@@ -220,7 +220,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#lesson-card-grid");
     await page.waitForFunction(() => window.__SEAMGRIM_NUMERIC_TRACK_RESULT_TIMELINE_VIEW__?.schema === "seamgrim.numeric_track_result_timeline_view.v1");
 
@@ -284,7 +284,7 @@ async function main() {
     assert(String(reopen.text).includes("reopen_action\tbrowse_detail"), "reopen text action missing");
     assert(String(reopen.text).includes("replay_claim\tfalse"), "reopen text replay boundary missing");
     assert(reopen.detailTitle.length > 0, "detail title missing after reopen");
-    assert(String(reopen.detailText).includes("수치 트랙"), "detail numeric section missing after reopen");
+    assert(String(reopen.detailText).includes("그래프·표 수업"), "detail numeric section missing after reopen");
     assert(reopen.reopenDataset === "1", "detail reopen dataset missing");
 
     if (failures.length > 0) throw new Error(failures.join("\n"));

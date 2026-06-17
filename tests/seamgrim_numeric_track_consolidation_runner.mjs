@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-seamgrim-numeric-track-consolidation][data-numeric-track-consolidation-status='numeric_track_consolidated']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -138,14 +138,19 @@ async function main() {
     assert(consolidation.legacy_numeric_runner_count === 28, "legacy runner count mismatch");
     assert(consolidation.legacy_numeric_runner_over_60 === 16, "legacy over 60 mismatch");
     assert(consolidation.legacy_numeric_runner_over_100 === 2, "legacy over 100 mismatch");
-    assert(consolidation.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(consolidation.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(consolidation.deferred_micro_slice_candidate?.name_length === 108, "deferred candidate name length mismatch");
+    assert(consolidation.deferred_micro_slice_candidate?.runner_name_length === 118, "deferred runner length mismatch");
+    assert(consolidation.deferred_micro_slice_candidate?.fold_into_existing_consolidation === true, "deferred candidate must fold into consolidation");
+    assert(consolidation.deferred_micro_slice_count === 1, "deferred micro-slice count mismatch");
+    assert(consolidation.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(consolidation.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(consolidation.progress.current_stage_closed === 2, "current stage closed mismatch");
     assert(consolidation.progress.current_stage_percent === 40, "current stage percent mismatch");
-    assert(consolidation.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(consolidation.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(consolidation.progress.roadmap_v2_behavior_closed === 51, "roadmap closed mismatch");
+    assert(consolidation.progress.roadmap_v2_percent === 57, "roadmap percent mismatch");
     assert(String(moduleResult.text).includes("new_long_runner_claim\tfalse"), "formatted text missing runner boundary");
     assert(String(moduleResult.text).includes("legacy_numeric_runner_over_100\t2"), "formatted text missing over 100 count");
+    assert(String(moduleResult.text).includes("deferred_micro_slice_reason\tmicro_slice_wrapper_name_over_60"), "formatted text missing deferred reason");
 
     const domResult = await page.evaluate(async () => {
       const root = document.querySelector("[data-seamgrim-numeric-track-consolidation]");
@@ -171,6 +176,7 @@ async function main() {
     assert(domResult.buttonCount === 5, `dom button count mismatch: ${domResult.buttonCount}`);
     assert(domResult.progress.includes("2/5") && domResult.progress.includes("40%"), `progress text mismatch: ${domResult.progress}`);
     assert(domResult.progress.includes("2 over 100 chars"), `audit text mismatch: ${domResult.progress}`);
+    assert(domResult.progress.includes("1 deferred"), `deferred text mismatch: ${domResult.progress}`);
     assert(domResult.title.includes("report workflow"), `title mismatch: ${domResult.title}`);
     assert(domResult.lane === "report_workflow", `lane mismatch: ${domResult.lane}`);
     assert(domResult.copied === "true", "copy state not marked");

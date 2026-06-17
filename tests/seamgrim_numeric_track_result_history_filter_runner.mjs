@@ -186,7 +186,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#lesson-card-grid");
     await page.waitForFunction(() => window.__SEAMGRIM_NUMERIC_TRACK_RESULT_HISTORY_FILTER__?.schema === "seamgrim.numeric_track_result_history_filter.v1");
 
@@ -216,13 +216,13 @@ async function main() {
         badgeText: targetCard?.querySelector(".badge-numeric-track-result")?.textContent?.trim() ?? "",
         hintText: Array.from(targetCard?.querySelectorAll(".card-state-hint") ?? [])
           .map((node) => node.textContent?.trim() ?? "")
-          .find((text) => text.startsWith("수치결과")) ?? "",
+          .find((text) => text.startsWith("결과 기록")) ?? "",
       };
     }, TARGET_ID);
     assert(filtered.cardIds.length === 1, `filtered card count mismatch: ${filtered.cardIds.join(",")}`);
     assert(filtered.cardIds[0] === TARGET_ID, `filtered target mismatch: ${filtered.cardIds[0]}`);
-    assert(filtered.badgeText === "수치결과", `result badge mismatch: ${filtered.badgeText}`);
-    assert(filtered.hintText.includes("수치결과 · 근/구간"), `result hint mismatch: ${filtered.hintText}`);
+    assert(filtered.badgeText === "결과기록", `result badge mismatch: ${filtered.badgeText}`);
+    assert(filtered.hintText.includes("결과 기록 · 근/구간"), `result hint mismatch: ${filtered.hintText}`);
     assert(filtered.hintText.includes(RESULT_HASH.slice(0, 12)), "result hint hash missing");
 
     await page.click("#btn-filter-numeric-track-results");

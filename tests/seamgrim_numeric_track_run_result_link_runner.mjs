@@ -158,7 +158,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
     await page.waitForFunction(() => window.__SEAMGRIM_NUMERIC_TRACK_REPORT_EXPORT__?.schema === "seamgrim.numeric_track_report_export.v1");
 
@@ -184,7 +184,7 @@ async function main() {
       };
     });
     assert(state.chipHidden === false, "numeric result link chip hidden");
-    assert(state.chipText.startsWith("수치결과:"), `numeric result chip text mismatch: ${state.chipText}`);
+    assert(state.chipText.startsWith("결과기록:"), `numeric result chip text mismatch: ${state.chipText}`);
     assert(String(state.chipValue).startsWith("blake3:"), "numeric result chip state hash missing");
     assert(state.link?.lesson_id === TARGET_ID, `link lesson mismatch: ${state.link?.lesson_id}`);
     assert(state.link?.preset_schema === "seamgrim.numeric_track_run_preset.v1", "link preset schema mismatch");

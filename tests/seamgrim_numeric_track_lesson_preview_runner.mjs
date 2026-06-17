@@ -150,14 +150,14 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#lesson-card-grid");
     await page.waitForFunction(() => window.__SEAMGRIM_NUMERIC_TRACK_INDEX__?.schema === "seamgrim.numeric_track_index.v1");
 
     await page.click("#btn-filter-numeric-track");
     await page.waitForFunction((lessonId) => {
       const card = document.querySelector(`.lesson-card[data-lesson-id="${lessonId}"]`);
-      return Boolean(card) && card.textContent.includes("수치트랙");
+      return Boolean(card);
     }, TARGET_ID);
 
     await page.click(`.lesson-card[data-lesson-id="${TARGET_ID}"]`);
@@ -180,7 +180,7 @@ async function main() {
     assert(detail.preview.modules.includes("linear_inequality_interval"), "linear inequality module missing");
     assert(detail.preview.evidence_packs.includes("numeric_root_finding_bisection_v1"), "root finding evidence missing");
     assert(detail.preview.evidence_packs.includes("linear_inequality_solve_minimum_v1"), "linear inequality evidence missing");
-    assert(String(detail.curriculumText).includes("수치 트랙"), "detail numeric track section missing");
+    assert(String(detail.curriculumText).includes("그래프·표 수업"), "detail numeric track section missing");
     assert(String(detail.curriculumText).includes("수치 근거"), "detail numeric evidence section missing");
     assert(String(detail.curriculumText).includes("근 찾기"), "module label missing from detail");
     assert(String(detail.previewText).includes("lesson_id\trep_math_function_line_v1"), "preview text lesson id missing");

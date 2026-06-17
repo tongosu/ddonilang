@@ -158,7 +158,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
     await page.waitForFunction(() => window.__SEAMGRIM_NUMERIC_TRACK_REPORT_EXPORT__?.schema === "seamgrim.numeric_track_report_export.v1");
 
@@ -183,10 +183,10 @@ async function main() {
     });
     assert(state.railNumeric === "1", `rail numeric marker mismatch: ${state.railNumeric}`);
     assert(state.chipHidden === false, "numeric run preset chip hidden");
-    assert(state.chipText === "수치트랙: 근/구간", `numeric chip text mismatch: ${state.chipText}`);
+    assert(state.chipText === "수업보기: 근/구간", `numeric chip text mismatch: ${state.chipText}`);
     assert(state.chipValue === "근/구간", `numeric chip value mismatch: ${state.chipValue}`);
     assert(state.runPreset?.numeric_track === true, "run preset model numeric flag missing");
-    assert(state.runPreset?.numeric_track_label === "수치트랙: 근/구간", "run preset numeric label mismatch");
+    assert(state.runPreset?.numeric_track_label === "수업보기: 근/구간", "run preset numeric label mismatch");
     assert(state.numericPreset?.lesson_id === TARGET_ID, `numeric preset lesson mismatch: ${state.numericPreset?.lesson_id}`);
     assert(state.numericPreset?.schema === "seamgrim.numeric_track_run_preset.v1", "numeric preset schema mismatch");
     assert(state.numericPreset?.recommended_views?.join("|") === "graph|table", "numeric recommended views mismatch");

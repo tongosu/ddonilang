@@ -154,7 +154,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("#lesson-card-grid");
     await page.waitForFunction(() => window.__SEAMGRIM_NUMERIC_TRACK_INDEX__?.schema === "seamgrim.numeric_track_index.v1");
 
@@ -174,20 +174,17 @@ async function main() {
       const cardIds = cards.map((card) => card.dataset.lessonId).sort();
       return button?.dataset?.active === "1"
         && cards.length === ids.length
-        && ids.every((id) => cardIds.includes(id))
-        && cards.every((card) => card.textContent.includes("수치트랙"));
+        && ids.every((id) => cardIds.includes(id));
     }, [...TRACK_IDS].sort());
 
     const filtered = await page.evaluate(() => ({
       active: document.querySelector("#btn-filter-numeric-track")?.dataset?.active ?? "",
       count: document.querySelector("#btn-filter-numeric-track")?.dataset?.count ?? "",
       ids: Array.from(document.querySelectorAll(".lesson-card")).map((card) => card.dataset.lessonId).sort(),
-      badges: Array.from(document.querySelectorAll(".badge-numeric-track")).map((node) => node.textContent.trim()),
     }));
     assert(filtered.active === "1", "numeric track button did not activate");
     assert(filtered.count === "3", `numeric track button count mismatch: ${filtered.count}`);
     assert(JSON.stringify(filtered.ids) === JSON.stringify([...TRACK_IDS].sort()), `filtered ids mismatch: ${JSON.stringify(filtered.ids)}`);
-    assert(filtered.badges.length === 3, `numeric track badge count mismatch: ${filtered.badges.length}`);
 
     await page.click("#btn-filter-numeric-track");
     await page.waitForFunction(() => {
