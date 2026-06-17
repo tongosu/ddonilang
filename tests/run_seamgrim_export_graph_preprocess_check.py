@@ -158,6 +158,21 @@ x <- 1.
     assert_contains_line(out, r"^\s*y <- 2\.\s*$", "body line y keep after hash-header strip")
 
 
+def test_rewrite_legacy_range_comments(module) -> None:
+    source = """
+#기본관찰: theta
+채비 {
+  g <- 9.8. // 범위(1, 20, 0.1)
+  theta0:수 <- 0.5. // 범위(-1.2, 1.2, 0.05)
+}.
+"""
+    out = module.preprocess_ddn_for_teul(source, strip_draw=False)
+    if "범위(" in out:
+        raise AssertionError(f"legacy range comment remained: {out}")
+    assert_contains_line(out, r"^\s*g <- 9\.8\.\s*$", "g legacy range stripped to assignment")
+    assert_contains_line(out, r"^\s*theta0 <- 0\.5\.\s*$", "typed theta0 legacy range stripped to assignment")
+
+
 def test_shape_group_id_rewrite(module) -> None:
     source = """
 모양 {
@@ -509,6 +524,7 @@ def main() -> int:
         test_rewrite_show_object_particle(module)
         test_rewrite_korean_if_branch(module)
         test_strip_legacy_hash_header_lines(module)
+        test_rewrite_legacy_range_comments(module)
         test_shape_group_id_rewrite(module)
         test_meta_alias_dictionary(module)
         test_meta_guideblock_dictionary(module)
