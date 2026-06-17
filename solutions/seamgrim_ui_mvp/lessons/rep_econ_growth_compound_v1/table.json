@@ -1,0 +1,17 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "성장 경로 표"
+  },
+  "columns": [
+    { "key": "t", "label": "기간", "type": "number" },
+    { "key": "capital", "label": "자본", "type": "number" },
+    { "key": "output", "label": "산출", "type": "number" }
+  ],
+  "rows": [
+    { "t": 0, "capital": 100, "output": 120 },
+    { "t": 1, "capital": 106, "output": 127.2 },
+    { "t": 2, "capital": 112.36, "output": 134.83 },
+    { "t": 3, "capital": 119.1, "output": 142.92 }
+  ]
+}

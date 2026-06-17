@@ -1,5 +1,5 @@
-title = "대표 · CS · 예제 1"
-description = "선형 탐색"
+title = "선형 탐색 단계 보기"
+description = "목표값을 찾을 때 비교가 어떤 순서로 진행되는지 표와 그래프로 봅니다."
 grade = "middle"
 subject = "cs"
 level = "intro"

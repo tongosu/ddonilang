@@ -1,0 +1,23 @@
+{
+  "schema": "seamgrim.space2d.v0",
+  "meta": {
+    "title": "낙하 조각 위치",
+    "desc": "8x8 격자에서 O 조각이 내려가는 시작 상태"
+  },
+  "camera": {
+    "x_min": 0,
+    "x_max": 8,
+    "y_min": 0,
+    "y_max": 8
+  },
+  "drawlist": [
+    { "kind": "line", "x1": 0, "y1": 0, "x2": 8, "y2": 0 },
+    { "kind": "line", "x1": 0, "y1": 8, "x2": 8, "y2": 8 },
+    { "kind": "line", "x1": 0, "y1": 0, "x2": 0, "y2": 8 },
+    { "kind": "line", "x1": 8, "y1": 0, "x2": 8, "y2": 8 },
+    { "kind": "circle", "x": 3.5, "y": 1.5, "r": 0.25 },
+    { "kind": "circle", "x": 4.5, "y": 1.5, "r": 0.25 },
+    { "kind": "circle", "x": 3.5, "y": 2.5, "r": 0.25 },
+    { "kind": "circle", "x": 4.5, "y": 2.5, "r": 0.25 }
+  ]
+}

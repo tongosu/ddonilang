@@ -1,5 +1,5 @@
-title = "대표 · 수학 · 예제 1"
-description = "일차함수"
+title = "일차함수 그래프"
+description = "기울기와 절편을 바꾸며 x-y 값이 어떻게 달라지는지 봅니다."
 grade = "middle"
 subject = "math"
 level = "intro"

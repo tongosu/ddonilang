@@ -1,5 +1,5 @@
-title = "대표 · 또니랑 2권 · 바꾸기"
-description = "각 값을 새 값으로 바꾸는 대표 lesson"
+title = "자료 바꾸기"
+description = "차림의 각 값에 같은 규칙을 적용해 새 값을 만드는 과정을 표로 봅니다."
 grade = "middle"
 subject = "cs"
 level = "intro"

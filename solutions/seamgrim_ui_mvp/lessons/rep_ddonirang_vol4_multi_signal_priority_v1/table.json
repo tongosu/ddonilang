@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "신호 우선순위"
+  },
+  "columns": [
+    { "key": "signal", "label": "신호" },
+    { "key": "priority", "label": "우선순위", "type": "number" },
+    { "key": "result", "label": "결과" }
+  ],
+  "rows": [
+    { "signal": "일반 요청", "priority": 2, "result": "대기" },
+    { "signal": "강한 경고", "priority": 1, "result": "먼저 처리" },
+    { "signal": "복귀 승인", "priority": 1, "result": "정상화" }
+  ]
+}

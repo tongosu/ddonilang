@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "자료 바꾸기"
+  },
+  "columns": [
+    { "key": "before", "label": "전", "type": "number" },
+    { "key": "after", "label": "후", "type": "number" }
+  ],
+  "rows": [
+    { "before": 1, "after": 2 },
+    { "before": 2, "after": 4 },
+    { "before": 3, "after": 6 },
+    { "before": 4, "after": 8 }
+  ]
+}

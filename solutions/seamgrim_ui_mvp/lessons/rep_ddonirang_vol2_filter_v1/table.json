@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "자료 거르기"
+  },
+  "columns": [
+    { "key": "value", "label": "값", "type": "number" },
+    { "key": "keep", "label": "남김" }
+  ],
+  "rows": [
+    { "value": 2, "keep": "아니오" },
+    { "value": 5, "keep": "예" },
+    { "value": 8, "keep": "예" },
+    { "value": 3, "keep": "아니오" }
+  ]
+}

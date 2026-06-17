@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "사건 처리"
+  },
+  "columns": [
+    { "key": "event", "label": "사건" },
+    { "key": "state", "label": "상태" },
+    { "key": "count", "label": "처리", "type": "number" }
+  ],
+  "rows": [
+    { "event": "시작", "state": "대기", "count": 0 },
+    { "event": "경고", "state": "확인필요", "count": 1 },
+    { "event": "확인", "state": "정상", "count": 2 }
+  ]
+}

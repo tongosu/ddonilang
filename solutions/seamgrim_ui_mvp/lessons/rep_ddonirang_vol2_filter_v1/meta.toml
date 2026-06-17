@@ -1,5 +1,5 @@
-title = "대표 · 또니랑 2권 · 거르기"
-description = "차림에서 필요한 값만 골라 보는 대표 lesson"
+title = "자료 거르기"
+description = "차림에서 기준을 만족하는 값만 남기는 과정을 표로 봅니다."
 grade = "middle"
 subject = "cs"
 level = "intro"

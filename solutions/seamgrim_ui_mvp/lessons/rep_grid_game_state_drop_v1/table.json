@@ -1,0 +1,16 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "격자 상태 요약"
+  },
+  "columns": [
+    { "key": "tick", "label": "틱", "type": "number" },
+    { "key": "piece", "label": "조각" },
+    { "key": "position", "label": "위치" }
+  ],
+  "rows": [
+    { "tick": 0, "piece": "O", "position": "(3,0)" },
+    { "tick": 1, "piece": "O", "position": "(3,1)" },
+    { "tick": 2, "piece": "O", "position": "(3,2)" }
+  ]
+}

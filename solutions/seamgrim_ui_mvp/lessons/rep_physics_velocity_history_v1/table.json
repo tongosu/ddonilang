@@ -1,0 +1,18 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "속도 이력 표"
+  },
+  "columns": [
+    { "key": "t", "label": "시간", "type": "number" },
+    { "key": "v", "label": "속도", "type": "number" },
+    { "key": "len", "label": "기록 길이", "type": "number" }
+  ],
+  "rows": [
+    { "t": 0, "v": 0, "len": 0 },
+    { "t": 1, "v": 2, "len": 1 },
+    { "t": 2, "v": 4, "len": 2 },
+    { "t": 3, "v": 6, "len": 3 },
+    { "t": 4, "v": 8, "len": 4 }
+  ]
+}

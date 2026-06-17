@@ -1,0 +1,17 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "격리와 복귀"
+  },
+  "columns": [
+    { "key": "step", "label": "단계", "type": "number" },
+    { "key": "isolated", "label": "격리" },
+    { "key": "held", "label": "보류", "type": "number" }
+  ],
+  "rows": [
+    { "step": 0, "isolated": "아니오", "held": 0 },
+    { "step": 1, "isolated": "예", "held": 1 },
+    { "step": 2, "isolated": "예", "held": 2 },
+    { "step": 3, "isolated": "아니오", "held": 0 }
+  ]
+}

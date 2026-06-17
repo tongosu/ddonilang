@@ -1,0 +1,17 @@
+{
+  "schema": "seamgrim.table.v0",
+  "meta": {
+    "title": "상태 전이"
+  },
+  "columns": [
+    { "key": "step", "label": "단계", "type": "number" },
+    { "key": "state", "label": "상태" },
+    { "key": "hp", "label": "체력", "type": "number" }
+  ],
+  "rows": [
+    { "step": 0, "state": "대기", "hp": 10 },
+    { "step": 1, "state": "전투", "hp": 8 },
+    { "step": 2, "state": "부상", "hp": 4 },
+    { "step": 3, "state": "복귀", "hp": 6 }
+  ]
+}

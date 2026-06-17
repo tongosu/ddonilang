@@ -1470,8 +1470,8 @@
     },
     {
       "id": "rep_cs_linear_search_timeline_v1",
-      "title": "대표 · CS · 예제 1",
-      "description": "선형 탐색",
+      "title": "선형 탐색 단계 보기",
+      "description": "목표값을 찾을 때 비교가 어떤 순서로 진행되는지 표와 그래프로 봅니다.",
       "required_views": [
         "table",
         "graph",
@@ -1489,8 +1489,8 @@
     },
     {
       "id": "rep_econ_supply_demand_tax_v1",
-      "title": "대표 · 경제 · 예제 1",
-      "description": "수요·공급·조세",
+      "title": "수요·공급과 세금",
+      "description": "시장 가격, 거래량, 세금 변화가 그래프에서 어떻게 움직이는지 봅니다.",
       "required_views": [
         "graph",
         "text"
@@ -1507,8 +1507,8 @@
     },
     {
       "id": "rep_math_function_line_v1",
-      "title": "대표 · 수학 · 예제 1",
-      "description": "일차함수",
+      "title": "일차함수 그래프",
+      "description": "기울기와 절편을 바꾸며 x-y 값이 어떻게 달라지는지 봅니다.",
       "required_views": [
         "graph",
         "table",
@@ -1526,8 +1526,8 @@
     },
     {
       "id": "rep_phys_projectile_xy_v1",
-      "title": "대표 · 물리 · 예제 1",
-      "description": "투사체 운동",
+      "title": "포물선 운동",
+      "description": "초기 속도와 중력을 바꾸며 물체가 그리는 궤적을 봅니다.",
       "required_views": [
         "space2d",
         "graph",
@@ -1545,8 +1545,8 @@
     },
     {
       "id": "rep_science_phase_change_timeline_v1",
-      "title": "대표 · 과학 · 예제 1",
-      "description": "상변화",
+      "title": "상변화와 온도 그래프",
+      "description": "가열하면서 고체, 융해, 액체, 기화 구간의 온도 변화를 봅니다.",
       "required_views": [
         "graph",
         "text"
@@ -1563,8 +1563,8 @@
     },
     {
       "id": "rep_ddonirang_vol2_filter_v1",
-      "title": "대표 · 또니랑 2권 · 거르기",
-      "description": "차림에서 필요한 값만 골라 보는 representative lesson",
+      "title": "자료 거르기",
+      "description": "차림에서 기준을 만족하는 값만 남기는 과정을 표로 봅니다.",
       "required_views": [
         "table",
         "text"
@@ -1581,8 +1581,8 @@
     },
     {
       "id": "rep_ddonirang_vol2_map_v1",
-      "title": "대표 · 또니랑 2권 · 바꾸기",
-      "description": "각 값을 새 값으로 바꾸는 representative lesson",
+      "title": "자료 바꾸기",
+      "description": "차림의 각 값에 같은 규칙을 적용해 새 값을 만드는 과정을 표로 봅니다.",
       "required_views": [
         "table",
         "text"
@@ -1599,8 +1599,8 @@
     },
     {
       "id": "rep_ddonirang_vol2_pipeline_v1",
-      "title": "대표 · 또니랑 2권 · 여러 단계 차림 작업",
-      "description": "거르기와 바꾸기를 이어 붙이는 representative lesson",
+      "title": "자료 흐름 여러 단계",
+      "description": "거르기와 바꾸기를 이어 붙였을 때 결과가 어떻게 달라지는지 봅니다.",
       "required_views": [
         "table",
         "text"
@@ -3553,8 +3553,8 @@
     },
     {
       "id": "rep_ddonirang_vol4_event_dispatch_v1",
-      "title": "대표 · 또니랑 4권 · 사건/발송",
-      "description": "알림씨와 받으면, 임자, dispatch를 작업장 lesson으로 읽는 representative rail",
+      "title": "사건이 상태를 바꾸는 과정",
+      "description": "알림씨와 받으면 흐름으로 임자 상태가 어떻게 바뀌는지 봅니다.",
       "required_views": [
         "table",
         "text"
@@ -3571,8 +3571,8 @@
     },
     {
       "id": "rep_ddonirang_vol4_state_transition_v1",
-      "title": "대표 · 또니랑 4권 · 상태 전이",
-      "description": "임자 상태값과 사건 반응으로 bounded state transition을 읽는 representative rail",
+      "title": "상태 전이와 체력 변화",
+      "description": "사건 반응에 따라 상태값과 체력이 함께 바뀌는 과정을 봅니다.",
       "required_views": [
         "table",
         "text"
@@ -3589,8 +3589,8 @@
     },
     {
       "id": "rep_ddonirang_vol4_resume_isolation_v1",
-      "title": "대표 · 또니랑 4권 · 복귀/격리",
-      "description": "격리, 복귀, 재개를 current-line bounded shell로 읽는 representative rail",
+      "title": "격리와 복귀 흐름",
+      "description": "격리 중 보류된 요청이 복귀승인과 재개요청 뒤 어떻게 처리되는지 봅니다.",
       "required_views": [
         "table",
         "text"
@@ -3607,8 +3607,8 @@
     },
     {
       "id": "rep_ddonirang_vol4_multi_signal_priority_v1",
-      "title": "대표 · 또니랑 4권 · 다중 신호 우선 반응",
-      "description": "강한 경고와 일반 요청의 handling order를 current-line shell로 읽는 representative rail",
+      "title": "다중 신호 우선순위",
+      "description": "강한 경고와 일반 요청이 함께 올 때 어떤 신호가 먼저 처리되는지 봅니다.",
       "required_views": [
         "table",
         "text"
@@ -3625,8 +3625,8 @@
     },
     {
       "id": "rep_grid_game_state_drop_v1",
-      "title": "대표 · 격자 상태 · 낙하 조각",
-      "description": "격자게임상태와 낙하 조각의 한틱 진행을 보개로 관찰한다",
+      "title": "격자 상태와 낙하 조각",
+      "description": "격자게임상태와 낙하 조각의 한 단계 진행을 그림으로 관찰한다",
       "required_views": [
         "space2d",
         "table"
@@ -3635,15 +3635,15 @@
       "subject": "math",
       "level": "intro",
       "goals": [
-        "격자 상태가 틱마다 바뀌는 과정을 관찰한다",
-        "낙하 조각 위치와 격자 보개를 함께 읽는다"
+        "격자 상태가 단계마다 바뀌는 과정을 관찰한다",
+        "낙하 조각 위치와 격자 그림을 함께 읽는다"
       ],
       "source": "representative_v1",
       "ssot_pack": ""
     },
     {
       "id": "rep_physics_velocity_history_v1",
-      "title": "대표 · 물리 · 속도 기록",
+      "title": "속도 기록 그래프",
       "description": "이력으로 등가속도 운동의 속도 변화를 기록하고 그래프로 읽는다",
       "required_views": [
         "graph",
@@ -3661,7 +3661,7 @@
     },
     {
       "id": "rep_econ_growth_compound_v1",
-      "title": "대표 · 경제 · 복리 성장",
+      "title": "복리 성장과 생산성",
       "description": "생산성과 성장률이 자본 축적에 주는 영향을 그래프와 표로 읽는다",
       "required_views": [
         "graph",

@@ -1,5 +1,5 @@
-title = "대표 · 물리 · 예제 1"
-description = "투사체 운동"
+title = "포물선 운동"
+description = "초기 속도와 중력을 바꾸며 물체가 그리는 궤적을 봅니다."
 grade = "middle"
 subject = "physics"
 level = "intro"
