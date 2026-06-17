@@ -17,6 +17,7 @@ SOURCE_DASHBOARD = ROOT / "pack" / "studio_release_review_packet_dashboard_v1" /
 SOURCE_PREP = ROOT / "pack" / "studio_public_lesson_publication_prep_v1" / "publication_prep.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_lesson_publication_review_surface.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_lesson_publication_review_surface_runner.mjs"
@@ -125,6 +126,7 @@ def check_required_files() -> None:
         SOURCE_PREP,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -182,21 +184,15 @@ def check_ui_source() -> None:
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
+            "lesson-publication-review-surface",
             "studio_lesson_publication_review_surface.js",
-            "publishLessonPublicationReviewSurface",
             "__SEAMGRIM_LESSON_PUBLICATION_REVIEW_SURFACE__",
             "buildLessonPublicationReviewSurface",
         ],
     )
-    require_contains(
-        INDEX_HTML,
-        [
-            "lesson-publication-review-surface",
-            "data-lesson-publication-review-surface",
-        ],
-    )
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(
         STYLES_CSS,
         [

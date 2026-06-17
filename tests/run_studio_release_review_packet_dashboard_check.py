@@ -17,6 +17,7 @@ SOURCE_SNAPSHOT = ROOT / "pack" / "studio_benchmark_baseline_local_snapshot_v1" 
 SOURCE_CONTINUITY = ROOT / "pack" / "studio_release_approval_packet_continuity_v1" / "continuity.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_release_review_packet_dashboard.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_release_review_packet_dashboard_runner.mjs"
@@ -126,6 +127,7 @@ def check_required_files() -> None:
         SOURCE_CONTINUITY,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -183,20 +185,14 @@ def check_ui_source() -> None:
             REQUIRED_APPROVAL,
         ],
     )
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(
-        APP_JS,
-        [
-            "studio_release_review_packet_dashboard.js",
-            "publishReleaseReviewPacketDashboard",
-            "__SEAMGRIM_RELEASE_REVIEW_PACKET_DASHBOARD__",
-            "buildReleaseReviewPacketDashboard",
-        ],
-    )
-    require_contains(
-        INDEX_HTML,
+        DEV_SURFACES_JS,
         [
             "release-review-packet-dashboard",
-            "data-release-review-packet-dashboard",
+            "studio_release_review_packet_dashboard.js",
+            "__SEAMGRIM_RELEASE_REVIEW_PACKET_DASHBOARD__",
+            "buildReleaseReviewPacketDashboard",
         ],
     )
     require_contains(
