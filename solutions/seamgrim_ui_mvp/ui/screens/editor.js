@@ -154,7 +154,7 @@ export function findFlatLinkSelectionRange(text, link) {
 }
 
 export class EditorScreen {
-  constructor({ root, onBack, onRun, onSave, onOpenAdvanced, onSourceChange, onAutofix } = {}) {
+  constructor({ root, onBack, onRun, onSave, onOpenAdvanced, onSourceChange, onAutofix, onApplyFixit } = {}) {
     this.root = root;
     this.onBack = typeof onBack === "function" ? onBack : () => {};
     this.onRun = typeof onRun === "function" ? onRun : () => {};
@@ -162,12 +162,14 @@ export class EditorScreen {
     this.onOpenAdvanced = typeof onOpenAdvanced === "function" ? onOpenAdvanced : () => {};
     this.onSourceChange = typeof onSourceChange === "function" ? onSourceChange : () => {};
     this.onAutofix = typeof onAutofix === "function" ? onAutofix : null;
+    this.onApplyFixit = typeof onApplyFixit === "function" ? onApplyFixit : null;
     this.readOnly = false;
     this.focusMatches = [];
     this.focusIndex = -1;
     this.guideHeaderRange = null;
     this.warningShowsGuide = false;
     this.readinessModel = normalizeReadinessModel(null);
+    this.fixitModel = null;
   }
 
   init() {
@@ -189,6 +191,9 @@ export class EditorScreen {
     this.readinessStageEl = this.root.querySelector("#editor-readiness-stage");
     this.readinessCauseEl = this.root.querySelector("#editor-readiness-cause");
     this.readinessActionBtn = this.root.querySelector("#btn-editor-readiness-action");
+    this.fixitCardEl = this.root.querySelector("#editor-fixit-card");
+    this.fixitSummaryEl = this.root.querySelector("#editor-fixit-summary");
+    this.fixitApplyBtn = this.root.querySelector("#btn-editor-fixit-apply");
     this.loadFileInputEl = this.root.querySelector("#input-editor-ddn-file");
 
     this.root.querySelector("#btn-back-to-browse")?.addEventListener("click", () => {
@@ -235,7 +240,11 @@ export class EditorScreen {
     this.readinessActionBtn?.addEventListener("click", () => {
       void this.handleReadinessAction();
     });
+    this.fixitApplyBtn?.addEventListener("click", () => {
+      void this.handleFixitApply();
+    });
     this.setStudioReadinessModel(null);
+    this.setFixitModel(null);
   }
 
   async handleLoadFromLocalFile() {
@@ -270,6 +279,7 @@ export class EditorScreen {
     this.setSmokeResult(this.readOnly ? "교과 DDN 읽기 전용 모드" : "편집 모드");
     this.loadFocusMatches(normalizedText, { readOnly: this.readOnly, focusText, focusTexts });
     this.setStudioReadinessModel(null);
+    this.setFixitModel(null);
     this.emitSourceChange();
   }
 
@@ -285,6 +295,7 @@ export class EditorScreen {
     this.setSmokeResult("새 DDN 편집 모드");
     this.loadFocusMatches(BLANK_DDN_TEMPLATE, { readOnly: false });
     this.setStudioReadinessModel(null);
+    this.setFixitModel(null);
     this.emitSourceChange();
   }
 
@@ -459,6 +470,38 @@ export class EditorScreen {
       return;
     }
     this.onRun(this.getDdn(), { readinessModel: model });
+  }
+
+  setFixitModel(rawPreview = null) {
+    const preview = rawPreview && typeof rawPreview === "object" ? rawPreview : null;
+    const source = this.getDdn();
+    const previewText = String(preview?.preview_text ?? source);
+    const fixitCount = Number(preview?.fixit_count ?? 0);
+    const ready = Boolean(preview && fixitCount > 0 && previewText !== source && !this.readOnly);
+    this.fixitModel = ready ? preview : null;
+    if (this.fixitCardEl) {
+      this.fixitCardEl.classList.toggle("hidden", !ready);
+      if (this.fixitCardEl.dataset) {
+        this.fixitCardEl.dataset.ready = ready ? "true" : "false";
+      }
+    }
+    if (this.fixitSummaryEl) {
+      const diagnostics = Number(preview?.diagnostic_count ?? 0);
+      this.fixitSummaryEl.textContent = ready
+        ? `일괄 적용 가능: 진단 ${diagnostics}건, 수정 ${fixitCount}건`
+        : "수정 후보 없음";
+    }
+    if (this.fixitApplyBtn) {
+      this.fixitApplyBtn.disabled = !ready;
+    }
+  }
+
+  async handleFixitApply() {
+    const preview = this.fixitModel;
+    if (!preview || typeof this.onApplyFixit !== "function") return;
+    await this.onApplyFixit(preview, {
+      sourceText: this.getDdn(),
+    });
   }
 
   loadFocusMatches(value, { readOnly = true, focusText = "", focusTexts = [] } = {}) {

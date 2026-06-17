@@ -2520,6 +2520,27 @@ async function main() {
     return appState.studio;
   };
 
+  const buildEditorFixitPreview = (sourceText) => {
+    const source = String(sourceText ?? "");
+    if (!hasLegacyAutofixCandidate(source)) return null;
+    const rawResult = applyLegacyAutofixToDdn(source);
+    const textAfter = String(rawResult?.text ?? source);
+    const contract = buildAutofixResultContract(rawResult, { sourceTextAfter: textAfter });
+    const appliedRules = Array.isArray(contract.applied_rules) ? contract.applied_rules : [];
+    const totalChanges = Number(rawResult?.total_changes ?? appliedRules.length);
+    const fixitCount = Math.max(0, Number.isFinite(totalChanges) ? totalChanges : appliedRules.length);
+    if (!rawResult?.changed || fixitCount <= 0) return null;
+    return {
+      schema: "seamgrim.editor_fixit_preview.v1",
+      preview_text: textAfter,
+      diagnostic_count: appliedRules.length || 1,
+      fixit_count: fixitCount,
+      applied_rules: appliedRules,
+      blocking_remaining: Boolean(contract.blocking_remaining),
+      next_action: contract.next_action,
+    };
+  };
+
   const updateEditorReadinessModel = (sourceText, { canonDiagCode = "", canonDiagMessage = "" } = {}) => {
     const source = String(sourceText ?? "");
     const model = buildStudioEditorReadinessModel({
@@ -2530,6 +2551,7 @@ async function main() {
     });
     lastEditorReadinessModel = model;
     editorScreen?.setStudioReadinessModel?.(model);
+    editorScreen?.setFixitModel?.(buildEditorFixitPreview(source));
     runScreen?.setStudioReadinessModel?.(model);
     return model;
   };
@@ -3115,6 +3137,21 @@ async function main() {
         editorScreen.setSmokeResult("자동 수정 대상이 없습니다.");
       }
       updateEditorReadinessModel(String(result?.text ?? ddnText));
+      return result;
+    },
+    onApplyFixit: async (_preview, { sourceText = "" } = {}) => {
+      const result = runEditorAutofix(sourceText, {
+        applyToEditor: true,
+        source: "editor_fixit_card",
+      });
+      if (result?.changed) {
+        const rules = Array.isArray(result.contract?.applied_rules) ? result.contract.applied_rules.join(", ") : "";
+        editorScreen.setSmokeResult(rules ? `수정 적용: ${rules}` : "수정 후보를 적용했습니다.");
+      } else {
+        editorScreen.setSmokeResult("적용할 수정 후보가 없습니다.");
+      }
+      updateEditorReadinessModel(String(result?.text ?? sourceText));
+      editorScreen?.setFixitModel?.(buildEditorFixitPreview(String(result?.text ?? sourceText)));
       return result;
     },
   });
