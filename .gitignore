@@ -9,6 +9,7 @@ docs/
 /ddn.cmd
 target/
 target-wsl/
+node_modules/
 **/__pycache__/
 *.pyc
 *.pyo
