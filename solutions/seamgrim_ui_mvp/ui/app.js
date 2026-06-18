@@ -2370,7 +2370,7 @@ async function main() {
     "/api/lessons/inventory",
   ]);
   const allowFederatedFileFallback = readWindowBoolean("SEAMGRIM_ENABLE_FEDERATED_FILE_FALLBACK", false);
-  const allowShapeFallback = readWindowBoolean("SEAMGRIM_ENABLE_SHAPE_FALLBACK", true);
+  const allowShapeFallback = readWindowBoolean("SEAMGRIM_ENABLE_SHAPE_FALLBACK", false);
   const allowServerFallback =
     readWindowBoolean("SEAMGRIM_ENABLE_SERVER_FALLBACK", false) ||
     readQueryBoolean("server_fallback", false);

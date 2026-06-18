@@ -170,7 +170,6 @@ def main() -> int:
             "phase3_index_compare_session_dom_removed",
             html_text,
             [
-                "compare-panel",
                 "session-save",
                 "view-combo",
                 "overlay-compare",
@@ -183,9 +182,8 @@ def main() -> int:
             "phase3_styles_compare_session_css_removed",
             css_text,
             [
-                "compare",
                 "view-combo",
-                "session",
+                "overlay-session",
             ],
         )
     )

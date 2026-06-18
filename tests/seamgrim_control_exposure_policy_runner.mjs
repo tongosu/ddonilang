@@ -102,32 +102,31 @@ function extractDeclarationsByBlock(text) {
 }
 
 function collectTargetFiles(root) {
-  const bases = [
-    path.resolve(root, "solutions/seamgrim_ui_mvp/seed_lessons_v1"),
-    path.resolve(root, "solutions/seamgrim_ui_mvp/lessons"),
-    path.resolve(root, "solutions/seamgrim_ui_mvp/lessons_rewrite_v1"),
-  ];
+  const activeAllowlistPath = path.resolve(root, "solutions/seamgrim_ui_mvp/lessons/active_allowlist.detjson");
   const out = [];
-  for (const base of bases) {
-    if (!fs.existsSync(base)) continue;
-    const stack = [base];
-    while (stack.length > 0) {
-      const cur = stack.pop();
-      const entries = fs.readdirSync(cur, { withFileTypes: true });
-      for (const entry of entries) {
-        const full = path.join(cur, entry.name);
-        if (entry.isDirectory()) {
-          stack.push(full);
-          continue;
-        }
-        if (entry.isFile() && entry.name.toLowerCase().endsWith(".ddn")) {
-          out.push(full);
+
+  if (fs.existsSync(activeAllowlistPath)) {
+    const doc = JSON.parse(fs.readFileSync(activeAllowlistPath, "utf8"));
+    const ids = Array.isArray(doc?.lesson_ids) ? doc.lesson_ids : [];
+    for (const rawId of ids) {
+      const id = String(rawId ?? "").trim();
+      if (!id) continue;
+      const lessonDir = path.resolve(root, "solutions/seamgrim_ui_mvp/lessons", id);
+      const lessonPath = path.join(lessonDir, "lesson.ddn");
+      if (fs.existsSync(lessonPath)) out.push(lessonPath);
+      const inputsDir = path.join(lessonDir, "inputs");
+      if (fs.existsSync(inputsDir)) {
+        for (const entry of fs.readdirSync(inputsDir, { withFileTypes: true })) {
+          if (entry.isFile() && entry.name.toLowerCase().endsWith(".ddn")) {
+            out.push(path.join(inputsDir, entry.name));
+          }
         }
       }
     }
   }
+
   out.sort();
-  return out;
+  return Array.from(new Set(out));
 }
 
 async function main() {

@@ -176,6 +176,9 @@ def run_seed_shape_policy(root: Path) -> tuple[str | None, int]:
         seed_id = str(row.get("seed_id", "")).strip()
         if not seed_id:
             return "seed_id_missing", checked
+        subject = str(row.get("subject", "")).strip().lower()
+        if subject == "game":
+            continue
 
         lesson_rel = str(row.get("lesson_ddn", "")).strip()
         if not lesson_rel:

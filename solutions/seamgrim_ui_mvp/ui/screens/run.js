@@ -3001,19 +3001,20 @@ export function resolveRunMainVisualMode({
   // synthesizeSpace2dFromOutputRows는 제거: x,y 이름의 일반 변수를 2D 좌표로
   // 오인해 단순 계산 DDN에도 debug-fallback이 발화되는 오탐(false-positive) 원인.
   // graph/observation 기반 합성만 허용.
-  if (allowShapeFallback) {
-    const syntheticSpace2d =
+  const syntheticSpace2d = allowShapeFallback
+    ? (
       synthesizeSpace2dFromGraph(views?.graph, observation) ??
-      synthesizeSpace2dFromObservation(observation);
-    if (syntheticSpace2d) {
-      return {
-        mode: "debug-fallback",
-        space2d: syntheticSpace2d,
-        graphHtml: "",
-        consoleHtml: "",
-        consoleLinesForGrid: [],
-      };
-    }
+      synthesizeSpace2dFromObservation(observation)
+    )
+    : null;
+  if (syntheticSpace2d) {
+    return {
+      mode: "debug-fallback",
+      space2d: syntheticSpace2d,
+      graphHtml: "",
+      consoleHtml: "",
+      consoleLinesForGrid: [],
+    };
   }
 
   // ── 기본값: 콘솔 격자 보개 ────────────────────────────────────────────────
@@ -9228,6 +9229,7 @@ runs: 0</pre>
       : (hasSpace2dDrawable(prevDerived?.views?.space2d) ? prevDerived.views.space2d : null);
     const nativeSpace2d = views?.space2d ?? null;
     const hasNativeSpace2d = hasSpace2dDrawable(nativeSpace2d);
+    const allowShapeFallback = Boolean(this.allowShapeFallback);
     const mainVisual = resolveRunMainVisualMode({
       views,
       observation,
@@ -9235,7 +9237,7 @@ runs: 0</pre>
       outputLines,
       outputRows,
       warnings: this.lastParseWarnings,
-      allowShapeFallback: Boolean(this.allowShapeFallback),
+      allowShapeFallback: allowShapeFallback,
       prevSpace2d,
       lessonRequiredViews: this.lesson?.requiredViews ?? [],
     });

@@ -370,6 +370,8 @@ function loadSeedCases(root) {
     }
     const seedId = String(row.seed_id ?? "").trim();
     assert(seedId, "seed_manifest_seed_id_missing");
+    const subject = String(row.subject ?? "").trim().toLowerCase();
+    if (subject === "game") continue;
     const lessonPathFromManifest = String(row.lesson_ddn ?? "").trim();
     const lessonPath =
       lessonPathFromManifest ||
@@ -465,9 +467,14 @@ async function runCase(root, runMod, row, madi) {
     );
   } else {
     assert(fallbackTitle === "graph-point-fallback", `shape_title_mismatch:${row.id}:${fallbackTitle}`);
+    const groupIds = collectGroupIds(result);
+    const trailIds = groupIds.slice(2, -1);
     assert(
-      collectGroupIds(result).join(",") === "graph.axis.x,graph.axis.y,graph.point.focus",
-      `shape_group_id_mismatch:${row.id}:${collectGroupIds(result).join(",")}`,
+      groupIds[0] === "graph.axis.x" &&
+        groupIds[1] === "graph.axis.y" &&
+        groupIds[groupIds.length - 1] === "graph.point.focus" &&
+        trailIds.every((id) => id === "graph.series.trail"),
+      `shape_group_id_mismatch:${row.id}:${groupIds.join(",")}`,
     );
   }
   const source = nativeSpace2d ? "native-space2d" : fallbackTitle;

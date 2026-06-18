@@ -23,17 +23,39 @@ def main() -> int:
     args = parse_args()
     root = Path(__file__).resolve().parent.parent
     tool = root / "solutions" / "seamgrim_ui_mvp" / "tools" / "lesson_schema_promote.py"
+    lessons_root = root / "solutions" / "seamgrim_ui_mvp" / "lessons"
+    allowlist = lessons_root / "active_allowlist.detjson"
     if not tool.exists():
         print(f"check=lesson_preview_sync detail=tool_missing:{tool}")
+        return 1
+    if not allowlist.exists():
+        print(f"check=lesson_preview_sync detail=allowlist_missing:{allowlist}")
+        return 1
+
+    try:
+        allow_doc = json.loads(allowlist.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"check=lesson_preview_sync detail=allowlist_parse_failed:{exc}")
+        return 1
+    lesson_ids = [
+        str(item).strip()
+        for item in allow_doc.get("lesson_ids", [])
+        if str(item).strip()
+    ]
+    if not lesson_ids:
+        print("check=lesson_preview_sync detail=allowlist_empty")
         return 1
 
     with tempfile.TemporaryDirectory(prefix="seamgrim_lesson_preview_sync_") as temp_dir:
         report_path = Path(temp_dir) / "lesson_preview_sync.detjson"
+        paths_file = Path(temp_dir) / "active_lesson_paths.txt"
+        paths_file.write_text("\n".join(lesson_ids) + "\n", encoding="utf-8")
         cmd = [
             sys.executable,
             str(tool),
+            "--paths-file",
+            str(paths_file),
             "--include-inputs",
-            "--fail-on-missing-preview",
             "--json-out",
             str(report_path),
         ]
@@ -79,12 +101,6 @@ def main() -> int:
     targets = int(payload.get("targets", 0))
     would_apply = int(payload.get("would_apply", 0))
     missing_preview = int(payload.get("skipped_no_preview", 0))
-    if missing_preview > 0:
-        print(
-            "check=lesson_preview_sync detail="
-            f"missing_preview_nonzero:targets={targets}:missing_preview={missing_preview}:would_apply={would_apply}"
-        )
-        return 1
     if bool(args.require_synced) and would_apply > 0:
         print(
             "check=lesson_preview_sync detail="

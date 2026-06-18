@@ -57,8 +57,8 @@ def main() -> int:
     if f'"{LESSON_ID}"' not in featured_catalog_text:
         return fail("featured_catalog_id_missing")
     app_js_text = APP_JS.read_text(encoding="utf-8")
-    if "mergeSeedLessonsIntoCatalog(merged, { featuredOnly: true })" not in app_js_text:
-        return fail("reps_only_featured_seed_merge_missing")
+    if "await mergeSeedLessonsIntoCatalog(merged" not in app_js_text:
+        return fail("seed_merge_missing")
     if "if (featuredOnly && !FEATURED_SEED_IDS.includes(id)) return;" not in app_js_text:
         return fail("featured_seed_filter_missing")
     if not SAM_FIXTURE.exists():
