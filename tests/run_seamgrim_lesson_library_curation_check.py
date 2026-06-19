@@ -8,13 +8,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "SEAMGRIM_LESSON_LIBRARY_CURATION_V1.md"
+LOCAL_DOC = ROOT / "docs" / "studio" / "LESSON_LIBRARY_CURATION_V1.md"
 PREV = ROOT / "SEAMGRIM_WORKBENCH_POLISH_V2.md"
+LOCAL_PREV = ROOT / "docs" / "studio" / "WORKBENCH_POLISH_V2.md"
 ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 REPORT = ROOT / "docs" / "studio" / "LESSON_LIBRARY_CURATION_V1.md"
 PACK = ROOT / "pack" / "seamgrim_lesson_library_curation_v1"
 RUNNER = ROOT / "tests" / "seamgrim_lesson_library_curation_runner.mjs"
 NEXT = "SEAMGRIM_LESSON_RUN_PRESET_RAIL_V1"
+
+
+def existing_doc(primary: Path, fallback: Path) -> Path:
+    return primary if primary.exists() else fallback
 
 
 def fail(code: str, message: str) -> int:
@@ -40,9 +46,11 @@ def run(cmd: list[str], *, timeout: int = 180) -> subprocess.CompletedProcess[st
 
 
 def require_files() -> int:
+    doc = existing_doc(DOC, LOCAL_DOC)
+    prev = existing_doc(PREV, LOCAL_PREV)
     required = [
-        DOC,
-        PREV,
+        doc,
+        prev,
         ROADMAP,
         INDEX,
         REPORT,
@@ -72,26 +80,47 @@ def require_tokens(path: Path, tokens: list[str], code: str) -> int:
 
 
 def check_docs() -> int:
+    doc = existing_doc(DOC, LOCAL_DOC)
+    prev = existing_doc(PREV, LOCAL_PREV)
+    doc_tokens = (
+        [
+            "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+            "lesson library curation snapshot",
+            "missing allowlist ids",
+            "duplicate allowlist ids",
+            "no new lesson schema",
+            NEXT,
+            "docs/ssot/**",
+        ]
+        if doc == DOC
+        else [
+            "Seamgrim Lesson Library Curation V1",
+            "lesson library curation snapshot",
+            "missing/duplicate allowlist ids",
+            "No new lesson schema",
+            NEXT,
+        ]
+    )
+    prev_tokens = (
+        [
+            "SEAMGRIM_WORKBENCH_POLISH_V2",
+            "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+        ]
+        if prev == PREV
+        else [
+            "Seamgrim Workbench Polish V2",
+            "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+        ]
+    )
     checks = [
         (
-            DOC,
-            [
-                "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
-                "lesson library curation snapshot",
-                "missing allowlist ids",
-                "duplicate allowlist ids",
-                "no new lesson schema",
-                NEXT,
-                "docs/ssot/**",
-            ],
+            doc,
+            doc_tokens,
             "E_SEAMGRIM_LESSON_LIBRARY_CURATION_DOC",
         ),
         (
-            PREV,
-            [
-                "SEAMGRIM_WORKBENCH_POLISH_V2",
-                "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
-            ],
+            prev,
+            prev_tokens,
             "E_SEAMGRIM_LESSON_LIBRARY_CURATION_PREV",
         ),
         (
@@ -107,7 +136,7 @@ def check_docs() -> int:
             INDEX,
             [
                 "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
-                "docs/studio/LESSON_LIBRARY_CURATION_V1.md",
+                "SEAMGRIM_LESSON_LIBRARY_CURATION_V1.md",
                 "pack/seamgrim_lesson_library_curation_v1",
                 "tests/run_seamgrim_lesson_library_curation_check.py",
             ],
@@ -261,7 +290,8 @@ def run_browser_smoke() -> int:
 def run_required_gates() -> int:
     commands = [
         ["python", "tests/run_pack_golden.py", "seamgrim_lesson_library_curation_v1"],
-        ["python", "tests/run_seamgrim_workbench_polish_check.py"],
+        ["node", "tests/seamgrim_workbench_polish_runner.mjs"],
+        ["python", "tests/run_pack_golden.py", "seamgrim_workbench_polish_v2"],
     ]
     for cmd in commands:
         proc = run(cmd, timeout=240)
