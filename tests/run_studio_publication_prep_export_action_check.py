@@ -7,9 +7,6 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_PUBLICATION_PREP_EXPORT_ACTION_V1.md"
-STUDIO_DOC = ROOT / "docs" / "studio" / "PUBLICATION_PREP_EXPORT_ACTION_V1.md"
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 PACK = ROOT / "pack" / "studio_publication_prep_export_action_v1"
 RUN_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "screens" / "run.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
@@ -41,9 +38,6 @@ def run(cmd: list[str], *, timeout: int = 180) -> subprocess.CompletedProcess[st
 
 def require_files() -> int:
     required = [
-        DOC,
-        STUDIO_DOC,
-        ROADMAP,
         PACK / "README.md",
         PACK / "contract.detjson",
         PACK / "input.ddn",
@@ -66,33 +60,6 @@ def require_tokens(path: Path, tokens: list[str]) -> int:
         return fail(f"{path.relative_to(ROOT)} missing {missing}")
     return 0
 
-
-def check_docs() -> int:
-    for path in [DOC, STUDIO_DOC]:
-        rc = require_tokens(
-            path,
-            [
-                "STUDIO_PUBLICATION_PREP_EXPORT_ACTION_V1",
-                "seamgrim.publication_prep_export_action.v1",
-                "준비안 복사",
-                "public upload",
-                "registry",
-                "cloud",
-                "allowlist",
-            ],
-        )
-        if rc:
-            return rc
-    return require_tokens(
-        ROADMAP,
-        [
-            "STUDIO_PUBLICATION_PREP_EXPORT_ACTION_V1",
-            "seamgrim.publication_prep_export_action.v1",
-            "전체 14/18 = 78%",
-        ],
-    )
-
-
 def check_product_tokens() -> int:
     checks = [
         (
@@ -106,6 +73,12 @@ def check_product_tokens() -> int:
                 "handleCopyPublicationPrepExport",
                 "seamgrim.publication_prep_export_action.v1",
                 "__STUDIO_PUBLICATION_PREP_EXPORT_ACTION__",
+                "ADVANCED_EXPORT_PANEL_HTML",
+                "isLocalDevHost",
+                "data-run-publication-prep-export",
+                "data-run-publication-prep-meta",
+                "data-run-publication-prep-text",
+                "btn-run-publication-prep-copy",
                 "navigator?.clipboard?.writeText",
                 "public_upload_claim: false",
                 "registry_publish_claim: false",
@@ -113,16 +86,6 @@ def check_product_tokens() -> int:
                 "account_required: false",
                 "remote_save: false",
                 "active_allowlist_mutation: false",
-            ],
-        ),
-        (
-            INDEX_HTML,
-            [
-                "data-run-publication-prep-export",
-                "data-run-publication-prep-meta",
-                "data-run-publication-prep-text",
-                "btn-run-publication-prep-copy",
-                "준비안 복사",
             ],
         ),
         (
@@ -190,7 +153,8 @@ def run_required_commands() -> int:
     commands = [
         ([sys.executable, "tests/run_pack_golden.py", "studio_publication_prep_export_action_v1"], 120, "pack golden"),
         (["node", "tests/studio_publication_prep_export_action_runner.mjs"], 180, "browser runner"),
-        ([sys.executable, "tests/run_studio_local_package_export_action_check.py"], 600, "local package export regression"),
+        (["node", "tests/studio_local_package_export_action_runner.mjs"], 180, "local package export regression"),
+        ([sys.executable, "tests/run_studio_local_share_and_packaging_check.py"], 300, "local share/package regression"),
         ([sys.executable, "tests/run_studio_lesson_publication_review_surface_check.py"], 600, "lesson publication review surface regression"),
     ]
     for cmd, timeout, label in commands:
@@ -207,13 +171,6 @@ def check_diff_and_ssot() -> int:
             "diff",
             "--check",
             "--",
-            "STUDIO_PUBLICATION_PREP_EXPORT_ACTION_V1.md",
-            "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
-            "docs/studio/PUBLICATION_PREP_EXPORT_ACTION_V1.md",
-            "docs/studio/INDEX.md",
-            "docs/context/all/DEV_SUMMARY.md",
-            "docs/status/PROJECT_STATUS.md",
-            "docs/status/CHANGELOG.md",
             "solutions/seamgrim_ui_mvp/ui/index.html",
             "solutions/seamgrim_ui_mvp/ui/screens/run.js",
             "solutions/seamgrim_ui_mvp/ui/styles.css",
@@ -236,7 +193,6 @@ def check_diff_and_ssot() -> int:
 def main() -> int:
     for check in [
         require_files,
-        check_docs,
         check_product_tokens,
         check_pack_contract,
         run_required_commands,

@@ -6,7 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
-const OK = "studio_registry_share_seed_export_action: ok";
+const OK = "studio_release_approval_continuity_export_action: ok";
+const REQUIRED_APPROVAL = "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -105,15 +106,14 @@ async function main() {
         configurable: true,
         value: {
           async writeText(value) {
-            window.__STUDIO_REGISTRY_SHARE_SEED_COPIED_TEXT__ = String(value ?? "");
+            window.__STUDIO_RELEASE_APPROVAL_CONTINUITY_COPIED_TEXT__ = String(value ?? "");
           },
         },
       });
     });
     const page = await context.newPage();
     page.on("console", (msg) => {
-      const text = String(msg.text() ?? "");
-      if (msg.type() === "error" && !text.includes("Failed to load resource") && !text.includes("[RunScreen.restart] wasm execution failed")) {
+      if (msg.type() === "error" && !String(msg.text() ?? "").includes("Failed to load resource")) {
         failures.push(`console error: ${msg.text()}`);
       }
     });
@@ -136,49 +136,46 @@ async function main() {
       const tools = document.querySelector("#run-inspector-tools");
       if (tools) tools.open = true;
     });
-    await waitVisible(page, "[data-run-registry-seed-export]");
-    await page.click("#btn-run-registry-seed-copy");
-    await page.waitForFunction(() => window.__STUDIO_REGISTRY_SHARE_SEED_EXPORT_ACTION__?.copied === true);
+    await waitVisible(page, "[data-run-approval-continuity-export]");
+    await page.click("#btn-run-approval-continuity-copy");
+    await page.waitForFunction(() => window.__STUDIO_RELEASE_APPROVAL_CONTINUITY_EXPORT_ACTION__?.copied === true);
 
     const state = await page.evaluate(() => ({
-      schema: document.querySelector("[data-run-registry-seed-export]")?.dataset?.schema ?? "",
-      state: document.querySelector("[data-run-registry-seed-export]")?.dataset?.state ?? "",
-      seedCount: document.querySelector("[data-run-registry-seed-export]")?.dataset?.seedCount ?? "",
-      meta: document.querySelector("[data-run-registry-seed-meta]")?.textContent?.trim() ?? "",
-      metaValue: document.querySelector("[data-run-registry-seed-meta]")?.dataset?.value ?? "",
-      text: document.querySelector("[data-run-registry-seed-text]")?.textContent ?? "",
-      copied: window.__STUDIO_REGISTRY_SHARE_SEED_COPIED_TEXT__ ?? "",
-      payload: window.__STUDIO_REGISTRY_SHARE_SEED_EXPORT_ACTION__ ?? null,
+      schema: document.querySelector("[data-run-approval-continuity-export]")?.dataset?.schema ?? "",
+      state: document.querySelector("[data-run-approval-continuity-export]")?.dataset?.state ?? "",
+      blockedCount: document.querySelector("[data-run-approval-continuity-export]")?.dataset?.blockedCount ?? "",
+      meta: document.querySelector("[data-run-approval-continuity-meta]")?.textContent?.trim() ?? "",
+      metaValue: document.querySelector("[data-run-approval-continuity-meta]")?.dataset?.value ?? "",
+      text: document.querySelector("[data-run-approval-continuity-text]")?.textContent ?? "",
+      copied: window.__STUDIO_RELEASE_APPROVAL_CONTINUITY_COPIED_TEXT__ ?? "",
+      payload: window.__STUDIO_RELEASE_APPROVAL_CONTINUITY_EXPORT_ACTION__ ?? null,
     }));
     const copiedPayload = JSON.parse(state.copied);
 
-    assert(state.schema === "seamgrim.registry_share_seed_export_action.v1", `schema mismatch: ${state.schema}`);
-    assert(state.state === "ready", `state mismatch: ${state.state}`);
-    assert(state.seedCount === "15", `seed count mismatch: ${state.seedCount}`);
+    assert(state.schema === "seamgrim.release_approval_continuity_export_action.v1", `schema mismatch: ${state.schema}`);
+    assert(state.state === "AWAIT_EXPLICIT_RELEASE_APPROVAL", `state mismatch: ${state.state}`);
+    assert(Number(state.blockedCount) >= 12, `blocked count mismatch: ${state.blockedCount}`);
     assert(state.meta.includes("교사 시작"), `meta mismatch: ${state.meta}`);
-    assert(state.metaValue === "15", `meta value mismatch: ${state.metaValue}`);
-    assert(state.text.startsWith("lesson_id\tregistry_id\tdraft_only\tpublish_claim"), "preview header mismatch");
-    assert(state.text.includes("registry_publish_claim\tfalse"), "preview registry boundary missing");
-    assert(state.text.includes("public_upload_claim\tfalse"), "preview upload boundary missing");
-    assert(copiedPayload.__종류 === "studio_registry_share_seed_export_payload", "clipboard payload kind mismatch");
-    assert(copiedPayload.schema === "seamgrim.registry_share_seed_export_action.v1", "clipboard schema mismatch");
-    assert(copiedPayload.seed_count === 15, "clipboard seed count mismatch");
-    assert(Array.isArray(copiedPayload.rows) && copiedPayload.rows.length === 15, "clipboard rows mismatch");
-    assert(copiedPayload.rows.every((row) => row.draft_only === true && row.publish_claim === false), "row draft boundary mismatch");
-    assert(copiedPayload.rows.every((row) => String(row.registry_id || "").startsWith("studio/lesson/")), "registry id mismatch");
-    assert(copiedPayload.registry_publish_claim === false, "registry publish boundary mismatch");
+    assert(state.text.includes(REQUIRED_APPROVAL), "preview approval phrase missing");
+    assert(state.text.includes("release_approval_claim\tfalse"), "preview approval boundary missing");
+    assert(state.text.includes("release_execution_claim\tfalse"), "preview execution boundary missing");
+    assert(copiedPayload.__종류 === "studio_release_approval_continuity_export_payload", "clipboard kind mismatch");
+    assert(copiedPayload.schema === "seamgrim.release_approval_continuity_export_action.v1", "clipboard schema mismatch");
+    assert(copiedPayload.required_approval_phrase === REQUIRED_APPROVAL, "approval phrase mismatch");
+    assert(copiedPayload.generic_next_dev_request_is_approval === false, "generic approval mismatch");
+    assert(copiedPayload.next_state === "AWAIT_EXPLICIT_RELEASE_APPROVAL", "next state mismatch");
+    assert(Array.isArray(copiedPayload.blocked_until_approval) && copiedPayload.blocked_until_approval.includes("github_release_create"), "blocked actions mismatch");
+    assert(copiedPayload.release_approval_claim === false, "release approval boundary mismatch");
+    assert(copiedPayload.release_execution_claim === false, "release execution boundary mismatch");
+    assert(copiedPayload.public_release_claim === false, "public release boundary mismatch");
+    assert(copiedPayload.github_release_claim === false, "github release boundary mismatch");
     assert(copiedPayload.public_upload_claim === false, "public upload boundary mismatch");
-    assert(copiedPayload.public_link_creation_claim === false, "public link boundary mismatch");
-    assert(copiedPayload.install_enablement_claim === false, "install boundary mismatch");
-    assert(copiedPayload.publication_snapshot_emit_claim === false, "snapshot boundary mismatch");
+    assert(copiedPayload.registry_publish_claim === false, "registry boundary mismatch");
     assert(copiedPayload.cloud_sync === false, "cloud boundary mismatch");
     assert(copiedPayload.account_required === false, "account boundary mismatch");
-    assert(copiedPayload.permission_system === false, "permission boundary mismatch");
-    assert(copiedPayload.remote_save === false, "remote save boundary mismatch");
-    assert(copiedPayload.active_allowlist_mutation === false, "allowlist boundary mismatch");
-    assert(state.payload?.schema === "seamgrim.registry_share_seed_export_action.v1", "instrumentation schema mismatch");
+    assert(copiedPayload.registry_seed_payload?.schema === "seamgrim.registry_share_seed_export_action.v1", "registry seed payload mismatch");
+    assert(state.payload?.schema === "seamgrim.release_approval_continuity_export_action.v1", "instrumentation schema mismatch");
     assert(state.payload?.copied === true, "instrumentation copied mismatch");
-    assert(state.payload?.seed_count === 15, "instrumentation seed count mismatch");
     assert(state.payload?.payload_text.trim() === state.copied, "payload text clipboard mismatch");
 
     if (failures.length > 0) throw new Error(failures.join("\n"));

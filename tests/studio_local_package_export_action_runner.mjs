@@ -3,7 +3,7 @@
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 
 const OK = "studio_local_package_export_action: ok";
@@ -87,6 +87,365 @@ async function waitVisible(page, selector) {
   }, selector);
 }
 
+async function assertLocalPackageValidation(uiRoot) {
+  const helper = await import(pathToFileURL(path.join(uiRoot, "studio_local_share_package.js")).href);
+  assert(
+    helper.formatStudioLocalPackageError(new Error("studio_local_package_missing_lesson")) === "배포 묶음에 실행할 교과가 없습니다.",
+    "known package error should be formatted for teachers",
+  );
+  assert(
+    helper.formatStudioLocalPackageError(new Error("SyntaxError: Unexpected token < in JSON")) === "배포 묶음을 열 수 없습니다.",
+    "unknown browser/internal package errors should not leak to teachers",
+  );
+  assert(
+    helper.formatStudioLocalPackageError(new Error("배포 파일에 실행할 교과 원문이 없습니다.")) === "배포 파일에 실행할 교과 원문이 없습니다.",
+    "already localized package errors should be preserved",
+  );
+  const lesson = {
+    lesson_id: "rep_physics_velocity_history_v1",
+    title: "속도 기록",
+    source_text: "보임 { text: \"속도 기록\" }",
+  };
+  const report = {
+    report_id: "rep_physics_velocity_history_v1_report",
+    title: "속도 기록 리포트",
+    text: "mode\tteacher",
+  };
+  const manifest = helper.buildStudioLocalPackageManifest({
+    packageId: "studio.local.validation",
+    title: "검증 배포 묶음",
+    lessons: [lesson],
+    reports: [report],
+  });
+  const payload = helper.buildStudioLocalPackagePayload({ manifest, lessons: [lesson], reports: [report] });
+  const validation = helper.validateStudioLocalPackagePayload(payload);
+  assert(validation.valid === true, `valid package rejected: ${validation.error}`);
+  assert(validation.lesson_count === 1 && validation.report_count === 1, "valid package counts mismatch");
+  const imported = helper.importStudioLocalPackagePayload(payload);
+  assert(imported.lesson_count === 1 && imported.report_count === 1, "imported package counts mismatch");
+
+  const unsafeIdGeneratedPayload = helper.buildStudioLocalPackagePayload({
+    lessons: [{
+      lesson_id: "lesson/id:with spaces",
+      title: "표시 ID 보존",
+      source_text: "보임 { text: \"표시 ID 보존\" }",
+    }],
+    reports: [{
+      report_id: "report/id:with spaces",
+      title: "표시 ID 보존 리포트",
+      text: "mode\tteacher",
+    }],
+  });
+  assert(
+    unsafeIdGeneratedPayload.lessons[0].lesson_id === "lesson/id:with spaces",
+    "generated package should preserve display lesson id",
+  );
+  assert(
+    unsafeIdGeneratedPayload.reports[0].report_id === "report/id:with spaces",
+    "generated package should preserve display report id",
+  );
+  assert(
+    unsafeIdGeneratedPayload.lessons[0].path === "lessons/lesson_id_with_spaces.ddn",
+    `generated lesson path should be portable: ${unsafeIdGeneratedPayload.lessons[0].path}`,
+  );
+  assert(
+    unsafeIdGeneratedPayload.reports[0].path === "reports/report_id_with_spaces.txt",
+    `generated report path should be portable: ${unsafeIdGeneratedPayload.reports[0].path}`,
+  );
+  const unsafeIdGeneratedValidation = helper.validateStudioLocalPackagePayload(unsafeIdGeneratedPayload);
+  assert(unsafeIdGeneratedValidation.valid === true, `portable unsafe-id package rejected: ${unsafeIdGeneratedValidation.error}`);
+
+  const emptyLessonPayload = helper.buildStudioLocalPackagePayload({
+    lessons: [{ ...lesson, source_text: "" }],
+    reports: [report],
+  });
+  const emptyValidation = helper.validateStudioLocalPackagePayload(emptyLessonPayload);
+  assert(emptyValidation.valid === false, "empty lesson source should be rejected");
+  assert(emptyValidation.error === "studio_local_package_empty_lesson_source", `empty lesson error mismatch: ${emptyValidation.error}`);
+
+  const mismatchedPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      lesson_count: 2,
+    },
+  };
+  const mismatchValidation = helper.validateStudioLocalPackagePayload(mismatchedPayload);
+  assert(mismatchValidation.valid === false, "mismatched lesson count should be rejected");
+  assert(mismatchValidation.error === "studio_local_package_lesson_count_mismatch", `mismatch error mismatch: ${mismatchValidation.error}`);
+
+  const invalidCountPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      lesson_count: "one",
+    },
+  };
+  const invalidCountValidation = helper.validateStudioLocalPackagePayload(invalidCountPayload);
+  assert(invalidCountValidation.valid === false, "invalid manifest count should be rejected");
+  assert(
+    invalidCountValidation.error === "studio_local_package_lesson_count_mismatch",
+    `invalid count error mismatch: ${invalidCountValidation.error}`,
+  );
+
+  const missingLessonFilePayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.filter((item) => item.path !== "lessons/rep_physics_velocity_history_v1.ddn"),
+      file_count: payload.manifest.files.length - 1,
+    },
+  };
+  const missingLessonFileValidation = helper.validateStudioLocalPackagePayload(missingLessonFilePayload);
+  assert(missingLessonFileValidation.valid === false, "missing manifest lesson file should be rejected");
+  assert(
+    missingLessonFileValidation.error === "studio_local_package_manifest_missing_lesson_file",
+    `missing lesson file error mismatch: ${missingLessonFileValidation.error}`,
+  );
+
+  const lessonByteSizeMismatchPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.map((item) => (
+        item.path === "lessons/rep_physics_velocity_history_v1.ddn"
+          ? { ...item, byte_size: Number(item.byte_size ?? 0) + 1 }
+          : item
+      )),
+    },
+  };
+  const byteSizeValidation = helper.validateStudioLocalPackagePayload(lessonByteSizeMismatchPayload);
+  assert(byteSizeValidation.valid === false, "lesson byte size mismatch should be rejected");
+  assert(
+    byteSizeValidation.error === "studio_local_package_lesson_byte_size_mismatch",
+    `lesson byte size error mismatch: ${byteSizeValidation.error}`,
+  );
+
+  const invalidByteSizePayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.map((item) => (
+        item.path === "lessons/rep_physics_velocity_history_v1.ddn"
+          ? { ...item, byte_size: "many" }
+          : item
+      )),
+    },
+  };
+  const invalidByteSizeValidation = helper.validateStudioLocalPackagePayload(invalidByteSizePayload);
+  assert(invalidByteSizeValidation.valid === false, "invalid manifest byte_size should be rejected");
+  assert(
+    invalidByteSizeValidation.error === "studio_local_package_lesson_byte_size_mismatch",
+    `invalid byte_size error mismatch: ${invalidByteSizeValidation.error}`,
+  );
+
+  const lessonTypeMismatchPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.map((item) => (
+        item.path === "lessons/rep_physics_velocity_history_v1.ddn"
+          ? { ...item, type: "asset" }
+          : item
+      )),
+    },
+  };
+  const lessonTypeValidation = helper.validateStudioLocalPackagePayload(lessonTypeMismatchPayload);
+  assert(lessonTypeValidation.valid === false, "lesson manifest type mismatch should be rejected");
+  assert(
+    lessonTypeValidation.error === "studio_local_package_lesson_type_mismatch",
+    `lesson type error mismatch: ${lessonTypeValidation.error}`,
+  );
+
+  const entryMismatchPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      entry: "app.js",
+    },
+  };
+  const entryValidation = helper.validateStudioLocalPackagePayload(entryMismatchPayload);
+  assert(entryValidation.valid === false, "manifest entry mismatch should be rejected");
+  assert(
+    entryValidation.error === "studio_local_package_entry_mismatch",
+    `entry mismatch error mismatch: ${entryValidation.error}`,
+  );
+
+  const formatMismatchPayload = {
+    ...payload,
+    import_export_format: "studio_local_package_payload_v0",
+  };
+  const formatValidation = helper.validateStudioLocalPackagePayload(formatMismatchPayload);
+  assert(formatValidation.valid === false, "format mismatch should be rejected");
+  assert(
+    formatValidation.error === "studio_local_package_format_mismatch",
+    `format mismatch error mismatch: ${formatValidation.error}`,
+  );
+
+  const remoteBoundaryPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      cloud_sync: true,
+    },
+  };
+  const remoteBoundaryValidation = helper.validateStudioLocalPackagePayload(remoteBoundaryPayload);
+  assert(remoteBoundaryValidation.valid === false, "remote boundary package should be rejected");
+  assert(
+    remoteBoundaryValidation.error === "studio_local_package_remote_boundary_mismatch",
+    `remote boundary error mismatch: ${remoteBoundaryValidation.error}`,
+  );
+
+  const unsafePathPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.map((item) => (
+        item.path === "lessons/rep_physics_velocity_history_v1.ddn"
+          ? { ...item, path: "../rep_physics_velocity_history_v1.ddn" }
+          : item
+      )),
+    },
+    lessons: payload.lessons.map((item) => ({
+      ...item,
+      path: "../rep_physics_velocity_history_v1.ddn",
+    })),
+  };
+  const unsafePathValidation = helper.validateStudioLocalPackagePayload(unsafePathPayload);
+  assert(unsafePathValidation.valid === false, "unsafe package path should be rejected");
+  assert(
+    unsafePathValidation.error === "studio_local_package_unsafe_path",
+    `unsafe path error mismatch: ${unsafePathValidation.error}`,
+  );
+
+  const absolutePathPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.map((item) => (
+        item.path === "lessons/rep_physics_velocity_history_v1.ddn"
+          ? { ...item, path: "/lessons/rep_physics_velocity_history_v1.ddn" }
+          : item
+      )),
+    },
+  };
+  const absolutePathValidation = helper.validateStudioLocalPackagePayload(absolutePathPayload);
+  assert(absolutePathValidation.valid === false, "absolute package path should be rejected");
+  assert(
+    absolutePathValidation.error === "studio_local_package_unsafe_path",
+    `absolute path error mismatch: ${absolutePathValidation.error}`,
+  );
+
+  const urlPathPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.map((item) => (
+        item.path === "lessons/rep_physics_velocity_history_v1.ddn"
+          ? { ...item, path: "https://example.test/rep_physics_velocity_history_v1.ddn" }
+          : item
+      )),
+    },
+  };
+  const urlPathValidation = helper.validateStudioLocalPackagePayload(urlPathPayload);
+  assert(urlPathValidation.valid === false, "url package path should be rejected");
+  assert(
+    urlPathValidation.error === "studio_local_package_unsafe_path",
+    `url path error mismatch: ${urlPathValidation.error}`,
+  );
+
+  const unsafeLessonRowPathPayload = {
+    ...payload,
+    lessons: payload.lessons.map((item) => ({
+      ...item,
+      path: "/lessons/rep_physics_velocity_history_v1.ddn",
+    })),
+  };
+  const unsafeLessonRowPathValidation = helper.validateStudioLocalPackagePayload(unsafeLessonRowPathPayload);
+  assert(unsafeLessonRowPathValidation.valid === false, "unsafe lesson row path should be rejected");
+  assert(
+    unsafeLessonRowPathValidation.error === "studio_local_package_unsafe_path",
+    `unsafe lesson row path error mismatch: ${unsafeLessonRowPathValidation.error}`,
+  );
+
+  const overlappingStaticPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: payload.manifest.files.map((item) => (
+        item.path === "app.js"
+          ? { ...item, byte_size: payload.lessons[0].byte_size }
+          : item
+      )),
+    },
+    lessons: payload.lessons.map((item) => ({
+      ...item,
+      path: "app.js",
+    })),
+  };
+  const overlappingStaticValidation = helper.validateStudioLocalPackagePayload(overlappingStaticPayload);
+  assert(overlappingStaticValidation.valid === false, "lesson path overlapping static bundle should be rejected");
+  assert(
+    overlappingStaticValidation.error === "studio_local_package_duplicate_path",
+    `static overlap error mismatch: ${overlappingStaticValidation.error}`,
+  );
+
+  const extraStaticOverlapPayload = {
+    ...payload,
+    manifest: {
+      ...payload.manifest,
+      files: [
+        ...payload.manifest.files,
+        {
+          path: "extras/help.js",
+          type: "static",
+          byte_size: payload.lessons[0].byte_size,
+          mime: "application/javascript; charset=utf-8",
+        },
+      ],
+      file_count: payload.manifest.files.length + 1,
+    },
+    lessons: payload.lessons.map((item) => ({
+      ...item,
+      path: "extras/help.js",
+    })),
+  };
+  const extraStaticOverlapValidation = helper.validateStudioLocalPackagePayload(extraStaticOverlapPayload);
+  assert(extraStaticOverlapValidation.valid === false, "lesson path overlapping extra static file should be rejected");
+  assert(
+    extraStaticOverlapValidation.error === "studio_local_package_duplicate_path",
+    `extra static overlap error mismatch: ${extraStaticOverlapValidation.error}`,
+  );
+
+  const assetPayload = helper.buildStudioLocalPackagePayload({
+    lessons: [lesson],
+    reports: [report],
+    assets: [{ path: "assets/teacher-notes.txt", role: "teacher_notes", byte_size: 7 }],
+  });
+  const invalidAssetByteSizePayload = {
+    ...assetPayload,
+    manifest: {
+      ...assetPayload.manifest,
+      files: assetPayload.manifest.files.map((item) => (
+        item.path === "assets/teacher-notes.txt"
+          ? { ...item, byte_size: 0 }
+          : item
+      )),
+    },
+    assets: assetPayload.assets.map((item) => (
+      item.path === "assets/teacher-notes.txt"
+        ? { ...item, byte_size: "many" }
+        : item
+    )),
+  };
+  const invalidAssetByteSizeValidation = helper.validateStudioLocalPackagePayload(invalidAssetByteSizePayload);
+  assert(invalidAssetByteSizeValidation.valid === false, "invalid asset row byte_size should be rejected");
+  assert(
+    invalidAssetByteSizeValidation.error === "studio_local_package_asset_byte_size_mismatch",
+    `invalid asset byte_size error mismatch: ${invalidAssetByteSizeValidation.error}`,
+  );
+}
+
 async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(scriptDir, "..");
@@ -94,6 +453,15 @@ async function main() {
   for (const rel of ["index.html", "app.js", "styles.css", "screens/browse.js", "screens/run.js", "studio_local_share_package.js"]) {
     await requireFile(path.join(uiRoot, rel));
   }
+  const appJs = await fs.readFile(path.join(uiRoot, "app.js"), "utf-8");
+  const runJs = await fs.readFile(path.join(uiRoot, "screens", "run.js"), "utf-8");
+  const stylesCss = await fs.readFile(path.join(uiRoot, "styles.css"), "utf-8");
+  assert(appJs.includes('setLocalPackageImportStatus("loading"'), "local package loading status update is missing");
+  assert(appJs.includes("배포 파일을 확인하는 중입니다"), "local package loading message is missing");
+  assert(!runJs.includes("path: `lessons/${lessonId}.ddn`"), "run export must not bypass portable lesson package paths");
+  assert(!runJs.includes("path: `reports/${lessonId}.classroom_report.tsv`"), "run export must not bypass portable report package paths");
+  assert(stylesCss.includes('.local-package-import-status[data-state="loading"]'), "local package loading status style is missing");
+  await assertLocalPackageValidation(uiRoot);
 
   const { server, baseUrl } = await createServer(root);
   let browser = null;
@@ -148,6 +516,12 @@ async function main() {
       warningStatusExists: Boolean(document.querySelector("#filter-warning-status")),
       launchProfileExists: Boolean(document.querySelector("#filter-launch-profile")),
       sortExists: Boolean(document.querySelector("#filter-sort")),
+      publicationPrepExists: Boolean(document.querySelector("[data-run-publication-prep-export]")),
+      registrySeedExists: Boolean(document.querySelector("[data-run-registry-seed-export]")),
+      approvalContinuityExists: Boolean(document.querySelector("[data-run-approval-continuity-export]")),
+      benchmarkLtsExists: Boolean(document.querySelector("[data-run-benchmark-lts-export]")),
+      educationOperationsExists: Boolean(document.querySelector("[data-run-education-operations-lts-export]")),
+      localPackageFileAccept: document.querySelector("#input-local-package-file")?.getAttribute("accept") ?? "",
     }));
     assert(defaultDevSurfaceState.templateExists === false, "dev surface template should not ship in the default teacher UI");
     assert(defaultDevSurfaceState.bodyEnabled === false, "dev surfaces should not be enabled by default");
@@ -168,6 +542,12 @@ async function main() {
     assert(defaultDevSurfaceState.warningStatusExists === false, "legacy warning filter should not exist in the default teacher DOM");
     assert(defaultDevSurfaceState.launchProfileExists === false, "launch profile filter should not exist in the default teacher DOM");
     assert(defaultDevSurfaceState.sortExists === false, "sort filter should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.publicationPrepExists === false, "publication prep export should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.registrySeedExists === false, "registry seed export should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.approvalContinuityExists === false, "approval continuity export should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.benchmarkLtsExists === false, "benchmark LTS export should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.educationOperationsExists === false, "education operations export should not exist in the default teacher DOM");
+    assert(defaultDevSurfaceState.localPackageFileAccept === ".json,application/json", `local package file accept mismatch: ${defaultDevSurfaceState.localPackageFileAccept}`);
     await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await waitVisible(page, "#screen-run");
@@ -282,9 +662,15 @@ async function main() {
       rail: window.__SEAMGRIM_RUN_PRESET_RAIL__ ?? null,
       runText: document.querySelector("#run-ddn-preview")?.value ?? "",
       sourceLabel: document.querySelector("[data-shell-source-label]")?.textContent?.trim() ?? "",
+      browseImportStatus: document.querySelector("[data-local-package-import-status]")?.textContent?.trim() ?? "",
+      browseImportStatusState: document.querySelector("[data-local-package-import-status]")?.dataset?.state ?? "",
+      browseImportStatusRole: document.querySelector("[data-local-package-import-status]")?.getAttribute("role") ?? "",
+      browseImportStatusLive: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-live") ?? "",
+      browseImportStatusAtomic: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-atomic") ?? "",
       classroomMode: document.querySelector("[data-classroom-mode-switch]")?.dataset?.mode ?? "",
       studentPressed: document.querySelector("[data-classroom-mode='student']")?.getAttribute("aria-pressed") ?? "",
       teacherPressed: document.querySelector("[data-classroom-mode='teacher']")?.getAttribute("aria-pressed") ?? "",
+      inputRegistry: JSON.parse(localStorage.getItem("seamgrim.input_registry.v0") || "{}"),
     }));
     assert(importState.importAction?.schema === "seamgrim.local_package_import_action.v1", "import action schema mismatch");
     assert(importState.importAction?.package_id === downloadedPayload.manifest.package_id, "import package id mismatch");
@@ -296,6 +682,133 @@ async function main() {
     assert(importState.classroomMode === "student" && importState.studentPressed === "true" && importState.teacherPressed === "false", "import should open in student mode");
     assert(importState.runText.trim() === String(downloadedPayload.lessons[0].source_text ?? "").trim(), "imported run source mismatch");
     assert(importState.sourceLabel.includes(downloadedPayload.lessons[0].title), `imported source label mismatch: ${importState.sourceLabel}`);
+    assert(importState.browseImportStatusState === "ok", `import status state mismatch: ${importState.browseImportStatusState}`);
+    assert(importState.browseImportStatus.includes(downloadedPayload.manifest.title), `import status text mismatch: ${importState.browseImportStatus}`);
+    assert(importState.browseImportStatusRole === "status", `import status role mismatch: ${importState.browseImportStatusRole}`);
+    assert(importState.browseImportStatusLive === "polite", `import status aria-live mismatch: ${importState.browseImportStatusLive}`);
+    assert(importState.browseImportStatusAtomic === "true", `import status aria-atomic mismatch: ${importState.browseImportStatusAtomic}`);
+
+    await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
+    await waitVisible(page, "#screen-browse");
+    const unsafeIdPayload = {
+      ...downloadedPayload,
+      manifest: {
+        ...downloadedPayload.manifest,
+        package_id: "teacher/package:id with spaces",
+      },
+      lessons: downloadedPayload.lessons.map((item) => ({
+        ...item,
+        lesson_id: "lesson/id:with spaces",
+      })),
+    };
+    await page.setInputFiles("#input-local-package-file", {
+      name: "unsafe-id-teacher-package.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(unsafeIdPayload), "utf-8"),
+    });
+    await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__?.file_name === "unsafe-id-teacher-package.json");
+    await waitVisible(page, "#screen-run");
+    const unsafeIdImportState = await page.evaluate(() => ({
+      importAction: window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ ?? null,
+      inputRegistry: JSON.parse(localStorage.getItem("seamgrim.input_registry.v0") || "{}"),
+    }));
+    assert(unsafeIdImportState.importAction?.imported === true, "unsafe display id package should still import");
+    assert(
+      unsafeIdImportState.importAction?.package_id === "teacher/package:id with spaces",
+      `unsafe id import should keep original package id for traceability: ${unsafeIdImportState.importAction?.package_id}`,
+    );
+    assert(
+      unsafeIdImportState.importAction?.lesson_id === "lesson/id:with spaces",
+      `unsafe id import should keep original lesson id for traceability: ${unsafeIdImportState.importAction?.lesson_id}`,
+    );
+    assert(
+      unsafeIdImportState.inputRegistry?.inputs?.selected_id === "local_package:teacher_package_id_with_spaces:lesson_id_with_spaces",
+      `unsafe id source should be normalized: ${unsafeIdImportState.inputRegistry?.inputs?.selected_id}`,
+    );
+
+    await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
+    await waitVisible(page, "#screen-browse");
+    const brokenPayload = {
+      ...downloadedPayload,
+      manifest: {
+        ...downloadedPayload.manifest,
+        lesson_count: 2,
+      },
+    };
+    await page.setInputFiles("#input-local-package-file", {
+      name: "broken-teacher-package.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(brokenPayload), "utf-8"),
+    });
+    await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__?.file_name === "broken-teacher-package.json");
+    const brokenImportState = await page.evaluate(() => ({
+      importAction: window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ ?? null,
+      currentScreen: document.querySelector("#screen-browse")?.classList.contains("hidden") ? "run" : "browse",
+      importStatus: document.querySelector("[data-local-package-import-status]")?.textContent?.trim() ?? "",
+      importStatusState: document.querySelector("[data-local-package-import-status]")?.dataset?.state ?? "",
+      importStatusRole: document.querySelector("[data-local-package-import-status]")?.getAttribute("role") ?? "",
+      importStatusLive: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-live") ?? "",
+      importStatusAtomic: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-atomic") ?? "",
+      openPackageButtonText: document.querySelector("#btn-open-local-package")?.textContent?.trim() ?? "",
+      openPackageButtonDisabled: document.querySelector("#btn-open-local-package")?.disabled ?? false,
+    }));
+    assert(brokenImportState.importAction?.schema === "seamgrim.local_package_import_action.v1", "broken import action schema mismatch");
+    assert(brokenImportState.importAction?.imported === false, "broken package should be rejected");
+    assert(brokenImportState.importAction?.error === "studio_local_package_lesson_count_mismatch", `broken import error mismatch: ${brokenImportState.importAction?.error}`);
+    assert(
+      brokenImportState.importAction?.error_message === "배포 묶음의 교과 개수가 manifest와 맞지 않습니다.",
+      `broken import message mismatch: ${brokenImportState.importAction?.error_message}`,
+    );
+    assert(brokenImportState.importStatusState === "error", `broken import status state mismatch: ${brokenImportState.importStatusState}`);
+    assert(
+      brokenImportState.importStatus.includes("배포 묶음의 교과 개수가 manifest와 맞지 않습니다."),
+      `broken import status text mismatch: ${brokenImportState.importStatus}`,
+    );
+    assert(brokenImportState.importStatusRole === "status", `broken import status role mismatch: ${brokenImportState.importStatusRole}`);
+    assert(brokenImportState.importStatusLive === "polite", `broken import aria-live mismatch: ${brokenImportState.importStatusLive}`);
+    assert(brokenImportState.importStatusAtomic === "true", `broken import aria-atomic mismatch: ${brokenImportState.importStatusAtomic}`);
+    assert(brokenImportState.openPackageButtonText === "배포 열기", `open package button text mismatch: ${brokenImportState.openPackageButtonText}`);
+    assert(brokenImportState.openPackageButtonDisabled === false, "open package button should be re-enabled after failed import");
+    assert(brokenImportState.currentScreen === "browse", `broken import should stay on browse: ${brokenImportState.currentScreen}`);
+
+    await page.setInputFiles("#input-local-package-file", {
+      name: "invalid-json-teacher-package.json",
+      mimeType: "application/json",
+      buffer: Buffer.from("{", "utf-8"),
+    });
+    await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__?.file_name === "invalid-json-teacher-package.json");
+    const invalidJsonImportState = await page.evaluate(() => ({
+      importAction: window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ ?? null,
+      currentScreen: document.querySelector("#screen-browse")?.classList.contains("hidden") ? "run" : "browse",
+      importStatus: document.querySelector("[data-local-package-import-status]")?.textContent?.trim() ?? "",
+      importStatusState: document.querySelector("[data-local-package-import-status]")?.dataset?.state ?? "",
+      importStatusRole: document.querySelector("[data-local-package-import-status]")?.getAttribute("role") ?? "",
+      importStatusLive: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-live") ?? "",
+      importStatusAtomic: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-atomic") ?? "",
+      openPackageButtonText: document.querySelector("#btn-open-local-package")?.textContent?.trim() ?? "",
+      openPackageButtonDisabled: document.querySelector("#btn-open-local-package")?.disabled ?? false,
+    }));
+    assert(invalidJsonImportState.importAction?.schema === "seamgrim.local_package_import_action.v1", "invalid json import action schema mismatch");
+    assert(invalidJsonImportState.importAction?.imported === false, "invalid json package should be rejected");
+    assert(
+      invalidJsonImportState.importAction?.error === "studio_local_package_invalid_json",
+      `invalid json error mismatch: ${invalidJsonImportState.importAction?.error}`,
+    );
+    assert(
+      invalidJsonImportState.importAction?.error_message === "배포 묶음 JSON을 읽을 수 없습니다.",
+      `invalid json message mismatch: ${invalidJsonImportState.importAction?.error_message}`,
+    );
+    assert(invalidJsonImportState.importStatusState === "error", `invalid json status state mismatch: ${invalidJsonImportState.importStatusState}`);
+    assert(
+      invalidJsonImportState.importStatus.includes("배포 묶음 JSON을 읽을 수 없습니다."),
+      `invalid json status text mismatch: ${invalidJsonImportState.importStatus}`,
+    );
+    assert(invalidJsonImportState.importStatusRole === "status", `invalid json status role mismatch: ${invalidJsonImportState.importStatusRole}`);
+    assert(invalidJsonImportState.importStatusLive === "polite", `invalid json aria-live mismatch: ${invalidJsonImportState.importStatusLive}`);
+    assert(invalidJsonImportState.importStatusAtomic === "true", `invalid json aria-atomic mismatch: ${invalidJsonImportState.importStatusAtomic}`);
+    assert(invalidJsonImportState.openPackageButtonText === "배포 열기", `invalid json open button text mismatch: ${invalidJsonImportState.openPackageButtonText}`);
+    assert(invalidJsonImportState.openPackageButtonDisabled === false, "open package button should be re-enabled after invalid json import");
+    assert(invalidJsonImportState.currentScreen === "browse", `invalid json import should stay on browse: ${invalidJsonImportState.currentScreen}`);
 
     if (failures.length > 0) throw new Error(failures.join("\n"));
     await context.close();

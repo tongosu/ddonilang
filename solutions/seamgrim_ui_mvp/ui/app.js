@@ -24,7 +24,7 @@ import {
   formatNumericTrackIndexText,
   formatNumericTrackReportExportText,
 } from "./numeric_curriculum_track.js";
-import { importStudioLocalPackagePayload } from "./studio_local_share_package.js";
+import { formatStudioLocalPackageError, importStudioLocalPackagePayload } from "./studio_local_share_package.js";
 import {
   resolveAvailableFeaturedSeedIds,
   pickNextFeaturedSeedLaunch,
@@ -1046,6 +1046,24 @@ function showPlatformToast(message) {
     // ignore dispatch errors
   }
   console.info(`[seamgrim-platform] ${text}`);
+}
+
+function setLocalPackageImportStatus(state, message) {
+  const node = byId("local-package-import-status");
+  if (!node) return;
+  const normalizedState = String(state ?? "").trim() || "idle";
+  const text = String(message ?? "").trim();
+  node.dataset.state = normalizedState;
+  node.textContent = text;
+  node.classList.toggle("hidden", !text);
+}
+
+function safeLocalPackageToken(value, fallback) {
+  const token = String(value ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return token || fallback;
 }
 
 function normalizePlatformUiAction(raw) {
@@ -2771,9 +2789,16 @@ async function main() {
 
   const openLocalPackageFile = async (file) => {
     const fileName = String(file?.name ?? "").trim();
+    setLocalPackageImportStatus("loading", `배포 파일을 확인하는 중입니다: ${fileName || "선택한 파일"}`);
     try {
       const text = await file.text();
-      const imported = importStudioLocalPackagePayload(JSON.parse(text));
+      let payload = null;
+      try {
+        payload = JSON.parse(text);
+      } catch (_) {
+        throw new Error("studio_local_package_invalid_json");
+      }
+      const imported = importStudioLocalPackagePayload(payload);
       const lesson = Array.isArray(imported.lessons) ? imported.lessons[0] : null;
       const sourceText = String(lesson?.source_text ?? "").trim();
       if (!lesson || !sourceText) {
@@ -2781,8 +2806,10 @@ async function main() {
       }
       const lessonId = String(lesson.lesson_id ?? "local_package_lesson").trim() || "local_package_lesson";
       const packageId = String(imported.manifest?.package_id ?? "local_package").trim() || "local_package";
+      const safeLessonId = safeLocalPackageToken(lessonId, "local_package_lesson");
+      const safePackageId = safeLocalPackageToken(packageId, "local_package");
       const importedLesson = await buildStudioDraftLessonFromDdn(sourceText, {
-        id: `local_package_${lessonId}`.replace(/[^a-zA-Z0-9._-]+/g, "_"),
+        id: `local_package_${safeLessonId}`,
         title: String(lesson.title ?? lessonId).trim() || lessonId,
         description: `배포 파일: ${String(imported.manifest?.title ?? packageId).trim() || packageId}`,
       });
@@ -2802,27 +2829,33 @@ async function main() {
       } catch (_) {
         // ignore browser instrumentation errors
       }
+      const successMessage = `배포 파일을 열었습니다: ${String(imported.manifest?.title ?? packageId).trim() || packageId}`;
+      setLocalPackageImportStatus("ok", successMessage);
       showPlatformToast("배포 파일을 열었습니다.");
       openRunWithLessonWithSource(importedLesson, {
         launchKind: "local_package_import",
         autoExecute: true,
-        sourceId: `local_package:${packageId}:${lessonId}`,
+        sourceId: `local_package:${safePackageId}:${safeLessonId}`,
         sourceType: "ddn",
         onboardingProfile: "student",
       });
       return true;
     } catch (error) {
+      const errorCode = String(error?.message ?? error);
+      const userMessage = formatStudioLocalPackageError(error);
       try {
         window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ = {
           schema: "seamgrim.local_package_import_action.v1",
           imported: false,
           file_name: fileName,
-          error: String(error?.message ?? error),
+          error: errorCode,
+          error_message: userMessage,
         };
       } catch (_) {
         // ignore browser instrumentation errors
       }
-      showPlatformToast(`배포 파일 열기 실패: ${String(error?.message ?? error)}`);
+      setLocalPackageImportStatus("error", `배포 파일 열기 실패: ${userMessage}`);
+      showPlatformToast(`배포 파일 열기 실패: ${userMessage}`);
       return false;
     }
   };

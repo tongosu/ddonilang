@@ -139,8 +139,14 @@ const PLATFORM_UI_ACTION_EVENT = "seamgrim:platform-ui-action";
 const PLATFORM_UI_ACTION_LOGIN = "login";
 const ADVANCED_EXPORTS_QUERY_KEY = "advancedExports";
 
+function isLocalDevHost() {
+  const host = String(globalThis?.location?.hostname ?? "").trim().toLowerCase();
+  return !host || host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
 function shouldEnableAdvancedExports() {
   try {
+    if (!isLocalDevHost()) return false;
     if (globalThis?.SEAMGRIM_ADVANCED_EXPORTS === true) return true;
     const params = new URLSearchParams(globalThis?.location?.search ?? "");
     const raw = String(params.get(ADVANCED_EXPORTS_QUERY_KEY) ?? "").trim().toLowerCase();
@@ -149,6 +155,49 @@ function shouldEnableAdvancedExports() {
     return false;
   }
 }
+
+const ADVANCED_EXPORT_PANEL_HTML = `
+  <div class="run-publication-prep-export hidden" data-run-publication-prep-export aria-label="공개 준비안 내보내기" aria-hidden="true">
+    <div class="run-publication-prep-head">
+      <span class="run-publication-prep-title">공개 준비안</span>
+      <span class="run-publication-prep-meta" data-run-publication-prep-meta>기본 시작 · 후보 0개</span>
+      <button id="btn-run-publication-prep-copy" type="button">준비안 복사</button>
+    </div>
+    <pre class="run-publication-prep-text" data-run-publication-prep-text>항목	값</pre>
+  </div>
+  <div class="run-registry-seed-export hidden" data-run-registry-seed-export aria-label="Registry seed 내보내기" aria-hidden="true">
+    <div class="run-registry-seed-head">
+      <span class="run-registry-seed-title">Registry seed</span>
+      <span class="run-registry-seed-meta" data-run-registry-seed-meta>기본 시작 · seed 0개</span>
+      <button id="btn-run-registry-seed-copy" type="button">Seed 복사</button>
+    </div>
+    <pre class="run-registry-seed-text" data-run-registry-seed-text>lesson_id	registry_id	draft_only	publish_claim</pre>
+  </div>
+  <div class="run-approval-continuity-export hidden" data-run-approval-continuity-export aria-label="승인 연속성 패킷 내보내기" aria-hidden="true">
+    <div class="run-approval-continuity-head">
+      <span class="run-approval-continuity-title">승인 연속성</span>
+      <span class="run-approval-continuity-meta" data-run-approval-continuity-meta>기본 시작 · 승인 대기</span>
+      <button id="btn-run-approval-continuity-copy" type="button">연속성 복사</button>
+    </div>
+    <pre class="run-approval-continuity-text" data-run-approval-continuity-text>항목	값</pre>
+  </div>
+  <div class="run-benchmark-lts-export hidden" data-run-benchmark-lts-export aria-label="Benchmark LTS matrix 내보내기" aria-hidden="true">
+    <div class="run-benchmark-lts-head">
+      <span class="run-benchmark-lts-title">Benchmark/LTS</span>
+      <span class="run-benchmark-lts-meta" data-run-benchmark-lts-meta>기본 시작 · ready 0/0</span>
+      <button id="btn-run-benchmark-lts-copy" type="button">Matrix 복사</button>
+    </div>
+    <pre class="run-benchmark-lts-text" data-run-benchmark-lts-text>matrix_id	kind	required	ready</pre>
+  </div>
+  <div class="run-education-operations-lts-export hidden" data-run-education-operations-lts-export aria-label="Education operations LTS 내보내기" aria-hidden="true">
+    <div class="run-education-operations-lts-head">
+      <span class="run-education-operations-lts-title">운영 LTS</span>
+      <span class="run-education-operations-lts-meta" data-run-education-operations-lts-meta>기본 시작 · ready 0/0</span>
+      <button id="btn-run-education-operations-lts-copy" type="button">운영 LTS 복사</button>
+    </div>
+    <pre class="run-education-operations-lts-text" data-run-education-operations-lts-text>operation_id	kind	required	ready</pre>
+  </div>
+`;
 
 function buildSafeJsonDownloadName(value, fallback = "seamgrim-teacher-package") {
   const base = String(value ?? "")
@@ -3209,6 +3258,13 @@ export class RunScreen {
     }
   }
 
+  mountAdvancedExportPanelsIfEnabled() {
+    if (!shouldEnableAdvancedExports()) return;
+    const tools = this.root?.querySelector?.("#run-inspector-tools");
+    if (!tools || tools.querySelector("[data-run-publication-prep-export]")) return;
+    tools.insertAdjacentHTML("beforeend", ADVANCED_EXPORT_PANEL_HTML);
+  }
+
   init() {
     this.titleEl = this.root.querySelector("#run-lesson-title");
     this.lastSummaryEl = this.root.querySelector("#run-last-summary");
@@ -3242,6 +3298,7 @@ export class RunScreen {
     this.runInspectorMetaChipsEl = this.root.querySelector("#run-inspector-meta-chips");
     this.runInspectorMetaBodyEl = this.root.querySelector("#run-inspector-meta-body");
     this.runInspectorStatusEl = this.root.querySelector("#run-inspector-status");
+    this.mountAdvancedExportPanelsIfEnabled();
     this.runClassroomReportEl = this.root.querySelector("[data-run-classroom-report-export]");
     this.runClassroomReportMetaEl = this.root.querySelector("[data-run-classroom-report-meta]");
     this.runClassroomReportTextEl = this.root.querySelector("[data-run-classroom-report-text]");
@@ -5160,7 +5217,6 @@ runs: 0</pre>
       {
         lesson_id: lessonId,
         title,
-        path: `lessons/${lessonId}.ddn`,
         source_text: sourceText,
       },
     ];
@@ -5168,7 +5224,6 @@ runs: 0</pre>
       {
         report_id: `${lessonId}_classroom_report`,
         title: `${title} 수업 리포트`,
-        path: `reports/${lessonId}.classroom_report.tsv`,
         text: reportModel.text,
       },
     ];

@@ -58,7 +58,11 @@ function createServer(root) {
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
       if (!address || typeof address === "string") reject(new Error("failed to bind static server"));
-      else resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
+      else resolve({
+        server,
+        baseUrl: `http://127.0.0.1:${address.port}`,
+        publicBaseUrl: `http://studio.example.test:${address.port}`,
+      });
     });
   });
 }
@@ -86,6 +90,75 @@ async function waitVisible(page, selector) {
   }, selector);
 }
 
+async function assertNonLocalAdvancedExportsBlocked(page, publicBaseUrl) {
+  await page.goto(`${publicBaseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?advancedExports=1`, { waitUntil: "domcontentloaded" });
+  await waitVisible(page, "#screen-browse");
+  await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+  await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+  await waitVisible(page, "#screen-run");
+  await page.click("#run-tab-btn-mirror");
+  await page.evaluate(() => {
+    const tools = document.querySelector("#run-inspector-tools");
+    if (tools) tools.open = true;
+  });
+  const queryState = await page.evaluate(() => {
+    const visible = (selector) => {
+      const node = document.querySelector(selector);
+      return Boolean(node && !node.classList.contains("hidden"));
+    };
+    return {
+      hostname: window.location.hostname,
+      publicationPrepVisible: visible("[data-run-publication-prep-export]"),
+      registrySeedVisible: visible("[data-run-registry-seed-export]"),
+      approvalContinuityVisible: visible("[data-run-approval-continuity-export]"),
+      benchmarkLtsVisible: visible("[data-run-benchmark-lts-export]"),
+      educationOperationsVisible: visible("[data-run-education-operations-lts-export]"),
+    };
+  });
+  assert(queryState.hostname === "studio.example.test", `non-local advanced export host mismatch: ${queryState.hostname}`);
+  assert(queryState.publicationPrepVisible === false, "non-local query leaked publication prep export");
+  assert(queryState.registrySeedVisible === false, "non-local query leaked registry seed export");
+  assert(queryState.approvalContinuityVisible === false, "non-local query leaked approval continuity export");
+  assert(queryState.benchmarkLtsVisible === false, "non-local query leaked benchmark LTS export");
+  assert(queryState.educationOperationsVisible === false, "non-local query leaked education operations export");
+
+  await page.addInitScript(() => {
+    window.SEAMGRIM_ADVANCED_EXPORTS = true;
+  });
+  await page.goto(`${publicBaseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+  await waitVisible(page, "#screen-browse");
+  await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+  await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+  await waitVisible(page, "#screen-run");
+  await page.click("#run-tab-btn-mirror");
+  await page.evaluate(() => {
+    const tools = document.querySelector("#run-inspector-tools");
+    if (tools) tools.open = true;
+  });
+  const globalState = await page.evaluate(() => {
+    const visible = (selector) => {
+      const node = document.querySelector(selector);
+      return Boolean(node && !node.classList.contains("hidden"));
+    };
+    return {
+      hostname: window.location.hostname,
+      globalFlag: window.SEAMGRIM_ADVANCED_EXPORTS === true,
+      publicationPrepVisible: visible("[data-run-publication-prep-export]"),
+      registrySeedVisible: visible("[data-run-registry-seed-export]"),
+      approvalContinuityVisible: visible("[data-run-approval-continuity-export]"),
+      benchmarkLtsVisible: visible("[data-run-benchmark-lts-export]"),
+      educationOperationsVisible: visible("[data-run-education-operations-lts-export]"),
+    };
+  });
+  assert(globalState.hostname === "studio.example.test", `non-local advanced export global host mismatch: ${globalState.hostname}`);
+  assert(globalState.globalFlag === true, "non-local advanced export global override setup failed");
+  assert(globalState.publicationPrepVisible === false, "non-local global override leaked publication prep export");
+  assert(globalState.registrySeedVisible === false, "non-local global override leaked registry seed export");
+  assert(globalState.approvalContinuityVisible === false, "non-local global override leaked approval continuity export");
+  assert(globalState.benchmarkLtsVisible === false, "non-local global override leaked benchmark LTS export");
+  assert(globalState.educationOperationsVisible === false, "non-local global override leaked education operations export");
+}
+
 async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(scriptDir, "..");
@@ -102,11 +175,14 @@ async function main() {
     await requireFile(path.join(uiRoot, rel));
   }
 
-  const { server, baseUrl } = await createServer(root);
+  const { server, baseUrl, publicBaseUrl } = await createServer(root);
   let browser = null;
   const failures = [];
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--host-resolver-rules=MAP studio.example.test 127.0.0.1"],
+    });
     const context = await browser.newContext({ viewport: { width: 1360, height: 860 }, locale: "ko-KR" });
     await context.addInitScript(() => {
       Object.defineProperty(navigator, "clipboard", {
@@ -133,14 +209,14 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await assertNonLocalAdvancedExportsBlocked(page, publicBaseUrl);
+
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?advancedExports=1`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
-    await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
-    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
+    await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
     await waitVisible(page, "#screen-run");
-    await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
-    await page.click("[data-classroom-mode='teacher']");
-    await page.waitForFunction(() => window.__STUDIO_CLASSROOM_MODE_SWITCH__?.mode === "teacher");
+    await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "teacher");
     await page.click("#run-tab-btn-mirror");
     await page.evaluate(() => {
       const tools = document.querySelector("#run-inspector-tools");

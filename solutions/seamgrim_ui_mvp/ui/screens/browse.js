@@ -514,10 +514,23 @@ export class BrowseScreen {
       if (this.localPackageFileInput) this.localPackageFileInput.value = "";
       this.localPackageFileInput?.click();
     });
-    this.localPackageFileInput?.addEventListener("change", () => {
+    this.localPackageFileInput?.addEventListener("change", async () => {
       const file = this.localPackageFileInput?.files?.[0] ?? null;
       if (!file) return;
-      void this.onOpenLocalPackageFile(file);
+      const originalLabel = this.openLocalPackageButton?.textContent ?? "배포 열기";
+      if (this.openLocalPackageButton) {
+        this.openLocalPackageButton.disabled = true;
+        this.openLocalPackageButton.textContent = "배포 여는 중...";
+      }
+      try {
+        await this.onOpenLocalPackageFile(file);
+      } finally {
+        if (this.localPackageFileInput) this.localPackageFileInput.value = "";
+        if (this.openLocalPackageButton) {
+          this.openLocalPackageButton.disabled = false;
+          this.openLocalPackageButton.textContent = originalLabel;
+        }
+      }
     });
 
     this.root.querySelector("#btn-advanced-browse")?.addEventListener("click", () => {

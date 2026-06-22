@@ -6964,6 +6964,35 @@ button.card-warning-badge {
   white-space: pre-wrap;
 }
 
+.local-package-import-status {
+  margin: 8px 14px 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.local-package-import-status[data-state="ok"] {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.local-package-import-status[data-state="loading"] {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #075985;
+}
+
+.local-package-import-status[data-state="error"] {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 /* editor */
 .editor-run-gate-reason {
   font-size: 11px;
