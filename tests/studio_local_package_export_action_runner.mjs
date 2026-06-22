@@ -73,7 +73,6 @@ function isAllowedFallback404(urlText) {
     const url = new URL(urlText);
     const pathname = url.pathname.replace(/^\/solutions\/seamgrim_ui_mvp/u, "");
     if (pathname === "/api/lessons/inventory" || pathname === "/api/lesson-inventory") return true;
-    if ((pathname.startsWith("/lessons/") || pathname.startsWith("/seed_lessons_v1/")) && /\/(?:graph|table|space2d|text|maegim_control)\.(?:json|md)$/i.test(pathname)) return true;
   } catch (_) {
     return false;
   }
@@ -450,16 +449,25 @@ async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(scriptDir, "..");
   const uiRoot = path.join(root, "solutions", "seamgrim_ui_mvp", "ui");
-  for (const rel of ["index.html", "app.js", "styles.css", "screens/browse.js", "screens/run.js", "studio_local_share_package.js", "preview_payload_loader.js"]) {
+  for (const rel of ["index.html", "app.js", "styles.css", "dev_surfaces.css", "dev_surfaces.js", "screens/browse.js", "screens/run.js", "studio_local_share_package.js", "preview_payload_loader.js"]) {
     await requireFile(path.join(uiRoot, rel));
   }
   const appJs = await fs.readFile(path.join(uiRoot, "app.js"), "utf-8");
+  const indexHtml = await fs.readFile(path.join(uiRoot, "index.html"), "utf-8");
   const runJs = await fs.readFile(path.join(uiRoot, "screens", "run.js"), "utf-8");
   const browseJs = await fs.readFile(path.join(uiRoot, "screens", "browse.js"), "utf-8");
   const previewPayloadLoaderJs = await fs.readFile(path.join(uiRoot, "preview_payload_loader.js"), "utf-8");
   const stylesCss = await fs.readFile(path.join(uiRoot, "styles.css"), "utf-8");
+  const devSurfacesCss = await fs.readFile(path.join(uiRoot, "dev_surfaces.css"), "utf-8");
+  const devSurfacesJs = await fs.readFile(path.join(uiRoot, "dev_surfaces.js"), "utf-8");
   assert(appJs.includes('setLocalPackageImportStatus("loading"'), "local package loading status update is missing");
   assert(appJs.includes("배포 파일을 확인하는 중입니다"), "local package loading message is missing");
+  assert(!indexHtml.includes('id="advanced-menu"'), "advanced menu should not ship in the default teacher HTML");
+  assert(appJs.includes("function ensureAdvancedMenuRoot()"), "advanced menu should be created only through the dev opt-in path");
+  assert(!stylesCss.includes(".education-publication-pack"), "education publication dev panel CSS should not ship in the default teacher stylesheet");
+  assert(devSurfacesCss.includes(".education-publication-pack"), "education publication dev panel CSS should be in dev_surfaces.css");
+  assert(devSurfacesCss.includes(".question-card-smoke"), "question card dev panel CSS should be in dev_surfaces.css");
+  assert(devSurfacesJs.includes("data-dev-surfaces-css"), "dev surfaces should load their stylesheet only on opt-in");
   assert(!runJs.includes("path: `lessons/${lessonId}.ddn`"), "run export must not bypass portable lesson package paths");
   assert(!runJs.includes("path: `reports/${lessonId}.classroom_report.tsv`"), "run export must not bypass portable report package paths");
   assert(browseJs.includes("DDN 교과 실행"), "teacher lesson cards must expose the DDN course surface");
@@ -522,6 +530,11 @@ async function main() {
       bodyEnabled: document.body.classList.contains("dev-surfaces-enabled"),
       devRootExists: Boolean(document.querySelector("#dev-surface-root")),
       templateExists: Boolean(document.querySelector("#dev-surface-template")),
+      advancedMenuExists: Boolean(document.querySelector("#advanced-menu")),
+      browseStatusRailExists: Boolean(document.querySelector("#screen-browse [data-shell-status-rail]")),
+      shellStatusRailDisplays: Array.from(document.querySelectorAll("[data-shell-status-rail]")).map((node) => getComputedStyle(node).display),
+      studioSourceLabelDisplay: getComputedStyle(document.querySelector("#studio-source-label")).display,
+      runLocalSaveStatusDisplay: getComputedStyle(document.querySelector("#run-local-save-status")).display,
       advancedBrowseDisplay: getComputedStyle(document.querySelector("#btn-advanced-browse")).display,
       advancedEditorDisplay: getComputedStyle(document.querySelector("#btn-advanced-editor")).display,
       advancedRunDisplay: getComputedStyle(document.querySelector("#btn-advanced-run")).display,
@@ -543,18 +556,59 @@ async function main() {
       approvalContinuityExists: Boolean(document.querySelector("[data-run-approval-continuity-export]")),
       benchmarkLtsExists: Boolean(document.querySelector("[data-run-benchmark-lts-export]")),
       educationOperationsExists: Boolean(document.querySelector("[data-run-education-operations-lts-export]")),
+      devPanelRootsPresent: [
+        ".classroom-operations-panel-preview",
+        ".lesson-publication-review-surface",
+        ".operations-preview-stage-closure",
+        ".publication-artifact-dry-run",
+        ".education-publication-pack",
+        ".education-operations-lts",
+        ".question-card-smoke",
+        ".question-card-validation",
+        ".question-card-dev-assist",
+        ".question-card-author-tool-share",
+        ".question-card-workflow-hardening",
+        ".free-lab-experiment-report",
+      ].filter((selector) => Boolean(document.querySelector(selector))),
       localPackageFileAccept: document.querySelector("#input-local-package-file")?.getAttribute("accept") ?? "",
+      mainShellTabTexts: Array.from(document.querySelectorAll("#screen-browse .main-shell-tab")).map((node) => node.textContent?.trim() || ""),
+      browseTabTexts: Array.from(document.querySelectorAll("#screen-browse .browse-tab[data-tab]")).map((node) => node.textContent?.trim() || ""),
+      createButtonText: document.querySelector("#btn-create")?.textContent?.trim() || "",
+      queryPlaceholder: document.querySelector("#filter-query")?.getAttribute("placeholder") ?? "",
+      catalogBodyWidth: Math.round(document.querySelector(".catalog-body")?.getBoundingClientRect?.().width ?? 0),
+      catalogSummaryRect: (() => {
+        const rect = document.querySelector("[data-course-catalog-summary]")?.getBoundingClientRect?.();
+        return rect ? { x: Math.round(rect.x), width: Math.round(rect.width) } : null;
+      })(),
+      cardGridRect: (() => {
+        const rect = document.querySelector("#lesson-card-grid")?.getBoundingClientRect?.();
+        return rect ? { x: Math.round(rect.x), width: Math.round(rect.width) } : null;
+      })(),
       visibleLessonIds: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.dataset.lessonId || ""),
+      cardTagNames: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.tagName),
+      cardRoles: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.getAttribute("role") || ""),
+      cardTabIndexes: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.getAttribute("tabindex") || ""),
+      studentLaunchButtonTexts: Array.from(document.querySelectorAll(".lesson-card .card-launch-btn[data-launch-profile='student']")).map((node) => node.textContent?.trim() || ""),
+      teacherLaunchButtonTexts: Array.from(document.querySelectorAll(".lesson-card .card-launch-btn[data-launch-profile='teacher']")).map((node) => node.textContent?.trim() || ""),
       courseSummaryText: document.querySelector("[data-course-catalog-summary]")?.textContent?.trim() || "",
       velocityCardText: document.querySelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']")?.textContent?.trim() || "",
       courseSurfaceTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-surface]")).map((node) => node.textContent?.trim() || ""),
       courseDeliveryTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-delivery]")).map((node) => node.textContent?.trim() || ""),
       courseGoalTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-goals]")).map((node) => node.textContent?.trim() || ""),
       cardSubjects: Array.from(document.querySelectorAll(".lesson-card .card-meta")).map((node) => node.textContent?.trim() || ""),
+      visibleText: document.body.innerText || "",
     }));
     assert(defaultDevSurfaceState.templateExists === false, "dev surface template should not ship in the default teacher UI");
     assert(defaultDevSurfaceState.bodyEnabled === false, "dev surfaces should not be enabled by default");
     assert(defaultDevSurfaceState.devRootExists === false, "dev surface root should not mount on the default teacher UI");
+    assert(defaultDevSurfaceState.advancedMenuExists === false, "advanced menu should not mount on the default teacher UI");
+    assert(defaultDevSurfaceState.browseStatusRailExists === false, "browse teacher UI should not expose draft/session status rail");
+    assert(
+      defaultDevSurfaceState.shellStatusRailDisplays.every((display) => display === "none"),
+      `shell status rails should be hidden from the default teacher UI: ${defaultDevSurfaceState.shellStatusRailDisplays.join(",")}`,
+    );
+    assert(defaultDevSurfaceState.studioSourceLabelDisplay === "none", `source status should be hidden by default: ${defaultDevSurfaceState.studioSourceLabelDisplay}`);
+    assert(defaultDevSurfaceState.runLocalSaveStatusDisplay === "none", `save status should be hidden by default: ${defaultDevSurfaceState.runLocalSaveStatusDisplay}`);
     assert(defaultDevSurfaceState.advancedBrowseDisplay === "none", `advanced browse button should be hidden by default: ${defaultDevSurfaceState.advancedBrowseDisplay}`);
     assert(defaultDevSurfaceState.advancedEditorDisplay === "none", `advanced editor button should be hidden by default: ${defaultDevSurfaceState.advancedEditorDisplay}`);
     assert(defaultDevSurfaceState.advancedRunDisplay === "none", `advanced run button should be hidden by default: ${defaultDevSurfaceState.advancedRunDisplay}`);
@@ -576,8 +630,150 @@ async function main() {
     assert(defaultDevSurfaceState.approvalContinuityExists === false, "approval continuity export should not exist in the default teacher DOM");
     assert(defaultDevSurfaceState.benchmarkLtsExists === false, "benchmark LTS export should not exist in the default teacher DOM");
     assert(defaultDevSurfaceState.educationOperationsExists === false, "education operations export should not exist in the default teacher DOM");
+    assert(
+      defaultDevSurfaceState.devPanelRootsPresent.length === 0,
+      `dev panel roots should not exist in the default teacher DOM: ${defaultDevSurfaceState.devPanelRootsPresent.join(",")}`,
+    );
+    ["준비 중", "게시 이력", "검토 요청", "Smoke 검증", "A 실시간 입력", "새 작업", "저장 대기", "세션 대기"].forEach((text) => {
+      assert(
+        !defaultDevSurfaceState.visibleText.includes(text),
+        `default teacher UI should not expose dev menu text: ${text}`,
+      );
+    });
+    const devPage = await context.newPage();
+    await devPage.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
+    await waitVisible(devPage, "#screen-browse");
+    await devPage.waitForSelector("link[data-dev-surfaces-css]", { state: "attached" });
+    await devPage.waitForSelector("#dev-surface-root");
+    const devSurfaceOptInState = await devPage.evaluate(() => ({
+      bodyEnabled: document.body.classList.contains("dev-surfaces-enabled"),
+      stylesheetHref: document.querySelector("link[data-dev-surfaces-css]")?.getAttribute("href") ?? "",
+      devRootExists: Boolean(document.querySelector("#dev-surface-root")),
+      advancedMenuExists: Boolean(document.querySelector("#advanced-menu")),
+      advancedBrowseDisplay: getComputedStyle(document.querySelector("#btn-advanced-browse")).display,
+      devPanelRootsPresent: [
+        ".education-publication-pack",
+        ".education-operations-lts",
+        ".question-card-smoke",
+        ".question-card-validation",
+        ".question-card-dev-assist",
+        ".question-card-author-tool-share",
+        ".question-card-workflow-hardening",
+      ].filter((selector) => Boolean(document.querySelector(selector))),
+    }));
+    await devPage.close();
+    assert(devSurfaceOptInState.bodyEnabled === true, "dev surfaces should be enabled only by explicit opt-in");
+    assert(
+      devSurfaceOptInState.stylesheetHref.endsWith("dev_surfaces.css"),
+      `dev surface stylesheet should load only on opt-in: ${devSurfaceOptInState.stylesheetHref}`,
+    );
+    assert(devSurfaceOptInState.devRootExists === true, "dev surface root should mount on opt-in");
+    assert(devSurfaceOptInState.advancedMenuExists === true, "advanced menu should mount on opt-in");
+    assert(devSurfaceOptInState.advancedBrowseDisplay !== "none", `advanced browse button should be visible on opt-in: ${devSurfaceOptInState.advancedBrowseDisplay}`);
+    assert(
+      devSurfaceOptInState.devPanelRootsPresent.length === 7,
+      `expected dev panel roots on opt-in: ${devSurfaceOptInState.devPanelRootsPresent.join(",")}`,
+    );
     assert(defaultDevSurfaceState.localPackageFileAccept === ".json,application/json", `local package file accept mismatch: ${defaultDevSurfaceState.localPackageFileAccept}`);
+    assert(
+      defaultDevSurfaceState.mainShellTabTexts.join("|") === "교과|수업",
+      `teacher main tabs should use classroom labels: ${defaultDevSurfaceState.mainShellTabTexts.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.browseTabTexts.join("|") === "대표 교과|샘플 교과|전체 검색",
+      `teacher browse tabs should use course-facing labels: ${defaultDevSurfaceState.browseTabTexts.join("|")}`,
+    );
+    assert(defaultDevSurfaceState.createButtonText === "교과 만들기", `create button label mismatch: ${defaultDevSurfaceState.createButtonText}`);
+    assert(defaultDevSurfaceState.queryPlaceholder === "교과명, 과목, 활동 검색", `query placeholder mismatch: ${defaultDevSurfaceState.queryPlaceholder}`);
+    assert(
+      defaultDevSurfaceState.catalogBodyWidth >= 1000,
+      `catalog body should use desktop width: ${defaultDevSurfaceState.catalogBodyWidth}`,
+    );
+    assert(
+      defaultDevSurfaceState.catalogSummaryRect && defaultDevSurfaceState.catalogSummaryRect.width >= defaultDevSurfaceState.catalogBodyWidth - 40,
+      `course summary should span the catalog width: ${JSON.stringify(defaultDevSurfaceState.catalogSummaryRect)}`,
+    );
+    assert(
+      defaultDevSurfaceState.cardGridRect && defaultDevSurfaceState.cardGridRect.x < 80 && defaultDevSurfaceState.cardGridRect.width >= 900,
+      `lesson grid should stay in the primary desktop column: ${JSON.stringify(defaultDevSurfaceState.cardGridRect)}`,
+    );
+    ["★", "◇", "🔍", "+ 만들기"].forEach((text) => {
+      assert(!defaultDevSurfaceState.visibleText.includes(text), `default teacher UI should not expose generic tab/create marker: ${text}`);
+    });
     assert(defaultDevSurfaceState.visibleLessonIds.length > 0, "default teacher catalog should show course lessons");
+    assert(
+      defaultDevSurfaceState.cardTagNames.every((tagName) => tagName === "ARTICLE"),
+      `lesson cards should not be nested button containers: ${defaultDevSurfaceState.cardTagNames.join(",")}`,
+    );
+    assert(
+      defaultDevSurfaceState.cardRoles.every((role) => role === "button"),
+      `lesson cards should expose button role for keyboard detail open: ${defaultDevSurfaceState.cardRoles.join(",")}`,
+    );
+    assert(
+      defaultDevSurfaceState.cardTabIndexes.every((tabIndex) => tabIndex === "0"),
+      `lesson cards should be keyboard focusable: ${defaultDevSurfaceState.cardTabIndexes.join(",")}`,
+    );
+    assert(
+      defaultDevSurfaceState.studentLaunchButtonTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.studentLaunchButtonTexts.every((text) => text === "▶ 학생 시작"),
+      `student launch button label mismatch: ${defaultDevSurfaceState.studentLaunchButtonTexts.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.teacherLaunchButtonTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.teacherLaunchButtonTexts.every((text) => text === "교사용 배포"),
+      `teacher launch button label mismatch: ${defaultDevSurfaceState.teacherLaunchButtonTexts.join("|")}`,
+    );
+    const mobilePage = await context.newPage();
+    await mobilePage.setViewportSize({ width: 390, height: 844 });
+    await mobilePage.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await waitVisible(mobilePage, "#screen-browse");
+    await mobilePage.waitForSelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
+    await mobilePage.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
+    await mobilePage.click("#btn-open-in-studio");
+    await waitVisible(mobilePage, "#screen-run");
+    await mobilePage.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
+    const mobileRunLayoutState = await mobilePage.evaluate(() => {
+      const overflowers = Array.from(document.querySelectorAll("#screen-run *"))
+        .filter((node) => {
+          const rect = node.getBoundingClientRect();
+          return rect.width > 0 && (rect.left < -1 || rect.right > window.innerWidth + 1);
+        })
+        .map((node) => ({
+          id: node.id || "",
+          className: String(node.className || ""),
+          text: String(node.textContent || "").trim().slice(0, 80),
+        }));
+      const rect = (selector) => {
+        const node = document.querySelector(selector);
+        const box = node?.getBoundingClientRect?.();
+        return box ? { width: Math.round(box.width), height: Math.round(box.height) } : null;
+      };
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+        controlBar: rect("#screen-run .run-control-bar"),
+        layout: rect("#screen-run .run-layout"),
+        overflowers,
+        forbiddenText: ["새 작업", "저장 대기", "세션 대기"].filter((text) => document.body.innerText.includes(text)),
+      };
+    });
+    await mobilePage.close();
+    assert(
+      mobileRunLayoutState.scrollWidth <= mobileRunLayoutState.viewportWidth,
+      `mobile run screen should not force horizontal scroll: ${JSON.stringify(mobileRunLayoutState)}`,
+    );
+    assert(
+      mobileRunLayoutState.overflowers.length === 0,
+      `mobile run controls should not overflow viewport: ${JSON.stringify(mobileRunLayoutState.overflowers)}`,
+    );
+    assert(
+      mobileRunLayoutState.forbiddenText.length === 0,
+      `mobile run screen should hide draft/save/session text: ${mobileRunLayoutState.forbiddenText.join(",")}`,
+    );
+    assert(
+      mobileRunLayoutState.controlBar && mobileRunLayoutState.controlBar.height > 42,
+      `mobile run control bar should wrap instead of clipping controls: ${JSON.stringify(mobileRunLayoutState.controlBar)}`,
+    );
     assert(
       defaultDevSurfaceState.visibleLessonIds.includes("rep_physics_velocity_history_v1"),
       `default teacher catalog missing velocity history lesson: ${defaultDevSurfaceState.visibleLessonIds.join(",")}`,
@@ -621,14 +817,22 @@ async function main() {
     const defaultLessonDetail = await page.evaluate(() => ({
       visible: !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"),
       text: document.querySelector("#detail-curriculum")?.textContent ?? "",
+      studentButtonText: document.querySelector("#btn-open-in-studio")?.textContent?.trim() ?? "",
+      teacherButtonText: document.querySelector("#btn-open-in-studio-teacher")?.textContent?.trim() ?? "",
     }));
     assert(defaultLessonDetail.visible === true, "lesson detail panel should open from the default teacher catalog");
+    assert(defaultLessonDetail.studentButtonText === "학생으로 실행", `detail student button mismatch: ${defaultLessonDetail.studentButtonText}`);
+    assert(defaultLessonDetail.teacherButtonText === "교사용 배포 준비", `detail teacher button mismatch: ${defaultLessonDetail.teacherButtonText}`);
     assert(defaultLessonDetail.text.includes("학습목표"), `detail panel missing learning goals: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("수업 활동"), `detail panel missing classroom activities: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("수업 보기"), `detail panel missing required views: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("기록 길이가 이력 용량"), `detail panel missing velocity activity: ${defaultLessonDetail.text}`);
-    await page.waitForSelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1'] .card-launch-btn[data-launch-profile='student']");
-    await page.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1'] .card-launch-btn[data-launch-profile='student']");
+    await page.click("#btn-detail-close");
+    await page.focus(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
+    await page.keyboard.press("Enter");
+    const keyboardLessonDetailVisible = await page.evaluate(() => !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"));
+    assert(keyboardLessonDetailVisible === true, "lesson detail panel should open from keyboard on focused card");
+    await page.click("#btn-open-in-studio");
     await waitVisible(page, "#screen-run");
     await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
     const studentStartUi = await page.evaluate(() => {
@@ -681,7 +885,8 @@ async function main() {
     assert(!studentStartUi.bodyText.includes("배포 복사"), "student mode should not show teacher package copy button");
     await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
     await waitVisible(page, "#screen-browse");
-    await page.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1'] .card-launch-btn[data-launch-profile='teacher']");
+    await page.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
+    await page.click("#btn-open-in-studio-teacher");
     await waitVisible(page, "#screen-run");
     await page.waitForFunction(() => document.querySelector("#screen-run")?.dataset?.onboardingProfile === "teacher");
     await page.click("#run-tab-btn-mirror");

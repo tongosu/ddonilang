@@ -14,24 +14,18 @@
           <span class="brand">셈그림</span>
           <nav class="main-shell-tabs" aria-label="메인 탭">
             <button class="main-shell-tab active" data-main-tab-target="browse" type="button">교과</button>
-            <button class="main-shell-tab" data-main-tab-target="studio" type="button">작업실</button>
+            <button class="main-shell-tab" data-main-tab-target="studio" type="button">수업</button>
           </nav>
-          <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
-            <span class="shell-status-chip" data-shell-current-screen>교과</span>
-            <span class="shell-status-chip" data-shell-source-label>새 작업</span>
-            <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
-            <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
-          </div>
           <button id="btn-advanced-browse" class="ghost" type="button">⚙</button>
         </header>
 
         <div class="browse-tabs">
-          <button class="browse-tab active" data-tab="official" type="button">★ 공식 교과</button>
-          <button class="browse-tab" data-tab="examples" type="button">◇ 예제</button>
-          <button class="browse-tab" data-tab="search" type="button">🔍 검색</button>
+          <button class="browse-tab active" data-tab="official" type="button">대표 교과</button>
+          <button class="browse-tab" data-tab="examples" type="button">샘플 교과</button>
+          <button class="browse-tab" data-tab="search" type="button">전체 검색</button>
           <button id="btn-open-local-package" class="ghost" type="button">배포 열기</button>
           <input id="input-local-package-file" type="file" accept=".json,application/json" class="hidden" />
-          <button id="btn-create" class="btn-primary" type="button">+ 만들기</button>
+          <button id="btn-create" class="btn-primary" type="button">교과 만들기</button>
         </div>
         <div id="local-package-import-status" class="local-package-import-status hidden" data-local-package-import-status data-state="idle" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -54,7 +48,7 @@
           <select id="filter-subject">
             <option value="">과목: 전체</option>
           </select>
-          <input id="filter-query" type="text" placeholder="검색어 입력..." />
+          <input id="filter-query" type="text" placeholder="교과명, 과목, 활동 검색" />
         </div>
 
         <div id="browse-legacy-guide-hint" class="hint browse-legacy-guide-hint hidden"></div>
@@ -67,7 +61,8 @@
             <div id="detail-keywords" class="detail-keywords"></div>
             <div id="detail-curriculum" class="detail-curriculum"></div>
             <div class="detail-actions">
-              <button id="btn-open-in-studio" class="btn-primary" type="button">실행하고 결과 보기</button>
+              <button id="btn-open-in-studio" class="btn-primary" type="button">학생으로 실행</button>
+              <button id="btn-open-in-studio-teacher" class="ghost" type="button">교사용 배포 준비</button>
               <button id="btn-copy-numeric-track-report" class="ghost hidden" type="button">수치 보고서 복사</button>
               <button id="btn-detail-close" class="ghost" type="button">닫기</button>
             </div>
@@ -81,10 +76,10 @@
           <span class="brand">셈그림</span>
           <nav class="main-shell-tabs" aria-label="메인 탭">
             <button class="main-shell-tab" data-main-tab-target="browse" type="button">교과</button>
-            <button class="main-shell-tab active" data-main-tab-target="studio" type="button">작업실</button>
+            <button class="main-shell-tab active" data-main-tab-target="studio" type="button">만들기</button>
           </nav>
           <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
-            <span class="shell-status-chip" data-shell-current-screen>작업실</span>
+            <span class="shell-status-chip" data-shell-current-screen>만들기</span>
             <span class="shell-status-chip" data-shell-source-label>새 작업</span>
             <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
             <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
@@ -157,10 +152,10 @@
             <span class="brand">셈그림</span>
             <nav class="main-shell-tabs" aria-label="메인 탭">
               <button class="main-shell-tab" data-main-tab-target="browse" type="button">교과</button>
-              <button class="main-shell-tab active" data-main-tab-target="studio" type="button">작업실</button>
+              <button class="main-shell-tab active" data-main-tab-target="studio" type="button">수업</button>
             </nav>
             <div class="shell-status-rail" data-shell-status-rail aria-label="작업 상태">
-              <span class="shell-status-chip" data-shell-current-screen>작업실</span>
+              <span class="shell-status-chip" data-shell-current-screen>수업</span>
               <span class="shell-status-chip" data-shell-source-label>새 작업</span>
               <span class="shell-status-chip" data-shell-save-status>저장 대기</span>
               <span class="shell-status-chip" data-shell-session-status>세션 대기</span>
@@ -198,7 +193,7 @@
             <button id="btn-run-teacher-report-copy" class="ghost" type="button" title="수업 리포트 복사" disabled>리포트 복사</button>
             <button id="btn-run-teacher-package-copy" class="ghost" type="button" title="교사용 배포 묶음 복사" disabled>배포 복사</button>
             <button id="btn-run-teacher-package-download" class="ghost" type="button" title="교사용 배포 파일 저장" disabled>배포 저장</button>
-            <div class="run-view-mode-group" role="tablist" aria-label="작업실 보기 모드">
+            <div class="run-view-mode-group" role="tablist" aria-label="수업 보기 모드">
               <button id="btn-run-view-basic" class="run-view-mode-btn active" data-run-view-mode="basic" type="button">기본</button>
               <button id="btn-run-view-analyze" class="run-view-mode-btn" data-run-view-mode="analyze" type="button">확대</button>
               <button id="btn-run-view-full" class="run-view-mode-btn" data-run-view-mode="full" type="button">전체</button>
@@ -456,26 +451,6 @@
 
       </section>
 
-      <div id="advanced-menu" class="advanced-menu hidden">
-        <button id="advanced-smoke" type="button">Smoke 검증</button>
-        <button id="btn-save-server" type="button" disabled title="준비 중">서버에 저장 (준비 중)</button>
-        <button id="btn-share-link" type="button" disabled title="준비 중">공유 링크 (준비 중)</button>
-        <button id="btn-revision-history" type="button" disabled title="준비 중">리비전 기록 (준비 중)</button>
-        <button id="btn-revision-compare" type="button" disabled title="준비 중">리비전 비교 (준비 중)</button>
-        <button id="btn-work-duplicate" type="button" disabled title="준비 중">작업 복제 (준비 중)</button>
-        <button id="btn-share-clone" type="button" disabled title="준비 중">복제해서 사용 (준비 중)</button>
-        <button id="btn-publish" type="button" disabled title="준비 중">게시 (준비 중)</button>
-        <button id="btn-republish" type="button" disabled title="준비 중">재게시 (준비 중)</button>
-        <button id="btn-publication-history" type="button" disabled title="준비 중">게시 이력 (준비 중)</button>
-        <button id="btn-package-catalog" type="button" disabled title="준비 중">꾸러미 카탈로그 (준비 중)</button>
-        <button id="btn-package-deps" type="button" disabled title="준비 중">의존 꾸러미 보기 (준비 중)</button>
-        <button id="btn-review-request" type="button" disabled title="준비 중">검토 요청 (준비 중)</button>
-        <button id="btn-review-approve" type="button" disabled title="준비 중">검토 승인 (준비 중)</button>
-        <button id="btn-review-reject" type="button" disabled title="준비 중">검토 반려 (준비 중)</button>
-        <button type="button" class="age-slot" disabled>A 실시간 입력</button>
-        <button type="button" class="age-slot" disabled>B 꾸러미 브라우저</button>
-        <button type="button" class="age-slot" disabled>C 3D 렌더</button>
-      </div>
     </div>
 
     <script type="module" src="./app.js"></script>

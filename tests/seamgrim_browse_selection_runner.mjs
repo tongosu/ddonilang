@@ -48,10 +48,12 @@ function createMemoryStorage() {
 function createFakeElement(tag = "div") {
   const listeners = new Map();
   const classes = new Set();
+  const attributes = new Map();
   const node = {
     tagName: String(tag).toUpperCase(),
     dataset: {},
     children: [],
+    tabIndex: -1,
     value: "",
     checked: false,
     textContent: "",
@@ -82,6 +84,16 @@ function createFakeElement(tag = "div") {
     removeChild(child) {
       const idx = this.children.indexOf(child);
       if (idx >= 0) this.children.splice(idx, 1);
+    },
+    setAttribute(name, value) {
+      const key = String(name);
+      const text = String(value ?? "");
+      attributes.set(key, text);
+      if (key === "role") this.role = text;
+      if (key === "tabindex") this.tabIndex = Number(text);
+    },
+    getAttribute(name) {
+      return attributes.get(String(name)) ?? null;
     },
     querySelector() {
       return null;
@@ -165,6 +177,7 @@ function createBrowseRoot({ withDetailPanel = false } = {}) {
       "detail-desc",
       "detail-keywords",
       "btn-open-in-studio",
+      "btn-open-in-studio-teacher",
       "btn-detail-close",
     );
   }
@@ -206,6 +219,7 @@ function createBrowseRoot({ withDetailPanel = false } = {}) {
     grid: idMap.get("lesson-card-grid"),
     detailPanel: idMap.get("catalog-detail-panel"),
     detailOpenBtn: idMap.get("btn-open-in-studio"),
+    detailTeacherOpenBtn: idMap.get("btn-open-in-studio-teacher"),
   };
 }
 
@@ -946,6 +960,7 @@ async function main() {
       onLessonSelect: async (lesson, options = {}) => {
         detailSelections.push({
           lessonId: String(lesson?.id ?? ""),
+          launchProfile: String(lesson?.launchProfile ?? ""),
           autoExecute: Boolean(options?.autoExecute),
         });
       },
@@ -972,7 +987,13 @@ async function main() {
     await detailRoot.detailOpenBtn.emitAsync("click");
     assert(detailSelections.length === 1, "detail CTA triggers selection");
     assert(detailSelections[0].lessonId === "detail_case_v1", "detail CTA forwards lesson");
+    assert(detailSelections[0].launchProfile === "student", "detail CTA defaults to student launch profile");
     assert(detailSelections[0].autoExecute === true, "detail CTA forwards autoExecute");
+    await detailRoot.detailTeacherOpenBtn.emitAsync("click");
+    assert(detailSelections.length === 2, "detail teacher CTA triggers selection");
+    assert(detailSelections[1].lessonId === "detail_case_v1", "detail teacher CTA forwards lesson");
+    assert(detailSelections[1].launchProfile === "teacher", "detail teacher CTA forwards teacher launch profile");
+    assert(detailSelections[1].autoExecute === true, "detail teacher CTA forwards autoExecute");
     const warningSelect = root.querySelector("#filter-warning-status");
     warningSelect.value = "has_legacy_warning";
     await warningSelect.emitAsync("change");

@@ -29,14 +29,20 @@ def main() -> int:
     editor_text = _read(editor_js)
 
     required = [
-        ('<button id="btn-open-in-studio" class="btn-primary" type="button">작업실에서 실행하기</button>' in html_text, "browse_open_in_studio_label_missing"),
-        ('<button id="btn-run-from-editor" class="btn-primary" type="button">▶ 작업실에서 실행</button>' in html_text, "editor_run_label_missing"),
-        ('<button id="btn-editor-readiness-action" class="ghost" type="button">작업실에서 실행</button>' in html_text, "editor_readiness_label_missing"),
-        ('<button id="btn-block-run" class="btn-primary" type="button">▶ 작업실에서 실행</button>' in html_text, "block_run_label_missing"),
-        ('<button id="btn-run" class="btn-primary" type="button">▶ 작업실에서 실행</button>' in html_text, "studio_run_label_missing"),
-        ('const RUN_MAIN_EXECUTE_LABEL_DEFAULT = "▶ 작업실에서 실행";' in run_text, "studio_run_runtime_label_missing"),
+        ('<button id="btn-open-in-studio" class="btn-primary" type="button">학생으로 실행</button>' in html_text, "browse_student_run_label_missing"),
+        ('<button id="btn-open-in-studio-teacher" class="ghost" type="button">교사용 배포 준비</button>' in html_text, "browse_teacher_run_label_missing"),
+        ('<button class="main-shell-tab" data-main-tab-target="studio" type="button">수업</button>' in html_text, "browse_studio_tab_teacher_label_missing"),
+        ('<button class="main-shell-tab active" data-main-tab-target="studio" type="button">만들기</button>' in html_text, "editor_studio_tab_teacher_label_missing"),
+        ('<button class="main-shell-tab active" data-main-tab-target="studio" type="button">수업</button>' in html_text, "run_studio_tab_teacher_label_missing"),
+        ('aria-label="수업 보기 모드"' in html_text, "run_view_mode_teacher_label_missing"),
+        ('<button id="btn-run-from-editor" class="btn-primary" type="button">▶ 수업 실행</button>' in html_text, "editor_run_label_missing"),
+        ('<button id="btn-editor-readiness-action" class="ghost" type="button">수업 실행</button>' in html_text, "editor_readiness_label_missing"),
+        ('<button id="btn-run" class="btn-primary" type="button">▶ 수업 실행</button>' in html_text, "studio_run_label_missing"),
+        ('const RUN_MAIN_EXECUTE_LABEL_DEFAULT = "▶ 수업 실행";' in run_text, "studio_run_runtime_label_missing"),
         ('const RUN_MAIN_EXECUTE_LABEL_RESUME = "▶ 재개";' in run_text, "studio_run_resume_label_missing"),
-        ('label: buttonLabel || (stage === STUDIO_READINESS_STAGE_AUTOFIX ? "자동 수정 적용" : "작업실에서 실행"),' in editor_text, "editor_readiness_runtime_label_missing"),
+        ('label: buttonLabel || (stage === STUDIO_READINESS_STAGE_AUTOFIX ? "자동 수정 적용" : "수업 실행"),' in editor_text, "editor_readiness_runtime_label_missing"),
+        ("작업실에서 실행" not in html_text, "legacy_workspace_run_label_leaked"),
+        ("작업실" not in html_text, "legacy_workspace_surface_label_leaked"),
     ]
     failures = [name for ok, name in required if not ok]
     if failures:

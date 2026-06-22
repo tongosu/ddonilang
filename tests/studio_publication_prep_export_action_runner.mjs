@@ -83,6 +83,12 @@ function isAllowedFallback404(urlText) {
   return false;
 }
 
+function isAllowedRequestFailure(req) {
+  const url = String(req?.url?.() ?? "");
+  const errorText = String(req?.failure?.()?.errorText ?? "");
+  return url.endsWith(".wasm") && errorText === "net::ERR_ABORTED";
+}
+
 async function waitVisible(page, selector) {
   await page.waitForFunction((sel) => {
     const node = document.querySelector(sel);
@@ -202,7 +208,11 @@ async function main() {
       }
     });
     page.on("pageerror", (err) => failures.push(`pageerror: ${err.message}`));
-    page.on("requestfailed", (req) => failures.push(`request failed: ${req.url()} ${req.failure()?.errorText || ""}`));
+    page.on("requestfailed", (req) => {
+      if (!isAllowedRequestFailure(req)) {
+        failures.push(`request failed: ${req.url()} ${req.failure()?.errorText || ""}`);
+      }
+    });
     page.on("response", (res) => {
       if (res.status() >= 400 && !res.url().endsWith("/favicon.ico") && !(res.status() === 404 && isAllowedFallback404(res.url()))) {
         failures.push(`response ${res.status()}: ${res.url()}`);

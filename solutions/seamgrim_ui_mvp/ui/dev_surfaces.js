@@ -7,6 +7,15 @@ function setWindowPayload(dataKey, textKey, formatter, row) {
   }
 }
 
+function ensureDevSurfaceStylesheet() {
+  if (document.querySelector("link[data-dev-surfaces-css]")) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "./dev_surfaces.css";
+  link.setAttribute("data-dev-surfaces-css", "true");
+  document.head?.appendChild(link);
+}
+
 const DEV_SURFACE_CONTAINERS = [
   ["teacher-feedback-preview-panel", "교사 피드백 미리보기"],
   ["classroom-operations-panel-preview", "수업 운영 패널 미리보기"],
@@ -80,6 +89,7 @@ function renderSurface({ dataKey, textKey, formatter, render, elementId, row }) 
 }
 
 function ensureDevSurfaceDom() {
+  ensureDevSurfaceStylesheet();
   if (document.getElementById("dev-surface-root")) return true;
   const catalog = document.querySelector("#screen-browse .catalog-body");
   if (!catalog) return false;

@@ -44,7 +44,7 @@ function normalizeReadinessModel(rawModel = null) {
     user_cause: cause || (stage === STUDIO_READINESS_STAGE_BLOCKED ? "실행 전 수정이 필요합니다." : "입력 준비됨"),
     primary_action: {
       kind: actionKind || (stage === STUDIO_READINESS_STAGE_BLOCKED ? "manual_fix_example" : "run"),
-      label: buttonLabel || (stage === STUDIO_READINESS_STAGE_AUTOFIX ? "자동 수정 적용" : "작업실에서 실행"),
+      label: buttonLabel || (stage === STUDIO_READINESS_STAGE_AUTOFIX ? "자동 수정 적용" : "수업 실행"),
       detail: buttonDetail,
     },
     autofix_available: Boolean(model.autofix_available),

@@ -566,6 +566,7 @@ export class BrowseScreen {
     this.detailKeywordsEl = this.root.querySelector("#detail-keywords");
     this.detailCurriculumEl = this.root.querySelector("#detail-curriculum");
     this.detailOpenBtn = this.root.querySelector("#btn-open-in-studio");
+    this.detailTeacherOpenBtn = this.root.querySelector("#btn-open-in-studio-teacher");
     this.detailCopyNumericTrackReportBtn = this.root.querySelector("#btn-copy-numeric-track-report");
     this.detailCloseBtn = this.root.querySelector("#btn-detail-close");
     this.loadBrowsePrefs();
@@ -630,7 +631,17 @@ export class BrowseScreen {
     });
     this.detailOpenBtn?.addEventListener("click", () => {
       if (!this.detailLesson) return;
-      void this.onLessonSelect(this.detailLesson, { autoExecute: true });
+      void this.onLessonSelect({
+        ...this.detailLesson,
+        launchProfile: "student",
+      }, { autoExecute: true });
+    });
+    this.detailTeacherOpenBtn?.addEventListener("click", () => {
+      if (!this.detailLesson) return;
+      void this.onLessonSelect({
+        ...this.detailLesson,
+        launchProfile: "teacher",
+      }, { autoExecute: true });
     });
     this.detailCopyNumericTrackReportBtn?.addEventListener("click", () => {
       void this.handleCopyNumericTrackReport();
@@ -2256,9 +2267,11 @@ export class BrowseScreen {
     const courseGoals = buildCourseGoalTexts(lesson);
     const courseMissions = buildCourseMissionTexts(lesson);
 
-    const card = document.createElement("button");
-    card.type = "button";
+    const card = document.createElement("article");
     card.className = "lesson-card";
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `${String(lesson.title || lesson.id || "교과").trim()} 상세 보기`);
     card.dataset.lessonId = lesson.id;
     card.innerHTML = `
       <div class="card-top-badges">
@@ -2304,7 +2317,7 @@ export class BrowseScreen {
         : ""}
       <div class="card-launch-actions">
         <button type="button" class="card-launch-primary card-launch-btn" data-launch-profile="student" title="학생 시작 프로필로 실행">▶ 학생 시작</button>
-        <button type="button" class="ghost card-launch-btn" data-launch-profile="teacher" title="교사 시작 프로필로 실행">교사 시작</button>
+        <button type="button" class="ghost card-launch-btn" data-launch-profile="teacher" title="교사용 배포 준비 프로필로 실행">교사용 배포</button>
       </div>
     `;
     const shouldShowPreview = lessonHasPreviewDescriptor(lesson);
@@ -2342,6 +2355,15 @@ export class BrowseScreen {
       });
     });
     card.addEventListener("click", () => {
+      if (this.detailPanelEl) {
+        this.showLessonDetail(lesson);
+        return;
+      }
+      void this.onLessonSelect(lesson, { autoExecute: true });
+    });
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
       if (this.detailPanelEl) {
         this.showLessonDetail(lesson);
         return;
