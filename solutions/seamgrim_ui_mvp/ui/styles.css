@@ -6741,6 +6741,30 @@ button:disabled {
   margin-top: 2px;
 }
 
+.card-course-missions {
+  display: grid;
+  gap: 3px;
+  margin-top: 2px;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.card-course-missions > span {
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.card-course-missions ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.card-course-missions li + li {
+  margin-top: 2px;
+}
+
 .card-state-hint {
   margin-top: 2px;
   width: fit-content;

@@ -450,12 +450,13 @@ async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(scriptDir, "..");
   const uiRoot = path.join(root, "solutions", "seamgrim_ui_mvp", "ui");
-  for (const rel of ["index.html", "app.js", "styles.css", "screens/browse.js", "screens/run.js", "studio_local_share_package.js"]) {
+  for (const rel of ["index.html", "app.js", "styles.css", "screens/browse.js", "screens/run.js", "studio_local_share_package.js", "preview_payload_loader.js"]) {
     await requireFile(path.join(uiRoot, rel));
   }
   const appJs = await fs.readFile(path.join(uiRoot, "app.js"), "utf-8");
   const runJs = await fs.readFile(path.join(uiRoot, "screens", "run.js"), "utf-8");
   const browseJs = await fs.readFile(path.join(uiRoot, "screens", "browse.js"), "utf-8");
+  const previewPayloadLoaderJs = await fs.readFile(path.join(uiRoot, "preview_payload_loader.js"), "utf-8");
   const stylesCss = await fs.readFile(path.join(uiRoot, "styles.css"), "utf-8");
   assert(appJs.includes('setLocalPackageImportStatus("loading"'), "local package loading status update is missing");
   assert(appJs.includes("배포 파일을 확인하는 중입니다"), "local package loading message is missing");
@@ -465,11 +466,14 @@ async function main() {
   assert(browseJs.includes("학생 실행") && browseJs.includes("교사용 배포"), "teacher lesson cards must expose classroom delivery flow");
   assert(browseJs.includes("data-course-catalog-summary"), "teacher catalog summary should be mounted by BrowseScreen");
   assert(browseJs.includes("data-course-goals"), "teacher lesson cards must expose learning goals");
+  assert(browseJs.includes("data-course-missions"), "teacher lesson cards must expose classroom activities");
   assert(stylesCss.includes('.local-package-import-status[data-state="loading"]'), "local package loading status style is missing");
   assert(stylesCss.includes(".card-course-surface"), "course surface card style is missing");
   assert(stylesCss.includes(".card-course-delivery"), "course delivery card style is missing");
   assert(stylesCss.includes(".card-course-goals"), "course goals card style is missing");
+  assert(stylesCss.includes(".card-course-missions"), "course missions card style is missing");
   assert(stylesCss.includes(".course-catalog-summary"), "course catalog summary style is missing");
+  assert(previewPayloadLoaderJs.includes('PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/"'), "preview loader must prefer project-prefixed static lesson assets");
   await assertLocalPackageValidation(uiRoot);
 
   const { server, baseUrl } = await createServer(root);
@@ -489,6 +493,13 @@ async function main() {
       });
     });
     const page = await context.newPage();
+    const apiInventoryRequests = [];
+    page.on("request", (req) => {
+      const pathname = new URL(req.url()).pathname;
+      if (pathname === "/api/lessons/inventory" || pathname === "/api/lesson-inventory") {
+        apiInventoryRequests.push(req.url());
+      }
+    });
     page.on("console", (msg) => {
       const text = String(msg.text() ?? "");
       if (msg.type() === "error" && !text.includes("Failed to load resource") && !text.includes("[RunScreen.restart] wasm execution failed")) {
@@ -506,6 +517,7 @@ async function main() {
     await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
     await page.waitForSelector(".lesson-card[data-lesson-id^='rep_']");
+    assert(apiInventoryRequests.length === 0, `default teacher catalog should not probe API inventory: ${apiInventoryRequests.join(",")}`);
     const defaultDevSurfaceState = await page.evaluate(() => ({
       bodyEnabled: document.body.classList.contains("dev-surfaces-enabled"),
       devRootExists: Boolean(document.querySelector("#dev-surface-root")),
@@ -534,6 +546,7 @@ async function main() {
       localPackageFileAccept: document.querySelector("#input-local-package-file")?.getAttribute("accept") ?? "",
       visibleLessonIds: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.dataset.lessonId || ""),
       courseSummaryText: document.querySelector("[data-course-catalog-summary]")?.textContent?.trim() || "",
+      velocityCardText: document.querySelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']")?.textContent?.trim() || "",
       courseSurfaceTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-surface]")).map((node) => node.textContent?.trim() || ""),
       courseDeliveryTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-delivery]")).map((node) => node.textContent?.trim() || ""),
       courseGoalTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-goals]")).map((node) => node.textContent?.trim() || ""),
@@ -566,6 +579,16 @@ async function main() {
     assert(defaultDevSurfaceState.localPackageFileAccept === ".json,application/json", `local package file accept mismatch: ${defaultDevSurfaceState.localPackageFileAccept}`);
     assert(defaultDevSurfaceState.visibleLessonIds.length > 0, "default teacher catalog should show course lessons");
     assert(
+      defaultDevSurfaceState.visibleLessonIds.includes("rep_physics_velocity_history_v1"),
+      `default teacher catalog missing velocity history lesson: ${defaultDevSurfaceState.visibleLessonIds.join(",")}`,
+    );
+    assert(
+      defaultDevSurfaceState.velocityCardText.includes("속도 기록 그래프")
+        && defaultDevSurfaceState.velocityCardText.includes("매 단계마다 속도")
+        && defaultDevSurfaceState.velocityCardText.includes("교사용 배포"),
+      `velocity history card missing course activity signals: ${defaultDevSurfaceState.velocityCardText}`,
+    );
+    assert(
       defaultDevSurfaceState.courseSummaryText.includes(`${defaultDevSurfaceState.visibleLessonIds.length}개 대표 교과`)
         && defaultDevSurfaceState.courseSummaryText.includes("DDN 실행")
         && defaultDevSurfaceState.courseSummaryText.includes("교사용 배포"),
@@ -594,7 +617,7 @@ async function main() {
       defaultDevSurfaceState.cardSubjects.every((text) => /물리|수학|경제|과학/.test(text)),
       `default teacher catalog should stay on classroom subjects: ${defaultDevSurfaceState.cardSubjects.join("|")}`,
     );
-    await page.click(".lesson-card[data-lesson-id^='rep_']");
+    await page.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
     const defaultLessonDetail = await page.evaluate(() => ({
       visible: !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"),
       text: document.querySelector("#detail-curriculum")?.textContent ?? "",
@@ -603,8 +626,9 @@ async function main() {
     assert(defaultLessonDetail.text.includes("학습목표"), `detail panel missing learning goals: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("수업 활동"), `detail panel missing classroom activities: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("수업 보기"), `detail panel missing required views: ${defaultLessonDetail.text}`);
-    await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
-    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
+    assert(defaultLessonDetail.text.includes("기록 길이가 이력 용량"), `detail panel missing velocity activity: ${defaultLessonDetail.text}`);
+    await page.waitForSelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1'] .card-launch-btn[data-launch-profile='student']");
+    await page.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1'] .card-launch-btn[data-launch-profile='student']");
     await waitVisible(page, "#screen-run");
     await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
     const studentStartUi = await page.evaluate(() => {
@@ -626,6 +650,7 @@ async function main() {
         teacherPackageCopyDisplay: display("#btn-run-teacher-package-copy"),
         teacherPackageDownloadDisplay: display("#btn-run-teacher-package-download"),
         inspectorToolsDisplay: display("#run-inspector-tools"),
+        lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
         bodyText: document.querySelector("#screen-run")?.innerText ?? "",
       };
     });
@@ -642,6 +667,13 @@ async function main() {
     assert(studentStartUi.teacherPackageCopyDisplay === "none", `student package copy should be hidden: ${studentStartUi.teacherPackageCopyDisplay}`);
     assert(studentStartUi.teacherPackageDownloadDisplay === "none", `student package download should be hidden: ${studentStartUi.teacherPackageDownloadDisplay}`);
     assert(studentStartUi.inspectorToolsDisplay === "none", `student inspector tools should be hidden: ${studentStartUi.inspectorToolsDisplay}`);
+    assert(
+      studentStartUi.lessonBriefText.includes("속도 기록 그래프")
+        && studentStartUi.lessonBriefText.includes("목표:")
+        && studentStartUi.lessonBriefText.includes("활동:")
+        && studentStartUi.lessonBriefText.includes("기록 길이"),
+      `student lesson brief missing course activity context: ${studentStartUi.lessonBriefText}`,
+    );
     assert(!studentStartUi.bodyText.includes("교과 원문"), "student mode should not show source text panel label");
     assert(!studentStartUi.bodyText.includes("저장 대기"), "student mode should not show save status");
     assert(!studentStartUi.bodyText.includes("세션 복원됨"), "student mode should not show session restore status");
@@ -649,7 +681,7 @@ async function main() {
     assert(!studentStartUi.bodyText.includes("배포 복사"), "student mode should not show teacher package copy button");
     await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
     await waitVisible(page, "#screen-browse");
-    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+    await page.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1'] .card-launch-btn[data-launch-profile='teacher']");
     await waitVisible(page, "#screen-run");
     await page.waitForFunction(() => document.querySelector("#screen-run")?.dataset?.onboardingProfile === "teacher");
     await page.click("#run-tab-btn-mirror");
@@ -696,6 +728,24 @@ async function main() {
     assert(copiedPayload.manifest?.account_required === false, "account boundary mismatch");
     assert(copiedPayload.manifest?.cloud_sync === false, "cloud boundary mismatch");
     assert(copiedPayload.manifest?.public_registry === false, "registry boundary mismatch");
+    assert(copiedPayload.lessons?.[0]?.subject === "physics", `package lesson subject mismatch: ${copiedPayload.lessons?.[0]?.subject}`);
+    assert(copiedPayload.lessons?.[0]?.grade === "middle", `package lesson grade mismatch: ${copiedPayload.lessons?.[0]?.grade}`);
+    assert(
+      Array.isArray(copiedPayload.lessons?.[0]?.required_views)
+        && copiedPayload.lessons[0].required_views.includes("graph")
+        && copiedPayload.lessons[0].required_views.includes("table"),
+      `package lesson views mismatch: ${JSON.stringify(copiedPayload.lessons?.[0]?.required_views)}`,
+    );
+    assert(
+      Array.isArray(copiedPayload.lessons?.[0]?.goals)
+        && copiedPayload.lessons[0].goals.some((item) => String(item).includes("속도가 일정한 가속도")),
+      `package lesson goals missing: ${JSON.stringify(copiedPayload.lessons?.[0]?.goals)}`,
+    );
+    assert(
+      Array.isArray(copiedPayload.lessons?.[0]?.missions)
+        && copiedPayload.lessons[0].missions.some((item) => String(item).includes("기록 길이")),
+      `package lesson missions missing: ${JSON.stringify(copiedPayload.lessons?.[0]?.missions)}`,
+    );
     assert(state.payload?.schema === "seamgrim.local_package_export_action.v1", "instrumentation schema mismatch");
     assert(state.payload?.copied === true, "instrumentation copied mismatch");
     assert(state.payload?.lesson_count === 1 && state.payload?.report_count === 1, "instrumentation counts mismatch");
@@ -725,6 +775,7 @@ async function main() {
       classroomMode: document.querySelector("[data-classroom-mode-switch]")?.dataset?.mode ?? "",
       studentPressed: document.querySelector("[data-classroom-mode='student']")?.getAttribute("aria-pressed") ?? "",
       teacherPressed: document.querySelector("[data-classroom-mode='teacher']")?.getAttribute("aria-pressed") ?? "",
+      lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
       inputRegistry: JSON.parse(localStorage.getItem("seamgrim.input_registry.v0") || "{}"),
     }));
     assert(importState.importAction?.schema === "seamgrim.local_package_import_action.v1", "import action schema mismatch");
@@ -735,6 +786,12 @@ async function main() {
     assert(importState.rail?.launch_label === "배포 열기", `import launch label mismatch: ${importState.rail?.launch_label}`);
     assert(importState.rail?.onboarding_profile === "student", `import onboarding mismatch: ${importState.rail?.onboarding_profile}`);
     assert(importState.classroomMode === "student" && importState.studentPressed === "true" && importState.teacherPressed === "false", "import should open in student mode");
+    assert(
+      importState.lessonBriefText.includes("속도 기록 그래프")
+        && importState.lessonBriefText.includes("활동:")
+        && importState.lessonBriefText.includes("기록 길이"),
+      `imported lesson brief should preserve package course context: ${importState.lessonBriefText}`,
+    );
     assert(importState.runText.trim() === String(downloadedPayload.lessons[0].source_text ?? "").trim(), "imported run source mismatch");
     assert(importState.sourceLabel.includes(downloadedPayload.lessons[0].title), `imported source label mismatch: ${importState.sourceLabel}`);
     assert(importState.browseImportStatusState === "ok", `import status state mismatch: ${importState.browseImportStatusState}`);

@@ -2254,6 +2254,7 @@ export class BrowseScreen {
     const courseSurfaceText = buildCourseSurfaceText(lesson);
     const courseDeliveryText = buildCourseDeliveryText(lesson);
     const courseGoals = buildCourseGoalTexts(lesson);
+    const courseMissions = buildCourseMissionTexts(lesson);
 
     const card = document.createElement("button");
     card.type = "button";
@@ -2276,6 +2277,14 @@ export class BrowseScreen {
         ? `<ul class="card-course-goals" data-course-goals>
           ${courseGoals.map((goal) => `<li>${escapeHtml(goal)}</li>`).join("")}
         </ul>`
+        : ""}
+      ${courseMissions.length
+        ? `<div class="card-course-missions" data-course-missions>
+          <span>수업 활동</span>
+          <ul>
+            ${courseMissions.map((mission) => `<li>${escapeHtml(mission)}</li>`).join("")}
+          </ul>
+        </div>`
         : ""}
       ${showLegacyControls && firstRunHint ? `<div class="card-state-hint">${firstRunHint}</div>` : ""}
       ${showLegacyControls

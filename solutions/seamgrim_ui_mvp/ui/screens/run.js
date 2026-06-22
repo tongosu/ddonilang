@@ -156,6 +156,8 @@ function shouldEnableAdvancedExports() {
   }
 }
 
+const INITIAL_ADVANCED_EXPORTS_ENABLED = shouldEnableAdvancedExports();
+
 const ADVANCED_EXPORT_PANEL_HTML = `
   <div class="run-publication-prep-export hidden" data-run-publication-prep-export aria-label="공개 준비안 내보내기" aria-hidden="true">
     <div class="run-publication-prep-head">
@@ -1096,6 +1098,16 @@ function formatAxisRange(range) {
 
 function normalizeRunRequiredViews(requiredViews) {
   return normalizeViewFamilyList(requiredViews);
+}
+
+function resolveLessonRequiredViewsForRun(lesson) {
+  const declared = normalizeRunRequiredViews(lesson?.requiredViews ?? lesson?.required_views ?? []);
+  if (declared.length > 0) return declared;
+  const inferred = [];
+  if (Array.isArray(lesson?.graphCandidates) && lesson.graphCandidates.length > 0) inferred.push("graph");
+  if (Array.isArray(lesson?.tableCandidates) && lesson.tableCandidates.length > 0) inferred.push("table");
+  if (String(lesson?.textMd ?? "").trim()) inferred.push("text");
+  return normalizeRunRequiredViews(inferred);
 }
 
 export function resolveRunLayoutProfile(requiredViews) {
@@ -4945,7 +4957,7 @@ runs: 0</pre>
   }
 
   syncAdvancedExportVisibility() {
-    this.advancedExportsEnabled = shouldEnableAdvancedExports();
+    this.advancedExportsEnabled = INITIAL_ADVANCED_EXPORTS_ENABLED || shouldEnableAdvancedExports();
     // Temporary compatibility: retire these advanced export panels from the teacher UI after legacy runner coverage is moved.
     [
       this.runPublicationPrepEl,
@@ -5214,10 +5226,23 @@ runs: 0</pre>
     const title = String(this.lesson?.title ?? reportModel.lesson_title ?? lessonId).trim() || lessonId;
     const sourceText = String(this.runDdnPreviewEl?.value ?? this.lesson?.source_text ?? this.lesson?.source ?? "");
     const packageId = `studio.local.${lessonId}`.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const requiredViews = resolveLessonRequiredViewsForRun(this.lesson);
+    const goals = Array.isArray(this.lesson?.goals)
+      ? this.lesson.goals.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    const missions = Array.isArray(this.lesson?.missions)
+      ? this.lesson.missions.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
     const lessons = [
       {
         lesson_id: lessonId,
         title,
+        description: String(this.lesson?.description ?? "").trim(),
+        grade: String(this.lesson?.grade ?? "").trim(),
+        subject: String(this.lesson?.subject ?? "").trim(),
+        required_views: requiredViews,
+        goals,
+        missions,
         source_text: sourceText,
       },
     ];
@@ -6691,7 +6716,7 @@ runs: 0</pre>
   }
 
   buildRunPresetRailModel() {
-    const requiredViews = normalizeRunRequiredViews(this.lesson?.requiredViews ?? []);
+    const requiredViews = resolveLessonRequiredViewsForRun(this.lesson);
     const layoutMode = String(this.lessonLayoutProfile?.mode ?? this.root?.dataset?.runLayoutMode ?? "split").trim() || "split";
     const numericTrackPreset = buildNumericTrackRunPreset(this.lesson);
     return {
@@ -8446,11 +8471,13 @@ runs: 0</pre>
     const lessonMissions = Array.isArray(lesson?.missions)
       ? lesson.missions.map((item) => String(item ?? "").trim()).filter(Boolean)
       : [];
-    const lessonViews = normalizeRunRequiredViews(lesson?.requiredViews ?? []);
+    const lessonViews = resolveLessonRequiredViewsForRun(lesson);
     if (this.runLessonBriefEl) {
       const title = String(lesson?.title ?? lesson?.id ?? "수업").trim() || "수업";
       const goalText = lessonGoals[0] ? `목표: ${lessonGoals[0]}` : "목표: DDN 수업 실행";
-      const missionText = lessonMissions[0] ? `활동: ${lessonMissions[0]}` : "활동: 결과를 보고 확인";
+      const missionText = lessonMissions.length
+        ? `활동: ${lessonMissions.slice(0, 2).join(" / ")}`
+        : "활동: 결과를 보고 확인";
       const viewText = lessonViews.length ? `보기: ${lessonViews.join(", ")}` : "보기: 기본";
       this.runLessonBriefEl.textContent = `${title} · ${goalText} · ${missionText} · ${viewText}`;
     }

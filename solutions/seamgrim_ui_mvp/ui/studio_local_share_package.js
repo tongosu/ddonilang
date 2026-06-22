@@ -11,6 +11,12 @@ function asText(value, fallback = "") {
   return text || fallback;
 }
 
+function asTextArray(value) {
+  return asArray(value)
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
 function byteLengthUtf8(value) {
   return new TextEncoder().encode(String(value ?? "")).length;
 }
@@ -36,6 +42,12 @@ function normalizeLesson(lesson, index) {
   return {
     lesson_id: lessonId,
     title: asText(row.title ?? row.name ?? row["제목"], lessonId),
+    description: asText(row.description ?? row.desc ?? row["설명"], ""),
+    grade: asText(row.grade ?? row["학년"], ""),
+    subject: asText(row.subject ?? row["교과"], ""),
+    required_views: asTextArray(row.required_views ?? row.requiredViews ?? row["보기"]),
+    goals: asTextArray(row.goals ?? row.learning_goals ?? row["학습목표"]),
+    missions: asTextArray(row.missions ?? row["수업활동"]),
     path: normalizePath(row.path, `lessons/${pathToken}.ddn`),
     mime: "text/plain; charset=utf-8",
     source_text: source,

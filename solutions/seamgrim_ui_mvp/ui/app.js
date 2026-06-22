@@ -1596,6 +1596,19 @@ async function fetchText(pathCandidates) {
   return result.ok ? result.data : null;
 }
 
+function shouldProbeLessonInventoryApiForCatalog() {
+  return (
+    readWindowBoolean("SEAMGRIM_ENABLE_SERVER_FALLBACK", false) ||
+    readQueryBoolean("server_fallback", false) ||
+    globalThis?.SEAMGRIM_FEDERATED_API_CANDIDATES !== undefined
+  );
+}
+
+async function fetchLessonInventoryApiForCatalog() {
+  const inventoryApi = await fetchFirstOk(["/api/lessons/inventory", "/api/lesson-inventory"], "json");
+  return inventoryApi;
+}
+
 function metaStringList(value) {
   return Array.isArray(value) ? value.map((item) => String(item ?? "").trim()).filter(Boolean) : [];
 }
@@ -1869,6 +1882,8 @@ function ensureLessonEntryFromSelection(selection) {
   const space2dCandidates = resolveSelectionCandidates(selection, ["space2dCandidates", "space2d_path", "space2d_json_path", "2d_path"]);
   const structureCandidates = resolveSelectionCandidates(selection, ["structureCandidates", "structure_path"]);
   const metaCandidates = resolveSelectionCandidates(selection, ["metaCandidates", "meta_path"]);
+  const requiredViews = normalizeViewFamilyList(selection.requiredViews ?? selection.required_views ?? []);
+  const needsTextCandidate = requiredViews.some((view) => view === "text" || view === "structure");
 
   const nextEntry = toLessonEntry({
     id,
@@ -1880,13 +1895,12 @@ function ensureLessonEntryFromSelection(selection) {
     source,
     firstRunPath: selection.firstRunPath ?? selection.first_run_path ?? "",
     tags: selection.tags ?? [],
-    requiredViews: selection.requiredViews ?? selection.required_views ?? [],
+    requiredViews,
     ddnCandidates: ddnCandidates.length ? ddnCandidates : [fallback.ddn],
-    maegimControlCandidates: deriveMaegimControlCandidates(
-      ddnCandidates.length ? ddnCandidates : [fallback.ddn],
-      maegimControlCandidates,
-    ),
-    textCandidates: textCandidates.length ? textCandidates : [fallback.text],
+    maegimControlCandidates,
+    textCandidates: textCandidates.length || needsTextCandidate
+      ? (textCandidates.length ? textCandidates : [fallback.text])
+      : [],
     graphCandidates: graphCandidates.length ? graphCandidates : [fallback.graph],
     tableCandidates: tableCandidates.length ? tableCandidates : [fallback.table],
     space2dCandidates: space2dCandidates.length ? space2dCandidates : [fallback.space2d],
@@ -1919,6 +1933,8 @@ function mergeCatalogFromInventoryPayload(merged, payload) {
     const space2dCandidates = resolveSelectionCandidates(row, ["space2dCandidates", "space2d_path", "space2d_json_path", "2d_path"]);
     const structureCandidates = resolveSelectionCandidates(row, ["structureCandidates", "structure_path"]);
     const metaCandidates = resolveSelectionCandidates(row, ["metaCandidates", "meta_path"]);
+    const requiredViews = normalizeViewFamilyList(row?.requiredViews ?? row?.required_views ?? []);
+    const needsTextCandidate = requiredViews.some((view) => view === "text" || view === "structure");
     mergeLessonEntry(
       merged,
       toLessonEntry({
@@ -1931,13 +1947,12 @@ function mergeCatalogFromInventoryPayload(merged, payload) {
         source,
         firstRunPath: row?.firstRunPath ?? row?.first_run_path ?? "",
         tags: row?.tags ?? [],
-        requiredViews: row?.requiredViews ?? row?.required_views ?? [],
+        requiredViews,
         ddnCandidates: ddnCandidates.length ? ddnCandidates : [fallback.ddn],
-        maegimControlCandidates: deriveMaegimControlCandidates(
-          ddnCandidates.length ? ddnCandidates : [fallback.ddn],
-          maegimControlCandidates,
-        ),
-        textCandidates: textCandidates.length ? textCandidates : [fallback.text],
+        maegimControlCandidates,
+        textCandidates: textCandidates.length || needsTextCandidate
+          ? (textCandidates.length ? textCandidates : [fallback.text])
+          : [],
         graphCandidates: graphCandidates.length ? graphCandidates : [fallback.graph],
         tableCandidates: tableCandidates.length ? tableCandidates : [fallback.table],
         space2dCandidates: space2dCandidates.length ? space2dCandidates : [fallback.space2d],
@@ -2068,7 +2083,9 @@ async function loadCatalogLessons() {
   const activeAllowlist = await loadActiveLessonAllowlist();
   const merged = new Map();
 
-  const inventoryApi = await fetchFirstOk(["/api/lessons/inventory", "/api/lesson-inventory"], "json");
+  const inventoryApi = shouldProbeLessonInventoryApiForCatalog()
+    ? await fetchLessonInventoryApiForCatalog()
+    : { ok: false, url: "", data: null };
   if (inventoryApi.ok) {
     mergeCatalogFromInventoryPayload(merged, inventoryApi.data);
     if (repsOnly) {
@@ -2087,6 +2104,9 @@ async function loadCatalogLessons() {
       if (repsOnly && activeAllowlist.size > 0 && !activeAllowlist.has(id)) return;
       const paths = lessonPathsFromId(dataPath("lessons"), id);
       const rowMetaCandidates = resolveSelectionCandidates(row, ["metaCandidates", "meta_path"]);
+      const rowMaegimControlCandidates = resolveSelectionCandidates(row, ["maegimControlCandidates", "maegim_control_path"]);
+      const requiredViews = normalizeViewFamilyList(row.requiredViews ?? row.required_views ?? []);
+      const needsTextCandidate = requiredViews.some((view) => view === "text" || view === "structure");
       mergeLessonEntry(
         merged,
         toLessonEntry({
@@ -2099,10 +2119,10 @@ async function loadCatalogLessons() {
           source: "official",
           goals: row.goals ?? [],
           missions: row.missions ?? [],
-          requiredViews: row.requiredViews ?? row.required_views ?? [],
+          requiredViews,
           ddnCandidates: [paths.ddn],
-          maegimControlCandidates: [paths.maegimControl],
-          textCandidates: [paths.text],
+          maegimControlCandidates: rowMaegimControlCandidates,
+          textCandidates: needsTextCandidate ? [paths.text] : [],
           graphCandidates: [paths.graph],
           tableCandidates: [paths.table],
           space2dCandidates: [paths.space2d],
@@ -2189,7 +2209,7 @@ async function loadLessonById(lessonId) {
     throw new Error(`lesson.ddn 로드 실패: ${lessonId}`);
   }
 
-  const maegimControlCandidates = deriveMaegimControlCandidates(base.ddnCandidates, base.maegimControlCandidates);
+  const maegimControlCandidates = Array.isArray(base.maegimControlCandidates) ? base.maegimControlCandidates : [];
   const maegimControlJson = (await fetchText(maegimControlCandidates)) ?? "";
   const textMd = (await fetchText(base.textCandidates)) ?? "";
   const metaRaw = await fetchText(base.metaCandidates);
@@ -2236,6 +2256,11 @@ async function buildStudioDraftLessonFromDdn(ddnText, {
   id = STUDIO_DRAFT_LESSON_ID,
   title = "작업실 DDN",
   description = "작업실에서 직접 작성한 DDN",
+  subject = "",
+  grade = "",
+  requiredViews = [],
+  goals = [],
+  missions = [],
 } = {}) {
   const sourceText = String(ddnText ?? "");
   const baseMeta = {};
@@ -2246,20 +2271,27 @@ async function buildStudioDraftLessonFromDdn(ddnText, {
     tomlMeta: baseMeta,
     ddnMetaHeader,
   });
+  const importedRequiredViews = Array.isArray(requiredViews)
+    ? requiredViews
+    : [];
+  const fallbackRequiredViews =
+    baseMeta.required_views ??
+    ddnMetaHeader.requiredViews ??
+    ddnMetaHeader.required_views ??
+    appState.currentLesson?.requiredViews ??
+    [];
   const lesson = await lessonCanonHydrator.hydrateLessonCanon({
     id: String(id ?? STUDIO_DRAFT_LESSON_ID).trim() || STUDIO_DRAFT_LESSON_ID,
     title: displayMeta.title || title,
     description: displayMeta.description || description,
-    subject: normalizeSubject(appState.currentLesson?.subject ?? ""),
-    grade: appState.currentLesson?.grade ?? "",
+    subject: normalizeSubject(subject || appState.currentLesson?.subject || ""),
+    grade: String(grade || appState.currentLesson?.grade || "").trim(),
     quality: appState.currentLesson?.quality ?? "experimental",
     requiredViews: normalizeViewFamilyList(
-      baseMeta.required_views ??
-      ddnMetaHeader.requiredViews ??
-      ddnMetaHeader.required_views ??
-      appState.currentLesson?.requiredViews ??
-      [],
+      importedRequiredViews.length ? importedRequiredViews : fallbackRequiredViews,
     ),
+    goals: Array.isArray(goals) ? goals.map((item) => String(item ?? "").trim()).filter(Boolean) : [],
+    missions: Array.isArray(missions) ? missions.map((item) => String(item ?? "").trim()).filter(Boolean) : [],
     ddnText: sourceText,
     maegimControlJson: "",
     textMd: "",
@@ -2827,7 +2859,13 @@ async function main() {
       const importedLesson = await buildStudioDraftLessonFromDdn(sourceText, {
         id: `local_package_${safeLessonId}`,
         title: String(lesson.title ?? lessonId).trim() || lessonId,
-        description: `배포 파일: ${String(imported.manifest?.title ?? packageId).trim() || packageId}`,
+        description: String(lesson.description ?? "").trim()
+          || `배포 파일: ${String(imported.manifest?.title ?? packageId).trim() || packageId}`,
+        subject: lesson.subject,
+        grade: lesson.grade,
+        requiredViews: lesson.required_views,
+        goals: lesson.goals,
+        missions: lesson.missions,
       });
       try {
         window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ = {

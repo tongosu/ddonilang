@@ -1,9 +1,21 @@
+const PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/";
+
 function buildPathCandidates(path) {
-  const normalized = String(path ?? "").replace(/\\/g, "/").replace(/^\.\//, "").trim();
+  const normalized = String(path ?? "").replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "").trim();
   if (!normalized) return [];
   if (/^https?:\/\//i.test(normalized)) return [normalized];
-  const primary = normalized.startsWith("/") ? normalized : `/${normalized}`;
-  return [primary];
+  const stripped = normalized.startsWith(PROJECT_PREFIX)
+    ? normalized.slice(PROJECT_PREFIX.length)
+    : normalized;
+  const prefixed = normalized.startsWith(PROJECT_PREFIX)
+    ? normalized
+    : `${PROJECT_PREFIX}${normalized}`;
+  const primary = `/${stripped}`;
+  const secondary = `/${prefixed}`;
+  if (primary === secondary) return [primary];
+  const pathname = String(globalThis?.location?.pathname ?? "");
+  const projectPrefixed = pathname.includes(`/${PROJECT_PREFIX}`) || pathname.startsWith(`/${PROJECT_PREFIX.slice(0, -1)}`);
+  return projectPrefixed ? [secondary, primary] : [primary, secondary];
 }
 
 function normalizePreviewCandidateList(pathCandidates) {
