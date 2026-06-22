@@ -192,7 +192,7 @@ def check_ui_source() -> None:
             "buildLessonPublicationReviewSurface",
         ],
     )
-    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "isLocalDevHost()", "./dev_surfaces.js"])
     require_contains(
         STYLES_CSS,
         [
@@ -204,6 +204,14 @@ def check_ui_source() -> None:
         RUNNER,
         [
             "studio_lesson_publication_review_surface: ok",
+            "assertDefaultDevSurfacesHidden",
+            "assertNonLocalDevSurfacesBlocked",
+            "studio.example.test",
+            "localStorage.setItem(\"seamgrim.dev_surfaces\", \"1\")",
+            "dev-surface-root",
+            "performance.getEntriesByType(\"resource\")",
+            "dev_surfaces.js",
+            "question-card-smoke",
             "data-lesson-publication-status='lesson_publication_review_surface_ready'",
             "public_upload_claim",
             "active_allowlist_mutation",
