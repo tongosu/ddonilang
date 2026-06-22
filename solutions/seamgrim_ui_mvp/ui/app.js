@@ -2303,8 +2303,76 @@ async function buildStudioDraftLessonFromDdn(ddnText, {
   return lesson;
 }
 
+function createAdvancedMenuButton({ id = "", text = "", className = "", disabled = false, title = "" } = {}) {
+  const button = document.createElement("button");
+  button.type = "button";
+  if (id) button.id = id;
+  if (className) button.className = className;
+  button.disabled = Boolean(disabled);
+  if (title) button.title = title;
+  button.textContent = text;
+  return button;
+}
+
+function ensureAdvancedMenuRoot() {
+  const existing = byId("advanced-menu");
+  if (existing) return existing;
+  if (!DEV_SURFACES_ENABLED) return null;
+  const root = document.querySelector(".app-root") || document.body;
+  if (!root) return null;
+  const menu = document.createElement("div");
+  menu.id = "advanced-menu";
+  menu.className = "advanced-menu hidden";
+  menu.style.position = "fixed";
+  menu.style.top = "56px";
+  menu.style.right = "12px";
+  menu.style.width = "220px";
+  menu.style.border = "1px solid var(--line)";
+  menu.style.borderRadius = "12px";
+  menu.style.background = "#fff";
+  menu.style.boxShadow = "0 10px 30px rgba(15, 23, 42, 0.16)";
+  menu.style.padding = "8px";
+  menu.style.display = "flex";
+  menu.style.flexDirection = "column";
+  menu.style.gap = "6px";
+  menu.style.zIndex = "50";
+  [
+    { id: "advanced-smoke", text: "Smoke 검증" },
+    { id: "btn-save-server", text: "서버에 저장 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-share-link", text: "공유 링크 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-revision-history", text: "리비전 기록 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-revision-compare", text: "리비전 비교 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-work-duplicate", text: "작업 복제 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-share-clone", text: "복제해서 사용 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-publish", text: "게시 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-republish", text: "재게시 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-publication-history", text: "게시 이력 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-package-catalog", text: "꾸러미 카탈로그 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-package-deps", text: "의존 꾸러미 보기 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-review-request", text: "검토 요청 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-review-approve", text: "검토 승인 (준비 중)", disabled: true, title: "준비 중" },
+    { id: "btn-review-reject", text: "검토 반려 (준비 중)", disabled: true, title: "준비 중" },
+    { className: "age-slot", text: "A 실시간 입력", disabled: true },
+    { className: "age-slot", text: "B 꾸러미 브라우저", disabled: true },
+    { className: "age-slot", text: "C 3D 렌더", disabled: true },
+  ].forEach((item) => {
+    const button = createAdvancedMenuButton(item);
+    button.style.textAlign = "left";
+    menu.appendChild(button);
+  });
+  root.appendChild(menu);
+  return menu;
+}
+
+function createNoopAdvancedMenu() {
+  return {
+    toggle() {},
+    close() {},
+  };
+}
+
 function createAdvancedMenu({ onSmoke }) {
-  const menu = byId("advanced-menu");
+  const menu = ensureAdvancedMenuRoot();
   const smokeBtn = byId("advanced-smoke");
   const saveServerBtn = byId("btn-save-server");
   const shareLinkBtn = byId("btn-share-link");
@@ -3215,7 +3283,7 @@ async function main() {
     },
   });
 
-  const advanced = createAdvancedMenu({
+  const advanced = DEV_SURFACES_ENABLED ? createAdvancedMenu({
     onSmoke: async () => {
       const source =
         appState.currentScreen === "editor"
@@ -3247,7 +3315,7 @@ async function main() {
         }
       }
     },
-  });
+  }) : createNoopAdvancedMenu();
 
   browseScreen.init();
   editorScreen.init();
