@@ -107,6 +107,7 @@ function isLocalDevHost() {
 }
 
 function shouldEnableDevSurfaces() {
+  if (!isLocalDevHost()) return false;
   try {
     const url = new URL(String(globalThis?.location?.href ?? ""));
     const queryValue = String(url.searchParams.get(DEV_SURFACES_QUERY_KEY) ?? "").trim().toLowerCase();

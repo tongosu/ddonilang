@@ -153,6 +153,41 @@ async function assertNonLocalDevSurfacesBlocked(page, publicBaseUrl) {
     `non-local storage loaded dev_surfaces.js: ${storageState.devSurfaceResourceUrls.join(", ")}`
   );
   await page.evaluate(() => localStorage.removeItem("seamgrim.dev_surfaces"));
+
+  await page.addInitScript(() => {
+    window.SEAMGRIM_DEV_SURFACES = true;
+  });
+  await page.goto(`${publicBaseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#screen-browse .catalog-body");
+  const globalOverrideState = await page.evaluate(() => ({
+    hostname: window.location.hostname,
+    globalFlag: window.SEAMGRIM_DEV_SURFACES === true,
+    bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
+    devRootCount: document.querySelectorAll("#dev-surface-root").length,
+    legacyBrowseControlCount: [
+      "#btn-filter-numeric-track",
+      "#btn-filter-numeric-track-results",
+      "#btn-preset-featured-seed-quick-recent",
+      "#btn-copy-browse-preset-link",
+      "#filter-quality",
+      "#filter-sort",
+    ].filter((selector) => document.querySelector(selector)).length,
+    devSurfaceResourceUrls: performance.getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+  }));
+  assert(globalOverrideState.hostname === "studio.example.test", `non-local global host mismatch: ${globalOverrideState.hostname}`);
+  assert(globalOverrideState.globalFlag === true, "non-local dev surface global override setup failed");
+  assert(globalOverrideState.bodyDevClass === false, "non-local UI must ignore dev surface global override");
+  assert(globalOverrideState.devRootCount === 0, `non-local global override leaked dev surface root: ${globalOverrideState.devRootCount}`);
+  assert(
+    globalOverrideState.legacyBrowseControlCount === 0,
+    `non-local global override leaked legacy browse controls: ${globalOverrideState.legacyBrowseControlCount}`
+  );
+  assert(
+    globalOverrideState.devSurfaceResourceUrls.length === 0,
+    `non-local global override loaded dev_surfaces.js: ${globalOverrideState.devSurfaceResourceUrls.join(", ")}`
+  );
 }
 
 async function main() {

@@ -208,6 +208,8 @@ def check_ui_source() -> None:
             "assertNonLocalDevSurfacesBlocked",
             "studio.example.test",
             "localStorage.setItem(\"seamgrim.dev_surfaces\", \"1\")",
+            "window.SEAMGRIM_DEV_SURFACES = true",
+            "legacyBrowseControlCount",
             "dev-surface-root",
             "performance.getEntriesByType(\"resource\")",
             "dev_surfaces.js",

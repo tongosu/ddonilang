@@ -70,11 +70,13 @@ import {
 
 function shouldShowLegacyBrowseControls() {
   try {
+    if (document?.body?.classList?.contains("dev-surfaces-enabled") === true) return true;
+    const host = String(globalThis?.location?.hostname ?? "").trim().toLowerCase();
+    const localHost = !host || host === "localhost" || host === "127.0.0.1" || host === "::1";
+    if (!localHost) return false;
     const params = new URLSearchParams(globalThis?.location?.search ?? "");
     const raw = String(params.get("devSurfaces") ?? "").trim().toLowerCase();
-    return raw === "1" || raw === "true" || raw === "yes"
-      || globalThis?.SEAMGRIM_DEV_SURFACES === true
-      || document?.body?.classList?.contains("dev-surfaces-enabled");
+    return raw === "1" || raw === "true" || raw === "yes" || globalThis?.SEAMGRIM_DEV_SURFACES === true;
   } catch (_) {
     return false;
   }
