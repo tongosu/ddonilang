@@ -1626,7 +1626,16 @@ function buildCurriculumMeta(meta) {
 
 function mergeLessonWithCurriculumMeta(lesson, meta) {
   const curriculumMeta = buildCurriculumMeta(meta);
-  if (!curriculumMeta) return lesson;
+  if (!curriculumMeta) {
+    const goals = metaStringList(meta?.goals ?? meta?.learning_goals);
+    const missions = metaStringList(meta?.missions);
+    if (goals.length === 0 && missions.length === 0) return lesson;
+    return {
+      ...lesson,
+      goals: goals.length ? goals : lesson?.goals ?? [],
+      missions: missions.length ? missions : lesson?.missions ?? [],
+    };
+  }
   const requiredViews = curriculumMeta.requiredViews.length
     ? curriculumMeta.requiredViews
     : normalizeViewFamilyList(lesson?.requiredViews ?? []);
@@ -1642,6 +1651,7 @@ function mergeLessonWithCurriculumMeta(lesson, meta) {
     subject: normalizeSubject(curriculumMeta.subject || lesson.subject),
     requiredViews,
     tags,
+    goals: curriculumMeta.learningGoals.length ? curriculumMeta.learningGoals : lesson?.goals ?? [],
     curriculumMeta,
   };
 }
@@ -1694,6 +1704,8 @@ function toLessonEntry(base) {
     source: String(base.source ?? "official"),
     firstRunPath: String(base.firstRunPath ?? base.first_run_path ?? "").trim(),
     tags: Array.isArray(base.tags) ? base.tags.filter(Boolean).map((item) => String(item)) : [],
+    goals: Array.isArray(base.goals) ? base.goals.filter(Boolean).map((item) => String(item)) : [],
+    missions: Array.isArray(base.missions) ? base.missions.filter(Boolean).map((item) => String(item)) : [],
     requiredViews: normalizeViewFamilyList(base.requiredViews ?? base.required_views ?? []),
     ddnCandidates: Array.isArray(base.ddnCandidates) ? base.ddnCandidates.filter(Boolean) : [],
     maegimControlCandidates: Array.isArray(base.maegimControlCandidates) ? base.maegimControlCandidates.filter(Boolean) : [],
@@ -1753,6 +1765,8 @@ function mergeLessonEntry(map, nextEntry) {
     quality: mergedQuality,
     firstRunPath: String(existing.firstRunPath ?? "").trim() || String(nextEntry.firstRunPath ?? "").trim(),
     tags: Array.from(new Set([...(existing.tags ?? []), ...(nextEntry.tags ?? [])])),
+    goals: Array.from(new Set([...(existing.goals ?? []), ...(nextEntry.goals ?? [])])),
+    missions: Array.from(new Set([...(existing.missions ?? []), ...(nextEntry.missions ?? [])])),
     requiredViews: Array.from(new Set([...(existing.requiredViews ?? []), ...(nextEntry.requiredViews ?? [])])),
     ddnCandidates: Array.from(new Set([...(existing.ddnCandidates ?? []), ...(nextEntry.ddnCandidates ?? [])])),
     maegimControlCandidates: Array.from(
@@ -2083,6 +2097,8 @@ async function loadCatalogLessons() {
           subject: row.subject,
           quality: "experimental",
           source: "official",
+          goals: row.goals ?? [],
+          missions: row.missions ?? [],
           requiredViews: row.requiredViews ?? row.required_views ?? [],
           ddnCandidates: [paths.ddn],
           maegimControlCandidates: [paths.maegimControl],

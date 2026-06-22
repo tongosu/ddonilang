@@ -6629,6 +6629,17 @@ button:disabled {
   margin-top: 14px;
 }
 
+.course-catalog-summary {
+  margin-bottom: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  padding: 9px 11px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .lesson-card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -6700,6 +6711,34 @@ button:disabled {
 .card-desc {
   font-size: 12px;
   color: var(--muted);
+}
+
+.card-course-surface {
+  width: fit-content;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+}
+
+.card-course-delivery {
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.card-course-goals {
+  margin: 2px 0 0;
+  padding-left: 16px;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.card-course-goals li + li {
+  margin-top: 2px;
 }
 
 .card-state-hint {

@@ -455,12 +455,21 @@ async function main() {
   }
   const appJs = await fs.readFile(path.join(uiRoot, "app.js"), "utf-8");
   const runJs = await fs.readFile(path.join(uiRoot, "screens", "run.js"), "utf-8");
+  const browseJs = await fs.readFile(path.join(uiRoot, "screens", "browse.js"), "utf-8");
   const stylesCss = await fs.readFile(path.join(uiRoot, "styles.css"), "utf-8");
   assert(appJs.includes('setLocalPackageImportStatus("loading"'), "local package loading status update is missing");
   assert(appJs.includes("배포 파일을 확인하는 중입니다"), "local package loading message is missing");
   assert(!runJs.includes("path: `lessons/${lessonId}.ddn`"), "run export must not bypass portable lesson package paths");
   assert(!runJs.includes("path: `reports/${lessonId}.classroom_report.tsv`"), "run export must not bypass portable report package paths");
+  assert(browseJs.includes("DDN 교과 실행"), "teacher lesson cards must expose the DDN course surface");
+  assert(browseJs.includes("학생 실행") && browseJs.includes("교사용 배포"), "teacher lesson cards must expose classroom delivery flow");
+  assert(browseJs.includes("data-course-catalog-summary"), "teacher catalog summary should be mounted by BrowseScreen");
+  assert(browseJs.includes("data-course-goals"), "teacher lesson cards must expose learning goals");
   assert(stylesCss.includes('.local-package-import-status[data-state="loading"]'), "local package loading status style is missing");
+  assert(stylesCss.includes(".card-course-surface"), "course surface card style is missing");
+  assert(stylesCss.includes(".card-course-delivery"), "course delivery card style is missing");
+  assert(stylesCss.includes(".card-course-goals"), "course goals card style is missing");
+  assert(stylesCss.includes(".course-catalog-summary"), "course catalog summary style is missing");
   await assertLocalPackageValidation(uiRoot);
 
   const { server, baseUrl } = await createServer(root);
@@ -496,6 +505,7 @@ async function main() {
 
     await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
+    await page.waitForSelector(".lesson-card[data-lesson-id^='rep_']");
     const defaultDevSurfaceState = await page.evaluate(() => ({
       bodyEnabled: document.body.classList.contains("dev-surfaces-enabled"),
       devRootExists: Boolean(document.querySelector("#dev-surface-root")),
@@ -522,6 +532,12 @@ async function main() {
       benchmarkLtsExists: Boolean(document.querySelector("[data-run-benchmark-lts-export]")),
       educationOperationsExists: Boolean(document.querySelector("[data-run-education-operations-lts-export]")),
       localPackageFileAccept: document.querySelector("#input-local-package-file")?.getAttribute("accept") ?? "",
+      visibleLessonIds: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.dataset.lessonId || ""),
+      courseSummaryText: document.querySelector("[data-course-catalog-summary]")?.textContent?.trim() || "",
+      courseSurfaceTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-surface]")).map((node) => node.textContent?.trim() || ""),
+      courseDeliveryTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-delivery]")).map((node) => node.textContent?.trim() || ""),
+      courseGoalTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-goals]")).map((node) => node.textContent?.trim() || ""),
+      cardSubjects: Array.from(document.querySelectorAll(".lesson-card .card-meta")).map((node) => node.textContent?.trim() || ""),
     }));
     assert(defaultDevSurfaceState.templateExists === false, "dev surface template should not ship in the default teacher UI");
     assert(defaultDevSurfaceState.bodyEnabled === false, "dev surfaces should not be enabled by default");
@@ -548,6 +564,45 @@ async function main() {
     assert(defaultDevSurfaceState.benchmarkLtsExists === false, "benchmark LTS export should not exist in the default teacher DOM");
     assert(defaultDevSurfaceState.educationOperationsExists === false, "education operations export should not exist in the default teacher DOM");
     assert(defaultDevSurfaceState.localPackageFileAccept === ".json,application/json", `local package file accept mismatch: ${defaultDevSurfaceState.localPackageFileAccept}`);
+    assert(defaultDevSurfaceState.visibleLessonIds.length > 0, "default teacher catalog should show course lessons");
+    assert(
+      defaultDevSurfaceState.courseSummaryText.includes(`${defaultDevSurfaceState.visibleLessonIds.length}개 대표 교과`)
+        && defaultDevSurfaceState.courseSummaryText.includes("DDN 실행")
+        && defaultDevSurfaceState.courseSummaryText.includes("교사용 배포"),
+      `course summary mismatch: ${defaultDevSurfaceState.courseSummaryText}`,
+    );
+    assert(
+      defaultDevSurfaceState.visibleLessonIds.every((id) => !String(id).includes("ddonirang") && !String(id).startsWith("rep_cs_")),
+      `default teacher catalog leaked internal lessons: ${defaultDevSurfaceState.visibleLessonIds.join(",")}`,
+    );
+    assert(
+      defaultDevSurfaceState.courseSurfaceTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.courseSurfaceTexts.every((text) => text.startsWith("DDN 교과 실행")),
+      `course surface text mismatch: ${defaultDevSurfaceState.courseSurfaceTexts.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.courseDeliveryTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.courseDeliveryTexts.every((text) => text.includes("학생 실행") && text.includes("교사용 배포")),
+      `course delivery text mismatch: ${defaultDevSurfaceState.courseDeliveryTexts.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.courseGoalTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.courseGoalTexts.every((text) => text.length > 0),
+      `course goals missing: ${defaultDevSurfaceState.courseGoalTexts.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.cardSubjects.every((text) => /물리|수학|경제|과학/.test(text)),
+      `default teacher catalog should stay on classroom subjects: ${defaultDevSurfaceState.cardSubjects.join("|")}`,
+    );
+    await page.click(".lesson-card[data-lesson-id^='rep_']");
+    const defaultLessonDetail = await page.evaluate(() => ({
+      visible: !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"),
+      text: document.querySelector("#detail-curriculum")?.textContent ?? "",
+    }));
+    assert(defaultLessonDetail.visible === true, "lesson detail panel should open from the default teacher catalog");
+    assert(defaultLessonDetail.text.includes("학습목표"), `detail panel missing learning goals: ${defaultLessonDetail.text}`);
+    assert(defaultLessonDetail.text.includes("수업 활동"), `detail panel missing classroom activities: ${defaultLessonDetail.text}`);
+    assert(defaultLessonDetail.text.includes("수업 보기"), `detail panel missing required views: ${defaultLessonDetail.text}`);
     await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
     await waitVisible(page, "#screen-run");

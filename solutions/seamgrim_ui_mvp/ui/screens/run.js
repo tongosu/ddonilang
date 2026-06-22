@@ -3278,6 +3278,7 @@ export class RunScreen {
     this.runPresetViewsEl = this.root.querySelector("[data-run-preset-views]");
     this.runPresetNumericTrackEl = this.root.querySelector("[data-run-preset-numeric-track]");
     this.runResultNumericLinkEl = this.root.querySelector("[data-run-result-numeric-link]");
+    this.runLessonBriefEl = this.root.querySelector("[data-run-lesson-brief]");
     this.classroomModeSwitchEl = this.root.querySelector("[data-classroom-mode-switch]");
     this.classroomModeBtns = Array.from(this.root.querySelectorAll("[data-classroom-mode]"));
     this.btnStudioNewEl = this.root.querySelector("#btn-studio-new");
@@ -8439,14 +8440,34 @@ runs: 0</pre>
     this.syncInitialBogaeShellVisibility(false);
     this.setRunLocalSaveStatus("저장 대기", { status: "idle" });
     this.syncLegacyAutofixAvailability();
+    const lessonGoals = Array.isArray(lesson?.goals)
+      ? lesson.goals.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    const lessonMissions = Array.isArray(lesson?.missions)
+      ? lesson.missions.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    const lessonViews = normalizeRunRequiredViews(lesson?.requiredViews ?? []);
+    if (this.runLessonBriefEl) {
+      const title = String(lesson?.title ?? lesson?.id ?? "수업").trim() || "수업";
+      const goalText = lessonGoals[0] ? `목표: ${lessonGoals[0]}` : "목표: DDN 수업 실행";
+      const missionText = lessonMissions[0] ? `활동: ${lessonMissions[0]}` : "활동: 결과를 보고 확인";
+      const viewText = lessonViews.length ? `보기: ${lessonViews.join(", ")}` : "보기: 기본";
+      this.runLessonBriefEl.textContent = `${title} · ${goalText} · ${missionText} · ${viewText}`;
+    }
     if (this.runLessonSummaryEl) {
       const lessonId = String(lesson?.id ?? "-").trim() || "-";
       const title = String(lesson?.title ?? "").trim() || "-";
       const description = String(lesson?.description ?? "").trim();
-      const views = normalizeRunRequiredViews(lesson?.requiredViews ?? []);
+      const views = lessonViews;
       const lines = [`교과: ${title} (${lessonId})`];
       if (description) {
         lines.push(`설명: ${description}`);
+      }
+      if (lessonGoals.length) {
+        lines.push(`학습목표: ${lessonGoals.slice(0, 2).join(" / ")}`);
+      }
+      if (lessonMissions.length) {
+        lines.push(`수업 활동: ${lessonMissions.slice(0, 2).join(" / ")}`);
       }
       if (views.length) {
         lines.push(`보기: ${views.join(", ")}`);

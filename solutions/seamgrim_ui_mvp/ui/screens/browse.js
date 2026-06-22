@@ -249,6 +249,64 @@ function formatSubjectLabel(subject) {
   return labels[key] || String(subject ?? "").trim() || "-";
 }
 
+function formatRequiredViewLabel(view) {
+  const key = String(view ?? "").trim().toLowerCase();
+  const labels = {
+    graph: "그래프",
+    table: "표",
+    text: "설명",
+    space2d: "그림",
+    grid: "격자",
+  };
+  return labels[key] || key;
+}
+
+function buildCourseSurfaceText(lesson) {
+  const views = Array.isArray(lesson?.requiredViews)
+    ? lesson.requiredViews
+    : Array.isArray(lesson?.required_views)
+      ? lesson.required_views
+      : [];
+  const viewText = views
+    .map(formatRequiredViewLabel)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" · ");
+  const suffix = viewText ? ` · ${viewText}` : "";
+  return `DDN 교과 실행${suffix}`;
+}
+
+function buildCourseDeliveryText(lesson) {
+  const grade = formatGradeLabel(lesson?.grade);
+  const subject = formatSubjectLabel(lesson?.subject);
+  const course = [grade, subject].filter((item) => item && item !== "-").join(" · ");
+  const prefix = course ? `${course} 수업` : "교과 수업";
+  return `${prefix} · 학생 실행 · 교사용 배포`;
+}
+
+function buildCourseGoalTexts(lesson) {
+  const rows = Array.isArray(lesson?.goals) ? lesson.goals : [];
+  return rows
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function buildCourseMissionTexts(lesson) {
+  const rows = Array.isArray(lesson?.missions) ? lesson.missions : [];
+  const missions = rows
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 2);
+  if (missions.length > 0) return missions;
+  const views = Array.isArray(lesson?.requiredViews) ? lesson.requiredViews : [];
+  const viewText = views.map(formatRequiredViewLabel).filter(Boolean).slice(0, 3).join(", ");
+  return [
+    "학생 시작으로 DDN 수업을 실행한다",
+    viewText ? `${viewText} 결과를 보고 수업 내용을 확인한다` : "결과 화면을 보고 수업 내용을 확인한다",
+  ];
+}
+
 function formatGradeLabel(grade) {
   const key = normalizeGrade(grade);
   const labels = {
@@ -494,6 +552,13 @@ export class BrowseScreen {
     this.localPackageFileInput = this.root.querySelector("#input-local-package-file");
     this.legacyGuideHintEl = this.root.querySelector("#browse-legacy-guide-hint");
     this.grid = this.root.querySelector("#lesson-card-grid");
+    this.courseSummaryEl = this.root.querySelector("[data-course-catalog-summary]");
+    if (!this.courseSummaryEl && this.grid && typeof document?.createElement === "function") {
+      this.courseSummaryEl = document.createElement("div");
+      this.courseSummaryEl.className = "course-catalog-summary";
+      this.courseSummaryEl.dataset.courseCatalogSummary = "";
+      this.grid.parentElement?.insertBefore(this.courseSummaryEl, this.grid);
+    }
     this.detailPanelEl = this.root.querySelector("#catalog-detail-panel");
     this.detailSubjectBadgeEl = this.root.querySelector("#detail-subject-badge");
     this.detailTitleEl = this.root.querySelector("#detail-title");
@@ -2186,6 +2251,9 @@ export class BrowseScreen {
     const runHashShort = runHash ? runHash.slice(0, 12) : "";
     const gradeLabel = formatGradeLabel(lesson.grade);
     const subjectLabel = formatSubjectLabel(lesson.subject);
+    const courseSurfaceText = buildCourseSurfaceText(lesson);
+    const courseDeliveryText = buildCourseDeliveryText(lesson);
+    const courseGoals = buildCourseGoalTexts(lesson);
 
     const card = document.createElement("button");
     card.type = "button";
@@ -2202,6 +2270,13 @@ export class BrowseScreen {
       <div class="card-title">${lesson.title || lesson.id}</div>
       <div class="card-meta">${gradeLabel} · ${subjectLabel}</div>
       <div class="card-desc">${lesson.description || "설명 없음"}</div>
+      <div class="card-course-surface" data-course-surface>${escapeHtml(courseSurfaceText)}</div>
+      <div class="card-course-delivery" data-course-delivery>${escapeHtml(courseDeliveryText)}</div>
+      ${courseGoals.length
+        ? `<ul class="card-course-goals" data-course-goals>
+          ${courseGoals.map((goal) => `<li>${escapeHtml(goal)}</li>`).join("")}
+        </ul>`
+        : ""}
       ${showLegacyControls && firstRunHint ? `<div class="card-state-hint">${firstRunHint}</div>` : ""}
       ${showLegacyControls
         ? `<div class="card-badge-row">
@@ -2321,7 +2396,17 @@ export class BrowseScreen {
         // ignore browser instrumentation errors
       }
       if (!curriculumMeta) {
-        this.detailCurriculumEl.innerHTML = numericSections.join("");
+        const goalRows = buildCourseGoalTexts(this.detailLesson);
+        const missionRows = buildCourseMissionTexts(this.detailLesson);
+        const viewRows = Array.isArray(this.detailLesson.requiredViews) && this.detailLesson.requiredViews.length
+          ? [`보기: ${this.detailLesson.requiredViews.map(formatRequiredViewLabel).join(", ")}`]
+          : [];
+        this.detailCurriculumEl.innerHTML = [
+          renderDetailList("학습목표", goalRows),
+          renderDetailList("수업 활동", missionRows),
+          renderDetailList("수업 보기", viewRows),
+          ...numericSections,
+        ].join("");
       } else {
         const titleRows = [
           curriculumMeta.unit ? `단원: ${curriculumMeta.unit}` : "",
@@ -2477,9 +2562,24 @@ export class BrowseScreen {
     }
   }
 
+  updateCourseCatalogSummary(lessons) {
+    if (!this.courseSummaryEl) return;
+    const show = this.activeTab === "official" && Array.isArray(lessons) && lessons.length > 0;
+    this.courseSummaryEl.classList.toggle("hidden", !show);
+    if (!show) {
+      this.courseSummaryEl.textContent = "";
+      return;
+    }
+    const subjects = Array.from(new Set(lessons.map((lesson) => formatSubjectLabel(lesson.subject)).filter(Boolean)));
+    const subjectText = subjects.slice(0, 4).join(" · ");
+    const suffix = subjectText ? ` · ${subjectText}` : "";
+    this.courseSummaryEl.textContent = `${lessons.length}개 대표 교과${suffix} · DDN 실행 · 학생 시작 · 교사용 배포`;
+  }
+
   render() {
     if (!this.grid) return;
     const lessons = this.filteredLessons();
+    this.updateCourseCatalogSummary(lessons);
     this.updateFeaturedSeedQuickPresetButton();
     this.updateNumericTrackButton();
     this.updateNumericTrackResultsButton();
