@@ -593,6 +593,8 @@ async function main() {
       studentLaunchButtonTexts: Array.from(document.querySelectorAll(".lesson-card .card-launch-btn[data-launch-profile='student']")).map((node) => node.textContent?.trim() || ""),
       teacherLaunchButtonTexts: Array.from(document.querySelectorAll(".lesson-card .card-launch-btn[data-launch-profile='teacher']")).map((node) => node.textContent?.trim() || ""),
       courseSummaryText: document.querySelector("[data-course-catalog-summary]")?.textContent?.trim() || "",
+      courseSummaryTotal: document.querySelector("[data-course-catalog-summary]")?.getAttribute("data-course-catalog-total") || "",
+      courseSummaryVisible: document.querySelector("[data-course-catalog-summary]")?.getAttribute("data-course-catalog-visible") || "",
       velocityCardText: document.querySelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']")?.textContent?.trim() || "",
       courseSurfaceTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-surface]")).map((node) => node.textContent?.trim() || ""),
       courseDeliveryTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-delivery]")).map((node) => node.textContent?.trim() || ""),
@@ -789,13 +791,39 @@ async function main() {
     assert(
       defaultDevSurfaceState.courseSummaryText.includes(`${defaultDevSurfaceState.visibleLessonIds.length}개 대표 교과`)
         && defaultDevSurfaceState.courseSummaryText.includes("DDN 실행")
-        && defaultDevSurfaceState.courseSummaryText.includes("교사용 배포"),
+        && defaultDevSurfaceState.courseSummaryText.includes("교사용 배포")
+        && defaultDevSurfaceState.courseSummaryText.includes("전체 검색으로 나머지 교과 확인"),
       `course summary mismatch: ${defaultDevSurfaceState.courseSummaryText}`,
+    );
+    assert(
+      Number(defaultDevSurfaceState.courseSummaryTotal) >= Number(defaultDevSurfaceState.courseSummaryVisible)
+        && Number(defaultDevSurfaceState.courseSummaryVisible) === defaultDevSurfaceState.visibleLessonIds.length,
+      `course summary count mismatch: total=${defaultDevSurfaceState.courseSummaryTotal} visible=${defaultDevSurfaceState.courseSummaryVisible}`,
     );
     assert(
       defaultDevSurfaceState.visibleLessonIds.every((id) => !String(id).includes("ddonirang") && !String(id).startsWith("rep_cs_")),
       `default teacher catalog leaked internal lessons: ${defaultDevSurfaceState.visibleLessonIds.join(",")}`,
     );
+    await page.click(".browse-tab[data-tab='search']");
+    await page.waitForFunction(
+      (officialCount) => document.querySelectorAll(".lesson-card").length >= officialCount,
+      defaultDevSurfaceState.visibleLessonIds.length,
+    );
+    const fullSearchState = await page.evaluate(() => ({
+      visibleLessonIds: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.dataset.lessonId || ""),
+      summaryVisible: document.querySelector("[data-course-catalog-summary]")?.classList.contains("hidden") === false,
+    }));
+    assert(
+      fullSearchState.visibleLessonIds.length >= defaultDevSurfaceState.visibleLessonIds.length,
+      `full search should include at least the representative lessons: ${fullSearchState.visibleLessonIds.join(",")}`,
+    );
+    assert(
+      fullSearchState.visibleLessonIds.some((id) => String(id).includes("ddonirang") || String(id).startsWith("rep_cs_")),
+      `full search should expose non-default allowlist lessons on demand: ${fullSearchState.visibleLessonIds.join(",")}`,
+    );
+    assert(fullSearchState.summaryVisible === false, "representative course summary should stay scoped to the official tab");
+    await page.click(".browse-tab[data-tab='official']");
+    await page.waitForSelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
     assert(
       defaultDevSurfaceState.courseSurfaceTexts.length === defaultDevSurfaceState.visibleLessonIds.length
         && defaultDevSurfaceState.courseSurfaceTexts.every((text) => text.startsWith("DDN 교과 실행")),

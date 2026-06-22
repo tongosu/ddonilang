@@ -355,6 +355,19 @@ function renderDetailList(title, rows) {
   `;
 }
 
+function mergeLessonPools(...pools) {
+  const merged = new Map();
+  pools.forEach((pool) => {
+    if (!Array.isArray(pool)) return;
+    pool.forEach((lesson) => {
+      const id = String(lesson?.id ?? "").trim();
+      if (!id || merged.has(id)) return;
+      merged.set(id, lesson);
+    });
+  });
+  return Array.from(merged.values());
+}
+
 function setElementDatasetValue(element, key, value) {
   if (!element || !element.dataset) return;
   element.dataset[key] = String(value ?? "");
@@ -2029,7 +2042,7 @@ export class BrowseScreen {
   }
 
   currentPool() {
-    if (this.activeTab === "search") return this.searchResults;
+    if (this.activeTab === "search") return mergeLessonPools(this.lessons, this.searchResults);
     if (this.activeTab === "examples") return this.sampleResults;
     return this.lessons;
   }
@@ -2599,12 +2612,21 @@ export class BrowseScreen {
     this.courseSummaryEl.classList.toggle("hidden", !show);
     if (!show) {
       this.courseSummaryEl.textContent = "";
+      this.courseSummaryEl.dataset.courseCatalogTotal = "0";
+      this.courseSummaryEl.dataset.courseCatalogVisible = "0";
       return;
     }
     const subjects = Array.from(new Set(lessons.map((lesson) => formatSubjectLabel(lesson.subject)).filter(Boolean)));
     const subjectText = subjects.slice(0, 4).join(" · ");
     const suffix = subjectText ? ` · ${subjectText}` : "";
-    this.courseSummaryEl.textContent = `${lessons.length}개 대표 교과${suffix} · DDN 실행 · 학생 시작 · 교사용 배포`;
+    const totalCount = this.currentPool().length;
+    const filteredText = totalCount > lessons.length
+      ? ` · 전체 ${totalCount}개 중 교사용 대표 ${lessons.length}개 표시`
+      : "";
+    this.courseSummaryEl.dataset.courseCatalogTotal = String(totalCount);
+    this.courseSummaryEl.dataset.courseCatalogVisible = String(lessons.length);
+    this.courseSummaryEl.textContent =
+      `${lessons.length}개 대표 교과${suffix}${filteredText} · DDN 실행 · 학생 시작 · 교사용 배포 · 전체 검색으로 나머지 교과 확인`;
   }
 
   render() {
@@ -2630,7 +2652,7 @@ export class BrowseScreen {
       const empty = document.createElement("div");
       empty.className = "hint";
       empty.textContent = this.activeTab === "search"
-        ? "연합 검색 결과가 없습니다."
+        ? "전체 검색 결과가 없습니다."
         : this.activeTab === "examples"
           ? "등록된 예제가 없습니다."
           : "조건에 맞는 교과가 없습니다.";
