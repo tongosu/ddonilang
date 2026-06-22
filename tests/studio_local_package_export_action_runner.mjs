@@ -464,6 +464,8 @@ async function main() {
   assert(appJs.includes("배포 파일을 확인하는 중입니다"), "local package loading message is missing");
   assert(!indexHtml.includes('id="advanced-menu"'), "advanced menu should not ship in the default teacher HTML");
   assert(appJs.includes("function ensureAdvancedMenuRoot()"), "advanced menu should be created only through the dev opt-in path");
+  assert(!appJs.includes('from "./dev_surfaces.js"'), "dev surfaces must not be statically imported by the teacher app");
+  assert(appJs.includes('import("./dev_surfaces.js")'), "dev surfaces must stay behind the dev opt-in dynamic import");
   assert(!stylesCss.includes(".education-publication-pack"), "education publication dev panel CSS should not ship in the default teacher stylesheet");
   assert(devSurfacesCss.includes(".education-publication-pack"), "education publication dev panel CSS should be in dev_surfaces.css");
   assert(devSurfacesCss.includes(".question-card-smoke"), "question card dev panel CSS should be in dev_surfaces.css");
