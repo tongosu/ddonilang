@@ -275,6 +275,9 @@ export function buildStudioLocalPackageManifest({
     title: asText(title, "셈그림 교사용 배포 묶음"),
     version: asText(version, "0.1.0"),
     generated_locally: true,
+    delivery_mode: "studio_json_import",
+    open_with: "seamgrim_studio_local_package_import",
+    student_entry_label: "배포 열기",
     account_required: false,
     cloud_sync: false,
     public_registry: false,
@@ -308,6 +311,13 @@ export function buildStudioLocalPackagePayload({
     assets: normalizedAssets,
     import_export_format: "studio_local_package_payload_v1",
     generated_locally: true,
+    delivery_mode: "studio_json_import",
+    open_with: "seamgrim_studio_local_package_import",
+    student_entry_label: "배포 열기",
+    student_instructions: [
+      "셈그림 Studio에서 배포 열기를 누른 뒤 이 JSON 파일을 선택합니다.",
+      "받은 수업 실행을 눌러 교사가 보낸 수업을 시작합니다.",
+    ],
     account_required: false,
     cloud_sync: false,
     public_registry: false,
@@ -480,6 +490,7 @@ export function formatStudioLocalPackageIndexText(payload = {}) {
   const lines = [
     "구분\t경로\t제목\t크기",
     `package\t${String(manifest.package_id ?? "")}\t${String(manifest.title ?? "")}\t${Number(manifest.file_count ?? 0)}`,
+    "guide\tStudio 배포 열기\t받은 수업 실행\t0",
   ];
   asArray(packagePayload.lessons).forEach((lesson) => {
     lines.push(["lesson", String(lesson.path ?? ""), String(lesson.title ?? ""), String(lesson.byte_size ?? 0)].join("\t"));

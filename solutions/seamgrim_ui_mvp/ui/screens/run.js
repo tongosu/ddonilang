@@ -261,6 +261,8 @@ const LEGACY_SETTING_ALIAS_RE = /^\s*(?:title|desc)\s*:/imu;
 const LEGACY_MAX_MADI_RE = /최대마디/u;
 const RUN_MAIN_EXECUTE_LABEL_DEFAULT = "▶ 수업 실행";
 const RUN_MAIN_EXECUTE_LABEL_COMPACT = "▶ 실행";
+const RUN_MAIN_EXECUTE_LABEL_LOCAL_PACKAGE = "▶ 받은 수업 실행";
+const RUN_MAIN_EXECUTE_LABEL_LOCAL_PACKAGE_COMPACT = "▶ 받은 수업";
 const RUN_MAIN_EXECUTE_LABEL_RESUME = "▶ 재개";
 const RUN_MAIN_PAUSE_LABEL_DEFAULT = "⏸ 일시정지";
 const RUN_MAIN_PAUSE_LABEL_COMPACT = "⏸ 일시정지";
@@ -356,12 +358,15 @@ function normalizeStudioViewMode(raw, fallback = STUDIO_VIEW_MODE_BASIC) {
   return STUDIO_VIEW_MODE_IDS.includes(fallback) ? fallback : STUDIO_VIEW_MODE_BASIC;
 }
 
-export function resolveRunMainControlLabels({ isPaused = false, compact = false } = {}) {
+export function resolveRunMainControlLabels({ isPaused = false, compact = false, launchKind = "" } = {}) {
   const compactMode = Boolean(compact);
+  const isLocalPackageImport = normalizeRunLaunchKind(launchKind) === "local_package_import";
   return {
     execute: isPaused
       ? RUN_MAIN_EXECUTE_LABEL_RESUME
-      : (compactMode ? RUN_MAIN_EXECUTE_LABEL_COMPACT : RUN_MAIN_EXECUTE_LABEL_DEFAULT),
+      : isLocalPackageImport
+        ? (compactMode ? RUN_MAIN_EXECUTE_LABEL_LOCAL_PACKAGE_COMPACT : RUN_MAIN_EXECUTE_LABEL_LOCAL_PACKAGE)
+        : (compactMode ? RUN_MAIN_EXECUTE_LABEL_COMPACT : RUN_MAIN_EXECUTE_LABEL_DEFAULT),
     pause: compactMode ? RUN_MAIN_PAUSE_LABEL_COMPACT : RUN_MAIN_PAUSE_LABEL_DEFAULT,
     reset: RUN_MAIN_RESET_LABEL,
     step: RUN_MAIN_STEP_LABEL,
@@ -3847,6 +3852,7 @@ export class RunScreen {
     const labels = resolveRunMainControlLabels({
       isPaused,
       compact,
+      launchKind: this.lastLaunchKind,
     });
     if (this.runMainExecuteBtn) {
       this.runMainExecuteBtn.disabled = isRunning || isBlocked || isFatal;
@@ -5293,7 +5299,7 @@ runs: 0</pre>
       this.runLocalPackageEl.dataset.packageId = model.package_id;
     }
     if (this.runLocalPackageMetaEl) {
-      this.runLocalPackageMetaEl.textContent = `${model.mode_label} · 파일 ${model.file_count}개`;
+      this.runLocalPackageMetaEl.textContent = `${model.mode_label} · Studio 배포 열기용 · 파일 ${model.file_count}개`;
       this.runLocalPackageMetaEl.dataset.value = String(model.file_count);
     }
     if (this.runLocalPackageTextEl) {
@@ -5309,7 +5315,7 @@ runs: 0</pre>
         ? `배포 복사 ${model.file_count}`
         : "배포 복사";
       this.runTeacherPackageCopyBtn.title = model.payload_text
-        ? `교사용 배포 묶음 ${model.file_count}개 파일 복사`
+        ? `학생이 Studio의 배포 열기에서 사용할 JSON 배포 파일 ${model.file_count}개 항목 복사`
         : "복사할 교사용 배포 묶음이 없습니다.";
     }
     if (this.runTeacherPackageDownloadBtn) {
@@ -5319,7 +5325,7 @@ runs: 0</pre>
         ? `배포 저장 ${model.file_count}`
         : "배포 저장";
       this.runTeacherPackageDownloadBtn.title = model.payload_text
-        ? `교사용 배포 묶음 ${model.file_count}개 파일 저장`
+        ? `학생이 Studio의 배포 열기에서 사용할 JSON 배포 파일 ${model.file_count}개 항목 저장`
         : "저장할 교사용 배포 묶음이 없습니다.";
     }
     try {
@@ -6738,6 +6744,9 @@ runs: 0</pre>
 
   syncRunPresetRail() {
     const model = this.buildRunPresetRailModel();
+    if (this.root?.dataset) {
+      this.root.dataset.launchKind = model.launch_kind || "manual";
+    }
     if (this.runPresetLaunchKindEl) {
       this.runPresetLaunchKindEl.textContent = model.launch_label;
       this.runPresetLaunchKindEl.dataset.value = model.launch_kind;
@@ -7182,6 +7191,35 @@ runs: 0</pre>
       this.renderMainVisual({ mode: "none" });
     }
     this.lastExecPathHint = "소스 수정됨: 재실행 필요";
+    this.syncDockRangeLabels();
+    this.syncDockTimeUi();
+    this.setEngineStatus("idle");
+    this.updateRuntimeHint();
+  }
+
+  resetRuntimeForExplicitRun({ execPathHint = "실행 대기" } = {}) {
+    this.haltLoop();
+    this.executionPaused = false;
+    this.playbackPaused = false;
+    this.serverPlayback = null;
+    this.setEngineMode(resolveRunEngineModeFromDdnText(`${this.baseDdn}\n${this.getEffectiveWasmSource(this.baseDdn)}`));
+    if (this.wasmState && typeof this.wasmState === "object") {
+      this.wasmState.client = null;
+    }
+    this.lastState = null;
+    this.lastRuntimeDerived = null;
+    this.runtimeTickCounter = 0;
+    this.runtimeMaxMadi = 0;
+    this.runtimeTimeValue = null;
+    this.clearRunErrorBanner();
+    this.setParseWarnings([]);
+    this.setHash("-");
+    this.setRuntimePreviewViewModel(null);
+    this.updateObserveSummary({ observation: null, views: null, outputRows: [] });
+    this.renderOverlayTabContent(this.lastOverlayMarkdown, { sourceLabel: this.lastOverlayMarkdown ? "교과 설명" : "" });
+    this.lastSpace2dMode = "none";
+    this.renderMainVisual({ mode: "none" });
+    this.lastExecPathHint = String(execPathHint ?? "").trim() || "실행 대기";
     this.syncDockRangeLabels();
     this.syncDockTimeUi();
     this.setEngineStatus("idle");
@@ -8479,7 +8517,11 @@ runs: 0</pre>
         ? `활동: ${lessonMissions.slice(0, 2).join(" / ")}`
         : "활동: 결과를 보고 확인";
       const viewText = lessonViews.length ? `보기: ${lessonViews.join(", ")}` : "보기: 기본";
-      this.runLessonBriefEl.textContent = `${title} · ${goalText} · ${missionText} · ${viewText}`;
+      const packageTitle = String(lesson?.localPackageTitle ?? "").trim();
+      const deliveryPrefix = this.lastLaunchKind === "local_package_import"
+        ? `교사가 보낸 배포 파일${packageTitle ? `: ${packageTitle}` : ""} · `
+        : "";
+      this.runLessonBriefEl.textContent = `${deliveryPrefix}${title} · ${goalText} · ${missionText} · ${viewText}`;
     }
     if (this.runLessonSummaryEl) {
       const lessonId = String(lesson?.id ?? "-").trim() || "-";

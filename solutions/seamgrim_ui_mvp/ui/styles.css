@@ -7398,10 +7398,23 @@ button.card-warning-badge {
 #screen-run[data-onboarding-profile="student"] #btn-ddn-open,
 #screen-run[data-onboarding-profile="student"] #btn-ddn-save,
 #screen-run[data-onboarding-profile="student"] #run-local-save-status,
+#screen-run[data-onboarding-profile="student"] #btn-advanced-run,
 #screen-run[data-onboarding-profile="student"] #btn-run-teacher-report-copy,
 #screen-run[data-onboarding-profile="student"] #btn-run-teacher-package-copy,
 #screen-run[data-onboarding-profile="student"] #btn-run-teacher-package-download,
 #screen-run[data-onboarding-profile="student"] #run-inspector-tools {
+  display: none !important;
+}
+
+#screen-run[data-launch-kind="local_package_import"] [data-classroom-mode-switch] {
+  display: none !important;
+}
+
+#screen-run[data-launch-kind="local_package_import"] .main-shell-tabs {
+  display: none !important;
+}
+
+#screen-run[data-launch-kind="local_package_import"] #run-tab-btn-mirror {
   display: none !important;
 }
 

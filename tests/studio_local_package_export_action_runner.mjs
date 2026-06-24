@@ -122,6 +122,17 @@ async function assertLocalPackageValidation(uiRoot) {
   assert(validation.lesson_count === 1 && validation.report_count === 1, "valid package counts mismatch");
   const imported = helper.importStudioLocalPackagePayload(payload);
   assert(imported.lesson_count === 1 && imported.report_count === 1, "imported package counts mismatch");
+  assert(payload.delivery_mode === "studio_json_import", `payload delivery mode mismatch: ${payload.delivery_mode}`);
+  assert(payload.open_with === "seamgrim_studio_local_package_import", `payload open_with mismatch: ${payload.open_with}`);
+  assert(payload.student_entry_label === "배포 열기", `payload student entry mismatch: ${payload.student_entry_label}`);
+  assert(
+    Array.isArray(payload.student_instructions)
+      && payload.student_instructions.some((item) => String(item).includes("받은 수업 실행")),
+    `payload student instructions missing: ${JSON.stringify(payload.student_instructions)}`,
+  );
+  assert(manifest.delivery_mode === "studio_json_import", `manifest delivery mode mismatch: ${manifest.delivery_mode}`);
+  assert(manifest.open_with === "seamgrim_studio_local_package_import", `manifest open_with mismatch: ${manifest.open_with}`);
+  assert(manifest.student_entry_label === "배포 열기", `manifest student entry mismatch: ${manifest.student_entry_label}`);
 
   const unsafeIdGeneratedPayload = helper.buildStudioLocalPackagePayload({
     lessons: [{
@@ -884,6 +895,7 @@ async function main() {
         teacherPackageCopyDisplay: display("#btn-run-teacher-package-copy"),
         teacherPackageDownloadDisplay: display("#btn-run-teacher-package-download"),
         inspectorToolsDisplay: display("#run-inspector-tools"),
+        advancedRunDisplay: display("#btn-advanced-run"),
         lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
         bodyText: document.querySelector("#screen-run")?.innerText ?? "",
       };
@@ -901,6 +913,7 @@ async function main() {
     assert(studentStartUi.teacherPackageCopyDisplay === "none", `student package copy should be hidden: ${studentStartUi.teacherPackageCopyDisplay}`);
     assert(studentStartUi.teacherPackageDownloadDisplay === "none", `student package download should be hidden: ${studentStartUi.teacherPackageDownloadDisplay}`);
     assert(studentStartUi.inspectorToolsDisplay === "none", `student inspector tools should be hidden: ${studentStartUi.inspectorToolsDisplay}`);
+    assert(studentStartUi.advancedRunDisplay === "none", `student advanced run button should be hidden: ${studentStartUi.advancedRunDisplay}`);
     assert(
       studentStartUi.lessonBriefText.includes("속도 기록 그래프")
         && studentStartUi.lessonBriefText.includes("목표:")
@@ -913,7 +926,9 @@ async function main() {
     assert(!studentStartUi.bodyText.includes("세션 복원됨"), "student mode should not show session restore status");
     assert(!studentStartUi.bodyText.includes("+ 새로 만들기"), "student mode should not show new draft button");
     assert(!studentStartUi.bodyText.includes("배포 복사"), "student mode should not show teacher package copy button");
-    await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
+    await page.evaluate(() => {
+      document.querySelector("#screen-run .main-shell-tab[data-main-tab-target='browse']")?.click();
+    });
     await waitVisible(page, "#screen-browse");
     await page.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
     await page.click("#btn-open-in-studio-teacher");
@@ -924,6 +939,7 @@ async function main() {
       const tools = document.querySelector("#run-inspector-tools");
       if (tools) tools.open = true;
     });
+    await page.waitForFunction(() => document.querySelector("#btn-run-teacher-package-copy")?.disabled === false);
     await page.click("#btn-run-teacher-package-copy");
     await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__?.copied === true);
     const [download] = await Promise.all([
@@ -952,9 +968,10 @@ async function main() {
     assert(state.schema === "seamgrim.local_package_export_action.v1", `schema mismatch: ${state.schema}`);
     assert(state.state === "ready", `state mismatch: ${state.state}`);
     assert(state.packageId.startsWith("studio.local."), `package id mismatch: ${state.packageId}`);
-    assert(state.meta.includes("교사 시작"), `meta mismatch: ${state.meta}`);
+    assert(state.meta.includes("교사 시작") && state.meta.includes("Studio 배포 열기용"), `meta mismatch: ${state.meta}`);
     assert(Number(state.metaValue) >= 5, `meta value mismatch: ${state.metaValue}`);
     assert(state.indexText.startsWith("구분\t경로\t제목\t크기"), "index header mismatch");
+    assert(state.indexText.includes("\nguide\tStudio 배포 열기\t받은 수업 실행\t0"), `student guide row missing:\n${state.indexText}`);
     assert(state.indexText.includes("\nlesson\tlessons/"), `lesson index row missing:\n${state.indexText}`);
     assert(state.indexText.includes("\nreport\treports/"), `report index row missing:\n${state.indexText}`);
     assert(state.saveButtonText.startsWith("배포 저장 "), `save button text mismatch: ${state.saveButtonText}`);
@@ -963,6 +980,16 @@ async function main() {
     assert(copiedPayload.manifest?.account_required === false, "account boundary mismatch");
     assert(copiedPayload.manifest?.cloud_sync === false, "cloud boundary mismatch");
     assert(copiedPayload.manifest?.public_registry === false, "registry boundary mismatch");
+    assert(copiedPayload.delivery_mode === "studio_json_import", `download delivery mode mismatch: ${copiedPayload.delivery_mode}`);
+    assert(copiedPayload.open_with === "seamgrim_studio_local_package_import", `download open_with mismatch: ${copiedPayload.open_with}`);
+    assert(copiedPayload.student_entry_label === "배포 열기", `download entry label mismatch: ${copiedPayload.student_entry_label}`);
+    assert(
+      Array.isArray(copiedPayload.student_instructions)
+        && copiedPayload.student_instructions.some((item) => String(item).includes("Studio에서 배포 열기")),
+      `download student instructions missing: ${JSON.stringify(copiedPayload.student_instructions)}`,
+    );
+    assert(copiedPayload.manifest?.delivery_mode === "studio_json_import", `manifest delivery mode mismatch: ${copiedPayload.manifest?.delivery_mode}`);
+    assert(copiedPayload.manifest?.open_with === "seamgrim_studio_local_package_import", `manifest open_with mismatch: ${copiedPayload.manifest?.open_with}`);
     assert(copiedPayload.lessons?.[0]?.subject === "physics", `package lesson subject mismatch: ${copiedPayload.lessons?.[0]?.subject}`);
     assert(copiedPayload.lessons?.[0]?.grade === "middle", `package lesson grade mismatch: ${copiedPayload.lessons?.[0]?.grade}`);
     assert(
@@ -997,9 +1024,11 @@ async function main() {
     await page.setInputFiles("#input-local-package-file", downloadedPath);
     await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__?.imported === true);
     await waitVisible(page, "#screen-run");
+    await page.waitForFunction(() => document.activeElement?.id === "btn-run");
     const importState = await page.evaluate(() => ({
       importAction: window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ ?? null,
       rail: window.__SEAMGRIM_RUN_PRESET_RAIL__ ?? null,
+      activeElementId: document.activeElement?.id ?? "",
       runText: document.querySelector("#run-ddn-preview")?.value ?? "",
       sourceLabel: document.querySelector("[data-shell-source-label]")?.textContent?.trim() ?? "",
       browseImportStatus: document.querySelector("[data-local-package-import-status]")?.textContent?.trim() ?? "",
@@ -1007,7 +1036,15 @@ async function main() {
       browseImportStatusRole: document.querySelector("[data-local-package-import-status]")?.getAttribute("role") ?? "",
       browseImportStatusLive: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-live") ?? "",
       browseImportStatusAtomic: document.querySelector("[data-local-package-import-status]")?.getAttribute("aria-atomic") ?? "",
+      launchKindDataset: document.querySelector("#screen-run")?.dataset?.launchKind ?? "",
+      mainShellTabsDisplay: getComputedStyle(document.querySelector("#screen-run .main-shell-tabs")).display,
       classroomMode: document.querySelector("[data-classroom-mode-switch]")?.dataset?.mode ?? "",
+      classroomSwitchDisplay: getComputedStyle(document.querySelector("[data-classroom-mode-switch]")).display,
+      runButtonText: document.querySelector("#btn-run")?.textContent?.trim() ?? "",
+      advancedRunDisplay: getComputedStyle(document.querySelector("#btn-advanced-run")).display,
+      mirrorTabDisplay: getComputedStyle(document.querySelector("#run-tab-btn-mirror")).display,
+      preRunMirrorHashText: document.querySelector("#run-mirror-hash")?.textContent?.trim() ?? "",
+      preRunCopyHashDisabled: Boolean(document.querySelector("#btn-run-copy-hash")?.disabled),
       studentPressed: document.querySelector("[data-classroom-mode='student']")?.getAttribute("aria-pressed") ?? "",
       teacherPressed: document.querySelector("[data-classroom-mode='teacher']")?.getAttribute("aria-pressed") ?? "",
       lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
@@ -1020,9 +1057,20 @@ async function main() {
     assert(importState.rail?.launch_kind === "local_package_import", `import launch kind mismatch: ${importState.rail?.launch_kind}`);
     assert(importState.rail?.launch_label === "배포 열기", `import launch label mismatch: ${importState.rail?.launch_label}`);
     assert(importState.rail?.onboarding_profile === "student", `import onboarding mismatch: ${importState.rail?.onboarding_profile}`);
+    assert(importState.activeElementId === "btn-run", `student import should focus run CTA: ${importState.activeElementId}`);
+    assert(importState.launchKindDataset === "local_package_import", `import launch dataset mismatch: ${importState.launchKindDataset}`);
+    assert(importState.mainShellTabsDisplay === "none", `student import should hide shell tabs: ${importState.mainShellTabsDisplay}`);
     assert(importState.classroomMode === "student" && importState.studentPressed === "true" && importState.teacherPressed === "false", "import should open in student mode");
+    assert(importState.classroomSwitchDisplay === "none", `student import should hide classroom mode switch: ${importState.classroomSwitchDisplay}`);
+    assert(importState.runButtonText.includes("받은 수업 실행"), `student import run CTA mismatch: ${importState.runButtonText}`);
+    assert(importState.advancedRunDisplay === "none", `student import should hide advanced run button: ${importState.advancedRunDisplay}`);
+    assert(importState.mirrorTabDisplay === "none", `student import should hide mirror tab: ${importState.mirrorTabDisplay}`);
+    assert(importState.preRunMirrorHashText === "상태 기록: -", `student import should wait for explicit run: ${importState.preRunMirrorHashText}`);
+    assert(importState.preRunCopyHashDisabled === true, "student import should not expose a run hash before explicit run");
     assert(
-      importState.lessonBriefText.includes("속도 기록 그래프")
+      importState.lessonBriefText.includes("교사가 보낸 배포 파일")
+        && importState.lessonBriefText.includes(downloadedPayload.manifest.title)
+        && importState.lessonBriefText.includes("속도 기록 그래프")
         && importState.lessonBriefText.includes("활동:")
         && importState.lessonBriefText.includes("기록 길이"),
       `imported lesson brief should preserve package course context: ${importState.lessonBriefText}`,
@@ -1035,7 +1083,29 @@ async function main() {
     assert(importState.browseImportStatusLive === "polite", `import status aria-live mismatch: ${importState.browseImportStatusLive}`);
     assert(importState.browseImportStatusAtomic === "true", `import status aria-atomic mismatch: ${importState.browseImportStatusAtomic}`);
 
-    await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
+    await page.click("#btn-run");
+    await page.waitForFunction(() => {
+      const text = document.querySelector("#run-mirror-hash")?.textContent?.trim() ?? "";
+      return text && text !== "상태 기록: -";
+    });
+    const importedRunState = await page.evaluate(() => ({
+      mirrorHashText: document.querySelector("#run-mirror-hash")?.textContent?.trim() ?? "",
+      mirrorHashTitle: document.querySelector("#run-mirror-hash")?.getAttribute("title") ?? "",
+      copyHashDisabled: Boolean(document.querySelector("#btn-run-copy-hash")?.disabled),
+      runButtonText: document.querySelector("#btn-run")?.textContent?.trim() ?? "",
+      lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
+    }));
+    assert(importedRunState.mirrorHashText.startsWith("상태 기록: "), `imported package run hash missing: ${importedRunState.mirrorHashText}`);
+    assert(!importedRunState.mirrorHashText.endsWith("-"), `imported package run hash stayed empty: ${importedRunState.mirrorHashText}`);
+    assert(importedRunState.mirrorHashTitle.includes("전체 상태 기록:"), `imported package run hash title mismatch: ${importedRunState.mirrorHashTitle}`);
+    assert(importedRunState.copyHashDisabled === false, "imported package run should enable hash copy");
+    assert(importedRunState.runButtonText.includes("받은 수업 실행"), `imported package run CTA should stay student-facing: ${importedRunState.runButtonText}`);
+    assert(importedRunState.lessonBriefText.includes("교사가 보낸 배포 파일"), `imported package run should keep delivery context: ${importedRunState.lessonBriefText}`);
+    assert(importedRunState.lessonBriefText.includes(downloadedPayload.manifest.title), `imported package run should keep package title: ${importedRunState.lessonBriefText}`);
+
+    await page.evaluate(() => {
+      document.querySelector("#screen-run .main-shell-tab[data-main-tab-target='browse']")?.click();
+    });
     await waitVisible(page, "#screen-browse");
     const unsafeIdPayload = {
       ...downloadedPayload,
@@ -1073,7 +1143,9 @@ async function main() {
       `unsafe id source should be normalized: ${unsafeIdImportState.inputRegistry?.inputs?.selected_id}`,
     );
 
-    await page.click("#screen-run:not(.hidden) .main-shell-tab[data-main-tab-target='browse']");
+    await page.evaluate(() => {
+      document.querySelector("#screen-run .main-shell-tab[data-main-tab-target='browse']")?.click();
+    });
     await waitVisible(page, "#screen-browse");
     const brokenPayload = {
       ...downloadedPayload,

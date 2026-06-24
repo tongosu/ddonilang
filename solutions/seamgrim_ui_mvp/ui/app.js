@@ -2778,6 +2778,12 @@ async function main() {
     persistSceneSummarySnapshot(runScreen);
     persistRuntimeSnapshotBundleV0(runScreen);
     setScreen("run");
+    if (String(launchKind ?? "").trim().toLowerCase() === "local_package_import") {
+      runScreen.resetRuntimeForExplicitRun?.({ execPathHint: "받은 수업 실행 대기" });
+      window.requestAnimationFrame?.(() => {
+        document.querySelector("#btn-run")?.focus?.();
+      });
+    }
     void refreshEditorCanonSummary(lesson?.ddnText ?? "");
     updateFeaturedSeedQuickAction();
     return queuedRunRequest;
@@ -2924,17 +2930,19 @@ async function main() {
       const packageId = String(imported.manifest?.package_id ?? "local_package").trim() || "local_package";
       const safeLessonId = safeLocalPackageToken(lessonId, "local_package_lesson");
       const safePackageId = safeLocalPackageToken(packageId, "local_package");
+      const packageTitle = String(imported.manifest?.title ?? packageId).trim() || packageId;
       const importedLesson = await buildStudioDraftLessonFromDdn(sourceText, {
         id: `local_package_${safeLessonId}`,
         title: String(lesson.title ?? lessonId).trim() || lessonId,
         description: String(lesson.description ?? "").trim()
-          || `배포 파일: ${String(imported.manifest?.title ?? packageId).trim() || packageId}`,
+          || `배포 파일: ${packageTitle}`,
         subject: lesson.subject,
         grade: lesson.grade,
         requiredViews: lesson.required_views,
         goals: lesson.goals,
         missions: lesson.missions,
       });
+      importedLesson.localPackageTitle = packageTitle;
       try {
         window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ = {
           schema: "seamgrim.local_package_import_action.v1",
@@ -2956,7 +2964,7 @@ async function main() {
       showPlatformToast("배포 파일을 열었습니다.");
       openRunWithLessonWithSource(importedLesson, {
         launchKind: "local_package_import",
-        autoExecute: true,
+        autoExecute: false,
         sourceId: `local_package:${safePackageId}:${safeLessonId}`,
         sourceType: "ddn",
         onboardingProfile: "student",
