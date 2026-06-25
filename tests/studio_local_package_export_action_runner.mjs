@@ -490,10 +490,13 @@ async function main() {
   assert(browseJs.includes("data-course-missions"), "teacher lesson cards must expose classroom activities");
   assert(stylesCss.includes('.local-package-import-status[data-state="loading"]'), "local package loading status style is missing");
   assert(stylesCss.includes(".card-course-surface"), "course surface card style is missing");
+  assert(stylesCss.includes(".card-course-result"), "course result card style is missing");
   assert(stylesCss.includes(".card-course-delivery"), "course delivery card style is missing");
   assert(stylesCss.includes(".card-course-goals"), "course goals card style is missing");
   assert(stylesCss.includes(".card-course-missions"), "course missions card style is missing");
+  assert(stylesCss.includes(".detail-course-flow"), "detail course flow style is missing");
   assert(stylesCss.includes(".course-catalog-summary"), "course catalog summary style is missing");
+  assert(stylesCss.includes(".course-subject-shortcut"), "course subject shortcut style is missing");
   assert(previewPayloadLoaderJs.includes('PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/"'), "preview loader must prefer project-prefixed static lesson assets");
   await assertLocalPackageValidation(uiRoot);
 
@@ -607,8 +610,11 @@ async function main() {
       courseSummaryText: document.querySelector("[data-course-catalog-summary]")?.textContent?.trim() || "",
       courseSummaryTotal: document.querySelector("[data-course-catalog-summary]")?.getAttribute("data-course-catalog-total") || "",
       courseSummaryVisible: document.querySelector("[data-course-catalog-summary]")?.getAttribute("data-course-catalog-visible") || "",
+      courseSubjectShortcutTexts: Array.from(document.querySelectorAll("[data-course-subject-filter]")).map((node) => node.textContent?.trim() || ""),
+      courseSubjectShortcutFilters: Array.from(document.querySelectorAll("[data-course-subject-filter]")).map((node) => node.getAttribute("data-course-subject-filter") || ""),
       velocityCardText: document.querySelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']")?.textContent?.trim() || "",
       courseSurfaceTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-surface]")).map((node) => node.textContent?.trim() || ""),
+      courseResultTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-result]")).map((node) => node.textContent?.trim() || ""),
       courseDeliveryTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-delivery]")).map((node) => node.textContent?.trim() || ""),
       courseReadinessTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-readiness]")).map((node) => node.textContent?.trim() || ""),
       courseActivityTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-activity]")).map((node) => node.textContent?.trim() || ""),
@@ -756,6 +762,47 @@ async function main() {
     await waitVisible(mobilePage, "#screen-browse");
     await mobilePage.waitForSelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
     await mobilePage.click(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");
+    const mobileBrowseDetailState = await mobilePage.evaluate(() => {
+      const viewportWidth = document.documentElement.clientWidth;
+      const flowGrid = document.querySelector("[data-detail-course-flow] .detail-course-flow-grid");
+      const shortcutOverflows = Array.from(document.querySelectorAll(".course-subject-shortcut"))
+        .map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { text: node.textContent?.trim() || "", left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) };
+        })
+        .filter((row) => row.left < 0 || row.right > viewportWidth + 1);
+      const flowItems = Array.from(document.querySelectorAll("[data-detail-course-flow] .detail-course-flow-item")).map((node) => {
+        const rect = node.getBoundingClientRect();
+        return { text: node.textContent?.trim() || "", left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) };
+      });
+      return {
+        viewportWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        detailVisible: !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"),
+        flowGridColumns: flowGrid ? getComputedStyle(flowGrid).gridTemplateColumns : "",
+        flowItemCount: flowItems.length,
+        flowItemOverflows: flowItems.filter((row) => row.left < 0 || row.right > viewportWidth + 1),
+        shortcutOverflows,
+      };
+    });
+    assert(mobileBrowseDetailState.detailVisible === true, "mobile lesson detail should open from a card");
+    assert(
+      mobileBrowseDetailState.scrollWidth <= mobileBrowseDetailState.viewportWidth,
+      `mobile browse detail should not force horizontal scroll: ${JSON.stringify(mobileBrowseDetailState)}`,
+    );
+    assert(mobileBrowseDetailState.flowItemCount === 3, `mobile detail flow item count mismatch: ${mobileBrowseDetailState.flowItemCount}`);
+    assert(
+      String(mobileBrowseDetailState.flowGridColumns || "").split(" ").length === 1,
+      `mobile detail flow should collapse to one column: ${mobileBrowseDetailState.flowGridColumns}`,
+    );
+    assert(
+      mobileBrowseDetailState.flowItemOverflows.length === 0,
+      `mobile detail flow items should not overflow: ${JSON.stringify(mobileBrowseDetailState.flowItemOverflows)}`,
+    );
+    assert(
+      mobileBrowseDetailState.shortcutOverflows.length === 0,
+      `mobile subject shortcuts should not overflow: ${JSON.stringify(mobileBrowseDetailState.shortcutOverflows)}`,
+    );
     await mobilePage.click("#btn-open-in-studio");
     await waitVisible(mobilePage, "#screen-run");
     await mobilePage.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
@@ -849,12 +896,17 @@ async function main() {
       defaultDevSurfaceState.velocityCardText.includes("속도 기록 그래프")
         && defaultDevSurfaceState.velocityCardText.includes("매 단계마다 속도")
         && defaultDevSurfaceState.velocityCardText.includes("오늘 활동:")
+        && defaultDevSurfaceState.velocityCardText.includes("결과 확인: 그래프")
         && defaultDevSurfaceState.velocityCardText.includes("수업 준비 완료")
         && defaultDevSurfaceState.velocityCardText.includes("교사용 배포"),
       `velocity history card missing course activity signals: ${defaultDevSurfaceState.velocityCardText}`,
     );
     assert(
       defaultDevSurfaceState.courseSummaryText.includes(`${defaultDevSurfaceState.visibleLessonIds.length}개 대표 교과`)
+        && defaultDevSurfaceState.courseSummaryText.includes("대표 과목:")
+        && defaultDevSurfaceState.courseSummaryText.includes("물리")
+        && defaultDevSurfaceState.courseSummaryText.includes("수학")
+        && defaultDevSurfaceState.courseSummaryText.includes("경제")
         && defaultDevSurfaceState.courseSummaryText.includes("DDN 실행")
         && defaultDevSurfaceState.courseSummaryText.includes("교사용 배포")
         && defaultDevSurfaceState.courseSummaryText.includes("전체 검색으로 나머지 교과 확인"),
@@ -866,8 +918,53 @@ async function main() {
       `course summary count mismatch: total=${defaultDevSurfaceState.courseSummaryTotal} visible=${defaultDevSurfaceState.courseSummaryVisible}`,
     );
     assert(
+      defaultDevSurfaceState.courseSubjectShortcutTexts.some((text) => text === "전체")
+        && defaultDevSurfaceState.courseSubjectShortcutTexts.some((text) => text.startsWith("물리 "))
+        && defaultDevSurfaceState.courseSubjectShortcutTexts.some((text) => text.startsWith("수학 "))
+        && defaultDevSurfaceState.courseSubjectShortcutTexts.some((text) => text.startsWith("경제 "))
+        && defaultDevSurfaceState.courseSubjectShortcutFilters.includes("math"),
+      `course subject shortcuts mismatch: ${defaultDevSurfaceState.courseSubjectShortcutTexts.join("|")} filters=${defaultDevSurfaceState.courseSubjectShortcutFilters.join("|")}`,
+    );
+    assert(
       defaultDevSurfaceState.visibleLessonIds.every((id) => !String(id).includes("ddonirang") && !String(id).startsWith("rep_cs_")),
       `default teacher catalog leaked internal lessons: ${defaultDevSurfaceState.visibleLessonIds.join(",")}`,
+    );
+    await page.click("[data-course-subject-filter='math']");
+    await page.waitForFunction(() => {
+      const cards = Array.from(document.querySelectorAll(".lesson-card"));
+      return cards.length > 0 && cards.every((card) => card.textContent.includes("수학"));
+    });
+    const mathShortcutState = await page.evaluate(() => ({
+      subjectValue: document.querySelector("#filter-subject")?.value ?? "",
+      visibleLessonIds: Array.from(document.querySelectorAll(".lesson-card")).map((node) => node.dataset.lessonId || ""),
+      cardSubjects: Array.from(document.querySelectorAll(".lesson-card .card-meta")).map((node) => node.textContent?.trim() || ""),
+      summaryText: document.querySelector("[data-course-catalog-summary]")?.textContent?.trim() || "",
+      shortcutTexts: Array.from(document.querySelectorAll("[data-course-subject-filter]")).map((node) => node.textContent?.trim() || ""),
+      shortcutFilters: Array.from(document.querySelectorAll("[data-course-subject-filter]")).map((node) => node.getAttribute("data-course-subject-filter") || ""),
+      activeShortcutText: document.querySelector("[data-course-subject-filter='math']")?.classList.contains("active")
+        ? document.querySelector("[data-course-subject-filter='math']")?.textContent?.trim() || ""
+        : "",
+    }));
+    assert(mathShortcutState.subjectValue === "math", `math subject shortcut did not sync select: ${mathShortcutState.subjectValue}`);
+    assert(mathShortcutState.visibleLessonIds.length > 0, "math subject shortcut should keep at least one course visible");
+    assert(
+      mathShortcutState.cardSubjects.every((text) => text.includes("수학")),
+      `math subject shortcut leaked non-math courses: ${mathShortcutState.cardSubjects.join("|")}`,
+    );
+    assert(mathShortcutState.summaryText.includes("대표 과목: 수학"), `math shortcut summary mismatch: ${mathShortcutState.summaryText}`);
+    assert(
+      mathShortcutState.shortcutFilters.includes("physics")
+        && mathShortcutState.shortcutFilters.includes("math")
+        && mathShortcutState.shortcutFilters.includes("econ")
+        && mathShortcutState.shortcutTexts.some((text) => text.startsWith("물리 "))
+        && mathShortcutState.shortcutTexts.some((text) => text.startsWith("경제 ")),
+      `subject shortcuts should stay available after filtering: ${mathShortcutState.shortcutTexts.join("|")} filters=${mathShortcutState.shortcutFilters.join("|")}`,
+    );
+    assert(mathShortcutState.activeShortcutText.startsWith("수학 "), `math shortcut active state mismatch: ${mathShortcutState.activeShortcutText}`);
+    await page.click("[data-course-subject-filter='__all__']");
+    await page.waitForFunction(
+      (officialCount) => document.querySelectorAll(".lesson-card").length === officialCount,
+      defaultDevSurfaceState.visibleLessonIds.length,
     );
     await page.click(".browse-tab[data-tab='search']");
     await page.waitForFunction(
@@ -900,6 +997,11 @@ async function main() {
       `course delivery text mismatch: ${defaultDevSurfaceState.courseDeliveryTexts.join("|")}`,
     );
     assert(
+      defaultDevSurfaceState.courseResultTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.courseResultTexts.every((text) => text.startsWith("결과 확인:") && text.length > "결과 확인:".length),
+      `course result text mismatch: ${defaultDevSurfaceState.courseResultTexts.join("|")}`,
+    );
+    assert(
       defaultDevSurfaceState.courseReadinessTexts.length === defaultDevSurfaceState.visibleLessonIds.length
         && defaultDevSurfaceState.courseReadinessTexts.every((text) => text.includes("수업 준비 완료") && text.includes("결과 보기") && text.includes("배포")),
       `course readiness text mismatch: ${defaultDevSurfaceState.courseReadinessTexts.join("|")}`,
@@ -922,6 +1024,8 @@ async function main() {
     const defaultLessonDetail = await page.evaluate(() => ({
       visible: !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"),
       text: document.querySelector("#detail-curriculum")?.textContent ?? "",
+      flowText: document.querySelector("[data-detail-course-flow]")?.textContent?.trim() ?? "",
+      flowItemCount: document.querySelectorAll("[data-detail-course-flow] .detail-course-flow-item").length,
       studentButtonText: document.querySelector("#btn-open-in-studio")?.textContent?.trim() ?? "",
       teacherButtonText: document.querySelector("#btn-open-in-studio-teacher")?.textContent?.trim() ?? "",
     }));
@@ -931,6 +1035,15 @@ async function main() {
     assert(defaultLessonDetail.text.includes("학습목표"), `detail panel missing learning goals: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("수업 활동"), `detail panel missing classroom activities: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("수업 보기"), `detail panel missing required views: ${defaultLessonDetail.text}`);
+    assert(defaultLessonDetail.flowItemCount === 3, `detail course flow item count mismatch: ${defaultLessonDetail.flowItemCount}`);
+    assert(
+      defaultLessonDetail.flowText.includes("학생 활동")
+        && defaultLessonDetail.flowText.includes("결과 확인")
+        && defaultLessonDetail.flowText.includes("그래프")
+        && defaultLessonDetail.flowText.includes("표")
+        && defaultLessonDetail.flowText.includes("배포"),
+      `detail course flow mismatch: ${defaultLessonDetail.flowText}`,
+    );
     assert(defaultLessonDetail.text.includes("기록 길이가 이력 용량"), `detail panel missing velocity activity: ${defaultLessonDetail.text}`);
     await page.click("#btn-detail-close");
     await page.focus(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']");

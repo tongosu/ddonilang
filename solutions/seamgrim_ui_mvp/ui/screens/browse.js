@@ -250,6 +250,30 @@ function formatSubjectLabel(subject) {
   return labels[key] || String(subject ?? "").trim() || "-";
 }
 
+function buildSubjectCountRows(lessons) {
+  if (!Array.isArray(lessons) || lessons.length === 0) return [];
+  const counts = new Map();
+  lessons.forEach((lesson) => {
+    const subject = normalizeSubject(lesson?.subject);
+    const label = formatSubjectLabel(subject);
+    if (!label || label === "-") return;
+    const current = counts.get(subject) || { subject, label, count: 0 };
+    current.count += 1;
+    counts.set(subject, current);
+  });
+  const preferredOrder = ["physics", "math", "econ", "science", "cs"];
+  const orderedLabels = [
+    ...preferredOrder.filter((subject) => counts.has(subject)),
+    ...Array.from(counts.keys()).filter((subject) => !preferredOrder.includes(subject)).sort(),
+  ];
+  return orderedLabels.map((subject) => counts.get(subject)).filter(Boolean);
+}
+
+function buildSubjectCountSummary(lessons) {
+  const rows = buildSubjectCountRows(lessons).map((row) => `${row.label} ${row.count}개`);
+  return rows.length ? `대표 과목: ${rows.join(" · ")}` : "";
+}
+
 function formatRequiredViewLabel(view) {
   const key = String(view ?? "").trim().toLowerCase();
   const labels = {
@@ -279,6 +303,15 @@ function buildCourseSurfaceText(lesson) {
     .join(" · ");
   const suffix = viewText ? ` · ${viewText}` : "";
   return `DDN 교과 실행${suffix}`;
+}
+
+function buildCourseResultText(lesson) {
+  const viewText = getLessonRequiredViews(lesson)
+    .map(formatRequiredViewLabel)
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(" · ");
+  return viewText ? `결과 확인: ${viewText}` : "결과 확인: 실행 화면";
 }
 
 function buildCourseDeliveryText(lesson) {
@@ -422,6 +455,31 @@ function renderDetailRunReadinessSection(lesson) {
       <ol class="detail-run-readiness-list">
         ${rows.map((row) => `<li>${escapeHtml(row)}</li>`).join("")}
       </ol>
+    </section>
+  `;
+}
+
+function renderDetailCourseFlowSection(lesson) {
+  const activityText = buildCourseActivityText(lesson).replace(/^오늘 활동:\s*/, "");
+  const resultText = buildCourseResultText(lesson).replace(/^결과 확인:\s*/, "");
+  const deliveryText = buildCourseDeliveryText(lesson);
+  return `
+    <section class="detail-curriculum-section detail-course-flow" data-detail-course-flow>
+      <div class="detail-curriculum-title">수업 흐름</div>
+      <div class="detail-course-flow-grid">
+        <div class="detail-course-flow-item">
+          <span>학생 활동</span>
+          <strong>${escapeHtml(activityText || "DDN 수업 실행")}</strong>
+        </div>
+        <div class="detail-course-flow-item">
+          <span>결과 확인</span>
+          <strong>${escapeHtml(resultText || "실행 화면")}</strong>
+        </div>
+        <div class="detail-course-flow-item">
+          <span>배포</span>
+          <strong>${escapeHtml(deliveryText)}</strong>
+        </div>
+      </div>
     </section>
   `;
 }
@@ -646,6 +704,16 @@ export class BrowseScreen {
       this.courseSummaryEl.dataset.courseCatalogSummary = "";
       this.grid.parentElement?.insertBefore(this.courseSummaryEl, this.grid);
     }
+    this.courseSubjectShortcutsEl = this.root.querySelector("[data-course-subject-shortcuts]");
+    if (!this.courseSubjectShortcutsEl && this.courseSummaryEl && typeof document?.createElement === "function") {
+      this.courseSubjectShortcutsEl = document.createElement("div");
+      this.courseSubjectShortcutsEl.className = "course-subject-shortcuts hidden";
+      this.courseSubjectShortcutsEl.dataset.courseSubjectShortcuts = "";
+      this.courseSummaryEl.parentElement?.insertBefore(
+        this.courseSubjectShortcutsEl,
+        this.courseSummaryEl.nextSibling,
+      );
+    }
     this.detailPanelEl = this.root.querySelector("#catalog-detail-panel");
     this.detailSubjectBadgeEl = this.root.querySelector("#detail-subject-badge");
     this.detailTitleEl = this.root.querySelector("#detail-title");
@@ -688,6 +756,14 @@ export class BrowseScreen {
 
     this.root.querySelector("#btn-advanced-browse")?.addEventListener("click", () => {
       this.onOpenAdvanced();
+    });
+    this.courseSubjectShortcutsEl?.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-course-subject-filter]");
+      if (!button || !this.courseSubjectShortcutsEl?.contains(button)) return;
+      const subject = String(button.dataset.courseSubjectFilter ?? "").trim();
+      this.filter.subject = subject === "__all__" ? "" : subject;
+      if (this.subjectSelect) this.subjectSelect.value = this.filter.subject;
+      this.render();
     });
     this.presetFeaturedSeedQuickRecentButton?.addEventListener("click", () => {
       this.applyFeaturedSeedQuickRecentPreset();
@@ -2122,20 +2198,21 @@ export class BrowseScreen {
     return this.lessons;
   }
 
-  filteredLessons() {
-    const grade = normalizeGrade(this.filter.grade);
-    const subject = normalizeSubject(this.filter.subject);
-    const quality = normalizeQuality(this.filter.quality || "experimental");
-    const hasQualityFilter = String(this.filter.quality ?? "").trim().length > 0;
-    const seedScope = String(this.filter.seedScope ?? "").trim();
-    const runStatus = String(this.filter.runStatus ?? "").trim();
-    const runLaunch = String(this.filter.runLaunch ?? "").trim();
-    const warningStatus = String(this.filter.warningStatus ?? "").trim();
-    const sortMode = String(this.filter.sort ?? "teacher").trim();
+  filteredLessons(filterOverride = {}) {
+    const filter = { ...this.filter, ...(filterOverride && typeof filterOverride === "object" ? filterOverride : {}) };
+    const grade = normalizeGrade(filter.grade);
+    const subject = normalizeSubject(filter.subject);
+    const quality = normalizeQuality(filter.quality || "experimental");
+    const hasQualityFilter = String(filter.quality ?? "").trim().length > 0;
+    const seedScope = String(filter.seedScope ?? "").trim();
+    const runStatus = String(filter.runStatus ?? "").trim();
+    const runLaunch = String(filter.runLaunch ?? "").trim();
+    const warningStatus = String(filter.warningStatus ?? "").trim();
+    const sortMode = String(filter.sort ?? "teacher").trim();
     const effectiveSortMode = warningStatus && sortMode === "teacher" ? "legacy_warning" : sortMode;
-    const query = String(this.filter.query ?? "").trim().toLowerCase();
-    const numericTrackOnly = Boolean(this.filter.numericTrack);
-    const numericTrackResultsOnly = Boolean(this.filter.numericTrackResults);
+    const query = String(filter.query ?? "").trim().toLowerCase();
+    const numericTrackOnly = Boolean(filter.numericTrack);
+    const numericTrackResultsOnly = Boolean(filter.numericTrackResults);
     const defaultCourseOnly = this.activeTab === "official"
       && !subject
       && !query
@@ -2351,6 +2428,7 @@ export class BrowseScreen {
     const gradeLabel = formatGradeLabel(lesson.grade);
     const subjectLabel = formatSubjectLabel(lesson.subject);
     const courseSurfaceText = buildCourseSurfaceText(lesson);
+    const courseResultText = buildCourseResultText(lesson);
     const courseDeliveryText = buildCourseDeliveryText(lesson);
     const courseReadinessText = buildCourseReadinessText(lesson);
     const courseActivityText = buildCourseActivityText(lesson);
@@ -2375,6 +2453,7 @@ export class BrowseScreen {
       <div class="card-meta">${gradeLabel} · ${subjectLabel}</div>
       <div class="card-desc">${lesson.description || "설명 없음"}</div>
       <div class="card-course-surface" data-course-surface>${escapeHtml(courseSurfaceText)}</div>
+      <div class="card-course-result" data-course-result>${escapeHtml(courseResultText)}</div>
       <div class="card-course-delivery" data-course-delivery>${escapeHtml(courseDeliveryText)}</div>
       <div class="card-course-readiness" data-course-readiness>${escapeHtml(courseReadinessText)}</div>
       <div class="card-course-activity" data-course-activity>${escapeHtml(courseActivityText)}</div>
@@ -2527,6 +2606,7 @@ export class BrowseScreen {
         this.detailCurriculumEl.innerHTML = [
           renderDetailDdnPreviewSection(),
           renderDetailRunReadinessSection(this.detailLesson),
+          renderDetailCourseFlowSection(this.detailLesson),
           renderDetailList("학습목표", goalRows),
           renderDetailList("수업 활동", missionRows),
           renderDetailList("수업 보기", viewRows),
@@ -2546,6 +2626,7 @@ export class BrowseScreen {
         this.detailCurriculumEl.innerHTML = [
           renderDetailDdnPreviewSection(),
           renderDetailRunReadinessSection(this.detailLesson),
+          renderDetailCourseFlowSection(this.detailLesson),
           renderDetailList("차시 정보", titleRows),
           renderDetailList("학습목표", curriculumMeta.learningGoals),
           renderDetailList("핵심개념", curriculumMeta.coreConcepts),
@@ -2818,6 +2899,7 @@ export class BrowseScreen {
       this.courseSummaryEl.textContent = "";
       this.courseSummaryEl.dataset.courseCatalogTotal = "0";
       this.courseSummaryEl.dataset.courseCatalogVisible = "0";
+      this.updateCourseSubjectShortcuts([]);
       return;
     }
     const subjects = Array.from(new Set(lessons.map((lesson) => formatSubjectLabel(lesson.subject)).filter(Boolean)));
@@ -2827,10 +2909,37 @@ export class BrowseScreen {
     const filteredText = totalCount > lessons.length
       ? ` · 전체 ${totalCount}개 중 교사용 대표 ${lessons.length}개 표시`
       : "";
+    const subjectCountText = buildSubjectCountSummary(lessons);
+    const subjectCountSuffix = subjectCountText ? ` · ${subjectCountText}` : "";
     this.courseSummaryEl.dataset.courseCatalogTotal = String(totalCount);
     this.courseSummaryEl.dataset.courseCatalogVisible = String(lessons.length);
     this.courseSummaryEl.textContent =
-      `${lessons.length}개 대표 교과${suffix}${filteredText} · DDN 실행 · 학생 시작 · 교사용 배포 · 전체 검색으로 나머지 교과 확인`;
+      `${lessons.length}개 대표 교과${suffix}${filteredText}${subjectCountSuffix} · DDN 실행 · 학생 시작 · 교사용 배포 · 전체 검색으로 나머지 교과 확인`;
+    this.updateCourseSubjectShortcuts(this.filteredLessons({ subject: "" }));
+  }
+
+  updateCourseSubjectShortcuts(lessons) {
+    if (!this.courseSubjectShortcutsEl) return;
+    const show = this.activeTab === "official" && Array.isArray(lessons) && lessons.length > 0;
+    this.courseSubjectShortcutsEl.classList.toggle("hidden", !show);
+    if (!show) {
+      this.courseSubjectShortcutsEl.innerHTML = "";
+      return;
+    }
+    const rows = buildSubjectCountRows(lessons);
+    const activeSubject = normalizeSubject(this.filter.subject);
+    const allActive = !activeSubject;
+    this.courseSubjectShortcutsEl.innerHTML = `
+      <span class="course-subject-shortcuts-label">과목 바로 보기</span>
+      <button type="button" class="course-subject-shortcut${allActive ? " active" : ""}" data-course-subject-filter="__all__">전체</button>
+      ${rows.map((row) => `
+        <button
+          type="button"
+          class="course-subject-shortcut${activeSubject === row.subject ? " active" : ""}"
+          data-course-subject-filter="${escapeHtml(row.subject)}"
+        >${escapeHtml(row.label)} ${escapeHtml(String(row.count))}</button>
+      `).join("")}
+    `;
   }
 
   render() {
