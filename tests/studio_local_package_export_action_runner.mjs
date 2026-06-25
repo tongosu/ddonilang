@@ -538,6 +538,7 @@ async function main() {
     await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
     await page.waitForSelector(".lesson-card[data-lesson-id^='rep_']");
+    await page.waitForSelector("[data-detail-ddn-preview][data-detail-ddn-preview-status='loaded']");
     assert(apiInventoryRequests.length === 0, `default teacher catalog should not probe API inventory: ${apiInventoryRequests.join(",")}`);
     const defaultDevSurfaceState = await page.evaluate(() => ({
       bodyEnabled: document.body.classList.contains("dev-surfaces-enabled"),
@@ -611,6 +612,15 @@ async function main() {
       courseDeliveryTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-delivery]")).map((node) => node.textContent?.trim() || ""),
       courseGoalTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-goals]")).map((node) => node.textContent?.trim() || ""),
       cardSubjects: Array.from(document.querySelectorAll(".lesson-card .card-meta")).map((node) => node.textContent?.trim() || ""),
+      initialDetailVisible: !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"),
+      initialDetailTitle: document.querySelector("#detail-title")?.textContent?.trim() || "",
+      initialDetailText: document.querySelector("#detail-curriculum")?.textContent?.trim() || "",
+      initialDdnPreviewStatus: document.querySelector("[data-detail-ddn-preview]")?.getAttribute("data-detail-ddn-preview-status") || "",
+      initialDdnPreviewText: document.querySelector("[data-detail-ddn-preview-code]")?.textContent?.trim() || "",
+      initialDdnPreviewPath: document.querySelector("[data-detail-ddn-preview-path]")?.textContent?.trim() || "",
+      initialRunReadinessText: document.querySelector("[data-detail-run-readiness]")?.textContent?.trim() || "",
+      selectedLessonIds: Array.from(document.querySelectorAll(".lesson-card-selected")).map((node) => node.dataset.lessonId || ""),
+      selectedAriaPressed: Array.from(document.querySelectorAll(".lesson-card-selected")).map((node) => node.getAttribute("aria-pressed") || ""),
       visibleText: document.body.innerText || "",
     }));
     assert(defaultDevSurfaceState.templateExists === false, "dev surface template should not ship in the default teacher UI");
@@ -792,6 +802,45 @@ async function main() {
     assert(
       defaultDevSurfaceState.visibleLessonIds.includes("rep_physics_velocity_history_v1"),
       `default teacher catalog missing velocity history lesson: ${defaultDevSurfaceState.visibleLessonIds.join(",")}`,
+    );
+    assert(defaultDevSurfaceState.initialDetailVisible === true, "default teacher catalog should auto-open the first course detail");
+    assert(
+      defaultDevSurfaceState.initialDetailTitle === "속도 기록 그래프",
+      `initial course detail title mismatch: ${defaultDevSurfaceState.initialDetailTitle}`,
+    );
+    assert(
+      defaultDevSurfaceState.initialDetailText.includes("학습목표")
+        && defaultDevSurfaceState.initialDetailText.includes("수업 활동")
+        && defaultDevSurfaceState.initialDetailText.includes("DDN 원문")
+        && defaultDevSurfaceState.initialDetailText.includes("실행 전 확인")
+        && defaultDevSurfaceState.initialDetailText.includes("수업 보기"),
+      `initial course detail missing classroom sections: ${defaultDevSurfaceState.initialDetailText}`,
+    );
+    assert(
+      defaultDevSurfaceState.initialRunReadinessText.includes("학생으로 실행")
+        && defaultDevSurfaceState.initialRunReadinessText.includes("결과 확인 보기: 그래프, 표")
+        && defaultDevSurfaceState.initialRunReadinessText.includes("첫 활동:")
+        && defaultDevSurfaceState.initialRunReadinessText.includes("교사용 배포 준비"),
+      `initial run readiness mismatch: ${defaultDevSurfaceState.initialRunReadinessText}`,
+    );
+    assert(defaultDevSurfaceState.initialDdnPreviewStatus === "loaded", `initial DDN preview status mismatch: ${defaultDevSurfaceState.initialDdnPreviewStatus}`);
+    assert(
+      defaultDevSurfaceState.initialDdnPreviewText.includes("(시작)할때")
+        && defaultDevSurfaceState.initialDdnPreviewText.includes("이력.만들기")
+        && defaultDevSurfaceState.initialDdnPreviewText.includes("속도이력"),
+      `initial DDN preview missing source content: ${defaultDevSurfaceState.initialDdnPreviewText}`,
+    );
+    assert(
+      defaultDevSurfaceState.initialDdnPreviewPath.includes("rep_physics_velocity_history_v1/lesson.ddn"),
+      `initial DDN preview source path mismatch: ${defaultDevSurfaceState.initialDdnPreviewPath}`,
+    );
+    assert(
+      defaultDevSurfaceState.selectedLessonIds.join("|") === "rep_physics_velocity_history_v1",
+      `initial selected course mismatch: ${defaultDevSurfaceState.selectedLessonIds.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.selectedAriaPressed.every((value) => value === "true"),
+      `initial selected course aria mismatch: ${defaultDevSurfaceState.selectedAriaPressed.join("|")}`,
     );
     assert(
       defaultDevSurfaceState.velocityCardText.includes("속도 기록 그래프")

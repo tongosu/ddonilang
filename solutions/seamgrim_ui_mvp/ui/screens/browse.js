@@ -193,6 +193,7 @@ const TEACHER_CATALOG_LESSON_RANK = Object.freeze({
   rep_grid_game_state_drop_v1: 20,
 });
 const LEGACY_WARNING_CODE = "W_LEGACY_RANGE_COMMENT_DEPRECATED";
+const PROJECT_PREFIX = "solutions/seamgrim_ui_mvp/";
 const DEFAULT_FEDERATED_API_CANDIDATES = Object.freeze(["/api/lessons/inventory"]);
 const DEFAULT_FEDERATED_FILE_CANDIDATES = Object.freeze([]);
 const DEFAULT_SAMPLE_CANDIDATES = Object.freeze(["/samples/index.json"]);
@@ -351,6 +352,55 @@ function renderDetailList(title, rows) {
       <ul class="detail-curriculum-list">
         ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
       </ul>
+    </section>
+  `;
+}
+
+function clipDdnPreviewText(text) {
+  const normalized = String(text ?? "").trim();
+  if (!normalized) return "";
+  const lines = normalized.split(/\r?\n/);
+  const clipped = lines.slice(0, 28).join("\n");
+  return lines.length > 28 ? `${clipped}\n...` : clipped;
+}
+
+function renderDetailDdnPreviewSection() {
+  return `
+    <section class="detail-curriculum-section detail-ddn-source" data-detail-ddn-preview data-detail-ddn-preview-status="loading">
+      <div class="detail-ddn-source-head">
+        <div class="detail-curriculum-title">DDN 원문</div>
+        <button class="ghost detail-ddn-source-copy" type="button" data-detail-ddn-copy disabled>원문 복사</button>
+      </div>
+      <pre class="detail-ddn-source-code" data-detail-ddn-preview-code>DDN 원문을 불러오는 중입니다.</pre>
+      <div class="detail-ddn-source-path" data-detail-ddn-preview-path></div>
+    </section>
+  `;
+}
+
+function buildDetailRunReadinessRows(lesson) {
+  const views = Array.isArray(lesson?.requiredViews)
+    ? lesson.requiredViews
+    : Array.isArray(lesson?.required_views)
+      ? lesson.required_views
+      : [];
+  const viewText = views.map(formatRequiredViewLabel).filter(Boolean).slice(0, 4).join(", ");
+  const missionRows = buildCourseMissionTexts(lesson);
+  return [
+    "학생으로 실행하면 이 DDN 원문이 바로 수업 화면에서 재생됩니다",
+    viewText ? `결과 확인 보기: ${viewText}` : "결과 확인 보기: 기본 실행 화면",
+    missionRows.length ? `첫 활동: ${missionRows[0]}` : "첫 활동: 그래프와 표를 보고 수업 내용을 확인하기",
+    "교사용 배포 준비에서 같은 원문과 활동을 학생에게 보낼 수 있습니다",
+  ];
+}
+
+function renderDetailRunReadinessSection(lesson) {
+  const rows = buildDetailRunReadinessRows(lesson);
+  return `
+    <section class="detail-curriculum-section detail-run-readiness" data-detail-run-readiness>
+      <div class="detail-curriculum-title">실행 전 확인</div>
+      <ol class="detail-run-readiness-list">
+        ${rows.map((row) => `<li>${escapeHtml(row)}</li>`).join("")}
+      </ol>
     </section>
   `;
 }
@@ -534,6 +584,9 @@ export class BrowseScreen {
     this.previewObserver = null;
     this.previewPayloadByElement = new WeakMap();
     this.detailLesson = null;
+    this.hasAutoSelectedCourseDetail = false;
+    this.detailDdnPreviewCache = new Map();
+    this.detailDdnPreviewSeq = 0;
   }
 
   init() {
@@ -1855,6 +1908,7 @@ export class BrowseScreen {
           quality: normalizeQuality(lesson.quality),
         }))
       : [];
+    this.hasAutoSelectedCourseDetail = false;
     this.rebuildFilterOptions();
     this.render();
   }
@@ -2446,6 +2500,8 @@ export class BrowseScreen {
           ? [`보기: ${this.detailLesson.requiredViews.map(formatRequiredViewLabel).join(", ")}`]
           : [];
         this.detailCurriculumEl.innerHTML = [
+          renderDetailDdnPreviewSection(),
+          renderDetailRunReadinessSection(this.detailLesson),
           renderDetailList("학습목표", goalRows),
           renderDetailList("수업 활동", missionRows),
           renderDetailList("수업 보기", viewRows),
@@ -2463,6 +2519,8 @@ export class BrowseScreen {
           curriculumMeta.studentSheetRef ? `학생용: ${curriculumMeta.studentSheetRef}` : "",
         ].filter(Boolean);
         this.detailCurriculumEl.innerHTML = [
+          renderDetailDdnPreviewSection(),
+          renderDetailRunReadinessSection(this.detailLesson),
           renderDetailList("차시 정보", titleRows),
           renderDetailList("학습목표", curriculumMeta.learningGoals),
           renderDetailList("핵심개념", curriculumMeta.coreConcepts),
@@ -2470,8 +2528,11 @@ export class BrowseScreen {
           ...numericSections,
         ].join("");
       }
+      void this.hydrateDetailDdnPreview(this.detailLesson);
+      this.wireDetailDdnCopyButton();
     }
     this.detailPanelEl.classList.remove("hidden");
+    this.updateSelectedLessonCard();
   }
 
   hideLessonDetail() {
@@ -2491,6 +2552,124 @@ export class BrowseScreen {
       // ignore browser instrumentation errors
     }
     this.detailPanelEl?.classList?.add?.("hidden");
+    this.updateSelectedLessonCard();
+  }
+
+  resolveDetailDdnPreviewCandidates(lesson) {
+    const rawCandidates = normalizeCandidateList([
+      ...(Array.isArray(lesson?.ddnCandidates) ? lesson.ddnCandidates : []),
+      ...(Array.isArray(lesson?.ddn_path) ? lesson.ddn_path : []),
+      ...(Array.isArray(lesson?.lesson_ddn_path) ? lesson.lesson_ddn_path : []),
+    ]);
+    const expanded = [];
+    rawCandidates.forEach((candidate) => {
+      const normalized = String(candidate ?? "").trim().replace(/\\/g, "/").replace(/^\/+/, "");
+      if (!normalized) return;
+      if (/^https?:\/\//i.test(candidate) || String(candidate).startsWith("/")) {
+        expanded.push(candidate);
+        return;
+      }
+      const stripped = normalized.startsWith(PROJECT_PREFIX)
+        ? normalized.slice(PROJECT_PREFIX.length)
+        : normalized;
+      expanded.push(`/${PROJECT_PREFIX}${stripped}`);
+      expanded.push(`/${stripped}`);
+      expanded.push(candidate);
+      expanded.push(`../${stripped}`);
+    });
+    return normalizeCandidateList(expanded);
+  }
+
+  updateDetailDdnPreview(status, text = "", path = "") {
+    const section = this.detailCurriculumEl?.querySelector?.("[data-detail-ddn-preview]");
+    const code = section?.querySelector?.("[data-detail-ddn-preview-code]");
+    const pathNode = section?.querySelector?.("[data-detail-ddn-preview-path]");
+    const copyButton = section?.querySelector?.("[data-detail-ddn-copy]");
+    if (!section || !code) return;
+    const normalizedStatus = String(status || "unknown");
+    section.dataset.detailDdnPreviewStatus = normalizedStatus;
+    code.textContent = text || "DDN 원문을 표시할 수 없습니다.";
+    if (pathNode) pathNode.textContent = path ? `source: ${path}` : "";
+    if (copyButton) {
+      copyButton.disabled = normalizedStatus !== "loaded";
+      copyButton.dataset.ready = normalizedStatus === "loaded" ? "1" : "0";
+    }
+  }
+
+  wireDetailDdnCopyButton() {
+    const copyButton = this.detailCurriculumEl?.querySelector?.("[data-detail-ddn-copy]");
+    if (!copyButton || copyButton.dataset.bound === "1") return;
+    copyButton.dataset.bound = "1";
+    copyButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void this.handleCopyDetailDdnPreview();
+    });
+  }
+
+  async handleCopyDetailDdnPreview() {
+    const lessonId = String(this.detailLesson?.id ?? "").trim();
+    const cached = lessonId ? this.detailDdnPreviewCache.get(lessonId) : null;
+    const text = String(cached?.fullText ?? cached?.text ?? "").trim();
+    if (!text) {
+      showGlobalToast("복사할 DDN 원문이 없습니다.", { kind: "error" });
+      return;
+    }
+    const ok = await this.copyToClipboard(text);
+    showGlobalToast(ok ? "DDN 원문을 복사했습니다." : "DDN 원문 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+  }
+
+  async hydrateDetailDdnPreview(lesson) {
+    const lessonId = String(lesson?.id ?? "").trim();
+    const token = ++this.detailDdnPreviewSeq;
+    const candidates = this.resolveDetailDdnPreviewCandidates(lesson);
+    if (!lessonId || candidates.length <= 0) {
+      this.updateDetailDdnPreview("missing", "DDN 원문 경로가 없습니다.");
+      return;
+    }
+    const cached = this.detailDdnPreviewCache.get(lessonId);
+    if (cached) {
+      this.updateDetailDdnPreview("loaded", cached.text, cached.path);
+      return;
+    }
+    for (const candidate of candidates) {
+      try {
+        const response = await fetch(candidate, { cache: "no-cache" });
+        if (!response.ok) continue;
+        const raw = await response.text();
+        const previewText = clipDdnPreviewText(raw);
+        if (!previewText) continue;
+        if (token !== this.detailDdnPreviewSeq || String(this.detailLesson?.id ?? "") !== lessonId) return;
+        const entry = { text: previewText, fullText: raw, path: candidate };
+        this.detailDdnPreviewCache.set(lessonId, entry);
+        this.updateDetailDdnPreview("loaded", entry.text, entry.path);
+        return;
+      } catch (_) {
+        // try next candidate
+      }
+    }
+    if (token !== this.detailDdnPreviewSeq || String(this.detailLesson?.id ?? "") !== lessonId) return;
+    this.updateDetailDdnPreview("error", "DDN 원문을 불러오지 못했습니다.", candidates[0] || "");
+  }
+
+  updateSelectedLessonCard() {
+    if (!this.grid) return;
+    const selectedId = String(this.detailLesson?.id ?? "").trim();
+    this.grid.querySelectorAll(".lesson-card").forEach((card) => {
+      const active = Boolean(selectedId) && String(card?.dataset?.lessonId ?? "") === selectedId;
+      card.classList.toggle("lesson-card-selected", active);
+      card.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  maybeAutoShowCourseDetail(lessons) {
+    if (this.hasAutoSelectedCourseDetail || !this.detailPanelEl) return;
+    if (this.activeTab !== "official") return;
+    if (!Array.isArray(lessons) || lessons.length <= 0) return;
+    this.hasAutoSelectedCourseDetail = true;
+    this.showLessonDetail(lessons[0]);
   }
 
   buildNumericTrackReportExport() {
@@ -2664,5 +2843,7 @@ export class BrowseScreen {
     lessons.forEach((lesson) => {
       this.grid.appendChild(this.createLessonCard(lesson));
     });
+    this.maybeAutoShowCourseDetail(lessons);
+    this.updateSelectedLessonCard();
   }
 }
