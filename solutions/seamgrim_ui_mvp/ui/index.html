@@ -201,6 +201,7 @@
             <span class="run-control-spacer"></span>
             <span id="bogae-warn-badge" class="warn-badge hidden" title="">⚠</span>
           </div>
+          <div id="run-delivery-status" class="run-delivery-status hidden" data-run-delivery-status role="status" aria-live="polite" aria-atomic="true"></div>
           <div id="run-lesson-brief" class="run-lesson-brief" data-run-lesson-brief>수업을 선택하면 DDN 실행 목표가 표시됩니다.</div>
           <div class="run-layout">
             <div class="run-editor-panel">
@@ -326,6 +327,10 @@
                         <span class="run-local-package-title">교사용 배포 묶음</span>
                         <span class="run-local-package-meta" data-run-local-package-meta>기본 시작 · 파일 0개</span>
                         <button id="btn-run-local-package-copy" type="button">패키지 복사</button>
+                      </div>
+                      <div class="run-local-package-guide-row">
+                        <div class="run-local-package-guide" data-run-local-package-guide>학생 안내: 배포 열기 → 받은 수업 실행 → 결과 확인</div>
+                        <button id="btn-run-local-package-guide-copy" type="button">안내 복사</button>
                       </div>
                       <pre class="run-local-package-text" data-run-local-package-text>구분	경로	제목	크기</pre>
                     </div>

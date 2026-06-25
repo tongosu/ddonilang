@@ -262,12 +262,16 @@ function formatRequiredViewLabel(view) {
   return labels[key] || key;
 }
 
-function buildCourseSurfaceText(lesson) {
-  const views = Array.isArray(lesson?.requiredViews)
+function getLessonRequiredViews(lesson) {
+  return Array.isArray(lesson?.requiredViews)
     ? lesson.requiredViews
     : Array.isArray(lesson?.required_views)
       ? lesson.required_views
       : [];
+}
+
+function buildCourseSurfaceText(lesson) {
+  const views = getLessonRequiredViews(lesson);
   const viewText = views
     .map(formatRequiredViewLabel)
     .filter(Boolean)
@@ -285,6 +289,17 @@ function buildCourseDeliveryText(lesson) {
   return `${prefix} · 학생 실행 · 교사용 배포`;
 }
 
+function buildCourseReadinessText(lesson) {
+  const views = getLessonRequiredViews(lesson);
+  const goalCount = buildCourseGoalTexts(lesson).length;
+  const missionCount = buildCourseMissionTexts(lesson).length;
+  if (views.length > 0 && goalCount > 0 && missionCount > 0) {
+    return "수업 준비 완료 · 활동 · 결과 보기 · 배포";
+  }
+  if (views.length > 0) return "수업 준비 확인 필요 · 결과 보기 준비";
+  return "수업 준비 확인 필요";
+}
+
 function buildCourseGoalTexts(lesson) {
   const rows = Array.isArray(lesson?.goals) ? lesson.goals : [];
   return rows
@@ -300,12 +315,21 @@ function buildCourseMissionTexts(lesson) {
     .filter(Boolean)
     .slice(0, 2);
   if (missions.length > 0) return missions;
-  const views = Array.isArray(lesson?.requiredViews) ? lesson.requiredViews : [];
+  const views = getLessonRequiredViews(lesson);
   const viewText = views.map(formatRequiredViewLabel).filter(Boolean).slice(0, 3).join(", ");
   return [
     "학생 시작으로 DDN 수업을 실행한다",
     viewText ? `${viewText} 결과를 보고 수업 내용을 확인한다` : "결과 화면을 보고 수업 내용을 확인한다",
   ];
+}
+
+function buildCourseActivityText(lesson) {
+  const missions = buildCourseMissionTexts(lesson);
+  const firstMission = missions.find((item) => String(item ?? "").trim());
+  if (firstMission) return `오늘 활동: ${firstMission}`;
+  const views = getLessonRequiredViews(lesson);
+  const viewText = views.map(formatRequiredViewLabel).filter(Boolean).slice(0, 2).join(", ");
+  return viewText ? `오늘 활동: ${viewText} 결과를 함께 확인` : "오늘 활동: DDN 실행 결과 함께 확인";
 }
 
 function formatGradeLabel(grade) {
@@ -378,14 +402,11 @@ function renderDetailDdnPreviewSection() {
 }
 
 function buildDetailRunReadinessRows(lesson) {
-  const views = Array.isArray(lesson?.requiredViews)
-    ? lesson.requiredViews
-    : Array.isArray(lesson?.required_views)
-      ? lesson.required_views
-      : [];
+  const views = getLessonRequiredViews(lesson);
   const viewText = views.map(formatRequiredViewLabel).filter(Boolean).slice(0, 4).join(", ");
   const missionRows = buildCourseMissionTexts(lesson);
   return [
+    `수업 준비 상태: ${buildCourseReadinessText(lesson)}`,
     "학생으로 실행하면 이 DDN 원문이 바로 수업 화면에서 재생됩니다",
     viewText ? `결과 확인 보기: ${viewText}` : "결과 확인 보기: 기본 실행 화면",
     missionRows.length ? `첫 활동: ${missionRows[0]}` : "첫 활동: 그래프와 표를 보고 수업 내용을 확인하기",
@@ -2331,6 +2352,8 @@ export class BrowseScreen {
     const subjectLabel = formatSubjectLabel(lesson.subject);
     const courseSurfaceText = buildCourseSurfaceText(lesson);
     const courseDeliveryText = buildCourseDeliveryText(lesson);
+    const courseReadinessText = buildCourseReadinessText(lesson);
+    const courseActivityText = buildCourseActivityText(lesson);
     const courseGoals = buildCourseGoalTexts(lesson);
     const courseMissions = buildCourseMissionTexts(lesson);
 
@@ -2353,6 +2376,8 @@ export class BrowseScreen {
       <div class="card-desc">${lesson.description || "설명 없음"}</div>
       <div class="card-course-surface" data-course-surface>${escapeHtml(courseSurfaceText)}</div>
       <div class="card-course-delivery" data-course-delivery>${escapeHtml(courseDeliveryText)}</div>
+      <div class="card-course-readiness" data-course-readiness>${escapeHtml(courseReadinessText)}</div>
+      <div class="card-course-activity" data-course-activity>${escapeHtml(courseActivityText)}</div>
       ${courseGoals.length
         ? `<ul class="card-course-goals" data-course-goals>
           ${courseGoals.map((goal) => `<li>${escapeHtml(goal)}</li>`).join("")}

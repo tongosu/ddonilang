@@ -6807,6 +6807,24 @@ button:disabled {
   color: #475569;
 }
 
+.card-course-readiness {
+  width: fit-content;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+}
+
+.card-course-activity {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .card-course-goals {
   margin: 2px 0 0;
   padding-left: 16px;
@@ -7480,6 +7498,41 @@ button.card-warning-badge {
   display: none !important;
 }
 
+.run-delivery-status {
+  margin: 0 12px 6px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+  color: #075985;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.run-delivery-status.hidden {
+  display: none;
+}
+
+.run-delivery-status[data-state="running"],
+.run-delivery-status[data-state="paused"] {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.run-delivery-status[data-state="done"] {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.run-delivery-status[data-state="error"] {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 .run-layout.run-layout--split {
   grid-template-columns: minmax(0, calc(var(--editor-ratio) * 100%)) 6px minmax(0, 1fr);
 }
@@ -7729,6 +7782,31 @@ button.card-warning-badge {
 .run-local-package-meta {
   font-size: 11px;
   color: #475569;
+}
+
+.run-local-package-guide-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 6px;
+}
+
+.run-local-package-guide {
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .run-local-package-guide-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .run-local-package-text {

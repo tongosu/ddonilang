@@ -221,6 +221,19 @@ function saveJsonTextToFile(text, filename = "seamgrim-teacher-package.json") {
   setTimeout(() => URL.revokeObjectURL(link.href), 800);
 }
 
+function buildLocalPackageStudentGuideText(model = {}) {
+  const title = String(model?.lesson_title ?? model?.manifest?.title ?? "셈그림 수업").trim() || "셈그림 수업";
+  const packageId = String(model?.package_id ?? model?.manifest?.package_id ?? "").trim();
+  const rows = [
+    `${title} 배포 안내`,
+    "1. 셈그림 Studio에서 배포 열기를 누릅니다.",
+    "2. 선생님이 보낸 JSON 배포 파일을 선택합니다.",
+    "3. 받은 수업 실행을 눌러 결과를 확인합니다.",
+  ];
+  if (packageId) rows.push(`배포 ID: ${packageId}`);
+  return rows.join("\n");
+}
+
 function buildLessonOnboardingStatusText(lesson, fallback = DEFAULT_ONBOARDING_STATUS_TEXT) {
   const step = resolveFirstRunStepByTarget({
     id: lesson?.id,
@@ -3295,6 +3308,7 @@ export class RunScreen {
     this.runPresetViewsEl = this.root.querySelector("[data-run-preset-views]");
     this.runPresetNumericTrackEl = this.root.querySelector("[data-run-preset-numeric-track]");
     this.runResultNumericLinkEl = this.root.querySelector("[data-run-result-numeric-link]");
+    this.runDeliveryStatusEl = this.root.querySelector("[data-run-delivery-status]");
     this.runLessonBriefEl = this.root.querySelector("[data-run-lesson-brief]");
     this.classroomModeSwitchEl = this.root.querySelector("[data-classroom-mode-switch]");
     this.classroomModeBtns = Array.from(this.root.querySelectorAll("[data-classroom-mode]"));
@@ -3324,7 +3338,9 @@ export class RunScreen {
     this.runTeacherReportCopyBtn = this.root.querySelector("#btn-run-teacher-report-copy");
     this.runLocalPackageEl = this.root.querySelector("[data-run-local-package-export]");
     this.runLocalPackageMetaEl = this.root.querySelector("[data-run-local-package-meta]");
+    this.runLocalPackageGuideEl = this.root.querySelector("[data-run-local-package-guide]");
     this.runLocalPackageTextEl = this.root.querySelector("[data-run-local-package-text]");
+    this.runLocalPackageGuideCopyBtn = this.root.querySelector("#btn-run-local-package-guide-copy");
     this.runLocalPackageCopyBtn = this.root.querySelector("#btn-run-local-package-copy");
     this.runTeacherPackageCopyBtn = this.root.querySelector("#btn-run-teacher-package-copy");
     this.runTeacherPackageDownloadBtn = this.root.querySelector("#btn-run-teacher-package-download");
@@ -3359,6 +3375,9 @@ export class RunScreen {
     });
     this.runLocalPackageCopyBtn?.addEventListener("click", () => {
       void this.handleCopyLocalPackageExport();
+    });
+    this.runLocalPackageGuideCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyLocalPackageStudentGuide();
     });
     this.runTeacherPackageCopyBtn?.addEventListener("click", () => {
       void this.handleCopyLocalPackageExport();
@@ -3789,6 +3808,7 @@ export class RunScreen {
       this.runErrorDismissed = false;
     }
     this.syncRunControlState();
+    this.syncLocalPackageDeliveryStatus();
     this.onStudioStateChange?.({
       sourceKind: this.sourceKind,
       sourceLabel: this.sourceLabel,
@@ -5302,6 +5322,18 @@ runs: 0</pre>
       this.runLocalPackageMetaEl.textContent = `${model.mode_label} · Studio 배포 열기용 · 파일 ${model.file_count}개`;
       this.runLocalPackageMetaEl.dataset.value = String(model.file_count);
     }
+    if (this.runLocalPackageGuideEl) {
+      const guideText = "학생 안내: 배포 열기 → 받은 수업 실행 → 결과 확인";
+      this.runLocalPackageGuideEl.textContent = guideText;
+      this.runLocalPackageGuideEl.dataset.ready = model.file_count > 0 ? "1" : "0";
+    }
+    if (this.runLocalPackageGuideCopyBtn) {
+      this.runLocalPackageGuideCopyBtn.disabled = !model.payload_text;
+      this.runLocalPackageGuideCopyBtn.dataset.ready = model.file_count > 0 ? "1" : "0";
+      this.runLocalPackageGuideCopyBtn.title = model.payload_text
+        ? "학생에게 보낼 배포 열기 안내문을 복사합니다."
+        : "복사할 학생 안내문이 없습니다.";
+    }
     if (this.runLocalPackageTextEl) {
       this.runLocalPackageTextEl.textContent = model.index_text;
     }
@@ -5361,6 +5393,42 @@ runs: 0</pre>
       // ignore browser instrumentation errors
     }
     showGlobalToast(ok ? "교사용 배포 묶음을 복사했습니다." : "교사용 배포 묶음 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  async handleCopyLocalPackageStudentGuide() {
+    const model = this.syncLocalPackageExport();
+    const value = buildLocalPackageStudentGuideText(model).trim();
+    if (!value || !model?.payload_text) {
+      showGlobalToast("복사할 학생 안내문이 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__STUDIO_LOCAL_PACKAGE_STUDENT_GUIDE_COPY_ACTION__ = {
+        schema: "seamgrim.local_package_student_guide_copy_action.v1",
+        copied: ok,
+        package_id: model.package_id,
+        lesson_id: model.lesson_id,
+        guide_text: value,
+        account_required: false,
+        cloud_sync: false,
+        public_registry: false,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "학생 안내문을 복사했습니다." : "학생 안내문 복사에 실패했습니다.", {
       kind: ok ? "success" : "error",
     });
     return ok;
@@ -6998,11 +7066,8 @@ runs: 0</pre>
       this.switchRunTab(SUBPANEL_TAB.OVERLAY);
       this.setRunOnboardingStatus(`학생 시작 적용: 설명 + 그림 점검 · ${SEAMGRIM_FIRST_RUN_PATH_TEXT}`, { status: "ok" });
     } else {
-      const moved = this.focusObserveFamily("graph");
-      if (!moved) {
-        this.switchRunTab("graph");
-      }
-      this.setRunOnboardingStatus(`교사 시작 적용: 그래프 탭 + 관찰 점검 · ${SEAMGRIM_FIRST_RUN_PATH_TEXT}`, { status: "ok" });
+      this.applyTeacherPackageFocus();
+      this.setRunOnboardingStatus(`교사용 배포 준비 적용: 배포 묶음 + 관찰 점검 · ${SEAMGRIM_FIRST_RUN_PATH_TEXT}`, { status: "ok" });
     }
     this.syncDockGuideToggles();
     this.applyDockGuideToggles();
@@ -7022,6 +7087,20 @@ runs: 0</pre>
         pref.lastOnboardingProfile = normalized;
         this.persistUiPrefs();
       }
+    }
+    return true;
+  }
+
+  applyTeacherPackageFocus() {
+    if (normalizeRunOnboardingProfile(this.lastOnboardingProfile) !== "teacher") return false;
+    const moved = this.focusObserveFamily("graph");
+    if (typeof this.root?.querySelector !== "function") {
+      return moved;
+    }
+    this.switchRunTab(SUBPANEL_TAB.MIRROR);
+    const tools = this.root?.querySelector?.("#run-inspector-tools");
+    if (tools && typeof tools.open === "boolean") {
+      tools.open = true;
     }
     return true;
   }
@@ -8189,6 +8268,7 @@ runs: 0</pre>
     this.lastRuntimeHash = String(hashText ?? "-");
     this.updateMirrorTab(this.lastState);
     this.renderInspectorMeta();
+    this.syncLocalPackageDeliveryStatus();
   }
 
   setParseWarnings(warnings) {
@@ -8428,6 +8508,39 @@ runs: 0</pre>
     this.lastSummaryEl.textContent = buildRunSummaryText(pref);
   }
 
+  syncLocalPackageDeliveryStatus(lesson = this.lesson) {
+    if (!this.runDeliveryStatusEl) return;
+    if (this.lastLaunchKind !== "local_package_import") {
+      this.runDeliveryStatusEl.textContent = "";
+      this.runDeliveryStatusEl.classList.add("hidden");
+      this.runDeliveryStatusEl.dataset.state = "idle";
+      return;
+    }
+    const packageTitle = String(lesson?.localPackageTitle ?? "").trim();
+    const suffix = packageTitle ? ` · ${packageTitle}` : "";
+    const status = normalizeEngineStatus(this.engineStatus, "idle");
+    const hashText = String(this.lastRuntimeHash ?? "").trim();
+    const hasResultHash = Boolean(hashText && hashText !== "-");
+    let state = "ready";
+    let label = `받은 배포 파일 준비됨${suffix}`;
+    if (status === "blocked" || status === "fatal") {
+      state = "error";
+      label = `받은 수업 실행 확인 필요${suffix}`;
+    } else if (status === "done" || hasResultHash) {
+      state = "done";
+      label = `받은 수업 실행 완료 · 결과 확인${suffix}`;
+    } else if (status === "running") {
+      state = "running";
+      label = `받은 수업 실행 중${suffix}`;
+    } else if (status === "paused") {
+      state = "paused";
+      label = `받은 수업 일시정지됨${suffix}`;
+    }
+    this.runDeliveryStatusEl.textContent = label;
+    this.runDeliveryStatusEl.classList.remove("hidden");
+    this.runDeliveryStatusEl.dataset.state = state;
+  }
+
   loadLesson(lesson, { launchKind = "manual", sourceKind = "lesson", sourceLabel = "" } = {}) {
     this.lesson = lesson;
     this.lastLaunchKind = normalizeRunLaunchKind(launchKind);
@@ -8510,6 +8623,8 @@ runs: 0</pre>
       ? lesson.missions.map((item) => String(item ?? "").trim()).filter(Boolean)
       : [];
     const lessonViews = resolveLessonRequiredViewsForRun(lesson);
+    const packageTitle = String(lesson?.localPackageTitle ?? "").trim();
+    this.syncLocalPackageDeliveryStatus(lesson);
     if (this.runLessonBriefEl) {
       const title = String(lesson?.title ?? lesson?.id ?? "수업").trim() || "수업";
       const goalText = lessonGoals[0] ? `목표: ${lessonGoals[0]}` : "목표: DDN 수업 실행";
@@ -8517,7 +8632,6 @@ runs: 0</pre>
         ? `활동: ${lessonMissions.slice(0, 2).join(" / ")}`
         : "활동: 결과를 보고 확인";
       const viewText = lessonViews.length ? `보기: ${lessonViews.join(", ")}` : "보기: 기본";
-      const packageTitle = String(lesson?.localPackageTitle ?? "").trim();
       const deliveryPrefix = this.lastLaunchKind === "local_package_import"
         ? `교사가 보낸 배포 파일${packageTitle ? `: ${packageTitle}` : ""} · `
         : "";
@@ -9088,6 +9202,7 @@ runs: 0</pre>
         outputLog: this.lastRuntimeDerived?.outputLog ?? [],
         warnings: this.lastParseWarnings,
       }));
+      this.applyTeacherPackageFocus();
       if (!shouldBatchConfiguredMadi && engineMode === RUN_ENGINE_MODE_LIVE) {
         if (shouldAutoStartLive) {
           this.executionPaused = false;
@@ -9161,6 +9276,7 @@ runs: 0</pre>
             outputLog: serverDerived?.outputLog ?? [],
             warnings: this.lastParseWarnings,
           }));
+          this.applyTeacherPackageFocus();
           if (engineMode === RUN_ENGINE_MODE_LIVE) {
             if (shouldAutoStartLive) {
               this.executionPaused = false;

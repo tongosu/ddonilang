@@ -610,6 +610,8 @@ async function main() {
       velocityCardText: document.querySelector(".lesson-card[data-lesson-id='rep_physics_velocity_history_v1']")?.textContent?.trim() || "",
       courseSurfaceTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-surface]")).map((node) => node.textContent?.trim() || ""),
       courseDeliveryTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-delivery]")).map((node) => node.textContent?.trim() || ""),
+      courseReadinessTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-readiness]")).map((node) => node.textContent?.trim() || ""),
+      courseActivityTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-activity]")).map((node) => node.textContent?.trim() || ""),
       courseGoalTexts: Array.from(document.querySelectorAll(".lesson-card [data-course-goals]")).map((node) => node.textContent?.trim() || ""),
       cardSubjects: Array.from(document.querySelectorAll(".lesson-card .card-meta")).map((node) => node.textContent?.trim() || ""),
       initialDetailVisible: !document.querySelector("#catalog-detail-panel")?.classList?.contains("hidden"),
@@ -818,6 +820,7 @@ async function main() {
     );
     assert(
       defaultDevSurfaceState.initialRunReadinessText.includes("학생으로 실행")
+        && defaultDevSurfaceState.initialRunReadinessText.includes("수업 준비 상태: 수업 준비 완료")
         && defaultDevSurfaceState.initialRunReadinessText.includes("결과 확인 보기: 그래프, 표")
         && defaultDevSurfaceState.initialRunReadinessText.includes("첫 활동:")
         && defaultDevSurfaceState.initialRunReadinessText.includes("교사용 배포 준비"),
@@ -845,6 +848,8 @@ async function main() {
     assert(
       defaultDevSurfaceState.velocityCardText.includes("속도 기록 그래프")
         && defaultDevSurfaceState.velocityCardText.includes("매 단계마다 속도")
+        && defaultDevSurfaceState.velocityCardText.includes("오늘 활동:")
+        && defaultDevSurfaceState.velocityCardText.includes("수업 준비 완료")
         && defaultDevSurfaceState.velocityCardText.includes("교사용 배포"),
       `velocity history card missing course activity signals: ${defaultDevSurfaceState.velocityCardText}`,
     );
@@ -893,6 +898,16 @@ async function main() {
       defaultDevSurfaceState.courseDeliveryTexts.length === defaultDevSurfaceState.visibleLessonIds.length
         && defaultDevSurfaceState.courseDeliveryTexts.every((text) => text.includes("학생 실행") && text.includes("교사용 배포")),
       `course delivery text mismatch: ${defaultDevSurfaceState.courseDeliveryTexts.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.courseReadinessTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.courseReadinessTexts.every((text) => text.includes("수업 준비 완료") && text.includes("결과 보기") && text.includes("배포")),
+      `course readiness text mismatch: ${defaultDevSurfaceState.courseReadinessTexts.join("|")}`,
+    );
+    assert(
+      defaultDevSurfaceState.courseActivityTexts.length === defaultDevSurfaceState.visibleLessonIds.length
+        && defaultDevSurfaceState.courseActivityTexts.every((text) => text.startsWith("오늘 활동:") && text.length > "오늘 활동:".length),
+      `course activity text mismatch: ${defaultDevSurfaceState.courseActivityTexts.join("|")}`,
     );
     assert(
       defaultDevSurfaceState.courseGoalTexts.length === defaultDevSurfaceState.visibleLessonIds.length
@@ -946,6 +961,8 @@ async function main() {
         inspectorToolsDisplay: display("#run-inspector-tools"),
         advancedRunDisplay: display("#btn-advanced-run"),
         lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
+        deliveryStatusDisplay: display("[data-run-delivery-status]"),
+        deliveryStatusText: document.querySelector("[data-run-delivery-status]")?.textContent?.trim() ?? "",
         bodyText: document.querySelector("#screen-run")?.innerText ?? "",
       };
     });
@@ -963,6 +980,8 @@ async function main() {
     assert(studentStartUi.teacherPackageDownloadDisplay === "none", `student package download should be hidden: ${studentStartUi.teacherPackageDownloadDisplay}`);
     assert(studentStartUi.inspectorToolsDisplay === "none", `student inspector tools should be hidden: ${studentStartUi.inspectorToolsDisplay}`);
     assert(studentStartUi.advancedRunDisplay === "none", `student advanced run button should be hidden: ${studentStartUi.advancedRunDisplay}`);
+    assert(studentStartUi.deliveryStatusDisplay === "none", `normal student launch should not show package delivery status: ${studentStartUi.deliveryStatusDisplay}`);
+    assert(studentStartUi.deliveryStatusText === "", `normal student launch delivery status should be empty: ${studentStartUi.deliveryStatusText}`);
     assert(
       studentStartUi.lessonBriefText.includes("속도 기록 그래프")
         && studentStartUi.lessonBriefText.includes("목표:")
@@ -983,12 +1002,30 @@ async function main() {
     await page.click("#btn-open-in-studio-teacher");
     await waitVisible(page, "#screen-run");
     await page.waitForFunction(() => document.querySelector("#screen-run")?.dataset?.onboardingProfile === "teacher");
-    await page.click("#run-tab-btn-mirror");
-    await page.evaluate(() => {
-      const tools = document.querySelector("#run-inspector-tools");
-      if (tools) tools.open = true;
-    });
+    await page.waitForFunction(() => document.querySelector("#run-tab-btn-mirror")?.classList?.contains("active"));
+    await page.waitForFunction(() => document.querySelector("#run-inspector-tools")?.open === true);
     await page.waitForFunction(() => document.querySelector("#btn-run-teacher-package-copy")?.disabled === false);
+    await page.waitForFunction(() => document.querySelector("#btn-run-local-package-guide-copy")?.disabled === false);
+    await page.click("#btn-run-local-package-guide-copy");
+    await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_STUDENT_GUIDE_COPY_ACTION__?.copied === true);
+    const guideCopyState = await page.evaluate(() => ({
+      guideClipboard: window.__STUDIO_LOCAL_PACKAGE_COPIED_TEXT__ ?? "",
+      guideAction: window.__STUDIO_LOCAL_PACKAGE_STUDENT_GUIDE_COPY_ACTION__ ?? null,
+      guideButtonReady: document.querySelector("#btn-run-local-package-guide-copy")?.dataset?.ready ?? "",
+      guideButtonTitle: document.querySelector("#btn-run-local-package-guide-copy")?.getAttribute("title") ?? "",
+    }));
+    assert(guideCopyState.guideButtonReady === "1", `student guide copy readiness mismatch: ${guideCopyState.guideButtonReady}`);
+    assert(guideCopyState.guideButtonTitle.includes("배포 열기 안내문"), `student guide copy title mismatch: ${guideCopyState.guideButtonTitle}`);
+    assert(guideCopyState.guideAction?.schema === "seamgrim.local_package_student_guide_copy_action.v1", "student guide copy schema mismatch");
+    assert(guideCopyState.guideAction?.copied === true, "student guide copy action mismatch");
+    assert(guideCopyState.guideAction?.account_required === false && guideCopyState.guideAction?.cloud_sync === false && guideCopyState.guideAction?.public_registry === false, "student guide copy boundary mismatch");
+    assert(
+      guideCopyState.guideClipboard.includes("배포 안내")
+        && guideCopyState.guideClipboard.includes("배포 열기")
+        && guideCopyState.guideClipboard.includes("JSON 배포 파일")
+        && guideCopyState.guideClipboard.includes("받은 수업 실행"),
+      `student guide clipboard mismatch: ${guideCopyState.guideClipboard}`,
+    );
     await page.click("#btn-run-teacher-package-copy");
     await page.waitForFunction(() => window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__?.copied === true);
     const [download] = await Promise.all([
@@ -1003,8 +1040,12 @@ async function main() {
       packageId: document.querySelector("[data-run-local-package-export]")?.dataset?.packageId ?? "",
       meta: document.querySelector("[data-run-local-package-meta]")?.textContent?.trim() ?? "",
       metaValue: document.querySelector("[data-run-local-package-meta]")?.dataset?.value ?? "",
+      guideText: document.querySelector("[data-run-local-package-guide]")?.textContent?.trim() ?? "",
+      guideReady: document.querySelector("[data-run-local-package-guide]")?.dataset?.ready ?? "",
       indexText: document.querySelector("[data-run-local-package-text]")?.textContent ?? "",
       saveButtonText: document.querySelector("#btn-run-teacher-package-download")?.textContent?.trim() ?? "",
+      activeRunTab: Array.from(document.querySelectorAll("[id^='run-tab-btn-']")).find((node) => node.classList.contains("active"))?.id ?? "",
+      packageToolsOpen: document.querySelector("#run-inspector-tools")?.open === true,
       copied: window.__STUDIO_LOCAL_PACKAGE_COPIED_TEXT__ ?? "",
       payload: window.__STUDIO_LOCAL_PACKAGE_EXPORT_ACTION__ ?? null,
       downloadPayload: window.__STUDIO_LOCAL_PACKAGE_DOWNLOAD_ACTION__ ?? null,
@@ -1017,8 +1058,17 @@ async function main() {
     assert(state.schema === "seamgrim.local_package_export_action.v1", `schema mismatch: ${state.schema}`);
     assert(state.state === "ready", `state mismatch: ${state.state}`);
     assert(state.packageId.startsWith("studio.local."), `package id mismatch: ${state.packageId}`);
+    assert(state.activeRunTab === "run-tab-btn-mirror", `teacher package flow should land on mirror tab: ${state.activeRunTab}`);
+    assert(state.packageToolsOpen === true, "teacher package tools should open automatically from browse teacher launch");
     assert(state.meta.includes("교사 시작") && state.meta.includes("Studio 배포 열기용"), `meta mismatch: ${state.meta}`);
     assert(Number(state.metaValue) >= 5, `meta value mismatch: ${state.metaValue}`);
+    assert(
+      state.guideText.includes("배포 열기")
+        && state.guideText.includes("받은 수업 실행")
+        && state.guideText.includes("결과 확인"),
+      `student guide text mismatch: ${state.guideText}`,
+    );
+    assert(state.guideReady === "1", `student guide readiness mismatch: ${state.guideReady}`);
     assert(state.indexText.startsWith("구분\t경로\t제목\t크기"), "index header mismatch");
     assert(state.indexText.includes("\nguide\tStudio 배포 열기\t받은 수업 실행\t0"), `student guide row missing:\n${state.indexText}`);
     assert(state.indexText.includes("\nlesson\tlessons/"), `lesson index row missing:\n${state.indexText}`);
@@ -1097,6 +1147,12 @@ async function main() {
       studentPressed: document.querySelector("[data-classroom-mode='student']")?.getAttribute("aria-pressed") ?? "",
       teacherPressed: document.querySelector("[data-classroom-mode='teacher']")?.getAttribute("aria-pressed") ?? "",
       lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
+      deliveryStatusText: document.querySelector("[data-run-delivery-status]")?.textContent?.trim() ?? "",
+      deliveryStatusState: document.querySelector("[data-run-delivery-status]")?.dataset?.state ?? "",
+      deliveryStatusDisplay: getComputedStyle(document.querySelector("[data-run-delivery-status]")).display,
+      deliveryStatusRole: document.querySelector("[data-run-delivery-status]")?.getAttribute("role") ?? "",
+      deliveryStatusLive: document.querySelector("[data-run-delivery-status]")?.getAttribute("aria-live") ?? "",
+      deliveryStatusAtomic: document.querySelector("[data-run-delivery-status]")?.getAttribute("aria-atomic") ?? "",
       inputRegistry: JSON.parse(localStorage.getItem("seamgrim.input_registry.v0") || "{}"),
     }));
     assert(importState.importAction?.schema === "seamgrim.local_package_import_action.v1", "import action schema mismatch");
@@ -1116,6 +1172,16 @@ async function main() {
     assert(importState.mirrorTabDisplay === "none", `student import should hide mirror tab: ${importState.mirrorTabDisplay}`);
     assert(importState.preRunMirrorHashText === "상태 기록: -", `student import should wait for explicit run: ${importState.preRunMirrorHashText}`);
     assert(importState.preRunCopyHashDisabled === true, "student import should not expose a run hash before explicit run");
+    assert(importState.deliveryStatusDisplay !== "none", `student import should show package delivery status: ${importState.deliveryStatusDisplay}`);
+    assert(importState.deliveryStatusState === "ready", `student import delivery status state mismatch: ${importState.deliveryStatusState}`);
+    assert(
+      importState.deliveryStatusText.includes("받은 배포 파일 준비됨")
+        && importState.deliveryStatusText.includes(downloadedPayload.manifest.title),
+      `student import delivery status mismatch: ${importState.deliveryStatusText}`,
+    );
+    assert(importState.deliveryStatusRole === "status", `delivery status role mismatch: ${importState.deliveryStatusRole}`);
+    assert(importState.deliveryStatusLive === "polite", `delivery status aria-live mismatch: ${importState.deliveryStatusLive}`);
+    assert(importState.deliveryStatusAtomic === "true", `delivery status aria-atomic mismatch: ${importState.deliveryStatusAtomic}`);
     assert(
       importState.lessonBriefText.includes("교사가 보낸 배포 파일")
         && importState.lessonBriefText.includes(downloadedPayload.manifest.title)
@@ -1143,12 +1209,21 @@ async function main() {
       copyHashDisabled: Boolean(document.querySelector("#btn-run-copy-hash")?.disabled),
       runButtonText: document.querySelector("#btn-run")?.textContent?.trim() ?? "",
       lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
+      deliveryStatusText: document.querySelector("[data-run-delivery-status]")?.textContent?.trim() ?? "",
+      deliveryStatusState: document.querySelector("[data-run-delivery-status]")?.dataset?.state ?? "",
     }));
     assert(importedRunState.mirrorHashText.startsWith("상태 기록: "), `imported package run hash missing: ${importedRunState.mirrorHashText}`);
     assert(!importedRunState.mirrorHashText.endsWith("-"), `imported package run hash stayed empty: ${importedRunState.mirrorHashText}`);
     assert(importedRunState.mirrorHashTitle.includes("전체 상태 기록:"), `imported package run hash title mismatch: ${importedRunState.mirrorHashTitle}`);
     assert(importedRunState.copyHashDisabled === false, "imported package run should enable hash copy");
     assert(importedRunState.runButtonText.includes("받은 수업 실행"), `imported package run CTA should stay student-facing: ${importedRunState.runButtonText}`);
+    assert(importedRunState.deliveryStatusState === "done", `imported package delivery status should complete: ${importedRunState.deliveryStatusState}`);
+    assert(
+      importedRunState.deliveryStatusText.includes("받은 수업 실행 완료")
+        && importedRunState.deliveryStatusText.includes("결과 확인")
+        && importedRunState.deliveryStatusText.includes(downloadedPayload.manifest.title),
+      `imported package delivery complete text mismatch: ${importedRunState.deliveryStatusText}`,
+    );
     assert(importedRunState.lessonBriefText.includes("교사가 보낸 배포 파일"), `imported package run should keep delivery context: ${importedRunState.lessonBriefText}`);
     assert(importedRunState.lessonBriefText.includes(downloadedPayload.manifest.title), `imported package run should keep package title: ${importedRunState.lessonBriefText}`);
 
