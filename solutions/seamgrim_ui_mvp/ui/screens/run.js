@@ -224,14 +224,38 @@ function saveJsonTextToFile(text, filename = "seamgrim-teacher-package.json") {
 function buildLocalPackageStudentGuideText(model = {}) {
   const title = String(model?.lesson_title ?? model?.manifest?.title ?? "셈그림 수업").trim() || "셈그림 수업";
   const packageId = String(model?.package_id ?? model?.manifest?.package_id ?? "").trim();
+  const instructionRows = Array.isArray(model?.payload?.student_instructions)
+    ? model.payload.student_instructions.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
   const rows = [
     `${title} 배포 안내`,
-    "1. 셈그림 Studio에서 배포 열기를 누릅니다.",
-    "2. 선생님이 보낸 JSON 배포 파일을 선택합니다.",
-    "3. 받은 수업 실행을 눌러 결과를 확인합니다.",
+    ...(instructionRows.length
+      ? instructionRows.map((item, index) => `${index + 1}. ${item}`)
+      : [
+          "1. 셈그림 Studio에서 배포 열기를 누릅니다.",
+          "2. 선생님이 보낸 JSON 배포 파일을 선택합니다.",
+          "3. 받은 수업 실행을 눌러 결과를 확인합니다.",
+        ]),
   ];
   if (packageId) rows.push(`배포 ID: ${packageId}`);
   return rows.join("\n");
+}
+
+function buildLocalPackageGuideSummaryText(model = {}) {
+  const instructionRows = Array.isArray(model?.payload?.student_instructions)
+    ? model.payload.student_instructions.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+  const resultRow = instructionRows.find((item) => item.includes("결과 확인"));
+  return resultRow
+    ? `학생 안내: 배포 열기 → 받은 수업 실행 → ${resultRow.replace(/[.。]\s*$/, "")}`
+    : "학생 안내: 배포 열기 → 받은 수업 실행 → 결과 확인";
+}
+
+function resolveLocalPackageResultInstruction(lesson = {}) {
+  const rows = Array.isArray(lesson?.localPackageStudentInstructions)
+    ? lesson.localPackageStudentInstructions.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+  return rows.find((item) => item.includes("결과 확인")) || "";
 }
 
 function buildLessonOnboardingStatusText(lesson, fallback = DEFAULT_ONBOARDING_STATUS_TEXT) {
@@ -1887,16 +1911,24 @@ function formatRunLayoutModeLabel(raw) {
   return `화면: ${mode}`;
 }
 
+function formatRunViewFamilyLabel(row) {
+  if (row === "graph") return "그래프";
+  if (row === "table") return "표";
+  if (row === "space2d") return "그림";
+  if (row === "text") return "설명";
+  return row;
+}
+
 function formatRunRequiredViewsLabel(values = []) {
   const rows = normalizeRunRequiredViews(values);
-  const labels = rows.map((row) => {
-    if (row === "graph") return "그래프";
-    if (row === "table") return "표";
-    if (row === "space2d") return "그림";
-    if (row === "text") return "설명";
-    return row;
-  });
-  return labels.length ? `보기: ${labels.join(", ")}` : "보기: 기본";
+  const labels = rows.map(formatRunViewFamilyLabel);
+  return labels.length ? `결과 확인: ${labels.join(", ")}` : "결과 확인: 실행 화면";
+}
+
+function formatRunResultCheckLabel(values = []) {
+  const rows = normalizeRunRequiredViews(values);
+  const labels = rows.map(formatRunViewFamilyLabel);
+  return labels.length ? `결과 확인: ${labels.join(", ")}` : "결과 확인: 실행 화면";
 }
 
 function buildRunSummaryText(pref) {
@@ -5323,7 +5355,7 @@ runs: 0</pre>
       this.runLocalPackageMetaEl.dataset.value = String(model.file_count);
     }
     if (this.runLocalPackageGuideEl) {
-      const guideText = "학생 안내: 배포 열기 → 받은 수업 실행 → 결과 확인";
+      const guideText = buildLocalPackageGuideSummaryText(model);
       this.runLocalPackageGuideEl.textContent = guideText;
       this.runLocalPackageGuideEl.dataset.ready = model.file_count > 0 ? "1" : "0";
     }
@@ -6832,7 +6864,7 @@ runs: 0</pre>
       this.runPresetViewsEl.dataset.value = model.required_views.join(",");
     }
     if (this.runPresetNumericTrackEl) {
-      this.runPresetNumericTrackEl.textContent = model.numeric_track_label || "수업보기: -";
+      this.runPresetNumericTrackEl.textContent = model.numeric_track_label || "결과 기록: -";
       this.runPresetNumericTrackEl.dataset.value = model.numeric_track_preset?.focus ?? "";
       this.runPresetNumericTrackEl.classList.toggle("hidden", !model.numeric_track);
     }
@@ -8518,23 +8550,25 @@ runs: 0</pre>
     }
     const packageTitle = String(lesson?.localPackageTitle ?? "").trim();
     const suffix = packageTitle ? ` · ${packageTitle}` : "";
+    const resultInstruction = resolveLocalPackageResultInstruction(lesson).replace(/[.。]\s*$/, "");
+    const resultSuffix = resultInstruction ? ` · ${resultInstruction}` : "";
     const status = normalizeEngineStatus(this.engineStatus, "idle");
     const hashText = String(this.lastRuntimeHash ?? "").trim();
     const hasResultHash = Boolean(hashText && hashText !== "-");
     let state = "ready";
-    let label = `받은 배포 파일 준비됨${suffix}`;
+    let label = `받은 배포 파일 준비됨${resultSuffix}${suffix}`;
     if (status === "blocked" || status === "fatal") {
       state = "error";
-      label = `받은 수업 실행 확인 필요${suffix}`;
+      label = `받은 수업 실행 확인 필요${resultSuffix}${suffix}`;
     } else if (status === "done" || hasResultHash) {
       state = "done";
-      label = `받은 수업 실행 완료 · 결과 확인${suffix}`;
+      label = `받은 수업 실행 완료${resultSuffix || " · 결과 확인"}${suffix}`;
     } else if (status === "running") {
       state = "running";
-      label = `받은 수업 실행 중${suffix}`;
+      label = `받은 수업 실행 중${resultSuffix}${suffix}`;
     } else if (status === "paused") {
       state = "paused";
-      label = `받은 수업 일시정지됨${suffix}`;
+      label = `받은 수업 일시정지됨${resultSuffix}${suffix}`;
     }
     this.runDeliveryStatusEl.textContent = label;
     this.runDeliveryStatusEl.classList.remove("hidden");
@@ -8631,17 +8665,17 @@ runs: 0</pre>
       const missionText = lessonMissions.length
         ? `활동: ${lessonMissions.slice(0, 2).join(" / ")}`
         : "활동: 결과를 보고 확인";
-      const viewText = lessonViews.length ? `보기: ${lessonViews.join(", ")}` : "보기: 기본";
+      const resultText = formatRunResultCheckLabel(lessonViews);
       const deliveryPrefix = this.lastLaunchKind === "local_package_import"
         ? `교사가 보낸 배포 파일${packageTitle ? `: ${packageTitle}` : ""} · `
         : "";
-      this.runLessonBriefEl.textContent = `${deliveryPrefix}${title} · ${goalText} · ${missionText} · ${viewText}`;
+      this.runLessonBriefEl.textContent = `${deliveryPrefix}${title} · ${goalText} · ${missionText} · ${resultText}`;
     }
     if (this.runLessonSummaryEl) {
       const lessonId = String(lesson?.id ?? "-").trim() || "-";
       const title = String(lesson?.title ?? "").trim() || "-";
       const description = String(lesson?.description ?? "").trim();
-      const views = lessonViews;
+      const resultText = formatRunResultCheckLabel(lessonViews);
       const lines = [`교과: ${title} (${lessonId})`];
       if (description) {
         lines.push(`설명: ${description}`);
@@ -8652,9 +8686,7 @@ runs: 0</pre>
       if (lessonMissions.length) {
         lines.push(`수업 활동: ${lessonMissions.slice(0, 2).join(" / ")}`);
       }
-      if (views.length) {
-        lines.push(`보기: ${views.join(", ")}`);
-      }
+      lines.push(resultText);
       this.runLessonSummaryEl.textContent = lines.join("\n");
     }
     this.applyLessonLayoutProfile(lesson);

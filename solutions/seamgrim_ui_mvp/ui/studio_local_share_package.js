@@ -55,6 +55,31 @@ function normalizeLesson(lesson, index) {
   };
 }
 
+function formatStudentRequiredViewLabel(value) {
+  const key = String(value ?? "").trim().toLowerCase();
+  if (key === "graph") return "그래프";
+  if (key === "table") return "표";
+  if (key === "space2d") return "그림";
+  if (key === "text") return "설명";
+  return String(value ?? "").trim();
+}
+
+function buildStudioLocalPackageStudentInstructions(lessons = []) {
+  const firstLesson = asArray(lessons)[0] ?? {};
+  const viewLabels = asTextArray(firstLesson.required_views ?? firstLesson.requiredViews)
+    .map(formatStudentRequiredViewLabel)
+    .filter(Boolean)
+    .slice(0, 4);
+  const resultInstruction = viewLabels.length
+    ? `결과 확인: ${viewLabels.join(", ")}를 확인합니다.`
+    : "결과 확인 화면을 확인합니다.";
+  return [
+    "셈그림 Studio에서 배포 열기를 누른 뒤 선생님이 보낸 JSON 배포 파일을 선택합니다.",
+    "받은 수업 실행을 눌러 교사가 보낸 수업을 시작합니다.",
+    resultInstruction,
+  ];
+}
+
 function normalizeReport(report, index) {
   const row = asObject(report);
   const reportId = asText(row.report_id ?? row.id ?? row["보고서"], `report_${String(index + 1).padStart(3, "0")}`);
@@ -269,6 +294,7 @@ export function buildStudioLocalPackageManifest({
   const reportFiles = normalizedReports.map((item) => fileEntry(item.path, "report", item.byte_size, item.mime));
   const assetFiles = normalizedAssets.map((item) => fileEntry(item.path, item.role, item.byte_size, item.mime));
   const files = [...staticBundle, ...lessonFiles, ...reportFiles, ...assetFiles];
+  const studentInstructions = buildStudioLocalPackageStudentInstructions(normalizedLessons);
   return {
     __종류: "studio_local_package_manifest",
     package_id: asText(packageId, "local.studio.package"),
@@ -278,6 +304,7 @@ export function buildStudioLocalPackageManifest({
     delivery_mode: "studio_json_import",
     open_with: "seamgrim_studio_local_package_import",
     student_entry_label: "배포 열기",
+    student_instructions: studentInstructions,
     account_required: false,
     cloud_sync: false,
     public_registry: false,
@@ -303,6 +330,9 @@ export function buildStudioLocalPackagePayload({
   const packageManifest = manifest && manifest.__종류 === "studio_local_package_manifest"
     ? manifest
     : buildStudioLocalPackageManifest({ lessons: normalizedLessons, reports: normalizedReports, assets: normalizedAssets });
+  const studentInstructions = asTextArray(packageManifest.student_instructions).length
+    ? asTextArray(packageManifest.student_instructions)
+    : buildStudioLocalPackageStudentInstructions(normalizedLessons);
   return {
     __종류: "studio_local_package_payload",
     manifest: packageManifest,
@@ -314,10 +344,7 @@ export function buildStudioLocalPackagePayload({
     delivery_mode: "studio_json_import",
     open_with: "seamgrim_studio_local_package_import",
     student_entry_label: "배포 열기",
-    student_instructions: [
-      "셈그림 Studio에서 배포 열기를 누른 뒤 이 JSON 파일을 선택합니다.",
-      "받은 수업 실행을 눌러 교사가 보낸 수업을 시작합니다.",
-    ],
+    student_instructions: studentInstructions,
     account_required: false,
     cloud_sync: false,
     public_registry: false,
@@ -487,10 +514,12 @@ export function formatStudioLocalPackageIndexText(payload = {}) {
     throw new Error("studio_local_package_expected_payload");
   }
   const manifest = asObject(packagePayload.manifest);
+  const resultInstruction = asTextArray(packagePayload.student_instructions)
+    .find((item) => item.includes("결과 확인")) || "결과 확인";
   const lines = [
     "구분\t경로\t제목\t크기",
     `package\t${String(manifest.package_id ?? "")}\t${String(manifest.title ?? "")}\t${Number(manifest.file_count ?? 0)}`,
-    "guide\tStudio 배포 열기\t받은 수업 실행\t0",
+    `guide\tStudio 배포 열기\t받은 수업 실행 · ${resultInstruction.replace(/[.。]\s*$/, "")}\t0`,
   ];
   asArray(packagePayload.lessons).forEach((lesson) => {
     lines.push(["lesson", String(lesson.path ?? ""), String(lesson.title ?? ""), String(lesson.byte_size ?? 0)].join("\t"));

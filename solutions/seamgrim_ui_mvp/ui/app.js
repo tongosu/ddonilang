@@ -2943,6 +2943,9 @@ async function main() {
         missions: lesson.missions,
       });
       importedLesson.localPackageTitle = packageTitle;
+      importedLesson.localPackageStudentInstructions = Array.isArray(imported.manifest?.student_instructions)
+        ? imported.manifest.student_instructions.map((item) => String(item ?? "").trim()).filter(Boolean)
+        : [];
       try {
         window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ = {
           schema: "seamgrim.local_package_import_action.v1",

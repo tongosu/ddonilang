@@ -103,6 +103,7 @@ async function assertLocalPackageValidation(uiRoot) {
   const lesson = {
     lesson_id: "rep_physics_velocity_history_v1",
     title: "속도 기록",
+    required_views: ["graph", "table"],
     source_text: "보임 { text: \"속도 기록\" }",
   };
   const report = {
@@ -127,12 +128,18 @@ async function assertLocalPackageValidation(uiRoot) {
   assert(payload.student_entry_label === "배포 열기", `payload student entry mismatch: ${payload.student_entry_label}`);
   assert(
     Array.isArray(payload.student_instructions)
-      && payload.student_instructions.some((item) => String(item).includes("받은 수업 실행")),
+      && payload.student_instructions.some((item) => String(item).includes("받은 수업 실행"))
+      && payload.student_instructions.some((item) => String(item).includes("결과 확인: 그래프, 표")),
     `payload student instructions missing: ${JSON.stringify(payload.student_instructions)}`,
   );
   assert(manifest.delivery_mode === "studio_json_import", `manifest delivery mode mismatch: ${manifest.delivery_mode}`);
   assert(manifest.open_with === "seamgrim_studio_local_package_import", `manifest open_with mismatch: ${manifest.open_with}`);
   assert(manifest.student_entry_label === "배포 열기", `manifest student entry mismatch: ${manifest.student_entry_label}`);
+  assert(
+    Array.isArray(manifest.student_instructions)
+      && manifest.student_instructions.some((item) => String(item).includes("결과 확인: 그래프, 표")),
+    `manifest student instructions missing: ${JSON.stringify(manifest.student_instructions)}`,
+  );
 
   const unsafeIdGeneratedPayload = helper.buildStudioLocalPackagePayload({
     lessons: [{
@@ -861,14 +868,15 @@ async function main() {
       defaultDevSurfaceState.initialDetailText.includes("학습목표")
         && defaultDevSurfaceState.initialDetailText.includes("수업 활동")
         && defaultDevSurfaceState.initialDetailText.includes("DDN 원문")
+        && defaultDevSurfaceState.initialDetailText.includes("학생 화면 미리보기")
         && defaultDevSurfaceState.initialDetailText.includes("실행 전 확인")
-        && defaultDevSurfaceState.initialDetailText.includes("수업 보기"),
+        && defaultDevSurfaceState.initialDetailText.includes("결과 확인"),
       `initial course detail missing classroom sections: ${defaultDevSurfaceState.initialDetailText}`,
     );
     assert(
       defaultDevSurfaceState.initialRunReadinessText.includes("학생으로 실행")
         && defaultDevSurfaceState.initialRunReadinessText.includes("수업 준비 상태: 수업 준비 완료")
-        && defaultDevSurfaceState.initialRunReadinessText.includes("결과 확인 보기: 그래프, 표")
+        && defaultDevSurfaceState.initialRunReadinessText.includes("결과 확인: 그래프, 표")
         && defaultDevSurfaceState.initialRunReadinessText.includes("첫 활동:")
         && defaultDevSurfaceState.initialRunReadinessText.includes("교사용 배포 준비"),
       `initial run readiness mismatch: ${defaultDevSurfaceState.initialRunReadinessText}`,
@@ -1032,9 +1040,11 @@ async function main() {
     assert(defaultLessonDetail.visible === true, "lesson detail panel should open from the default teacher catalog");
     assert(defaultLessonDetail.studentButtonText === "학생으로 실행", `detail student button mismatch: ${defaultLessonDetail.studentButtonText}`);
     assert(defaultLessonDetail.teacherButtonText === "교사용 배포 준비", `detail teacher button mismatch: ${defaultLessonDetail.teacherButtonText}`);
+    assert(defaultLessonDetail.text.includes("학생 화면 미리보기"), `detail panel missing student preview: ${defaultLessonDetail.text}`);
+    assert(defaultLessonDetail.text.includes("실행 버튼: 받은 수업 실행"), `detail panel missing student run CTA preview: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("학습목표"), `detail panel missing learning goals: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.text.includes("수업 활동"), `detail panel missing classroom activities: ${defaultLessonDetail.text}`);
-    assert(defaultLessonDetail.text.includes("수업 보기"), `detail panel missing required views: ${defaultLessonDetail.text}`);
+    assert(defaultLessonDetail.text.includes("결과 확인"), `detail panel missing result check section: ${defaultLessonDetail.text}`);
     assert(defaultLessonDetail.flowItemCount === 3, `detail course flow item count mismatch: ${defaultLessonDetail.flowItemCount}`);
     assert(
       defaultLessonDetail.flowText.includes("학생 활동")
@@ -1074,6 +1084,7 @@ async function main() {
         inspectorToolsDisplay: display("#run-inspector-tools"),
         advancedRunDisplay: display("#btn-advanced-run"),
         lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
+        lessonSummaryText: document.querySelector("#run-lesson-summary")?.textContent?.trim() ?? "",
         deliveryStatusDisplay: display("[data-run-delivery-status]"),
         deliveryStatusText: document.querySelector("[data-run-delivery-status]")?.textContent?.trim() ?? "",
         bodyText: document.querySelector("#screen-run")?.innerText ?? "",
@@ -1099,8 +1110,17 @@ async function main() {
       studentStartUi.lessonBriefText.includes("속도 기록 그래프")
         && studentStartUi.lessonBriefText.includes("목표:")
         && studentStartUi.lessonBriefText.includes("활동:")
-        && studentStartUi.lessonBriefText.includes("기록 길이"),
+        && studentStartUi.lessonBriefText.includes("기록 길이")
+        && studentStartUi.lessonBriefText.includes("결과 확인:")
+        && studentStartUi.lessonBriefText.includes("그래프")
+        && studentStartUi.lessonBriefText.includes("표"),
       `student lesson brief missing course activity context: ${studentStartUi.lessonBriefText}`,
+    );
+    assert(
+      studentStartUi.lessonSummaryText.includes("결과 확인:")
+        && studentStartUi.lessonSummaryText.includes("그래프")
+        && studentStartUi.lessonSummaryText.includes("표"),
+      `student lesson summary missing result check context: ${studentStartUi.lessonSummaryText}`,
     );
     assert(!studentStartUi.bodyText.includes("교과 원문"), "student mode should not show source text panel label");
     assert(!studentStartUi.bodyText.includes("저장 대기"), "student mode should not show save status");
@@ -1136,7 +1156,8 @@ async function main() {
       guideCopyState.guideClipboard.includes("배포 안내")
         && guideCopyState.guideClipboard.includes("배포 열기")
         && guideCopyState.guideClipboard.includes("JSON 배포 파일")
-        && guideCopyState.guideClipboard.includes("받은 수업 실행"),
+        && guideCopyState.guideClipboard.includes("받은 수업 실행")
+        && guideCopyState.guideClipboard.includes("결과 확인: 그래프, 표"),
       `student guide clipboard mismatch: ${guideCopyState.guideClipboard}`,
     );
     await page.click("#btn-run-teacher-package-copy");
@@ -1156,6 +1177,7 @@ async function main() {
       guideText: document.querySelector("[data-run-local-package-guide]")?.textContent?.trim() ?? "",
       guideReady: document.querySelector("[data-run-local-package-guide]")?.dataset?.ready ?? "",
       indexText: document.querySelector("[data-run-local-package-text]")?.textContent ?? "",
+      presetViewsText: document.querySelector("[data-run-preset-views]")?.textContent?.trim() ?? "",
       saveButtonText: document.querySelector("#btn-run-teacher-package-download")?.textContent?.trim() ?? "",
       activeRunTab: Array.from(document.querySelectorAll("[id^='run-tab-btn-']")).find((node) => node.classList.contains("active"))?.id ?? "",
       packageToolsOpen: document.querySelector("#run-inspector-tools")?.open === true,
@@ -1175,15 +1197,19 @@ async function main() {
     assert(state.packageToolsOpen === true, "teacher package tools should open automatically from browse teacher launch");
     assert(state.meta.includes("교사 시작") && state.meta.includes("Studio 배포 열기용"), `meta mismatch: ${state.meta}`);
     assert(Number(state.metaValue) >= 5, `meta value mismatch: ${state.metaValue}`);
+    assert(state.presetViewsText === "결과 확인: 그래프, 표", `teacher preset views label mismatch: ${state.presetViewsText}`);
     assert(
       state.guideText.includes("배포 열기")
         && state.guideText.includes("받은 수업 실행")
-        && state.guideText.includes("결과 확인"),
+        && state.guideText.includes("결과 확인: 그래프, 표"),
       `student guide text mismatch: ${state.guideText}`,
     );
     assert(state.guideReady === "1", `student guide readiness mismatch: ${state.guideReady}`);
     assert(state.indexText.startsWith("구분\t경로\t제목\t크기"), "index header mismatch");
-    assert(state.indexText.includes("\nguide\tStudio 배포 열기\t받은 수업 실행\t0"), `student guide row missing:\n${state.indexText}`);
+    assert(
+      state.indexText.includes("\nguide\tStudio 배포 열기\t받은 수업 실행 · 결과 확인: 그래프, 표를 확인합니다\t0"),
+      `student guide row missing result summary:\n${state.indexText}`,
+    );
     assert(state.indexText.includes("\nlesson\tlessons/"), `lesson index row missing:\n${state.indexText}`);
     assert(state.indexText.includes("\nreport\treports/"), `report index row missing:\n${state.indexText}`);
     assert(state.saveButtonText.startsWith("배포 저장 "), `save button text mismatch: ${state.saveButtonText}`);
@@ -1197,11 +1223,17 @@ async function main() {
     assert(copiedPayload.student_entry_label === "배포 열기", `download entry label mismatch: ${copiedPayload.student_entry_label}`);
     assert(
       Array.isArray(copiedPayload.student_instructions)
-        && copiedPayload.student_instructions.some((item) => String(item).includes("Studio에서 배포 열기")),
+        && copiedPayload.student_instructions.some((item) => String(item).includes("Studio에서 배포 열기"))
+        && copiedPayload.student_instructions.some((item) => String(item).includes("결과 확인: 그래프, 표")),
       `download student instructions missing: ${JSON.stringify(copiedPayload.student_instructions)}`,
     );
     assert(copiedPayload.manifest?.delivery_mode === "studio_json_import", `manifest delivery mode mismatch: ${copiedPayload.manifest?.delivery_mode}`);
     assert(copiedPayload.manifest?.open_with === "seamgrim_studio_local_package_import", `manifest open_with mismatch: ${copiedPayload.manifest?.open_with}`);
+    assert(
+      Array.isArray(copiedPayload.manifest?.student_instructions)
+        && copiedPayload.manifest.student_instructions.some((item) => String(item).includes("결과 확인: 그래프, 표")),
+      `download manifest student instructions missing: ${JSON.stringify(copiedPayload.manifest?.student_instructions)}`,
+    );
     assert(copiedPayload.lessons?.[0]?.subject === "physics", `package lesson subject mismatch: ${copiedPayload.lessons?.[0]?.subject}`);
     assert(copiedPayload.lessons?.[0]?.grade === "middle", `package lesson grade mismatch: ${copiedPayload.lessons?.[0]?.grade}`);
     assert(
@@ -1260,6 +1292,7 @@ async function main() {
       studentPressed: document.querySelector("[data-classroom-mode='student']")?.getAttribute("aria-pressed") ?? "",
       teacherPressed: document.querySelector("[data-classroom-mode='teacher']")?.getAttribute("aria-pressed") ?? "",
       lessonBriefText: document.querySelector("[data-run-lesson-brief]")?.textContent?.trim() ?? "",
+      lessonSummaryText: document.querySelector("#run-lesson-summary")?.textContent?.trim() ?? "",
       deliveryStatusText: document.querySelector("[data-run-delivery-status]")?.textContent?.trim() ?? "",
       deliveryStatusState: document.querySelector("[data-run-delivery-status]")?.dataset?.state ?? "",
       deliveryStatusDisplay: getComputedStyle(document.querySelector("[data-run-delivery-status]")).display,
@@ -1289,6 +1322,7 @@ async function main() {
     assert(importState.deliveryStatusState === "ready", `student import delivery status state mismatch: ${importState.deliveryStatusState}`);
     assert(
       importState.deliveryStatusText.includes("받은 배포 파일 준비됨")
+        && importState.deliveryStatusText.includes("결과 확인: 그래프, 표")
         && importState.deliveryStatusText.includes(downloadedPayload.manifest.title),
       `student import delivery status mismatch: ${importState.deliveryStatusText}`,
     );
@@ -1300,8 +1334,17 @@ async function main() {
         && importState.lessonBriefText.includes(downloadedPayload.manifest.title)
         && importState.lessonBriefText.includes("속도 기록 그래프")
         && importState.lessonBriefText.includes("활동:")
-        && importState.lessonBriefText.includes("기록 길이"),
+        && importState.lessonBriefText.includes("기록 길이")
+        && importState.lessonBriefText.includes("결과 확인:")
+        && importState.lessonBriefText.includes("그래프")
+        && importState.lessonBriefText.includes("표"),
       `imported lesson brief should preserve package course context: ${importState.lessonBriefText}`,
+    );
+    assert(
+      importState.lessonSummaryText.includes("결과 확인:")
+        && importState.lessonSummaryText.includes("그래프")
+        && importState.lessonSummaryText.includes("표"),
+      `imported lesson summary should preserve result check context: ${importState.lessonSummaryText}`,
     );
     assert(importState.runText.trim() === String(downloadedPayload.lessons[0].source_text ?? "").trim(), "imported run source mismatch");
     assert(importState.sourceLabel.includes(downloadedPayload.lessons[0].title), `imported source label mismatch: ${importState.sourceLabel}`);
@@ -1333,7 +1376,7 @@ async function main() {
     assert(importedRunState.deliveryStatusState === "done", `imported package delivery status should complete: ${importedRunState.deliveryStatusState}`);
     assert(
       importedRunState.deliveryStatusText.includes("받은 수업 실행 완료")
-        && importedRunState.deliveryStatusText.includes("결과 확인")
+        && importedRunState.deliveryStatusText.includes("결과 확인: 그래프, 표")
         && importedRunState.deliveryStatusText.includes(downloadedPayload.manifest.title),
       `imported package delivery complete text mismatch: ${importedRunState.deliveryStatusText}`,
     );

@@ -413,6 +413,23 @@ function renderDetailList(title, rows) {
   `;
 }
 
+function buildDetailStudentPreviewRows(lesson) {
+  const title = String(lesson?.title ?? lesson?.id ?? "수업").trim() || "수업";
+  const goalRows = buildCourseGoalTexts(lesson);
+  const missionRows = buildCourseMissionTexts(lesson);
+  return [
+    `제목: ${title}`,
+    goalRows.length ? `목표: ${goalRows[0]}` : "목표: 수업 실행 결과 확인",
+    missionRows.length ? `활동: ${missionRows[0]}` : "활동: 결과 화면을 보고 수업 내용을 확인한다",
+    buildCourseResultText(lesson),
+    "실행 버튼: 받은 수업 실행",
+  ];
+}
+
+function renderDetailStudentPreviewSection(lesson) {
+  return renderDetailList("학생 화면 미리보기", buildDetailStudentPreviewRows(lesson));
+}
+
 function clipDdnPreviewText(text) {
   const normalized = String(text ?? "").trim();
   if (!normalized) return "";
@@ -441,7 +458,7 @@ function buildDetailRunReadinessRows(lesson) {
   return [
     `수업 준비 상태: ${buildCourseReadinessText(lesson)}`,
     "학생으로 실행하면 이 DDN 원문이 바로 수업 화면에서 재생됩니다",
-    viewText ? `결과 확인 보기: ${viewText}` : "결과 확인 보기: 기본 실행 화면",
+    viewText ? `결과 확인: ${viewText}` : "결과 확인: 기본 실행 화면",
     missionRows.length ? `첫 활동: ${missionRows[0]}` : "첫 활동: 그래프와 표를 보고 수업 내용을 확인하기",
     "교사용 배포 준비에서 같은 원문과 활동을 학생에게 보낼 수 있습니다",
   ];
@@ -2601,15 +2618,16 @@ export class BrowseScreen {
         const goalRows = buildCourseGoalTexts(this.detailLesson);
         const missionRows = buildCourseMissionTexts(this.detailLesson);
         const viewRows = Array.isArray(this.detailLesson.requiredViews) && this.detailLesson.requiredViews.length
-          ? [`보기: ${this.detailLesson.requiredViews.map(formatRequiredViewLabel).join(", ")}`]
+          ? [`결과 확인: ${this.detailLesson.requiredViews.map(formatRequiredViewLabel).join(", ")}`]
           : [];
         this.detailCurriculumEl.innerHTML = [
+          renderDetailStudentPreviewSection(this.detailLesson),
           renderDetailDdnPreviewSection(),
           renderDetailRunReadinessSection(this.detailLesson),
           renderDetailCourseFlowSection(this.detailLesson),
           renderDetailList("학습목표", goalRows),
           renderDetailList("수업 활동", missionRows),
-          renderDetailList("수업 보기", viewRows),
+          renderDetailList("결과 확인", viewRows),
           ...numericSections,
         ].join("");
       } else {
@@ -2617,13 +2635,14 @@ export class BrowseScreen {
           curriculumMeta.unit ? `단원: ${curriculumMeta.unit}` : "",
           curriculumMeta.lesson ? `차시: ${curriculumMeta.lesson}` : "",
           curriculumMeta.difficulty ? `난이도: ${curriculumMeta.difficulty}` : "",
-          curriculumMeta.requiredViews?.length ? `필수보기: ${curriculumMeta.requiredViews.join(", ")}` : "",
+          curriculumMeta.requiredViews?.length ? `결과 확인: ${curriculumMeta.requiredViews.map(formatRequiredViewLabel).join(", ")}` : "",
         ].filter(Boolean);
         const refRows = [
           curriculumMeta.teacherNotesRef ? `교사용: ${curriculumMeta.teacherNotesRef}` : "",
           curriculumMeta.studentSheetRef ? `학생용: ${curriculumMeta.studentSheetRef}` : "",
         ].filter(Boolean);
         this.detailCurriculumEl.innerHTML = [
+          renderDetailStudentPreviewSection(this.detailLesson),
           renderDetailDdnPreviewSection(),
           renderDetailRunReadinessSection(this.detailLesson),
           renderDetailCourseFlowSection(this.detailLesson),
