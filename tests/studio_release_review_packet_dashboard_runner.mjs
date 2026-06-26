@@ -57,7 +57,11 @@ function createServer(root) {
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
       if (!address || typeof address === "string") reject(new Error("failed to bind static server"));
-      else resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
+      else resolve({
+        server,
+        baseUrl: `http://127.0.0.1:${address.port}`,
+        publicBaseUrl: `http://studio.example.test:${address.port}`,
+      });
     });
   });
 }
@@ -73,11 +77,119 @@ function isAllowedFallback404(urlText) {
       url.pathname === "/api/lessons/inventory" ||
       url.pathname === "/api/lesson-inventory" ||
       url.pathname.startsWith("/lessons/") ||
+      url.pathname.startsWith("/solutions/seamgrim_ui_mvp/lessons/") ||
       url.pathname.startsWith("/seed_lessons_v1/")
     );
   } catch (_) {
     return false;
   }
+}
+
+async function assertDefaultDevSurfacesHidden(page, baseUrl) {
+  await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#screen-browse .catalog-body");
+  const state = await page.evaluate(() => {
+    const ids = [
+      "teacher-feedback-preview-panel",
+      "classroom-operations-panel-preview",
+      "release-review-packet-dashboard",
+      "lesson-publication-review-surface",
+      "question-card-smoke",
+      "free-lab-first-run",
+    ];
+    return {
+      bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
+      devRootCount: document.querySelectorAll("#dev-surface-root").length,
+      visibleIds: ids.filter((id) => document.getElementById(id)),
+      devSurfaceResourceUrls: performance.getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+    };
+  });
+  assert(state.bodyDevClass === false, "default UI must not enable dev surface body class");
+  assert(state.devRootCount === 0, `default UI leaked dev surface root: ${state.devRootCount}`);
+  assert(state.visibleIds.length === 0, `default UI leaked dev panels: ${state.visibleIds.join(", ")}`);
+  assert(
+    state.devSurfaceResourceUrls.length === 0,
+    `default UI loaded dev_surfaces.js: ${state.devSurfaceResourceUrls.join(", ")}`
+  );
+}
+
+async function assertNonLocalDevSurfacesBlocked(page, publicBaseUrl) {
+  await page.goto(`${publicBaseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#screen-browse .catalog-body");
+  const state = await page.evaluate(() => ({
+    hostname: window.location.hostname,
+    bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
+    devRootCount: document.querySelectorAll("#dev-surface-root").length,
+    devSurfaceResourceUrls: performance.getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+  }));
+  assert(state.hostname === "studio.example.test", `non-local host mismatch: ${state.hostname}`);
+  assert(state.bodyDevClass === false, "non-local UI must ignore devSurfaces query");
+  assert(state.devRootCount === 0, `non-local UI leaked dev surface root: ${state.devRootCount}`);
+  assert(
+    state.devSurfaceResourceUrls.length === 0,
+    `non-local query loaded dev_surfaces.js: ${state.devSurfaceResourceUrls.join(", ")}`
+  );
+
+  await page.evaluate(() => localStorage.setItem("seamgrim.dev_surfaces", "1"));
+  await page.goto(`${publicBaseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#screen-browse .catalog-body");
+  const storageState = await page.evaluate(() => ({
+    hostname: window.location.hostname,
+    stored: localStorage.getItem("seamgrim.dev_surfaces"),
+    bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
+    devRootCount: document.querySelectorAll("#dev-surface-root").length,
+    devSurfaceResourceUrls: performance.getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+  }));
+  assert(storageState.hostname === "studio.example.test", `non-local storage host mismatch: ${storageState.hostname}`);
+  assert(storageState.stored === "1", "non-local dev surface storage setup failed");
+  assert(storageState.bodyDevClass === false, "non-local UI must ignore dev surface storage");
+  assert(storageState.devRootCount === 0, `non-local storage leaked dev surface root: ${storageState.devRootCount}`);
+  assert(
+    storageState.devSurfaceResourceUrls.length === 0,
+    `non-local storage loaded dev_surfaces.js: ${storageState.devSurfaceResourceUrls.join(", ")}`
+  );
+  await page.evaluate(() => localStorage.removeItem("seamgrim.dev_surfaces"));
+
+  await page.addInitScript(() => {
+    window.SEAMGRIM_DEV_SURFACES = true;
+  });
+  await page.goto(`${publicBaseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#screen-browse .catalog-body");
+  const globalOverrideState = await page.evaluate(() => ({
+    hostname: window.location.hostname,
+    globalFlag: window.SEAMGRIM_DEV_SURFACES === true,
+    bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
+    devRootCount: document.querySelectorAll("#dev-surface-root").length,
+    legacyBrowseControlCount: [
+      "#btn-filter-numeric-track",
+      "#btn-filter-numeric-track-results",
+      "#btn-preset-featured-seed-quick-recent",
+      "#btn-copy-browse-preset-link",
+      "#filter-quality",
+      "#filter-sort",
+    ].filter((selector) => document.querySelector(selector)).length,
+    devSurfaceResourceUrls: performance.getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+  }));
+  assert(globalOverrideState.hostname === "studio.example.test", `non-local global host mismatch: ${globalOverrideState.hostname}`);
+  assert(globalOverrideState.globalFlag === true, "non-local dev surface global override setup failed");
+  assert(globalOverrideState.bodyDevClass === false, "non-local UI must ignore dev surface global override");
+  assert(globalOverrideState.devRootCount === 0, `non-local global override leaked dev surface root: ${globalOverrideState.devRootCount}`);
+  assert(
+    globalOverrideState.legacyBrowseControlCount === 0,
+    `non-local global override leaked legacy browse controls: ${globalOverrideState.legacyBrowseControlCount}`
+  );
+  assert(
+    globalOverrideState.devSurfaceResourceUrls.length === 0,
+    `non-local global override loaded dev_surfaces.js: ${globalOverrideState.devSurfaceResourceUrls.join(", ")}`
+  );
 }
 
 async function main() {
@@ -88,11 +200,14 @@ async function main() {
     await requireFile(path.join(uiRoot, rel));
   }
 
-  const { server, baseUrl } = await createServer(root);
+  const { server, baseUrl, publicBaseUrl } = await createServer(root);
   let browser = null;
   const failures = [];
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--host-resolver-rules=MAP studio.example.test 127.0.0.1"],
+    });
     const context = await browser.newContext({ viewport: { width: 1180, height: 760 }, locale: "ko-KR" });
     const page = await context.newPage();
     page.on("console", (msg) => {
@@ -101,14 +216,20 @@ async function main() {
       }
     });
     page.on("pageerror", (err) => failures.push(`pageerror: ${err.message}`));
-    page.on("requestfailed", (req) => failures.push(`request failed: ${req.url()} ${req.failure()?.errorText || ""}`));
+    page.on("requestfailed", (req) => {
+      const errorText = req.failure()?.errorText || "";
+      if (errorText === "net::ERR_ABORTED" && isAllowedFallback404(req.url())) return;
+      failures.push(`request failed: ${req.url()} ${errorText}`);
+    });
     page.on("response", (res) => {
       if (res.status() >= 400 && !res.url().endsWith("/favicon.ico") && !(res.status() === 404 && isAllowedFallback404(res.url()))) {
         failures.push(`response ${res.status()}: ${res.url()}`);
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await assertDefaultDevSurfacesHidden(page, baseUrl);
+    await assertNonLocalDevSurfacesBlocked(page, publicBaseUrl);
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-release-review-packet-dashboard][data-release-review-status='release_review_dashboard_ready']");
 
     const moduleResult = await page.evaluate(async () => {
