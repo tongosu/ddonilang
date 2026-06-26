@@ -106,7 +106,7 @@ export function buildNumericTrackRunPreset(lessonOrId) {
     track_id: NUMERIC_TRACK_ID,
     lesson_id: preview.lesson_id,
     focus,
-    label: `수업보기: ${focus}`,
+    label: `결과 기록: ${focus}`,
     module_ids: [...preview.modules],
     module_labels: [...preview.module_labels],
     recommended_views: recommendedViews,
