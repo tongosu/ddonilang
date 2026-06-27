@@ -8,6 +8,58 @@ import { chromium } from "playwright";
 
 const OK = "studio_release_review_packet_dashboard: ok";
 const REQUIRED_APPROVAL = "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다";
+const DEV_SURFACE_PANEL_IDS = [
+  "teacher-feedback-preview-panel",
+  "classroom-operations-panel-preview",
+  "benchmark-baseline-local-snapshot",
+  "release-review-packet-dashboard",
+  "lesson-publication-review-surface",
+  "ma3-regression-gate-matrix",
+  "ma3-next-queue-coordinate-lock",
+  "operations-preview-stage-closure",
+  "productization-stage-rebase",
+  "seamgrim-numeric-track-consolidation",
+  "numeric-report-workflow-stage",
+  "numeric-result-report-stage",
+  "productization-stage-closure",
+  "post-super-long-rebase",
+  "public-release-approval-recheck",
+  "local-release-rehearsal-check",
+  "publication-artifact-dry-run",
+  "teacher-feedback-loop-seed",
+  "classroom-operations-triage",
+  "benchmark-baseline-prep-dry-run",
+  "next-roadmap-v2-coordinate-lock",
+  "ma3-next-development-queue-rebase",
+  "free-lab-experiment-report",
+  "free-lab-ui-pack",
+  "free-lab-share-pack",
+  "free-lab-research-workflow",
+  "rpg-story-package",
+  "rpg-engine-adapter-lts",
+  "ttonimaru-publication-read-api",
+  "ttonimaru-project-share-ui",
+  "ttonimaru-public-registry-seed",
+  "ttonimaru-platform-hardening",
+  "toolchain-diagnostic-ui-lsp",
+  "toolchain-registry-verification",
+  "toolchain-benchmark-lts",
+  "social-world-bridge-pack",
+  "social-world-policy-ghost-ui",
+  "social-world-template-registry",
+  "social-world-lts-readiness",
+  "education-assessment-pack",
+  "education-classroom-ui-pack",
+  "education-publication-pack",
+  "education-operations-lts",
+  "question-card-smoke",
+  "question-card-validation",
+  "question-card-dev-assist",
+  "question-card-author-tool-share",
+  "question-card-workflow-hardening",
+  "seulgi-proposal-ui",
+  "seulgi-replay-safe-workflow",
+];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -16,6 +68,18 @@ function assert(condition, message) {
 async function requireFile(file) {
   const stat = await fs.stat(file).catch(() => null);
   if (!stat || !stat.isFile()) throw new Error(`missing file: ${file}`);
+}
+
+async function assertDevSurfacePanelIdListCurrent(uiRoot) {
+  const source = await fs.readFile(path.join(uiRoot, "dev_surfaces.js"), "utf-8");
+  const sourceIds = Array.from(source.matchAll(/elementId:\s*"([^"]+)"/g), (match) => match[1])
+    .filter((id) => id !== "definition.elementId");
+  const expected = Array.from(new Set(sourceIds)).sort();
+  const actual = Array.from(new Set(DEV_SURFACE_PANEL_IDS)).sort();
+  assert(
+    JSON.stringify(actual) === JSON.stringify(expected),
+    `dev surface panel id guard is stale\nexpected=${expected.join(",")}\nactual=${actual.join(",")}`,
+  );
 }
 
 function mimeType(file) {
@@ -88,15 +152,7 @@ function isAllowedFallback404(urlText) {
 async function assertDefaultDevSurfacesHidden(page, baseUrl) {
   await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#screen-browse .catalog-body");
-  const state = await page.evaluate(() => {
-    const ids = [
-      "teacher-feedback-preview-panel",
-      "classroom-operations-panel-preview",
-      "release-review-packet-dashboard",
-      "lesson-publication-review-surface",
-      "question-card-smoke",
-      "free-lab-first-run",
-    ];
+  const state = await page.evaluate((ids) => {
     return {
       bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
       devRootCount: document.querySelectorAll("#dev-surface-root").length,
@@ -105,7 +161,7 @@ async function assertDefaultDevSurfacesHidden(page, baseUrl) {
         .map((entry) => entry.name)
         .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
     };
-  });
+  }, DEV_SURFACE_PANEL_IDS);
   assert(state.bodyDevClass === false, "default UI must not enable dev surface body class");
   assert(state.devRootCount === 0, `default UI leaked dev surface root: ${state.devRootCount}`);
   assert(state.visibleIds.length === 0, `default UI leaked dev panels: ${state.visibleIds.join(", ")}`);
@@ -199,6 +255,7 @@ async function main() {
   for (const rel of ["index.html", "app.js", "studio_release_review_packet_dashboard.js"]) {
     await requireFile(path.join(uiRoot, rel));
   }
+  await assertDevSurfacePanelIdListCurrent(uiRoot);
 
   const { server, baseUrl, publicBaseUrl } = await createServer(root);
   let browser = null;
