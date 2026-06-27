@@ -18,6 +18,7 @@ SOURCE_CONTINUITY = ROOT / "pack" / "studio_release_approval_packet_continuity_v
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_release_review_packet_dashboard.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_release_review_packet_dashboard_runner.mjs"
@@ -48,6 +49,13 @@ def require_contains(path: Path, tokens: list[str]) -> None:
     missing = [token for token in tokens if token not in text]
     if missing:
         fail(f"{path.relative_to(ROOT)} missing tokens: {missing}")
+
+
+def require_not_contains(path: Path, tokens: list[str]) -> None:
+    text = read(path)
+    present = [token for token in tokens if token in text]
+    if present:
+        fail(f"{path.relative_to(ROOT)} leaked tokens: {present}")
 
 
 def run(cmd: list[str], *, timeout: int = 180) -> subprocess.CompletedProcess[str]:
@@ -128,6 +136,7 @@ def check_required_files() -> None:
         UI_MODULE,
         APP_JS,
         DEV_SURFACES_JS,
+        DEV_SURFACES_CSS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -195,18 +204,52 @@ def check_ui_source() -> None:
             "buildReleaseReviewPacketDashboard",
         ],
     )
-    require_contains(
-        STYLES_CSS,
-        [
-            ".release-review-packet-dashboard",
-            ".release-review-dashboard-btn.active",
-        ],
-    )
+    dev_only_css_tokens = [
+        ".teacher-feedback-preview-panel",
+        ".classroom-operations-panel-preview",
+        ".benchmark-baseline-local-snapshot",
+        ".ma3-regression-gate-matrix",
+        ".ma3-next-queue-coordinate-lock",
+        ".release-review-packet-dashboard",
+        ".release-review-dashboard-btn.active",
+        ".lesson-publication-review-surface",
+        ".lesson-publication-surface-btn.active",
+        ".operations-preview-stage-closure",
+        ".public-release-approval-recheck",
+        ".local-release-rehearsal-check",
+        ".publication-artifact-dry-run",
+        ".teacher-feedback-loop-seed",
+        ".classroom-operations-triage",
+        ".free-lab-experiment-report",
+        ".productization-stage-rebase",
+        ".productization-stage-closure",
+        ".post-super-long-rebase",
+        ".benchmark-baseline-prep-dry-run",
+        ".ma3-next-development-queue-rebase",
+        ".rpg-story-package",
+        ".rpg-engine-adapter-lts",
+        ".ttonimaru-publication-read-api",
+        ".ttonimaru-project-share-ui",
+        ".ttonimaru-public-registry-seed",
+        ".ttonimaru-platform-hardening",
+        ".toolchain-diagnostic-ui-lsp",
+        ".toolchain-registry-verification",
+        ".toolchain-benchmark-lts",
+        ".social-world-template-registry",
+        ".social-world-lts-readiness",
+        ".social-world-policy-ghost-ui",
+        ".social-world-bridge-pack",
+        ".education-assessment-pack",
+        ".education-classroom-ui-pack",
+    ]
+    require_not_contains(STYLES_CSS, dev_only_css_tokens)
+    require_contains(DEV_SURFACES_CSS, dev_only_css_tokens)
     require_contains(
         RUNNER,
         [
             "studio_release_review_packet_dashboard: ok",
             "assertDefaultDevSurfacesHidden",
+            "assertReleaseDashboardCssIsDevOnly",
             "dev-surface-root",
             "question-card-smoke",
             "data-release-review-status='release_review_dashboard_ready'",

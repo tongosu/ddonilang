@@ -82,6 +82,54 @@ async function assertDevSurfacePanelIdListCurrent(uiRoot) {
   );
 }
 
+async function assertReleaseDashboardCssIsDevOnly(uiRoot) {
+  const [defaultCss, devCss] = await Promise.all([
+    fs.readFile(path.join(uiRoot, "styles.css"), "utf-8"),
+    fs.readFile(path.join(uiRoot, "dev_surfaces.css"), "utf-8"),
+  ]);
+  for (const token of [
+    ".teacher-feedback-preview-panel",
+    ".classroom-operations-panel-preview",
+    ".benchmark-baseline-local-snapshot",
+    ".ma3-regression-gate-matrix",
+    ".ma3-next-queue-coordinate-lock",
+    ".release-review-packet-dashboard",
+    ".release-review-dashboard-head",
+    ".lesson-publication-review-surface",
+    ".lesson-publication-surface-head",
+    ".operations-preview-stage-closure",
+    ".public-release-approval-recheck",
+    ".local-release-rehearsal-check",
+    ".publication-artifact-dry-run",
+    ".teacher-feedback-loop-seed",
+    ".classroom-operations-triage",
+    ".free-lab-experiment-report",
+    ".productization-stage-rebase",
+    ".productization-stage-closure",
+    ".post-super-long-rebase",
+    ".benchmark-baseline-prep-dry-run",
+    ".ma3-next-development-queue-rebase",
+    ".rpg-story-package",
+    ".rpg-engine-adapter-lts",
+    ".ttonimaru-publication-read-api",
+    ".ttonimaru-project-share-ui",
+    ".ttonimaru-public-registry-seed",
+    ".ttonimaru-platform-hardening",
+    ".toolchain-diagnostic-ui-lsp",
+    ".toolchain-registry-verification",
+    ".toolchain-benchmark-lts",
+    ".social-world-template-registry",
+    ".social-world-lts-readiness",
+    ".social-world-policy-ghost-ui",
+    ".social-world-bridge-pack",
+    ".education-assessment-pack",
+    ".education-classroom-ui-pack",
+  ]) {
+    assert(!defaultCss.includes(token), `default teacher CSS leaked dev panel token: ${token}`);
+    assert(devCss.includes(token), `dev surface CSS missing panel token: ${token}`);
+  }
+}
+
 function mimeType(file) {
   if (file.endsWith(".html")) return "text/html; charset=utf-8";
   if (file.endsWith(".js")) return "application/javascript; charset=utf-8";
@@ -256,6 +304,7 @@ async function main() {
     await requireFile(path.join(uiRoot, rel));
   }
   await assertDevSurfacePanelIdListCurrent(uiRoot);
+  await assertReleaseDashboardCssIsDevOnly(uiRoot);
 
   const { server, baseUrl, publicBaseUrl } = await createServer(root);
   let browser = null;
