@@ -206,6 +206,9 @@ def check_ui_source() -> None:
         RUNNER,
         [
             "studio_release_review_packet_dashboard: ok",
+            "assertDefaultDevSurfacesHidden",
+            "dev-surface-root",
+            "question-card-smoke",
             "data-release-review-status='release_review_dashboard_ready'",
             "release_approval_claim",
             REQUIRED_APPROVAL,
@@ -327,12 +330,16 @@ def check_source_alignment() -> None:
         fail(f"source continuity schema mismatch: {continuity.get('schema')!r}")
     if snapshot.get("next_item") != "STUDIO_RELEASE_REVIEW_PACKET_DASHBOARD_V1":
         fail(f"source snapshot next item mismatch: {snapshot.get('next_item')!r}")
-    if snapshot.get("progress", {}).get("super_long_behavior_closed") != 18:
-        fail(f"source snapshot progress mismatch: {snapshot.get('progress')!r}")
-    if snapshot.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
-        fail(f"source snapshot roadmap closed mismatch: {snapshot.get('progress')!r}")
-    if snapshot.get("progress", {}).get("roadmap_v2_percent") != 100:
-        fail(f"source snapshot roadmap percent mismatch: {snapshot.get('progress')!r}")
+    for flag in [
+        "benchmark_execution_claim",
+        "performance_baseline_generation_claim",
+        "performance_baseline_publication_claim",
+        "lts_certification_claim",
+        "release_execution_claim",
+        "public_release_claim",
+    ]:
+        if snapshot.get(flag) is not False:
+            fail(f"source snapshot {flag} must remain false")
     if continuity.get("required_approval_phrase") != REQUIRED_APPROVAL:
         fail("source continuity required approval phrase mismatch")
     if continuity.get("generic_next_dev_request_is_approval") is not False:
