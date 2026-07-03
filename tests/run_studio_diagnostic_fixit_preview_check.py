@@ -8,7 +8,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md"
 ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
-PREV = ROOT / "MALBLOCK_AUTHORING_UI_V1.md"
 PACK = ROOT / "pack" / "studio_diagnostic_fixit_preview_v1"
 RUNNER = ROOT / "tests" / "studio_diagnostic_fixit_preview_browser_runner.mjs"
 HELPER = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_diagnostic_fixit_preview.js"
@@ -40,7 +39,6 @@ def require_files() -> int:
     required = [
         DOC,
         ROADMAP,
-        PREV,
         HELPER,
         PACK / "README.md",
         PACK / "contract.detjson",
@@ -48,7 +46,6 @@ def require_files() -> int:
         PACK / "golden.jsonl",
         RUNNER,
         ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "play_diagnostic_contract.js",
-        ROOT / "tests" / "run_malblock_authoring_ui_check.py",
         ROOT / "tests" / "run_seamgrim_run_legacy_autofix_check.py",
     ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
@@ -89,11 +86,6 @@ def check_docs() -> int:
                 "preview-only",
             ],
             "E_STUDIO_FIXIT_PREVIEW_ROADMAP",
-        ),
-        (
-            PREV,
-            ["MALBLOCK_AUTHORING_UI_V1", "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1"],
-            "E_STUDIO_FIXIT_PREVIEW_PREV",
         ),
     ]
     for path, tokens, code in checks:

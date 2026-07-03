@@ -1,0 +1,70 @@
+{
+  "schema": "ddn.roadmap_v2.pa1_matrix_status_reconciliation.v1",
+  "id": "ROADMAP_V2_PA1_BASELINE_MARKET_FIRST_RUN_MATRIX_RECONCILIATION_V1",
+  "date": "2026-06-09",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "파-1",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "case_card_schema": {
+      "source_pack": "pack/econ_age4_ready_baseline_tax_ceiling_v1/case_cards",
+      "checker": "tests/run_jojo_case_card_schema_check.py --dir pack/econ_age4_ready_baseline_tax_ceiling_v1/case_cards"
+    },
+    "baseline_market_tax_price_ceiling": {
+      "source_pack": "pack/econ_age4_ready_baseline_tax_ceiling_v1",
+      "checker": "tests/run_econ_age4_ready_baseline_tax_ceiling_check.py"
+    },
+    "pack_golden": {
+      "source_pack": "pack/econ_age4_ready_baseline_tax_ceiling_v1",
+      "checker": "tests/run_pack_golden.py econ_age4_ready_baseline_tax_ceiling_v1"
+    },
+    "frontier_selection": {
+      "checker": "tests/run_roadmap_v2_post_sa1_frontier_rebase_check.py"
+    }
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "진행",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/파-1_RECONCILIATION_REPORT_20260609.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "PA1 matrix reconciliation",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 55,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 61,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "next_item": "ROADMAP_V2_POST_PA1_FRONTIER_REBASE_V1",
+    "reason": "파-1 and downstream 파-2..파-5 are now matrix-closed, so the next work should select a fresh frontier from the updated 55/90 matrix state",
+    "not_next": "NEW_ECON_RUNTIME_IMPLEMENTATION_WITHOUT_FRONTIER_REBASE"
+  },
+  "false_claims": {
+    "new_econ_runtime": false,
+    "econ_policy_advice_claim": false,
+    "real_world_prediction_claim": false,
+    "agent_simulation_execution_claim": false,
+    "real_data_integration_claim": false,
+    "runtime_surface_change": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_full_completion": false,
+    "studio_full_completion": false,
+    "docs_ssot_change": false
+  }
+}

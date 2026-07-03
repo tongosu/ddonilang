@@ -18,6 +18,7 @@ SOURCE_PREP = ROOT / "pack" / "studio_public_lesson_publication_prep_v1" / "publ
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_lesson_publication_review_surface.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
 RUNNER = ROOT / "tests" / "studio_lesson_publication_review_surface_runner.mjs"
@@ -127,6 +128,7 @@ def check_required_files() -> None:
         UI_MODULE,
         APP_JS,
         DEV_SURFACES_JS,
+        DEV_SURFACES_CSS,
         INDEX_HTML,
         STYLES_CSS,
         RUNNER,
@@ -194,7 +196,7 @@ def check_ui_source() -> None:
     )
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "isLocalDevHost()", "./dev_surfaces.js"])
     require_contains(
-        STYLES_CSS,
+        DEV_SURFACES_CSS,
         [
             ".lesson-publication-review-surface",
             ".lesson-publication-surface-btn.active",
@@ -330,13 +332,13 @@ def check_source_alignment() -> None:
         fail(f"source dashboard schema mismatch: {dashboard.get('schema')!r}")
     if prep.get("schema") != "ddn.studio.public_lesson_publication_prep.v1":
         fail(f"source prep schema mismatch: {prep.get('schema')!r}")
-    if dashboard.get("next_item") != "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1":
+    if dashboard.get("next_item") != "STUDIO_LESSON_PUBLICATION_REVIEW_SURFACE_V1":
         fail(f"source dashboard next item mismatch: {dashboard.get('next_item')!r}")
-    if dashboard.get("progress", {}).get("super_long_behavior_closed") != 8:
+    if dashboard.get("progress", {}).get("super_long_behavior_closed") != 18:
         fail(f"source dashboard progress mismatch: {dashboard.get('progress')!r}")
-    if dashboard.get("progress", {}).get("roadmap_v2_behavior_closed") != 6:
+    if dashboard.get("progress", {}).get("roadmap_v2_behavior_closed") != 90:
         fail(f"source dashboard roadmap closed mismatch: {dashboard.get('progress')!r}")
-    if dashboard.get("progress", {}).get("roadmap_v2_percent") != 7:
+    if dashboard.get("progress", {}).get("roadmap_v2_percent") != 100:
         fail(f"source dashboard roadmap percent mismatch: {dashboard.get('progress')!r}")
     if prep.get("candidate_count") != 15:
         fail(f"source prep candidate count mismatch: {prep.get('candidate_count')!r}")

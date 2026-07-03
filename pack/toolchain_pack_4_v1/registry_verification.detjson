@@ -1,0 +1,38 @@
+{
+  "schema": "ddn.toolchain.registry_verification.v1",
+  "work_item": "TA4_REGISTRY_VERIFICATION_V1",
+  "primary_coordinate": "타-4",
+  "pack": "toolchain_pack_4_v1",
+  "status": "toolchain_registry_verification_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "registry_verification_claim": true,
+  "publish_dry_run_claim": true,
+  "install_plan_claim": true,
+  "digest_verify_claim": true,
+  "rollback_probe_claim": true,
+  "public_registry_publish_claim": false,
+  "install_execution_claim": false,
+  "network_io_claim": false,
+  "trust_signing_claim": false,
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 23,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 26,
+    "roadmap_v2_pack_evidence_reference_closed": 43,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 48,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "rows": [
+    { "id": "publish_manifest", "ready": true },
+    { "id": "install_plan", "ready": true },
+    { "id": "digest_verify", "ready": true },
+    { "id": "rollback_probe", "ready": true }
+  ],
+  "verification_text": "coordinate:타-4\npublic_registry_publish:false\ninstall_execution:false\nnetwork_io:false\ntrust_signing:false"
+}

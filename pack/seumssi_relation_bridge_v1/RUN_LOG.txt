@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update seum_assertion_block_v1b seumssi_relation_bridge_v1
+pack golden updated

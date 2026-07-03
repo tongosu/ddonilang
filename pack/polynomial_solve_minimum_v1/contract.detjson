@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.polynomial_solve_minimum.pack.contract.v1",
+  "pack_id": "polynomial_solve_minimum_v1",
+  "evidence_tier": "runner_fill",
+  "closure_claim": "minimum",
+  "surface": "다항식.풀기",
+  "solver_path": "existing_relation_solver",
+  "cases": [
+    "c01_polynomial_single_root",
+    "c02_polynomial_non_unique",
+    "c03_polynomial_unsupported"
+  ],
+  "non_goals": [
+    "general_polynomial_solver",
+    "multi_root_list",
+    "numerical_fallback",
+    "cubic_quartic_complex_roots"
+  ],
+  "target": "teul-cli run"
+}
+

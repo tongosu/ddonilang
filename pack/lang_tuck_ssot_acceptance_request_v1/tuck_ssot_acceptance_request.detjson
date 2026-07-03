@@ -1,0 +1,113 @@
+{
+  "schema": "ddn.language.tuck_ssot_acceptance_request.v1",
+  "work_item": "LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1",
+  "based_on": "LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1",
+  "source_flow_history_ssot_acceptance_request": "pack/lang_flow_history_ssot_acceptance_request_v1/flow_history_ssot_acceptance_request.detjson",
+  "source_ssot_landing_coordination": "pack/lang_ssot_landing_coordination_rebase_v1/ssot_landing_coordination_rebase.detjson",
+  "source_tuck_name": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+  "source_tuck_constraint_surface_shape_proposal": "pack/lang_tuck_constraint_surface_shape_proposal_v1/tuck_constraint_surface_shape_proposal.detjson",
+  "source_tuck_ssot_acceptance_handoff": "pack/lang_tuck_ssot_acceptance_handoff_v1/tuck_ssot_acceptance_handoff.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "tuck_ssot_acceptance_request_claim": true,
+  "tuck_ssot_landed_claim": false,
+  "tuck_block_landed_claim": false,
+  "tuck_row_parser_landed_claim": false,
+  "constraint_runtime_landed_claim": false,
+  "solver_internal_inequality_claim": false,
+  "request": {
+    "target_id": "tuck_constraint_layer",
+    "selected_layer_name": "턱",
+    "proposed_surface_family": "턱-row",
+    "representation": "named_boundary_threshold_record_family",
+    "required_fields": ["id", "when", "effect", "priority", "determinism"],
+    "candidate_effects": ["clamp", "terminate", "exit", "transition"],
+    "recommended_acceptance_text": [
+      "`턱` is the third simulation-constraint layer for boundary, threshold, and exit interventions.",
+      "The initial proposed surface is a row-family shape, `턱-row`.",
+      "Each row requires `id`, `when`, `effect`, `priority`, and `determinism`.",
+      "Parser/frontdoor support and deterministic runtime ordering require separate product-path evidence after SSOT acceptance."
+    ],
+    "post_acceptance_gates": ["parser_frontdoor_spike", "deterministic_runtime_order", "replay_evidence"]
+  },
+  "product_anchor_rows": [
+    {
+      "id": "tuck_name_source",
+      "path": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+      "tokens": ["selected_constraint_layer_name", "턱", "constraint_layer_runtime_landed_claim"],
+      "changed_now": false
+    },
+    {
+      "id": "surface_shape_source",
+      "path": "pack/lang_tuck_constraint_surface_shape_proposal_v1/tuck_constraint_surface_shape_proposal.detjson",
+      "tokens": ["surface_family", "턱-row", "required_fields", "implementation_gates"],
+      "changed_now": false
+    },
+    {
+      "id": "handoff_source",
+      "path": "pack/lang_tuck_ssot_acceptance_handoff_v1/tuck_ssot_acceptance_handoff.detjson",
+      "tokens": ["handoff_packet", "recommended_ssot_acceptance_text", "post_acceptance_gates"],
+      "changed_now": false
+    },
+    {
+      "id": "coordination_source",
+      "path": "pack/lang_ssot_landing_coordination_rebase_v1/ssot_landing_coordination_rebase.detjson",
+      "tokens": ["tuck_constraint_layer", "LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1", "urgent_ssot_landed_plan"],
+      "changed_now": false
+    },
+    {
+      "id": "previous_request_source",
+      "path": "pack/lang_flow_history_ssot_acceptance_request_v1/flow_history_ssot_acceptance_request.detjson",
+      "tokens": ["LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1", "ssot_acceptance_request_queue", "2"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "tuck_block_landed",
+    "tuck_row_parser_landed",
+    "constraint_runtime_landed",
+    "solver_internal_inequality"
+  ],
+  "ssot_acceptance_request_queue": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "tuck_ssot_acceptance_request": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 71,
+    "total": 90,
+    "percent": 79
+  },
+  "next_item": "LANG_SSOT_ACCEPTANCE_REQUEST_CLOSURE_REBASE_V1"
+}
+

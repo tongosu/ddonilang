@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-productization-stage-rebase][data-productization-stage-rebase-status='productization_stage_rebased']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -135,12 +135,12 @@ async function main() {
     assert(rebase.status === "productization_stage_rebased", `status mismatch: ${rebase.status}`);
     assert(rebase.rebase_row_count === 5, `rebase count mismatch: ${rebase.rebase_row_count}`);
     assert(rebase.ready_stage_count === 5, `ready stage mismatch: ${rebase.ready_stage_count}`);
-    assert(rebase.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(rebase.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(rebase.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(rebase.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(rebase.progress.current_stage_closed === 1, "current stage closed mismatch");
     assert(rebase.progress.current_stage_percent === 20, "current stage percent mismatch");
-    assert(rebase.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(rebase.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(rebase.progress.roadmap_v2_behavior_closed === 51, "roadmap closed mismatch");
+    assert(rebase.progress.roadmap_v2_percent === 57, "roadmap percent mismatch");
     assert(String(moduleResult.text).includes("selected_next_item\tSEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"), "formatted text missing next item");
     assert(String(moduleResult.text).includes("release_execution_claim\tfalse"), "formatted text missing release boundary");
 

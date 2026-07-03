@@ -38,7 +38,6 @@ def main() -> int:
         return fail(f"node_runner_failed:{detail}")
 
     app_text = _read(app_js)
-    html_text = _read(index_html)
     static_required = [
         ("shell: {" in app_text, "shell_slot_missing"),
         ("authSession: null" in app_text, "shell_auth_session_missing"),
@@ -48,9 +47,9 @@ def main() -> int:
         ("currentPublicationId: null" in app_text, "shell_publication_slot_missing"),
         ("shareMode: null" in app_text, "shell_share_mode_missing"),
         ("activeCatalog: CatalogKind.LESSON" in app_text, "shell_active_catalog_default_missing"),
-        ("btn-save-server" in html_text, "menu_save_server_stub_missing"),
-        ("btn-share-link" in html_text, "menu_share_link_stub_missing"),
-        ("btn-revision-history" in html_text, "menu_revision_history_stub_missing"),
+        ("btn-save-server" in app_text, "menu_save_server_stub_missing"),
+        ("btn-share-link" in app_text, "menu_share_link_stub_missing"),
+        ("btn-revision-history" in app_text, "menu_revision_history_stub_missing"),
     ]
     failures = [name for ok, name in static_required if not ok]
     if failures:

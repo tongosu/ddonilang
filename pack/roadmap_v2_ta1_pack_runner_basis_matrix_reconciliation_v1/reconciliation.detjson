@@ -1,0 +1,59 @@
+{
+  "schema": "ddn.roadmap_v2.ta1_pack_runner_basis_matrix_reconciliation.v1",
+  "id": "ROADMAP_V2_TA1_PACK_RUNNER_BASIS_MATRIX_RECONCILIATION_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "타-1",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "pack_runner_basis": {
+      "source_pack": "pack/toolchain_pack_1_v1",
+      "checker": "tests/run_roadmap_v2_pack_runner_basis_check.py"
+    },
+    "source_report": "docs/status/roadmap_v2/타-1_REPORT_20260428.md",
+    "preflight": "tests/run_roadmap_v2_post_ta0_frontier_rebase_check.py"
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "진행",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/타-1_RECONCILIATION_REPORT_20260608.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "TA1 pack runner basis matrix reconciliation",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 45,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 50,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "next_item": "ROADMAP_V2_POST_TA1_FRONTIER_REBASE_V1",
+    "reason": "타-1 pack runner basis evidence exists and matrix status is now reconciled",
+    "not_next": "TOOLCHAIN_PACK_RUNNER_REIMPLEMENTATION"
+  },
+  "false_claims": {
+    "pack_runner_reimplementation": false,
+    "ci_aggregation_claim": false,
+    "wasm_parity_runner_change": false,
+    "runtime_semantics_change": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_full_completion": false,
+    "studio_full_completion": false,
+    "docs_ssot_change": false
+  }
+}

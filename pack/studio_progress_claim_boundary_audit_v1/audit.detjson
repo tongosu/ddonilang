@@ -1,0 +1,46 @@
+{
+  "schema": "ddn.studio.progress_claim_boundary_audit.v1",
+  "work_item": "STUDIO_PROGRESS_CLAIM_BOUNDARY_AUDIT_V1",
+  "closure_tier": "닫힘-문서",
+  "official_progress": {
+    "studio_local_super_long": "9/18 = 50%",
+    "roadmap_v2_behavior_closed": "90/90 = 100%",
+    "roadmap_v2_docs_closed": "0/90 = 0%",
+    "roadmap_v2_pack_evidence": "90/90 = 100%"
+  },
+  "stale_progress_patterns": [
+    "18/18 = 100%",
+    "초장기 계획 전체 18/18",
+    "전체 초장기 계획: 18/18",
+    "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+    "ROADMAP_V2 product behavior baseline 90/90 = 100%"
+  ],
+  "original_stale_progress_file_count": 12,
+  "stale_progress_file_count": 0,
+  "stale_progress_match_count": 0,
+  "stale_progress_paths": [],
+  "repaired_progress_paths": [
+    "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+    "docs/studio/BENCHMARK_BASELINE_LOCAL_SNAPSHOT_V1.md",
+    "docs/studio/CLASSROOM_OPERATIONS_PANEL_PREVIEW_V1.md",
+    "docs/studio/CLASSROOM_OPERATIONS_TRIAGE_V1.md",
+    "docs/studio/EDUCATION_OPERATIONS_LTS_V1.md",
+    "docs/studio/LESSON_PUBLICATION_REVIEW_SURFACE_V1.md",
+    "docs/studio/MA3_NEXT_DEVELOPMENT_QUEUE_REBASE_V1.md",
+    "docs/studio/MA3_REGRESSION_GATE_MATRIX_V1.md",
+    "docs/studio/NEXT_ROADMAP_V2_COORDINATE_LOCK_V1.md",
+    "docs/studio/PUBLICATION_ARTIFACT_DRY_RUN_V1.md",
+    "docs/studio/TEACHER_FEEDBACK_LOOP_SEED_V1.md",
+    "docs/studio/TEACHER_FEEDBACK_SURFACE_PREVIEW_V1.md"
+  ],
+  "allowed_progress_exception_paths": [
+    "docs/studio/RUNTIME_5MIN_BASELINE_REPAIR_V1.md"
+  ],
+  "allowed_progress_exception_reason": "18/18 is runtime smoke count, not Studio-local super-long completion",
+  "repair_progress": {
+    "closed": 12,
+    "total": 12,
+    "percent": 100
+  },
+  "next_item": "STUDIO_PROGRESS_CLAIM_BOUNDARY_REPAIR_V1"
+}

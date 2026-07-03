@@ -1,0 +1,37 @@
+{
+  "schema": "ddn.studio.historical_progress_ledger_reconciliation.v1",
+  "work_item": "STUDIO_HISTORICAL_PROGRESS_LEDGER_RECONCILIATION_V1",
+  "closure_tier": "닫힘-문서",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "goal_completion_claim": false,
+  "public_release_execution_claim": false,
+  "current_authority": {
+    "studio_local_super_long": "9/18 = 50%",
+    "roadmap_v2_behavior_closed": "90/90 = 100%",
+    "roadmap_v2_docs_closed": "0/90 = 0%",
+    "stale_progress_repair": "12/12 = 100%",
+    "public_release_execution": "0/1 = 0% approval-gated"
+  },
+  "historical_progress_tokens": [
+    "0/90 = 0%",
+    "21/90 = 23%",
+    "5/18 = 28%",
+    "GA2_LANGUAGE_REPRESENTATIVE_PACK_CLOSURE_V1"
+  ],
+  "historical_ledger_paths": [
+    "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md",
+    "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+    "docs/context/roadmap/ROADMAP_V2_GLOBAL_4ERA_PLAN_V5_20260608.md",
+    "pack/roadmap_v2_global_4era_plan_v5/README.md",
+    "pack/roadmap_v2_global_4era_plan_v5/contract.detjson",
+    "pack/roadmap_v2_global_4era_plan_v5/plan.detjson",
+    "pack/roadmap_v2_global_4era_plan_v5/input.ddn",
+    "pack/roadmap_v2_global_4era_plan_v5/golden.jsonl",
+    "tests/run_roadmap_v2_global_4era_plan_check.py"
+  ],
+  "historical_path_count": 9,
+  "classification": "historical_reference_not_current_authority",
+  "next_safe_action": "STUDIO_SAFE_CONTINUATION_QUEUE_RECHECK_V1"
+}

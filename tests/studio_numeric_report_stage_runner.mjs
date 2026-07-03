@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-numeric-report-workflow-stage][data-numeric-report-workflow-stage-status='numeric_report_workflow_stage_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -137,12 +137,12 @@ async function main() {
     assert(stage.workflow_row_count === 5, `row count mismatch: ${stage.workflow_row_count}`);
     assert(stage.workflow_ready_stage_count === 17, "workflow ready count mismatch");
     assert(stage.workflow_stage_count === 17, "workflow stage count mismatch");
-    assert(stage.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(stage.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(stage.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(stage.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(stage.progress.current_stage_closed === 3, "current stage closed mismatch");
     assert(stage.progress.current_stage_percent === 60, "current stage percent mismatch");
-    assert(stage.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(stage.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(stage.progress.roadmap_v2_behavior_closed === 51, "roadmap closed mismatch");
+    assert(stage.progress.roadmap_v2_percent === 57, "roadmap percent mismatch");
     assert(String(moduleResult.text).includes("workflow_ready_stage_count\t17"), "formatted text missing workflow count");
     assert(String(moduleResult.text).includes("new_export_wrapper_claim\tfalse"), "formatted text missing export boundary");
 

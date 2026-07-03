@@ -1,0 +1,5 @@
+"CONSTRAINT_SOLVE_REBASE_V1" 보여주기.
+"constraint solve boundary rebase sealed" 보여주기.
+"boundary: post-solve range validation, not solver-internal inequality constraints" 보여주기.
+"next: LINEAR_INEQUALITY_SOLVE_MINIMUM_V1" 보여주기.
+

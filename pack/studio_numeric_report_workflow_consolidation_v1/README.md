@@ -14,8 +14,8 @@ It records the Studio numeric report workflow consolidation artifact:
 Progress:
 
 - work unit: 6/6 = 100% (`닫힘-동작`)
-- overall super-long behavior: 18/18 = 100%
+- overall super-long behavior: 9/18 = 50%
 - current stage: Studio productization rebase 3/5 = 60%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 matrix behavior baseline: 51/90 = 57%
 
 The pack does not claim DDN runtime, parser/frontdoor, lesson schema, active allowlist, public release, or `docs/ssot/**` changes.

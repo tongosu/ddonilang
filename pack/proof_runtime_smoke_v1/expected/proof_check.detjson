@@ -1,5 +1,5 @@
 {
-  "canonical_body_hash": "sha256:4fda1fdde4a620829437918dcef3c74038e0a067f9117003a33877777b954515",
+  "canonical_body_hash": "sha256:a595389a1a2c29162e5db84bc4ed2d37c21ac5de68dfd939c294bccab8ec1123",
   "canonical_body_hash_method": "canon",
   "contract_diag_count": 0,
   "contract_diags": [],
@@ -41,7 +41,7 @@
         "col": 7,
         "kind": "proof_check",
         "line": 7,
-        "target": "살림.검사"
+        "target": "검사"
       }
     ],
     "proof_check_count": 1,
@@ -49,12 +49,12 @@
     "schema": "ddn.proof.solver_translation.v0",
     "solver_open_count": 0
   },
-  "solver_translation_hash": "sha256:f42fc529cd49f86df86a01079b940a050e290a1172c08d54e44267fdecf11297",
+  "solver_translation_hash": "sha256:9a3dba679e5744d2da7f87d3051779ffbc1117824307a727d138ecaa1f8827ea",
   "ssot_version": "20.6.6",
   "state_hash": "blake3:b21ada5afab24cf09bae5a228c41587825864e0f0056554d171ede7863f867ed",
   "ticks": 1,
   "toolchain_version": "0.1.0",
-  "trace_hash": "blake3:1984b4d5214a181367cfdef5fdaba54adee52dea0f7ecb9c256a2c0c12b70139",
+  "trace_hash": "blake3:cf6376479a1e64d1d8d4c3ac889ca6833857e97e6b45936e83822f302d379d77",
   "trace_log_count": 0,
   "verified": true
 }

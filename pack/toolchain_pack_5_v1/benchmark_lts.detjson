@@ -1,0 +1,37 @@
+{
+  "schema": "ddn.toolchain.benchmark_lts.v1",
+  "work_item": "TA5_BENCHMARK_LTS_V1",
+  "primary_coordinate": "타-5",
+  "pack": "toolchain_pack_5_v1",
+  "status": "toolchain_benchmark_lts_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "benchmark_lts_claim": true,
+  "perf_budget_claim": true,
+  "reference_band_claim": true,
+  "migration_ledger_claim": true,
+  "lts_gate_claim": true,
+  "benchmark_execution_claim": false,
+  "lts_certification_claim": false,
+  "release_gate_execution_claim": false,
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 24,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 27,
+    "roadmap_v2_pack_evidence_reference_closed": 44,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 49,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "rows": [
+    { "id": "perf_budget", "ready": true },
+    { "id": "reference_band", "ready": true },
+    { "id": "migration_ledger", "ready": true },
+    { "id": "lts_gate", "ready": true }
+  ],
+  "benchmark_text": "coordinate:타-5\nbenchmark_execution:false\nlts_certification:false\nperf_regression_blocker:false\nrelease_gate_execution:false"
+}

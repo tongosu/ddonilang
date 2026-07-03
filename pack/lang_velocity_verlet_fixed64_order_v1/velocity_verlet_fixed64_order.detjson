@@ -1,0 +1,148 @@
+{
+  "schema": "ddn.language.velocity_verlet_fixed64_order.v1",
+  "work_item": "LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1",
+  "based_on": "LANG_CONNECT_SEUM_LOWERING_PARSER_SPIKE_V1",
+  "velocity_verlet_fixed64_order_pack_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "velocity_verlet_stdlib_landed_claim": false,
+  "dae_solver_current_line_claim": false,
+  "adaptive_solver_current_line_claim": false,
+  "recorded_replay_contract_landed_claim": false,
+  "recommended_dstrict_candidate": "속도 베를레",
+  "current_dstrict_baseline": ["적분.오일러", "적분.반암시적오일러"],
+  "source_dstrict_dultra_solver_strategy": "pack/lang_dstrict_dultra_solver_strategy_proposal_v1/dstrict_dultra_solver_strategy_proposal.detjson",
+  "source_connect_seum_lowering_parser_spike": "pack/lang_connect_seum_lowering_parser_spike_v1/connect_seum_lowering_parser_spike.detjson",
+  "source_deterministic_solver_methods": "docs/context/proposals/PROPOSAL_DETERMINISTIC_SOLVER_METHODS_V1_20260524.md",
+  "source_stdlib_l1_integrators": "pack/stdlib_l1_integrators_v1/README.md",
+  "source_core_fixed64": "core/src/fixed64.rs",
+  "source_tool_fixed64": "tools/teul-cli/src/core/fixed64.rs",
+  "fixed64_policy": {
+    "format": "Q32.32",
+    "scale_bits": 32,
+    "scale_raw": 4294967296,
+    "multiply_intermediate": "i128",
+    "multiply_rounding": "shift_right_32_once_per_multiplication",
+    "addition": "saturating_integer_add",
+    "subtraction": "saturating_integer_sub",
+    "division": "checked_or_exact_raw_division_for_seed_dt_half",
+    "float_runtime_claim": false
+  },
+  "operation_order": [
+    {"step": 1, "id": "dt_half", "formula": "dt_half = dt / 2"},
+    {"step": 2, "id": "a0", "formula": "a0 = accel(x0)"},
+    {"step": 3, "id": "v_half", "formula": "v_half = v0 + a0 * dt_half"},
+    {"step": 4, "id": "x1", "formula": "x1 = x0 + v_half * dt"},
+    {"step": 5, "id": "a1", "formula": "a1 = accel(x1)"},
+    {"step": 6, "id": "v1", "formula": "v1 = v_half + a1 * dt_half"},
+    {"step": 7, "id": "energy_indicator", "formula": "energy_indicator = x * x + v * v"}
+  ],
+  "sample": {
+    "id": "harmonic_oscillator_one_tick",
+    "acceleration": "a(x) = 0 - x",
+    "x0": {"raw": 4294967296, "decimal": "1"},
+    "v0": {"raw": 0, "decimal": "0"},
+    "dt": {"raw": 1073741824, "decimal": "0.25"},
+    "dt_half": {"raw": 536870912, "decimal": "0.125"},
+    "a0": {"raw": -4294967296, "decimal": "-1"},
+    "v_half": {"raw": -536870912, "decimal": "-0.125"},
+    "x1": {"raw": 4160749568, "decimal": "0.96875"},
+    "a1": {"raw": -4160749568, "decimal": "-0.96875"},
+    "v1": {"raw": -1056964608, "decimal": "-0.24609375"},
+    "energy0": {"raw": 4294967296, "decimal": "1"},
+    "energy1": {"raw": 4290838528, "decimal": "0.9990386962890625"},
+    "energy_delta": {"raw": -4128768, "decimal": "-0.0009613037109375"}
+  },
+  "comparison_smoke": {
+    "explicit_euler_energy1": {"raw": 4563402752, "decimal": "1.0625"},
+    "semi_implicit_euler_energy1": {"raw": 4043309056, "decimal": "0.94140625"},
+    "velocity_verlet_energy1": {"raw": 4290838528, "decimal": "0.9990386962890625"},
+    "ranking_claim_scope": "one_tick_smoke_only_not_general_accuracy_claim"
+  },
+  "evidence_rows": [
+    {
+      "id": "solver_strategy_source",
+      "path": "pack/lang_dstrict_dultra_solver_strategy_proposal_v1/dstrict_dultra_solver_strategy_proposal.detjson",
+      "tokens": ["속도 베를레", "Fixed64 operation order", "golden_hash_and_energy_smoke_pack"],
+      "classification": "source_policy_anchor"
+    },
+    {
+      "id": "connect_parser_spike_prior_item",
+      "path": "pack/lang_connect_seum_lowering_parser_spike_v1/connect_seum_lowering_parser_spike.detjson",
+      "tokens": ["LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1", "implementation_readiness_followup_plan"],
+      "classification": "prior_queue_anchor"
+    },
+    {
+      "id": "deterministic_solver_methods_source",
+      "path": "docs/context/proposals/PROPOSAL_DETERMINISTIC_SOLVER_METHODS_V1_20260524.md",
+      "tokens": ["속도 베를레", "D-STRICT 후보/권장", "Fixed64 연산 순서", "golden hash / energy smoke pack"],
+      "classification": "proposal_anchor"
+    },
+    {
+      "id": "stdlib_l1_integrator_baseline",
+      "path": "pack/stdlib_l1_integrators_v1/README.md",
+      "tokens": ["적분.오일러", "적분.반암시적오일러"],
+      "classification": "current_baseline_anchor"
+    },
+    {
+      "id": "core_fixed64_policy",
+      "path": "core/src/fixed64.rs",
+      "tokens": ["Fixed64", "saturating_mul", "i128", ">> 32"],
+      "classification": "fixed64_policy_anchor"
+    },
+    {
+      "id": "tool_fixed64_policy",
+      "path": "tools/teul-cli/src/core/fixed64.rs",
+      "tokens": ["Fixed64", "SCALE_BITS", "saturating_mul", "checked_div"],
+      "classification": "fixed64_policy_anchor"
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "velocity_verlet_runtime_landed",
+    "velocity_verlet_stdlib_landed",
+    "recorded_replay_contract_landed",
+    "dae_solver_current_line",
+    "adaptive_solver_current_line",
+    "external_solver_current_line"
+  ],
+  "implementation_readiness_followup_plan": {
+    "closed": 4,
+    "total": 6,
+    "percent": 67
+  },
+  "velocity_verlet_fixed64_order_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 51,
+    "total": 90,
+    "percent": 57
+  },
+  "next_item": "LANG_DULTRA_RECORDED_REPLAY_CONTRACT_PACK_V1"
+}

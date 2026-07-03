@@ -1,0 +1,46 @@
+{
+  "schema": "ddn.std_grid_game_playable_closure.pack.contract.v1",
+  "id": "std_grid_game_playable_closure_v1",
+  "bundled_packs": [
+    "std_tetromino_catalog_v1",
+    "std_grid_line_clear_v1",
+    "std_falling_piece_state_v1",
+    "std_grid_game_step_v1",
+    "std_grid_game_lock_spawn_v1",
+    "std_grid_game_score_v1",
+    "std_grid_game_session_v1",
+    "std_grid_game_one_tick_v1"
+  ],
+  "tetromino_coordinates": {
+    "I": [[-1, 0], [0, 0], [1, 0], [2, 0]],
+    "O": [[0, 0], [1, 0], [0, 1], [1, 1]],
+    "T": [[-1, 0], [0, 0], [1, 0], [0, 1]],
+    "S": [[0, 0], [1, 0], [-1, 1], [0, 1]],
+    "Z": [[-1, 0], [0, 0], [0, 1], [1, 1]],
+    "J": [[-1, 0], [-1, 1], [0, 1], [1, 1]],
+    "L": [[1, 0], [-1, 1], [0, 1], [1, 1]]
+  },
+  "score_table": {
+    "level_formula": "1 + floor(total_lines / 10)",
+    "line_scores": {
+      "0": "0",
+      "1": "100 * level",
+      "2": "300 * level",
+      "3": "500 * level",
+      "4": "800 * level"
+    },
+    "score_level_basis": "before cleared lines are added"
+  },
+  "non_scope": [
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "real-time scheduler",
+    "browser runtime",
+    "connect flow semantics"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_grid_game_playable"
+  ]
+}
+

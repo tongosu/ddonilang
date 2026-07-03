@@ -1,0 +1,41 @@
+{
+  "schema": "ddn.roadmap_v2.ga5.release_gate_blocker_audit.v1",
+  "work_item": "GA5_RELEASE_GATE_BLOCKER_AUDIT_V1",
+  "coordinate": "가-5",
+  "status": "resolved_by_behavior_closure",
+  "matrix_closure_tier": "닫힘-동작",
+  "behavior_closed": true,
+  "roadmap_v2_matrix_behavior_closed": 90,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 100,
+  "roadmap_v2_docs_closed": 0,
+  "roadmap_v2_docs_total": 90,
+  "roadmap_v2_docs_percent": 0,
+  "stage_closed": 6,
+  "stage_total": 6,
+  "stage_percent": 100,
+  "pass_evidence": [
+    "python tests/run_w89_self_evolving_code_pack_check.py",
+    "python tests/run_pack_golden.py gogae9_w90_meta_universe gogae9_w91_malmoi_docset",
+    "tests/run_w92_aot_pack_check.py",
+    "tests/run_w93_universe_pack_check.py",
+    "tests/run_w94_social_pack_check.py",
+    "tests/run_w95_cert_pack_check.py",
+    "tests/run_w96_somssi_pack_check.py",
+    "tests/run_w97_self_heal_pack_check.py",
+    "python tests/run_w98_release_gate_check.py",
+    "python tests/run_w99_evolving_universe_pack_check.py",
+    "python tests/run_pack_golden.py gogae9_w92_aot_compiler_v2 gogae9_w93_universe_gui gogae9_w94_social_sim gogae9_w95_cert gogae9_w96_somssi_hub gogae9_w97_self_heal"
+  ],
+  "blockers": [],
+  "false_claims": {
+    "external_store_release": false,
+    "network_publish": false,
+    "public_release_claim": false,
+    "parser_runtime_grammar_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "POST_RELEASE_MAINTENANCE_QUEUE"
+}

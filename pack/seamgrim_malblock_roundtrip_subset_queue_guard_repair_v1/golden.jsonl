@@ -1,0 +1,1 @@
+{"id":"c01_queue_guard_repair_marker","cmd":["run","pack/seamgrim_malblock_roundtrip_subset_queue_guard_repair_v1/input.ddn"],"stdout":["SEAMGRIM_MALBLOCK_ROUNDTRIP_SUBSET_QUEUE_GUARD_REPAIR_V1","queue guard repaired to no automatic next development item","roadmap matrix unchanged: 50/90 = 56%","pack evidence reference unchanged: 59/90 = 66%"],"exit_code":0}

@@ -1,0 +1,11 @@
+종류 <- "std_grid_game_bogae_finite_live_loop_closure_v1".
+묶음1 <- "std_grid_game_bogae_live_bridge_closure_v1".
+묶음2 <- "std_grid_game_bogae_browser_input_delivery_v1".
+묶음3 <- "std_grid_game_bogae_finite_live_loop_v1".
+묶음4 <- "std_grid_game_bogae_live_input_frame_effect_v1".
+
+종류 보여주기.
+묶음1 보여주기.
+묶음2 보여주기.
+묶음3 보여주기.
+묶음4 보여주기.

@@ -1,0 +1,24 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_release_approval_continuity_export_action_v1",
+  "kind": "studio_release_approval_continuity_export_action_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_RELEASE_APPROVAL_CONTINUITY_EXPORT_ACTION_V1",
+  "browser_runner": "tests/studio_release_approval_continuity_export_action_runner.mjs",
+  "workflow_schema": "seamgrim.release_approval_continuity_export_action.v1",
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "next_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "super_long_behavior_closed_before": "15/18 = 83%",
+  "super_long_behavior_closed_after": "16/18 = 89%",
+  "covers": [
+    "run_screen_approval_continuity_preview",
+    "user_clicked_approval_continuity_copy",
+    "clipboard_approval_continuity_payload_json",
+    "browser_instrumentation",
+    "registry_seed_payload_bridge",
+    "approval_gate_preserved",
+    "local_only_no_release_approval_execution_github_public_upload_registry"
+  ],
+  "requires_docs_ssot_clean": true
+}

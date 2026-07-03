@@ -1,0 +1,15 @@
+종류 <- "std_grid_game_bogae_live_input_contract_v1".
+주소 <- "sam_live_input_url=http://127.0.0.1:<port>/input".
+내림 <- "/input?code=ArrowLeft&kind=down".
+올림 <- "/input?code=ArrowLeft&kind=up".
+초기화 <- "/input?kind=clear".
+옵션 <- "OPTIONS /input".
+응답 <- "200 OK / 204 No Content + CORS".
+
+종류 보여주기.
+주소 보여주기.
+내림 보여주기.
+올림 보여주기.
+초기화 보여주기.
+옵션 보여주기.
+응답 보여주기.

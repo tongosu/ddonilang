@@ -14,8 +14,8 @@ It records the seed-only teacher feedback loop evidence:
 Progress:
 
 - 작업 단위: 6/6 = 100% (`닫힘-동작`)
-- 전체 초장기 계획: 18/18 = 100%
+- Studio-local 초장기 계획: 9/18 = 50%
 - 현재 스테이지: post-super-long follow-up 5/8 = 63%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 behavior-closed progress: 90/90 = 100%
 
 The pack does not claim teacher feedback runtime behavior, student data collection, feedback writes, remote save, cloud sync, account setup, permission systems, result replay, release approval, release execution, public upload, parser/frontdoor grammar changes, DDN runtime changes, stdlib surface changes, lesson schema changes, active allowlist mutation, or `docs/ssot/**` changes.

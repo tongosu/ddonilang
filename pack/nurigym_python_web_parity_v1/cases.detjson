@@ -1,0 +1,18 @@
+{
+  "schema": "ddn.nurigym.python_web_parity.cases.v1",
+  "coordinate": "아-3",
+  "cases": [
+    {
+      "id": "gridmaze_layout_episode",
+      "input": "pack/nuri_gym_gridmaze_v1/input.json",
+      "dataset": "build/nuri_gym_gridmaze_v1/nurigym.dataset.jsonl",
+      "source_pack": "nuri_gym_gridmaze_v1"
+    },
+    {
+      "id": "bandit_preferred_action_episode",
+      "input": "pack/nuri_gym_bandit_v1/input.json",
+      "dataset": "build/nuri_gym_bandit_v1/nurigym.dataset.jsonl",
+      "source_pack": "nuri_gym_bandit_v1"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"cmd":["run","pack/lang_sim_constraint_third_layer_name_v1/input.ddn"],"exit_code":0,"stdout":["LANG_SIM_CONSTRAINT_THIRD_LAYER_NAME_V1","sim constraint third layer name sealed","constraint layer schema: ddn.language.sim_constraint_third_layer_name.v1","selected constraint layer name: 턱","language queue: 4/8 = 50%","next: LANG_SEUM_VOL3_PRIME_EXAMPLE_PACK_V1"]}

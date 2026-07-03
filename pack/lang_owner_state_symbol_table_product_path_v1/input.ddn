@@ -1,0 +1,7 @@
+"LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1" 보여주기.
+"owner state symbol table product path sealed" 보여주기.
+"schema: ddn.language.owner_state_symbol_table_product_path.v1" 보여주기.
+"product helper: owner_state_symbol_table_rows" 보여주기.
+"product transition: 3/7 = 43%" 보여주기.
+"runtime landed: false" 보여주기.
+"next: LANG_HISTORY_ALIAS_STDLIB_BRIDGE_V1" 보여주기.

@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.linear_inequality_solve_minimum.pack.contract.v1",
+  "pack_id": "linear_inequality_solve_minimum_v1",
+  "evidence_tier": "runner_fill",
+  "surface": "선형부등식.풀기",
+  "scope": "one_variable_linear_interval",
+  "overloads_bangjeongsikpulgi": false,
+  "solver_internal_inequality_claim": false,
+  "linear_programming_claim": false,
+  "constraint_satisfaction_claim": false,
+  "cases": [
+    "c01_linear_inequality_bounded_interval",
+    "c02_linear_inequality_empty_interval",
+    "c03_linear_inequality_one_sided_interval"
+  ],
+  "next_recommended_item": "STUDIO_NUMERIC_CURRICULUM_TRACK_V1",
+  "target": "teul-cli run"
+}
+

@@ -1,0 +1,1 @@
+{"cmd":["run","pack/lang_connect_seum_lowering_parser_spike_v1/input.ddn"],"exit_code":0,"stdout":["connect seum lowering parser spike sealed","endpoint_relation_set","전지.양극","전구.왼핀","seum rows: 전지.양극.전압 =:= 전구.왼핀.전압. / 전지.양극.전류 + 전구.왼핀.전류 =:= 0.","next: LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1"]}

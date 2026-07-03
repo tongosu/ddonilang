@@ -1,5 +1,5 @@
 {
-  "canonical_body_hash": "sha256:5d5ae9558b1fa5f94d60164d030388576e9852e2cf647f80adea5553fba3555b",
+  "canonical_body_hash": "sha256:b04c8d613e05f43e83b6be5a133f389fa275c613ac46f9729f3078799adc3f99",
   "canonical_body_hash_method": "canon",
   "contract_diag_count": 0,
   "contract_diags": [],
@@ -34,7 +34,7 @@
   "state_hash": "blake3:b21ada5afab24cf09bae5a228c41587825864e0f0056554d171ede7863f867ed",
   "ticks": 1,
   "toolchain_version": "0.1.0",
-  "trace_hash": "blake3:05ac22fb633558b08886dcd01424eca9b52d2d9cf3dbbe1dbabcb299cb0571c3",
+  "trace_hash": "blake3:b49ac39117609cfa34a6749ef8a9bb1bc5486744263d0607e24f1dbfff1f1318",
   "trace_log_count": 0,
   "verified": true
 }

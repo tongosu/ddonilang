@@ -1,0 +1,45 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "work_item": "SA3_GAME_PREVIEW_RECONCILIATION_V1",
+  "coordinate": "사-3",
+  "title": "space3d/game preview",
+  "previous_status": "",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "basis": [
+    "roadmap_v2_sa2_sprite_grid2d_final_closure_check",
+    "std_grid_game_playable_pack_check",
+    "std_grid_game_bogae_web_showcase_check",
+    "bogae_api_catalog_v1_game_hud_pack_golden",
+    "pendulum_tetris_showcase_check"
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 70,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 78,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 72,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 80,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "native_engine3d_claim": false,
+    "true_space3d_renderer_claim": false,
+    "realtime_scheduler_claim": false,
+    "full_browser_runtime_claim": false,
+    "production_game_editor_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "next_item": "ROADMAP_V2_SA4_ASSET_VIEW_SHARE_RECONCILIATION_V1"
+}

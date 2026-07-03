@@ -1,0 +1,1 @@
+{"cmd":["run","pack/lang_implementation_readiness_rebase_v1/input.ddn"],"exit_code":0,"stdout":["LANG_IMPLEMENTATION_READINESS_REBASE_V1","implementation readiness rebase sealed","readiness schema: ddn.language.implementation_readiness_rebase.v1","language stabilization queue: 8/8 = 100%","readiness follow-up queue: 1/6 = 17%","next: LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1"]}

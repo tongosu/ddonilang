@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-next-roadmap-v2-coordinate-lock][data-next-roadmap-v2-coordinate-lock-status='next_roadmap_v2_coordinate_lock_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -140,8 +140,8 @@ async function main() {
     assert(lock.next_state === "AWAIT_NEXT_DEVELOPMENT_SELECTION", "next state mismatch");
     assert(lock.decision_count === 5, `decision count mismatch: ${lock.decision_count}`);
     assert(lock.ready_stage_count === 6, `ready stage mismatch: ${lock.ready_stage_count}`);
-    assert(lock.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(lock.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(lock.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(lock.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(lock.progress.current_stage_closed === 8, "follow-up closed mismatch");
     assert(lock.progress.current_stage_percent === 100, "follow-up percent mismatch");
     assert(lock.progress.roadmap_v2_behavior_closed === 88, "roadmap behavior closed mismatch");

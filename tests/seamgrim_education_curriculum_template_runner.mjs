@@ -1,6 +1,8 @@
 import fs from "fs/promises";
+import http from "http";
 import path from "path";
 import { pathToFileURL } from "url";
+import { chromium } from "playwright";
 
 function assert(condition, message) {
   if (!condition) {
@@ -30,6 +32,190 @@ function fakeElement() {
 async function readJson(filePath) {
   const text = await fs.readFile(filePath, "utf8");
   return JSON.parse(text);
+}
+
+async function requireFile(filePath) {
+  const stat = await fs.stat(filePath).catch(() => null);
+  assert(stat?.isFile?.(), `missing file: ${filePath}`);
+}
+
+function mimeType(filePath) {
+  if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
+  if (filePath.endsWith(".js")) return "application/javascript; charset=utf-8";
+  if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
+  if (filePath.endsWith(".json") || filePath.endsWith(".detjson")) return "application/json; charset=utf-8";
+  if (filePath.endsWith(".wasm")) return "application/wasm";
+  if (filePath.endsWith(".toml") || filePath.endsWith(".ddn")) return "text/plain; charset=utf-8";
+  if (filePath.endsWith(".md")) return "text/markdown; charset=utf-8";
+  return "application/octet-stream";
+}
+
+function createStaticServer(root) {
+  const resolvedRoot = path.resolve(root);
+  const server = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url || "/", "http://127.0.0.1");
+      if (url.pathname === "/favicon.ico") {
+        res.writeHead(204, { "cache-control": "no-store" });
+        res.end();
+        return;
+      }
+      const rawPath = decodeURIComponent(url.pathname === "/" ? "/solutions/seamgrim_ui_mvp/ui/index.html" : url.pathname);
+      const filePath = path.resolve(resolvedRoot, rawPath.replace(/^\/+/, ""));
+      if (filePath !== resolvedRoot && !filePath.startsWith(resolvedRoot + path.sep)) {
+        res.writeHead(403);
+        res.end("forbidden");
+        return;
+      }
+      const bytes = await fs.readFile(filePath);
+      res.writeHead(200, {
+        "content-type": mimeType(filePath),
+        "cache-control": "no-store",
+        "access-control-allow-origin": "*",
+      });
+      res.end(bytes);
+    } catch (_) {
+      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.end("not found");
+    }
+  });
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        reject(new Error("failed to bind static server"));
+        return;
+      }
+      resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
+    });
+  });
+}
+
+async function closeServer(server) {
+  await new Promise((resolve) => server.close(resolve));
+}
+
+function isAllowedFallback404(urlText) {
+  try {
+    const url = new URL(urlText);
+    const pathname = url.pathname.replace(/^\/solutions\/seamgrim_ui_mvp/u, "");
+    return pathname === "/api/lessons/inventory" || pathname === "/api/lesson-inventory";
+  } catch (_) {
+    return false;
+  }
+}
+
+async function waitVisible(page, selector) {
+  await page.waitForFunction((sel) => {
+    const node = document.querySelector(sel);
+    if (!node) return false;
+    return getComputedStyle(node).display !== "none" && !node.classList.contains("hidden");
+  }, selector);
+}
+
+async function assertBrowserTeacherStudentFlow(root) {
+  const uiRoot = path.join(root, "solutions", "seamgrim_ui_mvp", "ui");
+  for (const rel of ["index.html", "app.js", "styles.css", "screens/browse.js", "screens/run.js"]) {
+    await requireFile(path.join(uiRoot, rel));
+  }
+  const { server, baseUrl } = await createStaticServer(root);
+  let browser = null;
+  const failures = [];
+  try {
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 1240, height: 820 }, locale: "ko-KR" });
+    const page = await context.newPage();
+    page.on("console", (msg) => {
+      if (msg.type() === "error" && !String(msg.text() ?? "").includes("Failed to load resource")) {
+        failures.push(`console error: ${msg.text()}`);
+      }
+    });
+    page.on("pageerror", (err) => failures.push(`pageerror: ${err.message}`));
+    page.on("requestfailed", (req) => failures.push(`request failed: ${req.url()} ${req.failure()?.errorText || ""}`));
+    page.on("response", (res) => {
+      if (res.status() >= 400 && !res.url().endsWith("/favicon.ico") && !(res.status() === 404 && isAllowedFallback404(res.url()))) {
+        failures.push(`response ${res.status()}: ${res.url()}`);
+      }
+    });
+
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".lesson-card[data-lesson-id]");
+    const browseState = await page.evaluate(() => ({
+      cardCount: document.querySelectorAll(".lesson-card[data-lesson-id]").length,
+      bodyText: document.body?.textContent ?? "",
+      devRootExists: Boolean(document.querySelector("#dev-surface-root")),
+      detailVisible: Boolean(document.querySelector("#catalog-detail-panel") && !document.querySelector("#catalog-detail-panel").classList.contains("hidden")),
+    }));
+    assert(browseState.cardCount >= 3, `expected representative course cards, got ${browseState.cardCount}`);
+    assert(browseState.devRootExists === false, "dev surfaces must stay hidden on default teacher browse");
+    for (const forbidden of ["릴리스 검토", "Question card", "자유 실험", "RPG Box", "Toolchain"]) {
+      assert(!browseState.bodyText.includes(forbidden), `default browse leaked dev panel: ${forbidden}`);
+    }
+    if (!browseState.detailVisible) {
+      await page.click(".lesson-card[data-lesson-id]");
+      await waitVisible(page, "#catalog-detail-panel");
+    }
+    const detailState = await page.evaluate(() => ({
+      title: document.querySelector("#detail-title")?.textContent?.trim() ?? "",
+      hasStudentCta: Boolean(document.querySelector("#btn-open-in-studio")),
+      hasTeacherCta: Boolean(document.querySelector("#btn-open-in-studio-teacher")),
+      detailText: document.querySelector("#detail-curriculum")?.textContent ?? "",
+    }));
+    assert(detailState.title.length > 0 && detailState.title !== "교과 선택", `detail title mismatch: ${detailState.title}`);
+    assert(detailState.hasStudentCta && detailState.hasTeacherCta, "detail panel needs student and teacher CTAs");
+    assert(detailState.detailText.includes("DDN 원문"), "public detail must expose DDN source");
+
+    await page.click("#btn-open-in-studio");
+    await waitVisible(page, "#screen-run");
+    await page.waitForFunction(() => document.querySelector("#screen-run")?.dataset?.onboardingProfile === "student");
+    const studentState = await page.evaluate(() => ({
+      launchKind: document.querySelector("#screen-run")?.dataset?.launchKind ?? "",
+      onboarding: document.querySelector("#screen-run")?.dataset?.onboardingProfile ?? "",
+      classroomSwitchDisplay: getComputedStyle(document.querySelector("[data-classroom-mode-switch]")).display,
+      teacherPackageDisplay: getComputedStyle(document.querySelector("#btn-run-teacher-package-download")).display,
+      teacherPackageDisabled: Boolean(document.querySelector("#btn-run-teacher-package-download")?.disabled),
+      runButtonText: document.querySelector("#btn-run")?.textContent?.trim() ?? "",
+    }));
+    assert(studentState.launchKind === "browse_select_student", `student launch kind mismatch: ${studentState.launchKind}`);
+    assert(studentState.onboarding === "student", `student onboarding mismatch: ${studentState.onboarding}`);
+    assert(studentState.classroomSwitchDisplay === "none", "student launch must hide classroom mode switch");
+    assert(studentState.teacherPackageDisplay === "none" || studentState.teacherPackageDisabled, "student launch must not expose teacher package download");
+    assert(studentState.runButtonText.includes("수업 실행") || studentState.runButtonText.includes("실행"), `student run CTA mismatch: ${studentState.runButtonText}`);
+
+    await page.evaluate(() => document.querySelector("#screen-run .main-shell-tab[data-main-tab-target='browse']")?.click());
+    await waitVisible(page, "#screen-browse");
+    await page.click(".lesson-card[data-lesson-id]");
+    await waitVisible(page, "#catalog-detail-panel");
+    await page.click("#btn-open-in-studio-teacher");
+    await waitVisible(page, "#screen-run");
+    await page.waitForFunction(() => document.querySelector("#screen-run")?.dataset?.onboardingProfile === "teacher");
+    const teacherState = await page.evaluate(() => ({
+      launchKind: document.querySelector("#screen-run")?.dataset?.launchKind ?? "",
+      onboarding: document.querySelector("#screen-run")?.dataset?.onboardingProfile ?? "",
+      classroomSwitchDisplay: getComputedStyle(document.querySelector("[data-classroom-mode-switch]")).display,
+      teacherPressed: document.querySelector("[data-classroom-mode='teacher']")?.getAttribute("aria-pressed") ?? "",
+      studentPressed: document.querySelector("[data-classroom-mode='student']")?.getAttribute("aria-pressed") ?? "",
+      packageButtonDisplay: getComputedStyle(document.querySelector("#btn-run-teacher-package-download")).display,
+      packageButtonDisabled: Boolean(document.querySelector("#btn-run-teacher-package-download")?.disabled),
+      packageButtonText: document.querySelector("#btn-run-teacher-package-download")?.textContent?.trim() ?? "",
+      reportButtonDisplay: getComputedStyle(document.querySelector("#btn-run-teacher-report-copy")).display,
+    }));
+    assert(teacherState.launchKind === "browse_select_teacher", `teacher launch kind mismatch: ${teacherState.launchKind}`);
+    assert(teacherState.onboarding === "teacher", `teacher onboarding mismatch: ${teacherState.onboarding}`);
+    assert(teacherState.classroomSwitchDisplay !== "none", "teacher launch must keep classroom mode switch");
+    assert(teacherState.teacherPressed === "true" && teacherState.studentPressed === "false", "teacher classroom switch state mismatch");
+    assert(teacherState.packageButtonDisplay !== "none", "teacher launch must expose package download");
+    assert(teacherState.packageButtonDisabled === false, "teacher package download should be ready");
+    assert(teacherState.packageButtonText.includes("배포"), `teacher package button text mismatch: ${teacherState.packageButtonText}`);
+    assert(teacherState.reportButtonDisplay !== "none", "teacher launch must expose report copy");
+
+    if (failures.length > 0) throw new Error(failures.join("\n"));
+    await context.close();
+  } finally {
+    if (browser) await browser.close();
+    await closeServer(server);
+  }
 }
 
 async function main() {
@@ -112,7 +298,9 @@ defaults = { "최대마디" = "24" }
   assert(screen.detailCurriculumEl.innerHTML.includes("벽이 있는 격자"), "detail learning goal content");
   assert(screen.detailCurriculumEl.innerHTML.includes("핵심개념"), "detail core concepts title");
   assert(screen.detailCurriculumEl.innerHTML.includes("std_grid"), "detail core concept content");
-  assert(screen.detailCurriculumEl.innerHTML.includes("필수보기: console_grid, grid2d"), "detail required views");
+  assert(screen.detailCurriculumEl.innerHTML.includes("결과 확인: 콘솔 격자, 2D 격자"), "detail required views");
+
+  await assertBrowserTeacherStudentFlow(root);
 
   console.log("seamgrim education curriculum template runner ok");
 }

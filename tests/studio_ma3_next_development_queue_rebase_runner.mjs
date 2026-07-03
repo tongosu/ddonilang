@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-ma3-next-development-queue-rebase][data-ma3-next-development-queue-status='ma3_next_development_queue_rebased']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -138,8 +138,8 @@ async function main() {
     assert(rebase.benchmark_execution_claim === false, "must not claim benchmark execution");
     assert(rebase.queue_item_count === 8, `queue count mismatch: ${rebase.queue_item_count}`);
     assert(rebase.ready_stage_count === 6, `ready stage mismatch: ${rebase.ready_stage_count}`);
-    assert(rebase.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(rebase.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(rebase.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(rebase.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(rebase.progress.previous_stage_percent === 100, "previous stage percent mismatch");
     assert(rebase.progress.current_stage_closed === 1, "new queue closed mismatch");
     assert(rebase.progress.current_stage_percent === 13, "new queue percent mismatch");
@@ -173,7 +173,7 @@ async function main() {
     });
     assert(domResult.rootStatus === "ma3_next_development_queue_rebased", `dom status mismatch: ${domResult.rootStatus}`);
     assert(domResult.buttonCount === 8, `button count mismatch: ${domResult.buttonCount}`);
-    assert(domResult.progress.includes("18/18 overall") && domResult.progress.includes("100%"), `overall progress mismatch: ${domResult.progress}`);
+    assert(domResult.progress.includes("9/18 overall") && domResult.progress.includes("50%"), `overall progress mismatch: ${domResult.progress}`);
     assert(domResult.progress.includes("1/8 new queue") && domResult.progress.includes("13%"), `queue progress mismatch: ${domResult.progress}`);
     assert(domResult.title === "STUDIO_TEACHER_FEEDBACK_SURFACE_PREVIEW_V1", `title mismatch: ${domResult.title}`);
     assert(domResult.status === "next", `status mismatch: ${domResult.status}`);

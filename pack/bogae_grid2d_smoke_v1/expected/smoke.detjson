@@ -6,22 +6,22 @@
       "non_hash_stdout_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "state_hash": "blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
       "stderr_lines": [],
-      "stdout_digest": "sha256:b0358971d7425e8f9da136557e5777b60e50405d12f4ea8392fcd713312e4077",
+      "stdout_digest": "sha256:14b79aa7ebaca46024b201b39b879e15596b53259301088b04e0cf85b83f8010",
       "stdout_lines": [
         "state_hash=blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
-        "trace_hash=blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f",
+        "trace_hash=blake3:c0773c375bcd059746a41e3acd3f79895437a7b65e15a85a13ef6ba1eb69dbb5",
         "bogae_hash=blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451"
       ],
-      "trace_hash": "blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f"
+      "trace_hash": "blake3:c0773c375bcd059746a41e3acd3f79895437a7b65e15a85a13ef6ba1eb69dbb5"
     },
     "detbin_digest": "sha256:1bf2c383e525348fb78af078f7e4c2e723cf718ff6836dff3e239868ec19604a",
     "run_manifest": {
       "bogae_hash": "blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451",
       "contract": "D-STRICT",
-      "digest": "sha256:44ecf9c6333068a57967d906b76cad17209a6f99a8bccea9e9faaac86320346b",
+      "digest": "sha256:d40aafc643626483ab990814b0cc34323a5fdc7b99b124743f37cb29adc10ac6",
       "state_hash": "blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
       "ticks": 1,
-      "trace_hash": "blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f"
+      "trace_hash": "blake3:c0773c375bcd059746a41e3acd3f79895437a7b65e15a85a13ef6ba1eb69dbb5"
     }
   },
   "checks": {
@@ -79,10 +79,10 @@
     "run_manifest": {
       "bogae_hash": "blake3:982443609a2db75fb78362c955d974fc6431c3e1ae7e885c25b19aafb68f1451",
       "contract": "D-STRICT",
-      "digest": "sha256:44ecf9c6333068a57967d906b76cad17209a6f99a8bccea9e9faaac86320346b",
+      "digest": "sha256:d40aafc643626483ab990814b0cc34323a5fdc7b99b124743f37cb29adc10ac6",
       "state_hash": "blake3:fee643b5768919d327d2dd0de18788da1a97040f6031c1c205bf23db15cb7bd6",
       "ticks": 1,
-      "trace_hash": "blake3:c3b5e5777e8e16a19c5b900b9473a11312760948634291be358d1520c2d6db2f"
+      "trace_hash": "blake3:c0773c375bcd059746a41e3acd3f79895437a7b65e15a85a13ef6ba1eb69dbb5"
     }
   }
 }

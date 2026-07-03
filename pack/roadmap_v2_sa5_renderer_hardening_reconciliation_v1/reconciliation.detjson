@@ -1,0 +1,47 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "work_item": "SA5_RENDERER_HARDENING_RECONCILIATION_V1",
+  "coordinate": "사-5",
+  "title": "renderer hardening",
+  "previous_status": "",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "basis": [
+    "roadmap_v2_sa4_asset_view_share_reconciliation_check",
+    "bogae_backend_parity_console_web_smoke",
+    "bogae_grid2d_profile_smoke",
+    "std_grid_game_bogae_web_output_determinism_check",
+    "std_grid_game_bogae_viewer_js_dom_check",
+    "roadmap_v2_ta5_benchmark_lts_check"
+  ],
+  "progress": {
+    "current_stage_closed": 6,
+    "current_stage_total": 6,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 72,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 80,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 74,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 82,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "full_perf_sla_claim": false,
+    "production_renderer_lts_certification_claim": false,
+    "native_engine3d_claim": false,
+    "full_browser_runtime_claim": false,
+    "release_gate_execution_claim": false,
+    "public_release_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "next_item": "ROADMAP_V2_GA5_GRAMMAR_LTS_BEHAVIOR_RECHECK_V1"
+}

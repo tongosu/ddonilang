@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-publication-artifact-dry-run][data-publication-artifact-dry-run-status='publication_artifact_dry_run_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -141,7 +141,7 @@ async function main() {
     assert(dryRun.ready_stage_count === 6, `ready stage mismatch: ${dryRun.ready_stage_count}`);
     assert(dryRun.checksum_policy.manifest_path === "build/studio_release/SHA256SUMS.txt", "checksum path mismatch");
     assert(dryRun.checksum_policy.signing === "excluded_v1_approval_gated", "checksum signing policy mismatch");
-    assert(dryRun.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(dryRun.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(dryRun.progress.current_stage_closed === 4, "followup closed mismatch");
     assert(dryRun.progress.current_stage_percent === 50, "followup percent mismatch");
     assert(dryRun.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");

@@ -1,0 +1,93 @@
+{
+  "schema": "ddn.language.non_ssot_track_resume_rebase.v1",
+  "work_item": "LANG_NON_SSOT_TRACK_RESUME_REBASE_V1",
+  "based_on": "LANG_BLOCKED_SSOT_TRACK_PARKING_REBASE_V1",
+  "source_blocked_ssot_track_parking_rebase": "pack/lang_blocked_ssot_track_parking_rebase_v1/blocked_ssot_track_parking_rebase.detjson",
+  "source_ssot_owner_landing_audit_rebase": "pack/lang_ssot_owner_landing_audit_rebase_v1/ssot_owner_landing_audit_rebase.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "post_ssot_product_gate_open_claim": false,
+  "non_ssot_track_resume_rebase_claim": true,
+  "resume_policy": {
+    "id": "language_non_ssot_track_resume",
+    "status": "resumed",
+    "requires_docs_ssot_edit": false,
+    "parked_ssot_track_stays_parked": true,
+    "next_candidate": "LANG_PACK_CHECKER_STABILITY_SWEEP_V1"
+  },
+  "resume_rows": [
+    {
+      "order": 1,
+      "lane": "pack_checker_stability_lane",
+      "status": "resumable",
+      "next_candidate": "LANG_PACK_CHECKER_STABILITY_SWEEP_V1",
+      "requires_docs_ssot_edit": false
+    },
+    {
+      "order": 2,
+      "lane": "golden_evidence_hygiene_lane",
+      "status": "resumable",
+      "next_candidate": "later_queue_item",
+      "requires_docs_ssot_edit": false
+    },
+    {
+      "order": 3,
+      "lane": "non_ssot_product_boundary_lane",
+      "status": "resumable",
+      "next_candidate": "later_queue_item",
+      "requires_docs_ssot_edit": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "post_ssot_product_gate_open",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "backward_compat_break"
+  ],
+  "non_ssot_track_resume_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "non_ssot_resumable_lanes": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "parked_ssot_rows": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "ssot_owner_landing_detected": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "post_ssot_product_gates_open": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 78,
+    "total": 90,
+    "percent": 87
+  },
+  "next_item": "LANG_PACK_CHECKER_STABILITY_SWEEP_V1"
+}
+

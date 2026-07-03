@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_benchmark_lts_matrix_export_action_v1",
+  "kind": "studio_benchmark_lts_matrix_export_action_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_BENCHMARK_LTS_MATRIX_EXPORT_ACTION_V1",
+  "browser_runner": "tests/studio_benchmark_lts_matrix_export_action_runner.mjs",
+  "workflow_schema": "seamgrim.benchmark_lts_matrix_export_action.v1",
+  "super_long_behavior_closed_before": "16/18 = 89%",
+  "super_long_behavior_closed_after": "17/18 = 94%",
+  "matrix_entry_count": 5,
+  "covers": [
+    "run_screen_benchmark_lts_preview",
+    "user_clicked_benchmark_lts_copy",
+    "clipboard_benchmark_lts_payload_json",
+    "browser_instrumentation",
+    "approval_continuity_payload_bridge",
+    "local_only_no_benchmark_execution_baseline_lts_release"
+  ],
+  "requires_docs_ssot_clean": true
+}

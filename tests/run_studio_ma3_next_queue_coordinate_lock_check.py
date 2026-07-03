@@ -21,6 +21,7 @@ APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_ma3_next_queue_coordinate_lock_runner.mjs"
 SOURCE_MATRIX_CHECK = ROOT / "tests" / "run_studio_ma3_regression_gate_matrix_check.py"
 PRODUCT_SMOKE = ROOT / "tests" / "run_seamgrim_product_stabilization_smoke_check.py"
@@ -231,7 +232,7 @@ def check_ui_source() -> None:
     )
     require_contains(DEV_SURFACES_JS, ["ma3-next-queue-coordinate-lock", "elementId: \"ma3-next-queue-coordinate-lock\""])
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
-    require_contains(STYLES_CSS, [".ma3-next-queue-coordinate-lock", ".ma3-coordinate-lock-btn.active"])
+    require_contains(DEV_SURFACES_CSS, [".ma3-next-queue-coordinate-lock", ".ma3-coordinate-lock-btn.active"])
     require_contains(
         RUNNER,
         [

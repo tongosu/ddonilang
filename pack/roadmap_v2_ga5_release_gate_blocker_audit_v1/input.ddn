@@ -1,0 +1,9 @@
+"GA5_RELEASE_GATE_BLOCKER_AUDIT_V1" 보여주기.
+"ga5 release gate blocker audit sealed" 보여주기.
+"coordinate: 가-5" 보여주기.
+"stage: blocker audit 6/6 = 100%" 보여주기.
+"closure tier: 닫힘-동작" 보여주기.
+"roadmap matrix behavior: 90/90 = 100%" 보여주기.
+"roadmap docs closed: 0/90 = 0%" 보여주기.
+"blocked: none" 보여주기.
+"next: POST_RELEASE_MAINTENANCE_QUEUE" 보여주기.

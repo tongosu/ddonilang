@@ -19,6 +19,7 @@ APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_operations_preview_stage_closure_runner.mjs"
 SOURCE_LOCK_CHECK = ROOT / "tests" / "run_studio_ma3_next_queue_coordinate_lock_check.py"
 PRODUCT_SMOKE = ROOT / "tests" / "run_seamgrim_product_stabilization_smoke_check.py"
@@ -249,7 +250,7 @@ def check_ui_source() -> None:
     )
     require_contains(DEV_SURFACES_JS, ["operations-preview-stage-closure", "elementId: \"operations-preview-stage-closure\""])
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
-    require_contains(STYLES_CSS, [".operations-preview-stage-closure", ".operations-stage-closure-btn.active"])
+    require_contains(DEV_SURFACES_CSS, [".operations-preview-stage-closure", ".operations-stage-closure-btn.active"])
     require_contains(
         RUNNER,
         [

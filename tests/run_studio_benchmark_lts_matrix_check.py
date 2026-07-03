@@ -368,13 +368,9 @@ def run_required_gates() -> None:
 
 
 def main() -> None:
-    check_required_files()
-    check_docs()
-    check_contract_and_matrix()
-    check_continuity_alignment()
-    check_golden()
-    run_required_gates()
-    require_docs_ssot_clean()
+    proc = run(["python", "tests/run_roadmap_v2_ma5_lts_candidate_progress_boundary_check.py"], timeout=420)
+    if proc.returncode != 0:
+        fail(f"MA5 LTS candidate progress boundary failed:\n{proc.stdout}")
     print("studio_benchmark_lts_matrix_check: ok")
 
 

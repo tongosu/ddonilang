@@ -1,0 +1,72 @@
+{
+  "schema": "ddn.roadmap_v2.ba0.free_lab_seed_rebase.v1",
+  "id": "BA0_FREE_LAB_SEED_REBASE_V1",
+  "date": "2026-06-08",
+  "status": "docs_closed_seed",
+  "roadmap_coordinate": "바-0",
+  "matrix_closure_claim": false,
+  "matrix_closure_tier": "닫힘-문서",
+  "ba0_matrix_status": "씨앗",
+  "seed_boundary": {
+    "pack_id": "roadmap_v2_ba0_free_lab_seed_rebase_v1",
+    "milestone": "빈 작업실 설계",
+    "representative_work": ["새 실험", "매김", "기록"],
+    "lanes": [
+      {
+        "id": "new_experiment",
+        "purpose": "create a named local experiment without mutating lesson catalogs",
+        "required_for_ba1": true
+      },
+      {
+        "id": "parameter_setup",
+        "purpose": "prepare DDN parameters and 매김 values for later execution",
+        "required_for_ba1": true
+      },
+      {
+        "id": "recording_boundary",
+        "purpose": "record hypothesis, run notes, and observations without claiming report closure",
+        "required_for_ba1": true
+      }
+    ]
+  },
+  "progress": {
+    "current_stage": "BA0 free lab seed rebase",
+    "current_stage_closed": 3,
+    "current_stage_total": 3,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 7,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 8,
+    "roadmap_v2_pack_evidence_reference_closed": 26,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 29,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "new_status_for_ba0": "씨앗",
+    "reason": "The free lab branch now has an explicit empty-workbench design seed and a bounded first-run gate, but no product UI or runtime behavior has been implemented.",
+    "next_item": "BA1_FREE_LAB_FIRST_RUN_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "ba0_behavior_closed": false,
+    "ba1_first_run_closed": false,
+    "free_lab_product_ui_behavior": false,
+    "runtime_change": false,
+    "parser_frontdoor_change": false,
+    "lesson_schema_change": false,
+    "active_allowlist_mutation": false,
+    "experiment_report_closure": false,
+    "sharing_claim": false,
+    "registry_publish_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "docs_ssot_change": false,
+    "roadmap_behavior_progress_increase": false,
+    "studio_local_progress_increase": false,
+    "numeric_track_consolidation_required": false
+  }
+}

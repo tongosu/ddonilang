@@ -48,7 +48,13 @@ def main() -> int:
             return fail("E_SYMBOLIC_GOLDEN_EMPTY", pack_name)
         for row in rows:
             cmd = row.get("cmd") or []
-            if len(cmd) < 2 or cmd[0] != "symbolic":
+            target = str(contract.get("target", "")).strip()
+            command_kind = cmd[0] if isinstance(cmd, list) and cmd else None
+            if target == "teul-cli run":
+                cmd_ok = len(cmd) >= 2 and command_kind == "run"
+            else:
+                cmd_ok = len(cmd) >= 2 and command_kind == "symbolic"
+            if not cmd_ok:
                 return fail("E_SYMBOLIC_CMD", f"{pack_name}:{row.get('id')} cmd={cmd}")
             if row.get("exit_code") != 0:
                 return fail("E_SYMBOLIC_EXIT_CODE", f"{pack_name}:{row.get('id')}")

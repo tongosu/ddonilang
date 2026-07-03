@@ -1,0 +1,144 @@
+{
+  "schema": "ddn.language.product_path_transition_closure_rebase.v1",
+  "work_item": "LANG_PRODUCT_PATH_TRANSITION_CLOSURE_REBASE_V1",
+  "based_on": "LANG_TUCK_SSOT_ACCEPTANCE_HANDOFF_V1",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "product_path_transition_closure_rebase_claim": true,
+  "derivative_semantics_landed_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "tuck_row_parser_landed_claim": false,
+  "constraint_runtime_landed_claim": false,
+  "closed_product_path_transition_items": [
+    {
+      "order": 1,
+      "item": "LANG_LANGUAGE_RISK_REMOVAL_CLOSURE_REBASE_V1",
+      "path": "pack/lang_language_risk_removal_closure_rebase_v1/language_risk_removal_closure_rebase.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 2,
+      "item": "LANG_PRIME_DERIVATIVE_RUNTIME_SEMANTICS_GATE_V1",
+      "path": "pack/lang_prime_derivative_runtime_semantics_gate_v1/prime_derivative_runtime_semantics_gate.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 3,
+      "item": "LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1",
+      "path": "pack/lang_owner_state_symbol_table_product_path_v1/owner_state_symbol_table_product_path.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 4,
+      "item": "LANG_HISTORY_ALIAS_STDLIB_BRIDGE_V1",
+      "path": "pack/lang_history_alias_stdlib_bridge_v1/history_alias_stdlib_bridge.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 5,
+      "item": "LANG_DULTRA_REPLAY_ARTIFACT_WRITER_SEED_V1",
+      "path": "pack/lang_dultra_replay_artifact_writer_seed_v1/dultra_replay_artifact_writer_seed.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 6,
+      "item": "LANG_VELOCITY_VERLET_STDLIB_SURFACE_ACCEPTANCE_V1",
+      "path": "pack/lang_velocity_verlet_stdlib_surface_acceptance_v1/velocity_verlet_stdlib_surface_acceptance.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 7,
+      "item": "LANG_TUCK_SSOT_ACCEPTANCE_HANDOFF_V1",
+      "path": "pack/lang_tuck_ssot_acceptance_handoff_v1/tuck_ssot_acceptance_handoff.detjson",
+      "status": "closed"
+    }
+  ],
+  "closed_result_summary": [
+    {
+      "id": "prime_derivative_gate",
+      "result": "prime derivative runtime semantics gate exists; executable derivative semantics remain unlanded",
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_state_symbol_table",
+      "result": "owner state symbol table product helper exists; owner-inner 세움 runtime remains unlanded",
+      "runtime_landed": false
+    },
+    {
+      "id": "history_alias_bridge",
+      "result": "이력.* stdlib aliases bridge to current 흐름.* compatibility surfaces",
+      "runtime_landed": false
+    },
+    {
+      "id": "dultra_replay_artifact_writer_seed",
+      "result": "D-ULTRA replay artifact seed helper exists; writer runtime and verifier remain unlanded",
+      "runtime_landed": false
+    },
+    {
+      "id": "velocity_verlet_stdlib_surface",
+      "result": "적분.속도베를레 stdlib surface is accepted; runtime integrator remains unlanded",
+      "runtime_landed": false
+    },
+    {
+      "id": "tuck_ssot_acceptance_handoff",
+      "result": "턱/턱-row SSOT-owner handoff exists; SSOT acceptance and parser/runtime remain unlanded",
+      "runtime_landed": false
+    }
+  ],
+  "next_queue": {
+    "id": "ssot_landing_coordination",
+    "next_item": "LANG_SSOT_LANDING_COORDINATION_REBASE_V1",
+    "reason": "urgent language decision evidence is closed but SSOT landing remains 0/3",
+    "codex_ssot_edit_allowed": false,
+    "initial_progress": {"closed": 0, "total": 3, "percent": 0}
+  },
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "derivative_semantics_landed",
+    "owner_inner_seum_runtime_landed",
+    "velocity_verlet_runtime_landed",
+    "tuck_row_parser_landed",
+    "constraint_runtime_landed"
+  ],
+  "language_product_path_transition_plan": {
+    "closed": 7,
+    "total": 7,
+    "percent": 100
+  },
+  "language_product_path_transition_closure_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 67,
+    "total": 90,
+    "percent": 74
+  },
+  "next_item": "LANG_SSOT_LANDING_COORDINATION_REBASE_V1"
+}
+

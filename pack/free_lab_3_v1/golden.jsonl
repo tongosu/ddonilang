@@ -1,0 +1,1 @@
+{"id":"c01_ba3_free_lab_ui_pack_marker","cmd":["run","pack/free_lab_3_v1/input.ddn"],"stdout":["BA3_FREE_LAB_UI_PACK_CLOSURE_V1","free lab UI pack sealed","stage: 5/5 = 100%","roadmap matrix behavior: 10/90 = 11%","pack evidence reference: 29/90 = 32%","studio local super-long: 9/18 = 50%","ba3 status: 닫힘-동작","next: BA4_FREE_LAB_SHARE_PACK_CLOSURE_V1"],"exit_code":0}

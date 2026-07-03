@@ -1,0 +1,1 @@
+{"cmd":["run","pack/lang_prime_derivative_notation_decision_v1/input.ddn"],"exit_code":0,"stdout":["LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1","prime derivative notation decision sealed","prime notation schema: ddn.language.prime_derivative_notation_decision.v1","selected notation: 위치' / 위치''","language queue: 2/8 = 25%","next: LANG_FLOW_TYPE_COLLISION_RENAME_V1"]}

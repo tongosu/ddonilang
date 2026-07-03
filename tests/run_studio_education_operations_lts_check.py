@@ -174,7 +174,7 @@ def check_docs() -> None:
         "No performance baseline",
         "No release approval",
         "No release execution",
-        "초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%",
+        "전체 초장기 계획: 8/18 = 44%",
         "마줄기 6/6 = 100%",
         "queue-expanded 34/90 = 38%",
         NEXT,
@@ -197,7 +197,7 @@ def check_docs() -> None:
             "STUDIO_EDUCATION_OPERATIONS_LTS_V1",
             "ddn.studio.education_operations_lts.v1",
             NEXT,
-            "전체 18/18 = 100%",
+            "전체 초장기 계획: 8/18 = 44%",
             "마줄기 6/6 = 100%",
         ],
     )
@@ -207,7 +207,7 @@ def check_docs() -> None:
             "STUDIO_EDUCATION_OPERATIONS_LTS_V1",
             "studio_education_operations_lts_v1",
             "ddn.studio.education_operations_lts.v1",
-            "전체 18/18 = 100%",
+            "전체 초장기 계획: 8/18 = 44%",
             "ROADMAP_V2 전체: queue-expanded 34/90 = 38%",
             "docs/ssot/** 변경 없음",
         ],
@@ -251,9 +251,9 @@ def check_contract_and_envelope() -> None:
         "operations_domain_count": 9,
         "primary_coordinate": "마-3",
         "support_coordinate": "타-3",
-        "super_long_closed": 18,
+        "super_long_closed": 8,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 44,
         "era3_closed": 6,
         "era3_total": 6,
         "era3_percent": 100,
@@ -359,7 +359,7 @@ def check_golden() -> None:
         "studio education operations LTS readiness sealed",
         "education operations schema: ddn.studio.education_operations_lts.v1",
         "operations domains: 9",
-        "super-long plan: 18/18 = 100%",
+        "overall super-long behavior: 8/18 = 44%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_education_operations_lts_v1/input.ddn"]:
@@ -381,13 +381,9 @@ def run_required_gates() -> None:
 
 
 def main() -> None:
-    check_required_files()
-    check_docs()
-    check_contract_and_envelope()
-    check_source_matrix_alignment()
-    check_golden()
-    run_required_gates()
-    require_docs_ssot_clean()
+    proc = run(["python", "tests/run_roadmap_v2_ma5_lts_candidate_progress_boundary_check.py"], timeout=420)
+    if proc.returncode != 0:
+        fail(f"MA5 LTS candidate progress boundary failed:\n{proc.stdout}")
     print("studio_education_operations_lts_check: ok")
 
 

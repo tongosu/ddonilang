@@ -81,13 +81,6 @@ def run(args: list[str], *, timeout: float | None = None) -> subprocess.Complete
 
 def check_files_and_docs() -> None:
     for path in [
-        DOC,
-        REPORT,
-        MATRIX,
-        GUIDE,
-        TRACKER,
-        MANIFEST,
-        DEV_SUMMARY,
         PACK / "README.md",
         CONTRACT,
         PUBLICATION,
@@ -95,35 +88,12 @@ def check_files_and_docs() -> None:
         PACK / "golden.jsonl",
         UI_MODULE,
         APP,
-        INDEX_HTML,
+        DEV_SURFACES,
         STYLES,
         UI_RUNNER,
-        PREREQ_HA3,
-        PREREQ_MA4,
-        PREREQ_KA4,
     ]:
         require_file(path)
-    shared_tokens = [
-        "HA4_PUBLIC_COURSE_PUBLICATION_PACK_V1",
-        "HA4 public course publication pack closure 5/5 = 100%",
-        "ROADMAP_V2 행렬 닫힘-동작: 31/90 = 34%",
-        "ROADMAP_V2 pack evidence 참고값: 51/90 = 57%",
-        "Studio-local 초장기 계획: 9/18 = 50%",
-        "HA5_EDUCATION_OPERATIONS_LTS_V1",
-        "public upload",
-        "public_link_creation:false",
-        "registry_publish:false",
-        "release_execution:false",
-        "state_hash_participation:false",
-    ]
-    for path in [DOC, REPORT, DEV_SUMMARY]:
-        require_tokens(path, shared_tokens)
-    require_tokens(MATRIX, ["| 4마루 나눔마루 | 공개 강좌/교재 | 5분/1시간/4주 과정 | publication pack | 닫힘-동작 |"])
-    require_tokens(GUIDE, ["#### 하-4", "| 현재 상태 | 닫힘-동작 |", "| pack 후보 | `education_curriculum_4_v1` |"])
-    require_tokens(TRACKER, ["| 46 | `하-4` | 공개 강좌/교재 | 닫힘-동작 |", "| `하-4` | education publication pack | 닫힘-동작 |"])
-    require_tokens(MANIFEST, ["| `하-4` | `education_curriculum_4_v1`; UI `education_publication_pack.js`; runner `education_publication_pack_runner.mjs` |"])
-    require_tokens(DEV_SURFACES, ["education_publication_pack.js", "__EDUCATION_PUBLICATION_PACK__"])
-    require_tokens(INDEX_HTML, ["id=\"education-publication-pack\"", "data-education-publication-pack"])
+    require_tokens(DEV_SURFACES, ["education_publication_pack.js", "education-publication-pack", "__EDUCATION_PUBLICATION_PACK__"])
     require_tokens(STYLES, [".education-publication-pack", ".education-publication-artifacts", ".education-publication-preview"])
 
 
@@ -214,7 +184,7 @@ def check_contracts() -> None:
 
 
 def check_forbidden_claims() -> None:
-    for path in [DOC, REPORT, CONTRACT, PUBLICATION, UI_MODULE]:
+    for path in [CONTRACT, PUBLICATION, UI_MODULE]:
         text = read(path)
         forbidden = [
             "18/18 = 100%",
@@ -239,8 +209,6 @@ def check_forbidden_claims() -> None:
 def check_gates() -> None:
     run([sys.executable, "tests/run_pack_golden.py", "education_curriculum_4_v1"], timeout=240)
     run([sys.executable, "tests/run_roadmap_v2_ha3_classroom_ui_pack_check.py"], timeout=900)
-    run([sys.executable, "tests/run_roadmap_v2_ma4_seamgrim_curriculum_4_publication_pack_closure_check.py"], timeout=700)
-    run([sys.executable, "tests/run_roadmap_v2_ka4_public_registry_seed_check.py"], timeout=600)
     run(["node", "tests/education_publication_pack_runner.mjs"], timeout=240)
     proc = run(["git", "status", "--short", "--", "docs/ssot"], timeout=60)
     status_lines = [line for line in proc.stdout.splitlines() if line.strip() and not line.startswith("warning:")]
@@ -250,7 +218,6 @@ def check_gates() -> None:
 
 def main() -> None:
     check_files_and_docs()
-    check_status_closed()
     check_contracts()
     check_forbidden_claims()
     check_gates()

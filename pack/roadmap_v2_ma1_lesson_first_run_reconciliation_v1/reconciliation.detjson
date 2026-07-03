@@ -1,0 +1,41 @@
+{
+  "schema": "ddn.roadmap_v2.ma1.lesson_first_run_reconciliation.v1",
+  "work_item": "MA1_LESSON_FIRST_RUN_RECONCILIATION_V1",
+  "coordinate": "마-1",
+  "old_status": "진행",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "evidence": [
+    "education_curriculum_1_v1",
+    "roadmap_v2_ha1_representative_teaching_smoke",
+    "seamgrim_lesson_run_preset_rail_v1",
+    "studio_lesson_authoring_run_integration_v1"
+  ],
+  "progress": {
+    "current_stage_closed": 6,
+    "current_stage_total": 6,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 62,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 69,
+    "roadmap_v2_docs_closed": 2,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 2,
+    "roadmap_v2_pack_evidence_reference_closed": 64,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 71,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "full_textbook_rewrite_claim": false,
+    "remote_classroom_sync_claim": false,
+    "public_publication_claim": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "ROADMAP_V2_POST_MA1_FRONTIER_REBASE_V1"
+}

@@ -1,0 +1,1 @@
+{"cli": ["--bogae-out", "build/std_grid_game_bogae_backend_parity_v1.bdl1"], "stdout": ["bogae_hash=blake3:3c9287fb6d48faf3f2e7d40f431f3777ba25c5f03596dc4b8a70cdae285faeaf"], "exit_code": 0}

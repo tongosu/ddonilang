@@ -7,8 +7,8 @@
   "cases": [
     {
       "id": "c01_pack_hash_roundtrip",
-      "expected_pack_hash": "sha256:a7b354f8f06b692d208ac1499779ed413888294c35cb7d60c678718be5a3146b",
-      "expected_state_hash": "sha256:ce7a9d7739914b8d9c92b698cab43ddb9e9c5cc127803406a7756d5573a98d5a",
+      "expected_pack_hash": "sha256:8e53e4d329aa001c59ddb30ce3a0fcb87ccd8655a512e58e11e030d081c4fb29",
+      "expected_state_hash": "sha256:51da694194aa9b3be794a7be68fe92f5e4668b99684391c888355a2dad754fa5",
       "pack_hash_equal": true,
       "roundtrip_equal": true,
       "state_hash_equal": true

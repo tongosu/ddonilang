@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update std_grid_game_view_text_v1 std_grid_game_view_overlay_v1 std_grid_game_view_summary_v1 std_grid_game_playable_view_closure_v1
+pack golden updated

@@ -1,0 +1,129 @@
+{
+  "all_canon_equal": true,
+  "case_count": 5,
+  "cases": [
+    {
+      "block_kind_counts": {
+        "assign": 1,
+        "charim_block": 1,
+        "charim_item_const_step": 1,
+        "charim_item_plain": 1,
+        "charim_item_var": 1,
+        "hook_start": 1,
+        "hook_tick": 1,
+        "if_else": 1,
+        "show": 3
+      },
+      "block_plan_schema": "ddn.block_editor_plan.v1",
+      "canon_equal": true,
+      "canon_hash": "sha256:3e5218b4b1eea1679ae0877da1565ec6388468df221ea4028ed6a67e42207a11",
+      "encoded_hash": "sha256:1236d69f374da38a70676fa124dc0a6e0a9f1a6d1b54b9f7148a44f8e464a6c7",
+      "id": "block_editor_supported_hook_subset",
+      "raw_block_count": 0,
+      "raw_blocks": [],
+      "run_stdout": [],
+      "top_level_block_kinds": [
+        "charim_block",
+        "hook_start",
+        "hook_tick"
+      ]
+    },
+    {
+      "block_kind_counts": {
+        "assign": 2,
+        "charim_block": 1,
+        "charim_item_var": 2,
+        "if_else": 1,
+        "show": 1
+      },
+      "block_plan_schema": "ddn.block_editor_plan.v1",
+      "canon_equal": true,
+      "canon_hash": "sha256:a937b17ce375f3043b53e0ab5853f3790fe3b80c1fa06dde7d875b0424475433",
+      "encoded_hash": "sha256:21b88e03e71264dc6e3d23aa50b2a267816adba9c71cb08018b49e246c38de88",
+      "id": "lang_core_2_condition_subset",
+      "raw_block_count": 0,
+      "raw_blocks": [],
+      "run_stdout": [
+        "통과"
+      ],
+      "top_level_block_kinds": [
+        "charim_block",
+        "if_else",
+        "show"
+      ]
+    },
+    {
+      "block_kind_counts": {
+        "assign": 1,
+        "seed_def": 1
+      },
+      "block_plan_schema": "ddn.block_editor_plan.v1",
+      "canon_equal": true,
+      "canon_hash": "sha256:c6b29b69d80db50681b8544625beeaed4c00a7cbcbf06ca34286603bab4c8b48",
+      "encoded_hash": "sha256:c6b29b69d80db50681b8544625beeaed4c00a7cbcbf06ca34286603bab4c8b48",
+      "id": "lang_core_2_imja_seed_subset",
+      "raw_block_count": 0,
+      "raw_blocks": [],
+      "run_stdout": [],
+      "top_level_block_kinds": [
+        "seed_def"
+      ]
+    },
+    {
+      "block_kind_counts": {
+        "contract_guard": 1,
+        "show": 2
+      },
+      "block_plan_schema": "ddn.block_editor_plan.v1",
+      "canon_equal": true,
+      "canon_hash": "sha256:c929ef3aea9550da624984c56d70af55c81c19ccfeef05c9f58ff185d0f61ee1",
+      "encoded_hash": "sha256:cf5f6a23f9f040e7110d551a0b6efee46b224e343d3b55b76a93ecc196b55d7f",
+      "id": "lang_core_2_contract_subset",
+      "raw_block_count": 0,
+      "raw_blocks": [],
+      "run_stdout": [
+        "알림 계속",
+        "끝"
+      ],
+      "top_level_block_kinds": [
+        "contract_guard",
+        "show"
+      ]
+    },
+    {
+      "block_kind_counts": {
+        "charim_block": 1,
+        "raw": 1
+      },
+      "block_plan_schema": "ddn.block_editor_plan.v1",
+      "canon_equal": true,
+      "canon_hash": "sha256:d073e67f1f6d36f953adeca5435a035d918824ff10854878752cce8001e14ae2",
+      "encoded_hash": "sha256:d073e67f1f6d36f953adeca5435a035d918824ff10854878752cce8001e14ae2",
+      "id": "block_editor_raw_fallback_metadata",
+      "raw_block_count": 1,
+      "raw_blocks": [
+        {
+          "label": "원시",
+          "raw_text": "g:수 = (9.8) 매김 {\n  범위: 1..20.\n  설명: \"실험용\".\n}.",
+          "source": "wasm_block_editor_plan"
+        }
+      ],
+      "run_stdout": [],
+      "top_level_block_kinds": [
+        "charim_block"
+      ]
+    }
+  ],
+  "excluded_surfaces": [
+    {
+      "reason": "current block editor plan does not preserve canonical equality for condition hook forms",
+      "surfaces": [
+        "(조건)이 될때",
+        "(조건)인 동안"
+      ]
+    }
+  ],
+  "raw_fallback_case_count": 1,
+  "schema": "ddn.seamgrim_malblock_roundtrip_subset_report.v1",
+  "supported_case_count": 4
+}

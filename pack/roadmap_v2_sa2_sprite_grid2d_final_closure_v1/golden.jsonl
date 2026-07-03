@@ -1,0 +1,2 @@
+{"id":"c01_sa2_sprite_grid2d_final_closure_marker","cmd":["run","pack/roadmap_v2_sa2_sprite_grid2d_final_closure_v1/input.ddn"],"stdout":["SA2_SPRITE_GRID2D_FINAL_CLOSURE_V1","sa2 sprite/grid2d final closure sealed","stage: 4/4 = 100%","roadmap matrix behavior: 1/90 = 1%","pack evidence reference: 22/90 = 24%","studio local super-long: 5/18 = 28%","next: TA2_MATRIX_STATUS_RECONCILIATION_V1"],"exit_code":0}
+

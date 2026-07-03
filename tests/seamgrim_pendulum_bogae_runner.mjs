@@ -600,7 +600,7 @@ async function main() {
   assert(outputActionOk === true, "observe output action: result true");
   assert(switchedTab === "output", "observe output action: switch output");
   assert(Array.isArray(selectedRange) && selectedRange[0] >= 0, "observe output action: token focused");
-  assert(guideMessage.includes("DDN 편집 영역으로 이동"), "observe output action: guide message");
+  assert(guideMessage.includes("교과 원문으로 이동"), "observe output action: guide message");
   assert(guideMessage.includes("L2"), "observe output action: line guide");
   const runScreenOnboard = new RunScreen({
     root: { dataset: {} },
@@ -759,7 +759,7 @@ async function main() {
   assert(runScreenText.runtimeTextBodyEl.innerHTML.includes("<li>요약</li>"), "run text panel: list html");
   assert(runScreenText.overlayToggleBtn.disabled === false, "run text panel: overlay tab enabled with markdown");
   assert(
-    String(runScreenText.overlayToggleBtn.title).includes("겹보기 탭"),
+    String(runScreenText.overlayToggleBtn.title).includes("설명 탭"),
     "run text panel: overlay tab title",
   );
   assert(runScreenText.runtimeTextPanelEl.classList.last?.[1] === false, "run text panel: visible when required");

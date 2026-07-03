@@ -1,0 +1,215 @@
+{
+  "schema": "ddn.language.flow_history_alias_migration_plan.v1",
+  "work_item": "LANG_FLOW_HISTORY_ALIAS_MIGRATION_PLAN_V1",
+  "based_on": "LANG_IMPLEMENTATION_FOLLOWUP_CLOSURE_REBASE_V1",
+  "source_flow_type_collision_rename": "pack/lang_flow_type_collision_rename_v1/flow_type_collision_rename.detjson",
+  "source_implementation_followup_closure_rebase": "pack/lang_implementation_followup_closure_rebase_v1/implementation_followup_closure_rebase.detjson",
+  "flow_history_alias_migration_plan_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "history_alias_landed_claim": false,
+  "flow_alias_removed_claim": false,
+  "ddn_history_schema_landed_claim": false,
+  "sidecar_rename_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "naming_policy": {
+    "keep_flow_for": "port_connector_flow",
+    "kept_connector_term": "흐름",
+    "future_value_family": "이력",
+    "preserve_current_flow_value_family_until_removal_gate": true,
+    "ssot_landed": false,
+    "runtime_landed": false,
+    "stdlib_landed": false,
+    "parser_landed": false
+  },
+  "alias_migration_family": [
+    {
+      "canonical": "이력.만들기",
+      "compat": "흐름.만들기",
+      "legacy_aliases": ["흐름만들기"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    },
+    {
+      "canonical": "이력.밀어넣기",
+      "compat": "흐름.밀어넣기",
+      "legacy_aliases": ["흐름넣기", "흐름추가"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    },
+    {
+      "canonical": "이력.차림",
+      "compat": "흐름.차림",
+      "legacy_aliases": ["흐름값들"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    },
+    {
+      "canonical": "이력.최근값",
+      "compat": "흐름.최근값",
+      "legacy_aliases": ["흐름최근"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    },
+    {
+      "canonical": "이력.길이",
+      "compat": "흐름.길이",
+      "legacy_aliases": ["흐름길이"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    },
+    {
+      "canonical": "이력.용량",
+      "compat": "흐름.용량",
+      "legacy_aliases": ["흐름용량"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    },
+    {
+      "canonical": "이력.비우기",
+      "compat": "흐름.비우기",
+      "legacy_aliases": ["흐름비우기"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    },
+    {
+      "canonical": "이력.잘라보기",
+      "compat": "흐름.잘라보기",
+      "legacy_aliases": ["흐름잘라보기", "흐름최근N"],
+      "action": "add_alias_before_removal",
+      "landed_now": false
+    }
+  ],
+  "migration_gates": [
+    {
+      "order": 1,
+      "id": "alias_plan",
+      "status": "closed_now",
+      "required_evidence": "this pack and checker"
+    },
+    {
+      "order": 2,
+      "id": "stdlib_alias_addition",
+      "status": "planned",
+      "required_evidence": "product stdlib aliases for 이력.* while preserving 흐름.*"
+    },
+    {
+      "order": 3,
+      "id": "view_meta_bridge",
+      "status": "planned",
+      "required_evidence": "view metadata accepts 이력/history while preserving stream/흐름 sidecars"
+    },
+    {
+      "order": 4,
+      "id": "resource_schema_bridge",
+      "status": "planned",
+      "required_evidence": "future ddn.history.v1 bridge while preserving ddn.stream.v1"
+    },
+    {
+      "order": 5,
+      "id": "docs_and_examples_bridge",
+      "status": "planned",
+      "required_evidence": "examples updated only after product aliases land"
+    },
+    {
+      "order": 6,
+      "id": "removal_gate",
+      "status": "blocked",
+      "required_evidence": "separate SSOT acceptance and backward compatibility report"
+    }
+  ],
+  "compatibility_surfaces_to_preserve": [
+    "흐름.*",
+    "흐름만들기",
+    "흐름넣기",
+    "흐름추가",
+    "흐름값들",
+    "흐름최근",
+    "흐름길이",
+    "흐름용량",
+    "흐름비우기",
+    "흐름잘라보기",
+    "흐름최근N",
+    "ddn.stream.v1",
+    "stream sidecar suffixes",
+    "가격흐름_길이"
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "stdlib_flow_family_current",
+      "path": "lang/src/stdlib.rs",
+      "tokens": ["흐름.만들기", "흐름.밀어넣기", "흐름.잘라보기", "흐름최근N"],
+      "changed_now": false
+    },
+    {
+      "id": "wasm_stream_sidecar_current",
+      "path": "tool/src/wasm_api.rs",
+      "tokens": ["StreamMeta", "parse_stream_sidecar_tag", "가격흐름_길이"],
+      "changed_now": false
+    },
+    {
+      "id": "core_stream_schema_current",
+      "path": "core/src/platform.rs",
+      "tokens": ["ddn.stream.v1", "흐름"],
+      "changed_now": false
+    },
+    {
+      "id": "parser_pipe_flow_current",
+      "path": "lang/src/parser.rs",
+      "tokens": ["흐름값"],
+      "changed_now": false
+    },
+    {
+      "id": "normalizer_flow_terms_current",
+      "path": "lang/src/normalizer.rs",
+      "tokens": ["흐름씨", "흐름값"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "history_alias_landed",
+    "flow_alias_removed",
+    "ddn_history_schema_landed",
+    "sidecar_rename_landed",
+    "backward_compat_break"
+  ],
+  "language_risk_removal_plan": {
+    "closed": 2,
+    "total": 6,
+    "percent": 33
+  },
+  "flow_history_alias_migration_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 55,
+    "total": 90,
+    "percent": 61
+  },
+  "next_item": "LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1"
+}

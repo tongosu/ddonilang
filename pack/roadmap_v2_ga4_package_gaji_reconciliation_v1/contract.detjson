@@ -1,0 +1,53 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "roadmap_v2_ga4_package_gaji_reconciliation_v1",
+  "kind": "roadmap_v2_ga4_package_gaji_reconciliation",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "closed_by": "GA4_PACKAGE_GAJI_RECONCILIATION_V1",
+  "roadmap_coordinate": "가-4",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "roadmap_matrix_increment": true,
+  "current_stage": "GA4 package/gaji reconciliation",
+  "current_stage_closed": 6,
+  "current_stage_total": 6,
+  "current_stage_percent": 100,
+  "roadmap_v2_matrix_behavior_closed": 65,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 72,
+  "roadmap_v2_docs_closed": 4,
+  "roadmap_v2_docs_total": 90,
+  "roadmap_v2_docs_percent": 4,
+  "roadmap_v2_pack_evidence_reference_closed": 67,
+  "roadmap_v2_pack_evidence_reference_total": 90,
+  "roadmap_v2_pack_evidence_reference_percent": 74,
+  "studio_local_super_long_closed": 9,
+  "studio_local_super_long_total": 18,
+  "studio_local_super_long_percent": 50,
+  "source_evidence": [
+    "gaji_registry_report_provenance_v1",
+    "tests/run_gaji_registry_pack_check.py",
+    "tests/run_gaji_registry_report_provenance_check.py",
+    "tests/run_gaji_registry_strict_audit_check.py",
+    "tests/run_gaji_registry_defaults_check.py",
+    "tests/run_seamgrim_package_registry_surface_check.py"
+  ],
+  "false_claims": {
+    "public_registry_final_claim": false,
+    "network_publish_claim": false,
+    "install_update_remove_execution_claim": false,
+    "trust_signing_claim": false,
+    "cloud_sync_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "excluded_drift": {
+    "seamgrim_registry_publish_install_shell_v1": "auth/save surface runner drift; not required for GA4 closure"
+  },
+  "next_item": "ROADMAP_V2_POST_GA4_FRONTIER_REBASE_V1",
+  "requires_docs_ssot_clean": true
+}

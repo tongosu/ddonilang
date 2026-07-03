@@ -1,0 +1,136 @@
+{
+  "schema": "ddn.language.owner_inner_seum_parser_boundary_spike.v1",
+  "work_item": "LANG_OWNER_INNER_SEUM_PARSER_BOUNDARY_SPIKE_V1",
+  "based_on": "LANG_DULTRA_RECORDED_REPLAY_CONTRACT_PACK_V1",
+  "owner_inner_seum_parser_boundary_landed_claim": true,
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": true,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "seongjil_owner_state_alias_landed_claim": true,
+  "seongjil_global_block_landed_claim": false,
+  "seum_equation_solver_landed_claim": false,
+  "derivative_semantics_landed_claim": false,
+  "source_owner_inner_seum_structure": "pack/lang_owner_inner_seum_structure_check_v1/owner_inner_seum_structure_check.detjson",
+  "source_implementation_readiness_rebase": "pack/lang_implementation_readiness_rebase_v1/implementation_readiness_rebase.detjson",
+  "source_dultra_recorded_replay_contract": "pack/lang_dultra_recorded_replay_contract_v1/dultra_recorded_replay_contract.detjson",
+  "source_prime_parser_frontdoor_spike": "pack/lang_prime_parser_frontdoor_spike_v1/prime_parser_frontdoor_spike.detjson",
+  "accepted_surface": [
+    "공:임자 = {",
+    "  성질 {",
+    "    위치: 수 <- 0.",
+    "    속도: 수 <- 0.",
+    "  }.",
+    "  세움 {",
+    "    위치' =:= 속도.",
+    "  }.",
+    "  힘가해짐을 받으면 {",
+    "    속도 <- 속도 + 힘.",
+    "  }.",
+    "}"
+  ],
+  "parser_boundary": {
+    "owner_seed_kind": "임자",
+    "state_block_alias": "성질",
+    "state_block_alias_scope": "임자_body_only",
+    "state_block_canonical_path": "DeclBlock::Gureut",
+    "relation_block": "세움",
+    "relation_block_ast_path": "ExprKind::Assertion",
+    "event_reaction_block": "받으면",
+    "event_reaction_relation_row": false,
+    "owner_inner_rows_api": "ddonirang_lang::owner_inner_seum_canon_rows"
+  },
+  "owner_inner_seum_canon_rows": [
+    "세움{\n    위치' =:= 속도.\n}"
+  ],
+  "product_files": [
+    "lang/src/parser.rs",
+    "lang/src/frontdoor.rs",
+    "lang/src/lib.rs",
+    "tools/teul-cli/src/lang/lexer.rs",
+    "tools/teul-cli/src/lang/parser.rs",
+    "tools/teul-cli/src/cli/frontdoor_parse.rs"
+  ],
+  "evidence_rows": [
+    {
+      "id": "lang_parser_seongjil_boundary",
+      "path": "lang/src/parser.rs",
+      "tokens": ["성질", "in_imja_seed_body", "선언 블록 머릿말은 `채비`만 사용합니다"],
+      "product_path": true
+    },
+    {
+      "id": "lang_owner_inner_rows_api",
+      "path": "lang/src/frontdoor.rs",
+      "tokens": ["owner_inner_seum_canon_rows", "collect_owner_inner_seum_rows_from_body", "ExprKind::Assertion"],
+      "product_path": true
+    },
+    {
+      "id": "lang_export_and_test",
+      "path": "lang/src/lib.rs",
+      "tokens": ["owner_inner_seum_canon_rows", "imja_owner_inner_seum_and_seongjil_parse_boundary", "세움{\\n    위치' =:= 속도.\\n}"],
+      "product_path": true
+    },
+    {
+      "id": "teul_lexer_spaced_seum",
+      "path": "tools/teul-cli/src/lang/lexer.rs",
+      "tokens": ["skip_inline_space_after_ident", "read_assertion_block"],
+      "product_path": true
+    },
+    {
+      "id": "teul_parser_seongjil_boundary",
+      "path": "tools/teul-cli/src/lang/parser.rs",
+      "tokens": ["성질", "parse_imja_owner_inner_seongjil_and_seum_boundary"],
+      "product_path": true
+    },
+    {
+      "id": "teul_frontdoor_boundary",
+      "path": "tools/teul-cli/src/cli/frontdoor_parse.rs",
+      "tokens": ["parse_runtime_accepts_imja_owner_inner_seongjil_and_seum_boundary", "validate_lang_frontdoor_parity"],
+      "product_path": true
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "owner_inner_seum_runtime_landed",
+    "seum_equation_solver_landed",
+    "derivative_semantics_landed",
+    "seongjil_global_block_landed",
+    "receive_block_relation_row_landed"
+  ],
+  "implementation_readiness_followup_plan": {
+    "closed": 6,
+    "total": 6,
+    "percent": 100
+  },
+  "owner_inner_seum_parser_boundary_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 53,
+    "total": 90,
+    "percent": 59
+  },
+  "next_item": "LANG_IMPLEMENTATION_FOLLOWUP_CLOSURE_REBASE_V1"
+}

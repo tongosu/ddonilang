@@ -2,8 +2,9 @@
 "seamgrim numeric track consolidation sealed" 보여주기.
 "preferred gates: numeric_report_workflow + numeric_result_report" 보여주기.
 "legacy numeric runners: 28 total, 16 over 60 chars, 2 over 100 chars" 보여주기.
+"deferred micro-slice: SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1 folded into consolidation" 보여주기.
 "baseline repair: browse detail dataset guard" 보여주기.
 "current stage: 2/5 = 40%" 보여주기.
-"overall super-long behavior: 18/18 = 100%" 보여주기.
-"roadmap v2 behavior: 90/90 = 100%" 보여주기.
+"overall super-long behavior: 9/18 = 50%" 보여주기.
+"roadmap v2 behavior: 51/90 = 57%" 보여주기.
 "next: STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1" 보여주기.

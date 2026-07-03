@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "ode_tick_loop_lesson_baseline_v1",
+  "kind": "ode_tick_loop_lesson_baseline",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "ODE_TICK_LOOP_LESSON_BASELINE_V1",
+  "based_on": "NUMERIC_SOLVER_CAPABILITY_REBASE_V1",
+  "uses_existing_helpers": [
+    "적분.오일러",
+    "적분.반암시적오일러"
+  ],
+  "finite_tick_samples": true,
+  "ode_solver_claim": false,
+  "automatic_ode_detection_claim": false,
+  "rk4_claim": false,
+  "next_recommended_item": "ODE_METHOD_COMPARISON_V1",
+  "requires_docs_ssot_clean": true
+}
+

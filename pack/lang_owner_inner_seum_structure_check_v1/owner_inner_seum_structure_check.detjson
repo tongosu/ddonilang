@@ -1,0 +1,126 @@
+{
+  "schema": "ddn.language.owner_inner_seum_structure_check.v1",
+  "work_item": "LANG_OWNER_INNER_SEUM_STRUCTURE_CHECK_V1",
+  "based_on": "LANG_SEUM_VOL3_PRIME_EXAMPLE_PACK_V1",
+  "owner_inner_seum_structure_check_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "owner_inner_seum_parser_landed_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "prime_notation_parser_landed_claim": false,
+  "seongjil_block_landed_claim": false,
+  "source_seum_prime_examples": "pack/lang_seum_vol3_prime_example_pack_v1/seum_vol3_prime_example_pack.detjson",
+  "source_seum_relation_proposal": "docs/context/proposals/PROPOSAL_SEUM_VOL3_RELATION_SURFACE_V1_20260524.md",
+  "manuscript_seed_doc": "docs/context/manuscripts/ddonirang_series/03_실행과_시뮬레이션/OWNER_INNER_SEUM_STRUCTURE_SEED_V1.md",
+  "surface_seed": {
+    "owner": "공:임자",
+    "state_group": "성질",
+    "relation_block": "세움",
+    "event_reaction": "받으면",
+    "parser_landed": false,
+    "runtime_landed": false,
+    "publication_ready": false
+  },
+  "structure_rows": [
+    {
+      "id": "owner_state_position",
+      "surface": "위치: 수 <- 0.",
+      "role": "owner_state_initialization",
+      "parser_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_state_velocity",
+      "surface": "속도: 수 <- 0.",
+      "role": "owner_state_initialization",
+      "parser_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_relation_position_velocity",
+      "surface": "위치' =:= 속도.",
+      "role": "owner_local_model_relation",
+      "parser_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_event_force_applied",
+      "surface": "속도 <- 속도 + 힘.",
+      "role": "owner_event_reaction",
+      "parser_landed": false,
+      "runtime_landed": false
+    }
+  ],
+  "example_block": [
+    "공:임자 = {",
+    "  성질 {",
+    "    위치: 수 <- 0.",
+    "    속도: 수 <- 0.",
+    "  }.",
+    "",
+    "  세움 {",
+    "    위치' =:= 속도.",
+    "  }.",
+    "",
+    "  힘가해짐을 받으면 {",
+    "    속도 <- 속도 + 힘.",
+    "  }.",
+    "}."
+  ],
+  "evidence_rows": [
+    {
+      "id": "vol3_prime_example_source",
+      "path": "pack/lang_seum_vol3_prime_example_pack_v1/seum_vol3_prime_example_pack.detjson",
+      "tokens": ["위치' =:= 속도.", "세움", "LANG_OWNER_INNER_SEUM_STRUCTURE_CHECK_V1"],
+      "classification": "prior_prime_seum_seed",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "seum_relation_proposal_source",
+      "path": "docs/context/proposals/PROPOSAL_SEUM_VOL3_RELATION_SURFACE_V1_20260524.md",
+      "tokens": ["임자 안에서도", "세움 {}", "힘 =:= 질량 * 가속도."],
+      "classification": "prior_owner_inner_relation_proposal",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "owner_inner_seum_parser_landed",
+    "owner_inner_seum_runtime_landed",
+    "prime_notation_parser_landed",
+    "seongjil_block_landed"
+  ],
+  "queue_plan": {
+    "closed": 6,
+    "total": 8,
+    "percent": 75
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_CONNECT_LOWERING_TO_SEUM_CHECK_V1"
+}

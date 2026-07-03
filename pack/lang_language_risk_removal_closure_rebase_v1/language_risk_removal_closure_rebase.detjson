@@ -1,0 +1,178 @@
+{
+  "schema": "ddn.language.language_risk_removal_closure_rebase.v1",
+  "work_item": "LANG_LANGUAGE_RISK_REMOVAL_CLOSURE_REBASE_V1",
+  "based_on": "LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1",
+  "language_risk_removal_closure_rebase_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "history_alias_landed_claim": false,
+  "tuck_parser_runtime_landed_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "velocity_verlet_stdlib_landed_claim": false,
+  "dultra_replay_artifact_writer_landed_claim": false,
+  "dultra_replay_verifier_landed_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "derivative_semantics_landed_claim": false,
+  "closed_risk_removal_items": [
+    {
+      "order": 1,
+      "item": "LANG_IMPLEMENTATION_FOLLOWUP_CLOSURE_REBASE_V1",
+      "path": "pack/lang_implementation_followup_closure_rebase_v1/implementation_followup_closure_rebase.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 2,
+      "item": "LANG_FLOW_HISTORY_ALIAS_MIGRATION_PLAN_V1",
+      "path": "pack/lang_flow_history_alias_migration_plan_v1/flow_history_alias_migration_plan.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 3,
+      "item": "LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1",
+      "path": "pack/lang_tuck_constraint_surface_shape_proposal_v1/tuck_constraint_surface_shape_proposal.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 4,
+      "item": "LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1",
+      "path": "pack/lang_velocity_verlet_runtime_gate_rebase_v1/velocity_verlet_runtime_gate_rebase.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 5,
+      "item": "LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1",
+      "path": "pack/lang_dultra_replay_artifact_implementation_gate_v1/dultra_replay_artifact_implementation_gate.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 6,
+      "item": "LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1",
+      "path": "pack/lang_owner_inner_seum_runtime_scope_rebase_v1/owner_inner_seum_runtime_scope_rebase.detjson",
+      "status": "closed"
+    }
+  ],
+  "closed_risk_summary": [
+    {
+      "id": "flow_history_naming",
+      "result": "흐름 remains port/connector terminology; value history moves toward 이력 by alias bridge",
+      "runtime_landed": false
+    },
+    {
+      "id": "tuck_constraint_layer",
+      "result": "턱 selected as third constraint layer name and row-shaped proposal exists",
+      "runtime_landed": false
+    },
+    {
+      "id": "velocity_verlet_runtime_gate",
+      "result": "속도 베를레 runtime/stdlib landing requires explicit surface acceptance and product path",
+      "runtime_landed": false
+    },
+    {
+      "id": "dultra_replay_artifact_gate",
+      "result": "D-ULTRA artifact writer/verifier implementation requires product path evidence",
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_inner_seum_runtime_scope",
+      "result": "owner-inner 세움 runtime execution requires owner state, derivative, solver, tick-order, and event-isolation gates",
+      "runtime_landed": false
+    }
+  ],
+  "recommended_product_path_transition_queue": [
+    {
+      "order": 1,
+      "item": "LANG_LANGUAGE_RISK_REMOVAL_CLOSURE_REBASE_V1",
+      "status": "closed"
+    },
+    {
+      "order": 2,
+      "item": "LANG_PRIME_DERIVATIVE_RUNTIME_SEMANTICS_GATE_V1",
+      "status": "next"
+    },
+    {
+      "order": 3,
+      "item": "LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1",
+      "status": "planned"
+    },
+    {
+      "order": 4,
+      "item": "LANG_HISTORY_ALIAS_STDLIB_BRIDGE_V1",
+      "status": "planned"
+    },
+    {
+      "order": 5,
+      "item": "LANG_DULTRA_REPLAY_ARTIFACT_WRITER_SEED_V1",
+      "status": "planned"
+    },
+    {
+      "order": 6,
+      "item": "LANG_VELOCITY_VERLET_STDLIB_SURFACE_ACCEPTANCE_V1",
+      "status": "planned"
+    },
+    {
+      "order": 7,
+      "item": "LANG_TUCK_SSOT_ACCEPTANCE_HANDOFF_V1",
+      "status": "planned"
+    }
+  ],
+  "next_item_rationale": [
+    "prime parser/frontdoor support already exists",
+    "runtime derivative semantics block owner-inner 세움 execution",
+    "runtime derivative semantics block deterministic integrator and 턱 ordering",
+    "next unit must use product path or explicit product-path gate, not test-only lowering"
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "history_alias_landed",
+    "tuck_parser_runtime_landed",
+    "velocity_verlet_runtime_landed",
+    "velocity_verlet_stdlib_landed",
+    "dultra_replay_artifact_writer_landed",
+    "dultra_replay_verifier_landed",
+    "owner_inner_seum_runtime_landed",
+    "derivative_semantics_landed"
+  ],
+  "language_risk_removal_plan": {
+    "closed": 6,
+    "total": 6,
+    "percent": 100
+  },
+  "language_risk_removal_closure_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "language_product_path_transition_plan": {
+    "closed": 1,
+    "total": 7,
+    "percent": 14
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 60,
+    "total": 90,
+    "percent": 67
+  },
+  "next_item": "LANG_PRIME_DERIVATIVE_RUNTIME_SEMANTICS_GATE_V1"
+}

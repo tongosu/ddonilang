@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_run_history_comparison_rail_v1",
+  "kind": "studio_run_history_comparison_rail",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "SEAMGRIM_RUN_HISTORY_COMPARISON_RAIL_V1",
+  "browser_runner": "tests/seamgrim_run_history_comparison_rail_runner.mjs",
+  "based_on": "SEAMGRIM_LESSON_RUN_PRESET_RAIL_V1",
+  "covers": [
+    "run_history_rail_present",
+    "rendered_run_manager_count",
+    "visible_count_updates",
+    "solo_state_updates",
+    "global_model_sync"
+  ],
+  "next_item": "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1",
+  "requires_docs_ssot_clean": true
+}

@@ -149,6 +149,10 @@ async function main() {
           assignment_id: "a01",
           title: "전압 기초",
           lesson_id: "lesson.voltage",
+          goals: ["전압 변화 읽기"],
+          missions: ["표에서 최대 전압 찾기"],
+          result_views: ["graph", "table"],
+          result_views_label: "그래프, 표",
           due_label: "오늘",
           status: "open",
         },
@@ -156,6 +160,10 @@ async function main() {
           assignment_id: "a02",
           title: "유량 점검",
           lesson_id: "lesson.flow",
+          goals: ["유량 비교"],
+          missions: ["결과표에서 흐름 차이 설명"],
+          result_views: ["table"],
+          result_views_label: "표",
           due_label: "내일",
           status: "closed",
         },
@@ -229,9 +237,10 @@ async function main() {
     assert(result.report.generated_locally === true, "report must be local");
     assert(result.report.account_required === false && result.report.cloud_sync === false, "report must not claim account/cloud");
     assert(result.report.assignment_count === 2 && result.report.summary_count === 2, "report counts mismatch");
-    assert(result.text.startsWith("과제\t제목\t상태\t판정\t실패케이스\t불일치\n"), "report text header mismatch");
-    assert(result.text.includes("a01\t전압 기초\t열림\t실패\tflow_out_of_range\tunexpected_success|unexpected_failure"), "failed report row mismatch");
-    assert(result.text.includes("a02\t유량 점검\t닫힘\t통과\t\t"), "pass report row mismatch");
+    assert(result.text.startsWith("수업 코드\t수업 제목\t수업 목표\t오늘 활동\t결과 확인\t배포 상태\t실행 결과\t확인 필요\t비고\n"), "report text header mismatch");
+    assert(!result.text.includes("실패케이스") && !result.text.includes("불일치"), "report text must not expose internal QA headers");
+    assert(result.text.includes("a01\t전압 기초\t전압 변화 읽기\t표에서 최대 전압 찾기\t그래프, 표\t열림\t실패\tflow_out_of_range\tunexpected_success|unexpected_failure"), "failed report row mismatch");
+    assert(result.text.includes("a02\t유량 점검\t유량 비교\t결과표에서 흐름 차이 설명\t표\t닫힘\t통과\t\t"), "pass report row mismatch");
     assert(!result.text.endsWith("\n"), "report text must not have trailing newline");
 
     if (failures.length > 0) {

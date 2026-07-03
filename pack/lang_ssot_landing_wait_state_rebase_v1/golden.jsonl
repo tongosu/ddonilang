@@ -1,0 +1,2 @@
+{"cmd":["run","pack/lang_ssot_landing_wait_state_rebase_v1/input.ddn"],"exit_code":0,"stdout":["LANG_SSOT_LANDING_WAIT_STATE_REBASE_V1","ssot landing wait-state rebase sealed","schema: ddn.language.ssot_landing_wait_state_rebase.v1","closed acceptance requests: 3","ssot request queue: 3/3 = 100%","wait-state rebase: 1/1 = 100%","urgent ssot landed: 0/3 = 0%","roadmap: 73/90 = 81%","next: LANG_POST_SSOT_LANDING_PRODUCT_GATE_REBASE_V1"]}
+

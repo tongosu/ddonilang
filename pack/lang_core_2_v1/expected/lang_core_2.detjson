@@ -1,0 +1,96 @@
+{
+  "cases": [
+    {
+      "canon_contains": [
+        "채비",
+        "만약",
+        "이라면",
+        "아니면",
+        "보여주기"
+      ],
+      "id": "chaebi_condition_run",
+      "mode": "run",
+      "stdout": [
+        "통과"
+      ],
+      "surfaces": [
+        "채비",
+        "조건"
+      ]
+    },
+    {
+      "canon_contains": [
+        "채비",
+        "(매마디)마다",
+        "될때",
+        "보여주기"
+      ],
+      "id": "hook_when_edge_run",
+      "mode": "run",
+      "stdout": [
+        "1"
+      ],
+      "surfaces": [
+        "채비",
+        "훅",
+        "조건"
+      ]
+    },
+    {
+      "canon_contains": [
+        "채비",
+        "(매마디)마다",
+        "인 동안",
+        "보여주기"
+      ],
+      "id": "hook_while_condition_run",
+      "mode": "run",
+      "stdout": [
+        "1",
+        "2",
+        "3"
+      ],
+      "surfaces": [
+        "채비",
+        "훅",
+        "조건"
+      ]
+    },
+    {
+      "canon_contains": [
+        "플레이어:임자",
+        "짝맞춤.바꾼값"
+      ],
+      "id": "imja_minimum_canon",
+      "mode": "canon",
+      "stdout": [],
+      "surfaces": [
+        "임자"
+      ]
+    },
+    {
+      "canon_contains": [
+        "바탕으로(알림)",
+        "아니면",
+        "보여주기"
+      ],
+      "id": "contract_alert_run",
+      "mode": "run",
+      "stdout": [
+        "알림 계속",
+        "끝"
+      ],
+      "surfaces": [
+        "계약"
+      ]
+    }
+  ],
+  "covered_surfaces": [
+    "계약",
+    "임자",
+    "조건",
+    "채비",
+    "훅"
+  ],
+  "schema": "ddn.lang_core_2_report.v1"
+}

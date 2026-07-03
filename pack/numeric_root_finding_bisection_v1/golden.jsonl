@@ -1,0 +1,2 @@
+{"id":"c01_bisection_linear_exact","cmd":["run","pack/numeric_root_finding_bisection_v1/input.ddn"],"stdout":["2","0","1","이분법"],"exit_code":0}
+{"id":"c02_bisection_unbracketed_reject","cmd":["run","pack/numeric_root_finding_bisection_v1/input_bad_bracket.ddn"],"expected_error_code":"E_MATH_DOMAIN","exit_code":1}

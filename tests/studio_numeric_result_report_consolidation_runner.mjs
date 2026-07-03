@@ -182,7 +182,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     const result = await page.evaluate(async ({ baseUrl: pageBaseUrl, lessons, runPrefs }) => {
       const mod = await import(`${pageBaseUrl}/solutions/seamgrim_ui_mvp/ui/numeric_curriculum_track.js`);
       const consolidation = mod.buildNumericResultReportConsolidation({ lessons, runPrefs });

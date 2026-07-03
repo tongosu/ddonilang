@@ -1,0 +1,45 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "work_item": "LA5_EDITOR_LTS_RECONCILIATION_V1",
+  "coordinate": "라-5",
+  "title": "편집환경 안정화",
+  "previous_status": "",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "basis": [
+    "lsp_followon_minimum_pack_check",
+    "studio_diagnostic_fixit_preview_check",
+    "studio_diagnostic_fixit_integration_check",
+    "roadmap_v2_ga3_editor_diagnostic_reconciliation_check",
+    "roadmap_v2_ta3_diagnostic_ui_lsp_check",
+    "roadmap_v2_la3_workbench_integration_reconciliation_check"
+  ],
+  "progress": {
+    "current_stage_closed": 6,
+    "current_stage_total": 6,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 69,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 77,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 71,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 79,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "full_lsp_server_claim": false,
+    "lsp_protocol_expansion_claim": false,
+    "auto_apply_claim": false,
+    "file_write_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "next_item": "ROADMAP_V2_SA3_GAME_PREVIEW_RECONCILIATION_V1"
+}

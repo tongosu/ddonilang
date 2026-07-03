@@ -111,15 +111,15 @@
     "git status --short -- docs/ssot"
   ],
   "progress": {
-    "super_long_behavior_closed": 18,
+    "super_long_behavior_closed": 9,
     "super_long_total": 18,
-    "super_long_percent": 100,
+    "super_long_percent": 50,
     "current_stage_closed": 3,
     "current_stage_total": 5,
     "current_stage_percent": 60,
-    "roadmap_v2_behavior_closed": 90,
+    "roadmap_v2_behavior_closed": 51,
     "roadmap_v2_total": 90,
-    "roadmap_v2_percent": 100
+    "roadmap_v2_percent": 57
   },
   "closure_tier": "닫힘-동작",
   "next_item": "STUDIO_NUMERIC_RESULT_REPORT_CONSOLIDATION_V1"

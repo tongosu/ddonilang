@@ -1,0 +1,47 @@
+{
+  "schema": "ddn.roadmap_v2.reassessment.v1",
+  "work_item": "PA0_SOCIAL_CASE_CARD_BEHAVIOR_REASSESSMENT_V1",
+  "coordinate": "파-0",
+  "title": "케이스 카드 표준",
+  "previous_status": "닫힘-문서",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "behavior_closed": true,
+  "basis": [
+    "JOJO case-card schema evidence exists",
+    "PA1 baseline market first-run consumes case cards",
+    "PA2 bridge/social pack depends on PA0 and PA1",
+    "PA3 policy ghost UI consumes social-world run traces",
+    "PA4 template registry consumes social-world templates",
+    "PA5 social-world LTS consumes local regression evidence"
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 87,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 97,
+    "roadmap_v2_docs_closed": 3,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 3,
+    "roadmap_v2_pack_evidence_reference_closed": 90,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 100,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "new_product_code_change": false,
+    "new_product_ui_change": false,
+    "runtime_truth_state_hash_ownership": false,
+    "real_world_prediction_claim": false,
+    "policy_advice_claim": false,
+    "large_agent_simulation_claim": false,
+    "live_policy_deployment_claim": false,
+    "public_registry_network_publish_claim": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "JA0_AI_BOUNDARY_BEHAVIOR_REASSESSMENT_V1"
+}

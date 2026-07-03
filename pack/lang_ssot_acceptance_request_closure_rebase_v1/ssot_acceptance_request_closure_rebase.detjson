@@ -1,0 +1,126 @@
+{
+  "schema": "ddn.language.ssot_acceptance_request_closure_rebase.v1",
+  "work_item": "LANG_SSOT_ACCEPTANCE_REQUEST_CLOSURE_REBASE_V1",
+  "based_on": "LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1",
+  "source_prime_ssot_acceptance_request": "pack/lang_prime_ssot_acceptance_request_v1/prime_ssot_acceptance_request.detjson",
+  "source_flow_history_ssot_acceptance_request": "pack/lang_flow_history_ssot_acceptance_request_v1/flow_history_ssot_acceptance_request.detjson",
+  "source_tuck_ssot_acceptance_request": "pack/lang_tuck_ssot_acceptance_request_v1/tuck_ssot_acceptance_request.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "ssot_acceptance_request_closure_rebase_claim": true,
+  "prime_notation_ssot_landed_claim": false,
+  "prime_derivative_semantics_landed_claim": false,
+  "flow_history_ssot_landed_claim": false,
+  "ddn_history_schema_landed_claim": false,
+  "tuck_ssot_landed_claim": false,
+  "tuck_row_parser_landed_claim": false,
+  "constraint_runtime_landed_claim": false,
+  "closed_acceptance_request_items": [
+    {
+      "order": 1,
+      "item": "LANG_PRIME_SSOT_ACCEPTANCE_REQUEST_V1",
+      "target_id": "prime_derivative_notation",
+      "path": "pack/lang_prime_ssot_acceptance_request_v1/prime_ssot_acceptance_request.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 2,
+      "item": "LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1",
+      "target_id": "flow_history_naming_split",
+      "path": "pack/lang_flow_history_ssot_acceptance_request_v1/flow_history_ssot_acceptance_request.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 3,
+      "item": "LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1",
+      "target_id": "tuck_constraint_layer",
+      "path": "pack/lang_tuck_ssot_acceptance_request_v1/tuck_ssot_acceptance_request.detjson",
+      "status": "closed"
+    }
+  ],
+  "closed_result_summary": [
+    {
+      "id": "prime_derivative_notation",
+      "result": "SSOT acceptance request packet exists for 이름' and 이름''",
+      "ssot_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "flow_history_naming_split",
+      "result": "SSOT acceptance request packet exists for 흐름 connector naming and 이력 value-history naming",
+      "ssot_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "tuck_constraint_layer",
+      "result": "SSOT acceptance request packet exists for 턱 and proposed 턱-row",
+      "ssot_landed": false,
+      "runtime_landed": false
+    }
+  ],
+  "next_queue": {
+    "id": "ssot_landing_wait_state",
+    "next_item": "LANG_SSOT_LANDING_WAIT_STATE_REBASE_V1",
+    "reason": "acceptance requests are closed but SSOT landing remains 0/3 and Codex must not edit docs/ssot",
+    "codex_ssot_edit_allowed": false,
+    "initial_progress": {"closed": 0, "total": 3, "percent": 0}
+  },
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "backward_compat_break",
+    "prime_notation_ssot_landed",
+    "prime_derivative_semantics_landed",
+    "flow_history_ssot_landed",
+    "ddn_history_schema_landed",
+    "tuck_ssot_landed",
+    "tuck_row_parser_landed",
+    "constraint_runtime_landed"
+  ],
+  "ssot_acceptance_request_queue": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "ssot_acceptance_request_closure_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_recommendations_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 72,
+    "total": 90,
+    "percent": 80
+  },
+  "next_item": "LANG_SSOT_LANDING_WAIT_STATE_REBASE_V1"
+}
+

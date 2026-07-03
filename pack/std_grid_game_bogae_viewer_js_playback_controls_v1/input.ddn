@@ -1,0 +1,15 @@
+종류 <- "std_grid_game_bogae_viewer_js_playback_controls_v1".
+환경 <- "node_fake_dom".
+정적 <- "index_without_data_live".
+앞으로 <- "btn_step_forward_loadframe".
+뒤로 <- "btn_step_back_loadframe".
+탐색 <- "seek_loadframe".
+오버레이 <- "overlay_toggles_render".
+
+종류 보여주기.
+환경 보여주기.
+정적 보여주기.
+앞으로 보여주기.
+뒤로 보여주기.
+탐색 보여주기.
+오버레이 보여주기.

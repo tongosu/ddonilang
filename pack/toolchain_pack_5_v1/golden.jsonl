@@ -1,0 +1,1 @@
+{"id":"c01_ta5_benchmark_lts_marker","cmd":["run","pack/toolchain_pack_5_v1/input.ddn"],"stdout":["TA5_BENCHMARK_LTS_V1","toolchain benchmark LTS snapshot sealed","stage: 5/5 = 100%","roadmap matrix behavior: 24/90 = 27%","pack evidence reference: 44/90 = 49%","studio local super-long: 9/18 = 50%","ta5 status: 닫힘-동작","next: PA2_SOCIAL_BRIDGE_PACK_V1"],"exit_code":0}

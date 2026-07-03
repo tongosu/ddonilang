@@ -1,0 +1,48 @@
+{
+  "schema": "ddn.nurigym.python_web_parity.v1",
+  "coordinate": "아-3",
+  "status": "bounded_python_web_parity_ready",
+  "parity_scope": "web_side_evaluator_matches_cli_dataset_step_projection",
+  "cases": [
+    {
+      "id": "gridmaze_layout_episode",
+      "env_id": "nurigym.gridmaze2d",
+      "source_pack": "nuri_gym_gridmaze_v1",
+      "web_evaluator": "simulateGridmaze",
+      "expected_dataset": "build/nuri_gym_gridmaze_v1/nurigym.dataset.jsonl"
+    },
+    {
+      "id": "bandit_preferred_action_episode",
+      "env_id": "nurigym.bandit1d",
+      "source_pack": "nuri_gym_bandit_v1",
+      "web_evaluator": "simulateBandit",
+      "expected_dataset": "build/nuri_gym_bandit_v1/nurigym.dataset.jsonl"
+    }
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 77,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 86,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 79,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 88,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "cartpole_pendulum_physics_parity_claim": false,
+    "full_browser_runtime_claim": false,
+    "public_registry_publish_claim": false,
+    "training_workflow_claim": false,
+    "nurigym_runtime_change": false,
+    "runtime_claim": false,
+    "product_ui_change": false
+  }
+}

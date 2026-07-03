@@ -1,0 +1,8 @@
+"LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1" 보여주기.
+"velocity verlet runtime gate rebase sealed" 보여주기.
+"schema: ddn.language.velocity_verlet_runtime_gate_rebase.v1" 보여주기.
+"candidate: 속도 베를레" 보여주기.
+"required runtime gates: 6" 보여주기.
+"risk removal: 4/6 = 67%" 보여주기.
+"runtime landed: false" 보여주기.
+"next: LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1" 보여주기.

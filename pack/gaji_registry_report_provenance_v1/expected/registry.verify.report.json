@@ -6,12 +6,12 @@
   "ok": true,
   "packages": 1,
   "schema": "ddn.registry.verify_report.v1",
-  "source_hash": "sha256:7a1221d2594fb5b45c4eff82819358474ac7fe9b8d13b1126d8e9cf7ebb362ba",
+  "source_hash": "sha256:de31e46f3e9d61861c3b6d69843737bdc2050ce9186be2d4123cfd483b672aef",
   "source_provenance": {
     "index_file": "fixtures/registry.index.json",
-    "index_hash": "sha256:8c63db365985c68839992848ec7e118b92bc6b645c9ab0d05968f904f2a773a2",
+    "index_hash": "sha256:e6bebd3736f37731b7567030839bc0f83323baad31b1272e005378335ab8df64",
     "lock_file": "fixtures/ddn.lock",
-    "lock_hash": "sha256:6a288fd8bc9b88d98f0d004e9e06085c6a010e2dabae5d0b5da11455d885a05d",
+    "lock_hash": "sha256:fc03059914af1c7b6ecd41c9fb464c4185feacf9d9fb997e39181826494b9821",
     "schema": "ddn.registry.verify_report_source_provenance.v1",
     "source_kind": "registry_verify_inputs.v1"
   },

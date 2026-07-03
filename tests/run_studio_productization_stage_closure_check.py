@@ -22,6 +22,7 @@ APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_productization_stage_closure_runner.mjs"
 SOURCE_CHECK = ROOT / "tests" / "run_studio_numeric_result_report_consolidation_check.py"
 NEXT = "STUDIO_POST_SUPER_LONG_REBASE_V1"
@@ -244,7 +245,7 @@ def check_product_tokens() -> None:
     )
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(DEV_SURFACES_JS, ["productization-stage-closure", "elementId: \"productization-stage-closure\""])
-    require_contains(STYLES_CSS, [".productization-stage-closure", ".productization-closure-btn.active"])
+    require_contains(DEV_SURFACES_CSS, [".productization-stage-closure", ".productization-closure-btn.active"])
     require_contains(RUNNER, ["studio_productization_stage_closure: ok", "productization_stage_closed", "stage_chain\\t5/5"])
 
 

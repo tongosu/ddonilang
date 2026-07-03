@@ -1,0 +1,18 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "numeric_root_finding_bisection_v1",
+  "kind": "numeric_root_finding_bisection",
+  "closed_by": "NUMERIC_ROOT_FINDING_V1",
+  "product_code_change": true,
+  "stdlib_surface": "수치해.이분법",
+  "formula_contract": "#ascii 수식 + 변수 string",
+  "result_shape": "차림[근, 잔차, 반복횟수, 사용한방법]",
+  "method": "bisection",
+  "requires_bracket_sign_change": true,
+  "newton_claim": false,
+  "polynomial_solver_claim": false,
+  "ode_solver_claim": false,
+  "inequality_solver_claim": false,
+  "next_recommended_item": "POLYNOMIAL_SOLVE_MINIMUM_V1",
+  "requires_docs_ssot_clean": true
+}

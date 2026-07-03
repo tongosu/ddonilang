@@ -1,0 +1,60 @@
+{
+  "schema": "ddn.roadmap_v2.ta2_matrix_status_reconciliation.v1",
+  "id": "TA2_MATRIX_STATUS_RECONCILIATION_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "타-2",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "source_pack": "pack/toolchain_pack_2_v1",
+    "source_report": "docs/status/roadmap_v2/타-2_REPORT_20260503.md",
+    "checkers": [
+      "tests/run_roadmap_v2_work_item_evidence_check.py",
+      "tests/run_roadmap_v2_pack_runner_basis_check.py",
+      "tests/run_roadmap_v2_pack_skeleton_check.py"
+    ]
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "진행",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/타-2_RECONCILIATION_REPORT_20260608.md"
+  },
+  "progress": {
+    "work_unit_closed": 4,
+    "work_unit_total": 4,
+    "work_unit_percent": 100,
+    "current_stage": "TA2 matrix reconciliation",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 2,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 2,
+    "roadmap_v2_pack_evidence_reference_closed": 22,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 24,
+    "studio_local_super_long_closed": 5,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 28
+  },
+  "decision": {
+    "next_item": "GA2_LANGUAGE_REPRESENTATIVE_PACK_CLOSURE_V1",
+    "reason": "가-2 is the remaining high-value prerequisite after 사-2 and 타-2 are matrix-closed",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "new_ci_infra": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "parser_frontdoor_change": false,
+    "runtime_surface_change": false,
+    "stdlib_surface_change": false,
+    "lesson_schema_change": false,
+    "docs_ssot_change": false
+  }
+}
+

@@ -1,0 +1,73 @@
+{
+  "schema": "ddn.seamgrim.free_lab.ui_pack.v1",
+  "pack": "free_lab_3_v1",
+  "work_item": "BA3_FREE_LAB_UI_PACK_CLOSURE_V1",
+  "primary_coordinate": "바-3",
+  "status": "free_lab_ui_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "product_ui_change": true,
+  "runtime_claim": false,
+  "parameter_sweep_claim": true,
+  "ghost_compare_claim": true,
+  "runs": [
+    {
+      "id": "baseline",
+      "coefficient": 2,
+      "start_value": 1,
+      "ghost": false,
+      "ready": true,
+      "series": [{"frame": 0, "value": 1}, {"frame": 1, "value": 3}, {"frame": 2, "value": 5}, {"frame": 3, "value": 7}]
+    },
+    {
+      "id": "low_lever",
+      "coefficient": 1,
+      "start_value": 1,
+      "ghost": true,
+      "ready": true,
+      "series": [{"frame": 0, "value": 1}, {"frame": 1, "value": 2}, {"frame": 2, "value": 3}, {"frame": 3, "value": 4}]
+    },
+    {
+      "id": "high_lever",
+      "coefficient": 3,
+      "start_value": 1,
+      "ghost": true,
+      "ready": true,
+      "series": [{"frame": 0, "value": 1}, {"frame": 1, "value": 4}, {"frame": 2, "value": 7}, {"frame": 3, "value": 10}]
+    }
+  ],
+  "browser_evidence": {
+    "runner": "tests/free_lab_ui_pack_runner.mjs",
+    "checks": [
+      "free lab UI panel status free_lab_ui_ready",
+      "parameter sweep renders baseline/low/high coefficient runs",
+      "ghost comparison switches to high_lever and shows ghost comparison text",
+      "UI pack copy action marks local text copied",
+      "share/registry/cloud claims remain false"
+    ]
+  },
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 10,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 11,
+    "roadmap_v2_pack_evidence_reference_closed": 29,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 32,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "share_claim": false,
+    "registry_publish_claim": false,
+    "github_release_claim": false,
+    "cloud_sync_claim": false,
+    "research_mode_claim": false,
+    "batch_csv_notebook_claim": false,
+    "new_parser_claim": false,
+    "new_runtime_semantics_claim": false
+  },
+  "next_item": "BA4_FREE_LAB_SHARE_PACK_CLOSURE_V1"
+}

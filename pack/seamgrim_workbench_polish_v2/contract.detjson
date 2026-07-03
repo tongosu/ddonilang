@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_workbench_polish_v2",
+  "kind": "studio_workbench_polish",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "SEAMGRIM_WORKBENCH_POLISH_V2",
+  "browser_runner": "tests/seamgrim_workbench_polish_runner.mjs",
+  "based_on": "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1",
+  "covers": [
+    "shell_status_rail_present",
+    "screen_transition_status_sync",
+    "source_label_status_sync",
+    "local_save_status_sync",
+    "session_restore_status_sync",
+    "browse_return_status_sync"
+  ],
+  "next_item": "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+  "requires_docs_ssot_clean": true
+}

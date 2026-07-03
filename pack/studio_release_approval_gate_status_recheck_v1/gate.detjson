@@ -1,0 +1,31 @@
+{
+  "schema": "ddn.studio.release_approval_gate_status_recheck.v1",
+  "work_item": "STUDIO_RELEASE_APPROVAL_GATE_STATUS_RECHECK_V1",
+  "closure_tier": "닫힘-문서",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "goal_completion_claim": false,
+  "required_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "required_phrase_present_as_user_approval": false,
+  "release_execution_authorized": false,
+  "public_release_execution_selected": false,
+  "public_upload_selected": false,
+  "github_release_selected": false,
+  "registry_publish_selected": false,
+  "next_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
+  "current_authority": {
+    "studio_local_super_long": "9/18 = 50%",
+    "roadmap_v2_behavior_closed": "90/90 = 100%",
+    "roadmap_v2_docs_closed": "0/90 = 0%",
+    "public_release_execution": "0/1 = 0% approval-gated"
+  },
+  "gate_checks": [
+    "required approval phrase preserved",
+    "current user approval absent",
+    "release execution not selected",
+    "publish actions not selected",
+    "next state remains AWAIT_EXPLICIT_RELEASE_APPROVAL"
+  ],
+  "next_safe_action": null
+}

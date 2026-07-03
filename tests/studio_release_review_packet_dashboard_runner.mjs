@@ -201,22 +201,88 @@ async function assertDefaultDevSurfacesHidden(page, baseUrl) {
   await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector("#screen-browse .catalog-body");
   const state = await page.evaluate((ids) => {
+    const visibleText = String(document.body.innerText ?? "");
+    const forbiddenVisibleTerms = [
+      "릴리스",
+      "release",
+      "운영 패널",
+      "operations",
+      "질문 카드",
+      "실험 패널",
+      "free lab",
+      "roadmap",
+    ];
     return {
       bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
       devRootCount: document.querySelectorAll("#dev-surface-root").length,
       visibleIds: ids.filter((id) => document.getElementById(id)),
+      forbiddenVisibleTerms: forbiddenVisibleTerms.filter((term) => visibleText.toLowerCase().includes(term.toLowerCase())),
       devSurfaceResourceUrls: performance.getEntriesByType("resource")
         .map((entry) => entry.name)
-        .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+        .filter((name) => (
+          name.includes("/dev_surfaces.js")
+          || name.endsWith("dev_surfaces.js")
+          || name.includes("/dev_surfaces.css")
+          || name.endsWith("dev_surfaces.css")
+        )),
     };
   }, DEV_SURFACE_PANEL_IDS);
   assert(state.bodyDevClass === false, "default UI must not enable dev surface body class");
   assert(state.devRootCount === 0, `default UI leaked dev surface root: ${state.devRootCount}`);
   assert(state.visibleIds.length === 0, `default UI leaked dev panels: ${state.visibleIds.join(", ")}`);
   assert(
-    state.devSurfaceResourceUrls.length === 0,
-    `default UI loaded dev_surfaces.js: ${state.devSurfaceResourceUrls.join(", ")}`
+    state.forbiddenVisibleTerms.length === 0,
+    `default teacher UI leaked dev-surface terms: ${state.forbiddenVisibleTerms.join(", ")}`
   );
+  assert(
+    state.devSurfaceResourceUrls.length === 0,
+    `default UI loaded dev surface assets: ${state.devSurfaceResourceUrls.join(", ")}`
+  );
+
+  await page.evaluate(() => localStorage.setItem("seamgrim.dev_surfaces", "1"));
+  await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector("#screen-browse .catalog-body");
+  const staleStorageState = await page.evaluate((ids) => {
+    const visibleText = String(document.body.innerText ?? "");
+    const forbiddenVisibleTerms = [
+      "릴리스",
+      "release",
+      "운영 패널",
+      "operations",
+      "질문 카드",
+      "실험 패널",
+      "free lab",
+      "roadmap",
+    ];
+    return {
+      stored: localStorage.getItem("seamgrim.dev_surfaces"),
+      bodyDevClass: document.body.classList.contains("dev-surfaces-enabled"),
+      devRootCount: document.querySelectorAll("#dev-surface-root").length,
+      visibleIds: ids.filter((id) => document.getElementById(id)),
+      forbiddenVisibleTerms: forbiddenVisibleTerms.filter((term) => visibleText.toLowerCase().includes(term.toLowerCase())),
+      devSurfaceResourceUrls: performance.getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .filter((name) => (
+          name.includes("/dev_surfaces.js")
+          || name.endsWith("dev_surfaces.js")
+          || name.includes("/dev_surfaces.css")
+          || name.endsWith("dev_surfaces.css")
+        )),
+    };
+  }, DEV_SURFACE_PANEL_IDS);
+  assert(staleStorageState.stored === "1", "default UI stale dev storage setup failed");
+  assert(staleStorageState.bodyDevClass === false, "default UI must ignore stale dev surface storage");
+  assert(staleStorageState.devRootCount === 0, `default UI stale storage leaked dev surface root: ${staleStorageState.devRootCount}`);
+  assert(staleStorageState.visibleIds.length === 0, `default UI stale storage leaked dev panels: ${staleStorageState.visibleIds.join(", ")}`);
+  assert(
+    staleStorageState.forbiddenVisibleTerms.length === 0,
+    `default teacher UI stale storage leaked dev-surface terms: ${staleStorageState.forbiddenVisibleTerms.join(", ")}`
+  );
+  assert(
+    staleStorageState.devSurfaceResourceUrls.length === 0,
+    `default UI stale storage loaded dev surface assets: ${staleStorageState.devSurfaceResourceUrls.join(", ")}`
+  );
+  await page.evaluate(() => localStorage.removeItem("seamgrim.dev_surfaces"));
 }
 
 async function assertNonLocalDevSurfacesBlocked(page, publicBaseUrl) {
@@ -228,7 +294,12 @@ async function assertNonLocalDevSurfacesBlocked(page, publicBaseUrl) {
     devRootCount: document.querySelectorAll("#dev-surface-root").length,
     devSurfaceResourceUrls: performance.getEntriesByType("resource")
       .map((entry) => entry.name)
-      .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+      .filter((name) => (
+        name.includes("/dev_surfaces.js")
+        || name.endsWith("dev_surfaces.js")
+        || name.includes("/dev_surfaces.css")
+        || name.endsWith("dev_surfaces.css")
+      )),
   }));
   assert(state.hostname === "studio.example.test", `non-local host mismatch: ${state.hostname}`);
   assert(state.bodyDevClass === false, "non-local UI must ignore devSurfaces query");
@@ -248,7 +319,12 @@ async function assertNonLocalDevSurfacesBlocked(page, publicBaseUrl) {
     devRootCount: document.querySelectorAll("#dev-surface-root").length,
     devSurfaceResourceUrls: performance.getEntriesByType("resource")
       .map((entry) => entry.name)
-      .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+      .filter((name) => (
+        name.includes("/dev_surfaces.js")
+        || name.endsWith("dev_surfaces.js")
+        || name.includes("/dev_surfaces.css")
+        || name.endsWith("dev_surfaces.css")
+      )),
   }));
   assert(storageState.hostname === "studio.example.test", `non-local storage host mismatch: ${storageState.hostname}`);
   assert(storageState.stored === "1", "non-local dev surface storage setup failed");
@@ -280,7 +356,12 @@ async function assertNonLocalDevSurfacesBlocked(page, publicBaseUrl) {
     ].filter((selector) => document.querySelector(selector)).length,
     devSurfaceResourceUrls: performance.getEntriesByType("resource")
       .map((entry) => entry.name)
-      .filter((name) => name.includes("/dev_surfaces.js") || name.endsWith("dev_surfaces.js")),
+      .filter((name) => (
+        name.includes("/dev_surfaces.js")
+        || name.endsWith("dev_surfaces.js")
+        || name.includes("/dev_surfaces.css")
+        || name.endsWith("dev_surfaces.css")
+      )),
   }));
   assert(globalOverrideState.hostname === "studio.example.test", `non-local global host mismatch: ${globalOverrideState.hostname}`);
   assert(globalOverrideState.globalFlag === true, "non-local dev surface global override setup failed");

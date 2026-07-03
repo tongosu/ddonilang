@@ -1,0 +1,42 @@
+{
+  "schema": "ddn.roadmap_v2.post_ka0_frontier_rebase.v1",
+  "id": "ROADMAP_V2_POST_KA0_FRONTIER_REBASE_V1",
+  "date": "2026-06-08",
+  "selected_next_work": "ROADMAP_V2_GA0_CURRENT_LINE_LEDGER_MATRIX_RECONCILIATION_V1",
+  "selected_coordinate": "가-0",
+  "reason": "가-0 current-line grammar ledger has existing pack/checker evidence while the authoritative ROADMAP_V2 matrix row still says 진행",
+  "progress": {
+    "current_stage": "ROADMAP_V2 post-KA0 frontier rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 41,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 46,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "current_line_grammar_reimplementation": false,
+    "parser_frontdoor_change": false,
+    "console_renderer_change": false,
+    "docs_ssot_change": false
+  },
+  "required_preflight": [
+    "python tests/run_roadmap_v2_ka0_platform_charter_matrix_reconciliation_check.py",
+    "python tests/run_lang_core_0_check.py",
+    "python tests/run_text_surface_registry_table_v2_check.py",
+    "python tests/run_text_surface_registry_complete_table_v2_check.py",
+    "python tests/run_seamgrim_console_control_markup_v2_check.py",
+    "git status --short -- docs/ssot"
+  ]
+}

@@ -14,8 +14,10 @@ PACK = ROOT / "pack" / "studio_classroom_operations_panel_preview_v1"
 PANEL = PACK / "classroom_operations_panel_preview.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_classroom_operations_panel_preview.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_classroom_operations_panel_preview_runner.mjs"
 SOURCE_TRIAGE = ROOT / "pack" / "studio_classroom_operations_triage_v1" / "classroom_operations_triage.detjson"
 SOURCE_PREVIEW = ROOT / "pack" / "studio_teacher_feedback_surface_preview_v1" / "teacher_feedback_surface_preview.detjson"
@@ -85,6 +87,7 @@ def check_required_files() -> None:
         PANEL,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES,
         RUNNER,
@@ -101,9 +104,9 @@ def check_docs() -> None:
         "product UI behavior",
         "닫힘-동작",
         "panel rows: 6/6 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: 새 마-3 개발 계획 3/8 = 38%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         NEXT,
         "docs/ssot/**",
     ]
@@ -125,9 +128,9 @@ def check_docs() -> None:
             "studio_classroom_operations_panel_preview_v1",
             "studio_classroom_operations_panel_preview_runner.mjs",
             "panel rows: 6/6 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: 새 마-3 개발 계획 3/8 = 38%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -147,17 +150,16 @@ def check_source_tokens() -> None:
             "panel_write_claim: false",
         ],
     )
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "buildClassroomOperationsPanelPreview",
-            "publishClassroomOperationsPanelPreview",
             "__SEAMGRIM_CLASSROOM_OPERATIONS_PANEL_PREVIEW__",
             "classroom-operations-panel-preview",
         ],
     )
-    require_contains(INDEX_HTML, ["classroom-operations-panel-preview", "data-classroom-operations-panel-preview"])
-    require_contains(STYLES, ["classroom-operations-panel-preview", "classroom-operations-panel-btn", "classroom-operations-detail"])
+    require_contains(DEV_SURFACES_CSS, ["classroom-operations-panel-preview", "classroom-operations-panel-btn", "classroom-operations-detail"])
     require_contains(RUNNER, ["studio_classroom_operations_panel_preview: ok", "product_ui_change === true", "buttonCount === 6"])
 
 
@@ -201,9 +203,9 @@ def check_contract_and_panel() -> None:
         "panel_rows_closed": 6,
         "panel_rows_total": 6,
         "panel_rows_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 3,
         "current_stage_total": 8,
         "current_stage_percent": 38,
@@ -257,9 +259,9 @@ def check_contract_and_panel() -> None:
             fail(f"row product_ui_change mismatch: {row}")
     progress = panel.get("progress", {})
     expected_progress = {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 3,
         "current_stage_total": 8,
         "current_stage_percent": 38,
@@ -296,9 +298,9 @@ def check_golden() -> None:
         "studio classroom operations panel preview behavior sealed",
         "classroom operations panel preview schema: ddn.studio.classroom_operations_panel_preview.v1",
         "panel rows: 6/6 = 100%",
-        "overall super-long behavior: 18/18 = 100%",
+        "official studio local progress: 9/18 = 50%",
         "current stage: 3/8 = 38%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior-closed: 90/90 = 100%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_classroom_operations_panel_preview_v1/input.ddn"]:

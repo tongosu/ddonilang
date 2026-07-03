@@ -1,0 +1,43 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "work_item": "GA3_EDITOR_DIAGNOSTIC_RECONCILIATION_V1",
+  "coordinate": "가-3",
+  "title": "편집기 진단 연결",
+  "previous_status": "",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "basis": [
+    "lsp_followon_minimum_v1",
+    "studio_diagnostic_fixit_preview_v1",
+    "studio_diagnostic_fixit_integration_v1",
+    "toolchain_pack_3_v1"
+  ],
+  "progress": {
+    "current_stage_closed": 6,
+    "current_stage_total": 6,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 64,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 71,
+    "roadmap_v2_docs_closed": 4,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 4,
+    "roadmap_v2_pack_evidence_reference_closed": 66,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 73,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "full_lsp_server_claim": false,
+    "lsp_protocol_expansion_claim": false,
+    "auto_apply_claim": false,
+    "file_write_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "next_item": "ROADMAP_V2_POST_GA3_FRONTIER_REBASE_V1"
+}

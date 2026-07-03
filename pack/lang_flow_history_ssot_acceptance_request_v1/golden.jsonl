@@ -1,0 +1,2 @@
+{"cmd":["run","pack/lang_flow_history_ssot_acceptance_request_v1/input.ddn"],"exit_code":0,"stdout":["LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1","flow history ssot acceptance request sealed","schema: ddn.language.flow_history_ssot_acceptance_request.v1","split: 흐름 connector flow; 이력 value history","ssot request queue: 2/3 = 67%","urgent ssot landed: 0/3 = 0%","roadmap: 70/90 = 78%","next: LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1"]}
+

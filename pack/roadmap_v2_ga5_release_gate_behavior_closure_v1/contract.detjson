@@ -1,0 +1,26 @@
+{
+  "schema": "ddn.roadmap_v2.ga5.release_gate_behavior_closure.v1",
+  "work_item": "GA5_RELEASE_GATE_BEHAVIOR_CLOSURE_V1",
+  "coordinate": "가-5",
+  "status": "behavior_closed",
+  "matrix_closure_tier": "닫힘-동작",
+  "behavior_closed": true,
+  "roadmap_v2_matrix_behavior_closed": 90,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 100,
+  "roadmap_v2_docs_closed": 0,
+  "roadmap_v2_docs_total": 90,
+  "roadmap_v2_docs_percent": 0,
+  "stage_closed": 8,
+  "stage_total": 8,
+  "stage_percent": 100,
+  "release_manifest_hash": "sha256:89da7b9df16a64188d15d16b0b56be30ca0b78fa0d5a07548280d8567d875c54",
+  "pack_results_hash": "sha256:450f9aae24e91f9c74d53aa2c60892cb82a547f32e8a4fb60d02e5452e4ef184",
+  "false_claims": {
+    "external_store_release": false,
+    "network_publish": false,
+    "docs_ssot_change": false,
+    "external_ai_call": false
+  },
+  "next_item": "POST_RELEASE_MAINTENANCE_QUEUE"
+}

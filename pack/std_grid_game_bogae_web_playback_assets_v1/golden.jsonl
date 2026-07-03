@@ -1,0 +1,1 @@
+{"cli": ["--madi", "4", "--bogae", "web", "--bogae-out", "build/std_grid_game_bogae_web_playback_assets_v1", "--no-open"], "stdout": ["bogae_hash=blake3:dc4856b1baf4c5217660788764bfe0c81be70644c3260311f766b55e340387e2 cmd_count=65 codec=BDL1"], "exit_code": 0}

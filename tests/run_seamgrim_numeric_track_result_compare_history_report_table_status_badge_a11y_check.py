@@ -97,7 +97,15 @@ def check_docs() -> None:
         NEXT,
         "docs/ssot/**",
     ]
-    require_contains(DOC, tokens + ["No DDN runtime claim", "No result replay", "No A11Y export/copy action yet"])
+    require_contains(
+        DOC,
+        tokens
+        + [
+            "No DDN runtime claim",
+            "No result replay",
+            "A11Y export/copy action is closed by `SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_EXPORT_V1`",
+        ],
+    )
     require_contains(REPORT, tokens + ["No active allowlist mutation", "No lesson schema change"])
     require_contains(
         INDEX,

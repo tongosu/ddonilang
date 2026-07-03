@@ -176,6 +176,7 @@ function createBrowseRoot({ withDetailPanel = false } = {}) {
       "detail-title",
       "detail-desc",
       "detail-keywords",
+      "detail-curriculum",
       "btn-open-in-studio",
       "btn-open-in-studio-teacher",
       "btn-detail-close",
@@ -218,6 +219,7 @@ function createBrowseRoot({ withDetailPanel = false } = {}) {
     copyBrowsePresetLinkButton: idMap.get("btn-copy-browse-preset-link"),
     grid: idMap.get("lesson-card-grid"),
     detailPanel: idMap.get("catalog-detail-panel"),
+    detailCurriculum: idMap.get("detail-curriculum"),
     detailOpenBtn: idMap.get("btn-open-in-studio"),
     detailTeacherOpenBtn: idMap.get("btn-open-in-studio-teacher"),
   };
@@ -422,6 +424,15 @@ async function main() {
   });
 
   try {
+    globalThis.window?.localStorage?.setItem(
+      "seamgrim.ui.browse_prefs.v1",
+      JSON.stringify({
+        sort: "featured_seed",
+        seedScope: "featured_seed",
+        runLaunch: "featured_seed_quick",
+        launchProfile: "teacher",
+      }),
+    );
     const screen = new BrowseScreen({
       root,
       onLessonSelect: async (lesson, options = {}) => {
@@ -441,6 +452,10 @@ async function main() {
       onOpenAdvanced: () => {},
     });
     screen.init();
+    assert(screen.filter.sort === "teacher", "public browse resets hidden sort filter to teacher");
+    assert(screen.filter.seedScope === "", "public browse resets hidden seed scope filter");
+    assert(screen.filter.runLaunch === "", "public browse resets hidden run launch filter");
+    assert(screen.filter.launchProfile === "", "public browse resets hidden launch profile filter");
     screen.setLessons([
       {
         id: "official_recommended",
@@ -470,7 +485,7 @@ async function main() {
         quality: "experimental",
       },
     ]);
-    assert(Array.isArray(grid.children) && grid.children.length === 3, "official cards rendered");
+    assert(Array.isArray(grid.children) && grid.children.length === 3, "public browse renders teacher course cards only");
     assert(
       root.querySelector("#btn-preset-featured-seed-quick-recent")?.disabled === true,
       "featured quick recent preset disabled when quick-launch history absent",
@@ -493,6 +508,60 @@ async function main() {
     qualitySelect.value = "";
     await qualitySelect.emitAsync("change");
     assert(Array.isArray(grid.children) && grid.children.length === 3, "quality filter reset restores cards");
+
+    globalThis.window?.localStorage?.removeItem("seamgrim.ui.browse_prefs.v1");
+    const courseRoot = createBrowseRoot();
+    const courseScreen = new BrowseScreen({
+      root: courseRoot.root,
+      onLessonSelect: async () => {},
+      onCreate: () => {},
+      onOpenLegacyGuideExample: () => {},
+      onOpenAdvanced: () => {},
+    });
+    courseScreen.init();
+    courseScreen.setLessons([
+      {
+        id: "course_physics",
+        title: "course physics",
+        description: "",
+        grade: "all",
+        subject: "physics",
+        source: "official",
+        quality: "reviewed",
+      },
+      {
+        id: "course_math",
+        title: "course math",
+        description: "",
+        grade: "all",
+        subject: "math",
+        source: "official",
+        quality: "reviewed",
+      },
+      {
+        id: "course_econ",
+        title: "course econ",
+        description: "",
+        grade: "all",
+        subject: "econ",
+        source: "official",
+        quality: "reviewed",
+      },
+      {
+        id: "official_cs_dev_card",
+        title: "official cs dev card",
+        description: "",
+        grade: "all",
+        subject: "cs",
+        source: "official",
+        quality: "reviewed",
+      },
+    ]);
+    assert(Array.isArray(courseRoot.grid.children) && courseRoot.grid.children.length === 3, "default teacher surface keeps course subjects");
+    assert(
+      courseRoot.grid.children.every((card) => String(card?.dataset?.lessonId ?? "") !== "official_cs_dev_card"),
+      "default teacher surface hides non-course dev card",
+    );
 
     const previousDevSurfaces = globalThis.SEAMGRIM_DEV_SURFACES;
     globalThis.SEAMGRIM_DEV_SURFACES = true;
@@ -987,6 +1056,10 @@ async function main() {
     await detailCard.emitAsync("click");
     assert(detailSelections.length === 0, "detail card click opens panel before selection");
     assert(detailRoot.detailPanel?.classList?.contains("hidden") === false, "detail panel shown");
+    assert(
+      String(detailRoot.detailCurriculum?.innerHTML ?? "").includes("DDN 원문"),
+      "public detail panel exposes DDN source preview by default",
+    );
     await detailRoot.detailOpenBtn.emitAsync("click");
     assert(detailSelections.length === 1, "detail CTA triggers selection");
     assert(detailSelections[0].lessonId === "detail_case_v1", "detail CTA forwards lesson");
@@ -997,6 +1070,35 @@ async function main() {
     assert(detailSelections[1].lessonId === "detail_case_v1", "detail teacher CTA forwards lesson");
     assert(detailSelections[1].launchProfile === "teacher", "detail teacher CTA forwards teacher launch profile");
     assert(detailSelections[1].autoExecute === true, "detail teacher CTA forwards autoExecute");
+    const previousDetailDevSurfaces = globalThis.SEAMGRIM_DEV_SURFACES;
+    globalThis.SEAMGRIM_DEV_SURFACES = true;
+    const devDetailRoot = createBrowseRoot({ withDetailPanel: true });
+    const devDetailScreen = new BrowseScreen({
+      root: devDetailRoot.root,
+      onLessonSelect: async () => {},
+      onCreate: () => {},
+      onOpenLegacyGuideExample: () => {},
+      onOpenAdvanced: () => {},
+    });
+    devDetailScreen.init();
+    devDetailScreen.setLessons([
+      {
+        id: "dev_detail_case_v1",
+        title: "dev detail case",
+        description: "dev detail description",
+        grade: "all",
+        subject: "math",
+        source: "official",
+        quality: "reviewed",
+        ddnCandidates: ["/dev/detail.ddn"],
+      },
+    ]);
+    await devDetailRoot.grid.children[0].emitAsync("click");
+    globalThis.SEAMGRIM_DEV_SURFACES = previousDetailDevSurfaces;
+    assert(
+      String(devDetailRoot.detailCurriculum?.innerHTML ?? "").includes("DDN 원문"),
+      "dev detail panel keeps DDN source preview",
+    );
     const warningSelect = root.querySelector("#filter-warning-status");
     warningSelect.value = "has_legacy_warning";
     await warningSelect.emitAsync("change");
@@ -1046,10 +1148,27 @@ async function main() {
       onOpenAdvanced: () => {},
     });
     persistedScreen.init();
-    assert(persistedScreen.filter.sort === "legacy_warning", "warning sort restored from browse prefs");
+    assert(persistedScreen.filter.sort === "teacher", "public browse resets hidden warning sort from browse prefs");
     assert(
-      String(persistedRoot.root.querySelector("#filter-sort")?.value ?? "") === "legacy_warning",
-      "warning sort select restored from browse prefs",
+      String(persistedRoot.root.querySelector("#filter-sort")?.value ?? "") === "teacher",
+      "public browse resets hidden warning sort select from browse prefs",
+    );
+    const previousPersistedDevSurfaces = globalThis.SEAMGRIM_DEV_SURFACES;
+    globalThis.SEAMGRIM_DEV_SURFACES = true;
+    const persistedDevRoot = createBrowseRoot();
+    const persistedDevScreen = new BrowseScreen({
+      root: persistedDevRoot.root,
+      onLessonSelect: async () => {},
+      onCreate: () => {},
+      onOpenLegacyGuideExample: () => {},
+      onOpenAdvanced: () => {},
+    });
+    persistedDevScreen.init();
+    globalThis.SEAMGRIM_DEV_SURFACES = previousPersistedDevSurfaces;
+    assert(persistedDevScreen.filter.sort === "legacy_warning", "dev browse restores warning sort from browse prefs");
+    assert(
+      String(persistedDevRoot.root.querySelector("#filter-sort")?.value ?? "") === "legacy_warning",
+      "dev browse restores warning sort select from browse prefs",
     );
     sortSelect.value = "recent";
     await sortSelect.emitAsync("change");

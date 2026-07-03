@@ -1,0 +1,82 @@
+{
+  "schema": "ddn.roadmap_v2.cha0.rpg_seed_rebase.v1",
+  "id": "CHA0_RPG_SEED_REBASE_V1",
+  "date": "2026-06-08",
+  "status": "docs_closed_seed",
+  "roadmap_coordinate": "차-0",
+  "matrix_closure_claim": false,
+  "matrix_closure_tier": "닫힘-문서",
+  "cha0_matrix_status": "씨앗",
+  "seed_boundary": {
+    "pack_id": "roadmap_v2_cha0_rpg_seed_rebase_v1",
+    "milestone": "action/story 설계",
+    "representative_work": ["action_method", "phrase binding"],
+    "lanes": [
+      {
+        "id": "action_method",
+        "purpose": "name the allowed action method surface before phrase execution is claimed",
+        "required_for_cha1": true
+      },
+      {
+        "id": "phrase_binding",
+        "purpose": "bind a player phrase to a candidate action without claiming confirmed events",
+        "required_for_cha1": true
+      },
+      {
+        "id": "story_event_boundary",
+        "purpose": "separate proposed story events from runtime-confirmed story state",
+        "required_for_cha1": true
+      }
+    ]
+  },
+  "source_evidence": {
+    "existing_parser_canon_packs": [
+      "rpg_world_define_canon_v1",
+      "rpg_player_actor_parse_v1",
+      "rpg_statemachine_parse_v1",
+      "rpg_seumvalue_parse_v1",
+      "rpg_dialogue_template_parse_v1"
+    ],
+    "evidence_role": "reference_only_not_cha1_closure"
+  },
+  "progress": {
+    "current_stage": "CHA0 RPG seed rebase",
+    "current_stage_closed": 3,
+    "current_stage_total": 3,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 12,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 13,
+    "roadmap_v2_pack_evidence_reference_closed": 32,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 36,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "new_status_for_cha0": "씨앗",
+    "reason": "The RPG branch already has a seed matrix marker and existing parser/canon evidence, but phrase-to-confirmed-event behavior is still a later smoke gate.",
+    "next_item": "CHA1_RPG_PHRASE_ACTION_SMOKE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "cha0_behavior_closed": false,
+    "cha1_phrase_action_closed": false,
+    "cha2_story_pack_closed": false,
+    "rpg_product_ui_behavior": false,
+    "rpg_box_authoring_ui_claim": false,
+    "runtime_change": false,
+    "parser_frontdoor_change": false,
+    "grammar_change": false,
+    "story_engine_claim": false,
+    "registry_publish_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "docs_ssot_change": false,
+    "roadmap_behavior_progress_increase": false,
+    "studio_local_progress_increase": false,
+    "numeric_track_consolidation_required": false
+  }
+}

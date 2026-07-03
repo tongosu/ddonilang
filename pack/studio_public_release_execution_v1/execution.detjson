@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.studio.public_release_execution.pack_evidence.v1",
+  "work_item": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1",
+  "approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "approval_confirmed": true,
+  "release_execution_claim": true,
+  "local_release_artifacts_generated": true,
+  "public_release_claim": false,
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "external_publish_status": "not_attempted_no_github_cli_auth_evidence",
+  "output_root": "I:/home/urihanl/ddn/codex/build/studio_release",
+  "expected_files": [
+    "studio-static-bundle.zip",
+    "studio-local-package-sample.detjson",
+    "studio-rc-matrix.detjson",
+    "SHA256SUMS.txt",
+    "release_manifest.detjson"
+  ],
+  "required_preflight_commands": [
+    "python tests/run_studio_public_release_smoke_matrix_check.py",
+    "python tests/run_studio_public_release_asset_plan_check.py",
+    "python tests/run_studio_release_candidate_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "next_safe_action": "STUDIO_PUBLIC_RELEASE_EXTERNAL_PUBLISH_HANDOFF_V1"
+}

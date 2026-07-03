@@ -14,8 +14,8 @@ It records the local classroom operations triage evidence:
 Progress:
 
 - 작업 단위: 6/6 = 100% (`닫힘-동작`)
-- 전체 초장기 계획: 18/18 = 100%
+- Studio-local 초장기 계획: 9/18 = 50%
 - 현재 스테이지: post-super-long follow-up 6/8 = 75%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 behavior-closed progress: 90/90 = 100%
 
 The pack does not claim classroom operations runtime behavior, teacher feedback runtime behavior, student data collection, triage writes, feedback writes, remote save, cloud sync, account setup, permission systems, result replay, release approval, release execution, public upload, parser/frontdoor grammar changes, DDN runtime changes, stdlib surface changes, lesson schema changes, active allowlist mutation, or `docs/ssot/**` changes.

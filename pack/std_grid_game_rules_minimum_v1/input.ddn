@@ -1,0 +1,14 @@
+종류 <- "std_grid_game_rules_minimum_v1".
+묶음1 <- "std_grid_game_hold_queue_v1".
+묶음2 <- "std_grid_game_ghost_piece_v1".
+묶음3 <- "std_grid_game_simple_wall_kick_v1".
+세션통합 <- "hold_external_v1".
+벽차기 <- "deterministic_fallback_offsets_only".
+
+종류 보여주기.
+묶음1 보여주기.
+묶음2 보여주기.
+묶음3 보여주기.
+세션통합 보여주기.
+벽차기 보여주기.
+

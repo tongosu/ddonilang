@@ -5,11 +5,11 @@
   "checkpoints": [
     {
       "tick": 0,
-      "state_hash": "blake3:aedcc0f615fe2655d2a4755b81616c24bc3fe1660a88d119ac6d85e2fa3753c4"
+      "state_hash": "blake3:f7ac79d379436bfd95ab066a7f4ee4574e6823d0db13e9bb2922f4abb04ae2c6"
     },
     {
       "tick": 10,
-      "state_hash": "blake3:f1ba8db650bbb5f211a3f8dc446480075615483be3abc2521d3addadec692b16"
+      "state_hash": "blake3:90028b6e5e32d5b63f0cab1fdfb2f0fcaf8e650dde8023d2a994200925938c27"
     }
   ],
   "max_ticks": 10,

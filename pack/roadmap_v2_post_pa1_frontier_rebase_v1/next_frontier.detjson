@@ -1,0 +1,34 @@
+{
+  "schema": "ddn.roadmap_v2.post_pa1_frontier_rebase.v1",
+  "id": "ROADMAP_V2_POST_PA1_FRONTIER_REBASE_V1",
+  "selected_next_work": "HA0_EDUCATION_CURRICULUM_TEMPLATE_MATRIX_RECONCILIATION_V1",
+  "selected_coordinate": "하-0",
+  "rejected_work": "NEW_LESSON_AUTHORING_UI_WITHOUT_HA0_RECONCILIATION",
+  "reason": "하-0 curriculum template and BrowseScreen education evidence exists and downstream 하-2..하-5 are already matrix-closed, but the authoritative 하-0 matrix row remains 진행",
+  "progress": {
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 55,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 61,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "education_runtime_change": false,
+    "lesson_authoring_ui_change": false,
+    "ssot_textbook_rewrite_claim": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "ha0_matrix_reconciliation_claim": false,
+    "docs_ssot_change": false
+  }
+}

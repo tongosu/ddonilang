@@ -2,7 +2,7 @@
 "studio benchmark baseline local snapshot behavior sealed" 보여주기.
 "benchmark baseline local snapshot schema: ddn.studio.benchmark_baseline_local_snapshot.v1" 보여주기.
 "snapshot rows: 6/6 = 100%" 보여주기.
-"overall super-long behavior: 18/18 = 100%" 보여주기.
+"official studio local progress: 9/18 = 50%" 보여주기.
 "current stage: 4/8 = 50%" 보여주기.
-"roadmap v2 behavior: 90/90 = 100%" 보여주기.
+"roadmap v2 behavior-closed: 90/90 = 100%" 보여주기.
 "next: STUDIO_RELEASE_REVIEW_PACKET_DASHBOARD_V1" 보여주기.

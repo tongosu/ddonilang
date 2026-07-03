@@ -1498,6 +1498,12 @@ def build_case(
                     "returncode": 0,
                     "cmd": ["python", "x.py"],
                 },
+                {
+                    "step": "seamgrim_ci_gate_worker_env_step_check",
+                    "ok": True,
+                    "returncode": 0,
+                    "cmd": ["python", "x.py"],
+                },
                 {"step": "seamgrim_ci_gate_seed_meta_step_check", "ok": True, "returncode": 0, "cmd": ["python", "x.py"]},
                 {
                     "step": "seamgrim_ci_gate_runtime5_passthrough_check",

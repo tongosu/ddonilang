@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update std_grid_game_hold_queue_v1 std_grid_game_ghost_piece_v1 std_grid_game_simple_wall_kick_v1 std_grid_game_rules_minimum_v1
+pack golden updated

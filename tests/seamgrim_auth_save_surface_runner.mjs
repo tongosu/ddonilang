@@ -90,6 +90,7 @@ const {
   RouteSlotPolicy,
   emitPlatformMockAdapterPayload,
   buildMockSaveAdapterPayload,
+  updateShellStatusRail,
 } = deps;
 ${functionSource}
 return {
@@ -111,6 +112,9 @@ const appState = {
     currentRevisionId: null,
     currentPublicationId: null,
     currentProjectId: null,
+  },
+  studio: {
+    localSaveStatus: "저장 대기",
   },
 };
 const toasts = [];
@@ -145,6 +149,7 @@ const harness = buildHarness({
     op: "save",
     ...args,
   }),
+  updateShellStatusRail: () => {},
 });
 
 // readPlatformRouteSlotsFromLocation

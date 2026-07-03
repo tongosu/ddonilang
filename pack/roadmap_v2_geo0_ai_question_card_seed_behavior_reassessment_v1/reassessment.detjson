@@ -1,0 +1,47 @@
+{
+  "schema": "ddn.roadmap_v2.reassessment.v1",
+  "work_item": "GEO0_AI_QUESTION_CARD_SEED_BEHAVIOR_REASSESSMENT_V1",
+  "coordinate": "거-0",
+  "title": "질문카드 schema",
+  "previous_status": "닫힘-문서",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "behavior_closed": true,
+  "basis": [
+    "question-card schema evidence exists",
+    "GEO1 question-card smoke consumes proposal draft, patch preview, fix-it hint, review packet, and boundary receipt fields",
+    "GEO2 validation consumes DDN lint, lesson lint, intent alignment, patch safety, and validation receipt fields",
+    "GEO3 development assist consumes Codex work item, lesson draft, report draft, review queue, and handoff receipt fields",
+    "GEO4 author tool share consumes template registry, author tool manifest, lesson/review template, and handoff bundle fields",
+    "GEO5 workflow hardening consumes manual approval gate, replay packet, append-only audit preview, rollback plan, and local LTS gate fields"
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 89,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 99,
+    "roadmap_v2_docs_closed": 1,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 1,
+    "roadmap_v2_pack_evidence_reference_closed": 90,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 100,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "parser_preprocessor_claim": false,
+    "ai_call_claim": false,
+    "patch_generation_claim": false,
+    "patch_execution_claim": false,
+    "auto_apply_claim": false,
+    "file_write_claim": false,
+    "runtime_ast_persistence_claim": false,
+    "state_hash_ownership_claim": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "GA5_GRAMMAR_LTS_RELEASE_GATE_BEHAVIOR_CLOSURE_V1"
+}

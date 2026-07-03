@@ -2,7 +2,7 @@
   "schema": "ddn.roadmap_v2.work_item_evidence_report.v1",
   "summary": {
     "closed_item_count": 7,
-    "executed_check_count": 6,
+    "executed_check_count": 5,
     "ssot_diff_clean": true,
     "ssot_untouched_required": true,
     "ta1_official_closed": true,
@@ -21,7 +21,7 @@
       "pack_exists": true,
       "report": "docs/status/roadmap_v2/가-0_REPORT_20260429.md",
       "report_exists": true,
-      "status": "닫힘"
+      "status": "닫힘-동작"
     },
     {
       "checker": "tests/run_roadmap_v2_pack_skeleton_check.py",
@@ -34,20 +34,20 @@
       "pack_exists": true,
       "report": "docs/status/roadmap_v2/타-0_REPORT_20260429.md",
       "report_exists": true,
-      "status": "닫힘"
+      "status": "닫힘-동작"
     },
     {
-      "checker": "tests/run_seamgrim_malblock_blocky_design_check.py",
-      "checker_pass": true,
+      "checker": "tests/run_roadmap_v2_la0_malblock_design_behavior_reassessment_check.py",
+      "checker_pass": "self",
       "closure_level": "closed",
-      "expected_artifact": "pack/seamgrim_malblock_blocky_design_v1/expected/blocky_design.detjson",
+      "expected_artifact": "pack/roadmap_v2_la0_malblock_design_behavior_reassessment_v1/reassessment.detjson",
       "expected_artifact_exists": true,
       "id": "라-0",
-      "pack": "pack/seamgrim_malblock_blocky_design_v1",
+      "pack": "pack/roadmap_v2_la0_malblock_design_behavior_reassessment_v1",
       "pack_exists": true,
-      "report": "docs/status/roadmap_v2/라-0_REPORT_20260428.md",
+      "report": "docs/status/roadmap_v2/라-0_REASSESSMENT_REPORT_20260609.md",
       "report_exists": true,
-      "status": "닫힘"
+      "status": "닫힘-동작"
     },
     {
       "checker": "tests/run_lang_core_1_check.py",
@@ -60,7 +60,7 @@
       "pack_exists": true,
       "report": "docs/status/roadmap_v2/가-1_REPORT_20260428.md",
       "report_exists": true,
-      "status": "닫힘"
+      "status": "닫힘-동작"
     },
     {
       "checker": "tests/run_roadmap_v2_pack_runner_basis_check.py",
@@ -73,7 +73,7 @@
       "pack_exists": true,
       "report": "docs/status/roadmap_v2/타-1_REPORT_20260428.md",
       "report_exists": true,
-      "status": "닫힘"
+      "status": "닫힘-동작"
     },
     {
       "checker": "tests/run_seamgrim_editor_run_transaction_check.py",
@@ -86,7 +86,7 @@
       "pack_exists": true,
       "report": "docs/status/roadmap_v2/라-1_REPORT_20260428.md",
       "report_exists": true,
-      "status": "닫힘"
+      "status": "닫힘-동작"
     },
     {
       "checker": "tests/run_roadmap_v2_work_item_evidence_check.py",
@@ -99,7 +99,7 @@
       "pack_exists": true,
       "report": "docs/status/roadmap_v2/타-2_REPORT_20260503.md",
       "report_exists": true,
-      "status": "닫힘"
+      "status": "닫힘-동작"
     }
   ]
 }

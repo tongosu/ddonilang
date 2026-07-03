@@ -1,0 +1,42 @@
+{
+  "schema": "ddn.std_grid_game_bogae_finite_live_loop_closure.pack.contract.v1",
+  "id": "std_grid_game_bogae_finite_live_loop_closure_v1",
+  "public_surface_delta": "none",
+  "bundled_packs": [
+    "std_grid_game_bogae_live_bridge_closure_v1",
+    "std_grid_game_bogae_browser_input_delivery_v1",
+    "std_grid_game_bogae_finite_live_loop_v1",
+    "std_grid_game_bogae_live_input_frame_effect_v1"
+  ],
+  "manifest": {
+    "kind": "bogae_web_playback_v1",
+    "codec": "BDL1"
+  },
+  "web_sample": {
+    "grid_width": 8,
+    "grid_height": 8,
+    "cell_px": 4,
+    "canvas_w": 32,
+    "canvas_h": 32,
+    "frame_count": 80
+  },
+  "input_effect": {
+    "primary_compare_field": "state_hash",
+    "aux_compare_field": "bogae_hash",
+    "compare_after_ticks": 3
+  },
+  "gaji_skeletons": [
+    "gaji/std_grid_game_bogae_finite_live_loop"
+  ],
+  "non_scope": [
+    "new stdlib surface",
+    "parser/frontdoor syntax",
+    "infinite live loop",
+    "scheduler drift or stability",
+    "browser gameplay quality",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ]
+}

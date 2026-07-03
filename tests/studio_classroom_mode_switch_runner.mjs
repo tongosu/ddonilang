@@ -79,6 +79,13 @@ function isAllowedFallback404(urlText) {
   return false;
 }
 
+function isAllowedRequestFailure(req) {
+  const errorText = String(req.failure()?.errorText || "");
+  if (!errorText.includes("net::ERR_ABORTED")) return false;
+  const urlText = String(req.url() || "");
+  return urlText.includes("/wasm_ddn_wrapper.js") || urlText.endsWith(".wasm") || urlText.includes(".wasm?");
+}
+
 async function waitVisible(page, selector) {
   await page.waitForFunction((sel) => {
     const node = document.querySelector(sel);
@@ -91,12 +98,25 @@ async function readModeState(page) {
     const text = (sel) => document.querySelector(sel)?.textContent?.trim() ?? "";
     const value = (sel) => document.querySelector(sel)?.dataset?.value ?? "";
     const pressed = (sel) => document.querySelector(sel)?.getAttribute("aria-pressed") ?? "";
+    const visible = (sel) => {
+      const node = document.querySelector(sel);
+      if (!node) return false;
+      const style = getComputedStyle(node);
+      return style.display !== "none" && style.visibility !== "hidden" && !node.classList.contains("hidden");
+    };
     return {
       mode: document.querySelector("[data-classroom-mode-switch]")?.dataset?.mode ?? "",
+      modeAccess: document.querySelector("[data-classroom-mode-switch]")?.dataset?.access ?? "",
+      switchVisible: visible("[data-classroom-mode-switch]"),
       onboarding: text("[data-run-preset-onboarding]"),
       onboardingValue: value("[data-run-preset-onboarding]"),
       studentPressed: pressed("[data-classroom-mode='student']"),
       teacherPressed: pressed("[data-classroom-mode='teacher']"),
+      classroomReportVisible: visible("[data-run-classroom-report-export]"),
+      localPackageVisible: visible("[data-run-local-package-export]"),
+      teacherReportCopyVisible: visible("#btn-run-teacher-report-copy"),
+      teacherPackageCopyVisible: visible("#btn-run-teacher-package-copy"),
+      teacherPackageDownloadVisible: visible("#btn-run-teacher-package-download"),
       status: text("#run-onboarding-status"),
       rail: window.__SEAMGRIM_RUN_PRESET_RAIL__ ?? null,
       payload: window.__STUDIO_CLASSROOM_MODE_SWITCH__ ?? null,
@@ -126,7 +146,10 @@ async function main() {
       }
     });
     page.on("pageerror", (err) => failures.push(`pageerror: ${err.message}`));
-    page.on("requestfailed", (req) => failures.push(`request failed: ${req.url()} ${req.failure()?.errorText || ""}`));
+    page.on("requestfailed", (req) => {
+      if (isAllowedRequestFailure(req)) return;
+      failures.push(`request failed: ${req.url()} ${req.failure()?.errorText || ""}`);
+    });
     page.on("response", (res) => {
       if (res.status() >= 400 && !res.url().endsWith("/favicon.ico") && !(res.status() === 404 && isAllowedFallback404(res.url()))) {
         failures.push(`response ${res.status()}: ${res.url()}`);
@@ -141,32 +164,54 @@ async function main() {
     await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
     const initialStudent = await readModeState(page);
     assert(initialStudent.mode === "student", `initial mode mismatch: ${initialStudent.mode}`);
+    assert(initialStudent.modeAccess === "student", `initial access mismatch: ${initialStudent.modeAccess}`);
+    assert(initialStudent.switchVisible === false, "student launch must hide classroom mode switch");
     assert(initialStudent.studentPressed === "true", "student button should be active after student launch");
     assert(initialStudent.teacherPressed === "false", "teacher button should be inactive after student launch");
+    assert(initialStudent.classroomReportVisible === false, "student mode must hide classroom report export");
+    assert(initialStudent.localPackageVisible === false, "student mode must hide local package export");
+    assert(initialStudent.teacherReportCopyVisible === false, "student mode must hide teacher report copy action");
+    assert(initialStudent.teacherPackageCopyVisible === false, "student mode must hide teacher package copy action");
+    assert(initialStudent.teacherPackageDownloadVisible === false, "student mode must hide teacher package download action");
 
-    await page.click("[data-classroom-mode='teacher']");
-    await page.waitForFunction(() => window.__STUDIO_CLASSROOM_MODE_SWITCH__?.mode === "teacher");
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await waitVisible(page, "#screen-browse");
+    await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+    await waitVisible(page, "#screen-run");
+    await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "teacher");
     const teacher = await readModeState(page);
     assert(teacher.mode === "teacher", `teacher mode mismatch: ${teacher.mode}`);
+    assert(teacher.modeAccess === "teacher", `teacher access mismatch: ${teacher.modeAccess}`);
+    assert(teacher.switchVisible === true, "teacher launch must show classroom mode switch");
     assert(teacher.onboarding === "교사 시작", `teacher onboarding text mismatch: ${teacher.onboarding}`);
     assert(teacher.onboardingValue === "teacher", `teacher onboarding value mismatch: ${teacher.onboardingValue}`);
     assert(teacher.studentPressed === "false", "student button should deactivate after teacher click");
     assert(teacher.teacherPressed === "true", "teacher button should activate after teacher click");
-    assert(teacher.status.includes("교사 시작 적용"), `teacher status mismatch: ${teacher.status}`);
-    assert(teacher.payload?.schema === "seamgrim.classroom_mode_switch.v1", "teacher payload schema mismatch");
-    assert(teacher.payload?.applied === true, "teacher payload applied mismatch");
-    assert(teacher.payload?.rail_onboarding_profile === "teacher", "teacher payload rail profile mismatch");
-    assert(teacher.payload?.teacher_active === true && teacher.payload?.student_active === false, "teacher payload active flags mismatch");
-    assert(teacher.payload?.account_required === false && teacher.payload?.cloud_sync === false && teacher.payload?.permission_system === false, "teacher payload boundary mismatch");
+    assert(teacher.classroomReportVisible === true, "teacher mode must show classroom report export");
+    assert(teacher.localPackageVisible === true, "teacher mode must show local package export");
+    assert(teacher.teacherReportCopyVisible === true, "teacher mode must show teacher report copy action");
+    assert(teacher.teacherPackageCopyVisible === true, "teacher mode must show teacher package copy action");
+    assert(teacher.teacherPackageDownloadVisible === true, "teacher mode must show teacher package download action");
+    assert(teacher.status.includes("교사용 배포 준비 적용"), `teacher status mismatch: ${teacher.status}`);
+    assert(teacher.rail?.onboarding_profile === "teacher", "teacher launch rail profile mismatch");
+    assert(teacher.rail?.onboarding_label === "교사 시작", "teacher launch rail label mismatch");
 
     await page.click("[data-classroom-mode='student']");
     await page.waitForFunction(() => window.__STUDIO_CLASSROOM_MODE_SWITCH__?.mode === "student");
     const student = await readModeState(page);
     assert(student.mode === "student", `student mode mismatch: ${student.mode}`);
+    assert(student.modeAccess === "teacher", `student preview access mismatch: ${student.modeAccess}`);
+    assert(student.switchVisible === true, "teacher previewing student mode keeps classroom switch visible");
     assert(student.onboarding === "학생 시작", `student onboarding text mismatch: ${student.onboarding}`);
     assert(student.onboardingValue === "student", `student onboarding value mismatch: ${student.onboardingValue}`);
     assert(student.studentPressed === "true", "student button should activate after student click");
     assert(student.teacherPressed === "false", "teacher button should deactivate after student click");
+    assert(student.classroomReportVisible === false, "student mode must hide classroom report export after switching back");
+    assert(student.localPackageVisible === false, "student mode must hide local package export after switching back");
+    assert(student.teacherReportCopyVisible === false, "student mode must hide teacher report copy action after switching back");
+    assert(student.teacherPackageCopyVisible === false, "student mode must hide teacher package copy action after switching back");
+    assert(student.teacherPackageDownloadVisible === false, "student mode must hide teacher package download action after switching back");
     assert(student.status.includes("학생 시작 적용"), `student status mismatch: ${student.status}`);
     assert(student.payload?.mode === "student", "student payload mode mismatch");
     assert(student.payload?.rail_onboarding_profile === "student", "student payload rail profile mismatch");

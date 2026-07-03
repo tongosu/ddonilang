@@ -1,0 +1,70 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "id": "BA0_FREE_LAB_SEED_REASSESSMENT_V1",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "바-0",
+  "matrix_status_record": {
+    "old_status": "씨앗",
+    "new_status": "닫힘-동작",
+    "closure_tier": "닫힘-동작",
+    "reason": "The original empty-workbench seed lanes are now consumed by downstream free lab first-run, report artifact, UI pack, share pack, and research workflow product evidence."
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "BA0 Free lab seed reassessment",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 84,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 93,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 86,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 96,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "evidence": {
+    "seed_boundary": {
+      "pack": "roadmap_v2_ba0_free_lab_seed_rebase_v1",
+      "lanes": [
+        "new_experiment",
+        "parameter_setup",
+        "recording_boundary"
+      ]
+    },
+    "downstream_product_path": {
+      "packs": [
+        "free_lab_1_v1",
+        "free_lab_2_v1",
+        "free_lab_3_v1",
+        "free_lab_4_v1",
+        "free_lab_5_v1"
+      ],
+      "checkers": [
+        "tests/run_roadmap_v2_ba1_free_lab_first_run_check.py",
+        "tests/run_roadmap_v2_ba2_free_lab_experiment_report_check.py",
+        "tests/run_roadmap_v2_ba3_free_lab_ui_pack_check.py",
+        "tests/run_roadmap_v2_ba4_free_lab_share_pack_check.py",
+        "tests/run_roadmap_v2_ba5_free_lab_research_workflow_check.py"
+      ]
+    }
+  },
+  "false_claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "new_free_lab_behavior": false,
+    "public_upload_claim": false,
+    "registry_publish_claim": false,
+    "cloud_sync_claim": false,
+    "external_notebook_execution_claim": false
+  },
+  "next_item": "CHA0_RPG_SEED_REASSESSMENT_V1"
+}

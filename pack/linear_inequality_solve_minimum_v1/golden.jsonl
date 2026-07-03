@@ -1,0 +1,4 @@
+{"id":"c01_linear_inequality_bounded_interval","cmd":["run","pack/linear_inequality_solve_minimum_v1/input_bounded.ddn"],"stdout":["구간","3","참","4","참"],"exit_code":0}
+{"id":"c02_linear_inequality_empty_interval","cmd":["run","pack/linear_inequality_solve_minimum_v1/input_empty.ddn"],"stdout":["공집합"],"exit_code":0}
+{"id":"c03_linear_inequality_one_sided_interval","cmd":["run","pack/linear_inequality_solve_minimum_v1/input_one_sided.ddn"],"stdout":["구간","-3","참"],"exit_code":0}
+

@@ -1,0 +1,64 @@
+{
+  "schema": "ddn.nurigym.training_workflow.v1",
+  "coordinate": "아-5",
+  "status": "bounded_training_workflow_ready",
+  "workflow_rows": [
+    {
+      "id": "dataset_registry",
+      "evidence": "nuri_gym_dataset_registry_v1",
+      "gate": "python tests/run_roadmap_v2_a4_dataset_registry_check.py"
+    },
+    {
+      "id": "python_web_parity",
+      "evidence": "nurigym_python_web_parity_v1",
+      "gate": "python tests/run_roadmap_v2_a3_nurigym_python_web_parity_check.py"
+    },
+    {
+      "id": "train_artifact",
+      "evidence": "v25_first_ai_production_path_v1",
+      "dataset_hash": "sha256:34289c2282de6f9b8f4869a20fa48dff68ff4f3b49f2d0340178c321b2aad313",
+      "train_config_hash": "sha256:f1fa1631454ff53d02298dbd6520517f6413efe5822da99bb4581d4f266c01ca",
+      "train_report_hash": "sha256:699d0d818e88825e03f171bb9a20b915198bdee263ea41eea48e04c147eefb94",
+      "weights_hash": "sha256:78b34a7b30d2edc742e93a731c8b42cf84ac5065620fb24197aeb43cb4a2541a"
+    },
+    {
+      "id": "eval_artifact",
+      "evidence": "gogae8_w87_eval_suite_v1",
+      "gate": "python tests/run_train_eval_provenance_check.py"
+    },
+    {
+      "id": "runtime_infer",
+      "evidence": "v25_first_ai_production_path_v1",
+      "model_hash": "blake3:f69dbfcb8ca34df7d92fc0569aa08cbb5ef402adf640089e1ea31d6d235313ba",
+      "output": [17352]
+    }
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 78,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 87,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 80,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 89,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "online_rl_training_claim": false,
+    "broad_curriculum_rl_claim": false,
+    "optimizer_autodiff_claim": false,
+    "public_model_registry_publish_claim": false,
+    "cloud_execution_claim": false,
+    "nurigym_runtime_change": false,
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false
+  }
+}

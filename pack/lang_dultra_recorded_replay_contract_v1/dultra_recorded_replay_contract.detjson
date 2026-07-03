@@ -1,0 +1,205 @@
+{
+  "schema": "ddn.language.dultra_recorded_replay_contract.v1",
+  "work_item": "LANG_DULTRA_RECORDED_REPLAY_CONTRACT_PACK_V1",
+  "based_on": "LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1",
+  "dultra_recorded_replay_contract_pack_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "dultra_solver_runtime_landed_claim": false,
+  "recorded_replay_runtime_landed_claim": false,
+  "dstrict_truth_claim": false,
+  "dae_solver_current_line_claim": false,
+  "adaptive_solver_current_line_claim": false,
+  "external_solver_current_line_claim": false,
+  "source_dstrict_dultra_solver_strategy": "pack/lang_dstrict_dultra_solver_strategy_proposal_v1/dstrict_dultra_solver_strategy_proposal.detjson",
+  "source_velocity_verlet_fixed64_order": "pack/lang_velocity_verlet_fixed64_order_v1/velocity_verlet_fixed64_order.detjson",
+  "source_dultra_recorded_contract": "docs/context/proposals/PROPOSAL_DULTRA_SOLVER_STRATEGY_RECORDED_CONTRACT_V1_20260524.md",
+  "source_deterministic_solver_methods": "docs/context/proposals/PROPOSAL_DETERMINISTIC_SOLVER_METHODS_V1_20260524.md",
+  "source_ai_det_tier_capability_matrix": "pack/ai_det_tier_capability_matrix_v1/README.md",
+  "dultra_policy": {
+    "includes_solver_strategy_relaxation": true,
+    "performance_expressivity_first": true,
+    "recorded_replay_contract_required": true,
+    "must_not_claim_dstrict_truth": true,
+    "runtime_landed": false
+  },
+  "candidate_solver_strategies": [
+    "DAE solver",
+    "adaptive solver",
+    "external numerical solver",
+    "SIMD / Float32 backend",
+    "engine-assisted preview solver"
+  ],
+  "required_contract_sections": [
+    {
+      "id": "solver_identity",
+      "required_fields": ["solver_id", "solver_version", "backend", "build_fingerprint", "configuration_hash"],
+      "reason": "replay must bind to the exact solver strategy and configuration"
+    },
+    {
+      "id": "initial_context",
+      "required_fields": ["initial_state_hash", "input_sequence_hash", "model_source_hash", "time_horizon"],
+      "reason": "replay must start from a named state and source context"
+    },
+    {
+      "id": "input_sequence",
+      "required_fields": ["ordered_events", "deterministic_indexes", "input_snapshot_hash"],
+      "reason": "event order must be recoverable"
+    },
+    {
+      "id": "step_trace",
+      "required_fields": ["adaptive_step_choices", "solver_trace_summary", "accepted_step_count", "rejected_step_count"],
+      "reason": "adaptive or external strategies need trace evidence"
+    },
+    {
+      "id": "normalization_metadata",
+      "required_fields": ["external_result_normalization", "unit_policy", "precision_policy", "serialization_policy"],
+      "reason": "external outputs need normalized comparison boundaries"
+    },
+    {
+      "id": "failure_diag",
+      "required_fields": ["failure_state", "diag_code", "warnings", "replay_confidence"],
+      "reason": "failed or partial replay must be diagnosable"
+    },
+    {
+      "id": "claim_boundary",
+      "required_fields": ["dultra_replay_scope", "dstrict_truth_claim", "current_line_support_claim"],
+      "reason": "D-ULTRA replay must not be described as D-STRICT truth"
+    }
+  ],
+  "sample_recorded_replay_stub": {
+    "solver_identity": {
+      "solver_id": "dultra.preview.external_ode_stub",
+      "solver_version": "0.0-recorded-contract",
+      "backend": "external_stub",
+      "build_fingerprint": "not-runtime-landed",
+      "configuration_hash": "sha256:contract-only"
+    },
+    "initial_context": {
+      "initial_state_hash": "sha256:initial-state-placeholder",
+      "input_sequence_hash": "sha256:input-sequence-placeholder",
+      "model_source_hash": "sha256:model-source-placeholder",
+      "time_horizon": "contract-only"
+    },
+    "input_sequence": {
+      "ordered_events": [],
+      "deterministic_indexes": true,
+      "input_snapshot_hash": "sha256:input-snapshot-placeholder"
+    },
+    "step_trace": {
+      "adaptive_step_choices": "required_when_adaptive",
+      "solver_trace_summary": "required_for_external_or_engine_assisted",
+      "accepted_step_count": "recorded",
+      "rejected_step_count": "recorded"
+    },
+    "normalization_metadata": {
+      "external_result_normalization": "required",
+      "unit_policy": "required",
+      "precision_policy": "required",
+      "serialization_policy": "required"
+    },
+    "failure_diag": {
+      "failure_state": "required",
+      "diag_code": "required",
+      "warnings": [],
+      "replay_confidence": "recorded_trace_only"
+    },
+    "claim_boundary": {
+      "dultra_replay_scope": "recorded_trace_replay_or_audit_only",
+      "dstrict_truth_claim": false,
+      "current_line_support_claim": false
+    }
+  },
+  "allowed_claims": [
+    "recorded_trace_can_be_replayed_or_audited_under_recorded_configuration",
+    "dultra_contract_fields_are_pack_specified"
+  ],
+  "forbidden_claims": [
+    "D_ULTRA_result_is_D_STRICT_bit_perfect_truth",
+    "external_DAE_solver_is_current_line_core_solver",
+    "adaptive_solver_replay_without_trace",
+    "runtime_recorded_replay_implementation_landed",
+    "stdlib_surface_landed",
+    "parser_frontdoor_landed",
+    "docs_ssot_edited_by_codex"
+  ],
+  "evidence_rows": [
+    {
+      "id": "solver_strategy_source",
+      "path": "pack/lang_dstrict_dultra_solver_strategy_proposal_v1/dstrict_dultra_solver_strategy_proposal.detjson",
+      "tokens": ["D-ULTRA", "recorded replay contract", "solver id / version / configuration"],
+      "classification": "source_policy_anchor"
+    },
+    {
+      "id": "velocity_verlet_prior_item",
+      "path": "pack/lang_velocity_verlet_fixed64_order_v1/velocity_verlet_fixed64_order.detjson",
+      "tokens": ["LANG_DULTRA_RECORDED_REPLAY_CONTRACT_PACK_V1", "recorded_replay_contract_landed_claim"],
+      "classification": "prior_queue_anchor"
+    },
+    {
+      "id": "dultra_recorded_contract_source",
+      "path": "docs/context/proposals/PROPOSAL_DULTRA_SOLVER_STRATEGY_RECORDED_CONTRACT_V1_20260524.md",
+      "tokens": ["D-ULTRA", "recorded replay contract", "solver id / version / configuration", "failure/diag code"],
+      "classification": "proposal_anchor"
+    },
+    {
+      "id": "deterministic_solver_methods_source",
+      "path": "docs/context/proposals/PROPOSAL_DETERMINISTIC_SOLVER_METHODS_V1_20260524.md",
+      "tokens": ["RK45/adaptive", "D-FAST/D-ULTRA", "D-STRICT claim 금지", "recorded replay contract 필요"],
+      "classification": "solver_boundary_anchor"
+    },
+    {
+      "id": "ai_det_tier_boundary",
+      "path": "pack/ai_det_tier_capability_matrix_v1/README.md",
+      "tokens": ["D-ULTRA", "auto-open license"],
+      "classification": "capability_boundary_anchor"
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "dultra_solver_runtime_landed",
+    "recorded_replay_runtime_landed",
+    "dstrict_truth_claim",
+    "dae_solver_current_line",
+    "adaptive_solver_current_line",
+    "external_solver_current_line"
+  ],
+  "implementation_readiness_followup_plan": {
+    "closed": 5,
+    "total": 6,
+    "percent": 83
+  },
+  "dultra_recorded_replay_contract_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 52,
+    "total": 90,
+    "percent": 58
+  },
+  "next_item": "LANG_OWNER_INNER_SEUM_PARSER_BOUNDARY_SPIKE_V1"
+}

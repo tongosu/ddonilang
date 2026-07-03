@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.std_grid_game_state_minimum.pack.contract.v1",
+  "id": "std_grid_game_state_minimum_v1",
+  "public_surface_added": [
+    "격자게임상태.초기화",
+    "격자게임상태.만들기",
+    "격자게임상태.상태",
+    "격자게임상태.틱",
+    "격자게임상태.상태인가",
+    "격자게임상태.바꾸기",
+    "격자게임상태.멈춤",
+    "격자게임상태.재개"
+  ],
+  "allowed_states": [
+    "준비",
+    "진행",
+    "잠금지연",
+    "정리",
+    "끝",
+    "멈춤"
+  ],
+  "representation": {
+    "__종류": "std_grid_game_state",
+    "상태": "current state text",
+    "이전상태": "previous state for pause/resume",
+    "틱": "transition count"
+  },
+  "bundled_packs": [
+    "std_grid_game_state_lifecycle_v1",
+    "std_grid_game_state_pause_resume_v1"
+  ],
+  "non_scope": [
+    "callback surface",
+    "event surface",
+    "full game state machine syntax",
+    "connect flow semantics"
+  ]
+}
+

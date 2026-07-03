@@ -1,0 +1,12 @@
+보개_그림판_가로 <- 32.
+보개_그림판_세로 <- 32.
+보개_바탕색 <- "#101820ff".
+보개_그림판_목록 <- [(id="sa2.hero", 결="#보개/2D.Sprite", x=8, y=8, w=16, h=16, uri="sym:sa2.hero", 색="#ffffffff")].
+
+"SA2_SPRITE_SKIN_MINIMUM_PACK_V1" 보여주기.
+"sprite uri: sym:sa2.hero" 보여주기.
+"stage: 4/4 = 100%" 보여주기.
+"roadmap matrix behavior: 0/90 = 0%" 보여주기.
+"pack evidence reference: 21/90 = 23%" 보여주기.
+"studio local super-long: 5/18 = 28%" 보여주기.
+보개로 그려.

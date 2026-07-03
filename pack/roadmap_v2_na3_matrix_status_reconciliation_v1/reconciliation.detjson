@@ -1,0 +1,76 @@
+{
+  "schema": "ddn.roadmap_v2.na3_matrix_status_reconciliation.v1",
+  "id": "ROADMAP_V2_NA3_MATRIX_STATUS_RECONCILIATION_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "나-3",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "resource": {
+      "closure": "STD_RESOURCE_NETWORK_POLICY_MINIMUM_V1",
+      "source_pack": "pack/std_resource_network_policy_minimum_v1",
+      "support_pack": "pack/stdlib_missing_coverage_io_v1",
+      "checker": "tests/run_std_resource_network_policy_minimum_check.py"
+    },
+    "network": {
+      "closure": "STD_RESOURCE_NETWORK_POLICY_MINIMUM_V1",
+      "source_pack": "pack/eco_network_flow_smoke",
+      "checker": "tests/run_std_resource_network_policy_minimum_check.py"
+    },
+    "policy": {
+      "closure": "STD_RESOURCE_NETWORK_POLICY_MINIMUM_V1",
+      "source_packs": [
+        "pack/social_world_econ_2_v1",
+        "pack/social_world_econ_3_v1"
+      ],
+      "checker": "tests/run_std_resource_network_policy_minimum_check.py"
+    },
+    "rebase_checker": "tests/run_roadmap_v2_na3_resource_network_policy_rebase_check.py"
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/나-3_RECONCILIATION_REPORT_20260608.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "NA3 matrix reconciliation",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 39,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 43,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "next_item": "ROADMAP_V2_POST_NA3_FRONTIER_REBASE_V1",
+    "reason": "나-3 now has minimum resource/network/policy evidence and matrix status is reconciled; the next frontier should be selected without assuming new implementation is required for already PASSing downstream packs",
+    "not_next": "POLICY_ADVICE_OR_LIVE_DEPLOYMENT"
+  },
+  "false_claims": {
+    "new_stdlib_surface": false,
+    "parser_frontdoor_change": false,
+    "runtime_surface_change": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "policy_advice": false,
+    "real_world_prediction": false,
+    "live_policy_deployment": false,
+    "social_world_ui_as_stdlib_closure": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_full_completion": false,
+    "studio_full_completion": false,
+    "docs_ssot_change": false
+  }
+}

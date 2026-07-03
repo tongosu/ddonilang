@@ -1,0 +1,69 @@
+{
+  "schema": "ddn.std_resource_network_policy_minimum.pack.contract.v1",
+  "pack_id": "std_resource_network_policy_minimum_v1",
+  "roadmap_coordinate": "나-3",
+  "evidence_tier": "pack_evidence_only",
+  "matrix_closure_claim": false,
+  "matrix_closure_tier": "닫힘-문서/pack-evidence",
+  "roadmap_matrix_increment": false,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "public_surface_added": false,
+  "current_stage": "STD resource/network/policy minimum",
+  "current_stage_closed": 5,
+  "current_stage_total": 5,
+  "current_stage_percent": 100,
+  "roadmap_v2_matrix_behavior_closed": 38,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 42,
+  "roadmap_v2_pack_evidence_reference_closed": 59,
+  "roadmap_v2_pack_evidence_reference_total": 90,
+  "roadmap_v2_pack_evidence_reference_percent": 66,
+  "studio_local_super_long_closed": 9,
+  "studio_local_super_long_total": 18,
+  "studio_local_super_long_percent": 50,
+  "axes": {
+    "resource": {
+      "representative_surface": "자원",
+      "required_packs": [
+        "stdlib_missing_coverage_io_v1",
+        "age1_container_resource"
+      ],
+      "claim": "deterministic resource handle only"
+    },
+    "network": {
+      "representative_surface": "eco network-flow",
+      "required_packs": [
+        "eco_network_flow_smoke"
+      ],
+      "claim": "network flow smoke and SFC diagnostic evidence only"
+    },
+    "policy": {
+      "representative_surface": "social_world_policy_ghost_ui",
+      "required_packs": [
+        "social_world_econ_2_v1",
+        "social_world_econ_3_v1"
+      ],
+      "claim": "policy ghost comparison evidence only"
+    }
+  },
+  "excluded_drift_gates": [
+    "seamgrim_exec_policy_effect_map_v1",
+    "open_decl_policy",
+    "open_deny_policy",
+    "seamgrim_exec_policy_effect_diag_v1"
+  ],
+  "false_claims": {
+    "na3_matrix_behavior_closed": false,
+    "policy_advice": false,
+    "real_world_prediction": false,
+    "live_policy_deployment": false,
+    "new_runtime_semantics": false,
+    "parser_frontdoor_change": false,
+    "social_world_ui_as_stdlib_closure": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "ROADMAP_V2_NA3_MATRIX_STATUS_RECONCILIATION_V1",
+  "requires_docs_ssot_clean": true
+}

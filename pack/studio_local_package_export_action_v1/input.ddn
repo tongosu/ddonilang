@@ -1,0 +1,9 @@
+설정 { 제목: "Studio local package export action". }.
+
+채비 {
+  t:수 <- 0.
+}.
+
+(매마디)마다 {
+  t 보여주기.
+}.

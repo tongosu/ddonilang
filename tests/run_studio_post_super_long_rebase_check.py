@@ -21,6 +21,7 @@ APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_post_super_long_rebase_runner.mjs"
 SOURCE_CHECK = ROOT / "tests" / "run_studio_productization_stage_closure_check.py"
 NEXT = "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1"
@@ -239,7 +240,7 @@ def check_product_tokens() -> None:
     )
     require_contains(DEV_SURFACES_JS, ["post-super-long-rebase", "elementId: \"post-super-long-rebase\""])
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
-    require_contains(STYLES_CSS, [".post-super-long-rebase", ".post-super-rebase-btn.active"])
+    require_contains(DEV_SURFACES_CSS, [".post-super-long-rebase", ".post-super-rebase-btn.active"])
     require_contains(RUNNER, ["studio_post_super_long_rebase: ok", "post_super_long_rebased", "followup\\t1/8"])
 
 

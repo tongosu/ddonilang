@@ -1,0 +1,52 @@
+{
+  "schema": "ddn.education.representative_teaching_smoke.v1",
+  "work_item": "HA1_REPRESENTATIVE_TEACHING_SMOKE_V1",
+  "primary_coordinate": "하-1",
+  "pack": "education_curriculum_1_v1",
+  "status": "representative_teaching_smoke_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 57,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 63,
+    "roadmap_v2_pack_evidence_reference_closed": 60,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 67,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "representatives": [
+    {
+      "subject": "math",
+      "pack": "edu_s1_function_graph",
+      "requires": ["lesson.ddn", "meta.toml", "view_spec.toml", "teacher_notes.md", "student_sheet.md"]
+    },
+    {
+      "subject": "physics",
+      "pack": "edu_p1_constant_accel",
+      "requires": ["lesson.ddn", "meta.toml", "view_spec.toml", "teacher_notes.md", "student_sheet.md"]
+    },
+    {
+      "subject": "economics",
+      "pack": "edu_e1_supply_demand_tax",
+      "requires": ["lesson.ddn", "meta.toml", "view_spec.toml", "teacher_notes.md", "student_sheet.md"]
+    }
+  ],
+  "false_claims": {
+    "new_education_runtime": false,
+    "lesson_authoring_ui_change": false,
+    "classroom_ui_change": false,
+    "publication_workflow_claim": false,
+    "ssot_textbook_rewrite_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "docs_ssot_change": false
+  }
+}

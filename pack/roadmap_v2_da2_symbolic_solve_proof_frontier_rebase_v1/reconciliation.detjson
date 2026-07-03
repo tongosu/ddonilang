@@ -1,0 +1,71 @@
+{
+  "schema": "ddn.roadmap_v2.da2_symbolic_solve_proof_frontier_rebase.v1",
+  "id": "ROADMAP_V2_DA2_SYMBOLIC_SOLVE_PROOF_FRONTIER_REBASE_V1",
+  "date": "2026-06-08",
+  "coordinate": "다-2",
+  "matrix_status_before": "진행",
+  "matrix_status_after": "닫힘-동작",
+  "progress": {
+    "current_stage": "DA2 symbolic/solve/proof frontier rebase",
+    "current_stage_closed": 7,
+    "current_stage_total": 7,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 47,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 52,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": true,
+    "roadmap_matrix_increment": true,
+    "math_runtime_change": false,
+    "math_surface_change": false,
+    "guide_status_change": true,
+    "docs_ssot_change": false
+  },
+  "lanes": {
+    "solve": [
+      "formula_relation_solve_v1",
+      "relation_solve_system_2x2_v1",
+      "relation_solve_ddn_bridge_v2",
+      "relation_solve_wasm_cli_parity_v2",
+      "polynomial_solve_minimum_v1",
+      "numeric_root_finding_bisection_v1",
+      "linear_inequality_solve_minimum_v1"
+    ],
+    "symbolic": [
+      "symbolic_relation_canon_v1",
+      "symbolic_ddn_formula_bridge_v1",
+      "symbolic_ddn_cli_parity_v1",
+      "symbolic_rational_expr_v1",
+      "symbolic_multivar_polynomial_v1",
+      "symbolic_polynomial_simplify_v1",
+      "symbolic_expand_factor_v1",
+      "symbolic_diff_integral_v1",
+      "symbolic_equivalence_v1"
+    ],
+    "proof": [
+      "proof_ddn_relation_bridge_v1",
+      "proof_relation_equivalence_v1",
+      "proof_relation_solve_consistency_v1",
+      "proof_seum_runtime_bridge_v1",
+      "proof_numeric_factor_certificate_strength_v1",
+      "proof_tactic_symbolic_eq_v1",
+      "proof_tactic_rewrite_chain_v1",
+      "proof_ddn_jeunggeo_bridge_v1",
+      "proof_runtime_smoke_v1",
+      "proof_guard_tick_v1",
+      "proof_guard_rollback_v1",
+      "proof_alert_continue_v1"
+    ]
+  },
+  "selected_next_work": "ROADMAP_V2_DA3_SEAMGRIM_MATH_VIEW_FRONTIER_REBASE_V1"
+}

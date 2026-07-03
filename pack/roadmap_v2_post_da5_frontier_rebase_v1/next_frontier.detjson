@@ -1,0 +1,40 @@
+{
+  "schema": "ddn.roadmap_v2.post_da5_frontier_rebase.v1",
+  "id": "ROADMAP_V2_POST_DA5_FRONTIER_REBASE_V1",
+  "date": "2026-06-08",
+  "selected_next_work": "SEAMGRIM_MALBLOCK_ROUNDTRIP_SUBSET_QUEUE_GUARD_REPAIR_V1",
+  "selected_coordinate": "라-2",
+  "rejected_work": "LA2_MATRIX_RECONCILIATION_WITH_STALE_QUEUE_GUARD",
+  "progress": {
+    "current_stage": "ROADMAP_V2 post-DA5 frontier rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 50,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 56,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "malblock_runtime_change": false,
+    "malblock_ui_change": false,
+    "legacy_queue_guard_repair_claim": false,
+    "la2_matrix_reconciliation_claim": false,
+    "docs_ssot_change": false
+  },
+  "observed_blocker": {
+    "checker": "tests/run_seamgrim_malblock_roundtrip_subset_check.py",
+    "expected_failure_token": "Approval-gated",
+    "classification": "stale_queue_guard"
+  }
+}

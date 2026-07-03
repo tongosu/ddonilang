@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update gogae9_w89_self_evolving_code gogae9_w99_evolving_universe
+pack golden updated

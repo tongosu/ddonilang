@@ -1,0 +1,127 @@
+{
+  "schema": "ddn.language.velocity_verlet_stdlib_surface_acceptance.v1",
+  "work_item": "LANG_VELOCITY_VERLET_STDLIB_SURFACE_ACCEPTANCE_V1",
+  "based_on": "LANG_DULTRA_REPLAY_ARTIFACT_WRITER_SEED_V1",
+  "source_velocity_verlet_runtime_gate_rebase": "pack/lang_velocity_verlet_runtime_gate_rebase_v1/velocity_verlet_runtime_gate_rebase.detjson",
+  "source_velocity_verlet_fixed64_order": "pack/lang_velocity_verlet_fixed64_order_v1/velocity_verlet_fixed64_order.detjson",
+  "source_dultra_replay_artifact_writer_seed": "pack/lang_dultra_replay_artifact_writer_seed_v1/dultra_replay_artifact_writer_seed.detjson",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": true,
+  "ssot_edit_claim": false,
+  "velocity_verlet_stdlib_surface_landed_claim": true,
+  "velocity_verlet_runtime_landed_claim": false,
+  "velocity_verlet_cli_wasm_parity_claim": false,
+  "dae_solver_current_line_claim": false,
+  "adaptive_solver_current_line_claim": false,
+  "external_solver_current_line_claim": false,
+  "dultra_replay_runtime_landed_claim": false,
+  "accepted_surfaces": [
+    {
+      "surface": "적분.속도베를레",
+      "status": "accepted",
+      "canonical": true,
+      "stdlib_landed_now": true,
+      "runtime_landed": false
+    },
+    {
+      "surface": "적분.속도_베를레",
+      "status": "accepted_alias",
+      "alias_for": "적분.속도베를레",
+      "stdlib_landed_now": true,
+      "runtime_landed": false
+    }
+  ],
+  "signature": {
+    "canonical": "적분.속도베를레",
+    "alias": "적분.속도_베를레",
+    "params": ["위치", "속도", "가속도", "다음가속도", "dt"],
+    "ret": "(다음위치, 다음속도)"
+  },
+  "required_operation_order": [
+    {"step": 1, "id": "dt_half", "formula": "dt_half = dt / 2"},
+    {"step": 2, "id": "a0", "formula": "a0 = accel(x0)"},
+    {"step": 3, "id": "v_half", "formula": "v_half = v0 + a0 * dt_half"},
+    {"step": 4, "id": "x1", "formula": "x1 = x0 + v_half * dt"},
+    {"step": 5, "id": "a1", "formula": "a1 = accel(x1)"},
+    {"step": 6, "id": "v1", "formula": "v1 = v_half + a1 * dt_half"},
+    {"step": 7, "id": "energy_indicator", "formula": "energy_indicator = x * x + v * v"}
+  ],
+  "runtime_boundary": {
+    "teul_cli_runtime_arm_landed": false,
+    "tool_runtime_arm_landed": false,
+    "cli_wasm_parity_landed": false,
+    "baseline_runtime_integrators_unchanged": ["적분.오일러", "적분.반암시적오일러", "적분.사다리꼴"]
+  },
+  "product_anchor_rows": [
+    {
+      "id": "stdlib_signature",
+      "path": "lang/src/stdlib.rs",
+      "tokens": ["적분.속도베를레", "적분.속도_베를레", "velocity_verlet_stdlib_surface_acceptance_v1_signature_is_present", "canonicalize_stdlib_alias"],
+      "changed_now": true
+    },
+    {
+      "id": "velocity_gate_source",
+      "path": "pack/lang_velocity_verlet_runtime_gate_rebase_v1/velocity_verlet_runtime_gate_rebase.detjson",
+      "tokens": ["candidate_public_surfaces", "적분.속도베를레", "velocity_verlet_runtime_landed_claim"],
+      "changed_now": false
+    },
+    {
+      "id": "fixed64_order_source",
+      "path": "pack/lang_velocity_verlet_fixed64_order_v1/velocity_verlet_fixed64_order.detjson",
+      "tokens": ["operation_order", "energy1", "속도 베를레"],
+      "changed_now": false
+    },
+    {
+      "id": "runtime_baseline_unchanged",
+      "path": "tools/teul-cli/src/runtime/eval.rs",
+      "tokens": ["적분.오일러", "적분.반암시적오일러", "적분.사다리꼴"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "velocity_verlet_runtime_landed",
+    "velocity_verlet_cli_wasm_parity_landed",
+    "dae_solver_current_line",
+    "adaptive_solver_current_line",
+    "external_solver_current_line",
+    "dultra_replay_runtime_landed"
+  ],
+  "language_product_path_transition_plan": {
+    "closed": 6,
+    "total": 7,
+    "percent": 86
+  },
+  "velocity_verlet_stdlib_surface_acceptance": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 65,
+    "total": 90,
+    "percent": 72
+  },
+  "next_item": "LANG_TUCK_SSOT_ACCEPTANCE_HANDOFF_V1"
+}
+

@@ -1,0 +1,17 @@
+종류 <- "std_grid_game_bogae_viewer_js_live_input_v1".
+환경 <- "node_fake_dom".
+라이브 <- "data-live=1".
+입력주소 <- "input_url_port_placeholder".
+내림 <- "keydown_arrowleft_down".
+반복검증 <- "repeat_keydown_no_duplicate".
+올림 <- "keyup_arrowleft_up".
+초기화 <- "blur_visibility_clear".
+
+종류 보여주기.
+환경 보여주기.
+라이브 보여주기.
+입력주소 보여주기.
+내림 보여주기.
+반복검증 보여주기.
+올림 보여주기.
+초기화 보여주기.

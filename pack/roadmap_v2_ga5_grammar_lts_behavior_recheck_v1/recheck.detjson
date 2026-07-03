@@ -1,0 +1,43 @@
+{
+  "schema": "ddn.roadmap_v2.behavior_recheck.v1",
+  "work_item": "GA5_GRAMMAR_LTS_BEHAVIOR_RECHECK_V1",
+  "coordinate": "가-5",
+  "title": "LTS 문법선",
+  "previous_status": "닫힘-문서",
+  "new_status": "닫힘-문서",
+  "status": "docs_closed",
+  "behavior_closed": false,
+  "basis": [
+    "GA5 docs-closed reconciliation remains valid",
+    "gogae9_w98_release_gate is draft",
+    "release gate golden is absent"
+  ],
+  "progress": {
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 85,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 94,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 88,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 98,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "roadmap_behavior_increment": false,
+    "release_gate_execution_claim": false,
+    "full_lts_certification_claim": false,
+    "public_release_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "next_item": "ROADMAP_V2_LA0_MALBLOCK_DESIGN_BEHAVIOR_RECHECK_V1"
+}

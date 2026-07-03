@@ -1,0 +1,156 @@
+{
+  "schema": "ddn.language.connect_lowering_to_seum_check.v1",
+  "work_item": "LANG_CONNECT_LOWERING_TO_SEUM_CHECK_V1",
+  "based_on": "LANG_OWNER_INNER_SEUM_STRUCTURE_CHECK_V1",
+  "connect_lowering_to_seum_check_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "connect_lowering_parser_landed_claim": false,
+  "connect_lowering_runtime_landed_claim": false,
+  "connect_block_landed_claim": false,
+  "flow_sign_convention_closed_claim": false,
+  "source_priority_rebase": "pack/language_design_priority_rebase_v1/language_design_priority_rebase.detjson",
+  "source_owner_inner_seum": "pack/lang_owner_inner_seum_structure_check_v1/owner_inner_seum_structure_check.detjson",
+  "source_connect_proposal": "docs/context/proposals/PROPOSAL_CONNECT_KOREAN_INNER_SENTENCE_SURFACE_V1_20260524.md",
+  "source_flow_conflict_proposal": "docs/context/proposals/PROPOSAL_CONNECT_FLOW_TERM_CONFLICT_HEULEUGE_V1_20260524.md",
+  "manuscript_seed_doc": "docs/context/manuscripts/ddonirang_series/03_실행과_시뮬레이션/CONNECT_LOWERING_TO_SEUM_SEED_V1.md",
+  "surface_seed": {
+    "source_surface": "전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.",
+    "target_surface": "세움",
+    "connect_is_new_block": false,
+    "parser_landed": false,
+    "runtime_landed": false,
+    "publication_ready": false
+  },
+  "lowering_rows": [
+    {
+      "id": "voltage_across_equal",
+      "source_inner_sentence": "전압은 같게",
+      "rule": "X은/는 같게 -> A.X =:= B.X",
+      "lowered_row": "전지.양극.전압 =:= 전구.왼핀.전압.",
+      "classification": "equality_relation",
+      "parser_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "current_flow_conservation",
+      "source_inner_sentence": "전류는 흐르게",
+      "rule": "Y은/는 흐르게 -> A.Y + B.Y =:= 0",
+      "lowered_row": "전지.양극.전류 + 전구.왼핀.전류 =:= 0.",
+      "classification": "signed_conservation_relation",
+      "parser_landed": false,
+      "runtime_landed": false
+    }
+  ],
+  "non_core_surfaces": [
+    {
+      "surface": "잇기 {}",
+      "status": "rejected",
+      "reason": "connect remains sentence sugar, not a block"
+    },
+    {
+      "surface": "실리게",
+      "status": "follow_on_only",
+      "reason": "not V1 core lowering"
+    },
+    {
+      "surface": "흐름포트",
+      "status": "rejected",
+      "reason": "do not register 흐름 as a new connect flow noun"
+    }
+  ],
+  "example_block": [
+    "전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.",
+    "",
+    "세움 {",
+    "  전지.양극.전압 =:= 전구.왼핀.전압.",
+    "  전지.양극.전류 + 전구.왼핀.전류 =:= 0.",
+    "}."
+  ],
+  "evidence_rows": [
+    {
+      "id": "priority_rebase_connect_guardrail",
+      "path": "pack/language_design_priority_rebase_v1/language_design_priority_rebase.detjson",
+      "tokens": ["connect_is_seum_sugar", "잇기", "connect lowers to equations"],
+      "classification": "identity_guardrail",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "owner_inner_seum_prior_item",
+      "path": "pack/lang_owner_inner_seum_structure_check_v1/owner_inner_seum_structure_check.detjson",
+      "tokens": ["LANG_CONNECT_LOWERING_TO_SEUM_CHECK_V1", "세움", "queue_plan"],
+      "classification": "prior_queue_anchor",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "connect_korean_surface_proposal",
+      "path": "docs/context/proposals/PROPOSAL_CONNECT_KOREAN_INNER_SENTENCE_SURFACE_V1_20260524.md",
+      "tokens": ["전지.양극과 전구.왼핀을", "전압은 같게", "전류는 흐르게", "전지.양극.전압 =:= 전구.왼핀.전압.", "잇기 {}"],
+      "classification": "prior_connect_lowering_proposal",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "connect_flow_term_conflict_proposal",
+      "path": "docs/context/proposals/PROPOSAL_CONNECT_FLOW_TERM_CONFLICT_HEULEUGE_V1_20260524.md",
+      "tokens": ["Y은/는 흐르게", "전지.양극.전류 + 전구.왼핀.전류 =:= 0.", "흐름포트", "실리게"],
+      "classification": "flow_term_boundary_proposal",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "existing_runtime_connect_relation_pack_boundary",
+      "path": "tool/src/ddn_runtime.rs",
+      "tokens": ["connect_endpoint_equal_runtime_stores_endpoint_relation_pack", "connect_endpoint_flow_runtime_stores_endpoint_flow_pack", "잇기"],
+      "classification": "existing_runtime_relation_pack_not_seum_lowering_claim",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "connect_lowering_parser_landed",
+    "connect_lowering_runtime_landed",
+    "connect_block_landed",
+    "flow_sign_convention_closed"
+  ],
+  "queue_plan": {
+    "closed": 7,
+    "total": 8,
+    "percent": 88
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_DSTRICT_DULTRA_SOLVER_STRATEGY_PROPOSAL_V1"
+}

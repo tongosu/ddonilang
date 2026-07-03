@@ -1,0 +1,108 @@
+{
+  "schema": "ddn.language.seum_vol3_prime_example_pack.v1",
+  "work_item": "LANG_SEUM_VOL3_PRIME_EXAMPLE_PACK_V1",
+  "based_on": "LANG_SIM_CONSTRAINT_THIRD_LAYER_NAME_V1",
+  "seum_vol3_prime_example_pack_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "prime_notation_parser_landed_claim": false,
+  "prime_notation_runtime_landed_claim": false,
+  "vol3_publication_landed_claim": false,
+  "connect_block_claim": false,
+  "source_prime_decision": "pack/lang_prime_derivative_notation_decision_v1/prime_derivative_notation_decision.detjson",
+  "source_constraint_name": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+  "manuscript_seed_doc": "docs/context/manuscripts/ddonirang_series/03_실행과_시뮬레이션/SEUM_PRIME_EXAMPLE_SEED_V1.md",
+  "example_pack": {
+    "target_volume": "3권_실행과_시뮬레이션",
+    "surface": "세움",
+    "teaching_goal": "model_first_simulation_intro",
+    "publication_ready": false,
+    "parser_landed": false,
+    "runtime_landed": false
+  },
+  "example_rows": [
+    {
+      "id": "position_prime_velocity",
+      "row": "위치' =:= 속도.",
+      "reading": "위치의 한 마디 변화는 속도다",
+      "derivative_order": 1,
+      "preferred_for_vol3_intro": true,
+      "parser_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "velocity_prime_acceleration",
+      "row": "속도' =:= 가속도.",
+      "reading": "속도의 한 마디 변화는 가속도다",
+      "derivative_order": 1,
+      "preferred_for_vol3_intro": true,
+      "parser_landed": false,
+      "runtime_landed": false
+    },
+    {
+      "id": "position_double_prime_acceleration",
+      "row": "위치'' =:= 가속도.",
+      "reading": "위치의 두 번째 변화는 가속도다",
+      "derivative_order": 2,
+      "preferred_for_vol3_intro": true,
+      "parser_landed": false,
+      "runtime_landed": false
+    }
+  ],
+  "contrast_rows": [
+    {
+      "id": "procedural_position_update",
+      "row": "위치 <- 위치 + 속도.",
+      "classification": "procedural_update_contrast",
+      "preferred_for_vol3_intro": false
+    }
+  ],
+  "example_block": [
+    "세움 {",
+    "  위치' =:= 속도.",
+    "  속도' =:= 가속도.",
+    "  위치'' =:= 가속도.",
+    "}."
+  ],
+  "teaching_sequence": [
+    "read_position_prime_as_change",
+    "connect_velocity_prime_to_acceleration",
+    "show_double_prime_as_compact_second_change",
+    "contrast_with_assignment_update",
+    "defer_execution_until_parser_runtime_support"
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "prime_notation_parser_landed",
+    "prime_notation_runtime_landed",
+    "vol3_publication_landed",
+    "connect_block_addition"
+  ],
+  "queue_plan": {
+    "closed": 5,
+    "total": 8,
+    "percent": 63
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_OWNER_INNER_SEUM_STRUCTURE_CHECK_V1"
+}

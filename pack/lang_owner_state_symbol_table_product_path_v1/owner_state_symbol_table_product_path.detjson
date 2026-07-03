@@ -1,0 +1,109 @@
+{
+  "schema": "ddn.language.owner_state_symbol_table_product_path.v1",
+  "work_item": "LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1",
+  "based_on": "LANG_PRIME_DERIVATIVE_RUNTIME_SEMANTICS_GATE_V1",
+  "source_prime_derivative_runtime_semantics_gate": "pack/lang_prime_derivative_runtime_semantics_gate_v1/prime_derivative_runtime_semantics_gate.detjson",
+  "source_owner_inner_seum_runtime_scope": "pack/lang_owner_inner_seum_runtime_scope_rebase_v1/owner_inner_seum_runtime_scope_rebase.detjson",
+  "owner_state_symbol_table_product_path_claim": true,
+  "owner_state_symbol_table_helper_landed_claim": true,
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "runtime_owner_state_symbol_table_landed_claim": false,
+  "derivative_semantics_landed_claim": false,
+  "derivative_runtime_product_path_landed_claim": false,
+  "seum_equation_solver_landed_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "product_helper": {
+    "api": "ddonirang_lang::owner_state_symbol_table_rows",
+    "path": "lang/src/frontdoor.rs",
+    "export_path": "lang/src/lib.rs",
+    "product_path": true,
+    "runtime_landed": false,
+    "parser_grammar_changed": false
+  },
+  "row_contract": {
+    "format": "owner=<owner>;symbol=<name>;type=<type>;kind=<state|constant>;initializer=<expr|<unset>>",
+    "ordering": "source_order_within_owner_body",
+    "owner_scope": "top_level_seed_kind_named_imja_only",
+    "event_body_policy": "receive_bodies_excluded",
+    "surface_keyword_preserved": false,
+    "surface_keyword_note": "AST currently records owner-body 성질 and 채비 as DeclBlock without preserving the original keyword"
+  },
+  "sample_rows": [
+    "owner=공;symbol=위치;type=수;kind=state;initializer=0",
+    "owner=공;symbol=속도;type=수;kind=state;initializer=0",
+    "owner=공;symbol=이름;type=글;kind=constant;initializer=\"공\""
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "frontdoor_helper",
+      "path": "lang/src/frontdoor.rs",
+      "tokens": ["owner_state_symbol_table_rows", "collect_owner_state_symbol_rows_from_body", "Event bodies are reaction code"],
+      "changed_now": true
+    },
+    {
+      "id": "lang_export_and_test",
+      "path": "lang/src/lib.rs",
+      "tokens": ["owner_state_symbol_table_rows", "imja_owner_state_symbol_table_rows_stay_owner_scoped"],
+      "changed_now": true
+    },
+    {
+      "id": "prime_semantics_gate_source",
+      "path": "pack/lang_prime_derivative_runtime_semantics_gate_v1/prime_derivative_runtime_semantics_gate.detjson",
+      "tokens": ["runtime_slot_classification", "relation_solver_boundary", "LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1"],
+      "changed_now": false
+    },
+    {
+      "id": "owner_inner_scope_source",
+      "path": "pack/lang_owner_inner_seum_runtime_scope_rebase_v1/owner_inner_seum_runtime_scope_rebase.detjson",
+      "tokens": ["owner_state_symbol_table", "prime_derivative_semantics", "equation_solver_binding"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_grammar_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "runtime_owner_state_symbol_table_landed",
+    "derivative_semantics_landed",
+    "derivative_runtime_product_path_landed",
+    "seum_equation_solver_landed",
+    "owner_inner_seum_runtime_landed"
+  ],
+  "language_product_path_transition_plan": {
+    "closed": 3,
+    "total": 7,
+    "percent": 43
+  },
+  "owner_state_symbol_table_product_path": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 62,
+    "total": 90,
+    "percent": 69
+  },
+  "next_item": "LANG_HISTORY_ALIAS_STDLIB_BRIDGE_V1"
+}

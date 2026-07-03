@@ -66,6 +66,14 @@ def ensure_contains(path: Path, snippets: tuple[str, ...]) -> None:
             raise ValueError(f"{path}: missing {snippet}")
 
 
+def ensure_contains_any(path: Path, snippet_groups: tuple[tuple[str, ...], ...]) -> None:
+    text = path.read_text(encoding="utf-8")
+    for snippets in snippet_groups:
+        if any(snippet in text for snippet in snippets):
+            continue
+        raise ValueError(f"{path}: missing one of {snippets}")
+
+
 def load_jsonl(path: Path) -> list[dict]:
     return [
         json.loads(line)
@@ -104,7 +112,14 @@ def main() -> int:
         if not any(isinstance(item, str) and item.startswith("bogae_hash=") for item in stdout):
             raise ValueError(f"{WEB_VIEWER_GOLDEN}: missing bogae_hash stdout")
 
-        ensure_contains(WEB_OUT_INPUT, ("살림.보개_그림판_가로", "살림.보개_바탕색", "생김새.결"))
+        ensure_contains_any(
+            WEB_OUT_INPUT,
+            (
+                ("살림.보개_그림판_가로", "보개_그림판_가로"),
+                ("살림.보개_바탕색", "보개_바탕색"),
+                ("생김새.결",),
+            ),
+        )
         golden = json.loads(WEB_OUT_GOLDEN.read_text(encoding="utf-8"))
         if golden.get("name") != "webout_001_manifest_hash":
             raise ValueError(f"{WEB_OUT_GOLDEN}: unexpected test name")

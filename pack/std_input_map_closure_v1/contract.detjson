@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.std_input_map_closure.pack.contract.v1",
+  "id": "std_input_map_closure_v1",
+  "public_surface_added": false,
+  "bundled_packs": [
+    "std_input_map_keyboard_v1",
+    "std_input_map_web_snapshot_v1"
+  ],
+  "fixture_pack": "input_key_alias_ko_v1",
+  "sam_fixture": "pack/input_key_alias_ko_v1/sam/key_alias.input.bin",
+  "stdlib_first_run_umbrella": "stdlib_1_v1",
+  "representative_stdout": [
+    "차림[1, 0]",
+    "참",
+    "거짓"
+  ],
+  "non_scope": [
+    "gamepad_touch_or_new_web_event_semantics",
+    "new_parser_lowering",
+    "connect_flow_inner_sentence"
+  ]
+}

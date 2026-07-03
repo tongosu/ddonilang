@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-post-super-long-rebase][data-post-super-long-rebase-status='post_super_long_rebased']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -136,14 +136,14 @@ async function main() {
     assert(rebase.public_release_claim === false, "must not claim public release");
     assert(rebase.followup_row_count === 8, `followup count mismatch: ${rebase.followup_row_count}`);
     assert(rebase.ready_stage_count === 5, `ready stage mismatch: ${rebase.ready_stage_count}`);
-    assert(rebase.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(rebase.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(rebase.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(rebase.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(rebase.progress.current_stage_closed === 1, "followup closed mismatch");
     assert(rebase.progress.current_stage_percent === 13, "followup percent mismatch");
-    assert(rebase.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(rebase.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(rebase.progress.roadmap_v2_behavior_closed === 51, "roadmap closed mismatch");
+    assert(rebase.progress.roadmap_v2_percent === 57, "roadmap percent mismatch");
     assert(rebase.next_item === "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1", "next item mismatch");
-    assert(String(moduleResult.text).includes("super_long\t18/18"), "formatted text missing super-long");
+    assert(String(moduleResult.text).includes("super_long\t9/18"), "formatted text missing super-long");
     assert(String(moduleResult.text).includes("followup\t1/8"), "formatted text missing followup");
     assert(String(moduleResult.text).includes("release_execution_claim\tfalse"), "formatted text missing release boundary");
 
@@ -171,7 +171,7 @@ async function main() {
     });
     assert(domResult.rootStatus === "post_super_long_rebased", `dom status mismatch: ${domResult.rootStatus}`);
     assert(domResult.buttonCount === 8, `dom button count mismatch: ${domResult.buttonCount}`);
-    assert(domResult.progress.includes("18/18 overall") && domResult.progress.includes("100%"), `overall text mismatch: ${domResult.progress}`);
+    assert(domResult.progress.includes("9/18 overall") && domResult.progress.includes("50%"), `overall text mismatch: ${domResult.progress}`);
     assert(domResult.progress.includes("1/8 follow-up") && domResult.progress.includes("13%"), `followup text mismatch: ${domResult.progress}`);
     assert(domResult.title === "STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1", `title mismatch: ${domResult.title}`);
     assert(domResult.status === "next", `status mismatch: ${domResult.status}`);

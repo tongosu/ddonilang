@@ -1,0 +1,2 @@
+{"id":"c01_ode_method_comparison_one_tick","cmd":["run","pack/ode_method_comparison_v1/input.ddn"],"stdout":["explicit","1","-0.25","1.0625","semi_implicit","0.9375","-0.25","0.94140625"],"exit_code":0}
+

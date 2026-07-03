@@ -1,2 +1,2 @@
 {"cmd": ["run", "pack/gogae5_w53_dataset_export/input.ddn", "--madi", "2", "--geoul-out", "build/geoul_w53"], "stdout": ["audit_hash=blake3:2a7e18dcce782f96e3a409f816f2ef75499993511ea6cfee954f123e6949ba40", "1"], "exit_code": 0}
-{"cmd": ["dataset", "export", "--geoul", "build/geoul_w53", "--format", "nurigym_v0", "--out", "build/dataset_w53"], "stdout": ["dataset_hash=sha256:3e610798d144f32cbcf92275feb29286816e772d7010d70b05af21f1478ea7ad"], "exit_code": 0}
+{"cmd": ["dataset", "export", "--geoul", "build/geoul_w53", "--format", "nurigym_v0", "--out", "build/dataset_w53"], "stdout": ["dataset_hash=sha256:5458d126393789f68fc92822de7d0ce788b22db2e62363f59b392d66c67a7b99"], "exit_code": 0}

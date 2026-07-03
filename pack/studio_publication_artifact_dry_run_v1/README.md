@@ -7,9 +7,9 @@ It defines publication artifact dry-run rows without generating artifacts, archi
 Progress:
 
 - 작업 단위: 6/6 = 100% (`닫힘-동작`)
-- 전체 초장기 계획: 18/18 = 100%
+- Studio-local 초장기 계획: 9/18 = 50%
 - 현재 스테이지: post-super-long follow-up 4/8 = 50%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 behavior-closed progress: 90/90 = 100%
 
 Verification:
 

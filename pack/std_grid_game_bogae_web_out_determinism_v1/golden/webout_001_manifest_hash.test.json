@@ -1,0 +1,22 @@
+{
+  "name": "std_grid_game_bogae_webout_001_manifest_hash",
+  "max_madi": 4,
+  "grid": {
+    "width": 8,
+    "height": 8,
+    "cell_px": 4,
+    "canvas_w": 32,
+    "canvas_h": 32
+  },
+  "det_expected": {
+    "no_fault": true,
+    "frame_count": 4,
+    "expected_observations": [
+      "manifest_sha256=sha256:c65b99a806955a155ede72e5305eadbb2f8ea32d5ed340bf39ae10237d49d491",
+      "frame_sha256 frames/000000.bdl1.detbin=sha256:d433441a44250b0451aedf114611e3f363bcece616e8c76047557a5568ae763a",
+      "frame_sha256 frames/000001.bdl1.detbin=sha256:019bc52a9c0e2a0a9b40fc8d7d2a8409be37c7ab28ea146e127911f4abecd1b1",
+      "frame_sha256 frames/000002.bdl1.detbin=sha256:d55cd56aa8efbf07beee045fad06bb10a1f9114defdd9d57a26c13086c34400f",
+      "frame_sha256 frames/000003.bdl1.detbin=sha256:97d249de56a82ae45a81f01ec7be86b29bcde29556d138ba0f40938a3c89c563"
+    ]
+  }
+}

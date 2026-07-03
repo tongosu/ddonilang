@@ -1,6 +1,8 @@
 # CurriculumMetaV1 (placeholder)
 
 schema = "CurriculumMetaV1"
+lesson_id = "edu_p1_constant_accel"
+title = "등가속도 운동 대표 교재 첫실행"
 
 "과목" = "물리"
 "학년군" = "고등"
@@ -22,6 +24,8 @@ schema = "CurriculumMetaV1"
 "가정목록" = ["Fixed64로 계산한다"]
 
 "필수계기판" = ["x-t", "v-t", "a-t"]
+required_views = ["text", "table", "graph"]
+evidence = ["python tests/run_roadmap_v2_ha1_representative_teaching_smoke_check.py"]
 "필수그래프" = ["등가속도 운동"]
 "필수표" = ["표본 점 목록"]
 

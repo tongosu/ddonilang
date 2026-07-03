@@ -1,0 +1,128 @@
+{
+  "schema": "ddn.language.prime_parser_frontdoor_spike.v1",
+  "work_item": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1",
+  "based_on": "LANG_IMPLEMENTATION_READINESS_REBASE_V1",
+  "prime_parser_frontdoor_spike_claim": true,
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": true,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "prime_identifier_parser_acceptance_landed_claim": true,
+  "prime_derivative_semantics_landed_claim": false,
+  "seum_equation_solver_landed_claim": false,
+  "owner_inner_seum_landed_claim": false,
+  "source_readiness_rebase": "pack/lang_implementation_readiness_rebase_v1/implementation_readiness_rebase.detjson",
+  "source_prime_decision": "pack/lang_prime_derivative_notation_decision_v1/prime_derivative_notation_decision.detjson",
+  "accepted_surfaces": [
+    {
+      "surface": "위치'",
+      "derivative_order": 1,
+      "accepted_by_lang_lexer": true,
+      "accepted_by_lang_parser": true,
+      "accepted_by_teul_cli_frontdoor": true,
+      "semantics_landed": false
+    },
+    {
+      "surface": "위치''",
+      "derivative_order": 2,
+      "accepted_by_lang_lexer": true,
+      "accepted_by_lang_parser": true,
+      "accepted_by_teul_cli_frontdoor": true,
+      "semantics_landed": false
+    }
+  ],
+  "rejected_surfaces": [
+    {
+      "surface": "위치'''",
+      "reason": "only one or two trailing prime markers are accepted"
+    },
+    {
+      "surface": "'위치",
+      "reason": "prime marker cannot start an identifier"
+    },
+    {
+      "surface": "위'치",
+      "reason": "prime marker cannot appear inside the base identifier"
+    }
+  ],
+  "product_files": [
+    "lang/src/lexer.rs",
+    "lang/src/parser.rs",
+    "lang/src/lib.rs",
+    "tools/teul-cli/src/lang/lexer.rs",
+    "tools/teul-cli/src/cli/frontdoor_parse.rs"
+  ],
+  "evidence_rows": [
+    {
+      "id": "lang_lexer_prime_ident",
+      "path": "lang/src/lexer.rs",
+      "tokens": ["append_prime_derivative_suffix", "prime_derivative_suffix_is_part_of_identifier"],
+      "product_path": true
+    },
+    {
+      "id": "lang_parser_prime_validation",
+      "path": "lang/src/parser.rs",
+      "tokens": ["is_valid_prime_derivative_ident", "NAME-LINT-02"],
+      "product_path": true
+    },
+    {
+      "id": "lang_normalize_prime_ident",
+      "path": "lang/src/lib.rs",
+      "tokens": ["prime_derivative_identifiers_parse_and_normalize", "triple_prime_derivative_identifier_is_rejected"],
+      "product_path": true
+    },
+    {
+      "id": "teul_cli_lexer_prime_ident",
+      "path": "tools/teul-cli/src/lang/lexer.rs",
+      "tokens": ["append_prime_derivative_suffix", "third_prime_derivative_marker_is_rejected_by_lexer"],
+      "product_path": true
+    },
+    {
+      "id": "teul_cli_frontdoor_prime_ident",
+      "path": "tools/teul-cli/src/cli/frontdoor_parse.rs",
+      "tokens": ["parse_runtime_accepts_prime_derivative_identifiers", "validate_lang_frontdoor_parity"],
+      "product_path": true
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "derivative_semantics_landed",
+    "seum_equation_solver_landed",
+    "owner_inner_seum_landed",
+    "runtime_integrator_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change"
+  ],
+  "implementation_readiness_followup_plan": {
+    "closed": 2,
+    "total": 6,
+    "percent": 33
+  },
+  "prime_parser_frontdoor_spike_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 49,
+    "total": 90,
+    "percent": 54
+  },
+  "next_item": "LANG_CONNECT_SEUM_LOWERING_PARSER_SPIKE_V1"
+}

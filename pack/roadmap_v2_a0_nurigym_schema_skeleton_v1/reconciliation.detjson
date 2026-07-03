@@ -1,0 +1,50 @@
+{
+  "schema": "ddn.roadmap_v2.a0_nurigym_schema_skeleton_reconciliation.v1",
+  "id": "A0_NURIGYM_SCHEMA_SKELETON_MATRIX_RECONCILIATION_V1",
+  "date": "2026-06-09",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "아-0",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "씨앗",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/아-0_RECONCILIATION_REPORT_20260609.md"
+  },
+  "spec_hashes": {
+    "obs_spec_hash": "sha256:cb4733790acfd96ca558d51324e5e3703637f71e031e9d2b945957479ce1211b",
+    "action_spec_hash": "sha256:f429769842eb3ea2034d40727bcea85bcca272298e5a08fbea5332efade14985"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 79,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 88,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 81,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 90,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "new_nurigym_runtime": false,
+    "reset_step_first_run_claim": false,
+    "representative_environment_golden_claim": false,
+    "python_web_parity_claim": false,
+    "dataset_registry_claim": false,
+    "training_workflow_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "docs_ssot_change": false
+  }
+}

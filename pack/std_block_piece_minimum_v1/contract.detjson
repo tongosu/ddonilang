@@ -1,0 +1,29 @@
+{
+  "schema": "ddn.std_block_piece_minimum.pack.contract.v1",
+  "id": "std_block_piece_minimum_v1",
+  "public_surface_added": [
+    "블록조각.만들기",
+    "블록조각.칸목록",
+    "블록조각.이동",
+    "블록조각.회전",
+    "블록조각.충돌?",
+    "블록조각.고정"
+  ],
+  "representation": {
+    "__종류": "std_block_piece",
+    "칸들": "차림[차림[x, y], ...]",
+    "coordinate_order": "cell coordinates are x, y",
+    "sort_order": "y asc, then x asc"
+  },
+  "bundled_packs": [
+    "std_block_piece_geometry_v1",
+    "std_block_piece_grid_bridge_v1"
+  ],
+  "non_scope": [
+    "tetromino preset catalog",
+    "random bag",
+    "grid game state machine",
+    "gamepad/touch/web event extension",
+    "connect flow semantics"
+  ]
+}

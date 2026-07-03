@@ -11,7 +11,7 @@
       "non_hash_stdout_digest": "sha256:052814234e36328b25b00ecdb0d7c810ebcf2f92969baab445e8c3c39ed8c9e4",
       "state_hash": "blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
       "stderr_lines": [],
-      "stdout_digest": "sha256:20a093a6e67b370de46866b5b29b814906f4714b407c9c39543624ad22b8f767",
+      "stdout_digest": "sha256:a87d4748b75646bc4f94e725c675b9d19e90615ef4dc45b3469135dee61e14e9",
       "stdout_lines": [
         "################################################",
         "################################################",
@@ -46,19 +46,19 @@
         "################################################",
         "################################################",
         "state_hash=blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
-        "trace_hash=blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102",
+        "trace_hash=blake3:902b983f217bffbabb5e37217250ce9adedebb0ac9c68a8cf94ba3e00d579189",
         "bogae_hash=blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5"
       ],
-      "trace_hash": "blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102"
+      "trace_hash": "blake3:902b983f217bffbabb5e37217250ce9adedebb0ac9c68a8cf94ba3e00d579189"
     },
     "detbin_digest": "sha256:e5486b1701077ceeedceed128356864d465884a165a7f121bd71e3a2e48fc7fe",
     "run_manifest": {
       "bogae_hash": "blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5",
       "contract": "D-STRICT",
-      "digest": "sha256:fc045ab33da6079c489378f6ac83308e3fc079bdbfa51f560577523df2b665c4",
+      "digest": "sha256:3efc0af3bdc7a83253e552181384db41d22ce5d046494cf74b515d030771c6bd",
       "state_hash": "blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
       "ticks": 1,
-      "trace_hash": "blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102"
+      "trace_hash": "blake3:902b983f217bffbabb5e37217250ce9adedebb0ac9c68a8cf94ba3e00d579189"
     }
   },
   "pack": "bogae_backend_parity_console_web_v1",
@@ -97,10 +97,10 @@
     "run_manifest": {
       "bogae_hash": "blake3:99fd5c17d1995eed7113246f5deea2acf7566040e034f3b1bef6f12560d6f9f5",
       "contract": "D-STRICT",
-      "digest": "sha256:fc045ab33da6079c489378f6ac83308e3fc079bdbfa51f560577523df2b665c4",
+      "digest": "sha256:3efc0af3bdc7a83253e552181384db41d22ce5d046494cf74b515d030771c6bd",
       "state_hash": "blake3:6a10aec27a792e1446ee449752da75d33662ee7398127dd6e745acdf3ebed09d",
       "ticks": 1,
-      "trace_hash": "blake3:ac4ba99e48b644dfe3d0309ff3e07830f1c55b3bca2d779ae4a32c0f29444102"
+      "trace_hash": "blake3:902b983f217bffbabb5e37217250ce9adedebb0ac9c68a8cf94ba3e00d579189"
     }
   }
 }

@@ -1,0 +1,68 @@
+{
+  "schema": "ddn.ja.seulgi_proposal_ui.v1",
+  "work_item": "JA3_SEULGI_PROPOSAL_UI_V1",
+  "primary_coordinate": "자-3",
+  "status": "seulgi_proposal_ui_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "proposal_ui_claim": true,
+  "rows": [
+    {
+      "id": "proposal",
+      "kind": "advisor_proposal",
+      "decision": "review",
+      "ready": true
+    },
+    {
+      "id": "preview",
+      "kind": "non_applying_preview",
+      "decision": "review",
+      "ready": true
+    },
+    {
+      "id": "approve",
+      "kind": "approval_receipt",
+      "decision": "approved",
+      "ready": true
+    },
+    {
+      "id": "reject",
+      "kind": "rejection_receipt",
+      "decision": "rejected",
+      "ready": true
+    },
+    {
+      "id": "audit",
+      "kind": "append_only_audit_note",
+      "decision": "sealed",
+      "ready": true
+    }
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 74,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 82,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 76,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 84,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "ai_call_claim": false,
+    "auto_apply_claim": false,
+    "file_write_claim": false,
+    "parser_preprocessor_claim": false,
+    "runtime_ast_persisted": false,
+    "state_hash_owner": false,
+    "model_training_claim": false,
+    "account_permission_change_claim": false,
+    "runtime_claim": false
+  }
+}

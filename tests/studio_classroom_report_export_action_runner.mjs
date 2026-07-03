@@ -128,12 +128,10 @@ async function main() {
 
     await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
     await waitVisible(page, "#screen-browse");
-    await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
-    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='student']");
+    await page.waitForSelector(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
+    await page.click(".lesson-card[data-lesson-id^='rep_'] .card-launch-btn[data-launch-profile='teacher']");
     await waitVisible(page, "#screen-run");
-    await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "student");
-    await page.click("[data-classroom-mode='teacher']");
-    await page.waitForFunction(() => window.__STUDIO_CLASSROOM_MODE_SWITCH__?.mode === "teacher");
+    await page.waitForFunction(() => window.__SEAMGRIM_RUN_PRESET_RAIL__?.onboarding_profile === "teacher");
     await page.click("#run-tab-btn-mirror");
     await page.evaluate(() => {
       const tools = document.querySelector("#run-inspector-tools");
@@ -149,15 +147,26 @@ async function main() {
       meta: document.querySelector("[data-run-classroom-report-meta]")?.textContent?.trim() ?? "",
       metaValue: document.querySelector("[data-run-classroom-report-meta]")?.dataset?.value ?? "",
       text: document.querySelector("[data-run-classroom-report-text]")?.textContent ?? "",
+      reportVisible: (() => {
+        const node = document.querySelector("[data-run-classroom-report-export]");
+        if (!node) return false;
+        const style = getComputedStyle(node);
+        return style.display !== "none" && style.visibility !== "hidden" && !node.classList.contains("hidden");
+      })(),
       copied: window.__STUDIO_CLASSROOM_REPORT_COPIED_TEXT__ ?? "",
       payload: window.__STUDIO_CLASSROOM_REPORT_EXPORT_ACTION__ ?? null,
     }));
 
     assert(state.schema === "seamgrim.classroom_report_export_action.v1", `schema mismatch: ${state.schema}`);
     assert(state.mode === "teacher", `mode mismatch: ${state.mode}`);
+    assert(state.reportVisible === true, "teacher launch must show classroom report export");
     assert(state.meta.includes("교사 시작"), `meta mismatch: ${state.meta}`);
     assert(state.metaValue === "1", `meta value mismatch: ${state.metaValue}`);
-    assert(state.text.startsWith("과제\t제목\t상태\t판정\t실패케이스\t불일치"), "report header mismatch");
+    assert(state.text.startsWith("수업 코드\t수업 제목\t수업 목표\t오늘 활동\t결과 확인\t배포 상태\t실행 결과\t확인 필요\t비고"), "report header mismatch");
+    assert(!state.text.includes("실패케이스") && !state.text.includes("불일치"), "report text must not expose internal QA headers");
+    assert(state.text.includes("\t그래프, 표\t"), `report result views missing:\n${state.text}`);
+    assert(state.text.includes("속도가 일정한 가속도") || state.text.includes("속도"), `report lesson goal missing:\n${state.text}`);
+    assert(state.text.includes("기록 길이") || state.text.includes("오늘 활동"), `report lesson mission missing:\n${state.text}`);
     assert(state.text.includes("\t열림\t"), `report assignment row missing:\n${state.text}`);
     assert(state.copied === state.text.trim(), "clipboard text mismatch");
     assert(state.payload?.schema === "seamgrim.classroom_report_export_action.v1", "payload schema mismatch");

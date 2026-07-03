@@ -1,0 +1,30 @@
+{
+  "schema": "ddn.std_event_minimum_closure.pack.contract.v1",
+  "pack_id": "std_event_minimum_closure_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "existing_event_minimum_surface_only",
+  "public_surface_added": false,
+  "bundled_packs": [
+    "seamgrim_event_surface_canon_v1",
+    "seamgrim_event_model_ir_v1",
+    "vol4_event_dispatch_runtime_v1"
+  ],
+  "supporting_evidence_not_bundled": [
+    "block_editor_screen_vol4_event_dispatch_smoke_v1",
+    "seamgrim_interactive_event_smoke_v1"
+  ],
+  "representative_stdout": [
+    "확인",
+    "운영확인",
+    "2"
+  ],
+  "non_scope": [
+    "full_actor_event_native_runtime_semantics",
+    "broad_multi_actor_interaction_guarantees",
+    "richer_queue_semantics",
+    "full_textbook_1_to_1_acceptance",
+    "browser_keyboard_input_delivery",
+    "block_editor_ui_codec_or_render_claim",
+    "new_event_parser_aliases"
+  ]
+}

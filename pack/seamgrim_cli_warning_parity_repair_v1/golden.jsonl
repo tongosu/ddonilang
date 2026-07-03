@@ -1,0 +1,1 @@
+{"cmd":["run","pack/seamgrim_cli_warning_parity_repair_v1/input.ddn"],"exit_code":0,"stdout":["SEAMGRIM_CLI_WARNING_PARITY_REPAIR_V1","seamgrim cli warning parity repair sealed","product stabilization smoke: PASS","baseline repair stage: 2/4 = 50%","overall super-long behavior: 4/18 = 22%"]}

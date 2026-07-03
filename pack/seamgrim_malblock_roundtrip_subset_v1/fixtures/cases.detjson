@@ -1,0 +1,125 @@
+{
+  "schema": "ddn.seamgrim_malblock_roundtrip_subset_cases.v1",
+  "excluded_surfaces": [
+    {
+      "reason": "current block editor plan does not preserve canonical equality for condition hook forms",
+      "surfaces": [
+        "(조건)이 될때",
+        "(조건)인 동안"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "block_editor_supported_hook_subset",
+      "source": "채비 {\n  g:수 = (9.8) 매김 {\n    범위: 1..20.\n    간격: 0.1.\n  }.\n  t:변수 <- 0.\n  안내:글 = \"초기\".\n}.\n\n(시작)할때 {\n  안내 보여주기.\n}.\n\n(매마디)마다 {\n  t <- t + 1.\n  만약 t < 3 이라면 {\n    t 보여주기.\n  } 아니면 {\n    g 보여주기.\n  }.\n}.\n",
+      "expected_raw_block_count": 0,
+      "required_top_level_block_kinds": [
+        "charim_block",
+        "hook_start",
+        "hook_tick"
+      ],
+      "required_block_kinds": [
+        "charim_item_const_step",
+        "charim_item_plain",
+        "charim_item_var",
+        "hook_start",
+        "hook_tick",
+        "if_else",
+        "assign",
+        "show"
+      ],
+      "expected_canon_contains": [
+        "채비",
+        "(시작)할때",
+        "(매마디)마다",
+        "만약 t < 3 이라면"
+      ]
+    },
+    {
+      "id": "lang_core_2_condition_subset",
+      "source": "채비 {\n  점수: 셈수 <- 72.\n  판정: 글 <- \"\".\n}.\n\n만약 점수 >= 70 이라면 {\n  판정 <- \"통과\".\n}.\n아니면 {\n  판정 <- \"보충\".\n}.\n\n판정 보여주기.\n",
+      "madi": 1,
+      "expected_stdout": [
+        "통과"
+      ],
+      "expected_raw_block_count": 0,
+      "required_top_level_block_kinds": [
+        "charim_block",
+        "if_else",
+        "show"
+      ],
+      "required_block_kinds": [
+        "charim_item_var",
+        "if_else",
+        "assign",
+        "show"
+      ],
+      "expected_canon_contains": [
+        "채비",
+        "만약 점수 >= 70 이라면",
+        "아니면",
+        "보여주기"
+      ]
+    },
+    {
+      "id": "lang_core_2_imja_seed_subset",
+      "source": "플레이어:임자 = {\n  제.체력 <- 100.\n}.\n",
+      "expected_raw_block_count": 0,
+      "required_top_level_block_kinds": [
+        "seed_def"
+      ],
+      "required_block_kinds": [
+        "seed_def",
+        "assign"
+      ],
+      "expected_canon_contains": [
+        "플레이어:임자",
+        "짝맞춤.바꾼값"
+      ]
+    },
+    {
+      "id": "lang_core_2_contract_subset",
+      "source": "{ 0 }인것 바탕으로(알림) 아니면 {\n  \"알림 계속\" 보여주기.\n}.\n\"끝\" 보여주기.\n",
+      "madi": 1,
+      "expected_stdout": [
+        "알림 계속",
+        "끝"
+      ],
+      "expected_raw_block_count": 0,
+      "required_top_level_block_kinds": [
+        "contract_guard",
+        "show"
+      ],
+      "required_block_kinds": [
+        "contract_guard",
+        "show"
+      ],
+      "expected_canon_contains": [
+        "바탕으로(알림)",
+        "아니면",
+        "보여주기"
+      ]
+    },
+    {
+      "id": "block_editor_raw_fallback_metadata",
+      "source": "채비 {\n  g:수 = (9.8) 매김 {\n    범위: 1..20.\n    설명: \"실험용\".\n  }.\n}.\n",
+      "expected_min_raw_block_count": 1,
+      "required_top_level_block_kinds": [
+        "charim_block"
+      ],
+      "required_block_kinds": [
+        "charim_block",
+        "raw"
+      ],
+      "required_raw_text_contains": [
+        "설명",
+        "실험용"
+      ],
+      "expected_canon_contains": [
+        "설명",
+        "실험용"
+      ]
+    }
+  ]
+}

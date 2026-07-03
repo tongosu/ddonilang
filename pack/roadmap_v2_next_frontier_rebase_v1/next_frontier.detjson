@@ -1,0 +1,43 @@
+{
+  "schema": "ddn.roadmap_v2.next_frontier_rebase.v1",
+  "work_item": "ROADMAP_V2_NEXT_FRONTIER_REBASE_V1",
+  "status": "닫힘-문서",
+  "selected_next_work": "ROADMAP_V2_NA2_MATRIX_STATUS_RECONCILIATION_V1",
+  "selected_coordinate": "나-2",
+  "reason": "unit/random/event evidence exists, but the authoritative ROADMAP_V2 matrix row has not been reconciled to behavior-closed",
+  "rejected_work": [
+    "ROADMAP_V2_NA2_UNIT_RANDOM_EVENT_IMPLEMENTATION_V1"
+  ],
+  "evidence_basis": [
+    "ROADMAP_V2_NA2_UNIT_RANDOM_EVENT_REBASE_V1.md",
+    "STD_CORE_GRID_UNIT_CLOSURE_V1.md",
+    "STD_RANDOM_BAG_MINIMUM_V1.md",
+    "ROADMAP_V2_NA2_EVENT_MINIMUM_CLOSURE_REBASE_V1.md",
+    "STD_EVENT_MINIMUM_CLOSURE_V1.md"
+  ],
+  "progress": {
+    "current_stage": "ROADMAP_V2 next frontier rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 37,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 41,
+    "roadmap_v2_pack_evidence_reference_closed": 58,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 64,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "broad_na2_implementation": false,
+    "docs_ssot_change": false
+  }
+}
+

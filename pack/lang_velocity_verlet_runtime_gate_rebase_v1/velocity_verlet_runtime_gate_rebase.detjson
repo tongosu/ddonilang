@@ -1,0 +1,161 @@
+{
+  "schema": "ddn.language.velocity_verlet_runtime_gate_rebase.v1",
+  "work_item": "LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1",
+  "based_on": "LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1",
+  "source_velocity_verlet_fixed64_order": "pack/lang_velocity_verlet_fixed64_order_v1/velocity_verlet_fixed64_order.detjson",
+  "source_tuck_constraint_surface_shape": "pack/lang_tuck_constraint_surface_shape_proposal_v1/tuck_constraint_surface_shape_proposal.detjson",
+  "velocity_verlet_runtime_gate_rebase_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "velocity_verlet_stdlib_landed_claim": false,
+  "dae_solver_current_line_claim": false,
+  "adaptive_solver_current_line_claim": false,
+  "external_solver_current_line_claim": false,
+  "dultra_replay_runtime_landed_claim": false,
+  "recommended_dstrict_candidate": "속도 베를레",
+  "candidate_public_surfaces": [
+    {
+      "surface": "적분.속도베를레",
+      "status": "candidate",
+      "stdlib_landed": false
+    },
+    {
+      "surface": "적분.속도_베를레",
+      "status": "candidate",
+      "stdlib_landed": false
+    }
+  ],
+  "runtime_gates": [
+    {
+      "order": 1,
+      "id": "fixed64_order_pack",
+      "status": "closed",
+      "required_evidence": "LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1"
+    },
+    {
+      "order": 2,
+      "id": "stdlib_surface_acceptance",
+      "status": "blocked",
+      "required_evidence": "SSOT or explicit user-approved public spelling"
+    },
+    {
+      "order": 3,
+      "id": "runtime_product_path",
+      "status": "planned_after_surface",
+      "required_evidence": "implementation in product runtime path, not test-only lowering"
+    },
+    {
+      "order": 4,
+      "id": "golden_raw_trace",
+      "status": "planned_after_runtime",
+      "required_evidence": "raw Q32.32 trace for dt_half, a0, v_half, x1, a1, v1, energy"
+    },
+    {
+      "order": 5,
+      "id": "cli_wasm_parity",
+      "status": "planned_after_runtime",
+      "required_evidence": "same source surface reaches equivalent CLI/WASM product frontdoors when applicable"
+    },
+    {
+      "order": 6,
+      "id": "compat_boundary",
+      "status": "planned_after_runtime",
+      "required_evidence": "적분.오일러 and 적분.반암시적오일러 remain unchanged"
+    }
+  ],
+  "required_operation_order": [
+    {"step": 1, "id": "dt_half", "formula": "dt_half = dt / 2"},
+    {"step": 2, "id": "a0", "formula": "a0 = accel(x0)"},
+    {"step": 3, "id": "v_half", "formula": "v_half = v0 + a0 * dt_half"},
+    {"step": 4, "id": "x1", "formula": "x1 = x0 + v_half * dt"},
+    {"step": 5, "id": "a1", "formula": "a1 = accel(x1)"},
+    {"step": 6, "id": "v1", "formula": "v1 = v_half + a1 * dt_half"},
+    {"step": 7, "id": "energy_indicator", "formula": "energy_indicator = x * x + v * v"}
+  ],
+  "seed_trace_requirements": {
+    "sample_id": "harmonic_oscillator_one_tick",
+    "x0_raw": 4294967296,
+    "v0_raw": 0,
+    "dt_raw": 1073741824,
+    "dt_half_raw": 536870912,
+    "v_half_raw": -536870912,
+    "x1_raw": 4160749568,
+    "a1_raw": -4160749568,
+    "v1_raw": -1056964608,
+    "energy1_raw": 4290838528
+  },
+  "product_anchor_rows": [
+    {
+      "id": "fixed64_order_source",
+      "path": "pack/lang_velocity_verlet_fixed64_order_v1/velocity_verlet_fixed64_order.detjson",
+      "tokens": ["recommended_dstrict_candidate", "속도 베를레", "operation_order", "energy1"],
+      "changed_now": false
+    },
+    {
+      "id": "stdlib_integrator_baseline",
+      "path": "pack/stdlib_l1_integrators_v1/README.md",
+      "tokens": ["적분.오일러", "적분.반암시적오일러"],
+      "changed_now": false
+    },
+    {
+      "id": "core_fixed64_policy",
+      "path": "core/src/fixed64.rs",
+      "tokens": ["Fixed64", "saturating_mul", "i128", ">> 32"],
+      "changed_now": false
+    },
+    {
+      "id": "tool_fixed64_policy",
+      "path": "tools/teul-cli/src/core/fixed64.rs",
+      "tokens": ["Fixed64", "SCALE_BITS", "saturating_mul", "checked_div"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "velocity_verlet_runtime_landed",
+    "velocity_verlet_stdlib_landed",
+    "dae_solver_current_line",
+    "adaptive_solver_current_line",
+    "external_solver_current_line",
+    "dultra_replay_runtime_landed"
+  ],
+  "language_risk_removal_plan": {
+    "closed": 4,
+    "total": 6,
+    "percent": 67
+  },
+  "velocity_verlet_runtime_gate_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 57,
+    "total": 90,
+    "percent": 63
+  },
+  "next_item": "LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1"
+}

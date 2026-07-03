@@ -1,0 +1,73 @@
+{
+  "schema": "ddn.seamgrim.free_lab.experiment_report.v1",
+  "pack": "free_lab_2_v1",
+  "work_item": "BA2_FREE_LAB_EXPERIMENT_REPORT_PACK_CLOSURE_V1",
+  "primary_coordinate": "바-2",
+  "status": "experiment_report_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "product_ui_change": true,
+  "runtime_claim": false,
+  "experiment_report_claim": true,
+  "sections": [
+    {
+      "id": "hypothesis",
+      "artifact_key": "hypothesis",
+      "ready": true,
+      "prompt": "계수를 키우면 결과 증가폭이 커진다."
+    },
+    {
+      "id": "lever",
+      "artifact_key": "lever",
+      "ready": true,
+      "prompt": "계수=2, 시작값=1을 첫 실행 기준으로 둔다."
+    },
+    {
+      "id": "metric",
+      "artifact_key": "metric",
+      "ready": true,
+      "prompt": "프레임수와 결과의 쌍을 관찰 지표로 기록한다."
+    },
+    {
+      "id": "conclusion",
+      "artifact_key": "conclusion",
+      "ready": true,
+      "prompt": "결과는 시작값 + 계수 * 프레임수 형태로 증가한다."
+    }
+  ],
+  "browser_evidence": {
+    "runner": "tests/free_lab_experiment_report_runner.mjs",
+    "checks": [
+      "report panel status experiment_report_ready",
+      "hypothesis/lever/metric/conclusion artifact rows render",
+      "report copy action marks local artifact copied",
+      "progress remains 9/90, 28/90, 9/18",
+      "share/registry/cloud claims remain false"
+    ]
+  },
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 9,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 10,
+    "roadmap_v2_pack_evidence_reference_closed": 28,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 31,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "full_free_lab_ui_claim": false,
+    "parameter_sweep_claim": false,
+    "ghost_compare_claim": false,
+    "share_claim": false,
+    "registry_publish_claim": false,
+    "github_release_claim": false,
+    "cloud_sync_claim": false,
+    "new_parser_claim": false,
+    "new_runtime_semantics_claim": false
+  },
+  "next_item": "BA3_FREE_LAB_UI_PACK_CLOSURE_V1"
+}

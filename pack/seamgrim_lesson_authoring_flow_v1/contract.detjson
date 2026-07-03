@@ -1,0 +1,18 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_lesson_authoring_flow_v1",
+  "kind": "studio_lesson_authoring_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "SEAMGRIM_LESSON_AUTHORING_FLOW_V1",
+  "browser_runner": "tests/seamgrim_lesson_authoring_flow_browser_runner.mjs",
+  "covers": [
+    "direct_ddn_route_to_workbench",
+    "run_editor_text_edit",
+    "local_save_action_contract",
+    "browse_create_authoring_entry",
+    "lesson_loader_contract_reuse"
+  ],
+  "next_item": "MALBLOCK_AUTHORING_UI_V1",
+  "requires_docs_ssot_clean": true
+}

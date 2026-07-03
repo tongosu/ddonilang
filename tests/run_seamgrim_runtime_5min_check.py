@@ -338,6 +338,13 @@ def main() -> int:
         steps.append(
             run_step(
                 root,
+                "studio_lesson_publication_review_surface",
+                [py, "tests/run_studio_lesson_publication_review_surface_check.py"],
+            )
+        )
+        steps.append(
+            run_step(
+                root,
                 "guideblock_keys_pack_check",
                 [py, "tests/run_seamgrim_guideblock_keys_pack_check.py"],
             )

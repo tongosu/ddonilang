@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.gogae9.w99.evolving_universe_policy.v1",
+  "master_seed": 1234,
+  "w89_pack": "pack/gogae9_w89_self_evolving_code",
+  "social_score_threshold": 0,
+  "deploy_madi": 7,
+  "cert_seed": "w99-cert-seed",
+  "rollback_probe": {
+    "inject_fault": true,
+    "expected_recovered": true
+  }
+}

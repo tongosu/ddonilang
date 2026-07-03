@@ -2,7 +2,7 @@
   "kind": "bogae_asset_manifest_v1",
   "assets": [
     {
-      "id": "blake3:240d596359ba87103ecd4c53881b83619dee0093270a47477dd73943156dcdbe",
+      "id": "blake3:858b9c66030a222003ba95fe59ebf0ddaf1eff6addce60755e9f94297993ee36",
       "path": "demo.txt",
       "name": "demo.txt"
     }

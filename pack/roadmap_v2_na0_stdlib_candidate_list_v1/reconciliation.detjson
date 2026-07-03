@@ -1,0 +1,72 @@
+{
+  "schema": "ddn.roadmap_v2.na0_stdlib_candidate_list_reconciliation.v1",
+  "id": "NA0_STDLIB_CANDIDATE_LIST_RECONCILIATION_V1",
+  "date": "2026-06-09",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "나-0",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "candidate_catalog": {
+      "documents": [
+        "docs/status/STDLIB_IMPL_MATRIX.md",
+        "docs/status/STDLIB_PACK_COVERAGE.md"
+      ],
+      "checker": "tests/run_stdlib_catalog_check.py"
+    },
+    "core_candidate_packs": {
+      "packs": [
+        "pack/stdlib_text_basics",
+        "pack/stdlib_charim_basics",
+        "pack/stdlib_range_basics",
+        "pack/stdlib_math_basics",
+        "pack/stdlib_map_basics"
+      ],
+      "checker": "tests/run_pack_golden.py stdlib_text_basics stdlib_charim_basics stdlib_range_basics stdlib_math_basics stdlib_map_basics"
+    },
+    "umbrella_regression": {
+      "source_pack": "pack/stdlib_1_v1",
+      "checker": "tests/run_stdlib_1_check.py"
+    }
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "씨앗",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/나-0_RECONCILIATION_REPORT_20260609.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "NA0 Stdlib candidate list",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 81,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 90,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 83,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 92,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "new_stdlib_surface": false,
+    "stdlib_runtime_change": false,
+    "parser_frontdoor_change": false,
+    "std_core_grid_input_first_run_claim": false,
+    "unit_random_event_claim": false,
+    "resource_network_policy_claim": false,
+    "registry_claim": false,
+    "lts_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "docs_ssot_change": false
+  }
+}

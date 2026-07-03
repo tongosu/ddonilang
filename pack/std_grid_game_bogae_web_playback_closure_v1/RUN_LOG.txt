@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update std_grid_game_bogae_web_playback_assets_v1 std_grid_game_bogae_web_playback_controls_v1 std_grid_game_bogae_web_playback_closure_v1
+pack golden updated

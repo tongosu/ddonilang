@@ -1,0 +1,1 @@
+{"id":"c01_ta3_diagnostic_ui_lsp_marker","cmd":["run","pack/toolchain_pack_3_v1/input.ddn"],"stdout":["TA3_DIAGNOSTIC_UI_LSP_V1","toolchain diagnostic UI/LSP-lite sealed","stage: 5/5 = 100%","roadmap matrix behavior: 22/90 = 24%","pack evidence reference: 42/90 = 47%","studio local super-long: 9/18 = 50%","ta3 status: 닫힘-동작","next: TA4_REGISTRY_VERIFICATION_V1"],"exit_code":0}

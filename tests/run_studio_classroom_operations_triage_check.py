@@ -16,8 +16,10 @@ PACK = ROOT / "pack" / "studio_classroom_operations_triage_v1"
 TRIAGE = PACK / "classroom_operations_triage.detjson"
 UI = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_classroom_operations_triage.js"
 APP = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_classroom_operations_triage_runner.mjs"
 CHECKER = ROOT / "tests" / "run_studio_classroom_operations_triage_check.py"
 SOURCE_FEEDBACK = ROOT / "pack" / "studio_teacher_feedback_loop_seed_v1" / "teacher_feedback_loop_seed.detjson"
@@ -127,6 +129,7 @@ def check_required_files() -> None:
         TRIAGE,
         UI,
         APP,
+        DEV_SURFACES,
         HTML,
         STYLES,
         RUNNER,
@@ -154,9 +157,9 @@ def check_docs() -> None:
         "publication_candidate_review",
         "approval_safe_handoff_queue",
         "작업 단위: 6/6 = 100% (`닫힘-동작`)",
-        "초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%",
+        "Studio-local 초장기 계획: 9/18 = 50%",
         "현재 스테이지: post-super-long follow-up 6/8 = 75%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         "node tests/studio_classroom_operations_triage_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -172,9 +175,9 @@ def check_docs() -> None:
             "This is product UI behavior plus local classroom operations triage evidence",
             "Every row keeps `triage_only=true`, `generated_now=false`, and `write_claim=false`",
             "작업 단위: 6/6 = 100% (`닫힘-동작`)",
-            "초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%",
+            "Studio-local 초장기 계획: 9/18 = 50%",
             "현재 스테이지: post-super-long follow-up 6/8 = 75%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             NEXT,
         ],
     )
@@ -193,9 +196,9 @@ def check_docs() -> None:
             "STUDIO_CLASSROOM_OPERATIONS_TRIAGE_V1",
             "ddn.studio.classroom_operations_triage.v1",
             NEXT,
-            "전체 초장기 계획 18/18 = 100%",
+            "Studio-local 초장기 계획: 9/18 = 50%",
             "post-super-long follow-up 6/8 = 75%",
-            "ROADMAP_V2 product behavior baseline 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         ],
     )
     require_contains(
@@ -207,7 +210,7 @@ def check_docs() -> None:
             "ddn.studio.classroom_operations_triage.v1",
             "node tests/studio_classroom_operations_triage_runner.mjs` PASS",
             "현재 스테이지: post-super-long follow-up 6/8 = 75%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -232,25 +235,22 @@ def check_ui_contract() -> None:
     require_contains(
         APP,
         [
-            "DEFAULT_CLASSROOM_OPERATIONS_TRIAGE_UI_ROWS",
+            "shouldEnableDevSurfaces",
+            "./dev_surfaces.js",
+        ],
+    )
+    require_contains(
+        DEV_SURFACES,
+        [
             "buildClassroomOperationsTriage",
             "formatClassroomOperationsTriageText",
             "renderClassroomOperationsTriage",
-            "classroomOperationsTriage",
             "__SEAMGRIM_CLASSROOM_OPERATIONS_TRIAGE__",
-            "publishClassroomOperationsTriage",
+            "classroom-operations-triage",
         ],
     )
     require_contains(
-        HTML,
-        [
-            "id=\"classroom-operations-triage\"",
-            "data-classroom-operations-triage",
-            "Studio classroom operations triage",
-        ],
-    )
-    require_contains(
-        STYLES,
+        DEV_SURFACES_CSS,
         [
             ".classroom-operations-triage",
             ".classroom-triage-head",
@@ -308,9 +308,9 @@ def check_contract_and_triage() -> None:
         "all_triage_rows_write_claim": False,
         "primary_coordinate": "하-3",
         "support_coordinate": "마-3",
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "work_unit_percent": 100,
@@ -449,7 +449,7 @@ def check_golden() -> None:
         "classroom operations triage schema: ddn.studio.classroom_operations_triage.v1",
         "triage rows: 6",
         "follow-up plan: 6/8 = 75%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior-closed: 90/90 = 100%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_classroom_operations_triage_v1/input.ddn"]:

@@ -7,7 +7,7 @@
       "key_seed": "w95-seed-pass",
       "tamper_signature": false,
       "expected_verify_pass": true,
-      "expected_subject_hash": "sha256:ffaf4bb0f10fd1a8e3d56a606bdd371a3d2e26007ad53826fc0207b6221bc1c2"
+      "expected_subject_hash": "sha256:5d7165252901b78aa31ae32fd5f959552ffe10de554819fdddc32fd600e57c0b"
     },
     {
       "id": "c02_verify_fail_tamper",
@@ -16,7 +16,7 @@
       "tamper_signature": true,
       "expected_verify_pass": false,
       "expected_error_code": "E_CERT_VERIFY_FAIL",
-      "expected_subject_hash": "sha256:ffaf4bb0f10fd1a8e3d56a606bdd371a3d2e26007ad53826fc0207b6221bc1c2"
+      "expected_subject_hash": "sha256:5d7165252901b78aa31ae32fd5f959552ffe10de554819fdddc32fd600e57c0b"
     }
   ]
 }

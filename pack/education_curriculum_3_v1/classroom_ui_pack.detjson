@@ -1,0 +1,81 @@
+{
+  "schema": "ddn.education.classroom_ui_pack.v1",
+  "work_item": "HA3_CLASSROOM_UI_PACK_V1",
+  "primary_coordinate": "하-3",
+  "pack": "education_curriculum_3_v1",
+  "status": "education_classroom_ui_pack_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "education_classroom_ui_pack_claim": true,
+  "teacher_mode_claim": true,
+  "student_mode_claim": true,
+  "assignment_panel_claim": true,
+  "report_review_claim": true,
+  "classroom_handoff_claim": true,
+  "gradebook_write_claim": false,
+  "student_personal_data_collection_claim": false,
+  "remote_classroom_sync_claim": false,
+  "live_submission_claim": false,
+  "real_time_collaboration_claim": false,
+  "account_permission_change_claim": false,
+  "state_hash_participation_claim": false,
+  "rows": [
+    {
+      "id": "teacher_mode",
+      "classroom_kind": "teacher_mode_preview",
+      "local_uri": "education://classroom/teacher-mode",
+      "ready": true
+    },
+    {
+      "id": "student_mode",
+      "classroom_kind": "student_mode_preview",
+      "local_uri": "education://classroom/student-mode",
+      "ready": true
+    },
+    {
+      "id": "assignment_panel",
+      "classroom_kind": "assignment_panel_preview",
+      "local_uri": "education://classroom/assignment-panel",
+      "ready": true
+    },
+    {
+      "id": "report_review",
+      "classroom_kind": "report_review_preview",
+      "local_uri": "education://classroom/report-review",
+      "ready": true
+    },
+    {
+      "id": "classroom_handoff",
+      "classroom_kind": "local_classroom_handoff",
+      "local_uri": "education://classroom/handoff",
+      "ready": true
+    }
+  ],
+  "classroom_text": "education_classroom_ui_pack:education_curriculum_3_v1\ncoordinate:하-3\ngradebook_write:false\nstudent_personal_data_collection:false\nremote_classroom_sync:false\nlive_submission:false\nreal_time_collaboration:false\naccount_permission_change:false\nstate_hash_participation:false",
+  "false_claims": {
+    "gradebook_write_claim": false,
+    "student_personal_data_collection_claim": false,
+    "remote_classroom_sync_claim": false,
+    "live_submission_claim": false,
+    "real_time_collaboration_claim": false,
+    "account_permission_change_claim": false,
+    "state_hash_participation_claim": false,
+    "parser_frontdoor_change": false,
+    "new_runtime_semantics_claim": false,
+    "grammar_claim": false
+  },
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 30,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 33,
+    "roadmap_v2_pack_evidence_reference_closed": 50,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 56,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "next_item": "HA4_PUBLIC_COURSE_PUBLICATION_PACK_V1"
+}

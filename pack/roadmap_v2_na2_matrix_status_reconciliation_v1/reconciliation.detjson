@@ -1,0 +1,74 @@
+{
+  "schema": "ddn.roadmap_v2.na2_matrix_status_reconciliation.v1",
+  "id": "ROADMAP_V2_NA2_MATRIX_STATUS_RECONCILIATION_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "나-2",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "unit": {
+      "closure": "STD_CORE_GRID_UNIT_CLOSURE_V1",
+      "source_pack": "pack/std_core_grid_unit_closure_v1",
+      "checker": "tests/run_std_core_grid_unit_closure_check.py"
+    },
+    "random": {
+      "closure": "STD_RANDOM_BAG_MINIMUM_V1",
+      "source_pack": "pack/std_random_bag_minimum_v1",
+      "checker": "tests/run_std_random_bag_pack_check.py"
+    },
+    "event": {
+      "closure": "STD_EVENT_MINIMUM_CLOSURE_V1",
+      "source_pack": "pack/std_event_minimum_closure_v1",
+      "checker": "tests/run_std_event_minimum_closure_check.py"
+    },
+    "rebase_checkers": [
+      "tests/run_roadmap_v2_na2_unit_random_event_rebase_check.py",
+      "tests/run_roadmap_v2_na2_event_minimum_closure_rebase_check.py"
+    ]
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/나-2_RECONCILIATION_REPORT_20260608.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "NA2 matrix reconciliation",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 38,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 42,
+    "roadmap_v2_pack_evidence_reference_closed": 58,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 64,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "next_item": "ROADMAP_V2_NA3_RESOURCE_NETWORK_POLICY_REBASE_V1",
+    "reason": "나-2 unit/random/event are now matrix-closed, so 나-3 resource/network/policy should be freshly rebased before implementation",
+    "not_next": "ROADMAP_V2_NA2_UNIT_RANDOM_EVENT_IMPLEMENTATION_V1"
+  },
+  "false_claims": {
+    "new_stdlib_surface": false,
+    "parser_frontdoor_change": false,
+    "runtime_surface_change": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_full_completion": false,
+    "studio_full_completion": false,
+    "broad_na2_implementation": false,
+    "full_actor_event_native_runtime_semantics": false,
+    "docs_ssot_change": false
+  }
+}
+

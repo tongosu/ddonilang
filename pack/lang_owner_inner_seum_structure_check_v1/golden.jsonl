@@ -1,0 +1,1 @@
+{"cmd":["run","pack/lang_owner_inner_seum_structure_check_v1/input.ddn"],"exit_code":0,"stdout":["LANG_OWNER_INNER_SEUM_STRUCTURE_CHECK_V1","owner inner seum structure check sealed","owner seum schema: ddn.language.owner_inner_seum_structure_check.v1","surface: 공:임자 / 성질 / 세움 / 받으면","language queue: 6/8 = 75%","next: LANG_CONNECT_LOWERING_TO_SEUM_CHECK_V1"]}

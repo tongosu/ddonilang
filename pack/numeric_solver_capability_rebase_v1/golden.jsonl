@@ -1,0 +1,2 @@
+{"id":"c01_numeric_solver_capability_rebase_marker","cmd":["run","pack/numeric_solver_capability_rebase_v1/input.ddn"],"stdout":["NUMERIC_SOLVER_CAPABILITY_REBASE_V1","numeric solver capability rebase sealed","boundary: bounded single relation + exact 2x2 system","next: ODE_TICK_LOOP_LESSON_BASELINE_V1"],"exit_code":0}
+

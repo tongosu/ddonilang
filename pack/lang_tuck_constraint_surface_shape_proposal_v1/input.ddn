@@ -1,0 +1,8 @@
+"LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1" 보여주기.
+"tuck constraint surface shape proposal sealed" 보여주기.
+"schema: ddn.language.tuck_constraint_surface_shape_proposal.v1" 보여주기.
+"surface family: 턱-row" 보여주기.
+"required fields: id, when, effect, priority, determinism" 보여주기.
+"risk removal: 3/6 = 50%" 보여주기.
+"runtime landed: false" 보여주기.
+"next: LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1" 보여주기.

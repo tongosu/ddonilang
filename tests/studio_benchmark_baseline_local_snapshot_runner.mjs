@@ -26,6 +26,31 @@ function mimeType(file) {
   return "text/plain; charset=utf-8";
 }
 
+function listenOnSafePort(server, startPort) {
+  return new Promise((resolve, reject) => {
+    let port = startPort;
+    const tryListen = () => {
+      const onError = (error) => {
+        server.off("listening", onListening);
+        if (error?.code === "EADDRINUSE" && port < startPort + 50) {
+          port += 1;
+          tryListen();
+          return;
+        }
+        reject(error);
+      };
+      const onListening = () => {
+        server.off("error", onError);
+        resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
+      };
+      server.once("error", onError);
+      server.once("listening", onListening);
+      server.listen(port, "127.0.0.1");
+    };
+    tryListen();
+  });
+}
+
 function createServer(root) {
   const resolvedRoot = path.resolve(root);
   const server = http.createServer(async (req, res) => {
@@ -51,14 +76,7 @@ function createServer(root) {
       res.end("not found");
     }
   });
-  return new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (!address || typeof address === "string") reject(new Error("failed to bind static server"));
-      else resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
-    });
-  });
+  return listenOnSafePort(server, 17660);
 }
 
 async function closeServer(server) {
@@ -107,7 +125,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-benchmark-baseline-local-snapshot][data-benchmark-baseline-status='benchmark_baseline_snapshot_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -139,8 +157,8 @@ async function main() {
     assert(snapshot.status === "benchmark_baseline_snapshot_ready", `status mismatch: ${snapshot.status}`);
     assert(snapshot.snapshot_row_count === 6, `snapshot count mismatch: ${snapshot.snapshot_row_count}`);
     assert(snapshot.ready_stage_count === 6, `ready stage mismatch: ${snapshot.ready_stage_count}`);
-    assert(snapshot.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(snapshot.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(snapshot.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(snapshot.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(snapshot.progress.current_stage_closed === 4, "current stage closed mismatch");
     assert(snapshot.progress.current_stage_percent === 50, "current stage percent mismatch");
     assert(snapshot.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");

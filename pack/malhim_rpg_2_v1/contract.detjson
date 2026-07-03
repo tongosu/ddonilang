@@ -1,0 +1,49 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "malhim_rpg_2_v1",
+  "kind": "roadmap_v2_cha2_rpg_story_pack_closure",
+  "runtime_claim": true,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "closed_by": "CHA2_RPG_STORY_PACK_CLOSURE_V1",
+  "roadmap_coordinate": "차-2",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "cha2_matrix_status": "닫힘-동작",
+  "requires_cha1_closed": true,
+  "current_stage": "CHA2 RPG story pack closure",
+  "current_stage_closed": 5,
+  "current_stage_total": 5,
+  "current_stage_percent": 100,
+  "roadmap_v2_matrix_behavior_closed": 14,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 16,
+  "roadmap_v2_pack_evidence_reference_closed": 34,
+  "roadmap_v2_pack_evidence_reference_total": 90,
+  "roadmap_v2_pack_evidence_reference_percent": 38,
+  "studio_local_super_long_closed": 9,
+  "studio_local_super_long_total": 18,
+  "studio_local_super_long_percent": 50,
+  "story_lanes": [
+    "actor",
+    "state",
+    "dialogue",
+    "map",
+    "runtime_golden"
+  ],
+  "source_evidence": [
+    "malhim_rpg_1_v1",
+    "rpg_quest_smoke_v1",
+    "rpg_npc_statemachine_smoke_v1",
+    "rpg_dialogue_smoke_v1"
+  ],
+  "expected_stdout": [
+    "actor:용사@문앞",
+    "state:position=문앞",
+    "dialogue:안녕 용사 방문=1",
+    "map:시작->문앞"
+  ],
+  "next_item": "CHA3_RPG_BOX_NURIMAKER_AUTHORING_UI_V1",
+  "forbidden_unlock_condition": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1",
+  "requires_docs_ssot_clean": true
+}

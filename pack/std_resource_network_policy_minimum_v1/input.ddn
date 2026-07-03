@@ -1,0 +1,16 @@
+"STD_RESOURCE_NETWORK_POLICY_MINIMUM_V1" 보여주기.
+"std resource network policy minimum sealed" 보여주기.
+
+정책자료 <- ("assets/policy/network.detjson") 자원.
+정책자료 보여주기.
+
+"resource_gate: 자원 handle deterministic" 보여주기.
+"network_gate: eco_network_flow_smoke PASS" 보여주기.
+"policy_gate: social_world_econ_2_v1/social_world_econ_3_v1 PASS" 보여주기.
+"drift_excluded: seamgrim_exec_policy_effect_map_v1/open_decl_policy/open_deny_policy" 보여주기.
+"stage: 5/5 = 100%" 보여주기.
+"roadmap matrix behavior: 38/90 = 42%" 보여주기.
+"pack evidence reference: 59/90 = 66%" 보여주기.
+"studio local super-long: 9/18 = 50%" 보여주기.
+"status: pack-evidence only, not na3 matrix-closed" 보여주기.
+"next: ROADMAP_V2_NA3_MATRIX_STATUS_RECONCILIATION_V1" 보여주기.

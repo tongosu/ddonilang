@@ -1,0 +1,72 @@
+{
+  "schema": "ddn.roadmap_v2.ma4_public_lesson_publication_prereq_rebase.v1",
+  "id": "MA4_PUBLIC_LESSON_PUBLICATION_PREREQ_REBASE_V1",
+  "date": "2026-06-08",
+  "status": "docs_closed_startable",
+  "roadmap_coordinate": "마-4",
+  "matrix_closure_claim": false,
+  "matrix_closure_tier": "not_closed",
+  "ma4_matrix_status": "진행",
+  "closure_pack_required": "seamgrim_curriculum_4_v1",
+  "candidate_evidence": [
+    {
+      "pack": "seamgrim_registry_publish_install_shell_v1",
+      "checker": "tests/run_seamgrim_registry_publish_install_shell_pack_check.py",
+      "role": "registry/share/publish/install shell boundary"
+    },
+    {
+      "pack": "studio_public_lesson_publication_prep_v1",
+      "checker": "tests/run_studio_public_lesson_publication_prep_check.py",
+      "role": "publication candidate and review gate preparation"
+    },
+    {
+      "pack": "studio_lesson_publication_review_surface_v1",
+      "runner": "tests/studio_lesson_publication_review_surface_runner.mjs",
+      "checker": "tests/run_studio_lesson_publication_review_surface_check.py",
+      "role": "browser-backed local publication review surface"
+    },
+    {
+      "pack": "studio_local_share_and_packaging_v1",
+      "runner": "tests/studio_local_share_and_packaging_browser_runner.mjs",
+      "checker": "tests/run_studio_local_share_and_packaging_check.py",
+      "role": "local-only share and package smoke"
+    }
+  ],
+  "progress": {
+    "current_stage": "MA4 public lesson publication prereq rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 5,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 24,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 27,
+    "studio_local_super_long_closed": 7,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 39
+  },
+  "decision": {
+    "new_status_for_ma4": "진행",
+    "reason": "마-3 is closed and existing publication/share/registry candidate evidence passes, but canonical seamgrim_curriculum_4_v1 closure pack does not yet exist.",
+    "next_item": "MA4_SEAMGRIM_CURRICULUM_4_PUBLICATION_PACK_CLOSURE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "ma4_closed": false,
+    "canonical_publication_pack_exists": false,
+    "new_product_ui_behavior": false,
+    "public_upload_claim": false,
+    "registry_publish_claim": false,
+    "public_link_creation_claim": false,
+    "install_enablement_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "docs_ssot_change": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "numeric_track_consolidation_required": false
+  }
+}

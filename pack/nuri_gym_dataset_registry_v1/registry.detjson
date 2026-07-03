@@ -1,0 +1,57 @@
+{
+  "schema": "ddn.nurigym.dataset_registry.v1",
+  "registry_id": "nuri_gym_dataset_registry_v1",
+  "coordinate": "아-4",
+  "status": "local_registry_ready",
+  "publish_scope": "local_pack_registry_only",
+  "dataset_format": "nurigym_v0",
+  "rows": [
+    {
+      "id": "w53_dataset_export",
+      "source_pack": "gogae5_w53_dataset_export",
+      "geoul_path": "build/geoul_w53",
+      "dataset_path": "build/dataset_w53/nurigym.dataset.jsonl",
+      "dataset_hash": "sha256:5458d126393789f68fc92822de7d0ce788b22db2e62363f59b392d66c67a7b99",
+      "source_audit_hash": "blake3:2a7e18dcce782f96e3a409f816f2ef75499993511ea6cfee954f123e6949ba40",
+      "ready": true
+    },
+    {
+      "id": "w55_smart_errand_dataset",
+      "source_pack": "gogae5_w55_smart_errand_integration",
+      "geoul_path": "build/geoul_w55",
+      "dataset_path": "build/dataset_w55/nurigym.dataset.jsonl",
+      "dataset_hash": "sha256:1c9159dfbdd505c74023b5ebd042235ec88f1b1c7bd9b6647500581552358075",
+      "source_audit_hash": "blake3:6c2833ef911bf9cbb9e15a252ecd572ddaa4ce3f1387e3eb0e4555a07966bdaf",
+      "ready": true
+    }
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 76,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 84,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 78,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 87,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "public_registry_publish_claim": false,
+    "network_sync_claim": false,
+    "cloud_storage_claim": false,
+    "account_permission_claim": false,
+    "python_web_parity_claim": false,
+    "training_workflow_claim": false,
+    "nurigym_runtime_change": false,
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false
+  }
+}

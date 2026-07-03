@@ -1,0 +1,45 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "work_item": "GA5_GRAMMAR_LTS_DOCS_CLOSED_RECONCILIATION_V1",
+  "coordinate": "가-5",
+  "title": "LTS 문법선",
+  "previous_status": "",
+  "new_status": "닫힘-문서",
+  "status": "docs_closed",
+  "basis": [
+    "language_design_priority_rebase_v1",
+    "lang_language_risk_removal_closure_rebase_v1",
+    "grammar_manifest_operation_check",
+    "formula_compat_check",
+    "lesson_schema_formula_compat_checks",
+    "new_grammar_no_legacy_control_meta_check"
+  ],
+  "progress": {
+    "current_stage_closed": 6,
+    "current_stage_total": 6,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 65,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 72,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 67,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 74,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "roadmap_behavior_increment": false,
+    "release_gate_execution_claim": false,
+    "full_lts_certification_claim": false,
+    "public_release_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "next_item": "ROADMAP_V2_POST_GA5_FRONTIER_REBASE_V1"
+}

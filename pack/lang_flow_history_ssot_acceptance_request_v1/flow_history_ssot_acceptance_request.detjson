@@ -1,0 +1,135 @@
+{
+  "schema": "ddn.language.flow_history_ssot_acceptance_request.v1",
+  "work_item": "LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1",
+  "based_on": "LANG_PRIME_SSOT_ACCEPTANCE_REQUEST_V1",
+  "source_prime_ssot_acceptance_request": "pack/lang_prime_ssot_acceptance_request_v1/prime_ssot_acceptance_request.detjson",
+  "source_ssot_landing_coordination": "pack/lang_ssot_landing_coordination_rebase_v1/ssot_landing_coordination_rebase.detjson",
+  "source_flow_type_collision_rename": "pack/lang_flow_type_collision_rename_v1/flow_type_collision_rename.detjson",
+  "source_flow_history_alias_migration_plan": "pack/lang_flow_history_alias_migration_plan_v1/flow_history_alias_migration_plan.detjson",
+  "source_history_alias_stdlib_bridge": "pack/lang_history_alias_stdlib_bridge_v1/history_alias_stdlib_bridge.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "flow_history_ssot_acceptance_request_claim": true,
+  "flow_history_ssot_landed_claim": false,
+  "flow_alias_removed_claim": false,
+  "ddn_history_schema_landed_claim": false,
+  "sidecar_rename_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "request": {
+    "target_id": "flow_history_naming_split",
+    "kept_connector_term": "흐름",
+    "selected_value_history_family": "이력",
+    "preferred_surfaces": [
+      "이력.만들기",
+      "이력.밀어넣기",
+      "이력.차림",
+      "이력.최근값",
+      "이력.길이",
+      "이력.용량",
+      "이력.비우기",
+      "이력.잘라보기"
+    ],
+    "compatibility_surfaces_to_preserve": [
+      "흐름.*",
+      "흐름만들기",
+      "흐름넣기",
+      "흐름추가",
+      "흐름값들",
+      "흐름최근",
+      "흐름길이",
+      "흐름용량",
+      "흐름비우기",
+      "흐름잘라보기",
+      "흐름최근N",
+      "ddn.stream.v1",
+      "stream sidecar suffixes",
+      "가격흐름_길이"
+    ],
+    "recommended_acceptance_text": [
+      "`흐름` remains the connector/port flow term.",
+      "Value-history and ring-buffer naming uses `이력`.",
+      "`이력.*` may be introduced as the preferred value-history surface while current `흐름.*` compatibility surfaces remain valid.",
+      "Removal of `흐름.*`, `ddn.stream.v1`, or stream sidecar suffixes requires a separate compatibility and migration gate."
+    ]
+  },
+  "product_anchor_rows": [
+    {
+      "id": "flow_decision_source",
+      "path": "pack/lang_flow_type_collision_rename_v1/flow_type_collision_rename.detjson",
+      "tokens": ["kept_connector_term", "흐름", "selected_value_type_name", "이력"],
+      "changed_now": false
+    },
+    {
+      "id": "migration_plan_source",
+      "path": "pack/lang_flow_history_alias_migration_plan_v1/flow_history_alias_migration_plan.detjson",
+      "tokens": ["preserve_current_flow_value_family_until_removal_gate", "compatibility_surfaces_to_preserve", "ddn.stream.v1"],
+      "changed_now": false
+    },
+    {
+      "id": "stdlib_alias_bridge_source",
+      "path": "pack/lang_history_alias_stdlib_bridge_v1/history_alias_stdlib_bridge.detjson",
+      "tokens": ["history_alias_bridge", "이력.만들기", "흐름.만들기", "backward_compat_break_claim"],
+      "changed_now": false
+    },
+    {
+      "id": "coordination_source",
+      "path": "pack/lang_ssot_landing_coordination_rebase_v1/ssot_landing_coordination_rebase.detjson",
+      "tokens": ["flow_history_naming_split", "LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1", "urgent_ssot_landed_plan"],
+      "changed_now": false
+    },
+    {
+      "id": "previous_request_source",
+      "path": "pack/lang_prime_ssot_acceptance_request_v1/prime_ssot_acceptance_request.detjson",
+      "tokens": ["LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1", "ssot_acceptance_request_queue", "1"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "flow_alias_removed",
+    "ddn_history_schema_landed",
+    "sidecar_rename_landed",
+    "backward_compat_break"
+  ],
+  "ssot_acceptance_request_queue": {
+    "closed": 2,
+    "total": 3,
+    "percent": 67
+  },
+  "flow_history_ssot_acceptance_request": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 70,
+    "total": 90,
+    "percent": 78
+  },
+  "next_item": "LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1"
+}
+

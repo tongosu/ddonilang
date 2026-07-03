@@ -1,0 +1,1 @@
+{"id":"c01_pa3_policy_ghost_ui_marker","cmd":["run","pack/social_world_econ_3_v1/input.ddn"],"stdout":["PA3_POLICY_GHOST_UI_V1","social world policy ghost UI sealed","stage: 5/5 = 100%","roadmap matrix behavior: 26/90 = 29%","pack evidence reference: 46/90 = 51%","studio local super-long: 9/18 = 50%","pa3 status: 닫힘-동작","next: PA4_SOCIAL_TEMPLATE_REGISTRY_V1"],"exit_code":0}

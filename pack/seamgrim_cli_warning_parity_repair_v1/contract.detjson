@@ -1,0 +1,40 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_cli_warning_parity_repair_v1",
+  "kind": "seamgrim_cli_warning_parity_repair",
+  "product_code_change": true,
+  "parser_frontdoor_change": false,
+  "runtime_claim": false,
+  "wasm_behavior_change": false,
+  "stdlib_change": false,
+  "solver_implementation_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "dultra_runtime_replay_claim": false,
+  "closed_by": "SEAMGRIM_CLI_WARNING_PARITY_REPAIR_V1",
+  "changed_file": "tools/teul-cli/src/cli/dultra_replay.rs",
+  "fixed_warning_codes": [
+    "unused",
+    "struct",
+    "function"
+  ],
+  "repaired_gates": [
+    "tests/run_seamgrim_wasm_cli_runtime_parity_check.py",
+    "tests/run_ddonirang_vol4_bundle_cli_wasm_parity_check.py",
+    "tests/run_seamgrim_product_stabilization_smoke_check.py"
+  ],
+  "work_unit_closed": 5,
+  "work_unit_total": 5,
+  "baseline_repair_closed": 2,
+  "baseline_repair_total": 4,
+  "baseline_repair_percent": 50,
+  "super_long_behavior_closed": 4,
+  "super_long_total": 18,
+  "super_long_percent": 22,
+  "roadmap_v2_behavior_closed": 21,
+  "roadmap_v2_total": 90,
+  "roadmap_v2_percent": 23,
+  "closure_tier": "닫힘-동작",
+  "next_item": "SEAMGRIM_RUNTIME_5MIN_BASELINE_REPAIR_V1",
+  "requires_docs_ssot_clean": true
+}

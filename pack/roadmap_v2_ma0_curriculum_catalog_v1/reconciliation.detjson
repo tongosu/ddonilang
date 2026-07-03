@@ -1,0 +1,74 @@
+{
+  "schema": "ddn.roadmap_v2.ma0_curriculum_catalog_reconciliation.v1",
+  "id": "MA0_CURRICULUM_CATALOG_RECONCILIATION_V1",
+  "date": "2026-06-09",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "마-0",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "lesson_catalog": {
+      "file": "solutions/seamgrim_ui_mvp/lessons/index.json",
+      "minimum_lesson_count": 200,
+      "required_subjects": [
+        "math",
+        "physics",
+        "econ",
+        "science"
+      ]
+    },
+    "curriculum_meta": {
+      "source_pack": "pack/education_curriculum_template_v1",
+      "checker": "tests/run_education_curriculum_template_check.py"
+    },
+    "browse_detail": {
+      "checker": "tests/run_seamgrim_education_curriculum_template_check.py"
+    },
+    "downstream_curriculum": {
+      "packs": [
+        "education_curriculum_1_v1",
+        "seamgrim_curriculum_2_v1",
+        "seamgrim_curriculum_3_v1",
+        "seamgrim_curriculum_4_v1",
+        "seamgrim_curriculum_5_v1"
+      ]
+    }
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "씨앗",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/마-0_RECONCILIATION_REPORT_20260609.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "MA0 Curriculum catalog",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 83,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 92,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 85,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 94,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "lesson_authoring_ui_change": false,
+    "textbook_rewrite_claim": false,
+    "remote_classroom_sync_claim": false,
+    "publication_workflow_claim": false,
+    "new_lesson_catalog_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "docs_ssot_change": false
+  }
+}

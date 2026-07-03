@@ -1,0 +1,53 @@
+{
+  "schema": "ddn.std_grid_game_bogae_browser_dom_smoke.pack.contract.v1",
+  "id": "std_grid_game_bogae_browser_dom_smoke_v1",
+  "public_surface_delta": "none",
+  "playwright_version": "1.44.0",
+  "runner": "tests/std_grid_game_bogae_browser_dom_smoke_runner.mjs",
+  "generated_asset_dependency": "std_grid_game_bogae_live_web_assets_v1",
+  "server": {
+    "kind": "node_http_static",
+    "owner": "tests/std_grid_game_bogae_browser_dom_smoke_runner.mjs",
+    "port": "free"
+  },
+  "pages": [
+    "viewer/index.html",
+    "viewer/live.html"
+  ],
+  "required_assets": [
+    "manifest.detjson",
+    "frames/000000.bdl1.detbin",
+    "frames/000001.bdl1.detbin",
+    "frames/000002.bdl1.detbin",
+    "frames/000003.bdl1.detbin",
+    "viewer/index.html",
+    "viewer/live.html",
+    "viewer/viewer.js",
+    "viewer/overlay.detjson",
+    "viewer/skin.detjson"
+  ],
+  "claims": [
+    "real_chromium_load",
+    "canvas_render",
+    "playback_controls_enabled",
+    "playback_step_seek_overlay_event_path",
+    "live_page_data_live_marker",
+    "live_controls_disabled",
+    "manifest_and_frame_fetch"
+  ],
+  "non_scope": [
+    "new stdlib surface",
+    "parser/frontdoor syntax",
+    "keyboard_to_server_delivery",
+    "live_input_game_state_effect",
+    "infinite_live_loop",
+    "scheduler_drift_or_stability",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_grid_game_bogae_browser_dom_smoke"
+  ]
+}

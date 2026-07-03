@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-teacher-feedback-preview-panel][data-teacher-feedback-status='teacher_feedback_preview_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -134,8 +134,8 @@ async function main() {
     assert(preview.status === "teacher_feedback_preview_ready", `status mismatch: ${preview.status}`);
     assert(preview.preview_section_count === 6, `section count mismatch: ${preview.preview_section_count}`);
     assert(preview.ready_stage_count === 6, `ready stage mismatch: ${preview.ready_stage_count}`);
-    assert(preview.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(preview.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(preview.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(preview.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(preview.progress.current_stage_closed === 2, "current stage closed mismatch");
     assert(preview.progress.current_stage_percent === 25, "current stage percent mismatch");
     assert(preview.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");

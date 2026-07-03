@@ -1,0 +1,11 @@
+종류 <- "std_grid_game_bogae_live_input_frame_effect_v1".
+순서 <- "control_then_input".
+테이프 <- "record_sam_nonzero".
+상태 <- "state_hash_diff_after_input_plus_3_ticks".
+보개 <- "bogae_hash_aux_diff".
+
+종류 보여주기.
+순서 보여주기.
+테이프 보여주기.
+상태 보여주기.
+보개 보여주기.

@@ -108,7 +108,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-public-release-approval-recheck][data-public-release-approval-recheck-status='approval_recheck_waiting']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -142,11 +142,11 @@ async function main() {
     assert(recheck.product_ui_change === true, "must claim product ui change");
     assert(recheck.approval_row_count === 5, `row count mismatch: ${recheck.approval_row_count}`);
     assert(recheck.ready_stage_count === 6, `ready stage mismatch: ${recheck.ready_stage_count}`);
-    assert(recheck.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(recheck.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(recheck.progress.current_stage_closed === 2, "followup closed mismatch");
     assert(recheck.progress.current_stage_percent === 25, "followup percent mismatch");
-    assert(recheck.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(recheck.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(recheck.progress.roadmap_v2_behavior_closed === 51, "roadmap closed mismatch");
+    assert(recheck.progress.roadmap_v2_percent === 57, "roadmap percent mismatch");
     assert(recheck.next_item === "STUDIO_LOCAL_RELEASE_REHEARSAL_CHECK_V1", "next item mismatch");
     assert(String(moduleResult.text).includes(`required_approval_phrase\t${REQUIRED}`), "formatted text missing required phrase");
     assert(String(moduleResult.text).includes("release_execution_claim\tfalse"), "formatted text missing release boundary");

@@ -1,0 +1,10 @@
+"LANG_SSOT_LANDING_WAIT_STATE_REBASE_V1" 보여주기.
+"ssot landing wait-state rebase sealed" 보여주기.
+"schema: ddn.language.ssot_landing_wait_state_rebase.v1" 보여주기.
+"closed acceptance requests: 3" 보여주기.
+"ssot request queue: 3/3 = 100%" 보여주기.
+"wait-state rebase: 1/1 = 100%" 보여주기.
+"urgent ssot landed: 0/3 = 0%" 보여주기.
+"roadmap: 73/90 = 81%" 보여주기.
+"next: LANG_POST_SSOT_LANDING_PRODUCT_GATE_REBASE_V1" 보여주기.
+

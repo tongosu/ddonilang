@@ -1,0 +1,178 @@
+{
+  "schema": "ddn.language.sim_constraint_third_layer_name.v1",
+  "work_item": "LANG_SIM_CONSTRAINT_THIRD_LAYER_NAME_V1",
+  "based_on": "LANG_FLOW_TYPE_COLLISION_RENAME_V1",
+  "sim_constraint_third_layer_name_decision_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "constraint_layer_runtime_landed_claim": false,
+  "constraint_layer_parser_landed_claim": false,
+  "constraint_block_landed_claim": false,
+  "source_priority_rebase": "pack/language_design_priority_rebase_v1/language_design_priority_rebase.detjson",
+  "source_flow_decision": "pack/lang_flow_type_collision_rename_v1/flow_type_collision_rename.detjson",
+  "naming_decision": {
+    "selected_constraint_layer_name": "턱",
+    "semantic_role": "simulation_boundary_threshold_or_exit_constraint",
+    "decision_landed": true,
+    "ssot_landed": false,
+    "parser_landed": false,
+    "runtime_landed": false,
+    "stdlib_landed": false
+  },
+  "layer_boundary": [
+    {
+      "layer": "세움",
+      "role": "equation_or_declarative_relation"
+    },
+    {
+      "layer": "받으면_or_상태머신",
+      "role": "ordinary_event_or_state_transition"
+    },
+    {
+      "layer": "턱",
+      "role": "boundary_threshold_or_exit_intervention"
+    }
+  ],
+  "example_roles": [
+    {
+      "id": "ceiling_limit",
+      "description": "a moving body cannot pass a ceiling or wall",
+      "candidate_surface": "천장턱",
+      "runtime_landed": false
+    },
+    {
+      "id": "out_of_range_termination",
+      "description": "an episode ends when position or angle crosses a limit",
+      "candidate_surface": "벗어남턱",
+      "runtime_landed": false
+    },
+    {
+      "id": "bankruptcy_exit",
+      "description": "an economic actor exits once bankrupt",
+      "candidate_surface": "파산턱",
+      "runtime_landed": false
+    },
+    {
+      "id": "policy_threshold_transition",
+      "description": "a policy changes once a threshold is crossed",
+      "candidate_surface": "정책턱",
+      "runtime_landed": false
+    }
+  ],
+  "evidence_rows": [
+    {
+      "id": "priority_rebase_recommendation",
+      "path": "pack/language_design_priority_rebase_v1/language_design_priority_rebase.detjson",
+      "tokens": ["sim_constraint_third_layer", "턱", "ceiling_limit", "bankruptcy_exit"],
+      "classification": "source_recommendation",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "cartpole_limit_termination",
+      "path": "core/src/nurigym/cartpole.rs",
+      "tokens": ["position_limit", "angle_limit"],
+      "classification": "runtime_limit_example_anchor",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "pendulum_angle_limit",
+      "path": "core/src/nurigym/pendulum.rs",
+      "tokens": ["angle_limit"],
+      "classification": "runtime_limit_example_anchor",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "ddn_runtime_inequality_constraint",
+      "path": "tool/src/ddn_runtime.rs",
+      "tokens": ["apply_linear_inequality_constraint", "제약개수"],
+      "classification": "existing_math_constraint_anchor",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "econ_bankruptcy_anchor",
+      "path": "docs/context/proposals/PROPOSAL_ECON_AGENT_STANDARD_V0_20260328.md",
+      "tokens": ["파산", "파산상태"],
+      "classification": "economic_exit_threshold_anchor",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "execution_axis_term_collision",
+      "path": "docs/context/proposals/proposal_execution_axes_v_3_20260404.md",
+      "tokens": ["막음모음", "닿음끝"],
+      "classification": "rejected_alternative_collision_anchor",
+      "decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    }
+  ],
+  "rejected_alternatives": [
+    {
+      "surface": "닿음",
+      "reason": "too close to contact/collision and existing end-state vocabulary"
+    },
+    {
+      "surface": "막음",
+      "reason": "too broad and already present in execution-axis vocabulary"
+    },
+    {
+      "surface": "문턱",
+      "reason": "semantically valid but longer than 턱 for repeated surface use"
+    }
+  ],
+  "implementation_policy": {
+    "add_new_block_now": false,
+    "parser_change_now": false,
+    "runtime_change_now": false,
+    "ssot_update_required_later": true,
+    "later_decision_needed": "block_vs_clause_vs_existing_surface_row_family"
+  },
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "constraint_layer_runtime_landed",
+    "constraint_layer_parser_landed",
+    "constraint_block_landed"
+  ],
+  "queue_plan": {
+    "closed": 4,
+    "total": 8,
+    "percent": 50
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_SEUM_VOL3_PRIME_EXAMPLE_PACK_V1"
+}

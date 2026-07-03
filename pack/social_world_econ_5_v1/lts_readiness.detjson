@@ -1,0 +1,50 @@
+{
+  "schema": "ddn.social_world.lts_readiness.v1",
+  "work_item": "PA5_SOCIAL_WORLD_LTS_V1",
+  "primary_coordinate": "파-5",
+  "pack": "social_world_econ_5_v1",
+  "status": "social_world_lts_readiness_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "social_world_lts_claim": true,
+  "education_stability_claim": true,
+  "policy_regression_claim": true,
+  "history_fixture_claim": true,
+  "lts_gate_claim": true,
+  "remote_lts_certification_claim": false,
+  "public_release_execution_claim": false,
+  "live_policy_deployment_claim": false,
+  "real_world_prediction_claim": false,
+  "policy_advice_claim": false,
+  "state_hash_participation_claim": false,
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 28,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 31,
+    "roadmap_v2_pack_evidence_reference_closed": 48,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 53,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "rows": [
+    { "id": "education_stability", "ready": true },
+    { "id": "policy_regression", "ready": true },
+    { "id": "history_fixture", "ready": true },
+    { "id": "lts_gate", "ready": true }
+  ],
+  "lts_text": "coordinate:파-5\nremote_lts_certification:false\npublic_release_execution:false\nlive_policy_deployment:false\nreal_world_prediction:false\npolicy_advice:false\nstate_hash_participation:false",
+  "false_claims": {
+    "remote_lts_certification_claim": false,
+    "public_release_execution_claim": false,
+    "live_policy_deployment_claim": false,
+    "real_world_prediction_claim": false,
+    "policy_advice_claim": false,
+    "state_hash_participation_claim": false,
+    "parser_frontdoor_change": false,
+    "grammar_claim": false
+  }
+}

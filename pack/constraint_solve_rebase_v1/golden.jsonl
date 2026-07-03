@@ -1,0 +1,2 @@
+{"id":"c01_constraint_solve_rebase_marker","cmd":["run","pack/constraint_solve_rebase_v1/input.ddn"],"stdout":["CONSTRAINT_SOLVE_REBASE_V1","constraint solve boundary rebase sealed","boundary: post-solve range validation, not solver-internal inequality constraints","next: LINEAR_INEQUALITY_SOLVE_MINIMUM_V1"],"exit_code":0}
+

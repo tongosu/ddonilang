@@ -1,0 +1,84 @@
+{
+  "schema": "ddn.roadmap_v2.ma5.seamgrim_curriculum_5.lts_pack_closure.v1",
+  "id": "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "마-5",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "ma5_matrix_status": "닫힘-동작",
+  "lts_pack": {
+    "pack_id": "seamgrim_curriculum_5_v1",
+    "requires_ma4_pack": "seamgrim_curriculum_4_v1",
+    "candidate_count": 4,
+    "boundary": "local_lts_readiness_and_release_rehearsal"
+  },
+  "lts_candidates": [
+    {
+      "pack": "studio_education_operations_lts_v1",
+      "checker": "tests/run_studio_education_operations_lts_check.py",
+      "covers": ["education_operations_lts_readiness", "operations_domain_matrix", "explicit_no_public_release"]
+    },
+    {
+      "pack": "studio_benchmark_lts_matrix_v1",
+      "checker": "tests/run_studio_benchmark_lts_matrix_check.py",
+      "covers": ["benchmark_lts_matrix", "approval_continuity", "explicit_no_benchmark_execution"]
+    },
+    {
+      "pack": "studio_ma3_regression_gate_matrix_v1",
+      "runner": "tests/studio_ma3_regression_gate_matrix_runner.mjs",
+      "checker": "tests/run_studio_ma3_regression_gate_matrix_check.py",
+      "covers": ["local_regression_gate_matrix_surface", "browser_rendered_gate_rows", "explicit_no_test_execution_claim"]
+    },
+    {
+      "pack": "studio_local_release_rehearsal_check_v1",
+      "runner": "tests/studio_local_release_rehearsal_check_runner.mjs",
+      "checker": "tests/run_studio_local_release_rehearsal_check.py",
+      "covers": ["local_release_rehearsal_surface", "dry_run_only_boundary", "explicit_no_release_execution"]
+    }
+  ],
+  "progress": {
+    "current_stage": "MA5 curriculum LTS pack closure",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 7,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 8,
+    "roadmap_v2_pack_evidence_reference_closed": 26,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 29,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "new_status_for_ma5": "닫힘-동작",
+    "reason": "The canonical curriculum LTS pack now binds local LTS readiness, benchmark/LTS matrix, regression gate matrix, and local release rehearsal product-path evidence after 마-4 closure.",
+    "next_item": "BA0_FREE_LAB_SEED_REBASE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "new_product_ui_behavior": false,
+    "runtime_change": false,
+    "lesson_schema_change": false,
+    "active_allowlist_mutation": false,
+    "public_release_approval_claim": false,
+    "public_release_execution_claim": false,
+    "public_upload_claim": false,
+    "registry_publish_claim": false,
+    "public_link_creation_claim": false,
+    "install_enablement_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "archive_generation_claim": false,
+    "publication_checksum_generation_claim": false,
+    "artifact_signing_claim": false,
+    "github_release_claim": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "numeric_track_consolidation_required": false,
+    "docs_ssot_change": false
+  }
+}

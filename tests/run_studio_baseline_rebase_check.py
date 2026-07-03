@@ -8,8 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 REBASE = ROOT / "STUDIO_BASELINE_REBASE_V1.md"
-QUEUE = ROOT / "NEXT_WORK_QUEUE_AFTER_CONNECT_V1.md"
 PACK = ROOT / "pack" / "studio_baseline_rebase_v1"
+RETIRED_ROOT_DOCS = [
+    ROOT / "NEXT_WORK_QUEUE_AFTER_CONNECT_V1.md",
+    ROOT / "CONNECT_ENDPOINT_SOLVE_RANGE_CASE_SUITE_CHECK_RUNNER_V1V.md",
+    ROOT / "ROOT_LOW_RISK_RETIRE_DELETE_V1.md",
+]
 
 
 def fail(code: str, message: str) -> int:
@@ -25,9 +29,6 @@ def require_files() -> int:
     required = [
         ROADMAP,
         REBASE,
-        QUEUE,
-        ROOT / "CONNECT_ENDPOINT_SOLVE_RANGE_CASE_SUITE_CHECK_RUNNER_V1V.md",
-        ROOT / "ROOT_LOW_RISK_RETIRE_DELETE_V1.md",
         ROOT / "pack" / "connect_flow_v1v_closure_v1" / "contract.detjson",
         PACK / "README.md",
         PACK / "contract.detjson",
@@ -160,18 +161,10 @@ def check_pack_golden() -> int:
     return 0
 
 
-def check_queue_state() -> int:
-    text = read(QUEUE)
-    required = [
-        "connect_flow_v1v_closure_v1",
-        "ROOT_LOW_RISK_RETIRE_DELETE_V1",
-        "No automatic next development item is selected",
-        "Future work should start from a fresh user-selected scope or a new rebase plan",
-        "docs/ssot/**",
-    ]
-    missing = [token for token in required if token not in text]
-    if missing:
-        return fail("E_STUDIO_BASELINE_REBASE_QUEUE", str(missing))
+def check_retired_root_docs_absent() -> int:
+    present = [str(path.relative_to(ROOT)) for path in RETIRED_ROOT_DOCS if path.exists()]
+    if present:
+        return fail("E_STUDIO_BASELINE_REBASE_RETIRED_ROOT_DOCS_PRESENT", str(present))
     return 0
 
 
@@ -215,7 +208,7 @@ def main() -> int:
         check_rebase_doc,
         check_pack_contract,
         check_pack_golden,
-        check_queue_state,
+        check_retired_root_docs_absent,
         check_dev_summary,
         check_docs_ssot_clean,
     )

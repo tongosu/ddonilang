@@ -79,14 +79,34 @@
     "permission_system_change"
   ],
   "post_super_long_plan": {
-    "closed": 3,
-    "total": 8,
-    "percent": 38
-  },
-  "roadmap_v2_product_behavior": {
-    "closed": 90,
-    "total": 90,
+    "closed": 4,
+    "total": 4,
     "percent": 100
   },
-  "next_item": "STUDIO_PUBLICATION_ARTIFACT_DRY_RUN_V1"
+  "roadmap_v2_product_behavior": {
+    "closed": 6,
+    "total": 90,
+    "percent": 7
+  },
+  "progress": {
+    "super_long_behavior_closed": 8,
+    "super_long_total": 18,
+    "super_long_percent": 44,
+    "studio_local_super_long_closed": 8,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 44,
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_behavior_closed": 6,
+    "roadmap_v2_total": 90,
+    "roadmap_v2_percent": 7,
+    "roadmap_v2_matrix_behavior_closed": 6,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 7,
+    "roadmap_v2_pack_evidence_reference_closed": 25,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 28
+  },
+  "next_item": "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1"
 }

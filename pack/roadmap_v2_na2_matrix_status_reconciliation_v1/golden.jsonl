@@ -1,0 +1,2 @@
+{"id":"c01_na2_matrix_status_reconciliation_marker","cmd":["run","pack/roadmap_v2_na2_matrix_status_reconciliation_v1/input.ddn"],"stdout":["ROADMAP_V2_NA2_MATRIX_STATUS_RECONCILIATION_V1","na2 matrix status reconciliation sealed","stage: 5/5 = 100%","roadmap matrix behavior: 38/90 = 42%","pack evidence reference: 58/90 = 64%","studio local super-long: 9/18 = 50%","next: ROADMAP_V2_NA3_RESOURCE_NETWORK_POLICY_REBASE_V1"],"exit_code":0}
+

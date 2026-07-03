@@ -41,9 +41,9 @@
   "next_state": "AWAIT_EXPLICIT_RELEASE_APPROVAL",
   "primary_coordinate": "마-3",
   "support_coordinate": "타-3",
-  "super_long_closed": 18,
+  "super_long_closed": 9,
   "super_long_total": 18,
-  "super_long_percent": 100,
+  "super_long_percent": 50,
   "work_unit_closed": 6,
   "work_unit_total": 6,
   "post_super_long_closed": 2,
@@ -52,9 +52,9 @@
   "ma_followup_closed": 2,
   "ma_followup_total": 8,
   "ma_followup_percent": 25,
-  "roadmap_v2_behavior_closed": 90,
+  "roadmap_v2_behavior_closed": 51,
   "roadmap_v2_total": 90,
-  "roadmap_v2_percent": 100,
+  "roadmap_v2_percent": 57,
   "next_item": "STUDIO_LOCAL_RELEASE_REHEARSAL_CHECK_V1",
   "requires_docs_ssot_clean": true
 }

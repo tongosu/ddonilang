@@ -1,0 +1,71 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "id": "CHA0_RPG_SEED_REASSESSMENT_V1",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "차-0",
+  "matrix_status_record": {
+    "old_status": "씨앗",
+    "new_status": "닫힘-동작",
+    "closure_tier": "닫힘-동작",
+    "reason": "The original RPG action/story seed lanes are now consumed by downstream phrase/action, story pack, authoring UI, story package, and engine adapter LTS evidence."
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "CHA0 RPG seed reassessment",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 85,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 94,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 87,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 97,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "evidence": {
+    "seed_boundary": {
+      "pack": "roadmap_v2_cha0_rpg_seed_rebase_v1",
+      "lanes": [
+        "action_method",
+        "phrase_binding",
+        "story_event_boundary"
+      ]
+    },
+    "downstream_product_path": {
+      "packs": [
+        "malhim_rpg_1_v1",
+        "malhim_rpg_2_v1",
+        "malhim_rpg_3_v1",
+        "malhim_rpg_4_v1",
+        "malhim_rpg_5_v1"
+      ],
+      "checkers": [
+        "tests/run_roadmap_v2_cha1_rpg_phrase_action_smoke_check.py",
+        "tests/run_roadmap_v2_cha2_rpg_story_pack_closure_check.py",
+        "tests/run_roadmap_v2_cha3_rpg_box_authoring_ui_check.py",
+        "tests/run_roadmap_v2_cha4_rpg_story_package_check.py",
+        "tests/run_roadmap_v2_cha5_rpg_engine_adapter_lts_check.py"
+      ]
+    }
+  },
+  "false_claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "new_rpg_behavior": false,
+    "new_parser_runtime_semantics": false,
+    "registry_publish_claim": false,
+    "native_runtime_execution_claim": false,
+    "godot_project_build_claim": false,
+    "public_upload_claim": false
+  },
+  "next_item": "GA5_GRAMMAR_LTS_BEHAVIOR_RECHECK_V1"
+}

@@ -1,0 +1,45 @@
+{
+  "schema": "ddn.std_grid_game_bogae_browser_input_delivery.pack.contract.v1",
+  "id": "std_grid_game_bogae_browser_input_delivery_v1",
+  "public_surface_delta": "none",
+  "playwright_version": "1.44.0",
+  "runner": "tests/std_grid_game_bogae_browser_input_delivery_runner.mjs",
+  "checker": "tests/run_std_grid_game_bogae_browser_input_delivery_check.py",
+  "generated_asset_dependency": "std_grid_game_bogae_live_web_assets_v1",
+  "browser_dom_dependency": "std_grid_game_bogae_browser_dom_smoke_v1",
+  "input_endpoint": "viewer/live.html?input=<sam_live_input_url>",
+  "sam_live_command": "--bogae web --bogae-live --sam-live web --record-sam <path> --no-open",
+  "event_contract": [
+    "keydown ArrowLeft -> /input?code=ArrowLeft&kind=down",
+    "repeat keydown ArrowLeft -> no duplicate down",
+    "keyup ArrowLeft -> /input?code=ArrowLeft&kind=up",
+    "keydown ArrowRight -> /input?code=ArrowRight&kind=down",
+    "blur -> /input?kind=clear",
+    "keydown ArrowDown -> /input?code=ArrowDown&kind=down",
+    "hidden visibilitychange -> /input?kind=clear"
+  ],
+  "record_sam_contract": {
+    "madi_hz": 10,
+    "required_bits": [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowDown"
+    ],
+    "requires_clear_between_keys": true
+  },
+  "non_scope": [
+    "new stdlib surface",
+    "parser/frontdoor syntax",
+    "game state change claim",
+    "frame effect claim",
+    "infinite live loop",
+    "scheduler drift or stability",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_grid_game_bogae_browser_input_delivery"
+  ]
+}

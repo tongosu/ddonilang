@@ -1,0 +1,33 @@
+{
+  "schema": "ddn.roadmap_v2.post_la1_frontier_rebase.v1",
+  "id": "ROADMAP_V2_POST_LA1_FRONTIER_REBASE_V1",
+  "selected_next_work": "ROADMAP_V2_SA1_BOGAE_GRAPH_SPACE2D_MATRIX_RECONCILIATION_V1",
+  "selected_coordinate": "사-1",
+  "rejected_work": "NEW_GRAPH_RENDERER_IMPLEMENTATION_WITHOUT_SA1_RECONCILIATION",
+  "reason": "사-1 graph/space2d evidence exists and 사-2 is already matrix-closed, but the authoritative 사-1 matrix row remains 진행",
+  "progress": {
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 53,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 59,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "bogae_runtime_change": false,
+    "bogae_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "sa1_matrix_reconciliation_claim": false,
+    "docs_ssot_change": false
+  }
+}

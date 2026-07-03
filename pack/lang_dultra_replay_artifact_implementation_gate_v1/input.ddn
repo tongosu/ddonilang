@@ -1,0 +1,8 @@
+"LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1" 보여주기.
+"dultra replay artifact implementation gate sealed" 보여주기.
+"schema: ddn.language.dultra_replay_artifact_implementation_gate.v1" 보여주기.
+"required sections: 7" 보여주기.
+"required artifact gates: 6" 보여주기.
+"risk removal: 5/6 = 83%" 보여주기.
+"runtime landed: false" 보여주기.
+"next: LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1" 보여주기.

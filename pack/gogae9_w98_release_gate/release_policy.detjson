@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.gogae9.w98.release_policy.v1",
+  "release": "v14.0-gate0",
+  "suite": "gogae9_w89_w99_release_gate",
+  "requires_pack_results": true,
+  "requires_release_manifest": true,
+  "requires_cert_proof": true
+}

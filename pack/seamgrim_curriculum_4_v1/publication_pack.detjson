@@ -1,0 +1,86 @@
+{
+  "schema": "ddn.roadmap_v2.ma4.seamgrim_curriculum_4.publication_pack_closure.v1",
+  "id": "MA4_SEAMGRIM_CURRICULUM_4_PUBLICATION_PACK_CLOSURE_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "마-4",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "ma4_matrix_status": "닫힘-동작",
+  "publication_pack": {
+    "pack_id": "seamgrim_curriculum_4_v1",
+    "requires_ma3_pack": "seamgrim_curriculum_3_v1",
+    "candidate_count": 4,
+    "boundary": "local_publication_review_share"
+  },
+  "publication_candidates": [
+    {
+      "pack": "seamgrim_registry_publish_install_shell_v1",
+      "checkers": [
+        "tests/run_seamgrim_package_registry_surface_check.py",
+        "tests/run_seamgrim_sharing_publishing_surface_check.py",
+        "tests/run_seamgrim_publication_snapshot_surface_check.py"
+      ],
+      "covers": ["registry_shell_boundary", "sharing_publishing_surface", "publication_snapshot_surface"]
+    },
+    {
+      "pack": "studio_public_lesson_publication_prep_v1",
+      "checker": "tests/run_studio_public_lesson_publication_prep_check.py",
+      "covers": ["candidate_allowlist", "lesson_index_alignment", "publication_review_gates"]
+    },
+    {
+      "pack": "studio_lesson_publication_review_surface_v1",
+      "runner": "tests/studio_lesson_publication_review_surface_runner.mjs",
+      "checker": "tests/run_studio_lesson_publication_review_surface_check.py",
+      "covers": ["local_publication_review_surface", "candidate_catalog_review", "registry_share_handoff"]
+    },
+    {
+      "pack": "studio_local_share_and_packaging_v1",
+      "runner": "tests/studio_local_share_and_packaging_browser_runner.mjs",
+      "checker": "tests/run_studio_local_share_and_packaging_check.py",
+      "covers": ["local_share", "local_packaging", "local_only_no_registry_cloud"]
+    }
+  ],
+  "progress": {
+    "current_stage": "MA4 publication pack closure",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 6,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 7,
+    "roadmap_v2_pack_evidence_reference_closed": 25,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 28,
+    "studio_local_super_long_closed": 8,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 44
+  },
+  "decision": {
+    "new_status_for_ma4": "닫힘-동작",
+    "reason": "The canonical publication pack now binds local publication review, local share, registry shell, and publication prep product-path evidence after 마-3 closure.",
+    "next_item": "MA5_CURRICULUM_LTS_PREREQ_REBASE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "new_product_ui_behavior": false,
+    "public_upload_claim": false,
+    "registry_publish_claim": false,
+    "public_link_creation_claim": false,
+    "install_enablement_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "archive_generation_claim": false,
+    "publication_checksum_generation_claim": false,
+    "artifact_signing_claim": false,
+    "release_approval_claim": false,
+    "release_execution_claim": false,
+    "github_release_claim": false,
+    "docs_ssot_change": false,
+    "ma5_lts_closed": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "numeric_track_consolidation_required": false
+  }
+}

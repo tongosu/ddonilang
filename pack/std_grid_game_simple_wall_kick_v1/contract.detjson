@@ -1,0 +1,18 @@
+{
+  "schema": "ddn.std_grid_game_simple_wall_kick.pack.contract.v1",
+  "id": "std_grid_game_simple_wall_kick_v1",
+  "surface": [
+    "격자게임.회전시도"
+  ],
+  "result_kind": "std_grid_game_rotation_try",
+  "fallback_offsets": [
+    [0, 0],
+    [-1, 0],
+    [1, 0],
+    [-2, 0],
+    [2, 0],
+    [0, -1]
+  ],
+  "srs_full_table": false
+}
+

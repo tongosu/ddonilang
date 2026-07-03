@@ -1,0 +1,2 @@
+{"id":"c01_geo1_question_card_smoke_marker","cmd":["run","pack/question_card_smoke_v1/input.ddn"],"stdout":["GEO1_QUESTION_CARD_SMOKE_V1","question card smoke sealed","stage: 5/5 = 100%","roadmap matrix behavior: 33/90 = 37%","pack evidence reference: 54/90 = 60%","studio local super-long: 9/18 = 50%","geo1 status: 닫힘-동작","next: GEO2_AI_OUTPUT_VALIDATION_PACK_V1"],"exit_code":0}
+

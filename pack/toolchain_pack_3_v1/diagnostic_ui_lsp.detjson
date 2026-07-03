@@ -1,0 +1,36 @@
+{
+  "schema": "ddn.toolchain.diagnostic_ui_lsp.v1",
+  "work_item": "TA3_DIAGNOSTIC_UI_LSP_V1",
+  "primary_coordinate": "타-3",
+  "pack": "toolchain_pack_3_v1",
+  "status": "toolchain_diagnostic_ui_lsp_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "diagnostic_viewer_claim": true,
+  "fixit_preview_claim": true,
+  "lsp_lite_contract_claim": true,
+  "full_lsp_server_claim": false,
+  "lsp_protocol_change": false,
+  "auto_apply_claim": false,
+  "file_write_claim": false,
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 22,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 24,
+    "roadmap_v2_pack_evidence_reference_closed": 42,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 47,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "rows": [
+    { "id": "diagnostic_viewer", "ready": true },
+    { "id": "fixit_preview", "ready": true },
+    { "id": "lsp_contract", "ready": true },
+    { "id": "boundary_guard", "ready": true }
+  ],
+  "evidence_text": "coordinate:타-3\nfull_lsp_server:false\nlsp_protocol_change:false\nfile_write:false"
+}

@@ -1,0 +1,2 @@
+{"id":"c01_na3_resource_network_policy_rebase_marker","cmd":["run","pack/roadmap_v2_na3_resource_network_policy_rebase_v1/input.ddn"],"stdout":["ROADMAP_V2_NA3_RESOURCE_NETWORK_POLICY_REBASE_V1","na3 resource network policy rebase sealed","stage: 4/4 = 100%","roadmap matrix behavior: 38/90 = 42%","pack evidence reference: 58/90 = 64%","studio local super-long: 9/18 = 50%","status: 닫힘-문서, not behavior-closed","next: STD_RESOURCE_NETWORK_POLICY_MINIMUM_V1"],"exit_code":0}
+

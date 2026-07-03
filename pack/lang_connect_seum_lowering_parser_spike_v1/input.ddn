@@ -1,0 +1,7 @@
+"connect seum lowering parser spike sealed" 보여주기.
+이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.
+이음관계.__이음관계종류 보여주기.
+이음관계.왼쪽끝 보여주기.
+이음관계.오른쪽끝 보여주기.
+"seum rows: 전지.양극.전압 =:= 전구.왼핀.전압. / 전지.양극.전류 + 전구.왼핀.전류 =:= 0." 보여주기.
+"next: LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1" 보여주기.

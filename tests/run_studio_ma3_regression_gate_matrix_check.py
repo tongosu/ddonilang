@@ -19,6 +19,7 @@ APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_ma3_regression_gate_matrix_runner.mjs"
 SOURCE_SURFACE_CHECK = ROOT / "tests" / "run_studio_lesson_publication_review_surface_check.py"
 PRODUCT_SMOKE = ROOT / "tests" / "run_seamgrim_product_stabilization_smoke_check.py"
@@ -196,7 +197,7 @@ def check_ui_source() -> None:
     )
     require_contains(DEV_SURFACES_JS, ["ma3-regression-gate-matrix", "elementId: \"ma3-regression-gate-matrix\""])
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
-    require_contains(STYLES_CSS, [".ma3-regression-gate-matrix", ".ma3-regression-matrix-btn.active"])
+    require_contains(DEV_SURFACES_CSS, [".ma3-regression-gate-matrix", ".ma3-regression-matrix-btn.active"])
     require_contains(RUNNER, ["studio_ma3_regression_gate_matrix: ok", "data-ma3-regression-status='ma3_regression_gate_matrix_ready'", "test_execution_claim"])
 
 

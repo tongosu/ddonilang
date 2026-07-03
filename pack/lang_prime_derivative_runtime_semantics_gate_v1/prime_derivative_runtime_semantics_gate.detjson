@@ -1,0 +1,173 @@
+{
+  "schema": "ddn.language.prime_derivative_runtime_semantics_gate.v1",
+  "work_item": "LANG_PRIME_DERIVATIVE_RUNTIME_SEMANTICS_GATE_V1",
+  "based_on": "LANG_LANGUAGE_RISK_REMOVAL_CLOSURE_REBASE_V1",
+  "source_language_risk_removal_closure": "pack/lang_language_risk_removal_closure_rebase_v1/language_risk_removal_closure_rebase.detjson",
+  "source_prime_parser_frontdoor_spike": "pack/lang_prime_parser_frontdoor_spike_v1/prime_parser_frontdoor_spike.detjson",
+  "source_owner_inner_seum_runtime_scope": "pack/lang_owner_inner_seum_runtime_scope_rebase_v1/owner_inner_seum_runtime_scope_rebase.detjson",
+  "prime_derivative_runtime_semantics_gate_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "derivative_semantics_landed_claim": false,
+  "derivative_runtime_product_path_landed_claim": false,
+  "seum_equation_solver_landed_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "velocity_verlet_stdlib_landed_claim": false,
+  "tuck_parser_runtime_landed_claim": false,
+  "runtime_derivative_slot_contract": [
+    {
+      "surface": "base'",
+      "base_symbol": "base",
+      "order": 1,
+      "classification": "first_order_derivative_slot",
+      "ordinary_identifier": false,
+      "runtime_landed": false
+    },
+    {
+      "surface": "base''",
+      "base_symbol": "base",
+      "order": 2,
+      "classification": "second_order_derivative_slot",
+      "ordinary_identifier": false,
+      "runtime_landed": false
+    }
+  ],
+  "semantics_gates": [
+    {
+      "order": 1,
+      "id": "parser_frontdoor_acceptance",
+      "status": "closed",
+      "required_evidence": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1"
+    },
+    {
+      "order": 2,
+      "id": "runtime_slot_classification",
+      "status": "planned",
+      "required_evidence": "product runtime classifies base' and base'' as derivative slots before identifier lookup"
+    },
+    {
+      "order": 3,
+      "id": "tick_interval_policy",
+      "status": "planned",
+      "required_evidence": "deterministic dt source and zero or unknown dt rejection"
+    },
+    {
+      "order": 4,
+      "id": "state_history_snapshot",
+      "status": "planned_after_tick_policy",
+      "required_evidence": "previous and current state snapshots for observed derivatives"
+    },
+    {
+      "order": 5,
+      "id": "relation_solver_boundary",
+      "status": "planned_after_owner_scope",
+      "required_evidence": "세움 rows may bind derivative slots only through product solver boundary"
+    },
+    {
+      "order": 6,
+      "id": "integrator_order_boundary",
+      "status": "planned_after_solver_boundary",
+      "required_evidence": "ordering with 속도 베를레, 턱, 받으면, and 상태머신 is fixed"
+    },
+    {
+      "order": 7,
+      "id": "diagnostic_contract",
+      "status": "planned_after_runtime_shape",
+      "required_evidence": "solved, skipped, or rejected derivative slot evidence rows"
+    }
+  ],
+  "allowed_after_gate": [
+    "prime runtime semantics gate is specified",
+    "base prime surfaces are derivative slots by contract",
+    "executable derivative semantics are still unlanded"
+  ],
+  "forbidden_after_gate": [
+    "derivative_semantics_landed",
+    "derivative_runtime_product_path_landed",
+    "세움_equation_solver_landed",
+    "owner_inner_seum_runtime_landed",
+    "velocity_verlet_runtime_landed",
+    "tuck_runtime_landed"
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "prime_parser_source",
+      "path": "pack/lang_prime_parser_frontdoor_spike_v1/prime_parser_frontdoor_spike.detjson",
+      "tokens": ["prime_identifier_parser_acceptance_landed_claim", "prime_derivative_semantics_landed_claim", "accepted_surfaces"],
+      "changed_now": false
+    },
+    {
+      "id": "owner_inner_runtime_scope_source",
+      "path": "pack/lang_owner_inner_seum_runtime_scope_rebase_v1/owner_inner_seum_runtime_scope_rebase.detjson",
+      "tokens": ["prime_derivative_semantics", "owner_state_symbol_table", "equation_solver_binding"],
+      "changed_now": false
+    },
+    {
+      "id": "teul_runtime_tick_anchor",
+      "path": "tools/teul-cli/src/runtime/eval.rs",
+      "tokens": ["run_with_ticks_internal", "self.open.set_tick", "pub tick: u64"],
+      "changed_now": false
+    },
+    {
+      "id": "tool_runtime_numeric_derivative_anchor",
+      "path": "tool/src/ddn_runtime.rs",
+      "tokens": ["미분.중앙차분", "expect_numeric_derivative_args", "tick_id"],
+      "changed_now": false
+    },
+    {
+      "id": "cli_run_tick_anchor",
+      "path": "tools/teul-cli/src/cli/run.rs",
+      "tokens": ["run_source_with_state_seed_ticks", "ticks_run", "trace_hash"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "derivative_semantics_landed",
+    "derivative_runtime_product_path_landed",
+    "seum_equation_solver_landed",
+    "owner_inner_seum_runtime_landed",
+    "velocity_verlet_runtime_landed",
+    "velocity_verlet_stdlib_landed",
+    "tuck_parser_runtime_landed"
+  ],
+  "language_product_path_transition_plan": {
+    "closed": 2,
+    "total": 7,
+    "percent": 29
+  },
+  "prime_derivative_runtime_semantics_gate": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 61,
+    "total": 90,
+    "percent": 68
+  },
+  "next_item": "LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1"
+}

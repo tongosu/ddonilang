@@ -1,0 +1,30 @@
+{
+  "schema": "ddn.std_grid_game_set_closure.pack.contract.v1",
+  "id": "std_grid_game_set_closure_v1",
+  "bundled_packs": [
+    "std_core_grid_unit_closure_v1",
+    "std_input_map_closure_v1",
+    "std_block_piece_minimum_v1",
+    "std_random_bag_minimum_v1",
+    "std_grid_game_state_minimum_v1"
+  ],
+  "integrated_surface": [
+    "격자.*",
+    "입력사상.*",
+    "블록조각.*",
+    "무작위가방.*",
+    "격자게임상태.*"
+  ],
+  "non_scope": [
+    "tetromino preset catalog",
+    "full Tetris engine",
+    "gamepad/touch/web event expansion",
+    "connect flow semantics"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_block_piece",
+    "gaji/std_random_bag",
+    "gaji/std_grid_game_state"
+  ]
+}
+

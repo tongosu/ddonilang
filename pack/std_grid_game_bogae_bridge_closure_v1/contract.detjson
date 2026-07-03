@@ -1,0 +1,35 @@
+{
+  "schema": "ddn.std_grid_game_bogae_bridge_closure.pack.contract.v1",
+  "id": "std_grid_game_bogae_bridge_closure_v1",
+  "bundled_packs": [
+    "std_grid_game_bogae_drawlist_v1",
+    "std_grid_game_bogae_size_v1",
+    "std_grid_game_bogae_backend_parity_v1"
+  ],
+  "drawlist": {
+    "trait": "#보개/2D.Rect",
+    "id_format": "격자게임셀_{y}_{x}",
+    "order": "(y, x) ascending",
+    "fields": ["id", "결", "x", "y", "w", "h", "채움색"],
+    "colors": {
+      "빈칸": "#111111ff",
+      "고정": "#4a90e2ff",
+      "낙하": "#ffcc00ff"
+    }
+  },
+  "size_kind": "std_grid_game_bogae_size",
+  "mutation": "view-only; 보개_그림판_목록 is not mutated by the builtin",
+  "non_scope": [
+    "full UI",
+    "browser runtime",
+    "real-time scheduler",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_grid_game_bogae_bridge"
+  ]
+}
+

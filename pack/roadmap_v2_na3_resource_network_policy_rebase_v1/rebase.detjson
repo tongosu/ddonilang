@@ -1,0 +1,56 @@
+{
+  "schema": "ddn.roadmap_v2.na3_resource_network_policy_rebase.v1",
+  "id": "ROADMAP_V2_NA3_RESOURCE_NETWORK_POLICY_REBASE_V1",
+  "date": "2026-06-08",
+  "status": "docs_closed",
+  "roadmap_coordinate": "나-3",
+  "selected_next_work": "STD_RESOURCE_NETWORK_POLICY_MINIMUM_V1",
+  "matrix_status": {
+    "previous_guide_status": "닫힘-동작",
+    "new_guide_status": "진행",
+    "matrix_behavior_closed": false,
+    "matrix_closure_claim": false
+  },
+  "axis_assessment": {
+    "resource": {
+      "existing_evidence": ["stdlib_missing_coverage_io_v1", "age1_container_resource"],
+      "needs_minimum_closure_pack": true
+    },
+    "network": {
+      "existing_evidence": ["gogae3_w23_network_sam", "eco_network_flow_smoke"],
+      "needs_standard_library_boundary_decision": true
+    },
+    "policy": {
+      "existing_evidence": ["social_world_econ_3_v1"],
+      "known_drift": ["seamgrim_exec_policy_effect_map_v1", "open_decl_policy", "open_deny_policy"],
+      "needs_policy_advice_boundary": true,
+      "needs_pass_gate_selection": true
+    }
+  },
+  "progress": {
+    "current_stage": "NA3 resource/network/policy rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 38,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 42,
+    "roadmap_v2_pack_evidence_reference_closed": 58,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 64,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "social_world_ui_as_stdlib_closure": false,
+    "policy_advice": false,
+    "live_policy_deployment": false,
+    "docs_ssot_change": false
+  }
+}

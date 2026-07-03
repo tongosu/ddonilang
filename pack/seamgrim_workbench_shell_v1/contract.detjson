@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_workbench_shell_v1",
+  "kind": "studio_browser_shell_smoke",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "SEAMGRIM_WORKBENCH_SHELL_V1",
+  "browser_runner": "tests/seamgrim_workbench_shell_browser_runner.mjs",
+  "covers": [
+    "browse_screen_load",
+    "workbench_run_shell_open",
+    "run_view_mode_toggle",
+    "editor_shell_anchors",
+    "browse_return",
+    "warning_diagnostic_anchors"
+  ],
+  "next_item": "SEAMGRIM_LESSON_AUTHORING_FLOW_V1",
+  "requires_docs_ssot_clean": true
+}

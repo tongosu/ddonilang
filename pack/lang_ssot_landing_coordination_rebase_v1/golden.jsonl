@@ -1,0 +1,2 @@
+{"cmd":["run","pack/lang_ssot_landing_coordination_rebase_v1/input.ddn"],"exit_code":0,"stdout":["LANG_SSOT_LANDING_COORDINATION_REBASE_V1","ssot landing coordination rebase sealed","schema: ddn.language.ssot_landing_coordination_rebase.v1","coordination targets: 3","urgent ssot landed: 0/3 = 0%","coordination rebase: 1/1 = 100%","roadmap: 68/90 = 76%","next: LANG_PRIME_SSOT_ACCEPTANCE_REQUEST_V1"]}
+

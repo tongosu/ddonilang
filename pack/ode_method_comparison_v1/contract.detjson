@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "ode_method_comparison_v1",
+  "kind": "ode_method_comparison",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "ODE_METHOD_COMPARISON_V1",
+  "based_on": "ODE_TICK_LOOP_LESSON_BASELINE_V1",
+  "uses_existing_helpers": [
+    "적분.오일러",
+    "적분.반암시적오일러"
+  ],
+  "comparison_sample": "harmonic_oscillator_one_tick",
+  "energy_indicator": "x*x+v*v",
+  "ode_solver_claim": false,
+  "automatic_ode_detection_claim": false,
+  "rk4_claim": false,
+  "adaptive_step_claim": false,
+  "next_recommended_item": "NUMERIC_ROOT_FINDING_V1",
+  "requires_docs_ssot_clean": true
+}
+

@@ -1,0 +1,76 @@
+{
+  "schema": "ddn.roadmap_v2.na1_matrix_status_reconciliation.v1",
+  "id": "ROADMAP_V2_NA1_STD_CORE_GRID_INPUT_MATRIX_RECONCILIATION_V1",
+  "date": "2026-06-09",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "나-1",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "std_core": {
+      "source_pack": "pack/stdlib_1_v1",
+      "checker": "tests/run_stdlib_1_check.py"
+    },
+    "std_grid": {
+      "source_packs": [
+        "pack/std_grid_cell_read_write_v1",
+        "pack/std_grid_bounds_collision_v1"
+      ],
+      "golden_checker": "tests/run_pack_golden.py std_grid_cell_read_write_v1 std_grid_bounds_collision_v1"
+    },
+    "std_input_map": {
+      "source_packs": [
+        "pack/std_input_map_keyboard_v1",
+        "pack/std_input_map_web_snapshot_v1"
+      ],
+      "golden_checker": "tests/run_pack_golden.py std_input_map_keyboard_v1 std_input_map_web_snapshot_v1"
+    },
+    "catalog": {
+      "checker": "tests/run_stdlib_catalog_check.py"
+    },
+    "downstream_consistency": {
+      "checker": "tests/run_roadmap_v2_na2_matrix_status_reconciliation_check.py"
+    }
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/나-1_RECONCILIATION_REPORT_20260609.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "NA1 matrix reconciliation",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 52,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 58,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "next_item": "ROADMAP_V2_NA1_POST_MATRIX_FRONTIER_REBASE_V1",
+    "reason": "나-1 is now matrix-closed, while downstream 나-2/나-3 are already closed; next work should select a fresh frontier from the updated 52/90 matrix state",
+    "not_next": "NEW_STDLIB_RUNTIME_IMPLEMENTATION_WITHOUT_MATRIX_RECONCILIATION"
+  },
+  "false_claims": {
+    "new_stdlib_surface": false,
+    "parser_frontdoor_change": false,
+    "runtime_surface_change": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_full_completion": false,
+    "studio_full_completion": false,
+    "docs_ssot_change": false
+  }
+}

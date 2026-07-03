@@ -8,9 +8,9 @@ Progress:
 
 - 작업 단위: 6/6 = 100% (`닫힘-동작`)
 - closure rows: 5/5 = 100%
-- 전체 초장기 계획: 18/18 = 100%
+- 전체 초장기 계획: 9/18 = 50%
 - 현재 스테이지: Studio productization rebase 5/5 = 100%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 matrix behavior baseline: 51/90 = 57%
 
 Verification:
 

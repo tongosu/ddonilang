@@ -7,9 +7,10 @@ It checks local release rehearsal inputs without approving a release, executing 
 Progress:
 
 - 작업 단위: 6/6 = 100% (`닫힘-동작`)
-- 전체 초장기 계획: 18/18 = 100%
-- 현재 스테이지: post-super-long follow-up 3/8 = 38%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- overall super-long behavior: 8/18 = 44%
+- current stage: MA5 LTS candidate progress boundary repair 4/4 = 100%
+- ROADMAP_V2 matrix behavior: 6/90 = 7%
+- ROADMAP_V2 pack evidence reference: 25/90 = 28%
 
 Verification:
 

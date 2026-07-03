@@ -15,8 +15,10 @@ LOCK = PACK / "next_roadmap_v2_coordinate_lock.detjson"
 CHECKER = ROOT / "tests" / "run_studio_next_roadmap_v2_coordinate_lock_check.py"
 UI = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_next_roadmap_v2_coordinate_lock.js"
 APP = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_next_roadmap_v2_coordinate_lock_runner.mjs"
 SOURCE_PREP = ROOT / "pack" / "studio_benchmark_baseline_prep_dry_run_v1" / "benchmark_baseline_prep_dry_run.detjson"
 SOURCE_REBASE = ROOT / "pack" / "studio_post_super_long_rebase_v1" / "post_super_long_rebase.detjson"
@@ -135,6 +137,7 @@ def check_required_files() -> None:
         CHECKER,
         UI,
         APP,
+        DEV_SURFACES,
         HTML,
         STYLES,
         RUNNER,
@@ -163,7 +166,7 @@ def check_docs() -> None:
         "작업 단위: 6/6 = 100% (`닫힘-동작`)",
         "후속 장기 계획: 8/8 = 100%",
         "마줄기 후속 8/8 = 100%",
-        "ROADMAP_V2 product behavior baseline: 88/90 = 98%",
+        "ROADMAP_V2 behavior-closed progress: 88/90 = 98%",
         NEXT_STATE,
         "docs/ssot/**",
     ]
@@ -178,7 +181,7 @@ def check_docs() -> None:
             "tests/studio_next_roadmap_v2_coordinate_lock_runner.mjs",
             "작업 단위: 6/6 = 100% (`닫힘-동작`)",
             "후속 장기 계획: 8/8 = 100%",
-            "ROADMAP_V2 product behavior baseline: 88/90 = 98%",
+            "ROADMAP_V2 behavior-closed progress: 88/90 = 98%",
             NEXT_STATE,
         ],
     )
@@ -198,7 +201,7 @@ def check_docs() -> None:
             "ddn.studio.next_roadmap_v2_coordinate_lock.v1",
             "post-super-long follow-up 8/8 = 100%",
             "coordinate decisions 5/5 = 100%",
-            "ROADMAP_V2 product behavior baseline 88/90 = 98%",
+            "ROADMAP_V2 behavior-closed progress: 88/90 = 98%",
             NEXT_STATE,
         ],
     )
@@ -210,7 +213,7 @@ def check_docs() -> None:
             "ddn.studio.next_roadmap_v2_coordinate_lock.v1",
             "node tests/studio_next_roadmap_v2_coordinate_lock_runner.mjs` PASS",
             "현재 스테이지: post-super-long follow-up 8/8 = 100%",
-            "ROADMAP_V2 product behavior baseline: 88/90 = 98%",
+            "ROADMAP_V2 behavior-closed progress: 88/90 = 98%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -239,23 +242,23 @@ def check_ui_contract() -> None:
     require_contains(
         APP,
         [
-            "studio_next_roadmap_v2_coordinate_lock.js",
-            "nextRoadmapV2CoordinateLock",
-            "publishNextRoadmapV2CoordinateLock",
+            "shouldEnableDevSurfaces",
+            "./dev_surfaces.js",
+        ],
+    )
+    require_contains(
+        DEV_SURFACES,
+        [
+            "buildNextRoadmapV2CoordinateLock",
+            "formatNextRoadmapV2CoordinateLockText",
+            "renderNextRoadmapV2CoordinateLock",
+            "next-roadmap-v2-coordinate-lock",
             "__SEAMGRIM_NEXT_ROADMAP_V2_COORDINATE_LOCK__",
             "__SEAMGRIM_NEXT_ROADMAP_V2_COORDINATE_LOCK_TEXT__",
         ],
     )
     require_contains(
-        HTML,
-        [
-            'id="next-roadmap-v2-coordinate-lock"',
-            "data-next-roadmap-v2-coordinate-lock",
-            'aria-label="Studio next ROADMAP_V2 coordinate lock"',
-        ],
-    )
-    require_contains(
-        STYLES,
+        DEV_SURFACES_CSS,
         [
             ".next-roadmap-v2-coordinate-lock",
             ".next-roadmap-lock-head",
@@ -325,9 +328,9 @@ def check_contract_and_lock() -> None:
         "all_decisions_runtime_claim": False,
         "primary_coordinate": "마-3",
         "support_coordinate": "타-3",
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "work_unit_percent": 100,
@@ -421,9 +424,9 @@ def check_source_alignment() -> None:
         fail(f"prep source next item mismatch: {prep.get('next_item')!r}")
     if prep.get("schema") != "ddn.studio.benchmark_baseline_prep_dry_run.v1":
         fail(f"prep source schema mismatch: {prep.get('schema')!r}")
-    if prep.get("roadmap_v2_product_behavior", {}).get("closed") != 87:
+    if prep.get("roadmap_v2_product_behavior", {}).get("closed") != 21:
         fail(f"prep source roadmap closed mismatch: {prep.get('roadmap_v2_product_behavior')!r}")
-    if prep.get("roadmap_v2_product_behavior", {}).get("percent") != 97:
+    if prep.get("roadmap_v2_product_behavior", {}).get("percent") != 23:
         fail(f"prep source roadmap percent mismatch: {prep.get('roadmap_v2_product_behavior')!r}")
     for flag in ("benchmark_execution_claim", "performance_baseline_generation_claim", "release_execution_claim", "public_upload_claim", "cloud_sync_claim", "account_setup_claim", "permission_system_claim"):
         if prep.get(flag) is not False:
@@ -443,7 +446,7 @@ def check_source_alignment() -> None:
     }
     if items[-1] != expected_last:
         fail(f"post-super-long last item mismatch: {items[-1]!r}")
-    if rebase.get("super_long_plan") != {"closed": 18, "total": 18, "percent": 100, "status": "sealed"}:
+    if rebase.get("super_long_plan") != {"closed": 9, "total": 18, "percent": 50, "status": "v6_1_frozen"}:
         fail(f"super-long source plan mismatch: {rebase.get('super_long_plan')!r}")
 
     lock = load_json(LOCK)

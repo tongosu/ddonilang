@@ -1,0 +1,47 @@
+{
+  "schema": "ddn.roadmap_v2.reassessment.v1",
+  "work_item": "JA0_AI_BOUNDARY_BEHAVIOR_REASSESSMENT_V1",
+  "coordinate": "자-0",
+  "title": "AI 경계 문서",
+  "previous_status": "닫힘-문서",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "behavior_closed": true,
+  "basis": [
+    "AI/Seulgi boundary contract evidence exists",
+    "JA1 SeulgiIntent smoke consumes the async advisor and no direct mutation boundary",
+    "JA2 Gatekeeper/InputSnapshot consumes the world-affecting AI injection boundary",
+    "JA3 proposal UI consumes the approval/rejection and non-applying preview boundary",
+    "JA4 model artifact sharing consumes artifact seal/hash/provenance boundaries",
+    "JA5 replay-safe workflow consumes sealed input snapshot, approval receipt, artifact hash, and no-AI-recall boundaries"
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 88,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 98,
+    "roadmap_v2_docs_closed": 2,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 2,
+    "roadmap_v2_pack_evidence_reference_closed": 90,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 100,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "new_ai_call_claim": false,
+    "model_training_claim": false,
+    "auto_apply_claim": false,
+    "file_write_claim": false,
+    "runtime_ast_persistence_claim": false,
+    "state_hash_ownership_claim": false,
+    "production_ai_path_claim": false,
+    "public_release_claim": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "GEO0_AI_QUESTION_CARD_SEED_BEHAVIOR_REASSESSMENT_V1"
+}

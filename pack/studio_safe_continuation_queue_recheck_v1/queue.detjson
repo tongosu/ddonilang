@@ -1,0 +1,34 @@
+{
+  "schema": "ddn.studio.safe_continuation_queue_recheck.v1",
+  "work_item": "STUDIO_SAFE_CONTINUATION_QUEUE_RECHECK_V1",
+  "closure_tier": "닫힘-문서",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "goal_completion_claim": false,
+  "public_release_execution_claim": false,
+  "required_release_approval_phrase": "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다",
+  "current_authority": {
+    "studio_local_super_long": "9/18 = 50%",
+    "roadmap_v2_behavior_closed": "90/90 = 100%",
+    "roadmap_v2_docs_closed": "0/90 = 0%",
+    "public_release_execution": "0/1 = 0% approval-gated"
+  },
+  "candidate": {
+    "id": "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1",
+    "kind": "private_productization",
+    "source": "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+    "root_doc_exists": false,
+    "pack_exists": false,
+    "checker_exists": false,
+    "release_execution_required": false,
+    "requires_behavior_verification_if_implemented": true
+  },
+  "blocked_actions": [
+    "public release execution",
+    "GitHub Release",
+    "public upload",
+    "registry publish"
+  ],
+  "next_item": "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1"
+}

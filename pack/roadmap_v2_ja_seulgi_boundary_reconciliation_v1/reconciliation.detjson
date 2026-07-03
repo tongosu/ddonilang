@@ -1,0 +1,54 @@
+{
+  "schema": "ddn.roadmap_v2.ja.seulgi_boundary_reconciliation.v1",
+  "work_item": "JA_SEULGI_BOUNDARY_RECONCILIATION_V1",
+  "status": "mixed_docs_and_behavior_closed",
+  "coordinates": {
+    "자-0": {
+      "old_status": "진행",
+      "new_status": "닫힘-문서",
+      "behavior_closed": false,
+      "evidence": ["seulgi_v1", "external_intent_seulgi_walk_alignment"]
+    },
+    "자-1": {
+      "old_status": "진행",
+      "new_status": "닫힘-동작",
+      "behavior_closed": true,
+      "evidence": ["seulgi_v1", "sam_seulgi_family_contract_selftest"]
+    },
+    "자-2": {
+      "old_status": "",
+      "new_status": "닫힘-동작",
+      "behavior_closed": true,
+      "evidence": ["seulgi_gatekeeper_v1", "sam_ai_ordering_v1", "sam_seulgi_family_contract_selftest"]
+    }
+  },
+  "progress": {
+    "current_stage_closed": 7,
+    "current_stage_total": 7,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 61,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 68,
+    "roadmap_v2_docs_closed": 2,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 2,
+    "roadmap_v2_pack_evidence_reference_closed": 63,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 70,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "product_ui_change": false,
+    "product_code_change": false,
+    "runtime_claim": false,
+    "model_artifact_share_claim": false,
+    "production_ai_path_claim": false,
+    "replay_safe_ai_lts_claim": false,
+    "auto_apply_claim": false,
+    "state_hash_owner": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "ROADMAP_V2_POST_JA2_FRONTIER_REBASE_V1"
+}

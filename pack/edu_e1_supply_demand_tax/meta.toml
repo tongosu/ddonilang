@@ -1,6 +1,8 @@
 # CurriculumMetaV1 (placeholder)
 
 schema = "CurriculumMetaV1"
+lesson_id = "edu_e1_supply_demand_tax"
+title = "수요 공급 세금 대표 교재 첫실행"
 
 "과목" = "경제"
 "학년군" = "고등"
@@ -22,6 +24,8 @@ schema = "CurriculumMetaV1"
 "가정목록" = ["단순 선형 함수", "시장참여자 집계형"]
 
 "필수계기판" = ["균형가격", "거래량", "세수", "잉여"]
+required_views = ["text", "table", "graph"]
+evidence = ["python tests/run_roadmap_v2_ha1_representative_teaching_smoke_check.py"]
 "필수그래프" = ["수요/공급"]
 "필수표" = ["가격-수량 표"]
 

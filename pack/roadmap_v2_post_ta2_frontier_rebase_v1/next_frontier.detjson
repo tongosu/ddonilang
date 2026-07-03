@@ -1,0 +1,40 @@
+{
+  "schema": "ddn.roadmap_v2.post_ta2_frontier_rebase.v1",
+  "id": "ROADMAP_V2_POST_TA2_FRONTIER_REBASE_V1",
+  "date": "2026-06-08",
+  "selected_next_work": "ROADMAP_V2_DA1_MATH_FIRST_RUN_FRONTIER_REBASE_V1",
+  "selected_coordinate": "다-1",
+  "reason": "다-1 is the nearest Studio-enabling math prerequisite with existing first-run pack evidence but mismatched matrix, guide, and legacy checker authority",
+  "progress": {
+    "current_stage": "ROADMAP_V2 post-TA2 frontier rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 45,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 50,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "math_runtime_change": false,
+    "math_surface_change": false,
+    "guide_status_change": false,
+    "legacy_checker_unlock_claim": false,
+    "docs_ssot_change": false
+  },
+  "required_preflight": [
+    "python tests/run_roadmap_v2_ta2_guide_status_reconciliation_check.py",
+    "python tests/run_pack_golden.py math_vector_minimum_first_run_v1",
+    "git status --short -- docs/ssot"
+  ]
+}

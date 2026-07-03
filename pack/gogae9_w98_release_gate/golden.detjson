@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.gogae9.w98.release_gate_pack_report.v1",
+  "overall_pass": true,
+  "cert_verify_pass": true,
+  "included_step_count": 11,
+  "pack_results_hash": "sha256:450f9aae24e91f9c74d53aa2c60892cb82a547f32e8a4fb60d02e5452e4ef184",
+  "cert_subject_hash": "sha256:450f9aae24e91f9c74d53aa2c60892cb82a547f32e8a4fb60d02e5452e4ef184",
+  "workspace_bundle_hash": "sha256:8bd373467aed94781e2d4e6653240bd8e2a59e0ecfa704096794c73179bc7400",
+  "release_manifest_hash": "sha256:89da7b9df16a64188d15d16b0b56be30ca0b78fa0d5a07548280d8567d875c54"
+}

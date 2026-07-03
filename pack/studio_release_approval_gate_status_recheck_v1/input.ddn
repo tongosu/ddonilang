@@ -1,0 +1,8 @@
+"STUDIO_RELEASE_APPROVAL_GATE_STATUS_RECHECK_V1" 보여주기.
+"release approval gate status recheck sealed" 보여주기.
+"approval gate checks: 5/5 = 100%" 보여주기.
+"release execution authorized: 0/1 = 0%" 보여주기.
+"next state: AWAIT_EXPLICIT_RELEASE_APPROVAL" 보여주기.
+"public release execution: approval-gated" 보여주기.
+"studio local progress: 9/18 = 50%" 보여주기.
+"roadmap v2 behavior: 90/90 = 100%" 보여주기.

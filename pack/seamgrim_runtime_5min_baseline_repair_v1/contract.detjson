@@ -1,0 +1,43 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_runtime_5min_baseline_repair_v1",
+  "kind": "seamgrim_runtime_5min_baseline_repair",
+  "product_preprocess_change": true,
+  "runtime_5min_closed": true,
+  "parser_frontdoor_change": false,
+  "wasm_behavior_change": false,
+  "stdlib_change": false,
+  "solver_implementation_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "closed_by": "SEAMGRIM_RUNTIME_5MIN_BASELINE_REPAIR_V1",
+  "changed_product_files": [
+    "solutions/seamgrim_ui_mvp/tools/export_graph.py",
+    "solutions/seamgrim_ui_mvp/ui/app.js",
+    "solutions/seamgrim_ui_mvp/tools/ddn_exec_server_check.py"
+  ],
+  "repaired_gates": [
+    "tests/run_seamgrim_runtime_5min_check.py",
+    "tests/run_seamgrim_export_graph_preprocess_check.py",
+    "tests/run_seamgrim_lesson_path_fallback_check.py",
+    "tests/run_nurimaker_grid_smoke_check.py",
+    "tests/run_rpgbox_block_smoke_check.py"
+  ],
+  "work_unit_closed": 5,
+  "work_unit_total": 5,
+  "runtime_5min_closed_steps": 18,
+  "runtime_5min_total_steps": 18,
+  "runtime_5min_percent": 100,
+  "baseline_repair_closed": 3,
+  "baseline_repair_total": 4,
+  "baseline_repair_percent": 75,
+  "super_long_behavior_closed": 4,
+  "super_long_total": 18,
+  "super_long_percent": 22,
+  "roadmap_v2_behavior_closed": 22,
+  "roadmap_v2_total": 90,
+  "roadmap_v2_percent": 24,
+  "closure_tier": "닫힘-동작",
+  "next_item": "SEAMGRIM_WASM_TOOL_GOLDEN_BASELINE_REPAIR_V1",
+  "requires_docs_ssot_clean": true
+}

@@ -20,8 +20,9 @@ def _read(path: Path) -> str:
 def main() -> int:
     runner = ROOT / "tests" / "seamgrim_sharing_publishing_surface_runner.mjs"
     contract_js = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "platform_contract.js"
+    app_js = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
     index_html = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
-    missing = [str(path) for path in (runner, contract_js, index_html) if not path.exists()]
+    missing = [str(path) for path in (runner, contract_js, app_js, index_html) if not path.exists()]
     if missing:
         return fail("missing:" + ",".join(missing))
 
@@ -38,7 +39,7 @@ def main() -> int:
         return fail(f"node_runner_failed:{detail}")
 
     contract_text = _read(contract_js)
-    html_text = _read(index_html)
+    app_text = _read(app_js)
     static_required = [
         ("export const ShareKind = Object.freeze({" in contract_text, "share_kind_missing"),
         ('LINK: "link"' in contract_text, "share_kind_link_missing"),
@@ -58,8 +59,8 @@ def main() -> int:
         ("ARTIFACT_TRACKS_DRAFT: false" in contract_text, "publish_policy_tracks_draft_violation"),
         ('REPUBLISH_MODE: "new_artifact"' in contract_text, "publish_policy_republish_mode_missing"),
         ("SOURCE_REVISION_ID_REQUIRED: true" in contract_text, "publish_policy_source_revision_missing"),
-        ("btn-share-clone" in html_text, "menu_share_clone_missing"),
-        ("btn-publish" in html_text, "menu_publish_missing"),
+        ("btn-share-clone" in app_text, "menu_share_clone_missing"),
+        ("btn-publish" in app_text, "menu_publish_missing"),
     ]
     failures = [name for ok, name in static_required if not ok]
     if failures:

@@ -1,0 +1,219 @@
+{
+  "schema": "ddn.language.implementation_readiness_rebase.v1",
+  "work_item": "LANG_IMPLEMENTATION_READINESS_REBASE_V1",
+  "based_on": "LANG_DSTRICT_DULTRA_SOLVER_STRATEGY_PROPOSAL_V1",
+  "implementation_readiness_rebase_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "prime_parser_landed_claim": false,
+  "flow_history_runtime_rename_landed_claim": false,
+  "tuck_constraint_parser_landed_claim": false,
+  "connect_lowering_parser_landed_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "dultra_recorded_replay_landed_claim": false,
+  "source_items": [
+    {
+      "id": "language_design_priority_rebase",
+      "work_item": "LANGUAGE_DESIGN_PRIORITY_REBASE_V1",
+      "path": "pack/language_design_priority_rebase_v1/language_design_priority_rebase.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "prime_derivative_notation",
+      "work_item": "LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1",
+      "path": "pack/lang_prime_derivative_notation_decision_v1/prime_derivative_notation_decision.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "flow_type_collision",
+      "work_item": "LANG_FLOW_TYPE_COLLISION_RENAME_V1",
+      "path": "pack/lang_flow_type_collision_rename_v1/flow_type_collision_rename.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "sim_constraint_third_layer",
+      "work_item": "LANG_SIM_CONSTRAINT_THIRD_LAYER_NAME_V1",
+      "path": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "seum_vol3_prime_examples",
+      "work_item": "LANG_SEUM_VOL3_PRIME_EXAMPLE_PACK_V1",
+      "path": "pack/lang_seum_vol3_prime_example_pack_v1/seum_vol3_prime_example_pack.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "owner_inner_seum",
+      "work_item": "LANG_OWNER_INNER_SEUM_STRUCTURE_CHECK_V1",
+      "path": "pack/lang_owner_inner_seum_structure_check_v1/owner_inner_seum_structure_check.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "connect_lowering_to_seum",
+      "work_item": "LANG_CONNECT_LOWERING_TO_SEUM_CHECK_V1",
+      "path": "pack/lang_connect_lowering_to_seum_check_v1/connect_lowering_to_seum_check.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "dstrict_dultra_solver_strategy",
+      "work_item": "LANG_DSTRICT_DULTRA_SOLVER_STRATEGY_PROPOSAL_V1",
+      "path": "pack/lang_dstrict_dultra_solver_strategy_proposal_v1/dstrict_dultra_solver_strategy_proposal.detjson",
+      "status": "closed",
+      "runtime_landed": false,
+      "ssot_landed": false
+    }
+  ],
+  "readiness_classifications": [
+    {
+      "id": "prime_derivative_notation",
+      "classification": "parser_spike_ready_after_ssot_or_explicit_user_approval",
+      "next": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1",
+      "reason": "surface rows and docs evidence are closed but parser/frontdoor support is not landed"
+    },
+    {
+      "id": "flow_type_collision",
+      "classification": "migration_plan_required_before_runtime_rename",
+      "next": "LANG_FLOW_HISTORY_ALIAS_MIGRATION_PLAN_V1",
+      "reason": "stdlib/runtime rename risks compatibility and needs a migration plan before changing value stream naming"
+    },
+    {
+      "id": "sim_constraint_third_layer",
+      "classification": "ssot_acceptance_required_before_parser_shape",
+      "next": "LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1",
+      "reason": "the name 턱 is recommended evidence only and needs SSOT acceptance before parser/runtime shape"
+    },
+    {
+      "id": "seum_vol3_prime_examples",
+      "classification": "depends_on_prime_parser_support",
+      "next": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1",
+      "reason": "3권 examples use 위치' and 위치'' and therefore depend on prime parser support"
+    },
+    {
+      "id": "owner_inner_seum",
+      "classification": "parser_boundary_spike_ready_after_prime_scope",
+      "next": "LANG_OWNER_INNER_SEUM_PARSER_BOUNDARY_SPIKE_V1",
+      "reason": "임자 안 세움 needs parser boundary verification after prime notation scope is fixed"
+    },
+    {
+      "id": "connect_lowering_to_seum",
+      "classification": "parser_lowering_spike_ready_without_new_block",
+      "next": "LANG_CONNECT_SEUM_LOWERING_PARSER_SPIKE_V1",
+      "reason": "잇기 is a sentence-level sugar that lowers to 세움 equations and must not become a new 잇기 block"
+    },
+    {
+      "id": "dstrict_dultra_solver_strategy",
+      "classification": "pack_spec_ready_before_runtime",
+      "next": "LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1",
+      "reason": "속도 베를레 and D-ULTRA replay need fixed order and recorded replay packs before runtime claims"
+    }
+  ],
+  "recommended_next_queue": [
+    {
+      "order": 1,
+      "item": "LANG_IMPLEMENTATION_READINESS_REBASE_V1",
+      "status": "closed"
+    },
+    {
+      "order": 2,
+      "item": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1",
+      "status": "next"
+    },
+    {
+      "order": 3,
+      "item": "LANG_CONNECT_SEUM_LOWERING_PARSER_SPIKE_V1",
+      "status": "planned"
+    },
+    {
+      "order": 4,
+      "item": "LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1",
+      "status": "planned"
+    },
+    {
+      "order": 5,
+      "item": "LANG_DULTRA_RECORDED_REPLAY_CONTRACT_PACK_V1",
+      "status": "planned"
+    },
+    {
+      "order": 6,
+      "item": "LANG_OWNER_INNER_SEUM_PARSER_BOUNDARY_SPIKE_V1",
+      "status": "planned"
+    }
+  ],
+  "implementation_gate_policy": {
+    "product_path_required": true,
+    "test_only_lowering_disallowed": true,
+    "checker_required": true,
+    "d_pack_required": true,
+    "docs_ssot_edit_disallowed": true
+  },
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "ssot_landed_claim",
+    "runtime_landed_claim",
+    "compat_break_without_migration",
+    "connect_block_landed",
+    "velocity_verlet_runtime_landed",
+    "dultra_recorded_replay_landed"
+  ],
+  "language_design_queue_plan": {
+    "closed": 8,
+    "total": 8,
+    "percent": 100
+  },
+  "implementation_readiness_rebase_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "implementation_readiness_followup_plan": {
+    "closed": 1,
+    "total": 6,
+    "percent": 17
+  },
+  "urgent_recommendations_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 48,
+    "total": 90,
+    "percent": 53
+  },
+  "next_item": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1"
+}

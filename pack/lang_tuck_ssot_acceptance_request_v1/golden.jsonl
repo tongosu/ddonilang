@@ -1,0 +1,2 @@
+{"cmd":["run","pack/lang_tuck_ssot_acceptance_request_v1/input.ddn"],"exit_code":0,"stdout":["LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1","tuck ssot acceptance request sealed","schema: ddn.language.tuck_ssot_acceptance_request.v1","surface: 턱 / 턱-row","ssot request queue: 3/3 = 100%","urgent ssot landed: 0/3 = 0%","roadmap: 71/90 = 79%","next: LANG_SSOT_ACCEPTANCE_REQUEST_CLOSURE_REBASE_V1"]}
+

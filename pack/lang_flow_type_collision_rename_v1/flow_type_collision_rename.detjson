@@ -1,0 +1,171 @@
+{
+  "schema": "ddn.language.flow_type_collision_rename.v1",
+  "work_item": "LANG_FLOW_TYPE_COLLISION_RENAME_V1",
+  "based_on": "LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1",
+  "flow_type_collision_rename_decision_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "flow_type_rename_runtime_landed_claim": false,
+  "stream_alias_removed_claim": false,
+  "backward_compat_break_claim": false,
+  "source_priority_rebase": "pack/language_design_priority_rebase_v1/language_design_priority_rebase.detjson",
+  "source_prime_decision": "pack/lang_prime_derivative_notation_decision_v1/prime_derivative_notation_decision.detjson",
+  "naming_decision": {
+    "keep_flow_for": "port_connector_flow",
+    "kept_connector_term": "흐름",
+    "rename_ring_buffer_value_type_to": "이력",
+    "selected_value_type_name": "이력",
+    "decision_landed": true,
+    "ssot_landed": false,
+    "parser_landed": false,
+    "runtime_landed": false,
+    "stdlib_landed": false
+  },
+  "future_canonical_family": [
+    "이력.만들기",
+    "이력.밀어넣기",
+    "이력.차림",
+    "이력.최근값",
+    "이력.길이",
+    "이력.용량",
+    "이력.비우기",
+    "이력.잘라보기"
+  ],
+  "migration_targets": [
+    {
+      "surface": "흐름.*",
+      "current_role": "stdlib value-stream family",
+      "future_role": "compatibility alias or migration target",
+      "changed_now": false
+    },
+    {
+      "surface": "흐름(N)",
+      "current_role": "older proposal value-stream type",
+      "future_role": "replace with 이력 capacity notation after SSOT acceptance",
+      "changed_now": false
+    },
+    {
+      "surface": "ddn.stream.v1",
+      "current_role": "pack/resource schema name",
+      "future_role": "migration target after compatibility design",
+      "changed_now": false
+    }
+  ],
+  "collision_evidence_rows": [
+    {
+      "id": "core_stream_schema_collision",
+      "path": "core/src/platform.rs",
+      "tokens": ["ddn.stream.v1", "흐름"],
+      "classification": "value_stream_runtime_resource",
+      "rename_decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "wasm_stream_sidecar_collision",
+      "path": "tool/src/wasm_api.rs",
+      "tokens": ["collect_streams", "가격흐름_길이"],
+      "classification": "wasm_stream_sidecar_metadata",
+      "rename_decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "stdlib_stream_alias_collision",
+      "path": "lang/src/stdlib.rs",
+      "tokens": ["흐름.만들기", "흐름.밀어넣기", "흐름.차림"],
+      "classification": "stdlib_value_stream_surface",
+      "rename_decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "parser_pipe_flow_term_collision",
+      "path": "lang/src/parser.rs",
+      "tokens": ["흐름값"],
+      "classification": "parser_diagnostic_or_pipe_flow_surface",
+      "rename_decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "normalizer_seed_flow_collision",
+      "path": "lang/src/normalizer.rs",
+      "tokens": ["흐름씨", "흐름값"],
+      "classification": "seed_or_functional_flow_surface",
+      "rename_decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "old_stream_proposal_collision",
+      "path": "docs/context/proposals/PROPOSAL_STREAM_STATEFUL_RINGBUFFER_V1_20260216.md",
+      "tokens": ["흐름(N)", "Stream"],
+      "classification": "old_ring_buffer_value_type_proposal",
+      "rename_decision_only": true,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "ssot_landed": false
+    }
+  ],
+  "rejected_alternatives": [
+    {
+      "surface": "흐름창",
+      "reason": "still contains 흐름 and keeps the collision visible"
+    },
+    {
+      "surface": "묶음흐름",
+      "reason": "still reads as a subtype of connector flow"
+    },
+    {
+      "surface": "값흐름",
+      "reason": "clarifies values but keeps two public meanings of 흐름"
+    }
+  ],
+  "migration_policy": {
+    "preserve_connector_flow_term": true,
+    "selected_value_type_name": "이력",
+    "compatibility_aliases_required_before_removal": true,
+    "remove_old_aliases_now": false,
+    "runtime_rename_now": false,
+    "ssot_update_required_later": true
+  },
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "flow_type_rename_runtime_landed",
+    "stream_alias_removed",
+    "backward_compat_break"
+  ],
+  "queue_plan": {
+    "closed": 3,
+    "total": 8,
+    "percent": 38
+  },
+  "urgent_evidence_plan": {
+    "closed": 2,
+    "total": 3,
+    "percent": 67
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_SIM_CONSTRAINT_THIRD_LAYER_NAME_V1"
+}

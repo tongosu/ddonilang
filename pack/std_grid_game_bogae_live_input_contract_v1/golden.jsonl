@@ -1,0 +1,1 @@
+{"stdout":["std_grid_game_bogae_live_input_contract_v1","sam_live_input_url=http://127.0.0.1:<port>/input","/input?code=ArrowLeft&kind=down","/input?code=ArrowLeft&kind=up","/input?kind=clear","OPTIONS /input","200 OK / 204 No Content + CORS"],"exit_code":0}

@@ -1,0 +1,2 @@
+{"cmd":["run","pack/lang_tuck_ssot_acceptance_handoff_v1/input.ddn"],"exit_code":0,"stdout":["LANG_TUCK_SSOT_ACCEPTANCE_HANDOFF_V1","tuck ssot acceptance handoff sealed","schema: ddn.language.tuck_ssot_acceptance_handoff.v1","selected layer: 턱","surface family: 턱-row","required fields: id, when, effect, priority, determinism","product transition: 7/7 = 100%; roadmap: 66/90 = 73%","ssot landed: false","next: LANG_PRODUCT_PATH_TRANSITION_CLOSURE_REBASE_V1"]}
+

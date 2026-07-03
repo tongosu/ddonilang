@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.std_grid_game_bogae_live_input_frame_effect.pack.contract.v1",
+  "id": "std_grid_game_bogae_live_input_frame_effect_v1",
+  "public_surface_delta": "none",
+  "run_order": [
+    "control",
+    "input"
+  ],
+  "run_isolation": {
+    "separate_temp_output_dirs": true,
+    "separate_free_sam_live_ports": true,
+    "requires_no_open": true
+  },
+  "record_sam": {
+    "madi_hz": 10,
+    "required_nonzero_keys": [
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowDown"
+    ]
+  },
+  "primary_compare_field": "state_hash",
+  "aux_compare_field": "bogae_hash",
+  "compare_after_ticks": 3,
+  "failure_if_input_too_late": true,
+  "runner": "tests/std_grid_game_bogae_finite_live_loop_runner.mjs",
+  "checker": "tests/run_std_grid_game_bogae_finite_live_loop_check.py",
+  "non_scope": [
+    "new stdlib surface",
+    "parser/frontdoor syntax",
+    "infinite live loop",
+    "scheduler drift or stability",
+    "browser gameplay quality",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ]
+}

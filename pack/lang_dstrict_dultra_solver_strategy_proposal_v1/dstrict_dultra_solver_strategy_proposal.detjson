@@ -1,0 +1,131 @@
+{
+  "schema": "ddn.language.dstrict_dultra_solver_strategy_proposal.v1",
+  "work_item": "LANG_DSTRICT_DULTRA_SOLVER_STRATEGY_PROPOSAL_V1",
+  "based_on": "LANG_CONNECT_LOWERING_TO_SEUM_CHECK_V1",
+  "solver_strategy_proposal_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "dultra_solver_runtime_landed_claim": false,
+  "dae_solver_current_line_claim": false,
+  "recorded_replay_contract_landed_claim": false,
+  "source_connect_lowering": "pack/lang_connect_lowering_to_seum_check_v1/connect_lowering_to_seum_check.detjson",
+  "source_deterministic_solver_methods": "docs/context/proposals/PROPOSAL_DETERMINISTIC_SOLVER_METHODS_V1_20260524.md",
+  "source_dultra_recorded_contract": "docs/context/proposals/PROPOSAL_DULTRA_SOLVER_STRATEGY_RECORDED_CONTRACT_V1_20260524.md",
+  "source_l1_integrators": "pack/stdlib_l1_integrators_v1",
+  "dstrict_policy": {
+    "truth_claim": "bit-perfect deterministic truth",
+    "current_baseline": ["적분.오일러", "적분.반암시적오일러"],
+    "recommended_next_candidate": "속도 베를레",
+    "candidate_landed": false,
+    "fixed64_required": true
+  },
+  "velocity_verlet_landing_conditions": [
+    "Fixed64 operation order",
+    "position_velocity_acceleration_update_order",
+    "a_t_and_a_t_plus_dt_evaluation_timing",
+    "rounding_points",
+    "golden_hash_and_energy_smoke_pack"
+  ],
+  "dultra_policy": {
+    "includes_solver_strategy_relaxation": true,
+    "replay_contract_required": true,
+    "must_not_claim_dstrict_truth": true,
+    "runtime_landed": false
+  },
+  "dultra_candidate_solvers": [
+    "DAE solver",
+    "adaptive solver",
+    "external numerical solver",
+    "SIMD / Float32 backend",
+    "engine-assisted preview solver"
+  ],
+  "recorded_replay_contract_fields": [
+    "solver id / version / configuration",
+    "initial state hash and input sequence",
+    "adaptive step choices or solver trace summary",
+    "external result normalization metadata",
+    "failure/diag code"
+  ],
+  "evidence_rows": [
+    {
+      "id": "connect_lowering_prior_item",
+      "path": "pack/lang_connect_lowering_to_seum_check_v1/connect_lowering_to_seum_check.detjson",
+      "tokens": ["LANG_DSTRICT_DULTRA_SOLVER_STRATEGY_PROPOSAL_V1", "queue_plan", "세움"],
+      "classification": "prior_queue_anchor",
+      "decision_only": true,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "deterministic_solver_methods_source",
+      "path": "docs/context/proposals/PROPOSAL_DETERMINISTIC_SOLVER_METHODS_V1_20260524.md",
+      "tokens": ["속도 베를레", "D-STRICT 후보/권장", "Fixed64 연산 순서", "golden hash / energy smoke pack"],
+      "classification": "dstrict_solver_method_source",
+      "decision_only": true,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "dultra_recorded_contract_source",
+      "path": "docs/context/proposals/PROPOSAL_DULTRA_SOLVER_STRATEGY_RECORDED_CONTRACT_V1_20260524.md",
+      "tokens": ["D-ULTRA", "DAE solver", "adaptive solver", "recorded replay contract", "solver id / version / configuration"],
+      "classification": "dultra_recorded_replay_source",
+      "decision_only": true,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "stdlib_l1_integrator_pack_source",
+      "path": "pack/stdlib_l1_integrators_v1/README.md",
+      "tokens": ["적분.오일러", "적분.반암시적오일러"],
+      "classification": "current_dstrict_baseline_pack",
+      "decision_only": true,
+      "runtime_landed": false,
+      "ssot_landed": false
+    },
+    {
+      "id": "runtime_integrator_baseline_source",
+      "path": "tool/src/ddn_runtime.rs",
+      "tokens": ["적분.오일러", "적분.반암시적오일러", "Fixed64"],
+      "classification": "runtime_baseline_anchor_not_new_claim",
+      "decision_only": true,
+      "runtime_landed": false,
+      "ssot_landed": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "velocity_verlet_runtime_landed",
+    "dultra_solver_runtime_landed",
+    "dae_solver_current_line",
+    "recorded_replay_contract_landed"
+  ],
+  "queue_plan": {
+    "closed": 8,
+    "total": 8,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_IMPLEMENTATION_READINESS_REBASE_V1"
+}

@@ -1,0 +1,65 @@
+{
+  "schema": "ddn.roadmap_v2.sa2_sprite_grid2d_rebase.v1",
+  "id": "SA2_SPRITE_GRID2D_CLOSURE_REBASE_V1",
+  "date": "2026-06-08",
+  "status": "documentation_closed",
+  "roadmap_coordinate": "사-2",
+  "matrix_closure_claim": false,
+  "evidence": {
+    "sprite_skin_minimum": {
+      "work_item": "SA2_SPRITE_SKIN_MINIMUM_PACK_V1",
+      "pack": "pack/sa2_sprite_skin_minimum_v1",
+      "checker": "tests/run_sa2_sprite_skin_minimum_pack_check.py",
+      "status": "PASS"
+    },
+    "grid2d_game_input": [
+      {
+        "pack": "pack/bogae_grid2d_smoke_v1",
+        "checker": "tests/run_bogae_backend_profile_smoke_check.py bogae_grid2d_smoke_v1"
+      },
+      {
+        "pack": "pack/std_grid_game_bogae_bridge_closure_v1",
+        "checker": "tests/run_std_grid_game_bogae_bridge_pack_check.py"
+      },
+      {
+        "pack": "pack/std_grid_game_bogae_browser_input_delivery_v1",
+        "checker": "tests/run_std_grid_game_bogae_browser_input_delivery_check.py"
+      },
+      {
+        "pack": "pack/std_grid_game_bogae_viewer_js_dom_closure_v1",
+        "checker": "tests/run_std_grid_game_bogae_viewer_js_dom_check.py"
+      }
+    ]
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "SA2 sprite/grid2d rebase",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 0,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 0,
+    "roadmap_v2_pack_evidence_reference_closed": 21,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 23,
+    "studio_local_super_long_closed": 5,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 28
+  },
+  "decision": {
+    "next_item": "SA2_SPRITE_GRID2D_FINAL_CLOSURE_V1",
+    "reason": "sprite skin minimum and grid2d/game-input evidence are present; final closure should decide whether 사-2 can be counted as behavior-closed",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "matrix_closure_claim": false,
+    "runtime_surface_change": false,
+    "parser_frontdoor_change": false,
+    "stdlib_surface_change": false,
+    "lesson_schema_change": false,
+    "docs_ssot_change": false
+  }
+}

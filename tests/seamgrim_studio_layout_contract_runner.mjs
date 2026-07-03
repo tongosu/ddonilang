@@ -49,7 +49,7 @@ async function main() {
   ]);
 
   assert(indexHtml.includes('class="bogae-frame"'), "studio layout contract: bogae frame wrapper missing");
-  assert(indexHtml.includes('aria-label="한마디씩"'), "studio layout contract: step aria-label token missing");
+  assert(indexHtml.includes('aria-label="한 단계씩"'), "studio layout contract: step aria-label token missing");
   assert(
     (indexHtml.match(/<span class="brand">셈그림<\/span>/g) ?? []).length >= 3,
     "studio layout contract: shell brand should be visible on browse/editor/run title lines",
@@ -166,7 +166,7 @@ async function main() {
   );
   const labelsWide = resolveRunMainControlLabels({ isPaused: false, compact: false });
   const labelsCompact = resolveRunMainControlLabels({ isPaused: false, compact: true });
-  assert(labelsWide.execute === "▶ 작업실에서 실행", "studio layout contract: wide execute label");
+  assert(labelsWide.execute === "▶ 수업 실행", "studio layout contract: wide execute label");
   assert(labelsCompact.execute === "▶ 실행", "studio layout contract: compact execute label");
   assert(
     resolveRunEngineModeFromDdnText("x <- 1.\nx 보여주기.") === "oneshot",

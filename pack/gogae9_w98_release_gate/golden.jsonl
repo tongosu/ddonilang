@@ -1,0 +1,1 @@
+{"cmd": ["canon", "pack/gogae9_w98_release_gate/input.ddn", "--check"], "stdout": ["채비 {", "  릴리즈:글 <- \"v14.0-gate0\".", "}."], "exit_code": 0}

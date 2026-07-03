@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.std_grid_game_hold_queue.pack.contract.v1",
+  "id": "std_grid_game_hold_queue_v1",
+  "surface": [
+    "격자게임홀드.초기화",
+    "격자게임홀드.칸",
+    "격자게임홀드.썼나",
+    "격자게임홀드.교체",
+    "격자게임홀드.초기화턴"
+  ],
+  "representation": {
+    "__종류": "std_grid_game_hold_queue",
+    "조각": "없음 | std_block_piece",
+    "썼나": "참거짓"
+  },
+  "swap_kind": "std_grid_game_hold_swap",
+  "session_integration": false
+}
+

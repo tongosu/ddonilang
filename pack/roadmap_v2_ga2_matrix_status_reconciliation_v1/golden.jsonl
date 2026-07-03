@@ -1,0 +1,2 @@
+{"id":"c01_ga2_matrix_status_reconciliation_marker","cmd":["run","pack/roadmap_v2_ga2_matrix_status_reconciliation_v1/input.ddn"],"stdout":["GA2_MATRIX_STATUS_RECONCILIATION_V1","ga2 matrix status reconciliation sealed","stage: 4/4 = 100%","roadmap matrix behavior: 3/90 = 3%","pack evidence reference: 22/90 = 24%","studio local super-long: 5/18 = 28%","next: MA2_STUDIO_PREREQ_UNLOCK_V1"],"exit_code":0}
+

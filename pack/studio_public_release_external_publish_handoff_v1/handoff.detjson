@@ -1,0 +1,25 @@
+{
+  "schema": "ddn.studio.public_release_external_publish_handoff.v1",
+  "work_item": "STUDIO_PUBLIC_RELEASE_EXTERNAL_PUBLISH_HANDOFF_V1",
+  "closure_tier": "닫힘-문서",
+  "local_release_execution": "6/6 = 100%",
+  "local_release_artifacts": "5/5 = 100%",
+  "external_publish_readiness": "0/4 = 0%",
+  "github_release_claim": false,
+  "public_upload_claim": false,
+  "registry_publish_claim": false,
+  "external_publish_status": "not_attempted_no_github_cli_auth_evidence",
+  "output_root": "I:/home/urihanl/ddn/codex/build/studio_release",
+  "release_manifest": "I:/home/urihanl/ddn/codex/build/studio_release/release_manifest.detjson",
+  "remaining_conditions": [
+    "release tool available",
+    "authenticated release credentials verified",
+    "remote release tag selected",
+    "external upload executed"
+  ],
+  "current_authority": {
+    "studio_local_super_long": "9/18 = 50%",
+    "roadmap_v2_behavior_closed": "90/90 = 100%"
+  },
+  "next_safe_action": null
+}

@@ -1,0 +1,72 @@
+{
+  "schema": "ddn.roadmap_v2.cha1.rpg_phrase_action_smoke.v1",
+  "id": "CHA1_RPG_PHRASE_ACTION_SMOKE_V1",
+  "date": "2026-06-08",
+  "status": "runtime_smoke_pass",
+  "roadmap_coordinate": "차-1",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "cha1_matrix_status": "닫힘-동작",
+  "smoke_boundary": {
+    "pack_id": "malhim_rpg_1_v1",
+    "milestone": "phrase/action smoke",
+    "representative_work": "phrase→confirmed_event",
+    "lanes": [
+      {
+        "id": "phrase_input",
+        "evidence": "구절:\"문을 연다\"",
+        "required_for_cha1": true
+      },
+      {
+        "id": "action_method",
+        "evidence": "행동:\"open_door\"",
+        "required_for_cha1": true
+      },
+      {
+        "id": "confirmed_event",
+        "evidence": "confirmed_event:open_door:문을 연다:count=1",
+        "required_for_cha1": true
+      },
+      {
+        "id": "runtime_golden",
+        "evidence": "python tests/run_pack_golden.py malhim_rpg_1_v1",
+        "required_for_cha1": true
+      }
+    ]
+  },
+  "progress": {
+    "current_stage": "CHA1 RPG phrase action smoke",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 13,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 14,
+    "roadmap_v2_pack_evidence_reference_closed": 33,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 37,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "new_status_for_cha1": "닫힘-동작",
+    "reason": "The pack executes through the existing DDN runtime and turns a phrase/action pair into a reproducible confirmed_event output.",
+    "next_item": "CHA2_RPG_STORY_PACK_CLOSURE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "cha2_story_pack_closed": false,
+    "rpg_box_authoring_ui_claim": false,
+    "new_parser_frontdoor_change": false,
+    "new_runtime_semantics": false,
+    "story_engine_claim": false,
+    "registry_publish_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "docs_ssot_change": false,
+    "studio_local_progress_increase": false,
+    "numeric_track_consolidation_required": false
+  }
+}

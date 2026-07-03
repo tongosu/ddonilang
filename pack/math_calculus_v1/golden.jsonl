@@ -1,1 +1,1 @@
-{"stdout": ["(#ascii) 수식{ diff(x^2 + 1, x) }", "(#ascii) 수식{ diff(x^2 + 1, x, 2) }", "(#ascii) 수식{ y = diff(x^2, x) }", "(#ascii) 수식{ int(x^3, x) }", "(#ascii) 수식{ int(x^3, x) + C }"]}
+{"stdout":["(#ascii) 수식{ 2*x }","(#ascii) 수식{ 2 }","(#ascii) 수식{ y = 2*x }","(#ascii) 수식{ 1/4*x^4 }","(#ascii) 수식{ 1/4*x^4 + C }"],"exit_code":0}

@@ -1,0 +1,32 @@
+{
+  "schema": "ddn.seamgrim.run_history_export_summary_followup_recheck.v1",
+  "work_item": "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_FOLLOWUP_RECHECK_V1",
+  "closure_tier": "닫힘-문서",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "goal_completion_claim": false,
+  "public_release_execution_claim": false,
+  "current_authority": {
+    "studio_local_super_long": "9/18 = 50%",
+    "roadmap_v2_behavior_closed": "90/90 = 100%",
+    "roadmap_v2_docs_closed": "0/90 = 0%",
+    "public_release_execution": "0/1 = 0% approval-gated"
+  },
+  "rechecked_evidence": [
+    "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1.md",
+    "pack/seamgrim_run_history_export_summary_v1/contract.detjson",
+    "tests/seamgrim_run_history_export_summary_runner.mjs",
+    "tests/run_seamgrim_run_history_export_summary_check.py",
+    "solutions/seamgrim_ui_mvp/ui/screens/run.js",
+    "solutions/seamgrim_ui_mvp/ui/styles.css"
+  ],
+  "required_commands": [
+    "node tests/seamgrim_run_history_export_summary_runner.mjs",
+    "python tests/run_pack_golden.py seamgrim_run_history_export_summary_v1",
+    "python tests/run_seamgrim_run_history_export_summary_check.py",
+    "python tests/run_seamgrim_run_history_comparison_rail_check.py",
+    "git status --short -- docs/ssot"
+  ],
+  "next_safe_action": "SEAMGRIM_PRIVATE_PRODUCTIZATION_NEXT_QUEUE_RECHECK_V1"
+}

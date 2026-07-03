@@ -1,0 +1,53 @@
+{
+  "schema": "ddn.roadmap_v2.da4_math_package_share_frontier_rebase.v1",
+  "id": "ROADMAP_V2_DA4_MATH_PACKAGE_SHARE_FRONTIER_REBASE_V1",
+  "date": "2026-06-08",
+  "coordinate": "다-4",
+  "matrix_status_before": "",
+  "matrix_status_after": "닫힘-동작",
+  "progress": {
+    "current_stage": "DA4 math package share frontier rebase",
+    "current_stage_closed": 6,
+    "current_stage_total": 6,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 49,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 54,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": true,
+    "roadmap_matrix_increment": true,
+    "math_runtime_change": false,
+    "math_surface_change": false,
+    "registry_publish_claim": false,
+    "public_upload_claim": false,
+    "public_link_creation_claim": false,
+    "install_enablement_claim": false,
+    "publication_snapshot_emit_claim": false,
+    "guide_status_change": false,
+    "guide_pack_candidate_change": true,
+    "docs_ssot_change": false
+  },
+  "lanes": {
+    "registry_seed": [
+      "studio_registry_share_seed_v1",
+      "rep_math_function_line_v1"
+    ],
+    "registry_surface": [
+      "seamgrim_registry_publish_install_shell_v1",
+      "run_seamgrim_package_registry_surface_check.py",
+      "run_seamgrim_sharing_publishing_surface_check.py",
+      "run_seamgrim_publication_snapshot_surface_check.py"
+    ]
+  },
+  "selected_next_work": "ROADMAP_V2_DA5_MATH_LTS_FRONTIER_REBASE_V1"
+}

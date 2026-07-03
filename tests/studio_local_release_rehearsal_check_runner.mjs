@@ -7,6 +7,13 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const OK = "studio_local_release_rehearsal_check: ok";
+const UNSAFE_BROWSER_PORTS = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95,
+  101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161,
+  179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563,
+  587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 5060, 5061,
+  6000, 6566, 6665, 6666, 6667, 6668, 6669, 6697, 10080,
+]);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -55,8 +62,17 @@ function createServer(root) {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
-      if (!address || typeof address === "string") reject(new Error("failed to bind static server"));
-      else resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
+      if (!address || typeof address === "string") {
+        reject(new Error("failed to bind static server"));
+        return;
+      }
+      if (UNSAFE_BROWSER_PORTS.has(address.port)) {
+        server.close(() => {
+          createServer(root).then(resolve, reject);
+        });
+        return;
+      }
+      resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
     });
   });
 }
@@ -107,7 +123,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-local-release-rehearsal-check][data-local-release-rehearsal-check-status='local_release_rehearsal_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -140,12 +156,16 @@ async function main() {
     assert(rehearsal.product_ui_change === true, "must claim product ui change");
     assert(rehearsal.rehearsal_row_count === 5, `row count mismatch: ${rehearsal.rehearsal_row_count}`);
     assert(rehearsal.ready_stage_count === 6, `ready stage mismatch: ${rehearsal.ready_stage_count}`);
-    assert(rehearsal.progress.super_long_percent === 100, "super-long percent mismatch");
-    assert(rehearsal.progress.current_stage_closed === 3, "followup closed mismatch");
-    assert(rehearsal.progress.current_stage_percent === 38, "followup percent mismatch");
-    assert(rehearsal.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(rehearsal.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
-    assert(rehearsal.next_item === "STUDIO_PUBLICATION_ARTIFACT_DRY_RUN_V1", "next item mismatch");
+    assert(rehearsal.progress.super_long_behavior_closed === 8, "super-long closed mismatch");
+    assert(rehearsal.progress.super_long_percent === 44, "super-long percent mismatch");
+    assert(rehearsal.progress.current_stage_closed === 4, "current stage closed mismatch");
+    assert(rehearsal.progress.current_stage_total === 4, "current stage total mismatch");
+    assert(rehearsal.progress.current_stage_percent === 100, "current stage percent mismatch");
+    assert(rehearsal.progress.roadmap_v2_behavior_closed === 6, "roadmap closed mismatch");
+    assert(rehearsal.progress.roadmap_v2_percent === 7, "roadmap percent mismatch");
+    assert(rehearsal.progress.roadmap_v2_pack_evidence_reference_closed === 25, "pack evidence closed mismatch");
+    assert(rehearsal.progress.roadmap_v2_pack_evidence_reference_percent === 28, "pack evidence percent mismatch");
+    assert(rehearsal.next_item === "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1", "next item mismatch");
     assert(String(moduleResult.text).includes("dry_run_only\ttrue"), "formatted text missing dry-run flag");
     assert(String(moduleResult.text).includes("release_execution_claim\tfalse"), "formatted text missing release boundary");
 
@@ -173,7 +193,7 @@ async function main() {
     });
     assert(domResult.rootStatus === "local_release_rehearsal_ready", `dom status mismatch: ${domResult.rootStatus}`);
     assert(domResult.buttonCount === 5, `dom button count mismatch: ${domResult.buttonCount}`);
-    assert(domResult.progress.includes("3/8 follow-up") && domResult.progress.includes("38%"), `progress text mismatch: ${domResult.progress}`);
+    assert(domResult.progress.includes("4/4 follow-up") && domResult.progress.includes("100%"), `progress text mismatch: ${domResult.progress}`);
     assert(domResult.progress.includes("dry-run only"), `dry-run text mismatch: ${domResult.progress}`);
     assert(domResult.assets.includes("4 assets") && domResult.assets.includes("generated_now=false"), `assets text mismatch: ${domResult.assets}`);
     assert(domResult.title === "asset plan", `title mismatch: ${domResult.title}`);

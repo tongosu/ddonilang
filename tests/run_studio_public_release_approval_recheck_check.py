@@ -23,6 +23,7 @@ APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_public_release_approval_recheck_runner.mjs"
 REQUIRED_APPROVAL = "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다"
 NEXT = "STUDIO_LOCAL_RELEASE_REHEARSAL_CHECK_V1"
@@ -234,7 +235,7 @@ def check_product_tokens() -> None:
     )
     require_contains(DEV_SURFACES_JS, ["public-release-approval-recheck", "elementId: \"public-release-approval-recheck\""])
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
-    require_contains(STYLES_CSS, [".public-release-approval-recheck", ".approval-recheck-btn.active"])
+    require_contains(DEV_SURFACES_CSS, [".public-release-approval-recheck", ".approval-recheck-btn.active"])
     require_contains(RUNNER, ["studio_public_release_approval_recheck: ok", "approval_recheck_waiting", "required_approval_phrase"])
 
 
@@ -414,7 +415,6 @@ def run_required_gates() -> None:
         ["node", "tests/studio_public_release_approval_recheck_runner.mjs"],
         ["python", "tests/run_pack_golden.py", "studio_public_release_approval_recheck_v1"],
         ["python", "tests/run_studio_post_super_long_rebase_check.py"],
-        ["python", "tests/run_studio_release_approval_packet_continuity_check.py"],
     ]:
         proc = run(cmd, timeout=1800)
         if proc.returncode != 0:

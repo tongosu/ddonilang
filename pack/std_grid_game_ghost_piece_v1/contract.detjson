@@ -1,0 +1,29 @@
+{
+  "schema": "ddn.std_grid_game_ghost_piece.pack.contract.v1",
+  "id": "std_grid_game_ghost_piece_v1",
+  "surface": [
+    "격자게임보기.유령조각",
+    "격자게임보기.유령보개목록"
+  ],
+  "projection": {
+    "direction": "y+1",
+    "returns": "last placeable falling piece",
+    "invalid_current_piece": "return input falling piece unchanged"
+  },
+  "bogae_rect": {
+    "결": "#보개/2D.Rect",
+    "id": "격자게임셀_{y}_{x}",
+    "colors": {
+      "빈칸": "#111111ff",
+      "고정": "#4a90e2ff",
+      "유령": "#88ffffff",
+      "낙하": "#ffcc00ff"
+    },
+    "precedence": [
+      "base",
+      "유령",
+      "낙하"
+    ]
+  }
+}
+

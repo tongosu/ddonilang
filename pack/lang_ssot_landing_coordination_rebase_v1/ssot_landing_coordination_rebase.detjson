@@ -1,0 +1,94 @@
+{
+  "schema": "ddn.language.ssot_landing_coordination_rebase.v1",
+  "work_item": "LANG_SSOT_LANDING_COORDINATION_REBASE_V1",
+  "based_on": "LANG_PRODUCT_PATH_TRANSITION_CLOSURE_REBASE_V1",
+  "source_product_path_transition_closure": "pack/lang_product_path_transition_closure_rebase_v1/product_path_transition_closure_rebase.detjson",
+  "source_prime_derivative_notation_decision": "pack/lang_prime_derivative_notation_decision_v1/prime_derivative_notation_decision.detjson",
+  "source_flow_type_collision_rename": "pack/lang_flow_type_collision_rename_v1/flow_type_collision_rename.detjson",
+  "source_tuck_ssot_acceptance_handoff": "pack/lang_tuck_ssot_acceptance_handoff_v1/tuck_ssot_acceptance_handoff.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "ssot_landing_coordination_rebase_claim": true,
+  "coordination_targets": [
+    {
+      "order": 1,
+      "id": "prime_derivative_notation",
+      "decision": "accept 위치' and 위치'' as first/second derivative notation",
+      "source": "pack/lang_prime_derivative_notation_decision_v1/prime_derivative_notation_decision.detjson",
+      "recommended_acceptance_text": "`위치'` and `위치''` are the first and second derivative notation surfaces for equation rows.",
+      "ssot_landed": false,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "next_item": "LANG_PRIME_SSOT_ACCEPTANCE_REQUEST_V1"
+    },
+    {
+      "order": 2,
+      "id": "flow_history_naming_split",
+      "decision": "keep 흐름 for port/connector flow and use 이력 for value-history family",
+      "source": "pack/lang_flow_type_collision_rename_v1/flow_type_collision_rename.detjson",
+      "recommended_acceptance_text": "`흐름` remains the connector/port flow term; value history/ring-buffer naming moves to `이력` with compatibility aliases before removal.",
+      "ssot_landed": false,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "next_item": "LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1"
+    },
+    {
+      "order": 3,
+      "id": "tuck_constraint_layer",
+      "decision": "accept 턱 as third simulation-constraint layer and 턱-row as the proposed row-family surface",
+      "source": "pack/lang_tuck_ssot_acceptance_handoff_v1/tuck_ssot_acceptance_handoff.detjson",
+      "recommended_acceptance_text": "`턱` is the third simulation-constraint layer for boundary, threshold, and exit interventions; `턱-row` is the proposed initial row-family surface.",
+      "ssot_landed": false,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "next_item": "LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1"
+    }
+  ],
+  "coordination_policy": {
+    "codex_may_edit_docs_ssot": false,
+    "ssot_landing_counter_changes_now": false,
+    "acceptance_requires_user_or_ssot_maintainer": true,
+    "acceptance_requests_are_docs_context_only": true
+  },
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "backward_compat_break"
+  ],
+  "ssot_landing_coordination_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 68,
+    "total": 90,
+    "percent": 76
+  },
+  "next_item": "LANG_PRIME_SSOT_ACCEPTANCE_REQUEST_V1"
+}
+

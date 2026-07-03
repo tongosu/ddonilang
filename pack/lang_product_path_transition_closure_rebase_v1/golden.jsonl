@@ -1,0 +1,2 @@
+{"cmd":["run","pack/lang_product_path_transition_closure_rebase_v1/input.ddn"],"exit_code":0,"stdout":["LANG_PRODUCT_PATH_TRANSITION_CLOSURE_REBASE_V1","product path transition closure rebase sealed","schema: ddn.language.product_path_transition_closure_rebase.v1","closed product transition items: 7","product transition: 7/7 = 100%","urgent ssot landed: 0/3 = 0%","roadmap: 67/90 = 74%","next: LANG_SSOT_LANDING_COORDINATION_REBASE_V1"]}
+

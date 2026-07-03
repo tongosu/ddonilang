@@ -1,0 +1,2 @@
+{"cmd":["run","pack/lang_post_ssot_landing_product_gate_rebase_v1/input.ddn"],"exit_code":0,"stdout":["LANG_POST_SSOT_LANDING_PRODUCT_GATE_REBASE_V1","post ssot landing product gate rebase sealed","schema: ddn.language.post_ssot_landing_product_gate_rebase.v1","product gate rows: 3","post ssot product gates open: 0/3 = 0%","urgent ssot landed: 0/3 = 0%","roadmap: 74/90 = 82%","next: LANG_SSOT_OWNER_LANDING_HANDOFF_V1"]}
+

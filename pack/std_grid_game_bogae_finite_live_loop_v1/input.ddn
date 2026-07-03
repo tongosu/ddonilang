@@ -1,0 +1,11 @@
+종류 <- "std_grid_game_bogae_finite_live_loop_v1".
+마디 <- "finite_madi=80".
+주파수 <- "madi_hz=10".
+프레임 <- "frame_count=80".
+매니페스트 <- "final_manifest_only_claim".
+
+종류 보여주기.
+마디 보여주기.
+주파수 보여주기.
+프레임 보여주기.
+매니페스트 보여주기.

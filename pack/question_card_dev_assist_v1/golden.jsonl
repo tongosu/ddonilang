@@ -1,0 +1,2 @@
+{"id":"c01_geo3_dev_assist_ui_marker","cmd":["run","pack/question_card_dev_assist_v1/input.ddn"],"stdout":["GEO3_DEV_ASSIST_UI_V1","development assist UI sealed","stage: 5/5 = 100%","roadmap matrix behavior: 35/90 = 39%","pack evidence reference: 56/90 = 62%","studio local super-long: 9/18 = 50%","geo3 status: 닫힘-동작","next: GEO4_AUTHOR_TOOL_SHARE_V1"],"exit_code":0}
+

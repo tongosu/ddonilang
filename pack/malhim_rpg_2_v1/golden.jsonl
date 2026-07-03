@@ -1,0 +1,1 @@
+{"cmd":["run","pack/malhim_rpg_2_v1/input.ddn"],"stdout":["actor:용사@문앞","state:position=문앞","dialogue:안녕 용사 방문=1","map:시작->문앞"],"exit_code":0}

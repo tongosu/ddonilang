@@ -1,0 +1,87 @@
+{
+  "schema": "ddn.roadmap_v2.ma2_studio_prereq_unlock.v1",
+  "id": "MA2_STUDIO_PREREQ_UNLOCK_V1",
+  "date": "2026-06-08",
+  "status": "docs_closed_startable",
+  "roadmap_coordinate": "마-2",
+  "matrix_closure_claim": false,
+  "matrix_closure_tier": "not_closed",
+  "ma2_matrix_status": "진행",
+  "prerequisites": {
+    "global_4era": [
+      {
+        "coordinate": "가-2",
+        "required_status": "닫힘-동작",
+        "evidence": "roadmap_v2_ga2_matrix_status_reconciliation_v1"
+      },
+      {
+        "coordinate": "사-2",
+        "required_status": "닫힘-동작",
+        "evidence": "roadmap_v2_sa2_sprite_grid2d_final_closure_v1"
+      },
+      {
+        "coordinate": "타-2",
+        "required_status": "닫힘-동작",
+        "evidence": "roadmap_v2_ta2_matrix_status_reconciliation_v1"
+      }
+    ],
+    "matrix_guide": [
+      {
+        "coordinate": "다-1",
+        "required_surface": "math_function",
+        "evidence": "ROADMAP_V2_DA1_FINAL_CLOSURE_V1",
+        "matrix_status": "진행",
+        "tracker_evidence_status": "닫힘"
+      },
+      {
+        "coordinate": "사-1",
+        "required_surface": "graph/table",
+        "evidence": "bogae_graph_prefix_v1 + bogae_observe_basics",
+        "matrix_status": "진행",
+        "tracker_evidence_status": "닫힘"
+      },
+      {
+        "coordinate": "타-2",
+        "required_surface": "golden/checker",
+        "evidence": "roadmap_v2_ta2_matrix_status_reconciliation_v1",
+        "matrix_status": "닫힘-동작",
+        "tracker_evidence_status": "닫힘-동작"
+      }
+    ]
+  },
+  "progress": {
+    "work_unit_closed": 4,
+    "work_unit_total": 4,
+    "work_unit_percent": 100,
+    "current_stage": "MA2 prereq unlock",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 3,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 3,
+    "roadmap_v2_pack_evidence_reference_closed": 22,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 24,
+    "studio_local_super_long_closed": 5,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 28
+  },
+  "decision": {
+    "new_status_for_ma2": "진행",
+    "reason": "Prerequisite evidence is sufficient to start the bounded seamgrim_curriculum_2_v1 pack, but not to close 마-2 behavior.",
+    "next_item": "MA2_SEAMGRIM_CURRICULUM_2_PACK_CLOSURE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "ma2_behavior_closed": false,
+    "new_product_ui_behavior": false,
+    "runtime_surface_change": false,
+    "docs_ssot_change": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "numeric_track_consolidation_required": false
+  }
+}

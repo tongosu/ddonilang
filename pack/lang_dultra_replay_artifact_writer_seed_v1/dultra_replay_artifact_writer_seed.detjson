@@ -1,0 +1,123 @@
+{
+  "schema": "ddn.language.dultra_replay_artifact_writer_seed.v1",
+  "work_item": "LANG_DULTRA_REPLAY_ARTIFACT_WRITER_SEED_V1",
+  "based_on": "LANG_HISTORY_ALIAS_STDLIB_BRIDGE_V1",
+  "source_dultra_recorded_replay_contract": "pack/lang_dultra_recorded_replay_contract_v1/dultra_recorded_replay_contract.detjson",
+  "source_dultra_replay_artifact_implementation_gate": "pack/lang_dultra_replay_artifact_implementation_gate_v1/dultra_replay_artifact_implementation_gate.detjson",
+  "source_history_alias_stdlib_bridge": "pack/lang_history_alias_stdlib_bridge_v1/history_alias_stdlib_bridge.detjson",
+  "dultra_replay_artifact_writer_seed_claim": true,
+  "dultra_replay_artifact_writer_seed_helper_landed_claim": true,
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "dultra_replay_artifact_writer_runtime_landed_claim": false,
+  "dultra_replay_verifier_landed_claim": false,
+  "dstrict_truth_claim": false,
+  "dae_solver_current_line_claim": false,
+  "adaptive_solver_current_line_claim": false,
+  "external_solver_current_line_claim": false,
+  "product_helper": {
+    "api": "teul_cli::cli::dultra_replay::build_dultra_replay_seed_artifact",
+    "path": "tools/teul-cli/src/cli/dultra_replay.rs",
+    "module_export": "tools/teul-cli/src/cli/mod.rs",
+    "artifact_schema": "ddn.dultra_replay.detjson.v1",
+    "product_path": true,
+    "runtime_landed": false,
+    "verifier_landed": false
+  },
+  "required_sections": [
+    "solver_identity",
+    "initial_context",
+    "input_sequence",
+    "step_trace",
+    "normalization_metadata",
+    "failure_diag",
+    "claim_boundary"
+  ],
+  "false_claim_fields": [
+    "writer.runtime_landed",
+    "writer.verifier_landed",
+    "sections.claim_boundary.dstrict_truth_claim",
+    "sections.claim_boundary.current_line_support_claim",
+    "sections.claim_boundary.runtime_recorded_replay_implementation_landed"
+  ],
+  "recommended_outputs_not_landed": [
+    "dultra_replay.trace.jsonl",
+    "dultra_replay.failure.detjson",
+    "dultra_replay.claim_boundary.detjson",
+    "reader_verifier_product_path"
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "teul_cli_dultra_replay_seed_helper",
+      "path": "tools/teul-cli/src/cli/dultra_replay.rs",
+      "tokens": ["build_dultra_replay_seed_artifact", "ddn.dultra_replay.detjson.v1", "dstrict_truth_claim"],
+      "changed_now": true
+    },
+    {
+      "id": "teul_cli_module_export",
+      "path": "tools/teul-cli/src/cli/mod.rs",
+      "tokens": ["pub mod dultra_replay"],
+      "changed_now": true
+    },
+    {
+      "id": "dultra_contract_source",
+      "path": "pack/lang_dultra_recorded_replay_contract_v1/dultra_recorded_replay_contract.detjson",
+      "tokens": ["solver_identity", "initial_context", "input_sequence", "claim_boundary"],
+      "changed_now": false
+    },
+    {
+      "id": "dultra_artifact_gate_source",
+      "path": "pack/lang_dultra_replay_artifact_implementation_gate_v1/dultra_replay_artifact_implementation_gate.detjson",
+      "tokens": ["writer_product_path", "reader_verifier_product_path", "claim_boundary_check"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_replay_behavior_change",
+    "verifier_behavior_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "dultra_replay_artifact_writer_runtime_landed",
+    "dultra_replay_verifier_landed",
+    "dstrict_truth_claim",
+    "dae_solver_current_line",
+    "adaptive_solver_current_line",
+    "external_solver_current_line"
+  ],
+  "language_product_path_transition_plan": {
+    "closed": 5,
+    "total": 7,
+    "percent": 71
+  },
+  "dultra_replay_artifact_writer_seed": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 64,
+    "total": 90,
+    "percent": 71
+  },
+  "next_item": "LANG_VELOCITY_VERLET_STDLIB_SURFACE_ACCEPTANCE_V1"
+}

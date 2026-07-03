@@ -1,0 +1,45 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "malhim_rpg_1_v1",
+  "kind": "roadmap_v2_cha1_rpg_phrase_action_smoke",
+  "runtime_claim": true,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "closed_by": "CHA1_RPG_PHRASE_ACTION_SMOKE_V1",
+  "roadmap_coordinate": "차-1",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "cha1_matrix_status": "닫힘-동작",
+  "requires_cha0_seed": true,
+  "current_stage": "CHA1 RPG phrase action smoke",
+  "current_stage_closed": 4,
+  "current_stage_total": 4,
+  "current_stage_percent": 100,
+  "roadmap_v2_matrix_behavior_closed": 13,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 14,
+  "roadmap_v2_pack_evidence_reference_closed": 33,
+  "roadmap_v2_pack_evidence_reference_total": 90,
+  "roadmap_v2_pack_evidence_reference_percent": 37,
+  "studio_local_super_long_closed": 9,
+  "studio_local_super_long_total": 18,
+  "studio_local_super_long_percent": 50,
+  "smoke_lanes": [
+    "phrase_input",
+    "action_method",
+    "confirmed_event",
+    "runtime_golden"
+  ],
+  "source_evidence": [
+    "roadmap_v2_cha0_rpg_seed_rebase_v1",
+    "rpg_player_actor_smoke_v1",
+    "rpg_npc_dialogue_signal_v1"
+  ],
+  "expected_stdout": [
+    "1",
+    "confirmed_event:open_door:문을 연다:count=1"
+  ],
+  "next_item": "CHA2_RPG_STORY_PACK_CLOSURE_V1",
+  "forbidden_unlock_condition": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1",
+  "requires_docs_ssot_clean": true
+}

@@ -1,0 +1,48 @@
+{
+  "schema": "ddn.social_world.template_registry.v1",
+  "work_item": "PA4_SOCIAL_TEMPLATE_REGISTRY_V1",
+  "primary_coordinate": "파-4",
+  "pack": "social_world_econ_4_v1",
+  "status": "social_world_template_registry_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "social_template_registry_claim": true,
+  "template_catalog_claim": true,
+  "share_snapshot_claim": true,
+  "remix_contract_claim": true,
+  "classroom_registry_claim": true,
+  "public_template_publish_claim": false,
+  "network_registry_sync_claim": false,
+  "account_permission_change_claim": false,
+  "policy_advice_claim": false,
+  "state_hash_participation_claim": false,
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 27,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 30,
+    "roadmap_v2_pack_evidence_reference_closed": 47,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 52,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "rows": [
+    { "id": "template_catalog", "ready": true },
+    { "id": "share_snapshot", "ready": true },
+    { "id": "remix_contract", "ready": true },
+    { "id": "classroom_registry", "ready": true }
+  ],
+  "template_text": "coordinate:파-4\npublic_template_publish:false\nnetwork_registry_sync:false\naccount_permission_change:false\npolicy_advice:false\nstate_hash_participation:false",
+  "false_claims": {
+    "public_template_publish_claim": false,
+    "network_registry_sync_claim": false,
+    "account_permission_change_claim": false,
+    "policy_advice_claim": false,
+    "state_hash_participation_claim": false,
+    "parser_frontdoor_change": false,
+    "grammar_claim": false
+  }
+}

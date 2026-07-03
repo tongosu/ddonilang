@@ -1,0 +1,1 @@
+{"id":"c01_cha4_rpg_story_package_marker","cmd":["run","pack/malhim_rpg_4_v1/input.ddn"],"stdout":["CHA4_RPG_STORY_PACKAGE_V1","rpg story package sealed","stage: 5/5 = 100%","roadmap matrix behavior: 16/90 = 18%","pack evidence reference: 36/90 = 40%","studio local super-long: 9/18 = 50%","cha4 status: 닫힘-동작","next: CHA5_RPG_ENGINE_ADAPTER_LTS_V1"],"exit_code":0}

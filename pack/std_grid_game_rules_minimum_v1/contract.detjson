@@ -1,0 +1,31 @@
+{
+  "schema": "ddn.std_grid_game_rules_minimum.pack.contract.v1",
+  "id": "std_grid_game_rules_minimum_v1",
+  "bundled_packs": [
+    "std_grid_game_hold_queue_v1",
+    "std_grid_game_ghost_piece_v1",
+    "std_grid_game_simple_wall_kick_v1"
+  ],
+  "public_surface": [
+    "격자게임홀드.*",
+    "격자게임보기.유령조각",
+    "격자게임보기.유령보개목록",
+    "격자게임.회전시도"
+  ],
+  "unchanged": [
+    "격자게임.한틱",
+    "격자게임.입력적용",
+    "격자게임세션"
+  ],
+  "non_scope": [
+    "SRS full table",
+    "hold integration into one-tick",
+    "browser UI controls",
+    "multiplayer/network",
+    "connect flow"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_grid_game_rules_minimum"
+  ]
+}
+

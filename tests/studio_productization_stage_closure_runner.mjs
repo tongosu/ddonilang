@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-productization-stage-closure][data-productization-stage-closure-status='productization_stage_closed']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -138,12 +138,12 @@ async function main() {
     assert(closure.stage_chain_closed === 5 && closure.stage_chain_total === 5, "stage chain mismatch");
     assert(closure.closure_row_count === 5, `row count mismatch: ${closure.closure_row_count}`);
     assert(closure.ready_stage_count === 6, `ready stage mismatch: ${closure.ready_stage_count}`);
-    assert(closure.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(closure.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(closure.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(closure.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(closure.progress.current_stage_closed === 5, "current stage closed mismatch");
     assert(closure.progress.current_stage_percent === 100, "current stage percent mismatch");
-    assert(closure.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(closure.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(closure.progress.roadmap_v2_behavior_closed === 51, "roadmap closed mismatch");
+    assert(closure.progress.roadmap_v2_percent === 57, "roadmap percent mismatch");
     assert(closure.next_item === "STUDIO_POST_SUPER_LONG_REBASE_V1", "next item mismatch");
     assert(String(moduleResult.text).includes("stage_chain\t5/5"), "formatted text missing stage chain");
     assert(String(moduleResult.text).includes("release_execution_claim\tfalse"), "formatted text missing release boundary");
@@ -171,7 +171,7 @@ async function main() {
     assert(domResult.status === "productization_stage_closed", `dom status mismatch: ${domResult.status}`);
     assert(domResult.buttonCount === 5, `dom button count mismatch: ${domResult.buttonCount}`);
     assert(domResult.progress.includes("5/5") && domResult.progress.includes("100%"), `progress text mismatch: ${domResult.progress}`);
-    assert(domResult.progress.includes("18/18 overall"), `overall text mismatch: ${domResult.progress}`);
+    assert(domResult.progress.includes("9/18 overall"), `overall text mismatch: ${domResult.progress}`);
     assert(domResult.title.includes("result report"), `title mismatch: ${domResult.title}`);
     assert(domResult.lane === "result_report", `lane mismatch: ${domResult.lane}`);
     assert(domResult.copied === "true", "copy state not marked");

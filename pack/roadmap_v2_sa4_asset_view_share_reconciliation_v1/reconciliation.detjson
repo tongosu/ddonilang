@@ -1,0 +1,44 @@
+{
+  "schema": "ddn.roadmap_v2.reconciliation.v1",
+  "work_item": "SA4_ASSET_VIEW_SHARE_RECONCILIATION_V1",
+  "coordinate": "사-4",
+  "title": "asset/view 공유",
+  "previous_status": "",
+  "new_status": "닫힘-동작",
+  "status": "behavior_closed",
+  "basis": [
+    "roadmap_v2_sa3_game_preview_reconciliation_check",
+    "bogae_asset_manifest_and_bundle_pack_golden",
+    "sa2_sprite_skin_minimum_pack_check",
+    "std_grid_game_bogae_web_playback_controls_check"
+  ],
+  "progress": {
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 71,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 79,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 73,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 81,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "public_registry_publish_claim": false,
+    "cloud_sync_claim": false,
+    "remote_asset_hosting_claim": false,
+    "cryptographic_signing_claim": false,
+    "production_editor_share_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "next_item": "ROADMAP_V2_SA5_RENDERER_HARDENING_RECONCILIATION_V1"
+}

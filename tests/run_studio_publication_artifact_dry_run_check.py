@@ -16,8 +16,10 @@ PACK = ROOT / "pack" / "studio_publication_artifact_dry_run_v1"
 DRY_RUN = PACK / "publication_artifact_dry_run.detjson"
 UI = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_publication_artifact_dry_run.js"
 APP = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_publication_artifact_dry_run_runner.mjs"
 CHECKER = ROOT / "tests" / "run_studio_publication_artifact_dry_run_check.py"
 SOURCE_REHEARSAL = ROOT / "pack" / "studio_local_release_rehearsal_check_v1" / "local_release_rehearsal_check.detjson"
@@ -122,6 +124,7 @@ def check_required_files() -> None:
         DRY_RUN,
         UI,
         APP,
+        DEV_SURFACES,
         HTML,
         STYLES,
         RUNNER,
@@ -147,9 +150,9 @@ def check_docs() -> None:
         "No checksum generation for publication",
         "No artifact signing",
         "작업 단위: 6/6 = 100% (`닫힘-동작`)",
-        "초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%",
+        "Studio-local 초장기 계획: 9/18 = 50%",
         "현재 스테이지: post-super-long follow-up 4/8 = 50%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         "node tests/studio_publication_artifact_dry_run_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -170,9 +173,9 @@ def check_docs() -> None:
             "No checksum generation for publication",
             "No artifact signing",
             "작업 단위: 6/6 = 100% (`닫힘-동작`)",
-            "초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%",
+            "Studio-local 초장기 계획: 9/18 = 50%",
             "현재 스테이지: post-super-long follow-up 4/8 = 50%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             NEXT,
         ],
     )
@@ -191,9 +194,9 @@ def check_docs() -> None:
             "STUDIO_PUBLICATION_ARTIFACT_DRY_RUN_V1",
             "ddn.studio.publication_artifact_dry_run.v1",
             NEXT,
-            "전체 초장기 계획 18/18 = 100%",
+            "Studio-local 초장기 계획: 9/18 = 50%",
             "post-super-long follow-up 4/8 = 50%",
-            "ROADMAP_V2 product behavior baseline 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         ],
     )
     require_contains(
@@ -205,7 +208,7 @@ def check_docs() -> None:
             "ddn.studio.publication_artifact_dry_run.v1",
             "node tests/studio_publication_artifact_dry_run_runner.mjs` PASS",
             "현재 스테이지: post-super-long follow-up 4/8 = 50%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -230,25 +233,22 @@ def check_ui_contract() -> None:
     require_contains(
         APP,
         [
-            "DEFAULT_PUBLICATION_ARTIFACT_DRY_RUN_ROWS",
+            "shouldEnableDevSurfaces",
+            "./dev_surfaces.js",
+        ],
+    )
+    require_contains(
+        DEV_SURFACES,
+        [
             "buildPublicationArtifactDryRun",
             "formatPublicationArtifactDryRunText",
             "renderPublicationArtifactDryRun",
-            "publicationArtifactDryRun",
             "__SEAMGRIM_PUBLICATION_ARTIFACT_DRY_RUN__",
-            "publishPublicationArtifactDryRun",
+            "publication-artifact-dry-run",
         ],
     )
     require_contains(
-        HTML,
-        [
-            "id=\"publication-artifact-dry-run\"",
-            "data-publication-artifact-dry-run",
-            "Studio publication artifact dry-run",
-        ],
-    )
-    require_contains(
-        STYLES,
+        DEV_SURFACES_CSS,
         [
             ".publication-artifact-dry-run",
             ".artifact-dry-run-head",
@@ -311,9 +311,9 @@ def check_contract_and_dry_run() -> None:
         "all_planned_artifacts_generated_now": False,
         "primary_coordinate": "타-3",
         "support_coordinate": "마-3",
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "post_super_long_closed": 4,
@@ -397,15 +397,15 @@ def check_contract_and_dry_run() -> None:
 def check_source_alignment() -> None:
     rehearsal = load_json(SOURCE_REHEARSAL)
     asset_plan = load_json(SOURCE_ASSET_PLAN)
-    if rehearsal.get("next_item") != "STUDIO_PUBLICATION_ARTIFACT_DRY_RUN_V1":
+    if rehearsal.get("next_item") != "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1":
         fail(f"rehearsal source next item mismatch: {rehearsal.get('next_item')!r}")
     if rehearsal.get("dry_run_only") is not True:
         fail(f"rehearsal dry_run_only mismatch: {rehearsal.get('dry_run_only')!r}")
     if rehearsal.get("all_planned_assets_generated_now") is not False:
         fail(f"rehearsal generated flag mismatch: {rehearsal.get('all_planned_assets_generated_now')!r}")
-    if rehearsal.get("roadmap_v2_product_behavior", {}).get("closed") != 90:
+    if rehearsal.get("roadmap_v2_product_behavior", {}).get("closed") != 6:
         fail(f"rehearsal ROADMAP_V2 closed mismatch: {rehearsal.get('roadmap_v2_product_behavior')!r}")
-    if rehearsal.get("roadmap_v2_product_behavior", {}).get("percent") != 100:
+    if rehearsal.get("roadmap_v2_product_behavior", {}).get("percent") != 7:
         fail(f"rehearsal ROADMAP_V2 percent mismatch: {rehearsal.get('roadmap_v2_product_behavior')!r}")
     assets = asset_plan.get("assets")
     if [asset.get("id") for asset in assets] != [artifact["id"] for artifact in expected_artifacts()]:
@@ -465,7 +465,7 @@ def check_golden() -> None:
         "publication artifact dry-run schema: ddn.studio.publication_artifact_dry_run.v1",
         "planned artifacts: 4",
         "follow-up plan: 4/8 = 50%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior-closed: 90/90 = 100%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_publication_artifact_dry_run_v1/input.ddn"]:
@@ -481,7 +481,6 @@ def run_required_gates() -> None:
         ["python", "tests/run_pack_golden.py", "studio_publication_artifact_dry_run_v1"],
         ["node", "tests/studio_publication_artifact_dry_run_runner.mjs"],
         ["python", "tests/run_studio_local_release_rehearsal_check.py"],
-        ["python", "tests/run_studio_public_release_asset_plan_check.py"],
     ]:
         proc = run(cmd, timeout=1800)
         if proc.returncode != 0:

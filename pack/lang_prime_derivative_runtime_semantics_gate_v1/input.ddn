@@ -1,0 +1,7 @@
+"LANG_PRIME_DERIVATIVE_RUNTIME_SEMANTICS_GATE_V1" 보여주기.
+"prime derivative runtime semantics gate sealed" 보여주기.
+"schema: ddn.language.prime_derivative_runtime_semantics_gate.v1" 보여주기.
+"required semantics gates: 7" 보여주기.
+"product transition: 2/7 = 29%" 보여주기.
+"runtime landed: false" 보여주기.
+"next: LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1" 보여주기.

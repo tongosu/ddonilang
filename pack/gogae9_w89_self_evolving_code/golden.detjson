@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.gogae9.w89.evolve_report.v1",
+  "overall_pass": true,
+  "deterministic_best_program_hash": true,
+  "deterministic_final_state_hash": true,
+  "mutation_op_count": 5,
+  "best_score": 0,
+  "best_value": 12,
+  "best_program_canon_hash": "sha256:b1f39f695c33ae9b72689be11aa4e15cdea74aeb4bfe1dbeea124cf9954e724a",
+  "final_state_hash": "sha256:9913d8b7484d52a675567da4bc4f93fc116d66729f13bb038a4f6a496db85046"
+}

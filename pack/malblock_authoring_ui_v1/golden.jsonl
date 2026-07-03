@@ -1,0 +1,1 @@
+{"id":"c01_malblock_authoring_ui_marker","cmd":["run","pack/malblock_authoring_ui_v1/input.ddn"],"stdout":["MALBLOCK_AUTHORING_UI_V1","studio malblock authoring browser smoke sealed","next: STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1"],"exit_code":0}

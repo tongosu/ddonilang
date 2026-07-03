@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-ma3-regression-gate-matrix][data-ma3-regression-status='ma3_regression_gate_matrix_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -134,12 +134,15 @@ async function main() {
     assert(matrix.status === "ma3_regression_gate_matrix_ready", `status mismatch: ${matrix.status}`);
     assert(matrix.gate_row_count === 6, `gate count mismatch: ${matrix.gate_row_count}`);
     assert(matrix.ready_stage_count === 6, `ready stage mismatch: ${matrix.ready_stage_count}`);
-    assert(matrix.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(matrix.progress.super_long_percent === 100, "super-long percent mismatch");
-    assert(matrix.progress.current_stage_closed === 7, "current stage closed mismatch");
-    assert(matrix.progress.current_stage_percent === 88, "current stage percent mismatch");
-    assert(matrix.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(matrix.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(matrix.progress.super_long_behavior_closed === 8, "super-long closed mismatch");
+    assert(matrix.progress.super_long_percent === 44, "super-long percent mismatch");
+    assert(matrix.progress.current_stage_closed === 4, "current stage closed mismatch");
+    assert(matrix.progress.current_stage_total === 4, "current stage total mismatch");
+    assert(matrix.progress.current_stage_percent === 100, "current stage percent mismatch");
+    assert(matrix.progress.roadmap_v2_behavior_closed === 6, "roadmap closed mismatch");
+    assert(matrix.progress.roadmap_v2_percent === 7, "roadmap percent mismatch");
+    assert(matrix.progress.roadmap_v2_pack_evidence_reference_closed === 25, "pack evidence closed mismatch");
+    assert(matrix.progress.roadmap_v2_pack_evidence_reference_percent === 28, "pack evidence percent mismatch");
     assert(String(moduleResult.text).includes("test_execution_claim\tfalse"), "formatted text missing test boundary");
     assert(String(moduleResult.text).includes("product_stabilization_smoke_gate"), "formatted text missing product smoke gate");
 

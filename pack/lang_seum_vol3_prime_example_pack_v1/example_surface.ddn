@@ -1,0 +1,8 @@
+세움 {
+  위치' =:= 속도.
+  속도' =:= 가속도.
+  위치'' =:= 가속도.
+}.
+
+// Contrast only; not the preferred 3권 introduction.
+위치 <- 위치 + 속도.

@@ -83,6 +83,12 @@ async function main() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(scriptDir, "..");
   const uiRoot = path.join(root, "solutions", "seamgrim_ui_mvp", "ui");
+  const rebase = JSON.parse(await fs.readFile(
+    path.join(root, "pack", "roadmap_v2_studio_productization_rebase_v1", "rebase.detjson"),
+    "utf-8",
+  ));
+  const superLongProgress = rebase.super_long_progress || {};
+  const roadmapProgress = rebase.roadmap_progress || {};
   for (const rel of ["index.html", "app.js", "studio_benchmark_baseline_prep_dry_run.js"]) {
     await requireFile(path.join(uiRoot, rel));
   }
@@ -107,7 +113,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-benchmark-baseline-prep-dry-run][data-benchmark-baseline-prep-dry-run-status='benchmark_baseline_prep_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -137,13 +143,15 @@ async function main() {
     assert(prep.performance_baseline_generation_claim === false, "must not claim baseline generation");
     assert(prep.lts_certification_claim === false, "must not claim LTS certification");
     assert(prep.release_execution_claim === false, "must not claim release execution");
-    assert(prep.product_ui_change === true, "must claim product ui change");
+    assert(prep.product_ui_change === false, "must not claim product ui change");
+    assert(prep.product_code_change === false, "must not claim product code change");
     assert(prep.ready_stage_count === 6, `ready stage mismatch: ${prep.ready_stage_count}`);
-    assert(prep.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(prep.progress.super_long_behavior_closed === superLongProgress.closed_items, "super-long closed mismatch");
+    assert(prep.progress.super_long_percent === superLongProgress.percent, "super-long percent mismatch");
     assert(prep.progress.current_stage_closed === 7, "followup closed mismatch");
     assert(prep.progress.current_stage_percent === 88, "followup percent mismatch");
-    assert(prep.progress.roadmap_v2_behavior_closed === 87, "roadmap closed mismatch");
-    assert(prep.progress.roadmap_v2_percent === 97, "roadmap percent mismatch");
+    assert(prep.progress.roadmap_v2_behavior_closed === roadmapProgress.behavior_closed_cells, "roadmap closed mismatch");
+    assert(prep.progress.roadmap_v2_percent === roadmapProgress.behavior_percent, "roadmap percent mismatch");
     assert(prep.next_item === "STUDIO_NEXT_ROADMAP_V2_COORDINATE_LOCK_V1", "next item mismatch");
     assert(String(moduleResult.text).includes("planned_baseline_input_count\t5"), "formatted text missing input count");
     assert(String(moduleResult.text).includes("benchmark_execution_claim\tfalse"), "formatted text missing benchmark boundary");
@@ -174,7 +182,7 @@ async function main() {
     });
     assert(domResult.rootStatus === "benchmark_baseline_prep_ready", `dom status mismatch: ${domResult.rootStatus}`);
     assert(domResult.buttonCount === 5, `dom button count mismatch: ${domResult.buttonCount}`);
-    assert(domResult.progress.includes("7/8 follow-up") && domResult.progress.includes("88%"), `progress text mismatch: ${domResult.progress}`);
+    assert(domResult.progress.includes("5/18 overall") && domResult.progress.includes("7/8 follow-up") && domResult.progress.includes("88%"), `progress text mismatch: ${domResult.progress}`);
     assert(domResult.summary.includes("5 inputs") && domResult.summary.includes("benchmark_execution=false"), `summary text mismatch: ${domResult.summary}`);
     assert(domResult.title === "classroom triage", `title mismatch: ${domResult.title}`);
     assert(domResult.lane === "classroom_operations", `lane mismatch: ${domResult.lane}`);

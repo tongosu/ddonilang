@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.seumssi_relation_bridge_v1.pack.contract.v1",
+  "id": "seumssi_relation_bridge_v1",
+  "surface": "세움씨{}",
+  "surface_role": "AGE4 compat/internal alias",
+  "canonical_surface": "세움{}",
+  "expected_canonical": "세움{수식관계: x + y =:= 5}",
+  "bridge": "same canonical relation assertion as 세움{}",
+  "new_proof_type": false,
+  "new_relation_semantics": false
+}

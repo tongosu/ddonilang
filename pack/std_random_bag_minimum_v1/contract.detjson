@@ -1,0 +1,36 @@
+{
+  "schema": "ddn.std_random_bag_minimum.pack.contract.v1",
+  "id": "std_random_bag_minimum_v1",
+  "public_surface_added": [
+    "무작위가방.만들기",
+    "무작위가방.꺼내기",
+    "무작위가방.미리보기",
+    "무작위가방.남은것",
+    "무작위가방.비었나"
+  ],
+  "draw_algorithm": "advance state with SplitMix64, then use sample % len(남은것) as the removal index",
+  "representation": {
+    "__종류": "std_random_bag",
+    "시앗": "integer seed",
+    "상태": "u64 state as 0x-prefixed hex text",
+    "원본": "candidate list",
+    "남은것": "remaining candidate list",
+    "뽑은수": "integer draw count"
+  },
+  "draw_result": {
+    "__종류": "std_random_bag_draw",
+    "값": "drawn value",
+    "가방": "next immutable bag"
+  },
+  "bundled_packs": [
+    "std_random_bag_order_v1",
+    "std_random_bag_refill_preview_v1"
+  ],
+  "non_scope": [
+    "global RNG behavior change",
+    "random bag parser syntax",
+    "game state machine",
+    "connect flow semantics"
+  ]
+}
+

@@ -1,0 +1,2 @@
+{"id":"c01_roadmap_v2_next_frontier_rebase_marker","cmd":["run","pack/roadmap_v2_next_frontier_rebase_v1/input.ddn"],"stdout":["ROADMAP_V2_NEXT_FRONTIER_REBASE_V1","next frontier rebase sealed","stage: 4/4 = 100%","roadmap matrix behavior: 37/90 = 41%","pack evidence reference: 58/90 = 64%","studio local super-long: 9/18 = 50%","status: 닫힘-문서, not behavior-closed","next: ROADMAP_V2_NA2_MATRIX_STATUS_RECONCILIATION_V1"],"exit_code":0}
+

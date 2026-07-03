@@ -1,0 +1,9 @@
+"LANG_FLOW_HISTORY_SSOT_ACCEPTANCE_REQUEST_V1" 보여주기.
+"flow history ssot acceptance request sealed" 보여주기.
+"schema: ddn.language.flow_history_ssot_acceptance_request.v1" 보여주기.
+"split: 흐름 connector flow; 이력 value history" 보여주기.
+"ssot request queue: 2/3 = 67%" 보여주기.
+"urgent ssot landed: 0/3 = 0%" 보여주기.
+"roadmap: 70/90 = 78%" 보여주기.
+"next: LANG_TUCK_SSOT_ACCEPTANCE_REQUEST_V1" 보여주기.
+

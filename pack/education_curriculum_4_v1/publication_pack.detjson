@@ -1,0 +1,81 @@
+{
+  "schema": "ddn.education.publication_pack.v1",
+  "work_item": "HA4_PUBLIC_COURSE_PUBLICATION_PACK_V1",
+  "primary_coordinate": "하-4",
+  "pack": "education_curriculum_4_v1",
+  "status": "education_publication_pack_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "education_publication_pack_claim": true,
+  "micro_course_claim": true,
+  "workshop_course_claim": true,
+  "four_week_course_claim": true,
+  "publication_bundle_claim": true,
+  "share_handoff_claim": true,
+  "public_upload_claim": false,
+  "public_link_creation_claim": false,
+  "registry_publish_claim": false,
+  "release_execution_claim": false,
+  "artifact_signing_claim": false,
+  "account_permission_change_claim": false,
+  "state_hash_participation_claim": false,
+  "rows": [
+    {
+      "id": "micro_course",
+      "publication_kind": "five_minute_course_outline",
+      "local_uri": "education://publication/5-minute-course",
+      "ready": true
+    },
+    {
+      "id": "workshop_course",
+      "publication_kind": "one_hour_workshop_outline",
+      "local_uri": "education://publication/1-hour-workshop",
+      "ready": true
+    },
+    {
+      "id": "four_week_course",
+      "publication_kind": "four_week_course_outline",
+      "local_uri": "education://publication/4-week-course",
+      "ready": true
+    },
+    {
+      "id": "publication_bundle",
+      "publication_kind": "local_publication_bundle",
+      "local_uri": "education://publication/bundle",
+      "ready": true
+    },
+    {
+      "id": "share_handoff",
+      "publication_kind": "local_share_handoff",
+      "local_uri": "education://publication/share-handoff",
+      "ready": true
+    }
+  ],
+  "publication_text": "education_publication_pack:education_curriculum_4_v1\ncoordinate:하-4\npublic_upload:false\npublic_link_creation:false\nregistry_publish:false\nrelease_execution:false\nartifact_signing:false\naccount_permission_change:false\nstate_hash_participation:false",
+  "false_claims": {
+    "public_upload_claim": false,
+    "public_link_creation_claim": false,
+    "registry_publish_claim": false,
+    "release_execution_claim": false,
+    "artifact_signing_claim": false,
+    "account_permission_change_claim": false,
+    "state_hash_participation_claim": false,
+    "parser_frontdoor_change": false,
+    "new_runtime_semantics_claim": false,
+    "grammar_claim": false
+  },
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 31,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 34,
+    "roadmap_v2_pack_evidence_reference_closed": 51,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 57,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "next_item": "HA5_EDUCATION_OPERATIONS_LTS_V1"
+}

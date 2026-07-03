@@ -1,0 +1,1 @@
+{"cmd":["run","pack/studio_public_release_external_publish_handoff_v1/input.ddn"],"exit_code":0,"stdout":["STUDIO_PUBLIC_RELEASE_EXTERNAL_PUBLISH_HANDOFF_V1","external publish handoff sealed","local release execution: 6/6 = 100%","local release artifacts: 5/5 = 100%","external publish readiness: 0/4 = 0%","studio local progress: 9/18 = 50%","roadmap v2 behavior: 90/90 = 100%"]}

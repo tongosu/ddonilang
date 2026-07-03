@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-classroom-operations-triage][data-classroom-operations-triage-status='classroom_operations_triage_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -139,7 +139,7 @@ async function main() {
     assert(triage.release_execution_claim === false, "must not claim release execution");
     assert(triage.product_ui_change === true, "must claim product ui change");
     assert(triage.ready_stage_count === 6, `ready stage mismatch: ${triage.ready_stage_count}`);
-    assert(triage.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(triage.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(triage.progress.current_stage_closed === 6, "followup closed mismatch");
     assert(triage.progress.current_stage_percent === 75, "followup percent mismatch");
     assert(triage.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");

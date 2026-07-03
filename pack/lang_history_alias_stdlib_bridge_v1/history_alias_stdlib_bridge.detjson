@@ -1,0 +1,111 @@
+{
+  "schema": "ddn.language.history_alias_stdlib_bridge.v1",
+  "work_item": "LANG_HISTORY_ALIAS_STDLIB_BRIDGE_V1",
+  "based_on": "LANG_OWNER_STATE_SYMBOL_TABLE_PRODUCT_PATH_V1",
+  "source_flow_history_alias_migration_plan": "pack/lang_flow_history_alias_migration_plan_v1/flow_history_alias_migration_plan.detjson",
+  "source_owner_state_symbol_table_product_path": "pack/lang_owner_state_symbol_table_product_path_v1/owner_state_symbol_table_product_path.detjson",
+  "history_alias_stdlib_bridge_claim": true,
+  "history_stdlib_alias_landed_claim": true,
+  "history_runtime_alias_landed_claim": false,
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": true,
+  "ssot_edit_claim": false,
+  "flow_alias_removed_claim": false,
+  "ddn_history_schema_landed_claim": false,
+  "sidecar_rename_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "history_alias_bridge": [
+    {"history": "이력.만들기", "runtime_compat": "흐름.만들기", "landed_now": true},
+    {"history": "이력.밀어넣기", "runtime_compat": "흐름.밀어넣기", "landed_now": true},
+    {"history": "이력.차림", "runtime_compat": "흐름.차림", "landed_now": true},
+    {"history": "이력.최근값", "runtime_compat": "흐름.최근값", "landed_now": true},
+    {"history": "이력.길이", "runtime_compat": "흐름.길이", "landed_now": true},
+    {"history": "이력.용량", "runtime_compat": "흐름.용량", "landed_now": true},
+    {"history": "이력.비우기", "runtime_compat": "흐름.비우기", "landed_now": true},
+    {"history": "이력.잘라보기", "runtime_compat": "흐름.잘라보기", "landed_now": true}
+  ],
+  "compatibility_surfaces_preserved": [
+    "흐름.*",
+    "흐름만들기",
+    "흐름넣기",
+    "흐름추가",
+    "흐름값들",
+    "흐름최근",
+    "흐름길이",
+    "흐름용량",
+    "흐름비우기",
+    "흐름잘라보기",
+    "흐름최근N",
+    "ddn.stream.v1",
+    "stream sidecar suffixes"
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "stdlib_history_alias_bridge",
+      "path": "lang/src/stdlib.rs",
+      "tokens": ["이력.만들기", "이력.밀어넣기", "이력.잘라보기", "canonicalize_stdlib_alias"],
+      "changed_now": true
+    },
+    {
+      "id": "flow_migration_plan_source",
+      "path": "pack/lang_flow_history_alias_migration_plan_v1/flow_history_alias_migration_plan.detjson",
+      "tokens": ["이력.만들기", "흐름.만들기", "preserve_current_flow_value_family_until_removal_gate"],
+      "changed_now": false
+    },
+    {
+      "id": "tool_runtime_flow_current",
+      "path": "tool/src/ddn_runtime.rs",
+      "tokens": ["흐름.만들기", "흐름.밀어넣기", "흐름.잘라보기"],
+      "changed_now": false
+    },
+    {
+      "id": "wasm_stream_sidecar_current",
+      "path": "tool/src/wasm_api.rs",
+      "tokens": ["StreamMeta", "parse_stream_sidecar_tag", "가격흐름_길이"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_behavior_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "flow_alias_removed",
+    "ddn_history_schema_landed",
+    "sidecar_rename_landed",
+    "backward_compat_break"
+  ],
+  "language_product_path_transition_plan": {
+    "closed": 4,
+    "total": 7,
+    "percent": 57
+  },
+  "history_alias_stdlib_bridge": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 63,
+    "total": 90,
+    "percent": 70
+  },
+  "next_item": "LANG_DULTRA_REPLAY_ARTIFACT_WRITER_SEED_V1"
+}

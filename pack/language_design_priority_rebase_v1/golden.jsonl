@@ -1,0 +1,1 @@
+{"cmd":["run","pack/language_design_priority_rebase_v1/input.ddn"],"exit_code":0,"stdout":["LANGUAGE_DESIGN_PRIORITY_REBASE_V1","language design priority rebase sealed","priority schema: ddn.language.design_priority_rebase.v1","language queue: 1/8 = 13%","urgent recommendations: 3/3 = 100%","next: LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1"]}

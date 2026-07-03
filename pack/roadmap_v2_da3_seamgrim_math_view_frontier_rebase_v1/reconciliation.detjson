@@ -1,0 +1,52 @@
+{
+  "schema": "ddn.roadmap_v2.da3_seamgrim_math_view_frontier_rebase.v1",
+  "id": "ROADMAP_V2_DA3_SEAMGRIM_MATH_VIEW_FRONTIER_REBASE_V1",
+  "date": "2026-06-08",
+  "coordinate": "다-3",
+  "matrix_status_before": "",
+  "matrix_status_after": "닫힘-동작",
+  "progress": {
+    "current_stage": "DA3 seamgrim math view frontier rebase",
+    "current_stage_closed": 6,
+    "current_stage_total": 6,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 48,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 53,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": true,
+    "roadmap_matrix_increment": true,
+    "math_runtime_change": false,
+    "math_surface_change": false,
+    "graph_runtime_change": false,
+    "guide_status_change": false,
+    "guide_pack_candidate_change": true,
+    "docs_ssot_change": false
+  },
+  "lanes": {
+    "graph_view": [
+      "seamgrim_graph_v0_basics",
+      "seamgrim_line_graph"
+    ],
+    "representative_lesson": [
+      "edu_seamgrim_rep_math_function_line_v1",
+      "seamgrim_curriculum_2_v1",
+      "seamgrim_curriculum_batch_smoke_v1"
+    ],
+    "ui_index": [
+      "run_studio_numeric_curriculum_track_check.py",
+      "run_seamgrim_numeric_track_browser_index_check.py"
+    ]
+  },
+  "selected_next_work": "ROADMAP_V2_DA4_MATH_PACKAGE_SHARE_FRONTIER_REBASE_V1"
+}

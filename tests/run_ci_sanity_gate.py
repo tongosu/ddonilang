@@ -213,6 +213,9 @@ CORE_LANG_PROFILE_STEPS = {
     "stdlib_catalog_check_selftest",
     "tensor_v0_pack_check",
     "tensor_v0_cli_check",
+    "dstrict_velocity_verlet_pack_check",
+    "bounded_equation_solver_pack_check",
+    "symbolic_minimum_pack_check",
     "nurigym_shared_sync_priority_tiebreak_pack_check",
     "nurigym_shared_sync_action_pipeline_pack_check",
     "nuri_gym_contract_check",
@@ -3772,6 +3775,21 @@ def main() -> int:
             "tensor_v0_cli_check",
             [py, "tests/run_tensor_v0_cli_check.py"],
             "E_CI_SANITY_TENSOR_V0_CLI_CHECK_FAIL",
+        ),
+        (
+            "dstrict_velocity_verlet_pack_check",
+            [py, "tests/run_pack_golden.py", "dstrict_velocity_verlet_v1"],
+            "E_CI_SANITY_DSTRICT_VELOCITY_VERLET_PACK_CHECK_FAIL",
+        ),
+        (
+            "bounded_equation_solver_pack_check",
+            [py, "tests/run_pack_golden.py", "bounded_equation_solver_v1"],
+            "E_CI_SANITY_BOUNDED_EQUATION_SOLVER_PACK_CHECK_FAIL",
+        ),
+        (
+            "symbolic_minimum_pack_check",
+            [py, "tests/run_pack_golden.py", "symbolic_minimum_v1"],
+            "E_CI_SANITY_SYMBOLIC_MINIMUM_PACK_CHECK_FAIL",
         ),
         (
             "nurigym_shared_sync_priority_tiebreak_pack_check",

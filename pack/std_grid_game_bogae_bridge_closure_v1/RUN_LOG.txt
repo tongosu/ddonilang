@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update std_grid_game_bogae_drawlist_v1 std_grid_game_bogae_size_v1 std_grid_game_bogae_backend_parity_v1 std_grid_game_bogae_bridge_closure_v1
+pack golden updated

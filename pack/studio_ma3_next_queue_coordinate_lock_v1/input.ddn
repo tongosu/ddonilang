@@ -2,7 +2,7 @@
 "studio ma3 next queue coordinate lock behavior sealed" 보여주기.
 "ma3 next queue coordinate lock schema: ddn.studio.ma3_next_queue_coordinate_lock.v1" 보여주기.
 "lock rows: 6/6 = 100%" 보여주기.
-"overall super-long behavior: 18/18 = 100%" 보여주기.
+"overall super-long behavior: 9/18 = 50%" 보여주기.
 "current stage: 8/8 = 100%" 보여주기.
-"roadmap v2 behavior: 90/90 = 100%" 보여주기.
+"roadmap v2 behavior: 51/90 = 57%" 보여주기.
 "next: STUDIO_OPERATIONS_PREVIEW_STAGE_CLOSURE_V1" 보여주기.

@@ -1,0 +1,38 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "roadmap_v2_na2_matrix_status_reconciliation_v1",
+  "kind": "roadmap_v2_na2_matrix_status_reconciliation",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "stdlib_surface_change": false,
+  "parser_frontdoor_change": false,
+  "closed_by": "ROADMAP_V2_NA2_MATRIX_STATUS_RECONCILIATION_V1",
+  "roadmap_coordinate": "나-2",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "work_unit_closed": 5,
+  "work_unit_total": 5,
+  "work_unit_percent": 100,
+  "current_stage": "NA2 matrix reconciliation",
+  "current_stage_closed": 5,
+  "current_stage_total": 5,
+  "current_stage_percent": 100,
+  "roadmap_v2_matrix_behavior_closed": 38,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 42,
+  "roadmap_v2_pack_evidence_reference_closed": 58,
+  "roadmap_v2_pack_evidence_reference_total": 90,
+  "roadmap_v2_pack_evidence_reference_percent": 64,
+  "studio_local_super_long_closed": 9,
+  "studio_local_super_long_total": 18,
+  "studio_local_super_long_percent": 50,
+  "source_evidence": [
+    "std_core_grid_unit_closure_v1",
+    "std_random_bag_minimum_v1",
+    "std_event_minimum_closure_v1"
+  ],
+  "next_item": "ROADMAP_V2_NA3_RESOURCE_NETWORK_POLICY_REBASE_V1",
+  "requires_docs_ssot_clean": true
+}
+

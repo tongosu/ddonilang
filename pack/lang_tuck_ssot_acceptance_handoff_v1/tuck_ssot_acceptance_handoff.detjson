@@ -1,0 +1,122 @@
+{
+  "schema": "ddn.language.tuck_ssot_acceptance_handoff.v1",
+  "work_item": "LANG_TUCK_SSOT_ACCEPTANCE_HANDOFF_V1",
+  "based_on": "LANG_VELOCITY_VERLET_STDLIB_SURFACE_ACCEPTANCE_V1",
+  "source_tuck_constraint_surface_shape_proposal": "pack/lang_tuck_constraint_surface_shape_proposal_v1/tuck_constraint_surface_shape_proposal.detjson",
+  "source_tuck_name": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+  "source_velocity_verlet_stdlib_surface_acceptance": "pack/lang_velocity_verlet_stdlib_surface_acceptance_v1/velocity_verlet_stdlib_surface_acceptance.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "tuck_ssot_acceptance_handoff_claim": true,
+  "tuck_block_landed_claim": false,
+  "tuck_row_parser_landed_claim": false,
+  "constraint_runtime_landed_claim": false,
+  "solver_internal_inequality_claim": false,
+  "handoff_packet": {
+    "selected_layer_name": "턱",
+    "proposed_surface_family": "턱-row",
+    "representation": "named_boundary_threshold_record_family",
+    "required_fields": ["id", "when", "effect", "priority", "determinism"],
+    "candidate_effects": ["clamp", "terminate", "exit", "transition"],
+    "deterministic_priority": "domain_order_then_stable_id"
+  },
+  "recommended_ssot_acceptance_text": [
+    "`턱` is the third simulation-constraint layer for boundary, threshold, and exit interventions.",
+    "Its initial surface is a row-family shape with required fields `id`, `when`, `effect`, `priority`, and `determinism`.",
+    "Parser and runtime behavior require separate product-path evidence after SSOT acceptance."
+  ],
+  "post_acceptance_gates": [
+    {
+      "order": 1,
+      "id": "parser_frontdoor_spike",
+      "status": "planned_after_ssot_acceptance",
+      "required_evidence": "product parser/frontdoor accepts the approved surface"
+    },
+    {
+      "order": 2,
+      "id": "deterministic_runtime_order",
+      "status": "planned_after_parser",
+      "required_evidence": "relation solve, events, state machine, integrator, and 턱 ordering is fixed"
+    },
+    {
+      "order": 3,
+      "id": "replay_evidence",
+      "status": "planned_after_runtime_order",
+      "required_evidence": "D-STRICT or D-ULTRA recorded replay evidence covers each effect kind"
+    }
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "tuck_surface_shape_source",
+      "path": "pack/lang_tuck_constraint_surface_shape_proposal_v1/tuck_constraint_surface_shape_proposal.detjson",
+      "tokens": ["surface_family", "턱-row", "required_fields", "implementation_gates"],
+      "changed_now": false
+    },
+    {
+      "id": "tuck_name_source",
+      "path": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+      "tokens": ["selected_constraint_layer_name", "턱", "block_vs_clause_vs_existing_surface_row_family"],
+      "changed_now": false
+    },
+    {
+      "id": "current_queue_anchor",
+      "path": "pack/lang_velocity_verlet_stdlib_surface_acceptance_v1/velocity_verlet_stdlib_surface_acceptance.detjson",
+      "tokens": ["LANG_TUCK_SSOT_ACCEPTANCE_HANDOFF_V1", "language_product_path_transition_plan", "6"],
+      "changed_now": false
+    },
+    {
+      "id": "owner_inner_runtime_order_anchor",
+      "path": "pack/lang_owner_inner_seum_runtime_scope_rebase_v1/owner_inner_seum_runtime_scope_rebase.detjson",
+      "tokens": ["runtime_tick_order", "턱", "integrator"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "tuck_block_landed",
+    "tuck_row_parser_landed",
+    "constraint_runtime_landed",
+    "solver_internal_inequality"
+  ],
+  "language_product_path_transition_plan": {
+    "closed": 7,
+    "total": 7,
+    "percent": 100
+  },
+  "tuck_ssot_acceptance_handoff": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 66,
+    "total": 90,
+    "percent": 73
+  },
+  "next_item": "LANG_PRODUCT_PATH_TRANSITION_CLOSURE_REBASE_V1"
+}
+

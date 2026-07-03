@@ -1,0 +1,8 @@
+{
+  "env_id": "nurigym.bandit1d",
+  "seed": 8,
+  "episode_id": 2,
+  "agent_id": 4,
+  "max_steps": 3,
+  "actions": [1, -1, 1]
+}

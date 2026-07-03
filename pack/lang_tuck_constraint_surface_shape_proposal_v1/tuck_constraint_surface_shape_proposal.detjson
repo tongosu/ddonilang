@@ -1,0 +1,196 @@
+{
+  "schema": "ddn.language.tuck_constraint_surface_shape_proposal.v1",
+  "work_item": "LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1",
+  "based_on": "LANG_FLOW_HISTORY_ALIAS_MIGRATION_PLAN_V1",
+  "source_tuck_name": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+  "source_flow_history_alias_migration": "pack/lang_flow_history_alias_migration_plan_v1/flow_history_alias_migration_plan.detjson",
+  "tuck_surface_shape_proposal_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "tuck_block_landed_claim": false,
+  "tuck_row_parser_landed_claim": false,
+  "constraint_runtime_landed_claim": false,
+  "solver_internal_inequality_claim": false,
+  "surface_shape": {
+    "layer_name": "턱",
+    "surface_family": "턱-row",
+    "representation": "named_boundary_threshold_record_family",
+    "block_landed": false,
+    "parser_landed": false,
+    "runtime_landed": false,
+    "ssot_landed": false
+  },
+  "required_fields": [
+    {
+      "field": "id",
+      "role": "stable_name_for_evidence_and_ordering"
+    },
+    {
+      "field": "when",
+      "role": "threshold_or_boundary_condition"
+    },
+    {
+      "field": "effect",
+      "role": "clamp_terminate_exit_or_transition"
+    },
+    {
+      "field": "priority",
+      "role": "deterministic_order_key"
+    },
+    {
+      "field": "determinism",
+      "role": "d_strict_required_or_recorded_replay_required"
+    }
+  ],
+  "candidate_examples": [
+    {
+      "id": "ceiling_limit",
+      "when": "위치 >= 천장",
+      "effect": "clamp(위치, 천장)",
+      "priority": "domain_order_then_id",
+      "determinism": "d_strict_required",
+      "runtime_landed": false
+    },
+    {
+      "id": "cartpole_out_of_range",
+      "when": "위치 > 한계 or 각도 > 한계",
+      "effect": "terminate_episode",
+      "priority": "domain_order_then_id",
+      "determinism": "d_strict_required",
+      "runtime_landed": false
+    },
+    {
+      "id": "bankruptcy_exit",
+      "when": "자본 <= 0",
+      "effect": "exit_actor",
+      "priority": "domain_order_then_id",
+      "determinism": "d_strict_required",
+      "runtime_landed": false
+    },
+    {
+      "id": "policy_threshold_transition",
+      "when": "지표 >= 문턱",
+      "effect": "transition_policy_state",
+      "priority": "domain_order_then_id",
+      "determinism": "recorded_replay_required",
+      "runtime_landed": false
+    }
+  ],
+  "boundary_layers": [
+    {
+      "layer": "세움",
+      "role": "equation_or_declarative_relation"
+    },
+    {
+      "layer": "받으면_or_상태머신",
+      "role": "ordinary_event_or_state_transition"
+    },
+    {
+      "layer": "턱",
+      "role": "boundary_threshold_intervention_after_crossing"
+    }
+  ],
+  "implementation_gates": [
+    {
+      "order": 1,
+      "id": "surface_shape_proposal",
+      "status": "closed_now",
+      "required_evidence": "this pack and checker"
+    },
+    {
+      "order": 2,
+      "id": "ssot_acceptance",
+      "status": "blocked",
+      "required_evidence": "user or SSOT maintainer acceptance outside Codex direct SSOT edits"
+    },
+    {
+      "order": 3,
+      "id": "parser_frontdoor_spike",
+      "status": "planned_after_ssot",
+      "required_evidence": "product parser/frontdoor accepts approved surface"
+    },
+    {
+      "order": 4,
+      "id": "deterministic_runtime_order",
+      "status": "planned_after_parser",
+      "required_evidence": "D-STRICT ordering and replay contract"
+    }
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "tuck_name_decision",
+      "path": "pack/lang_sim_constraint_third_layer_name_v1/sim_constraint_third_layer_name.detjson",
+      "tokens": ["selected_constraint_layer_name", "턱", "block_vs_clause_vs_existing_surface_row_family"],
+      "changed_now": false
+    },
+    {
+      "id": "cartpole_limit_anchor",
+      "path": "core/src/nurigym/cartpole.rs",
+      "tokens": ["position_limit", "angle_limit"],
+      "changed_now": false
+    },
+    {
+      "id": "pendulum_limit_anchor",
+      "path": "core/src/nurigym/pendulum.rs",
+      "tokens": ["angle_limit"],
+      "changed_now": false
+    },
+    {
+      "id": "existing_inequality_anchor",
+      "path": "tool/src/ddn_runtime.rs",
+      "tokens": ["apply_linear_inequality_constraint", "제약개수"],
+      "changed_now": false
+    },
+    {
+      "id": "econ_bankruptcy_anchor",
+      "path": "docs/context/proposals/PROPOSAL_ECON_AGENT_STANDARD_V0_20260328.md",
+      "tokens": ["파산", "파산상태"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "tuck_block_landed",
+    "tuck_row_parser_landed",
+    "constraint_runtime_landed",
+    "solver_internal_inequality"
+  ],
+  "language_risk_removal_plan": {
+    "closed": 3,
+    "total": 6,
+    "percent": 50
+  },
+  "tuck_constraint_surface_shape_proposal": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 56,
+    "total": 90,
+    "percent": 62
+  },
+  "next_item": "LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1"
+}

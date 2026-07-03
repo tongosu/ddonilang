@@ -1,0 +1,160 @@
+{
+  "schema": "ddn.language.owner_inner_seum_runtime_scope_rebase.v1",
+  "work_item": "LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1",
+  "based_on": "LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1",
+  "source_owner_inner_seum_parser_boundary": "pack/lang_owner_inner_seum_parser_boundary_spike_v1/owner_inner_seum_parser_boundary_spike.detjson",
+  "source_dultra_replay_artifact_gate": "pack/lang_dultra_replay_artifact_implementation_gate_v1/dultra_replay_artifact_implementation_gate.detjson",
+  "owner_inner_seum_runtime_scope_rebase_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "seum_equation_solver_landed_claim": false,
+  "derivative_semantics_landed_claim": false,
+  "receive_block_relation_row_landed_claim": false,
+  "seongjil_global_block_landed_claim": false,
+  "current_landed_scope": [
+    {
+      "id": "seongjil_owner_state_alias",
+      "claim": "성질 is accepted only inside an 임자 body",
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_local_seum_parser_boundary",
+      "claim": "owner-local 세움 is parsed as assertion expression",
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_inner_seum_canon_rows",
+      "claim": "owner_inner_seum_canon_rows exposes owner-local relation rows",
+      "runtime_landed": false
+    },
+    {
+      "id": "receive_block_is_event_reaction",
+      "claim": "받으면 remains event reaction, not relation row",
+      "runtime_landed": false
+    }
+  ],
+  "runtime_gates": [
+    {
+      "order": 1,
+      "id": "parser_boundary",
+      "status": "closed",
+      "required_evidence": "LANG_OWNER_INNER_SEUM_PARSER_BOUNDARY_SPIKE_V1"
+    },
+    {
+      "order": 2,
+      "id": "owner_state_symbol_table",
+      "status": "planned",
+      "required_evidence": "owner-local 성질 rows bind deterministically before global lookup"
+    },
+    {
+      "order": 3,
+      "id": "prime_derivative_semantics",
+      "status": "blocked",
+      "required_evidence": "first/second derivative tick semantics for 위치' and 위치''"
+    },
+    {
+      "order": 4,
+      "id": "equation_solver_binding",
+      "status": "planned_after_derivative",
+      "required_evidence": "owner-local 세움 rows map to solver/runtime obligations"
+    },
+    {
+      "order": 5,
+      "id": "runtime_tick_order",
+      "status": "planned_after_solver",
+      "required_evidence": "relation solve, 받으면, 상태머신, integrator, 턱 order is fixed"
+    },
+    {
+      "order": 6,
+      "id": "event_reaction_isolation",
+      "status": "planned_after_solver",
+      "required_evidence": "받으면 cannot be accidentally converted into relation rows"
+    }
+  ],
+  "future_runtime_evidence_requirements": [
+    "owner fields are resolved deterministically by owner scope before global lookup",
+    "derivative variables are not treated as ordinary unrelated identifiers at runtime",
+    "solver input rows are emitted in stable order",
+    "event handlers do not mutate relation rows during relation collection",
+    "runtime output records solved, skipped, or rejected relation status"
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "owner_parser_boundary_source",
+      "path": "pack/lang_owner_inner_seum_parser_boundary_spike_v1/owner_inner_seum_parser_boundary_spike.detjson",
+      "tokens": ["owner_inner_seum_parser_boundary_landed_claim", "owner_inner_seum_runtime_landed_claim", "seum_equation_solver_landed_claim", "derivative_semantics_landed_claim"],
+      "changed_now": false
+    },
+    {
+      "id": "frontdoor_owner_rows_api",
+      "path": "lang/src/frontdoor.rs",
+      "tokens": ["owner_inner_seum_canon_rows", "collect_owner_inner_seum_rows_from_body", "ExprKind::Assertion"],
+      "changed_now": false
+    },
+    {
+      "id": "lang_export_test",
+      "path": "lang/src/lib.rs",
+      "tokens": ["owner_inner_seum_canon_rows", "imja_owner_inner_seum_and_seongjil_parse_boundary"],
+      "changed_now": false
+    },
+    {
+      "id": "runtime_generic_seum_value_anchor",
+      "path": "tools/teul-cli/src/runtime/eval.rs",
+      "tokens": ["Value::Assertion", "세움값", "expect_numeric_derivative_args"],
+      "changed_now": false
+    },
+    {
+      "id": "prime_parser_boundary_source",
+      "path": "pack/lang_prime_parser_frontdoor_spike_v1/prime_parser_frontdoor_spike.detjson",
+      "tokens": ["prime_derivative_semantics_landed_claim", "seum_equation_solver_landed_claim", "owner_inner_seum_landed_claim"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "owner_inner_seum_runtime_landed",
+    "seum_equation_solver_landed",
+    "derivative_semantics_landed",
+    "receive_block_relation_row_landed",
+    "seongjil_global_block_landed"
+  ],
+  "language_risk_removal_plan": {
+    "closed": 6,
+    "total": 6,
+    "percent": 100
+  },
+  "owner_inner_seum_runtime_scope_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 59,
+    "total": 90,
+    "percent": 66
+  },
+  "next_item": "LANG_LANGUAGE_RISK_REMOVAL_CLOSURE_REBASE_V1"
+}

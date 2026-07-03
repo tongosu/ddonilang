@@ -1,0 +1,11 @@
+이름값 <- "std_grid_game_bogae_browser_input_delivery_v1".
+브라우저값 <- "playwright_chromium".
+입력값 <- "keyboard_to_sam_live_endpoint".
+반복값 <- "repeat_keydown_no_duplicate".
+기록값 <- "record_sam_tape_observed".
+
+이름값 보여주기.
+브라우저값 보여주기.
+입력값 보여주기.
+반복값 보여주기.
+기록값 보여주기.

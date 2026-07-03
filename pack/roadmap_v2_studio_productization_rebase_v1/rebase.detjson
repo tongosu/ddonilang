@@ -1,0 +1,139 @@
+{
+  "schema": "ddn.roadmap_v2.studio_productization_rebase.v1",
+  "id": "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1",
+  "date": "2026-06-06",
+  "axis": "studio_first_productization",
+  "primary_coordinate": "마-3",
+  "supporting_coordinates": [
+    "하-3",
+    "라-3",
+    "타-3"
+  ],
+  "math_anchor_coordinates": [
+    "다-1",
+    "다-2"
+  ],
+  "rejected_coordinates": [
+    {
+      "coordinate": "사-3",
+      "reason": "ROADMAP_V2 defines 사-3 as space3d/game preview, not numeric report/status/meta viewer work."
+    }
+  ],
+  "conditional_coordinates": [
+    {
+      "coordinate": "다-3",
+      "condition": "Use only for explicit formula-to-graph-to-proof math view linkage."
+    },
+    {
+      "coordinate": "사-2+",
+      "condition": "Use only after actual renderer/backend/profile expansion."
+    }
+  ],
+  "existing_numeric_solver_anchor_status": {
+    "NUMERIC_ROOT_FINDING_V1": "closed_anchor",
+    "POLYNOMIAL_SOLVE_MINIMUM_V1": "closed_anchor",
+    "CONSTRAINT_SOLVE_REBASE_V1": "closed_anchor",
+    "LINEAR_INEQUALITY_SOLVE_MINIMUM_V1": "closed_anchor"
+  },
+  "nurigym_a2_policy": "outside_studio_productization_parallel_stabilization",
+  "micro_slice_gate": {
+    "low_value_if_only_wraps_existing_metadata": true,
+    "requires_one_of": [
+      "independent_d_pack_evidence",
+      "workflow_checker",
+      "user_visible_workflow_improvement"
+    ]
+  },
+  "super_long_progress": {
+    "basis": "behavior_closed_only",
+    "eras": [
+      {
+        "id": "era1",
+        "name": "baseline_and_coordinate_lock",
+        "total_items": 5,
+        "closed_items": 5,
+        "open_items": []
+      },
+      {
+        "id": "era2",
+        "name": "product_workbench_completion",
+        "total_items": 7,
+        "closed_items": 0
+      },
+      {
+        "id": "era3",
+        "name": "sharing_and_lts_ecosystem",
+        "total_items": 6,
+        "closed_items": 0
+      }
+    ],
+    "total_items": 18,
+    "closed_items": 5,
+    "percent": 28,
+    "documentation_reference_closed_items": 18,
+    "documentation_reference_percent": 100,
+    "documentation_reference_note": "prior mini-plan claims are documentation-only and do not raise behavior-closed progress"
+  },
+  "roadmap_progress": {
+    "basis": "behavior_closed_only",
+    "roadmap_v2_total_cells": 90,
+    "queue_expanded_closed_cells": 21,
+    "queue_expanded_percent": 23,
+    "behavior_closed_cells": 21,
+    "behavior_percent": 23,
+    "documentation_reference_closed_cells": 72,
+    "documentation_reference_percent": 80,
+    "documentation_reference_note": "DEV_SUMMARY pre-rebase documentation/checker-only claims; reference only",
+    "primary_branch": "마",
+    "primary_branch_closed_maru": 0,
+    "primary_branch_total_maru": 6,
+    "primary_maru": "마-3",
+    "primary_maru_required_evidence": 4,
+    "primary_maru_done_evidence": 1,
+    "primary_maru_percent": 25
+  },
+  "baseline_assessment": {
+    "status": "reassessed_pass_unlocked",
+    "date": "2026-06-06",
+    "files": {
+      "uncommitted_files": "docs/context/all/BASELINE_UNCOMMITTED_FILES_20260606.txt",
+      "diff_stat": "docs/context/all/BASELINE_DIFF_STAT_20260606.txt",
+      "test_result": "docs/context/all/BASELINE_TEST_RESULT_20260606.txt",
+      "exit_audit": "docs/context/all/BASELINE_EXIT_AUDIT_20260606.txt",
+      "assessment": "docs/context/all/ACTUAL_BASELINE_ASSESSMENT_20260606.md"
+    },
+    "test_summary": [
+      {"id": "cargo_check", "command": "cargo check", "status": "PASS"},
+      {"id": "cargo_test_lang", "command": "cargo test --manifest-path lang/Cargo.toml", "status": "PASS"},
+      {"id": "cargo_test_teul_cli", "command": "cargo test --manifest-path tools/teul-cli/Cargo.toml", "status": "PASS"},
+      {"id": "cargo_test_tool_wasm", "command": "cargo test --manifest-path tool/Cargo.toml --features wasm", "status": "PASS"},
+      {"id": "seamgrim_intro_exec_wasm", "command": "python tests/run_seamgrim_intro_exec_wasm_check.py", "status": "PASS"},
+      {"id": "seamgrim_playground_smoke", "command": "node tests/seamgrim_playground_smoke_runner.mjs", "status": "PASS"},
+      {"id": "seamgrim_product_stabilization", "command": "python tests/run_seamgrim_product_stabilization_smoke_check.py", "status": "PASS"},
+      {"id": "seamgrim_runtime_5min", "command": "python tests/run_seamgrim_runtime_5min_check.py", "status": "PASS"},
+      {"id": "seamgrim_education_curriculum_template", "command": "python tests/run_seamgrim_education_curriculum_template_check.py", "status": "PASS"},
+      {"id": "nurigym_stale_hash_pack_golden", "command": "python tests/run_pack_golden.py nuri_gym_cartpole_v1 nuri_gym_pendulum_v1 nuri_gym_gridmaze_v1", "status": "PASS"}
+    ],
+    "commit_separation_status": "baseline_reassessed_without_roadmap_v2_cell_increase",
+    "unlock_basis": {
+      "super_long_closed_item": "dirty baseline verification/separation",
+      "super_long_delta": 1,
+      "roadmap_v2_behavior_delta": 0,
+      "roadmap_v2_delta_reason": "baseline repair restores failed gates but does not close a new coordinate cell"
+    }
+  },
+  "selected_next_item": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1",
+  "fallback_next_item": "STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1",
+  "false_claims": {
+    "runtime_surface_claim": false,
+    "lesson_schema_change": false,
+    "active_allowlist_change": false,
+    "nurigym_a2_claim": false,
+    "public_release_claim": false,
+    "github_release_claim": false,
+    "public_upload_claim": false,
+    "docs_ssot_change": false,
+    "new_behavior_closure_claim": false,
+    "mini_plan_progress_increase": false
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "schema": "ddn.language.pack_checker_stability_sweep.v1",
+  "work_item": "LANG_PACK_CHECKER_STABILITY_SWEEP_V1",
+  "based_on": "LANG_NON_SSOT_TRACK_RESUME_REBASE_V1",
+  "source_non_ssot_track_resume_rebase": "pack/lang_non_ssot_track_resume_rebase_v1/non_ssot_track_resume_rebase.detjson",
+  "source_blocked_ssot_track_parking_rebase": "pack/lang_blocked_ssot_track_parking_rebase_v1/blocked_ssot_track_parking_rebase.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "post_ssot_product_gate_open_claim": false,
+  "pack_checker_stability_sweep_claim": true,
+  "stability_policy": {
+    "id": "language_pack_checker_stability_sweep",
+    "status": "closed",
+    "requires_docs_ssot_edit": false,
+    "workspace_local_cargo_target_required": true,
+    "recursive_checker_scope": "nearest_source_boundary",
+    "next_candidate": "LANG_GOLDEN_EVIDENCE_HYGIENE_SWEEP_V1"
+  },
+  "sweep_rows": [
+    {
+      "order": 1,
+      "row": "py_compile_checker",
+      "status": "stable",
+      "contract": "checker imports and parses",
+      "requires_docs_ssot_edit": false
+    },
+    {
+      "order": 2,
+      "row": "pack_golden_selftest",
+      "status": "stable",
+      "contract": "pack output matches golden",
+      "requires_docs_ssot_edit": false
+    },
+    {
+      "order": 3,
+      "row": "previous_checker_boundary",
+      "status": "stable",
+      "contract": "prior non-SSOT resume checker passes",
+      "requires_docs_ssot_edit": false
+    },
+    {
+      "order": 4,
+      "row": "docs_ssot_boundary",
+      "status": "stable",
+      "contract": "docs/ssot remains unchanged",
+      "requires_docs_ssot_edit": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "post_ssot_product_gate_open",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "backward_compat_break"
+  ],
+  "pack_checker_stability_sweep": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "stability_sweep_rows": {
+    "closed": 4,
+    "total": 4,
+    "percent": 100
+  },
+  "non_ssot_resumable_lanes": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "parked_ssot_rows": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "ssot_owner_landing_detected": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "post_ssot_product_gates_open": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 79,
+    "total": 90,
+    "percent": 88
+  },
+  "next_item": "LANG_GOLDEN_EVIDENCE_HYGIENE_SWEEP_V1"
+}
+

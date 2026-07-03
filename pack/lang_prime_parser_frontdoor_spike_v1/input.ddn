@@ -1,0 +1,6 @@
+"prime parser frontdoor spike sealed" 보여주기.
+위치' <- 1.
+위치'' <- 위치' + 1.
+위치' 보여주기.
+위치'' 보여주기.
+"next: LANG_CONNECT_SEUM_LOWERING_PARSER_SPIKE_V1" 보여주기.

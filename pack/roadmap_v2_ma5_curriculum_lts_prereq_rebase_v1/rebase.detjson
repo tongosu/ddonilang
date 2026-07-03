@@ -1,0 +1,75 @@
+{
+  "schema": "ddn.roadmap_v2.ma5_curriculum_lts_prereq_rebase.v1",
+  "id": "MA5_CURRICULUM_LTS_PREREQ_REBASE_V1",
+  "date": "2026-06-08",
+  "status": "docs_closed_startable",
+  "roadmap_coordinate": "마-5",
+  "matrix_closure_claim": false,
+  "matrix_closure_tier": "not_closed",
+  "ma5_matrix_status": "진행",
+  "closure_pack_required": "seamgrim_curriculum_5_v1",
+  "candidate_evidence": [
+    {
+      "pack": "studio_education_operations_lts_v1",
+      "checker": "tests/run_studio_education_operations_lts_check.py",
+      "role": "education operations LTS readiness envelope"
+    },
+    {
+      "pack": "studio_benchmark_lts_matrix_v1",
+      "checker": "tests/run_studio_benchmark_lts_matrix_check.py",
+      "role": "benchmark/LTS matrix without benchmark execution"
+    },
+    {
+      "pack": "studio_ma3_regression_gate_matrix_v1",
+      "checker": "tests/run_studio_ma3_regression_gate_matrix_check.py",
+      "role": "local regression gate matrix"
+    },
+    {
+      "pack": "studio_local_release_rehearsal_check_v1",
+      "runner": "tests/studio_local_release_rehearsal_check_runner.mjs",
+      "role": "local dry-run release rehearsal boundary"
+    }
+  ],
+  "progress": {
+    "current_stage": "MA5 curriculum LTS prereq rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 6,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 7,
+    "roadmap_v2_pack_evidence_reference_closed": 25,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 28,
+    "studio_local_super_long_closed": 8,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 44
+  },
+  "decision": {
+    "new_status_for_ma5": "진행",
+    "reason": "마-4 is closed and existing LTS readiness/release rehearsal candidates pass, but canonical seamgrim_curriculum_5_v1 closure pack and real LTS certification do not yet exist.",
+    "next_item": "MA5_SEAMGRIM_CURRICULUM_5_LTS_PACK_CLOSURE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "ma5_closed": false,
+    "canonical_lts_pack_exists": false,
+    "new_product_ui_behavior": false,
+    "lts_certification_claim": false,
+    "benchmark_execution_claim": false,
+    "performance_baseline_publication_claim": false,
+    "release_approval_claim": false,
+    "release_execution_claim": false,
+    "public_release_claim": false,
+    "github_release_claim": false,
+    "public_upload_claim": false,
+    "registry_publish_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "docs_ssot_change": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "numeric_track_consolidation_required": false
+  }
+}

@@ -17,7 +17,7 @@ EXPECTED_CMD = [
     "build/tmp/model_artifact_infer_minimum",
 ]
 EXPECTED_STDOUT = [
-    "{\"schema\":\"seulgi.infer_output.v1\",\"model_hash\":\"blake3:1391c84a4d985d4f30cfd3b34d7042b7c51e31e82b2f2f5944c822ad9d71e8bd\",\"output\":[-9]}"
+    "{\"schema\":\"seulgi.infer_output.v1\",\"model_hash\":\"blake3:e5c511e9bbe54dc9e104d0f9feb279ecd6bee254d15c5ec70fbeacce77a11788\",\"output\":[-9]}"
 ]
 
 

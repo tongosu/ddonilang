@@ -1,0 +1,15 @@
+종류 <- "std_grid_game_bogae_viewer_js_dom_closure_v1".
+환경 <- "node_v22_fake_dom".
+매니페스트 <- "bogae_web_playback_v1".
+코덱 <- "BDL1".
+라이브입력 <- "keydown_keyup_blur_visibilitychange".
+재생조작 <- "step_seek_overlay".
+브라우저 <- "no real browser claim".
+
+종류 보여주기.
+환경 보여주기.
+매니페스트 보여주기.
+코덱 보여주기.
+라이브입력 보여주기.
+재생조작 보여주기.
+브라우저 보여주기.

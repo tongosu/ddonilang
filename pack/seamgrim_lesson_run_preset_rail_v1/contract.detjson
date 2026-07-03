@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_lesson_run_preset_rail_v1",
+  "kind": "studio_lesson_run_preset_rail",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "SEAMGRIM_LESSON_RUN_PRESET_RAIL_V1",
+  "browser_runner": "tests/seamgrim_lesson_run_preset_rail_runner.mjs",
+  "based_on": "SEAMGRIM_LESSON_LIBRARY_CURATION_V1",
+  "covers": [
+    "run_preset_rail_present",
+    "browse_student_launch_label",
+    "browse_teacher_launch_label",
+    "onboarding_profile_sync",
+    "layout_mode_sync",
+    "required_views_sync"
+  ],
+  "next_item": "SEAMGRIM_RUN_HISTORY_COMPARISON_RAIL_V1",
+  "requires_docs_ssot_clean": true
+}

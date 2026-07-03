@@ -1,0 +1,48 @@
+{
+  "schema": "ddn.social_world.bridge_pack.v1",
+  "work_item": "PA2_SOCIAL_BRIDGE_PACK_V1",
+  "primary_coordinate": "파-2",
+  "pack": "social_world_econ_2_v1",
+  "status": "social_world_bridge_pack_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "social_bridge_pack_claim": true,
+  "model_first_claim": true,
+  "agent_first_claim": true,
+  "bridge_report_claim": true,
+  "policy_handoff_claim": true,
+  "real_world_prediction_claim": false,
+  "policy_advice_claim": false,
+  "agent_simulation_execution_claim": false,
+  "new_economic_theory_claim": false,
+  "state_hash_participation_claim": false,
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 25,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 28,
+    "roadmap_v2_pack_evidence_reference_closed": 45,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 50,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "rows": [
+    { "id": "model_first", "ready": true },
+    { "id": "agent_first", "ready": true },
+    { "id": "bridge_report", "ready": true },
+    { "id": "policy_handoff", "ready": true }
+  ],
+  "bridge_text": "coordinate:파-2\nreal_world_prediction:false\npolicy_advice:false\nagent_simulation_execution:false\nnew_economic_theory:false\nstate_hash_participation:false",
+  "false_claims": {
+    "real_world_prediction_claim": false,
+    "policy_advice_claim": false,
+    "agent_simulation_execution_claim": false,
+    "new_economic_theory_claim": false,
+    "state_hash_participation_claim": false,
+    "parser_frontdoor_change": false,
+    "grammar_claim": false
+  }
+}

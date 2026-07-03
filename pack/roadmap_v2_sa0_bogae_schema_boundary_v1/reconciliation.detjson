@@ -1,0 +1,67 @@
+{
+  "schema": "ddn.roadmap_v2.sa0_bogae_schema_boundary_reconciliation.v1",
+  "id": "SA0_BOGAE_SCHEMA_BOUNDARY_RECONCILIATION_V1",
+  "date": "2026-06-09",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "사-0",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "api_catalog": {
+      "source_pack": "pack/bogae_api_catalog_v1_basic",
+      "checker": "tests/run_pack_golden.py bogae_api_catalog_v1_basic"
+    },
+    "backend_profile": {
+      "source_pack": "pack/bogae_backend_parity_console_web_v1",
+      "checker": "tests/run_bogae_backend_profile_smoke_check.py"
+    },
+    "alias_family": {
+      "document": "tests/bogae_alias_family/README.md",
+      "checker": "tests/run_bogae_alias_family_selftest.py"
+    },
+    "viewer_family": {
+      "document": "tests/bogae_alias_viewer_family/README.md",
+      "checker": "tests/run_bogae_alias_viewer_family_selftest.py"
+    }
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "진행",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/사-0_RECONCILIATION_REPORT_20260609.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "SA0 Bogae schema boundary",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 80,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 89,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 82,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 91,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "new_bogae_runtime": false,
+    "new_bogae_ui": false,
+    "graph_space2d_first_run_claim": false,
+    "sprite_grid2d_claim": false,
+    "game_preview_claim": false,
+    "asset_view_share_claim": false,
+    "renderer_hardening_claim": false,
+    "state_replay_truth_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "docs_ssot_change": false
+  }
+}

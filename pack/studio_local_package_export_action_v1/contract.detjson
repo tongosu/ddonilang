@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "studio_local_package_export_action_v1",
+  "kind": "studio_local_package_export_action_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "STUDIO_LOCAL_PACKAGE_EXPORT_ACTION_V1",
+  "browser_runner": "tests/studio_local_package_export_action_runner.mjs",
+  "workflow_schema": "seamgrim.local_package_export_action.v1",
+  "super_long_behavior_closed_before": "12/18 = 67%",
+  "super_long_behavior_closed_after": "13/18 = 72%",
+  "covers": [
+    "run_screen_local_package_preview",
+    "user_clicked_package_copy",
+    "clipboard_payload_json",
+    "browser_instrumentation",
+    "local_only_no_account_cloud_registry_remote_save"
+  ],
+  "requires_docs_ssot_clean": true
+}

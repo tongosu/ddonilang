@@ -15,8 +15,10 @@ QUEUE = PACK / "ma3_next_development_queue_rebase.detjson"
 CHECKER = ROOT / "tests" / "run_studio_ma3_next_development_queue_rebase_check.py"
 UI = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_ma3_next_development_queue_rebase.js"
 APP = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_ma3_next_development_queue_rebase_runner.mjs"
 SOURCE_LOCK = ROOT / "pack" / "studio_next_roadmap_v2_coordinate_lock_v1" / "next_roadmap_v2_coordinate_lock.detjson"
 NEXT = "STUDIO_TEACHER_FEEDBACK_SURFACE_PREVIEW_V1"
@@ -142,6 +144,7 @@ def check_required_files() -> None:
         CHECKER,
         UI,
         APP,
+        DEV_SURFACES,
         HTML,
         STYLES,
         RUNNER,
@@ -170,7 +173,7 @@ def check_docs() -> None:
         "새 마-3 개발 계획: 1/8 = 13%",
         "마줄기 신규 1/8 = 13%",
         "마-3 신규 1/4 = 25%",
-        "ROADMAP_V2 product behavior baseline: 89/90 = 99%",
+        "ROADMAP_V2 behavior-closed progress: 89/90 = 99%",
         NEXT,
         "docs/ssot/**",
     ]
@@ -185,7 +188,7 @@ def check_docs() -> None:
             "tests/studio_ma3_next_development_queue_rebase_runner.mjs",
             "작업 단위: 6/6 = 100% (`닫힘-동작`)",
             "새 마-3 개발 계획: 1/8 = 13%",
-            "ROADMAP_V2 product behavior baseline: 89/90 = 99%",
+            "ROADMAP_V2 behavior-closed progress: 89/90 = 99%",
             NEXT,
         ],
     )
@@ -205,7 +208,7 @@ def check_docs() -> None:
             "ddn.studio.ma3_next_development_queue_rebase.v1",
             NEXT,
             "새 마-3 개발 계획 1/8 = 13%",
-            "ROADMAP_V2 product behavior baseline 89/90 = 99%",
+            "ROADMAP_V2 behavior-closed progress: 89/90 = 99%",
         ],
     )
     require_contains(
@@ -215,9 +218,9 @@ def check_docs() -> None:
             "studio_ma3_next_development_queue_rebase_v1",
             "ddn.studio.ma3_next_development_queue_rebase.v1",
             "node tests/studio_ma3_next_development_queue_rebase_runner.mjs` PASS",
-            "전체 초장기 계획: 18/18 = 100%",
+            "Studio-local 초장기 계획: 9/18 = 50%",
             "새 마-3 개발 계획: 1/8 = 13%",
-            "ROADMAP_V2 product behavior baseline: 89/90 = 99%",
+            "ROADMAP_V2 behavior-closed progress: 89/90 = 99%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -246,23 +249,23 @@ def check_ui_contract() -> None:
     require_contains(
         APP,
         [
-            "studio_ma3_next_development_queue_rebase.js",
-            "ma3NextDevelopmentQueueRebase",
-            "publishMa3NextDevelopmentQueueRebase",
+            "shouldEnableDevSurfaces",
+            "./dev_surfaces.js",
+        ],
+    )
+    require_contains(
+        DEV_SURFACES,
+        [
+            "buildMa3NextDevelopmentQueueRebase",
+            "formatMa3NextDevelopmentQueueRebaseText",
+            "renderMa3NextDevelopmentQueueRebase",
+            "ma3-next-development-queue-rebase",
             "__SEAMGRIM_MA3_NEXT_DEVELOPMENT_QUEUE_REBASE__",
             "__SEAMGRIM_MA3_NEXT_DEVELOPMENT_QUEUE_REBASE_TEXT__",
         ],
     )
     require_contains(
-        HTML,
-        [
-            'id="ma3-next-development-queue-rebase"',
-            "data-ma3-next-development-queue-rebase",
-            'aria-label="Studio MA3 next development queue rebase"',
-        ],
-    )
-    require_contains(
-        STYLES,
+        DEV_SURFACES_CSS,
         [
             ".ma3-next-development-queue-rebase",
             ".ma3-dev-queue-head",
@@ -331,9 +334,9 @@ def check_contract_and_queue() -> None:
         "selected_default_coordinate": "마-3",
         "primary_coordinate": "마-3",
         "support_coordinates": ["하-3", "타-3"],
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "work_unit_percent": 100,
@@ -485,7 +488,7 @@ def check_golden() -> None:
         "STUDIO_MA3_NEXT_DEVELOPMENT_QUEUE_REBASE_V1",
         "studio ma3 next development queue rebase sealed",
         "queue schema: ddn.studio.ma3_next_development_queue_rebase.v1",
-        "super-long plan: 18/18 = 100%",
+        "official studio local progress: 9/18 = 50%",
         "new queue: 1/8 = 13%",
         "roadmap v2 behavior: 89/90 = 99%",
         "selected coordinate: 마-3",

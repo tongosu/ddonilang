@@ -1,0 +1,109 @@
+{
+  "schema": "ddn.language.post_ssot_landing_product_gate_rebase.v1",
+  "work_item": "LANG_POST_SSOT_LANDING_PRODUCT_GATE_REBASE_V1",
+  "based_on": "LANG_SSOT_LANDING_WAIT_STATE_REBASE_V1",
+  "source_ssot_landing_wait_state_rebase": "pack/lang_ssot_landing_wait_state_rebase_v1/ssot_landing_wait_state_rebase.detjson",
+  "source_ssot_acceptance_request_closure_rebase": "pack/lang_ssot_acceptance_request_closure_rebase_v1/ssot_acceptance_request_closure_rebase.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "post_ssot_product_gate_open_claim": false,
+  "post_ssot_landing_product_gate_rebase_claim": true,
+  "gate_policy": {
+    "id": "post_ssot_language_product_gate",
+    "status": "closed",
+    "open_condition": "ssot_landed_or_explicit_user_override",
+    "reason": "urgent SSOT landing remains 0/3",
+    "codex_product_followup_allowed": false
+  },
+  "product_gate_rows": [
+    {
+      "order": 1,
+      "gate": "prime_product_gate",
+      "target_id": "prime_derivative_notation",
+      "status": "blocked",
+      "reason": "SSOT landed false",
+      "ssot_landed": false,
+      "product_followup_allowed": false
+    },
+    {
+      "order": 2,
+      "gate": "flow_history_product_gate",
+      "target_id": "flow_history_naming_split",
+      "status": "blocked",
+      "reason": "SSOT landed false",
+      "ssot_landed": false,
+      "product_followup_allowed": false
+    },
+    {
+      "order": 3,
+      "gate": "tuck_product_gate",
+      "target_id": "tuck_constraint_layer",
+      "status": "blocked",
+      "reason": "SSOT landed false",
+      "ssot_landed": false,
+      "product_followup_allowed": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "post_ssot_product_gate_open",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "backward_compat_break"
+  ],
+  "ssot_acceptance_request_queue": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "ssot_landing_wait_state_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "post_ssot_landing_product_gate_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "post_ssot_product_gates_open": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "urgent_recommendations_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 74,
+    "total": 90,
+    "percent": 82
+  },
+  "next_item": "LANG_SSOT_OWNER_LANDING_HANDOFF_V1"
+}
+

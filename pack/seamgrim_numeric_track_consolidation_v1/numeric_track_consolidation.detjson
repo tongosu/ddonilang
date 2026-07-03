@@ -32,6 +32,14 @@
   "legacy_numeric_runner_count": 28,
   "legacy_numeric_runner_over_60": 16,
   "legacy_numeric_runner_over_100": 2,
+  "deferred_micro_slice_candidate": {
+    "id": "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1",
+    "reason": "micro_slice_wrapper_name_over_60",
+    "name_length": 108,
+    "runner_name_length": 118,
+    "fold_into_existing_consolidation": true
+  },
+  "deferred_micro_slice_count": 1,
   "consolidation_rows": [
     {
       "id": "productization_rebase_anchor",
@@ -122,15 +130,15 @@
     "git status --short -- docs/ssot"
   ],
   "progress": {
-    "super_long_behavior_closed": 18,
+    "super_long_behavior_closed": 9,
     "super_long_total": 18,
-    "super_long_percent": 100,
+    "super_long_percent": 50,
     "current_stage_closed": 2,
     "current_stage_total": 5,
     "current_stage_percent": 40,
-    "roadmap_v2_behavior_closed": 90,
+    "roadmap_v2_behavior_closed": 51,
     "roadmap_v2_total": 90,
-    "roadmap_v2_percent": 100
+    "roadmap_v2_percent": 57
   },
   "closure_tier": "닫힘-동작",
   "next_item": "STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1"

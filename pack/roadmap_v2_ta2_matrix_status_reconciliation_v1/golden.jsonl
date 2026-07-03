@@ -1,0 +1,2 @@
+{"id":"c01_ta2_matrix_status_reconciliation_marker","cmd":["run","pack/roadmap_v2_ta2_matrix_status_reconciliation_v1/input.ddn"],"stdout":["TA2_MATRIX_STATUS_RECONCILIATION_V1","ta2 matrix status reconciliation sealed","stage: 4/4 = 100%","roadmap matrix behavior: 2/90 = 2%","pack evidence reference: 22/90 = 24%","studio local super-long: 5/18 = 28%","next: GA2_LANGUAGE_REPRESENTATIVE_PACK_CLOSURE_V1"],"exit_code":0}
+

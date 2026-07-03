@@ -1,0 +1,51 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "roadmap_v2_ga5_grammar_lts_behavior_recheck_v1",
+  "kind": "roadmap_v2_ga5_grammar_lts_behavior_recheck",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "closed_by": "GA5_GRAMMAR_LTS_BEHAVIOR_RECHECK_V1",
+  "roadmap_coordinate": "가-5",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-문서",
+  "roadmap_matrix_increment": false,
+  "docs_closed_increment": false,
+  "current_stage": "GA5 grammar LTS behavior recheck",
+  "current_stage_closed": 4,
+  "current_stage_total": 4,
+  "current_stage_percent": 100,
+  "roadmap_v2_matrix_behavior_closed": 85,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 94,
+  "roadmap_v2_docs_closed": 5,
+  "roadmap_v2_docs_total": 90,
+  "roadmap_v2_docs_percent": 6,
+  "roadmap_v2_pack_evidence_reference_closed": 88,
+  "roadmap_v2_pack_evidence_reference_total": 90,
+  "roadmap_v2_pack_evidence_reference_percent": 98,
+  "studio_local_super_long_closed": 9,
+  "studio_local_super_long_total": 18,
+  "studio_local_super_long_percent": 50,
+  "source_evidence": [
+    "roadmap_v2_ga5_grammar_lts_docs_closed_reconciliation_v1",
+    "pack/gogae9_w98_release_gate/README.md",
+    "docs/ssot/walks/gogae9/w98_release_v14/README.md"
+  ],
+  "blocked_behavior_reason": "release gate pack is draft and has no golden.jsonl",
+  "false_claims": {
+    "roadmap_behavior_increment": false,
+    "release_gate_execution_claim": false,
+    "full_lts_certification_claim": false,
+    "public_release_claim": false,
+    "parser_runtime_change_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "runtime_claim": false
+  },
+  "known_boundary": {
+    "gogae9_w98_release_gate": "draft; no golden.jsonl; not release gate evidence"
+  },
+  "next_item": "ROADMAP_V2_LA0_MALBLOCK_DESIGN_BEHAVIOR_RECHECK_V1",
+  "requires_docs_ssot_clean": true
+}

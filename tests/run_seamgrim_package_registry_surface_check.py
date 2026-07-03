@@ -22,8 +22,9 @@ def _read(path: Path) -> str:
 def main() -> int:
     runner = ROOT / "tests" / "seamgrim_package_registry_surface_runner.mjs"
     contract_js = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "platform_contract.js"
+    app_js = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
     index_html = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
-    missing = [str(path) for path in (runner, contract_js, index_html) if not path.exists()]
+    missing = [str(path) for path in (runner, contract_js, app_js, index_html) if not path.exists()]
     if missing:
         return fail("missing:" + ",".join(missing))
 
@@ -40,7 +41,7 @@ def main() -> int:
         return fail(f"node_runner_failed:{detail}")
 
     contract_text = _read(contract_js)
-    html_text = _read(index_html)
+    app_text = _read(app_js)
     static_required = [
         ("export const PackageScope = Object.freeze({" in contract_text, "package_scope_missing"),
         ('STANDARD: "표준"' in contract_text, "package_scope_standard_missing"),
@@ -55,8 +56,8 @@ def main() -> int:
         ('"dependencies"' in contract_text, "package_meta_dependencies_missing"),
         ('"lock_hash"' in contract_text, "package_meta_lock_hash_missing"),
         ('"det_tier"' in contract_text, "package_meta_det_tier_missing"),
-        ("btn-package-catalog" in html_text, "menu_package_catalog_missing"),
-        ("btn-package-deps" in html_text, "menu_package_deps_missing"),
+        ("btn-package-catalog" in app_text, "menu_package_catalog_missing"),
+        ("btn-package-deps" in app_text, "menu_package_deps_missing"),
     ]
     failures = [name for ok, name in static_required if not ok]
     contract_issues = list(collect_platform_contract_issues())

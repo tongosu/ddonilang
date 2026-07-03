@@ -1,0 +1,40 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "seamgrim_wasm_tool_golden_baseline_repair_v1",
+  "kind": "seamgrim_wasm_tool_golden_baseline_repair",
+  "product_generated_golden_refresh": true,
+  "tool_wasm_cargo_test_closed": true,
+  "ai_prompt_golden_closed": true,
+  "parser_frontdoor_change": false,
+  "runtime_behavior_change": false,
+  "stdlib_change": false,
+  "solver_implementation_change": false,
+  "studio_ui_behavior_change": false,
+  "harness_only_lowering": false,
+  "closed_by": "SEAMGRIM_WASM_TOOL_GOLDEN_BASELINE_REPAIR_V1",
+  "changed_files": [
+    "tests/toolchain_golden/ai_prompt_lean.txt"
+  ],
+  "repaired_gates": [
+    "cargo test --manifest-path tool/Cargo.toml --features wasm ai_prompt_output_matches_golden -- --nocapture",
+    "cargo test --manifest-path tool/Cargo.toml --features wasm"
+  ],
+  "work_unit_closed": 5,
+  "work_unit_total": 5,
+  "wasm_tool_golden_closed": 1,
+  "wasm_tool_golden_total": 1,
+  "wasm_tool_golden_percent": 100,
+  "baseline_repair_closed": 4,
+  "baseline_repair_total": 4,
+  "baseline_repair_percent": 100,
+  "super_long_behavior_closed": 5,
+  "super_long_total": 18,
+  "super_long_percent": 28,
+  "roadmap_v2_behavior_closed": 23,
+  "roadmap_v2_total": 90,
+  "roadmap_v2_percent": 26,
+  "closure_tier": "닫힘-동작",
+  "next_item": "SEAMGRIM_BASELINE_STABILIZATION_CLOSURE_REBASE_V1",
+  "requires_docs_ssot_clean": true
+}
+

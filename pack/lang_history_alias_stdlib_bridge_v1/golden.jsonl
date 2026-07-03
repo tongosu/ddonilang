@@ -1,0 +1,1 @@
+{"cmd":["run","pack/lang_history_alias_stdlib_bridge_v1/input.ddn"],"exit_code":0,"stdout":["LANG_HISTORY_ALIAS_STDLIB_BRIDGE_V1","history alias stdlib bridge sealed","schema: ddn.language.history_alias_stdlib_bridge.v1","history aliases: 8","product transition: 4/7 = 57%","runtime landed: false","next: LANG_DULTRA_REPLAY_ARTIFACT_WRITER_SEED_V1"]}

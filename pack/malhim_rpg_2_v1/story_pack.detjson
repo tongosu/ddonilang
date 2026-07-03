@@ -1,0 +1,77 @@
+{
+  "schema": "ddn.roadmap_v2.cha2.rpg_story_pack.v1",
+  "id": "CHA2_RPG_STORY_PACK_CLOSURE_V1",
+  "date": "2026-06-08",
+  "status": "story_pack_runtime_pass",
+  "roadmap_coordinate": "차-2",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "cha2_matrix_status": "닫힘-동작",
+  "story_boundary": {
+    "pack_id": "malhim_rpg_2_v1",
+    "milestone": "story/RPG pack",
+    "representative_work": "actor/state/dialogue/map",
+    "lanes": [
+      {
+        "id": "actor",
+        "evidence": "actor:용사@문앞",
+        "required_for_cha2": true
+      },
+      {
+        "id": "state",
+        "evidence": "state:position=문앞",
+        "required_for_cha2": true
+      },
+      {
+        "id": "dialogue",
+        "evidence": "dialogue:안녕 용사 방문=1",
+        "required_for_cha2": true
+      },
+      {
+        "id": "map",
+        "evidence": "map:시작->문앞",
+        "required_for_cha2": true
+      },
+      {
+        "id": "runtime_golden",
+        "evidence": "python tests/run_pack_golden.py malhim_rpg_2_v1",
+        "required_for_cha2": true
+      }
+    ]
+  },
+  "progress": {
+    "current_stage": "CHA2 RPG story pack closure",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 14,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 16,
+    "roadmap_v2_pack_evidence_reference_closed": 34,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 38,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "new_status_for_cha2": "닫힘-동작",
+    "reason": "The pack executes through the existing DDN runtime and emits actor, state, dialogue, and map story evidence in one reproducible pack.",
+    "next_item": "CHA3_RPG_BOX_NURIMAKER_AUTHORING_UI_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "cha3_rpg_box_authoring_ui_closed": false,
+    "story_package_closed": false,
+    "engine_adapter_closed": false,
+    "new_parser_frontdoor_change": false,
+    "new_runtime_semantics": false,
+    "registry_publish_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "docs_ssot_change": false,
+    "studio_local_progress_increase": false,
+    "numeric_track_consolidation_required": false
+  }
+}

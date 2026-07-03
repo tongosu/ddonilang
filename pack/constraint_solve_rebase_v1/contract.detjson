@@ -1,0 +1,31 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "constraint_solve_rebase_v1",
+  "kind": "constraint_solve_rebase",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "CONSTRAINT_SOLVE_REBASE_V1",
+  "roadmap": "NUMERIC_SOLVER_LONG_HORIZON_ROADMAP_V1.md",
+  "capability_doc": "CONSTRAINT_SOLVE_REBASE_V1.md",
+  "post_solve_range_validation_claim": true,
+  "solver_internal_inequality_claim": false,
+  "linear_programming_claim": false,
+  "constraint_satisfaction_claim": false,
+  "automatic_endpoint_solve_claim": false,
+  "next_recommended_item": "LINEAR_INEQUALITY_SOLVE_MINIMUM_V1",
+  "evidence_packs": [
+    "connect_flow_v1n_closure_v1",
+    "connect_flow_v1o_closure_v1",
+    "connect_flow_v1p_closure_v1",
+    "connect_flow_v1q_closure_v1",
+    "connect_flow_v1r_closure_v1",
+    "connect_flow_v1s_closure_v1",
+    "connect_flow_v1t_closure_v1",
+    "connect_flow_v1u_closure_v1",
+    "connect_flow_v1v_closure_v1",
+    "numeric_solver_capability_rebase_v1",
+    "polynomial_solve_minimum_v1"
+  ],
+  "requires_docs_ssot_clean": true
+}
+

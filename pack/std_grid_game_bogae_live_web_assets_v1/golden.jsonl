@@ -1,0 +1,1 @@
+{"cli":["--madi","4","--madi-hz","1000","--bogae","web","--bogae-live","--sam-live","web","--sam-live-port","56101","--bogae-out","build/std_grid_game_bogae_live_web_assets_v1","--no-open"],"stdout":["bogae_hash=blake3:dc4856b1baf4c5217660788764bfe0c81be70644c3260311f766b55e340387e2"],"stderr":["sam_live_input_url=http://127.0.0.1:56101/input"],"exit_code":0}

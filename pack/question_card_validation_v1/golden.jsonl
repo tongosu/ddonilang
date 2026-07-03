@@ -1,0 +1,2 @@
+{"id":"c01_geo2_ai_output_validation_marker","cmd":["run","pack/question_card_validation_v1/input.ddn"],"stdout":["GEO2_AI_OUTPUT_VALIDATION_PACK_V1","AI output validation pack sealed","stage: 5/5 = 100%","roadmap matrix behavior: 34/90 = 38%","pack evidence reference: 55/90 = 61%","studio local super-long: 9/18 = 50%","geo2 status: 닫힘-동작","next: GEO3_DEV_ASSIST_UI_V1"],"exit_code":0}
+

@@ -1,0 +1,69 @@
+{
+  "schema": "ddn.roadmap_v2.ha0_matrix_status_reconciliation.v1",
+  "id": "HA0_EDUCATION_CURRICULUM_TEMPLATE_MATRIX_RECONCILIATION_V1",
+  "date": "2026-06-09",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "하-0",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "curriculum_template_schema": {
+      "source_pack": "pack/education_curriculum_template_v1",
+      "checker": "tests/run_education_curriculum_template_check.py"
+    },
+    "valid_fixture_reuse": {
+      "source_pack": "pack/education_curriculum_template_v1/valid",
+      "checker": "tests/run_education_curriculum_template_check.py --dir pack/education_curriculum_template_v1/valid"
+    },
+    "browse_screen_education_template": {
+      "runner": "tests/seamgrim_education_curriculum_template_runner.mjs",
+      "checker": "tests/run_seamgrim_education_curriculum_template_check.py"
+    },
+    "frontier_selection": {
+      "checker": "tests/run_roadmap_v2_post_pa1_frontier_rebase_check.py"
+    }
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "진행",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/하-0_RECONCILIATION_REPORT_20260609.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "HA0 matrix reconciliation",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 56,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 62,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "next_item": "ROADMAP_V2_POST_HA0_FRONTIER_REBASE_V1",
+    "reason": "하-0 and 하-2..하-5 are now matrix-closed, so the next work should select a fresh frontier from the updated 56/90 matrix state",
+    "not_next": "NEW_LESSON_AUTHORING_UI_WITHOUT_FRONTIER_REBASE"
+  },
+  "false_claims": {
+    "new_education_runtime": false,
+    "lesson_authoring_ui_change": false,
+    "ssot_textbook_rewrite_claim": false,
+    "publication_workflow_claim": false,
+    "runtime_surface_change": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "pack_evidence_reference_inflation": false,
+    "studio_local_progress_inflation": false,
+    "roadmap_full_completion": false,
+    "studio_full_completion": false,
+    "docs_ssot_change": false
+  }
+}

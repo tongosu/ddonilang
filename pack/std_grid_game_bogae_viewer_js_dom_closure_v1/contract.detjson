@@ -1,0 +1,46 @@
+{
+  "schema": "ddn.std_grid_game_bogae_viewer_js_dom_closure.pack.contract.v1",
+  "id": "std_grid_game_bogae_viewer_js_dom_closure_v1",
+  "public_surface_delta": "none",
+  "bundled_packs": [
+    "std_grid_game_bogae_viewer_js_live_input_v1",
+    "std_grid_game_bogae_viewer_js_playback_controls_v1",
+    "std_grid_game_bogae_live_bridge_closure_v1"
+  ],
+  "harness": {
+    "runtime": "node",
+    "minimum_major": 22,
+    "script": "tests/std_grid_game_bogae_viewer_js_dom_runner.mjs",
+    "dom": "fake"
+  },
+  "live_input_events": [
+    "keydown ArrowLeft -> /input?code=ArrowLeft&kind=down",
+    "repeat keydown ArrowLeft -> no duplicate down",
+    "keyup ArrowLeft -> /input?code=ArrowLeft&kind=up",
+    "blur -> /input?kind=clear",
+    "hidden visibilitychange -> /input?kind=clear"
+  ],
+  "playback_controls": [
+    "btn-step-forward -> loadFrame/render",
+    "btn-step-back -> loadFrame/render",
+    "seek -> loadFrame/render",
+    "ov-grid/ov-bounds/ov-delta -> render"
+  ],
+  "generated_asset_dependency": "std_grid_game_bogae_live_web_assets_v1",
+  "non_scope": [
+    "new stdlib surface",
+    "parser/frontdoor syntax",
+    "real browser runtime claim",
+    "Playwright/Chrome dependency",
+    "networked browser input delivery",
+    "infinite live loop",
+    "real-time scheduler stability claim",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_grid_game_bogae_viewer_js_dom"
+  ]
+}

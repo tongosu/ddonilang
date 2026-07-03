@@ -1,0 +1,193 @@
+{
+  "schema": "ddn.language.implementation_followup_closure_rebase.v1",
+  "work_item": "LANG_IMPLEMENTATION_FOLLOWUP_CLOSURE_REBASE_V1",
+  "based_on": "LANG_OWNER_INNER_SEUM_PARSER_BOUNDARY_SPIKE_V1",
+  "closure_rebase_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "flow_runtime_rename_landed_claim": false,
+  "tuck_parser_runtime_landed_claim": false,
+  "velocity_verlet_runtime_landed_claim": false,
+  "dultra_replay_runtime_landed_claim": false,
+  "owner_inner_seum_runtime_landed_claim": false,
+  "closed_followup_items": [
+    {
+      "order": 1,
+      "item": "LANG_IMPLEMENTATION_READINESS_REBASE_V1",
+      "path": "pack/lang_implementation_readiness_rebase_v1/implementation_readiness_rebase.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 2,
+      "item": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1",
+      "path": "pack/lang_prime_parser_frontdoor_spike_v1/prime_parser_frontdoor_spike.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 3,
+      "item": "LANG_CONNECT_SEUM_LOWERING_PARSER_SPIKE_V1",
+      "path": "pack/lang_connect_seum_lowering_parser_spike_v1/connect_seum_lowering_parser_spike.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 4,
+      "item": "LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1",
+      "path": "pack/lang_velocity_verlet_fixed64_order_v1/velocity_verlet_fixed64_order.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 5,
+      "item": "LANG_DULTRA_RECORDED_REPLAY_CONTRACT_PACK_V1",
+      "path": "pack/lang_dultra_recorded_replay_contract_v1/dultra_recorded_replay_contract.detjson",
+      "status": "closed"
+    },
+    {
+      "order": 6,
+      "item": "LANG_OWNER_INNER_SEUM_PARSER_BOUNDARY_SPIKE_V1",
+      "path": "pack/lang_owner_inner_seum_parser_boundary_spike_v1/owner_inner_seum_parser_boundary_spike.detjson",
+      "status": "closed"
+    }
+  ],
+  "closed_capabilities": [
+    {
+      "id": "prime_parser_frontdoor",
+      "claim": "위치' and 위치'' parser/frontdoor boundary landed",
+      "runtime_semantics_landed": false
+    },
+    {
+      "id": "connect_seum_rows",
+      "claim": "sentence-level 잇기 exposes inspectable 세움 rows",
+      "connect_block_landed": false
+    },
+    {
+      "id": "velocity_verlet_fixed64_order",
+      "claim": "Fixed64 order and one-tick smoke pack specified",
+      "runtime_landed": false
+    },
+    {
+      "id": "dultra_recorded_replay_contract",
+      "claim": "recorded replay contract fields specified",
+      "runtime_landed": false
+    },
+    {
+      "id": "owner_inner_seum_parser_boundary",
+      "claim": "임자 body 성질 alias and owner-local 세움 parser boundary landed",
+      "runtime_landed": false
+    }
+  ],
+  "remaining_risk_classifications": [
+    {
+      "id": "flow_type_collision",
+      "classification": "migration_plan_required_before_runtime_rename",
+      "next": "LANG_FLOW_HISTORY_ALIAS_MIGRATION_PLAN_V1",
+      "reason": "flow port terminology should keep 흐름; value Stream/ring-buffer naming needs migration evidence before runtime/stdlib rename"
+    },
+    {
+      "id": "tuck_constraint_layer",
+      "classification": "ssot_acceptance_required_before_parser_runtime_shape",
+      "next": "LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1",
+      "reason": "턱 is evidence-backed but not SSOT-landed parser/runtime shape"
+    },
+    {
+      "id": "velocity_verlet_runtime",
+      "classification": "runtime_gate_rebase_required_after_order_pack",
+      "next": "LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1",
+      "reason": "Fixed64 order pack exists, but stdlib/runtime landing still needs an explicit gate"
+    },
+    {
+      "id": "dultra_replay_artifact_runtime",
+      "classification": "artifact_implementation_gate_required",
+      "next": "LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1",
+      "reason": "recorded replay contract exists, but runtime artifact creation/replay is not landed"
+    },
+    {
+      "id": "owner_inner_seum_runtime_scope",
+      "classification": "runtime_scope_rebase_required_after_parser_boundary",
+      "next": "LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1",
+      "reason": "parser boundary exists, but equation solving and derivative semantics are not landed"
+    }
+  ],
+  "recommended_next_queue": [
+    {
+      "order": 1,
+      "item": "LANG_IMPLEMENTATION_FOLLOWUP_CLOSURE_REBASE_V1",
+      "status": "closed"
+    },
+    {
+      "order": 2,
+      "item": "LANG_FLOW_HISTORY_ALIAS_MIGRATION_PLAN_V1",
+      "status": "next"
+    },
+    {
+      "order": 3,
+      "item": "LANG_TUCK_CONSTRAINT_SURFACE_SHAPE_PROPOSAL_V1",
+      "status": "planned"
+    },
+    {
+      "order": 4,
+      "item": "LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1",
+      "status": "planned"
+    },
+    {
+      "order": 5,
+      "item": "LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1",
+      "status": "planned"
+    },
+    {
+      "order": 6,
+      "item": "LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1",
+      "status": "planned"
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "flow_runtime_rename_landed",
+    "tuck_parser_runtime_landed",
+    "velocity_verlet_runtime_landed",
+    "dultra_replay_runtime_landed",
+    "owner_inner_seum_runtime_landed"
+  ],
+  "implementation_readiness_followup_plan": {
+    "closed": 6,
+    "total": 6,
+    "percent": 100
+  },
+  "implementation_followup_closure_rebase_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "language_risk_removal_plan": {
+    "closed": 1,
+    "total": 6,
+    "percent": 17
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 54,
+    "total": 90,
+    "percent": 60
+  },
+  "next_item": "LANG_FLOW_HISTORY_ALIAS_MIGRATION_PLAN_V1"
+}

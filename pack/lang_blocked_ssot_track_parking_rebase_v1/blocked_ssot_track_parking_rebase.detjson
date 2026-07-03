@@ -1,0 +1,107 @@
+{
+  "schema": "ddn.language.blocked_ssot_track_parking_rebase.v1",
+  "work_item": "LANG_BLOCKED_SSOT_TRACK_PARKING_REBASE_V1",
+  "based_on": "LANG_SSOT_OWNER_LANDING_AUDIT_REBASE_V1",
+  "source_ssot_owner_landing_audit_rebase": "pack/lang_ssot_owner_landing_audit_rebase_v1/ssot_owner_landing_audit_rebase.detjson",
+  "source_ssot_owner_landing_handoff": "pack/lang_ssot_owner_landing_handoff_v1/ssot_owner_landing_handoff.detjson",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "ssot_landed_claim": false,
+  "backward_compat_break_claim": false,
+  "post_ssot_product_gate_open_claim": false,
+  "blocked_ssot_track_parking_rebase_claim": true,
+  "parking_policy": {
+    "id": "urgent_language_blocked_ssot_track_parking",
+    "status": "parked",
+    "reason": "owner landing audit detected 0/3 SSOT landed rows",
+    "unblock_condition": "owner_ssot_landing_or_explicit_user_override",
+    "non_ssot_work_allowed": true,
+    "product_followup_gate_after_parking": "closed"
+  },
+  "parking_rows": [
+    {
+      "order": 1,
+      "target_id": "prime_derivative_notation",
+      "parking_status": "parked",
+      "owner_landing_detected": false,
+      "product_gate_open": false,
+      "unblock_condition": "owner_ssot_landing_or_explicit_user_override"
+    },
+    {
+      "order": 2,
+      "target_id": "flow_history_naming_split",
+      "parking_status": "parked",
+      "owner_landing_detected": false,
+      "product_gate_open": false,
+      "unblock_condition": "owner_ssot_landing_or_explicit_user_override"
+    },
+    {
+      "order": 3,
+      "target_id": "tuck_constraint_layer",
+      "parking_status": "parked",
+      "owner_landing_detected": false,
+      "product_gate_open": false,
+      "unblock_condition": "owner_ssot_landing_or_explicit_user_override"
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "ssot_landed",
+    "post_ssot_product_gate_open",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "backward_compat_break"
+  ],
+  "blocked_ssot_track_parking_rebase": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "parked_ssot_rows": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "ssot_owner_landing_detected": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "post_ssot_product_gates_open": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "urgent_recommendations_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 77,
+    "total": 90,
+    "percent": 86
+  },
+  "next_item": "LANG_NON_SSOT_TRACK_RESUME_REBASE_V1"
+}
+

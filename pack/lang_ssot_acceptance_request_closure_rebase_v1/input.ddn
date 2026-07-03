@@ -1,0 +1,10 @@
+"LANG_SSOT_ACCEPTANCE_REQUEST_CLOSURE_REBASE_V1" 보여주기.
+"ssot acceptance request closure rebase sealed" 보여주기.
+"schema: ddn.language.ssot_acceptance_request_closure_rebase.v1" 보여주기.
+"closed acceptance requests: 3" 보여주기.
+"ssot request queue: 3/3 = 100%" 보여주기.
+"closure rebase: 1/1 = 100%" 보여주기.
+"urgent ssot landed: 0/3 = 0%" 보여주기.
+"roadmap: 72/90 = 80%" 보여주기.
+"next: LANG_SSOT_LANDING_WAIT_STATE_REBASE_V1" 보여주기.
+

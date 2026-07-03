@@ -1,0 +1,135 @@
+{
+  "schema": "ddn.language.design_priority_rebase.v1",
+  "work_item": "LANGUAGE_DESIGN_PRIORITY_REBASE_V1",
+  "language_design_priority_rebase_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "identity_guardrails": [
+    {
+      "id": "deterministic_evidence_core",
+      "keep": true,
+      "items": ["state_hash", "InputSnapshot", "view_meta", "D-PACK golden"],
+      "reason": "deterministic replay is the language differentiator"
+    },
+    {
+      "id": "operator_triad_fixed",
+      "keep": true,
+      "items": ["=", "<-", "=:="],
+      "reason": "operators must not change meaning by context"
+    },
+    {
+      "id": "declarative_surfaces_first",
+      "keep": true,
+      "items": ["보임", "상태머신", "계약", "세움"],
+      "reason": "new blocks must not multiply when existing surfaces suffice"
+    },
+    {
+      "id": "connect_is_seum_sugar",
+      "keep": true,
+      "items": ["잇기"],
+      "reason": "connect lowers to equations and must not become a new core block"
+    }
+  ],
+  "urgent_recommendations": [
+    {
+      "id": "prime_derivative_notation",
+      "preferred": "위치'",
+      "second_order": "위치''",
+      "ssot_landed": false,
+      "runtime_landed": false,
+      "next_item": "LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1"
+    },
+    {
+      "id": "flow_type_collision",
+      "keep_flow_for": "port_connector_flow",
+      "rename_ring_buffer_to": "이력",
+      "ssot_landed": false,
+      "runtime_landed": false,
+      "next_item": "LANG_FLOW_TYPE_COLLISION_RENAME_V1"
+    },
+    {
+      "id": "sim_constraint_third_layer",
+      "preferred": "턱",
+      "examples": ["ceiling_limit", "bankruptcy_exit"],
+      "ssot_landed": false,
+      "runtime_landed": false,
+      "next_item": "LANG_SIM_CONSTRAINT_THIRD_LAYER_NAME_V1"
+    }
+  ],
+  "implementation_queue": [
+    {
+      "id": "LANGUAGE_DESIGN_PRIORITY_REBASE_V1",
+      "status": "closed",
+      "claim": "local priority rebase evidence"
+    },
+    {
+      "id": "LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1",
+      "status": "next",
+      "claim": "prime derivative notation decision evidence"
+    },
+    {
+      "id": "LANG_FLOW_TYPE_COLLISION_RENAME_V1",
+      "status": "planned",
+      "claim": "flow value type rename decision evidence"
+    },
+    {
+      "id": "LANG_SIM_CONSTRAINT_THIRD_LAYER_NAME_V1",
+      "status": "planned",
+      "claim": "third constraint layer naming evidence"
+    },
+    {
+      "id": "LANG_SEUM_VOL3_PRIME_EXAMPLE_PACK_V1",
+      "status": "planned",
+      "claim": "book 3 seum prime examples"
+    },
+    {
+      "id": "LANG_OWNER_INNER_SEUM_STRUCTURE_CHECK_V1",
+      "status": "planned",
+      "claim": "owner inner seum structure pack/check"
+    },
+    {
+      "id": "LANG_CONNECT_LOWERING_TO_SEUM_CHECK_V1",
+      "status": "planned",
+      "claim": "connect-to-seum lowering evidence"
+    },
+    {
+      "id": "LANG_DSTRICT_DULTRA_SOLVER_STRATEGY_PROPOSAL_V1",
+      "status": "planned",
+      "claim": "D-STRICT Verlet and D-ULTRA solver strategy proposal"
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "connect_block_addition",
+    "prime_notation_runtime_landed",
+    "flow_type_rename_runtime_landed",
+    "constraint_layer_runtime_landed"
+  ],
+  "queue_plan": {
+    "closed": 1,
+    "total": 8,
+    "percent": 13
+  },
+  "urgent_recommendation_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1"
+}

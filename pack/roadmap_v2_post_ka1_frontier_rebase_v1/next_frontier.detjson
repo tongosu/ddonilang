@@ -1,0 +1,45 @@
+{
+  "schema": "ddn.roadmap_v2.post_ka1_frontier_rebase.v1",
+  "work_item": "ROADMAP_V2_POST_KA1_FRONTIER_REBASE_V1",
+  "status": "닫힘-문서",
+  "selected_next_work": "ROADMAP_V2_KA0_PLATFORM_CHARTER_MATRIX_RECONCILIATION_V1",
+  "selected_coordinate": "카-0",
+  "reason": "카-0 platform charter evidence exists, but the authoritative ROADMAP_V2 matrix row still says 진행",
+  "rejected_work": [
+    "TTONIMARU_PLATFORM_CHARTER_REIMPLEMENTATION",
+    "PUBLIC_REGISTRY_FINAL_BEFORE_CHARTER_RECONCILIATION",
+    "ROADMAP_V2_KA2_REIMPLEMENTATION"
+  ],
+  "evidence_basis": [
+    "docs/status/roadmap_v2/카-0_REPORT_20260510.md",
+    "pack/ttonimaru_registry_0_v1",
+    "tests/run_ttonimaru_registry_0_check.py",
+    "tests/run_ttonimaru_registry_0_platform_contract_check.py",
+    "ROADMAP_V2_KA1_SERVER_MVP_MATRIX_RECONCILIATION_V1.md"
+  ],
+  "progress": {
+    "current_stage": "ROADMAP_V2 post-KA1 frontier rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 40,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 44,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "platform_charter_reimplementation": false,
+    "public_registry_final": false,
+    "docs_ssot_change": false
+  }
+}

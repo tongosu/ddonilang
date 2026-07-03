@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-ma3-next-queue-coordinate-lock][data-ma3-coordinate-lock-status='ma3_next_queue_coordinate_lock_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -135,12 +135,12 @@ async function main() {
     assert(lock.status === "ma3_next_queue_coordinate_lock_ready", `status mismatch: ${lock.status}`);
     assert(lock.lock_row_count === 6, `lock count mismatch: ${lock.lock_row_count}`);
     assert(lock.ready_stage_count === 6, `ready stage mismatch: ${lock.ready_stage_count}`);
-    assert(lock.progress.super_long_behavior_closed === 18, "super-long closed mismatch");
-    assert(lock.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(lock.progress.super_long_behavior_closed === 9, "super-long closed mismatch");
+    assert(lock.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(lock.progress.current_stage_closed === 8, "current stage closed mismatch");
     assert(lock.progress.current_stage_percent === 100, "current stage percent mismatch");
-    assert(lock.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");
-    assert(lock.progress.roadmap_v2_percent === 100, "roadmap percent mismatch");
+    assert(lock.progress.roadmap_v2_behavior_closed === 51, "roadmap closed mismatch");
+    assert(lock.progress.roadmap_v2_percent === 57, "roadmap percent mismatch");
     assert(String(moduleResult.text).includes("new_automatic_queue_claim\tfalse"), "formatted text missing queue boundary");
     assert(String(moduleResult.text).includes("selected_default_coordinate\t마-3"), "formatted text missing selected coordinate");
 

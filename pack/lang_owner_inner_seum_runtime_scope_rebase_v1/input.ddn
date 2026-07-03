@@ -1,0 +1,7 @@
+"LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1" 보여주기.
+"owner inner seum runtime scope rebase sealed" 보여주기.
+"schema: ddn.language.owner_inner_seum_runtime_scope_rebase.v1" 보여주기.
+"required runtime gates: 6" 보여주기.
+"risk removal: 6/6 = 100%" 보여주기.
+"runtime landed: false" 보여주기.
+"next: LANG_LANGUAGE_RISK_REMOVAL_CLOSURE_REBASE_V1" 보여주기.

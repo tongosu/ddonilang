@@ -1,0 +1,41 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "roadmap_v2_cha0_rpg_seed_rebase_v1",
+  "kind": "roadmap_v2_cha0_rpg_seed_rebase",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "closed_by": "CHA0_RPG_SEED_REBASE_V1",
+  "roadmap_coordinate": "차-0",
+  "matrix_closure_claim": false,
+  "matrix_closure_tier": "닫힘-문서",
+  "cha0_matrix_status": "씨앗",
+  "current_stage": "CHA0 RPG seed rebase",
+  "current_stage_closed": 3,
+  "current_stage_total": 3,
+  "current_stage_percent": 100,
+  "roadmap_v2_matrix_behavior_closed": 12,
+  "roadmap_v2_matrix_behavior_total": 90,
+  "roadmap_v2_matrix_behavior_percent": 13,
+  "roadmap_v2_pack_evidence_reference_closed": 32,
+  "roadmap_v2_pack_evidence_reference_total": 90,
+  "roadmap_v2_pack_evidence_reference_percent": 36,
+  "studio_local_super_long_closed": 9,
+  "studio_local_super_long_total": 18,
+  "studio_local_super_long_percent": 50,
+  "seed_lanes": [
+    "action_method",
+    "phrase_binding",
+    "story_event_boundary"
+  ],
+  "source_evidence": [
+    "rpg_world_define_canon_v1",
+    "rpg_player_actor_parse_v1",
+    "rpg_statemachine_parse_v1",
+    "rpg_seumvalue_parse_v1",
+    "rpg_dialogue_template_parse_v1"
+  ],
+  "next_item": "CHA1_RPG_PHRASE_ACTION_SMOKE_V1",
+  "forbidden_unlock_condition": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1",
+  "requires_docs_ssot_clean": true
+}

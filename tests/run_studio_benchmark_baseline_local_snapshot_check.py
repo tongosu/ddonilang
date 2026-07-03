@@ -17,8 +17,10 @@ SOURCE_PREP = ROOT / "pack" / "studio_benchmark_baseline_prep_dry_run_v1" / "ben
 SOURCE_PANEL = ROOT / "pack" / "studio_classroom_operations_panel_preview_v1" / "classroom_operations_panel_preview.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_benchmark_baseline_local_snapshot.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_benchmark_baseline_local_snapshot_runner.mjs"
 SOURCE_PANEL_CHECK = ROOT / "tests" / "run_studio_classroom_operations_panel_preview_check.py"
 NEXT = "STUDIO_RELEASE_REVIEW_PACKET_DASHBOARD_V1"
@@ -123,8 +125,9 @@ def check_required_files() -> None:
         SOURCE_PANEL,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
-        STYLES_CSS,
+        DEV_SURFACES_CSS,
         RUNNER,
         SOURCE_PANEL_CHECK,
     ]:
@@ -139,9 +142,9 @@ def check_docs() -> None:
         "Support coordinate: `마-3`",
         "닫힘-동작",
         "snapshot rows: 6/6 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: 새 마-3 개발 계획 4/8 = 50%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         "studio_benchmark_baseline_local_snapshot_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -154,9 +157,9 @@ def check_docs() -> None:
             "STUDIO_BENCHMARK_BASELINE_LOCAL_SNAPSHOT_V1",
             "studio_benchmark_baseline_local_snapshot_runner.mjs",
             "snapshot rows: 6/6 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: 새 마-3 개발 계획 4/8 = 50%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -173,29 +176,26 @@ def check_ui_source() -> None:
             "product_ui_change: true",
             "benchmark_execution_claim: false",
             "performance_baseline_generation_claim: false",
-            "super_long_behavior_closed: 18",
+            "super_long_behavior_closed: 9",
             "current_stage_percent: 50",
             "roadmap_v2_percent: 100",
         ],
     )
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "studio_benchmark_baseline_local_snapshot.js",
-            "publishBenchmarkBaselineLocalSnapshot",
-            "__SEAMGRIM_BENCHMARK_BASELINE_LOCAL_SNAPSHOT__",
-            "buildBenchmarkBaselineLocalSnapshot",
-        ],
-    )
-    require_contains(
-        INDEX_HTML,
-        [
             "benchmark-baseline-local-snapshot",
-            "data-benchmark-baseline-local-snapshot",
+            "__SEAMGRIM_BENCHMARK_BASELINE_LOCAL_SNAPSHOT__",
+            "__SEAMGRIM_BENCHMARK_BASELINE_LOCAL_SNAPSHOT_TEXT__",
+            "buildBenchmarkBaselineLocalSnapshot",
+            "formatBenchmarkBaselineLocalSnapshotText",
+            "renderBenchmarkBaselineLocalSnapshot",
         ],
     )
     require_contains(
-        STYLES_CSS,
+        DEV_SURFACES_CSS,
         [
             ".benchmark-baseline-local-snapshot",
             ".benchmark-baseline-snapshot-btn.active",
@@ -237,9 +237,9 @@ def check_contract_and_snapshot() -> None:
         "snapshot_rows_closed": 6,
         "snapshot_rows_total": 6,
         "snapshot_rows_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 4,
         "current_stage_total": 8,
         "current_stage_percent": 50,
@@ -286,9 +286,9 @@ def check_contract_and_snapshot() -> None:
     if snapshot.get("snapshot_rows") != expected_rows():
         fail(f"snapshot rows mismatch: {snapshot.get('snapshot_rows')!r}")
     if snapshot.get("progress") != {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 4,
         "current_stage_total": 8,
         "current_stage_percent": 50,
@@ -337,9 +337,9 @@ def check_golden() -> None:
         "studio benchmark baseline local snapshot behavior sealed",
         "benchmark baseline local snapshot schema: ddn.studio.benchmark_baseline_local_snapshot.v1",
         "snapshot rows: 6/6 = 100%",
-        "overall super-long behavior: 18/18 = 100%",
+        "official studio local progress: 9/18 = 50%",
         "current stage: 4/8 = 50%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior-closed: 90/90 = 100%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_benchmark_baseline_local_snapshot_v1/input.ddn"]:

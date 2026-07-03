@@ -1,0 +1,70 @@
+{
+  "schema": "ddn.roadmap_v2.la2_matrix_status_reconciliation.v1",
+  "id": "LA2_MATRIX_STATUS_RECONCILIATION_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "라-2",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "evidence": {
+    "source_pack": "pack/seamgrim_malblock_roundtrip_subset_v1",
+    "source_report": "docs/status/roadmap_v2/라-2_REPORT_20260604.md",
+    "queue_guard_repair_report": "docs/status/roadmap_v2/LA2_QUEUE_GUARD_REPAIR_REPORT_20260608.md",
+    "checkers": [
+      "tests/run_seamgrim_malblock_roundtrip_subset_check.py",
+      "tests/run_roadmap_v2_la2_final_closure_check.py",
+      "tests/run_seamgrim_malblock_roundtrip_subset_queue_guard_repair_check.py"
+    ],
+    "covered_scope": [
+      "bounded DDN -> 말블록/block plan -> DDN canonical equality",
+      "raw/opaque block preservation"
+    ],
+    "excluded_scope": [
+      "full block editor UI integration",
+      "arbitrary DDN grammar support",
+      "(조건)이 될때",
+      "(조건)인 동안"
+    ]
+  },
+  "matrix_status_record": {
+    "file": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "previous_status": "",
+    "new_status": "닫힘-동작",
+    "report": "docs/status/roadmap_v2/라-2_RECONCILIATION_REPORT_20260608.md"
+  },
+  "progress": {
+    "work_unit_closed": 5,
+    "work_unit_total": 5,
+    "work_unit_percent": 100,
+    "current_stage": "LA2 matrix status reconciliation",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 51,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 57,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "decision": {
+    "next_item": "ROADMAP_V2_POST_LA2_FRONTIER_REBASE_V1",
+    "reason": "라-2 support evidence now passes and matrix authority is reconciled; the next work should be selected from the updated 51/90 matrix state"
+  },
+  "false_claims": {
+    "new_subset_case": false,
+    "block_editor_canonicalization_change": false,
+    "encoded_ddn_output_change": false,
+    "malblock_runtime_change": false,
+    "malblock_ui_change": false,
+    "full_block_editor_ui_integration_claim": false,
+    "arbitrary_ddn_grammar_claim": false,
+    "condition_hook_roundtrip_claim": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "docs_ssot_change": false
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "numeric_solver_capability_rebase_v1",
+  "kind": "numeric_solver_capability_rebase",
+  "runtime_claim": false,
+  "product_code_change": false,
+  "closed_by": "NUMERIC_SOLVER_CAPABILITY_REBASE_V1",
+  "roadmap": "NUMERIC_SOLVER_LONG_HORIZON_ROADMAP_V1.md",
+  "capability_doc": "NUMERIC_SOLVER_CAPABILITY_REBASE_V1.md",
+  "current_relation_solve_boundary": "bounded_single_relation_and_exact_2x2_system",
+  "generalized_linear_solver_claim": false,
+  "nonlinear_solver_claim": false,
+  "higher_degree_polynomial_solver_claim": false,
+  "ode_solver_claim": false,
+  "solver_internal_inequality_claim": false,
+  "next_recommended_item": "ODE_TICK_LOOP_LESSON_BASELINE_V1",
+  "evidence_packs": [
+    "formula_relation_solve_quadratic_v1",
+    "relation_solve_system_2x2_v1",
+    "relation_solve_ddn_bridge_v2",
+    "relation_solve_wasm_cli_parity_v2",
+    "math_numeric_diff_v1",
+    "math_numeric_int_v1",
+    "connect_flow_v1v_closure_v1"
+  ],
+  "requires_docs_ssot_clean": true
+}
+

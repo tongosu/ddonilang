@@ -2,6 +2,8 @@
 # NOTE: 필드 이름은 SSOT_DEMOS D-PACK.4.1을 따른다.
 
 schema = "CurriculumMetaV1"
+lesson_id = "edu_s1_function_graph"
+title = "함수 그래프 대표 교재 첫실행"
 
 "과목" = "수학"
 "학년군" = "중등"
@@ -23,6 +25,8 @@ schema = "CurriculumMetaV1"
 "가정목록" = ["Fixed64로 계산한다", "픽셀 해시 대신 bogae_hash로 검증한다"]
 
 "필수계기판" = ["(x,y)표", "y값 추적"]
+required_views = ["text", "table", "graph"]
+evidence = ["python tests/run_roadmap_v2_ha1_representative_teaching_smoke_check.py"]
 "필수그래프" = ["함수 그래프"]
 "필수표" = ["표본 점 목록"]
 

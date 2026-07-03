@@ -37,10 +37,10 @@
     "solutions/seamgrim_ui_mvp/ui/styles.css"
   ],
   "super_long_plan": {
-    "closed": 18,
+    "closed": 9,
     "total": 18,
-    "percent": 100,
-    "status": "sealed"
+    "percent": 50,
+    "status": "v6_1_frozen"
   },
   "post_super_long_plan": {
     "closed": 1,
@@ -116,15 +116,15 @@
     "artifact_signing"
   ],
   "progress": {
-    "super_long_behavior_closed": 18,
+    "super_long_behavior_closed": 9,
     "super_long_total": 18,
-    "super_long_percent": 100,
+    "super_long_percent": 50,
     "current_stage_closed": 1,
     "current_stage_total": 8,
     "current_stage_percent": 13,
-    "roadmap_v2_behavior_closed": 90,
+    "roadmap_v2_behavior_closed": 51,
     "roadmap_v2_total": 90,
-    "roadmap_v2_percent": 100
+    "roadmap_v2_percent": 57
   },
   "closure_tier": "닫힘-동작",
   "browser_runner": "tests/studio_post_super_long_rebase_runner.mjs",

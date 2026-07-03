@@ -1,0 +1,90 @@
+{
+  "schema": "ddn.language.prime_derivative_notation_decision.v1",
+  "work_item": "LANG_PRIME_DERIVATIVE_NOTATION_DECISION_V1",
+  "based_on": "LANGUAGE_DESIGN_PRIORITY_REBASE_V1",
+  "prime_derivative_notation_decision_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "prime_notation_landed_claim": false,
+  "prime_notation_parser_claim": false,
+  "prime_notation_runtime_claim": false,
+  "connect_block_claim": false,
+  "source_priority_rebase": "pack/language_design_priority_rebase_v1/language_design_priority_rebase.detjson",
+  "selected_notations": [
+    {
+      "id": "first_time_derivative",
+      "base_identifier": "위치",
+      "surface": "위치'",
+      "derivative_order": 1,
+      "recommended": true,
+      "ssot_landed": false,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "example_row": "위치' =:= 속도."
+    },
+    {
+      "id": "second_time_derivative",
+      "base_identifier": "위치",
+      "surface": "위치''",
+      "derivative_order": 2,
+      "recommended": true,
+      "ssot_landed": false,
+      "parser_landed": false,
+      "runtime_landed": false,
+      "example_row": "위치'' =:= 가속도."
+    }
+  ],
+  "rejected_alternatives": [
+    {
+      "surface": "위치의변화",
+      "reason": "too long for repeated equation rows"
+    },
+    {
+      "surface": "변화(위치)",
+      "reason": "reads like an ordinary function call"
+    },
+    {
+      "surface": "d위치/dt",
+      "reason": "precise but input-heavy and less Korean-first"
+    }
+  ],
+  "example_block": [
+    "세움 {",
+    "  위치' =:= 속도.",
+    "  위치'' =:= 가속도.",
+    "}."
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "prime_notation_runtime_landed",
+    "prime_notation_parser_landed",
+    "connect_block_addition"
+  ],
+  "queue_plan": {
+    "closed": 2,
+    "total": 8,
+    "percent": 25
+  },
+  "urgent_evidence_plan": {
+    "closed": 1,
+    "total": 3,
+    "percent": 33
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "next_item": "LANG_FLOW_TYPE_COLLISION_RENAME_V1"
+}

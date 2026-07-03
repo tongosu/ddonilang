@@ -1,0 +1,35 @@
+{
+  "schema": "ddn.std_grid_game_bogae_web_showcase_closure.pack.contract.v1",
+  "id": "std_grid_game_bogae_web_showcase_closure_v1",
+  "bundled_packs": [
+    "std_grid_game_bogae_web_viewer_v1",
+    "std_grid_game_bogae_web_out_determinism_v1",
+    "std_grid_game_bogae_bridge_closure_v1"
+  ],
+  "drawlist": {
+    "trait": "#보개/2D.Rect",
+    "id_format": "격자게임셀_{y}_{x}"
+  },
+  "public_surface_delta": "none",
+  "web_sample": {
+    "grid_width": 8,
+    "grid_height": 8,
+    "cell_px": 4,
+    "canvas_w": 32,
+    "canvas_h": 32,
+    "frame_count": 4
+  },
+  "non_scope": [
+    "full browser runtime",
+    "live input loop",
+    "real-time scheduler",
+    "UI framework integration",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ],
+  "gaji_skeletons": [
+    "gaji/std_grid_game_bogae_web_showcase"
+  ]
+}

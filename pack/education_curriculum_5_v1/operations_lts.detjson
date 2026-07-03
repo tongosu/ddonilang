@@ -1,0 +1,102 @@
+{
+  "__종류": "education_operations_lts",
+  "schema": "ddn.education.operations_lts.v1",
+  "work_item": "HA5_EDUCATION_OPERATIONS_LTS_V1",
+  "primary_coordinate": "하-5",
+  "depends_on_coordinate": ["하-4", "마-5", "타-5"],
+  "pack": "education_curriculum_5_v1",
+  "status": "education_operations_lts_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "product_ui_change": true,
+  "product_code_change": true,
+  "runtime_claim": false,
+  "education_operations_lts_claim": true,
+  "submission_versioning_claim": true,
+  "assessment_archive_claim": true,
+  "curriculum_version_lock_claim": true,
+  "lts_gate_claim": true,
+  "operations_handoff_claim": true,
+  "remote_lts_certification_claim": false,
+  "live_submission_claim": false,
+  "gradebook_write_claim": false,
+  "student_personal_data_collection_claim": false,
+  "remote_classroom_sync_claim": false,
+  "release_execution_claim": false,
+  "registry_publish_claim": false,
+  "account_permission_change_claim": false,
+  "state_hash_participation_claim": false,
+  "parser_frontdoor_change": false,
+  "grammar_claim": false,
+  "rows": [
+    {
+      "id": "submission_versioning",
+      "title": "Submission versioning",
+      "operation_kind": "local_submission_versioning",
+      "local_uri": "education://operations/submission-versioning",
+      "ready": true,
+      "local_operations_claim": true,
+      "remote_lts_certification_claim": false
+    },
+    {
+      "id": "assessment_archive",
+      "title": "Assessment archive",
+      "operation_kind": "local_assessment_archive",
+      "local_uri": "education://operations/assessment-archive",
+      "ready": true,
+      "local_operations_claim": true,
+      "remote_lts_certification_claim": false
+    },
+    {
+      "id": "curriculum_version_lock",
+      "title": "Curriculum version lock",
+      "operation_kind": "curriculum_version_lock",
+      "local_uri": "education://operations/curriculum-version-lock",
+      "ready": true,
+      "local_operations_claim": true,
+      "remote_lts_certification_claim": false
+    },
+    {
+      "id": "lts_gate",
+      "title": "LTS gate",
+      "operation_kind": "local_lts_gate",
+      "local_uri": "education://operations/lts-gate",
+      "ready": true,
+      "local_operations_claim": true,
+      "remote_lts_certification_claim": false
+    },
+    {
+      "id": "operations_handoff",
+      "title": "Operations handoff",
+      "operation_kind": "operations_handoff_packet",
+      "local_uri": "education://operations/handoff",
+      "ready": true,
+      "local_operations_claim": true,
+      "remote_lts_certification_claim": false
+    }
+  ],
+  "artifacts": [
+    { "name": "education.operations.submission_versioning.detjson", "kind": "submission_versioning", "bytes": 826, "ready": true },
+    { "name": "education.operations.assessment_archive.detjson", "kind": "assessment_archive", "bytes": 812, "ready": true },
+    { "name": "education.operations.curriculum_version_lock.detjson", "kind": "curriculum_version_lock", "bytes": 846, "ready": true },
+    { "name": "education.operations.lts_gate.detjson", "kind": "lts_gate", "bytes": 794, "ready": true },
+    { "name": "education.operations.handoff.detjson", "kind": "operations_handoff", "bytes": 768, "ready": true }
+  ],
+  "active_row_id": "submission_versioning",
+  "operations_text": "education_operations_lts:education_curriculum_5_v1\ncoordinate:하-5\nremote_lts_certification:false\nlive_submission:false\ngradebook_write:false\nstudent_personal_data_collection:false\nremote_classroom_sync:false\nrelease_execution:false\nregistry_publish:false\naccount_permission_change:false\nstate_hash_participation:false",
+  "artifact_size_bytes": 4046,
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 32,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 36,
+    "roadmap_v2_pack_evidence_reference_closed": 52,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 58,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "next_item": "GEO0_AI_QUESTION_CARD_SEED_V1"
+}

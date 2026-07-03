@@ -125,7 +125,7 @@ assert(!observeSummary.cardsHtml.includes("run-observe-channel-rows"), "observe 
 assert(!observeSummary.cardsHtml.includes(">권장:"), "observe summary: recommendation text not visible");
 assert(observeSummary.cardsHtml.includes("disabled"), "observe summary: unavailable mode remains disabled");
 
-assert(formatObserveFamilyName("space2d") === "보개", "observe family: name mapping");
+assert(formatObserveFamilyName("space2d") === "그림", "observe family: name mapping");
 assert(
   buildObserveFamilyActionHint({ family: "graph", available: true, strict: false }).includes("strict"),
   "observe family: non-strict hint",

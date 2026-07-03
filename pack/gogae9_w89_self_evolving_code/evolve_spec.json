@@ -1,0 +1,27 @@
+{
+  "schema": "ddn.gogae9.w89.evolve_spec.v1",
+  "seed_program_ast": {
+    "program_id": "w89_seed_add",
+    "constants": [4, 7],
+    "operator": "add",
+    "statements": [
+      "기준값:수 <- 0."
+    ]
+  },
+  "fitness": {
+    "target_value": 12
+  },
+  "budget": {
+    "generations": 2,
+    "max_candidates": 10,
+    "step_limit": 128,
+    "timeout_ms": 1000
+  },
+  "mutation_ops": [
+    "constant_delta",
+    "operator_replace",
+    "statement_insert",
+    "statement_delete",
+    "subtree_swap"
+  ]
+}

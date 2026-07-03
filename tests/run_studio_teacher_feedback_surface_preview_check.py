@@ -14,8 +14,10 @@ PACK = ROOT / "pack" / "studio_teacher_feedback_surface_preview_v1"
 PREVIEW = PACK / "teacher_feedback_surface_preview.detjson"
 UI_MODULE = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_teacher_feedback_surface_preview.js"
 APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_teacher_feedback_surface_preview_runner.mjs"
 SOURCE_SEED = ROOT / "pack" / "studio_teacher_feedback_loop_seed_v1" / "teacher_feedback_loop_seed.detjson"
 SOURCE_QUEUE = ROOT / "pack" / "studio_ma3_next_development_queue_rebase_v1" / "ma3_next_development_queue_rebase.detjson"
@@ -85,6 +87,7 @@ def check_required_files() -> None:
         PREVIEW,
         UI_MODULE,
         APP_JS,
+        DEV_SURFACES_JS,
         INDEX_HTML,
         STYLES,
         RUNNER,
@@ -101,9 +104,9 @@ def check_docs() -> None:
         "product UI behavior",
         "닫힘-동작",
         "preview sections: 6/6 = 100%",
-        "전체 초장기 계획: 18/18 = 100%",
+        "전체 초장기 계획: 9/18 = 50%",
         "현재 스테이지: 새 마-3 개발 계획 2/8 = 25%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         NEXT,
         "docs/ssot/**",
     ]
@@ -125,9 +128,9 @@ def check_docs() -> None:
             "studio_teacher_feedback_surface_preview_v1",
             "studio_teacher_feedback_surface_preview_runner.mjs",
             "preview sections: 6/6 = 100%",
-            "전체 초장기 계획: 18/18 = 100%",
+            "전체 초장기 계획: 9/18 = 50%",
             "현재 스테이지: 새 마-3 개발 계획 2/8 = 25%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -148,16 +151,15 @@ def check_source_tokens() -> None:
         ],
     )
     require_contains(
-        APP_JS,
+        DEV_SURFACES_JS,
         [
             "buildTeacherFeedbackSurfacePreview",
-            "publishTeacherFeedbackSurfacePreview",
             "__SEAMGRIM_TEACHER_FEEDBACK_SURFACE_PREVIEW__",
             "teacher-feedback-preview-panel",
         ],
     )
-    require_contains(INDEX_HTML, ["teacher-feedback-preview-panel", "data-teacher-feedback-preview-panel"])
-    require_contains(STYLES, ["teacher-feedback-preview-panel", "teacher-feedback-section-btn", "teacher-feedback-detail"])
+    require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
+    require_contains(DEV_SURFACES_CSS, ["teacher-feedback-preview-panel", "teacher-feedback-section-btn", "teacher-feedback-detail"])
     require_contains(RUNNER, ["studio_teacher_feedback_surface_preview: ok", "product_ui_change === true", "buttonCount === 6"])
 
 
@@ -198,9 +200,9 @@ def check_contract_and_preview() -> None:
         "preview_sections_closed": 6,
         "preview_sections_total": 6,
         "preview_sections_percent": 100,
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 2,
         "current_stage_total": 8,
         "current_stage_percent": 25,
@@ -255,9 +257,9 @@ def check_contract_and_preview() -> None:
             fail(f"section product_ui_change mismatch: {section}")
     progress = preview.get("progress", {})
     expected_progress = {
-        "super_long_behavior_closed": 18,
+        "super_long_behavior_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "current_stage_closed": 2,
         "current_stage_total": 8,
         "current_stage_percent": 25,
@@ -294,9 +296,9 @@ def check_golden() -> None:
         "studio teacher feedback surface preview behavior sealed",
         "teacher feedback surface preview schema: ddn.studio.teacher_feedback_surface_preview.v1",
         "preview sections: 6/6 = 100%",
-        "overall super-long behavior: 18/18 = 100%",
+        "official studio local progress: 9/18 = 50%",
         "current stage: 2/8 = 25%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior-closed: 90/90 = 100%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_teacher_feedback_surface_preview_v1/input.ddn"]:

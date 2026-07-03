@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.std_grid_game_bogae_finite_live_loop.pack.contract.v1",
+  "id": "std_grid_game_bogae_finite_live_loop_v1",
+  "public_surface_delta": "none",
+  "cli_flag": "--bogae-out",
+  "live_cli": {
+    "bogae": "web",
+    "bogae_live": true,
+    "sam_live": "web",
+    "finite_madi": 80,
+    "madi_hz": 10,
+    "no_open": true
+  },
+  "web_sample": {
+    "grid_width": 8,
+    "grid_height": 8,
+    "cell_px": 4,
+    "canvas_w": 32,
+    "canvas_h": 32,
+    "frame_count": 80
+  },
+  "manifest": {
+    "kind": "bogae_web_playback_v1",
+    "codec": "BDL1"
+  },
+  "manifest_claim": "final manifest contains all frame metadata",
+  "frame_files": "frames/*.bdl1.detbin",
+  "run_timeout_sec": 70,
+  "non_scope": [
+    "new stdlib surface",
+    "parser/frontdoor syntax",
+    "infinite live loop",
+    "scheduler drift or stability",
+    "SRS/wall kick",
+    "hold queue",
+    "ghost piece",
+    "connect flow semantics"
+  ]
+}

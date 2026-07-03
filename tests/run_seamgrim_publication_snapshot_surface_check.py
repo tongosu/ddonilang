@@ -42,7 +42,6 @@ def main() -> int:
 
     app_text = _read(app_js)
     contract_text = _read(contract_js)
-    html_text = _read(index_html)
     static_required = [
         ("export const PublicationPolicy = Object.freeze({" in contract_text, "publication_policy_missing"),
         ("SNAPSHOT_IMMUTABLE: true" in contract_text, "publication_snapshot_immutable_missing"),
@@ -51,8 +50,8 @@ def main() -> int:
         ("REPUBLISH_APPEND_ONLY: true" in contract_text, "publication_republish_append_only_missing"),
         ("function republishCurrent(" in app_text, "republish_function_missing"),
         ("source_revision_id가 필요합니다" in app_text, "publish_source_revision_guard_missing"),
-        ("btn-republish" in html_text, "menu_republish_missing"),
-        ("btn-publication-history" in html_text, "menu_publication_history_missing"),
+        ("btn-republish" in app_text, "menu_republish_missing"),
+        ("btn-publication-history" in app_text, "menu_publication_history_missing"),
     ]
     failures = [name for ok, name in static_required if not ok]
     contract_issues = list(collect_platform_contract_issues())

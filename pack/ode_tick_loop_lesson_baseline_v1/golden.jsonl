@@ -1,0 +1,2 @@
+{"id":"c01_ode_tick_loop_lesson_baseline","cmd":["run","pack/ode_tick_loop_lesson_baseline_v1/input.ddn"],"stdout":["1","0","1","-0.25","0.9375","-0.5","0.9375","-0.25"],"exit_code":0}
+

@@ -1,0 +1,67 @@
+{
+  "schema": "ddn.roadmap_v2.ma3.seamgrim_curriculum_3.classroom_ui_closure.v1",
+  "id": "MA3_SEAMGRIM_CURRICULUM_3_CLASSROOM_UI_PACK_CLOSURE_V1",
+  "date": "2026-06-08",
+  "status": "behavior_closed",
+  "roadmap_coordinate": "마-3",
+  "matrix_closure_claim": true,
+  "matrix_closure_tier": "닫힘-동작",
+  "ma3_matrix_status": "닫힘-동작",
+  "classroom_ui_pack": {
+    "pack_id": "seamgrim_curriculum_3_v1",
+    "requires_ma2_pack": "seamgrim_curriculum_2_v1",
+    "candidate_count": 3
+  },
+  "classroom_candidates": [
+    {
+      "pack": "studio_classroom_mode_v1",
+      "runner": "tests/studio_classroom_mode_browser_runner.mjs",
+      "covers": ["assignment_list", "run_result_summary", "suite_check_view", "exportable_report_text"]
+    },
+    {
+      "pack": "studio_classroom_report_workflow_v1",
+      "runner": "tests/studio_classroom_report_workflow_runner.mjs",
+      "covers": ["classroom_report_workflow", "assignment_report_handoff"]
+    },
+    {
+      "pack": "studio_lesson_authoring_run_integration_v1",
+      "runner": "tests/studio_lesson_authoring_run_integration_runner.mjs",
+      "covers": ["teacher_authoring", "local_run_integration"]
+    }
+  ],
+  "progress": {
+    "current_stage": "MA3 classroom UI pack closure",
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 5,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 24,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 27,
+    "studio_local_super_long_closed": 7,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 39
+  },
+  "decision": {
+    "new_status_for_ma3": "닫힘-동작",
+    "reason": "The canonical classroom UI pack now binds assignment/report/teacher-authoring product-path runners after 마-2 closure.",
+    "next_item": "MA4_PUBLIC_LESSON_PUBLICATION_PREREQ_REBASE_V1",
+    "not_next": "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1"
+  },
+  "false_claims": {
+    "new_product_ui_behavior": false,
+    "classroom_operations_runtime_claim": false,
+    "student_data_collection_claim": false,
+    "remote_save_claim": false,
+    "cloud_sync_claim": false,
+    "account_system_claim": false,
+    "permission_system_claim": false,
+    "docs_ssot_change": false,
+    "ma4_publication_closed": false,
+    "roadmap_90_of_90_complete": false,
+    "studio_18_of_18_complete": false,
+    "numeric_track_consolidation_required": false
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.roadmap_v2.post_ga1_frontier_rebase.v1",
+  "id": "ROADMAP_V2_POST_GA1_FRONTIER_REBASE_V1",
+  "date": "2026-06-08",
+  "selected_next_work": "ROADMAP_V2_TA0_PACK_CHECKER_SKELETON_MATRIX_RECONCILIATION_V1",
+  "selected_coordinate": "타-0",
+  "reason": "타-0 pack/checker skeleton has existing pack/checker evidence while the authoritative ROADMAP_V2 matrix row still says 진행",
+  "progress": {
+    "current_stage": "ROADMAP_V2 post-GA1 frontier rebase",
+    "current_stage_closed": 4,
+    "current_stage_total": 4,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 43,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 48,
+    "roadmap_v2_pack_evidence_reference_closed": 59,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 66,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "claims": {
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "matrix_closure_claim": false,
+    "roadmap_matrix_increment": false,
+    "pack_runner_reimplementation": false,
+    "ci_aggregation_claim": false,
+    "wasm_parity_runner_change": false,
+    "docs_ssot_change": false
+  },
+  "required_preflight": [
+    "python tests/run_roadmap_v2_ga1_core_smoke_matrix_reconciliation_check.py",
+    "python tests/run_roadmap_v2_pack_skeleton_check.py",
+    "git status --short -- docs/ssot"
+  ]
+}

@@ -19,6 +19,7 @@ APP_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
 DEV_SURFACES_JS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 INDEX_HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_productization_stage_rebase_runner.mjs"
 SOURCE_CLOSURE_CHECK = ROOT / "tests" / "run_studio_operations_preview_stage_closure_check.py"
 PRODUCT_SMOKE = ROOT / "tests" / "run_seamgrim_product_stabilization_smoke_check.py"
@@ -221,7 +222,7 @@ def check_ui_source() -> None:
     )
     require_contains(APP_JS, ["shouldEnableDevSurfaces", "./dev_surfaces.js"])
     require_contains(DEV_SURFACES_JS, ["productization-stage-rebase", "elementId: \"productization-stage-rebase\""])
-    require_contains(STYLES_CSS, [".productization-stage-rebase", ".productization-rebase-btn.active"])
+    require_contains(DEV_SURFACES_CSS, [".productization-stage-rebase", ".productization-rebase-btn.active"])
     require_contains(
         RUNNER,
         [

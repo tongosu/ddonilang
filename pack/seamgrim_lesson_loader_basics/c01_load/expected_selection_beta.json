@@ -1,10 +1,10 @@
 {
   "lesson_id": "econ_supply_header_sample",
-  "title": "lesson_econ_supply_demand",
+  "title": "경제 · 수요공급",
   "required_views": ["space2d", "graph"],
   "ddn_meta": {
-    "name": "lesson_econ_supply_demand",
-    "desc": "수요/공급 선형모형 균형점 관찰"
+    "name": "",
+    "desc": ""
   }
 }
 

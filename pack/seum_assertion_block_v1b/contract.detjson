@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.seum_assertion_block_v1b.pack.contract.v1",
+  "id": "seum_assertion_block_v1b",
+  "surface": "세움씨{}",
+  "surface_role": "AGE4 compat/internal alias",
+  "canonical_surface": "세움{}",
+  "canonical_output_prefix": "세움{",
+  "new_user_canonical_surface": false,
+  "new_value_type": false,
+  "runtime_semantics": "reuse existing Assertion/세움값 path",
+  "negative_tests_replaced_only_for": [
+    "outer keyword rejection"
+  ],
+  "negative_tests_preserved": [
+    "malformed body",
+    "unsupported assertion body",
+    "type mismatch",
+    "proof/runtime failure"
+  ],
+  "gaji_skeleton": false
+}

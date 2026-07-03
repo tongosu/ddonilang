@@ -1,0 +1,110 @@
+{
+  "schema": "ddn.language.connect_seum_lowering_parser_spike.v1",
+  "work_item": "LANG_CONNECT_SEUM_LOWERING_PARSER_SPIKE_V1",
+  "based_on": "LANG_PRIME_PARSER_FRONTDOOR_SPIKE_V1",
+  "connect_seum_lowering_parser_spike_claim": true,
+  "runtime_claim": false,
+  "product_code_change": true,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": true,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "connect_seum_rows_api_landed_claim": true,
+  "connect_block_landed_claim": false,
+  "seum_equation_solver_landed_claim": false,
+  "connect_runtime_change_claim": false,
+  "source_readiness_rebase": "pack/lang_implementation_readiness_rebase_v1/implementation_readiness_rebase.detjson",
+  "source_connect_design": "pack/lang_connect_lowering_to_seum_check_v1/connect_lowering_to_seum_check.detjson",
+  "source_prime_parser_spike": "pack/lang_prime_parser_frontdoor_spike_v1/prime_parser_frontdoor_spike.detjson",
+  "source_surface": "전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.",
+  "landed_api": "ddonirang_lang::connect_endpoint_relation_seum_rows",
+  "seum_rows": [
+    "전지.양극.전압 =:= 전구.왼핀.전압.",
+    "전지.양극.전류 + 전구.왼핀.전류 =:= 0."
+  ],
+  "accepted_surfaces": [
+    {
+      "surface": "전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.",
+      "kind": "unassigned_sentence_connect",
+      "api_returns_seum_rows": true
+    },
+    {
+      "surface": "이음관계 <- 전지.양극과 전구.왼핀을 (전압은 같게, 전류는 흐르게) 잇기.",
+      "kind": "assigned_sentence_connect",
+      "api_returns_seum_rows": true
+    }
+  ],
+  "rejected_surfaces": [
+    {
+      "surface": "잇기 { 전압은 같게. }.",
+      "reason": "connect remains sentence sugar, not a block"
+    },
+    {
+      "surface": "전지.양극과 전구.왼핀을 (재화가 돈에 실리게) 잇기.",
+      "reason": "carried-property connect is not a direct seum row output"
+    }
+  ],
+  "product_files": [
+    "lang/src/frontdoor.rs",
+    "lang/src/lib.rs"
+  ],
+  "evidence_rows": [
+    {
+      "id": "frontdoor_api",
+      "path": "lang/src/frontdoor.rs",
+      "tokens": ["connect_endpoint_relation_seum_rows", "format_connect_endpoint_relation_seum_rows"],
+      "product_path": true
+    },
+    {
+      "id": "frontdoor_api_export",
+      "path": "lang/src/lib.rs",
+      "tokens": ["connect_endpoint_relation_seum_rows"],
+      "product_path": true
+    },
+    {
+      "id": "frontdoor_tests",
+      "path": "lang/src/frontdoor.rs",
+      "tokens": ["connect_endpoint_multi_inner_exposes_seum_rows", "connect_block_surface_has_no_seum_rows"],
+      "product_path": true
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "connect_block_landed",
+    "seum_equation_solver_landed",
+    "derivative_semantics_landed",
+    "runtime_integrator_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change"
+  ],
+  "implementation_readiness_followup_plan": {
+    "closed": 3,
+    "total": 6,
+    "percent": 50
+  },
+  "connect_seum_lowering_parser_spike_plan": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 50,
+    "total": 90,
+    "percent": 56
+  },
+  "next_item": "LANG_VELOCITY_VERLET_FIXED64_ORDER_PACK_V1"
+}

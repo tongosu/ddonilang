@@ -1,0 +1,97 @@
+{
+  "schema": "ddn.roadmap_v2.global_4era_plan.v5",
+  "id": "ROADMAP_V2_GLOBAL_4ERA_PLAN_V5",
+  "date": "2026-06-08",
+  "status": "documentation_closed",
+  "authority": {
+    "global_matrix": "docs/context/roadmap/ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md",
+    "studio_subplan": "docs/context/roadmap/ROADMAP_V2_STUDIO_PRODUCTIZATION_3ERA_PLAN_V4_20260605.md",
+    "studio_subplan_relation": "included_as_global_era2_subplan"
+  },
+  "progress": {
+    "current_stage": {
+      "name": "global_4era_plan_lock",
+      "closed": 1,
+      "total": 1,
+      "percent": 100,
+      "closure_tier": "닫힘-문서"
+    },
+    "roadmap_v2_matrix": {
+      "basis": "authoritative_matrix_behavior_closed",
+      "closed_cells": 0,
+      "total_cells": 90,
+      "percent": 0
+    },
+    "roadmap_v2_pack_evidence_reference": {
+      "basis": "rebase_pack_evidence_reference_only",
+      "closed_cells": 21,
+      "total_cells": 90,
+      "percent": 23
+    },
+    "studio_local_super_long": {
+      "basis": "studio_productization_3era_denominator",
+      "closed_items": 5,
+      "total_items": 18,
+      "percent": 28
+    }
+  },
+  "global_eras": [
+    {
+      "id": "era1",
+      "name": "2_maru_lock_opening",
+      "priority_coordinates": ["타-2", "가-2", "사-2"],
+      "goal": "open shared prerequisites for multiple 2마루 closures"
+    },
+    {
+      "id": "era2",
+      "name": "studio_eligibility",
+      "includes_existing_studio_3era_plan": true,
+      "goal": "unlock 마-2 and then 마-3 through 가-2/사-2/타-2"
+    },
+    {
+      "id": "era3",
+      "name": "weak_branch_uplift",
+      "priority_branches": ["바", "차", "거", "라"],
+      "goal": "bring weak or seed-only branches to credible 1마루 and prepare 2마루 candidates"
+    },
+    {
+      "id": "era4",
+      "name": "sharing_registry_lts",
+      "goal": "extend sharing, registry, benchmark, release approval, and LTS lanes"
+    }
+  ],
+  "ta2": {
+    "status_before_reconciliation": "high_readiness_progressing",
+    "matrix_closed_claim": false,
+    "prerequisite_for": ["라-2", "마-2", "아-2", "파-2", "하-2", "거-2"],
+    "evidence": [
+      "pack/toolchain_pack_2_v1",
+      "tests/run_roadmap_v2_work_item_evidence_check.py",
+      "docs/status/roadmap_v2/타-2_REPORT_20260503.md",
+      "docs/status/roadmap_v2/ROADMAP_V2_EVIDENCE_MANIFEST.md"
+    ],
+    "closure_requires": [
+      "work_item_evidence_checker_pass",
+      "pack_runner_basis_checker_pass",
+      "docs_ssot_clean",
+      "explicit_matrix_status_record"
+    ],
+    "first_allowed_matrix_increment_after_closure": "1/90 = 1%"
+  },
+  "immediate_jit_order": [
+    "GA2_LANGUAGE_REPRESENTATIVE_PACK_CLOSURE_V1",
+    "SA2_SPRITE_GRID2D_CLOSURE_V1",
+    "TA2_MATRIX_STATUS_RECONCILIATION_V1",
+    "MA2_STUDIO_PREREQ_UNLOCK_V1"
+  ],
+  "forbidden_claims": {
+    "global_super_long_rebase_jit": false,
+    "roadmap_v2_matrix_above_zero_before_reconciliation": false,
+    "studio_18_of_18_complete": false,
+    "roadmap_90_of_90_complete": false,
+    "numeric_track_consolidation_as_unlock_condition": false,
+    "docs_ssot_change": false,
+    "product_ui_behavior_change": false,
+    "runtime_surface_change": false
+  }
+}

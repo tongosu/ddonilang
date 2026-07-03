@@ -1,0 +1,1 @@
+{"id":"c01_pa5_social_world_lts_marker","cmd":["run","pack/social_world_econ_5_v1/input.ddn"],"stdout":["PA5_SOCIAL_WORLD_LTS_V1","social world LTS readiness sealed","stage: 5/5 = 100%","roadmap matrix behavior: 28/90 = 31%","pack evidence reference: 48/90 = 53%","studio local super-long: 9/18 = 50%","pa5 status: 닫힘-동작","next: HA2_EDUCATION_ASSESSMENT_PACK_V1"],"exit_code":0}

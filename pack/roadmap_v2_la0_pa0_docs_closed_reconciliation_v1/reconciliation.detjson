@@ -1,0 +1,46 @@
+{
+  "schema": "ddn.roadmap_v2.la0_pa0.docs_closed_reconciliation.v1",
+  "work_item": "LA0_PA0_DOCS_CLOSED_RECONCILIATION_V1",
+  "status": "docs_closed_only",
+  "coordinates": {
+    "라-0": {
+      "old_status": "씨앗",
+      "new_status": "닫힘-문서",
+      "behavior_closed": false,
+      "evidence": ["seamgrim_malblock_0_v1", "seamgrim_malblock_blocky_design_v1"]
+    },
+    "파-0": {
+      "old_status": "씨앗",
+      "new_status": "닫힘-문서",
+      "behavior_closed": false,
+      "evidence": ["jojo_case_card_schema_v1"]
+    }
+  },
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 62,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 69,
+    "roadmap_v2_docs_closed": 4,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 4,
+    "roadmap_v2_pack_evidence_reference_closed": 64,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 71,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "roadmap_behavior_increment": false,
+    "runtime_claim": false,
+    "product_code_change": false,
+    "product_ui_change": false,
+    "malblock_product_behavior_claim": false,
+    "social_runtime_behavior_claim": false,
+    "docs_ssot_change": false
+  },
+  "next_item": "ROADMAP_V2_POST_LA0_PA0_FRONTIER_REBASE_V1"
+}

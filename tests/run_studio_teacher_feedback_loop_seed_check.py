@@ -16,8 +16,10 @@ PACK = ROOT / "pack" / "studio_teacher_feedback_loop_seed_v1"
 SEED = PACK / "teacher_feedback_loop_seed.detjson"
 UI = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_teacher_feedback_loop_seed.js"
 APP = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "app.js"
+DEV_SURFACES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.js"
 HTML = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "index.html"
 STYLES = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "styles.css"
+DEV_SURFACES_CSS = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "dev_surfaces.css"
 RUNNER = ROOT / "tests" / "studio_teacher_feedback_loop_seed_runner.mjs"
 CHECKER = ROOT / "tests" / "run_studio_teacher_feedback_loop_seed_check.py"
 SOURCE_DRY_RUN = ROOT / "pack" / "studio_publication_artifact_dry_run_v1" / "publication_artifact_dry_run.detjson"
@@ -126,6 +128,7 @@ def check_required_files() -> None:
         SEED,
         UI,
         APP,
+        DEV_SURFACES,
         HTML,
         STYLES,
         RUNNER,
@@ -153,9 +156,9 @@ def check_docs() -> None:
         "publication_candidate_feedback",
         "approval_safe_handoff_note",
         "작업 단위: 6/6 = 100% (`닫힘-동작`)",
-        "초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%",
+        "Studio-local 초장기 계획: 9/18 = 50%",
         "현재 스테이지: post-super-long follow-up 5/8 = 63%",
-        "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+        "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         "node tests/studio_teacher_feedback_loop_seed_runner.mjs",
         NEXT,
         "docs/ssot/**",
@@ -171,9 +174,9 @@ def check_docs() -> None:
             "This is product UI behavior plus seed manifest evidence",
             "Every row keeps `seed_only=true`, `generated_now=false`, and `write_claim=false`",
             "작업 단위: 6/6 = 100% (`닫힘-동작`)",
-            "초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%",
+            "Studio-local 초장기 계획: 9/18 = 50%",
             "현재 스테이지: post-super-long follow-up 5/8 = 63%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             NEXT,
         ],
     )
@@ -192,9 +195,9 @@ def check_docs() -> None:
             "STUDIO_TEACHER_FEEDBACK_LOOP_SEED_V1",
             "ddn.studio.teacher_feedback_loop_seed.v1",
             NEXT,
-            "전체 초장기 계획 18/18 = 100%",
+            "Studio-local 초장기 계획: 9/18 = 50%",
             "post-super-long follow-up 5/8 = 63%",
-            "ROADMAP_V2 product behavior baseline 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
         ],
     )
     require_contains(
@@ -206,7 +209,7 @@ def check_docs() -> None:
             "ddn.studio.teacher_feedback_loop_seed.v1",
             "node tests/studio_teacher_feedback_loop_seed_runner.mjs` PASS",
             "현재 스테이지: post-super-long follow-up 5/8 = 63%",
-            "ROADMAP_V2 product behavior baseline: 90/90 = 100%",
+            "ROADMAP_V2 behavior-closed progress: 90/90 = 100%",
             "docs/ssot/** 변경 없음",
         ],
     )
@@ -231,25 +234,22 @@ def check_ui_contract() -> None:
     require_contains(
         APP,
         [
-            "DEFAULT_TEACHER_FEEDBACK_LOOP_SEED_ROWS",
+            "shouldEnableDevSurfaces",
+            "./dev_surfaces.js",
+        ],
+    )
+    require_contains(
+        DEV_SURFACES,
+        [
             "buildTeacherFeedbackLoopSeed",
             "formatTeacherFeedbackLoopSeedText",
             "renderTeacherFeedbackLoopSeed",
-            "teacherFeedbackLoopSeed",
             "__SEAMGRIM_TEACHER_FEEDBACK_LOOP_SEED__",
-            "publishTeacherFeedbackLoopSeed",
+            "teacher-feedback-loop-seed",
         ],
     )
     require_contains(
-        HTML,
-        [
-            "id=\"teacher-feedback-loop-seed\"",
-            "data-teacher-feedback-loop-seed",
-            "Studio teacher feedback loop seed",
-        ],
-    )
-    require_contains(
-        STYLES,
+        DEV_SURFACES_CSS,
         [
             ".teacher-feedback-loop-seed",
             ".teacher-loop-seed-head",
@@ -305,9 +305,9 @@ def check_contract_and_seed() -> None:
         "all_seed_rows_write_claim": False,
         "primary_coordinate": "하-3",
         "support_coordinate": "마-3",
-        "super_long_closed": 18,
+        "super_long_closed": 9,
         "super_long_total": 18,
-        "super_long_percent": 100,
+        "super_long_percent": 50,
         "work_unit_closed": 6,
         "work_unit_total": 6,
         "post_super_long_closed": 5,
@@ -442,7 +442,7 @@ def check_golden() -> None:
         "teacher feedback seed schema: ddn.studio.teacher_feedback_loop_seed.v1",
         "seed rows: 6",
         "follow-up plan: 5/8 = 63%",
-        "roadmap v2 behavior: 90/90 = 100%",
+        "roadmap v2 behavior-closed: 90/90 = 100%",
         f"next: {NEXT}",
     ]
     if payload.get("cmd") != ["run", "pack/studio_teacher_feedback_loop_seed_v1/input.ddn"]:

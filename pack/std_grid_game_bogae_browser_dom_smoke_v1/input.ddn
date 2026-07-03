@@ -1,0 +1,11 @@
+이름값 <- "std_grid_game_bogae_browser_dom_smoke_v1".
+브라우저값 <- "playwright_chromium".
+캔버스값 <- "index_live_canvas".
+재생값 <- "playback_controls_overlay".
+입력범위값 <- "no_keyboard_delivery_claim".
+
+이름값 보여주기.
+브라우저값 보여주기.
+캔버스값 보여주기.
+재생값 보여주기.
+입력범위값 보여주기.

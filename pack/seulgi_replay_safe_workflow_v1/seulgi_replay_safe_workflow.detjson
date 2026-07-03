@@ -1,0 +1,69 @@
+{
+  "schema": "ddn.ja.seulgi_replay_safe_workflow.v1",
+  "work_item": "JA5_REPLAY_SAFE_AI_WORKFLOW_V1",
+  "primary_coordinate": "자-5",
+  "status": "seulgi_replay_safe_workflow_ready",
+  "matrix_closure_tier": "닫힘-동작",
+  "replay_safe_workflow_claim": true,
+  "rows": [
+    {
+      "id": "snapshot",
+      "kind": "sealed_input_snapshot",
+      "replay": "source_fixed",
+      "ready": true
+    },
+    {
+      "id": "approval",
+      "kind": "approval_receipt",
+      "replay": "decision_fixed",
+      "ready": true
+    },
+    {
+      "id": "artifact",
+      "kind": "artifact_hash_line",
+      "replay": "artifact_fixed",
+      "ready": true
+    },
+    {
+      "id": "no_recall",
+      "kind": "no_ai_recall_check",
+      "replay": "no_recall",
+      "ready": true
+    },
+    {
+      "id": "lts_gate",
+      "kind": "replay_lts_gate",
+      "replay": "gate_ready",
+      "ready": true
+    }
+  ],
+  "progress": {
+    "current_stage_closed": 5,
+    "current_stage_total": 5,
+    "current_stage_percent": 100,
+    "roadmap_v2_matrix_behavior_closed": 75,
+    "roadmap_v2_matrix_behavior_total": 90,
+    "roadmap_v2_matrix_behavior_percent": 83,
+    "roadmap_v2_docs_closed": 5,
+    "roadmap_v2_docs_total": 90,
+    "roadmap_v2_docs_percent": 6,
+    "roadmap_v2_pack_evidence_reference_closed": 77,
+    "roadmap_v2_pack_evidence_reference_total": 90,
+    "roadmap_v2_pack_evidence_reference_percent": 86,
+    "studio_local_super_long_closed": 9,
+    "studio_local_super_long_total": 18,
+    "studio_local_super_long_percent": 50
+  },
+  "false_claims": {
+    "ai_recall_claim": false,
+    "auto_apply_claim": false,
+    "file_write_claim": false,
+    "parser_preprocessor_claim": false,
+    "runtime_ast_persisted": false,
+    "state_hash_owner": false,
+    "model_training_claim": false,
+    "account_permission_change_claim": false,
+    "runtime_claim": false,
+    "public_release_claim": false
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "malblock_authoring_ui_v1",
+  "kind": "studio_malblock_authoring_browser_smoke",
+  "runtime_claim": false,
+  "product_code_change": true,
+  "closed_by": "MALBLOCK_AUTHORING_UI_V1",
+  "browser_runner": "tests/malblock_authoring_ui_browser_runner.mjs",
+  "covers": [
+    "palette_grouping",
+    "palette_insert",
+    "top_level_delete",
+    "top_level_reorder",
+    "ddn_generation",
+    "text_and_run_callbacks",
+    "decode_error_display"
+  ],
+  "next_item": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
+  "requires_docs_ssot_clean": true
+}

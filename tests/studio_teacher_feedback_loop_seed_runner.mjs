@@ -107,7 +107,7 @@ async function main() {
       }
     });
 
-    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/solutions/seamgrim_ui_mvp/ui/index.html?devSurfaces=1`, { waitUntil: "domcontentloaded" });
     await page.waitForSelector("[data-teacher-feedback-loop-seed][data-teacher-feedback-loop-seed-status='teacher_feedback_loop_seed_ready']");
 
     const moduleResult = await page.evaluate(async () => {
@@ -139,7 +139,7 @@ async function main() {
     assert(seed.release_execution_claim === false, "must not claim release execution");
     assert(seed.product_ui_change === true, "must claim product ui change");
     assert(seed.ready_stage_count === 6, `ready stage mismatch: ${seed.ready_stage_count}`);
-    assert(seed.progress.super_long_percent === 100, "super-long percent mismatch");
+    assert(seed.progress.super_long_percent === 50, "super-long percent mismatch");
     assert(seed.progress.current_stage_closed === 5, "followup closed mismatch");
     assert(seed.progress.current_stage_percent === 63, "followup percent mismatch");
     assert(seed.progress.roadmap_v2_behavior_closed === 90, "roadmap closed mismatch");

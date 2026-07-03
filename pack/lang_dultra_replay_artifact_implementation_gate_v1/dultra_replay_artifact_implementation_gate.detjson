@@ -1,0 +1,179 @@
+{
+  "schema": "ddn.language.dultra_replay_artifact_implementation_gate.v1",
+  "work_item": "LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1",
+  "based_on": "LANG_VELOCITY_VERLET_RUNTIME_GATE_REBASE_V1",
+  "source_dultra_recorded_replay_contract": "pack/lang_dultra_recorded_replay_contract_v1/dultra_recorded_replay_contract.detjson",
+  "source_velocity_verlet_runtime_gate": "pack/lang_velocity_verlet_runtime_gate_rebase_v1/velocity_verlet_runtime_gate_rebase.detjson",
+  "dultra_replay_artifact_implementation_gate_claim": true,
+  "runtime_claim": false,
+  "product_code_change": false,
+  "product_ui_change": false,
+  "lesson_schema_change": false,
+  "active_allowlist_mutation": false,
+  "parser_frontdoor_change": false,
+  "stdlib_surface_change": false,
+  "ssot_edit_claim": false,
+  "dultra_replay_artifact_writer_landed_claim": false,
+  "dultra_replay_verifier_landed_claim": false,
+  "dstrict_truth_claim": false,
+  "dae_solver_current_line_claim": false,
+  "adaptive_solver_current_line_claim": false,
+  "external_solver_current_line_claim": false,
+  "required_sections": [
+    "solver_identity",
+    "initial_context",
+    "input_sequence",
+    "step_trace",
+    "normalization_metadata",
+    "failure_diag",
+    "claim_boundary"
+  ],
+  "recommended_artifact_outputs": [
+    {
+      "path": "dultra_replay.detjson",
+      "role": "section_bundle_and_summary",
+      "landed_now": false
+    },
+    {
+      "path": "dultra_replay.trace.jsonl",
+      "role": "ordered_step_trace",
+      "landed_now": false
+    },
+    {
+      "path": "dultra_replay.failure.detjson",
+      "role": "failure_diagnostics",
+      "landed_now": false
+    },
+    {
+      "path": "dultra_replay.claim_boundary.detjson",
+      "role": "truth_and_replay_scope_boundary",
+      "landed_now": false
+    }
+  ],
+  "implementation_gates": [
+    {
+      "order": 1,
+      "id": "contract_pack",
+      "status": "closed",
+      "required_evidence": "LANG_DULTRA_RECORDED_REPLAY_CONTRACT_PACK_V1"
+    },
+    {
+      "order": 2,
+      "id": "artifact_schema_shape",
+      "status": "closed_now",
+      "required_evidence": "this pack records required artifact outputs and sections"
+    },
+    {
+      "order": 3,
+      "id": "writer_product_path",
+      "status": "planned_after_schema",
+      "required_evidence": "writer implemented in product runtime/tool path"
+    },
+    {
+      "order": 4,
+      "id": "reader_verifier_product_path",
+      "status": "planned_after_writer",
+      "required_evidence": "reader/verifier implemented in product runtime/tool path"
+    },
+    {
+      "order": 5,
+      "id": "failure_taxonomy",
+      "status": "planned_after_verifier",
+      "required_evidence": "missing/tamper/parse/schema/confidence failures preserved"
+    },
+    {
+      "order": 6,
+      "id": "claim_boundary_check",
+      "status": "planned_after_verifier",
+      "required_evidence": "replay/audit claim proven without D-STRICT truth claim"
+    }
+  ],
+  "failure_taxonomy": [
+    "missing_artifact",
+    "tampered_artifact_hash",
+    "parse_failure",
+    "schema_mismatch",
+    "low_replay_confidence",
+    "claim_boundary_violation"
+  ],
+  "allowed_claims_after_gate": [
+    "dultra_replay_artifact_implementation_gate_is_specified",
+    "required_artifact_sections_are_named",
+    "artifact_writer_and_verifier_are_not_landed"
+  ],
+  "forbidden_claims_after_gate": [
+    "D_ULTRA_result_is_D_STRICT_bit_perfect_truth",
+    "dultra_replay_artifact_writer_landed",
+    "dultra_replay_verifier_landed",
+    "external_DAE_solver_is_current_line_core_solver",
+    "adaptive_solver_replay_without_trace",
+    "runtime_recorded_replay_implementation_landed"
+  ],
+  "product_anchor_rows": [
+    {
+      "id": "contract_sections_source",
+      "path": "pack/lang_dultra_recorded_replay_contract_v1/dultra_recorded_replay_contract.detjson",
+      "tokens": ["solver_identity", "normalization_metadata", "failure_diag", "claim_boundary"],
+      "changed_now": false
+    },
+    {
+      "id": "velocity_gate_source",
+      "path": "pack/lang_velocity_verlet_runtime_gate_rebase_v1/velocity_verlet_runtime_gate_rebase.detjson",
+      "tokens": ["dultra_replay_runtime_landed_claim", "LANG_DULTRA_REPLAY_ARTIFACT_IMPLEMENTATION_GATE_V1"],
+      "changed_now": false
+    },
+    {
+      "id": "open_solver_replay_anchor",
+      "path": "tools/teul-cli/src/runtime/open.rs",
+      "tokens": ["solver", "Replay", "take_replay"],
+      "changed_now": false
+    },
+    {
+      "id": "proof_replay_hash_anchor",
+      "path": "tool/src/proof/hash.rs",
+      "tokens": ["ReplayVerifier", "verify_replay", "replay_trace"],
+      "changed_now": false
+    }
+  ],
+  "blocked_claims": [
+    "docs_ssot_edit",
+    "parser_frontdoor_change",
+    "runtime_surface_change",
+    "stdlib_surface_change",
+    "lesson_schema_change",
+    "active_allowlist_mutation",
+    "product_ui_change",
+    "dultra_replay_artifact_writer_landed",
+    "dultra_replay_verifier_landed",
+    "dstrict_truth_claim",
+    "dae_solver_current_line",
+    "adaptive_solver_current_line",
+    "external_solver_current_line"
+  ],
+  "language_risk_removal_plan": {
+    "closed": 5,
+    "total": 6,
+    "percent": 83
+  },
+  "dultra_replay_artifact_implementation_gate": {
+    "closed": 1,
+    "total": 1,
+    "percent": 100
+  },
+  "urgent_evidence_plan": {
+    "closed": 3,
+    "total": 3,
+    "percent": 100
+  },
+  "urgent_ssot_landed_plan": {
+    "closed": 0,
+    "total": 3,
+    "percent": 0
+  },
+  "roadmap_v2_queue_expanded_plan": {
+    "closed": 58,
+    "total": 90,
+    "percent": 64
+  },
+  "next_item": "LANG_OWNER_INNER_SEUM_RUNTIME_SCOPE_REBASE_V1"
+}
