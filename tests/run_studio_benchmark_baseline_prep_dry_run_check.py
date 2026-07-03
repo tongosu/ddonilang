@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_BENCHMARK_BASELINE_PREP_DRY_RUN_V1.md"
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_BENCHMARK_BASELINE_PREP_DRY_RUN_V1.md"
+ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"
 REPORT = ROOT / "docs" / "studio" / "BENCHMARK_BASELINE_PREP_DRY_RUN_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"

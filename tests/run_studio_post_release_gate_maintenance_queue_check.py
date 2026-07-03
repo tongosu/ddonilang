@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1.md"
-PREV = ROOT / "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1.md"
 PACK = ROOT / "pack" / "studio_post_release_gate_maintenance_queue_v1"
 QUEUE = PACK / "maintenance_queue.detjson"
 REQUIRED_APPROVAL = "STUDIO_PUBLIC_RELEASE_EXECUTION_V1 실행을 승인합니다"

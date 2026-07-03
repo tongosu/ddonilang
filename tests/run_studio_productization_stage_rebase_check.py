@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_PRODUCTIZATION_STAGE_REBASE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_PRODUCTIZATION_STAGE_REBASE_V1.md"
 REPORT = ROOT / "docs" / "studio" / "PRODUCTIZATION_STAGE_REBASE_V1.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"
 PACK = ROOT / "pack" / "studio_productization_stage_rebase_v1"
@@ -346,7 +346,7 @@ def check_source_alignment() -> None:
     closure_ids = [row.get("id") for row in source_closure.get("closure_rows", [])]
     if "operations_preview_stage_closure" not in closure_ids:
         fail(f"missing operations preview closure row: {closure_ids!r}")
-    require(ROOT / "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1.md")
+    require(ROOT / "docs" / "context" / "queue" / "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1.md")
     require(ROOT / "tests" / "run_seamgrim_numeric_track_consolidation_check.py")
 
 

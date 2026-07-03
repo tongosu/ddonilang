@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md"
 REPORT = ROOT / "docs" / "studio" / "PUBLIC_LESSON_PUBLICATION_PREP_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_public_lesson_publication_prep_v1"
@@ -83,7 +83,7 @@ def check_required_files() -> None:
         ALLOWLIST,
         LESSON_INDEX,
         LOCAL_PACKAGING_CHECKER,
-        ROOT / "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1.md",
         ROOT / "pack" / "studio_local_packaging_consolidation_v1" / "local_package_manifest.detjson",
     ]:
         require(path)
@@ -118,7 +118,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1",
             "ddn.studio.public_lesson_publication_prep.v1",

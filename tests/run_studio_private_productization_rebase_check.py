@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1.md"
-PREV = ROOT / "STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 REPORT = ROOT / "docs" / "studio" / "PRIVATE_PRODUCTIZATION_REBASE_V1.md"
 PACK = ROOT / "pack" / "studio_private_productization_rebase_v1"

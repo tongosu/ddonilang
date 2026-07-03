@@ -6,7 +6,7 @@
   "work_items": [
     {
       "id": "STUDIO_BASELINE_REBASE_V1",
-      "doc": "STUDIO_BASELINE_REBASE_V1.md",
+      "doc": "docs/context/queue/STUDIO_BASELINE_REBASE_V1.md",
       "pack": "studio_baseline_rebase_v1",
       "checker": "tests/run_studio_baseline_rebase_check.py"
     },
@@ -30,73 +30,73 @@
     },
     {
       "id": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
-      "doc": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md",
+      "doc": "docs/context/queue/STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md",
       "pack": "studio_diagnostic_fixit_preview_v1",
       "checker": "tests/run_studio_diagnostic_fixit_preview_check.py"
     },
     {
       "id": "STUDIO_CLASSROOM_MODE_V1",
-      "doc": "STUDIO_CLASSROOM_MODE_V1.md",
+      "doc": "docs/context/queue/STUDIO_CLASSROOM_MODE_V1.md",
       "pack": "studio_classroom_mode_v1",
       "checker": "tests/run_studio_classroom_mode_check.py"
     },
     {
       "id": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
-      "doc": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
+      "doc": "docs/context/queue/STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
       "pack": "studio_local_share_and_packaging_v1",
       "checker": "tests/run_studio_local_share_and_packaging_check.py"
     },
     {
       "id": "STUDIO_RELEASE_CANDIDATE_V1",
-      "doc": "STUDIO_RELEASE_CANDIDATE_V1.md",
+      "doc": "docs/context/queue/STUDIO_RELEASE_CANDIDATE_V1.md",
       "pack": "studio_release_candidate_v1",
       "checker": "tests/run_studio_release_candidate_check.py"
     },
     {
       "id": "STUDIO_PUBLIC_RELEASE_PREP_REBASE_V1",
-      "doc": "STUDIO_PUBLIC_RELEASE_PREP_REBASE_V1.md",
+      "doc": "docs/context/queue/STUDIO_PUBLIC_RELEASE_PREP_REBASE_V1.md",
       "pack": "studio_public_release_prep_rebase_v1",
       "checker": "tests/run_studio_public_release_prep_rebase_check.py"
     },
     {
       "id": "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1",
-      "doc": "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1.md",
+      "doc": "docs/context/queue/STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1.md",
       "pack": "studio_public_release_asset_plan_v1",
       "checker": "tests/run_studio_public_release_asset_plan_check.py"
     },
     {
       "id": "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1",
-      "doc": "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1.md",
+      "doc": "docs/context/queue/STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1.md",
       "pack": "studio_public_release_smoke_matrix_v1",
       "checker": "tests/run_studio_public_release_smoke_matrix_check.py"
     },
     {
       "id": "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1",
-      "doc": "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1.md",
+      "doc": "docs/context/queue/STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1.md",
       "pack": "studio_public_release_execution_gate_v1",
       "checker": "tests/run_studio_public_release_execution_gate_check.py"
     },
     {
       "id": "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1",
-      "doc": "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1.md",
+      "doc": "docs/context/queue/STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1.md",
       "pack": "studio_post_release_gate_maintenance_queue_v1",
       "checker": "tests/run_studio_post_release_gate_maintenance_queue_check.py"
     },
     {
       "id": "STUDIO_RC_CHECKER_COST_TRIM_V1",
-      "doc": "STUDIO_RC_CHECKER_COST_TRIM_V1.md",
+      "doc": "docs/context/queue/STUDIO_RC_CHECKER_COST_TRIM_V1.md",
       "pack": "studio_rc_checker_cost_trim_v1",
       "checker": "tests/run_studio_rc_checker_cost_trim_check.py"
     },
     {
       "id": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1",
-      "doc": "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1.md",
+      "doc": "docs/context/queue/STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1.md",
       "pack": "studio_browser_smoke_flake_audit_v1",
       "checker": "tests/run_studio_browser_smoke_flake_audit_check.py"
     },
     {
       "id": "STUDIO_DOC_INDEX_REFRESH_V1",
-      "doc": "STUDIO_DOC_INDEX_REFRESH_V1.md",
+      "doc": "docs/context/queue/STUDIO_DOC_INDEX_REFRESH_V1.md",
       "pack": "studio_doc_index_refresh_v1",
       "checker": "tests/run_studio_doc_index_refresh_check.py"
     }

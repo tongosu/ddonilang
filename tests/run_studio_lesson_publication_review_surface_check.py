@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_LESSON_PUBLICATION_REVIEW_SURFACE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_LESSON_PUBLICATION_REVIEW_SURFACE_V1.md"
 REPORT = ROOT / "docs" / "studio" / "LESSON_PUBLICATION_REVIEW_SURFACE_V1.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"
 PACK = ROOT / "pack" / "studio_lesson_publication_review_surface_v1"

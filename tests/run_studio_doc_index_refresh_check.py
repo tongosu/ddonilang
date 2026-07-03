@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_DOC_INDEX_REFRESH_V1.md"
-PREV = ROOT / "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_DOC_INDEX_REFRESH_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_doc_index_refresh_v1"
 MANIFEST = PACK / "studio_doc_index.detjson"

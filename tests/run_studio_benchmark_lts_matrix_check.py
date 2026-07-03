@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_BENCHMARK_LTS_MATRIX_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_BENCHMARK_LTS_MATRIX_V1.md"
 REPORT = ROOT / "docs" / "studio" / "BENCHMARK_LTS_MATRIX_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_benchmark_lts_matrix_v1"
@@ -162,7 +162,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_BENCHMARK_LTS_MATRIX_V1",
             "ddn.studio.benchmark_lts_matrix.v1",

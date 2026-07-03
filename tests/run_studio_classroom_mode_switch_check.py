@@ -108,7 +108,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_CLASSROOM_MODE_SWITCH_V1",
             "seamgrim.classroom_mode_switch.v1",

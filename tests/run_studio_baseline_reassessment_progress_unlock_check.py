@@ -145,9 +145,9 @@ def check_contracts() -> None:
 
 def check_active_text_tokens() -> None:
     targets = [
-        ROOT / "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md",
+        ROOT / "docs" / "context" / "queue" / "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md",
         ROOT / "SEAMGRIM_BASELINE_STABILIZATION_CLOSURE_REBASE_V1.md",
-        ROOT / "STUDIO_BENCHMARK_BASELINE_PREP_DRY_RUN_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_BENCHMARK_BASELINE_PREP_DRY_RUN_V1.md",
         ROOT / "docs" / "studio" / "STUDIO_PRODUCTIZATION_REBASE_V1.md",
         ROOT / "docs" / "studio" / "BASELINE_STABILIZATION_CLOSURE_REBASE_V1.md",
         ROOT / "docs" / "studio" / "BENCHMARK_BASELINE_PREP_DRY_RUN_V1.md",

@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_REGISTRY_SHARE_SEED_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_REGISTRY_SHARE_SEED_V1.md"
 REPORT = ROOT / "docs" / "studio" / "REGISTRY_SHARE_SEED_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_registry_share_seed_v1"
@@ -79,7 +79,7 @@ def check_required_files() -> None:
         MANIFEST,
         CHECKER,
         PUBLICATION_PREP,
-        ROOT / "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md",
         ROOT / "pack" / "seamgrim_registry_publish_install_shell_v1" / "contract.detjson",
         ROOT / "tests" / "run_seamgrim_package_registry_surface_check.py",
         ROOT / "tests" / "run_seamgrim_sharing_publishing_surface_check.py",
@@ -118,7 +118,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_REGISTRY_SHARE_SEED_V1",
             "ddn.studio.registry_share_seed.v1",

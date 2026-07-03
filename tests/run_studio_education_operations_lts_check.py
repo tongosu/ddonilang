@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_EDUCATION_OPERATIONS_LTS_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_EDUCATION_OPERATIONS_LTS_V1.md"
 REPORT = ROOT / "docs" / "studio" / "EDUCATION_OPERATIONS_LTS_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_education_operations_lts_v1"
@@ -75,63 +75,63 @@ def expected_domains() -> list[dict[str, object]]:
     return [
         {
             "id": "classroom_reporting",
-            "doc": "STUDIO_CLASSROOM_REPORT_WORKFLOW_V1.md",
+            "doc": "docs/context/queue/STUDIO_CLASSROOM_REPORT_WORKFLOW_V1.md",
             "checker": "tests/run_studio_classroom_report_workflow_check.py",
             "pack": "studio_classroom_report_workflow_v1",
             "required": True,
         },
         {
             "id": "lesson_authoring_run",
-            "doc": "STUDIO_LESSON_AUTHORING_RUN_INTEGRATION_V1.md",
+            "doc": "docs/context/queue/STUDIO_LESSON_AUTHORING_RUN_INTEGRATION_V1.md",
             "checker": "tests/run_studio_lesson_authoring_run_integration_check.py",
             "pack": "studio_lesson_authoring_run_integration_v1",
             "required": True,
         },
         {
             "id": "malblock_workbench",
-            "doc": "STUDIO_MALBLOCK_WORKBENCH_INTEGRATION_V1.md",
+            "doc": "docs/context/queue/STUDIO_MALBLOCK_WORKBENCH_INTEGRATION_V1.md",
             "checker": "tests/run_studio_malblock_workbench_integration_check.py",
             "pack": "studio_malblock_workbench_integration_v1",
             "required": True,
         },
         {
             "id": "diagnostic_fixit",
-            "doc": "STUDIO_DIAGNOSTIC_FIXIT_INTEGRATION_V1.md",
+            "doc": "docs/context/queue/STUDIO_DIAGNOSTIC_FIXIT_INTEGRATION_V1.md",
             "checker": "tests/run_studio_diagnostic_fixit_integration_check.py",
             "pack": "studio_diagnostic_fixit_integration_v1",
             "required": True,
         },
         {
             "id": "numeric_result_reporting",
-            "doc": "STUDIO_NUMERIC_RESULT_REPORT_CONSOLIDATION_V1.md",
+            "doc": "docs/context/queue/STUDIO_NUMERIC_RESULT_REPORT_CONSOLIDATION_V1.md",
             "checker": "tests/run_studio_numeric_result_report_consolidation_check.py",
             "pack": "studio_numeric_result_report_consolidation_v1",
             "required": True,
         },
         {
             "id": "public_lesson_publication_prep",
-            "doc": "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md",
+            "doc": "docs/context/queue/STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md",
             "checker": "tests/run_studio_public_lesson_publication_prep_check.py",
             "pack": "studio_public_lesson_publication_prep_v1",
             "required": True,
         },
         {
             "id": "registry_share_seed",
-            "doc": "STUDIO_REGISTRY_SHARE_SEED_V1.md",
+            "doc": "docs/context/queue/STUDIO_REGISTRY_SHARE_SEED_V1.md",
             "checker": "tests/run_studio_registry_share_seed_check.py",
             "pack": "studio_registry_share_seed_v1",
             "required": True,
         },
         {
             "id": "release_approval_continuity",
-            "doc": "STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1.md",
+            "doc": "docs/context/queue/STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1.md",
             "checker": "tests/run_studio_release_approval_packet_continuity_check.py",
             "pack": "studio_release_approval_packet_continuity_v1",
             "required": True,
         },
         {
             "id": "benchmark_lts_matrix",
-            "doc": "STUDIO_BENCHMARK_LTS_MATRIX_V1.md",
+            "doc": "docs/context/queue/STUDIO_BENCHMARK_LTS_MATRIX_V1.md",
             "checker": "tests/run_studio_benchmark_lts_matrix_check.py",
             "pack": "studio_benchmark_lts_matrix_v1",
             "required": True,
@@ -192,7 +192,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_EDUCATION_OPERATIONS_LTS_V1",
             "ddn.studio.education_operations_lts.v1",

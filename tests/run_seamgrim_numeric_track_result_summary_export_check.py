@@ -104,7 +104,7 @@ def check_docs() -> None:
             "tests/run_seamgrim_numeric_track_result_summary_export_check.py",
         ],
     )
-    require_contains(ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_SUMMARY_EXPORT_V1", NEXT, "latest-recorded"])
+    require_contains(ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_SUMMARY_EXPORT_V1", NEXT, "latest-recorded"])
     require_contains(ROOT / "docs" / "studio" / "NUMERIC_CURRICULUM_TRACK_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_SUMMARY_EXPORT_V1", NEXT])
     require_contains(ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_SUMMARY_EXPORT_V1", "seamgrim_numeric_track_result_summary_export_v1", NEXT, "docs/ssot/** 변경 없음"])
 

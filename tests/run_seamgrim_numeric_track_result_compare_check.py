@@ -107,7 +107,7 @@ def check_docs() -> None:
             "tests/run_seamgrim_numeric_track_result_compare_check.py",
         ],
     )
-    require_contains(ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_V1", NEXT, "metadata-only"])
+    require_contains(ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_V1", NEXT, "metadata-only"])
     require_contains(ROOT / "docs" / "studio" / "NUMERIC_CURRICULUM_TRACK_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_V1", NEXT])
     require_contains(ROOT / "docs" / "studio" / "NUMERIC_TRACK_RESULT_REOPEN_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_V1", NEXT])
     require_contains(

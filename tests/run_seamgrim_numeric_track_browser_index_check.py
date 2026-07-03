@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1.md"
-PREV = ROOT / "STUDIO_NUMERIC_CURRICULUM_TRACK_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_NUMERIC_CURRICULUM_TRACK_V1.md"
 REPORT = ROOT / "docs" / "studio" / "NUMERIC_TRACK_BROWSER_INDEX_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "seamgrim_numeric_track_browser_index_v1"
@@ -99,7 +99,7 @@ def check_docs() -> None:
     require_contains(DOC, tokens + ["No active allowlist mutation", "No stdlib/parser/runtime change"])
     require_contains(REPORT, tokens + ["No automatic solve", "No runtime or language surface change"])
     require_contains(INDEX, ["SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1", "docs/studio/NUMERIC_TRACK_BROWSER_INDEX_V1.md", "pack/seamgrim_numeric_track_browser_index_v1", "tests/run_seamgrim_numeric_track_browser_index_check.py"])
-    require_contains(ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1", NEXT, "numeric track"])
+    require_contains(ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1", NEXT, "numeric track"])
     require_contains(ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md", ["SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1", "seamgrim_numeric_track_browser_index_v1", NEXT, "docs/ssot/** 변경 없음"])
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "MALBLOCK_AUTHORING_UI_V1.md"
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 PREV = ROOT / "SEAMGRIM_LESSON_AUTHORING_FLOW_V1.md"
 PACK = ROOT / "pack" / "malblock_authoring_ui_v1"
 RUNNER = ROOT / "tests" / "malblock_authoring_ui_browser_runner.mjs"

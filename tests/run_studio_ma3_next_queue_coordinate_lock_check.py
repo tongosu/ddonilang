@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_MA3_NEXT_QUEUE_COORDINATE_LOCK_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_MA3_NEXT_QUEUE_COORDINATE_LOCK_V1.md"
 REPORT = ROOT / "docs" / "studio" / "MA3_NEXT_QUEUE_COORDINATE_LOCK_V1.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"
 PACK = ROOT / "pack" / "studio_ma3_next_queue_coordinate_lock_v1"

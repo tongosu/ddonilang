@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_CLASSROOM_MODE_V1.md"
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
-PREV = ROOT / "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_CLASSROOM_MODE_V1.md"
+ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md"
 PACK = ROOT / "pack" / "studio_classroom_mode_v1"
 RUNNER = ROOT / "tests" / "studio_classroom_mode_browser_runner.mjs"
 HELPER = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_classroom_mode.js"

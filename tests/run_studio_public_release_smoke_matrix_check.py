@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1.md"
-PREV = ROOT / "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_PUBLIC_RELEASE_SMOKE_MATRIX_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_PUBLIC_RELEASE_ASSET_PLAN_V1.md"
 PACK = ROOT / "pack" / "studio_public_release_smoke_matrix_v1"
 MATRIX = PACK / "smoke_matrix.detjson"
 

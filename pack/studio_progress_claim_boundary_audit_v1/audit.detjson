@@ -20,7 +20,7 @@
   "stale_progress_match_count": 0,
   "stale_progress_paths": [],
   "repaired_progress_paths": [
-    "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+    "docs/context/queue/STUDIO_LONG_HORIZON_ROADMAP_V1.md",
     "docs/studio/BENCHMARK_BASELINE_LOCAL_SNAPSHOT_V1.md",
     "docs/studio/CLASSROOM_OPERATIONS_PANEL_PREVIEW_V1.md",
     "docs/studio/CLASSROOM_OPERATIONS_TRIAGE_V1.md",

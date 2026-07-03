@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_RC_CHECKER_COST_TRIM_V1.md"
-PREV = ROOT / "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_RC_CHECKER_COST_TRIM_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_POST_RELEASE_GATE_MAINTENANCE_QUEUE_V1.md"
 PACK = ROOT / "pack" / "studio_rc_checker_cost_trim_v1"
 COST_TRIM = PACK / "cost_trim.detjson"
 EXECUTION_GATE_CHECKER = ROOT / "tests" / "run_studio_public_release_execution_gate_check.py"

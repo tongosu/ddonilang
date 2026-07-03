@@ -6,12 +6,12 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md"
 REPORT = ROOT / "docs" / "studio" / "STUDIO_PRODUCTIZATION_REBASE_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "roadmap_v2_studio_productization_rebase_v1"
 REBASE = PACK / "rebase.detjson"
-STUDIO_ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+STUDIO_ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 NUMERIC_ROADMAP = ROOT / "NUMERIC_SOLVER_LONG_HORIZON_ROADMAP_V1.md"
 MATRIX = ROOT / "docs" / "context" / "roadmap" / "ROADMAP_V2_GANADA_MILESTONE_MATRIX_20260426.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"

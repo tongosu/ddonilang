@@ -68,7 +68,7 @@ def require_files() -> None:
         PACK / "golden.jsonl",
         CONTRACT,
         QUEUE,
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
     ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
     if missing:
@@ -160,7 +160,7 @@ def check_contract_and_queue() -> None:
     expected_candidate = {
         "id": "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1",
         "kind": "private_productization",
-        "source": "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        "source": "docs/context/queue/STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         "root_doc_exists": False,
         "pack_exists": False,
         "checker_exists": False,
@@ -186,7 +186,7 @@ def check_contract_and_queue() -> None:
     }.items():
         if authority.get(key) != value:
             fail(f"authority {key} expected {value!r}, got {authority.get(key)!r}")
-    require_contains(ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1"])
+    require_contains(ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1"])
 
 
 def check_golden() -> None:

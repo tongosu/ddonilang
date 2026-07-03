@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
-REBASE = ROOT / "STUDIO_BASELINE_REBASE_V1.md"
+ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+REBASE = ROOT / "docs" / "context" / "queue" / "STUDIO_BASELINE_REBASE_V1.md"
 PACK = ROOT / "pack" / "studio_baseline_rebase_v1"
 RETIRED_ROOT_DOCS = [
     ROOT / "NEXT_WORK_QUEUE_AFTER_CONNECT_V1.md",

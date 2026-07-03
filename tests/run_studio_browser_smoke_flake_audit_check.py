@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1.md"
-PREV = ROOT / "STUDIO_RC_CHECKER_COST_TRIM_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_BROWSER_SMOKE_FLAKE_AUDIT_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_RC_CHECKER_COST_TRIM_V1.md"
 PACK = ROOT / "pack" / "studio_browser_smoke_flake_audit_v1"
 AUDIT = PACK / "browser_smoke_audit.detjson"
 SMOKE_MATRIX = ROOT / "pack" / "studio_public_release_smoke_matrix_v1" / "smoke_matrix.detjson"

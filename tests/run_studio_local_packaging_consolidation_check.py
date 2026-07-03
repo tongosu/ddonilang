@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1.md"
 REPORT = ROOT / "docs" / "studio" / "LOCAL_PACKAGING_CONSOLIDATION_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_local_packaging_consolidation_v1"
@@ -81,8 +81,8 @@ def check_required_files() -> None:
         CHECKER,
         HELPER,
         SMOKE_MATRIX,
-        ROOT / "STUDIO_BROWSER_SMOKE_MATRIX_HARDENING_V1.md",
-        ROOT / "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_BROWSER_SMOKE_MATRIX_HARDENING_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
         ROOT / "tests" / "run_studio_browser_smoke_matrix_hardening_check.py",
         ROOT / "tests" / "run_studio_local_share_and_packaging_check.py",
         ROOT / "tests" / "studio_local_share_and_packaging_browser_runner.mjs",
@@ -117,7 +117,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1",
             "ddn.studio.local_packaging_consolidation.v1",

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "STUDIO_RELEASE_APPROVAL_GATE_STATUS_RECHECK_V1.md"
 REPORT = ROOT / "docs" / "studio" / "RELEASE_APPROVAL_GATE_STATUS_RECHECK_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"
 PROJECT_STATUS = ROOT / "docs" / "status" / "PROJECT_STATUS.md"
 CHANGELOG = ROOT / "docs" / "status" / "CHANGELOG.md"
@@ -71,8 +71,8 @@ def require_files() -> None:
         PACK / "golden.jsonl",
         CONTRACT,
         GATE,
-        ROOT / "STUDIO_RELEASE_APPROVAL_WAIT_STATE_CLOSURE_V1.md",
-        ROOT / "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_RELEASE_APPROVAL_WAIT_STATE_CLOSURE_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_PUBLIC_RELEASE_EXECUTION_GATE_V1.md",
         ROOT / "SEAMGRIM_PRIVATE_PRODUCTIZATION_CONSOLIDATION_AUDIT_V1.md",
     ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]

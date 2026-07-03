@@ -14,8 +14,8 @@
     "public_release_execution": "0/1 = 0% approval-gated"
   },
   "rechecked_chain": [
-    "STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1.md",
-    "STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1.md",
+    "docs/context/queue/STUDIO_PRIVATE_PRODUCTIZATION_QUEUE_V1.md",
+    "docs/context/queue/STUDIO_PRIVATE_PRODUCTIZATION_REBASE_V1.md",
     "SEAMGRIM_WORKBENCH_POLISH_V2.md",
     "SEAMGRIM_LESSON_LIBRARY_CURATION_V1.md",
     "SEAMGRIM_LESSON_RUN_PRESET_RAIL_V1.md",

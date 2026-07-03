@@ -17,7 +17,7 @@
   "candidate": {
     "id": "SEAMGRIM_RUN_HISTORY_EXPORT_SUMMARY_V1",
     "kind": "private_productization",
-    "source": "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+    "source": "docs/context/queue/STUDIO_LONG_HORIZON_ROADMAP_V1.md",
     "root_doc_exists": false,
     "pack_exists": false,
     "checker_exists": false,

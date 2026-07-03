@@ -6,13 +6,13 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_DIRTY_BASELINE_RECHECK_V1.md"
-PREV = ROOT / "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_DIRTY_BASELINE_RECHECK_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md"
 REPORT = ROOT / "docs" / "studio" / "DIRTY_BASELINE_RECHECK_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_dirty_baseline_recheck_v1"
 RECHECK = PACK / "recheck.detjson"
-STUDIO_ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+STUDIO_ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"
 NEXT = "STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1"
 

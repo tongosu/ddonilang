@@ -29,28 +29,28 @@
     },
     {
       "id": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1",
-      "doc": "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md",
+      "doc": "docs/context/queue/STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md",
       "pack": "pack/studio_diagnostic_fixit_preview_v1",
       "checker": "tests/run_studio_diagnostic_fixit_preview_check.py",
       "status": "closed"
     },
     {
       "id": "STUDIO_CLASSROOM_MODE_V1",
-      "doc": "STUDIO_CLASSROOM_MODE_V1.md",
+      "doc": "docs/context/queue/STUDIO_CLASSROOM_MODE_V1.md",
       "pack": "pack/studio_classroom_mode_v1",
       "checker": "tests/run_studio_classroom_mode_check.py",
       "status": "closed"
     },
     {
       "id": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1",
-      "doc": "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
+      "doc": "docs/context/queue/STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md",
       "pack": "pack/studio_local_share_and_packaging_v1",
       "checker": "tests/run_studio_local_share_and_packaging_check.py",
       "status": "closed"
     },
     {
       "id": "STUDIO_RELEASE_CANDIDATE_V1",
-      "doc": "STUDIO_RELEASE_CANDIDATE_V1.md",
+      "doc": "docs/context/queue/STUDIO_RELEASE_CANDIDATE_V1.md",
       "pack": "pack/studio_release_candidate_v1",
       "checker": "tests/run_studio_release_candidate_check.py",
       "status": "closed"

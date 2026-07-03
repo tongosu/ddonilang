@@ -21,8 +21,8 @@
     "GA2_LANGUAGE_REPRESENTATIVE_PACK_CLOSURE_V1"
   ],
   "historical_ledger_paths": [
-    "ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md",
-    "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+    "docs/context/queue/ROADMAP_V2_STUDIO_PRODUCTIZATION_REBASE_V1.md",
+    "docs/context/queue/STUDIO_LONG_HORIZON_ROADMAP_V1.md",
     "docs/context/roadmap/ROADMAP_V2_GLOBAL_4ERA_PLAN_V5_20260608.md",
     "pack/roadmap_v2_global_4era_plan_v5/README.md",
     "pack/roadmap_v2_global_4era_plan_v5/contract.detjson",

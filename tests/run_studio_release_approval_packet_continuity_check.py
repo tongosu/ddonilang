@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1.md"
 REPORT = ROOT / "docs" / "studio" / "RELEASE_APPROVAL_PACKET_CONTINUITY_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_release_approval_packet_continuity_v1"
@@ -125,7 +125,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_RELEASE_APPROVAL_PACKET_CONTINUITY_V1",
             "ddn.studio.release_approval_packet_continuity.v1",
@@ -256,9 +256,9 @@ def check_continuity_alignment() -> None:
         fail("registry seed must not claim publish")
     materials = continuity.get("new_review_materials", [])
     expected_materials = [
-        "STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1.md",
-        "STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md",
-        "STUDIO_REGISTRY_SHARE_SEED_V1.md",
+        "docs/context/queue/STUDIO_LOCAL_PACKAGING_CONSOLIDATION_V1.md",
+        "docs/context/queue/STUDIO_PUBLIC_LESSON_PUBLICATION_PREP_V1.md",
+        "docs/context/queue/STUDIO_REGISTRY_SHARE_SEED_V1.md",
         "pack/studio_local_packaging_consolidation_v1/local_package_manifest.detjson",
         "pack/studio_public_lesson_publication_prep_v1/publication_prep.detjson",
         "pack/studio_registry_share_seed_v1/registry_share_seed.detjson",

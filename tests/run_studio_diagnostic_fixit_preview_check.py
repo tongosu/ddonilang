@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md"
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_DIAGNOSTIC_FIXIT_PREVIEW_V1.md"
+ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 PACK = ROOT / "pack" / "studio_diagnostic_fixit_preview_v1"
 RUNNER = ROOT / "tests" / "studio_diagnostic_fixit_preview_browser_runner.mjs"
 HELPER = ROOT / "solutions" / "seamgrim_ui_mvp" / "ui" / "studio_diagnostic_fixit_preview.js"

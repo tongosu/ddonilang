@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_CLASSROOM_REPORT_WORKFLOW_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_CLASSROOM_REPORT_WORKFLOW_V1.md"
 REPORT = ROOT / "docs" / "studio" / "CLASSROOM_REPORT_WORKFLOW_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "studio_classroom_report_workflow_v1"
@@ -115,7 +115,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_CLASSROOM_REPORT_WORKFLOW_V1",
             "seamgrim.classroom_report_workflow.v1",

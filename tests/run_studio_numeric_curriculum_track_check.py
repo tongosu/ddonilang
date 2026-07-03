@@ -8,11 +8,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_NUMERIC_CURRICULUM_TRACK_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_NUMERIC_CURRICULUM_TRACK_V1.md"
 REPORT = ROOT / "docs" / "studio" / "NUMERIC_CURRICULUM_TRACK_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 ROADMAP = ROOT / "NUMERIC_SOLVER_LONG_HORIZON_ROADMAP_V1.md"
-STUDIO_ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+STUDIO_ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
 PACK = ROOT / "pack" / "studio_numeric_curriculum_track_v1"
 NEXT = "SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1"
 

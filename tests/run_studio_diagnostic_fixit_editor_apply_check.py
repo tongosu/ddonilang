@@ -112,7 +112,7 @@ def check_docs() -> None:
         ],
     )
     require_contains(
-        ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
+        ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md",
         [
             "STUDIO_DIAGNOSTIC_FIXIT_EDITOR_APPLY_V1",
             "seamgrim.diagnostic_fixit_editor_apply.v1",

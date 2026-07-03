@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1.md"
 REPORT = ROOT / "docs" / "studio" / "NUMERIC_TRACK_CONSOLIDATION_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 DEV_SUMMARY = ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md"

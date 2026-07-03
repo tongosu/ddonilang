@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "STUDIO_RELEASE_CANDIDATE_V1.md"
-ROADMAP = ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
-PREV = ROOT / "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "STUDIO_RELEASE_CANDIDATE_V1.md"
+ROADMAP = ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "STUDIO_LOCAL_SHARE_AND_PACKAGING_V1.md"
 PACK = ROOT / "pack" / "studio_release_candidate_v1"
 MATRIX = PACK / "rc_matrix.detjson"
 

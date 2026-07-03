@@ -109,7 +109,7 @@ def check_docs() -> None:
             "tests/run_seamgrim_numeric_track_result_compare_history_report_table_status_badge_a11y_status_export_summary_check.py",
         ],
     )
-    require_contains(ROOT / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_V1", NEXT, "a11y_status_export_summary.v1"])
+    require_contains(ROOT / "docs" / "context" / "queue" / "STUDIO_LONG_HORIZON_ROADMAP_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_V1", NEXT, "a11y_status_export_summary.v1"])
     require_contains(ROOT / "docs" / "studio" / "NUMERIC_CURRICULUM_TRACK_V1.md", ["SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_V1", NEXT])
     require_contains(
         ROOT / "docs" / "context" / "all" / "DEV_SUMMARY.md",
