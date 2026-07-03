@@ -1,0 +1,8 @@
+{
+    "claudeCode.environmentVariables": [
+        { "name": "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY", "value": "1" },
+        { "name": "DISABLE_FEEDBACK_COMMAND", "value": "1" },
+        { "name": "DISABLE_TELEMETRY", "value": "1" },
+        { "name": "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "value": "1" }
+    ]
+}

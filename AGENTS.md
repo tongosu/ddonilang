@@ -28,7 +28,7 @@
 
 ## 빠른 탐색 시작점
 - `CLAUDE.md`: Claude Code 전용 협업 지침 (이 파일과 함께 읽을 것)
-- `docs/ssot/ssot/SSOT_INDEX_v24.12.2.md`: SSOT 목차 (현재 버전: v24.12.2)
+- `docs/ssot/ssot/SSOT_INDEX_v24.12.9.md`: SSOT 목차 (현재 기준: v24.12.9-candidate)
 - `docs/context/all/DEV_SUMMARY.md`: 최신 개발 진행 요약 (작업 전 반드시 확인)
 - `docs/status/PROJECT_STATUS.md`: 최근 변경 요약
 - `docs/status/CHANGELOG.md`: 변경 내역
@@ -40,12 +40,13 @@
 - CLI/WASM parity의 입력은 사용자가 요구한 원문 표면이어야 한다. 내부 lowering이 필요하면 공통 제품 frontdoor 또는 런타임 preprocess 안에 구현하고, 테스트에서만 원문을 다른 DDN으로 바꿔 통과시키는 방식은 금지한다.
 - docs/ssot/ssot/의 SSOT 본문과 `docs/ssot/walks/gogae#/`, `docs/ssot/age/age#/`의 단계/걸음 문서는 작업 전 반드시 읽고 준수한다.
 - SSOT 정본은 `docs/ssot/ssot/`, `docs/ssot/walks/gogae#/`, `docs/ssot/age/age#/`만 인정한다.
-  - 현재 SSOT 버전: **v24.12.2** (파일명: `*_v24.12.2.md`)
-  - 우선순위: `docs/ssot/ssot/`(v24.12.2) > `docs/ssot/walks/gogae#/` + `docs/ssot/age/age#/`. 충돌 시 상위 SSOT 기준으로 진행하고 기록한다.
+  - 현재 SSOT 버전: **v24.12.9** — v24.12.9-candidate (파일명: `*_v24.12.9.md`)
+  - 상태: docs-first/proposal/pack skeleton 기준이며, 신규 항목은 runtime landed claim 아님.
+  - 우선순위: `docs/ssot/ssot/`(v24.12.9-candidate) > `docs/ssot/walks/gogae#/` + `docs/ssot/age/age#/`. 충돌 시 상위 SSOT 기준으로 진행하고 기록한다.
   - 고개별 지침: `docs/ssot/walks/gogae#/`
   - AGE별 지침: `docs/ssot/age/age#/`
   - WALK별 지침: `docs/ssot/walks/gogae#/WALK##/` (SPEC/IMPL_GUIDE/GOLDEN_TESTS)
-- 걸음별 기획안은 `docs/ssot/ssot/SSOT_ROADMAP_CATALOG_v24.12.2.md`의 JIT 원칙(다가오는 1~3걸음만) 기준으로 작성/확인한다.
+- 걸음별 기획안은 `docs/ssot/ssot/SSOT_ROADMAP_CATALOG_v24.12.9.md`의 JIT 원칙(다가오는 1~3걸음만) 기준으로 작성/확인한다.
 - 로드맵은 **설명용 기준**으로만 사용하고, 실제 구현/검증은 `docs/ssot/walks/gogae#/WALK##/{SPEC,IMPL_GUIDE,GOLDEN_TESTS}.md`를 우선한다.
 - 도메인별 가지/팩/샘플은 `docs/ssot/gaji/`, `docs/ssot/pack/`, `docs/ssot/samples/`에서 확인한다.
 - 기존 동작을 깨는 변경은 문서에 이유를 남긴다.
@@ -82,6 +83,39 @@
 ## 코딩 스타일
 - 명시적이고 짧은 함수 선호.
 - 메시지는 한국어로 유지한다.
+- **micro-slice 방지**: 새 팩 또는 export 함수 추가 전, 아래를 확인한다.
+  1. 이 항목이 독립적인 사용자 workflow를 바꾸는가?
+  2. 기존 함수/팩을 감싸기만 하는가?
+  → 2번이면 신규 추가 대신 기존 항목에 파라미터 추가를 우선한다.
+  → 팩 이름이 60자를 초과하면 통합 대상으로 표시하고 추가를 보류한다.
+
+## 닫힘 기준 (Closure Criteria)
+
+### 언어/런타임 닫힘 (기존 규칙 유지)
+정식 언어/런타임 지원을 요구받은 작업은 테스트 전용 Python/JS 변환기나
+harness-only lowering으로 완료 처리하지 않는다.
+
+### UI/제품 마루 닫힘 — 두 티어 구분 필수
+작업 결과가 "product UI behavior는 변경하지 않는다"를 명시하는 경우,
+반드시 아래 구분을 따른다.
+
+| 티어 | 표기 | 조건 |
+|---|---|---|
+| 닫힘-문서 (docs-closed) | 진행률 보고에 `닫힘-문서` | manifest/checker/문서 추가만 포함 |
+| 닫힘-동작 (behavior-closed) | 진행률 보고에 `닫힘-동작` | 실제 제품 행동이 변경되고 검증됨 |
+
+- 마줄기/하줄기/라줄기의 마루 2 이상은 다음 중 하나 없이 닫힘-동작 주장 금지:
+  - `node tests/seamgrim_*_runner.mjs` PASS
+  - Playwright/browser smoke PASS
+  - 실제 브라우저에서 해당 workflow를 직접 실행하고 확인한 기록
+- DEV_SUMMARY 진행률 블록에 닫힘-문서와 닫힘-동작을 반드시 분리 표기한다.
+- "18/18 = 100%" 같은 초장기 계획 완료 주장은 닫힘-동작 기준으로만 한다.
+
+### 새 작업 단위 시작 조건
+새 작업 단위를 시작하기 전:
+1. `git status --short` 로 미커밋 변경이 없는지 확인한다.
+2. 미커밋 대규모 변경이 있으면 먼저 검증/커밋/분리 후 착수한다.
+3. Studio rebase와 lang/tool 대규모 변경은 섞지 않는다.
 
 ## 테스트
 - 변경 후 최소한 관련 테스트 또는 수동 실행을 수행한다.

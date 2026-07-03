@@ -1,0 +1,1290 @@
+{
+  "schema": "DdonirangSSOTUpdateManifestV0",
+  "candidate": "v24.12.9-candidate",
+  "base_candidate": "v24.12.8-candidate",
+  "generated": "2026-06-06T00:00:00+09:00",
+  "runtime_landed_claim": false,
+  "ssot_source_file_count": 17,
+  "entries": [
+    {
+      "path": "CHANGELOG_SSOT_UPDATE.md",
+      "sha256": "ba31f803c623c58b6ccd0b8895b53d58e79cd7121da3fb41fb624dc1b06ae101",
+      "bytes": 761
+    },
+    {
+      "path": "CODEX_HANDOFF.md",
+      "sha256": "deafd8074b9341bc9da6f816fd70911f395f93a190af48b482db77b3204b4a1a",
+      "bytes": 872
+    },
+    {
+      "path": "SSOT_ALL_v24.12.9_candidate.md",
+      "sha256": "278e8decff9a998f33098c40fd4cffe6570ec6254eb8ced3b23f009380de7ab8",
+      "bytes": 1657404
+    },
+    {
+      "path": "SSOT_VERSION_LIFT_MAP.md",
+      "sha256": "4d4b304f086e8e394afaa235ab8733e6d945a97d15f04c69d603e80805b239ae",
+      "bytes": 669
+    },
+    {
+      "path": "UPDATE_MANIFEST.detjson",
+      "sha256": "246934a0f1c1d0227eb96f481abbaeb988884fe884000c991eeb4a4ccf04c2cf",
+      "bytes": 33669
+    },
+    {
+      "path": "docs/context/example_notes/EXAMPLE_NOTE_TEACHER_NARRATIVE_TEMPLATE_V1_20260524.md",
+      "sha256": "fdaa5c379fddb3d9588f3f55322b0cce88e0691a8ffbef5fccfebe0b25c64ffa",
+      "bytes": 1746
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_ALRIM_TWO_TRACK_BOUNDARY_V1_20260606.md",
+      "sha256": "7ee2da30b6290a749b936ec7ec975c016953cad5dca06832dbb6785b3e9def81",
+      "bytes": 1008
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_BOGAE_JJAIMTEO_GRID_BACKEND_BUNDLE_V1_20260606.md",
+      "sha256": "a00e31be2bb127fc37aedd766a32000a2ab4efc731762b4a2a8bc7556c5232f2",
+      "bytes": 1773
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_CONNECT_ENDPOINT_TO_SEUM_LOWERING_V1_20260606.md",
+      "sha256": "d11abcf6efc811253716fbcf1f65ae45d69fbc63a473bf0579c80797aec91af1",
+      "bytes": 1794
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_CONNECT_FLOW_TERM_CONFLICT_HEULEUGE_V1_20260524.md",
+      "sha256": "95c4af3239366694734aa332b793d068805a7174350f60b96e20f8f07d946f76",
+      "bytes": 1655
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_CONNECT_KOREAN_INNER_SENTENCE_SURFACE_V1_20260524.md",
+      "sha256": "339f932bed3634de391f0910746e842b97c240e3fcee9cf3a0cb45476522131e",
+      "bytes": 2759
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DDONIRANG_COMPLETE_GRAMMAR_CHEATSHEET_V1_20260524.md",
+      "sha256": "0a8f8c622305f20090f35dd5c7e827b60515919d9798f061230544b4894c03a1",
+      "bytes": 1856
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DDONIRANG_CORE_FOCUS_DECLARATIVE_DETERMINISTIC_NOTEBOOK_V1_20260524.md",
+      "sha256": "2abea1f1da05757f3454ecc16e555f24f243ae31b2b6b642480bc433f41b0da3",
+      "bytes": 3990
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DDONIRANG_DECLARATIVE_RELATION_ALRIM_IEUM_ALIGNMENT_20260606.md",
+      "sha256": "518e73b9ab661d2de7ec74ff725b2303dbc88aba4acd78f0ef9bf5657ad9e84a",
+      "bytes": 21322
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DDONIRANG_DETERMINISTIC_SIM_TESTING_TRACK_V1_20260524.md",
+      "sha256": "b8b6dcdf56a29defa72ce7a631e5eef54834e9e85df1c1a91b502270d0051ea7",
+      "bytes": 997
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DDONIRANG_SESSION_SYNTHESIS_FOR_SSOT_MANAGER_V1_20260606.md",
+      "sha256": "683173118f021a5d16a031b6828085808e08e5ba6b1245046f7afdc5b2137eb6",
+      "bytes": 20642
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DDONIRANG_TOOL_AGENT_DEVSEULGI_V1_20260606.md",
+      "sha256": "130407d2a267bec7abac66d8ed46b6dae5d6956a99ede335c415ff900352e396",
+      "bytes": 1784
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DECLARATIVE_WORLD_MODELING_TRACK_V1_20260524.md",
+      "sha256": "7a355fee8633dd84612838b29eff64fabff217418596c8ad0c9834ca4b8b244b",
+      "bytes": 1061
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DERIVATIVE_SURFACE_PRIME_OR_KOREAN_CHANGE_V1_20260524.md",
+      "sha256": "a9189bac479cc2498bad867cbea311e930d01d638dca772eddc5bb91cef1e7a9",
+      "bytes": 1521
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DERIVATIVE_SURFACE_PRIME_V1_20260606.md",
+      "sha256": "f781cfae56a8af32f59d2266bc53aebdaf55a6b692ebc699246a623e024a7145",
+      "bytes": 1459
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DETERMINISTIC_SOLVER_METHODS_V1_20260524.md",
+      "sha256": "06860c288c1a05505633de0c5c575f7ff2cfeb5c97b70d3bf56a0186a9a71c2a",
+      "bytes": 1697
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_DULTRA_SOLVER_STRATEGY_RECORDED_CONTRACT_V1_20260524.md",
+      "sha256": "983444a5d9d9569fb9e4ccaead6678776796d61859ab2c1236a9a2f6f9aa27fd",
+      "bytes": 1495
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_JOJO_ECON_EQUILIBRIUM_SOLVE_FIXED64_V1_20260606.md",
+      "sha256": "1d4ccfda427741f3f4a24512516f633a17ee8e24eea40e5f4685b234b6a48e1f",
+      "bytes": 1140
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_JOJO_ECON_IEUM_RELATION_MODEL_V1_20260524.md",
+      "sha256": "5c19f9f8eb9fb6b9212994e962f647c1a9bfd9a1d4647b565723b46239560fdd",
+      "bytes": 1760
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_LOCAL_TEMPORARY_BINDINGS_AND_LOCAL_PURITY_V1_20260524.md",
+      "sha256": "f72606fb301c814debbe99328883e6fe0db2ed352b5d338325c9844e28724fa6",
+      "bytes": 5237
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_NARRATIVE_LAYER_MAPPING_V1_20260524.md",
+      "sha256": "acf3e73eaa433128e6c3f7ac657e755543af3700f1bd6835cba15865ec784882",
+      "bytes": 2395
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_OPERATOR_TRIAD_DEFINE_ASSIGN_RELATE_V1_20260524.md",
+      "sha256": "9a2bba38af6cc18360ada70405618c3c3270cc24ce9b098b57d3b499a067886b",
+      "bytes": 1393
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_SEMGIRIM_BOGAE_GRID_CONNECT_WORKSHOP_BUNDLE_V1_20260606.md",
+      "sha256": "2ac75624fded1302e3fc4d97c377209f3ec85814bf1d0221c18554020e0b51bc",
+      "bytes": 21140
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_SESSION_SYNTHESIS_V24_12_9_NEXT_BUNDLE_20260525.md",
+      "sha256": "b3817804bc018a7b7f6dc167bb749c976d76e65a8db2cfe5b887c54adc45addc",
+      "bytes": 24582
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_SEUM_IMJA_RELATION_EXAMPLES_V1_20260606.md",
+      "sha256": "8974590135284fc267d931a8376a77991e09d258360984cc30d7fa4675d6ad39",
+      "bytes": 1618
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_SEUM_VOL3_RELATION_SURFACE_V1_20260524.md",
+      "sha256": "ec289f8a20ddafc4ed56a2b3bbccf0bc5e80b06a9d276036f495b85196f04f22",
+      "bytes": 1132
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_SIM_CONSTRAINT_BOUNDARY_REACTION_V1_20260606.md",
+      "sha256": "ba6cf74f0d83e457d79f8fbde7b1c7db9fcf71860b4098c2ae7a957e4addb3f8",
+      "bytes": 1815
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_STORY_TECH_EDU_AI_SURFACE_V1_20260524_R3.md",
+      "sha256": "5af67e94d5e4bc90b4f97794a36148a7e0c89ea84e321e21393c1344676908e8",
+      "bytes": 2450
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_STORY_TECH_SYNTHESIS_V1_20260524.md",
+      "sha256": "bdba2be9cc0334f2402839bda78c7ba888ce9de7a0b27cab3b288c3c55baa379",
+      "bytes": 3595
+    },
+    {
+      "path": "docs/context/proposals/PROPOSAL_STORY_TECH_WASM_INPUT_GOLDEN_SMOKE_V1_20260524.md",
+      "sha256": "b4686cccd98c0598d7d7ca6499b268e39b62ace98261f2347c332e15c068983b",
+      "bytes": 1436
+    },
+    {
+      "path": "docs/context/reference/bogae/BOGAE_JJAIMTEO_GRID_BACKEND_BOUNDARY_V1_20260606.md",
+      "sha256": "252202ec989d51c9889fbd5d8218cc9a7a874be88c05bb00497c60b432c2a376",
+      "bytes": 371
+    },
+    {
+      "path": "docs/context/reference/bogae/SPEC_BOGAE_GODOT_ADAPTER_SKIN_MANIFEST_V1_20260524.md",
+      "sha256": "1b0c65ffb50554938b5dd3f66474c7d6a42d04a9790fb64b11451e054fa77a5a",
+      "bytes": 2411
+    },
+    {
+      "path": "docs/context/reference/bogae/SPEC_BOGAE_PROFILE_SIM2D_GRID2D_GRID3D_V1_20260524.md",
+      "sha256": "2a7c3ab0c749f36b4229d8228589d2649c6074e133218e5b94151c558e2617b9",
+      "bytes": 3924
+    },
+    {
+      "path": "docs/context/reference/connect/CONNECT_ENDPOINT_TO_SEUM_LOWERING_V1_20260606.md",
+      "sha256": "cfad7c14fa2afd6977df040fdc0c7ef1bbcf1a01cdf6d0877ba3027bf5c420f3",
+      "bytes": 459
+    },
+    {
+      "path": "docs/context/reference/connect/IEUM_INNER_SENTENCE_MODEL_V1_20260524.md",
+      "sha256": "439615cf850ebfcda1dade92ee58a2df50847f7a283086677b4a01b40bf1f742",
+      "bytes": 2213
+    },
+    {
+      "path": "docs/context/reference/declarative_world_modeling/DECLARATIVE_SURFACE_GUIDE_V1_20260524.md",
+      "sha256": "1a6fe9d39ad7998b86b7d2efc9a08511d544a7e83e6acab221b47ccc859f2eb1",
+      "bytes": 783
+    },
+    {
+      "path": "docs/context/reference/deterministic_testing/ANTITHESIS_GAP_MAP_V1_20260524.md",
+      "sha256": "3d437040f02952f03bd1ad3b210810478788f8af6e50a2e995d35befa8efb33f",
+      "bytes": 789
+    },
+    {
+      "path": "docs/context/reference/operator/OPERATOR_TRIAD_DEFINE_ASSIGN_RELATE_V1_20260524.md",
+      "sha256": "3747fa5304970646734473be666854ac486d16cad5741cab824e477bcf1825ca",
+      "bytes": 853
+    },
+    {
+      "path": "docs/context/reference/tool_agents/DDONIRANG_TOOL_AGENT_DEVSEULGI_BOUNDARY_V1_20260606.md",
+      "sha256": "ff470103604dac52cc846a5f439f1a68783f932c770b41453e677b659117a858",
+      "bytes": 433
+    },
+    {
+      "path": "docs/ssot/pack/ai_asset_generation_view_tooling_boundary_v1/README.md",
+      "sha256": "36fcba93e53546c86154d60c63cb970ec43cf8e95c294358bf1ee0eadb867099",
+      "bytes": 433
+    },
+    {
+      "path": "docs/ssot/pack/ai_asset_generation_view_tooling_boundary_v1/manifest.detjson",
+      "sha256": "bda03faf612613b4241f1025128be2644b0227b9f1f126c9fc4f40d99a0c73d5",
+      "bytes": 554
+    },
+    {
+      "path": "docs/ssot/pack/alrim_two_track_boundary_v1/README.md",
+      "sha256": "cb880d8aa939101dd7868c4fc056aff78110756876d9ed205bc214a2f504cd0b",
+      "bytes": 212
+    },
+    {
+      "path": "docs/ssot/pack/alrim_two_track_boundary_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/alrim_two_track_boundary_v1/manifest.detjson",
+      "sha256": "b130819ecd61d55a7be0c1c1137fca792081e87e4f9a21916c683dba25a8b1b4",
+      "bytes": 232
+    },
+    {
+      "path": "docs/ssot/pack/alrimssi_currentline_receive_send_v1/README.md",
+      "sha256": "1b499ac2a8c072fef78bb3c60465d871ca301a2e08482c791bc962ef0d4f76b9",
+      "bytes": 256
+    },
+    {
+      "path": "docs/ssot/pack/alrimssi_currentline_receive_send_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/alrimssi_currentline_receive_send_v1/manifest.detjson",
+      "sha256": "0890eb1416ba236842541e3a387516e5d7bdaebedb066091c0166c9d6c6b4aa2",
+      "bytes": 241
+    },
+    {
+      "path": "docs/ssot/pack/bogae_godot_adapter_skin_manifest_v1/README.md",
+      "sha256": "e6bc68cc45eb4c6a88e23a7320a44d6ae33370f69e605d0059762daa7d9e76f0",
+      "bytes": 417
+    },
+    {
+      "path": "docs/ssot/pack/bogae_godot_adapter_skin_manifest_v1/manifest.detjson",
+      "sha256": "24b1b91daf4b4bcbdad3b9b6cc184d22a6927a9ca471f9948ca801311c6b71f8",
+      "bytes": 536
+    },
+    {
+      "path": "docs/ssot/pack/bogae_grid3d_engine_parity_v1/README.md",
+      "sha256": "f489bce64ef35c6c03b3509e290304782d7edbcbed013610b77b6c426cd57aa3",
+      "bytes": 380
+    },
+    {
+      "path": "docs/ssot/pack/bogae_grid3d_engine_parity_v1/manifest.detjson",
+      "sha256": "f69f46686804ccaa4c03fab41d02c2f17e2c4ac5ed58ed94387978cafa02f5ef",
+      "bytes": 506
+    },
+    {
+      "path": "docs/ssot/pack/bogae_grid3d_smoke_v1/README.md",
+      "sha256": "d6299da5b72dc88afbc59978a01affdfad8440bc490c19b2a9dcd5c36508203b",
+      "bytes": 377
+    },
+    {
+      "path": "docs/ssot/pack/bogae_grid3d_smoke_v1/manifest.detjson",
+      "sha256": "7abfc5bfe5a7a582d141ca76a0bd89e5052927e56873cb2e06e761a9aa7809bd",
+      "bytes": 510
+    },
+    {
+      "path": "docs/ssot/pack/bogae_jjaimteo_plan_boundary_v1/README.md",
+      "sha256": "c74bb6c65643e5a2f0e8a0a9ad070f62f1d25c4b5e1671a2fd0eecd853a0e15e",
+      "bytes": 239
+    },
+    {
+      "path": "docs/ssot/pack/bogae_jjaimteo_plan_boundary_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/bogae_jjaimteo_plan_boundary_v1/manifest.detjson",
+      "sha256": "250f05664d1923f885bbad2efc9a8c977844d55691cf95351d33b074f2ab3de6",
+      "bytes": 236
+    },
+    {
+      "path": "docs/ssot/pack/bogae_sim2d_smoke_v1/README.md",
+      "sha256": "7c5318456c228bc5b3878042c8386f8d369c140a5881183eeb316469c1a14254",
+      "bytes": 347
+    },
+    {
+      "path": "docs/ssot/pack/bogae_sim2d_smoke_v1/manifest.detjson",
+      "sha256": "fa1d26158cf9f75d34f09327d1e9a1f22bb5fb9ac980c3891b4c909fc3f17aa1",
+      "bytes": 487
+    },
+    {
+      "path": "docs/ssot/pack/connect_endpoint_ambiguous_diag_v1/README.md",
+      "sha256": "2b7195cae553461f21cee1ad51007d2f96ce285a4db69fe7203e30ee98792183",
+      "bytes": 688
+    },
+    {
+      "path": "docs/ssot/pack/connect_endpoint_ambiguous_diag_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/connect_endpoint_ambiguous_diag_v1/manifest.detjson",
+      "sha256": "877eb2dfa83fa8fa1e4ffee794d43b402e4ab6e11c0f75259037704ce7487b60",
+      "bytes": 543
+    },
+    {
+      "path": "docs/ssot/pack/connect_endpoint_channel_scope_v1/README.md",
+      "sha256": "96d417c3c9bf2ebc8dca3fc1ed04c52f017d01bcf43084f0b1d4cc9241ee15af",
+      "bytes": 256
+    },
+    {
+      "path": "docs/ssot/pack/connect_endpoint_channel_scope_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/connect_endpoint_channel_scope_v1/manifest.detjson",
+      "sha256": "1541a1e7f9b46ea2a48276edca2b1f0531bacda320f91e98acbd0a6b3fc67985",
+      "bytes": 238
+    },
+    {
+      "path": "docs/ssot/pack/connect_flow_sign_convention_open_issue_v1/README.md",
+      "sha256": "5df9eae308dfd39aa09ad4a10f5ddc02cd18ec35950a58997d75ff05348dbf53",
+      "bytes": 690
+    },
+    {
+      "path": "docs/ssot/pack/connect_flow_sign_convention_open_issue_v1/expect/hash.txt",
+      "sha256": "6fb76f0ef9f2c16bf7791ada0630778db44825a6d238fdca50842c1aff2c9d91",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/connect_flow_sign_convention_open_issue_v1/manifest.detjson",
+      "sha256": "2fc5e6b5e2bce55831961953efe2e603119f6bae1db20a0295b79791c54a80e6",
+      "bytes": 590
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_equality_lowering_v1/README.md",
+      "sha256": "db59283089a0366c4f98261fe07330fa9da9d59c8782f0e5feeae3ae9aef8582",
+      "bytes": 729
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_equality_lowering_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_equality_lowering_v1/manifest.detjson",
+      "sha256": "aff0f65b3d0c9ed3a33682fcd10ee8d35117fc5b42faf9b79bbcf2599db0ea9c",
+      "bytes": 620
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_flow_sumzero_lowering_v1/README.md",
+      "sha256": "6f5e41f0508b7ceab3e3d1cf85f6ade25ad1d6d80c779e70545e8afa399439e8",
+      "bytes": 695
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_flow_sumzero_lowering_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_flow_sumzero_lowering_v1/manifest.detjson",
+      "sha256": "f2e64ec71a4c6f929e1dbd18e088d0cf50ee39790512a1133aa06e5233a63c15",
+      "bytes": 582
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_to_seum_lowering_v1/README.md",
+      "sha256": "9ba9477057afc5f7229be81713cf5bd15aa1fb1f8c1261dfe40713cb645e9c03",
+      "bytes": 285
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_to_seum_lowering_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_endpoint_to_seum_lowering_v1/manifest.detjson",
+      "sha256": "5cc8465fa2122d227bbf578629dcd11801dfbef20e894f57da38b59c785eeed9",
+      "bytes": 256
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_relation_hash_determinism_v1/README.md",
+      "sha256": "0e0d54d25cf0639f265df9515393243404069300aeadf25108cd87494c1c80c4",
+      "bytes": 616
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_relation_hash_determinism_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_relation_hash_determinism_v1/manifest.detjson",
+      "sha256": "61d7c34bd2a92ad236588fa11bdd264535ffb51dbb9c6aade9d12c98341a8acc",
+      "bytes": 510
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_view_wire_state_hash_invariance_v1/README.md",
+      "sha256": "2e287da59aebfc5b6156387988e014eab7474230697f87a4719a17ad3f7f2bb7",
+      "bytes": 671
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_view_wire_state_hash_invariance_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/connect_inner_sentence_view_wire_state_hash_invariance_v1/manifest.detjson",
+      "sha256": "4d9e1786bc9f70ccf797a1ef010c64cb96e081bd4a1a8291bcf9a1d82c763e6d",
+      "bytes": 565
+    },
+    {
+      "path": "docs/ssot/pack/core_focus_notebook_boundary_v1/README.md",
+      "sha256": "d0e26cd9769529f9918923d92af0e79f895c2f7cae7008bb5176821a3577fc84",
+      "bytes": 655
+    },
+    {
+      "path": "docs/ssot/pack/core_focus_notebook_boundary_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/core_focus_notebook_boundary_v1/manifest.detjson",
+      "sha256": "1ba54a2240ca7b730f1d0a0b114f2d5b5f04cab4248e4e421d93ac5be490b215",
+      "bytes": 524
+    },
+    {
+      "path": "docs/ssot/pack/declarative_bogae_observation_min_v1/README.md",
+      "sha256": "c1aa6487beb6bf64b57050f4d5504e84ff451125fc5a4ec62f0d050d2f3726aa",
+      "bytes": 445
+    },
+    {
+      "path": "docs/ssot/pack/declarative_bogae_observation_min_v1/expect/hash.txt",
+      "sha256": "c85367fe5ea2f47a67257693de9d98a97af127ef83ce70df6b1e4cbf3e499b8e",
+      "bytes": 21
+    },
+    {
+      "path": "docs/ssot/pack/declarative_bogae_observation_min_v1/manifest.detjson",
+      "sha256": "8ca786004427d2693e38c5e9542502260225b452793a562268e29a0222c3e9e2",
+      "bytes": 312
+    },
+    {
+      "path": "docs/ssot/pack/declarative_imja_rule_min_v1/README.md",
+      "sha256": "f3ed99f600b90b4f55709b6b8142379464a55922d868266a2c1437770b765db2",
+      "bytes": 424
+    },
+    {
+      "path": "docs/ssot/pack/declarative_imja_rule_min_v1/expect/hash.txt",
+      "sha256": "c85367fe5ea2f47a67257693de9d98a97af127ef83ce70df6b1e4cbf3e499b8e",
+      "bytes": 21
+    },
+    {
+      "path": "docs/ssot/pack/declarative_imja_rule_min_v1/manifest.detjson",
+      "sha256": "e57b82d1f7a1453703e7c1b93013ff2e76bfce3e5e3bb3174413bc9977cd04f1",
+      "bytes": 288
+    },
+    {
+      "path": "docs/ssot/pack/declarative_relation_world_min_v1/README.md",
+      "sha256": "2b8ee453b3f6625e9f6b74026c227afe2e86b03af2075bf5cd16adfb647a40b1",
+      "bytes": 413
+    },
+    {
+      "path": "docs/ssot/pack/declarative_relation_world_min_v1/expect/hash.txt",
+      "sha256": "c85367fe5ea2f47a67257693de9d98a97af127ef83ce70df6b1e4cbf3e499b8e",
+      "bytes": 21
+    },
+    {
+      "path": "docs/ssot/pack/declarative_relation_world_min_v1/manifest.detjson",
+      "sha256": "ce4dca60e21f384f9d1045cc5c7e76706b0568cfd9c2f1db85a541374f15c723",
+      "bytes": 277
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_first_order_lowering_v1/README.md",
+      "sha256": "9528bcacc86e759a0a241d90f19412fcd8a13fee80ff9cbd4141a895787e509b",
+      "bytes": 298
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_first_order_lowering_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_first_order_lowering_v1/manifest.detjson",
+      "sha256": "a06cebc23c038c980f3286cbc165de2d6e2a0979f847edcbe34c2c9d28a6338e",
+      "bytes": 245
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_lexer_boundary_v1/README.md",
+      "sha256": "be0cc29bcb2a42ba02f57d951f60353beae209f7b938359330b2d523c9369ac1",
+      "bytes": 243
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_lexer_boundary_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_lexer_boundary_v1/manifest.detjson",
+      "sha256": "f338004753010618b12da95ad2d6bbf5af05fd3cdcb8c82adc4e8048b081d235",
+      "bytes": 239
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_second_order_lowering_v1/README.md",
+      "sha256": "cb6c90008613c6a1dabbdc38703e884d5256b2eeea37ec6ee7623f7b567a4bae",
+      "bytes": 259
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_second_order_lowering_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/derivative_prime_second_order_lowering_v1/manifest.detjson",
+      "sha256": "ba5111c5e91ac5703a68bb26990f7db4c21fbc8ada7ba6615821fd8d9429acb0",
+      "bytes": 246
+    },
+    {
+      "path": "docs/ssot/pack/derivative_surface_open_issue_v1/README.md",
+      "sha256": "afc9034387b7b857119ce0fd32c0d6a5ae2c3849c298f91aaf3dc4559719ab65",
+      "bytes": 647
+    },
+    {
+      "path": "docs/ssot/pack/derivative_surface_open_issue_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/derivative_surface_open_issue_v1/manifest.detjson",
+      "sha256": "57c4742d9cb38eb28cb7b3dbc4f2ff96ed888ffee81665c6ff4a738228a261cb",
+      "bytes": 515
+    },
+    {
+      "path": "docs/ssot/pack/dst_core_replay_v1/README.md",
+      "sha256": "d778954152306a19f518d553321694bd8027ca918d2aad2bf3fc9001d43de034",
+      "bytes": 411
+    },
+    {
+      "path": "docs/ssot/pack/dst_core_replay_v1/expect/hash.txt",
+      "sha256": "c85367fe5ea2f47a67257693de9d98a97af127ef83ce70df6b1e4cbf3e499b8e",
+      "bytes": 21
+    },
+    {
+      "path": "docs/ssot/pack/dst_core_replay_v1/manifest.detjson",
+      "sha256": "38a925dab971dedef027443373323f00913a5531734a474aa0df28abce59cca7",
+      "bytes": 275
+    },
+    {
+      "path": "docs/ssot/pack/dst_fault_schedule_min_v1/README.md",
+      "sha256": "e7987e044356a5ee81899156ac1989be7f4c9be491403d0bd86f58bbd24fdfa5",
+      "bytes": 413
+    },
+    {
+      "path": "docs/ssot/pack/dst_fault_schedule_min_v1/expect/hash.txt",
+      "sha256": "c85367fe5ea2f47a67257693de9d98a97af127ef83ce70df6b1e4cbf3e499b8e",
+      "bytes": 21
+    },
+    {
+      "path": "docs/ssot/pack/dst_fault_schedule_min_v1/manifest.detjson",
+      "sha256": "9c19d3ad90c16afd96a287e0204da6d3b611ff79e3ab462cd7fd03570b9f6843",
+      "bytes": 277
+    },
+    {
+      "path": "docs/ssot/pack/dst_property_assertion_min_v1/README.md",
+      "sha256": "b913d9dbe816d95bf9f55e1bebce06c0830a579bc65c4313954435f97c8ce231",
+      "bytes": 418
+    },
+    {
+      "path": "docs/ssot/pack/dst_property_assertion_min_v1/expect/hash.txt",
+      "sha256": "c85367fe5ea2f47a67257693de9d98a97af127ef83ce70df6b1e4cbf3e499b8e",
+      "bytes": 21
+    },
+    {
+      "path": "docs/ssot/pack/dst_property_assertion_min_v1/manifest.detjson",
+      "sha256": "8ae0093e197203538a8278977cc1b0f4d6c2c76dca7aceea90a02b6637309fe9",
+      "bytes": 282
+    },
+    {
+      "path": "docs/ssot/pack/dultra_requires_recorded_replay_v1/README.md",
+      "sha256": "54851a7aa258bacfaf7979710c1a79a5c9440177ac11311dcfdf5f4fd981852b",
+      "bytes": 700
+    },
+    {
+      "path": "docs/ssot/pack/dultra_requires_recorded_replay_v1/expect/hash.txt",
+      "sha256": "d243dcccfb532f08e262a5ee60f76c57390552a3c63eddab32b1bf8a7fd0e95c",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/dultra_requires_recorded_replay_v1/manifest.detjson",
+      "sha256": "9edf9104560a623697815e6556775951522946c08ca020d8ea4f4ace28656bfb",
+      "bytes": 579
+    },
+    {
+      "path": "docs/ssot/pack/dultra_solver_strategy_recorded_contract_v1/README.md",
+      "sha256": "ac2138b8109256ce9ccea894aac51b2580d7bf32290107c4d714bb0986b02657",
+      "bytes": 674
+    },
+    {
+      "path": "docs/ssot/pack/dultra_solver_strategy_recorded_contract_v1/expect/hash.txt",
+      "sha256": "20600d1312810c4aebc4ba9ed1caa8d67f21138642f8f4e7655f50ff9b5cabe3",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/dultra_solver_strategy_recorded_contract_v1/manifest.detjson",
+      "sha256": "ae409660b2c3824608226db715cc147a9beee34b9010702da237d9fe85be6308",
+      "bytes": 584
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_coverage_index_v1/README.md",
+      "sha256": "a604f9fb539df6ce76719f41e624d61ab52a302594432785cde98ccfc63b802b",
+      "bytes": 616
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_coverage_index_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_coverage_index_v1/manifest.detjson",
+      "sha256": "8fba7c6c3405d142cd917f3bda5d9eb4d263e6113051b277c233f7b7a8a15007",
+      "bytes": 495
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_no_landed_overclaim_v1/README.md",
+      "sha256": "97debde607bbd77b0e0b090de14450ba3e8d78e45da834ea9be20c39b1b043de",
+      "bytes": 651
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_no_landed_overclaim_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_no_landed_overclaim_v1/manifest.detjson",
+      "sha256": "81e1f9f1b75ec7861f032b29c284ac321dcd9580374d6f06b33c98f8c3258fda",
+      "bytes": 533
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_status_label_consistency_v1/README.md",
+      "sha256": "ea57f0d7517b5e6f76a7ab1e7f6acc7305224ac14743b8ea14db47f972dc7046",
+      "bytes": 686
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_status_label_consistency_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/grammar_cheatsheet_status_label_consistency_v1/manifest.detjson",
+      "sha256": "3bd7bda30388b699d58337f3228bae4fe5adac7705a4c3e41ef522e4e88d999e",
+      "bytes": 574
+    },
+    {
+      "path": "docs/ssot/pack/grid_puzzle_stdlib_bogae_builder_v1/README.md",
+      "sha256": "cfa0faa4eb48b45d58576c4674f1adf84cd75757b12b11776c03d16224893f7d",
+      "bytes": 238
+    },
+    {
+      "path": "docs/ssot/pack/grid_puzzle_stdlib_bogae_builder_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/grid_puzzle_stdlib_bogae_builder_v1/manifest.detjson",
+      "sha256": "d9330af00de749721fb8027c715174a01c29fbc779878768bfaee68d6c2d6ca7",
+      "bytes": 240
+    },
+    {
+      "path": "docs/ssot/pack/ieum_inner_sentence_lowering_skeleton_v1/README.md",
+      "sha256": "fb467547069780578008ca4b06997f21e8de612358d09b1cab5a4fbff2171471",
+      "bytes": 247
+    },
+    {
+      "path": "docs/ssot/pack/ieum_inner_sentence_lowering_skeleton_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/ieum_inner_sentence_lowering_skeleton_v1/manifest.detjson",
+      "sha256": "a9ac22db0fcded9682fa4c07d26dcedbc8930064e4478d643ea76a52fa32f913",
+      "bytes": 245
+    },
+    {
+      "path": "docs/ssot/pack/imja_embedded_seum_relation_min_v1/README.md",
+      "sha256": "ed6f6475cc135795609e2eca7f5a50683ec3d28ec8a401987567bf419dd5108c",
+      "bytes": 219
+    },
+    {
+      "path": "docs/ssot/pack/imja_embedded_seum_relation_min_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/imja_embedded_seum_relation_min_v1/manifest.detjson",
+      "sha256": "ed1e723dea35f89f035848c813fbb3870e589866b3102dc6a2e31bad42e698de",
+      "bytes": 239
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_agent_first_baseline_market_v1/README.md",
+      "sha256": "35eb756f4ed44b1d55d24fea2408ad255dc934b3a6ba5a54d1842f272449a603",
+      "bytes": 637
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_agent_first_baseline_market_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_agent_first_baseline_market_v1/manifest.detjson",
+      "sha256": "4133dc946a0fb8a7c5e9a6c5bf8714f1794e486b0a4befbc0c83fad87ce1b8ee",
+      "bytes": 522
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_bridge_model_agent_v1/README.md",
+      "sha256": "60716670f91a2b39aef8d44ceaf53231acb5ce3a9369afd76f59e027dd5b1902",
+      "bytes": 598
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_bridge_model_agent_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_bridge_model_agent_v1/manifest.detjson",
+      "sha256": "97f1488309592d8a6e6d2af0b185b9ac6bc8afa211415093ce93a1d218935bdd",
+      "bytes": 475
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_gaussian_elimination_pivot_determinism_v1/README.md",
+      "sha256": "d8e2eef62b718ea60a469253e532028edb45d04611806c64bf2e63d7da45ddcf",
+      "bytes": 253
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_gaussian_elimination_pivot_determinism_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_gaussian_elimination_pivot_determinism_v1/manifest.detjson",
+      "sha256": "0394d7697adccf19e6edfa829af79caf2f9c82ae8bfcf7bf525a405a8ce45574",
+      "bytes": 256
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_ieum_market_relation_v1/README.md",
+      "sha256": "6ca5f4372427135234e610bd091e2f13a2a3422338ea39de5ea9d31b16284ed3",
+      "bytes": 629
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_ieum_market_relation_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_ieum_market_relation_v1/manifest.detjson",
+      "sha256": "d3abbd3b207d84276793d60888a4ee5809a45734e70ebb2953878da80d72c635",
+      "bytes": 504
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_linear_equilibrium_fixed64_v1/README.md",
+      "sha256": "8825ce845559655d97c0d39eb021bafa7c50643e40319b755202cc61ebdcfa1a",
+      "bytes": 225
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_linear_equilibrium_fixed64_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_linear_equilibrium_fixed64_v1/manifest.detjson",
+      "sha256": "b979d9ef7bf3a03fef821a7873a2f897c10630ed0fd55253cf0c471678e6d67b",
+      "bytes": 244
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_model_first_linear_market_v1/README.md",
+      "sha256": "67958727fbed3a0df744d2c14e0e6ba4bab3f851f9920cd09aa482ee77939f84",
+      "bytes": 612
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_model_first_linear_market_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_model_first_linear_market_v1/manifest.detjson",
+      "sha256": "f9d273024c42981dd1679a61293e463e8be50bcd9b3c55c2f9d11d509c198d4c",
+      "bytes": 492
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_sympy_bridge_view_meta_boundary_v1/README.md",
+      "sha256": "f806acc982f6a9f5fc6600bae7dd3dd0d6c288adf9ed3d845c7393b47d2f1c03",
+      "bytes": 221
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_sympy_bridge_view_meta_boundary_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/jojo_econ_sympy_bridge_view_meta_boundary_v1/manifest.detjson",
+      "sha256": "582a7b908a7770af2f6e4f2eb7c7406a250d953b2bb054ceee732e60d83e37d3",
+      "bytes": 249
+    },
+    {
+      "path": "docs/ssot/pack/local_purity_pure_block_temp_mutation_v1/README.md",
+      "sha256": "da647f4a256d2e7a2bf41fcf90b6d73c88fb18c95681770a0584e7074dad1d3b",
+      "bytes": 784
+    },
+    {
+      "path": "docs/ssot/pack/local_purity_pure_block_temp_mutation_v1/expect/hash.txt",
+      "sha256": "1d7f8f8305b763f1117eaf0734dd409a3e30047e3ba822083e5eea4d38bdf8f7",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/local_purity_pure_block_temp_mutation_v1/manifest.detjson",
+      "sha256": "1fe45314a050a5b21159286fed30f232274c35b00188e32a1226c4398812d40a",
+      "bytes": 678
+    },
+    {
+      "path": "docs/ssot/pack/local_temporary_bindings_scope_v1/README.md",
+      "sha256": "f1ff0e3a86ae9bb0efb1390c4443471802b2f8f1ee972fddd900ad51347d55c8",
+      "bytes": 841
+    },
+    {
+      "path": "docs/ssot/pack/local_temporary_bindings_scope_v1/expect/hash.txt",
+      "sha256": "4a1bf7a1027c812ff3386efe27ab3ae084373f89d4de82f1042c60aa8c2cfeda",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/local_temporary_bindings_scope_v1/manifest.detjson",
+      "sha256": "6262d4625077d168582f55842cc97beb2f08cf184393d321b3a2360872b742ab",
+      "bytes": 738
+    },
+    {
+      "path": "docs/ssot/pack/love_godot_backend_adapter_boundary_v1/README.md",
+      "sha256": "1bb32a8eaebf35931324f5e56e44489e78f5c7f70eb54e899da597537bfc6c87",
+      "bytes": 224
+    },
+    {
+      "path": "docs/ssot/pack/love_godot_backend_adapter_boundary_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/love_godot_backend_adapter_boundary_v1/manifest.detjson",
+      "sha256": "ebf58cb3478b39ed649b53f449ae27ccba68763afb8f3636b0d1d46acf9087e2",
+      "bytes": 243
+    },
+    {
+      "path": "docs/ssot/pack/narrative_layer_mapping_no_runtime_claim_v1/README.md",
+      "sha256": "3dc06d91d1c47eed87eb5ad6827ccd5e2de06438b414a2ffa3ab19a28c4fab74",
+      "bytes": 505
+    },
+    {
+      "path": "docs/ssot/pack/narrative_layer_mapping_no_runtime_claim_v1/manifest.detjson",
+      "sha256": "7c1c0f37d54297d1f5992290fb4ce41fb595c5d5eb341d124cc36e3fb36c26c5",
+      "bytes": 598
+    },
+    {
+      "path": "docs/ssot/pack/nuri_gym_cartpole_story_golden_v1/README.md",
+      "sha256": "2f4c650518d60df528c55bd424ad7b314ff4f922214e7a85649e15d5fdd3a11d",
+      "bytes": 357
+    },
+    {
+      "path": "docs/ssot/pack/nuri_gym_cartpole_story_golden_v1/manifest.detjson",
+      "sha256": "84ec5645f56ffeb444c640a5ed73a558b1e8c347e8cbfb47731b56b6d25c84ad",
+      "bytes": 495
+    },
+    {
+      "path": "docs/ssot/pack/operator_triad_define_assign_relate_v1/README.md",
+      "sha256": "36132005aa5e0809ebbf9408a9058d0863e1f6a7ab20a6b83fdc9f43b580f851",
+      "bytes": 695
+    },
+    {
+      "path": "docs/ssot/pack/operator_triad_define_assign_relate_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/operator_triad_define_assign_relate_v1/manifest.detjson",
+      "sha256": "5e9dc9c2cfaf56a0b230431cb9694a02d74299923527aa07de8719666cf49a9e",
+      "bytes": 587
+    },
+    {
+      "path": "docs/ssot/pack/seum_inside_imja_multi_instance_relation_set_v1/README.md",
+      "sha256": "e10f3b75822d82ec2db2d954cefd4ae823b595ba84ffb1ac16388aa8816223ea",
+      "bytes": 283
+    },
+    {
+      "path": "docs/ssot/pack/seum_inside_imja_multi_instance_relation_set_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/seum_inside_imja_multi_instance_relation_set_v1/manifest.detjson",
+      "sha256": "7309e6c1aba5f031509633fcd6a32fa5e59dc25bcdc78d52cf3778597619af14",
+      "bytes": 252
+    },
+    {
+      "path": "docs/ssot/pack/seum_inside_imja_relation_scope_v1/README.md",
+      "sha256": "2add1407c9ce558d09406daf27b6c1e0429fba236d5f2e474a4194aafa06c3d3",
+      "bytes": 228
+    },
+    {
+      "path": "docs/ssot/pack/seum_inside_imja_relation_scope_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/seum_inside_imja_relation_scope_v1/manifest.detjson",
+      "sha256": "f9a984b4975411eab7c3b7306854607a1fe949f83cbf0f9461cdc2e8055ba994",
+      "bytes": 239
+    },
+    {
+      "path": "docs/ssot/pack/seum_vol3_relation_surface_v1/README.md",
+      "sha256": "5706241dc98a4e2c609b8b4039c73bbd1ea367a578626eaa1621079599e75a81",
+      "bytes": 610
+    },
+    {
+      "path": "docs/ssot/pack/seum_vol3_relation_surface_v1/expect/hash.txt",
+      "sha256": "a062a4d1e195b2f8798d1008c2d48bb118a311156f19df129810a1e4e5154454",
+      "bytes": 12
+    },
+    {
+      "path": "docs/ssot/pack/seum_vol3_relation_surface_v1/manifest.detjson",
+      "sha256": "ee2acf41c079bf16005e6a51c9c65946f2634eccffbb9688b9340e64e5c72db6",
+      "bytes": 489
+    },
+    {
+      "path": "docs/ssot/pack/seum_vol3_textbook_example_prime_v1/README.md",
+      "sha256": "1477cecd1b1245ab95729610020c88ef1169c00219eb8fd3ebe388211f2bd417",
+      "bytes": 247
+    },
+    {
+      "path": "docs/ssot/pack/seum_vol3_textbook_example_prime_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/seum_vol3_textbook_example_prime_v1/manifest.detjson",
+      "sha256": "608a799a8610cec872369b6c929845730fd3e17e3c7ccede993d5e2ea5648bd9",
+      "bytes": 240
+    },
+    {
+      "path": "docs/ssot/pack/sim_constraint_boundary_reaction_open_issue_v1/README.md",
+      "sha256": "27b61a4e29ce7751bc3b309ddb0e5c39f6a7984dd6570a6abe1d15363bde9d9c",
+      "bytes": 269
+    },
+    {
+      "path": "docs/ssot/pack/sim_constraint_boundary_reaction_open_issue_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/sim_constraint_boundary_reaction_open_issue_v1/manifest.detjson",
+      "sha256": "b5b30f319e42ef7cb6b4f82a569f27d1bd038dd6906d75ffdccfca9d76c6cbcc",
+      "bytes": 251
+    },
+    {
+      "path": "docs/ssot/pack/simulation_seum_rate_relation_min_v1/README.md",
+      "sha256": "48f4db0fa9d92f29bda4d8ebbe01319dee6b4d600f4e3ae8d3200e13ee26834e",
+      "bytes": 244
+    },
+    {
+      "path": "docs/ssot/pack/simulation_seum_rate_relation_min_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/simulation_seum_rate_relation_min_v1/manifest.detjson",
+      "sha256": "8efb792c017aed5cb177ab1426cab071fe3facaf201ee160408c72fec71a7614",
+      "bytes": 241
+    },
+    {
+      "path": "docs/ssot/pack/simulation_seum_to_maemadi_lowering_v1/README.md",
+      "sha256": "8a3c96a7c4de5005e364159ee5e2bb4215c28079af84256c16df50a42dcf5946",
+      "bytes": 264
+    },
+    {
+      "path": "docs/ssot/pack/simulation_seum_to_maemadi_lowering_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/simulation_seum_to_maemadi_lowering_v1/manifest.detjson",
+      "sha256": "4f93ca4704321c4c0cb3f7df5a0d214e3f120480fc9f3fe06a035acd53dd3c7f",
+      "bytes": 243
+    },
+    {
+      "path": "docs/ssot/pack/solver_method_catalog_status_v1/README.md",
+      "sha256": "281412ff2173fed07709c2432b24dbe24170e651b351e0dbd3fadfbbb178c225",
+      "bytes": 698
+    },
+    {
+      "path": "docs/ssot/pack/solver_method_catalog_status_v1/expect/hash.txt",
+      "sha256": "de5c98db1055171b05e9125db4134018bab059db02d56244578ebcf382955db4",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/solver_method_catalog_status_v1/manifest.detjson",
+      "sha256": "b9d85de5304db56561961c26147841d402efbb79976c5c0d1482690b5bcebed0",
+      "bytes": 602
+    },
+    {
+      "path": "docs/ssot/pack/solver_velocity_verlet_fixed64_order_v1/README.md",
+      "sha256": "02bc3cd767844345a3fd5d5dbc4f7bc71607f236c485fbb6dfa04a86629190f5",
+      "bytes": 693
+    },
+    {
+      "path": "docs/ssot/pack/solver_velocity_verlet_fixed64_order_v1/expect/hash.txt",
+      "sha256": "507c37bf5852e36a959d62a4096b73fa772603351022e7e5084cfe3f076b7375",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/solver_velocity_verlet_fixed64_order_v1/manifest.detjson",
+      "sha256": "a5b73e651986ff6527dcc3e18f130cb2f31f3778023898de46444d25002ebbda",
+      "bytes": 589
+    },
+    {
+      "path": "docs/ssot/pack/story_tech_edu_ai_surface_safety_v1/README.md",
+      "sha256": "9307392640e3b36726b8a66d8b2c232cba91f71e850443ffcd27e10737e2314e",
+      "bytes": 405
+    },
+    {
+      "path": "docs/ssot/pack/story_tech_edu_ai_surface_safety_v1/manifest.detjson",
+      "sha256": "aff26c21fadcbc3e307a6cc3aea9240f068d5136ff3f5cc971d5e85578411f33",
+      "bytes": 541
+    },
+    {
+      "path": "docs/ssot/pack/story_tech_positioning_consistency_v1/README.md",
+      "sha256": "97de01b9d3571c72526a40994e29755ea172a84f2ba3d42fd62b6a5fc12f2cbd",
+      "bytes": 436
+    },
+    {
+      "path": "docs/ssot/pack/story_tech_positioning_consistency_v1/manifest.detjson",
+      "sha256": "bd249e8a03c3924e2caa14578eb8e5706893bd06002a16909fe3c40e1e954e22",
+      "bytes": 531
+    },
+    {
+      "path": "docs/ssot/pack/story_timeline_digest_view_hash_boundary_v1/README.md",
+      "sha256": "eae71391ddfe5a0bb70a532ee83c403d75016e46370f5c6708f6e430535261e0",
+      "bytes": 421
+    },
+    {
+      "path": "docs/ssot/pack/story_timeline_digest_view_hash_boundary_v1/manifest.detjson",
+      "sha256": "9c519d830e73f8f72d9859c6f54e78249c0c5789915d6d4f4580de6e1d4885e6",
+      "bytes": 538
+    },
+    {
+      "path": "docs/ssot/pack/teacher_narrative_template_v1/README.md",
+      "sha256": "fcb9114445f1b40c7a1af7259646f6f12213fe09b02b2840c85f1f17f848a1ab",
+      "bytes": 381
+    },
+    {
+      "path": "docs/ssot/pack/teacher_narrative_template_v1/manifest.detjson",
+      "sha256": "02d08b88ac0e43a30e46d962e23d49775e1c229d93dcf2824996ff6ba2c4bc80",
+      "bytes": 501
+    },
+    {
+      "path": "docs/ssot/pack/term_conflict_flow_vs_heuleuge_v1/README.md",
+      "sha256": "51f2d98ac13cbf5bb367ebf0f71c6349c71bf8d0711d94b47855bd6c750f59ef",
+      "bytes": 709
+    },
+    {
+      "path": "docs/ssot/pack/term_conflict_flow_vs_heuleuge_v1/expect/hash.txt",
+      "sha256": "335077cf513923bd30a4e621e115c9cd0b1e8669ebdd8223a21a0daa8291bdb8",
+      "bytes": 65
+    },
+    {
+      "path": "docs/ssot/pack/term_conflict_flow_vs_heuleuge_v1/manifest.detjson",
+      "sha256": "cd8deb6d79c51a3343db51e81c0ef2e4c5973c9502aae7414f2687cdc007b572",
+      "bytes": 592
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_no_state_hash_participation_v1/README.md",
+      "sha256": "0088f9f884e31e6d0c6720b4760e891feeec660f3654e2c47fabeb2148be8641",
+      "bytes": 229
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_no_state_hash_participation_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_no_state_hash_participation_v1/manifest.detjson",
+      "sha256": "0cdcf6d46b45297cfb52b1099b0c8fde3ac39d1bb6f1293e350497ccbda1a704",
+      "bytes": 246
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_pack_runner_audit_v1/README.md",
+      "sha256": "d09580021f26c130b6a62a2b95994718bde7b48818f86a339d8702ad5ab38b9e",
+      "bytes": 229
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_pack_runner_audit_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_pack_runner_audit_v1/manifest.detjson",
+      "sha256": "72c4b12e3598afd908482f7055bdd9034979c967888a1f859ad494269ba4fef1",
+      "bytes": 236
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_permission_manifest_v1/README.md",
+      "sha256": "e330544c1dfdf883afe80c0972a00f009203d024d4f8a02a1f68bcd08d8ae60d",
+      "bytes": 238
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_permission_manifest_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_permission_manifest_v1/manifest.detjson",
+      "sha256": "db1a606240afa3129c5f86fe7320596e99c5dc537a366e249c8ecf6ad984e1f0",
+      "bytes": 238
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_proposal_only_mode_v1/README.md",
+      "sha256": "3b9380e4c9f2343f5a2f08798c2909a2d2907f487a7db58761892f335a7900e7",
+      "bytes": 218
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_proposal_only_mode_v1/expect/hash.txt",
+      "sha256": "ab466d3f7d3a7ae47af766ca0796ddfd76943ffe97c60055e4ca19825ce4b886",
+      "bytes": 5
+    },
+    {
+      "path": "docs/ssot/pack/tool_agent_proposal_only_mode_v1/manifest.detjson",
+      "sha256": "dc76df70e117adf7bf5ea7b02ca35598a6b5ac85672541b606ad19e39e8b4267",
+      "bytes": 237
+    },
+    {
+      "path": "docs/ssot/pack/wasm_ui_event_inputsnapshot_story_smoke_v1/README.md",
+      "sha256": "4b05ad6bb72f236bb7db6aa11cddd9c3fed0248d08c7c5c910c09427608c72c6",
+      "bytes": 449
+    },
+    {
+      "path": "docs/ssot/pack/wasm_ui_event_inputsnapshot_story_smoke_v1/manifest.detjson",
+      "sha256": "15173179a81a094b238ecd6ac771754df7102a3bb36fde8a78acf4806edb7eda",
+      "bytes": 566
+    },
+    {
+      "path": "docs/ssot/solutions/40_jojo_studio_econ/docs/ECON_IEUM_RELATION_MODEL_V1.md",
+      "sha256": "5c19f9f8eb9fb6b9212994e962f647c1a9bfd9a1d4647b565723b46239560fdd",
+      "bytes": 1760
+    },
+    {
+      "path": "docs/ssot/ssot/GATE0_IMPLEMENTATION_CHECKLIST_v24.12.9.md",
+      "sha256": "45a2a6dddf4b8a67f7a032825d5d4beb3c5243b46683ecf20dbe4e5ed84fc9f6",
+      "bytes": 13220
+    },
+    {
+      "path": "docs/ssot/ssot/README_v24.12.9.md",
+      "sha256": "08d7c1bd6196d70d1397b0c90dbc01c7a3bb7e6050744c77f52b491c57656cc0",
+      "bytes": 128653
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_ALL_MANIFEST_v24.12.9.md",
+      "sha256": "3f527dfb72eae87fdc6cc5a0259e46dbf1839c66f9c3d6ea1c52c8cb6ec19628",
+      "bytes": 3469
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_DECISIONS_v24.12.9.md",
+      "sha256": "e28489254d2144019af2bfa379dfe6206cda77986d01708e1cf0795a4cfdca7a",
+      "bytes": 33557
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_DEMOS_v24.12.9.md",
+      "sha256": "814c756bd7d3e16801dafc7bbb80978296256ba728e920cdcb9272cc675990fa",
+      "bytes": 8430
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_INDEX_v24.12.9.md",
+      "sha256": "4463115b75904ba82e563a6703793e422f7c6d6c7f582f57bd59d20f7b041372",
+      "bytes": 3598
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_LANG_v24.12.9.md",
+      "sha256": "46a2a983f2ed6c8c30899ec8f93aad7d8835898eceaf010100e7fdd9a4668755",
+      "bytes": 358081
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_MASTER_v24.12.9.md",
+      "sha256": "c6d2cb29f30dc4d0725351be06325f7e8d94324f232fbfb2409184effebd5e20",
+      "bytes": 130740
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_OPEN_ISSUES_v24.12.9.md",
+      "sha256": "dc4fde2a435c444b3268e977b20fddffc440efd03cf331c02391c50819f0e037",
+      "bytes": 196880
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_PENDING_v24.12.9.md",
+      "sha256": "2636d430f0d202cc75d91f7eebebf0599a92852aed1c68ac84fe1a56a061f692",
+      "bytes": 13069
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_PLANS_v24.12.9.md",
+      "sha256": "c93f10c23e7e34d6b2f5d9893d1f5d1b9ce7015fe1fd016d22ced33220bb34a9",
+      "bytes": 178072
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_PLATFORM_v24.12.9.md",
+      "sha256": "f2330ef97db5e366828f7ba9e9bbf0dd2988f298fe3134a865fe5b794fc597ca",
+      "bytes": 151944
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_REVIEW_RESULT_20260430_v24.12.9.md",
+      "sha256": "d5a143d3dc535d70040d16665947ff05aa42eef758097e992af189ac0d4ba251",
+      "bytes": 2804
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_ROADMAP_CATALOG_v24.12.9.md",
+      "sha256": "4d7113ea889a85a6ccd4f07fe1b980b6639cd12d5904c3be7bdc469823537ccd",
+      "bytes": 198389
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_TERMS_v24.12.9.md",
+      "sha256": "90366406b0334797de52148b35ae392dba1ba3b2481f06363f43edc38b6368a8",
+      "bytes": 101516
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_TOOLCHAIN_v24.12.9.md",
+      "sha256": "12068da25ccf4fc995f7f97362636796be71ef0436998f4678c6f53c6a9504a6",
+      "bytes": 131531
+    },
+    {
+      "path": "docs/ssot/ssot/SSOT_UPDATE_NOTES_v24.12.9.md",
+      "sha256": "ff29dd4aabc320cb02873a138b67eee3817f1ecbac6d608bd1b7b6e596dd6f62",
+      "bytes": 2291
+    },
+    {
+      "path": "docs/status/V24_12_4_CORE_FOCUS_CONNECT_GRAMMAR_UPDATE_20260524.md",
+      "sha256": "ff39041699be09a6c7743141a6f2d10eeb3967079f387d1f98a433be64b0ec7e",
+      "bytes": 937
+    },
+    {
+      "path": "docs/status/V24_12_5_STORY_TECH_BOGAE_BACKEND_UPDATE_20260524.md",
+      "sha256": "274c1a8646db36e1d36a4ac8d6dc15256b0361b863986e61b6bfac65b209f3f1",
+      "bytes": 511
+    },
+    {
+      "path": "docs/status/V24_12_6_SOURCE_VERSION_LIFT_20260524.md",
+      "sha256": "f6c91e336aabbc3ccab76a8b80ba4131ca9a998a01d5e6bccd8f26088ff7e0fd",
+      "bytes": 231
+    },
+    {
+      "path": "ssot_context_bundle_UPDATE_v24.12.9_candidate.md",
+      "sha256": "d82b029354074dece387bca21be293cfd81b4d60970f344e2af18d4d7c58ad40",
+      "bytes": 154596
+    },
+    {
+      "path": "ssot_pack_UPDATE_v24.12.9_candidate.md",
+      "sha256": "f67e97ba0e531b88820368788985a47b63a687cdb8834435e49716ab68e89293",
+      "bytes": 75125
+    }
+  ]
+}
