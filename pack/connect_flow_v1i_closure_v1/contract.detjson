@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.connect_flow_v1i_closure.pack.contract.v1",
+  "pack_id": "connect_flow_v1i_closure_v1",
+  "evidence_tier": "runner_backed_closure",
+  "closure_claim": "yes",
+  "bundled_packs": [
+    "connect_flow_v1h_closure_v1",
+    "connect_endpoint_formula_relation_bridge_v1",
+    "connect_endpoint_formula_relation_solve_v1",
+    "connect_endpoint_formula_relation_unsupported_v1",
+    "relation_solve_ddn_bridge_v2",
+    "relation_solve_wasm_cli_parity_v2"
+  ],
+  "output_kind": "endpoint_formula_relation_set",
+  "variable_mapping": "first_seen_endpoint_path_order",
+  "solver_auto_run": false,
+  "unsupported_metadata": [
+    "endpoint_carried_property"
+  ],
+  "target": "teul-cli run"
+}

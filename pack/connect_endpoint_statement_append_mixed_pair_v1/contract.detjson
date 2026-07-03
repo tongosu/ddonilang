@@ -1,0 +1,46 @@
+{
+  "schema": "ddn.connect_endpoint_statement_append.pack.contract.v1",
+  "pack_id": "connect_endpoint_statement_append_mixed_pair_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "yes",
+  "closure_scope": "same_target_mixed_endpoint_pair_statement_set",
+  "artifact": {
+    "__이음관계종류": "endpoint_statement_set",
+    "대상": "이음관계",
+    "개수": 2,
+    "endpoint_pair_policy": "mixed_pair_allowed",
+    "items": [
+      {
+        "__이음관계종류": "endpoint_equality",
+        "왼쪽": "전지.양극.전압",
+        "오른쪽": "전구.왼핀.전압",
+        "규칙": "같게",
+        "채널": "전압"
+      },
+      {
+        "__이음관계종류": "endpoint_relation_set",
+        "왼쪽끝": "은행.대출창구",
+        "오른쪽끝": "기업1.차입끝",
+        "relation_count": 2,
+        "relations": [
+          {
+            "__이음관계종류": "endpoint_flow",
+            "채널": "대출금",
+            "방향": "왼쪽에서오른쪽"
+          },
+          {
+            "__이음관계종류": "endpoint_carried_property",
+            "속성": "위험",
+            "운반채널": "대출금",
+            "운반방향": "왼쪽에서오른쪽"
+          }
+        ]
+      }
+    ]
+  },
+  "statement_order": "source_order_preserved",
+  "dedupe_or_merge": false,
+  "single_statement_shape_changed": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}

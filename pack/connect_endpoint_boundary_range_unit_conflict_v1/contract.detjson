@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.connect_endpoint_boundary_range.pack.contract.v1",
+  "pack_id": "connect_endpoint_boundary_range_unit_conflict_v1",
+  "evidence_tier": "runner_backed_negative",
+  "expected_error_code": "connect_boundary_range_incompatible_unit",
+  "also_covered_error_code": "connect_boundary_range_dim_conflict",
+  "target": "teul-cli run"
+}

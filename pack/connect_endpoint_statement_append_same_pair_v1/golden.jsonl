@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_statement_append_same_pair","cmd":["run","pack/connect_endpoint_statement_append_same_pair_v1/input.ddn"],"stdout":["endpoint_statement_set","이음관계","2","endpoint_equality","전지.양극.전압","전구.왼핀.전압","같게","전압","endpoint_flow","전지.양극.전류","전구.왼핀.전류","흐르게","전류","왼쪽에서오른쪽"],"exit_code":0}

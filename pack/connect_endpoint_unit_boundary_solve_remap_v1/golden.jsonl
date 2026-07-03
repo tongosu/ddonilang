@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_unit_boundary_solve_remap", "cmd": ["run", "pack/connect_endpoint_unit_boundary_solve_remap_v1/input.ddn"], "stdout": ["endpoint_solve_result", "성공", "5@KRW", "-5@KRW"], "exit_code": 0}

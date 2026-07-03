@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.connect_endpoint_explicit_solve.pack.contract.v1",
+  "pack_id": "connect_endpoint_explicit_solve_unsupported_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_explicit_solve_unsupported",
+  "unsupported_cases": [
+    "carried_property_solver_bridge",
+    "duplicate_endpoint_path",
+    "unknown_endpoint_path",
+    "non_numeric_value"
+  ],
+  "golden_case": "duplicate_endpoint_path",
+  "expected_error_code": "connect_boundary_value_duplicate_path",
+  "implicit_statement_solve": false,
+  "target": "teul-cli run"
+}

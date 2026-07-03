@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_result_remap_partial", "cmd": ["run", "pack/connect_endpoint_solve_result_remap_partial_v1/input.ddn"], "stdout": ["endpoint_solve_result", "부분성공", "차림[ep_002]", "ep_001", "전지.양극.전압", "0"], "exit_code": 0}

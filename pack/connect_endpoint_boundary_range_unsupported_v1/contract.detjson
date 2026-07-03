@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.connect_endpoint_boundary_range.pack.contract.v1",
+  "pack_id": "connect_endpoint_boundary_range_unsupported_v1",
+  "evidence_tier": "runner_backed_negative",
+  "expected_error_codes": [
+    "connect_boundary_range_duplicate_path",
+    "connect_boundary_range_unknown_path",
+    "connect_boundary_range_non_numeric",
+    "connect_boundary_range_malformed_item",
+    "connect_boundary_range_expected_solve_result"
+  ],
+  "target": "teul-cli run"
+}

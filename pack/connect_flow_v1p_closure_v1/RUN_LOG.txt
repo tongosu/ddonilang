@@ -1,0 +1,2 @@
+python tests/run_pack_golden.py --update connect_flow_v1p_closure_v1
+pack golden updated

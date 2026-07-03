@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.connect_endpoint_unit_boundary.pack.contract.v1",
+  "pack_id": "connect_endpoint_unit_boundary_solve_remap_v1",
+  "evidence_tier": "runner_backed",
+  "input_kind": "endpoint_formula_relation_set_with_values",
+  "output_kind": "endpoint_solve_result",
+  "explicit_solver_call": "방정식풀기",
+  "expected_result_kind": "성공",
+  "unit_remap_policy": "component_seed",
+  "solver_auto_run": false,
+  "target": "teul-cli run"
+}

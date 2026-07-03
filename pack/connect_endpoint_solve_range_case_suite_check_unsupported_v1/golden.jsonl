@@ -1,0 +1,2 @@
+{"id": "c01_endpoint_solve_range_case_suite_check_expected_summary", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_check_unsupported_v1/input.ddn"], "expected_error_code": "connect_case_suite_check_expected_summary", "exit_code": 1}
+{"id": "c02_endpoint_solve_range_case_suite_check_malformed_summary", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_check_unsupported_v1/malformed.ddn"], "expected_error_code": "connect_case_suite_check_malformed_summary", "exit_code": 1}

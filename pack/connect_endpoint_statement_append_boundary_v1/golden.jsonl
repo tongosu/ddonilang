@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_statement_append_boundary","cmd":["run","pack/connect_endpoint_statement_append_boundary_v1/input.ddn"],"stdout":["endpoint_flow","전류","1","endpoint_flow","전류","endpoint_flow"],"exit_code":0}

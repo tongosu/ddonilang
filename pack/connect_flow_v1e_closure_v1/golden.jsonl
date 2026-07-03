@@ -1,0 +1,2 @@
+{"id":"c01_connect_flow_v1e_closure","cmd":["run","pack/connect_flow_v1e_closure_v1/input.ddn"],"stdout":["connect_flow_v1e_closure_v1","connect_flow_v1d_closure_v1","connect_endpoint_multi_inner_v1","connect_endpoint_multi_inner_econ_v1"],"exit_code":0}
+

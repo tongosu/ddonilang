@@ -1,0 +1,18 @@
+묶음이름 <- "connect_flow_v1c_closure_v1".
+기준 <- "left_plus_right_zero".
+같게 <- "connect_endpoint_equality_v1".
+규약 <- "connect_flow_sign_convention_v1".
+흐름 <- "connect_endpoint_flow_v1".
+함수형하향 <- "connect_subset_lowering_v1".
+관계브리지 <- "connect_relation_bridge_v1".
+패리티 <- "connect_wasm_cli_parity_v1".
+
+묶음이름 보여주기.
+같게 보여주기.
+규약 보여주기.
+흐름 보여주기.
+함수형하향 보여주기.
+관계브리지 보여주기.
+패리티 보여주기.
+기준 보여주기.
+

@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_boundary_value_solve_remap", "cmd": ["run", "pack/connect_endpoint_boundary_value_solve_remap_v1/input.ddn"], "stdout": ["endpoint_solve_result", "성공", "차림[]", "ep_001", "전지.양극.전압", "5", "ep_002", "전구.왼핀.전압", "5"], "exit_code": 0}

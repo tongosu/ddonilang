@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_detail_mixed_v1",
+  "required_rows": [
+    "expected-fail\t실패\t실패\t참",
+    "unexpected-fail\t통과\t실패\t거짓",
+    "unexpected-success\t실패\t통과\t거짓"
+  ]
+}

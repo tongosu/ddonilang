@@ -1,0 +1,14 @@
+묶음이름 <- "connect_flow_v1r_closure_v1".
+묶음1 <- "connect_flow_v1q_closure_v1".
+묶음2 <- "connect_endpoint_solve_range_case_suite_pass_v1".
+묶음3 <- "connect_endpoint_solve_range_case_suite_mixed_v1".
+묶음4 <- "connect_endpoint_solve_range_case_suite_unit_v1".
+묶음5 <- "connect_endpoint_solve_range_case_suite_text_v1".
+묶음6 <- "connect_endpoint_solve_range_case_suite_unsupported_v1".
+묶음이름 보여주기.
+묶음1 보여주기.
+묶음2 보여주기.
+묶음3 보여주기.
+묶음4 보여주기.
+묶음5 보여주기.
+묶음6 보여주기.

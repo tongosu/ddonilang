@@ -1,0 +1,11 @@
+묶음이름 <- "connect_flow_v1g_closure_v1".
+기존 <- "connect_flow_v1f_closure_v1".
+같은쌍 <- "connect_endpoint_statement_append_same_pair_v1".
+섞은쌍 <- "connect_endpoint_statement_append_mixed_pair_v1".
+경계 <- "connect_endpoint_statement_append_boundary_v1".
+
+묶음이름 보여주기.
+기존 보여주기.
+같은쌍 보여주기.
+섞은쌍 보여주기.
+경계 보여주기.

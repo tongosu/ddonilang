@@ -1,0 +1,3 @@
+# connect_endpoint_solve_range_case_suite_summary_unsupported_v1
+
+Unsupported summary inputs keep fixed diagnostic markers.

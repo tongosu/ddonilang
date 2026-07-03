@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_pass_v1",
+  "output_kind": "endpoint_solve_range_case_suite",
+  "expected_overall_pass": true,
+  "expected_case_count": 2,
+  "expected_pass_count": 2,
+  "expected_fail_count": 0
+}

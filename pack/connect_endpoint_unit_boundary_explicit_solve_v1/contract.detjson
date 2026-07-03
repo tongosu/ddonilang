@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.connect_endpoint_unit_boundary.pack.contract.v1",
+  "pack_id": "connect_endpoint_unit_boundary_explicit_solve_v1",
+  "evidence_tier": "runner_backed",
+  "helper": "이음관계.풀기",
+  "output_kind": "endpoint_solve_result",
+  "unit_remap_policy": "component_seed",
+  "implicit_statement_solve": false,
+  "target": "teul-cli run"
+}

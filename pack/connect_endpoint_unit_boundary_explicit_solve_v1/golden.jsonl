@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_unit_boundary_explicit_solve", "cmd": ["run", "pack/connect_endpoint_unit_boundary_explicit_solve_v1/input.ddn"], "stdout": ["endpoint_solve_result", "성공", "5@KRW", "-5@KRW"], "exit_code": 0}

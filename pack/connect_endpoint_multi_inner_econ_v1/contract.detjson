@@ -1,0 +1,38 @@
+{
+  "schema": "ddn.connect_endpoint_multi_inner_econ.pack.contract.v1",
+  "pack_id": "connect_endpoint_multi_inner_econ_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "yes",
+  "closure_scope": "endpoint_multi_inner_equality_flow_reverse_flow",
+  "artifact": {
+    "__이음관계종류": "endpoint_relation_set",
+    "왼쪽끝": "가계1.구매끝",
+    "오른쪽끝": "장터.소매끝",
+    "relation_count": 3,
+    "relations": [
+      {
+        "__이음관계종류": "endpoint_equality",
+        "규칙": "같게",
+        "채널": "체결값"
+      },
+      {
+        "__이음관계종류": "endpoint_flow",
+        "규칙": "흐르게",
+        "채널": "재화",
+        "방향": "왼쪽에서오른쪽"
+      },
+      {
+        "__이음관계종류": "endpoint_flow",
+        "규칙": "거슬러 흐르게",
+        "채널": "돈",
+        "방향": "오른쪽에서왼쪽"
+      }
+    ]
+  },
+  "relation_order": "source_order_preserved",
+  "flow_convention": "left_plus_right_zero",
+  "carried_property_supported": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}
+

@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.connect_endpoint_boundary_range.pack.contract.v1",
+  "pack_id": "connect_endpoint_boundary_range_missing_value_v1",
+  "evidence_tier": "runner_backed",
+  "helper": "이음관계.범위검사",
+  "input_kind": "endpoint_solve_result_partial",
+  "output_kind": "endpoint_range_check",
+  "expected_result": "실패",
+  "expected_violation_reason": "missing_value",
+  "missing_value_has_value_field": false,
+  "unknown_path_is_error": true,
+  "target": "teul-cli run"
+}

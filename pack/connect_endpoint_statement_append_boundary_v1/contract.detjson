@@ -1,0 +1,21 @@
+{
+  "schema": "ddn.connect_endpoint_statement_append_boundary.pack.contract.v1",
+  "pack_id": "connect_endpoint_statement_append_boundary_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "yes",
+  "boundary_policy": {
+    "non_endpoint_statement_breaks_block": true,
+    "different_target_endpoint_statement_breaks_block": true,
+    "non_consecutive_same_target_collection": false,
+    "reassignment_error_claim": false
+  },
+  "observed_outputs": {
+    "non_endpoint_boundary_final_kind": "endpoint_flow",
+    "non_endpoint_boundary_final_channel": "전류",
+    "different_target_boundary_final_kind": "endpoint_flow",
+    "different_target_boundary_final_channel": "전류"
+  },
+  "statement_order": "source_order_preserved",
+  "solver_claim": false,
+  "target": "teul-cli run"
+}

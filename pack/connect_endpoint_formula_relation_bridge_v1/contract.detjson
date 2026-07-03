@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.connect_endpoint_formula_relation_bridge.pack.contract.v1",
+  "pack_id": "connect_endpoint_formula_relation_bridge_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_formula_relation_bridge",
+  "input_kinds": [
+    "endpoint_equality",
+    "endpoint_flow"
+  ],
+  "output_kind": "endpoint_formula_relation_set",
+  "variable_prefix": "ep_",
+  "variable_mapping": "first_seen_endpoint_path_order",
+  "same_path_reuses_variable": true,
+  "solver_auto_run": false,
+  "target": "teul-cli run"
+}

@@ -1,0 +1,1 @@
+{"id":"c01_endpoint_formula_relation_explicit_solve","cmd":["run","pack/connect_endpoint_formula_relation_solve_v1/input.ddn"],"stdout":["#성공(해=(ep_001=0, ep_002=0))"],"exit_code":0}

@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_carried_property_forward","cmd":["run","pack/connect_endpoint_carried_property_forward_v1/input.ddn"],"stdout":["endpoint_relation_set","은행.대출창구","기업1.차입끝","endpoint_flow","흐르게","대출금","왼쪽에서오른쪽","endpoint_carried_property","은행.대출창구.대출금","기업1.차입끝.대출금","위험","대출금","실리게","흐르게","왼쪽에서오른쪽"],"exit_code":0}

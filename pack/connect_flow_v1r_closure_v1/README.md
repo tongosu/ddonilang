@@ -1,0 +1,3 @@
+# connect_flow_v1r_closure_v1
+
+Closure pack for CONNECT_ENDPOINT_SOLVE_RANGE_CASE_SUITE_V1R.

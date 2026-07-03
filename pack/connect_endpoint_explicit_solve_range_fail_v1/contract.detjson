@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.connect_endpoint_explicit_solve_range.pack.contract.v1",
+  "pack_id": "connect_endpoint_explicit_solve_range_fail_v1",
+  "evidence_tier": "runner_backed",
+  "helper": "이음관계.풀고범위검사",
+  "output_kind": "endpoint_solve_range_check",
+  "expected_solve_result": "성공",
+  "expected_range_result": "실패",
+  "expected_violation_reason": "below_min",
+  "auto_solve": false,
+  "solver_constraint": false,
+  "target": "teul-cli run"
+}

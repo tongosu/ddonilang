@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.connect_endpoint_solve_range_report.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_range_report_unsupported_v1",
+  "primary_expected_error_code": "connect_boundary_range_unknown_path",
+  "expected_error_codes": [
+    "connect_boundary_range_unknown_path",
+    "connect_boundary_range_duplicate_path",
+    "connect_boundary_range_non_numeric",
+    "connect_boundary_value_duplicate_path"
+  ],
+  "unknown_path_has_report_row": false,
+  "target": "teul-cli run"
+}

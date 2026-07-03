@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_relation_normalize","cmd":["run","pack/connect_endpoint_relation_normalize_v1/input.ddn"],"stdout":["endpoint_relation_flat_set","2","endpoint_flow","대출금","endpoint_carried_property","위험","왼쪽에서오른쪽"],"exit_code":0}

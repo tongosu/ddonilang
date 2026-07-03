@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_case_suite_mixed", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_mixed_v1/input.ddn"], "stdout": ["거짓", "2", "2", "이름\t기대\t실제\t통과", "pass-default\t통과\t통과\t참", "expected-fail\t실패\t실패\t참", "unexpected-fail\t통과\t실패\t거짓", "unexpected-success\t실패\t통과\t거짓"], "exit_code": 0}

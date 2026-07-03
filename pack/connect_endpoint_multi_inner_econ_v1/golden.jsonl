@@ -1,0 +1,2 @@
+{"id":"c01_connect_endpoint_multi_inner_econ","cmd":["run","pack/connect_endpoint_multi_inner_econ_v1/input.ddn"],"stdout":["endpoint_relation_set","가계1.구매끝","장터.소매끝","endpoint_equality","같게","체결값","endpoint_flow","흐르게","재화","왼쪽에서오른쪽","endpoint_flow","거슬러 흐르게","돈","오른쪽에서왼쪽"],"exit_code":0}
+

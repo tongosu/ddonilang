@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.connect_endpoint_explicit_solve.pack.contract.v1",
+  "pack_id": "connect_endpoint_explicit_solve_flow_value_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_explicit_solve_flow_value",
+  "input_kind": "raw_endpoint_flow",
+  "output_kind": "endpoint_solve_result",
+  "expected_result_kind": "성공",
+  "expected_right_value": "-5",
+  "explicit_helper": "이음관계.풀기",
+  "implicit_statement_solve": false,
+  "target": "teul-cli run"
+}

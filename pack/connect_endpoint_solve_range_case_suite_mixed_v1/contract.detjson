@@ -1,0 +1,15 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_mixed_v1",
+  "output_kind": "endpoint_solve_range_case_suite",
+  "expected_overall_pass": false,
+  "expected_case_count": 4,
+  "expected_pass_count": 2,
+  "expected_fail_count": 2,
+  "required_rows": [
+    "pass-default\t통과\t통과\t참",
+    "expected-fail\t실패\t실패\t참",
+    "unexpected-fail\t통과\t실패\t거짓",
+    "unexpected-success\t실패\t통과\t거짓"
+  ]
+}

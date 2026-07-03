@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_case_suite_summary_pass", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_summary_pass_v1/input.ddn"], "stdout": ["endpoint_solve_range_case_suite_summary", "2", "2", "0", "참", "차림[voltage-pass, flow-pass]", "차림[]", "차림[]", "차림[]", "---", "차림[voltage-pass, flow-pass]", "차림[]"], "exit_code": 0}

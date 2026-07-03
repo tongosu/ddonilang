@@ -1,0 +1,7 @@
+{
+  "schema": "ddn.connect_endpoint_solve_range_text_report.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_range_text_report_unit_v1",
+  "output_kind": "endpoint_solve_range_text_report",
+  "requires": ["connect_endpoint_solve_range_report_unit_v1"],
+  "expected_unit": "KRW"
+}

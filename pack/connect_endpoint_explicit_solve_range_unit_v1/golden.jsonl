@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_explicit_solve_range_unit", "cmd": ["run", "pack/connect_endpoint_explicit_solve_range_unit_v1/input.ddn"], "stdout": ["endpoint_solve_range_check", "성공", "통과", "0"], "exit_code": 0}

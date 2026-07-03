@@ -1,0 +1,2 @@
+{"id":"c01_connect_endpoint_flow","cmd":["run","pack/connect_endpoint_flow_v1/input.ddn"],"stdout":["endpoint_flow","전지.양극.전류","전구.왼핀.전류","흐르게","전류","left_plus_right_zero","왼쪽에서오른쪽"],"exit_code":0}
+

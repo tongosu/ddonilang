@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.connect_endpoint_solve_range_report.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_range_report_fail_v1",
+  "output_kind": "endpoint_solve_range_report",
+  "expected_result": "실패",
+  "expected_violation_reason": "below_min",
+  "expected_failed_row_status": "실패",
+  "target": "teul-cli run"
+}

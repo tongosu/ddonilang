@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_check_runner_unsupported_v1",
+  "runner_expected_errors": [
+    "connect_case_suite_check_runner_expected_check_stdout",
+    "connect_case_suite_check_runner_invalid_judgement",
+    "connect_case_suite_check_runner_tool_failed"
+  ]
+}

@@ -1,0 +1,3 @@
+# connect_endpoint_boundary_range_unsupported_v1
+
+Endpoint boundary range unsupported-input diagnostic evidence for `CONNECT_ENDPOINT_BOUNDARY_RANGE_CHECK_V1N`.

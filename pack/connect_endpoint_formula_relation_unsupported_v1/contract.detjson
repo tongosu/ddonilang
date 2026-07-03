@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.connect_endpoint_formula_relation_unsupported.pack.contract.v1",
+  "pack_id": "connect_endpoint_formula_relation_unsupported_v1",
+  "evidence_tier": "runner_backed_negative",
+  "closure_scope": "endpoint_formula_relation_unsupported_metadata",
+  "unsupported_kind": "endpoint_carried_property",
+  "expected_error_code": "endpoint_carried_property",
+  "target": "teul-cli run"
+}

@@ -1,0 +1,2 @@
+{"id":"c01_connect_flow_v1c_closure","cmd":["run","pack/connect_flow_v1c_closure_v1/input.ddn"],"stdout":["connect_flow_v1c_closure_v1","connect_endpoint_equality_v1","connect_flow_sign_convention_v1","connect_endpoint_flow_v1","connect_subset_lowering_v1","connect_relation_bridge_v1","connect_wasm_cli_parity_v1","left_plus_right_zero"],"exit_code":0}
+

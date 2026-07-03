@@ -1,0 +1,6 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_detail_unit_v1",
+  "expected_unit": "KRW",
+  "expected_case": "unit-flow"
+}

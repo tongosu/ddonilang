@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.connect_endpoint_solve_result_remap.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_result_remap_partial_v1",
+  "evidence_tier": "runner_backed",
+  "closure_scope": "endpoint_solve_result_remap_partial",
+  "input_kind": "endpoint_formula_relation_set",
+  "output_kind": "endpoint_solve_result",
+  "expected_result_kind": "부분성공",
+  "missing_policy": "mapped_variables_absent_from_success_result_are_missing",
+  "solver_auto_run": false,
+  "target": "teul-cli run"
+}

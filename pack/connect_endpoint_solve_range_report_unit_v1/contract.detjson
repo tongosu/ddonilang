@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.connect_endpoint_solve_range_report.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_range_report_unit_v1",
+  "output_kind": "endpoint_solve_range_report",
+  "unit_policy": "connect_flow_v1m_canonical_base_numeric",
+  "expected_result": "통과",
+  "target": "teul-cli run"
+}

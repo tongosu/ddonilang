@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_relation_flatten_single","cmd":["run","pack/connect_endpoint_relation_flatten_single_v1/input.ddn"],"stdout":["1","endpoint_equality","전압","endpoint_relation_flat_set","1","endpoint_equality"],"exit_code":0}

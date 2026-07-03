@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_equality","cmd":["run","pack/connect_endpoint_equality_v1/input.ddn"],"stdout":["endpoint_equality"],"exit_code":0}

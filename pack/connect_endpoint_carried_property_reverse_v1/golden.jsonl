@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_carried_property_reverse","cmd":["run","pack/connect_endpoint_carried_property_reverse_v1/input.ddn"],"stdout":["endpoint_relation_set","가계1.구매끝","장터.소매끝","endpoint_flow","거슬러 흐르게","돈","오른쪽에서왼쪽","endpoint_carried_property","가계1.구매끝.돈","장터.소매끝.돈","재화","돈","실리게","거슬러 흐르게","오른쪽에서왼쪽"],"exit_code":0}

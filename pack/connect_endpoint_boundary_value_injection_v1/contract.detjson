@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.connect_endpoint_boundary_value.pack.contract.v1",
+  "pack_id": "connect_endpoint_boundary_value_injection_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_boundary_value_injection",
+  "input_kind": "endpoint_formula_relation_set",
+  "output_kind": "endpoint_formula_relation_set_with_values",
+  "value_relation_pack_family": "relation_equation",
+  "value_relation_item_kind": "방정식",
+  "value_relation_formula": "ep_001 =:= 5",
+  "solver_auto_run": false,
+  "target": "teul-cli run"
+}

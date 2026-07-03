@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_unit_boundary_incompatible_unit", "cmd": ["run", "pack/connect_endpoint_unit_boundary_incompatible_unit_v1/input.ddn"], "expected_error_code": "connect_unit_boundary_incompatible_unit", "exit_code": 1}

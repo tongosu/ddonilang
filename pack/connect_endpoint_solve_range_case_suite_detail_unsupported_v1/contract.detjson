@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_detail_unsupported_v1",
+  "expected_error_codes": [
+    "connect_case_suite_detail_expected_suite",
+    "connect_case_suite_detail_malformed_case_result"
+  ]
+}

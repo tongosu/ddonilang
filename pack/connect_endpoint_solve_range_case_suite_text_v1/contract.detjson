@@ -1,0 +1,6 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_text_v1",
+  "text_header": "이름\t기대\t실제\t통과",
+  "trailing_newline": false
+}

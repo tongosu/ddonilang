@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_case_suite_summary_direct", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_summary_direct_v1/input.ddn"], "stdout": ["endpoint_solve_range_case_suite_summary", "참", "차림[direct-voltage]", "차림[]", "---", "endpoint_solve_range_case_suite_summary", "참", "차림[direct-voltage]", "차림[]"], "exit_code": 0}

@@ -1,0 +1,9 @@
+묶음이름 <- "connect_flow_v1f_closure_v1".
+기존 <- "connect_flow_v1e_closure_v1".
+순방향 <- "connect_endpoint_carried_property_forward_v1".
+역방향 <- "connect_endpoint_carried_property_reverse_v1".
+
+묶음이름 보여주기.
+기존 보여주기.
+순방향 보여주기.
+역방향 보여주기.

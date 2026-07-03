@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_check_runner_pass_v1",
+  "runner_expected_exit": 0,
+  "expected_stdout_prefix": [
+    "endpoint_solve_range_case_suite_check",
+    "통과"
+  ]
+}

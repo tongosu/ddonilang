@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.connect_endpoint_solve_result_remap.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_result_remap_unsupported_v1",
+  "evidence_tier": "runner_backed_negative",
+  "closure_scope": "endpoint_solve_result_remap_unsupported",
+  "unsupported_case": "solver_binding_not_in_variable_mapping",
+  "expected_error_code": "endpoint_variable_mapping",
+  "solver_auto_run": false,
+  "target": "teul-cli run"
+}

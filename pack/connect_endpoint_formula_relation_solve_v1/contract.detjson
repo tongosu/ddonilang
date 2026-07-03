@@ -1,0 +1,13 @@
+{
+  "schema": "ddn.connect_endpoint_formula_relation_solve.pack.contract.v1",
+  "pack_id": "connect_endpoint_formula_relation_solve_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_formula_relation_explicit_solve",
+  "solver_auto_run": false,
+  "explicit_solver_call": "방정식풀기",
+  "expected_solution_variables": [
+    "ep_001",
+    "ep_002"
+  ],
+  "target": "teul-cli run"
+}

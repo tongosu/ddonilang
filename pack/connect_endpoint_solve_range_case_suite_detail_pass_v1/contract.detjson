@@ -1,0 +1,10 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_endpoint_solve_range_case_suite_detail_pass_v1",
+  "summary_header": "이름\t기대\t실제\t통과",
+  "expected_case_sections": [
+    "## voltage-pass",
+    "## flow-pass"
+  ],
+  "section_separator": "blank_line"
+}

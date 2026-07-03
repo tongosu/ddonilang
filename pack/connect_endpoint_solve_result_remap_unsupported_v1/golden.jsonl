@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_result_remap_unsupported", "cmd": ["run", "pack/connect_endpoint_solve_result_remap_unsupported_v1/input.ddn"], "expected_error_code": "endpoint_variable_mapping", "exit_code": 1}

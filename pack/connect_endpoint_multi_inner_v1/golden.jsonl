@@ -1,0 +1,2 @@
+{"id":"c01_connect_endpoint_multi_inner","cmd":["run","pack/connect_endpoint_multi_inner_v1/input.ddn"],"stdout":["endpoint_relation_set","전지.양극","전구.왼핀","endpoint_equality","전지.양극.전압","전구.왼핀.전압","같게","전압","endpoint_flow","전지.양극.전류","전구.왼핀.전류","흐르게","전류","left_plus_right_zero","왼쪽에서오른쪽"],"exit_code":0}
+

@@ -1,0 +1,2 @@
+{"id":"c01_connect_endpoint_reverse_flow","cmd":["run","pack/connect_endpoint_reverse_flow_v1/input.ddn"],"stdout":["endpoint_flow","가계1.구매끝.돈","장터.소매끝.돈","거슬러 흐르게","돈","left_plus_right_zero","오른쪽에서왼쪽"],"exit_code":0}
+

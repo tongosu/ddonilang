@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.connect_endpoint_relation_normalize.pack.contract.v1",
+  "pack_id": "connect_endpoint_relation_normalize_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_relation_normalize",
+  "output_kind": "endpoint_relation_flat_set",
+  "flat_relation_count": 2,
+  "flat_relation_kinds": [
+    "endpoint_flow",
+    "endpoint_carried_property"
+  ],
+  "order": "source_order_preserved",
+  "dedupe_or_merge": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}

@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_boundary_range_check_fail", "cmd": ["run", "pack/connect_endpoint_boundary_range_check_fail_v1/input.ddn"], "stdout": ["endpoint_range_check", "실패", "1", "above_max", "5", "4"], "exit_code": 0}

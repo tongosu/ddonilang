@@ -1,0 +1,3 @@
+# connect_endpoint_solve_range_case_suite_check_runner_unsupported_v1
+
+Fixtures for V1V runner contract errors.

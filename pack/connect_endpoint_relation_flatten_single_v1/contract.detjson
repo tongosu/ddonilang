@@ -1,0 +1,16 @@
+{
+  "schema": "ddn.connect_endpoint_relation_normalize.pack.contract.v1",
+  "pack_id": "connect_endpoint_relation_flatten_single_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "single_endpoint_relation_flatten",
+  "input_kind": "endpoint_equality",
+  "flat_relation_count": 1,
+  "flat_relation_kinds": [
+    "endpoint_equality"
+  ],
+  "normalized_kind": "endpoint_relation_flat_set",
+  "order": "source_order_preserved",
+  "dedupe_or_merge": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}

@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_explicit_solve_range_fail", "cmd": ["run", "pack/connect_endpoint_explicit_solve_range_fail_v1/input.ddn"], "stdout": ["endpoint_solve_range_check", "실패", "1", "below_min", "-5", "0"], "exit_code": 0}

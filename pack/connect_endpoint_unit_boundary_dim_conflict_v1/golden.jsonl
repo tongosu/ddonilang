@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_unit_boundary_dim_conflict", "cmd": ["run", "pack/connect_endpoint_unit_boundary_dim_conflict_v1/input.ddn"], "expected_error_code": "connect_unit_boundary_dim_conflict", "exit_code": 1}

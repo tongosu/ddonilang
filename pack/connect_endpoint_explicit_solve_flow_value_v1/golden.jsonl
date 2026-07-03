@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_explicit_solve_flow_value", "cmd": ["run", "pack/connect_endpoint_explicit_solve_flow_value_v1/input.ddn"], "stdout": ["endpoint_solve_result", "성공", "전지.양극.전류", "5", "전구.왼핀.전류", "-5"], "exit_code": 0}

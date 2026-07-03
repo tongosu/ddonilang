@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_text_report_unsupported", "cmd": ["run", "pack/connect_endpoint_solve_range_text_report_unsupported_v1/input.ddn"], "expected_error_code": "connect_report_text_expected_solve_range_report", "exit_code": 1}

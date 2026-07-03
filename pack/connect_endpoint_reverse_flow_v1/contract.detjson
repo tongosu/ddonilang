@@ -1,0 +1,20 @@
+{
+  "schema": "ddn.connect_endpoint_reverse_flow.pack.contract.v1",
+  "pack_id": "connect_endpoint_reverse_flow_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "yes",
+  "closure_scope": "endpoint_reverse_flow_only",
+  "artifact": {
+    "__이음관계종류": "endpoint_flow",
+    "왼쪽": "가계1.구매끝.돈",
+    "오른쪽": "장터.소매끝.돈",
+    "규칙": "거슬러 흐르게",
+    "채널": "돈",
+    "부호규약": "left_plus_right_zero",
+    "방향": "오른쪽에서왼쪽"
+  },
+  "path_order": "sentence_order_preserved",
+  "solver_claim": false,
+  "target": "teul-cli run"
+}
+

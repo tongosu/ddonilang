@@ -1,0 +1,19 @@
+{
+  "schema": "ddn.connect_flow_v1n_closure.pack.contract.v1",
+  "pack_id": "connect_flow_v1n_closure_v1",
+  "evidence_tier": "runner_backed_closure",
+  "closure_claim": "yes",
+  "bundled_packs": [
+    "connect_flow_v1m_closure_v1",
+    "connect_endpoint_boundary_range_check_pass_v1",
+    "connect_endpoint_boundary_range_check_fail_v1",
+    "connect_endpoint_boundary_range_missing_value_v1",
+    "connect_endpoint_boundary_range_unit_pass_v1",
+    "connect_endpoint_boundary_range_unit_conflict_v1",
+    "connect_endpoint_boundary_range_unsupported_v1"
+  ],
+  "output_kind": "endpoint_range_check",
+  "post_solve_validation": true,
+  "solver_constraint": false,
+  "target": "teul-cli run"
+}

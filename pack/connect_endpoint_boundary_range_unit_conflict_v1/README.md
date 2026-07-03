@@ -1,0 +1,3 @@
+# connect_endpoint_boundary_range_unit_conflict_v1
+
+Endpoint unit range conflict diagnostic evidence for `CONNECT_ENDPOINT_BOUNDARY_RANGE_CHECK_V1N`.

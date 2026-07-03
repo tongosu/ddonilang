@@ -1,0 +1,23 @@
+{
+  "schema": "ddn.connect_endpoint_relation_normalize.pack.contract.v1",
+  "pack_id": "connect_endpoint_relation_flatten_relation_set_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_relation_set_flatten",
+  "input_kind": "endpoint_relation_set",
+  "flat_relation_count": 3,
+  "flat_relation_kinds": [
+    "endpoint_equality",
+    "endpoint_flow",
+    "endpoint_flow"
+  ],
+  "flat_relation_channels": [
+    "체결값",
+    "재화",
+    "돈"
+  ],
+  "normalized_kind": "endpoint_relation_flat_set",
+  "order": "source_order_preserved",
+  "dedupe_or_merge": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}

@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_report_unit", "cmd": ["run", "pack/connect_endpoint_solve_range_report_unit_v1/input.ddn"], "stdout": ["endpoint_solve_range_report", "통과", "0", "-5@KRW", "-10@KRW", "0@KRW"], "exit_code": 0}

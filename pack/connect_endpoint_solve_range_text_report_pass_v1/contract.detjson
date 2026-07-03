@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.connect_endpoint_solve_range_text_report.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_range_text_report_pass_v1",
+  "output_kind": "endpoint_solve_range_text_report",
+  "requires": ["connect_endpoint_solve_range_report_pass_v1"],
+  "text_header": "변수\t경로\t값상태\t값\t범위상태\t하한\t상한\t위반",
+  "scenario": "pass"
+}

@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_explicit_solve_duplicate_path", "cmd": ["run", "pack/connect_endpoint_explicit_solve_unsupported_v1/input.ddn"], "expected_error_code": "connect_boundary_value_duplicate_path", "exit_code": 1}

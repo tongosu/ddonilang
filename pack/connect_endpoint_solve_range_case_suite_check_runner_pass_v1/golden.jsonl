@@ -1,0 +1,1 @@
+{"id": "c01_connect_endpoint_solve_range_case_suite_check_runner_pass", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_check_runner_pass_v1/input.ddn"], "stdout": ["endpoint_solve_range_case_suite_check", "통과"], "exit_code": 0}

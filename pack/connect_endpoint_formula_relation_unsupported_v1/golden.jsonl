@@ -1,0 +1,1 @@
+{"id":"c01_carried_property_rejected","cmd":["run","pack/connect_endpoint_formula_relation_unsupported_v1/input.ddn"],"expected_error_code":"endpoint_carried_property","exit_code":1}

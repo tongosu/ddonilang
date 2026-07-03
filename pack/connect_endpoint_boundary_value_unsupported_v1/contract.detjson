@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.connect_endpoint_boundary_value.pack.contract.v1",
+  "pack_id": "connect_endpoint_boundary_value_unsupported_v1",
+  "evidence_tier": "runner_backed_golden",
+  "closure_scope": "endpoint_boundary_value_unsupported",
+  "unsupported_cases": [
+    "duplicate_endpoint_path",
+    "unknown_endpoint_path",
+    "non_numeric_value",
+    "wrong_formula_set_kind",
+    "malformed_value_item"
+  ],
+  "expected_error_codes": [
+    "connect_boundary_value_duplicate_path",
+    "connect_boundary_value_unknown_path",
+    "connect_boundary_value_non_numeric",
+    "connect_boundary_value_expected_formula_set",
+    "connect_boundary_value_malformed_item"
+  ],
+  "golden_case": "duplicate_endpoint_path",
+  "target": "teul-cli run"
+}

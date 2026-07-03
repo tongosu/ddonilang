@@ -1,0 +1,15 @@
+{
+  "schema": "ddn.connect_flow_v1k_closure.pack.contract.v1",
+  "pack_id": "connect_flow_v1k_closure_v1",
+  "evidence_tier": "runner_backed_closure",
+  "closure_claim": "yes",
+  "bundled_packs": [
+    "connect_flow_v1j_closure_v1",
+    "connect_endpoint_boundary_value_injection_v1",
+    "connect_endpoint_boundary_value_solve_remap_v1",
+    "connect_endpoint_boundary_value_unsupported_v1"
+  ],
+  "output_kind": "endpoint_formula_relation_set_with_values",
+  "solver_auto_run": false,
+  "target": "teul-cli run"
+}

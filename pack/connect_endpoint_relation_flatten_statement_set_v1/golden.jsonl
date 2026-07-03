@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_relation_flatten_statement_set","cmd":["run","pack/connect_endpoint_relation_flatten_statement_set_v1/input.ddn"],"stdout":["3","endpoint_equality","전압","endpoint_flow","대출금","endpoint_carried_property","위험","대출금","endpoint_relation_flat_set","3"],"exit_code":0}

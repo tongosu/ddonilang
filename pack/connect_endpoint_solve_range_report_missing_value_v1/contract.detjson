@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.connect_endpoint_solve_range_report.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_range_report_missing_value_v1",
+  "output_kind": "endpoint_solve_range_report",
+  "expected_result": "실패",
+  "expected_violation_reason": "missing_value",
+  "missing_with_range_status": "실패",
+  "missing_without_range_status": "범위없음",
+  "missing_value_has_value_field": false,
+  "target": "teul-cli run"
+}

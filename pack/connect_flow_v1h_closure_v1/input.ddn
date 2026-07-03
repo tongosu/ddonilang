@@ -1,0 +1,13 @@
+묶음이름 <- "connect_flow_v1h_closure_v1".
+기존 <- "connect_flow_v1g_closure_v1".
+단일 <- "connect_endpoint_relation_flatten_single_v1".
+관계묶음 <- "connect_endpoint_relation_flatten_relation_set_v1".
+문장묶음 <- "connect_endpoint_relation_flatten_statement_set_v1".
+정규화 <- "connect_endpoint_relation_normalize_v1".
+
+묶음이름 보여주기.
+기존 보여주기.
+단일 보여주기.
+관계묶음 보여주기.
+문장묶음 보여주기.
+정규화 보여주기.

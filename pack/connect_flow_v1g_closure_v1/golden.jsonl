@@ -1,0 +1,1 @@
+{"id":"c01_connect_flow_v1g_closure","cmd":["run","pack/connect_flow_v1g_closure_v1/input.ddn"],"stdout":["connect_flow_v1g_closure_v1","connect_flow_v1f_closure_v1","connect_endpoint_statement_append_same_pair_v1","connect_endpoint_statement_append_mixed_pair_v1","connect_endpoint_statement_append_boundary_v1"],"exit_code":0}

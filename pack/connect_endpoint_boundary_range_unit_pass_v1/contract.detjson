@@ -1,0 +1,9 @@
+{
+  "schema": "ddn.connect_endpoint_boundary_range.pack.contract.v1",
+  "pack_id": "connect_endpoint_boundary_range_unit_pass_v1",
+  "evidence_tier": "runner_backed",
+  "helper": "이음관계.범위검사",
+  "unit_policy": "connect_flow_v1m_canonical_base_numeric",
+  "expected_result": "통과",
+  "target": "teul-cli run"
+}

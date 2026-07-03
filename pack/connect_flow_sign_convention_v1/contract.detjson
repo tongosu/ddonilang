@@ -1,0 +1,15 @@
+{
+  "schema": "ddn.connect_flow_sign_convention.pack.contract.v1",
+  "pack_id": "connect_flow_sign_convention_v1",
+  "evidence_tier": "contract_only_marker",
+  "closure_claim": "yes",
+  "oi_id": "OI-CONNECT-FLOW-SIGN-CONVENTION-01",
+  "convention_id": "left_plus_right_zero",
+  "direction_basis": "sentence_left_endpoint_to_right_endpoint",
+  "surface": "Y은/는 흐르게",
+  "reverse_flow_supported": false,
+  "carried_property_supported": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}
+

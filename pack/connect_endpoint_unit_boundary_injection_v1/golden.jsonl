@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_unit_boundary_injection", "cmd": ["run", "pack/connect_endpoint_unit_boundary_injection_v1/input.ddn"], "stdout": ["endpoint_formula_relation_set_with_values", "(#ascii) 수식{ 5 }", "5@KRW", "KRW", "KRW"], "exit_code": 0}

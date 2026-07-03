@@ -1,0 +1,11 @@
+{
+  "schema": "ddn.pack.contract.v1",
+  "pack": "connect_flow_v1t_closure_v1",
+  "bundled_packs": [
+    "connect_flow_v1s_closure_v1",
+    "connect_endpoint_solve_range_case_suite_summary_pass_v1",
+    "connect_endpoint_solve_range_case_suite_summary_mixed_v1",
+    "connect_endpoint_solve_range_case_suite_summary_direct_v1",
+    "connect_endpoint_solve_range_case_suite_summary_unsupported_v1"
+  ]
+}

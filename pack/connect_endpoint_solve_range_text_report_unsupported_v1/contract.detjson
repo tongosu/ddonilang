@@ -1,0 +1,5 @@
+{
+  "schema": "ddn.connect_endpoint_solve_range_text_report.pack.contract.v1",
+  "pack_id": "connect_endpoint_solve_range_text_report_unsupported_v1",
+  "expected_error_code": "connect_report_text_expected_solve_range_report"
+}

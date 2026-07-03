@@ -1,0 +1,22 @@
+{
+  "schema": "ddn.connect_flow_v1e_closure.pack.contract.v1",
+  "pack_id": "connect_flow_v1e_closure_v1",
+  "evidence_tier": "runner_backed_closure",
+  "closure_claim": "yes",
+  "bundled_packs": [
+    "connect_flow_v1d_closure_v1",
+    "connect_endpoint_multi_inner_v1",
+    "connect_endpoint_multi_inner_econ_v1"
+  ],
+  "relation_set_kind": "endpoint_relation_set",
+  "relation_order": "source_order_preserved",
+  "supported_rules": [
+    "같게",
+    "흐르게",
+    "거슬러 흐르게"
+  ],
+  "carried_property_supported": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}
+

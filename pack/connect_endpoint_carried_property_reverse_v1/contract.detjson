@@ -1,0 +1,39 @@
+{
+  "schema": "ddn.connect_endpoint_carried_property.pack.contract.v1",
+  "pack_id": "connect_endpoint_carried_property_reverse_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "yes",
+  "closure_scope": "endpoint_carried_property_reverse_carrier_flow",
+  "artifact": {
+    "__이음관계종류": "endpoint_relation_set",
+    "왼쪽끝": "가계1.구매끝",
+    "오른쪽끝": "장터.소매끝",
+    "relation_count": 2,
+    "relations": [
+      {
+        "__이음관계종류": "endpoint_flow",
+        "왼쪽": "가계1.구매끝.돈",
+        "오른쪽": "장터.소매끝.돈",
+        "규칙": "거슬러 흐르게",
+        "채널": "돈",
+        "부호규약": "left_plus_right_zero",
+        "방향": "오른쪽에서왼쪽"
+      },
+      {
+        "__이음관계종류": "endpoint_carried_property",
+        "왼쪽운반자": "가계1.구매끝.돈",
+        "오른쪽운반자": "장터.소매끝.돈",
+        "속성": "재화",
+        "운반채널": "돈",
+        "규칙": "실리게",
+        "운반규칙": "거슬러 흐르게",
+        "운반방향": "오른쪽에서왼쪽"
+      }
+    ]
+  },
+  "relation_order": "source_order_preserved",
+  "carrier_flow_required": true,
+  "standalone_carried_property_supported": false,
+  "solver_claim": false,
+  "target": "teul-cli run"
+}

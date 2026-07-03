@@ -1,0 +1,1 @@
+{"id":"c01_connect_endpoint_statement_append_mixed_pair","cmd":["run","pack/connect_endpoint_statement_append_mixed_pair_v1/input.ddn"],"stdout":["endpoint_statement_set","이음관계","2","endpoint_equality","전지.양극.전압","전구.왼핀.전압","endpoint_relation_set","은행.대출창구","기업1.차입끝","endpoint_flow","대출금","endpoint_carried_property","위험","대출금","왼쪽에서오른쪽"],"exit_code":0}

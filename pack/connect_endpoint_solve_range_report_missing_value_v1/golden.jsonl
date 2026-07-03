@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_report_missing_value", "cmd": ["run", "pack/connect_endpoint_solve_range_report_missing_value_v1/input.ddn"], "stdout": ["endpoint_solve_range_report", "실패", "실패", "2", "누락", "실패", "missing_value", "누락", "범위없음", "0"], "exit_code": 0}

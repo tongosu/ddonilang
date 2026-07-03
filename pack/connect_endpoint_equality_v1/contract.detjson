@@ -1,0 +1,8 @@
+{
+  "schema": "ddn.connect_endpoint_equality.pack.contract.v1",
+  "pack_id": "connect_endpoint_equality_v1",
+  "evidence_tier": "runner_backed",
+  "closure_claim": "yes",
+  "closure_scope": "endpoint_equality_only",
+  "target": "teul-cli run"
+}

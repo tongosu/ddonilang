@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_case_suite_unit", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_unit_v1/input.ddn"], "stdout": ["변수\t경로\t값상태\t값\t범위상태\t하한\t상한\t위반", "ep_001\t전지.양극.전류\t값있음\t5@KRW\t범위없음\t\t\t", "ep_002\t전구.왼핀.전류\t값있음\t-5@KRW\t통과\t-10@KRW\t0@KRW\t", "이름\t기대\t실제\t통과", "unit-flow\t통과\t통과\t참"], "exit_code": 0}

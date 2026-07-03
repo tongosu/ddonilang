@@ -1,0 +1,12 @@
+{
+  "schema": "ddn.connect_endpoint_unit_boundary.pack.contract.v1",
+  "pack_id": "connect_endpoint_unit_boundary_injection_v1",
+  "evidence_tier": "runner_backed",
+  "input_kind": "endpoint_formula_relation_set",
+  "output_kind": "endpoint_formula_relation_set_with_values",
+  "boundary_value_kind": "unit_numeric",
+  "solver_relation_value_policy": "canonical_base_numeric",
+  "unit_metadata_fields": ["단위차원", "단위기호"],
+  "solver_auto_run": false,
+  "target": "teul-cli run"
+}

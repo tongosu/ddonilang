@@ -1,0 +1,1 @@
+{"id": "c01_endpoint_solve_range_case_suite_unsupported", "cmd": ["run", "pack/connect_endpoint_solve_range_case_suite_unsupported_v1/input.ddn"], "expected_error_code": "connect_case_suite_invalid_expected_result", "exit_code": 1}

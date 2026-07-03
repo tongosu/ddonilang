@@ -1,0 +1,2 @@
+{"id":"c01_connect_flow_sign_convention","cmd":["run","pack/connect_flow_sign_convention_v1/input.ddn"],"stdout":["connect_flow_sign_convention_v1","left_plus_right_zero","왼쪽에서오른쪽","Y은/는 흐르게"],"exit_code":0}
+
