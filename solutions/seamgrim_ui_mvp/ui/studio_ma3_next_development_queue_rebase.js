@@ -193,9 +193,9 @@ export function buildMa3NextDevelopmentQueueRebase({
     queue_rows: rows,
     stages,
     progress: {
-      super_long_behavior_closed: 18,
+      super_long_behavior_closed: 9,
       super_long_total: 18,
-      super_long_percent: 100,
+      super_long_percent: 50,
       previous_stage_closed: 8,
       previous_stage_total: 8,
       previous_stage_percent: 100,

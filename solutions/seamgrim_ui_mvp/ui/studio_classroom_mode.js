@@ -21,13 +21,22 @@ function asBool(value) {
   return value === true || value === "true" || value === "참";
 }
 
+function asTextArray(value) {
+  return asArray(value).map((item) => String(item ?? "").trim()).filter(Boolean);
+}
+
 function normalizeAssignment(assignment, index) {
   const row = asObject(assignment);
   const status = asText(row.status ?? row["상태"], "open");
+  const resultViews = asTextArray(row.result_views ?? row.required_views ?? row.requiredViews ?? row["결과확인"]);
   return {
     assignment_id: asText(row.assignment_id ?? row.id ?? row["과제ID"], `assignment_${String(index + 1).padStart(3, "0")}`),
     title: asText(row.title ?? row.name ?? row["제목"], "untitled assignment"),
     lesson_id: asText(row.lesson_id ?? row.lesson ?? row["lesson"] ?? row["수업"], ""),
+    goals: asTextArray(row.goals ?? row["수업목표"]),
+    missions: asTextArray(row.missions ?? row["수업활동"]),
+    result_views: resultViews,
+    result_views_label: asText(row.result_views_label ?? row.required_views_label ?? row["결과확인라벨"], resultViews.join(", ")),
     due_label: asText(row.due_label ?? row.due ?? row["마감"], ""),
     status,
     is_open: status !== "closed" && status !== "닫힘",
@@ -168,7 +177,7 @@ export function formatClassroomExportReportText(report = {}) {
     throw new Error("studio_classroom_expected_export_report");
   }
   const lines = [
-    "과제\t제목\t상태\t판정\t실패케이스\t불일치",
+    "수업 코드\t수업 제목\t수업 목표\t오늘 활동\t결과 확인\t배포 상태\t실행 결과\t확인 필요\t비고",
   ];
   const summariesById = new Map(asArray(payload.summaries).map((summary) => [String(summary.assignment_id ?? ""), summary]));
   asArray(payload.assignments).forEach((assignment) => {
@@ -182,6 +191,9 @@ export function formatClassroomExportReportText(report = {}) {
     lines.push([
       id,
       String(assignment.title ?? ""),
+      normalizeNameList(assignment.goals).join("|"),
+      normalizeNameList(assignment.missions).join("|"),
+      asText(assignment.result_views_label, normalizeNameList(assignment.result_views).join(", ")),
       assignment.is_open ? "열림" : "닫힘",
       String(summary.run_status ?? "미실행"),
       failed,

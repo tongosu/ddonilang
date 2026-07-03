@@ -58,7 +58,7 @@ const CLOSURE_DEFS = [
     source_anchor: "STUDIO_POST_SUPER_LONG_REBASE_V1",
     closure_lane: "next_handoff",
     title: "post super-long",
-    summary: "전체 초장기 계획 18/18 완료 뒤 후속 장기 계획 리베이스로 넘깁니다.",
+    summary: "V6.1 기준 전체 초장기 계획 9/18 상태를 유지한 채 후속 장기 계획 리베이스로 넘깁니다.",
   },
 ];
 
@@ -172,15 +172,15 @@ export function buildProductizationStageClosure({
     closure_rows: rows,
     stages,
     progress: {
-      super_long_behavior_closed: 18,
+      super_long_behavior_closed: 9,
       super_long_total: 18,
-      super_long_percent: 100,
+      super_long_percent: 50,
       current_stage_closed: 5,
       current_stage_total: 5,
       current_stage_percent: 100,
-      roadmap_v2_behavior_closed: 90,
+      roadmap_v2_behavior_closed: 51,
       roadmap_v2_total: 90,
-      roadmap_v2_percent: 100,
+      roadmap_v2_percent: 57,
     },
     next_item: "STUDIO_POST_SUPER_LONG_REBASE_V1",
   };

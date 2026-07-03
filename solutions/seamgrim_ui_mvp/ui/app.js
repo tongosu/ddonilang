@@ -95,7 +95,6 @@ const SESSION_V0_STORAGE_KEY = "seamgrim.session.v0";
 const BROWSE_PRESET_QUERY_KEY = "browsePreset";
 const BROWSE_UI_PREFS_STORAGE_KEY = "seamgrim.ui.browse_prefs.v1";
 const DEV_SURFACES_QUERY_KEY = "devSurfaces";
-const DEV_SURFACES_STORAGE_KEY = "seamgrim.dev_surfaces";
 // lesson canon runtime(./runtime/*)에서 동적 import하므로 경로 기준은 runtime 디렉터리다.
 const WASM_CANON_RUNTIME_URL = "../wasm/ddonirang_tool.js";
 const PLATFORM_UI_ACTION_EVENT = "seamgrim:platform-ui-action";
@@ -115,13 +114,6 @@ function shouldEnableDevSurfaces() {
     if (queryValue === "0" || queryValue === "false" || queryValue === "no") return false;
   } catch (_) {
     // fall through to other local dev signals
-  }
-  try {
-    const stored = String(globalThis?.localStorage?.getItem(DEV_SURFACES_STORAGE_KEY) ?? "").trim().toLowerCase();
-    if (stored === "1" || stored === "true" || stored === "yes") return true;
-    if (stored === "0" || stored === "false" || stored === "no") return false;
-  } catch (_) {
-    // storage can be unavailable in local file contexts
   }
   return globalThis?.SEAMGRIM_DEV_SURFACES === true;
 }
@@ -2196,6 +2188,26 @@ async function loadLessonById(lessonId) {
   const base = appState.lessonsById.get(lessonId);
   if (!base) throw new Error(`교과를 찾지 못했습니다: ${lessonId}`);
 
+  const directDdnText = String(base.ddnText ?? "").trim();
+  if (directDdnText) {
+    const lesson = await lessonCanonHydrator.hydrateLessonCanon({
+      ...base,
+      ddnText: String(base.ddnText ?? ""),
+      requiredViews: normalizeViewFamilyList(base.requiredViews ?? base.required_views ?? []),
+    });
+    appState.currentLesson = lesson;
+    appState.lessonsById.set(lesson.id, lesson);
+    const packageId = String(lesson.localPackageId ?? "").trim();
+    const originalLessonId = String(lesson.localPackageLessonId ?? lesson.id ?? "").trim();
+    trackLessonInputSource(lesson, {
+      sourceId: packageId
+        ? `local_package:${safeLocalPackageToken(packageId, "local_package")}:${safeLocalPackageToken(originalLessonId, "local_package_lesson")}`
+        : `lesson:${lesson.id}`,
+    });
+    persistInputRegistrySnapshot();
+    return lesson;
+  }
+
   base.ddnCandidates = prioritizeLessonCandidates(base.ddnCandidates, base.source);
   base.textCandidates = prioritizeLessonCandidates(base.textCandidates, base.source);
   base.graphCandidates = prioritizeLessonCandidates(base.graphCandidates, base.source);
@@ -2921,40 +2933,84 @@ async function main() {
         throw new Error("studio_local_package_invalid_json");
       }
       const imported = importStudioLocalPackagePayload(payload);
-      const lesson = Array.isArray(imported.lessons) ? imported.lessons[0] : null;
-      const sourceText = String(lesson?.source_text ?? "").trim();
-      if (!lesson || !sourceText) {
-        throw new Error("배포 파일에 실행할 교과 원문이 없습니다.");
-      }
-      const lessonId = String(lesson.lesson_id ?? "local_package_lesson").trim() || "local_package_lesson";
       const packageId = String(imported.manifest?.package_id ?? "local_package").trim() || "local_package";
-      const safeLessonId = safeLocalPackageToken(lessonId, "local_package_lesson");
       const safePackageId = safeLocalPackageToken(packageId, "local_package");
       const packageTitle = String(imported.manifest?.title ?? packageId).trim() || packageId;
-      const importedLesson = await buildStudioDraftLessonFromDdn(sourceText, {
-        id: `local_package_${safeLessonId}`,
-        title: String(lesson.title ?? lessonId).trim() || lessonId,
-        description: String(lesson.description ?? "").trim()
-          || `배포 파일: ${packageTitle}`,
-        subject: lesson.subject,
-        grade: lesson.grade,
-        requiredViews: lesson.required_views,
-        goals: lesson.goals,
-        missions: lesson.missions,
-      });
-      importedLesson.localPackageTitle = packageTitle;
-      importedLesson.localPackageStudentInstructions = Array.isArray(imported.manifest?.student_instructions)
+      const packageSessionLabel = String(imported.manifest?.session_label ?? "").trim();
+      const sourceLessons = Array.isArray(imported.lessons) ? imported.lessons : [];
+      if (!sourceLessons.length) {
+        throw new Error("배포 파일에 실행할 교과 원문이 없습니다.");
+      }
+      const importedLessons = [];
+      for (const [index, lesson] of sourceLessons.entries()) {
+        const sourceText = String(lesson?.source_text ?? "").trim();
+        if (!sourceText) {
+          throw new Error("배포 파일에 실행할 교과 원문이 없습니다.");
+        }
+        const lessonId = String(lesson.lesson_id ?? `local_package_lesson_${index + 1}`).trim() || `local_package_lesson_${index + 1}`;
+        const safeLessonId = safeLocalPackageToken(lessonId, `local_package_lesson_${index + 1}`);
+        const importedLessonTitle = String(lesson.title ?? lessonId).trim() || lessonId;
+        const importedLesson = await buildStudioDraftLessonFromDdn(sourceText, {
+          id: `local_package_${safePackageId}_${safeLessonId}`,
+          title: importedLessonTitle,
+          description: String(lesson.description ?? "").trim()
+            || `배포 파일: ${packageTitle}`,
+          subject: lesson.subject,
+          grade: lesson.grade,
+          requiredViews: lesson.required_views,
+          goals: lesson.goals,
+          missions: lesson.missions,
+        });
+        importedLesson.localPackageId = packageId;
+        importedLesson.localPackageLessonId = lessonId;
+        importedLesson.localPackageTitle = packageTitle;
+        importedLesson.localPackageSessionLabel = packageSessionLabel;
+        importedLesson.localPackageLessonIndex = index + 1;
+        importedLesson.localPackageLessonCount = sourceLessons.length;
+        importedLessons.push(importedLesson);
+      }
+      const importedLesson = importedLessons[0];
+      const lessonId = String(importedLesson?.localPackageLessonId ?? importedLesson?.id ?? "local_package_lesson").trim() || "local_package_lesson";
+      const safeLessonId = safeLocalPackageToken(lessonId, "local_package_lesson");
+      const importedLessonTitle = String(importedLesson?.title ?? lessonId).trim() || lessonId;
+      const studentInstructions = Array.isArray(imported.manifest?.student_instructions)
         ? imported.manifest.student_instructions.map((item) => String(item ?? "").trim()).filter(Boolean)
         : [];
+      const materialSummary = Array.isArray(imported.manifest?.materials_summary)
+        ? imported.manifest.materials_summary.map((item) => String(item ?? "").trim()).filter(Boolean)
+        : [];
+      const studentMaterialSummary = Array.isArray(imported.manifest?.student_materials_summary)
+        ? imported.manifest.student_materials_summary.map((item) => String(item ?? "").trim()).filter(Boolean)
+        : Array.isArray(imported.student_materials_summary)
+          ? imported.student_materials_summary.map((item) => String(item ?? "").trim()).filter(Boolean)
+          : [];
+      const packageReports = Array.isArray(imported.reports) ? imported.reports : [];
+      const packageAssets = Array.isArray(imported.assets) ? imported.assets : [];
+      importedLessons.forEach((row) => {
+        row.localPackageStudentInstructions = studentInstructions;
+        row.localPackageMaterialsSummary = materialSummary;
+        row.localPackageStudentMaterialsSummary = studentMaterialSummary;
+        row.localPackageManifest = imported.manifest;
+        row.localPackagePayload = payload;
+        row.localPackageReports = packageReports;
+        row.localPackageAssets = packageAssets;
+        appState.lessonsById.set(row.id, row);
+      });
       try {
         window.__STUDIO_LOCAL_PACKAGE_IMPORT_ACTION__ = {
           schema: "seamgrim.local_package_import_action.v1",
           imported: true,
           file_name: fileName,
           package_id: packageId,
+          session_label: packageSessionLabel,
           lesson_id: lessonId,
+          lesson_title: importedLessonTitle,
+          imported_lesson_ids: importedLessons.map((row) => String(row.id ?? "").trim()).filter(Boolean),
           lesson_count: imported.lesson_count,
           report_count: imported.report_count,
+          report_titles: packageReports.map((report) => String(report?.title ?? report?.report_id ?? "").trim()).filter(Boolean),
+          materials_summary: materialSummary,
+          student_materials_summary: studentMaterialSummary,
           account_required: false,
           cloud_sync: false,
           public_registry: false,
@@ -2962,7 +3018,23 @@ async function main() {
       } catch (_) {
         // ignore browser instrumentation errors
       }
-      const successMessage = `배포 파일을 열었습니다: ${String(imported.manifest?.title ?? packageId).trim() || packageId}`;
+      const lessonCount = Math.max(0, Number(imported.lesson_count) || 0);
+      const reportCount = Math.max(0, Number(imported.report_count) || 0);
+      const reportSummary = materialSummary.find((item) => item.startsWith("교사용 자료 "));
+      const successParts = [
+        `배포 파일을 열었습니다: ${String(imported.manifest?.title ?? packageId).trim() || packageId}`,
+        `실행할 수업 ${importedLessonTitle}`,
+        `교과 ${lessonCount}개`,
+      ];
+      const studentReportSummary = studentMaterialSummary.find((item) => item.startsWith("학생 자료 "));
+      if (studentReportSummary) {
+        successParts.push(studentReportSummary);
+      } else if (reportSummary) {
+        successParts.push(reportSummary.replace(/^교사용 자료/u, "자료"));
+      } else if (reportCount > 0) {
+        successParts.push(`자료 ${reportCount}개`);
+      }
+      const successMessage = successParts.join(" · ");
       setLocalPackageImportStatus("ok", successMessage);
       showPlatformToast("배포 파일을 열었습니다.");
       openRunWithLessonWithSource(importedLesson, {
@@ -3268,6 +3340,23 @@ async function main() {
     onSelectLesson: async (lessonId) => {
       const targetId = String(lessonId ?? "").trim();
       if (!targetId) return;
+      const localPackageLesson = appState.lessonsById.get(targetId);
+      if (
+        localPackageLesson
+        && String(localPackageLesson.localPackageId ?? "").trim()
+        && String(localPackageLesson.ddnText ?? "").trim()
+      ) {
+        const packageId = String(localPackageLesson.localPackageId ?? "").trim();
+        const originalLessonId = String(localPackageLesson.localPackageLessonId ?? localPackageLesson.id ?? "").trim();
+        openRunWithLessonWithSource(localPackageLesson, {
+          launchKind: "local_package_import",
+          autoExecute: false,
+          sourceId: `local_package:${safeLocalPackageToken(packageId, "local_package")}:${safeLocalPackageToken(originalLessonId, "local_package_lesson")}`,
+          sourceType: "ddn",
+          onboardingProfile: "student",
+        });
+        return;
+      }
       await switchMainTab(MAIN_TAB_STUDIO, {
         lessonId: targetId,
         launchKind: "browse_select",

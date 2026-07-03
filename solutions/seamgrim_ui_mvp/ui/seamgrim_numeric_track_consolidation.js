@@ -62,6 +62,14 @@ const CONSOLIDATION_DEFS = [
   },
 ];
 
+const DEFERRED_MICRO_SLICE_CANDIDATE = {
+  id: "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1",
+  reason: "micro_slice_wrapper_name_over_60",
+  name_length: 108,
+  runner_name_length: 118,
+  fold_into_existing_consolidation: true,
+};
+
 export const DEFAULT_NUMERIC_TRACK_CONSOLIDATION_ROWS = CONSOLIDATION_DEFS.map((row) => ({
   id: row.id,
   source_anchor: row.source_anchor,
@@ -140,6 +148,8 @@ export function buildSeamgrimNumericTrackConsolidation({
     legacy_numeric_runner_count: 28,
     legacy_numeric_runner_over_60: 16,
     legacy_numeric_runner_over_100: 2,
+    deferred_micro_slice_candidate: DEFERRED_MICRO_SLICE_CANDIDATE,
+    deferred_micro_slice_count: 1,
     generated_locally: true,
     product_ui_change: true,
     consolidation_only: true,
@@ -160,15 +170,15 @@ export function buildSeamgrimNumericTrackConsolidation({
     consolidation_rows: rows,
     stages,
     progress: {
-      super_long_behavior_closed: 18,
+      super_long_behavior_closed: 9,
       super_long_total: 18,
-      super_long_percent: 100,
+      super_long_percent: 50,
       current_stage_closed: 2,
       current_stage_total: 5,
       current_stage_percent: 40,
-      roadmap_v2_behavior_closed: 90,
+      roadmap_v2_behavior_closed: 51,
       roadmap_v2_total: 90,
-      roadmap_v2_percent: 100,
+      roadmap_v2_percent: 57,
     },
     next_item: "STUDIO_NUMERIC_REPORT_WORKFLOW_CONSOLIDATION_V1",
   };
@@ -187,6 +197,8 @@ export function formatSeamgrimNumericTrackConsolidationText(consolidation = {}) 
     `legacy_numeric_runner_count\t${payload.legacy_numeric_runner_count ?? 0}`,
     `legacy_numeric_runner_over_60\t${payload.legacy_numeric_runner_over_60 ?? 0}`,
     `legacy_numeric_runner_over_100\t${payload.legacy_numeric_runner_over_100 ?? 0}`,
+    `deferred_micro_slice_candidate\t${payload.deferred_micro_slice_candidate?.id ?? ""}`,
+    `deferred_micro_slice_reason\t${payload.deferred_micro_slice_candidate?.reason ?? ""}`,
     `new_export_wrapper_claim\t${payload.new_export_wrapper_claim === true ? "true" : "false"}`,
     `new_long_runner_claim\t${payload.new_long_runner_claim === true ? "true" : "false"}`,
     `current_stage_percent\t${payload.progress?.current_stage_percent ?? ""}`,
@@ -218,6 +230,7 @@ export function renderSeamgrimNumericTrackConsolidation(root, consolidation = {}
         <span>${escapeHtml(String(payload.progress?.current_stage_closed ?? 0))}/${escapeHtml(String(payload.progress?.current_stage_total ?? 0))} stage</span>
         <span>${escapeHtml(String(payload.progress?.current_stage_percent ?? 0))}%</span>
         <span>${escapeHtml(String(payload.legacy_numeric_runner_over_100 ?? 0))} over 100 chars</span>
+        <span>${escapeHtml(String(payload.deferred_micro_slice_count ?? 0))} deferred</span>
       </div>
     </div>
     <div class="numeric-consolidation-body">
@@ -240,6 +253,7 @@ export function renderSeamgrimNumericTrackConsolidation(root, consolidation = {}
           <div><dt>lane</dt><dd data-numeric-consolidation-active-lane>${escapeHtml(active.consolidation_lane)}</dd></div>
           <div><dt>source</dt><dd data-numeric-consolidation-active-source>${escapeHtml(active.source_anchor)}</dd></div>
           <div><dt>boundary</dt><dd>no new long runner</dd></div>
+          <div><dt>deferred</dt><dd>${escapeHtml(payload.deferred_micro_slice_candidate?.reason ?? "micro-slice guard")}</dd></div>
         </dl>
         <button type="button" class="ghost" data-numeric-consolidation-copy>consolidation 텍스트 복사</button>
       </div>

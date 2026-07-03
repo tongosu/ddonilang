@@ -201,13 +201,18 @@ const ADVANCED_EXPORT_PANEL_HTML = `
   </div>
 `;
 
-function buildSafeJsonDownloadName(value, fallback = "seamgrim-teacher-package") {
+function buildSafeDownloadName(value, fallback = "seamgrim-file", extension = "json") {
   const base = String(value ?? "")
     .trim()
     .replace(/[^a-zA-Z0-9._-]+/g, "_")
     .replace(/^_+|_+$/g, "");
   const stem = base || fallback;
-  return stem.toLowerCase().endsWith(".json") ? stem : `${stem}.json`;
+  const ext = String(extension ?? "").trim().replace(/^\.+/u, "") || "txt";
+  return stem.toLowerCase().endsWith(`.${ext.toLowerCase()}`) ? stem : `${stem}.${ext}`;
+}
+
+function buildSafeJsonDownloadName(value, fallback = "seamgrim-teacher-package") {
+  return buildSafeDownloadName(value, fallback, "json");
 }
 
 function saveJsonTextToFile(text, filename = "seamgrim-teacher-package.json") {
@@ -221,34 +226,121 @@ function saveJsonTextToFile(text, filename = "seamgrim-teacher-package.json") {
   setTimeout(() => URL.revokeObjectURL(link.href), 800);
 }
 
+function saveTsvTextToFile(text, filename = "seamgrim-student-results.tsv") {
+  const blob = new Blob([String(text ?? "")], { type: "text/tab-separated-values;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = buildSafeDownloadName(filename, "seamgrim-student-results", "tsv");
+  document.body?.appendChild?.(link);
+  link.click();
+  link.remove?.();
+  setTimeout(() => URL.revokeObjectURL(link.href), 800);
+}
+
+function savePlainTextToFile(text, filename = "seamgrim-student-result.txt") {
+  const blob = new Blob([String(text ?? "")], { type: "text/plain;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = buildSafeDownloadName(filename, "seamgrim-student-result", "txt");
+  document.body?.appendChild?.(link);
+  link.click();
+  link.remove?.();
+  setTimeout(() => URL.revokeObjectURL(link.href), 800);
+}
+
 function buildLocalPackageStudentGuideText(model = {}) {
+  const guideReport = Array.isArray(model?.payload?.reports)
+    ? model.payload.reports.find((report) => String(report?.title ?? report?.report_id ?? "").includes("학생 배포 안내문"))
+    : null;
+  const guideText = String(guideReport?.text ?? "").trim();
+  if (guideText) return guideText;
   const title = String(model?.lesson_title ?? model?.manifest?.title ?? "셈그림 수업").trim() || "셈그림 수업";
   const packageId = String(model?.package_id ?? model?.manifest?.package_id ?? "").trim();
+  const sessionLabel = String(model?.session_label ?? model?.manifest?.session_label ?? "").trim();
   const instructionRows = Array.isArray(model?.payload?.student_instructions)
     ? model.payload.student_instructions.map((item) => String(item ?? "").trim()).filter(Boolean)
     : [];
   const rows = [
     `${title} 배포 안내`,
+    ...(sessionLabel ? [`차시: ${sessionLabel}`] : []),
     ...(instructionRows.length
       ? instructionRows.map((item, index) => `${index + 1}. ${item}`)
       : [
-          "1. 셈그림 Studio에서 배포 열기를 누릅니다.",
-          "2. 선생님이 보낸 JSON 배포 파일을 선택합니다.",
+          "1. 셈그림 Studio에서 배포 열기 또는 붙여넣기 열기를 누릅니다.",
+          "2. 선생님이 보낸 JSON 배포를 선택하거나 붙여넣습니다.",
           "3. 받은 수업 실행을 눌러 결과를 확인합니다.",
+          "4. 이름을 입력하고 결과 복사 또는 결과 저장으로 교사에게 제출합니다.",
         ]),
   ];
-  if (packageId) rows.push(`배포 ID: ${packageId}`);
+  if (packageId && !instructionRows.some((item) => item.includes("배포 코드"))) {
+    rows.push(`배포 코드: ${packageId}`);
+  }
+  if (!instructionRows.some((item) => item.includes("학생 이름") && item.includes("수업 코드") && item.includes("배포 코드"))) {
+    rows.push("제출 결과에는 학생 이름, 차시, 수업 코드, 배포 코드, 상태 기록이 함께 들어갑니다.");
+  }
   return rows.join("\n");
+}
+
+function buildLocalPackageStudentGuideFileName({ packageId = "seamgrim", sessionLabel = "" } = {}) {
+  const packageText = String(packageId ?? "").trim() || "seamgrim";
+  const session = String(sessionLabel ?? "").trim();
+  const sessionSuffix = session ? `_${session}` : "";
+  return buildSafeDownloadName(`${packageText}${sessionSuffix}_student_guide.txt`, "seamgrim-student-guide", "txt");
 }
 
 function buildLocalPackageGuideSummaryText(model = {}) {
   const instructionRows = Array.isArray(model?.payload?.student_instructions)
     ? model.payload.student_instructions.map((item) => String(item ?? "").trim()).filter(Boolean)
     : [];
+  const contextRows = instructionRows
+    .filter((item) => /^(차시|교과 수|첫 수업|첫 수업 코드|수업|수업 코드|배포 코드|목표|오늘 활동)\s*:/u.test(item))
+    .slice(0, 6);
   const resultRow = instructionRows.find((item) => item.includes("결과 확인"));
-  return resultRow
-    ? `학생 안내: 배포 열기 → 받은 수업 실행 → ${resultRow.replace(/[.。]\s*$/, "")}`
-    : "학생 안내: 배포 열기 → 받은 수업 실행 → 결과 확인";
+  const submitRow = instructionRows.find((item) => item.includes("결과 복사") || item.includes("교사에게 제출"));
+  const flowRow = resultRow
+    ? `배포 열기 또는 붙여넣기 열기 → 받은 수업 실행 → ${resultRow.replace(/[.。]\s*$/, "")}`
+    : "배포 열기 또는 붙여넣기 열기 → 받은 수업 실행 → 결과 확인";
+  return [
+    "학생 배포 안내문",
+    ...contextRows,
+    flowRow,
+    ...(submitRow ? [submitRow.replace(/[.。]\s*$/, "")] : []),
+  ].join("\n");
+}
+
+function buildLocalPackageMaterialsSummaryText(model = {}) {
+  const payload = model?.payload ?? {};
+  const lessons = Array.isArray(payload.lessons) ? payload.lessons : [];
+  const reports = Array.isArray(payload.reports) ? payload.reports : [];
+  const lessonLabel = lessons.length > 0 ? `교과 ${lessons.length}개` : "교과 없음";
+  const reportLabels = reports
+    .map((item) => String(item?.title ?? item?.report_id ?? "").trim())
+    .filter(Boolean);
+  const reportText = reportLabels.length ? reportLabels.join(", ") : "교사용 자료 없음";
+  return `포함 자료: ${lessonLabel} · ${reportText}`;
+}
+
+function getLocalPackageReportsFromLesson(lesson = {}) {
+  const directReports = Array.isArray(lesson?.localPackageReports) ? lesson.localPackageReports : [];
+  if (directReports.length > 0) return directReports;
+  const payloadReports = Array.isArray(lesson?.localPackagePayload?.reports) ? lesson.localPackagePayload.reports : [];
+  return payloadReports;
+}
+
+function findLocalPackageReportFromLesson(lesson = {}, matcher = () => false) {
+  return getLocalPackageReportsFromLesson(lesson).find((report) => matcher({
+    ...report,
+    title: String(report?.title ?? "").trim(),
+    report_id: String(report?.report_id ?? "").trim(),
+    path: String(report?.path ?? "").trim(),
+    text: String(report?.text ?? "").trim(),
+  })) ?? null;
+}
+
+function localPackageReportFileName(report = {}, fallback = "seamgrim-material.txt") {
+  const path = String(report?.path ?? "").replace(/\\/g, "/").trim();
+  const name = path.split("/").filter(Boolean).pop();
+  return buildSafeDownloadName(name || fallback, fallback.replace(/\.[^.]+$/u, "") || "seamgrim-material", name?.split(".").pop() || "txt");
 }
 
 function resolveLocalPackageResultInstruction(lesson = {}) {
@@ -256,6 +348,53 @@ function resolveLocalPackageResultInstruction(lesson = {}) {
     ? lesson.localPackageStudentInstructions.map((item) => String(item ?? "").trim()).filter(Boolean)
     : [];
   return rows.find((item) => item.includes("결과 확인")) || "";
+}
+
+function renderLocalPackageStudentInstructionHtml(lesson = {}) {
+  const rows = Array.isArray(lesson?.localPackageStudentInstructions)
+    ? lesson.localPackageStudentInstructions.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+  const sourceMaterials = Array.isArray(lesson?.localPackageStudentMaterialsSummary)
+    ? lesson.localPackageStudentMaterialsSummary
+    : lesson?.localPackageMaterialsSummary;
+  const materials = Array.isArray(sourceMaterials)
+    ? sourceMaterials.map((item) => String(item ?? "").trim()).filter(Boolean)
+    : [];
+  if (rows.length === 0 && materials.length === 0) return "";
+  const hasMultipleLessons = rows.some((row) => /^교과 수\s*:/u.test(row));
+  const selectedLessonTitle = String(lesson?.title ?? "").trim();
+  const selectedLessonId = String(lesson?.localPackageLessonId ?? lesson?.id ?? "").trim();
+  const selectedRows = hasMultipleLessons
+    ? [
+        ...(selectedLessonTitle && !rows.some((row) => row === `오늘 수업: ${selectedLessonTitle}`) ? [`오늘 수업: ${selectedLessonTitle}`] : []),
+        ...(selectedLessonId && !rows.some((row) => row === `오늘 수업 코드: ${selectedLessonId}`) ? [`오늘 수업 코드: ${selectedLessonId}`] : []),
+      ]
+    : [];
+  const selectedInsertIndex = selectedRows.length
+    ? Math.max(
+        rows.findIndex((row) => /^첫 수업 코드\s*:/u.test(row)),
+        rows.findIndex((row) => /^첫 수업\s*:/u.test(row)),
+        rows.findIndex((row) => /^교과 수\s*:/u.test(row)),
+      ) + 1
+    : 0;
+  const instructionRows = selectedRows.length
+    ? [
+        ...rows.slice(0, Math.max(0, selectedInsertIndex)),
+        ...selectedRows,
+        ...rows.slice(Math.max(0, selectedInsertIndex)),
+      ]
+    : rows;
+  return `
+    <div class="run-delivery-instructions-title">받은 수업 안내</div>
+    ${materials.length ? `
+      <div class="run-delivery-instructions-materials">받은 자료: ${escapeHtml(materials.join(" · "))}</div>
+    ` : ""}
+    ${instructionRows.length ? `
+      <ol class="run-delivery-instructions-list">
+        ${instructionRows.map((row) => `<li>${escapeHtml(row)}</li>`).join("")}
+      </ol>
+    ` : ""}
+  `;
 }
 
 function buildLessonOnboardingStatusText(lesson, fallback = DEFAULT_ONBOARDING_STATUS_TEXT) {
@@ -415,6 +554,1258 @@ function formatCompactStateHash(hashText) {
   if (!value || value === "-") return "상태 기록: -";
   if (value.length <= 28) return `상태 기록: ${value}`;
   return `상태 기록: ${value.slice(0, 12)}...${value.slice(-8)}`;
+}
+
+function buildStudentResultReturnText({ lesson = null, hashText = "", resultInstruction = "", studentName = "" } = {}) {
+  const title = String(lesson?.title ?? lesson?.id ?? "받은 수업").trim() || "받은 수업";
+  const lessonId = String(lesson?.localPackageLessonId ?? lesson?.id ?? "").trim();
+  const student = String(studentName ?? "").trim();
+  const sessionLabel = String(lesson?.localPackageSessionLabel ?? "").trim();
+  const packageId = String(lesson?.localPackageId ?? "").trim();
+  const packageTitle = String(lesson?.localPackageTitle ?? "").trim();
+  const result = String(resultInstruction ?? "").trim() || resolveLocalPackageResultInstruction(lesson);
+  const hash = String(hashText ?? "").trim();
+  return [
+    ...(student ? [`학생: ${student}`] : []),
+    ...(sessionLabel ? [`차시: ${sessionLabel}`] : []),
+    `수업: ${title}`,
+    ...(lessonId ? [`수업 코드: ${lessonId}`] : []),
+    ...(packageTitle ? [`배포 묶음: ${packageTitle}`] : []),
+    ...(packageId ? [`배포 코드: ${packageId}`] : []),
+    ...(result ? [result.replace(/[.。]\s*$/, "")] : []),
+    `상태 기록: ${hash}`,
+  ].join("\n");
+}
+
+function getStudentResultAllowedPackageLessons(lesson = null) {
+  const rows = Array.isArray(lesson?.localPackagePayload?.lessons)
+    ? lesson.localPackagePayload.lessons
+    : [];
+  if (!String(lesson?.localPackageId ?? "").trim() || rows.length <= 1) return [];
+  return rows
+    .map((row) => ({
+      lesson_id: String(row?.lesson_id ?? "").trim(),
+      title: String(row?.title ?? row?.lesson_id ?? "").trim(),
+    }))
+    .filter((row) => row.lesson_id || row.title);
+}
+
+function findStudentResultAllowedPackageLesson({ lesson = null, lessonId = "", title = "" } = {}) {
+  const rows = getStudentResultAllowedPackageLessons(lesson);
+  if (!rows.length) return null;
+  const id = String(lessonId ?? "").trim();
+  const name = String(title ?? "").trim();
+  return rows.find((row) => (
+    (id && row.lesson_id === id)
+      || (name && row.title === name)
+  )) ?? null;
+}
+
+function parseStudentResultReturnText(text, { lesson = null } = {}) {
+  const source = String(text ?? "");
+  const rows = source
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const fields = new Map();
+  rows.forEach((line) => {
+    const index = line.indexOf(":");
+    if (index <= 0) return;
+    const key = line.slice(0, index).trim();
+    const value = line.slice(index + 1).trim();
+    if (key) fields.set(key, value);
+  });
+  const studentName = fields.get("학생") || fields.get("이름") || fields.get("student") || "";
+  const sessionLabel = fields.get("차시") || fields.get("세션") || fields.get("session") || "";
+  const title = fields.get("수업") || "";
+  const lessonId = fields.get("수업 코드") || fields.get("lesson_id") || fields.get("lesson id") || "";
+  const packageTitle = fields.get("배포 묶음") || "";
+  const packageId = fields.get("배포 코드") || fields.get("package_id") || fields.get("package id") || "";
+  const stateHash = fields.get("상태 기록") || "";
+  const reportStatus = fields.get("확인 상태") || "";
+  const reportNotes = fields.get("비고") || "";
+  const hasStudentName = Boolean(String(studentName ?? "").trim());
+  const expectedTitle = String(lesson?.title ?? lesson?.id ?? "").trim();
+  const expectedSessionLabel = String(lesson?.localPackageSessionLabel ?? "").trim();
+  const expectedLessonId = String(lesson?.localPackageLessonId ?? lesson?.id ?? "").trim();
+  const expectedPackageTitle = String(lesson?.localPackageTitle ?? "").trim();
+  const expectedPackageId = String(lesson?.localPackageId ?? "").trim();
+  const sessionMatch = Boolean(!expectedSessionLabel || !sessionLabel || sessionLabel === expectedSessionLabel);
+  const packageMatch = Boolean(!expectedPackageTitle || !packageTitle || packageTitle === expectedPackageTitle);
+  const packageIdMatch = Boolean(!expectedPackageId || !packageId || packageId === expectedPackageId);
+  const allowedPackageLesson = packageIdMatch
+    ? findStudentResultAllowedPackageLesson({ lesson, lessonId, title })
+    : null;
+  const hasAllowedPackageLessons = getStudentResultAllowedPackageLessons(lesson).length > 0;
+  const lessonMatch = Boolean(
+    !expectedTitle
+      || !title
+      || title === expectedTitle
+      || (hasAllowedPackageLessons && allowedPackageLesson?.title === title),
+  );
+  const lessonIdMatch = Boolean(
+    !expectedLessonId
+      || !lessonId
+      || lessonId === expectedLessonId
+      || (hasAllowedPackageLessons && allowedPackageLesson?.lesson_id === lessonId),
+  );
+  const reportStatusAccepted = !reportStatus || reportStatus === "확인됨";
+  const reportNotesClean = String(reportNotes ?? "").trim();
+  const reportNotesAccepted = !reportNotesClean || reportNotesClean === "-";
+  const accepted = Boolean(hasStudentName && stateHash && stateHash !== "-" && sessionMatch && lessonMatch && lessonIdMatch && packageMatch && packageIdMatch && reportStatusAccepted && reportNotesAccepted);
+  return {
+    schema: "seamgrim.student_result_return_review.v1",
+    accepted,
+    student_name: studentName,
+    student_name_missing: !hasStudentName,
+    session_label: sessionLabel,
+    lesson_title: title,
+    lesson_id: lessonId,
+    package_title: packageTitle,
+    package_id: packageId,
+    state_hash: stateHash,
+    report_status: reportStatus,
+    report_notes: reportNotes,
+    session_match: sessionMatch,
+    lesson_match: lessonMatch,
+    lesson_id_match: lessonIdMatch,
+    package_match: packageMatch,
+    package_id_match: packageIdMatch,
+    account_required: false,
+    cloud_sync: false,
+    permission_system: false,
+  };
+}
+
+function isStudentResultReturnReviewCoreAccepted(review = {}) {
+  return Boolean(
+    String(review?.student_name ?? "").trim()
+      && String(review?.state_hash ?? "").trim()
+      && String(review?.state_hash ?? "").trim() !== "-"
+      && review?.session_match !== false
+      && review?.lesson_match !== false
+      && review?.lesson_id_match !== false
+      && review?.package_match !== false
+      && review?.package_id_match !== false,
+  );
+}
+
+function splitStudentResultReturnBlocks(text) {
+  const source = String(text ?? "").trim();
+  if (!source) return [];
+  const lines = source.split(/\r?\n/u).map((line) => line.trim());
+  const tableHeaderIndex = lines.findIndex((line) => line === "학생\t차시\t수업\t수업 코드\t배포 묶음\t배포 코드\t확인 상태\t상태 기록\t비고");
+  if (tableHeaderIndex >= 0) {
+    const prefixBlocks = lines.slice(0, tableHeaderIndex)
+      .join("\n")
+      .split(/\r?\n\s*\r?\n/u)
+      .map((block) => block.trim())
+      .filter((block) => /^\s*(?:학생|student)\s*:/imu.test(block) && /상태\s*기록\s*:/u.test(block));
+    const tableBlocks = lines.slice(tableHeaderIndex + 1)
+      .filter((line) => line && !line.startsWith("#"))
+      .map((line) => line.split("\t"))
+      .filter((cells) => cells.length >= 8)
+      .map((cells) => [
+        ...(String(cells[0] ?? "").trim() ? [`학생: ${String(cells[0] ?? "").trim()}`] : []),
+        ...(String(cells[1] ?? "").trim() ? [`차시: ${String(cells[1] ?? "").trim()}`] : []),
+        ...(String(cells[2] ?? "").trim() ? [`수업: ${String(cells[2] ?? "").trim()}`] : []),
+        ...(String(cells[3] ?? "").trim() ? [`수업 코드: ${String(cells[3] ?? "").trim()}`] : []),
+        ...(String(cells[4] ?? "").trim() ? [`배포 묶음: ${String(cells[4] ?? "").trim()}`] : []),
+        ...(String(cells[5] ?? "").trim() ? [`배포 코드: ${String(cells[5] ?? "").trim()}`] : []),
+        ...(String(cells[6] ?? "").trim() ? [`확인 상태: ${String(cells[6] ?? "").trim()}`] : []),
+        `상태 기록: ${String(cells[7] ?? "").trim()}`,
+        ...(String(cells[8] ?? "").trim() ? [`비고: ${String(cells[8] ?? "").trim()}`] : []),
+      ].join("\n"))
+      .filter(Boolean);
+    if (tableBlocks.length > 0) return [...prefixBlocks, ...tableBlocks];
+  }
+  const paragraphs = source.split(/\r?\n\s*\r?\n/u).map((block) => block.trim()).filter(Boolean);
+  if (paragraphs.length > 1) return paragraphs;
+  const blocks = [];
+  let current = [];
+  source.split(/\r?\n/u).forEach((line) => {
+    if (/^\s*(?:학생|student)\s*:/iu.test(line) && current.length > 0) {
+      blocks.push(current.join("\n").trim());
+      current = [];
+    }
+    current.push(line);
+  });
+  const tail = current.join("\n").trim();
+  if (tail) blocks.push(tail);
+  return blocks.length ? blocks : [source];
+}
+
+function normalizeStudentResultReturnBlockKey(block) {
+  return String(block ?? "")
+    .replace(/\r\n?/gu, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function collectStudentResultReturnBlockKeys(text) {
+  return new Set(
+    splitStudentResultReturnBlocks(text)
+      .map((block) => normalizeStudentResultReturnBlockKey(block))
+      .filter(Boolean),
+  );
+}
+
+function normalizeStudentRosterName(name) {
+  return String(name ?? "").trim().replace(/\s+/gu, " ").toLowerCase();
+}
+
+function isStudentRosterIndexCell(cell) {
+  return /^(?:번호|순번|no\.?|#|\d+|[A-Z]\d{0,3})$/iu.test(String(cell ?? "").trim());
+}
+
+function isStudentRosterNameHeaderCell(cell) {
+  return /^(?:학생\s*)?(?:이름|성명|name)\s*[:：]?$/iu.test(String(cell ?? "").trim());
+}
+
+function isStudentRosterStudentHeaderCell(cell) {
+  const text = String(cell ?? "").trim();
+  return text === "학생" || isStudentRosterNameHeaderCell(text);
+}
+
+function isStudentRosterTableHeaderCells(cells = []) {
+  const first = String(cells[0] ?? "").trim();
+  const second = String(cells[1] ?? "").trim();
+  if (isStudentRosterStudentHeaderCell(first)) return true;
+  return isStudentRosterIndexCell(first) && isStudentRosterNameHeaderCell(second);
+}
+
+function extractStudentRosterNameFromCells(cells = []) {
+  if (!Array.isArray(cells) || cells.length === 0) return "";
+  if (isStudentRosterTableHeaderCells(cells)) return "";
+  const first = String(cells[0] ?? "").trim();
+  const second = String(cells[1] ?? "").trim();
+  if (!first) return "";
+  if (isStudentRosterIndexCell(first)) return second;
+  return first;
+}
+
+function extractStudentRosterRecordFromCells(cells = []) {
+  if (!Array.isArray(cells) || cells.length === 0) return null;
+  const name = normalizeStudentRosterEntry(extractStudentRosterNameFromCells(cells));
+  if (!name) return null;
+  const first = String(cells[0] ?? "").trim();
+  const hasCourseColumns = cells.length >= 6 && !isStudentRosterIndexCell(first);
+  return {
+    name,
+    session_label: hasCourseColumns ? String(cells[1] ?? "").trim() : "",
+    lesson_title: hasCourseColumns ? String(cells[2] ?? "").trim() : "",
+    lesson_id: hasCourseColumns ? String(cells[3] ?? "").trim() : "",
+    package_title: hasCourseColumns ? String(cells[4] ?? "").trim() : "",
+    package_id: hasCourseColumns ? String(cells[5] ?? "").trim() : "",
+  };
+}
+
+function isStudentRosterMetadataLine(line) {
+  const raw = String(line ?? "").trim();
+  if (!raw) return true;
+  if (raw.startsWith("#")) return true;
+  const firstCell = raw.split(/[\t,;]+/u)[0]?.trim() || "";
+  return /^(?:수업(?:\s*코드)?|lesson(?:[_\s-]?id)?|차시|세션|session(?:[_\s-]?label)?|배포(?:\s*(?:묶음|코드))?|package(?:[_\s-]?id)?)$/iu.test(firstCell);
+}
+
+function normalizeStudentRosterEntry(entry) {
+  const source = String(entry ?? "");
+  const raw = source.trim();
+  if (!raw) return "";
+  if (isStudentRosterMetadataLine(source)) return "";
+  if (source.includes("\t")) {
+    const tabCells = source
+      .split(/\t/u)
+      .map((cell) => cell.trim());
+    const tableName = extractStudentRosterNameFromCells(tabCells);
+    if (!tableName) return "";
+    return normalizeStudentRosterEntry(tableName);
+  }
+  const cells = raw
+    .split(/\t/u)
+    .map((cell) => cell.trim())
+    .filter(Boolean);
+  const candidate = cells.length >= 2
+    ? cells.find((cell) => !isStudentRosterIndexCell(cell) && !isStudentRosterNameHeaderCell(cell)) || cells[cells.length - 1]
+    : raw;
+  const withoutHeader = candidate.replace(/^(?:학생\s*)?(?:이름|성명|name)\s*[:：]?\s*$/iu, "").trim();
+  if (!withoutHeader) return "";
+  if (isStudentRosterIndexCell(withoutHeader)) return "";
+  return withoutHeader
+    .replace(/^\s*(?:\d{1,4}|[A-Z]\d{0,3})\s*[.)\]-]?\s+/u, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function collectStudentRosterEntries(text) {
+  const source = String(text ?? "").trim();
+  if (!source) return [];
+  const entries = [];
+  source
+    .split(/\r?\n/u)
+    .forEach((line) => {
+      if (!String(line ?? "").trim()) return;
+      if (isStudentRosterMetadataLine(line)) return;
+      const tabCells = line.split(/\t/u).map((cell) => cell.trim());
+      if (tabCells.length >= 2 && line.includes("\t")) {
+        const tableName = extractStudentRosterNameFromCells(tabCells);
+        if (tableName) entries.push(tableName);
+        return;
+      }
+      const trimmedLine = String(line ?? "").trim();
+      const separatedCells = trimmedLine.split(/[;,]+/u).map((cell) => cell.trim()).filter(Boolean);
+      if (separatedCells.length >= 2) {
+        const hasColumnSignal = separatedCells.some((cell) => isStudentRosterIndexCell(cell) || isStudentRosterStudentHeaderCell(cell));
+        if (hasColumnSignal) {
+          const tableName = extractStudentRosterNameFromCells(separatedCells);
+          if (tableName) entries.push(tableName);
+        } else {
+          entries.push(...separatedCells);
+        }
+        return;
+      }
+      entries.push(trimmedLine);
+    });
+  return entries
+    .map((name) => normalizeStudentRosterEntry(name))
+    .filter(Boolean);
+}
+
+function collectStudentRosterRecords(text) {
+  const source = String(text ?? "").trim();
+  if (!source) return [];
+  const records = [];
+  source
+    .split(/\r?\n/u)
+    .forEach((line) => {
+      if (!String(line ?? "").trim()) return;
+      if (isStudentRosterMetadataLine(line)) return;
+      if (line.includes("\t")) {
+        const tabCells = line.split(/\t/u).map((cell) => cell.trim());
+        const record = extractStudentRosterRecordFromCells(tabCells);
+        if (record) records.push(record);
+        return;
+      }
+      const trimmedLine = String(line ?? "").trim();
+      const separatedCells = trimmedLine.split(/[;,]+/u).map((cell) => cell.trim()).filter(Boolean);
+      if (separatedCells.length >= 2) {
+        const hasColumnSignal = separatedCells.some((cell) => isStudentRosterIndexCell(cell) || isStudentRosterStudentHeaderCell(cell));
+        if (hasColumnSignal) {
+          const record = extractStudentRosterRecordFromCells(separatedCells);
+          if (record) records.push(record);
+        } else {
+          separatedCells
+            .map((name) => normalizeStudentRosterEntry(name))
+            .filter(Boolean)
+            .forEach((name) => records.push({
+              name,
+              session_label: "",
+              lesson_title: "",
+              lesson_id: "",
+              package_title: "",
+              package_id: "",
+            }));
+        }
+        return;
+      }
+      const name = normalizeStudentRosterEntry(trimmedLine);
+      if (name) {
+        records.push({
+          name,
+          session_label: "",
+          lesson_title: "",
+          lesson_id: "",
+          package_title: "",
+          package_id: "",
+        });
+      }
+    });
+  return records;
+}
+
+function buildStudentRosterDuplicateKey(record = {}) {
+  const name = normalizeStudentRosterName(record?.name);
+  if (!name) return "";
+  const lessonKey = [
+    String(record?.package_id ?? "").trim().toLowerCase(),
+    String(record?.session_label ?? "").trim().toLowerCase(),
+    String(record?.lesson_id ?? record?.lesson_title ?? "").trim().toLowerCase(),
+  ].filter(Boolean).join("|");
+  return lessonKey ? `${name}|${lessonKey}` : name;
+}
+
+function studentRosterRecordHasCourseContext(record = {}) {
+  return Boolean(String(
+    record?.lesson_id
+      ?? record?.lesson_title
+      ?? record?.package_id
+      ?? record?.session_label
+      ?? "",
+  ).trim());
+}
+
+function buildStudentRosterExpectationKeyFromParts({
+  name = "",
+  packageId = "",
+  sessionLabel = "",
+  lessonId = "",
+  lessonTitle = "",
+} = {}) {
+  const student = normalizeStudentRosterName(name);
+  if (!student) return "";
+  const lessonKey = [
+    String(packageId ?? "").trim().toLowerCase(),
+    String(sessionLabel ?? "").trim().toLowerCase(),
+    String(lessonId || lessonTitle || "").trim().toLowerCase(),
+  ].filter(Boolean).join("|");
+  return lessonKey ? `${student}|${lessonKey}` : student;
+}
+
+function buildStudentRosterExpectationKeyFromRecord(record = {}) {
+  return buildStudentRosterExpectationKeyFromParts({
+    name: record.name,
+    packageId: record.package_id,
+    sessionLabel: record.session_label,
+    lessonId: record.lesson_id,
+    lessonTitle: record.lesson_title,
+  });
+}
+
+function buildStudentRosterExpectationKeyFromResultRow(row = {}) {
+  return buildStudentRosterExpectationKeyFromParts({
+    name: row.student_name,
+    packageId: row.package_id,
+    sessionLabel: row.session_label,
+    lessonId: row.lesson_id,
+    lessonTitle: row.lesson_title,
+  });
+}
+
+function analyzeStudentRosterText(text) {
+  const records = collectStudentRosterRecords(text);
+  const counts = new Map();
+  const displayByKey = new Map();
+  records.forEach((record) => {
+    const key = buildStudentRosterDuplicateKey(record);
+    if (!key) return;
+    counts.set(key, Number(counts.get(key) ?? 0) + 1);
+    if (!displayByKey.has(key)) displayByKey.set(key, record.name);
+  });
+  const duplicateNames = Array.from(counts.entries())
+    .filter(([, count]) => count > 1)
+    .map(([key]) => displayByKey.get(key))
+    .filter(Boolean);
+  return {
+    entry_count: records.length,
+    duplicate_count: duplicateNames.length,
+    duplicate_names: duplicateNames,
+  };
+}
+
+function parseStudentRosterText(text) {
+  const seen = new Set();
+  return collectStudentRosterEntries(text)
+    .filter((name) => {
+      const key = normalizeStudentRosterName(name);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function countStudentRosterExpectations(text) {
+  const records = collectStudentRosterRecords(text);
+  const courseRecords = records.filter((record) => studentRosterRecordHasCourseContext(record));
+  if (courseRecords.length > 0) {
+    const keys = new Set(courseRecords
+      .map((record) => buildStudentRosterExpectationKeyFromRecord(record))
+      .filter(Boolean));
+    return keys.size;
+  }
+  return parseStudentRosterText(text).length;
+}
+
+function hasStudentRosterCourseExpectations(text) {
+  return collectStudentRosterRecords(text).some((record) => studentRosterRecordHasCourseContext(record));
+}
+
+function shouldUseStudentRosterTargetCountLabelFromRecords(records = []) {
+  const courseRecords = (Array.isArray(records) ? records : [])
+    .filter((record) => studentRosterRecordHasCourseContext(record));
+  if (!courseRecords.length) return false;
+  const targetKeys = new Set(courseRecords
+    .map((record) => buildStudentRosterExpectationKeyFromRecord(record))
+    .filter(Boolean));
+  const studentKeys = new Set(courseRecords
+    .map((record) => normalizeStudentRosterName(record?.name))
+    .filter(Boolean));
+  return targetKeys.size > studentKeys.size;
+}
+
+function shouldUseStudentRosterTargetCountLabel(text) {
+  return shouldUseStudentRosterTargetCountLabelFromRecords(collectStudentRosterRecords(text));
+}
+
+function formatStudentRosterExpectationLabel(count, { courseScoped = false } = {}) {
+  const safeCount = Math.max(0, Number(count) || 0);
+  return courseScoped ? `제출 대상 ${safeCount}건` : `명단 ${safeCount}명`;
+}
+
+function parseStudentRosterMetadataText(text) {
+  const metadata = {
+    lesson_id: "",
+    session_label: "",
+    package_id: "",
+  };
+  String(text ?? "")
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      if (line.startsWith("#")) return;
+      const cells = line.split(/[\t,;]+/u).map((cell) => cell.trim());
+      const key = String(cells[0] ?? "").trim();
+      const value = cells.slice(1).join(" ").trim();
+      if (!key || !value) return;
+      if (/^(?:수업\s*코드|lesson(?:[_\s-]?id)?)$/iu.test(key)) {
+        metadata.lesson_id = metadata.lesson_id || value;
+      } else if (/^(?:차시|세션|session(?:[_\s-]?label)?)$/iu.test(key)) {
+        metadata.session_label = metadata.session_label || value;
+      } else if (/^(?:배포\s*코드|package(?:[_\s-]?id)?)$/iu.test(key)) {
+        metadata.package_id = metadata.package_id || value;
+      }
+    });
+  return metadata;
+}
+
+function buildStudentRosterMetadataReview(rosterText, lesson = null) {
+  const metadata = parseStudentRosterMetadataText(rosterText);
+  const expectedLessonId = String(lesson?.localPackageLessonId ?? lesson?.id ?? "").trim();
+  const expectedSessionLabel = String(lesson?.localPackageSessionLabel ?? "").trim();
+  const expectedPackageId = String(lesson?.localPackageId ?? "").trim();
+  const lessonId = String(metadata.lesson_id ?? "").trim();
+  const sessionLabel = String(metadata.session_label ?? "").trim();
+  const packageId = String(metadata.package_id ?? "").trim();
+  const lessonIdMatch = Boolean(!expectedLessonId || !lessonId || lessonId === expectedLessonId);
+  const sessionMatch = Boolean(!expectedSessionLabel || !sessionLabel || sessionLabel === expectedSessionLabel);
+  const packageIdMatch = Boolean(!expectedPackageId || !packageId || packageId === expectedPackageId);
+  return {
+    metadata,
+    lesson_id_match: lessonIdMatch,
+    session_match: sessionMatch,
+    package_id_match: packageIdMatch,
+    context_match: lessonIdMatch && sessionMatch && packageIdMatch,
+  };
+}
+
+function findStudentResultReportStatus(text, key) {
+  const target = String(key ?? "").trim();
+  if (!target) return "";
+  const line = String(text ?? "")
+    .split(/\r?\n/u)
+    .map((row) => row.trim())
+    .find((row) => row.startsWith(`${target}\t`));
+  return String(line?.split("\t")?.[1] ?? "").trim();
+}
+
+function buildStudentResultReportMetadataReview(text, lesson = null) {
+  const source = String(text ?? "");
+  const hasReportTable = source.includes("학생\t차시\t수업\t수업 코드\t배포 묶음\t배포 코드\t확인 상태\t상태 기록\t비고");
+  const metadata = hasReportTable ? parseStudentRosterMetadataText(source) : { lesson_id: "", session_label: "", package_id: "" };
+  const base = buildStudentRosterMetadataReview(
+    [
+      ...(metadata.lesson_id ? [`수업 코드\t${metadata.lesson_id}`] : []),
+      ...(metadata.session_label ? [`차시\t${metadata.session_label}`] : []),
+      ...(metadata.package_id ? [`배포 코드\t${metadata.package_id}`] : []),
+    ].join("\n"),
+    lesson,
+  );
+  if (!hasReportTable) return base;
+  const lessonIdStatus = findStudentResultReportStatus(source, "명단 수업 코드 확인");
+  const sessionStatus = findStudentResultReportStatus(source, "명단 차시 확인");
+  const packageIdStatus = findStudentResultReportStatus(source, "명단 배포 코드 확인");
+  const contextStatus = findStudentResultReportStatus(source, "명단 맥락 확인");
+  const duplicateRosterStatus = findStudentResultReportStatus(source, "명단 중복 확인");
+  const duplicateRosterNames = findStudentResultReportStatus(source, "명단 중복 이름")
+    .split(/[|,]+/u)
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const hasSpecificNeed = lessonIdStatus === "필요" || sessionStatus === "필요" || packageIdStatus === "필요";
+  const fallbackContextNeed = contextStatus === "필요" && !hasSpecificNeed;
+  const lessonIdMatch = base.lesson_id_match && lessonIdStatus !== "필요";
+  const sessionMatch = base.session_match && sessionStatus !== "필요";
+  const packageIdMatch = base.package_id_match && packageIdStatus !== "필요" && !fallbackContextNeed;
+  return {
+    metadata: base.metadata,
+    lesson_id_match: lessonIdMatch,
+    session_match: sessionMatch,
+    package_id_match: packageIdMatch,
+    context_match: lessonIdMatch && sessionMatch && packageIdMatch,
+    duplicate_roster_count: duplicateRosterStatus === "필요" ? Math.max(1, duplicateRosterNames.length) : 0,
+    duplicate_roster_names: duplicateRosterNames,
+  };
+}
+
+function mergeStudentRosterMetadataReviews(primary = null, secondary = null) {
+  const primaryMetadata = toPlainObject(primary?.metadata, {});
+  const secondaryMetadata = toPlainObject(secondary?.metadata, {});
+  const metadata = {
+    lesson_id: String(primaryMetadata.lesson_id || secondaryMetadata.lesson_id || "").trim(),
+    session_label: String(primaryMetadata.session_label || secondaryMetadata.session_label || "").trim(),
+    package_id: String(primaryMetadata.package_id || secondaryMetadata.package_id || "").trim(),
+  };
+  const lessonIdMatch = primary?.lesson_id_match !== false && secondary?.lesson_id_match !== false;
+  const sessionMatch = primary?.session_match !== false && secondary?.session_match !== false;
+  const packageIdMatch = primary?.package_id_match !== false && secondary?.package_id_match !== false;
+  const primaryDuplicateNames = Array.isArray(primary?.duplicate_roster_names) ? primary.duplicate_roster_names : [];
+  const secondaryDuplicateNames = Array.isArray(secondary?.duplicate_roster_names) ? secondary.duplicate_roster_names : [];
+  const duplicateRosterNames = Array.from(new Set([...primaryDuplicateNames, ...secondaryDuplicateNames].map((name) => String(name ?? "").trim()).filter(Boolean)));
+  const duplicateRosterCount = Math.max(
+    Number(primary?.duplicate_roster_count) || 0,
+    Number(secondary?.duplicate_roster_count) || 0,
+    duplicateRosterNames.length,
+  );
+  return {
+    metadata,
+    lesson_id_match: lessonIdMatch,
+    session_match: sessionMatch,
+    package_id_match: packageIdMatch,
+    context_match: lessonIdMatch && sessionMatch && packageIdMatch,
+    duplicate_roster_count: duplicateRosterCount,
+    duplicate_roster_names: duplicateRosterNames,
+  };
+}
+
+function buildStudentRosterMetadataReviewNotes(review = null) {
+  const notes = [];
+  if (review?.lesson_id_match === false) notes.push("명단 수업 코드 확인");
+  if (review?.session_match === false) notes.push("명단 차시 확인");
+  if (review?.package_id_match === false) notes.push("명단 배포 코드 확인");
+  return notes;
+}
+
+function buildStudentResultDuplicateNameKey(row = {}) {
+  const student = normalizeStudentRosterName(row?.student_name);
+  if (!student) return "";
+  const lessonKey = [
+    String(row?.package_id ?? "").trim().toLowerCase(),
+    String(row?.session_label ?? "").trim().toLowerCase(),
+    String(row?.lesson_id ?? row?.lesson_title ?? "").trim().toLowerCase(),
+  ].filter(Boolean).join("|");
+  return lessonKey ? `${student}|${lessonKey}` : student;
+}
+
+function buildStudentResultDuplicateStateHashKey(row = {}) {
+  const hash = String(row?.state_hash ?? "").trim();
+  if (!hash || hash === "-") return "";
+  const lessonKey = [
+    String(row?.package_id ?? "").trim().toLowerCase(),
+    String(row?.session_label ?? "").trim().toLowerCase(),
+    String(row?.lesson_id ?? row?.lesson_title ?? "").trim().toLowerCase(),
+  ].filter(Boolean).join("|");
+  return lessonKey ? `${hash}|${lessonKey}` : hash;
+}
+
+function parseStudentResultReturnBatchText(text, { lesson = null, rosterText = "" } = {}) {
+  const blocks = splitStudentResultReturnBlocks(text);
+  const rosterNames = parseStudentRosterText(rosterText);
+  const rosterRecords = collectStudentRosterRecords(rosterText);
+  const courseRosterRecords = rosterRecords.filter((record) => studentRosterRecordHasCourseContext(record));
+  const useCourseRosterRecords = courseRosterRecords.length > 0;
+  const rosterExpectationRows = useCourseRosterRecords
+    ? courseRosterRecords
+    : rosterNames.map((name) => ({
+      name,
+      session_label: "",
+      lesson_title: "",
+      lesson_id: "",
+      package_title: "",
+      package_id: "",
+    }));
+  const rosterExpectationByKey = new Map();
+  rosterExpectationRows.forEach((record) => {
+    const key = useCourseRosterRecords
+      ? buildStudentRosterExpectationKeyFromRecord(record)
+      : normalizeStudentRosterName(record.name);
+    if (key && !rosterExpectationByKey.has(key)) rosterExpectationByKey.set(key, record);
+  });
+  const rosterExpectationKeys = new Set(rosterExpectationByKey.keys());
+  const useRosterTargetCountLabel = useCourseRosterRecords
+    && shouldUseStudentRosterTargetCountLabelFromRecords(rosterExpectationRows);
+  const rosterAnalysis = analyzeStudentRosterText(rosterText);
+  const currentRosterPresent = String(rosterText ?? "").trim().length > 0;
+  const rosterMetadataReview = currentRosterPresent
+    ? buildStudentRosterMetadataReview(rosterText, lesson)
+    : mergeStudentRosterMetadataReviews(
+      buildStudentRosterMetadataReview(rosterText, lesson),
+      buildStudentResultReportMetadataReview(text, lesson),
+    );
+  const duplicateRosterNames = Array.from(new Set([
+    ...(currentRosterPresent ? rosterAnalysis.duplicate_names : []),
+    ...(Array.isArray(rosterMetadataReview.duplicate_roster_names) ? rosterMetadataReview.duplicate_roster_names : []),
+  ].map((name) => String(name ?? "").trim()).filter(Boolean)));
+  const duplicateRosterCount = Math.max(
+    Number(rosterAnalysis.duplicate_count) || 0,
+    Number(rosterMetadataReview.duplicate_roster_count) || 0,
+    duplicateRosterNames.length,
+  );
+  const rows = blocks.map((block, index) => {
+    const review = parseStudentResultReturnText(block, { lesson });
+    if (currentRosterPresent) {
+      review.report_status = "";
+      review.report_notes = sanitizeStudentResultReportNotesForCurrentRoster(review.report_notes, {
+        stateHash: review.state_hash,
+      });
+      review.accepted = isStudentResultReturnReviewCoreAccepted(review);
+    }
+    const studentName = String(review.student_name || "").trim() || `학생 ${index + 1}`;
+    return {
+      ...review,
+      row_index: index + 1,
+      student_name: studentName,
+      raw_text: block,
+    };
+  });
+  const nameCounts = new Map();
+  const hashCounts = new Map();
+  rows.forEach((row) => {
+    const studentKey = buildStudentResultDuplicateNameKey(row);
+    const hashKey = buildStudentResultDuplicateStateHashKey(row);
+    if (studentKey) nameCounts.set(studentKey, Number(nameCounts.get(studentKey) ?? 0) + 1);
+    if (hashKey) hashCounts.set(hashKey, Number(hashCounts.get(hashKey) ?? 0) + 1);
+  });
+  rows.forEach((row) => {
+    const duplicateNameKey = buildStudentResultDuplicateNameKey(row);
+    const rosterResultKey = useCourseRosterRecords
+      ? buildStudentRosterExpectationKeyFromResultRow(row)
+      : normalizeStudentRosterName(row.student_name);
+    const hashKey = buildStudentResultDuplicateStateHashKey(row);
+    row.duplicate_student_name = Boolean(duplicateNameKey && Number(nameCounts.get(duplicateNameKey) ?? 0) > 1);
+    row.duplicate_state_hash = Boolean(hashKey && Number(hashCounts.get(hashKey) ?? 0) > 1);
+    row.roster_expected = rosterExpectationKeys.size > 0;
+    row.roster_match = Boolean(!rosterExpectationKeys.size || rosterExpectationKeys.has(rosterResultKey));
+    row.roster_extra = Boolean(rosterExpectationKeys.size && rosterResultKey && !rosterExpectationKeys.has(rosterResultKey));
+    row.roster_lesson_id_match = rosterMetadataReview.lesson_id_match;
+    row.roster_session_match = rosterMetadataReview.session_match;
+    row.roster_package_id_match = rosterMetadataReview.package_id_match;
+    row.roster_missing = Boolean(
+      row.roster_expected
+        && row.roster_match
+        && !String(row.state_hash ?? "").trim()
+        && String(row.report_notes ?? "")
+          .split("|")
+          .map((note) => note.trim())
+          .includes("미제출"),
+    );
+    row.accepted = Boolean(row.accepted && !row.duplicate_student_name && !row.duplicate_state_hash && !row.roster_extra && !row.roster_missing && rosterMetadataReview.context_match);
+  });
+  if (rosterExpectationKeys.size > 0) {
+    const submittedKeys = new Set(rows.map((row) => (
+      useCourseRosterRecords
+        ? buildStudentRosterExpectationKeyFromResultRow(row)
+        : normalizeStudentRosterName(row.student_name)
+    )).filter(Boolean));
+    rosterExpectationByKey.forEach((record, key) => {
+      if (!key || submittedKeys.has(key)) return;
+      const studentName = String(record?.name ?? "").trim();
+      rows.push({
+        schema: "seamgrim.student_result_return_review.v1",
+        accepted: false,
+        student_name: studentName,
+        session_label: String(record?.session_label || lesson?.localPackageSessionLabel || "").trim(),
+        lesson_title: String(record?.lesson_title || lesson?.title || lesson?.id || "").trim(),
+        lesson_id: String(record?.lesson_id || lesson?.localPackageLessonId || lesson?.id || "").trim(),
+        package_title: String(record?.package_title || lesson?.localPackageTitle || "").trim(),
+        package_id: String(record?.package_id || lesson?.localPackageId || "").trim(),
+        state_hash: "",
+        session_match: true,
+        lesson_match: true,
+        lesson_id_match: true,
+        package_match: true,
+        package_id_match: true,
+        account_required: false,
+        cloud_sync: false,
+        permission_system: false,
+        row_index: rows.length + 1,
+        raw_text: "",
+        duplicate_student_name: false,
+        student_name_missing: false,
+        duplicate_state_hash: false,
+        roster_expected: true,
+        roster_match: true,
+        roster_extra: false,
+        roster_lesson_id_match: rosterMetadataReview.lesson_id_match,
+        roster_session_match: rosterMetadataReview.session_match,
+        roster_package_id_match: rosterMetadataReview.package_id_match,
+        roster_missing: true,
+      });
+      submittedKeys.add(key);
+    });
+    rows.forEach((row, index) => {
+      row.row_index = index + 1;
+    });
+  }
+  const acceptedCount = rows.filter((row) => row.accepted === true).length;
+  const rejectedCount = rows.length - acceptedCount;
+  const missingCount = rows.filter((row) => row.roster_missing === true).length;
+  const extraCount = rows.filter((row) => row.roster_extra === true).length;
+  const batchAccepted = rows.length > 0 && rejectedCount === 0 && duplicateRosterCount <= 0;
+  const nextActionText = buildStudentResultNextActionText({
+    row_count: rows.length,
+    missing_count: missingCount,
+    duplicate_roster_count: duplicateRosterCount,
+    duplicate_roster_names: duplicateRosterNames,
+    rows,
+  });
+  const reportText = formatStudentResultReturnBatchReportText(rows, {
+    roster_metadata: rosterMetadataReview.metadata,
+    roster_lesson_id_match: rosterMetadataReview.lesson_id_match,
+    roster_session_match: rosterMetadataReview.session_match,
+    roster_package_id_match: rosterMetadataReview.package_id_match,
+    roster_context_match: rosterMetadataReview.context_match,
+    roster_entry_count: rosterAnalysis.entry_count,
+    duplicate_roster_count: duplicateRosterCount,
+    duplicate_roster_names: duplicateRosterNames,
+    next_action: nextActionText,
+  });
+  return {
+    schema: "seamgrim.student_result_return_batch_review.v1",
+    accepted: batchAccepted,
+    row_count: rows.length,
+    accepted_count: acceptedCount,
+    rejected_count: rejectedCount,
+    roster_count: rosterExpectationByKey.size,
+    roster_count_kind: useRosterTargetCountLabel ? "lesson_targets" : "students",
+    missing_count: missingCount,
+    extra_count: extraCount,
+    roster_entry_count: rosterAnalysis.entry_count,
+    duplicate_roster_count: duplicateRosterCount,
+    duplicate_roster_names: duplicateRosterNames,
+    roster_metadata: rosterMetadataReview.metadata,
+    roster_lesson_id_match: rosterMetadataReview.lesson_id_match,
+    roster_session_match: rosterMetadataReview.session_match,
+    roster_package_id_match: rosterMetadataReview.package_id_match,
+    roster_context_match: rosterMetadataReview.context_match,
+    account_required: false,
+    cloud_sync: false,
+    permission_system: false,
+    rows,
+    report_text: reportText,
+    next_action: nextActionText,
+  };
+}
+
+function buildStudentResultReviewNotes(row = {}) {
+  const notes = [];
+  if (row.roster_missing === true) notes.push("미제출");
+  if (row.roster_extra === true) notes.push("명단에 없음");
+  if (row.roster_lesson_id_match === false) notes.push("명단 수업 코드 확인");
+  if (row.roster_session_match === false) notes.push("명단 차시 확인");
+  if (row.roster_package_id_match === false) notes.push("명단 배포 코드 확인");
+  if (row.student_name_missing === true) notes.push("학생 이름 확인");
+  if (row.session_match === false) notes.push("차시 확인");
+  if (row.lesson_match === false) notes.push("수업 이름 확인");
+  if (row.lesson_id_match === false) notes.push("수업 코드 확인");
+  if (row.package_match === false) notes.push("배포 묶음 확인");
+  if (row.package_id_match === false) notes.push("배포 코드 확인");
+  if (!row.state_hash || row.state_hash === "-") {
+    notes.push(row.roster_missing === true ? "상태 기록 대기" : "상태 기록 없음");
+  }
+  if (row.duplicate_student_name === true) notes.push("학생 이름 중복");
+  if (row.duplicate_state_hash === true) notes.push("상태 기록 중복");
+  String(row.report_notes ?? "")
+    .split("|")
+    .map((note) => note.trim())
+    .filter((note) => note && note !== "-")
+    .forEach((note) => {
+      if (!notes.includes(note)) notes.push(note);
+    });
+  return notes;
+}
+
+function sanitizeStudentResultReportNotesForCurrentRoster(notes = "", { stateHash = "" } = {}) {
+  const staleRosterNotes = new Set([
+    "명단 수업 코드 확인",
+    "명단 차시 확인",
+    "명단 배포 코드 확인",
+    "명단에 없음",
+  ]);
+  if (String(stateHash ?? "").trim()) {
+    staleRosterNotes.add("미제출");
+    staleRosterNotes.add("상태 기록 대기");
+    staleRosterNotes.add("상태 기록 없음");
+  }
+  return String(notes ?? "")
+    .split("|")
+    .map((note) => note.trim())
+    .filter((note) => note && !staleRosterNotes.has(note))
+    .join("|");
+}
+
+function collectStudentResultReportDistinctValues(rows = [], field = "") {
+  const seen = new Set();
+  const values = [];
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const value = String(row?.[field] ?? "").trim();
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    values.push(value);
+  });
+  return values;
+}
+
+function buildStudentResultReportScope(rows = [], { lesson = null } = {}) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const lessonIds = collectStudentResultReportDistinctValues(safeRows, "lesson_id");
+  const packageIds = collectStudentResultReportDistinctValues(safeRows, "package_id");
+  const sessionLabels = collectStudentResultReportDistinctValues(safeRows, "session_label");
+  const firstRow = safeRows.find((row) => row && typeof row === "object") || {};
+  const multiLesson = lessonIds.length > 1;
+  return {
+    multi_lesson: multiLesson,
+    lesson_ids: lessonIds,
+    package_ids: packageIds,
+    session_labels: sessionLabels,
+    lesson_id: multiLesson
+      ? ""
+      : String(lesson?.localPackageLessonId ?? lesson?.id ?? lessonIds[0] ?? firstRow.lesson_id ?? "").trim(),
+    package_id: String(lesson?.localPackageId ?? packageIds[0] ?? firstRow.package_id ?? "").trim(),
+    session_label: String(lesson?.localPackageSessionLabel ?? sessionLabels[0] ?? firstRow.session_label ?? "").trim(),
+  };
+}
+
+function buildStudentReminderScope(rows = [], { lesson = null, fallbackLessonId = "lesson" } = {}) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const lessonIds = collectStudentResultReportDistinctValues(safeRows, "lesson_id");
+  const packageIds = collectStudentResultReportDistinctValues(safeRows, "package_id");
+  const sessionLabels = collectStudentResultReportDistinctValues(safeRows, "session_label");
+  const firstRow = safeRows.find((row) => row && typeof row === "object") || {};
+  const multiLesson = lessonIds.length > 1;
+  return {
+    multi_lesson: multiLesson,
+    lesson_ids: lessonIds,
+    package_ids: packageIds,
+    session_labels: sessionLabels,
+    lesson_id: multiLesson
+      ? ""
+      : String(firstRow.lesson_id ?? lessonIds[0] ?? lesson?.localPackageLessonId ?? lesson?.id ?? fallbackLessonId ?? "lesson").trim(),
+    package_id: String(firstRow.package_id ?? packageIds[0] ?? lesson?.localPackageId ?? "").trim(),
+    session_label: String(firstRow.session_label ?? sessionLabels[0] ?? lesson?.localPackageSessionLabel ?? "").trim(),
+  };
+}
+
+function buildStudentReminderDownloadFileName(scope = {}, suffix = "reminder", fallbackBase = "course") {
+  const sessionLabel = String(scope?.session_label ?? "").trim();
+  const packageId = String(scope?.package_id ?? "").trim();
+  const lessonId = String(scope?.lesson_id ?? "").trim();
+  const sessionSuffix = sessionLabel ? `_${sessionLabel}` : "";
+  const packageSuffix = packageId ? `_${packageId}` : "";
+  const fileStem = scope?.multi_lesson === true
+    ? `${packageId || fallbackBase || "course"}${sessionSuffix}_${suffix}`
+    : `${lessonId || fallbackBase || "lesson"}${sessionSuffix}${packageSuffix}_${suffix}`;
+  return buildSafeDownloadName(`${fileStem}.txt`, `seamgrim-${suffix}`, "txt");
+}
+
+function formatStudentResultReturnBatchReportText(rows = [], batchMeta = {}) {
+  const metadata = toPlainObject(batchMeta?.roster_metadata, {});
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const firstRow = safeRows.find((row) => row && typeof row === "object") || {};
+  const lessonIds = collectStudentResultReportDistinctValues(safeRows, "lesson_id");
+  const lessonTitles = collectStudentResultReportDistinctValues(safeRows, "lesson_title");
+  const sessionLabels = collectStudentResultReportDistinctValues(safeRows, "session_label");
+  const packageIds = collectStudentResultReportDistinctValues(safeRows, "package_id");
+  const lessonId = lessonIds.length <= 1
+    ? String(lessonIds[0] ?? metadata.lesson_id ?? firstRow.lesson_id ?? "").trim()
+    : "";
+  const sessionLabel = sessionLabels.length <= 1
+    ? String(sessionLabels[0] ?? metadata.session_label ?? firstRow.session_label ?? "").trim()
+    : "";
+  const packageId = packageIds.length <= 1
+    ? String(packageIds[0] ?? metadata.package_id ?? firstRow.package_id ?? "").trim()
+    : "";
+  const nextActionText = String(batchMeta?.next_action ?? "").trim();
+  const nextActionValue = nextActionText.replace(/^다음 행동:\s*/u, "").trim();
+  const lines = [
+    "# 셈그림 학생 결과표",
+    ...(lessonId ? [`수업 코드\t${lessonId}`] : []),
+    ...(lessonIds.length > 1 ? [`수업 범위\t여러 수업 ${lessonIds.length}개`, `수업 코드 목록\t${lessonIds.join("|")}`] : []),
+    ...(lessonTitles.length > 1 ? [`수업 제목 목록\t${lessonTitles.join("|")}`] : []),
+    ...(sessionLabel ? [`차시\t${sessionLabel}`] : []),
+    ...(sessionLabels.length > 1 ? [`차시 목록\t${sessionLabels.join("|")}`] : []),
+    ...(packageId ? [`배포 코드\t${packageId}`] : []),
+    ...(packageIds.length > 1 ? [`배포 코드 목록\t${packageIds.join("|")}`] : []),
+    `명단 수업 코드 확인\t${batchMeta?.roster_lesson_id_match === false ? "필요" : "통과"}`,
+    `명단 차시 확인\t${batchMeta?.roster_session_match === false ? "필요" : "통과"}`,
+    `명단 배포 코드 확인\t${batchMeta?.roster_package_id_match === false ? "필요" : "통과"}`,
+    `명단 맥락 확인\t${batchMeta?.roster_context_match === false ? "필요" : "통과"}`,
+    `명단 중복 확인\t${Math.max(0, Number(batchMeta?.duplicate_roster_count) || 0) > 0 ? "필요" : "통과"}`,
+    ...(Array.isArray(batchMeta?.duplicate_roster_names) && batchMeta.duplicate_roster_names.length
+      ? [`명단 중복 이름\t${batchMeta.duplicate_roster_names.join("|")}`]
+      : []),
+    ...(nextActionValue ? [`다음 행동\t${nextActionValue}`] : []),
+    "",
+    "학생\t차시\t수업\t수업 코드\t배포 묶음\t배포 코드\t확인 상태\t상태 기록\t비고",
+  ];
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const notes = buildStudentResultReviewNotes(row);
+    lines.push([
+      String(row.student_name ?? ""),
+      String(row.session_label ?? ""),
+      String(row.lesson_title ?? ""),
+      String(row.lesson_id ?? ""),
+      String(row.package_title ?? ""),
+      String(row.package_id ?? ""),
+      row.accepted === true ? "확인됨" : "확인 필요",
+      String(row.state_hash ?? ""),
+      notes.join("|"),
+    ].join("\t"));
+  });
+  return lines.join("\n");
+}
+
+function formatDuplicateRosterNamesText(batch = null, { maxNames = 3 } = {}) {
+  const names = Array.isArray(batch?.duplicate_roster_names)
+    ? batch.duplicate_roster_names.map((name) => String(name ?? "").trim()).filter(Boolean)
+    : [];
+  if (!names.length) return "";
+  const limit = Math.max(1, Number(maxNames) || 3);
+  const visible = names.slice(0, limit);
+  const remaining = names.length - visible.length;
+  return remaining > 0 ? `${visible.join(", ")} 외 ${remaining}명` : visible.join(", ");
+}
+
+function buildStudentResultNextActionText(batch = null) {
+  const rowCount = Math.max(0, Number(batch?.row_count) || 0);
+  if (rowCount <= 0) return "다음 행동: 학생 결과를 붙여넣거나 결과 파일을 여세요.";
+  const missingCount = Math.max(0, Number(batch?.missing_count) || 0);
+  const duplicateRosterCount = Math.max(0, Number(batch?.duplicate_roster_count) || 0);
+  const duplicateRosterNamesText = formatDuplicateRosterNamesText(batch);
+  const duplicateRosterTargetText = duplicateRosterNamesText ? ` (${duplicateRosterNamesText})` : "";
+  const reviewCount = getStudentResultReviewReminderRows(batch).length;
+  if (duplicateRosterCount > 0 && (missingCount > 0 || reviewCount > 0)) {
+    return `다음 행동: 명단 중복${duplicateRosterTargetText}을 먼저 정리한 뒤 미제출/확인 필요 안내를 보내세요.`;
+  }
+  if (duplicateRosterCount > 0) {
+    return `다음 행동: 명단 중복${duplicateRosterTargetText}을 정리한 뒤 결과표를 다시 확인하세요.`;
+  }
+  if (missingCount > 0 && reviewCount > 0) {
+    return "다음 행동: 미제출 안내와 확인 필요 안내를 각각 복사하세요.";
+  }
+  if (missingCount > 0) {
+    return "다음 행동: 미제출 안내 복사 후 제출을 다시 요청하세요.";
+  }
+  if (reviewCount > 0) {
+    return "다음 행동: 확인 필요 안내 복사 후 결과를 다시 받으세요.";
+  }
+  return "다음 행동: 결과표 저장 후 입력 비우기로 다음 반을 준비하세요.";
+}
+
+function getStudentResultMissingReminderTargets(batch = null) {
+  const rows = Array.isArray(batch?.rows) ? batch.rows : [];
+  return rows
+    .filter((row) => row?.roster_missing === true)
+    .map((row) => ({
+      student_name: String(row?.student_name ?? "").trim(),
+      lesson_title: String(row?.lesson_title ?? "").trim(),
+      lesson_id: String(row?.lesson_id ?? "").trim(),
+      package_title: String(row?.package_title ?? "").trim(),
+      package_id: String(row?.package_id ?? "").trim(),
+      session_label: String(row?.session_label ?? "").trim(),
+    }))
+    .filter((target) => target.student_name);
+}
+
+function formatStudentResultMissingTargetLine(target = {}) {
+  const studentName = String(target?.student_name ?? "").trim();
+  const lessonTitle = String(target?.lesson_title ?? "").trim();
+  const lessonId = String(target?.lesson_id ?? "").trim();
+  const sessionLabel = String(target?.session_label ?? "").trim();
+  const details = [
+    lessonTitle || lessonId,
+    lessonTitle && lessonId ? lessonId : "",
+    sessionLabel,
+  ].filter(Boolean);
+  return details.length ? `- ${studentName}: ${details.join(" · ")}` : `- ${studentName}`;
+}
+
+function buildStudentResultMissingReminderText(batch = null, { lesson = null } = {}) {
+  const rows = Array.isArray(batch?.rows) ? batch.rows : [];
+  const missingTargets = getStudentResultMissingReminderTargets(batch);
+  const missingNames = Array.from(new Set(missingTargets.map((target) => target.student_name).filter(Boolean)));
+  if (!missingNames.length) return "";
+  const lessonTitle = String(lesson?.title ?? rows.find((row) => row?.lesson_title)?.lesson_title ?? "받은 수업").trim() || "받은 수업";
+  const lessonId = String(lesson?.localPackageLessonId ?? lesson?.id ?? rows.find((row) => row?.lesson_id)?.lesson_id ?? "").trim();
+  const packageTitle = String(lesson?.localPackageTitle ?? rows.find((row) => row?.package_title)?.package_title ?? "").trim();
+  const packageId = String(lesson?.localPackageId ?? rows.find((row) => row?.package_id)?.package_id ?? "").trim();
+  const sessionLabel = String(lesson?.localPackageSessionLabel ?? rows.find((row) => row?.session_label)?.session_label ?? "").trim();
+  const targetLines = missingTargets.map((target) => formatStudentResultMissingTargetLine(target));
+  return [
+    "미제출 안내",
+    ...(sessionLabel ? [`차시: ${sessionLabel}`] : []),
+    `수업: ${lessonTitle}`,
+    ...(lessonId ? [`수업 코드: ${lessonId}`] : []),
+    ...(packageTitle ? [`배포 묶음: ${packageTitle}`] : []),
+    ...(packageId ? [`배포 코드: ${packageId}`] : []),
+    `대상: ${missingNames.join(", ")}`,
+    ...(targetLines.length > 1 || targetLines.some((line) => !line.endsWith(` ${missingNames[0]}`))
+      ? ["대상 수업:", ...targetLines]
+      : []),
+    "배포 열기 -> 받은 수업 실행 -> 결과 확인 -> 결과 복사 순서로 제출해 주세요.",
+  ].join("\n");
+}
+
+function getStudentResultReviewReminderRows(batch = null) {
+  const rows = Array.isArray(batch?.rows) ? batch.rows : [];
+  return rows.filter((row) => row?.accepted !== true && row?.roster_missing !== true);
+}
+
+function getStudentResultReviewReminderTargets(batch = null) {
+  return getStudentResultReviewReminderRows(batch)
+    .map((row) => {
+      const studentName = String(row?.student_name ?? "").trim() || `학생 ${Number(row?.row_index) || ""}`.trim();
+      const notes = buildStudentResultReviewNotes(row)
+        .filter((note) => note !== "미제출")
+        .join(", ") || "확인 필요";
+      return {
+        student_name: studentName,
+        lesson_title: String(row?.lesson_title ?? "").trim(),
+        lesson_id: String(row?.lesson_id ?? "").trim(),
+        package_title: String(row?.package_title ?? "").trim(),
+        package_id: String(row?.package_id ?? "").trim(),
+        session_label: String(row?.session_label ?? "").trim(),
+        notes,
+      };
+    })
+    .filter((target) => target.student_name);
+}
+
+function formatStudentResultReviewTargetLine(target = {}) {
+  const studentName = String(target?.student_name ?? "").trim();
+  const lessonTitle = String(target?.lesson_title ?? "").trim();
+  const lessonId = String(target?.lesson_id ?? "").trim();
+  const sessionLabel = String(target?.session_label ?? "").trim();
+  const notes = String(target?.notes ?? "확인 필요").trim() || "확인 필요";
+  const details = [
+    lessonTitle || lessonId,
+    lessonTitle && lessonId ? lessonId : "",
+    sessionLabel,
+  ].filter(Boolean);
+  return details.length ? `- ${studentName}: ${details.join(" · ")} — ${notes}` : `- ${studentName}: ${notes}`;
+}
+
+function buildStudentResultReviewReminderText(batch = null, { lesson = null } = {}) {
+  const rows = getStudentResultReviewReminderRows(batch);
+  if (!rows.length) return "";
+  const allRows = Array.isArray(batch?.rows) ? batch.rows : rows;
+  const lessonTitle = String(lesson?.title ?? allRows.find((row) => row?.lesson_title)?.lesson_title ?? "받은 수업").trim() || "받은 수업";
+  const lessonId = String(lesson?.localPackageLessonId ?? lesson?.id ?? allRows.find((row) => row?.lesson_id)?.lesson_id ?? "").trim();
+  const packageTitle = String(lesson?.localPackageTitle ?? allRows.find((row) => row?.package_title)?.package_title ?? "").trim();
+  const packageId = String(lesson?.localPackageId ?? allRows.find((row) => row?.package_id)?.package_id ?? "").trim();
+  const sessionLabel = String(lesson?.localPackageSessionLabel ?? allRows.find((row) => row?.session_label)?.session_label ?? "").trim();
+  const targets = getStudentResultReviewReminderTargets(batch).map((target) => formatStudentResultReviewTargetLine(target));
+  return [
+    "확인 필요 안내",
+    ...(sessionLabel ? [`차시: ${sessionLabel}`] : []),
+    `수업: ${lessonTitle}`,
+    ...(lessonId ? [`수업 코드: ${lessonId}`] : []),
+    ...(packageTitle ? [`배포 묶음: ${packageTitle}`] : []),
+    ...(packageId ? [`배포 코드: ${packageId}`] : []),
+    "대상:",
+    ...targets,
+    "배포 열기 -> 받은 수업 실행 -> 결과 확인 -> 결과 복사 순서로 다시 제출해 주세요.",
+  ].join("\n");
+}
+
+function buildStudentRosterTemplateText({ lessonId = "", sessionLabel = "", packageId = "" } = {}) {
+  const lesson = String(lessonId ?? "").trim();
+  const session = String(sessionLabel ?? "").trim();
+  const packageText = String(packageId ?? "").trim();
+  return [
+    "# 셈그림 학생 명단 양식",
+    ...(lesson ? [`수업 코드\t${lesson}`] : []),
+    ...(session ? [`차시\t${session}`] : []),
+    ...(packageText ? [`배포 코드\t${packageText}`] : []),
+    "번호\t이름",
+    "1\t",
+    "2\t",
+    "3\t",
+  ].join("\n");
+}
+
+function buildStudentRosterTemplateFileName({ lessonId = "lesson", sessionLabel = "", packageId = "" } = {}) {
+  const lesson = String(lessonId ?? "").trim() || "lesson";
+  const session = String(sessionLabel ?? "").trim();
+  const packageText = String(packageId ?? "").trim();
+  const sessionSuffix = session ? `_${session}` : "";
+  const packageSuffix = packageText ? `_${packageText}` : "";
+  return buildSafeDownloadName(`${lesson}${sessionSuffix}${packageSuffix}_student_roster_template.tsv`, "seamgrim-student-roster-template", "tsv");
+}
+
+function buildLocalPackageLessonScope(payload = null, { fallbackLessonId = "" } = {}) {
+  const lessons = Array.isArray(payload?.lessons) ? payload.lessons : [];
+  const lessonIds = collectStudentResultReportDistinctValues(lessons, "lesson_id");
+  const fallback = String(fallbackLessonId ?? "").trim();
+  if (!lessonIds.length && fallback) lessonIds.push(fallback);
+  return {
+    multi_lesson: lessonIds.length > 1,
+    lesson_ids: lessonIds,
+  };
+}
+
+function buildTeacherPreparationChecklistText({
+  lessonTitle = "",
+  lessonId = "",
+  sessionLabel = "",
+  packageId = "",
+  requiredViews = [],
+  goals = [],
+  missions = [],
+} = {}) {
+  const title = String(lessonTitle ?? "").trim() || "셈그림 수업";
+  const lesson = String(lessonId ?? "").trim();
+  const session = String(sessionLabel ?? "").trim();
+  const packageText = String(packageId ?? "").trim();
+  const viewText = Array.isArray(requiredViews) && requiredViews.length
+    ? requiredViews.map((item) => String(item ?? "").trim()).filter(Boolean).join(", ")
+    : "결과 화면";
+  const firstGoal = Array.isArray(goals) ? String(goals[0] ?? "").trim() : "";
+  const firstMission = Array.isArray(missions) ? String(missions[0] ?? "").trim() : "";
+  return [
+    "셈그림 교사용 배포 준비 체크리스트",
+    ...(session ? [`차시: ${session}`] : []),
+    `수업: ${title}`,
+    ...(lesson ? [`수업 코드: ${lesson}`] : []),
+    ...(packageText ? [`배포 코드: ${packageText}`] : []),
+    ...(firstGoal ? [`목표: ${firstGoal}`] : []),
+    ...(firstMission ? [`오늘 활동: ${firstMission}`] : []),
+    "",
+    "배포 전",
+    "- 배포 JSON 파일을 학생에게 보낼 위치에 준비합니다.",
+    "- 학생 안내문을 함께 보냅니다.",
+    "- 학생 명단 양식에 번호와 이름을 채워 둡니다.",
+    "",
+    "수업 중",
+    "- 학생은 배포 열기 또는 붙여넣기 열기로 받은 수업을 엽니다.",
+    "- 받은 수업 실행 뒤 결과 확인 화면을 봅니다.",
+    `- 확인할 결과: ${viewText}`,
+    "",
+    "수업 후",
+    "- 학생은 결과 복사 또는 결과 저장으로 제출합니다.",
+    "- 교사는 학생 결과와 명단을 붙여넣고 결과 확인을 누릅니다.",
+    "- 확인 필요 학생은 안내문 복사로 다시 제출 요청을 보냅니다.",
+  ].join("\n");
+}
+
+function buildTeacherPreparationChecklistFileName({ lessonId = "lesson", sessionLabel = "", packageId = "" } = {}) {
+  const lesson = String(lessonId ?? "").trim() || "lesson";
+  const session = String(sessionLabel ?? "").trim();
+  const packageText = String(packageId ?? "").trim();
+  const sessionSuffix = session ? `_${session}` : "";
+  const packageSuffix = packageText ? `_${packageText}` : "";
+  return buildSafeDownloadName(`${lesson}${sessionSuffix}${packageSuffix}_teacher_preparation_checklist.txt`, "seamgrim-teacher-preparation-checklist", "txt");
 }
 
 function hashRunSourceText(text) {
@@ -3261,6 +4652,7 @@ export class RunScreen {
     this.lastInputToken = "";
     this.lastLaunchKind = "manual";
     this.lastOnboardingProfile = "";
+    this.classroomModeAccess = "default";
     this.overlayRuns = [];
     this.activeOverlayRunId = "";
     this.hoverOverlayRunId = "";
@@ -3340,7 +4732,14 @@ export class RunScreen {
     this.runPresetViewsEl = this.root.querySelector("[data-run-preset-views]");
     this.runPresetNumericTrackEl = this.root.querySelector("[data-run-preset-numeric-track]");
     this.runResultNumericLinkEl = this.root.querySelector("[data-run-result-numeric-link]");
+    this.runPackageLessonSwitchEl = this.root.querySelector("[data-run-package-lesson-switch]");
+    this.runPackageLessonSelectEl = this.root.querySelector("#run-package-lesson-select");
     this.runDeliveryStatusEl = this.root.querySelector("[data-run-delivery-status]");
+    this.runDeliveryResultEl = this.root.querySelector("[data-run-delivery-result]");
+    this.runDeliveryStudentNameEl = this.root.querySelector("#run-delivery-student-name");
+    this.runDeliveryResultCopyBtn = this.root.querySelector("#btn-run-delivery-result-copy");
+    this.runDeliveryResultDownloadBtn = this.root.querySelector("#btn-run-delivery-result-download");
+    this.runDeliveryInstructionsEl = this.root.querySelector("[data-run-delivery-instructions]");
     this.runLessonBriefEl = this.root.querySelector("[data-run-lesson-brief]");
     this.classroomModeSwitchEl = this.root.querySelector("[data-classroom-mode-switch]");
     this.classroomModeBtns = Array.from(this.root.querySelectorAll("[data-classroom-mode]"));
@@ -3370,12 +4769,42 @@ export class RunScreen {
     this.runTeacherReportCopyBtn = this.root.querySelector("#btn-run-teacher-report-copy");
     this.runLocalPackageEl = this.root.querySelector("[data-run-local-package-export]");
     this.runLocalPackageMetaEl = this.root.querySelector("[data-run-local-package-meta]");
+    this.runLocalPackageCodeEl = this.root.querySelector("[data-run-local-package-code]");
     this.runLocalPackageGuideEl = this.root.querySelector("[data-run-local-package-guide]");
+    this.runLocalPackageChecklistEl = this.root.querySelector("[data-run-local-package-checklist]");
+    this.runLocalPackageMaterialsEl = this.root.querySelector("[data-run-local-package-materials]");
     this.runLocalPackageTextEl = this.root.querySelector("[data-run-local-package-text]");
+    this.runLocalPackageSessionInputEl = this.root.querySelector("#run-local-package-session-input");
+    this.runLocalPackageCodeCopyBtn = this.root.querySelector("#btn-run-local-package-code-copy");
     this.runLocalPackageGuideCopyBtn = this.root.querySelector("#btn-run-local-package-guide-copy");
+    this.runLocalPackageGuideDownloadBtn = this.root.querySelector("#btn-run-local-package-guide-download");
+    this.runLocalPackageChecklistCopyBtn = this.root.querySelector("#btn-run-local-package-checklist-copy");
+    this.runLocalPackageChecklistDownloadBtn = this.root.querySelector("#btn-run-local-package-checklist-download");
     this.runLocalPackageCopyBtn = this.root.querySelector("#btn-run-local-package-copy");
+    this.runLocalPackageDownloadBtn = this.root.querySelector("#btn-run-local-package-download");
     this.runTeacherPackageCopyBtn = this.root.querySelector("#btn-run-teacher-package-copy");
     this.runTeacherPackageDownloadBtn = this.root.querySelector("#btn-run-teacher-package-download");
+    this.runStudentRosterInputEl = this.root.querySelector("#run-student-roster-input");
+    this.runStudentRosterFileInputEl = this.root.querySelector("#input-run-student-roster-file");
+    this.runStudentRosterFileOpenBtn = this.root.querySelector("#btn-run-student-roster-file-open");
+    this.runStudentRosterTemplateCopyBtn = this.root.querySelector("#btn-run-student-roster-template-copy");
+    this.runStudentRosterTemplateDownloadBtn = this.root.querySelector("#btn-run-student-roster-template-download");
+    this.runStudentResultInputEl = this.root.querySelector("#run-student-result-input");
+    this.runStudentResultFileInputEl = this.root.querySelector("#input-run-student-result-file");
+    this.runStudentResultFileOpenBtn = this.root.querySelector("#btn-run-student-result-file-open");
+    this.runStudentResultReviewBtn = this.root.querySelector("#btn-run-student-result-review");
+    this.runStudentRosterOnlyClearBtn = this.root.querySelector("#btn-run-student-roster-only-clear");
+    this.runStudentResultOnlyClearBtn = this.root.querySelector("#btn-run-student-result-only-clear");
+    this.runStudentResultClearBtn = this.root.querySelector("#btn-run-student-result-clear");
+    this.runStudentResultStatusEl = this.root.querySelector("[data-run-student-result-status]");
+    this.runStudentResultSummaryEl = this.root.querySelector("[data-run-student-result-summary]");
+    this.runStudentResultTableEl = this.root.querySelector("[data-run-student-result-table]");
+    this.runStudentResultReportCopyBtn = this.root.querySelector("#btn-run-student-result-report-copy");
+    this.runStudentResultReportDownloadBtn = this.root.querySelector("#btn-run-student-result-report-download");
+    this.runStudentMissingReminderCopyBtn = this.root.querySelector("#btn-run-student-missing-reminder-copy");
+    this.runStudentMissingReminderDownloadBtn = this.root.querySelector("#btn-run-student-missing-reminder-download");
+    this.runStudentReviewReminderCopyBtn = this.root.querySelector("#btn-run-student-review-reminder-copy");
+    this.runStudentReviewReminderDownloadBtn = this.root.querySelector("#btn-run-student-review-reminder-download");
     this.runPublicationPrepEl = this.root.querySelector("[data-run-publication-prep-export]");
     this.runPublicationPrepMetaEl = this.root.querySelector("[data-run-publication-prep-meta]");
     this.runPublicationPrepTextEl = this.root.querySelector("[data-run-publication-prep-text]");
@@ -3408,14 +4837,92 @@ export class RunScreen {
     this.runLocalPackageCopyBtn?.addEventListener("click", () => {
       void this.handleCopyLocalPackageExport();
     });
+    this.runLocalPackageDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadLocalPackageExport();
+    });
     this.runLocalPackageGuideCopyBtn?.addEventListener("click", () => {
       void this.handleCopyLocalPackageStudentGuide();
+    });
+    this.runLocalPackageGuideDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadLocalPackageStudentGuide();
+    });
+    this.runLocalPackageCodeCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyLocalPackageCode();
+    });
+    this.runLocalPackageChecklistCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyTeacherPreparationChecklist();
+    });
+    this.runLocalPackageChecklistDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadTeacherPreparationChecklist();
+    });
+    this.runLocalPackageSessionInputEl?.addEventListener("input", () => {
+      this.syncLocalPackageExport();
     });
     this.runTeacherPackageCopyBtn?.addEventListener("click", () => {
       void this.handleCopyLocalPackageExport();
     });
     this.runTeacherPackageDownloadBtn?.addEventListener("click", () => {
       this.handleDownloadLocalPackageExport();
+    });
+    this.runStudentRosterFileOpenBtn?.addEventListener("click", () => {
+      if (this.runStudentRosterFileInputEl) {
+        this.runStudentRosterFileInputEl.value = "";
+        this.runStudentRosterFileInputEl.click();
+      }
+    });
+    this.runStudentRosterFileInputEl?.addEventListener("change", (event) => {
+      void this.handleLoadStudentRosterFiles(event);
+    });
+    this.runStudentRosterTemplateCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyStudentRosterTemplate();
+    });
+    this.runStudentRosterTemplateDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadStudentRosterTemplate();
+    });
+    this.runStudentResultFileOpenBtn?.addEventListener("click", () => {
+      if (this.runStudentResultFileInputEl) {
+        this.runStudentResultFileInputEl.value = "";
+        this.runStudentResultFileInputEl.click();
+      }
+    });
+    this.runStudentResultFileInputEl?.addEventListener("change", (event) => {
+      void this.handleLoadStudentResultFiles(event);
+    });
+    this.runStudentRosterInputEl?.addEventListener("input", () => {
+      this.handleStudentResultReviewInputChanged();
+    });
+    this.runStudentResultInputEl?.addEventListener("input", () => {
+      this.handleStudentResultReviewInputChanged();
+    });
+    this.runStudentResultReviewBtn?.addEventListener("click", () => {
+      this.handleReviewStudentResultReturn();
+    });
+    this.runStudentRosterOnlyClearBtn?.addEventListener("click", () => {
+      this.handleClearStudentRosterOnly();
+    });
+    this.runStudentResultOnlyClearBtn?.addEventListener("click", () => {
+      this.handleClearStudentResultOnly();
+    });
+    this.runStudentResultClearBtn?.addEventListener("click", () => {
+      this.handleClearStudentResultReview();
+    });
+    this.runStudentResultReportCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyStudentResultReturnReport();
+    });
+    this.runStudentResultReportDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadStudentResultReturnReport();
+    });
+    this.runStudentMissingReminderCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyStudentMissingReminder();
+    });
+    this.runStudentMissingReminderDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadStudentMissingReminder();
+    });
+    this.runStudentReviewReminderCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyStudentReviewReminder();
+    });
+    this.runStudentReviewReminderDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadStudentReviewReminder();
     });
     this.runPublicationPrepCopyBtn?.addEventListener("click", () => {
       void this.handleCopyPublicationPrepExport();
@@ -3630,6 +5137,16 @@ export class RunScreen {
     this.runCopyHashBtn?.addEventListener("click", () => {
       void this.handleCopyRunStateHash();
     });
+    this.runDeliveryStudentNameEl?.addEventListener("input", () => {
+      this.updateMirrorTab(this.lastState);
+      this.syncLocalPackageDeliveryStatus();
+    });
+    this.runDeliveryResultCopyBtn?.addEventListener("click", () => {
+      void this.handleCopyRunStateHash();
+    });
+    this.runDeliveryResultDownloadBtn?.addEventListener("click", () => {
+      this.handleDownloadStudentDeliveryResult();
+    });
     this.inlineAutofixBtn?.addEventListener("click", () => {
       void this.handleInlineWarningAction();
     });
@@ -3671,6 +5188,9 @@ export class RunScreen {
     });
     this.runLegacyAutofixBtn?.addEventListener("click", () => {
       void this.applyLegacyAutofix();
+    });
+    this.runPackageLessonSelectEl?.addEventListener("change", () => {
+      void this.handlePackageLessonSelect();
     });
     this.runMainExecuteBtn?.addEventListener("click", () => {
       void this.handleMainExecutionControl("run");
@@ -4051,6 +5571,870 @@ export class RunScreen {
       showGlobalToast("복사할 상태 기록이 없습니다.", { kind: "error" });
       return false;
     }
+    const studentDelivery = this.lastLaunchKind === "local_package_import";
+    const studentName = studentDelivery ? String(this.runDeliveryStudentNameEl?.value ?? "").trim() : "";
+    if (studentDelivery && !studentName) {
+      showGlobalToast("학생 이름을 입력한 뒤 결과를 복사하세요.", { kind: "error" });
+      this.runDeliveryStudentNameEl?.focus?.();
+      return false;
+    }
+    const copyText = studentDelivery
+      ? buildStudentResultReturnText({ lesson: this.lesson, hashText: value, studentName })
+      : value;
+    const lessonId = String(studentDelivery ? this.lesson?.localPackageLessonId ?? this.lesson?.id : this.lesson?.id ?? "").trim();
+    const packageId = studentDelivery ? String(this.lesson?.localPackageId ?? "").trim() : "";
+    const sessionLabel = studentDelivery ? String(this.lesson?.localPackageSessionLabel ?? "").trim() : "";
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(copyText);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_RUN_STATE_HASH_COPY_ACTION__ = {
+        schema: "seamgrim.run_state_hash_copy_action.v1",
+        launch_kind: String(this.lastLaunchKind ?? "manual"),
+        student_delivery: studentDelivery,
+        submission_method: studentDelivery ? "clipboard" : "state_hash_clipboard",
+        student_name: studentName,
+        lesson_id: lessonId,
+        package_id: packageId,
+        session_label: sessionLabel,
+        state_hash: value,
+        text: copyText,
+        copied: ok,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok
+      ? studentDelivery ? "제출할 결과를 복사했습니다." : "상태 기록을 복사했습니다."
+      : studentDelivery ? "결과 복사에 실패했습니다." : "상태 기록 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadStudentDeliveryResult() {
+    const value = String(this.lastRuntimeHash ?? "-").trim();
+    if (!value || value === "-") {
+      showGlobalToast("저장할 수업 결과가 없습니다.", { kind: "error" });
+      return false;
+    }
+    const studentDelivery = this.lastLaunchKind === "local_package_import";
+    const studentName = studentDelivery ? String(this.runDeliveryStudentNameEl?.value ?? "").trim() : "";
+    if (studentDelivery && !studentName) {
+      showGlobalToast("학생 이름을 입력한 뒤 결과를 저장하세요.", { kind: "error" });
+      this.runDeliveryStudentNameEl?.focus?.();
+      return false;
+    }
+    const resultText = studentDelivery
+      ? buildStudentResultReturnText({ lesson: this.lesson, hashText: value, studentName })
+      : value;
+    const lessonId = String(studentDelivery ? this.lesson?.localPackageLessonId ?? this.lesson?.id : this.lesson?.id ?? "lesson").trim() || "lesson";
+    const sessionLabel = studentDelivery ? String(this.lesson?.localPackageSessionLabel ?? "").trim() : "";
+    const packageId = studentDelivery ? String(this.lesson?.localPackageId ?? "").trim() : "";
+    const sessionSuffix = sessionLabel ? `_${sessionLabel}` : "";
+    const packageSuffix = packageId ? `_${packageId}` : "";
+    const studentSuffix = studentName ? `_${studentName}` : "";
+    const fileName = buildSafeDownloadName(`${lessonId}${sessionSuffix}${packageSuffix}${studentSuffix}_student_result.txt`, "seamgrim-student-result", "txt");
+    let ok = false;
+    try {
+      savePlainTextToFile(resultText, fileName);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_RUN_STATE_HASH_DOWNLOAD_ACTION__ = {
+        schema: "seamgrim.run_state_hash_download_action.v1",
+        downloaded: ok,
+        launch_kind: String(this.lastLaunchKind ?? "manual"),
+        student_delivery: studentDelivery,
+        submission_method: studentDelivery ? "file" : "state_hash_file",
+        student_name: studentName,
+        lesson_id: lessonId,
+        package_id: packageId,
+        session_label: sessionLabel,
+        state_hash: value,
+        file_name: fileName,
+        text: resultText,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "제출할 결과를 저장했습니다." : "결과 저장에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  hasStudentResultReviewInput() {
+    const resultText = String(this.runStudentResultInputEl?.value ?? "").trim();
+    const rosterText = String(this.runStudentRosterInputEl?.value ?? "").trim();
+    return Boolean(resultText || rosterText);
+  }
+
+  syncStudentResultReviewControls() {
+    const enabled = this.hasStudentResultReviewInput();
+    if (this.runStudentResultReviewBtn) {
+      this.runStudentResultReviewBtn.disabled = !enabled;
+    }
+    return enabled;
+  }
+
+  resolveStudentResultExpectedLesson() {
+    const lesson = this.lesson ?? {};
+    const existingPackageId = String(lesson?.localPackageId ?? "").trim();
+    if (existingPackageId) return lesson;
+    try {
+      const packageModel = this.buildLocalPackageExportModel();
+      const packageTitle = String(packageModel?.manifest?.title ?? "").trim();
+      const studentInstructions = Array.isArray(packageModel?.payload?.student_instructions)
+        ? packageModel.payload.student_instructions
+        : [];
+      return {
+        ...lesson,
+        localPackageLessonId: String(packageModel?.lesson_id ?? lesson?.id ?? "").trim(),
+        localPackageSessionLabel: String(packageModel?.session_label ?? "").trim(),
+        localPackageTitle: packageTitle,
+        localPackageId: String(packageModel?.package_id ?? "").trim(),
+        localPackageStudentInstructions: studentInstructions,
+        localPackageMaterialsSummary: Array.isArray(packageModel?.manifest?.materials_summary)
+          ? packageModel.manifest.materials_summary
+          : [],
+        localPackageStudentMaterialsSummary: Array.isArray(packageModel?.manifest?.student_materials_summary)
+          ? packageModel.manifest.student_materials_summary
+          : [],
+      };
+    } catch (_) {
+      return lesson;
+    }
+  }
+
+  buildStudentResultReviewInputStatusText({ dirty = false, prefix = "" } = {}) {
+    const resultText = String(this.runStudentResultInputEl?.value ?? "").trim();
+    const rosterText = String(this.runStudentRosterInputEl?.value ?? "").trim();
+    const resultCount = resultText ? splitStudentResultReturnBlocks(resultText).length : 0;
+    const rosterCount = rosterText ? countStudentRosterExpectations(rosterText) : 0;
+    const rosterCourseScoped = rosterText ? shouldUseStudentRosterTargetCountLabel(rosterText) : false;
+    if (resultCount <= 0 && rosterCount <= 0) return "결과 대기";
+    const rosterAnalysis = analyzeStudentRosterText(rosterText);
+    const expectedLesson = this.resolveStudentResultExpectedLesson();
+    const rosterMetadataReview = buildStudentRosterMetadataReview(rosterText, expectedLesson);
+    const rosterMetadataNotes = buildStudentRosterMetadataReviewNotes(rosterMetadataReview);
+    const parts = [
+      String(prefix ?? "").trim() || (dirty ? "입력 수정됨" : "입력 준비됨"),
+      resultCount > 0 ? `학생 결과 ${resultCount}건` : "학생 결과 대기",
+    ];
+    if (rosterCount > 0) {
+      parts.push(formatStudentRosterExpectationLabel(rosterCount, { courseScoped: rosterCourseScoped }));
+    }
+    if (rosterAnalysis.duplicate_count > 0) {
+      parts.push(`명단 중복 ${rosterAnalysis.duplicate_count}명`);
+    }
+    if (rosterCount > 0 && resultCount <= 0 && rosterMetadataNotes.length) {
+      parts.push(`확인 항목: ${rosterMetadataNotes.slice(0, 2).join(", ")}`);
+    }
+    if (resultCount > 0) {
+      const previewBatch = parseStudentResultReturnBatchText(resultText, { lesson: expectedLesson, rosterText });
+      parts.push(`사전 확인 ${previewBatch.accepted_count}/${previewBatch.row_count}`);
+      if (previewBatch.rejected_count > 0) {
+        const reviewNotes = getStudentResultReviewReminderRows(previewBatch)
+          .flatMap((row) => buildStudentResultReviewNotes(row))
+          .filter(Boolean);
+        const uniqueNotes = Array.from(new Set(reviewNotes)).slice(0, 2);
+        parts.push(`확인 필요 ${previewBatch.rejected_count}건`);
+        if (uniqueNotes.length) parts.push(`확인 항목: ${uniqueNotes.join(", ")}`);
+      }
+    }
+    parts.push(resultCount > 0 ? "다음 행동: 결과 확인" : "다음 행동: 학생 결과 붙여넣기");
+    return parts.join(" · ");
+  }
+
+  resetStudentResultReviewArtifacts() {
+    if (this.runStudentResultSummaryEl) {
+      this.runStudentResultSummaryEl.classList.add("hidden");
+      this.runStudentResultSummaryEl.textContent = "";
+    }
+    if (this.runStudentResultTableEl) {
+      this.runStudentResultTableEl.classList.add("hidden");
+      this.runStudentResultTableEl.innerHTML = "";
+    }
+    if (this.runStudentResultReportCopyBtn) {
+      this.runStudentResultReportCopyBtn.disabled = true;
+    }
+    if (this.runStudentResultReportDownloadBtn) {
+      this.runStudentResultReportDownloadBtn.disabled = true;
+    }
+    if (this.runStudentMissingReminderCopyBtn) {
+      this.runStudentMissingReminderCopyBtn.disabled = true;
+    }
+    if (this.runStudentMissingReminderDownloadBtn) {
+      this.runStudentMissingReminderDownloadBtn.disabled = true;
+    }
+    if (this.runStudentReviewReminderCopyBtn) {
+      this.runStudentReviewReminderCopyBtn.disabled = true;
+    }
+    if (this.runStudentReviewReminderDownloadBtn) {
+      this.runStudentReviewReminderDownloadBtn.disabled = true;
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_RESULT_RETURN_REVIEW__ = null;
+      window.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__ = null;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+  }
+
+  handleStudentResultReviewInputChanged() {
+    const enabled = this.syncStudentResultReviewControls();
+    const hadReview = Boolean(
+      globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_REVIEW__
+        || globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__
+    );
+    if (hadReview) {
+      this.studentResultReviewInputDirtyAfterReview = true;
+    }
+    this.resetStudentResultReviewArtifacts();
+    if (this.runStudentResultStatusEl) {
+      const currentState = String(this.runStudentResultStatusEl.dataset?.state ?? "").trim();
+      const currentText = String(this.runStudentResultStatusEl.textContent ?? "").trim();
+      if (enabled && (this.studentResultReviewInputDirtyAfterReview === true || currentState === "ok" || currentState === "error")) {
+        this.runStudentResultStatusEl.dataset.state = "idle";
+        this.runStudentResultStatusEl.textContent = this.buildStudentResultReviewInputStatusText({ dirty: true });
+      } else if (enabled && (!currentText || currentText === "결과 대기")) {
+        this.runStudentResultStatusEl.dataset.state = "idle";
+        this.runStudentResultStatusEl.textContent = this.buildStudentResultReviewInputStatusText();
+      } else if (!enabled) {
+        this.runStudentResultStatusEl.dataset.state = "idle";
+        this.runStudentResultStatusEl.textContent = "결과 대기";
+      }
+    }
+    return enabled;
+  }
+
+  async handleLoadStudentResultFiles(event = null) {
+    const input = event?.currentTarget ?? this.runStudentResultFileInputEl;
+    const files = Array.from(input?.files ?? []);
+    if (!files.length) return false;
+    let ok = false;
+    let loadedText = "";
+    let resultCount = 0;
+    let acceptedCount = 0;
+    let rejectedCount = 0;
+    let loadedFileCount = 0;
+    let skippedDuplicateCount = 0;
+    let nextActionText = "";
+    let duplicateFileNames = [];
+    let resultReportScope = {
+      multi_lesson: false,
+      lesson_ids: [],
+      package_ids: [],
+      session_labels: [],
+      lesson_id: "",
+      package_id: "",
+      session_label: "",
+    };
+    const fileNames = files.map((file) => String(file?.name ?? "result.txt").trim() || "result.txt");
+    try {
+      const rawChunks = await Promise.all(files.map((file) => readTextFromLocalFile(file)));
+      const chunks = rawChunks
+        .map((text, index) => ({
+          file_name: fileNames[index] || `result-${index + 1}.txt`,
+          text: String(text ?? "").trim(),
+        }))
+        .filter((entry) => entry.text);
+      if (!chunks.length) throw new Error("학생 결과 파일이 비어 있습니다.");
+      const current = String(this.runStudentResultInputEl?.value ?? "").trim();
+      const existingKeys = collectStudentResultReturnBlockKeys(current);
+      const acceptedChunks = [];
+      duplicateFileNames = [];
+      chunks.forEach((entry) => {
+        const blockKeys = splitStudentResultReturnBlocks(entry.text)
+          .map((block) => normalizeStudentResultReturnBlockKey(block))
+          .filter(Boolean);
+        const duplicate = blockKeys.length > 0 && blockKeys.every((key) => existingKeys.has(key));
+        if (duplicate) {
+          skippedDuplicateCount += blockKeys.length;
+          duplicateFileNames.push(entry.file_name);
+          return;
+        }
+        acceptedChunks.push(entry.text);
+        blockKeys.forEach((key) => existingKeys.add(key));
+      });
+      loadedFileCount = acceptedChunks.length;
+      loadedText = acceptedChunks.join("\n\n");
+      if (this.runStudentResultInputEl) {
+        this.runStudentResultInputEl.value = [current, loadedText].filter(Boolean).join("\n\n");
+      }
+      const reviewText = String(this.runStudentResultInputEl?.value ?? "").trim();
+      const rosterText = String(this.runStudentRosterInputEl?.value ?? "").trim();
+      const expectedLesson = this.resolveStudentResultExpectedLesson();
+      const previewBatch = parseStudentResultReturnBatchText(reviewText, {
+        lesson: expectedLesson,
+        rosterText,
+      });
+      resultReportScope = buildStudentResultReportScope(previewBatch.rows, { lesson: expectedLesson });
+      resultCount = Math.max(0, Number(previewBatch.row_count) || 0);
+      acceptedCount = Math.max(0, Number(previewBatch.accepted_count) || 0);
+      rejectedCount = Math.max(0, Number(previewBatch.rejected_count) || 0);
+      nextActionText = String(previewBatch.next_action ?? buildStudentResultNextActionText(previewBatch)).trim();
+      ok = true;
+      this.resetStudentResultReviewArtifacts();
+      this.studentResultReviewInputDirtyAfterReview = false;
+      if (this.runStudentResultStatusEl) {
+        this.runStudentResultStatusEl.dataset.state = "idle";
+        const skippedText = skippedDuplicateCount > 0 ? ` · 중복 ${skippedDuplicateCount}건 건너뜀` : "";
+        this.runStudentResultStatusEl.textContent = this.buildStudentResultReviewInputStatusText({
+          prefix: `결과 파일 ${loadedFileCount}개 불러옴${skippedText}`,
+        });
+      }
+      this.syncStudentResultReviewControls();
+      this.runStudentResultReviewBtn?.focus?.();
+      const skippedToastText = skippedDuplicateCount > 0 ? ` 중복 ${skippedDuplicateCount}건은 건너뛰었습니다.` : "";
+      showGlobalToast(`학생 결과 파일 ${loadedFileCount}개를 불러왔습니다.${skippedToastText}`, { kind: "success" });
+    } catch (error) {
+      if (this.runStudentResultStatusEl) {
+        this.runStudentResultStatusEl.dataset.state = "error";
+        this.runStudentResultStatusEl.textContent = `결과 파일 불러오기 실패: ${String(error?.message ?? error)}`;
+      }
+      showGlobalToast("학생 결과 파일 불러오기에 실패했습니다.", { kind: "error" });
+    } finally {
+      if (input) input.value = "";
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_RESULT_FILE_LOAD_ACTION__ = {
+        schema: "seamgrim.student_result_file_load_action.v1",
+        loaded: ok,
+        file_count: files.length,
+        loaded_file_count: loadedFileCount,
+        file_names: fileNames,
+        duplicate_file_names: duplicateFileNames,
+        skipped_duplicate_count: skippedDuplicateCount,
+        result_count: resultCount,
+        accepted_count: acceptedCount,
+        rejected_count: rejectedCount,
+        multi_lesson: resultReportScope.multi_lesson,
+        lesson_ids: resultReportScope.lesson_ids,
+        package_ids: resultReportScope.package_ids,
+        session_labels: resultReportScope.session_labels,
+        lesson_id: resultReportScope.lesson_id,
+        package_id: resultReportScope.package_id,
+        session_label: resultReportScope.session_label,
+        next_action: nextActionText,
+        text: loadedText,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return ok;
+  }
+
+  async handleLoadStudentRosterFiles(event = null) {
+    const input = event?.currentTarget ?? this.runStudentRosterFileInputEl;
+    const files = Array.from(input?.files ?? []);
+    if (!files.length) return false;
+    let ok = false;
+    let loadedText = "";
+    const fileNames = files.map((file) => String(file?.name ?? "roster.txt").trim() || "roster.txt");
+    try {
+      const chunks = (await Promise.all(files.map((file) => readTextFromLocalFile(file))))
+        .map((text) => String(text ?? "").trim())
+        .filter(Boolean);
+      if (!chunks.length) throw new Error("학생 명단 파일이 비어 있습니다.");
+      const current = String(this.runStudentRosterInputEl?.value ?? "").trim();
+      loadedText = chunks.join("\n");
+      if (this.runStudentRosterInputEl) {
+        this.runStudentRosterInputEl.value = [current, loadedText].filter(Boolean).join("\n");
+      }
+      ok = true;
+      this.resetStudentResultReviewArtifacts();
+      this.studentResultReviewInputDirtyAfterReview = false;
+      if (this.runStudentResultStatusEl) {
+        this.runStudentResultStatusEl.dataset.state = "idle";
+        this.runStudentResultStatusEl.textContent = this.buildStudentResultReviewInputStatusText({
+          prefix: `명단 파일 ${chunks.length}개 불러옴`,
+        });
+      }
+      this.syncStudentResultReviewControls();
+      this.runStudentResultReviewBtn?.focus?.();
+      showGlobalToast(`학생 명단 파일 ${chunks.length}개를 불러왔습니다.`, { kind: "success" });
+    } catch (error) {
+      if (this.runStudentResultStatusEl) {
+        this.runStudentResultStatusEl.dataset.state = "error";
+        this.runStudentResultStatusEl.textContent = `명단 파일 불러오기 실패: ${String(error?.message ?? error)}`;
+      }
+      showGlobalToast("학생 명단 파일 불러오기에 실패했습니다.", { kind: "error" });
+    } finally {
+      if (input) input.value = "";
+    }
+    const rosterTextForAction = String(this.runStudentRosterInputEl?.value ?? loadedText ?? "").trim();
+    const resultTextForAction = String(this.runStudentResultInputEl?.value ?? "").trim();
+    const nextActionText = resultTextForAction ? "다음 행동: 결과 확인" : "다음 행동: 학생 결과 붙여넣기";
+    const expectedLesson = this.resolveStudentResultExpectedLesson();
+    const rosterMetadataReview = buildStudentRosterMetadataReview(rosterTextForAction, expectedLesson);
+    const rosterAnalysis = analyzeStudentRosterText(rosterTextForAction);
+    try {
+      window.__SEAMGRIM_STUDENT_ROSTER_FILE_LOAD_ACTION__ = {
+        schema: "seamgrim.student_roster_file_load_action.v1",
+        loaded: ok,
+        file_count: files.length,
+        file_names: fileNames,
+        roster_count: countStudentRosterExpectations(rosterTextForAction),
+        roster_count_kind: shouldUseStudentRosterTargetCountLabel(rosterTextForAction) ? "lesson_targets" : "students",
+        roster_entry_count: rosterAnalysis.entry_count,
+        duplicate_roster_count: rosterAnalysis.duplicate_count,
+        duplicate_roster_names: rosterAnalysis.duplicate_names,
+        roster_metadata: rosterMetadataReview.metadata,
+        roster_lesson_id_match: rosterMetadataReview.lesson_id_match,
+        roster_session_match: rosterMetadataReview.session_match,
+        roster_package_id_match: rosterMetadataReview.package_id_match,
+        roster_context_match: rosterMetadataReview.context_match,
+        next_action: nextActionText,
+        text: loadedText,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    return ok;
+  }
+
+  buildStudentRosterTemplateModel() {
+    const packageRosterReport = findLocalPackageReportFromLesson(this.lesson, (report) => (
+      report.title.includes("학생 명단 양식")
+        || report.report_id.includes("student_roster")
+        || report.path.endsWith(".tsv")
+    ));
+    const packageModel = typeof this.buildLocalPackageExportModel === "function" ? this.buildLocalPackageExportModel() : null;
+    const lessonId = String(this.lesson?.localPackageLessonId ?? packageModel?.lesson_id ?? this.lesson?.id ?? "lesson").trim() || "lesson";
+    const sessionLabel = String(this.lesson?.localPackageSessionLabel ?? packageModel?.session_label ?? "").trim();
+    const packageId = String(this.lesson?.localPackageId ?? packageModel?.package_id ?? "").trim();
+    const packageLessons = Array.isArray(this.lesson?.localPackagePayload?.lessons)
+      ? this.lesson.localPackagePayload.lessons
+      : [];
+    const lessonScope = buildLocalPackageLessonScope({ lessons: packageLessons }, { fallbackLessonId: lessonId });
+    const value = String(packageRosterReport?.text ?? "").trim()
+      || buildStudentRosterTemplateText({ lessonId, sessionLabel, packageId });
+    const fileName = packageRosterReport
+      ? localPackageReportFileName(packageRosterReport, buildStudentRosterTemplateFileName({ lessonId, sessionLabel, packageId }))
+      : buildStudentRosterTemplateFileName({ lessonId, sessionLabel, packageId });
+    return {
+      file_name: fileName,
+      lesson_id: lessonId,
+      package_id: packageId,
+      session_label: sessionLabel,
+      multi_lesson: lessonScope.multi_lesson,
+      lesson_ids: lessonScope.lesson_ids,
+      text: value,
+    };
+  }
+
+  async handleCopyStudentRosterTemplate() {
+    const model = this.buildStudentRosterTemplateModel();
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(model.text);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_ROSTER_TEMPLATE_COPY_ACTION__ = {
+        schema: "seamgrim.student_roster_template_copy_action.v1",
+        copied: ok,
+        file_name: model.file_name,
+        lesson_id: model.lesson_id,
+        package_id: model.package_id,
+        session_label: model.session_label,
+        multi_lesson: model.multi_lesson,
+        lesson_ids: model.lesson_ids,
+        text: model.text,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "학생 명단 양식을 복사했습니다." : "학생 명단 양식 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadStudentRosterTemplate() {
+    const model = this.buildStudentRosterTemplateModel();
+    let ok = false;
+    try {
+      saveTsvTextToFile(model.text, model.file_name);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_ROSTER_TEMPLATE_DOWNLOAD_ACTION__ = {
+        schema: "seamgrim.student_roster_template_download_action.v1",
+        downloaded: ok,
+        file_name: model.file_name,
+        lesson_id: model.lesson_id,
+        package_id: model.package_id,
+        session_label: model.session_label,
+        multi_lesson: model.multi_lesson,
+        lesson_ids: model.lesson_ids,
+        text: model.text,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "학생 명단 양식을 저장했습니다." : "학생 명단 양식 저장에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  buildTeacherPreparationChecklistModel() {
+    const packageChecklistReport = findLocalPackageReportFromLesson(this.lesson, (report) => (
+      report.title.includes("교사용 준비 체크리스트")
+        || report.report_id.includes("teacher_preparation_checklist")
+    ));
+    const packageModel = typeof this.buildLocalPackageExportModel === "function" ? this.buildLocalPackageExportModel() : null;
+    const lessonId = String(this.lesson?.localPackageLessonId ?? packageModel?.lesson_id ?? this.lesson?.id ?? "lesson").trim() || "lesson";
+    const lessonTitle = String(this.lesson?.title ?? packageModel?.lesson_title ?? lessonId).trim() || lessonId;
+    const sessionLabel = String(this.lesson?.localPackageSessionLabel ?? packageModel?.session_label ?? "").trim();
+    const packageId = String(this.lesson?.localPackageId ?? packageModel?.package_id ?? "").trim();
+    const lessonScope = buildLocalPackageLessonScope(this.lesson?.localPackagePayload, { fallbackLessonId: lessonId });
+    const requiredViews = resolveLessonRequiredViewsForRun(this.lesson);
+    const goals = Array.isArray(this.lesson?.goals)
+      ? this.lesson.goals.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    const missions = Array.isArray(this.lesson?.missions)
+      ? this.lesson.missions.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    const value = String(packageChecklistReport?.text ?? "").trim()
+      || buildTeacherPreparationChecklistText({
+        lessonTitle,
+        lessonId,
+        sessionLabel,
+        packageId,
+        requiredViews,
+        goals,
+        missions,
+      });
+    const fileName = packageChecklistReport
+      ? localPackageReportFileName(packageChecklistReport, buildTeacherPreparationChecklistFileName({ lessonId, sessionLabel, packageId }))
+      : buildTeacherPreparationChecklistFileName({ lessonId, sessionLabel, packageId });
+    return {
+      file_name: fileName,
+      lesson_id: lessonId,
+      lesson_title: lessonTitle,
+      package_id: packageId,
+      session_label: sessionLabel,
+      multi_lesson: lessonScope.multi_lesson,
+      lesson_ids: lessonScope.lesson_ids,
+      text: value,
+    };
+  }
+
+  async handleCopyTeacherPreparationChecklist() {
+    const model = this.buildTeacherPreparationChecklistModel();
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(model.text);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_TEACHER_PREPARATION_CHECKLIST_COPY_ACTION__ = {
+        schema: "seamgrim.teacher_preparation_checklist_copy_action.v1",
+        copied: ok,
+        file_name: model.file_name,
+        lesson_id: model.lesson_id,
+        lesson_title: model.lesson_title,
+        package_id: model.package_id,
+        session_label: model.session_label,
+        multi_lesson: model.multi_lesson,
+        lesson_ids: model.lesson_ids,
+        text: model.text,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "교사용 준비 체크리스트를 복사했습니다." : "교사용 준비 체크리스트 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadTeacherPreparationChecklist() {
+    const model = this.buildTeacherPreparationChecklistModel();
+    let ok = false;
+    try {
+      savePlainTextToFile(model.text, model.file_name);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_TEACHER_PREPARATION_CHECKLIST_DOWNLOAD_ACTION__ = {
+        schema: "seamgrim.teacher_preparation_checklist_download_action.v1",
+        downloaded: ok,
+        file_name: model.file_name,
+        lesson_id: model.lesson_id,
+        lesson_title: model.lesson_title,
+        package_id: model.package_id,
+        session_label: model.session_label,
+        multi_lesson: model.multi_lesson,
+        lesson_ids: model.lesson_ids,
+        text: model.text,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "교사용 준비 체크리스트를 저장했습니다." : "교사용 준비 체크리스트 저장에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleClearStudentResultReview() {
+    if (this.runStudentRosterInputEl) {
+      this.runStudentRosterInputEl.value = "";
+    }
+    if (this.runStudentResultInputEl) {
+      this.runStudentResultInputEl.value = "";
+    }
+    if (this.runStudentRosterFileInputEl) {
+      this.runStudentRosterFileInputEl.value = "";
+    }
+    if (this.runStudentResultFileInputEl) {
+      this.runStudentResultFileInputEl.value = "";
+    }
+    this.syncStudentResultReviewControls();
+    this.resetStudentResultReviewArtifacts();
+    this.studentResultReviewInputDirtyAfterReview = false;
+    if (this.runStudentResultStatusEl) {
+      this.runStudentResultStatusEl.dataset.state = "idle";
+      this.runStudentResultStatusEl.textContent = "결과 대기";
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_RESULT_CLEAR_ACTION__ = {
+        schema: "seamgrim.student_result_clear_action.v1",
+        cleared: true,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast("학생 결과 입력을 비웠습니다.", { kind: "success" });
+    return true;
+  }
+
+  handleClearStudentResultOnly() {
+    if (this.runStudentResultInputEl) {
+      this.runStudentResultInputEl.value = "";
+    }
+    if (this.runStudentResultFileInputEl) {
+      this.runStudentResultFileInputEl.value = "";
+    }
+    const rosterText = String(this.runStudentRosterInputEl?.value ?? "").trim();
+    const rosterCount = rosterText ? countStudentRosterExpectations(rosterText) : 0;
+    const rosterCourseScoped = rosterText ? shouldUseStudentRosterTargetCountLabel(rosterText) : false;
+    this.syncStudentResultReviewControls();
+    this.resetStudentResultReviewArtifacts();
+    this.studentResultReviewInputDirtyAfterReview = false;
+    if (this.runStudentResultStatusEl) {
+      this.runStudentResultStatusEl.dataset.state = "idle";
+      this.runStudentResultStatusEl.textContent = this.buildStudentResultReviewInputStatusText({
+        prefix: rosterCount > 0 ? "결과만 비움" : "결과 대기",
+      });
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_RESULT_ONLY_CLEAR_ACTION__ = {
+        schema: "seamgrim.student_result_only_clear_action.v1",
+        cleared: true,
+        roster_preserved: rosterCount > 0,
+        roster_count: rosterCount,
+        roster_count_kind: rosterCourseScoped ? "lesson_targets" : "students",
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    if (rosterCount > 0) {
+      this.runStudentResultInputEl?.focus?.();
+    }
+    showGlobalToast(rosterCount > 0 ? "학생 명단은 두고 결과만 비웠습니다." : "학생 결과 입력을 비웠습니다.", { kind: "success" });
+    return true;
+  }
+
+  handleClearStudentRosterOnly() {
+    const resultText = String(this.runStudentResultInputEl?.value ?? "").trim();
+    const resultCount = resultText ? splitStudentResultReturnBlocks(resultText).length : 0;
+    if (this.runStudentRosterInputEl) {
+      this.runStudentRosterInputEl.value = "";
+    }
+    if (this.runStudentRosterFileInputEl) {
+      this.runStudentRosterFileInputEl.value = "";
+    }
+    this.syncStudentResultReviewControls();
+    this.resetStudentResultReviewArtifacts();
+    this.studentResultReviewInputDirtyAfterReview = false;
+    if (this.runStudentResultStatusEl) {
+      this.runStudentResultStatusEl.dataset.state = "idle";
+      this.runStudentResultStatusEl.textContent = this.buildStudentResultReviewInputStatusText({
+        prefix: resultCount > 0 ? "명단만 비움" : "결과 대기",
+      });
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_ROSTER_ONLY_CLEAR_ACTION__ = {
+        schema: "seamgrim.student_roster_only_clear_action.v1",
+        cleared: true,
+        result_preserved: resultCount > 0,
+        result_count: resultCount,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    if (resultCount > 0) {
+      this.runStudentRosterInputEl?.focus?.();
+    }
+    showGlobalToast(resultCount > 0 ? "학생 결과는 두고 명단만 비웠습니다." : "학생 명단 입력을 비웠습니다.", { kind: "success" });
+    return true;
+  }
+
+  handleReviewStudentResultReturn() {
+    if (!this.hasStudentResultReviewInput()) {
+      this.syncStudentResultReviewControls();
+      if (this.runStudentResultStatusEl) {
+        this.runStudentResultStatusEl.dataset.state = "idle";
+        this.runStudentResultStatusEl.textContent = "결과 대기 · 학생 결과나 명단을 먼저 입력하세요.";
+      }
+      showGlobalToast("학생 결과나 명단을 먼저 입력하세요.", { kind: "error" });
+      return false;
+    }
+    const text = String(this.runStudentResultInputEl?.value ?? "").trim();
+    const rosterText = String(this.runStudentRosterInputEl?.value ?? "").trim();
+    const expectedLesson = this.resolveStudentResultExpectedLesson();
+    const batch = parseStudentResultReturnBatchText(text, { lesson: expectedLesson, rosterText });
+    const model = batch.rows[0] || parseStudentResultReturnText(text, { lesson: expectedLesson });
+    const accepted = batch.accepted === true;
+    const nextActionText = buildStudentResultNextActionText(batch);
+    this.studentResultReviewInputDirtyAfterReview = false;
+    if (this.runStudentResultStatusEl) {
+      const duplicateRosterNamesText = formatDuplicateRosterNamesText(batch);
+      const rosterCountLabel = formatStudentRosterExpectationLabel(batch.roster_count, {
+        courseScoped: batch.roster_count_kind === "lesson_targets",
+      });
+      const duplicateRosterSuffix = batch.duplicate_roster_count > 0
+        ? ` · 명단 중복 ${batch.duplicate_roster_count}명${duplicateRosterNamesText ? ` (${duplicateRosterNamesText})` : ""}`
+        : "";
+      const duplicateRosterOnlyReview = accepted !== true
+        && batch.duplicate_roster_count > 0
+        && batch.rejected_count <= 0
+        && batch.accepted_count === batch.row_count;
+      this.runStudentResultStatusEl.dataset.state = accepted ? "ok" : "error";
+      this.runStudentResultStatusEl.textContent = batch.roster_count > 0
+        ? duplicateRosterOnlyReview
+          ? `명단 확인 필요 ${batch.accepted_count}/${batch.row_count} · ${rosterCountLabel}${duplicateRosterSuffix}`
+          : accepted
+          ? `확인됨 ${batch.accepted_count}/${batch.row_count} · ${rosterCountLabel}${duplicateRosterSuffix}`
+          : `확인 필요 ${batch.accepted_count}/${batch.row_count} · 미제출 ${batch.missing_count}명${duplicateRosterSuffix}`
+        : batch.row_count > 1
+        ? duplicateRosterOnlyReview
+          ? `명단 확인 필요 ${batch.accepted_count}/${batch.row_count}${duplicateRosterSuffix}`
+          : accepted
+          ? `확인됨 ${batch.accepted_count}/${batch.row_count}${duplicateRosterSuffix}`
+          : `확인 필요 ${batch.accepted_count}/${batch.row_count}${duplicateRosterSuffix}`
+        : model.accepted
+          ? `확인됨 · ${model.state_hash.slice(0, 18)}`
+          : `확인 필요 · ${buildStudentResultReviewNotes(model).join(", ") || "수업 이름 또는 상태 기록을 확인하세요."}`;
+    }
+    if (this.runStudentResultSummaryEl) {
+      this.runStudentResultSummaryEl.classList.toggle("hidden", batch.row_count <= 0);
+      this.runStudentResultSummaryEl.textContent = batch.row_count > 0
+        ? [
+          `학생 결과 ${batch.row_count}건`,
+          `확인 ${batch.accepted_count}건`,
+          `확인 필요 ${batch.rejected_count}건`,
+          ...(batch.roster_count > 0 ? [formatStudentRosterExpectationLabel(batch.roster_count, {
+            courseScoped: batch.roster_count_kind === "lesson_targets",
+          }), `미제출 ${batch.missing_count}명`] : []),
+          ...(batch.duplicate_roster_count > 0
+            ? [`명단 중복 ${batch.duplicate_roster_count}명${formatDuplicateRosterNamesText(batch) ? ` (${formatDuplicateRosterNamesText(batch)})` : ""}`]
+            : []),
+          nextActionText,
+        ].join(" · ")
+        : "";
+    }
+    if (this.runStudentResultTableEl) {
+      this.runStudentResultTableEl.classList.toggle("hidden", batch.row_count <= 0);
+      this.runStudentResultTableEl.innerHTML = batch.row_count > 0
+        ? `
+          <table>
+            <thead>
+              <tr><th>학생</th><th>차시</th><th>수업</th><th>수업 코드</th><th>배포 코드</th><th>상태</th><th>상태 기록</th><th>비고</th></tr>
+            </thead>
+            <tbody>
+              ${batch.rows.map((row) => `
+                <tr data-student-result-row="${row.accepted === true ? "ok" : "review"}">
+                  <td>${escapeHtml(row.student_name)}</td>
+                  <td>${escapeHtml(row.session_label || "-")}</td>
+                  <td>${escapeHtml(row.lesson_title || "-")}</td>
+                  <td>${escapeHtml(row.lesson_id || "-")}</td>
+                  <td>${escapeHtml(row.package_id || "-")}</td>
+                  <td>${row.accepted === true ? "확인됨" : "확인 필요"}</td>
+                  <td>${escapeHtml(formatCompactStateHash(row.state_hash || "-").replace(/^상태 기록:\s*/, ""))}</td>
+                  <td>${escapeHtml(buildStudentResultReviewNotes(row).join(", ") || "-")}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `
+        : "";
+    }
+    if (this.runStudentResultReportCopyBtn) {
+      this.runStudentResultReportCopyBtn.disabled = batch.row_count <= 0;
+    }
+    if (this.runStudentResultReportDownloadBtn) {
+      this.runStudentResultReportDownloadBtn.disabled = batch.row_count <= 0;
+    }
+    if (this.runStudentMissingReminderCopyBtn) {
+      this.runStudentMissingReminderCopyBtn.disabled = batch.missing_count <= 0;
+    }
+    if (this.runStudentMissingReminderDownloadBtn) {
+      this.runStudentMissingReminderDownloadBtn.disabled = batch.missing_count <= 0;
+    }
+    const reviewReminderRows = getStudentResultReviewReminderRows(batch);
+    if (this.runStudentReviewReminderCopyBtn) {
+      this.runStudentReviewReminderCopyBtn.disabled = reviewReminderRows.length <= 0;
+    }
+    if (this.runStudentReviewReminderDownloadBtn) {
+      this.runStudentReviewReminderDownloadBtn.disabled = reviewReminderRows.length <= 0;
+    }
+    try {
+      batch.next_action = nextActionText;
+      window.__SEAMGRIM_STUDENT_RESULT_RETURN_REVIEW__ = model;
+      window.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__ = batch;
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(accepted ? "학생 결과를 확인했습니다." : "학생 결과 확인이 필요합니다.", {
+      kind: accepted ? "success" : "error",
+    });
+    return accepted;
+  }
+
+  async handleCopyStudentResultReturnReport() {
+    const batch = globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__;
+    const value = String(batch?.report_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 학생 결과 보고가 없습니다.", { kind: "error" });
+      return false;
+    }
     let ok = false;
     try {
       if (navigator?.clipboard?.writeText) {
@@ -4060,7 +6444,318 @@ export class RunScreen {
     } catch (_) {
       ok = false;
     }
-    showGlobalToast(ok ? "상태 기록을 복사했습니다." : "상태 기록 복사에 실패했습니다.", {
+    const rows = Array.isArray(batch?.rows) ? batch.rows : [];
+    const reportScope = buildStudentResultReportScope(rows, { lesson: this.lesson });
+    const lessonId = reportScope.lesson_id;
+    const packageId = reportScope.package_id;
+    const sessionLabel = reportScope.session_label;
+    try {
+      window.__SEAMGRIM_STUDENT_RESULT_RETURN_REPORT_COPY_ACTION__ = {
+        schema: "seamgrim.student_result_return_report_copy_action.v1",
+        copied: ok,
+        row_count: Math.max(0, Number(batch?.row_count) || 0),
+        accepted_count: Math.max(0, Number(batch?.accepted_count) || 0),
+        rejected_count: Math.max(0, Number(batch?.rejected_count) || 0),
+        roster_count: Math.max(0, Number(batch?.roster_count) || 0),
+        missing_count: Math.max(0, Number(batch?.missing_count) || 0),
+        roster_entry_count: Math.max(0, Number(batch?.roster_entry_count) || 0),
+        duplicate_roster_count: Math.max(0, Number(batch?.duplicate_roster_count) || 0),
+        duplicate_roster_names: Array.isArray(batch?.duplicate_roster_names) ? batch.duplicate_roster_names : [],
+        roster_metadata: toPlainObject(batch?.roster_metadata, {}),
+        roster_lesson_id_match: batch?.roster_lesson_id_match !== false,
+        roster_session_match: batch?.roster_session_match !== false,
+        roster_package_id_match: batch?.roster_package_id_match !== false,
+        roster_context_match: batch?.roster_context_match !== false,
+        multi_lesson: reportScope.multi_lesson,
+        lesson_ids: reportScope.lesson_ids,
+        package_ids: reportScope.package_ids,
+        session_labels: reportScope.session_labels,
+        lesson_id: lessonId,
+        package_id: packageId,
+        session_label: sessionLabel,
+        next_action: String(batch?.next_action ?? buildStudentResultNextActionText(batch)).trim(),
+        text: value,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "학생 결과 보고를 복사했습니다." : "학생 결과 보고 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadStudentResultReturnReport() {
+    const batch = globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__;
+    const value = String(batch?.report_text ?? "").trim();
+    if (!value) {
+      showGlobalToast("저장할 학생 결과 보고가 없습니다.", { kind: "error" });
+      return false;
+    }
+    const rows = Array.isArray(batch?.rows) ? batch.rows : [];
+    const reportScope = buildStudentResultReportScope(rows, { lesson: this.lesson });
+    const lessonId = String(reportScope.lesson_id || "lesson").trim() || "lesson";
+    const sessionLabel = String(reportScope.session_label ?? "").trim();
+    const sessionSuffix = sessionLabel ? `_${sessionLabel}` : "";
+    const packageId = String(reportScope.package_id ?? "").trim();
+    const packageSuffix = packageId ? `_${packageId}` : "";
+    const fileStem = reportScope.multi_lesson
+      ? `${packageId || "course"}${sessionSuffix}_student_results`
+      : `${lessonId}${sessionSuffix}${packageSuffix}_student_results`;
+    const fileName = buildSafeDownloadName(`${fileStem}.tsv`, "seamgrim-student-results", "tsv");
+    let ok = false;
+    try {
+      saveTsvTextToFile(value, fileName);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_RESULT_RETURN_REPORT_DOWNLOAD_ACTION__ = {
+        schema: "seamgrim.student_result_return_report_download_action.v1",
+        downloaded: ok,
+        file_name: fileName,
+        row_count: Math.max(0, Number(batch?.row_count) || 0),
+        accepted_count: Math.max(0, Number(batch?.accepted_count) || 0),
+        rejected_count: Math.max(0, Number(batch?.rejected_count) || 0),
+        roster_count: Math.max(0, Number(batch?.roster_count) || 0),
+        missing_count: Math.max(0, Number(batch?.missing_count) || 0),
+        roster_entry_count: Math.max(0, Number(batch?.roster_entry_count) || 0),
+        duplicate_roster_count: Math.max(0, Number(batch?.duplicate_roster_count) || 0),
+        duplicate_roster_names: Array.isArray(batch?.duplicate_roster_names) ? batch.duplicate_roster_names : [],
+        roster_metadata: toPlainObject(batch?.roster_metadata, {}),
+        roster_lesson_id_match: batch?.roster_lesson_id_match !== false,
+        roster_session_match: batch?.roster_session_match !== false,
+        roster_package_id_match: batch?.roster_package_id_match !== false,
+        roster_context_match: batch?.roster_context_match !== false,
+        multi_lesson: reportScope.multi_lesson,
+        lesson_ids: reportScope.lesson_ids,
+        package_ids: reportScope.package_ids,
+        session_labels: reportScope.session_labels,
+        lesson_id: reportScope.lesson_id,
+        package_id: packageId,
+        session_label: sessionLabel,
+        next_action: String(batch?.next_action ?? buildStudentResultNextActionText(batch)).trim(),
+        text: value,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "학생 결과표를 저장했습니다." : "학생 결과표 저장에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  async handleCopyStudentMissingReminder() {
+    const batch = globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__;
+    const value = buildStudentResultMissingReminderText(batch, { lesson: this.lesson });
+    if (!value) {
+      showGlobalToast("복사할 미제출 안내가 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    const missingTargets = getStudentResultMissingReminderTargets(batch);
+    const missingNames = Array.from(new Set(missingTargets.map((target) => target.student_name).filter(Boolean)));
+    const reminderScope = buildStudentReminderScope(missingTargets, { lesson: this.lesson, fallbackLessonId: "lesson" });
+    try {
+      window.__SEAMGRIM_STUDENT_MISSING_REMINDER_COPY_ACTION__ = {
+        schema: "seamgrim.student_missing_reminder_copy_action.v1",
+        copied: ok,
+        missing_count: missingNames.length,
+        missing_names: missingNames,
+        missing_targets: missingTargets,
+        multi_lesson: reminderScope.multi_lesson,
+        lesson_ids: reminderScope.lesson_ids,
+        package_ids: reminderScope.package_ids,
+        session_labels: reminderScope.session_labels,
+        lesson_id: reminderScope.lesson_id,
+        package_id: reminderScope.package_id,
+        session_label: reminderScope.session_label,
+        next_action: String(batch?.next_action ?? buildStudentResultNextActionText(batch)).trim(),
+        duplicate_roster_count: Math.max(0, Number(batch?.duplicate_roster_count) || 0),
+        duplicate_roster_names: Array.isArray(batch?.duplicate_roster_names) ? batch.duplicate_roster_names : [],
+        roster_metadata: toPlainObject(batch?.roster_metadata, {}),
+        roster_lesson_id_match: batch?.roster_lesson_id_match !== false,
+        roster_session_match: batch?.roster_session_match !== false,
+        roster_package_id_match: batch?.roster_package_id_match !== false,
+        roster_context_match: batch?.roster_context_match !== false,
+        text: value,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "미제출 안내를 복사했습니다." : "미제출 안내 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadStudentMissingReminder() {
+    const batch = globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__;
+    const value = buildStudentResultMissingReminderText(batch, { lesson: this.lesson });
+    if (!value) {
+      showGlobalToast("저장할 미제출 안내가 없습니다.", { kind: "error" });
+      return false;
+    }
+    const missingTargets = getStudentResultMissingReminderTargets(batch);
+    const reminderScope = buildStudentReminderScope(missingTargets, { lesson: this.lesson, fallbackLessonId: "lesson" });
+    const fileName = buildStudentReminderDownloadFileName(reminderScope, "missing_reminder", "course");
+    let ok = false;
+    try {
+      savePlainTextToFile(value, fileName);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    const missingNames = Array.from(new Set(missingTargets.map((target) => target.student_name).filter(Boolean)));
+    try {
+      window.__SEAMGRIM_STUDENT_MISSING_REMINDER_DOWNLOAD_ACTION__ = {
+        schema: "seamgrim.student_missing_reminder_download_action.v1",
+        downloaded: ok,
+        file_name: fileName,
+        missing_count: missingNames.length,
+        missing_names: missingNames,
+        missing_targets: missingTargets,
+        multi_lesson: reminderScope.multi_lesson,
+        lesson_ids: reminderScope.lesson_ids,
+        package_ids: reminderScope.package_ids,
+        session_labels: reminderScope.session_labels,
+        lesson_id: reminderScope.lesson_id,
+        package_id: reminderScope.package_id,
+        session_label: reminderScope.session_label,
+        next_action: String(batch?.next_action ?? buildStudentResultNextActionText(batch)).trim(),
+        duplicate_roster_count: Math.max(0, Number(batch?.duplicate_roster_count) || 0),
+        duplicate_roster_names: Array.isArray(batch?.duplicate_roster_names) ? batch.duplicate_roster_names : [],
+        roster_metadata: toPlainObject(batch?.roster_metadata, {}),
+        roster_lesson_id_match: batch?.roster_lesson_id_match !== false,
+        roster_session_match: batch?.roster_session_match !== false,
+        roster_package_id_match: batch?.roster_package_id_match !== false,
+        roster_context_match: batch?.roster_context_match !== false,
+        text: value,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "미제출 안내를 저장했습니다." : "미제출 안내 저장에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  async handleCopyStudentReviewReminder() {
+    const batch = globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__;
+    const value = buildStudentResultReviewReminderText(batch, { lesson: this.lesson });
+    if (!value) {
+      showGlobalToast("복사할 확인 필요 안내가 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    const reviewRows = getStudentResultReviewReminderRows(batch);
+    const studentNames = reviewRows
+      .map((row) => String(row?.student_name ?? "").trim())
+      .filter(Boolean);
+    const reviewTargets = getStudentResultReviewReminderTargets(batch);
+    const reminderScope = buildStudentReminderScope(reviewTargets, { lesson: this.lesson, fallbackLessonId: "lesson" });
+    try {
+      window.__SEAMGRIM_STUDENT_REVIEW_REMINDER_COPY_ACTION__ = {
+        schema: "seamgrim.student_review_reminder_copy_action.v1",
+        copied: ok,
+        review_count: reviewRows.length,
+        student_names: studentNames,
+        review_targets: reviewTargets,
+        multi_lesson: reminderScope.multi_lesson,
+        lesson_ids: reminderScope.lesson_ids,
+        package_ids: reminderScope.package_ids,
+        session_labels: reminderScope.session_labels,
+        lesson_id: reminderScope.lesson_id,
+        package_id: reminderScope.package_id,
+        session_label: reminderScope.session_label,
+        next_action: String(batch?.next_action ?? buildStudentResultNextActionText(batch)).trim(),
+        duplicate_roster_count: Math.max(0, Number(batch?.duplicate_roster_count) || 0),
+        duplicate_roster_names: Array.isArray(batch?.duplicate_roster_names) ? batch.duplicate_roster_names : [],
+        roster_metadata: toPlainObject(batch?.roster_metadata, {}),
+        roster_lesson_id_match: batch?.roster_lesson_id_match !== false,
+        roster_session_match: batch?.roster_session_match !== false,
+        roster_package_id_match: batch?.roster_package_id_match !== false,
+        roster_context_match: batch?.roster_context_match !== false,
+        text: value,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "확인 필요 안내를 복사했습니다." : "확인 필요 안내 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadStudentReviewReminder() {
+    const batch = globalThis?.__SEAMGRIM_STUDENT_RESULT_RETURN_BATCH_REVIEW__;
+    const value = buildStudentResultReviewReminderText(batch, { lesson: this.lesson });
+    if (!value) {
+      showGlobalToast("저장할 확인 필요 안내가 없습니다.", { kind: "error" });
+      return false;
+    }
+    const reviewRows = getStudentResultReviewReminderRows(batch);
+    const studentNames = reviewRows
+      .map((row) => String(row?.student_name ?? "").trim())
+      .filter(Boolean);
+    const reviewTargets = getStudentResultReviewReminderTargets(batch);
+    const reminderScope = buildStudentReminderScope(reviewTargets, { lesson: this.lesson, fallbackLessonId: "lesson" });
+    const fileName = buildStudentReminderDownloadFileName(reminderScope, "review_reminder", "course");
+    let ok = false;
+    try {
+      savePlainTextToFile(value, fileName);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    try {
+      window.__SEAMGRIM_STUDENT_REVIEW_REMINDER_DOWNLOAD_ACTION__ = {
+        schema: "seamgrim.student_review_reminder_download_action.v1",
+        downloaded: ok,
+        file_name: fileName,
+        review_count: reviewRows.length,
+        student_names: studentNames,
+        review_targets: reviewTargets,
+        multi_lesson: reminderScope.multi_lesson,
+        lesson_ids: reminderScope.lesson_ids,
+        package_ids: reminderScope.package_ids,
+        session_labels: reminderScope.session_labels,
+        lesson_id: reminderScope.lesson_id,
+        package_id: reminderScope.package_id,
+        session_label: reminderScope.session_label,
+        next_action: String(batch?.next_action ?? buildStudentResultNextActionText(batch)).trim(),
+        duplicate_roster_count: Math.max(0, Number(batch?.duplicate_roster_count) || 0),
+        duplicate_roster_names: Array.isArray(batch?.duplicate_roster_names) ? batch.duplicate_roster_names : [],
+        roster_metadata: toPlainObject(batch?.roster_metadata, {}),
+        roster_lesson_id_match: batch?.roster_lesson_id_match !== false,
+        roster_session_match: batch?.roster_session_match !== false,
+        roster_package_id_match: batch?.roster_package_id_match !== false,
+        roster_context_match: batch?.roster_context_match !== false,
+        text: value,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "확인 필요 안내를 저장했습니다." : "확인 필요 안내 저장에 실패했습니다.", {
       kind: ok ? "success" : "error",
     });
     return ok;
@@ -5160,11 +7855,22 @@ runs: 0</pre>
     const stateHash = String(this.lastRuntimeHash ?? "").trim();
     const hasRun = Boolean(stateHash && stateHash !== "-");
     const profile = normalizeRunOnboardingProfile(this.lastOnboardingProfile);
+    const requiredViews = resolveLessonRequiredViewsForRun(this.lesson);
+    const goals = Array.isArray(this.lesson?.goals)
+      ? this.lesson.goals.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    const missions = Array.isArray(this.lesson?.missions)
+      ? this.lesson.missions.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
     const assignmentList = buildClassroomAssignmentList([
       {
         assignment_id: lessonId,
         title,
         lesson_id: lessonId,
+        goals,
+        missions,
+        result_views: requiredViews,
+        result_views_label: formatRunRequiredViewsLabel(requiredViews).replace(/^결과 확인:\s*/, ""),
         due_label: "현재 run",
         status: "open",
       },
@@ -5213,8 +7919,36 @@ runs: 0</pre>
     };
   }
 
+  isTeacherExportMode() {
+    return normalizeRunOnboardingProfile(this.lastOnboardingProfile) === "teacher";
+  }
+
+  syncTeacherExportVisibility() {
+    const visible = this.isTeacherExportMode();
+    [
+      this.runClassroomReportEl,
+      this.runLocalPackageEl,
+    ].forEach((node) => {
+      if (!node) return;
+      node.classList.toggle("hidden", !visible);
+      node.setAttribute("aria-hidden", visible ? "false" : "true");
+      node.dataset.visible = visible ? "1" : "0";
+    });
+    [
+      this.runTeacherReportCopyBtn,
+      this.runTeacherPackageCopyBtn,
+      this.runTeacherPackageDownloadBtn,
+    ].forEach((button) => {
+      if (!button) return;
+      button.classList.toggle("hidden", !visible);
+      button.setAttribute("aria-hidden", visible ? "false" : "true");
+    });
+    return visible;
+  }
+
   syncClassroomReportExport() {
     const model = this.buildClassroomReportExportModel();
+    const teacherVisible = this.syncTeacherExportVisibility();
     if (this.runClassroomReportEl) {
       this.runClassroomReportEl.dataset.schema = model.schema;
       this.runClassroomReportEl.dataset.state = model.has_run ? "ready" : "draft";
@@ -5228,10 +7962,10 @@ runs: 0</pre>
       this.runClassroomReportTextEl.textContent = model.text;
     }
     if (this.runClassroomReportCopyBtn) {
-      this.runClassroomReportCopyBtn.disabled = !model.text;
+      this.runClassroomReportCopyBtn.disabled = !teacherVisible || !model.text;
     }
     if (this.runTeacherReportCopyBtn) {
-      this.runTeacherReportCopyBtn.disabled = !model.text;
+      this.runTeacherReportCopyBtn.disabled = !teacherVisible || !model.text;
       this.runTeacherReportCopyBtn.dataset.summaryCount = String(model.summary_count);
       this.runTeacherReportCopyBtn.textContent = model.summary_count > 0
         ? `리포트 복사 ${model.summary_count}`
@@ -5280,10 +8014,50 @@ runs: 0</pre>
 
   buildLocalPackageExportModel() {
     const reportModel = this.buildClassroomReportExportModel();
+    const importedPackagePayload = this.lesson?.localPackagePayload;
+    if (
+      importedPackagePayload
+      && typeof importedPackagePayload === "object"
+      && importedPackagePayload.__종류 === "studio_local_package_payload"
+      && String(this.lesson?.localPackageId ?? "").trim()
+    ) {
+      const manifest = importedPackagePayload.manifest && typeof importedPackagePayload.manifest === "object"
+        ? importedPackagePayload.manifest
+        : this.lesson.localPackageManifest ?? {};
+      const lessonId = String(this.lesson?.localPackageLessonId ?? this.lesson?.id ?? reportModel.lesson_id ?? "").trim() || "current_lesson";
+      const title = String(this.lesson?.title ?? reportModel.lesson_title ?? lessonId).trim() || lessonId;
+      const payloadText = JSON.stringify(importedPackagePayload, null, 2);
+      const lessonScope = buildLocalPackageLessonScope(importedPackagePayload, { fallbackLessonId: lessonId });
+      return {
+        schema: "seamgrim.local_package_export_action.v1",
+        generated_by: "STUDIO_LOCAL_PACKAGE_EXPORT_ACTION_V1",
+        mode: reportModel.mode,
+        mode_label: reportModel.mode_label,
+        lesson_id: lessonId,
+        lesson_title: title,
+        session_label: String(manifest.session_label ?? this.lesson?.localPackageSessionLabel ?? "").trim(),
+        package_id: String(manifest.package_id ?? this.lesson?.localPackageId ?? "").trim(),
+        lesson_count: Math.max(0, Number(manifest.lesson_count) || 0),
+        multi_lesson: lessonScope.multi_lesson,
+        lesson_ids: lessonScope.lesson_ids,
+        report_count: Math.max(0, Number(manifest.report_count) || 0),
+        file_count: Math.max(0, Number(manifest.file_count) || 0),
+        account_required: false,
+        cloud_sync: false,
+        public_registry: false,
+        remote_save: false,
+        manifest,
+        payload: importedPackagePayload,
+        index_text: formatStudioLocalPackageIndexText(importedPackagePayload),
+        payload_text: payloadText,
+      };
+    }
     const lessonId = String(this.lesson?.id ?? reportModel.lesson_id ?? "").trim() || "current_lesson";
     const title = String(this.lesson?.title ?? reportModel.lesson_title ?? lessonId).trim() || lessonId;
     const sourceText = String(this.runDdnPreviewEl?.value ?? this.lesson?.source_text ?? this.lesson?.source ?? "");
     const packageId = `studio.local.${lessonId}`.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const sessionLabel = String(this.runLocalPackageSessionInputEl?.value ?? "").trim();
+    const rosterTemplateText = buildStudentRosterTemplateText({ lessonId, sessionLabel, packageId });
     const requiredViews = resolveLessonRequiredViewsForRun(this.lesson);
     const goals = Array.isArray(this.lesson?.goals)
       ? this.lesson.goals.map((item) => String(item ?? "").trim()).filter(Boolean)
@@ -5304,21 +8078,70 @@ runs: 0</pre>
         source_text: sourceText,
       },
     ];
-    const reports = [
+    const baseReports = [
       {
         report_id: `${lessonId}_classroom_report`,
         title: `${title} 수업 리포트`,
         text: reportModel.text,
       },
+      {
+        report_id: `${lessonId}_teacher_preparation_checklist`,
+        title: `${title} 교사용 준비 체크리스트`,
+        path: `reports/${buildTeacherPreparationChecklistFileName({ lessonId, sessionLabel, packageId })}`,
+        text: buildTeacherPreparationChecklistText({
+          lessonTitle: title,
+          lessonId,
+          sessionLabel,
+          packageId,
+          requiredViews,
+          goals,
+          missions,
+        }),
+      },
+      {
+        report_id: `${lessonId}_student_roster_template`,
+        title: `${title} 학생 명단 양식`,
+        path: `reports/${buildStudentRosterTemplateFileName({ lessonId, sessionLabel, packageId })}`,
+        mime: "text/tab-separated-values; charset=utf-8",
+        text: rosterTemplateText,
+      },
+    ];
+    const draftManifest = buildStudioLocalPackageManifest({
+      packageId,
+      title: `${title} 교사용 배포 묶음`,
+      version: "0.1.0",
+      sessionLabel,
+      lessons,
+      reports: baseReports,
+    });
+    const draftPayload = buildStudioLocalPackagePayload({ manifest: draftManifest, lessons, reports: baseReports });
+    const studentGuideText = buildLocalPackageStudentGuideText({
+      lesson_title: title,
+      package_id: draftManifest.package_id,
+      session_label: draftManifest.session_label || "",
+      manifest: draftManifest,
+      payload: draftPayload,
+    });
+    const reports = [
+      baseReports[0],
+      {
+        report_id: `${lessonId}_student_guide`,
+        title: `${title} 학생 배포 안내문`,
+        path: `reports/${buildLocalPackageStudentGuideFileName({ packageId: draftManifest.package_id, sessionLabel: draftManifest.session_label || "" })}`,
+        text: studentGuideText,
+      },
+      ...baseReports.slice(1),
     ];
     const manifest = buildStudioLocalPackageManifest({
       packageId,
       title: `${title} 교사용 배포 묶음`,
       version: "0.1.0",
+      sessionLabel,
       lessons,
       reports,
     });
     const payload = buildStudioLocalPackagePayload({ manifest, lessons, reports });
+    const lessonScope = buildLocalPackageLessonScope(payload, { fallbackLessonId: lessonId });
     const indexText = formatStudioLocalPackageIndexText(payload);
     const payloadText = JSON.stringify(payload, null, 2);
     return {
@@ -5328,8 +8151,11 @@ runs: 0</pre>
       mode_label: reportModel.mode_label,
       lesson_id: lessonId,
       lesson_title: title,
+      session_label: manifest.session_label || "",
       package_id: manifest.package_id,
       lesson_count: manifest.lesson_count,
+      multi_lesson: lessonScope.multi_lesson,
+      lesson_ids: lessonScope.lesson_ids,
       report_count: manifest.report_count,
       file_count: manifest.file_count,
       account_required: false,
@@ -5345,13 +8171,15 @@ runs: 0</pre>
 
   syncLocalPackageExport() {
     const model = this.buildLocalPackageExportModel();
+    const teacherVisible = this.syncTeacherExportVisibility();
     if (this.runLocalPackageEl) {
       this.runLocalPackageEl.dataset.schema = model.schema;
       this.runLocalPackageEl.dataset.state = model.file_count > 0 ? "ready" : "draft";
       this.runLocalPackageEl.dataset.packageId = model.package_id;
     }
     if (this.runLocalPackageMetaEl) {
-      this.runLocalPackageMetaEl.textContent = `${model.mode_label} · Studio 배포 열기용 · 파일 ${model.file_count}개`;
+      const materialText = Number(model.report_count) > 0 ? ` · 교사용 자료 ${model.report_count}개` : "";
+      this.runLocalPackageMetaEl.textContent = `${model.mode_label} · Studio 배포 열기용 · 교과 ${model.lesson_count}개${materialText} · 파일 ${model.file_count}개`;
       this.runLocalPackageMetaEl.dataset.value = String(model.file_count);
     }
     if (this.runLocalPackageGuideEl) {
@@ -5359,21 +8187,81 @@ runs: 0</pre>
       this.runLocalPackageGuideEl.textContent = guideText;
       this.runLocalPackageGuideEl.dataset.ready = model.file_count > 0 ? "1" : "0";
     }
+    if (this.runLocalPackageCodeEl) {
+      this.runLocalPackageCodeEl.textContent = model.package_id ? `배포 코드: ${model.package_id}` : "배포 코드: -";
+      this.runLocalPackageCodeEl.dataset.ready = model.package_id ? "1" : "0";
+      this.runLocalPackageCodeEl.dataset.packageId = model.package_id || "";
+    }
+    const checklistModel = this.runLocalPackageChecklistEl
+      || this.runLocalPackageChecklistCopyBtn
+      || this.runLocalPackageChecklistDownloadBtn
+      ? this.buildTeacherPreparationChecklistModel()
+      : null;
+    if (this.runLocalPackageChecklistEl) {
+      const sessionText = checklistModel?.session_label ? `차시 ${checklistModel.session_label} · ` : "";
+      this.runLocalPackageChecklistEl.textContent = `교사용 준비: ${sessionText}배포 전/수업 중/수업 후 체크리스트`;
+      this.runLocalPackageChecklistEl.dataset.ready = model.file_count > 0 ? "1" : "0";
+    }
+    if (this.runLocalPackageMaterialsEl) {
+      const materialsText = buildLocalPackageMaterialsSummaryText(model);
+      this.runLocalPackageMaterialsEl.textContent = materialsText;
+      this.runLocalPackageMaterialsEl.dataset.reportCount = String(model.report_count);
+      this.runLocalPackageMaterialsEl.dataset.lessonCount = String(model.lesson_count);
+    }
     if (this.runLocalPackageGuideCopyBtn) {
-      this.runLocalPackageGuideCopyBtn.disabled = !model.payload_text;
+      this.runLocalPackageGuideCopyBtn.disabled = !teacherVisible || !model.payload_text;
       this.runLocalPackageGuideCopyBtn.dataset.ready = model.file_count > 0 ? "1" : "0";
       this.runLocalPackageGuideCopyBtn.title = model.payload_text
         ? "학생에게 보낼 배포 열기 안내문을 복사합니다."
         : "복사할 학생 안내문이 없습니다.";
     }
+    if (this.runLocalPackageGuideDownloadBtn) {
+      this.runLocalPackageGuideDownloadBtn.disabled = !teacherVisible || !model.payload_text;
+      this.runLocalPackageGuideDownloadBtn.dataset.ready = model.file_count > 0 ? "1" : "0";
+      this.runLocalPackageGuideDownloadBtn.title = model.payload_text
+        ? "학생에게 보낼 배포 열기 안내문을 파일로 저장합니다."
+        : "저장할 학생 안내문이 없습니다.";
+    }
+    if (this.runLocalPackageCodeCopyBtn) {
+      this.runLocalPackageCodeCopyBtn.disabled = !teacherVisible || !model.package_id;
+      this.runLocalPackageCodeCopyBtn.dataset.ready = model.package_id ? "1" : "0";
+      this.runLocalPackageCodeCopyBtn.dataset.packageId = model.package_id || "";
+      this.runLocalPackageCodeCopyBtn.title = model.package_id
+        ? "학생에게 전달할 배포 코드만 복사합니다."
+        : "복사할 배포 코드가 없습니다.";
+    }
+    if (this.runLocalPackageChecklistCopyBtn) {
+      this.runLocalPackageChecklistCopyBtn.disabled = !teacherVisible || !model.payload_text;
+      this.runLocalPackageChecklistCopyBtn.dataset.ready = model.file_count > 0 ? "1" : "0";
+      this.runLocalPackageChecklistCopyBtn.title = model.payload_text
+        ? "교사용 준비 체크리스트를 복사합니다."
+        : "복사할 교사용 준비 체크리스트가 없습니다.";
+    }
+    if (this.runLocalPackageChecklistDownloadBtn) {
+      this.runLocalPackageChecklistDownloadBtn.disabled = !teacherVisible || !model.payload_text;
+      this.runLocalPackageChecklistDownloadBtn.dataset.ready = model.file_count > 0 ? "1" : "0";
+      this.runLocalPackageChecklistDownloadBtn.title = model.payload_text
+        ? "교사용 준비 체크리스트를 파일로 저장합니다."
+        : "저장할 교사용 준비 체크리스트가 없습니다.";
+    }
     if (this.runLocalPackageTextEl) {
       this.runLocalPackageTextEl.textContent = model.index_text;
     }
     if (this.runLocalPackageCopyBtn) {
-      this.runLocalPackageCopyBtn.disabled = !model.payload_text;
+      this.runLocalPackageCopyBtn.disabled = !teacherVisible || !model.payload_text;
+    }
+    if (this.runLocalPackageDownloadBtn) {
+      this.runLocalPackageDownloadBtn.disabled = !teacherVisible || !model.payload_text;
+      this.runLocalPackageDownloadBtn.dataset.fileCount = String(model.file_count);
+      this.runLocalPackageDownloadBtn.textContent = model.file_count > 0
+        ? `패키지 저장 ${model.file_count}`
+        : "패키지 저장";
+      this.runLocalPackageDownloadBtn.title = model.payload_text
+        ? `교사용 배포 묶음 JSON 파일 ${model.file_count}개 항목 저장`
+        : "저장할 교사용 배포 묶음이 없습니다.";
     }
     if (this.runTeacherPackageCopyBtn) {
-      this.runTeacherPackageCopyBtn.disabled = !model.payload_text;
+      this.runTeacherPackageCopyBtn.disabled = !teacherVisible || !model.payload_text;
       this.runTeacherPackageCopyBtn.dataset.fileCount = String(model.file_count);
       this.runTeacherPackageCopyBtn.textContent = model.file_count > 0
         ? `배포 복사 ${model.file_count}`
@@ -5383,7 +8271,7 @@ runs: 0</pre>
         : "복사할 교사용 배포 묶음이 없습니다.";
     }
     if (this.runTeacherPackageDownloadBtn) {
-      this.runTeacherPackageDownloadBtn.disabled = !model.payload_text;
+      this.runTeacherPackageDownloadBtn.disabled = !teacherVisible || !model.payload_text;
       this.runTeacherPackageDownloadBtn.dataset.fileCount = String(model.file_count);
       this.runTeacherPackageDownloadBtn.textContent = model.file_count > 0
         ? `배포 저장 ${model.file_count}`
@@ -5446,12 +8334,16 @@ runs: 0</pre>
     } catch (_) {
       ok = false;
     }
+    const lessonScope = buildLocalPackageLessonScope(model?.payload, { fallbackLessonId: model.lesson_id });
     try {
       window.__STUDIO_LOCAL_PACKAGE_STUDENT_GUIDE_COPY_ACTION__ = {
         schema: "seamgrim.local_package_student_guide_copy_action.v1",
         copied: ok,
         package_id: model.package_id,
         lesson_id: model.lesson_id,
+        session_label: String(model?.manifest?.session_label ?? "").trim(),
+        multi_lesson: lessonScope.multi_lesson,
+        lesson_ids: lessonScope.lesson_ids,
         guide_text: value,
         account_required: false,
         cloud_sync: false,
@@ -5466,6 +8358,86 @@ runs: 0</pre>
     return ok;
   }
 
+  async handleCopyLocalPackageCode() {
+    const model = this.syncLocalPackageExport();
+    const value = String(model?.package_id ?? "").trim();
+    if (!value) {
+      showGlobalToast("복사할 배포 코드가 없습니다.", { kind: "error" });
+      return false;
+    }
+    let ok = false;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        ok = true;
+      }
+    } catch (_) {
+      ok = false;
+    }
+    const lessonScope = buildLocalPackageLessonScope(model?.payload, { fallbackLessonId: model.lesson_id });
+    try {
+      window.__STUDIO_LOCAL_PACKAGE_CODE_COPY_ACTION__ = {
+        schema: "seamgrim.local_package_code_copy_action.v1",
+        copied: ok,
+        package_id: value,
+        lesson_id: model.lesson_id,
+        session_label: String(model?.manifest?.session_label ?? "").trim(),
+        multi_lesson: lessonScope.multi_lesson,
+        lesson_ids: lessonScope.lesson_ids,
+        account_required: false,
+        cloud_sync: false,
+        public_registry: false,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "배포 코드를 복사했습니다." : "배포 코드 복사에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
+  handleDownloadLocalPackageStudentGuide() {
+    const model = this.syncLocalPackageExport();
+    const value = buildLocalPackageStudentGuideText(model).trim();
+    if (!value || !model?.payload_text) {
+      showGlobalToast("저장할 학생 안내문이 없습니다.", { kind: "error" });
+      return false;
+    }
+    const sessionLabel = String(model?.manifest?.session_label ?? "").trim();
+    const fileName = buildLocalPackageStudentGuideFileName({ packageId: model.package_id, sessionLabel });
+    let ok = false;
+    try {
+      savePlainTextToFile(value, fileName);
+      ok = true;
+    } catch (_) {
+      ok = false;
+    }
+    const lessonScope = buildLocalPackageLessonScope(model?.payload, { fallbackLessonId: model.lesson_id });
+    try {
+      window.__STUDIO_LOCAL_PACKAGE_STUDENT_GUIDE_DOWNLOAD_ACTION__ = {
+        schema: "seamgrim.local_package_student_guide_download_action.v1",
+        downloaded: ok,
+        file_name: fileName,
+        package_id: model.package_id,
+        lesson_id: model.lesson_id,
+        session_label: sessionLabel,
+        multi_lesson: lessonScope.multi_lesson,
+        lesson_ids: lessonScope.lesson_ids,
+        guide_text: value,
+        account_required: false,
+        cloud_sync: false,
+        public_registry: false,
+      };
+    } catch (_) {
+      // ignore browser instrumentation errors
+    }
+    showGlobalToast(ok ? "학생 안내문을 저장했습니다." : "학생 안내문 저장에 실패했습니다.", {
+      kind: ok ? "success" : "error",
+    });
+    return ok;
+  }
+
   handleDownloadLocalPackageExport() {
     const model = this.buildLocalPackageExportModel();
     const value = String(model?.payload_text ?? "").trim();
@@ -5473,7 +8445,9 @@ runs: 0</pre>
       showGlobalToast("저장할 교사용 배포 묶음이 없습니다.", { kind: "error" });
       return false;
     }
-    const fileName = buildSafeJsonDownloadName(model?.package_id, "seamgrim-teacher-package");
+    const sessionLabel = String(model?.manifest?.session_label ?? "").trim();
+    const sessionSuffix = sessionLabel ? `_${sessionLabel}` : "";
+    const fileName = buildSafeJsonDownloadName(`${model?.package_id || "seamgrim-teacher-package"}${sessionSuffix}`, "seamgrim-teacher-package");
     let ok = false;
     try {
       saveJsonTextToFile(value, fileName);
@@ -5486,6 +8460,7 @@ runs: 0</pre>
         ...model,
         downloaded: ok,
         file_name: fileName,
+        session_label: sessionLabel,
       };
     } catch (_) {
       // ignore browser instrumentation errors
@@ -6889,17 +9864,23 @@ runs: 0</pre>
 
   syncClassroomModeSwitch(model = this.buildRunPresetRailModel()) {
     const profile = normalizeRunOnboardingProfile(model?.onboarding_profile);
+    const switchVisible = this.classroomModeAccess !== "student";
     if (this.root?.dataset) {
       this.root.dataset.onboardingProfile = profile || "default";
+      this.root.dataset.classroomModeAccess = this.classroomModeAccess || "default";
     }
     if (this.classroomModeSwitchEl) {
       this.classroomModeSwitchEl.dataset.mode = profile || "default";
+      this.classroomModeSwitchEl.dataset.access = this.classroomModeAccess || "default";
+      this.classroomModeSwitchEl.classList.toggle("hidden", !switchVisible);
+      this.classroomModeSwitchEl.setAttribute("aria-hidden", switchVisible ? "false" : "true");
     }
     (Array.isArray(this.classroomModeBtns) ? this.classroomModeBtns : []).forEach((button) => {
       const mode = normalizeRunOnboardingProfile(button?.dataset?.classroomMode);
       const active = Boolean(mode && mode === profile);
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", active ? "true" : "false");
+      button.disabled = !switchVisible;
     });
   }
 
@@ -7218,12 +10199,89 @@ runs: 0</pre>
   setLessonOptions(lessons = []) {
     const rows = Array.isArray(lessons) ? lessons : [];
     this.lessonOptions = rows
-      .map((row) => ({
+      .map((row, sourceOrder) => ({
         id: String(row?.id ?? "").trim(),
         title: String(row?.title ?? row?.id ?? "").trim(),
+        localPackageId: String(row?.localPackageId ?? "").trim(),
+        localPackageLessonId: String(row?.localPackageLessonId ?? row?.id ?? "").trim(),
+        localPackageLessonIndex: Number.isFinite(Number(row?.localPackageLessonIndex))
+          ? Math.max(0, Math.trunc(Number(row.localPackageLessonIndex)))
+          : 0,
+        localPackageSourceOrder: sourceOrder,
       }))
       .filter((row) => row.id)
-      .sort((a, b) => String(a.title || a.id).localeCompare(String(b.title || b.id), "ko"));
+      .sort((a, b) => {
+        if (a.localPackageId && a.localPackageId === b.localPackageId) {
+          const aIndex = Number(a.localPackageLessonIndex) || 0;
+          const bIndex = Number(b.localPackageLessonIndex) || 0;
+          if (aIndex !== bIndex) return aIndex - bIndex;
+          return (Number(a.localPackageSourceOrder) || 0) - (Number(b.localPackageSourceOrder) || 0);
+        }
+        return String(a.title || a.id).localeCompare(String(b.title || b.id), "ko");
+      });
+    this.syncPackageLessonSwitcher();
+  }
+
+  getPackageLessonOptions() {
+    const packageId = String(this.lesson?.localPackageId ?? "").trim();
+    if (!packageId) return [];
+    const options = this.lessonOptions.filter((row) => String(row.localPackageId ?? "").trim() === packageId);
+    const packageLessons = Array.isArray(this.lesson?.localPackagePayload?.lessons)
+      ? this.lesson.localPackagePayload.lessons
+      : [];
+    const order = new Map();
+    packageLessons.forEach((row, index) => {
+      const lessonId = String(row?.lesson_id ?? "").trim();
+      if (lessonId && !order.has(lessonId)) {
+        order.set(lessonId, index + 1);
+      }
+    });
+    if (!order.size) return options;
+    return options.slice().sort((a, b) => {
+      const aOrder = order.get(String(a.localPackageLessonId ?? "").trim()) ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = order.get(String(b.localPackageLessonId ?? "").trim()) ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return String(a.title || a.id).localeCompare(String(b.title || b.id), "ko");
+    });
+  }
+
+  syncPackageLessonSwitcher() {
+    const select = this.runPackageLessonSelectEl;
+    const wrapper = this.runPackageLessonSwitchEl;
+    if (!select || !wrapper) return;
+    const options = this.getPackageLessonOptions();
+    const show = options.length > 1;
+    wrapper.classList.toggle("hidden", !show);
+    wrapper.setAttribute("aria-hidden", show ? "false" : "true");
+    select.disabled = !show;
+    if (!show) {
+      select.innerHTML = "";
+      return;
+    }
+    const currentId = String(this.lesson?.id ?? "").trim();
+    select.innerHTML = options.map((row, index) => {
+      const label = `${index + 1}. ${row.title || row.localPackageLessonId || row.id}`;
+      return `<option value="${escapeHtml(row.id)}">${escapeHtml(label)}</option>`;
+    }).join("");
+    select.value = options.some((row) => row.id === currentId) ? currentId : options[0]?.id ?? "";
+  }
+
+  async handlePackageLessonSelect() {
+    const nextId = String(this.runPackageLessonSelectEl?.value ?? "").trim();
+    if (!nextId || nextId === String(this.lesson?.id ?? "").trim()) return false;
+    if (!this.onSelectLesson) {
+      this.lastExecPathHint = "배포 묶음 수업 전환 기능이 연결되지 않았습니다.";
+      this.updateRuntimeHint();
+      return false;
+    }
+    try {
+      await this.onSelectLesson(nextId);
+      return true;
+    } catch (error) {
+      this.lastExecPathHint = `배포 묶음 수업 전환 실패: ${String(error?.message ?? error)}`;
+      this.updateRuntimeHint();
+      return false;
+    }
   }
 
   async resetToLessonSource() {
@@ -8324,8 +11382,15 @@ runs: 0</pre>
     this.runMirrorHashEl.textContent = formatCompactStateHash(hashText);
     this.runMirrorHashEl.title = hashText === "-" ? "상태 기록 없음" : `전체 상태 기록: ${hashText}`;
     if (this.runCopyHashBtn) {
-      this.runCopyHashBtn.disabled = hashText === "-";
-      this.runCopyHashBtn.title = hashText === "-" ? "복사할 상태 기록이 없습니다." : "현재 상태 기록 복사";
+      const studentDelivery = this.lastLaunchKind === "local_package_import";
+      const hasStudentName = !studentDelivery || Boolean(String(this.runDeliveryStudentNameEl?.value ?? "").trim());
+      this.runCopyHashBtn.disabled = hashText === "-" || !hasStudentName;
+      this.runCopyHashBtn.textContent = studentDelivery ? "결과 복사" : "복사";
+      this.runCopyHashBtn.title = hashText === "-"
+        ? studentDelivery ? "아직 복사할 실행 결과가 없습니다." : "복사할 상태 기록이 없습니다."
+        : !hasStudentName ? "학생 이름을 입력한 뒤 결과를 복사합니다."
+          : studentDelivery ? "교사에게 보낼 수업 결과 복사" : "현재 상태 기록 복사";
+      this.runCopyHashBtn.dataset.studentDelivery = studentDelivery ? "1" : "0";
     }
     const world = stateJson && typeof stateJson === "object" && stateJson.world && typeof stateJson.world === "object"
       ? stateJson.world
@@ -8546,15 +11611,35 @@ runs: 0</pre>
       this.runDeliveryStatusEl.textContent = "";
       this.runDeliveryStatusEl.classList.add("hidden");
       this.runDeliveryStatusEl.dataset.state = "idle";
+      if (this.runDeliveryResultEl) {
+        this.runDeliveryResultEl.classList.add("hidden");
+        this.runDeliveryResultEl.dataset.ready = "0";
+      }
+      if (this.runDeliveryResultCopyBtn) {
+        this.runDeliveryResultCopyBtn.disabled = true;
+      }
+      if (this.runDeliveryResultDownloadBtn) {
+        this.runDeliveryResultDownloadBtn.disabled = true;
+      }
+      if (this.runDeliveryInstructionsEl) {
+        this.runDeliveryInstructionsEl.innerHTML = "";
+        this.runDeliveryInstructionsEl.classList.add("hidden");
+        this.runDeliveryInstructionsEl.dataset.ready = "0";
+      }
       return;
     }
     const packageTitle = String(lesson?.localPackageTitle ?? "").trim();
-    const suffix = packageTitle ? ` · ${packageTitle}` : "";
+    const sessionLabel = String(lesson?.localPackageSessionLabel ?? "").trim();
+    const suffix = [
+      sessionLabel ? `차시 ${sessionLabel}` : "",
+      packageTitle,
+    ].filter(Boolean).map((item) => ` · ${item}`).join("");
     const resultInstruction = resolveLocalPackageResultInstruction(lesson).replace(/[.。]\s*$/, "");
     const resultSuffix = resultInstruction ? ` · ${resultInstruction}` : "";
     const status = normalizeEngineStatus(this.engineStatus, "idle");
     const hashText = String(this.lastRuntimeHash ?? "").trim();
     const hasResultHash = Boolean(hashText && hashText !== "-");
+    const hasStudentName = Boolean(String(this.runDeliveryStudentNameEl?.value ?? "").trim());
     let state = "ready";
     let label = `받은 배포 파일 준비됨${resultSuffix}${suffix}`;
     if (status === "blocked" || status === "fatal") {
@@ -8562,7 +11647,8 @@ runs: 0</pre>
       label = `받은 수업 실행 확인 필요${resultSuffix}${suffix}`;
     } else if (status === "done" || hasResultHash) {
       state = "done";
-      label = `받은 수업 실행 완료${resultSuffix || " · 결과 확인"}${suffix}`;
+      const nameSuffix = hasStudentName ? "" : " · 학생 이름 입력 필요";
+      label = `받은 수업 실행 완료${resultSuffix || " · 결과 확인"}${nameSuffix}${suffix}`;
     } else if (status === "running") {
       state = "running";
       label = `받은 수업 실행 중${resultSuffix}${suffix}`;
@@ -8573,11 +11659,38 @@ runs: 0</pre>
     this.runDeliveryStatusEl.textContent = label;
     this.runDeliveryStatusEl.classList.remove("hidden");
     this.runDeliveryStatusEl.dataset.state = state;
+    if (this.runDeliveryResultEl) {
+      this.runDeliveryResultEl.classList.toggle("hidden", !hasResultHash);
+      this.runDeliveryResultEl.dataset.ready = hasResultHash ? "1" : "0";
+    }
+    if (this.runDeliveryResultCopyBtn) {
+      this.runDeliveryResultCopyBtn.disabled = !hasResultHash || !hasStudentName;
+      this.runDeliveryResultCopyBtn.title = hasResultHash
+        ? hasStudentName ? "교사에게 보낼 수업 결과 복사" : "학생 이름을 입력한 뒤 결과를 복사합니다."
+        : "받은 수업을 실행하면 결과를 복사할 수 있습니다.";
+    }
+    if (this.runDeliveryResultDownloadBtn) {
+      this.runDeliveryResultDownloadBtn.disabled = !hasResultHash || !hasStudentName;
+      this.runDeliveryResultDownloadBtn.title = hasResultHash
+        ? hasStudentName ? "교사에게 보낼 수업 결과 저장" : "학생 이름을 입력한 뒤 결과를 저장합니다."
+        : "받은 수업을 실행하면 결과를 저장할 수 있습니다.";
+    }
+    if (this.runDeliveryInstructionsEl) {
+      const instructionsHtml = renderLocalPackageStudentInstructionHtml(lesson);
+      this.runDeliveryInstructionsEl.innerHTML = instructionsHtml;
+      this.runDeliveryInstructionsEl.classList.toggle("hidden", !instructionsHtml);
+      this.runDeliveryInstructionsEl.dataset.ready = instructionsHtml ? "1" : "0";
+    }
   }
 
   loadLesson(lesson, { launchKind = "manual", sourceKind = "lesson", sourceLabel = "" } = {}) {
     this.lesson = lesson;
     this.lastLaunchKind = normalizeRunLaunchKind(launchKind);
+    this.classroomModeAccess = this.lastLaunchKind === "browse_select_student" || this.lastLaunchKind === "local_package_import"
+      ? "student"
+      : this.lastLaunchKind === "browse_select_teacher"
+        ? "teacher"
+        : "default";
     this.clearPendingAutoExecute();
     this.cancelLiveReplRestart();
     this.baseDdn = String(lesson?.ddnText ?? "");
@@ -8634,6 +11747,7 @@ runs: 0</pre>
     if (this.titleEl) {
       this.titleEl.textContent = lesson?.title || lesson?.id || "-";
     }
+    this.syncPackageLessonSwitcher();
     if (this.studioSourceLabelEl) {
       this.studioSourceLabelEl.textContent = this.sourceLabel;
     }

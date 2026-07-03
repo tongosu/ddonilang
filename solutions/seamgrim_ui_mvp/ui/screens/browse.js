@@ -8,6 +8,13 @@ import {
 import { resolveLessonCardPreviewViewModel } from "../preview_session.js";
 import { applyPreviewViewModelMetadata } from "../preview_view_model.js";
 import {
+  buildStudioLocalPackageManifest,
+  buildStudioLocalPackagePayload,
+  formatStudioLocalPackageIndexText,
+  formatStudioLocalPackageError,
+  validateStudioLocalPackagePayload,
+} from "../studio_local_share_package.js";
+import {
   lessonHasPreviewDescriptor,
 } from "../view_family_contract.js";
 import {
@@ -87,6 +94,28 @@ function insertHtmlBefore(parent, anchor, html) {
   const template = document.createElement("template");
   template.innerHTML = String(html).trim();
   parent.insertBefore(template.content, anchor || null);
+}
+
+function buildSafeJsonDownloadName(value, fallback = "seamgrim-course-package") {
+  const raw = String(value ?? "").trim() || fallback;
+  const withoutExtension = raw.replace(/\.json$/i, "");
+  const safe = withoutExtension
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120) || fallback;
+  return `${safe}.json`;
+}
+
+function saveJsonTextToFile(text, filename = "seamgrim-course-package.json") {
+  const blob = new Blob([String(text ?? "")], { type: "application/json;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = buildSafeJsonDownloadName(filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+  return link.download;
 }
 
 function ensureDevBrowseControls(root) {
@@ -281,6 +310,8 @@ function formatRequiredViewLabel(view) {
     table: "표",
     text: "설명",
     space2d: "그림",
+    console_grid: "콘솔 격자",
+    grid2d: "2D 격자",
     grid: "격자",
   };
   return labels[key] || key;
@@ -351,7 +382,7 @@ function buildCourseMissionTexts(lesson) {
   const views = getLessonRequiredViews(lesson);
   const viewText = views.map(formatRequiredViewLabel).filter(Boolean).slice(0, 3).join(", ");
   return [
-    "학생 시작으로 DDN 수업을 실행한다",
+    "학생 시작으로 수업을 실행한다",
     viewText ? `${viewText} 결과를 보고 수업 내용을 확인한다` : "결과 화면을 보고 수업 내용을 확인한다",
   ];
 }
@@ -362,7 +393,7 @@ function buildCourseActivityText(lesson) {
   if (firstMission) return `오늘 활동: ${firstMission}`;
   const views = getLessonRequiredViews(lesson);
   const viewText = views.map(formatRequiredViewLabel).filter(Boolean).slice(0, 2).join(", ");
-  return viewText ? `오늘 활동: ${viewText} 결과를 함께 확인` : "오늘 활동: DDN 실행 결과 함께 확인";
+  return viewText ? `오늘 활동: ${viewText} 결과를 함께 확인` : "오늘 활동: 실행 결과 함께 확인";
 }
 
 function formatGradeLabel(grade) {
@@ -457,10 +488,10 @@ function buildDetailRunReadinessRows(lesson) {
   const missionRows = buildCourseMissionTexts(lesson);
   return [
     `수업 준비 상태: ${buildCourseReadinessText(lesson)}`,
-    "학생으로 실행하면 이 DDN 원문이 바로 수업 화면에서 재생됩니다",
+    "학생으로 실행하면 이 수업이 바로 학생 화면에서 열립니다",
     viewText ? `결과 확인: ${viewText}` : "결과 확인: 기본 실행 화면",
     missionRows.length ? `첫 활동: ${missionRows[0]}` : "첫 활동: 그래프와 표를 보고 수업 내용을 확인하기",
-    "교사용 배포 준비에서 같은 원문과 활동을 학생에게 보낼 수 있습니다",
+    "교사용 배포 준비에서 같은 수업과 활동을 학생에게 보낼 수 있습니다",
   ];
 }
 
@@ -476,17 +507,19 @@ function renderDetailRunReadinessSection(lesson) {
   `;
 }
 
-function renderDetailCourseFlowSection(lesson) {
+function renderDetailCourseFlowSection(lesson, courseSequenceText = "") {
   const activityText = buildCourseActivityText(lesson).replace(/^오늘 활동:\s*/, "");
   const resultText = buildCourseResultText(lesson).replace(/^결과 확인:\s*/, "");
   const deliveryText = buildCourseDeliveryText(lesson);
+  const sequenceText = String(courseSequenceText ?? "").trim();
   return `
     <section class="detail-curriculum-section detail-course-flow" data-detail-course-flow>
       <div class="detail-curriculum-title">수업 흐름</div>
+      ${sequenceText ? `<div class="detail-course-sequence" data-detail-course-sequence>${escapeHtml(sequenceText)}</div>` : ""}
       <div class="detail-course-flow-grid">
         <div class="detail-course-flow-item">
           <span>학생 활동</span>
-          <strong>${escapeHtml(activityText || "DDN 수업 실행")}</strong>
+          <strong>${escapeHtml(activityText || "수업 실행")}</strong>
         </div>
         <div class="detail-course-flow-item">
           <span>결과 확인</span>
@@ -712,6 +745,16 @@ export class BrowseScreen {
     this.copyBrowsePresetLinkButton = this.root.querySelector("#btn-copy-browse-preset-link");
     this.openLocalPackageButton = this.root.querySelector("#btn-open-local-package");
     this.localPackageFileInput = this.root.querySelector("#input-local-package-file");
+    this.localPackageImportStatusEl = this.root.querySelector("[data-local-package-import-status]");
+    this.pasteLocalPackageButton = this.root.querySelector("#btn-paste-local-package");
+    this.copyCoursePackageButton = this.root.querySelector("#btn-copy-course-package");
+    this.downloadCoursePackageButton = this.root.querySelector("#btn-download-course-package");
+    this.coursePackageExportStatusEl = this.root.querySelector("[data-course-package-export-status]");
+    this.localPackagePastePanel = this.root.querySelector("[data-local-package-paste-panel]");
+    this.localPackagePasteText = this.root.querySelector("#local-package-paste-text");
+    this.localPackagePastePreview = this.root.querySelector("[data-local-package-paste-preview]");
+    this.localPackagePasteOpenButton = this.root.querySelector("#btn-local-package-paste-open");
+    this.localPackagePasteCancelButton = this.root.querySelector("#btn-local-package-paste-cancel");
     this.legacyGuideHintEl = this.root.querySelector("#browse-legacy-guide-hint");
     this.grid = this.root.querySelector("#lesson-card-grid");
     this.courseSummaryEl = this.root.querySelector("[data-course-catalog-summary]");
@@ -750,7 +793,44 @@ export class BrowseScreen {
     });
     this.openLocalPackageButton?.addEventListener("click", () => {
       if (this.localPackageFileInput) this.localPackageFileInput.value = "";
+      if (this.localPackagePasteText) this.localPackagePasteText.value = "";
+      this.clearLocalPackagePastePreview();
+      this.toggleLocalPackagePastePanel(false);
+      this.setLocalPackagePasteStatus("idle", "");
       this.localPackageFileInput?.click();
+    });
+    this.pasteLocalPackageButton?.addEventListener("click", () => {
+      this.setLocalPackagePasteStatus("idle", "");
+      this.toggleLocalPackagePastePanel(true);
+      this.updateLocalPackagePastePreview();
+    });
+    this.copyCoursePackageButton?.addEventListener("click", () => {
+      void this.handleCopyCoursePackage();
+    });
+    this.downloadCoursePackageButton?.addEventListener("click", () => {
+      void this.handleDownloadCoursePackage();
+    });
+    this.localPackagePasteCancelButton?.addEventListener("click", () => {
+      this.toggleLocalPackagePastePanel(false);
+    });
+    this.localPackagePasteText?.addEventListener("input", () => {
+      this.clearLocalPackagePasteErrorStatus();
+      this.updateLocalPackagePastePreview();
+    });
+    this.localPackagePasteText?.addEventListener("keydown", async (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.toggleLocalPackagePastePanel(false);
+        this.pasteLocalPackageButton?.focus?.();
+        return;
+      }
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        await this.handleOpenLocalPackagePaste();
+      }
+    });
+    this.localPackagePasteOpenButton?.addEventListener("click", async () => {
+      await this.handleOpenLocalPackagePaste();
     });
     this.localPackageFileInput?.addEventListener("change", async () => {
       const file = this.localPackageFileInput?.files?.[0] ?? null;
@@ -927,6 +1007,394 @@ export class BrowseScreen {
     this.publishNumericTrackResultHistorySnapshot();
   }
 
+  toggleLocalPackagePastePanel(open = false) {
+    if (!this.localPackagePastePanel) return false;
+    const visible = Boolean(open);
+    this.localPackagePastePanel.classList.toggle("hidden", !visible);
+    this.localPackagePastePanel.dataset.open = visible ? "1" : "0";
+    this.localPackagePastePanel.setAttribute("aria-hidden", visible ? "false" : "true");
+    this.pasteLocalPackageButton?.setAttribute("aria-expanded", visible ? "true" : "false");
+    if (visible) {
+      this.updateLocalPackagePastePreview();
+      this.localPackagePasteText?.focus?.();
+    } else {
+      this.clearLocalPackagePasteErrorStatus();
+      this.clearLocalPackagePastePreview();
+    }
+    return visible;
+  }
+
+  setLocalPackagePastePreview(state = "idle", message = "") {
+    if (!this.localPackagePastePreview) return;
+    const text = String(message ?? "").trim();
+    this.localPackagePastePreview.dataset.state = String(state ?? "idle").trim() || "idle";
+    this.localPackagePastePreview.textContent = text;
+    this.localPackagePastePreview.classList.toggle("hidden", !text);
+  }
+
+  clearLocalPackagePastePreview() {
+    this.setLocalPackagePastePreview("idle", "");
+  }
+
+  updateLocalPackagePastePreview() {
+    const text = String(this.localPackagePasteText?.value ?? "").trim();
+    if (!text) {
+      this.clearLocalPackagePastePreview();
+      return false;
+    }
+    let payload = null;
+    try {
+      payload = JSON.parse(text);
+    } catch (_) {
+      this.setLocalPackagePastePreview("pending", "JSON 형식을 확인한 뒤 배포를 열어 주세요.");
+      return false;
+    }
+    const validation = validateStudioLocalPackagePayload(payload);
+    if (!validation.valid) {
+      this.setLocalPackagePastePreview("error", `배포 형식을 확인해 주세요: ${formatStudioLocalPackageError(new Error(validation.error))}`);
+      return false;
+    }
+    const manifest = payload && typeof payload === "object" && payload.manifest && typeof payload.manifest === "object"
+      ? payload.manifest
+      : {};
+    const title = String(manifest.title ?? payload?.title ?? "").trim() || "제목 없는 배포";
+    const session = String(manifest.session_label ?? payload?.session_label ?? "").trim();
+    const firstLesson = Array.isArray(payload?.lessons) ? payload.lessons[0] : null;
+    const lessonTitle = String(firstLesson?.title ?? firstLesson?.lesson_id ?? "").trim();
+    const lessonCountRaw = Number(manifest.lesson_count);
+    const lessonCount = Number.isFinite(lessonCountRaw)
+      ? lessonCountRaw
+      : Array.isArray(payload?.lessons)
+        ? payload.lessons.length
+        : 0;
+    const reportCountRaw = Number(manifest.report_count);
+    const reportCount = Number.isFinite(reportCountRaw)
+      ? reportCountRaw
+      : Array.isArray(payload?.reports)
+        ? payload.reports.length
+        : 0;
+    const studentMaterialSummary = Array.isArray(manifest.student_materials_summary)
+      ? manifest.student_materials_summary.map((item) => String(item ?? "").trim()).filter(Boolean)
+      : [];
+    const studentReportSummary = studentMaterialSummary.find((item) => item.startsWith("학생 자료 "));
+    const lessonLabel = lessonCount > 1
+      ? lessonTitle
+        ? `첫 수업 ${lessonTitle}`
+        : "첫 수업 미확인"
+      : lessonTitle
+        ? `실행할 수업 ${lessonTitle}`
+        : "실행할 수업 미확인";
+    const parts = [
+      `배포 확인: ${title}`,
+      lessonLabel,
+      ...(lessonCount > 1 ? ["배포 수업 선택 가능"] : []),
+      session ? `차시 ${session}` : "차시 미지정",
+      `교과 ${lessonCount}개`,
+    ];
+    if (studentReportSummary) {
+      parts.push(studentReportSummary);
+    } else if (reportCount > 0) {
+      parts.push(`자료 ${reportCount}개`);
+    }
+    this.setLocalPackagePastePreview("ok", parts.join(" · "));
+    return true;
+  }
+
+  setLocalPackagePasteStatus(state = "idle", message = "") {
+    if (!this.localPackageImportStatusEl) return;
+    const text = String(message ?? "").trim();
+    this.localPackageImportStatusEl.dataset.state = String(state ?? "idle").trim() || "idle";
+    this.localPackageImportStatusEl.textContent = text;
+    this.localPackageImportStatusEl.classList.toggle("hidden", !text);
+  }
+
+  setCoursePackageExportStatus(state = "idle", message = "") {
+    if (!this.coursePackageExportStatusEl) return;
+    const text = String(message ?? "").trim();
+    this.coursePackageExportStatusEl.dataset.state = String(state ?? "idle").trim() || "idle";
+    this.coursePackageExportStatusEl.textContent = text;
+    this.coursePackageExportStatusEl.classList.toggle("hidden", !text);
+  }
+
+  clearLocalPackagePasteErrorStatus() {
+    if (String(this.localPackageImportStatusEl?.dataset?.state ?? "") !== "error") return;
+    this.setLocalPackagePasteStatus("idle", "");
+  }
+
+  async fetchLessonDdnTextForPackage(lesson) {
+    const lessonId = String(lesson?.id ?? "").trim();
+    if (!lessonId) throw new Error("교과 ID가 없습니다.");
+    const cached = this.detailDdnPreviewCache.get(lessonId);
+    const cachedText = String(cached?.fullText ?? cached?.text ?? "").trim();
+    if (cachedText) return cachedText;
+    const candidates = this.resolveDetailDdnPreviewCandidates(lesson);
+    for (const candidate of candidates) {
+      try {
+        const response = await fetch(candidate, { cache: "no-cache" });
+        if (!response.ok) continue;
+        const raw = await response.text();
+        if (!String(raw ?? "").trim()) continue;
+        this.detailDdnPreviewCache.set(lessonId, {
+          text: clipDdnPreviewText(raw),
+          fullText: raw,
+          path: candidate,
+        });
+        return raw;
+      } catch (_) {
+        // try next candidate
+      }
+    }
+    throw new Error(`DDN 원문을 불러오지 못했습니다: ${lessonId}`);
+  }
+
+  async buildCoursePackageExportModel(lessons = null) {
+    const rows = Array.isArray(lessons) ? lessons : this.filteredLessons({ subject: "" });
+    const courseLessons = rows.filter((lesson) => String(lesson?.id ?? "").trim());
+    if (!courseLessons.length) {
+      throw new Error("대표 교과가 없습니다.");
+    }
+    const packageLessons = [];
+    for (const lesson of courseLessons) {
+      const sourceText = await this.fetchLessonDdnTextForPackage(lesson);
+      packageLessons.push({
+        lesson_id: String(lesson.id ?? "").trim(),
+        title: String(lesson.title ?? lesson.id ?? "").trim(),
+        description: String(lesson.description ?? "").trim(),
+        grade: String(lesson.grade ?? "").trim(),
+        subject: String(lesson.subject ?? "").trim(),
+        required_views: getLessonRequiredViews(lesson),
+        goals: buildCourseGoalTexts(lesson),
+        missions: buildCourseMissionTexts(lesson),
+        source_text: sourceText,
+      });
+    }
+    const title = `대표 교과 ${packageLessons.length}개 배포 묶음`;
+    const guideText = [
+      "셈그림 대표 교과 배포 안내",
+      "",
+      `교과 수: ${packageLessons.length}`,
+      ...packageLessons.map((lesson, index) => `${index + 1}. ${lesson.title} (${lesson.lesson_id})`),
+      "",
+      "학생 안내:",
+      "1. 셈그림 Studio에서 배포 열기 또는 붙여넣기 열기로 이 JSON을 엽니다.",
+      "2. 배포 수업 선택에서 오늘 수업을 고릅니다.",
+      "3. 받은 수업 실행을 눌러 그래프, 표, 설명을 확인합니다.",
+      "4. 결과 확인 뒤 이름을 입력하고 결과 복사 또는 결과 저장으로 제출합니다.",
+    ].join("\n");
+    const checklistText = [
+      "셈그림 대표 교과 교사용 준비 체크리스트",
+      "",
+      `배포 묶음: ${title}`,
+      `교과 수: ${packageLessons.length}`,
+      "",
+      "수업 전:",
+      "- 대표 묶음 JSON을 학생에게 전달합니다.",
+      "- 학생에게 배포 열기 또는 붙여넣기 열기를 안내합니다.",
+      "- 배포 수업 선택에서 오늘 수업을 고르게 합니다.",
+      "- 학생 명단 양식에 이름을 준비합니다.",
+      "",
+      "수업 중:",
+      "- 받은 수업 실행 후 그래프, 표, 설명을 확인하게 합니다.",
+      "- 결과 확인 뒤 이름을 입력하고 결과 복사 또는 결과 저장으로 제출하게 합니다.",
+      "",
+      "포함 교과:",
+      ...packageLessons.map((lesson, index) => `${index + 1}. ${lesson.title} (${lesson.lesson_id})`),
+    ].join("\n");
+    const rosterTemplateText = [
+      "# 셈그림 대표 교과 학생 명단",
+      "# 배포 묶음\tstudio.local.course.representative.v1",
+      "학생\t차시\t수업\t수업 코드\t배포 묶음\t배포 코드",
+      ...packageLessons.map((lesson) => (
+        `\t\t${lesson.title ?? ""}\t${lesson.lesson_id ?? ""}\t${title}\tstudio.local.course.representative.v1`
+      )),
+    ].join("\n");
+    const reports = [
+      {
+        report_id: "representative_course_student_guide",
+        title: "대표 교과 학생 배포 안내문",
+        text: guideText,
+      },
+      {
+        report_id: "representative_course_teacher_preparation_checklist",
+        title: "대표 교과 교사용 준비 체크리스트",
+        text: checklistText,
+      },
+      {
+        report_id: "representative_course_student_roster_template",
+        title: "대표 교과 학생 명단 양식",
+        path: "reports/representative_course_student_roster_template.tsv",
+        mime: "text/tab-separated-values; charset=utf-8",
+        text: rosterTemplateText,
+      },
+    ];
+    const studentMaterialCount = reports.filter((report) => {
+      const label = String(report?.title ?? report?.report_id ?? "");
+      return label.includes("학생");
+    }).length;
+    const manifest = buildStudioLocalPackageManifest({
+      packageId: "studio.local.course.representative.v1",
+      title,
+      version: "0.1.0",
+      lessons: packageLessons,
+      reports,
+    });
+    const payload = buildStudioLocalPackagePayload({ manifest, lessons: packageLessons, reports });
+    const payloadText = JSON.stringify(payload, null, 2);
+    const indexText = formatStudioLocalPackageIndexText(payload);
+    const lessonIds = packageLessons
+      .map((lesson) => String(lesson?.lesson_id ?? lesson?.id ?? "").trim())
+      .filter(Boolean);
+    return {
+      schema: "seamgrim.course_package_export_action.v1",
+      generated_by: "STUDIO_COURSE_PACKAGE_EXPORT_ACTION_V1",
+      title,
+      lesson_count: packageLessons.length,
+      multi_lesson: lessonIds.length > 1,
+      lesson_ids: lessonIds,
+      report_count: reports.length,
+      student_material_count: studentMaterialCount,
+      package_id: manifest.package_id,
+      manifest,
+      payload,
+      payload_text: payloadText,
+      index_text: indexText,
+    };
+  }
+
+  async handleCopyCoursePackage() {
+    const button = this.copyCoursePackageButton;
+    const originalLabel = button?.textContent ?? "대표 묶음 복사";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "묶음 준비 중...";
+    }
+    this.setCoursePackageExportStatus("loading", "대표 교과 DDN 원문을 모아 배포 묶음을 만드는 중입니다.");
+    try {
+      const model = await this.buildCoursePackageExportModel();
+      const ok = await this.copyToClipboard(model.payload_text);
+      try {
+        window.__STUDIO_COURSE_PACKAGE_EXPORT_ACTION__ = {
+          ...model,
+          copied: ok,
+        };
+      } catch (_) {
+        // ignore browser instrumentation errors
+      }
+      this.setCoursePackageExportStatus(
+        ok ? "ok" : "error",
+        ok
+          ? `대표 교과 배포 묶음을 복사했습니다: 교과 ${model.lesson_count}개 · 학생 자료 ${model.student_material_count}개 · 전체 자료 ${model.report_count}개`
+          : "대표 교과 배포 묶음 복사에 실패했습니다.",
+      );
+      showGlobalToast(ok ? "대표 교과 배포 묶음을 복사했습니다." : "대표 교과 배포 묶음 복사에 실패했습니다.", {
+        kind: ok ? "success" : "error",
+      });
+      return ok;
+    } catch (error) {
+      const message = String(error?.message ?? error);
+      try {
+        window.__STUDIO_COURSE_PACKAGE_EXPORT_ACTION__ = {
+          schema: "seamgrim.course_package_export_action.v1",
+          copied: false,
+          error: message,
+        };
+      } catch (_) {
+        // ignore browser instrumentation errors
+      }
+      this.setCoursePackageExportStatus("error", `대표 교과 배포 묶음 생성 실패: ${message}`);
+      showGlobalToast(`대표 교과 배포 묶음 생성 실패: ${message}`, { kind: "error" });
+      return false;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+  }
+
+  async handleDownloadCoursePackage() {
+    const button = this.downloadCoursePackageButton;
+    const originalLabel = button?.textContent ?? "대표 묶음 저장";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "묶음 저장 중...";
+    }
+    this.setCoursePackageExportStatus("loading", "대표 교과 배포 묶음 파일을 만드는 중입니다.");
+    try {
+      const model = await this.buildCoursePackageExportModel();
+      const fileName = buildSafeJsonDownloadName(`${model.package_id || "studio.local.course.representative.v1"}.json`);
+      const savedName = saveJsonTextToFile(model.payload_text, fileName);
+      try {
+        window.__STUDIO_COURSE_PACKAGE_DOWNLOAD_ACTION__ = {
+          ...model,
+          downloaded: true,
+          file_name: savedName,
+        };
+      } catch (_) {
+        // ignore browser instrumentation errors
+      }
+      this.setCoursePackageExportStatus(
+        "ok",
+        `대표 교과 배포 묶음을 저장했습니다: 교과 ${model.lesson_count}개 · 학생 자료 ${model.student_material_count}개 · 전체 자료 ${model.report_count}개 · ${savedName}`,
+      );
+      showGlobalToast("대표 교과 배포 묶음을 저장했습니다.", { kind: "success" });
+      return true;
+    } catch (error) {
+      const message = String(error?.message ?? error);
+      try {
+        window.__STUDIO_COURSE_PACKAGE_DOWNLOAD_ACTION__ = {
+          schema: "seamgrim.course_package_download_action.v1",
+          downloaded: false,
+          error: message,
+        };
+      } catch (_) {
+        // ignore browser instrumentation errors
+      }
+      this.setCoursePackageExportStatus("error", `대표 교과 배포 묶음 저장 실패: ${message}`);
+      showGlobalToast(`대표 교과 배포 묶음 저장 실패: ${message}`, { kind: "error" });
+      return false;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+  }
+
+  async handleOpenLocalPackagePaste() {
+    const text = String(this.localPackagePasteText?.value ?? "").trim();
+    if (!text) {
+      this.setLocalPackagePasteStatus("error", "붙여넣을 배포 JSON이 없습니다.");
+      this.localPackagePasteText?.focus?.();
+      return false;
+    }
+    const fileLike = {
+      name: "pasted-teacher-package.json",
+      async text() {
+        return text;
+      },
+    };
+    const originalLabel = this.localPackagePasteOpenButton?.textContent ?? "붙여넣은 배포 열기";
+    if (this.localPackagePasteOpenButton) {
+      this.localPackagePasteOpenButton.disabled = true;
+      this.localPackagePasteOpenButton.textContent = "배포 여는 중...";
+    }
+    try {
+      const ok = await this.onOpenLocalPackageFile(fileLike);
+      if (ok) {
+        if (this.localPackagePasteText) this.localPackagePasteText.value = "";
+        this.clearLocalPackagePastePreview();
+        this.toggleLocalPackagePastePanel(false);
+      }
+      return ok;
+    } finally {
+      if (this.localPackagePasteOpenButton) {
+        this.localPackagePasteOpenButton.disabled = false;
+        this.localPackagePasteOpenButton.textContent = originalLabel;
+      }
+    }
+  }
+
   removeSelectOption(selectEl, value) {
     if (!selectEl) return;
     const option = selectEl.querySelector(`option[value="${value}"]`);
@@ -951,6 +1419,26 @@ export class BrowseScreen {
 
   applySimplifiedCatalogFilters() {
     const showLegacyControls = shouldShowLegacyBrowseControls();
+    if (!showLegacyControls) {
+      this.filter.quality = "";
+      this.filter.seedScope = "";
+      this.filter.runStatus = "";
+      this.filter.runLaunch = "";
+      this.filter.launchProfile = "";
+      this.filter.warningStatus = "";
+      this.filter.sort = "teacher";
+      [
+        [this.qualitySelect, ""],
+        [this.seedScopeSelect, ""],
+        [this.runStatusSelect, ""],
+        [this.runLaunchSelect, ""],
+        [this.launchProfileSelect, ""],
+        [this.warningStatusSelect, ""],
+        [this.sortSelect, "teacher"],
+      ].forEach(([node, value]) => {
+        if (node) node.value = value;
+      });
+    }
     const hiddenTargets = [
       this.qualitySelect,
       this.seedScopeSelect,
@@ -2421,7 +2909,18 @@ export class BrowseScreen {
     });
   }
 
-  createLessonCard(lesson) {
+  getCourseSequenceText(lesson, index = null) {
+    if (this.activeTab !== "official") return "";
+    let sequenceIndex = typeof index === "number" && Number.isFinite(index) ? index : -1;
+    if (sequenceIndex < 0) {
+      const lessonId = String(lesson?.id ?? "").trim();
+      if (!lessonId) return "";
+      sequenceIndex = this.filteredLessons().findIndex((row) => String(row?.id ?? "").trim() === lessonId);
+    }
+    return sequenceIndex >= 0 ? `추천 순서 ${sequenceIndex + 1}` : "";
+  }
+
+  createLessonCard(lesson, index = 0) {
     const showLegacyControls = shouldShowLegacyBrowseControls();
     const qualityKey = QUALITY_BADGE[lesson.quality] ? lesson.quality : "experimental";
     const badge = QUALITY_BADGE[qualityKey];
@@ -2451,6 +2950,7 @@ export class BrowseScreen {
     const courseActivityText = buildCourseActivityText(lesson);
     const courseGoals = buildCourseGoalTexts(lesson);
     const courseMissions = buildCourseMissionTexts(lesson);
+    const courseSequenceText = this.getCourseSequenceText(lesson, index);
 
     const card = document.createElement("article");
     card.className = "lesson-card";
@@ -2458,6 +2958,7 @@ export class BrowseScreen {
     card.setAttribute("role", "button");
     card.setAttribute("aria-label", `${String(lesson.title || lesson.id || "교과").trim()} 상세 보기`);
     card.dataset.lessonId = lesson.id;
+    if (courseSequenceText) card.dataset.courseSequence = courseSequenceText;
     card.innerHTML = `
       <div class="card-top-badges">
         <span class="quality-badge ${badge.cls}">${badge.label}</span>
@@ -2466,6 +2967,7 @@ export class BrowseScreen {
         ${featuredSeedBadge ? `<span class="quality-badge ${featuredSeedBadge.cls}">${featuredSeedBadge.label}</span>` : ""}
         ${numericTrackResultBadge ? `<span class="quality-badge ${numericTrackResultBadge.cls}">${numericTrackResultBadge.label}</span>` : ""}
       </div>
+      ${courseSequenceText ? `<div class="card-course-sequence" data-course-sequence>${escapeHtml(courseSequenceText)}</div>` : ""}
       <div class="card-title">${lesson.title || lesson.id}</div>
       <div class="card-meta">${gradeLabel} · ${subjectLabel}</div>
       <div class="card-desc">${lesson.description || "설명 없음"}</div>
@@ -2566,6 +3068,7 @@ export class BrowseScreen {
     if (!this.detailPanelEl || !this.detailLesson) {
       return;
     }
+    const courseSequenceText = this.getCourseSequenceText(this.detailLesson);
     const subject = String(this.detailLesson.subject ?? "").trim() || "-";
     const grade = String(this.detailLesson.grade ?? "").trim() || "-";
     if (this.detailSubjectBadgeEl) {
@@ -2615,6 +3118,7 @@ export class BrowseScreen {
         // ignore browser instrumentation errors
       }
       if (!curriculumMeta) {
+        const ddnPreviewSection = renderDetailDdnPreviewSection();
         const goalRows = buildCourseGoalTexts(this.detailLesson);
         const missionRows = buildCourseMissionTexts(this.detailLesson);
         const viewRows = Array.isArray(this.detailLesson.requiredViews) && this.detailLesson.requiredViews.length
@@ -2622,15 +3126,16 @@ export class BrowseScreen {
           : [];
         this.detailCurriculumEl.innerHTML = [
           renderDetailStudentPreviewSection(this.detailLesson),
-          renderDetailDdnPreviewSection(),
           renderDetailRunReadinessSection(this.detailLesson),
-          renderDetailCourseFlowSection(this.detailLesson),
+          renderDetailCourseFlowSection(this.detailLesson, courseSequenceText),
           renderDetailList("학습목표", goalRows),
           renderDetailList("수업 활동", missionRows),
           renderDetailList("결과 확인", viewRows),
           ...numericSections,
+          ddnPreviewSection,
         ].join("");
       } else {
+        const ddnPreviewSection = renderDetailDdnPreviewSection();
         const titleRows = [
           curriculumMeta.unit ? `단원: ${curriculumMeta.unit}` : "",
           curriculumMeta.lesson ? `차시: ${curriculumMeta.lesson}` : "",
@@ -2643,14 +3148,14 @@ export class BrowseScreen {
         ].filter(Boolean);
         this.detailCurriculumEl.innerHTML = [
           renderDetailStudentPreviewSection(this.detailLesson),
-          renderDetailDdnPreviewSection(),
           renderDetailRunReadinessSection(this.detailLesson),
-          renderDetailCourseFlowSection(this.detailLesson),
+          renderDetailCourseFlowSection(this.detailLesson, courseSequenceText),
           renderDetailList("차시 정보", titleRows),
           renderDetailList("학습목표", curriculumMeta.learningGoals),
           renderDetailList("핵심개념", curriculumMeta.coreConcepts),
           renderDetailList("자료", refRows),
           ...numericSections,
+          ddnPreviewSection,
         ].join("");
       }
       void this.hydrateDetailDdnPreview(this.detailLesson);
@@ -2933,7 +3438,7 @@ export class BrowseScreen {
     this.courseSummaryEl.dataset.courseCatalogTotal = String(totalCount);
     this.courseSummaryEl.dataset.courseCatalogVisible = String(lessons.length);
     this.courseSummaryEl.textContent =
-      `${lessons.length}개 대표 교과${suffix}${filteredText}${subjectCountSuffix} · DDN 실행 · 학생 시작 · 교사용 배포 · 전체 검색으로 나머지 교과 확인`;
+      `${lessons.length}개 대표 교과${suffix}${filteredText}${subjectCountSuffix} · DDN 실행 · 학생 시작 · 교사용 배포 가능 · 전체 검색으로 나머지 교과 확인`;
     this.updateCourseSubjectShortcuts(this.filteredLessons({ subject: "" }));
   }
 
@@ -2993,8 +3498,8 @@ export class BrowseScreen {
       return;
     }
 
-    lessons.forEach((lesson) => {
-      this.grid.appendChild(this.createLessonCard(lesson));
+    lessons.forEach((lesson, index) => {
+      this.grid.appendChild(this.createLessonCard(lesson, index));
     });
     this.maybeAutoShowCourseDetail(lessons);
     this.updateSelectedLessonCard();

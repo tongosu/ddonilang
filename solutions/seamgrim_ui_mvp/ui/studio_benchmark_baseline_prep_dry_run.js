@@ -75,7 +75,7 @@ export const DEFAULT_BENCHMARK_BASELINE_PREP_INPUT_ROWS = INPUT_DEFS.map((row) =
   prep_only: true,
   generated_now: false,
   benchmark_execution_claim: false,
-  product_ui_change: true,
+  product_ui_change: false,
 }));
 
 function normalizeRows(rows = DEFAULT_BENCHMARK_BASELINE_PREP_INPUT_ROWS) {
@@ -112,7 +112,7 @@ function normalizeRows(rows = DEFAULT_BENCHMARK_BASELINE_PREP_INPUT_ROWS) {
       lesson_schema_change: false,
       active_allowlist_mutation: false,
       parser_frontdoor_change: false,
-      product_ui_change: true,
+      product_ui_change: false,
     };
   });
 }
@@ -152,8 +152,8 @@ export function buildBenchmarkBaselinePrepDryRun({
     workflow_claim: "benchmark_baseline_prep_dry_run",
     primary_coordinate: "타-3",
     support_coordinate: "마-3",
-    product_ui_change: true,
-    product_code_change: true,
+    product_ui_change: false,
+    product_code_change: false,
     benchmark_baseline_prep_dry_run_claim: true,
     runtime_claim: false,
     benchmark_execution_claim: false,
@@ -186,15 +186,15 @@ export function buildBenchmarkBaselinePrepDryRun({
     planned_baseline_inputs: rows,
     stages,
     progress: {
-      super_long_behavior_closed: 18,
+      super_long_behavior_closed: 5,
       super_long_total: 18,
-      super_long_percent: 100,
+      super_long_percent: 28,
       current_stage_closed: 7,
       current_stage_total: 8,
       current_stage_percent: 88,
-      roadmap_v2_behavior_closed: 87,
+      roadmap_v2_behavior_closed: 21,
       roadmap_v2_total: 90,
-      roadmap_v2_percent: 97,
+      roadmap_v2_percent: 23,
     },
     next_item: "STUDIO_NEXT_ROADMAP_V2_COORDINATE_LOCK_V1",
   };

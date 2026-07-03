@@ -189,9 +189,9 @@ export function buildPublicationArtifactDryRun({
     planned_artifacts: rows,
     stages,
     progress: {
-      super_long_behavior_closed: 18,
+      super_long_behavior_closed: 9,
       super_long_total: 18,
-      super_long_percent: 100,
+      super_long_percent: 50,
       current_stage_closed: 4,
       current_stage_total: 8,
       current_stage_percent: 50,

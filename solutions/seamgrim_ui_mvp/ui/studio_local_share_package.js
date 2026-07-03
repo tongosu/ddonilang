@@ -64,8 +64,15 @@ function formatStudentRequiredViewLabel(value) {
   return String(value ?? "").trim();
 }
 
-function buildStudioLocalPackageStudentInstructions(lessons = []) {
-  const firstLesson = asArray(lessons)[0] ?? {};
+function buildStudioLocalPackageStudentInstructions(lessons = [], { sessionLabel = "" } = {}) {
+  const lessonRows = asArray(lessons);
+  const firstLesson = lessonRows[0] ?? {};
+  const hasMultipleLessons = lessonRows.length > 1;
+  const lessonId = asText(firstLesson.lesson_id ?? firstLesson.id, "");
+  const lessonTitle = asText(firstLesson.title, "");
+  const session = asText(sessionLabel, "");
+  const goalRows = asTextArray(firstLesson.goals ?? firstLesson.learning_goals);
+  const missionRows = asTextArray(firstLesson.missions);
   const viewLabels = asTextArray(firstLesson.required_views ?? firstLesson.requiredViews)
     .map(formatStudentRequiredViewLabel)
     .filter(Boolean)
@@ -74,9 +81,55 @@ function buildStudioLocalPackageStudentInstructions(lessons = []) {
     ? `결과 확인: ${viewLabels.join(", ")}를 확인합니다.`
     : "결과 확인 화면을 확인합니다.";
   return [
-    "셈그림 Studio에서 배포 열기를 누른 뒤 선생님이 보낸 JSON 배포 파일을 선택합니다.",
+    ...(session ? [`차시: ${session}`] : []),
+    ...(hasMultipleLessons ? [`교과 수: ${lessonRows.length}`] : []),
+    ...(lessonTitle ? [`${hasMultipleLessons ? "첫 수업" : "수업"}: ${lessonTitle}`] : []),
+    ...(lessonId ? [`${hasMultipleLessons ? "첫 수업 코드" : "수업 코드"}: ${lessonId}`] : []),
+    ...(goalRows.length ? [`목표: ${goalRows[0]}`] : []),
+    ...(missionRows.length ? [`오늘 활동: ${missionRows[0]}`] : []),
+    "셈그림 Studio에서 배포 열기 또는 붙여넣기 열기로 선생님이 보낸 JSON 배포 파일이나 JSON 텍스트를 엽니다.",
+    ...(hasMultipleLessons ? ["배포 수업 선택에서 오늘 수업을 고릅니다."] : []),
     "받은 수업 실행을 눌러 교사가 보낸 수업을 시작합니다.",
     resultInstruction,
+    "결과 확인 뒤 이름을 입력하고 결과 복사 또는 결과 저장으로 교사에게 제출합니다.",
+  ];
+}
+
+function buildStudioLocalPackageMaterialsSummary({ lessons = [], reports = [], assets = [] } = {}) {
+  const lessonTitles = asArray(lessons)
+    .map((item) => asText(item.title ?? item.lesson_id, ""))
+    .filter(Boolean);
+  const reportTitles = asArray(reports)
+    .map((item) => asText(item.title ?? item.report_id, ""))
+    .filter(Boolean);
+  const assetTitles = asArray(assets)
+    .map((item) => asText(item.path ?? item.role, ""))
+    .filter(Boolean);
+  return [
+    lessonTitles.length
+      ? `교과 ${lessonTitles.length}개: ${lessonTitles.join(", ")}`
+      : "교과 없음",
+    reportTitles.length
+      ? `교사용 자료 ${reportTitles.length}개: ${reportTitles.join(", ")}`
+      : "교사용 자료 없음",
+    ...(assetTitles.length ? [`추가 자료 ${assetTitles.length}개: ${assetTitles.join(", ")}`] : []),
+  ];
+}
+
+function buildStudioLocalPackageStudentMaterialsSummary({ lessons = [], reports = [] } = {}) {
+  const lessonTitles = asArray(lessons)
+    .map((item) => asText(item.title ?? item.lesson_id, ""))
+    .filter(Boolean);
+  const studentReportTitles = asArray(reports)
+    .map((item) => asText(item.title ?? item.report_id, ""))
+    .filter((item) => item && item.includes("학생"));
+  return [
+    lessonTitles.length
+      ? `교과 ${lessonTitles.length}개: ${lessonTitles.join(", ")}`
+      : "교과 없음",
+    ...(studentReportTitles.length
+      ? [`학생 자료 ${studentReportTitles.length}개: ${studentReportTitles.join(", ")}`]
+      : []),
   ];
 }
 
@@ -89,7 +142,7 @@ function normalizeReport(report, index) {
     report_id: reportId,
     title: asText(row.title ?? row.name ?? row["제목"], reportId),
     path: normalizePath(row.path, `reports/${pathToken}.txt`),
-    mime: "text/plain; charset=utf-8",
+    mime: asText(row.mime, "text/plain; charset=utf-8"),
     text,
     byte_size: byteLengthUtf8(text),
   };
@@ -263,6 +316,7 @@ export function buildStudioLocalPackageManifest({
   packageId = "",
   title = "",
   version = "0.1.0",
+  sessionLabel = "",
   lessons = [],
   reports = [],
   assets = [],
@@ -294,17 +348,32 @@ export function buildStudioLocalPackageManifest({
   const reportFiles = normalizedReports.map((item) => fileEntry(item.path, "report", item.byte_size, item.mime));
   const assetFiles = normalizedAssets.map((item) => fileEntry(item.path, item.role, item.byte_size, item.mime));
   const files = [...staticBundle, ...lessonFiles, ...reportFiles, ...assetFiles];
-  const studentInstructions = buildStudioLocalPackageStudentInstructions(normalizedLessons);
+  const session = asText(sessionLabel, "");
+  const packageIdText = asText(packageId, "local.studio.package");
+  const studentInstructions = buildStudioLocalPackageStudentInstructions(normalizedLessons, { sessionLabel: session });
+  const materialsSummary = buildStudioLocalPackageMaterialsSummary({
+    lessons: normalizedLessons,
+    reports: normalizedReports,
+    assets: normalizedAssets,
+  });
+  const studentMaterialsSummary = buildStudioLocalPackageStudentMaterialsSummary({
+    lessons: normalizedLessons,
+    reports: normalizedReports,
+  });
+  if (packageIdText) studentInstructions.push(`배포 코드: ${packageIdText}`);
   return {
     __종류: "studio_local_package_manifest",
-    package_id: asText(packageId, "local.studio.package"),
+    package_id: packageIdText,
     title: asText(title, "셈그림 교사용 배포 묶음"),
     version: asText(version, "0.1.0"),
+    ...(session ? { session_label: session } : {}),
     generated_locally: true,
     delivery_mode: "studio_json_import",
     open_with: "seamgrim_studio_local_package_import",
     student_entry_label: "배포 열기",
     student_instructions: studentInstructions,
+    materials_summary: materialsSummary,
+    student_materials_summary: studentMaterialsSummary,
     account_required: false,
     cloud_sync: false,
     public_registry: false,
@@ -333,6 +402,9 @@ export function buildStudioLocalPackagePayload({
   const studentInstructions = asTextArray(packageManifest.student_instructions).length
     ? asTextArray(packageManifest.student_instructions)
     : buildStudioLocalPackageStudentInstructions(normalizedLessons);
+  const studentMaterialsSummary = asTextArray(packageManifest.student_materials_summary).length
+    ? asTextArray(packageManifest.student_materials_summary)
+    : buildStudioLocalPackageStudentMaterialsSummary({ lessons: normalizedLessons, reports: normalizedReports });
   return {
     __종류: "studio_local_package_payload",
     manifest: packageManifest,
@@ -345,6 +417,7 @@ export function buildStudioLocalPackagePayload({
     open_with: "seamgrim_studio_local_package_import",
     student_entry_label: "배포 열기",
     student_instructions: studentInstructions,
+    student_materials_summary: studentMaterialsSummary,
     account_required: false,
     cloud_sync: false,
     public_registry: false,
@@ -519,7 +592,7 @@ export function formatStudioLocalPackageIndexText(payload = {}) {
   const lines = [
     "구분\t경로\t제목\t크기",
     `package\t${String(manifest.package_id ?? "")}\t${String(manifest.title ?? "")}\t${Number(manifest.file_count ?? 0)}`,
-    `guide\tStudio 배포 열기\t받은 수업 실행 · ${resultInstruction.replace(/[.。]\s*$/, "")}\t0`,
+    `guide\t학생 배포 안내문\t배포 열기/붙여넣기 열기 → 받은 수업 실행 · ${resultInstruction.replace(/[.。]\s*$/, "")}\t0`,
   ];
   asArray(packagePayload.lessons).forEach((lesson) => {
     lines.push(["lesson", String(lesson.path ?? ""), String(lesson.title ?? ""), String(lesson.byte_size ?? 0)].join("\t"));
