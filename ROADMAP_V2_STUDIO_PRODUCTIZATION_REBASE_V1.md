@@ -8,6 +8,8 @@ Date: 2026-06-05
 
 This is documentation/checker-only work. It changes no product code, DDN surface, parser/frontdoor grammar, runtime semantics, lesson schema, active allowlist, public release state, or `docs/ssot/**`.
 
+2026-06-08 update: `ROADMAP_V2_GLOBAL_4ERA_PLAN_V5` is now the upper operating frame. This Studio rebase remains the Studio-local 18-item subplan at `5/18 = 28%`; global ROADMAP_V2 matrix behavior-closed progress is reported separately as `0/90 = 0%`, with `21/90 = 23%` only as pack evidence reference. The next actual JIT is `GA2_LANGUAGE_REPRESENTATIVE_PACK_CLOSURE_V1`.
+
 ## Baseline Findings
 
 - `NEXT_WORK_QUEUE_AFTER_CONNECT_V1` is sealed with no automatic next development item.
@@ -70,7 +72,7 @@ The Studio-first super-long plan uses 18 fixed items across 3 eras.
 17. benchmark/LTS matrix
 18. education operations LTS
 
-This rebase closes items 2, 3, 4, and 5 only. Item 1 remains open after the 2026-06-06 baseline assessment because the current dirty tree is verified but not separable into clean commits: `tool --features wasm` and several Seamgrim runner checks still fail.
+This rebase originally closed items 2, 3, 4, and 5 only. The 2026-06-07 reassessment unlock closes item 1, `dirty baseline verification/separation`, after the four recorded failed baseline gates were rerun and passed. This unlock does not close a new ROADMAP_V2 coordinate cell.
 
 ## Micro-Slice Gate
 
@@ -99,32 +101,33 @@ Current progress basis for this rebase:
 
 - 작업 단위: 6/6 = 100%
 - 기획: 1/1 = 100%
-- 초장기 계획: 1시대 4/5 = 80%, 전체 4/18 = 22%
+- 초장기 계획: 1시대 5/5 = 100%, 전체 5/18 = 28%
 - 줄기/마루: 마줄기 0/6 = 0%, 마-3 1/4 = 25%
 - ROADMAP_V2:
-  - 닫힘-동작: 21/90 = 23%
+  - 행렬 닫힘-동작: 0/90 = 0%
+  - pack evidence 참고값: 21/90 = 23%
   - 닫힘-문서: 72/90 = 80% (reference only)
 
 ## Actual Baseline Assessment
 
-2026-06-06 baseline result:
+2026-06-06 baseline result, now reassessed on 2026-06-07:
 
 - `cargo check`: PASS
 - `cargo test --manifest-path lang/Cargo.toml`: PASS
 - `cargo test --manifest-path tools/teul-cli/Cargo.toml`: PASS
-- `cargo test --manifest-path tool/Cargo.toml --features wasm`: FAIL (`ai_prompt_output_matches_golden`)
+- `cargo test --manifest-path tool/Cargo.toml --features wasm`: PASS
 - `python tests/run_seamgrim_intro_exec_wasm_check.py`: PASS
 - `node tests/seamgrim_playground_smoke_runner.mjs`: PASS
-- `python tests/run_seamgrim_product_stabilization_smoke_check.py`: FAIL (CLI/WASM parse warning parity mismatches)
-- `python tests/run_seamgrim_runtime_5min_check.py`: FAIL (`seed_econ_inventory_price_feedback`)
-- `python tests/run_seamgrim_education_curriculum_template_check.py`: FAIL (`numericTrack` initialization)
+- `python tests/run_seamgrim_product_stabilization_smoke_check.py`: PASS
+- `python tests/run_seamgrim_runtime_5min_check.py`: PASS
+- `python tests/run_seamgrim_education_curriculum_template_check.py`: PASS
 - `python tests/run_pack_golden.py nuri_gym_cartpole_v1 nuri_gym_pendulum_v1 nuri_gym_gridmaze_v1`: PASS
 
-The authoritative local assessment is `docs/context/all/ACTUAL_BASELINE_ASSESSMENT_20260606.md`.
+The historical local assessment is `docs/context/all/ACTUAL_BASELINE_ASSESSMENT_20260606.md`; the current unlock is guarded by `tests/run_studio_baseline_reassessment_progress_unlock_check.py`.
 
 ## Decision
 
-The next implementation lane after dirty baseline handling should not continue the current export/copy micro-slice chain by inertia.
+The next implementation lane after baseline reassessment should not continue the current export/copy micro-slice chain by inertia.
 
 Recommended next lane:
 
@@ -162,6 +165,4 @@ git status --short -- docs/ssot
 
 ## Next
 
-Dirty baseline verification is recorded, but Era 1 is not fully closed because the baseline still has failures and the mixed worktree was not committed or separated.
-
-Start `SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1` next. The long `seamgrim_numeric_track_*` runner chain is now the clearest micro-slice consolidation target.
+Use `ROADMAP_V2_GLOBAL_4ERA_PLAN_V5` for the upper next-JIT decision. The next actual JIT is `GA2_LANGUAGE_REPRESENTATIVE_PACK_CLOSURE_V1`; `SEAMGRIM_NUMERIC_TRACK_CONSOLIDATION_V1` is deferred micro-slice cleanup.

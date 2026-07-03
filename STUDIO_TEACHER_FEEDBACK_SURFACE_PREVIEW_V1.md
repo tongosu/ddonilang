@@ -45,9 +45,9 @@ Every section keeps `preview_only=true`, `generated_now=false`, and `write_claim
 - 작업 단위: 6/6 = 100% (`닫힘-동작`)
 - 기획: 1/1 = 100%
 - preview sections: 6/6 = 100%
-- 전체 초장기 계획: 18/18 = 100%
+- 전체 초장기 계획: 9/18 = 50%
 - 현재 스테이지: 새 마-3 개발 계획 2/8 = 25%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 behavior-closed progress: 90/90 = 100%
 
 ## Verification
 

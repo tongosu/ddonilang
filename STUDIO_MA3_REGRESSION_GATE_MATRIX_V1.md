@@ -45,9 +45,9 @@ Source anchors:
 - 작업 단위: 6/6 = 100% (`닫힘-동작`)
 - 기획: 1/1 = 100%
 - gate rows: 6/6 = 100%
-- 전체 초장기 계획: 18/18 = 100%
+- 전체 초장기 계획: 8/18 = 44%
 - 현재 스테이지: 새 마-3 개발 계획 7/8 = 88%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 matrix behavior: 6/90 = 7%
 
 ## Verification
 

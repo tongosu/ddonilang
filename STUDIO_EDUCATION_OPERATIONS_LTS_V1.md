@@ -45,7 +45,7 @@ The envelope also records deferred post-plan decisions: explicit public release 
 
 - 작업 단위: 6/6 = 100%
 - 기획: 1/1 = 100%
-- 초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%
+- 전체 초장기 계획: 8/18 = 44%
 - 줄기/마루: 마줄기 6/6 = 100%, 마-3 4/4 = 100%, 타-3 3/3 = 100%
 - ROADMAP_V2 전체: queue-expanded 34/90 = 38%
 

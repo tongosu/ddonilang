@@ -21,7 +21,7 @@ Registry/share seed schema: `ddn.studio.registry_share_seed.v1`.
 The seed manifest records:
 
 - source publication prep manifest: `pack/studio_public_lesson_publication_prep_v1/publication_prep.detjson`;
-- 12 draft-only registry seed rows;
+- 15 draft-only registry seed rows;
 - package scope: `나눔`;
 - catalog kind: `lesson_catalog`;
 - visibility: `public_candidate`;

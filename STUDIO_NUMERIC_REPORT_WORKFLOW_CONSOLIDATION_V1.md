@@ -67,9 +67,9 @@ For the seeded browser smoke, all 17 stages are ready, producing `workflow_ready
 - 기획: 1/1 = 100%
 - workflow rows: 5/5 = 100%
 - report workflow stages: 17/17 = 100%
-- 전체 초장기 계획: 18/18 = 100%
+- 전체 초장기 계획: 9/18 = 50%
 - 현재 스테이지: Studio productization rebase 3/5 = 60%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 matrix behavior baseline: 51/90 = 57%
 
 ## Verification
 

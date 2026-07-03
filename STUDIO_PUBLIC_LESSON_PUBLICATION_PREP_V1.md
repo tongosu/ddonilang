@@ -22,7 +22,7 @@ The prep manifest records:
 
 - active allowlist source: `solutions/seamgrim_ui_mvp/lessons/active_allowlist.detjson`;
 - lesson index source: `solutions/seamgrim_ui_mvp/lessons/index.json`;
-- 12 representative lesson publication candidates;
+- 15 representative lesson publication candidates;
 - prior local packaging consolidation manifest;
 - required review gates for local packaging and candidate/index consistency;
 - blocked public/release actions.

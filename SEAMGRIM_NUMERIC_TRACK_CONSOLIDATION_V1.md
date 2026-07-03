@@ -28,6 +28,8 @@ It also fixes the baseline `BrowseScreen.showLessonDetail` failure where a DOM-l
 - No new long `seamgrim_numeric_track_result_compare_history_report_table_status_badge_*` runner is introduced.
 - The legacy runner chain remains as historical evidence, but the preferred gate is now the short consolidation checker.
 - The checker records the legacy runner scale so future work can avoid extending the chain further.
+- The next adjacent recommendation, `SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_A11Y_STATUS_EXPORT_SUMMARY_EXPORT_V1`, is recorded as a deferred micro-slice candidate instead of being added as another pack/export wrapper.
+- The deferred candidate work-item name is 108 characters and its likely checker runner name is 118 characters, so it is folded into this existing consolidation evidence.
 
 ## Evidence
 
@@ -45,11 +47,12 @@ It also fixes the baseline `BrowseScreen.showLessonDetail` failure where a DOM-l
 - baseline repair: 1/1 = 100%
 - numeric consolidated gates: 2/2 = 100%
 - legacy numeric runner audit: 28 runners, 16/28 = 57% over 60 characters, 2/28 = 7% over 100 characters
+- deferred micro-slice candidates: 1/1 = 100% recorded, 0 new wrappers generated
 - product behavior closure for this unit: 1/1 = 100% (`닫힘-동작`)
 - consolidation rows: 5/5 = 100%
-- 전체 초장기 계획: 18/18 = 100%
+- 전체 초장기 계획: 9/18 = 50%
 - 현재 스테이지: Studio productization rebase 2/5 = 40%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 matrix behavior baseline: 51/90 = 57%
 
 ## Verification
 

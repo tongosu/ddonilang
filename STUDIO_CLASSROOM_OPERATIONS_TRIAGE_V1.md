@@ -55,10 +55,10 @@ Source anchors:
 - 기획: 1/1 = 100%
 - triage rows: 6/6 = 100%
 - triage stages: 6/6 = 100%
-- 초장기 계획: 1시대 5/5 = 100%, 2시대 7/7 = 100%, 3시대 6/6 = 100%, 전체 18/18 = 100%
+- Studio-local 초장기 계획: 9/18 = 50%
 - 현재 스테이지: post-super-long follow-up 6/8 = 75%
 - 줄기/마루: 마줄기 후속 6/8 = 75%, 하-3 후속 2/2 = 100%, 마-3 4/4 = 100%, 타-3 후속 1/2 = 50%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 behavior-closed progress: 90/90 = 100%
 
 ## Verification
 

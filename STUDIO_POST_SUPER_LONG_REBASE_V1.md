@@ -4,7 +4,7 @@ Date: 2026-06-07
 
 ## Summary
 
-`STUDIO_POST_SUPER_LONG_REBASE_V1` opens the post-super-long Studio follow-up plan after `STUDIO_EDUCATION_OPERATIONS_LTS_V1` completed the Studio-first super-long plan at 18/18.
+`STUDIO_POST_SUPER_LONG_REBASE_V1` keeps the Studio follow-up plan visible while the Studio-local super-long plan is frozen at the V6.1 baseline of 9/18.
 
 This stage does not extend the closed super-long denominator. It records a new eight-item follow-up denominator for work after the completed Studio-first plan, keeps the old plan sealed at 100%, and selects the next non-release-executing item.
 
@@ -55,9 +55,9 @@ The next recommended item is `STUDIO_PUBLIC_RELEASE_APPROVAL_RECHECK_V1`. It is 
 - 기획: 1/1 = 100%
 - follow-up rows: 8/8 = 100%
 - rebase stages: 5/5 = 100%
-- 전체 초장기 계획: 18/18 = 100%
+- 전체 초장기 계획: 9/18 = 50%
 - 현재 스테이지: post-super-long follow-up 1/8 = 13%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 matrix behavior baseline: 51/90 = 57%
 
 ## Verification
 

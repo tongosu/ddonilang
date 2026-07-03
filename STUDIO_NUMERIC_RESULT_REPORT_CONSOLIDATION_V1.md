@@ -67,9 +67,9 @@ The current productization stage UI records schema `ddn.studio.numeric_result_re
 - result rows: 5/5 = 100%
 - result report stages: 10/10 = 100%
 - report workflow stages: 17/17 = 100%
-- 전체 초장기 계획: 18/18 = 100%
+- 전체 초장기 계획: 9/18 = 50%
 - 현재 스테이지: Studio productization rebase 4/5 = 80%
-- ROADMAP_V2 product behavior baseline: 90/90 = 100%
+- ROADMAP_V2 matrix behavior baseline: 51/90 = 57%
 
 ## Verification
 
