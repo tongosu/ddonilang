@@ -112,3 +112,22 @@
   - 산출물: `docs/context/reports/SATURATION_AUDIT_V1.md`
   - 검증: 826개 golden 팩 독립 실행, PASS 727 / FAIL 98 / TIMEOUT 1, 포화 발생 팩 0, 총 포화 발생 0
 - 최종 상태: 큐 Q1-Q5 전부 커밋 완료. 이 완료 보고 커밋 전 `git status --short` 출력 없음.
+
+### Codex 추가 큐 실행 완료 보고
+
+- 브랜치: `codex/queue-20260705`
+- main 직접 커밋: 없음
+- push: 없음
+- golden 갱신: 없음
+- 네트워크 사용: 없음
+- 파일 삭제: 없음
+- Q6 완료: `91d8a31` `[Q6] 감사 보정 반영`
+  - 산출물: `tools/teul-cli/src/main.rs`, `docs/context/reports/BROKEN_CHECKS_AUDIT_V1.md`, `docs/context/reports/UI_RUNNER_DEPENDENCY_MAP_V1.md`, `docs/context/briefs/MISSION_20260705_LONG_TRACK_CONSOLIDATION_V1.md`, `docs/context/briefs/BRIEF_20260705_KERNEL_SATURATION_COUNTER_V1.md`
+  - 보정: `DDN_SATURATION_AUDIT` 설정 시 count 0도 stderr 출력, 오류 종료 경로 audit helper 적용, Q3/Q4 보고 문구 보정, Q2 브리프 보정 보고 추가
+  - 검증: `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS(1091 tests), `python tests/run_pack_golden.py gate0_contract_abort_statehash_v1 bogae_asset_manifest_v1` PASS, `python tests/run_ci_sanity_gate.py --profile core_lang` PASS, `DDN_SATURATION_AUDIT=1` count 0 성공/오류 종료 출력 확인, `git diff --check` PASS
+- Q7 완료: `d347e7c` `[Q7] 포화 실태 팩 재집계`
+  - 산출물: `docs/context/reports/SATURATION_AUDIT_V2.md`
+  - 집계 원본: `I:/home/urihanl/ddn/codex/build/q7_saturation_audit/per_pack_results_v2.detjson`
+  - 실행 로그: `I:/home/urihanl/ddn/codex/build/q7_saturation_audit/per_pack_results_v2.log`, `I:/home/urihanl/ddn/codex/build/q7_saturation_audit/raw_pack_logs/`
+  - 검증: 826개 추적 pack golden 독립 실행, PASS 727 / FAIL 98 / TIMEOUT 1, 실패 단계 스키마 27 / 골든 불일치 71 / 타임아웃 1, 포화 발생 팩 0, 총 포화 발생 0, 보고서 표 826행, `git diff --check` PASS
+- 최종 상태: 추가 큐 Q6-Q7 전부 커밋 완료. 기존 미추적 selftest 부산물 `pack/_tmp_age5_surface_selftest_contract/`, `pack/_tmp_age5_surface_selftest_warning/`는 삭제 금지 지침에 따라 그대로 둠.
