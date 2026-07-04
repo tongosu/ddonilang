@@ -7,8 +7,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_EXPORT_V1.md"
-PREV = ROOT / "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_EXPORT_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "SEAMGRIM_NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_V1.md"
 REPORT = ROOT / "docs" / "studio" / "NUMERIC_TRACK_RESULT_COMPARE_HISTORY_REPORT_TABLE_STATUS_BADGE_EXPORT_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "seamgrim_numeric_track_result_compare_history_report_table_status_badge_export_v1"

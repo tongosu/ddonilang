@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "SEAMGRIM_NUMERIC_TRACK_LESSON_PREVIEW_V1.md"
-PREV = ROOT / "SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1.md"
+DOC = ROOT / "docs" / "context" / "queue" / "SEAMGRIM_NUMERIC_TRACK_LESSON_PREVIEW_V1.md"
+PREV = ROOT / "docs" / "context" / "queue" / "SEAMGRIM_NUMERIC_TRACK_BROWSER_INDEX_V1.md"
 REPORT = ROOT / "docs" / "studio" / "NUMERIC_TRACK_LESSON_PREVIEW_V1.md"
 INDEX = ROOT / "docs" / "studio" / "INDEX.md"
 PACK = ROOT / "pack" / "seamgrim_numeric_track_lesson_preview_v1"
