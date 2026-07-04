@@ -131,3 +131,28 @@
   - 실행 로그: `I:/home/urihanl/ddn/codex/build/q7_saturation_audit/per_pack_results_v2.log`, `I:/home/urihanl/ddn/codex/build/q7_saturation_audit/raw_pack_logs/`
   - 검증: 826개 추적 pack golden 독립 실행, PASS 727 / FAIL 98 / TIMEOUT 1, 실패 단계 스키마 27 / 골든 불일치 71 / 타임아웃 1, 포화 발생 팩 0, 총 포화 발생 0, 보고서 표 826행, `git diff --check` PASS
 - 최종 상태: 추가 큐 Q6-Q7 전부 커밋 완료. 기존 미추적 selftest 부산물 `pack/_tmp_age5_surface_selftest_contract/`, `pack/_tmp_age5_surface_selftest_warning/`는 삭제 금지 지침에 따라 그대로 둠.
+
+### Codex 2차 큐 실행 완료 보고
+
+- 브랜치: `codex/queue-20260705`
+- main 직접 커밋: 없음
+- push: 없음
+- golden 갱신: 없음
+- 네트워크 사용: 없음
+- 파일 삭제: 없음
+- Q8 완료: `6f56116` `[Q8] FAIL 팩 심층 분류`
+  - 산출물: `docs/context/reports/PACK_FAIL_TRIAGE_V1.md`
+  - 실행 로그: `I:/home/urihanl/ddn/codex/build/q8_pack_fail_triage/pack_fail_triage_run.log`, `I:/home/urihanl/ddn/codex/build/q8_pack_fail_triage/raw_logs/`
+  - 검증: Q7 FAIL/TIMEOUT 99개 개별 재현, 재현 상태 FAIL 98 / TIMEOUT 1, 분류 골든 stale 63 / 스키마 오류 28 / 입력 오류 7 / 타임아웃 1, 표 99행, `git diff --check` PASS
+- Q9 완료: `97869dc` `[Q9] pack golden all 완주 보장`
+  - 산출물: `tests/_run_pack_golden_impl.py`
+  - 실행 로그: `I:/home/urihanl/ddn/codex/build/q9_run_pack_golden_all/all_report.detjson`, `I:/home/urihanl/ddn/codex/build/q9_run_pack_golden_all/all.stderr.txt`
+  - 검증: `python tests/run_pack_golden.py --all --report-out ... --report-summary-only` 완주(실패 존재로 exit 1), 826 packs summary 출력, `external_intent_boundary_v1` FAIL 보고 확인, `python tests/run_pack_golden.py gate0_contract_abort_statehash_v1 bogae_asset_manifest_v1` PASS, `python -m py_compile tests/_run_pack_golden_impl.py tests/run_pack_golden.py` PASS, `git diff --check` PASS
+- Q10 완료: `c11ecdc` `[Q10] SSOT 언어 인벤토리 교정 반영`
+  - 산출물: `docs/context/reports/SSOT_LANG_INVENTORY_V1.md`
+  - 검증: 지정 행(`수`, `셈수`, `큰바른수`, `곱수`, `셈씨`) 외 diff 없음, `git diff --check` PASS
+- Q11 완료: `9f22ebf` `[Q11] selftest 부산물 gitignore 등재`
+  - 산출물: `.gitignore`
+  - 검증: `python tests/run_ci_sanity_gate.py --profile core_lang` PASS, selftest temp directories ignored, 추적 sanity 부산물 원복, `git diff --check` PASS
+- Q13~Q18: 게이트 잠김. 큐 파일에 Claude의 `Q1N 게이트 해제` 기록이 없으므로 착수하지 않음.
+- 최종 상태: 2차 큐 Q8-Q11 전부 커밋 완료, Q13-Q18 게이트 잠김으로 보류. 완료 보고 전 `git status --short --untracked-files=all` 출력 없음.
