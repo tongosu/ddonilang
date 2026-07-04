@@ -95,3 +95,19 @@
   - 모순 행 `⚠️모순` 표기 확인: PASS (`contradictions=1`)
   - `git status --short`: 출력 없음
 - 상태: 단계 B 완료. 다음 단계는 Claude 리뷰 후 별도 지시 전 착수하지 않음.
+
+### 단계 C 보고
+
+- 산출물: `docs/context/reports/BROKEN_CHECKS_AUDIT_V1.md`
+- 방법: `tests/run_*.py` 1080개 정적 분석. 모듈 전역의 필수 문서 경로(`DOC`, `ROADMAP`, `QUEUE`, `PREV`, `REBASE` 등) 중 현재 워킹 트리에 존재하지 않는 `.md` 참조를 FAIL 후보로 집계.
+- FAIL 판정 체크 파일 수: 173개
+- 고유 누락 문서 수: 176개
+- 참조 문서 git 이력 확인: 176개 모두 `git log --all --oneline -- <파일>` 결과 0행
+- 분류: 173개 모두 `참조문서없음`
+- 처분 제안: 173개 모두 삭제 심사 후보로 표기. 삭제는 실행하지 않음.
+- 검증:
+  - 보고서 파일 존재 및 생성: PASS
+  - 표 행 수 확인: PASS (`173`)
+  - 고유 누락 문서 git 이력 0행 확인: PASS (`176/176`)
+  - `git status --short`: 보고서 생성 전 출력 없음
+- 상태: 단계 C 완료.
