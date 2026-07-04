@@ -1,3 +1,20 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static SATURATION_COUNT: AtomicU64 = AtomicU64::new(0);
+
+pub fn saturation_count() -> u64 {
+    SATURATION_COUNT.load(Ordering::Relaxed)
+}
+
+#[allow(dead_code)]
+pub fn reset_saturation_count() {
+    SATURATION_COUNT.store(0, Ordering::Relaxed);
+}
+
+fn record_saturation() {
+    SATURATION_COUNT.fetch_add(1, Ordering::Relaxed);
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Fixed64 {
     raw: i64,
@@ -26,12 +43,23 @@ impl Fixed64 {
 
     #[allow(dead_code)]
     pub fn from_int(value: i64) -> Self {
-        Self::from_raw(value.saturating_mul(Self::SCALE))
+        match value.checked_mul(Self::SCALE) {
+            Some(raw) => Self::from_raw(raw),
+            None => {
+                record_saturation();
+                Self::from_raw(if value.is_negative() {
+                    i64::MIN
+                } else {
+                    i64::MAX
+                })
+            }
+        }
     }
 
     #[allow(dead_code)]
     pub fn from_ratio(num: i64, den: i64) -> Self {
         if den == 0 {
+            record_saturation();
             return Self::from_raw(i64::MAX);
         }
         let value = ((num as i128) << Self::SCALE_BITS) / (den as i128);
@@ -39,11 +67,31 @@ impl Fixed64 {
     }
 
     pub fn saturating_add(self, other: Self) -> Self {
-        Self::from_raw(self.raw.saturating_add(other.raw))
+        match self.raw.checked_add(other.raw) {
+            Some(raw) => Self::from_raw(raw),
+            None => {
+                record_saturation();
+                Self::from_raw(if self.raw.is_negative() {
+                    i64::MIN
+                } else {
+                    i64::MAX
+                })
+            }
+        }
     }
 
     pub fn saturating_sub(self, other: Self) -> Self {
-        Self::from_raw(self.raw.saturating_sub(other.raw))
+        match self.raw.checked_sub(other.raw) {
+            Some(raw) => Self::from_raw(raw),
+            None => {
+                record_saturation();
+                Self::from_raw(if self.raw.is_negative() {
+                    i64::MIN
+                } else {
+                    i64::MAX
+                })
+            }
+        }
     }
 
     pub fn saturating_mul(self, other: Self) -> Self {
@@ -109,8 +157,10 @@ fn div_raw(a: i64, b: i64) -> i64 {
 
 fn saturate_i128(value: i128) -> i64 {
     if value > i64::MAX as i128 {
+        record_saturation();
         i64::MAX
     } else if value < i64::MIN as i128 {
+        record_saturation();
         i64::MIN
     } else {
         value as i64
@@ -202,4 +252,22 @@ fn int_sqrt(value: i128) -> i128 {
         y = (x + value / x) >> 1;
     }
     x
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{reset_saturation_count, saturation_count, Fixed64};
+
+    #[test]
+    fn saturation_count_only_increments_on_clamp() {
+        reset_saturation_count();
+        let _ = Fixed64::from_int(1);
+        assert_eq!(saturation_count(), 0);
+
+        let _ = Fixed64::from_int(i64::MAX);
+        assert_eq!(saturation_count(), 1);
+
+        let _ = Fixed64::from_raw(i64::MAX).saturating_add(Fixed64::from_raw(1));
+        assert_eq!(saturation_count(), 2);
+    }
 }

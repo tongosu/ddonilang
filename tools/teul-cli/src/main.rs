@@ -2953,6 +2953,10 @@ fn main() {
             }
         },
     }
+    let saturation_count = crate::core::fixed64::saturation_count();
+    if env::var_os("DDN_SATURATION_AUDIT").is_some() && saturation_count > 0 {
+        eprintln!("saturation_audit count={saturation_count}");
+    }
 }
 
 fn parse_seed(input: &str) -> Result<u64, String> {
