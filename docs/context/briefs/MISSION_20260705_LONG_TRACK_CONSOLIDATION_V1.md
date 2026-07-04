@@ -111,3 +111,23 @@
   - 고유 누락 문서 git 이력 0행 확인: PASS (`176/176`)
   - `git status --short`: 보고서 생성 전 출력 없음
 - 상태: 단계 C 완료.
+
+### 단계 D 보고
+
+- 산출물: `docs/context/reports/UI_RUNNER_DEPENDENCY_MAP_V1.md`
+- 방법: `index.html` script-src, `app.js`, `ui/screens/*.js`를 제품 도달 시작점으로 두고 `import`/`export from` 정적 그래프를 추적. `import("...")`와 `dev_surfaces.js`의 문자열 모듈 레지스트리는 `동적의심`으로 별도 표기.
+- UI 최상위 JS 대상: 102개
+  - 제품: 91개
+  - 러너전용: 10개
+  - 고아: 1개
+  - 제품 연결 중 동적의심: 54개
+- `tests/*.mjs` 러너 대상: 191개
+  - 러너전용: 189개
+  - 고아: 2개
+- 전체 표 행 수: 293개 (`102+191`)
+- 검증:
+  - `Get-ChildItem solutions/seamgrim_ui_mvp/ui -File -Filter *.js`: PASS (`102`)
+  - `Get-ChildItem tests -File -Filter *.mjs`: PASS (`191`)
+  - 보고서 표 행 수 확인: PASS (`293`)
+  - `git status --short`: 보고서 생성 전 출력 없음
+- 상태: 단계 D 완료. 수정·삭제 없음.
