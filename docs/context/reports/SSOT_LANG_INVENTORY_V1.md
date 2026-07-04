@@ -2,14 +2,14 @@
 
 | 구성물 | 갈래(타입/키워드/블록/stdlib함수/리터럴/연산자) | 정본명 | 입력 별칭 | 상태(landed/docs-first/이월/폐기) | SSOT 근거(파일:행) | 코드 근거(파일:행 또는 "미발견") |
 |---|---|---|---|---|---|---|
-| 수 | 타입 | 수 | 셈수/Fixed64 이전 표면 | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2239 | tools/teul-cli/src/canon.rs:50 |
-| 셈수 | 타입 | 셈수 | 수, fixed64, sim_num | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7889; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:939 | lang/src/canonicalizer.rs:468 |
+| 수 | 타입 | 셈수 | AGE0 runtime/historical `수(Fixed64)` 표면 | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2239; docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7897 | tools/teul-cli/src/canon.rs:50 |
+| 셈수 | 타입 | 셈수 | fixed64, sim_num; `수`는 AGE0 runtime/historical 표면 | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7889; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:939 | lang/src/canonicalizer.rs:468 |
 | 셈수2/셈수4/셈수8 | 타입 | 셈수2/4/8 | sim_num16, sim_num32, fixed64 | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7894; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:940 | lang/src/canonicalizer.rs:468 |
 | 바른수 | 타입 | 바른수 | 정수, int, int64 | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7890; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:941 | lang/src/canonicalizer.rs:469 |
 | 바른수1/2/4/8 | 타입 | 바른수1/2/4/8 | int8, int16, int32, int64 | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7894; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:942 | lang/src/canonicalizer.rs:469 |
-| 큰바른수 | 타입 | 큰바른수 | bigint, big_int | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7891; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:943 | lang/src/canonicalizer.rs:472; tools/teul-cli/src/runtime/eval.rs:2493 |
+| 큰바른수 | 타입 | 큰바른수 | bigint, big_int | ⚠️부분(SSOT designed, 코드 구성자 존재) | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7891; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:943 | lang/src/canonicalizer.rs:472; tools/teul-cli/src/runtime/eval.rs:2493 |
 | 나눔수 | 타입 | 나눔수 | 유리수, rational, ratio, frac | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7892; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:944 | lang/src/canonicalizer.rs:473; tools/teul-cli/src/runtime/eval.rs:2506 |
-| 곱수 | 타입 | 곱수 | factor, factorized, primepow | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7893; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:945 | lang/src/canonicalizer.rs:474; tools/teul-cli/src/runtime/eval.rs:2532 |
+| 곱수 | 타입 | 곱수 | factor, factorized, primepow | ⚠️부분(SSOT designed, 코드 구성자 존재) | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7893; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:945 | lang/src/canonicalizer.rs:474; tools/teul-cli/src/runtime/eval.rs:2532 |
 | 글 | 타입 | 글 | string | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2239 | tools/teul-cli/src/canon.rs:50 |
 | 참거짓/논 | 타입 | 참거짓 | 논, bool, boolean | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2239 | tools/teul-cli/src/canon.rs:50 |
 | 차림 | 타입 | 차림 | list | landed | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2251 | tools/teul-cli/src/runtime/eval.rs:3501 |
@@ -30,7 +30,7 @@
 | 이음씨 | 키워드 | 이음씨 | 중위연산 | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2780 | 미발견 |
 | 흐름씨 | 타입 | 흐름씨 | reactive stream seed | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2954; docs/ssot/ssot/SSOT_LANG_v24.12.9.md:2958 | lang/src/ast.rs:345 |
 | 일때씨 | 타입 | 일때씨 | reactive when seed | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:3015 | 미발견 |
-| 셈씨 | 타입 | 셈씨 | numeric function | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7055 | 미발견 |
+| 셈씨 | 타입 | 셈씨 | numeric function | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7055 | lang/src/parser.rs:4355; lang/src/parser.rs:6042; tools/teul-cli/src/canon.rs:7848 |
 | 주사위씨 | 키워드 | 주사위씨 | deterministic RNG seed | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:5903; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:1236 | 미발견 |
 | 모양 | 타입 | 모양 | shape | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7749; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:569 | tools/teul-cli/src/canon.rs:472 |
 | 모양씨 | 타입 | 모양씨 | shape generator | docs-first | docs/ssot/ssot/SSOT_LANG_v24.12.9.md:7772; docs/ssot/ssot/SSOT_TERMS_v24.12.9.md:1279 | 미발견 |
