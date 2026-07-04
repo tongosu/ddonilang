@@ -100,7 +100,7 @@
 
 - 산출물: `docs/context/reports/BROKEN_CHECKS_AUDIT_V1.md`
 - 방법: `tests/run_*.py` 1080개 정적 분석. 모듈 전역의 필수 문서 경로(`DOC`, `ROADMAP`, `QUEUE`, `PREV`, `REBASE` 등) 중 현재 워킹 트리에 존재하지 않는 `.md` 참조를 FAIL 후보로 집계.
-- FAIL 판정 체크 파일 수: 173개
+- 누락 `.md` 필수 참조 기반 FAIL 후보 체크 파일 수: 173개
 - 고유 누락 문서 수: 176개
 - 참조 문서 git 이력 확인: 176개 모두 `git log --all --oneline -- <파일>` 결과 0행
 - 분류: 173개 모두 `참조문서없음`
@@ -115,9 +115,9 @@
 ### 단계 D 보고
 
 - 산출물: `docs/context/reports/UI_RUNNER_DEPENDENCY_MAP_V1.md`
-- 방법: `index.html` script-src, `app.js`, `ui/screens/*.js`를 제품 도달 시작점으로 두고 `import`/`export from` 정적 그래프를 추적. `import("...")`와 `dev_surfaces.js`의 문자열 모듈 레지스트리는 `동적의심`으로 별도 표기.
+- 방법: `index.html` script-src와 `app.js`를 제품 도달 시작점으로 두고, `ui/screens/*.js`는 제품 시작점 가정에 포함해 `import`/`export from` 정적 그래프를 추적. `import("...")`와 `dev_surfaces.js`의 문자열 모듈 레지스트리는 `동적의심`으로 별도 표기.
 - UI 최상위 JS 대상: 102개
-  - 제품: 91개
+  - 제품 도달 또는 제품 시작점 가정: 91개
   - 러너전용: 10개
   - 고아: 1개
   - 제품 연결 중 동적의심: 54개

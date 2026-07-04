@@ -4,13 +4,14 @@
 
 - 미션 단계 D 산출물이다.
 - `solutions/seamgrim_ui_mvp/ui/*.js` 최상위 JS 102개와 `tests/*.mjs` 러너 191개를 정적 추적했다.
-- 제품 도달 시작점은 `solutions/seamgrim_ui_mvp/ui/index.html`의 script-src, `app.js`, `ui/screens/*.js`다.
+- 제품 도달 기준은 `solutions/seamgrim_ui_mvp/ui/index.html`의 script-src와 `app.js`에서의 정적 도달이다.
+- `ui/screens/*.js`는 실제 화면 엔트리로 쓰이는 제품 시작점 가정에 포함했다.
 - 정적 import/export를 우선 추적했고, `import("...")` 및 `dev_surfaces.js`의 `module: "./*.js"` 문자열 레지스트리는 `동적의심`으로 표기했다.
 - 수정·삭제는 하지 않았다.
 
 ## 요약
 
-- UI 최상위 JS: 102개 (제품 91, 러너전용 10, 고아 1)
+- UI 최상위 JS: 102개 (제품 도달 또는 제품 시작점 가정 91, 러너전용 10, 고아 1)
 - 제품 연결 중 동적의심: 54개
 - tests/*.mjs 러너: 191개 (러너전용 189, 고아 2)
 - 전체 표 행 수: 293개

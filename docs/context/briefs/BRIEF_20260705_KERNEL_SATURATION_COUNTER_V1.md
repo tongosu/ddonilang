@@ -44,8 +44,9 @@
   - `Fixed64::saturating_mul`: 기존 `mul_raw -> saturate_i128` 클램프 시 증가
   - `div_raw`, `sqrt`, `parse_literal` 등 `saturate_i128` 경유 클램프 시 증가
 - 노출:
-  - `DDN_SATURATION_AUDIT=1`이고 count가 1 이상이면 성공 종료 시 stderr에 `saturation_audit count=<N>` 출력.
-  - count 0인 기존 golden/core_lang 경로는 stderr 변화가 없어야 하므로 출력하지 않음.
+  - Q2 최초 구현: `DDN_SATURATION_AUDIT=1`이고 count가 1 이상이면 성공 종료 시 stderr에 `saturation_audit count=<N>` 출력.
+  - Q6 감사 보정 후: `DDN_SATURATION_AUDIT=1`이면 count가 0이어도 stderr에 `saturation_audit count=0` 출력.
+  - Q6 감사 보정 후: `std::process::exit(...)` 경로도 `exit_with_saturation(...)` helper를 통해 종료 전 audit line을 출력.
 - 검증 로그:
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml`: PASS (1091 tests)
   - `python tests/run_pack_golden.py gate0_contract_abort_statehash_v1 bogae_asset_manifest_v1`: PASS
@@ -59,3 +60,23 @@
   - stderr: `saturation_audit count=1`
 - 범위 확인:
   - 추적 파일 diff는 `fixed64.rs`, `main.rs`, 이 브리프 실행 보고로 제한.
+
+### Q6 감사 보정 보고
+
+- 변경 파일:
+  - `tools/teul-cli/src/main.rs`
+  - `docs/context/reports/BROKEN_CHECKS_AUDIT_V1.md`
+  - `docs/context/reports/UI_RUNNER_DEPENDENCY_MAP_V1.md`
+  - `docs/context/briefs/MISSION_20260705_LONG_TRACK_CONSOLIDATION_V1.md`
+  - `docs/context/briefs/BRIEF_20260705_KERNEL_SATURATION_COUNTER_V1.md`
+- 보정:
+  - `DDN_SATURATION_AUDIT` 설정 시 성공 종료에서 count 0도 `saturation_audit count=0`으로 출력.
+  - 오류 종료 경로도 `exit_with_saturation(code)` helper를 거쳐 종료 전 audit line 출력.
+  - Q3 보고 문구를 누락 `.md` 필수 참조 기반 FAIL 후보(정적 분석)로 낮추고, 처분 문구를 `삭제 심사 후보`로 보정.
+  - Q4 보고에 `ui/screens/*.js`는 제품 시작점 가정에 포함한다는 기준을 명시.
+- 검증:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml`: PASS
+  - `python tests/run_pack_golden.py gate0_contract_abort_statehash_v1 bogae_asset_manifest_v1`: PASS
+  - `python tests/run_ci_sanity_gate.py --profile core_lang`: PASS
+  - `DDN_SATURATION_AUDIT=1` count 0 직접 실행: stderr `saturation_audit count=0` 확인
+  - `git diff --check`: PASS

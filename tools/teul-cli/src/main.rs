@@ -1635,7 +1635,7 @@ fn main() {
     let raw_args: Vec<String> = env::args().collect();
     if let Some(flag) = blocked_release_compat_flag(&raw_args[1..]) {
         eprintln!("E_CLI_COMPAT_RELEASE_BLOCKED {flag}는 출시 경로에서 완전 비활성화됩니다.");
-        std::process::exit(2);
+        exit_with_saturation(2);
     }
     let cli = Cli::parse_from(raw_args);
     match cli.command {
@@ -1739,7 +1739,7 @@ fn main() {
             };
             if let Err(err) = execute_run_command(run_args, &mut emitter) {
                 emitter.err(&err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::CurrentlineRun {
@@ -1757,7 +1757,7 @@ fn main() {
                         cell.display(),
                         err
                     ));
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             };
             let context_text = match context_json.as_ref() {
@@ -1769,7 +1769,7 @@ fn main() {
                             path.display(),
                             err
                         ));
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 },
                 _ => None,
@@ -1780,7 +1780,7 @@ fn main() {
                     Ok(value) => value,
                     Err(err) => {
                         emitter.err(&err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 };
             let compiled_path = std::env::temp_dir().join(format!(
@@ -1795,7 +1795,7 @@ fn main() {
                     compiled_path.display(),
                     err
                 ));
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
             let run_args = RunCommandArgs {
                 file: compiled_path.clone(),
@@ -1851,7 +1851,7 @@ fn main() {
             };
             if let Err(err) = execute_run_command(run_args, &mut emitter) {
                 emitter.err(&err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
             if let Some(path) = context_out {
                 if let Some(parent) = path.parent() {
@@ -1862,7 +1862,7 @@ fn main() {
                                 parent.display(),
                                 err
                             ));
-                            std::process::exit(1);
+                            exit_with_saturation(1);
                         }
                     }
                 }
@@ -1872,7 +1872,7 @@ fn main() {
                         path.display(),
                         err
                     ));
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             let _ = std::fs::remove_file(compiled_path);
@@ -1894,7 +1894,7 @@ fn main() {
                     Ok(config) => config,
                     Err(message) => {
                         eprintln!("E_CLI_BOGAE_OVERLAY {}", message);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 },
                 None => cli::bogae::OverlayConfig::empty(),
@@ -1907,12 +1907,12 @@ fn main() {
                 Ok(value) => value,
                 Err(message) => {
                     eprintln!("E_CLI_CONSOLE_GRID {}", message);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             };
             if console_panel_cols > 0 && console_grid.is_none() {
                 eprintln!("E_CLI_CONSOLE_PANEL console-panel-cols requires --console-grid");
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
             let mut console_config =
                 cli::bogae_console::ConsoleRenderConfig::with_cell_aspect(console_cell_aspect);
@@ -1932,14 +1932,14 @@ fn main() {
             };
             if let Err(err) = cli::view::run_view(&file, options) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Check { file } => {
             let args = cli::check::CheckArgs { emit_schema: true };
             if let Err(err) = cli::check::run(&file, args) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Test {
@@ -1957,17 +1957,17 @@ fn main() {
         } => {
             if smoke && golden {
                 eprintln!("E_TEST_MODE_CONFLICT --smoke 와 --golden 은 동시에 사용할 수 없습니다.");
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
             if smoke || golden {
                 if file.is_some() {
                     eprintln!("E_TEST_FILE_CONFLICT --smoke/--golden 모드에서는 file 위치 인자를 사용하지 않습니다.");
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
                 if smoke {
                     if all || record {
                         eprintln!("E_TEST_SMOKE_OPTION --smoke 모드에서는 --all/--record 를 사용할 수 없습니다.");
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                     let options = cli::test::SmokeRunnerOptions {
                         packs: pack,
@@ -1977,12 +1977,12 @@ fn main() {
                     };
                     if let Err(err) = cli::test::run_wasm_smoke_runner(options) {
                         eprintln!("{}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 } else {
                     if skip_ui_common || skip_wrapper {
                         eprintln!("E_TEST_GOLDEN_OPTION --golden 모드에서는 --skip-ui-common/--skip-wrapper 를 사용할 수 없습니다.");
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                     let options = cli::test::GoldenRunnerOptions {
                         packs: pack,
@@ -1992,7 +1992,7 @@ fn main() {
                     };
                     if let Err(err) = cli::test::run_pack_golden_runner(options) {
                         eprintln!("{}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 }
             } else {
@@ -2000,15 +2000,15 @@ fn main() {
                     eprintln!(
                         "E_TEST_FILE_REQUIRED 기본 test 모드에서는 file 위치 인자가 필요합니다."
                     );
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 };
                 if all || record || update || skip_ui_common || skip_wrapper || !pack.is_empty() {
                     eprintln!("E_TEST_OPTION_INVALID 기본 test 모드에서는 --all/--record/--update/--pack/--skip-* 옵션을 사용할 수 없습니다.");
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
                 if let Err(err) = cli::test::run_realms_test(&file, threads, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         }
@@ -2030,7 +2030,7 @@ fn main() {
                     out.as_deref(),
                 ) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2038,7 +2038,7 @@ fn main() {
             let args = cli::check::CheckArgs { emit_schema: true };
             if let Err(err) = cli::check::run(&file, args) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Lint {
@@ -2048,19 +2048,19 @@ fn main() {
         } => {
             if let Err(err) = cli::lint::run(&file, suggest_patch, out.as_deref()) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Repl => {
             if let Err(err) = cli::repl::repl() {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Worker => {
             if let Err(err) = cli::worker::run() {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Canon {
@@ -2084,14 +2084,14 @@ fn main() {
             };
             if let Err(err) = cli::canon::run(&file, args) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Asset { command } => match command {
             AssetCommands::Manifest { root, out } => {
                 if let Err(err) = cli::asset::run_manifest(&root, out.as_deref()) {
                     eprintln!("E_ASSET_MANIFEST {}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2112,7 +2112,7 @@ fn main() {
                 };
                 if let Err(err) = cli::bogae_edit::run_edit(options) {
                     eprintln!("E_BOGAE_EDIT {}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             BogaeCommands::Bundle {
@@ -2129,7 +2129,7 @@ fn main() {
                 };
                 if let Err(err) = cli::bogae_bundle::run_bundle(options) {
                     eprintln!("E_BOGAE_BUNDLE {}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2148,7 +2148,7 @@ fn main() {
                 };
                 if let Err(err) = cli::dotbogi::run_case(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2156,7 +2156,7 @@ fn main() {
             EcoCommands::MacroMicro { input, out } => {
                 if let Err(err) = cli::eco::run_macro_micro(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             EcoCommands::NetworkFlow {
@@ -2170,7 +2170,7 @@ fn main() {
                     Ok(value) => value,
                     Err(err) => {
                         eprintln!("E_ECO_NETWORK_FLOW_SEED {}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 };
                 let parsed_threshold =
@@ -2181,7 +2181,7 @@ fn main() {
                                 "E_ECO_NETWORK_FLOW_THRESHOLD threshold 파싱 실패: {}",
                                 threshold
                             );
-                            std::process::exit(1);
+                            exit_with_saturation(1);
                         }
                     };
                 if let Err(err) = cli::eco::run_network_flow(
@@ -2192,7 +2192,7 @@ fn main() {
                     out.as_deref(),
                 ) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             EcoCommands::AbmSpatial {
@@ -2205,14 +2205,14 @@ fn main() {
                     Ok(value) => value,
                     Err(err) => {
                         eprintln!("E_ECO_ABM_SPATIAL_SEED {}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 };
                 if let Err(err) =
                     cli::eco::run_abm_spatial(&input, madi, parsed_seed, out.as_deref())
                 {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2220,7 +2220,7 @@ fn main() {
             AiCommands::Extract { file, out } => {
                 if let Err(err) = cli::ai::extract(&file, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             AiCommands::Prompt {
@@ -2235,7 +2235,7 @@ fn main() {
                 };
                 if let Err(err) = ai_prompt::run_ai_prompt(args) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2244,13 +2244,13 @@ fn main() {
                 BdlPacketCommands::Wrap { input, out } => {
                     if let Err(err) = cli::bdl_packet::wrap_packet(&input, &out) {
                         eprintln!("{}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 }
                 BdlPacketCommands::Unwrap { input, out } => {
                     if let Err(err) = cli::bdl_packet::unwrap_packet(&input, &out) {
                         eprintln!("{}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 }
             },
@@ -2270,7 +2270,7 @@ fn main() {
                 };
                 if let Err(err) = cli::replay_diff::run_diff(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             ReplayCommands::Verify {
@@ -2283,7 +2283,7 @@ fn main() {
                     cli::replay::run_replay_verify(&geoul, entry.as_deref(), until, seek)
                 {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             ReplayCommands::Branch {
@@ -2301,7 +2301,7 @@ fn main() {
                     entry.as_deref(),
                 ) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2309,13 +2309,13 @@ fn main() {
             GeoulCommands::Hash { geoul } => {
                 if let Err(err) = cli::geoul::run_geoul_hash(&geoul) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             GeoulCommands::Seek { geoul, madi } => {
                 if let Err(err) = cli::geoul::run_geoul_seek(&geoul, madi) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             GeoulCommands::Query {
@@ -2327,7 +2327,7 @@ fn main() {
                 if let Err(err) = cli::geoul::run_geoul_query(&geoul, madi, &key, entry.as_deref())
                 {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             GeoulCommands::Backtrace {
@@ -2341,20 +2341,20 @@ fn main() {
                     cli::geoul::run_geoul_backtrace(&geoul, &key, from, to, entry.as_deref())
                 {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             GeoulCommands::Record { command } => match command {
                 GeoulRecordCommands::Make { input, out } => {
                     if let Err(err) = cli::geoul::run_geoul_record_make(&input, out.as_deref()) {
                         eprintln!("{}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 }
                 GeoulRecordCommands::Check { input } => {
                     if let Err(err) = cli::geoul::run_geoul_record_check(&input) {
                         eprintln!("{}", err);
-                        std::process::exit(1);
+                        exit_with_saturation(1);
                     }
                 }
             },
@@ -2363,13 +2363,13 @@ fn main() {
             PatchCommands::Propose { file, out } => {
                 if let Err(err) = cli::patch::run_propose(&file, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             PatchCommands::Preview { patch, format } => {
                 if let Err(err) = cli::patch::run_preview(&patch, format) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             PatchCommands::Approve {
@@ -2382,7 +2382,7 @@ fn main() {
                     out.unwrap_or_else(|| cli::paths::build_dir().join("ddn.patch.approval.json"));
                 if let Err(err) = cli::patch::run_approve(&patch, &out, yes, notes) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             PatchCommands::Apply {
@@ -2394,7 +2394,7 @@ fn main() {
                 if let Err(err) = cli::patch::run_apply(&patch, &approval, out.as_deref(), in_place)
                 {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             PatchCommands::Verify {
@@ -2407,7 +2407,7 @@ fn main() {
                     cli::patch::run_verify(&patch, &approval, tests.as_deref(), walk.as_deref())
                 {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2415,13 +2415,13 @@ fn main() {
             let root = root.unwrap_or_else(|| PathBuf::from("."));
             if let Err(err) = cli::scan::run(&root) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Gaji { command } => {
             if let Err(err) = run_gaji_command(command) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Intent { command } => match command {
@@ -2433,7 +2433,7 @@ fn main() {
             } => {
                 if let Err(err) = cli::intent::run_inspect(&geoul, madi, agent, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             IntentCommands::Mock {
@@ -2445,7 +2445,7 @@ fn main() {
             } => {
                 if let Err(err) = cli::intent::run_mock(&input, &out, agent_id, madi, recv_seq) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             IntentCommands::Merge {
@@ -2456,11 +2456,11 @@ fn main() {
             } => {
                 if inputs.is_empty() {
                     eprintln!("E_INTENT_MERGE inputs가 비었습니다");
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
                 if let Err(err) = cli::intent::run_merge(&inputs, madi, agent, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2468,13 +2468,13 @@ fn main() {
             GoalCommands::Parse { input, out } => {
                 if let Err(err) = cli::goal::run_parse(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             GoalCommands::Plan { actions, out } => {
                 if let Err(err) = cli::goal::run_plan(&actions, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2482,7 +2482,7 @@ fn main() {
             GoapCommands::Plan { input, out } => {
                 if let Err(err) = cli::goap::run_plan(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2490,7 +2490,7 @@ fn main() {
             ObservationCommands::Canon { input, out } => {
                 if let Err(err) = cli::observation::run_canon(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2499,20 +2499,20 @@ fn main() {
                 let out = out.unwrap_or_else(|| cli::paths::build_dir().join("nurigym"));
                 if let Err(err) = cli::nurigym::run_spec(&from, &out, slots) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             NuriGymCommands::View { spec } => {
                 if let Err(err) = cli::nurigym::run_view(&spec) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             NuriGymCommands::Run { input, out } => {
                 let out = out.unwrap_or_else(|| cli::paths::build_dir().join("nurigym"));
                 if let Err(err) = cli::nurigym::run_episode_file(&input, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2533,7 +2533,7 @@ fn main() {
                                 eprintln!(
                                     "E_NUMERIC_FACTOR_INPUT_REQUIRED complete mode requires integer"
                                 );
-                                std::process::exit(1);
+                                exit_with_saturation(1);
                             }
                         };
                         cli::numeric::run_factor_complete(input, out.as_deref())
@@ -2547,7 +2547,7 @@ fn main() {
                 };
                 if let Err(err) = result {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2571,7 +2571,7 @@ fn main() {
             };
             if let Err(err) = result {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Proof { command } => {
@@ -2604,7 +2604,7 @@ fn main() {
             };
             if let Err(err) = result {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Gateway { command } => match command {
@@ -2638,7 +2638,7 @@ fn main() {
                 };
                 if let Err(err) = cli::gateway::run_serve(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             GatewayCommands::LoadSim {
@@ -2661,7 +2661,7 @@ fn main() {
                 };
                 if let Err(err) = cli::gateway::run_load_sim(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2683,7 +2683,7 @@ fn main() {
                     out.as_deref(),
                 ) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2691,7 +2691,7 @@ fn main() {
             SafetyCommands::Check { rules, intent, out } => {
                 if let Err(err) = cli::safety::run_check(&rules, &intent, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2704,7 +2704,7 @@ fn main() {
             } => {
                 if let Err(err) = cli::dataset::run_export(&geoul, &format, &out, &env_id) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2713,14 +2713,14 @@ fn main() {
                 let options = cli::docset::DocBuildOptions { out };
                 if let Err(err) = cli::docset::run_build(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             DocCommands::Verify { pack, out } => {
                 let options = cli::docset::DocVerifyOptions { pack, out };
                 if let Err(err) = cli::docset::run_verify(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2728,26 +2728,26 @@ fn main() {
             RewardCommands::Check { input, out } => {
                 if let Err(err) = cli::reward::run_reward_check(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
         Commands::Train { config, out } => {
             if let Err(err) = cli::train::run_train(&config, out.as_deref()) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Imitation { config, out } => {
             if let Err(err) = cli::imitation::run_imitation(&config, out.as_deref()) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Eval { config, out } => {
             if let Err(err) = cli::eval::run_eval(&config, out.as_deref()) {
                 eprintln!("{}", err);
-                std::process::exit(1);
+                exit_with_saturation(1);
             }
         }
         Commands::Evolve { command } => match command {
@@ -2755,7 +2755,7 @@ fn main() {
                 let options = cli::evolve::EvolveRunOptions { pack, seed, out };
                 if let Err(err) = cli::evolve::run(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             EvolveCommands::Emit {
@@ -2772,7 +2772,7 @@ fn main() {
                 };
                 if let Err(err) = cli::evolve::emit(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2785,7 +2785,7 @@ fn main() {
                 };
                 if let Err(err) = cli::evolving_universe::run(options) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2803,7 +2803,7 @@ fn main() {
                     wasm_hash.as_deref(),
                 ) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2811,7 +2811,7 @@ fn main() {
             EduCommands::Accuracy { input, out } => {
                 if let Err(err) = cli::edu::run_accuracy(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2819,7 +2819,7 @@ fn main() {
             SwarmCommands::Collision { input, out } => {
                 if let Err(err) = cli::swarm::run_collision(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2827,7 +2827,7 @@ fn main() {
             SocialCommands::Simulate { input, out } => {
                 if let Err(err) = cli::social::run_simulate(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2835,7 +2835,7 @@ fn main() {
             HealCommands::Run { pack, out } => {
                 if let Err(err) = cli::heal::run_pack(&pack, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2843,25 +2843,25 @@ fn main() {
             CertCommands::Keygen { out, seed } => {
                 if let Err(err) = cli::cert::run_keygen(&out, seed.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             CertCommands::Sign { input, key, out } => {
                 if let Err(err) = cli::cert::run_sign(&input, &key, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             CertCommands::Verify { input } => {
                 if let Err(err) = cli::cert::run_verify(&input) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             CertCommands::VerifyProofCertificate { input, out } => {
                 if let Err(err) = cli::cert::run_verify_proof_certificate(&input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2869,7 +2869,7 @@ fn main() {
             InferCommands::Mlp { model, input, out } => {
                 if let Err(err) = cli::infer::run_mlp(&model, &input, out.as_deref()) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2878,7 +2878,7 @@ fn main() {
                 let out = out.unwrap_or_else(|| cli::paths::build_dir().join("registry"));
                 if let Err(err) = cli::alrim::run_registry(&root, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2886,7 +2886,7 @@ fn main() {
             StoryCommands::Make { geoul, out } => {
                 if let Err(err) = cli::story::run_make(&geoul, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2894,7 +2894,7 @@ fn main() {
             TimelineCommands::Make { geoul, story, out } => {
                 if let Err(err) = cli::timeline::run_make(&geoul, &story, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2902,19 +2902,19 @@ fn main() {
             WorkshopCommands::Gen { geoul, out } => {
                 if let Err(err) = cli::workshop::run_gen(&geoul, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             WorkshopCommands::Apply { workshop, patch } => {
                 if let Err(err) = cli::workshop::run_apply(&workshop, &patch) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             WorkshopCommands::Open { workshop } => {
                 if let Err(err) = cli::workshop::run_open(&workshop) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2922,13 +2922,13 @@ fn main() {
             UniverseCommands::Pack { input, out } => {
                 if let Err(err) = cli::universe::run_pack(&input, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             UniverseCommands::Unpack { input, out } => {
                 if let Err(err) = cli::universe::run_unpack(&input, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
@@ -2936,27 +2936,36 @@ fn main() {
             TensorCommands::Validate { input } => {
                 if let Err(err) = cli::tensor::run_validate(&input) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             TensorCommands::Hash { input } => {
                 if let Err(err) = cli::tensor::run_hash(&input) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
             TensorCommands::Canon { input, out } => {
                 if let Err(err) = cli::tensor::run_canon(&input, &out) {
                     eprintln!("{}", err);
-                    std::process::exit(1);
+                    exit_with_saturation(1);
                 }
             }
         },
     }
-    let saturation_count = crate::core::fixed64::saturation_count();
-    if env::var_os("DDN_SATURATION_AUDIT").is_some() && saturation_count > 0 {
+    emit_saturation_audit();
+}
+
+fn emit_saturation_audit() {
+    if env::var_os("DDN_SATURATION_AUDIT").is_some() {
+        let saturation_count = crate::core::fixed64::saturation_count();
         eprintln!("saturation_audit count={saturation_count}");
     }
+}
+
+fn exit_with_saturation(code: i32) -> ! {
+    emit_saturation_audit();
+    std::process::exit(code);
 }
 
 fn parse_seed(input: &str) -> Result<u64, String> {
