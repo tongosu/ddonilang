@@ -2905,7 +2905,23 @@ def main() -> int:
         current_pack_stage = safe_stage_token(pack_name) or "-"
         current_case_stage = "-"
         transition_stage(f"pack.{current_pack_stage}.load_cases")
-        cases = load_cases(pack_dir)
+        try:
+            cases = load_cases(pack_dir)
+        except Exception as exc:
+            if not args.all:
+                raise
+            reason = f"load_cases failed: {exc}"
+            failures.append((pack_dir, reason))
+            pack_report["ok"] = False
+            pack_report["errors"].append(reason)
+            pack_report["elapsed_ms"] = int((time.perf_counter() - pack_started) * 1000)
+            report_packs.append(pack_report)
+            complete_stage(f"pack.{current_pack_stage}.load_cases")
+            last_completed_pack_stage = current_pack_stage
+            current_pack_stage = "-"
+            current_case_stage = "-"
+            update_progress("running")
+            continue
         complete_stage(f"pack.{current_pack_stage}.load_cases")
         pack_report["case_count"] = len(cases)
         if report_summary_only:
@@ -3012,6 +3028,11 @@ def main() -> int:
             newline="\n",
         )
 
+    total_pack_count = len(report_packs)
+    failed_pack_count = sum(1 for pack_report in report_packs if not pack_report.get("ok", False))
+    passed_pack_count = total_pack_count - failed_pack_count
+    summary_line = f"summary 총={total_pack_count} PASS={passed_pack_count} FAIL={failed_pack_count}"
+
     if failures:
         update_progress("fail")
         print("pack golden failed", file=sys.stderr)
@@ -3019,6 +3040,8 @@ def main() -> int:
             for line in format_failure_lines(failure, root):
                 print(line, file=sys.stderr)
         print(f"failure_count={len(failures)}", file=sys.stderr)
+        if args.all:
+            print(summary_line, file=sys.stderr)
         if args.report_out:
             print(f"report_out={args.report_out}", file=sys.stderr)
         return 1
@@ -3030,6 +3053,8 @@ def main() -> int:
         print("pack golden recorded")
     else:
         print("pack golden ok")
+    if args.all:
+        print(summary_line)
     return 0
 
 
