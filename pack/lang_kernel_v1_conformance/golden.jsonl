@@ -1,0 +1,13 @@
+{"id":"stem_alias_dop_dou","cmd":["run","pack/lang_kernel_v1_conformance/cases/stem_alias_dop_dou.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
+{"id":"stem_alias_ambiguous","cmd":["run","pack/lang_kernel_v1_conformance/cases/stem_alias_ambiguous.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
+{"id":"tail_equiv_gi_hagi","cmd":["run","pack/lang_kernel_v1_conformance/cases/tail_equiv_gi_hagi.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
+{"id":"condition_new_surface","cmd":["run","pack/lang_kernel_v1_conformance/cases/condition_new_surface.ddn"],"stdout":["참"],"exit_code":0}
+{"id":"time_madisai_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/time_madisai_undefined.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
+{"id":"time_jigeum_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/time_jigeum_undefined.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
+{"id":"vector2_construct_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/vector2_construct_undefined.ddn"],"expected_error_code":"E_PARSE_UNEXPECTED_TOKEN","exit_code":1}
+{"id":"tensor_existing_baseline","cmd":["run","pack/lang_kernel_v1_conformance/cases/tensor_existing_baseline.ddn"],"stdout":["차림[2, 2]","차림[1, 2, 3, 4]"],"exit_code":0}
+{"id":"option_syntax_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/option_syntax_undefined.ddn"],"expected_error_code":"E_LEX_UNEXPECTED_CHAR","exit_code":1}
+{"id":"result_matum_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/result_matum_undefined.ddn"],"expected_error_code":"E_PARSE_UNEXPECTED_TOKEN","exit_code":1}
+{"id":"value_ref_tail_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/value_ref_tail_undefined.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
+{"id":"overflow_saturate_current","cmd":["run","pack/lang_kernel_v1_conformance/cases/overflow_saturate_current.ddn"],"stdout":["2147483647.9999999997"],"exit_code":0}
+{"id":"relative_clause_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/relative_clause_undefined.ddn"],"expected_error_code":"E_LEX_BAD_IDENT_START","exit_code":1}
