@@ -210,6 +210,22 @@
 
 `docs/context/briefs/BRIEF_OBSERVER_MUTATOR_BOUNDARY_SURVEY_V1.md` 그대로 실행. Q28이 찾은 D40(관찰자/변경자 미분리)/D41(6원천 enum 없음) 문제를 Claude가 수리 설계하는 데 쓸 실측 지도(호출부 표, 입력원천별 코드 경로 표)만 만든다. 설계·수정 없음 — 지도만.
 
+## Q30(신) — D40 수리: 관찰자 전용 JS 클라이언트 분리 [실제 구현]
+
+`docs/context/briefs/BRIEF_D40_OBSERVER_CLIENT_SEPARATION_V1.md` 그대로 실행. 설계는 브리프로 확정됨 — `wasm_canon_runtime.js` 패턴을 그대로 복제해 `runtime/wasm_state_observer_client.js` 신설, mutation 함수명 0건 회귀 가드 체커 추가. Rust/WASM 빌드 변경 없음.
+
+## Q31(신) — D41 수리: `입력원천` 6값 enum 도입 [실제 구현, Rust 코어 변경]
+
+`docs/context/briefs/BRIEF_D41_INPUT_SOURCE_ENUM_V1.md` 그대로 실행. `InputSource` enum을 core에 도입하고 `SeulgiPacket`/`NetEvent`/`InputSnapshot`에 태그 부착. 정렬 키 변경 금지, `ScenarioExec`(펼침실행) 임의 배선 금지, golden 영향은 사유 확인 후 `--update`. 작업량 크면 여러 커밋으로 분할 가능.
+
+## Q32(신) — DEV_SUMMARY.md 아카이브 분리 [정리]
+
+`docs/context/briefs/BRIEF_DEV_SUMMARY_ARCHIVE_SPLIT_V1.md` 그대로 실행. 최근 항목만 남기고 나머지는 아카이브 파일로 이동, 내용 손실 없이.
+
+## Q33(신) — 가나다 나머지 8줄기 실기능 감사 [진단 전용, 코드 수정 없음]
+
+`docs/context/briefs/BRIEF_GANADA_REMAINING_REAL_FEATURE_AUDIT_V1.md` 그대로 실행. 로드맵 체커가 아니라 실제 pack golden을 돌려서 다/라/사/차/카/파/거/아 8줄기 48칸의 실제 기능 존재 여부를 실측. 코드/golden/pack 변경 없음.
+
 ---
 
 ## 큐 완료 보고
