@@ -264,3 +264,75 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1097 filtered out
 cargo test --manifest-path tools/teul-cli/Cargo.toml
 test result: ok. 1098 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
+
+## M6 — 가-4/나-4 로컬 레지스트리 감사 재확인
+
+### 재실행
+
+가-4/나-4의 기존 roadmap reconciliation 체커와 대응 pack golden을 다시 실행했다.
+
+```text
+python tests/run_roadmap_v2_ga4_package_gaji_reconciliation_check.py
+[roadmap-v2-ga4-package-gaji-reconciliation] OK
+```
+
+```text
+python tests/run_pack_golden.py roadmap_v2_ga4_package_gaji_reconciliation_v1
+pack golden ok
+```
+
+```text
+python tests/run_roadmap_v2_na4_stdlib_registry_reconciliation_check.py
+[roadmap-v2-na4-stdlib-registry-reconciliation] OK
+```
+
+```text
+python tests/run_pack_golden.py roadmap_v2_na4_stdlib_registry_reconciliation_v1
+pack golden ok
+```
+
+### Q23 판정과 달라진 지점
+
+Q23의 `GANADA_REVERIFICATION_TIER1_V1.md`는 가-4/나-4를 `존재+PASS이나형식뿐`으로 분류했다. 당시 제한 근거는 local registry minimum이 부분 착지였다는 점이다.
+
+M1~M5 후에는 그 제한 중 아래 항목이 해소됐다.
+
+| Q23/Q21 제한 | M1~M5 후 상태 |
+|---|---|
+| `gaji/` scanner가 direct `gaji.toml` 11개만 본다 | M1에서 재귀 scanner로 바뀌어 metadata-bearing package 13개를 찾는다 |
+| `registry publish`가 package 디렉터리를 포장하지 않는다 | M3에서 `--package-dir`로 실제 gaji package deterministic zip archive를 만든다 |
+| `registry download`가 install/vendor 배치로 이어지지 않는다 | M4에서 `--vendor-out`으로 archive를 `vendor-out/<name>`에 해제한다 |
+| 저장소 실제 package로 registry e2e가 닫힌 증거가 없다 | M5에서 `gaji/std_math` 회귀 테스트와 `gaji/phys/pendulum` scratch 실측으로 publish -> download -> vendor 내용 동일성을 확인했다 |
+
+### 재판정
+
+- 가-4/나-4의 **로컬 파일시스템 registry minimum**, 즉 metadata-bearing gaji package를 실제로 publish -> registry index 등록 -> download -> vendor unpack하는 툴체인 경로는 이제 `실제동작`으로 상향 가능하다.
+- 다만 기존 roadmap 칸 전체가 public registry final, network/cloud sync, trust signing, full install/update/remove UX, 제품 UI install execution, top-level `gaji/` 30개 전체 package closure까지 뜻한다면 그 범위는 여전히 닫히지 않았다.
+- `discover`라는 직접 서브커맨드는 여전히 없고, 대응 표면은 `registry search`/`registry federated-search`다.
+- M2에서 분류한 metadata 누락 package 후보(`std_grid`, `std_input_map`, `std_physics_1d`)에는 임의 `gaji.toml`을 만들지 않았으므로, 30개 전체 package closure도 주장하지 않는다.
+- 브리프 지시대로 `docs/context/roadmap/GANADA_MATRIX_CORRECTED_20260706.md` 자체는 수정하지 않았다.
+
+요약하면, Q23의 `부분 착지` 판정은 **로컬 registry 실제 패키지 e2e** 범위에서는 해소됐고, **public/full ecosystem** 범위에서는 유지된다.
+
+### 최종 검증
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml
+test result: ok. 1098 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+```text
+python tests/run_ci_sanity_gate.py --profile core_lang
+ci_sanity_status=pass code=OK step=all msg="-" profile=core_lang
+```
+
+## Goal 종료 요약
+
+| 마일스톤 | 결과 |
+|---|---|
+| M1 | recursive scanner 도입, `gaji.toml` package 11개 -> 13개 |
+| M2 | metadata 없는 top-level 19개 분류, 임의 `gaji.toml` 생성 없음 |
+| M3 | `registry publish --package-dir` 실제 package archive 작성 |
+| M4 | `registry download --vendor-out` archive unpack/vendor 배치 |
+| M5 | 실제 repository package publish -> download -> vendor 내용 동일성 회귀 |
+| M6 | 가-4/나-4 local registry minimum 재판정: 해당 범위 실제동작, public/full ecosystem은 미닫힘 |

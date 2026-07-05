@@ -125,3 +125,27 @@
   - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry publish --index out/gaji-registry-closure/m5/registry.index.json --scope gaji --name pendulum --version 0.1.0 --package-dir gaji/phys/pendulum --token token1 --role publisher --at 2026-02-19T00:00:00Z` PASS.
   - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry download --index out/gaji-registry-closure/m5/registry.index.json --scope gaji --name pendulum --version 0.1.0 --out out/gaji-registry-closure/m5/download/pendulum.zip --vendor-out out/gaji-registry-closure/m5/vendor/gaji` PASS — `content_match=true`.
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1098 passed; 0 failed`.
+
+## 실행 보고 M6
+
+- 완료: `docs/context/roadmap/GANADA_MATRIX_CORRECTED_20260706.md`의 가-4/나-4 로컬 레지스트리 칸을 별도 보고서에서 재감사했다. 로드맵 문서 자체는 수정하지 않았다.
+- 재실행:
+  - `python tests/run_roadmap_v2_ga4_package_gaji_reconciliation_check.py` PASS — `[roadmap-v2-ga4-package-gaji-reconciliation] OK`.
+  - `python tests/run_pack_golden.py roadmap_v2_ga4_package_gaji_reconciliation_v1` PASS — `pack golden ok`.
+  - `python tests/run_roadmap_v2_na4_stdlib_registry_reconciliation_check.py` PASS — `[roadmap-v2-na4-stdlib-registry-reconciliation] OK`.
+  - `python tests/run_pack_golden.py roadmap_v2_na4_stdlib_registry_reconciliation_v1` PASS — `pack golden ok`.
+- 재판정: M1~M5로 scanner 재귀화, package archive publish, download vendor unpack, 실제 repository package e2e가 닫혔다. 따라서 가-4/나-4의 local filesystem registry minimum은 `부분 착지`에서 `실제동작`으로 상향 가능하다.
+- 제한: public registry final, network/cloud sync, trust signing, full install/update/remove UX, 제품 UI install execution, top-level `gaji/` 30개 전체 package closure는 여전히 주장하지 않는다.
+- 실행:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1098 passed; 0 failed`.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang` PASS — `ci_sanity_status=pass code=OK step=all msg="-" profile=core_lang`.
+
+## Goal 종료 보고
+
+- M1~M6 순서 실행 완료.
+- 최종 산출물: `docs/context/reports/GAJI_REGISTRY_CLOSURE_V1.md`.
+- 구현 닫힘 범위: metadata-bearing 실제 gaji package의 local registry publish -> registry index 등록 -> download -> vendor unpack 경로.
+- 미주장 범위: public registry, network/cloud, trust signing, 제품 UI install 실행, metadata 없는 후보 package의 스키마 결정, `gaji/` 30개 전체 closure.
+- 최종 검증:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang` PASS.
