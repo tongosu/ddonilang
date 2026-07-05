@@ -182,6 +182,20 @@
 
 ---
 
+## Q23(신) — 가나다 로드맵 재검증 Tier1 (가/나/타, 18칸) [중요 — 90칸 전체 신뢰성 문제]
+
+`docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER1_V1.md` 그대로 실행. 진단 전용.
+
+## Q24(신) — 가나다 로드맵 재검증 Tier2 (다/마/하/라, 24칸)
+
+`docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER2_V1.md` 그대로 실행. Tier1과 병렬 가능.
+
+## Q25(신) — 가나다 로드맵 재검증 Tier3 (나머지 8줄기, 48칸)
+
+`docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER3_V1.md` 그대로 실행. 양이 많으면 0~2마루 우선, 나머지는 별도 보고.
+
+---
+
 ## 큐 완료 보고
 
 - 실행일: 2026-07-06
