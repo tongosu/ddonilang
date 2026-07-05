@@ -69,3 +69,14 @@
 2. 매 마일스톤 커밋 전 자기 검증을 실제로 실행하고 출력을 인용(주장 금지).
 3. `cargo test --manifest-path tools/teul-cli/Cargo.toml` 매 마일스톤 후 PASS 확인(회귀 없음).
 4. `python tests/run_ci_sanity_gate.py --profile core_lang` 최종 PASS 확인.
+
+## 실행 보고 M1
+
+- 완료: `collect_packages`를 재귀 스캔으로 바꿔 `gaji/bogae/space2d/gaji.toml`, `gaji/phys/pendulum/gaji.toml`을 포함하게 했다.
+- 순환 방지: `MAX_GAJI_SCAN_DEPTH = 16` 깊이 제한을 두고, `DirEntry::file_type().is_dir()` 기준으로 디렉터리를 판별해 심볼릭 링크 디렉터리를 따라가지 않게 했다.
+- 회귀 확인: 직전 HEAD direct-only lock과 현재 recursive lock을 비교했다. `pre_count=11`, `post_count=13`, `changed_existing=`(기존 11개 `version/path/hash/files` 변경 0건).
+- 새로 발견된 패키지: `물리 진자 가지`(`phys/pendulum`), `보개 공간2d 가지`(`bogae/space2d`).
+- 실행:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_lock_recursively_finds_nested_packages` PASS — `1 passed; 0 failed`.
+  - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji lock --root . --out out/gaji-registry-closure/m1/ddn.lock.post` PASS — `gaji_lock_hash=blake3:e3f182d383cf8237f2bbddc79beccaa4a60bd43dd52058c324318f8535667965`.
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1094 passed; 0 failed`.

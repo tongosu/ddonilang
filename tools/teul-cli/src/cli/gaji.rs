@@ -6,6 +6,8 @@ use serde_json::{json, Value};
 
 use super::{diag, gaji_registry};
 
+const MAX_GAJI_SCAN_DEPTH: usize = 16;
+
 struct GajiMeta {
     id: String,
     version: String,
@@ -527,20 +529,28 @@ fn build_registry_read_guard_from_lock(
 
 fn collect_packages(gaji_root: &Path) -> Result<Vec<GajiPackage>, String> {
     let mut packages = Vec::new();
-    let entries = fs::read_dir(gaji_root).map_err(|e| format!("E_GAJI_SCAN {}", e))?;
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("E_GAJI_SCAN {}", e))?;
-        let path = entry.path();
-        if !path.is_dir() {
-            continue;
-        }
-        let gaji_toml = path.join("gaji.toml");
-        if !gaji_toml.exists() {
-            continue;
-        }
+    collect_packages_recursive(gaji_root, gaji_root, 0, &mut packages)?;
+    Ok(packages)
+}
+
+fn collect_packages_recursive(
+    gaji_root: &Path,
+    current: &Path,
+    depth: usize,
+    packages: &mut Vec<GajiPackage>,
+) -> Result<(), String> {
+    if depth > MAX_GAJI_SCAN_DEPTH {
+        return Err(format!(
+            "E_GAJI_SCAN_DEPTH path={} max_depth={}",
+            current.display(),
+            MAX_GAJI_SCAN_DEPTH
+        ));
+    }
+    let gaji_toml = current.join("gaji.toml");
+    if depth > 0 && gaji_toml.exists() {
         let meta = parse_gaji_toml(&gaji_toml)?;
-        let rel_path = rel_path(gaji_root, &path)?;
-        let mut files = collect_files(&path)?;
+        let rel_path = rel_path(gaji_root, current)?;
+        let mut files = collect_files(current)?;
         files.sort_by(|a, b| a.path.cmp(&b.path));
         let hash = package_hash(&files);
         packages.push(GajiPackage {
@@ -550,8 +560,27 @@ fn collect_packages(gaji_root: &Path) -> Result<Vec<GajiPackage>, String> {
             hash,
             files,
         });
+        return Ok(());
     }
-    Ok(packages)
+
+    let entries = fs::read_dir(current).map_err(|e| format!("E_GAJI_SCAN {}", e))?;
+    let mut dirs = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("E_GAJI_SCAN {}", e))?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|e| format!("E_GAJI_SCAN {}", e))?;
+        if !file_type.is_dir() || should_skip_dir(&path) {
+            continue;
+        }
+        dirs.push(path);
+    }
+    dirs.sort();
+    for path in dirs {
+        collect_packages_recursive(gaji_root, &path, depth + 1, packages)?;
+    }
+    Ok(())
 }
 
 fn parse_gaji_toml(path: &Path) -> Result<GajiMeta, String> {
@@ -1148,6 +1177,50 @@ mod tests {
         run_vendor(&root, &lock_path, &vendor_out).expect("vendor");
         assert!(vendor_out.join("demo").join("gaji.toml").exists());
         assert!(vendor_out.join("ddn.vendor.index.json").exists());
+    }
+
+    #[test]
+    fn run_lock_recursively_finds_nested_packages() {
+        let root = temp_dir("lock_recursive");
+        let direct_dir = root.join("gaji").join("direct");
+        let nested_parent = root.join("gaji").join("family");
+        let nested_dir = nested_parent.join("nested");
+        fs::create_dir_all(&direct_dir).expect("direct mkdir");
+        fs::create_dir_all(&nested_dir).expect("nested mkdir");
+        fs::write(nested_parent.join("README.md"), "parent only\n").expect("write parent");
+        fs::write(
+            direct_dir.join("gaji.toml"),
+            "id = \"demo/direct\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("write direct toml");
+        fs::write(direct_dir.join("main.ddn"), "값 <- 1.\n").expect("write direct src");
+        fs::write(
+            nested_dir.join("gaji.toml"),
+            "id = \"demo/nested\"\nversion = \"0.2.0\"\n",
+        )
+        .expect("write nested toml");
+        fs::write(nested_dir.join("main.ddn"), "값 <- 2.\n").expect("write nested src");
+
+        let lock_path = root.join("ddn.lock");
+        run_lock(&root, &lock_path).expect("lock");
+        let lock = read_lock_file(&lock_path).expect("read lock");
+        let packages = lock
+            .get("packages")
+            .and_then(Value::as_array)
+            .expect("packages");
+        let rows: Vec<(&str, &str)> = packages
+            .iter()
+            .map(|pkg| {
+                (
+                    pkg.get("id").and_then(Value::as_str).expect("id"),
+                    pkg.get("path").and_then(Value::as_str).expect("path"),
+                )
+            })
+            .collect();
+
+        assert_eq!(packages.len(), 2);
+        assert!(rows.contains(&("demo/direct", "direct")));
+        assert!(rows.contains(&("demo/nested", "family/nested")));
     }
 
     #[test]
