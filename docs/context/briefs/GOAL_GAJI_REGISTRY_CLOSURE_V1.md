@@ -89,3 +89,16 @@
 - 산출물: `docs/context/reports/GAJI_REGISTRY_CLOSURE_V1.md`의 M2 표.
 - 실행:
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1094 passed; 0 failed`.
+
+## 실행 보고 M3
+
+- 완료: `gaji registry publish`에 `--package-dir`/`--archive-out` 선택 인자를 추가해 실제 gaji package 디렉터리를 deterministic zip archive로 포장하고 index에 등록하게 했다.
+- 호환성: 기존 수동 `--archive-sha256`/`--download-url` 경로는 유지했다. index entry schema는 바꾸지 않고 기존 `archive_sha256`, `download_url`만 채운다.
+- 포맷: 기존 `zip` 의존성과 `universe` pack 패턴을 따라 `Stored` zip + 고정 timestamp + 정렬된 파일 순서를 사용했다.
+- 제약 준수: `--package-dir`에는 `gaji.toml`을 요구하므로 metadata 없는 M2 후보를 임의 발행하지 않는다.
+- 실제 실측: `gaji/std_math`를 `out/gaji-registry-closure/m3/registry.index.json`에 발행했고, archive `archives/gaji__std_math__0.1.0.zip` 생성 및 `archive_sha256=sha256:73943e7c3c814cfeb28f9231854d29fb4b4a9bd81c7e34ea7669f5cd983a0ac0` 확인.
+- 실행:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_publish_package_dir_writes_archive_and_index` PASS — `1 passed; 0 failed`.
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_publish_requires_archive_sha_or_package_dir` PASS — `1 passed; 0 failed`.
+  - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry publish --index out/gaji-registry-closure/m3/registry.index.json --scope gaji --name std_math --version 0.1.0 --package-dir gaji/std_math --token token1 --role publisher --at 2026-02-19T00:00:00Z` PASS.
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1096 passed; 0 failed`.

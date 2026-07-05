@@ -15,8 +15,8 @@
 use std::cmp::{Ordering, Reverse};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::io::{Cursor, Read, Write};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::diag;
@@ -24,6 +24,8 @@ use blake3;
 use clap::{Parser, Subcommand, ValueEnum};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use zip::write::FileOptions;
+use zip::{CompressionMethod, DateTime, ZipWriter};
 
 pub const VERIFY_DUPLICATE_RESOLUTION_POLICY: &str =
     "non_yanked_then_pin_score_then_normalized_entry_key";
@@ -253,8 +255,12 @@ enum RegistryCommand {
         name: String,
         #[arg(long)]
         version: String,
-        #[arg(long = "archive-sha256")]
+        #[arg(long = "archive-sha256", default_value = "")]
         archive_sha256: String,
+        #[arg(long = "package-dir")]
+        package_dir: Option<std::path::PathBuf>,
+        #[arg(long = "archive-out")]
+        archive_out: Option<std::path::PathBuf>,
         #[arg(long)]
         contract: Option<String>,
         #[arg(long = "detmath-seal-hash")]
@@ -474,6 +480,8 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
             name,
             version,
             archive_sha256,
+            package_dir,
+            archive_out,
             contract,
             detmath_seal_hash,
             min_runtime,
@@ -498,7 +506,13 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
                 role,
                 at,
             };
-            run_publish_with_auth_policy(&index, &options, auth_policy.as_deref())
+            run_publish_resolved(
+                &index,
+                &options,
+                auth_policy.as_deref(),
+                package_dir.as_deref(),
+                archive_out.as_deref(),
+            )
         }
         RegistryCommand::Yank {
             index,
@@ -1639,6 +1653,16 @@ pub fn run_publish_with_auth_policy(
     options: &PublishOptions,
     auth_policy: Option<&Path>,
 ) -> Result<(), String> {
+    run_publish_resolved(index_path, options, auth_policy, None, None)
+}
+
+fn run_publish_resolved(
+    index_path: &Path,
+    options: &PublishOptions,
+    auth_policy: Option<&Path>,
+    package_dir: Option<&Path>,
+    archive_out: Option<&Path>,
+) -> Result<(), String> {
     let package_id = format!("{}/{}@{}", options.scope, options.name, options.version);
     if let Some(path) = auth_policy {
         if let Err(err) = validate_auth_policy(path, &options.token, &options.role, &options.scope)
@@ -1705,16 +1729,69 @@ pub fn run_publish_with_auth_policy(
             Some("기존 버전을 수정하지 말고 새 버전을 발행하세요.".to_string()),
         ));
     }
+    let mut archive_sha256 = options.archive_sha256.clone();
+    let mut download_url = options.download_url.clone();
+    let mut archive_path = None;
+    if let Some(package_dir) = package_dir {
+        let out = archive_out
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| default_publish_archive_path(index_path, options));
+        let bytes = build_package_archive_bytes(package_dir)?;
+        archive_sha256 = sha256_hex_prefixed(&bytes);
+        if download_url.is_none() {
+            download_url = Some(download_url_for_archive(index_path, &out));
+        }
+        if let Some(parent) = out.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                diag::build_diag(
+                    "E_REG_PUBLISH_ARCHIVE_WRITE",
+                    &format!("path={} {}", out.display(), e),
+                    None,
+                    Some("archive-out parent 경로/권한을 확인하세요.".to_string()),
+                )
+            })?;
+        }
+        fs::write(&out, &bytes).map_err(|e| {
+            diag::build_diag(
+                "E_REG_PUBLISH_ARCHIVE_WRITE",
+                &format!("path={} {}", out.display(), e),
+                None,
+                Some("archive-out 파일 경로/권한을 확인하세요.".to_string()),
+            )
+        })?;
+        archive_path = Some(out);
+    } else if archive_sha256.trim().is_empty() {
+        append_audit(
+            index_path,
+            options.audit_log.as_deref(),
+            "publish",
+            &package_id,
+            &options.role,
+            &options.token,
+            false,
+            Some("E_REG_ARCHIVE_SHA256_REQUIRED"),
+            options.at.as_deref(),
+        )?;
+        return Err(diag::build_diag(
+            "E_REG_ARCHIVE_SHA256_REQUIRED",
+            &format!(
+                "scope={} name={} version={}",
+                options.scope, options.name, options.version
+            ),
+            None,
+            Some("--archive-sha256 또는 --package-dir를 지정하세요.".to_string()),
+        ));
+    }
     entries.push(RegistryEntry {
         scope: options.scope.clone(),
         name: options.name.clone(),
         version: options.version.clone(),
-        archive_sha256: Some(options.archive_sha256.clone()),
+        archive_sha256: Some(archive_sha256.clone()),
         contract: options.contract.clone(),
         detmath_seal_hash: options.detmath_seal_hash.clone(),
         min_runtime: options.min_runtime.clone(),
         dependencies: Some(json!({})),
-        download_url: options.download_url.clone(),
+        download_url: download_url.clone(),
         published_at: Some(now_or(options.at.as_deref())),
         summary: options.summary.clone(),
         yanked: false,
@@ -1740,6 +1817,13 @@ pub fn run_publish_with_auth_policy(
         "registry_publish_ok={}/{}@{}",
         options.scope, options.name, options.version
     );
+    if let Some(path) = archive_path.as_deref() {
+        println!("registry_publish_archive_out={}", path.display());
+        println!("registry_publish_archive_sha256={}", archive_sha256);
+        if let Some(url) = download_url.as_deref() {
+            println!("registry_publish_download_url={}", url);
+        }
+    }
     Ok(())
 }
 
@@ -2470,6 +2554,211 @@ fn verify_archive_sha256(
         ));
     }
     Ok(())
+}
+
+fn build_package_archive_bytes(package_dir: &Path) -> Result<Vec<u8>, String> {
+    if !package_dir.is_dir() {
+        return Err(diag::build_diag(
+            "E_REG_PUBLISH_PACKAGE_DIR",
+            &format!("package_dir={} is not a directory", package_dir.display()),
+            None,
+            Some("--package-dir가 실제 gaji package 디렉터리인지 확인하세요.".to_string()),
+        ));
+    }
+    let manifest = package_dir.join("gaji.toml");
+    if !manifest.is_file() {
+        return Err(diag::build_diag(
+            "E_REG_PUBLISH_PACKAGE_META",
+            &format!("package_dir={} missing gaji.toml", package_dir.display()),
+            None,
+            Some(
+                "metadata 없는 디렉터리는 발행하지 말고 gaji.toml 설계 후 진행하세요.".to_string(),
+            ),
+        ));
+    }
+
+    let files = collect_package_archive_files(package_dir)?;
+    let cursor = Cursor::new(Vec::new());
+    let mut zip = ZipWriter::new(cursor);
+    let options = FileOptions::default()
+        .compression_method(CompressionMethod::Stored)
+        .last_modified_time(fixed_registry_zip_datetime())
+        .unix_permissions(0o644);
+
+    for rel in files {
+        let rel_unix = archive_rel_path_to_unix(&rel)?;
+        let source = package_dir.join(&rel);
+        let bytes = fs::read(&source).map_err(|e| {
+            diag::build_diag(
+                "E_REG_PUBLISH_ARCHIVE_READ",
+                &format!("path={} {}", source.display(), e),
+                None,
+                Some("package-dir 안의 파일 읽기 권한/경로를 확인하세요.".to_string()),
+            )
+        })?;
+        zip.start_file(rel_unix, options).map_err(|e| {
+            diag::build_diag(
+                "E_REG_PUBLISH_ARCHIVE_WRITE",
+                &format!("zip entry write failed: {}", e),
+                None,
+                Some("패키지 아카이브 작성 로직을 점검하세요.".to_string()),
+            )
+        })?;
+        zip.write_all(&bytes).map_err(|e| {
+            diag::build_diag(
+                "E_REG_PUBLISH_ARCHIVE_WRITE",
+                &format!("zip bytes write failed: {}", e),
+                None,
+                Some("패키지 아카이브 작성 로직을 점검하세요.".to_string()),
+            )
+        })?;
+    }
+
+    let cursor = zip.finish().map_err(|e| {
+        diag::build_diag(
+            "E_REG_PUBLISH_ARCHIVE_WRITE",
+            &format!("zip finish failed: {}", e),
+            None,
+            Some("패키지 아카이브 작성 로직을 점검하세요.".to_string()),
+        )
+    })?;
+    Ok(cursor.into_inner())
+}
+
+fn collect_package_archive_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    fn walk(root: &Path, current: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+        let entries = fs::read_dir(current).map_err(|e| {
+            diag::build_diag(
+                "E_REG_PUBLISH_ARCHIVE_READ",
+                &format!("path={} {}", current.display(), e),
+                None,
+                Some("package-dir 안의 디렉터리 읽기 권한/경로를 확인하세요.".to_string()),
+            )
+        })?;
+        let mut rows = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(|e| {
+                diag::build_diag(
+                    "E_REG_PUBLISH_ARCHIVE_READ",
+                    &format!("path={} {}", current.display(), e),
+                    None,
+                    Some("package-dir 안의 디렉터리 항목을 확인하세요.".to_string()),
+                )
+            })?;
+            rows.push(entry);
+        }
+        rows.sort_by_key(|entry| entry.file_name());
+        for entry in rows {
+            let path = entry.path();
+            let file_type = entry.file_type().map_err(|e| {
+                diag::build_diag(
+                    "E_REG_PUBLISH_ARCHIVE_READ",
+                    &format!("path={} {}", path.display(), e),
+                    None,
+                    Some("package-dir 안의 파일 타입을 확인하세요.".to_string()),
+                )
+            })?;
+            if file_type.is_dir() {
+                if should_skip_package_archive_dir(&path) {
+                    continue;
+                }
+                walk(root, &path, out)?;
+            } else if file_type.is_file() {
+                let rel = path.strip_prefix(root).map_err(|e| {
+                    diag::build_diag(
+                        "E_REG_PUBLISH_ARCHIVE_PATH",
+                        &format!("path={} {}", path.display(), e),
+                        None,
+                        Some("package-dir 상대 경로 계산을 확인하세요.".to_string()),
+                    )
+                })?;
+                out.push(rel.to_path_buf());
+            }
+        }
+        Ok(())
+    }
+
+    let mut files = Vec::new();
+    walk(root, root, &mut files)?;
+    files.sort_by_key(|path| archive_rel_path_to_unix(path).unwrap_or_default());
+    Ok(files)
+}
+
+fn should_skip_package_archive_dir(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+        return false;
+    };
+    matches!(
+        name,
+        ".git" | "target" | "build" | "out" | "dist" | "node_modules" | ".cargo"
+    )
+}
+
+fn archive_rel_path_to_unix(path: &Path) -> Result<String, String> {
+    let mut parts = Vec::new();
+    for comp in path.components() {
+        match comp {
+            Component::Normal(part) => parts.push(part.to_string_lossy().to_string()),
+            Component::CurDir => {}
+            Component::RootDir | Component::Prefix(_) | Component::ParentDir => {
+                return Err(diag::build_diag(
+                    "E_REG_PUBLISH_ARCHIVE_PATH",
+                    &format!("invalid archive path={}", path.display()),
+                    None,
+                    Some("아카이브 내부 경로는 package-dir 상대 경로여야 합니다.".to_string()),
+                ));
+            }
+        }
+    }
+    Ok(parts.join("/"))
+}
+
+fn fixed_registry_zip_datetime() -> DateTime {
+    DateTime::from_date_and_time(1980, 1, 1, 0, 0, 0).unwrap_or_default()
+}
+
+fn default_publish_archive_path(index_path: &Path, options: &PublishOptions) -> PathBuf {
+    let file_name = format!(
+        "{}__{}__{}.zip",
+        sanitize_archive_component(&options.scope),
+        sanitize_archive_component(&options.name),
+        sanitize_archive_component(&options.version)
+    );
+    index_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("archives")
+        .join(file_name)
+}
+
+fn sanitize_archive_component(value: &str) -> String {
+    let mut out = String::new();
+    for ch in value.chars() {
+        if ch.is_control()
+            || matches!(
+                ch,
+                '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '@'
+            )
+            || ch.is_whitespace()
+        {
+            out.push('_');
+        } else {
+            out.push(ch);
+        }
+    }
+    if out.is_empty() {
+        "package".to_string()
+    } else {
+        out
+    }
+}
+
+fn download_url_for_archive(index_path: &Path, archive_path: &Path) -> String {
+    let base = index_path.parent().unwrap_or_else(|| Path::new("."));
+    if let Ok(rel) = archive_path.strip_prefix(base) {
+        return rel.to_string_lossy().replace('\\', "/");
+    }
+    archive_path.to_string_lossy().replace('\\', "/")
 }
 
 fn sha256_hex_prefixed(bytes: &[u8]) -> String {
@@ -4292,6 +4581,97 @@ mod tests {
             .and_then(|v| v.as_str())
             .unwrap_or("");
         assert!(hash.starts_with("blake3:"));
+    }
+
+    #[test]
+    fn run_cli_publish_package_dir_writes_archive_and_index() {
+        let root = temp_dir("publish_package_dir");
+        let index = root.join("registry").join("index.json");
+        let package_dir = root.join("gaji").join("std_math");
+        fs::create_dir_all(package_dir.join("ddn")).expect("pkg mkdir");
+        fs::write(
+            package_dir.join("gaji.toml"),
+            "id = \"gaji/std_math\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("write manifest");
+        fs::write(package_dir.join("ddn").join("exports.ddn"), "셈.더하기\n")
+            .expect("write exports");
+
+        let args = vec![
+            "publish".to_string(),
+            "--index".to_string(),
+            index.to_string_lossy().to_string(),
+            "--scope".to_string(),
+            "gaji".to_string(),
+            "--name".to_string(),
+            "std_math".to_string(),
+            "--version".to_string(),
+            "0.1.0".to_string(),
+            "--package-dir".to_string(),
+            package_dir.to_string_lossy().to_string(),
+            "--token".to_string(),
+            "token1".to_string(),
+            "--role".to_string(),
+            "publisher".to_string(),
+            "--at".to_string(),
+            "2026-02-19T00:00:00Z".to_string(),
+        ];
+        run_cli(&args).expect("publish package dir");
+
+        let snapshot: Value =
+            serde_json::from_str(&fs::read_to_string(&index).expect("read index"))
+                .expect("parse index");
+        let entry = snapshot
+            .get("entries")
+            .and_then(Value::as_array)
+            .and_then(|rows| rows.first())
+            .expect("entry");
+        let archive_sha256 = entry
+            .get("archive_sha256")
+            .and_then(Value::as_str)
+            .expect("archive sha");
+        let download_url = entry
+            .get("download_url")
+            .and_then(Value::as_str)
+            .expect("download url");
+        assert!(archive_sha256.starts_with("sha256:"));
+        assert!(download_url.starts_with("archives/"));
+
+        let archive_path = index.parent().expect("index parent").join(download_url);
+        let archive_bytes = fs::read(&archive_path).expect("read archive");
+        assert_eq!(sha256_hex_prefixed(&archive_bytes), archive_sha256);
+        let mut archive =
+            zip::ZipArchive::new(Cursor::new(archive_bytes)).expect("open package archive");
+        let mut names = Vec::new();
+        for i in 0..archive.len() {
+            let file = archive.by_index(i).expect("zip entry");
+            names.push(file.name().to_string());
+        }
+        names.sort();
+        assert_eq!(names, vec!["ddn/exports.ddn", "gaji.toml"]);
+    }
+
+    #[test]
+    fn run_cli_publish_requires_archive_sha_or_package_dir() {
+        let root = temp_dir("publish_requires_archive");
+        let index = root.join("index.json");
+        let args = vec![
+            "publish".to_string(),
+            "--index".to_string(),
+            index.to_string_lossy().to_string(),
+            "--scope".to_string(),
+            "gaji".to_string(),
+            "--name".to_string(),
+            "std_math".to_string(),
+            "--version".to_string(),
+            "0.1.0".to_string(),
+            "--token".to_string(),
+            "token1".to_string(),
+            "--role".to_string(),
+            "publisher".to_string(),
+        ];
+        let err = run_cli(&args).expect_err("archive pin or package dir required");
+        assert_diag_with_fix(&err, "E_REG_ARCHIVE_SHA256_REQUIRED");
     }
 
     #[test]

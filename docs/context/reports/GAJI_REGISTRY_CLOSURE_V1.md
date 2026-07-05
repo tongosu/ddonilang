@@ -101,3 +101,62 @@ test result: ok. 1094 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 cargo test --manifest-path tools/teul-cli/Cargo.toml
 test result: ok. 1094 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
+
+## M3 — publish 실제 패키징
+
+### 변경
+
+- `teul-cli gaji registry publish`에 선택형 `--package-dir <path>`, `--archive-out <path>`를 추가했다.
+- 기존 수동 경로(`--archive-sha256`, `--download-url`)는 그대로 유지했다.
+- `--package-dir`가 주어지면 해당 gaji package 디렉터리를 deterministic zip archive로 작성한다.
+- archive 기본 위치는 index 파일 옆 `archives/<scope>__<name>__<version>.zip`이다.
+- `archive_sha256`은 작성된 archive bytes의 실제 sha256으로 계산해 index entry에 넣는다.
+- `download_url`이 명시되지 않으면 archive의 index-relative path를 넣는다.
+- package-dir에는 `gaji.toml`이 있어야 한다. metadata 없는 디렉터리는 M2 제약대로 임의 발행하지 못하게 했다.
+
+### 포맷 선택
+
+- 기존 의존성에 `zip`이 이미 있고 `tools/teul-cli/src/cli/universe.rs`가 deterministic zip 패턴을 사용하고 있어 같은 방식을 택했다.
+- zip 옵션은 `CompressionMethod::Stored`, 고정 timestamp `1980-01-01T00:00:00`, 파일명 정렬이다.
+- index schema에는 새 필드를 넣지 않았다. 기존 `archive_sha256`, `download_url`만 채운다.
+
+### 실제 저장소 패키지 실측
+
+`gaji/std_math`를 로컬 registry에 발행했다.
+
+```text
+cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry publish --index out/gaji-registry-closure/m3/registry.index.json --scope gaji --name std_math --version 0.1.0 --package-dir gaji/std_math --token token1 --role publisher --at 2026-02-19T00:00:00Z
+registry_publish_ok=gaji/std_math@0.1.0
+registry_publish_archive_out=out/gaji-registry-closure/m3\archives\gaji__std_math__0.1.0.zip
+registry_publish_archive_sha256=sha256:73943e7c3c814cfeb28f9231854d29fb4b4a9bd81c7e34ea7669f5cd983a0ac0
+registry_publish_download_url=archives/gaji__std_math__0.1.0.zip
+```
+
+Index/파일 확인:
+
+```text
+entry_scope=gaji
+entry_name=std_math
+entry_version=0.1.0
+entry_archive_sha256=sha256:73943e7c3c814cfeb28f9231854d29fb4b4a9bd81c7e34ea7669f5cd983a0ac0
+entry_download_url=archives/gaji__std_math__0.1.0.zip
+archive_exists=true
+archive_bytes=1175
+```
+
+### 검증
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_publish_package_dir_writes_archive_and_index
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1095 filtered out
+```
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_publish_requires_archive_sha_or_package_dir
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1095 filtered out
+```
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml
+test result: ok. 1096 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
