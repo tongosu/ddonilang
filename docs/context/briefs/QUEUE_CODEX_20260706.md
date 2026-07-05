@@ -232,7 +232,7 @@
 
 - 실행일: 2026-07-06
 - 브랜치: `codex/queue-20260706`
-- main 직접 커밋/push/golden --update/파일 삭제/네트워크 실행 없음.
+- main 직접 커밋/push/파일 삭제/네트워크 실행 없음. golden --update는 Q31에서 사유 확인 후 `nuri_gym_canon_contract_v1` 1건만 실행.
 
 | 항목 | 커밋 | 산출물 | 자기 검증 |
 |---|---|---|---|
@@ -255,6 +255,10 @@
 | Q27 | `2e6a956` | `docs/context/briefs/BRIEF_BROKEN_CHECKS_DELETION_V1.md` 실행 보고, 죽은 체크 111개 삭제, `docs/context/all/DEV_SUMMARY.md` 갱신 | pre/post `python tests/run_ci_sanity_gate.py --profile core_lang` PASS, 삭제 basename 실행 코드 참조 0건, 범위 밖 삭제 없음 |
 | Q28 | 이번 Q28 커밋 | `docs/context/reports/ECOSYSTEM_CONTRACT_VERIFICATION_V1.md`, `docs/context/briefs/BRIEF_ECOSYSTEM_CONTRACT_VERIFICATION_V1.md` 실행 보고 | 정적 분석 완료, D39 위반 없음, D40/D41 미착륙 판정, 코드/pack/golden 수정 없음 |
 | Q29 | 이번 Q29 커밋 | `docs/context/reports/OBSERVER_MUTATOR_BOUNDARY_SURVEY_V1.md`, `docs/context/briefs/BRIEF_OBSERVER_MUTATOR_BOUNDARY_SURVEY_V1.md` 실행 보고 | UI `.js` 134개 전수 스캔, D40 호출부 지도/관찰자 최소 읽기 표면/D41 입력원천별 코드 경로 표 작성, 코드/pack/golden 수정 없음 |
+| Q30 | `c96c3ff` | `solutions/seamgrim_ui_mvp/ui/runtime/wasm_state_observer_client.js`, `tests/run_wasm_state_observer_client_capability_check.py`, `docs/context/briefs/BRIEF_D40_OBSERVER_CLIENT_SEPARATION_V1.md` 실행 보고 | observer client mutation token 0건, 전용 체커 PASS, `core_lang` PASS |
+| Q31 | `26d8d2b` | `InputSource` enum/태그 부착, geoul `ISRC` 확장, `docs/context/briefs/BRIEF_D41_INPUT_SOURCE_ENUM_V1.md` 실행 보고 | `cargo check` PASS, `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS, `core_lang` PASS, `ScenarioExec` 실제 생성 0건 |
+| Q32 | `d1e5c1b` | `docs/context/all/DEV_SUMMARY_ARCHIVE_20260706.md`, `docs/context/briefs/BRIEF_DEV_SUMMARY_ARCHIVE_SPLIT_V1.md` 실행 보고 | 줄 수 합계 25,472 유지, 남긴 항목 299/아카이브 519, 참조 파일 184개 보고만, `core_lang` PASS |
+| Q33 | 이번 Q33 커밋 | `docs/context/reports/GANADA_REMAINING_TRACKS_REAL_FEATURE_AUDIT_V1.md`, `docs/context/briefs/BRIEF_GANADA_REMAINING_REAL_FEATURE_AUDIT_V1.md` 실행 보고 | 48칸/111개 후보 pack golden 실측, primary pack 48/48 PASS, 코드/golden/pack 변경 없음 |
 
 Q-CONFORMANCE 특기:
 - 기본 12개 케이스에 브리프가 별도 요구한 `value_ref_tail_undefined` 레드 케이스를 더해 총 13개를 캡처했다.
@@ -285,3 +289,9 @@ Q27-Q28 특기:
 
 Q29 특기:
 - Q29 결론: Q28 관찰자 모듈(`seulgi_proposal_ui.js`, `seulgi_replay_safe_workflow.js`)은 WASM mutation/read API를 직접 호출하지 않는다. mutation-capable 호출부는 raw binding/wrapper/shared helper/VM runtime/RunScreen/Playground 쪽에 몰려 있고, 6원천 이름은 제품 enum/분류기로 구현되어 있지 않다.
+
+Q30-Q33 특기:
+- Q30은 `wasm_canon_runtime.js`의 client 패턴을 읽기 전용으로 복제해 state observer 전용 client를 추가했다. mutation 함수명 회귀 가드는 core_lang에 편입했다.
+- Q31은 `InputSource::{Person,Seulgi,ExternalTask,Schedule,Relay,ScenarioExec}`를 core에 도입하고 `SeulgiPacket`/`NetEvent`/`InputSnapshot` 및 CLI/geoul 기록에 태그를 보존했다. `ScenarioExec`은 enum/매핑만 있고 실제 생성 배선은 없다. `nuri_gym_canon_contract_v1`은 geoul `ISRC` 확장으로 audit/dataset hash가 바뀐 것을 확인한 뒤 해당 pack만 golden 갱신했다.
+- Q32는 `DEV_SUMMARY.md` 선두 최근 블록만 남기고 16,388줄을 `DEV_SUMMARY_ARCHIVE_20260706.md`로 분리했다. 직접 참조 파일 184개는 브리프 지시대로 수정하지 않고 보고만 했다.
+- Q33은 다/라/사/차/카/파/거/아 48칸의 실제 pack golden을 다시 돌렸다. primary pack은 전부 존재+PASS였고, 24칸은 이름이 다른 실질 후보 pack PASS도 확인됐다. 다만 다수 `roadmap_v2_*` primary는 marker/reconciliation pack이므로 Q23~Q25의 닫힘-동작 재판정 FAIL을 자동으로 뒤집지는 않는다.
