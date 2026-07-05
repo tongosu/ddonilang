@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use blake3::hash as blake3_hash;
 use ddonirang_core::platform::{
-    DetNuri, InputSnapshot, Patch, PatchOp, ResourceMapEntry, ResourceValue,
+    DetNuri, InputSnapshot, InputSource, Patch, PatchOp, ResourceMapEntry, ResourceValue,
 };
 use ddonirang_core::{Fixed64, Nuri, ResourceHandle, SeulgiIntent, SeulgiPacket};
 use ddonirang_lang::runtime::Value;
@@ -501,6 +501,7 @@ impl DdnWasmVm {
                 recv_seq: idx as u64,
                 accepted_madi: self.tick_id,
                 target_madi: self.tick_id,
+                source: InputSource::Seulgi,
                 intent: SeulgiIntent::Say {
                     text: format!("{key}={value_json}"),
                 },
@@ -515,6 +516,7 @@ impl DdnWasmVm {
             pointer_y_i32: self.input_pointer_y_i32,
             ai_injections,
             net_events: Vec::new(),
+            frame_source: InputSource::Person,
             rng_seed: tick_seed,
         };
 
@@ -597,6 +599,7 @@ impl DdnWasmVm {
             pointer_y_i32: self.input_pointer_y_i32,
             ai_injections: Vec::new(),
             net_events: Vec::new(),
+            frame_source: InputSource::Person,
             rng_seed: self.rng_seed ^ self.tick_id,
         };
         let output = self
@@ -2293,6 +2296,10 @@ fn serialize_input_snapshot(input: &InputSnapshot, rng_base_seed: Option<u64>) -
     out.insert("pointer_x_i32".to_string(), json!(input.pointer_x_i32));
     out.insert("pointer_y_i32".to_string(), json!(input.pointer_y_i32));
     out.insert("dt".to_string(), json!(input.dt.to_string()));
+    out.insert(
+        "frame_source".to_string(),
+        json!(input.frame_source.label()),
+    );
     out.insert("rng_seed".to_string(), json!(input.rng_seed));
     if let Some(base_seed) = rng_base_seed {
         out.insert("rng_base_seed".to_string(), json!(base_seed));

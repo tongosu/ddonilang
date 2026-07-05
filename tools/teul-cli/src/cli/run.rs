@@ -9,6 +9,7 @@ use std::sync::atomic::Ordering;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use blake3;
+use ddonirang_core::InputSource;
 use serde_json::json;
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
@@ -740,6 +741,7 @@ struct NetEventDet {
     seq: u64,
     order_key: String,
     payload: String,
+    source: InputSource,
 }
 
 struct LivePlaybackWriter {
@@ -833,8 +835,19 @@ impl SamPlan {
         OpenInputFrame::new(held, pressed, released)
     }
 
-    fn apply_frame(&mut self, state: &mut State, madi: u64, frame: OpenInputFrame) {
+    fn apply_frame(
+        &mut self,
+        state: &mut State,
+        madi: u64,
+        frame: OpenInputFrame,
+        frame_source: InputSource,
+    ) {
         clear_sam_keys(state);
+        set_flag_text(
+            state,
+            "샘.입력원천.프레임".to_string(),
+            frame_source.label().to_string(),
+        );
         apply_keyboard_mask(
             state,
             frame.held_mask,
@@ -1014,6 +1027,7 @@ fn read_net_events_detjson(path: &Path) -> Result<Vec<NetEventDet>, String> {
                 seq,
                 order_key,
                 payload,
+                source: InputSource::ExternalTask,
             });
         }
     }
@@ -1080,12 +1094,19 @@ fn apply_net_events(state: &mut State, net_events: Option<&[NetEventDet]>, madi:
     if madi != 0 {
         set_flag_number(state, "샘.네트워크.이벤트_개수".to_string(), 0);
         set_flag_text(state, "샘.네트워크.이벤트_요약".to_string(), String::new());
+        set_flag_text(
+            state,
+            "샘.네트워크.이벤트_원천요약".to_string(),
+            String::new(),
+        );
         return;
     }
     let mut summary = String::new();
+    let mut source_summary = String::new();
     for (idx, event) in net_events.iter().enumerate() {
         if idx > 0 {
             summary.push('\n');
+            source_summary.push('\n');
         }
         summary.push_str(&event.sender);
         summary.push('\t');
@@ -1094,6 +1115,7 @@ fn apply_net_events(state: &mut State, net_events: Option<&[NetEventDet]>, madi:
         summary.push_str(&event.order_key);
         summary.push('\t');
         summary.push_str(&event.payload);
+        source_summary.push_str(event.source.label());
     }
     set_flag_number(
         state,
@@ -1101,6 +1123,11 @@ fn apply_net_events(state: &mut State, net_events: Option<&[NetEventDet]>, madi:
         net_events.len() as i64,
     );
     set_flag_text(state, "샘.네트워크.이벤트_요약".to_string(), summary);
+    set_flag_text(
+        state,
+        "샘.네트워크.이벤트_원천요약".to_string(),
+        source_summary,
+    );
 }
 
 fn key_aliases(key: &str) -> &'static [&'static str] {
@@ -1144,8 +1171,18 @@ fn apply_keyboard_mask(state: &mut State, held: u16, pressed: u16, released: u16
     }
 }
 
-fn apply_input_frame(state: &mut State, madi: u64, frame: OpenInputFrame) {
+fn apply_input_frame(
+    state: &mut State,
+    madi: u64,
+    frame: OpenInputFrame,
+    frame_source: InputSource,
+) {
     clear_sam_keys(state);
+    set_flag_text(
+        state,
+        "샘.입력원천.프레임".to_string(),
+        frame_source.label().to_string(),
+    );
     apply_keyboard_mask(
         state,
         frame.held_mask,
@@ -1176,6 +1213,8 @@ fn build_geoul_snapshot(madi: u64, seed: u64, state: &State) -> InputSnapshotV1 
     let held_mask = read_key_mask(state, "샘.키보드.누르고있음");
     let pressed_mask = read_key_mask(state, "샘.키보드.눌림");
     let released_mask = read_key_mask(state, "샘.키보드.뗌");
+    let frame_source =
+        read_input_source_from_state(state, "샘.입력원천.프레임", InputSource::Person);
     let net_events = read_net_events_from_state(state);
     InputSnapshotV1 {
         madi,
@@ -1183,6 +1222,7 @@ fn build_geoul_snapshot(madi: u64, seed: u64, state: &State) -> InputSnapshotV1 
         pressed_mask,
         released_mask,
         rng_seed: seed,
+        frame_source,
         net_events,
     }
 }
@@ -1281,8 +1321,16 @@ fn read_net_events_from_state(state: &State) -> Vec<NetEventV1> {
     if text.is_empty() {
         return Vec::new();
     }
+    let source_text = match state.get(&Key::new("샘.네트워크.이벤트_원천요약")) {
+        Some(Value::Str(value)) => value.clone(),
+        _ => String::new(),
+    };
+    let sources = source_text
+        .lines()
+        .map(input_source_from_label)
+        .collect::<Vec<_>>();
     let mut events = Vec::new();
-    for line in text.lines() {
+    for (idx, line) in text.lines().enumerate() {
         let mut parts = line.split('\t');
         let sender = parts.next().unwrap_or("").to_string();
         let seq = parts
@@ -1296,9 +1344,33 @@ fn read_net_events_from_state(state: &State) -> Vec<NetEventV1> {
             seq,
             order_key,
             payload,
+            source: sources
+                .get(idx)
+                .copied()
+                .flatten()
+                .unwrap_or(InputSource::Person),
         });
     }
     events
+}
+
+fn read_input_source_from_state(state: &State, key: &str, default: InputSource) -> InputSource {
+    match state.get(&Key::new(key)) {
+        Some(Value::Str(value)) => input_source_from_label(value).unwrap_or(default),
+        _ => default,
+    }
+}
+
+fn input_source_from_label(value: &str) -> Option<InputSource> {
+    match value.trim() {
+        "사람" | "Person" => Some(InputSource::Person),
+        "슬기" | "Seulgi" => Some(InputSource::Seulgi),
+        "밖일" | "ExternalTask" => Some(InputSource::ExternalTask),
+        "일정" | "Schedule" => Some(InputSource::Schedule),
+        "이어전달" | "Relay" => Some(InputSource::Relay),
+        "펼침실행" | "ScenarioExec" => Some(InputSource::ScenarioExec),
+        _ => None,
+    }
 }
 
 fn maybe_override_state_hash(state: &State) -> Option<String> {
@@ -4290,11 +4362,16 @@ where
                 } else {
                     raw_frame
                 };
+                let frame_source = if input_open_active {
+                    InputSource::Relay
+                } else {
+                    InputSource::Person
+                };
                 let (delayed, applied) = latency_queue.schedule_and_take(madi, frame);
                 if let (Some(path), Some(applied)) = (latency_diag_path, applied) {
                     let _ = append_latency_schedule_diag(path, latency_diag_file, madi, applied);
                 }
-                sam_plan.apply_frame(state, madi, delayed);
+                sam_plan.apply_frame(state, madi, delayed, frame_source);
                 Ok(())
             };
         if stop_enabled {
@@ -4328,11 +4405,16 @@ where
                 } else {
                     raw_frame
                 };
+                let frame_source = if input_open_active {
+                    InputSource::Relay
+                } else {
+                    InputSource::Person
+                };
                 let (delayed, applied) = latency_queue.schedule_and_take(madi, frame);
                 if let (Some(path), Some(applied)) = (latency_diag_path, applied) {
                     let _ = append_latency_schedule_diag(path, latency_diag_file, madi, applied);
                 }
-                apply_input_frame(state, madi, delayed);
+                apply_input_frame(state, madi, delayed, frame_source);
                 Ok(())
             };
         evaluator
@@ -4353,7 +4435,7 @@ where
                 if let (Some(path), Some(applied)) = (latency_diag_path, applied) {
                     let _ = append_latency_schedule_diag(path, latency_diag_file, madi, applied);
                 }
-                apply_input_frame(state, madi, delayed);
+                apply_input_frame(state, madi, delayed, InputSource::Relay);
                 Ok(())
             };
         if stop_enabled {

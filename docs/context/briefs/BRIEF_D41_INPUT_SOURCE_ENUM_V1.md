@@ -77,3 +77,61 @@ pub enum InputSource {
 ## 보고 형식
 
 이 파일 하단 `## 실행 보고`: 변경 파일 목록, 각 태그 부착 지점 파일:행, golden 영향 표, 검증 결과.
+
+## 실행 보고
+
+### 변경 파일 목록
+
+- `core/src/platform.rs`: `InputSource` 6값 enum, `SeulgiPacket.source`, `NetEvent.source`, `InputSnapshot.frame_source`, DetSam 태그 부착.
+- `core/src/seulgi/latency.rs`: `ScheduledPacket.source` 추가 및 지연 배달 `Schedule` 태그.
+- `core/src/lib.rs`, `core/Cargo.toml`, `Cargo.lock`: `InputSource` re-export 및 `serde` derive 의존성.
+- `tool/src/main.rs`, `tool/src/wasm_api.rs`: replay/open/wasm 입력 프레임 및 AI 주입 태그 부착.
+- `tools/teul-cli/src/core/geoul.rs`, `tools/teul-cli/src/cli/run.rs`, `tools/teul-cli/src/cli/sam_snapshot.rs`, `tools/teul-cli/Cargo.lock`: 거울 기록 `ISRC` 확장, 누락 필드 `Person` 기본값, CLI 상태 복원/보존.
+- `core/src/tests/sam_volatility.rs`: 새 구조체 필드 테스트 fixture 보정.
+- `pack/nuri_gym_canon_contract_v1/*`: 입력원천 거울 확장에 따른 감사/데이터셋 hash golden 갱신.
+
+### 태그 부착 지점
+
+| 구분 | 위치 | 태그 |
+|---|---|---|
+| enum 정의 | `core/src/platform.rs:836` | `Person/Seulgi/ExternalTask/Schedule/Relay/ScenarioExec` |
+| `SeulgiPacket.source` | `core/src/platform.rs:888` | 필드 추가 |
+| `NetEvent.source` | `core/src/platform.rs:917` | 필드 추가 |
+| `InputSnapshot.frame_source` | `core/src/platform.rs:953` | 필드 추가 |
+| 일반 net event | `core/src/platform.rs:1155` | `ExternalTask` |
+| 일반 입력 프레임 | `core/src/platform.rs:1176` | `Person` |
+| 일반 AI 주입 | `core/src/platform.rs:1194` | `Seulgi` |
+| 지연 배달 packet | `core/src/seulgi/latency.rs:64` | `Schedule` |
+| WASM AI pending | `tool/src/wasm_api.rs:504` | `Seulgi` |
+| WASM 입력 프레임 | `tool/src/wasm_api.rs:519`, `tool/src/wasm_api.rs:602` | `Person` |
+| replay net event | `tool/src/main.rs:2493` | `Relay` |
+| replay 입력 프레임 | `tool/src/main.rs:2505` | `Relay` |
+| tool 입력 프레임 | `tool/src/main.rs:3627`, `tool/src/main.rs:4186` | `Person` |
+| CLI 외부 net event | `tools/teul-cli/src/cli/run.rs:1030` | `ExternalTask` |
+| CLI open/relay 입력 | `tools/teul-cli/src/cli/run.rs:4366`, `tools/teul-cli/src/cli/run.rs:4409`, `tools/teul-cli/src/cli/run.rs:4438` | `Relay` |
+| sam snapshot replay | `tools/teul-cli/src/cli/sam_snapshot.rs:35` | `Relay` |
+| 거울 기록 확장 | `tools/teul-cli/src/core/geoul.rs:14` | `ISRC` extension |
+
+정렬 키 보존 확인: `core/src/platform.rs:893`의 `SeulgiPacket::stable_sort_key`는 `(agent_id, recv_seq)` 유지, `core/src/platform.rs:921`의 `NetEvent::stable_sort_key`는 `(sender, seq, order_key, payload_detjson)` 유지. `source`/`frame_source`는 정렬 키에 넣지 않았다.
+
+`ScenarioExec` 미배선 확인: `rg -n "source:\s*InputSource::ScenarioExec|frame_source:\s*InputSource::ScenarioExec|=\s*InputSource::ScenarioExec" core/src tool/src tools/teul-cli/src -g "*.rs"` 결과 없음. `tools/teul-cli/src/cli/run.rs`의 라벨 파싱 매핑은 기록 복원용 매핑이며 실제 생성 배선이 아니다.
+
+### golden 영향
+
+| pack | 영향 | 갱신 사유 |
+|---|---|---|
+| `nuri_gym_canon_contract_v1` | `expected/run_stdout.txt`, `expected/export_stdout.txt`, `expected/dataset_hash.txt`, `RUN_LOG.txt`, `SHA256SUMS.txt` | `InputSnapshot` 거울 바이트에 `ISRC` 입력원천 확장 블록이 추가되어 audit hash가 `blake3:2a7e18...`에서 `blake3:f29dcc...`로 바뀌고, 이를 source hash로 쓰는 dataset hash가 `sha256:34289c...`에서 `sha256:2f22ef...`로 연쇄 변경됨. |
+
+`python tests/run_pack_golden.py --all --report-out build/reports/q31_pack_golden_all.detjson --report-summary-only`는 300초 제한으로 완료 전 중단되었고, 생성된 `proof.actual...` 임시 산출물은 제거했다. 이후 `core_lang`에서 실제 실패 pack을 `nuri_gym_canon_contract_v1` 하나로 특정했고, `ISRC` 확장 원인 확인 후 이 pack 하나만 `--update`했다.
+
+### 검증 결과
+
+| 명령 | 결과 |
+|---|---|
+| `cargo check` | PASS |
+| `cargo test --manifest-path tools/teul-cli/Cargo.toml` | PASS (1093 tests) |
+| `cargo test -p ddonirang-core` | FAIL: 기존 `fixed64_lint_gate_no_float_in_core`가 `core/src/fixed64.rs:125`의 `from_f64_lossy(value: f64)`를 잡음. Q31 변경과 무관하며 allow marker/allowlist성 변경 금지 때문에 수정하지 않음. |
+| `cargo test -p ddonirang-core --lib -- --skip fixed64_lint_gate_no_float_in_core` | PASS (52 tests, 1 filtered out) |
+| `python tests/run_pack_golden.py nuri_gym_canon_contract_v1 --report-out build/reports/q31_nuri_gym_canon_contract_after_update.detjson --report-summary-only` | PASS |
+| `python tests/run_ci_sanity_gate.py --profile core_lang` | PASS |
+| `git diff --check` | PASS (CRLF warning only) |

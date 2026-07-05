@@ -2,6 +2,7 @@ use core::cmp::Ordering;
 use std::collections::{BTreeMap, VecDeque};
 
 use blake3::hash;
+use serde::{Deserialize, Serialize};
 use xxhash_rust::xxh3::xxh3_64;
 
 use crate::fixed64::Fixed64;
@@ -831,12 +832,60 @@ impl SeulgiIntent {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum InputSource {
+    Person,       // 사람
+    Seulgi,       // 슬기
+    ExternalTask, // 밖일
+    Schedule,     // 일정
+    Relay,        // 이어전달
+    #[allow(dead_code)]
+    ScenarioExec, // 펼침실행: 예약, 미배선
+}
+
+impl InputSource {
+    pub fn code_u8(self) -> u8 {
+        match self {
+            InputSource::Person => 0,
+            InputSource::Seulgi => 1,
+            InputSource::ExternalTask => 2,
+            InputSource::Schedule => 3,
+            InputSource::Relay => 4,
+            InputSource::ScenarioExec => 5,
+        }
+    }
+
+    pub fn from_code_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(InputSource::Person),
+            1 => Some(InputSource::Seulgi),
+            2 => Some(InputSource::ExternalTask),
+            3 => Some(InputSource::Schedule),
+            4 => Some(InputSource::Relay),
+            5 => Some(InputSource::ScenarioExec),
+            _ => None,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            InputSource::Person => "사람",
+            InputSource::Seulgi => "슬기",
+            InputSource::ExternalTask => "밖일",
+            InputSource::Schedule => "일정",
+            InputSource::Relay => "이어전달",
+            InputSource::ScenarioExec => "펼침실행",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SeulgiPacket {
     pub agent_id: u64,
     pub recv_seq: u64,
     pub accepted_madi: u64,
     pub target_madi: u64,
+    pub source: InputSource,
     pub intent: SeulgiIntent,
 }
 
@@ -865,6 +914,7 @@ pub struct NetEvent {
     pub seq: u64,
     pub order_key: String,
     pub payload_detjson: String,
+    pub source: InputSource,
 }
 
 impl NetEvent {
@@ -900,6 +950,7 @@ pub struct InputSnapshot {
     pub pointer_y_i32: i32,
     pub ai_injections: Vec<SeulgiPacket>,
     pub net_events: Vec<NetEvent>,
+    pub frame_source: InputSource,
     pub rng_seed: u64,
 }
 
@@ -1101,6 +1152,7 @@ impl DetSam {
             seq,
             order_key: order_key.into(),
             payload_detjson: payload_detjson.into(),
+            source: InputSource::ExternalTask,
         });
     }
 }
@@ -1121,6 +1173,7 @@ impl Sam for DetSam {
             pointer_y_i32: self.pointer_y_i32,
             ai_injections: ai,
             net_events,
+            frame_source: InputSource::Person,
             rng_seed: self.rng_seed,
         }
     }
@@ -1138,6 +1191,7 @@ impl Sam for DetSam {
             recv_seq,
             accepted_madi,
             target_madi,
+            source: InputSource::Seulgi,
             intent,
         });
     }

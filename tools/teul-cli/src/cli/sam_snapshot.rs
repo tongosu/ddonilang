@@ -5,6 +5,7 @@ use crate::core::state::Key;
 use crate::core::unit::UnitDim;
 use crate::core::value::{Quantity, Value};
 use crate::core::State;
+use ddonirang_core::InputSource;
 
 pub fn apply_snapshot(state: &mut State, snapshot: &InputSnapshotV1) {
     clear_sam_keys(state);
@@ -31,6 +32,7 @@ pub fn snapshot_from_held_mask(
         pressed_mask,
         released_mask,
         rng_seed: seed,
+        frame_source: InputSource::Relay,
         net_events: Vec::new(),
     }
 }
@@ -95,6 +97,11 @@ fn apply_net_events(state: &mut State, net_events: &[NetEventV1]) {
     if net_events.is_empty() {
         set_flag_number(state, "샘.네트워크.이벤트_개수".to_string(), 0);
         set_flag_text(state, "샘.네트워크.이벤트_요약".to_string(), String::new());
+        set_flag_text(
+            state,
+            "샘.네트워크.이벤트_원천요약".to_string(),
+            String::new(),
+        );
         return;
     }
     let mut summary = String::new();
@@ -110,12 +117,22 @@ fn apply_net_events(state: &mut State, net_events: &[NetEventV1]) {
         summary.push('\t');
         summary.push_str(&event.payload);
     }
+    let source_summary = net_events
+        .iter()
+        .map(|event| event.source.label())
+        .collect::<Vec<_>>()
+        .join("\n");
     set_flag_number(
         state,
         "샘.네트워크.이벤트_개수".to_string(),
         net_events.len() as i64,
     );
     set_flag_text(state, "샘.네트워크.이벤트_요약".to_string(), summary);
+    set_flag_text(
+        state,
+        "샘.네트워크.이벤트_원천요약".to_string(),
+        source_summary,
+    );
 }
 
 fn set_flag_number(state: &mut State, key: String, value: i64) {

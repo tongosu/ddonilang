@@ -3,6 +3,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 use blake3;
+use ddonirang_core::InputSource;
 
 use crate::core::detbin::encode_state;
 use crate::core::state::State;
@@ -10,6 +11,8 @@ use crate::core::state::State;
 const AUDIT_MAGIC: &[u8; 4] = b"DDNI";
 const AUDIT_VERSION: u16 = 1;
 const SNAPSHOT_MAGIC: &[u8; 11] = b"DDN_SAM_V1\n";
+const SNAPSHOT_SOURCE_EXT_MAGIC: &[u8; 4] = b"ISRC";
+const SNAPSHOT_SOURCE_EXT_VERSION: u8 = 1;
 
 pub const DEFAULT_CHECKPOINT_STRIDE: u64 = 256;
 
@@ -70,6 +73,7 @@ pub struct NetEventV1 {
     pub seq: u64,
     pub order_key: String,
     pub payload: String,
+    pub source: InputSource,
 }
 
 #[derive(Clone, Debug)]
@@ -79,6 +83,7 @@ pub struct InputSnapshotV1 {
     pub pressed_mask: u16,
     pub released_mask: u16,
     pub rng_seed: u64,
+    pub frame_source: InputSource,
     pub net_events: Vec<NetEventV1>,
 }
 
@@ -96,6 +101,13 @@ pub fn encode_input_snapshot(snapshot: &InputSnapshotV1) -> Vec<u8> {
         out.extend_from_slice(&event.seq.to_le_bytes());
         push_str(&mut out, &event.order_key);
         push_str(&mut out, &event.payload);
+    }
+    out.extend_from_slice(SNAPSHOT_SOURCE_EXT_MAGIC);
+    out.push(SNAPSHOT_SOURCE_EXT_VERSION);
+    out.push(snapshot.frame_source.code_u8());
+    out.extend_from_slice(&(snapshot.net_events.len() as u32).to_le_bytes());
+    for event in &snapshot.net_events {
+        out.push(event.source.code_u8());
     }
     out
 }
@@ -127,7 +139,32 @@ pub fn decode_input_snapshot(bytes: &[u8]) -> Result<InputSnapshotV1, String> {
             seq,
             order_key,
             payload,
+            source: InputSource::Person,
         });
+    }
+    let mut frame_source = InputSource::Person;
+    if idx < bytes.len() {
+        if idx.saturating_add(SNAPSHOT_SOURCE_EXT_MAGIC.len() + 1 + 1 + 4) > bytes.len() {
+            return Err("snapshot detbin source extension EOF".to_string());
+        }
+        if &bytes[idx..idx + SNAPSHOT_SOURCE_EXT_MAGIC.len()] != SNAPSHOT_SOURCE_EXT_MAGIC {
+            return Err("snapshot detbin source extension magic 불일치".to_string());
+        }
+        idx += SNAPSHOT_SOURCE_EXT_MAGIC.len();
+        let version = read_u8_slice(bytes, &mut idx)?;
+        if version != SNAPSHOT_SOURCE_EXT_VERSION {
+            return Err(format!(
+                "snapshot detbin source extension version 불일치: {version}"
+            ));
+        }
+        frame_source = decode_input_source(read_u8_slice(bytes, &mut idx)?)?;
+        let source_count = read_u32_slice(bytes, &mut idx)? as usize;
+        if source_count != net_events.len() {
+            return Err("snapshot detbin source extension event count 불일치".to_string());
+        }
+        for event in &mut net_events {
+            event.source = decode_input_source(read_u8_slice(bytes, &mut idx)?)?;
+        }
     }
     if idx != bytes.len() {
         return Err("snapshot detbin에 여분 바이트가 있습니다".to_string());
@@ -138,6 +175,7 @@ pub fn decode_input_snapshot(bytes: &[u8]) -> Result<InputSnapshotV1, String> {
         pressed_mask,
         released_mask,
         rng_seed,
+        frame_source,
         net_events,
     })
 }
@@ -659,6 +697,15 @@ fn read_u64(file: &mut File) -> Result<u64, String> {
     Ok(u64::from_le_bytes(buf))
 }
 
+fn read_u8_slice(bytes: &[u8], idx: &mut usize) -> Result<u8, String> {
+    if *idx >= bytes.len() {
+        return Err("snapshot detbin EOF".to_string());
+    }
+    let out = bytes[*idx];
+    *idx += 1;
+    Ok(out)
+}
+
 fn read_u16_slice(bytes: &[u8], idx: &mut usize) -> Result<u16, String> {
     let end = idx.saturating_add(2);
     if end > bytes.len() {
@@ -715,9 +762,18 @@ fn read_str_slice(bytes: &[u8], idx: &mut usize) -> Result<String, String> {
     Ok(text.to_string())
 }
 
+fn decode_input_source(value: u8) -> Result<InputSource, String> {
+    InputSource::from_code_u8(value)
+        .ok_or_else(|| format!("snapshot detbin input source 코드 오류: {value}"))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_manifest_text, AuditHeader};
+    use super::{
+        build_manifest_text, decode_input_snapshot, encode_input_snapshot, push_str, AuditHeader,
+        InputSnapshotV1, NetEventV1, SNAPSHOT_MAGIC,
+    };
+    use ddonirang_core::InputSource;
 
     #[test]
     fn manifest_includes_seulgi_latency_madi_when_set() {
@@ -765,5 +821,47 @@ mod tests {
         );
         assert!(!text.contains("\"seulgi_latency_madi\""));
         assert!(!text.contains("\"seulgi_latency_drop_policy\""));
+    }
+
+    #[test]
+    fn input_snapshot_source_extension_roundtrips() {
+        let snapshot = InputSnapshotV1 {
+            madi: 7,
+            held_mask: 1,
+            pressed_mask: 1,
+            released_mask: 0,
+            rng_seed: 99,
+            frame_source: InputSource::Relay,
+            net_events: vec![NetEventV1 {
+                sender: "peer".to_string(),
+                seq: 3,
+                order_key: "peer#3".to_string(),
+                payload: "{\"kind\":\"k\"}".to_string(),
+                source: InputSource::ExternalTask,
+            }],
+        };
+        let decoded = decode_input_snapshot(&encode_input_snapshot(&snapshot)).expect("decode");
+        assert_eq!(decoded.frame_source, InputSource::Relay);
+        assert_eq!(decoded.net_events[0].source, InputSource::ExternalTask);
+    }
+
+    #[test]
+    fn input_snapshot_legacy_without_source_defaults_to_person() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(SNAPSHOT_MAGIC);
+        bytes.extend_from_slice(&1u64.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&42u64.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        push_str(&mut bytes, "peer");
+        bytes.extend_from_slice(&1u64.to_le_bytes());
+        push_str(&mut bytes, "peer#1");
+        push_str(&mut bytes, "{\"kind\":\"k\"}");
+
+        let decoded = decode_input_snapshot(&bytes).expect("decode legacy");
+        assert_eq!(decoded.frame_source, InputSource::Person);
+        assert_eq!(decoded.net_events[0].source, InputSource::Person);
     }
 }

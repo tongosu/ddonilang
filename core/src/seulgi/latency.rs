@@ -1,3 +1,5 @@
+use crate::platform::InputSource;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LatencyMode {
     Fixed,
@@ -35,6 +37,7 @@ pub struct LatencySchedule {
 pub struct ScheduledPacket {
     pub accept_madi: u64,
     pub target_madi: u64,
+    pub source: InputSource,
     pub late: bool,
     pub dropped: bool,
 }
@@ -58,6 +61,7 @@ impl ScheduledPacket {
         Self {
             accept_madi: schedule.accept_madi,
             target_madi: schedule.target_madi,
+            source: InputSource::Schedule,
             late,
             dropped: late,
         }

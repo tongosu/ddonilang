@@ -2,8 +2,8 @@ use std::collections::VecDeque;
 
 use crate::{
     platform::{
-        Bogae, DetNuri, InMemoryGeoul, InputSnapshot, Iyagi, Nuri, NuriWorld, Origin, Patch,
-        PatchOp, Sam, SeulgiIntent, SeulgiPacket,
+        Bogae, DetNuri, InMemoryGeoul, InputSnapshot, InputSource, Iyagi, Nuri, NuriWorld, Origin,
+        Patch, PatchOp, Sam, SeulgiIntent, SeulgiPacket,
     },
     signals::VecSignalSink,
     EngineLoop, Fixed64, TickId, KEY_W,
@@ -46,6 +46,7 @@ impl Sam for SequenceSam {
             accepted_madi,
             target_madi,
             intent,
+            source: InputSource::Seulgi,
         });
     }
 }
@@ -96,6 +97,7 @@ fn sam_input_is_tick_scoped_and_requires_copy() {
             pointer_y_i32: 0,
             ai_injections: Vec::new(),
             net_events: Vec::new(),
+            frame_source: InputSource::Person,
             rng_seed: 0,
         },
         InputSnapshot {
@@ -107,6 +109,7 @@ fn sam_input_is_tick_scoped_and_requires_copy() {
             pointer_y_i32: 0,
             ai_injections: Vec::new(),
             net_events: Vec::new(),
+            frame_source: InputSource::Person,
             rng_seed: 0,
         },
     ];

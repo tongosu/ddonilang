@@ -21,8 +21,8 @@ pub use fixed64::Fixed64;
 pub use input::{is_key_just_pressed, is_key_pressed, key_bit_from_name};
 pub use nurigym::spec::{ActionSpec, ObservationSpec};
 pub use platform::{
-    Bogae, ComponentTag, DetSam, EntityId, Geoul, InMemoryGeoul, InputSnapshot, Iyagi, Nuri,
-    NuriWorld, Patch, PatchOp, ResourceMapEntry, ResourceValue, Sam, Seulgi, SeulgiContext,
+    Bogae, ComponentTag, DetSam, EntityId, Geoul, InMemoryGeoul, InputSnapshot, InputSource, Iyagi,
+    Nuri, NuriWorld, Patch, PatchOp, ResourceMapEntry, ResourceValue, Sam, Seulgi, SeulgiContext,
     SeulgiIntent, SeulgiPacket, StateHash, TickFrame, KEY_A, KEY_D, KEY_S, KEY_W,
 };
 pub use realms::{mix64, MultiRealmManager, Realm, RealmStepInput, RealmStepOutput, ThreadMode};

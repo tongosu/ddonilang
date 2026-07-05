@@ -18,8 +18,8 @@ use ddonirang_core::{
     platform::{Bogae, DetNuri, DetSam, InMemoryGeoul, Iyagi, Origin, Patch, PatchOp, Sam},
     resource_tag_with_unit,
     signals::{DiagEvent, Signal, TickId, VecSignalSink},
-    EngineLoop, Fixed64, Geoul, InputSnapshot, Nuri, ResourceValue, Unit, KEY_A, KEY_D, KEY_S,
-    KEY_W,
+    EngineLoop, Fixed64, Geoul, InputSnapshot, InputSource, Nuri, ResourceValue, Unit, KEY_A,
+    KEY_D, KEY_S, KEY_W,
 };
 use ddonirang_lang::runtime::Value;
 use ddonirang_lang::{canonicalize, normalize, parse_with_mode, NormalizationLevel, ParseMode};
@@ -2490,6 +2490,7 @@ fn log_to_snapshots(log: &ReplayLog) -> Vec<(InputSnapshot, String)> {
                     order_key: event.order_key.clone(),
                     payload_detjson: serde_json::to_string(&event.payload)
                         .expect("net_events payload serialize"),
+                    source: InputSource::Relay,
                 })
                 .collect();
             let snapshot = InputSnapshot {
@@ -2501,6 +2502,7 @@ fn log_to_snapshots(log: &ReplayLog) -> Vec<(InputSnapshot, String)> {
                 pointer_y_i32: frame.pointer_y_i32,
                 ai_injections: Vec::new(),
                 net_events,
+                frame_source: InputSource::Relay,
                 rng_seed: frame.rng_seed,
             };
             (snapshot, frame.state_hash.clone())
@@ -3622,6 +3624,7 @@ fn run_eco_model_series(
             pointer_y_i32: 0,
             ai_injections: Vec::new(),
             net_events: Vec::new(),
+            frame_source: InputSource::Person,
             rng_seed: seed,
         };
         let output = runner
@@ -4180,6 +4183,7 @@ fn run_eco_single_model_snapshot(
             pointer_y_i32: 0,
             ai_injections: Vec::new(),
             net_events: Vec::new(),
+            frame_source: InputSource::Person,
             rng_seed: seed,
         };
         let output = runner

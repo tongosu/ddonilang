@@ -1,2 +1,2 @@
-python tests/run_pack_golden.py nuri_gym_canon_contract_v1 nuri_gym_gridworld_v1 --update
+python tests/run_pack_golden.py nuri_gym_canon_contract_v1 --update --report-out build/reports/q31_nuri_gym_canon_contract_update.detjson --report-summary-only
 pack golden updated
