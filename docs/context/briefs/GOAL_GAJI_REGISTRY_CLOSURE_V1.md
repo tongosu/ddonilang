@@ -80,3 +80,12 @@
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_lock_recursively_finds_nested_packages` PASS — `1 passed; 0 failed`.
   - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji lock --root . --out out/gaji-registry-closure/m1/ddn.lock.post` PASS — `gaji_lock_hash=blake3:e3f182d383cf8237f2bbddc79beccaa4a60bd43dd52058c324318f8535667965`.
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1094 passed; 0 failed`.
+
+## 실행 보고 M2
+
+- 완료: direct `gaji.toml`이 없는 `gaji/` 최상위 디렉터리 19개를 전수 분류했다.
+- 분류 결과: 중첩 부모 2개(`bogae`, `phys`), metadata 누락 패키지 후보 3개(`std_grid`, `std_input_map`, `std_physics_1d`), 문서/예제 skeleton 14개.
+- 제약 준수: metadata 누락 후보에 `gaji.toml`을 만들지 않았고, 코드도 수정하지 않았다.
+- 산출물: `docs/context/reports/GAJI_REGISTRY_CLOSURE_V1.md`의 M2 표.
+- 실행:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1094 passed; 0 failed`.

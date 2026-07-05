@@ -48,3 +48,56 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1093 filtered out
 cargo test --manifest-path tools/teul-cli/Cargo.toml
 test result: ok. 1094 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
+
+## M2 — 메타데이터 없는 top-level 디렉터리 분류
+
+### 범위
+
+- `gaji/` 최상위 디렉터리: 30개.
+- direct `gaji.toml` 보유: 11개.
+- direct `gaji.toml` 없음: 19개.
+- 재귀 `gaji.toml`: 13개. 이 중 2개는 `gaji/bogae/space2d`, `gaji/phys/pendulum` 중첩 패키지다.
+
+### 분류 기준
+
+- `중첩 부모`: 최상위 디렉터리 자체에는 `gaji.toml`이 없고, 하위 디렉터리에 실제 패키지 `gaji.toml`이 있다.
+- `패키지 후보`: README가 `가지`/공개 API surface를 설명하고 `ddn/exports.ddn` 같은 package surface 파일이 있지만, metadata가 없다.
+- `문서/예제 skeleton`: README가 `Documentation-only skeleton`, `not loaded by product runtime code`, `does not define a module/import mechanism` 등을 명시하거나, 예제 파일이 pack/제품 경로의 증거를 가리키는 문서용 자산이다.
+
+### 19개 분류표
+
+| top-level | 파일 근거 | 분류 | 메모 |
+|---|---|---|---|
+| `bogae` | `space2d/gaji.toml`, `space2d/ddn/exports.ddn` | 중첩 부모 | M1 이후 실제 패키지는 `gaji/bogae/space2d`로 스캔됨 |
+| `phys` | `pendulum/gaji.toml`, `pendulum/ddn/exports.ddn` | 중첩 부모 | M1 이후 실제 패키지는 `gaji/phys/pendulum`로 스캔됨 |
+| `std_grid` | `ddn/exports.ddn`, README 공개 API | 패키지 후보 | `격자.*` 공개 surface가 있으나 metadata 없음 |
+| `std_input_map` | `ddn/exports.ddn`, README 공개 API | 패키지 후보 | `입력사상.*` 공개 surface가 있으나 metadata 없음 |
+| `std_physics_1d` | `ddn/exports.ddn`, README 공개 API | 패키지 후보 | `물리1d.*` 공개 surface가 있으나 metadata 없음 |
+| `std_block_piece` | `minimum.ddn`, README | 문서/예제 skeleton | README가 product code 미로드와 module/import 부재 명시 |
+| `std_grid_game_bogae_bridge` | `example.ddn`, README | 문서/예제 skeleton | README가 documentation-only skeleton 명시 |
+| `std_grid_game_bogae_browser_dom_smoke` | `example.ddn`, README | 문서/예제 skeleton | README가 runtime 미로드 명시 |
+| `std_grid_game_bogae_browser_input_delivery` | `example.ddn`, README | 문서/예제 skeleton | README가 runtime 미로드 명시 |
+| `std_grid_game_bogae_finite_live_loop` | `example.ddn`, README | 문서/예제 skeleton | README가 runtime 미로드 명시 |
+| `std_grid_game_bogae_live_bridge` | `example.ddn`, README | 문서/예제 skeleton | 예제가 pack 경로를 가리키는 documentation-only pointer |
+| `std_grid_game_bogae_viewer_js_dom` | `example.ddn`, README | 문서/예제 skeleton | 예제가 pack 경로를 가리키는 documentation-only pointer |
+| `std_grid_game_bogae_web_playback` | `example.ddn`, README | 문서/예제 skeleton | 예제가 pack 입력을 실행 증거로 가리킴 |
+| `std_grid_game_bogae_web_showcase` | `example.ddn`, README | 문서/예제 skeleton | README가 runtime 미로드와 module/import 부재 명시 |
+| `std_grid_game_playable` | `minimum.ddn`, README | 문서/예제 skeleton | README가 product code 미로드 명시 |
+| `std_grid_game_playable_view` | `example.ddn`, README | 문서/예제 skeleton | README가 runtime 미로드 명시 |
+| `std_grid_game_rules_minimum` | `example.ddn`, README | 문서/예제 skeleton | README가 runtime 미로드 명시 |
+| `std_grid_game_state` | `minimum.ddn`, README | 문서/예제 skeleton | README가 product code 미로드와 module/import 부재 명시 |
+| `std_random_bag` | `minimum.ddn`, README | 문서/예제 skeleton | README가 product code 미로드와 module/import 부재 명시 |
+
+### 판정 요약
+
+- metadata 없는 19개 중 `bogae`, `phys` 2개는 중첩 패키지 부모라 top-level `gaji.toml`을 만들 대상이 아니다.
+- `std_grid`, `std_input_map`, `std_physics_1d` 3개는 실제 패키지 후보지만, 브리프 제약에 따라 `gaji.toml`을 만들지 않고 후보로만 보고한다.
+- 나머지 14개는 README/예제 기준 문서 또는 예제 skeleton이며, 현 시점에서 install/discover 대상 패키지로 분류하지 않는다.
+- M2에서는 `gaji.toml`을 추가하지 않았다.
+
+### 검증
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml
+test result: ok. 1094 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
