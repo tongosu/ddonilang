@@ -59,8 +59,29 @@ D49(`설정.누리` 스펙), D46 세부 설계(`슬기.의도{}`), Q19 "통합"/
 
 ## 실행 보고 A
 
-(항목 A 완료 시 여기에)
+- 항목: DEV_SUMMARY 아카이브 분리 회귀 확인.
+- 기준선: `26d8d2b` (Q31, `DEV_SUMMARY_ARCHIVE_20260706.md` 분리 직전).
+- 현 지점: `d05c7ff` (`codex/queue-20260706`).
+- 참조 수집: `DEV_SUMMARY.md`, `DEV_SUMMARY`, `Development Summary`, `또니랑 Codex 개발 요약` 토큰 기준.
+- 실측 범위: 참조 파일 184개 = `tests/run_*.py` 180개 + 비실행 참조 4개.
+- 결과: 새 FAIL 0개. 동일 결과 167개, 기준선 FAIL -> 현 PASS 13개.
+- 검증: `python tests/run_ci_sanity_gate.py --profile core_lang` PASS (`ci_sanity_status=pass`).
+- 산출물: `docs/context/reports/DEV_SUMMARY_SPLIT_REGRESSION_CHECK_V1.md`.
 
 ## 실행 보고 B
 
-(항목 B 완료 시 여기에)
+- 항목: SSOT §7.3 흐름씨-훅 위상 분리(P1~P6) 제품 코드 검증.
+- 검증 대상: `tools/teul-cli/src/cli/frontdoor_parse.rs`, `tools/teul-cli/src/lang/{token,lexer,parser}.rs`, `tools/teul-cli/src/runtime/eval.rs`, `pack/lang_flow_hook_interaction_v1`.
+- 직접 실행: `cargo run --manifest-path tools/teul-cli/Cargo.toml -- run pack/lang_flow_hook_interaction_v1/cases/<case>/input.ddn` 4건.
+- 결과: 4건 모두 `E_PARSE_EXPECTED_EXPR`로 실패. 제품 teul-cli 경로에서 `<<-`가 단일 흐름씨 토큰/문장으로 파싱되지 않아 fixed-point runtime 단계까지 도달하지 않는다.
+- 지원 체커: `python tests/run_lang_flow_hook_interaction_pack_check.py` PASS. 단, docs-first contract/expected 파일 검사이며 제품 실행 검사는 아니다.
+- 판단: P1~P6는 현재 제품 실행 기준 behavior-closed가 아니다. 코드 수정 없이 진단 보고만 수행했다.
+- 산출물: `docs/context/reports/FLOW_HOOK_PHASE_SEPARATION_VERIFICATION_V1.md`.
+
+## Goal 종료 보고
+
+- 항목 A: 완료. DEV_SUMMARY split 이후 새 FAIL 0개, `core_lang` PASS.
+- 항목 B: 완료. §7.3 P1~P6 제품 코드 실측 결과, teul-cli 제품 경로는 `<<-` 미랜딩으로 런타임 의미를 집행하지 못함을 확인.
+- 커밋(원본 `codex/queue-20260706` 브랜치, main 병합 시 리포트 파일만 반영하고 브리프 본문은 이 파일로 재합류): `[GOAL-A] DEV_SUMMARY split regression check`(`545d3db`), `[GOAL-B] Flow hook phase separation verification`(`fc3e484`).
+- 금지 준수: main 직접 커밋/push 없음, 네트워크 없음, 코드/팩/golden/checker 수정 없음.
+- 참고: 실행 당시 Codex 로컬 체크아웃이 이 브리프 파일의 최신 버전(Outcome/Verification/Constraints 포함)을 갖고 있지 않아, 실행 보고만 담긴 축약본을 별도로 커밋했다. Claude가 병합 시 원본 스펙에 실행 보고를 재합류했다.
