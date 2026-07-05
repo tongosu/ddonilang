@@ -206,6 +206,10 @@
 
 `docs/context/briefs/BRIEF_ECOSYSTEM_CONTRACT_VERIFICATION_V1.md` 그대로 실행. `PROPOSAL_ECOSYSTEM_LAYER_CONTRACT_V1_20260705.md`의 D39(이야기/누리 순수 DDN)/D40(보개 읽기전용)/D41(입력원천 샘 경유) 주장이 실제 코드와 맞는지 조사만 한다. 위반 발견해도 그 자리에서 고치지 말고 보고만.
 
+## Q29(신) — 관찰자/변경자 경계 실측 조사 [진단 전용, 코드 수정 없음]
+
+`docs/context/briefs/BRIEF_OBSERVER_MUTATOR_BOUNDARY_SURVEY_V1.md` 그대로 실행. Q28이 찾은 D40(관찰자/변경자 미분리)/D41(6원천 enum 없음) 문제를 Claude가 수리 설계하는 데 쓸 실측 지도(호출부 표, 입력원천별 코드 경로 표)만 만든다. 설계·수정 없음 — 지도만.
+
 ---
 
 ## 큐 완료 보고
