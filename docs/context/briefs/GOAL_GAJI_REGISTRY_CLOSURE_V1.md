@@ -102,3 +102,15 @@
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_publish_requires_archive_sha_or_package_dir` PASS — `1 passed; 0 failed`.
   - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry publish --index out/gaji-registry-closure/m3/registry.index.json --scope gaji --name std_math --version 0.1.0 --package-dir gaji/std_math --token token1 --role publisher --at 2026-02-19T00:00:00Z` PASS.
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1096 passed; 0 failed`.
+
+## 실행 보고 M4
+
+- 완료: `gaji registry download`에 `--vendor-out <dir>` 선택 인자를 추가해 archive 다운로드 후 `vendor-out/<name>`으로 해제하게 했다.
+- 호환성: 기존 `--out` archive 파일 출력은 유지한다. `--vendor-out`을 주지 않으면 기존 download 동작만 수행한다.
+- vendor 배치: 일반 사용은 `--vendor-out vendor/gaji`이며 결과는 `vendor/gaji/<name>`이다. 기존 vendor 전체가 아니라 해당 package 디렉터리만 교체한다.
+- 안전성: zip entry는 상대 경로만 허용하고, 해제 후 `gaji.toml` 존재를 확인한다.
+- 실제 실측: `gaji/std_math`를 M4 로컬 registry에 publish한 뒤 `download --vendor-out out/gaji-registry-closure/m4/vendor/gaji` 실행. `registry_download_vendor_files=3`, `vendor_gaji_toml_exists=true`, `vendor_exports_exists=true`.
+- 실행:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_download_vendor_out_unpacks_package_archive` PASS — `1 passed; 0 failed`.
+  - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry download --index out/gaji-registry-closure/m4/registry.index.json --scope gaji --name std_math --version 0.1.0 --out out/gaji-registry-closure/m4/download/std_math.zip --vendor-out out/gaji-registry-closure/m4/vendor/gaji` PASS.
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1097 passed; 0 failed`.

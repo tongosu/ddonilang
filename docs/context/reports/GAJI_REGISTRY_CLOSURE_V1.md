@@ -160,3 +160,57 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1095 filtered out
 cargo test --manifest-path tools/teul-cli/Cargo.toml
 test result: ok. 1096 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
+
+## M4 — download unpack/vendor 연결
+
+### 변경
+
+- `teul-cli gaji registry download`에 선택형 `--vendor-out <dir>`를 추가했다.
+- 기존 download archive 파일 출력(`--out`)은 그대로 유지한다.
+- `--vendor-out`이 주어지면 받은 archive bytes를 `vendor-out/<name>`에 zip 해제한다. 일반 사용 형태는 `--vendor-out vendor/gaji`이고 결과는 `vendor/gaji/<name>`이다.
+- 기존 vendor와 공존하도록 `vendor-out` 전체가 아니라 해당 package 디렉터리만 교체한다.
+- zip-slip 방지를 위해 archive entry는 안전한 상대 경로만 허용한다.
+- 해제 후 `gaji.toml` 존재를 확인해 gaji package archive인지 검증한다.
+
+### 실제 저장소 패키지 실측
+
+`gaji/std_math`를 publish한 뒤 같은 registry에서 download + vendor unpack을 실행했다.
+
+```text
+cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry publish --index out/gaji-registry-closure/m4/registry.index.json --scope gaji --name std_math --version 0.1.0 --package-dir gaji/std_math --token token1 --role publisher --at 2026-02-19T00:00:00Z
+registry_publish_ok=gaji/std_math@0.1.0
+registry_publish_archive_out=out\gaji-registry-closure\m4\archives\gaji__std_math__0.1.0.zip
+registry_publish_archive_sha256=sha256:73943e7c3c814cfeb28f9231854d29fb4b4a9bd81c7e34ea7669f5cd983a0ac0
+registry_publish_download_url=archives/gaji__std_math__0.1.0.zip
+```
+
+```text
+cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry download --index out/gaji-registry-closure/m4/registry.index.json --scope gaji --name std_math --version 0.1.0 --out out/gaji-registry-closure/m4/download/std_math.zip --vendor-out out/gaji-registry-closure/m4/vendor/gaji
+registry_download_vendor_out=out\gaji-registry-closure\m4\vendor\gaji\std_math
+registry_download_vendor_files=3
+registry_download_ok=gaji/std_math@0.1.0
+registry_download_source=file://out\gaji-registry-closure\m4\archives/gaji__std_math__0.1.0.zip
+registry_download_out=out\gaji-registry-closure\m4\download\std_math.zip
+registry_download_archive_sha256=sha256:73943e7c3c814cfeb28f9231854d29fb4b4a9bd81c7e34ea7669f5cd983a0ac0
+```
+
+파일 확인:
+
+```text
+download_archive_exists=true
+vendor_gaji_toml_exists=true
+vendor_exports_exists=true
+vendor_file_count=3
+```
+
+### 검증
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_download_vendor_out_unpacks_package_archive
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1096 filtered out
+```
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml
+test result: ok. 1097 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```

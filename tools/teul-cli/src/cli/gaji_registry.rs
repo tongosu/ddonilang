@@ -25,7 +25,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use zip::write::FileOptions;
-use zip::{CompressionMethod, DateTime, ZipWriter};
+use zip::{CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 pub const VERIFY_DUPLICATE_RESOLUTION_POLICY: &str =
     "non_yanked_then_pin_score_then_normalized_entry_key";
@@ -86,6 +86,7 @@ pub struct DownloadOptions {
     pub cache_dir: Option<PathBuf>,
     pub offline: bool,
     pub allow_http: bool,
+    pub vendor_out: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -231,6 +232,8 @@ enum RegistryCommand {
         offline: bool,
         #[arg(long = "allow-http")]
         allow_http: bool,
+        #[arg(long = "vendor-out")]
+        vendor_out: Option<std::path::PathBuf>,
         #[arg(long = "frozen-lockfile")]
         frozen_lockfile: bool,
         #[arg(long = "expect-snapshot-id")]
@@ -443,6 +446,7 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
             cache_dir,
             offline,
             allow_http,
+            vendor_out,
             frozen_lockfile,
             expect_snapshot_id,
             expect_index_root_hash,
@@ -469,6 +473,7 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
                     cache_dir,
                     offline,
                     allow_http,
+                    vendor_out,
                 },
             )
         }
@@ -1605,6 +1610,13 @@ pub fn run_download_with_options(
             Some("download 산출물 파일 쓰기 권한/경로를 확인하세요.".to_string()),
         )
     })?;
+
+    if let Some(vendor_out) = options.vendor_out.as_deref() {
+        let package_dir = vendor_out.join(vendor_package_dir_name(name)?);
+        let unpacked = unpack_package_archive_to_vendor(&bytes, &package_dir)?;
+        println!("registry_download_vendor_out={}", package_dir.display());
+        println!("registry_download_vendor_files={}", unpacked);
+    }
 
     let actual_sha256 = sha256_hex_prefixed(&bytes);
     println!("registry_download_ok={}/{}@{}", scope, name, version);
@@ -2759,6 +2771,137 @@ fn download_url_for_archive(index_path: &Path, archive_path: &Path) -> String {
         return rel.to_string_lossy().replace('\\', "/");
     }
     archive_path.to_string_lossy().replace('\\', "/")
+}
+
+fn vendor_package_dir_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty()
+        || trimmed == "."
+        || trimmed == ".."
+        || trimmed.contains('/')
+        || trimmed.contains('\\')
+        || trimmed.contains(':')
+    {
+        return Err(diag::build_diag(
+            "E_REG_DOWNLOAD_VENDOR_NAME",
+            &format!("name={}", name),
+            None,
+            Some(
+                "registry package name은 vendor/gaji 하위 단일 디렉터리 이름이어야 합니다."
+                    .to_string(),
+            ),
+        ));
+    }
+    Ok(trimmed.to_string())
+}
+
+fn unpack_package_archive_to_vendor(bytes: &[u8], package_dir: &Path) -> Result<usize, String> {
+    if package_dir.exists() {
+        fs::remove_dir_all(package_dir).map_err(|e| {
+            diag::build_diag(
+                "E_REG_DOWNLOAD_VENDOR_WRITE",
+                &format!("path={} {}", package_dir.display(), e),
+                None,
+                Some("기존 vendor package 디렉터리 삭제 권한을 확인하세요.".to_string()),
+            )
+        })?;
+    }
+    fs::create_dir_all(package_dir).map_err(|e| {
+        diag::build_diag(
+            "E_REG_DOWNLOAD_VENDOR_WRITE",
+            &format!("path={} {}", package_dir.display(), e),
+            None,
+            Some("vendor package 디렉터리 생성 권한/경로를 확인하세요.".to_string()),
+        )
+    })?;
+
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|e| {
+        diag::build_diag(
+            "E_REG_DOWNLOAD_UNPACK",
+            &format!("zip open failed: {}", e),
+            None,
+            Some("registry archive가 publish 산출 zip인지 확인하세요.".to_string()),
+        )
+    })?;
+    let mut file_count = 0usize;
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|e| {
+            diag::build_diag(
+                "E_REG_DOWNLOAD_UNPACK",
+                &format!("zip entry failed: {}", e),
+                None,
+                Some("registry archive entry를 확인하세요.".to_string()),
+            )
+        })?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = entry.name().to_string();
+        validate_download_archive_entry_path(&name)?;
+        let out_path = package_dir.join(Path::new(&name));
+        if let Some(parent) = out_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                diag::build_diag(
+                    "E_REG_DOWNLOAD_VENDOR_WRITE",
+                    &format!("path={} {}", parent.display(), e),
+                    None,
+                    Some("vendor 하위 디렉터리 생성 권한/경로를 확인하세요.".to_string()),
+                )
+            })?;
+        }
+        let mut out_file = fs::File::create(&out_path).map_err(|e| {
+            diag::build_diag(
+                "E_REG_DOWNLOAD_VENDOR_WRITE",
+                &format!("path={} {}", out_path.display(), e),
+                None,
+                Some("vendor 파일 쓰기 권한/경로를 확인하세요.".to_string()),
+            )
+        })?;
+        std::io::copy(&mut entry, &mut out_file).map_err(|e| {
+            diag::build_diag(
+                "E_REG_DOWNLOAD_VENDOR_WRITE",
+                &format!("path={} {}", out_path.display(), e),
+                None,
+                Some("vendor 파일 쓰기 중 I/O 오류를 확인하세요.".to_string()),
+            )
+        })?;
+        file_count += 1;
+    }
+    if !package_dir.join("gaji.toml").is_file() {
+        return Err(diag::build_diag(
+            "E_REG_DOWNLOAD_VENDOR_META",
+            &format!("path={} missing gaji.toml", package_dir.display()),
+            None,
+            Some("registry archive가 gaji package 루트 파일을 포함하는지 확인하세요.".to_string()),
+        ));
+    }
+    Ok(file_count)
+}
+
+fn validate_download_archive_entry_path(path: &str) -> Result<(), String> {
+    if path.trim().is_empty() || path.contains('\\') {
+        return Err(diag::build_diag(
+            "E_REG_DOWNLOAD_ARCHIVE_PATH",
+            &format!("entry={}", path),
+            None,
+            Some("archive 내부 경로는 안전한 상대 경로여야 합니다.".to_string()),
+        ));
+    }
+    let p = Path::new(path);
+    for comp in p.components() {
+        match comp {
+            Component::Normal(_) | Component::CurDir => {}
+            Component::RootDir | Component::Prefix(_) | Component::ParentDir => {
+                return Err(diag::build_diag(
+                    "E_REG_DOWNLOAD_ARCHIVE_PATH",
+                    &format!("entry={}", path),
+                    None,
+                    Some("archive 내부 경로는 vendor 밖을 가리킬 수 없습니다.".to_string()),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn sha256_hex_prefixed(bytes: &[u8]) -> String {
@@ -4672,6 +4815,67 @@ mod tests {
         ];
         let err = run_cli(&args).expect_err("archive pin or package dir required");
         assert_diag_with_fix(&err, "E_REG_ARCHIVE_SHA256_REQUIRED");
+    }
+
+    #[test]
+    fn run_cli_download_vendor_out_unpacks_package_archive() {
+        let root = temp_dir("download_vendor_out");
+        let index = root.join("registry").join("index.json");
+        let package_dir = root.join("gaji").join("std_math");
+        fs::create_dir_all(package_dir.join("ddn")).expect("pkg mkdir");
+        fs::write(
+            package_dir.join("gaji.toml"),
+            "id = \"gaji/std_math\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("write manifest");
+        fs::write(package_dir.join("ddn").join("exports.ddn"), "셈.더하기\n")
+            .expect("write exports");
+
+        let publish_args = vec![
+            "publish".to_string(),
+            "--index".to_string(),
+            index.to_string_lossy().to_string(),
+            "--scope".to_string(),
+            "gaji".to_string(),
+            "--name".to_string(),
+            "std_math".to_string(),
+            "--version".to_string(),
+            "0.1.0".to_string(),
+            "--package-dir".to_string(),
+            package_dir.to_string_lossy().to_string(),
+            "--token".to_string(),
+            "token1".to_string(),
+            "--role".to_string(),
+            "publisher".to_string(),
+        ];
+        run_cli(&publish_args).expect("publish package dir");
+
+        let out_archive = root.join("download").join("std_math.zip");
+        let vendor_out = root.join("vendor").join("gaji");
+        let download_args = vec![
+            "download".to_string(),
+            "--index".to_string(),
+            index.to_string_lossy().to_string(),
+            "--scope".to_string(),
+            "gaji".to_string(),
+            "--name".to_string(),
+            "std_math".to_string(),
+            "--version".to_string(),
+            "0.1.0".to_string(),
+            "--out".to_string(),
+            out_archive.to_string_lossy().to_string(),
+            "--vendor-out".to_string(),
+            vendor_out.to_string_lossy().to_string(),
+        ];
+        run_cli(&download_args).expect("download and vendor");
+
+        assert!(out_archive.exists());
+        assert!(vendor_out.join("std_math").join("gaji.toml").exists());
+        assert_eq!(
+            fs::read_to_string(vendor_out.join("std_math").join("ddn").join("exports.ddn"))
+                .expect("read vendor exports"),
+            "셈.더하기\n"
+        );
     }
 
     #[test]
