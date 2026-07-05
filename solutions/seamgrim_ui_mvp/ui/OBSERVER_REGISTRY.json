@@ -1,0 +1,10 @@
+{
+  "observers": [
+    "seulgi_proposal_ui.js",
+    "seulgi_replay_safe_workflow.js",
+    "runtime/wasm_canon_runtime.js",
+    "runtime/lesson_canon_runtime.js",
+    "block_editor/ddn_block_codec.js",
+    "runtime/wasm_state_observer_client.js"
+  ]
+}

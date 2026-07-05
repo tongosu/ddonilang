@@ -267,6 +267,7 @@
 | Q31 | `26d8d2b` | `InputSource` enum/태그 부착, geoul `ISRC` 확장, `docs/context/briefs/BRIEF_D41_INPUT_SOURCE_ENUM_V1.md` 실행 보고 | `cargo check` PASS, `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS, `core_lang` PASS, `ScenarioExec` 실제 생성 0건 |
 | Q32 | `d1e5c1b` | `docs/context/all/DEV_SUMMARY_ARCHIVE_20260706.md`, `docs/context/briefs/BRIEF_DEV_SUMMARY_ARCHIVE_SPLIT_V1.md` 실행 보고 | 줄 수 합계 25,472 유지, 남긴 항목 299/아카이브 519, 참조 파일 184개 보고만, `core_lang` PASS |
 | Q33 | 이번 Q33 커밋 | `docs/context/reports/GANADA_REMAINING_TRACKS_REAL_FEATURE_AUDIT_V1.md`, `docs/context/briefs/BRIEF_GANADA_REMAINING_REAL_FEATURE_AUDIT_V1.md` 실행 보고 | 48칸/111개 후보 pack golden 실측, primary pack 48/48 PASS, 코드/golden/pack 변경 없음 |
+| Q34 | 이번 Q34 커밋 | `solutions/seamgrim_ui_mvp/ui/OBSERVER_REGISTRY.{json,md}`, `tests/run_wasm_state_observer_client_capability_check.py`, `docs/context/briefs/BRIEF_D40_OBSERVER_REGISTRY_ENFORCEMENT_V1.md` 실행 보고 | observer registry 6개 전수 검사 PASS, `core_lang --only-step wasm_state_observer_client_capability_check` PASS, `core_lang` PASS |
 
 Q-CONFORMANCE 특기:
 - 기본 12개 케이스에 브리프가 별도 요구한 `value_ref_tail_undefined` 레드 케이스를 더해 총 13개를 캡처했다.
@@ -303,3 +304,7 @@ Q30-Q33 특기:
 - Q31은 `InputSource::{Person,Seulgi,ExternalTask,Schedule,Relay,ScenarioExec}`를 core에 도입하고 `SeulgiPacket`/`NetEvent`/`InputSnapshot` 및 CLI/geoul 기록에 태그를 보존했다. `ScenarioExec`은 enum/매핑만 있고 실제 생성 배선은 없다. `nuri_gym_canon_contract_v1`은 geoul `ISRC` 확장으로 audit/dataset hash가 바뀐 것을 확인한 뒤 해당 pack만 golden 갱신했다.
 - Q32는 `DEV_SUMMARY.md` 선두 최근 블록만 남기고 16,388줄을 `DEV_SUMMARY_ARCHIVE_20260706.md`로 분리했다. 직접 참조 파일 184개는 브리프 지시대로 수정하지 않고 보고만 했다.
 - Q33은 다/라/사/차/카/파/거/아 48칸의 실제 pack golden을 다시 돌렸다. primary pack은 전부 존재+PASS였고, 24칸은 이름이 다른 실질 후보 pack PASS도 확인됐다. 다만 다수 `roadmap_v2_*` primary는 marker/reconciliation pack이므로 Q23~Q25의 닫힘-동작 재판정 FAIL을 자동으로 뒤집지는 않는다.
+
+Q34 특기:
+- Q29가 관찰자로 분류한 6개 파일을 `OBSERVER_REGISTRY.json`에 등록하고, Q30 체커를 레지스트리 전체 검사로 확장했다.
+- 드라이버 파일(`screens/run.js` 등)은 레지스트리에 넣지 않았고 수정하지 않았다.

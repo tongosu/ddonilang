@@ -68,3 +68,23 @@ Rust/WASM 빌드 변경 없음. 드라이버 파일 로직 변경 없음. Q29가
 ## 보고 형식
 
 이 파일 하단 `## 실행 보고`: 레지스트리 내용, 체커 확장 방식, 검증 결과.
+
+## 실행 보고
+
+- 레지스트리 신설: `solutions/seamgrim_ui_mvp/ui/OBSERVER_REGISTRY.json`.
+- 등록 관찰자 6개:
+  - `seulgi_proposal_ui.js`
+  - `seulgi_replay_safe_workflow.js`
+  - `runtime/wasm_canon_runtime.js`
+  - `runtime/lesson_canon_runtime.js`
+  - `block_editor/ddn_block_codec.js`
+  - `runtime/wasm_state_observer_client.js`
+- 안내 문서: `solutions/seamgrim_ui_mvp/ui/OBSERVER_REGISTRY.md` 추가. 새 관찰자 등록 및 mutation 함수 import/call 금지 규칙만 기록했다.
+- 체커 확장: `tests/run_wasm_state_observer_client_capability_check.py`가 `OBSERVER_REGISTRY.json`을 읽어 등록 파일 전체의 금지 토큰을 검사하도록 변경했다. 누락 파일은 `E_OBSERVER_REGISTRY_FILE_MISSING`, mutation 토큰 누출은 `E_OBSERVER_REGISTRY_MUTATION_LEAK`로 실패한다.
+- 기존 Q30 state observer export 확인(`getStateHash`, `getStateParsed`, `createWasmStateObserverClient`)은 유지했다.
+- 드라이버 파일(`screens/run.js` 등)은 레지스트리에 넣지 않았고 수정하지 않았다.
+- 검증:
+  - `python tests/run_wasm_state_observer_client_capability_check.py` PASS, `observer_count=6`.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang --only-step wasm_state_observer_client_capability_check` PASS.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang` PASS.
+  - `python -m json.tool solutions/seamgrim_ui_mvp/ui/OBSERVER_REGISTRY.json` PASS.
