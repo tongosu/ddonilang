@@ -167,6 +167,21 @@
 
 ---
 
+## Q20(신) — 모호성 강제 실제 검증 [최우선]
+
+`docs/context/briefs/BRIEF_AMBIGUITY_ENFORCEMENT_DIAGNOSIS_V1.md` 그대로 실행. 진단 전용, 코드 수정 금지.
+
+## Q21(신) — 로컬 레지스트리 랜딩 상태 감사 (이전 지시분, 재확인차 등록)
+
+`gaji.toml` 기반 로컬 레지스트리(install/publish/discover)가 SSOT가 "immediate_dev_track"이라 부른 그 기능이 실제로 얼마나 구현되어 있는지 감사. `teul-cli gaji` 서브커맨드(Lock/Install/Update/Vendor/Registry) 각각이 실제로 동작하는지(더미 레지스트리로 최소 1회 실행), `gaji/` 30개 패키지가 이 경로를 거쳐 쓰이는지 정적 배치일 뿐인지 확인.
+산출물: `docs/context/reports/LOCAL_REGISTRY_LANDING_AUDIT_V1.md`. 코드 수정 금지.
+
+## Q22(신) — 가지 뼈대 실태 조사
+
+`docs/context/briefs/BRIEF_GAJI_SCAFFOLD_SURVEY_V1.md` 그대로 실행. 조사만, 설계·구현 금지.
+
+---
+
 ## 큐 완료 보고
 
 - 실행일: 2026-07-06
@@ -184,6 +199,9 @@
 | Q-CONFORMANCE | `2be61bd` | `pack/lang_kernel_v1_conformance/`, `docs/context/briefs/BRIEF_LANG_KERNEL_CONFORMANCE_PACK_V1.md` 실행 보고 | `python tests/run_pack_golden.py lang_kernel_v1_conformance` PASS; `python tests/run_ci_sanity_gate.py --profile core_lang` PASS |
 | Q18 | `1d587f6` | `docs/context/briefs/BRIEF_RUNTIME_SEED_DISPATCH_INVESTIGATION_V1.md` 실행 보고 | `stem_alias_dop_dou.ddn` FAIL 재현; `() 돕기.` 보조 재현 PASS; 코드/팩 수정 없음 |
 | Q19 | `7dfa824` | `docs/context/reports/CONSOLIDATION_CANDIDATE_DRAFT_V1.md` | 후보 474개 표 생성(Q3 173/Q4 202/Q8 99/Q15 173/Q16 0), 삭제·통합·수리 실행 없음 |
+| Q20 | `3a143f6` | `docs/context/briefs/BRIEF_AMBIGUITY_ENFORCEMENT_DIAGNOSIS_V1.md` 실행 보고 | `stem_alias_ambiguous.ddn` 오류 없음 재현, 보조 출력으로 `계산` dispatch 확인, 코드/팩 수정 없음 |
+| Q21 | `07dc3e1` | `docs/context/reports/LOCAL_REGISTRY_LANDING_AUDIT_V1.md` | 더미 레지스트리로 lock/install/update/vendor/registry publish-search-verify-download 실행, 코드 수정 없음 |
+| Q22 | `88c8cb8` | `docs/context/reports/GAJI_SCAFFOLD_SURVEY_V1.md`, `docs/context/briefs/BRIEF_GAJI_SCAFFOLD_SURVEY_V1.md` 실행 보고 | `gaji/` 30개 전수, `gaji.toml` 13개 필드 조사, SSOT 스켈레톤 비교, 코드 수정 없음 |
 
 Q-CONFORMANCE 특기:
 - 기본 12개 케이스에 브리프가 별도 요구한 `value_ref_tail_undefined` 레드 케이스를 더해 총 13개를 캡처했다.
@@ -193,3 +211,8 @@ Q-CONFORMANCE 특기:
 Q18-Q19 특기:
 - Q18 결론: 비예약 씨앗 등록과 `Expr::Call` dispatch는 존재하지만, `돕기.` 같은 최상위 bare zero-arg 호출 표면은 제품 실행 파서에서 `살림.돕기` 경로식으로 내려가 `E_RUNTIME_UNDEFINED`가 난다. 판정은 "설계 가능하나 해당 표면 미구현/미배선"이다.
 - Q19는 Q3/Q4/Q8/Q15/Q16 보고서를 종합한 후보 표만 만들었다. 삭제, 통합, 수리, golden 갱신은 하지 않았다.
+
+Q20-Q22 특기:
+- Q20 결론: 제품 실행 경로의 `tools/teul-cli/src/lang/parser.rs`에는 호출 꼬리 후보 수집/모호성 오류가 없고, `tools/teul-cli/src/runtime/eval.rs`가 꼬리 목록을 순서대로 첫 성공 dispatch한다. 그래서 `계산하기`는 `하기 -> 계산`에서 멈추며 `기 -> 계산하` 후보와의 모호성을 오류로 만들지 않는다.
+- Q21 결론: 로컬 레지스트리 명령군은 더미 레지스트리 기준 기본 흐름이 동작했다. 다만 strict registry install은 lock의 `trust_root.hash` 없음을 이유로 실패했으며, 이는 보고서에 제한 사항으로 기록했다.
+- Q22 결론: 실제 `gaji/` 최상위 30개 중 현재 CLI가 최상위 스캔으로 바로 패키지화하는 것은 11개다. 실제 `gaji.toml` 13개는 7개 메타 필드를 쓰지만 제품 파서는 `id/name/version`만 읽는다.
