@@ -198,6 +198,10 @@
 
 `docs/context/briefs/BRIEF_JA_UI_WIRING_V1.md` 그대로 실행. 기존 마운트 패턴 확인 후 그대로 따를 것 — 새 방식 발명 금지.
 
+## Q27(신) — 죽은 체커 173건 삭제 실행
+
+`docs/context/briefs/BRIEF_BROKEN_CHECKS_DELETION_V1.md` 그대로 실행. Q3/Q15가 이미 전수 확인한 후보(문서 생성 이력 0건, 계획후미실행)만 삭제 — 새 판단 없이 기존 감사 결과를 실행에 옮기는 작업. 상호참조 있으면 예외 처리 후 보고.
+
 ---
 
 ## 큐 완료 보고
