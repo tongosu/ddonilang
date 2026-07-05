@@ -230,6 +230,10 @@
 
 `docs/context/briefs/GOAL_AUDIT_AND_REGRESSION_BATCH_V1.md` 그대로 실행. 항목A(DEV_SUMMARY 분리 회귀 확인)+항목B(§7.3 흐름씨-훅 순서 실코드 검증)를 자율 반복(Plan/Act/Test/Review/Iterate)으로 처리하되, 설계 판단이 필요한 지점에서는 멈추고 보고만. 코드 수정 없음.
 
+## Q34(신) — D40 완성: 관찰자 레지스트리 전면 강제 [실제 구현]
+
+`docs/context/briefs/BRIEF_D40_OBSERVER_REGISTRY_ENFORCEMENT_V1.md` 그대로 실행. Q29가 분류한 관찰자 파일 6개 전부를 레지스트리로 등록하고, Q30 체커를 그 전체를 검사하도록 확장. 드라이버 파일(RunScreen 등)은 건드리지 않음.
+
 ---
 
 ## 큐 완료 보고
