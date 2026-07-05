@@ -226,6 +226,10 @@
 
 `docs/context/briefs/BRIEF_GANADA_REMAINING_REAL_FEATURE_AUDIT_V1.md` 그대로 실행. 로드맵 체커가 아니라 실제 pack golden을 돌려서 다/라/사/차/카/파/거/아 8줄기 48칸의 실제 기능 존재 여부를 실측. 코드/golden/pack 변경 없음.
 
+## GOAL(신) — 감사+회귀 배치 V1 [Codex Goal 모드 전용, 진단 전용]
+
+`docs/context/briefs/GOAL_AUDIT_AND_REGRESSION_BATCH_V1.md` 그대로 실행. 항목A(DEV_SUMMARY 분리 회귀 확인)+항목B(§7.3 흐름씨-훅 순서 실코드 검증)를 자율 반복(Plan/Act/Test/Review/Iterate)으로 처리하되, 설계 판단이 필요한 지점에서는 멈추고 보고만. 코드 수정 없음.
+
 ---
 
 ## 큐 완료 보고
