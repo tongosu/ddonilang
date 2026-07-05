@@ -143,6 +143,30 @@
 
 ---
 
+## Q18(신) — 씨앗 런타임 배선 진단 [최우선 — Q13~18 게이트 관련]
+
+**목표:** `docs/context/briefs/BRIEF_RUNTIME_SEED_DISPATCH_INVESTIGATION_V1.md`를 그대로 실행. 진단 전용, 코드 수정 금지.
+**의존:** 없음. 이 결과가 나올 때까지 Q13~Q18(0705, 커널 구현) 게이트 해제 보류.
+
+## Q19(신) — 삭제·통합 후보 초안 (Claude 검토용, 사용자 제출 아님)
+
+**목표:** 기존 Q3(깨진체크173)/Q4(UI의존성지도)/Q8(팩FAIL분류)/Q15(근본원인)/Q16(UI실행확인) 5개 보고서를 종합해, 삭제·통합 후보 하나의 표로 합친다.
+
+**작업:**
+1. 5개 보고서에서 "삭제 심사 후보"/"고아"/"러너전용"/"참조문서없음" 등으로 표기된 항목을 전부 모은다.
+2. 항목별로 5개 보고서 중 몇 곳에서 동시에 문제로 지적됐는지 교차 카운트(여러 보고서에서 겹치는 항목 = 더 확실한 삭제 후보).
+3. **삭제/통합을 실행하지 않는다** — 표만 만든다. 이 표는 Claude가 검토 후 사용자에게 제출할 원재료다.
+
+**산출물:** `docs/context/reports/CONSOLIDATION_CANDIDATE_DRAFT_V1.md`
+스키마: `| 항목(파일/체크/모듈) | 교차 지적 보고서 수 | 지적 근거 요약 | 처분 후보(삭제/통합/보류) |`
+
+**수용 기준:**
+- [ ] 5개 보고서의 모든 후보 항목 반영(누락 없음)
+- [ ] 교차 카운트 계산 방식을 보고서 서두에 명시
+- [ ] 삭제·통합·수정 실행 금지 — 표만
+
+---
+
 ## 큐 완료 보고
 
 - 실행일: 2026-07-06
@@ -158,8 +182,14 @@
 | Q16 | `4d7e010` | `docs/context/reports/UI_RUNTIME_LOAD_CHECK_V1.md` | Playwright 제품 91개/동적의심 54개 전부 성공, 콘솔/404 0건 |
 | Q17 | `f0de276` | `docs/context/reports/SSOT_AMENDMENT_IMPACT_SCAN_V1.md` | 텐서 104행, 누리바꿈 712행, 음/ㅁ 직접 36행 검증 PASS |
 | Q-CONFORMANCE | `2be61bd` | `pack/lang_kernel_v1_conformance/`, `docs/context/briefs/BRIEF_LANG_KERNEL_CONFORMANCE_PACK_V1.md` 실행 보고 | `python tests/run_pack_golden.py lang_kernel_v1_conformance` PASS; `python tests/run_ci_sanity_gate.py --profile core_lang` PASS |
+| Q18 | `1d587f6` | `docs/context/briefs/BRIEF_RUNTIME_SEED_DISPATCH_INVESTIGATION_V1.md` 실행 보고 | `stem_alias_dop_dou.ddn` FAIL 재현; `() 돕기.` 보조 재현 PASS; 코드/팩 수정 없음 |
+| Q19 | `7dfa824` | `docs/context/reports/CONSOLIDATION_CANDIDATE_DRAFT_V1.md` | 후보 474개 표 생성(Q3 173/Q4 202/Q8 99/Q15 173/Q16 0), 삭제·통합·수리 실행 없음 |
 
 Q-CONFORMANCE 특기:
 - 기본 12개 케이스에 브리프가 별도 요구한 `value_ref_tail_undefined` 레드 케이스를 더해 총 13개를 캡처했다.
 - `stem_alias_dop_dou`, `tail_equiv_gi_hagi`, `stem_alias_ambiguous`는 브리프 예상과 실제 제품 `teul-cli run` 결과가 달라 README와 브리프 실행 보고에 명시했다.
 - 검증 실행 부산물로 갱신된 기존 open 로그 2개는 Q-CONFORMANCE 산출물이 아니므로 원래 상태로 되돌렸다.
+
+Q18-Q19 특기:
+- Q18 결론: 비예약 씨앗 등록과 `Expr::Call` dispatch는 존재하지만, `돕기.` 같은 최상위 bare zero-arg 호출 표면은 제품 실행 파서에서 `살림.돕기` 경로식으로 내려가 `E_RUNTIME_UNDEFINED`가 난다. 판정은 "설계 가능하나 해당 표면 미구현/미배선"이다.
+- Q19는 Q3/Q4/Q8/Q15/Q16 보고서를 종합한 후보 표만 만들었다. 삭제, 통합, 수리, golden 갱신은 하지 않았다.
