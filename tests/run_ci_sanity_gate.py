@@ -207,6 +207,7 @@ CORE_LANG_PROFILE_STEPS = {
     "contract_tier_unsupported_check",
     "contract_tier_age3_min_enforcement_check",
     "map_access_contract_check",
+    "wasm_state_observer_client_capability_check",
     "gaji_registry_strict_audit_check",
     "gaji_registry_defaults_check",
     "stdlib_catalog_check",
@@ -3745,6 +3746,11 @@ def main() -> int:
             "map_access_contract_check",
             [py, "tests/run_map_access_contract_check.py"],
             "E_CI_SANITY_MAP_ACCESS_CONTRACT_CHECK_FAIL",
+        ),
+        (
+            "wasm_state_observer_client_capability_check",
+            [py, "tests/run_wasm_state_observer_client_capability_check.py"],
+            "E_CI_SANITY_WASM_STATE_OBSERVER_CLIENT_CAPABILITY_CHECK_FAIL",
         ),
         (
             "gaji_registry_strict_audit_check",

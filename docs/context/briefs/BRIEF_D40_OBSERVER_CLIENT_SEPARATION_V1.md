@@ -52,3 +52,20 @@ Rust/WASM 빌드 변경 없음(이번 브리프는 순수 JS 신규 파일 + 테
 ## 보고 형식
 
 이 파일 하단 `## 실행 보고`: 신규 파일 경로, 노출 함수 목록, 회귀 가드 통과 여부, sanity gate 결과.
+
+## 실행 보고
+
+- 실행일: 2026-07-06
+- 브랜치: `codex/queue-20260706`
+- 신규 파일: `solutions/seamgrim_ui_mvp/ui/runtime/wasm_state_observer_client.js`
+- 노출 함수: `getStateHash(target)`, `getStateParsed(target)`, `createWasmStateObserverClient(target)`.
+- 회귀 가드: `tests/run_wasm_state_observer_client_capability_check.py` 신규 추가, `tests/run_ci_sanity_gate.py`의 `core_lang` 프로파일에 `wasm_state_observer_client_capability_check` 등록.
+- 금지 토큰 확인: `rg -n "set_param|setParam|reset|step_one|stepOne|run_ticks|runTicks|restore_state|restoreState|inject_ai_action|injectAiAction" solutions/seamgrim_ui_mvp/ui/runtime/wasm_state_observer_client.js` 결과 0건.
+- 검증:
+  - `python tests/run_wasm_state_observer_client_capability_check.py` PASS.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang --only-step wasm_state_observer_client_capability_check` PASS.
+  - `node tests/seulgi_proposal_ui_runner.mjs` PASS.
+  - `node tests/seulgi_replay_safe_workflow_runner.mjs` PASS.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang` PASS.
+  - `git diff --check` PASS.
+- 비고: `core_lang` 실행 중 갱신된 기존 open 로그 2개는 Q30 산출물이 아니므로 원복했다. Rust/WASM 빌드/기존 드라이버 파일 변경 없음.
