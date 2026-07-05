@@ -26,6 +26,18 @@ import {
 } from "./numeric_curriculum_track.js";
 import { formatStudioLocalPackageError, importStudioLocalPackagePayload } from "./studio_local_share_package.js";
 import {
+  DEFAULT_SEULGI_PROPOSAL_UI_ROWS,
+  buildSeulgiProposalUi,
+  formatSeulgiProposalUiText,
+  renderSeulgiProposalUi,
+} from "./seulgi_proposal_ui.js";
+import {
+  DEFAULT_SEULGI_REPLAY_SAFE_ROWS,
+  buildSeulgiReplaySafeWorkflow,
+  formatSeulgiReplaySafeWorkflowText,
+  renderSeulgiReplaySafeWorkflow,
+} from "./seulgi_replay_safe_workflow.js";
+import {
   resolveAvailableFeaturedSeedIds,
   pickNextFeaturedSeedLaunch,
   shouldTriggerFeaturedSeedQuickLaunch,
@@ -263,6 +275,35 @@ function syncBrowsePresetToLocation(presetId = "") {
 
 function byId(id) {
   return document.getElementById(id);
+}
+
+function setSeulgiProductPayload(dataKey, textKey, formatter, row) {
+  try {
+    window[dataKey] = row;
+    window[textKey] = row && formatter ? formatter(row) : "";
+  } catch (_) {
+    // ignore browser instrumentation errors
+  }
+}
+
+function mountSeulgiProductSurfaces() {
+  const proposal = buildSeulgiProposalUi({ rows: DEFAULT_SEULGI_PROPOSAL_UI_ROWS });
+  setSeulgiProductPayload(
+    "__SEULGI_PROPOSAL_UI__",
+    "__SEULGI_PROPOSAL_UI_TEXT__",
+    formatSeulgiProposalUiText,
+    proposal,
+  );
+  renderSeulgiProposalUi(byId("seulgi-proposal-ui"), proposal);
+
+  const replayWorkflow = buildSeulgiReplaySafeWorkflow({ rows: DEFAULT_SEULGI_REPLAY_SAFE_ROWS });
+  setSeulgiProductPayload(
+    "__SEULGI_REPLAY_SAFE_WORKFLOW__",
+    "__SEULGI_REPLAY_SAFE_WORKFLOW_TEXT__",
+    formatSeulgiReplaySafeWorkflowText,
+    replayWorkflow,
+  );
+  renderSeulgiReplaySafeWorkflow(byId("seulgi-replay-safe-workflow"), replayWorkflow);
 }
 
 function readWindowStringArray(key, fallback = []) {
@@ -3420,6 +3461,9 @@ async function main() {
   browseScreen.init();
   editorScreen.init();
   runScreen.init();
+  if (!DEV_SURFACES_ENABLED) {
+    mountSeulgiProductSurfaces();
+  }
   // TODO(retire-dev-surfaces): this is a temporary opt-in mount path; remove it with dev_surfaces.js.
   if (DEV_SURFACES_ENABLED) {
     void import("./dev_surfaces.js")

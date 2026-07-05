@@ -194,6 +194,10 @@
 
 `docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER3_V1.md` 그대로 실행. 양이 많으면 0~2마루 우선, 나머지는 별도 보고.
 
+## Q26(신) — 자-3/자-5 UI 배선
+
+`docs/context/briefs/BRIEF_JA_UI_WIRING_V1.md` 그대로 실행. 기존 마운트 패턴 확인 후 그대로 따를 것 — 새 방식 발명 금지.
+
 ---
 
 ## 큐 완료 보고
@@ -219,6 +223,7 @@
 | Q23 | `5d14d91` | `docs/context/reports/GANADA_REVERIFICATION_TIER1_V1.md`, `docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER1_V1.md` 실행 보고 | 가/나/타 18칸 전수, 체커 28개 실행, 보조 pack golden 21개 PASS, 코드 수정 없음 |
 | Q24 | `c9b95ab` | `docs/context/reports/GANADA_REVERIFICATION_TIER2_V1.md`, `docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER2_V1.md` 실행 보고 | 다/마/하/라 24칸 전수, 체커 35개 실행(PASS 6/FAIL 29), 마-1/마-2 lesson placeholder 직접 확인, 코드 수정 없음 |
 | Q25 | `eb6bcb1` | `docs/context/reports/GANADA_REVERIFICATION_TIER3_V1.md`, `docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER3_V1.md` 실행 보고 | 바/사/아/자/차/카/파/거 48칸 전수, 체커 56개 실행(PASS 9/FAIL 47), 보조 pack golden 22개 PASS, 코드 수정 없음 |
+| Q26 | 이번 Q26 커밋 | `docs/context/briefs/BRIEF_JA_UI_WIRING_V1.md` 실행 보고, `solutions/seamgrim_ui_mvp/ui/{index.html,app.js,styles.css}` | JA3/JA5 체커 PASS, Playwright 제품 로드 PASS(consoleErrors=0), `core_lang` PASS |
 
 Q-CONFORMANCE 특기:
 - 기본 12개 케이스에 브리프가 별도 요구한 `value_ref_tail_undefined` 레드 케이스를 더해 총 13개를 캡처했다.
@@ -238,3 +243,7 @@ Q23-Q25 특기:
 - Q23 결론: Tier1 18칸 중 `진짜닫힘`은 없었다. 16칸은 대응 체커 FAIL, 2칸(가-4, 나-4)은 PASS 증거가 있으나 registry/reconciliation 형식 증거로만 판정했다.
 - Q24 결론: Tier2 24칸 중 `진짜닫힘`은 없었다. 20칸은 대응 체커 FAIL, 4칸(하-0~하-3)은 PASS 증거가 있으나 marker/docs/local UI 또는 placeholder lesson 문제로 형식 증거로만 판정했다. 마-1/마-2 구형 대표 lesson 2개는 `보개로 그려.` 한 줄 placeholder였다.
 - Q25 결론: Tier3 48칸 중 `진짜닫힘` 8칸(바-1~바-5, 자-1, 자-2, 자-4), `존재+PASS이나형식뿐` 2칸(자-0, 파-0), `존재하나FAIL` 38칸으로 재판정했다. 아줄기는 expected refresh 및 대표 환경 pack 누락으로 0~5마루 전부 FAIL했다.
+
+Q26 특기:
+- Run inspector의 기존 정적 export/action 패널 패턴을 따라 `seulgi-proposal-ui`, `seulgi-replay-safe-workflow` 컨테이너를 제품 HTML에 추가하고 `app.js` 제품 초기화에서 기존 모듈을 build/publish/render하도록 배선했다.
+- 기존 `?devSurfaces=1` 러너 경로는 dev surface가 계속 담당하도록 제품 mount를 dev flag 미사용 경로로 분리했다. 두 `seulgi_*` 모듈 내부 로직은 수정하지 않았다.
