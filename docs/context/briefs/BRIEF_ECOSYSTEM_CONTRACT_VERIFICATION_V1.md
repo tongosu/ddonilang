@@ -59,3 +59,20 @@
 ## 보고 형식
 
 이 파일 하단 `## 실행 보고`: D39/D40/D41 판정 요약, 산출물 경로, 검증 방법.
+
+## 실행 보고
+
+- 실행일: 2026-07-06
+- 브랜치: `codex/queue-20260706`
+- 산출물: `docs/context/reports/ECOSYSTEM_CONTRACT_VERIFICATION_V1.md`
+- 검증 방법: 정적 분석(`rg` 검색 + 코드 읽기). 실행/pack/golden 생성 없음. 코드 수정 없음.
+- D39 판정: 위반 없음.
+  - `core/src/engine.rs:40`~`48`의 tick 루프가 `Sam.begin_tick -> Iyagi.run_update -> Nuri.apply_patch` 순서로 고정됨을 확인했다.
+  - `libloading|dlopen|LoadLibrary|wasmtime|wasmer|rhai|mlua|pyo3|boa_engine|deno_core` 검색 결과 제품 소스 경로에서 0건.
+  - `tool/src/wasm_api.rs`는 외부 WASM API 표면이며 `DdnRunner`/`DetNuri`를 감싸는 경로로 확인했다.
+- D40 판정: 위반 발견(계약 미착륙).
+  - `seulgi_proposal_ui.js`, `seulgi_replay_safe_workflow.js` 자체는 WASM mutation 호출 없이 DOM/clipboard 중심이며 `auto_apply:false`, `file_write:false`, `state_hash_owner:false`를 고정한다.
+  - 다만 `tool/src/wasm_api.rs`와 `wasm_ddn_wrapper.js`/`RunScreen`에는 `set_param`, `reset`, `step_one`, `run_ticks`, `restore_state`, `inject_ai_action` 등 쓰기 API가 노출·사용된다. observer 전용 capability 경계는 아직 없다.
+- D41 판정: 부분 위반/미착륙.
+  - 구현된 키보드/sam-live/replay/net event/슬기 주입은 `샘.*`/`입력상태.*` 또는 `InputSnapshot` 경로로 모이는 것을 확인했다.
+  - 하지만 제품 소스에서 `입력원천`, `사람`, `밖일`, `일정`, `이어전달`, `펼침실행` 6원천 분류기/enum은 찾지 못했다. 제안서의 강한 6원천 계약은 아직 코드로 강제되지 않는다.
