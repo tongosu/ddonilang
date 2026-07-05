@@ -3649,6 +3649,33 @@ mod tests {
         dir
     }
 
+    fn collect_test_file_map(root: &Path) -> BTreeMap<String, Vec<u8>> {
+        fn walk(root: &Path, current: &Path, out: &mut BTreeMap<String, Vec<u8>>) {
+            let mut entries: Vec<_> = fs::read_dir(current)
+                .expect("read dir")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("entries");
+            entries.sort_by_key(|entry| entry.file_name());
+            for entry in entries {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(root, &path, out);
+                } else if path.is_file() {
+                    let rel = path
+                        .strip_prefix(root)
+                        .expect("rel")
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    out.insert(rel, fs::read(&path).expect("read file"));
+                }
+            }
+        }
+
+        let mut out = BTreeMap::new();
+        walk(root, root, &mut out);
+        out
+    }
+
     fn write_lock_meta(
         path: &Path,
         snapshot_id: Option<&str>,
@@ -4876,6 +4903,61 @@ mod tests {
                 .expect("read vendor exports"),
             "셈.더하기\n"
         );
+    }
+
+    #[test]
+    fn run_cli_real_gaji_package_publish_download_vendor_matches_source() {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .canonicalize()
+            .expect("repo root");
+        let package_dir = repo_root.join("gaji").join("std_math");
+        assert!(package_dir.join("gaji.toml").is_file());
+
+        let root = temp_dir("real_package_e2e");
+        let index = root.join("registry").join("index.json");
+        let publish_args = vec![
+            "publish".to_string(),
+            "--index".to_string(),
+            index.to_string_lossy().to_string(),
+            "--scope".to_string(),
+            "gaji".to_string(),
+            "--name".to_string(),
+            "std_math".to_string(),
+            "--version".to_string(),
+            "0.1.0".to_string(),
+            "--package-dir".to_string(),
+            package_dir.to_string_lossy().to_string(),
+            "--token".to_string(),
+            "token1".to_string(),
+            "--role".to_string(),
+            "publisher".to_string(),
+        ];
+        run_cli(&publish_args).expect("publish real package");
+
+        let out_archive = root.join("download").join("std_math.zip");
+        let vendor_out = root.join("vendor").join("gaji");
+        let download_args = vec![
+            "download".to_string(),
+            "--index".to_string(),
+            index.to_string_lossy().to_string(),
+            "--scope".to_string(),
+            "gaji".to_string(),
+            "--name".to_string(),
+            "std_math".to_string(),
+            "--version".to_string(),
+            "0.1.0".to_string(),
+            "--out".to_string(),
+            out_archive.to_string_lossy().to_string(),
+            "--vendor-out".to_string(),
+            vendor_out.to_string_lossy().to_string(),
+        ];
+        run_cli(&download_args).expect("download real package");
+
+        let source_files = collect_test_file_map(&package_dir);
+        let vendor_files = collect_test_file_map(&vendor_out.join("std_math"));
+        assert_eq!(vendor_files, source_files);
     }
 
     #[test]

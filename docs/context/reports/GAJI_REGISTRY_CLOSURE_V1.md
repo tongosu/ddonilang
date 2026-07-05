@@ -214,3 +214,53 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1096 filtered out
 cargo test --manifest-path tools/teul-cli/Cargo.toml
 test result: ok. 1097 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
+
+## M5 — 실제 패키지 end-to-end 회귀
+
+### 변경
+
+- `run_cli_real_gaji_package_publish_download_vendor_matches_source` 회귀 테스트를 추가했다.
+- 이 테스트는 repository root의 실제 `gaji/std_math`를 읽어 `publish --package-dir` → `download --vendor-out`을 실행하고, 원본 디렉터리와 vendor 디렉터리의 상대경로별 bytes map이 완전히 같은지 비교한다.
+
+### 실제 중첩 패키지 scratch 실측
+
+재귀 스캐너가 M1에서 새로 잡은 실제 중첩 패키지 `gaji/phys/pendulum`으로 별도 scratch registry를 검증했다.
+
+```text
+cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry publish --index out/gaji-registry-closure/m5/registry.index.json --scope gaji --name pendulum --version 0.1.0 --package-dir gaji/phys/pendulum --token token1 --role publisher --at 2026-02-19T00:00:00Z
+registry_publish_ok=gaji/pendulum@0.1.0
+registry_publish_archive_out=out\gaji-registry-closure\m5\archives\gaji__pendulum__0.1.0.zip
+registry_publish_archive_sha256=sha256:982850e156474f9fbe5d29cc61c07a6786747689821179b73b39ef1a52195e2d
+registry_publish_download_url=archives/gaji__pendulum__0.1.0.zip
+```
+
+```text
+cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry download --index out/gaji-registry-closure/m5/registry.index.json --scope gaji --name pendulum --version 0.1.0 --out out/gaji-registry-closure/m5/download/pendulum.zip --vendor-out out/gaji-registry-closure/m5/vendor/gaji
+registry_download_vendor_out=out\gaji-registry-closure\m5\vendor\gaji\pendulum
+registry_download_vendor_files=3
+registry_download_ok=gaji/pendulum@0.1.0
+registry_download_source=file://out\gaji-registry-closure\m5\archives/gaji__pendulum__0.1.0.zip
+registry_download_out=out\gaji-registry-closure\m5\download\pendulum.zip
+registry_download_archive_sha256=sha256:982850e156474f9fbe5d29cc61c07a6786747689821179b73b39ef1a52195e2d
+```
+
+내용 동일성 확인:
+
+```text
+source_file_count=3
+vendor_file_count=3
+content_match=true
+vendor_gaji_toml_exists=true
+```
+
+### 검증
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_real_gaji_package_publish_download_vendor_matches_source
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1097 filtered out
+```
+
+```text
+cargo test --manifest-path tools/teul-cli/Cargo.toml
+test result: ok. 1098 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```

@@ -114,3 +114,14 @@
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_download_vendor_out_unpacks_package_archive` PASS — `1 passed; 0 failed`.
   - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry download --index out/gaji-registry-closure/m4/registry.index.json --scope gaji --name std_math --version 0.1.0 --out out/gaji-registry-closure/m4/download/std_math.zip --vendor-out out/gaji-registry-closure/m4/vendor/gaji` PASS.
   - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1097 passed; 0 failed`.
+
+## 실행 보고 M5
+
+- 완료: 실제 repository package를 쓰는 회귀 테스트 `run_cli_real_gaji_package_publish_download_vendor_matches_source`를 추가했다.
+- 테스트 내용: `gaji/std_math` 원본 package를 publish → download --vendor-out으로 scratch vendor에 설치하고, 원본/벤더 상대경로별 bytes map을 비교한다.
+- 추가 실측: 중첩 실제 패키지 `gaji/phys/pendulum`도 scratch registry에서 publish → download --vendor-out 실행했고 `content_match=true`, `vendor_file_count=3`을 확인했다.
+- 실행:
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml run_cli_real_gaji_package_publish_download_vendor_matches_source` PASS — `1 passed; 0 failed`.
+  - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry publish --index out/gaji-registry-closure/m5/registry.index.json --scope gaji --name pendulum --version 0.1.0 --package-dir gaji/phys/pendulum --token token1 --role publisher --at 2026-02-19T00:00:00Z` PASS.
+  - `cargo run --manifest-path tools/teul-cli/Cargo.toml -- gaji registry download --index out/gaji-registry-closure/m5/registry.index.json --scope gaji --name pendulum --version 0.1.0 --out out/gaji-registry-closure/m5/download/pendulum.zip --vendor-out out/gaji-registry-closure/m5/vendor/gaji` PASS — `content_match=true`.
+  - `cargo test --manifest-path tools/teul-cli/Cargo.toml` PASS — `1098 passed; 0 failed`.
