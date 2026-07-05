@@ -234,6 +234,10 @@
 
 `docs/context/briefs/BRIEF_D40_OBSERVER_REGISTRY_ENFORCEMENT_V1.md` 그대로 실행. Q29가 분류한 관찰자 파일 6개 전부를 레지스트리로 등록하고, Q30 체커를 그 전체를 검사하도록 확장. 드라이버 파일(RunScreen 등)은 건드리지 않음.
 
+## GOAL-GAJI(신) — 가지 로컬 레지스트리 실제 닫힘 [Codex Goal 모드, 1-2주 규모, 실제 구현+감사 병행]
+
+`docs/context/briefs/GOAL_GAJI_REGISTRY_CLOSURE_V1.md` 그대로 실행. M1(재귀 스캐너)~M6(감사 재확인)을 순서대로 자율 반복. 언어 커널 게이트와 무관 — 지금 바로 착수. 기존 로컬 lock/install/vendor 경로 회귀 금지, `gaji.toml` 스키마 의미 변경 금지, 네트워크 실호출 금지.
+
 ---
 
 ## 큐 완료 보고
