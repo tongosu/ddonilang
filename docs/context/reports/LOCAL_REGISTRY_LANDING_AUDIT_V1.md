@@ -6,11 +6,12 @@
 
 - `teul-cli gaji lock/install/update/vendor`는 존재하며, 로컬 `gaji/` 바로 아래의 `gaji.toml` 패키지를 `ddn.lock`과 `vendor/gaji`로 복사하는 경로가 있다.
 - `teul-cli gaji registry ...`도 존재하며, JSON index 기준 `versions/entry/search/federated-search/download/publish/yank/verify/audit-verify` 표면을 제공한다.
-- 그러나 저장소의 `gaji/` 패키지 집합이 실제로 registry publish/discover/install 경로를 거쳐 쓰인다는 증거는 없다. 현 검증은 fixture/temp index 중심이고, UI도 install execution을 후속으로 명시한다.
+- Q21 재감사에서 더미 `gaji/` 프로젝트와 더미 registry index로 `lock/install/update/vendor`, `registry publish/search/versions/entry/verify/audit-verify/download`, 비엄격 registry-verify install을 실제 실행해 PASS를 확인했다.
+- 그러나 저장소의 `gaji/` 패키지 집합이 실제로 registry publish/discover/install 경로를 거쳐 쓰인다는 증거는 없다. 실측도 scratch 더미 프로젝트/index 기준이며, UI도 install execution을 후속으로 명시한다.
 - `discover`라는 직접 서브커맨드는 없다. 가장 가까운 표면은 `registry search`와 `registry federated-search`다.
 - `gaji/` 아래 top-level 디렉터리는 30개지만, current local install 스캐너가 발견 가능한 direct `gaji.toml` 패키지는 11개뿐이다. recursive `gaji.toml`은 13개이며, 그중 2개는 현재 1-depth 스캐너에서 누락된다.
 
-따라서 SSOT가 말하는 `immediate_dev_track`의 **local registry minimum**은 CLI와 fixture 수준에서 일부 구현되어 있으나, “gaji/ 30개 패키지가 실제 install/publish/discover 경로를 통해 쓰이는 제품 닫힘”은 아직 아니다. 현재 `gaji/`의 상당수는 레지스트리 경로로 설치되는 패키지라기보다 코드베이스에 직접 배치된 정적 후보/자료에 가깝다.
+따라서 SSOT가 말하는 `immediate_dev_track`의 **local registry minimum**은 CLI와 scratch 더미 실행 수준에서 일부 구현되어 있으나, “gaji/ 30개 패키지가 실제 install/publish/discover 경로를 통해 쓰이는 제품 닫힘”은 아직 아니다. 현재 `gaji/`의 상당수는 레지스트리 경로로 설치되는 패키지라기보다 코드베이스에 직접 배치된 정적 후보/자료에 가깝다.
 
 ## SSOT 기준
 
@@ -110,6 +111,47 @@ top-level direct 디렉터리 중 `gaji.toml`이 없는 항목은 19개다.
 | pack/check가 실제 저장소 `gaji/`를 registry 경로로 설치하는가 | 확인 안 됨 | 확인된 pack은 fixture/temp index 중심이다 |
 | UI가 install 실행을 닫았다고 주장하는가 | 아니오 | `solutions/seamgrim_ui_mvp/ui/app.js:1482`부터 `:1504`는 mock/server adapter와 “준비 중” toast이며, `toolchain_registry_verification.js:224`는 install execution/network/trust signing을 후속으로 둔다 |
 
+## Q21 더미 실행 결과
+
+실행 경로:
+
+```text
+I:/home/urihanl/ddn/codex/out/queue-20260706/q21-local-registry/run_20260705_120137
+```
+
+실행 대상:
+
+- local package project: `project/gaji/demo/gaji.toml`
+- registry verified project: `project_registry_verified/gaji/demo/gaji.toml`
+- registry index: `registry/registry.index.json`
+- registry audit log: `registry/registry.audit.jsonl`
+- archive hash: `sha256:5fae82dcb67854277a5f86e2c142e281923b269c45888c08fdde4990a91e4b76`
+
+실행 표:
+
+| 단계 | 명령 표면 | 결과 | 로그 |
+|---|---|---|---|
+| 1 | `gaji lock --root <project> --out <project>/ddn.lock` | PASS, `gaji_lock_hash=blake3:93f51e0cd935ccd91b8b8e5518f12960a11a5a9edaf955f6f47dd5bc7d5ca1ae` | `01_gaji_lock.log` |
+| 2 | `gaji install --root <project> --lock <project>/ddn.lock --out <project>/vendor_install` | PASS, `gaji_vendor_packages=1`, `gaji_install_lock_created=0` | `02_gaji_install.log` |
+| 3 | `gaji update --root <project> --lock <project>/ddn.lock --out <project>/vendor_update` | PASS, `gaji_update_changed=0` | `03_gaji_update.log` |
+| 4 | `gaji vendor --root <project> --lock <project>/ddn.lock --out <project>/vendor_manual` | PASS, `gaji_vendor_packages=1` | `04_gaji_vendor.log` |
+| 5 | `gaji registry publish --index <index> --audit-log <audit> --scope 표준 --name 데모 --version 0.1.0 ...` | PASS, `registry_publish_ok=표준/데모@0.1.0` | `05_registry_publish.log` |
+| 6 | `gaji registry search --index <index> --query 데모` | PASS, `ddn.registry.search_result.v1` with 1 item | `06_registry_search.log` |
+| 7 | `gaji registry versions --index <index> --scope 표준 --name 데모` | PASS, `ddn.registry.package_versions.v1` with 1 version | `07_registry_versions.log` |
+| 8 | `gaji registry entry --index <index> --scope 표준 --name 데모 --version 0.1.0` | PASS, `ddn.registry.index_entry.v1` | `08_registry_entry.log` |
+| 9 | `gaji registry verify --index <index> --lock <registry>/ddn.lock --out <report>` | PASS after BOM-free scratch lock retry, `registry_verify_matched=1` | `09_registry_verify_retry.log` |
+| 10 | `gaji registry audit-verify --audit-log <audit> --out <report>` | PASS, `audit_verify_rows=1` | `10_registry_audit_verify_retry.log` |
+| 11 | `gaji registry download --index <index> --scope 표준 --name 데모 --version 0.1.0 --out <archive>` | PASS, local `archive.bin` copied and hash verified | `11_registry_download_retry.log` |
+| 12 | `gaji lock --root <registry_verified_project> --registry-index <index>` | PASS, `gaji_lock_hash=blake3:355550507351d739e0db4b59634f9b3e98b52d8197757ffc945e1ffb1446d4b4` | `12_gaji_lock_registry_meta.log` |
+| 13 | `gaji install --root <registry_verified_project> --registry-index <index> --verify-registry` | PASS, registry verify + vendor copy executed | `14_gaji_install_registry_verify_nonstrict.log` |
+
+실패/한계도 확인했다.
+
+- 처음 만든 scratch `registry/ddn.lock`은 PowerShell `Set-Content -Encoding UTF8`의 BOM 때문에 `gaji registry verify`가 `E_REG_LOCK_PARSE`로 실패했다. 같은 파일을 BOM 없는 UTF-8로 다시 써서 PASS했다. 제품 버그로 단정하지 않고 scratch 작성 오류로 분리한다.
+- `gaji install --strict-registry`는 `E_REG_TRUST_ROOT_INVALID trust_root.hash is missing`로 실패했다. 코드상 `normalize_strict_registry_options()`가 `require_trust_root=true`를 켜고(`tools/teul-cli/src/cli/gaji.rs:371`, `:376`, `:377`, `:378`), `validate_frozen_lock()`이 trust root hash를 요구한다(`tools/teul-cli/src/cli/gaji.rs:985`, `:989`, `:990`, `:992`). 즉 strict registry는 단순 index만으로는 닫히지 않고 trust root metadata가 필요하다.
+- 더미 `registry publish`는 `gaji.toml` 디렉터리를 포장하지 않고, CLI 인자로 받은 archive hash/download URL을 index entry에 추가했다. 기존 판정과 동일하다.
+- `registry download`는 archive 파일을 검증해 `out`에 썼지만, 그 archive를 `gaji install`이 풀어 `vendor/gaji`에 설치하는 연결은 없다.
+
 ## 테스트/팩 증거
 
 | 증거 | 근거 | 의미 |
@@ -133,8 +175,8 @@ top-level direct 디렉터리 중 `gaji.toml`이 없는 항목은 19개다.
 
 현재 상태는 다음처럼 부르는 것이 정확하다.
 
-- **착지됨:** local `gaji.toml` 스캔 기반 lock/vendor 최소, registry JSON index 조회/검증/발행/audit 최소, fixture 기반 provenance pack.
-- **부분 착지:** registry metadata를 lock/install/vendor 검증 옵션에 연결하는 guard.
+- **착지됨:** local `gaji.toml` 스캔 기반 lock/install/update/vendor 최소, registry JSON index 조회/검증/발행/audit/download 최소, fixture 기반 provenance pack.
+- **부분 착지:** registry metadata를 lock/install/vendor 검증 옵션에 연결하는 guard. 비엄격 `--verify-registry` install은 더미 index로 PASS했지만, `--strict-registry`는 trust root metadata 없이는 실패한다.
 - **미착지:** 저장소 `gaji/` 30개 top-level 전체의 package registry discover/install/publish 닫힌 workflow, `gaji.toml` 디렉터리 포장 publish, registry download-to-install, 제품 UI install 실행 닫힘.
 
-이번 감사에서는 구현·수정·네트워크 실행을 하지 않았다. 파일/코드/문서 근거만 확인했다.
+이번 감사에서는 구현·코드 수정·네트워크 실행을 하지 않았다. scratch 더미 파일은 저장소 밖 `out/` 경로에만 작성했다.
