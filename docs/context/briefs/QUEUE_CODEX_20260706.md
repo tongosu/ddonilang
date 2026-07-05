@@ -216,6 +216,9 @@
 | Q20 | `3a143f6` | `docs/context/briefs/BRIEF_AMBIGUITY_ENFORCEMENT_DIAGNOSIS_V1.md` 실행 보고 | `stem_alias_ambiguous.ddn` 오류 없음 재현, 보조 출력으로 `계산` dispatch 확인, 코드/팩 수정 없음 |
 | Q21 | `07dc3e1` | `docs/context/reports/LOCAL_REGISTRY_LANDING_AUDIT_V1.md` | 더미 레지스트리로 lock/install/update/vendor/registry publish-search-verify-download 실행, 코드 수정 없음 |
 | Q22 | `88c8cb8` | `docs/context/reports/GAJI_SCAFFOLD_SURVEY_V1.md`, `docs/context/briefs/BRIEF_GAJI_SCAFFOLD_SURVEY_V1.md` 실행 보고 | `gaji/` 30개 전수, `gaji.toml` 13개 필드 조사, SSOT 스켈레톤 비교, 코드 수정 없음 |
+| Q23 | `5d14d91` | `docs/context/reports/GANADA_REVERIFICATION_TIER1_V1.md`, `docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER1_V1.md` 실행 보고 | 가/나/타 18칸 전수, 체커 28개 실행, 보조 pack golden 21개 PASS, 코드 수정 없음 |
+| Q24 | `c9b95ab` | `docs/context/reports/GANADA_REVERIFICATION_TIER2_V1.md`, `docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER2_V1.md` 실행 보고 | 다/마/하/라 24칸 전수, 체커 35개 실행(PASS 6/FAIL 29), 마-1/마-2 lesson placeholder 직접 확인, 코드 수정 없음 |
+| Q25 | `eb6bcb1` | `docs/context/reports/GANADA_REVERIFICATION_TIER3_V1.md`, `docs/context/briefs/BRIEF_GANADA_REVERIFY_TIER3_V1.md` 실행 보고 | 바/사/아/자/차/카/파/거 48칸 전수, 체커 56개 실행(PASS 9/FAIL 47), 보조 pack golden 22개 PASS, 코드 수정 없음 |
 
 Q-CONFORMANCE 특기:
 - 기본 12개 케이스에 브리프가 별도 요구한 `value_ref_tail_undefined` 레드 케이스를 더해 총 13개를 캡처했다.
@@ -230,3 +233,8 @@ Q20-Q22 특기:
 - Q20 결론: 제품 실행 경로의 `tools/teul-cli/src/lang/parser.rs`에는 호출 꼬리 후보 수집/모호성 오류가 없고, `tools/teul-cli/src/runtime/eval.rs`가 꼬리 목록을 순서대로 첫 성공 dispatch한다. 그래서 `계산하기`는 `하기 -> 계산`에서 멈추며 `기 -> 계산하` 후보와의 모호성을 오류로 만들지 않는다.
 - Q21 결론: 로컬 레지스트리 명령군은 더미 레지스트리 기준 기본 흐름이 동작했다. 다만 strict registry install은 lock의 `trust_root.hash` 없음을 이유로 실패했으며, 이는 보고서에 제한 사항으로 기록했다.
 - Q22 결론: 실제 `gaji/` 최상위 30개 중 현재 CLI가 최상위 스캔으로 바로 패키지화하는 것은 11개다. 실제 `gaji.toml` 13개는 7개 메타 필드를 쓰지만 제품 파서는 `id/name/version`만 읽는다.
+
+Q23-Q25 특기:
+- Q23 결론: Tier1 18칸 중 `진짜닫힘`은 없었다. 16칸은 대응 체커 FAIL, 2칸(가-4, 나-4)은 PASS 증거가 있으나 registry/reconciliation 형식 증거로만 판정했다.
+- Q24 결론: Tier2 24칸 중 `진짜닫힘`은 없었다. 20칸은 대응 체커 FAIL, 4칸(하-0~하-3)은 PASS 증거가 있으나 marker/docs/local UI 또는 placeholder lesson 문제로 형식 증거로만 판정했다. 마-1/마-2 구형 대표 lesson 2개는 `보개로 그려.` 한 줄 placeholder였다.
+- Q25 결론: Tier3 48칸 중 `진짜닫힘` 8칸(바-1~바-5, 자-1, 자-2, 자-4), `존재+PASS이나형식뿐` 2칸(자-0, 파-0), `존재하나FAIL` 38칸으로 재판정했다. 아줄기는 expected refresh 및 대표 환경 pack 누락으로 0~5마루 전부 FAIL했다.
