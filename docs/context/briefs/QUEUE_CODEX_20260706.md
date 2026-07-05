@@ -238,6 +238,7 @@
 | Q26 | 이번 Q26 커밋 | `docs/context/briefs/BRIEF_JA_UI_WIRING_V1.md` 실행 보고, `solutions/seamgrim_ui_mvp/ui/{index.html,app.js,styles.css}` | JA3/JA5 체커 PASS, Playwright 제품 로드 PASS(consoleErrors=0), `core_lang` PASS |
 | Q27 | `2e6a956` | `docs/context/briefs/BRIEF_BROKEN_CHECKS_DELETION_V1.md` 실행 보고, 죽은 체크 111개 삭제, `docs/context/all/DEV_SUMMARY.md` 갱신 | pre/post `python tests/run_ci_sanity_gate.py --profile core_lang` PASS, 삭제 basename 실행 코드 참조 0건, 범위 밖 삭제 없음 |
 | Q28 | 이번 Q28 커밋 | `docs/context/reports/ECOSYSTEM_CONTRACT_VERIFICATION_V1.md`, `docs/context/briefs/BRIEF_ECOSYSTEM_CONTRACT_VERIFICATION_V1.md` 실행 보고 | 정적 분석 완료, D39 위반 없음, D40/D41 미착륙 판정, 코드/pack/golden 수정 없음 |
+| Q29 | 이번 Q29 커밋 | `docs/context/reports/OBSERVER_MUTATOR_BOUNDARY_SURVEY_V1.md`, `docs/context/briefs/BRIEF_OBSERVER_MUTATOR_BOUNDARY_SURVEY_V1.md` 실행 보고 | UI `.js` 134개 전수 스캔, D40 호출부 지도/관찰자 최소 읽기 표면/D41 입력원천별 코드 경로 표 작성, 코드/pack/golden 수정 없음 |
 
 Q-CONFORMANCE 특기:
 - 기본 12개 케이스에 브리프가 별도 요구한 `value_ref_tail_undefined` 레드 케이스를 더해 총 13개를 캡처했다.
@@ -265,3 +266,6 @@ Q26 특기:
 Q27-Q28 특기:
 - Q27은 Q3 원본 후보 173개 중 외부 실행 코드 참조 closure로 62개를 제외하고 111개만 삭제했다. 삭제 대상 basename의 남은 실행 코드 참조는 0건이며, 기존 역사 보고서/브리프 안의 참조는 감사 증거라서 수정하지 않았다.
 - Q28 결론: D39는 현재 실행 경로와 일치한다. D40은 자-3/자-5 observer 모듈 자체는 읽기 전용이나 UI/WASM 표면에 mutation-capable API가 있어 계약으로는 미착륙이다. D41은 구현된 입력이 샘 네임스페이스/`InputSnapshot`으로 모이지만 6원천 enum/검사는 제품 코드에 없다.
+
+Q29 특기:
+- Q29 결론: Q28 관찰자 모듈(`seulgi_proposal_ui.js`, `seulgi_replay_safe_workflow.js`)은 WASM mutation/read API를 직접 호출하지 않는다. mutation-capable 호출부는 raw binding/wrapper/shared helper/VM runtime/RunScreen/Playground 쪽에 몰려 있고, 6원천 이름은 제품 enum/분류기로 구현되어 있지 않다.

@@ -55,3 +55,13 @@ Q28이 두 가지를 확인했다:
 ## 보고 형식
 
 이 파일 하단 `## 실행 보고`: 표1/표2 커버리지 요약, 산출물 경로.
+
+## 실행 보고
+
+- 실행일: 2026-07-06
+- 브랜치: `codex/queue-20260706`
+- 산출물: `docs/context/reports/OBSERVER_MUTATOR_BOUNDARY_SURVEY_V1.md`
+- 커버리지: `solutions/seamgrim_ui_mvp/ui/**/*.js` 134개 전수 스캔. WASM/관찰 함수명 검색에 걸린 12개 중 실제 호출/바인딩/재수출 파일 10개, 오탐 1개(`free_lab_first_run.js`), 단순 re-export 1개(`runtime/index.js`)로 분리했다.
+- D40 결과: `seulgi_proposal_ui.js`, `seulgi_replay_safe_workflow.js`는 mutation/read WASM API 호출 없음. mutation-capable 표면은 raw binding/wrapper/shared helper/VM runtime/RunScreen/Playground 쪽에 몰려 있음을 표1에 기록했다.
+- D41 결과: 사람/슬기/net event/일정/replay류 경로는 구현되어 있으나 6원천 enum/분류기는 제품 코드에서 발견되지 않았다. `밖일`의 외부 작업 결과는 `dultra_replay` stub/not_runtime_landed 상태, `펼침실행`은 입력원천 구현 없음으로 판정했다.
+- 검증: 정적 분석(`rg`, 파일 직접 읽기)만 수행. 코드/golden/pack 변경 없음.
