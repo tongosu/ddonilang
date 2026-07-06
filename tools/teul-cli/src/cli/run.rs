@@ -4841,6 +4841,7 @@ fn runtime_line(err: &RuntimeError) -> usize {
         RuntimeError::MathDomain { span, .. } => span.start_line,
         RuntimeError::TypeMismatch { span, .. } => span.start_line,
         RuntimeError::TypeMismatchDetail { span, .. } => span.start_line,
+        RuntimeError::CallTailAmbiguous { span, .. } => span.start_line,
         RuntimeError::LifecycleTargetUnknown { span, .. } => span.start_line,
         RuntimeError::LifecycleTargetArity { span, .. } => span.start_line,
         RuntimeError::LifecycleTargetFamilyConflict { span, .. } => span.start_line,
@@ -4884,6 +4885,7 @@ fn runtime_col(err: &RuntimeError) -> usize {
         RuntimeError::MathDomain { span, .. } => span.start_col,
         RuntimeError::TypeMismatch { span, .. } => span.start_col,
         RuntimeError::TypeMismatchDetail { span, .. } => span.start_col,
+        RuntimeError::CallTailAmbiguous { span, .. } => span.start_col,
         RuntimeError::LifecycleTargetUnknown { span, .. } => span.start_col,
         RuntimeError::LifecycleTargetArity { span, .. } => span.start_col,
         RuntimeError::LifecycleTargetFamilyConflict { span, .. } => span.start_col,
@@ -4934,6 +4936,15 @@ fn runtime_message(err: &RuntimeError) -> String {
             expected, actual, ..
         } => {
             format!("타입 불일치: 기대={} 실제={}", expected, actual)
+        }
+        RuntimeError::CallTailAmbiguous {
+            name, candidates, ..
+        } => {
+            format!(
+                "호출 꼬리가 여러 씨앗 후보와 맞습니다: {} -> {}",
+                name,
+                candidates.join(", ")
+            )
         }
         RuntimeError::LifecycleTargetUnknown {
             verb,

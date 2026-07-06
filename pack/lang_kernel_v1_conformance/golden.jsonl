@@ -1,6 +1,7 @@
 {"id":"stem_alias_dop_dou","cmd":["run","pack/lang_kernel_v1_conformance/cases/stem_alias_dop_dou.ddn"],"stdout":["도움"],"exit_code":0}
-{"id":"stem_alias_ambiguous","cmd":["run","pack/lang_kernel_v1_conformance/cases/stem_alias_ambiguous.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
+{"id":"stem_alias_ambiguous","cmd":["run","pack/lang_kernel_v1_conformance/cases/stem_alias_ambiguous.ddn"],"expected_error_code":"E_CALL_TAIL_AMBIGUOUS","exit_code":1}
 {"id":"tail_equiv_gi_hagi","cmd":["run","pack/lang_kernel_v1_conformance/cases/tail_equiv_gi_hagi.ddn"],"stdout":["회복","회복"],"exit_code":0}
+{"id":"bare_tail_call_statement","cmd":["run","pack/lang_kernel_v1_conformance/cases/bare_tail_call_statement.ddn"],"stdout":["bare 도움"],"exit_code":0}
 {"id":"condition_new_surface","cmd":["run","pack/lang_kernel_v1_conformance/cases/condition_new_surface.ddn"],"stdout":["참"],"exit_code":0}
 {"id":"time_madisai_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/time_madisai_undefined.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}
 {"id":"time_jigeum_undefined","cmd":["run","pack/lang_kernel_v1_conformance/cases/time_jigeum_undefined.ddn"],"expected_error_code":"E_RUNTIME_UNDEFINED","exit_code":1}

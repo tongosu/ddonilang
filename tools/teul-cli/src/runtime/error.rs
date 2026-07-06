@@ -29,6 +29,11 @@ pub enum RuntimeError {
         actual: String,
         span: Span,
     },
+    CallTailAmbiguous {
+        name: String,
+        candidates: Vec<String>,
+        span: Span,
+    },
     LifecycleTargetUnknown {
         verb: &'static str,
         target: String,
@@ -207,6 +212,7 @@ impl RuntimeError {
             RuntimeError::MathDomain { .. } => "E_MATH_DOMAIN",
             RuntimeError::TypeMismatch { .. } => "E_RUNTIME_TYPE_MISMATCH",
             RuntimeError::TypeMismatchDetail { .. } => "E_RUNTIME_TYPE_MISMATCH",
+            RuntimeError::CallTailAmbiguous { .. } => "E_CALL_TAIL_AMBIGUOUS",
             RuntimeError::LifecycleTargetUnknown { verb, .. } => {
                 Self::lifecycle_target_unknown_code(verb)
             }

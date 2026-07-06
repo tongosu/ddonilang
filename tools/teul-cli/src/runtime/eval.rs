@@ -27,6 +27,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const PROOF_GUARD_REGISTRY_KEY: &str = "__proof.guard_registry";
+const CALL_TAILS: &[&str] = &["하면서", "면서", "하기", "기", "하고", "고", "하면", "면"];
 const BOGAE_SHOW_LINES_TAG: &str = "보개_출력_줄들";
 const BOGAE_GRAPH_POINTS_F_TAG: &str = "보개_그래프_점목록_f";
 const EXACT_NUMERIC_KIND_FIELD: &str = "__정확수종류";
@@ -2216,14 +2217,27 @@ impl Evaluator {
             let bound = self.bind_seed_args(&seed, args, &values, span)?;
             return self.eval_user_seed(&resolved_name, &seed, &bound, span);
         }
-        // try stripping call tails (short and long forms) to find seed stem
-        for tail in &["하면서", "면서", "하기", "기", "하고", "고", "하면", "면"] {
+        // Try stripping call tails (short and long forms), but never guess on ambiguity.
+        let mut tail_candidates = Vec::new();
+        for tail in CALL_TAILS {
             if let Some(stem) = resolved_name.strip_suffix(tail) {
-                if let Some(seed) = self.user_seeds.get(stem).cloned() {
-                    let bound = self.bind_seed_args(&seed, args, &values, span)?;
-                    return self.eval_user_seed(stem, &seed, &bound, span);
+                if self.user_seeds.contains_key(stem) {
+                    tail_candidates.push(stem.to_string());
                 }
             }
+        }
+        if tail_candidates.len() == 1 {
+            let stem = &tail_candidates[0];
+            let seed = self.user_seeds.get(stem).cloned().expect("candidate seed");
+            let bound = self.bind_seed_args(&seed, args, &values, span)?;
+            return self.eval_user_seed(stem, &seed, &bound, span);
+        }
+        if tail_candidates.len() > 1 {
+            return Err(RuntimeError::CallTailAmbiguous {
+                name: resolved_name,
+                candidates: tail_candidates,
+                span,
+            });
         }
         Err(RuntimeError::TypeMismatch {
             expected: "known function",
@@ -19805,6 +19819,54 @@ dt <- 1.
         let output = run_source_once(source).expect("run");
         assert_eq!(state_num(&output, "첫"), fixed("1"));
         assert_eq!(state_num(&output, "둘"), fixed("2"));
+    }
+
+    #[test]
+    fn call_tail_bare_statement_dispatches_to_seed_alias() {
+        let source = r#"
+돕~도우:움직씨 = {
+살림.결과 <- "도움".
+}.
+
+돕기.
+"#;
+        let output = run_source_once(source).expect("run");
+        assert_eq!(state_str(&output, "결과"), "도움");
+    }
+
+    #[test]
+    fn call_tail_short_and_long_forms_dispatch_to_same_seed() {
+        let source = r#"
+회복:움직씨 = {
+살림.횟수 <- 살림.횟수 + 1.
+}.
+
+살림.횟수 <- 0.
+회복기.
+회복하기.
+"#;
+        let output = run_source_once(source).expect("run");
+        assert_eq!(state_num(&output, "횟수"), fixed("2"));
+    }
+
+    #[test]
+    fn call_tail_ambiguous_seed_stems_fail_without_guessing() {
+        let source = r#"
+계산:셈씨 = {
+1 돌려줘.
+}.
+
+계산하:셈씨 = {
+2 돌려줘.
+}.
+
+계산하기.
+"#;
+        let err = match run_source_once(source) {
+            Ok(_) => panic!("ambiguous call tail must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_CALL_TAIL_AMBIGUOUS");
     }
 
     #[test]

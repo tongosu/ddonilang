@@ -11,6 +11,8 @@ use crate::lang::token::{Token, TokenKind};
 use ddonirang_lang::stdlib;
 use std::collections::{HashMap, HashSet, VecDeque};
 
+const CALL_TAILS: &[&str] = &["하면서", "면서", "하기", "기", "하고", "고", "하면", "면"];
+
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedToken {
@@ -862,6 +864,7 @@ impl Parser {
         self.consume_terminator()?;
         let payload = Self::rewrite_bare_reset_call(payload);
         let payload = Self::rewrite_bare_lifecycle_transition_call(payload);
+        let payload = Self::rewrite_bare_call_tail_stmt(payload);
         Ok(Some(Stmt::Expr {
             value: payload,
             span,
@@ -905,6 +908,30 @@ impl Parser {
             },
             span,
         })
+    }
+
+    fn rewrite_bare_call_tail_stmt(expr: Expr) -> Expr {
+        let Expr::Path(path) = expr else {
+            return expr;
+        };
+        let call_name = Self::path_bare_call_name(&path);
+        let Some(name) = call_name else {
+            return Expr::Path(path);
+        };
+        if !Self::is_call_tail_name(&name) {
+            return Expr::Path(path);
+        }
+        Expr::Call {
+            name,
+            args: Vec::new(),
+            span: path.span,
+        }
+    }
+
+    fn is_call_tail_name(name: &str) -> bool {
+        CALL_TAILS
+            .iter()
+            .any(|tail| name.len() > tail.len() && name.ends_with(tail))
     }
 
     fn rewrite_bare_reset_call(expr: Expr) -> Expr {
@@ -6698,6 +6725,25 @@ mod tests {
         let tokens = Lexer::tokenize(source).expect("tokenize");
         let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
         assert!(matches!(program.stmts.last(), Some(Stmt::Expr { .. })));
+    }
+
+    #[test]
+    fn parse_call_tail_bare_statement_lowers_to_zero_arg_call() {
+        let source = r#"
+돕~도우:움직씨 = {
+}.
+돕기.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Expr { value, .. }) = program.stmts.last() else {
+            panic!("expected expression statement");
+        };
+        let Expr::Call { name, args, .. } = value else {
+            panic!("expected bare call-tail statement to lower to call");
+        };
+        assert_eq!(name, "돕기");
+        assert!(args.is_empty());
     }
 
     #[test]
