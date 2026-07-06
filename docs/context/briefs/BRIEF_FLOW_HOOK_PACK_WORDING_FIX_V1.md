@@ -39,3 +39,17 @@
 ## 보고 형식
 
 이 파일 하단 `## 실행 보고`: 수정한 파일:행, 추가로 발견한 과장 문구(있으면), 검증 결과.
+
+## 실행 보고
+
+- 수정: `docs/context/proposals/PROPOSAL_SSOT_V24_0_9_POST_CLARIFICATION_EXECUTION_SYNC_20260412.md:53`.
+- 내용: `lang_flow_hook_interaction_v1`을 runtime evidence로 닫는다는 뉘앙스의 "evidence 로 잠그는 작업" 문구를, 브리프 지정 문구대로 `contract/expected 구조를 문서로 고정하는 작업(docs-first skeleton)`으로 정정했다.
+- GOAL-B 근거 반영: `FLOW_HOOK_PHASE_SEPARATION_VERIFICATION_V1.md`와 현재 `<<-`가 제품 파서에 없어 4개 케이스가 모두 파싱 단계에서 실패한다는 내용을 포함했다.
+- 유사 과장 문구 확인:
+  - 대상 문서 내부 검색 `rg -n "evidence|잠그|closure|닫|docs-first|runtime" docs/context/proposals/PROPOSAL_SSOT_V24_0_9_POST_CLARIFICATION_EXECUTION_SYNC_20260412.md` 결과, 정정 대상 외 같은 의미의 과장 문구는 발견하지 못했다.
+  - 광역 검색 `rg -n "evidence\s*로\s*잠그|evidence.*잠그|runtime 관계를 evidence|evidence로 닫" docs/context/proposals docs/context/reports docs/context/briefs --glob "*.md"` 결과, 브리프/큐/결정 제안서의 이 정정 지시 문구와 일반 closure 원칙 문구만 확인했다. 추가 수정 대상 없음.
+- `pack/lang_flow_hook_interaction_v1/README.md`는 수정하지 않았다.
+- 코드/checker/golden 변경 없음.
+- 검증:
+  - `git diff --check` PASS.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang` PASS.
