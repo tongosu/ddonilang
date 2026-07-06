@@ -242,6 +242,10 @@
 
 `docs/context/briefs/BRIEF_FLOW_HOOK_PACK_WORDING_FIX_V1.md` 그대로 실행. `PROPOSAL_SSOT_V24_0_9_POST_CLARIFICATION_EXECUTION_SYNC_20260412.md:52`의 "evidence로 잠그는 작업" 과장 문구를 GOAL-B 실측 근거로 정정. 코드/pack README 수정 없음, Q13-18 게이트와 무관.
 
+## GOAL-MUSTAUDIT(신) — SSOT_LANG MUST 규칙 179건 전수 실코드 검증 [Codex Goal 모드, 대규모, 진단 전용]
+
+`docs/context/briefs/GOAL_SSOT_MUST_RULE_AUDIT_V1.md` 그대로 실행. Tier1~4(각 ~45개 섹션)로 나눠 SSOT_LANG의 MUST 태그 179개 전부를 실제 제품 코드와 대조. GOAL-B와 같은 엄격함(file:line 근거, 추측 금지). 코드/pack/golden/SSOT 수정 전혀 없음 — 순수 조사.
+
 ---
 
 ## 큐 완료 보고
