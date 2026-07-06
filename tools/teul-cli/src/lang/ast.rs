@@ -118,6 +118,12 @@ pub enum Stmt {
         #[allow(dead_code)]
         span: Span,
     },
+    FlowAssign {
+        target: Path,
+        value: Expr,
+        #[allow(dead_code)]
+        span: Span,
+    },
     Expr {
         value: Expr,
         #[allow(dead_code)]

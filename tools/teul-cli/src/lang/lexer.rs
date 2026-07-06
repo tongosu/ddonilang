@@ -287,6 +287,16 @@ impl Lexer {
                     self.span_from(start_line, start_col),
                 ))
             }
+            '<' if self.peek_next() == Some('<') && self.peek_n(2) == Some('-') => {
+                let (start_line, start_col) = (self.line, self.col);
+                self.advance();
+                self.advance();
+                self.advance();
+                Ok(Token::new(
+                    TokenKind::FlowArrow,
+                    self.span_from(start_line, start_col),
+                ))
+            }
             '<' if self.peek_next() == Some('=') => {
                 let (start_line, start_col) = (self.line, self.col);
                 self.advance();
@@ -1220,5 +1230,13 @@ mod tests {
         assert!(tokens
             .iter()
             .any(|token| matches!(token.kind, TokenKind::SignalArrow)));
+    }
+
+    #[test]
+    fn flow_arrow_is_lexed_as_token() {
+        let tokens = Lexer::tokenize("값 <<- 입력 + 1.\n").expect("tokenize");
+        assert!(tokens
+            .iter()
+            .any(|token| matches!(token.kind, TokenKind::FlowArrow)));
     }
 }

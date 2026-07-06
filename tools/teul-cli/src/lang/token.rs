@@ -72,6 +72,7 @@ pub enum TokenKind {
     DotDotEq,
     Colon,
     Arrow,
+    FlowArrow,
     SignalArrow,
     Pipe,
     Newline,

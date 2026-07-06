@@ -2166,6 +2166,7 @@ fn stmt_contains_open_call(stmt: &Stmt) -> bool {
         }),
         Stmt::SeedDef { body, .. } => stmts_contain_open_call(body),
         Stmt::Assign { value, .. }
+        | Stmt::FlowAssign { value, .. }
         | Stmt::Expr { value, .. }
         | Stmt::Return { value, .. }
         | Stmt::Show { value, .. }
@@ -2316,6 +2317,7 @@ fn stmt_contains_input_builtin(stmt: &Stmt) -> bool {
         }),
         Stmt::SeedDef { body, .. } => stmts_contain_input_builtin(body),
         Stmt::Assign { value, .. }
+        | Stmt::FlowAssign { value, .. }
         | Stmt::Expr { value, .. }
         | Stmt::Return { value, .. }
         | Stmt::Show { value, .. }
@@ -2463,6 +2465,7 @@ fn stmt_contains_regex_call(stmt: &Stmt) -> bool {
         }),
         Stmt::SeedDef { body, .. } => stmts_contain_regex_call(body),
         Stmt::Assign { value, .. }
+        | Stmt::FlowAssign { value, .. }
         | Stmt::Expr { value, .. }
         | Stmt::Return { value, .. }
         | Stmt::Show { value, .. }
@@ -4842,6 +4845,8 @@ fn runtime_line(err: &RuntimeError) -> usize {
         RuntimeError::TypeMismatch { span, .. } => span.start_line,
         RuntimeError::TypeMismatchDetail { span, .. } => span.start_line,
         RuntimeError::CallTailAmbiguous { span, .. } => span.start_line,
+        RuntimeError::FlowMultipleSourceConflict { span, .. } => span.start_line,
+        RuntimeError::FlowCircularReference { span, .. } => span.start_line,
         RuntimeError::LifecycleTargetUnknown { span, .. } => span.start_line,
         RuntimeError::LifecycleTargetArity { span, .. } => span.start_line,
         RuntimeError::LifecycleTargetFamilyConflict { span, .. } => span.start_line,
@@ -4886,6 +4891,8 @@ fn runtime_col(err: &RuntimeError) -> usize {
         RuntimeError::TypeMismatch { span, .. } => span.start_col,
         RuntimeError::TypeMismatchDetail { span, .. } => span.start_col,
         RuntimeError::CallTailAmbiguous { span, .. } => span.start_col,
+        RuntimeError::FlowMultipleSourceConflict { span, .. } => span.start_col,
+        RuntimeError::FlowCircularReference { span, .. } => span.start_col,
         RuntimeError::LifecycleTargetUnknown { span, .. } => span.start_col,
         RuntimeError::LifecycleTargetArity { span, .. } => span.start_col,
         RuntimeError::LifecycleTargetFamilyConflict { span, .. } => span.start_col,
@@ -4945,6 +4952,12 @@ fn runtime_message(err: &RuntimeError) -> String {
                 name,
                 candidates.join(", ")
             )
+        }
+        RuntimeError::FlowMultipleSourceConflict { target, .. } => {
+            format!("흐름씨 출처가 같은 마디에 여러 개입니다: {}", target)
+        }
+        RuntimeError::FlowCircularReference { target, .. } => {
+            format!("흐름씨 순환 참조가 있습니다: {}", target)
         }
         RuntimeError::LifecycleTargetUnknown {
             verb,
@@ -6193,6 +6206,11 @@ fn stmt_to_json(stmt: &Stmt) -> JsonValue {
             "value": expr_to_json(value),
             "deferred": deferred,
         }),
+        Stmt::FlowAssign { target, value, .. } => json!({
+            "kind": "flow_assign",
+            "target": path_to_json(target),
+            "value": expr_to_json(value),
+        }),
         Stmt::Expr { value, .. } => json!({
             "kind": "expr",
             "value": expr_to_json(value),
@@ -6677,6 +6695,7 @@ fn collect_solver_translation_stmt(stmt: &Stmt, items: &mut Vec<JsonValue>) {
             collect_solver_translation_items(body, items);
         }
         Stmt::Assign { value, .. }
+        | Stmt::FlowAssign { value, .. }
         | Stmt::Expr { value, .. }
         | Stmt::Return { value, .. }
         | Stmt::Show { value, .. }

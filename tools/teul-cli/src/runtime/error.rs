@@ -34,6 +34,14 @@ pub enum RuntimeError {
         candidates: Vec<String>,
         span: Span,
     },
+    FlowMultipleSourceConflict {
+        target: String,
+        span: Span,
+    },
+    FlowCircularReference {
+        target: String,
+        span: Span,
+    },
     LifecycleTargetUnknown {
         verb: &'static str,
         target: String,
@@ -213,6 +221,8 @@ impl RuntimeError {
             RuntimeError::TypeMismatch { .. } => "E_RUNTIME_TYPE_MISMATCH",
             RuntimeError::TypeMismatchDetail { .. } => "E_RUNTIME_TYPE_MISMATCH",
             RuntimeError::CallTailAmbiguous { .. } => "E_CALL_TAIL_AMBIGUOUS",
+            RuntimeError::FlowMultipleSourceConflict { .. } => "E_FLOW_MULTIPLE_SOURCE_CONFLICT",
+            RuntimeError::FlowCircularReference { .. } => "E_FLOW_CIRCULAR_REFERENCE",
             RuntimeError::LifecycleTargetUnknown { verb, .. } => {
                 Self::lifecycle_target_unknown_code(verb)
             }

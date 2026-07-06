@@ -393,6 +393,7 @@ impl Parser {
             | Stmt::DeclBlock { span, .. }
             | Stmt::SeedDef { span, .. }
             | Stmt::Assign { span, .. }
+            | Stmt::FlowAssign { span, .. }
             | Stmt::Expr { span, .. }
             | Stmt::Receive { span, .. }
             | Stmt::Send { span, .. }
@@ -686,6 +687,24 @@ impl Parser {
             return Err(ParseError::CompatEqualDisabled {
                 span: self.peek().span,
             });
+        }
+
+        if self.peek_kind_is(|k| matches!(k, TokenKind::FlowArrow)) {
+            self.advance();
+            let value = self.parse_expr()?;
+            let span = payload.span().merge(value.span());
+            self.consume_terminator()?;
+            let Expr::Path(path) = payload else {
+                return Err(ParseError::ExpectedTarget {
+                    span: payload.span(),
+                });
+            };
+            self.ensure_root_declared_for_write(&path)?;
+            return Ok(Some(Stmt::FlowAssign {
+                target: path,
+                value,
+                span,
+            }));
         }
 
         if self.peek_kind_is(|k| {
@@ -2666,8 +2685,22 @@ impl Parser {
             self.pos = checkpoint;
             return Ok(None);
         }
-        self.advance();
+        let rparen_span = self.advance().span;
 
+        if self.peek_kind_is(|k| matches!(k, TokenKind::Ilttae)) {
+            let ilttae_span = self.peek().span;
+            if ilttae_span.start_line == rparen_span.end_line
+                && ilttae_span.start_col == rparen_span.end_col
+            {
+                self.advance();
+                let (body, span) = self.parse_hook_body_and_span(start_span)?;
+                return Ok(Some(Stmt::HookWhenBecomes {
+                    condition,
+                    body,
+                    span,
+                }));
+            }
+        }
         if self
             .peek_kind_is(|k| matches!(k, TokenKind::Ident(name) if name == "이" || name == "가"))
             && self.peek_kind_n_is(1, |k| matches!(k, TokenKind::Ident(name) if name == "될때"))
@@ -3365,7 +3398,7 @@ impl Parser {
 
     fn stmt_has_mutation(&self, stmt: &Stmt) -> bool {
         match stmt {
-            Stmt::Assign { .. } => true,
+            Stmt::Assign { .. } | Stmt::FlowAssign { .. } => true,
             Stmt::DeclBlock { items, .. } => items.iter().any(|item| {
                 item.value
                     .as_ref()
@@ -3509,9 +3542,10 @@ impl Parser {
                     .as_ref()
                     .is_some_and(|expr| self.expr_has_show(expr))
             }),
-            Stmt::Assign { value, .. } | Stmt::Expr { value, .. } | Stmt::Return { value, .. } => {
-                self.expr_has_show(value)
-            }
+            Stmt::Assign { value, .. }
+            | Stmt::FlowAssign { value, .. }
+            | Stmt::Expr { value, .. }
+            | Stmt::Return { value, .. } => self.expr_has_show(value),
             Stmt::Receive {
                 condition, body, ..
             } => {
@@ -3650,9 +3684,10 @@ impl Parser {
                         })
                     })
             }),
-            Stmt::Assign { value, .. } | Stmt::Expr { value, .. } | Stmt::Return { value, .. } => {
-                self.expr_has_forbidden_io(value, allow_solver_hooks)
-            }
+            Stmt::Assign { value, .. }
+            | Stmt::FlowAssign { value, .. }
+            | Stmt::Expr { value, .. }
+            | Stmt::Return { value, .. } => self.expr_has_forbidden_io(value, allow_solver_hooks),
             Stmt::Boim { entries, .. } => entries
                 .iter()
                 .any(|entry| self.expr_has_forbidden_io(&entry.value, allow_solver_hooks)),
@@ -6744,6 +6779,44 @@ mod tests {
         };
         assert_eq!(name, "돕기");
         assert!(args.is_empty());
+    }
+
+    #[test]
+    fn parse_flow_assignment_lowers_to_flow_assign_stmt() {
+        let source = r#"
+채비 {
+  입력: 수 <- 1.
+  흐름값: 수 <- 0.
+}.
+(매마디)마다 {
+  흐름값 <<- 입력 + 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        let Some(Stmt::Hook { body, .. }) = program.stmts.get(1) else {
+            panic!("expected every hook");
+        };
+        let Some(Stmt::FlowAssign { target, value, .. }) = body.first() else {
+            panic!("expected flow assignment");
+        };
+        assert_eq!(target.segments, vec!["살림", "흐름값"]);
+        assert!(matches!(value, Expr::Binary { .. }));
+    }
+
+    #[test]
+    fn parse_adjacent_ilttae_condition_as_tail_phase_hook() {
+        let source = r#"
+(살림.값 > 0)일때 {
+  살림.결과 <- 1.
+}.
+"#;
+        let tokens = Lexer::tokenize(source).expect("tokenize");
+        let program = Parser::parse_with_default_root(tokens, "살림").expect("parse");
+        assert!(matches!(
+            program.stmts.first(),
+            Some(Stmt::HookWhenBecomes { .. })
+        ));
     }
 
     #[test]

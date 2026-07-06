@@ -102,6 +102,7 @@ pub struct Evaluator {
     pending_signals: VecDeque<PendingSignal>,
     processing_signal_queue: bool,
     deferred_assign_frames: Vec<Vec<DeferredAssign>>,
+    flow_assigns: Vec<FlowAssignRecord>,
     contract_stack: Vec<ContractFrame>,
     next_contract_frame_id: u64,
     nuri_reset_snapshot: Option<NuriResetSnapshot>,
@@ -301,12 +302,21 @@ struct DeferredAssign {
 }
 
 #[derive(Clone)]
+struct FlowAssignRecord {
+    key: Key,
+    value: Expr,
+    target_span: crate::lang::span::Span,
+    span: crate::lang::span::Span,
+}
+
+#[derive(Clone)]
 struct ContractFrame {
     frame_id: u64,
     persistent_snapshot: State,
     const_scopes: Vec<BTreeSet<Key>>,
     pending_signals_len: usize,
     deferred_assign_frames: Vec<Vec<DeferredAssign>>,
+    flow_assigns: Vec<FlowAssignRecord>,
     open_checkpoint: OpenCheckpoint,
     depth: u32,
 }
@@ -317,6 +327,7 @@ struct NuriResetSnapshot {
     const_scopes: Vec<BTreeSet<Key>>,
     pending_signals: VecDeque<PendingSignal>,
     deferred_assign_frames: Vec<Vec<DeferredAssign>>,
+    flow_assigns: Vec<FlowAssignRecord>,
     current_entity_stack: Vec<String>,
     aborted: bool,
     bogae_requested: bool,
@@ -427,6 +438,7 @@ impl Evaluator {
             pending_signals: VecDeque::new(),
             processing_signal_queue: false,
             deferred_assign_frames: Vec::new(),
+            flow_assigns: Vec::new(),
             contract_stack: Vec::new(),
             next_contract_frame_id: 1,
             nuri_reset_snapshot: None,
@@ -706,6 +718,9 @@ impl Evaluator {
                 return Err(self.into_failure(error));
             }
         }
+        if let Err(error) = self.apply_flow_fixed_point() {
+            return Err(self.into_failure(error));
+        }
 
         let imja_seeds: Vec<(String, UserSeed)> = self
             .user_seeds
@@ -729,6 +744,9 @@ impl Evaluator {
             if let Err(error) = ensure_no_break(flow) {
                 return Err(self.into_failure(error));
             }
+        }
+        if let Err(error) = self.apply_flow_fixed_point() {
+            return Err(self.into_failure(error));
         }
         self.capture_nuri_reset_snapshot();
         let mut becomes_prev_values: Vec<bool> = vec![false; becomes_hooks.len()];
@@ -770,6 +788,9 @@ impl Evaluator {
                 if let Err(error) = ensure_no_break(flow) {
                     return Err(self.into_failure(error));
                 }
+            }
+            if let Err(error) = self.apply_flow_fixed_point() {
+                return Err(self.into_failure(error));
             }
             for (index, (condition, hook)) in becomes_hooks.iter().enumerate() {
                 let value = match self.eval_expr(condition) {
@@ -954,6 +975,42 @@ impl Evaluator {
                 } else {
                     self.state.set(key, val);
                 }
+                Ok(FlowControl::Continue)
+            }
+            Stmt::FlowAssign {
+                target,
+                value,
+                span,
+            } => {
+                if let Some(root) = target.segments.first() {
+                    if root == "샘" {
+                        return Err(RuntimeError::InvalidPath {
+                            path: target.segments.join("."),
+                            span: target.span,
+                        });
+                    }
+                    if matches!(root.as_str(), "살림" | "바탕")
+                        && target.segments.get(1).map(|seg| seg.as_str()) == Some("입력상태")
+                    {
+                        return Err(RuntimeError::InvalidPath {
+                            path: target.segments.join("."),
+                            span: target.span,
+                        });
+                    }
+                }
+                let key = self.path_to_key(target)?;
+                if self.is_const(&key) {
+                    return Err(RuntimeError::Pack {
+                        message: format!("붙박이는 재대입할 수 없습니다: {}", key.as_str()),
+                        span: target.span,
+                    });
+                }
+                self.flow_assigns.push(FlowAssignRecord {
+                    key,
+                    value: value.clone(),
+                    target_span: target.span,
+                    span: *span,
+                });
                 Ok(FlowControl::Continue)
             }
             Stmt::Show { value, .. } => {
@@ -1581,6 +1638,7 @@ impl Evaluator {
             const_scopes: self.const_scopes.clone(),
             pending_signals: self.pending_signals.clone(),
             deferred_assign_frames: self.deferred_assign_frames.clone(),
+            flow_assigns: self.flow_assigns.clone(),
             current_entity_stack: self.current_entity_stack.clone(),
             aborted: self.aborted,
             bogae_requested: self.bogae_requested,
@@ -1609,6 +1667,7 @@ impl Evaluator {
         }
         self.pending_signals = snapshot.pending_signals;
         self.deferred_assign_frames = snapshot.deferred_assign_frames;
+        self.flow_assigns = snapshot.flow_assigns;
         self.current_entity_stack = snapshot.current_entity_stack;
         self.aborted = snapshot.aborted;
         self.lifecycle_pan_name_to_index = snapshot.lifecycle_pan_name_to_index;
@@ -1809,6 +1868,7 @@ impl Evaluator {
             const_scopes: self.const_scopes.clone(),
             pending_signals_len: self.pending_signals.len(),
             deferred_assign_frames: self.deferred_assign_frames.clone(),
+            flow_assigns: self.flow_assigns.clone(),
             open_checkpoint: self.open.checkpoint(span)?,
             depth: (self.contract_stack.len() as u32).saturating_add(1),
         };
@@ -1841,6 +1901,7 @@ impl Evaluator {
         self.const_scopes = frame.const_scopes;
         self.pending_signals.truncate(frame.pending_signals_len);
         self.deferred_assign_frames = frame.deferred_assign_frames;
+        self.flow_assigns = frame.flow_assigns;
         self.open.restore(frame.open_checkpoint, span)?;
         Ok(())
     }
@@ -1851,6 +1912,145 @@ impl Evaluator {
             return;
         }
         self.state.set(key, value);
+    }
+
+    fn apply_flow_fixed_point(&mut self) -> Result<(), RuntimeError> {
+        let records = std::mem::take(&mut self.flow_assigns);
+        if records.is_empty() {
+            return Ok(());
+        }
+
+        let mut by_key: BTreeMap<Key, usize> = BTreeMap::new();
+        for (index, record) in records.iter().enumerate() {
+            if by_key.insert(record.key.clone(), index).is_some() {
+                return Err(RuntimeError::FlowMultipleSourceConflict {
+                    target: record.key.as_str().to_string(),
+                    span: record.target_span,
+                });
+            }
+        }
+
+        let flow_keys: BTreeSet<Key> = by_key.keys().cloned().collect();
+        let mut dependencies: Vec<BTreeSet<Key>> = Vec::with_capacity(records.len());
+        for record in &records {
+            let mut deps = BTreeSet::new();
+            self.collect_flow_expr_dependencies(&record.value, &mut deps)?;
+            deps.retain(|key| flow_keys.contains(key) && key != &record.key);
+            dependencies.push(deps);
+        }
+
+        let mut marks = vec![0u8; records.len()];
+        let mut order = Vec::with_capacity(records.len());
+        for index in 0..records.len() {
+            Self::visit_flow_node(
+                index,
+                &records,
+                &dependencies,
+                &by_key,
+                &mut marks,
+                &mut order,
+            )?;
+        }
+
+        let mut working_state = self.state.clone();
+        let mut computed = Vec::with_capacity(order.len());
+        for index in order {
+            let record = &records[index];
+            let saved_state = std::mem::replace(&mut self.state, working_state.clone());
+            let eval_result = self.eval_expr(&record.value);
+            self.state = saved_state;
+            let value = eval_result?;
+            working_state.set(record.key.clone(), value.clone());
+            computed.push((record.key.clone(), value));
+        }
+        for (key, value) in computed {
+            self.state.set(key, value);
+        }
+        Ok(())
+    }
+
+    fn visit_flow_node(
+        index: usize,
+        records: &[FlowAssignRecord],
+        dependencies: &[BTreeSet<Key>],
+        by_key: &BTreeMap<Key, usize>,
+        marks: &mut [u8],
+        order: &mut Vec<usize>,
+    ) -> Result<(), RuntimeError> {
+        match marks[index] {
+            2 => return Ok(()),
+            1 => {
+                let record = &records[index];
+                return Err(RuntimeError::FlowCircularReference {
+                    target: record.key.as_str().to_string(),
+                    span: record.span,
+                });
+            }
+            _ => {}
+        }
+        marks[index] = 1;
+        for dep in &dependencies[index] {
+            if let Some(dep_index) = by_key.get(dep) {
+                Self::visit_flow_node(*dep_index, records, dependencies, by_key, marks, order)?;
+            }
+        }
+        marks[index] = 2;
+        order.push(index);
+        Ok(())
+    }
+
+    fn collect_flow_expr_dependencies(
+        &self,
+        expr: &Expr,
+        out: &mut BTreeSet<Key>,
+    ) -> Result<(), RuntimeError> {
+        match expr {
+            Expr::Path(path) => {
+                out.insert(self.path_to_key(path)?);
+            }
+            Expr::FieldAccess { target, .. } => {
+                self.collect_flow_expr_dependencies(target, out)?;
+            }
+            Expr::Unary { expr, .. } | Expr::SeedLiteral { body: expr, .. } => {
+                self.collect_flow_expr_dependencies(expr, out)?;
+            }
+            Expr::Binary { left, right, .. } => {
+                self.collect_flow_expr_dependencies(left, out)?;
+                self.collect_flow_expr_dependencies(right, out)?;
+            }
+            Expr::Call { args, .. } => {
+                for arg in args {
+                    self.collect_flow_expr_dependencies(&arg.expr, out)?;
+                }
+            }
+            Expr::FormulaEval { bindings, .. } | Expr::Pack { bindings, .. } => {
+                for binding in bindings {
+                    self.collect_flow_expr_dependencies(&binding.value, out)?;
+                }
+            }
+            Expr::TemplateFill {
+                template, bindings, ..
+            } => {
+                self.collect_flow_expr_dependencies(template, out)?;
+                for binding in bindings {
+                    self.collect_flow_expr_dependencies(&binding.value, out)?;
+                }
+            }
+            Expr::FormulaFill {
+                formula, bindings, ..
+            } => {
+                self.collect_flow_expr_dependencies(formula, out)?;
+                for binding in bindings {
+                    self.collect_flow_expr_dependencies(&binding.value, out)?;
+                }
+            }
+            Expr::Literal(_, _)
+            | Expr::Atom { .. }
+            | Expr::Formula { .. }
+            | Expr::Assertion { .. }
+            | Expr::Template { .. } => {}
+        }
+        Ok(())
     }
 
     fn enter_const_scope(&mut self) {
@@ -15750,6 +15950,114 @@ mod tests {
         let output = run_source_ticks(source, 4).expect("run");
         assert_eq!(state_num(&output, "횟수"), Fixed64::from_int(2));
         assert_eq!(state_num(&output, "연료"), Fixed64::from_int(0));
+    }
+
+    #[test]
+    fn flow_hook_runs_before_tail_becomes_hook() {
+        let source = r#"
+채비 {
+  입력: 수 <- 0.
+  흐름값: 수 <- 0.
+  훅실행: 수 <- 0.
+  결과: 수 <- 0.
+  t: 수 <- 0.
+}.
+
+(시작)할때 {
+  입력 <- 5.
+}.
+
+(매마디)마다 {
+  흐름값 <<- 입력 * 2.
+  t <- t + 1.
+}.
+
+(흐름값 > 8)일때 {
+  훅실행 <- 1.
+  결과 <- 흐름값.
+}.
+"#;
+        let output = run_source_ticks(source, 1).expect("run");
+        assert_eq!(state_num(&output, "입력"), Fixed64::from_int(5));
+        assert_eq!(state_num(&output, "흐름값"), Fixed64::from_int(10));
+        assert_eq!(state_num(&output, "훅실행"), Fixed64::from_int(1));
+        assert_eq!(state_num(&output, "결과"), Fixed64::from_int(10));
+    }
+
+    #[test]
+    fn flow_hook_body_does_not_refire_flow_same_madi() {
+        let source = r#"
+채비 {
+  값: 수 <- 0.
+  카운트: 수 <- 0.
+  t: 수 <- 0.
+}.
+
+(시작)할때 {
+  값 <- 3.
+}.
+
+(매마디)마다 {
+  값 <<- 값 + 1.
+  t <- t + 1.
+}.
+
+(값 > 5)일때 {
+  카운트 <- 카운트 + 1.
+  값 <- 값 + 10.
+}.
+"#;
+        let after_tick_0 = run_source_ticks(source, 1).expect("run");
+        assert_eq!(state_num(&after_tick_0, "값"), Fixed64::from_int(4));
+        assert_eq!(state_num(&after_tick_0, "카운트"), Fixed64::from_int(0));
+
+        let after_tick_2 = run_source_ticks(source, 3).expect("run");
+        assert_eq!(state_num(&after_tick_2, "값"), Fixed64::from_int(16));
+        assert_eq!(state_num(&after_tick_2, "카운트"), Fixed64::from_int(1));
+    }
+
+    #[test]
+    fn flow_hook_multiple_source_conflict_errors() {
+        let source = r#"
+채비 {
+  입력: 수 <- 0.
+  흐름값: 수 <- 0.
+}.
+
+(시작)할때 {
+  입력 <- 1.
+}.
+
+(매마디)마다 {
+  흐름값 <<- 입력 + 1.
+  흐름값 <<- 입력 + 2.
+}.
+"#;
+        let err = match run_source_ticks(source, 1) {
+            Ok(_) => panic!("conflict must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_FLOW_MULTIPLE_SOURCE_CONFLICT");
+    }
+
+    #[test]
+    fn flow_hook_cycle_errors() {
+        let source = r#"
+채비 {
+  a: 수 <- 0.
+  b: 수 <- 0.
+}.
+
+(매마디)마다 {
+  a <<- b + 1.
+  b <<- a + 1.
+}.
+"#;
+        let err = match run_source_ticks(source, 1) {
+            Ok(_) => panic!("cycle must fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "E_FLOW_CIRCULAR_REFERENCE");
     }
 
     #[test]

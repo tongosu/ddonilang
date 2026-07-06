@@ -1,7 +1,7 @@
 {
   "schema": "ddn.lang_flow_hook_interaction.pack.contract.v1",
-  "evidence_tier": "docs_first",
-  "closure_claim": "no",
+  "evidence_tier": "runtime",
+  "closure_claim": "yes",
   "ordering_contract": [
     "ordinary_assignment",
     "flow_fixed_point",
