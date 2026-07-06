@@ -48,3 +48,19 @@
 ## 금지 사항
 
 SSOT/코드/pack/golden/checker 수정 전혀 없음. 발견한 문제를 그 자리에서 고치려 하지 마라 — 수리는 이후 Claude가 설계해서 별도로 위임한다. main 직접 커밋/push/네트워크 금지.
+
+## 실행 보고 T1
+
+- 실행일: 2026-07-06
+- 범위: `docs/ssot/ssot/SSOT_LANG_v24.12.9.md` 1~2689행, MUST 헤더 시작 행 `<2690`.
+- 대상 추출: `rg -n "^#{2,4} .*(MUST)" docs/ssot/ssot/SSOT_LANG_v24.12.9.md`.
+- 커버: Tier1 대상 44개 전부.
+- 산출물: `docs/context/reports/SSOT_MUST_RULE_AUDIT_TIER1_V1.md`.
+- 판정 집계: 구현됨 14 / 부분구현 18 / 미구현 12 / 확인불가 0.
+- 주요 미구현 후보: `CALL-TAIL-RESOLVE-01`, `X/X하` 이름 충돌 금지, TERM-MAP 단일 소스/기계 추출, `해보고`/`그것`, 단자음 예약 식별자, `->` 우향 대입, `이름씨`/`나`/`고름씨` 타입군.
+- 검증:
+  - `git diff --check` PASS.
+  - Tier1 보고서 표 행 수 44개 확인.
+  - `python tests/run_ci_sanity_gate.py --profile core_lang` PASS.
+- `core_lang` 실행 중 갱신된 기존 open 로그 2개(`pack/open_bundle_artifact/run_bundle/geoul.diag.jsonl`, `pack/open_end_to_end/open.log.jsonl`)는 이번 진단 산출물이 아니므로 diff 확인 후 원래 상태로 되돌렸다.
+- 코드/pack/golden/SSOT 수정 없음.
