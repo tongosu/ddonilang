@@ -238,6 +238,10 @@
 
 `docs/context/briefs/GOAL_GAJI_REGISTRY_CLOSURE_V1.md` 그대로 실행. M1(재귀 스캐너)~M6(감사 재확인)을 순서대로 자율 반복. 언어 커널 게이트와 무관 — 지금 바로 착수. 기존 로컬 lock/install/vendor 경로 회귀 금지, `gaji.toml` 스키마 의미 변경 금지, 네트워크 실호출 금지.
 
+## Q35(신) — D58 흐름씨-훅 pack 문구 정정 [순수 문서, 게이트 무관]
+
+`docs/context/briefs/BRIEF_FLOW_HOOK_PACK_WORDING_FIX_V1.md` 그대로 실행. `PROPOSAL_SSOT_V24_0_9_POST_CLARIFICATION_EXECUTION_SYNC_20260412.md:52`의 "evidence로 잠그는 작업" 과장 문구를 GOAL-B 실측 근거로 정정. 코드/pack README 수정 없음, Q13-18 게이트와 무관.
+
 ---
 
 ## 큐 완료 보고
