@@ -1,0 +1,12 @@
+mod ai_injection_sort;
+mod atomic_commit_vertical_slice;
+mod closed_input_channel;
+mod engine_loop_fault;
+mod external_boundary;
+mod fixed64_lint_gate;
+mod memory_ownership_product_gaps;
+mod multi_patch_commit_gaps;
+mod net_event_sort;
+mod patch_candidate_hash_vectors;
+mod patch_candidate_surface_gaps;
+mod sam_volatility;

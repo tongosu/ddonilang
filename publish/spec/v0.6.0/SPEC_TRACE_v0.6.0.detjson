@@ -1,0 +1,48 @@
+{
+  "correction_scope": [
+    "Tensor RD-385~399 item-level projection",
+    "Callable and failure RD-379~409 item-level projection",
+    "PathIR and Proof RD-415~424 item-level projection",
+    "semantic coverage mutation strengthening"
+  ],
+  "executable_dpack_oracle": 0,
+  "external_user_success_count": 0,
+  "governance_trace_only_ranges": [
+    "RD-358~365",
+    "RD-410~414",
+    "RD-425",
+    "RD-427~437"
+  ],
+  "human_pass": "OPEN",
+  "independent_review_sha256": "81f15dfd969c76eff0e6a2c355ceb3c1a7133b47635efc086fbe9f93435391da",
+  "internal_live": "v25.15.0",
+  "internal_live_manifest_sha256": "f08a149b25520e708c8250a71e487d0fb420576a2e088202171dfdbf1e316ad4",
+  "internal_live_seal_sha256": "7df920afe46aa6495d1a85bc7a4745370ee3adde063301ac033a5a050b8b17d2",
+  "internal_rd_range": "RD-001~437",
+  "owner_final_promotion_sha256": "3ad32140a1ffcb7066bbf072505225195746002ea84c0996f5e7231b20934a68",
+  "pre_promotion_backup_archive_sha256": "6f1807138ba8a667e1c591062d13d4d9e739f697e0f1232fae788a681ac7e185",
+  "predecessor_candidate": "v0.6.0-v25.15.0-full-reprojection-correction-candidate-r5",
+  "predecessor_independent_review_sha256": "07c234f44f3b6b46d5a5c7c648b3ae2fcadbe59d6562c5aed280f9d80a96b1fc",
+  "predecessor_manifest_sha256": "146e6d387871bfd0441028a2d6eecd160b7882eb6a629c4c946525a52d153d48",
+  "predecessor_public_manifest_sha256": "78cd7af3a15ba26bebc0392504b15a5c925e54e45e75948cf10db75b31bb7d87",
+  "predecessor_public_seal_sha256": "40a2f7548b25aca15060e886b1b946ae06baf36d1651b78b37173f752dfe7370",
+  "predecessor_public_version": "v0.5.0",
+  "predecessor_seal_sha256": "b18a956bfa6d498e26824c0cca546cbd2f927e5fec58cfe7ac61b9d468033ce8",
+  "product_implementation": "OPEN",
+  "projected_language_ranges": [
+    "RD-333~357",
+    "RD-366~409",
+    "RD-415~424",
+    "RD-426"
+  ],
+  "public_current": "v0.6.0",
+  "public_family": "v0.6.0",
+  "public_version": "v0.6.0",
+  "reviewed_candidate_family": "v0.6.0-v25.15.0-trace-custody-correction-candidate-r6",
+  "reviewed_candidate_manifest_sha256": "3212aafbe75e816b9a3fc193e20436ae7e4cc5cebde3ffaaaa30b2c172c9f718",
+  "reviewed_candidate_seal_sha256": "f1e52b5af73973952ec748fc3bb4ffb2f68e231769c684a217573c7a39564e01",
+  "schema": "ddonirang.public_language_spec_trace.v1",
+  "status": "PUBLIC_CURRENT_OWNER_APPROVED_INDEPENDENTLY_REVIEWED_DOCS_FIRST_PRODUCT_OPEN",
+  "trace_correction": "R5 predecessor candidate, manifest, seal and independent review are bound to one custody identity",
+  "v1_release_membership": "UNASSIGNED"
+}

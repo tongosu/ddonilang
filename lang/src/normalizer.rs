@@ -1,0 +1,1308 @@
+// ddonirang-lang/src/normalizer.rs
+// Phase 1: N1 레벨 정본화 (표준 띄어쓰기)
+//
+// 정규화 레벨:
+// - N0: 표면 유지 (편집 중)
+// - N1: 띄어쓰기/조사 분리 (저장/포맷)
+// - N2: 설탕 해소 (리팩터/리뷰)
+// - N3: 완전 정본 (빌드/증명)
+
+use crate::ast::*;
+use std::collections::HashMap;
+
+/// 정규화 레벨
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizationLevel {
+    /// 표면 유지 (원본 그대로)
+    N0,
+    /// 띄어쓰기 정리
+    N1,
+    /// 설탕 해소
+    N2,
+    /// 완전 정본
+    N3,
+}
+
+/// 정본화기
+pub struct Normalizer {
+    _level: NormalizationLevel,
+    indent: usize,
+    output: String,
+    call_signatures: HashMap<String, Vec<ParamPin>>,
+    source_epoch: SourceEpoch,
+}
+
+impl Normalizer {
+    pub fn new(level: NormalizationLevel) -> Self {
+        Self {
+            _level: level,
+            indent: 0,
+            output: String::new(),
+            call_signatures: HashMap::new(),
+            source_epoch: SourceEpoch::PreV25,
+        }
+    }
+
+    /// 프로그램 정본화
+    pub fn normalize_program(&mut self, program: &CanonProgram) -> String {
+        self.source_epoch = program.source_epoch;
+        self.call_signatures = collect_call_signatures(program);
+        for item in &program.items {
+            self.normalize_top_level_item(item);
+            self.write("\n\n");
+        }
+
+        self.output.trim_end().to_string()
+    }
+
+    fn normalize_top_level_item(&mut self, item: &TopLevelItem) {
+        match item {
+            TopLevelItem::SeedDef(seed) => self.normalize_seed_def(seed),
+        }
+    }
+
+    /// 씨앗 정의 정본화
+    /// 표준 형식: (params) name:kind = { body }
+    fn normalize_seed_def(&mut self, seed: &SeedDef) {
+        // 매개변수
+        if !seed.params.is_empty() {
+            self.write("(");
+            for (i, param) in seed.params.iter().enumerate() {
+                if i > 0 {
+                    self.write(", ");
+                }
+                self.normalize_param(param);
+            }
+            self.write(") ");
+        }
+
+        // 이름
+        self.write(&seed.canonical_name);
+
+        // 콜론 (N1: 앞뒤 공백 없음)
+        self.write(":");
+
+        // 씨앗 종류
+        self.normalize_seed_kind(&seed.seed_kind);
+
+        match self.source_epoch {
+            SourceEpoch::V25 => self.write(" := "),
+            SourceEpoch::PreV25 => self.write(" = "),
+        }
+
+        // 본문
+        if let Some(body) = &seed.body {
+            if seed.params.is_empty() {
+                if let Some(Stmt::Return { value, .. }) = body.stmts.first() {
+                    if body.stmts.len() == 1 {
+                        self.normalize_expr(value);
+                        return;
+                    }
+                }
+            }
+            self.normalize_body(body);
+        }
+    }
+
+    fn normalize_param(&mut self, param: &ParamPin) {
+        self.write(&param.pin_name);
+        self.write(":");
+        self.normalize_type(&param.type_ref);
+        for josa in &param.josa_list {
+            self.write("~");
+            self.write(josa);
+        }
+        if param.optional {
+            self.write("?");
+        }
+        if let Some(default_value) = &param.default_value {
+            self.write(" = ");
+            self.normalize_expr(default_value);
+        }
+    }
+
+    fn normalize_seed_kind(&mut self, kind: &SeedKind) {
+        let s = match kind {
+            SeedKind::Imeumssi => "이름씨",
+            SeedKind::Umjikssi => "움직씨",
+            SeedKind::ValueFunc => "셈씨",
+            SeedKind::Gallaessi => "갈래씨",
+            SeedKind::Relationssi => "관계씨",
+            SeedKind::Sam => "샘",
+            SeedKind::Heureumssi => "흐름씨",
+            SeedKind::Ieumssi => "이음씨",
+            SeedKind::Semssi => "셈씨",
+            SeedKind::Named(name) => name,
+        };
+        self.write(s);
+    }
+
+    fn normalize_type(&mut self, type_ref: &TypeRef) {
+        match type_ref {
+            TypeRef::Named(name) => self.write(name),
+            TypeRef::Applied { name, args } => {
+                self.write("(");
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        self.write(", ");
+                    }
+                    self.normalize_type(arg);
+                }
+                self.write(") ");
+                self.write(name);
+            }
+            TypeRef::Function { params, result } => {
+                if params.len() == 1 {
+                    self.normalize_function_type_component(&params[0]);
+                } else {
+                    self.write("(");
+                    for (idx, param) in params.iter().enumerate() {
+                        if idx > 0 {
+                            self.write(", ");
+                        }
+                        self.normalize_type(param);
+                    }
+                    self.write(")");
+                }
+                self.write(" --> ");
+                self.normalize_function_type_component(result);
+            }
+            TypeRef::Infer => self.write("_"),
+        }
+    }
+
+    fn normalize_function_type_component(&mut self, type_ref: &TypeRef) {
+        if matches!(type_ref, TypeRef::Function { .. }) {
+            self.write("(");
+            self.normalize_type(type_ref);
+            self.write(")");
+        } else {
+            self.normalize_type(type_ref);
+        }
+    }
+
+    fn normalize_body(&mut self, body: &Body) {
+        self.write("{\n");
+        self.indent += 1;
+
+        for stmt in &body.stmts {
+            self.write_indent();
+            self.normalize_stmt(stmt);
+            self.write("\n");
+        }
+
+        self.indent -= 1;
+        self.write_indent();
+        self.write("}");
+    }
+
+    fn normalize_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::DeclBlock { items, .. } => {
+                self.write("채비 ");
+                self.write("{\n");
+                self.indent += 1;
+                for item in items {
+                    self.write_indent();
+                    self.write(&item.name);
+                    self.write(":");
+                    self.normalize_type(&item.type_ref);
+                    if let Some(value) = &item.value {
+                        match item.kind {
+                            DeclKind::Gureut if self.source_epoch == SourceEpoch::V25 => {
+                                self.write(" := ")
+                            }
+                            DeclKind::Gureut => self.write(" <- "),
+                            DeclKind::Butbak => self.write(" = "),
+                        }
+                        self.normalize_expr(value);
+                    }
+                    self.write(".");
+                    self.write("\n");
+                }
+                self.indent -= 1;
+                self.write_indent();
+                self.write("}");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Definition {
+                name,
+                type_ref,
+                value,
+                ..
+            } => {
+                self.write(name);
+                if !matches!(type_ref, TypeRef::Infer) {
+                    self.write(":");
+                    self.normalize_type(type_ref);
+                }
+                self.write(" := ");
+                self.normalize_expr(value);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Mutate {
+                target,
+                value,
+                deferred,
+                ..
+            } => {
+                self.normalize_expr(target);
+                self.write(" <- ");
+                self.normalize_expr(value);
+                if *deferred {
+                    self.write(" 미루기");
+                }
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Expr { expr, .. } => {
+                self.normalize_expr(expr);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Show { expr, .. } => {
+                self.normalize_expr(expr);
+                self.write(" 보여주기");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Inspect { expr, .. } => {
+                self.normalize_expr(expr);
+                self.write(" 톺아보기");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::PublicObservation { fields, .. } => {
+                self.write("(");
+                for (index, field) in fields.iter().enumerate() {
+                    if index > 0 {
+                        self.write(", ");
+                    }
+                    self.write(&field.name);
+                    self.write(": ");
+                    self.normalize_expr(&field.value);
+                }
+                self.write(") 보임");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::MetaBlock { kind, entries, .. } => {
+                if matches!(kind, MetaBlockKind::BogeaMadang) {
+                    // opaque 블록: { } 원본 텍스트를 그대로 재출력
+                    self.write("보개마당 {");
+                    if let Some(raw) = entries.first() {
+                        self.write(raw);
+                    }
+                    self.write("}");
+                    self.write_stmt_terminator(stmt);
+                } else if matches!(kind, MetaBlockKind::Jjaim) {
+                    // AGE5 최소 수용: 짜임 블록 본문을 opaque로 정본 재출력
+                    self.write("짜임 {");
+                    if let Some(raw) = entries.first() {
+                        self.write(raw);
+                    }
+                    self.write("}");
+                    self.write_stmt_terminator(stmt);
+                } else {
+                    let name = match kind {
+                        MetaBlockKind::Setting => "설정",
+                        MetaBlockKind::Bogae => "보개",
+                        MetaBlockKind::Seulgi => "슬기",
+                        MetaBlockKind::BogeaMadang => unreachable!(),
+                        MetaBlockKind::Jjaim => unreachable!(),
+                    };
+                    self.write(name);
+                    self.write(" ");
+                    self.write("{\n");
+                    self.indent += 1;
+                    for entry in entries {
+                        self.write_indent();
+                        self.write(entry);
+                        self.write(".\n");
+                    }
+                    self.indent -= 1;
+                    self.write_indent();
+                    self.write("}");
+                    self.write_stmt_terminator(stmt);
+                }
+            }
+            Stmt::Pragma { name, args, .. } => {
+                self.write("#");
+                self.write(name);
+                if !args.is_empty() {
+                    self.write(" ");
+                    self.write(args);
+                }
+            }
+            Stmt::Return { value, .. } => {
+                self.normalize_expr(value);
+                self.write(" 되돌림");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Receive {
+                sender,
+                kind,
+                binding,
+                payload_type,
+                condition,
+                body,
+                ..
+            } => {
+                if let Some(sender) = sender {
+                    self.normalize_expr(sender);
+                    self.write("에게서 ");
+                }
+                if let Some(payload_type) = payload_type {
+                    self.write("(");
+                    self.write(binding.as_deref().expect("typed receive binding"));
+                    self.write(":");
+                    self.write(payload_type);
+                    self.write(")를 받으면 ");
+                } else {
+                    if let Some(binding) = binding {
+                        self.write("(");
+                        self.write(binding);
+                        if let Some(condition) = condition {
+                            self.write(" ");
+                            self.normalize_expr(condition);
+                        }
+                        self.write(")인 ");
+                    }
+                    self.write(kind.as_deref().unwrap_or("알림"));
+                    self.write("을 받으면 ");
+                }
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Send {
+                transfer,
+                sender,
+                payload,
+                receiver,
+                ..
+            } => {
+                if let Some(sender) = sender {
+                    self.normalize_expr(sender);
+                    self.write("의 ");
+                }
+                self.normalize_expr(payload);
+                self.write(match transfer {
+                    crate::delivery::MessageTransfer::Async(_) => " ~> ",
+                    crate::delivery::MessageTransfer::Rendezvous(_) => " ~~> ",
+                    crate::delivery::MessageTransfer::HistoricalAsync(_) => {
+                        " ~[historical-async-migration-required]> "
+                    }
+                });
+                self.normalize_expr(receiver);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.write("만약 ");
+                self.normalize_expr(condition);
+                self.write(" 이라면 ");
+                self.normalize_body(then_body);
+                if let Some(body) = else_body {
+                    self.write(" 아니면 ");
+                    self.normalize_body(body);
+                }
+            }
+            Stmt::Try { action, body, .. } => {
+                self.normalize_expr(action);
+                self.write(" ???: ");
+                self.normalize_body(body);
+            }
+            Stmt::Choose {
+                branches,
+                else_body,
+                ..
+            } => {
+                self.write("???:\n");
+                self.indent += 1;
+                for branch in branches {
+                    self.write_indent();
+                    self.normalize_expr(&branch.condition);
+                    self.write(": ");
+                    self.normalize_body(&branch.body);
+                    self.write("\n");
+                }
+                self.write_indent();
+                self.write("???: ");
+                self.normalize_body(else_body);
+                self.indent -= 1;
+            }
+            Stmt::Repeat { body, .. } => {
+                self.write("되풀이 ");
+                self.normalize_body(body);
+            }
+            Stmt::BeatBlock { body, .. } => {
+                self.write("덩이 ");
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Hook { kind, body, .. } => {
+                match kind {
+                    HookKind::Start => self.write("(시작)할때 "),
+                    HookKind::End => self.write("(끝)할때 "),
+                    HookKind::EveryMadi => self.write("(매마디)마다 "),
+                    HookKind::EveryNMadi(interval) => {
+                        self.write("(");
+                        self.write(&interval.to_string());
+                        self.write("마디)마다 ");
+                    }
+                }
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::HookWhenBecomes {
+                condition, body, ..
+            } => {
+                self.write("(");
+                self.normalize_expr(condition);
+                self.write(")이 될때 ");
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::HookWhile {
+                condition, body, ..
+            } => {
+                self.write("(");
+                self.normalize_expr(condition);
+                self.write(")인 동안 ");
+                self.normalize_body(body);
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                self.normalize_expr(condition);
+                self.write(" 동안 ");
+                self.normalize_body(body);
+            }
+            Stmt::ForEach {
+                item,
+                item_type,
+                iterable,
+                body,
+                ..
+            } => {
+                self.write("(");
+                self.write(item);
+                if let Some(type_ref) = item_type.as_ref() {
+                    self.write(":");
+                    self.normalize_type(type_ref);
+                }
+                self.write(") ");
+                self.normalize_expr(iterable);
+                self.write("에 대해 ");
+                self.normalize_body(body);
+            }
+            Stmt::Quantifier {
+                kind,
+                variable,
+                domain,
+                body,
+                ..
+            } => {
+                self.write(variable);
+                self.write(" 이 ");
+                self.normalize_type(domain);
+                match kind {
+                    QuantifierKind::ForAll => self.write(" 낱낱에 대해 "),
+                    QuantifierKind::Exists => self.write(" 중 하나가 "),
+                    QuantifierKind::ExistsUnique => self.write(" 중 딱 하나가 "),
+                }
+                self.normalize_body(body);
+            }
+            Stmt::Break { .. } => {
+                self.write("멈추기");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::ContinueLoop { .. } => {
+                self.write("건너뛰기");
+                self.write_stmt_terminator(stmt);
+            }
+            Stmt::Contract {
+                kind,
+                mode,
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
+                self.normalize_expr(condition);
+                match kind {
+                    ContractKind::Pre => self.write(" 바탕으로"),
+                    ContractKind::Post => self.write(" 다짐하고"),
+                }
+                if matches!(mode, ContractMode::Alert) {
+                    self.write("(알림)");
+                }
+                self.write("\n");
+                self.indent += 1;
+                self.write_indent();
+                self.write("아니면 ");
+                self.normalize_body(else_body);
+                if let Some(body) = then_body {
+                    self.write("\n");
+                    self.write_indent();
+                    self.write("맞으면 ");
+                    self.normalize_body(body);
+                }
+                self.indent -= 1;
+            }
+            Stmt::Guard {
+                condition, body, ..
+            } => {
+                self.normalize_expr(condition);
+                self.write(" 늘지켜보고 ");
+                self.normalize_body(body);
+            }
+        }
+    }
+
+    fn normalize_expr(&mut self, expr: &Expr) {
+        match &expr.kind {
+            ExprKind::Literal(lit) => self.normalize_literal(lit),
+            ExprKind::Var(name) => self.write(name),
+            ExprKind::FieldAccess { target, field, .. } => {
+                self.normalize_expr(target);
+                self.write(".");
+                self.write(field);
+            }
+            ExprKind::SeedLiteral { param, body } => {
+                self.write("{");
+                if seed_literal_param_count(param) > 1 {
+                    self.write("(");
+                    self.write(param);
+                    self.write(")");
+                } else {
+                    self.write(param);
+                }
+                self.write(" | ");
+                self.normalize_expr(body);
+                self.write("}");
+            }
+            ExprKind::Call { args, func } => {
+                if self.normalize_transform_call(args, func) {
+                    return;
+                }
+                if self.normalize_bound_call(args, func) {
+                    return;
+                }
+                self.normalize_positional_call(args, func);
+            }
+            ExprKind::Infix { left, op, right } => {
+                self.normalize_expr(left);
+                self.write(" ");
+                self.write(op);
+                self.write(" ");
+                self.normalize_expr(right);
+            }
+            ExprKind::Suffix { value, at } => {
+                self.normalize_expr(value);
+                match at {
+                    AtSuffix::Unit(unit) => {
+                        self.write("@");
+                        self.write(unit);
+                    }
+                    AtSuffix::Asset(path) => {
+                        self.write("@\"");
+                        self.write(path);
+                        self.write("\"");
+                    }
+                }
+            }
+            ExprKind::Thunk(body) => self.normalize_body(body),
+            ExprKind::Eval { thunk, mode } => {
+                self.normalize_expr(thunk);
+                let suffix = match mode {
+                    ThunkEvalMode::Value => "한것",
+                    ThunkEvalMode::Bool => "인것",
+                    ThunkEvalMode::Not => "아닌것",
+                    ThunkEvalMode::Do => "하고",
+                    ThunkEvalMode::Pipe => "해서",
+                };
+                self.write(suffix);
+            }
+            ExprKind::Pipe { stages } => {
+                for (i, stage) in stages.iter().enumerate() {
+                    if i > 0 {
+                        self.write(" 해서 ");
+                    }
+                    self.normalize_expr(stage);
+                }
+            }
+            ExprKind::FlowValue => self.write("흐름값"),
+            ExprKind::Pack { fields } => {
+                self.write("(");
+                let mut first = true;
+                for (name, value) in fields {
+                    if !first {
+                        self.write(", ");
+                    }
+                    first = false;
+                    self.write(name);
+                    self.write(": ");
+                    self.normalize_expr(value);
+                }
+                self.write(")");
+            }
+            ExprKind::Assertion(assertion) => {
+                self.write(&assertion.canon);
+            }
+            ExprKind::StateMachine(machine) => {
+                self.normalize_state_machine_literal(machine);
+            }
+            ExprKind::Formula(formula) => {
+                self.normalize_formula_literal(formula);
+            }
+            ExprKind::Template(template) => {
+                self.normalize_template_literal(template);
+            }
+            ExprKind::TemplateRender { template, inject } => {
+                self.normalize_injection_fields(inject);
+                self.write(" ");
+                self.normalize_template_literal(template);
+            }
+            ExprKind::FormulaEval { formula, inject } => {
+                self.normalize_injection_fields(inject);
+                self.write(" ");
+                self.normalize_formula_literal(formula);
+            }
+            ExprKind::Nuance { level, expr } => {
+                self.write("$");
+                self.write(level);
+                self.write(" ");
+                self.normalize_expr(expr);
+            }
+        }
+    }
+
+    fn normalize_bound_call(&mut self, args: &[ArgBinding], func: &str) -> bool {
+        let rendered = self.render_bound_call_args(args, func);
+        if rendered.is_empty() {
+            return false;
+        }
+        self.write(&rendered.join(" "));
+        self.write(" ");
+        self.write(func);
+        true
+    }
+
+    fn normalize_positional_call(&mut self, args: &[ArgBinding], func: &str) {
+        self.write("(");
+        let mut first = true;
+        for arg in args.iter() {
+            if matches!(arg.binding_reason, BindingReason::FlowInjected) {
+                continue;
+            }
+            if !first {
+                self.write(", ");
+            }
+            first = false;
+            self.normalize_call_arg_fallback(arg, func);
+        }
+        self.write(") ");
+        self.write(func);
+    }
+
+    fn normalize_call_arg_fallback(&mut self, arg: &ArgBinding, func: &str) {
+        if let Some(text) = self.render_bound_arg_text(arg, func) {
+            self.write(&text);
+            return;
+        }
+        self.normalize_expr(&arg.expr);
+        if let Some(josa) = &arg.josa {
+            self.write("~");
+            self.write(josa);
+        }
+    }
+
+    fn render_bound_call_args(&self, args: &[ArgBinding], func: &str) -> Vec<String> {
+        let mut rendered = Vec::new();
+        for arg in args {
+            if matches!(arg.binding_reason, BindingReason::FlowInjected) {
+                continue;
+            }
+            let Some(text) = self.render_bound_arg_text(arg, func) else {
+                return Vec::new();
+            };
+            rendered.push(text);
+        }
+        rendered
+    }
+
+    fn render_bound_arg_text(&self, arg: &ArgBinding, func: &str) -> Option<String> {
+        let mut expr = self.render_expr_inline(&arg.expr)?;
+        if matches!(arg.binding_reason, BindingReason::ContextItemInjected) {
+            return arg.resolved_pin.as_ref().map(|pin| format!("{expr}:{pin}"));
+        }
+        if let Some(josa) = self.preferred_param_josa(func, arg) {
+            if let Some(pin) = arg.resolved_pin.as_deref() {
+                expr = self.strip_existing_param_josa(func, pin, &expr);
+            }
+            return Some(format!("{expr}~{josa}"));
+        }
+        if let Some(pin) = &arg.resolved_pin {
+            return Some(format!("{expr}:{pin}"));
+        }
+        if let Some(josa) = &arg.josa {
+            return Some(format!("{expr}~{josa}"));
+        }
+        None
+    }
+
+    fn preferred_param_josa(&self, func: &str, arg: &ArgBinding) -> Option<&str> {
+        let pin = arg.resolved_pin.as_deref()?;
+        let params = self.call_signatures.get(func)?;
+        let param = params.iter().find(|param| param.pin_name == pin)?;
+        param
+            .josa_list
+            .iter()
+            .find(|candidate| self.is_unique_param_josa(params, pin, candidate))
+            .map(|candidate| candidate.as_str())
+    }
+
+    fn strip_existing_param_josa(&self, func: &str, pin: &str, expr: &str) -> String {
+        let Some(params) = self.call_signatures.get(func) else {
+            return expr.to_string();
+        };
+        let Some(param) = params.iter().find(|param| param.pin_name == pin) else {
+            return expr.to_string();
+        };
+        for candidate in &param.josa_list {
+            if expr.ends_with(candidate) && expr.len() > candidate.len() {
+                return expr[..expr.len() - candidate.len()].to_string();
+            }
+        }
+        expr.to_string()
+    }
+
+    fn is_unique_param_josa(&self, params: &[ParamPin], pin: &str, josa: &str) -> bool {
+        params.iter().all(|param| {
+            param.pin_name == pin || !param.josa_list.iter().any(|candidate| candidate == josa)
+        })
+    }
+
+    fn can_inline_bound_expr(&self, expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Literal(_) => true,
+            ExprKind::Var(_) => true,
+            ExprKind::FieldAccess { target, .. } => self.can_inline_bound_expr(target),
+            ExprKind::Suffix { value, .. } => self.can_inline_bound_expr(value),
+            ExprKind::Eval { thunk, .. } => self.can_inline_bound_expr(thunk),
+            ExprKind::FlowValue => true,
+            _ => false,
+        }
+    }
+
+    fn render_expr_inline(&self, expr: &Expr) -> Option<String> {
+        if !self.can_inline_bound_expr(expr) {
+            return None;
+        }
+        let mut normalizer = Normalizer::new(self._level);
+        normalizer.call_signatures = self.call_signatures.clone();
+        normalizer.normalize_expr(expr);
+        Some(normalizer.output)
+    }
+
+    fn normalize_literal(&mut self, lit: &Literal) {
+        match lit {
+            Literal::Int(n) => self.write(&n.to_string()),
+            Literal::Fixed64(f) => self.write(&f.to_string()),
+            Literal::Bool(b) => self.write(if *b { "참" } else { "거짓" }),
+            Literal::Atom(a) => {
+                self.write("#");
+                self.write(a);
+            }
+            Literal::Regex(regex) => {
+                self.write("정규식{");
+                self.write("\"");
+                self.write(&regex.pattern);
+                self.write("\"");
+                if !regex.flags.is_empty() {
+                    self.write(", ");
+                    self.write("\"");
+                    self.write(&regex.flags);
+                    self.write("\"");
+                }
+                self.write("}");
+            }
+            Literal::String(s) => {
+                self.write("\"");
+                self.write(&escape_string_literal(s));
+                self.write("\"");
+            }
+            Literal::Resource(path) => {
+                self.write("@\"");
+                self.write(path);
+                self.write("\"");
+            }
+            Literal::None => self.write("없음"),
+        }
+    }
+
+    fn normalize_formula_literal(&mut self, formula: &Formula) {
+        if formula.explicit_tag || !matches!(formula.dialect, FormulaDialect::Ascii) {
+            self.write("(#");
+            match &formula.dialect {
+                FormulaDialect::Ascii => self.write("ascii"),
+                FormulaDialect::Ascii1 => self.write("ascii1"),
+                FormulaDialect::Latex => self.write("latex"),
+                FormulaDialect::Other(tag) => self.write(tag),
+            }
+            self.write(") ");
+        }
+        self.write("\u{C218}\u{C2DD}{");
+        self.write(&formula.raw);
+        self.write("}");
+    }
+
+    fn normalize_state_machine_literal(&mut self, machine: &StateMachine) {
+        self.write("상태머신{\n");
+        self.indent += 1;
+        self.write_indent();
+        self.write(&machine.states.join(", "));
+        self.write(" 으로 이뤄짐.\n");
+        self.write_indent();
+        self.write(&machine.initial);
+        self.write(" 으로 시작.\n");
+        for transition in &machine.transitions {
+            self.write_indent();
+            self.write(&transition.from);
+            self.write(" 에서 ");
+            self.write(&transition.to);
+            self.write(" 으로");
+            if let Some(guard_name) = &transition.guard_name {
+                self.write(" 걸러서 ");
+                self.write(guard_name);
+            }
+            if let Some(action_name) = &transition.action_name {
+                self.write(" 하고 ");
+                self.write(action_name);
+            }
+            self.write(".\n");
+        }
+        for check in &machine.on_transition_checks {
+            self.write_indent();
+            self.write("바뀔때마다 ");
+            self.write(check);
+            self.write(" 살피기.\n");
+        }
+        self.indent -= 1;
+        self.write_indent();
+        self.write("}");
+    }
+
+    fn normalize_template_literal(&mut self, template: &Template) {
+        if let Some(tag) = &template.tag {
+            self.write("(#");
+            self.write(tag);
+            self.write(") ");
+        }
+        self.write("글무늬{");
+        self.write(&template.raw);
+        self.write("}");
+    }
+
+    fn normalize_injection_fields(&mut self, fields: &[(String, Expr)]) {
+        self.write("(");
+        let mut first = true;
+        for (name, value) in fields {
+            if !first {
+                self.write(", ");
+            }
+            first = false;
+            self.write(name);
+            self.write("=");
+            self.normalize_expr(value);
+        }
+        self.write(")");
+    }
+
+    fn normalize_transform_call(&mut self, args: &[ArgBinding], func: &str) -> bool {
+        if !matches!(func, "채우기" | "풀기") {
+            return false;
+        }
+        if args.len() != 2 {
+            return false;
+        }
+        let value_expr = &args[0].expr;
+        let pack_expr = &args[1].expr;
+        let ExprKind::Pack { fields } = &pack_expr.kind else {
+            return false;
+        };
+        if func == "채우기" {
+            if let ExprKind::Template(template) = &value_expr.kind {
+                self.normalize_injection_fields(fields);
+                self.write(" ");
+                self.normalize_template_literal(template);
+                return true;
+            }
+            self.normalize_injection_fields(fields);
+            self.write("인 ");
+            self.normalize_expr(value_expr);
+            self.write(" ");
+            self.write(func);
+            return true;
+        }
+        if let ExprKind::Formula(formula) = &value_expr.kind {
+            self.normalize_injection_fields(fields);
+            self.write(" ");
+            self.normalize_formula_literal(formula);
+            return true;
+        }
+        self.normalize_injection_fields(fields);
+        self.write("인 ");
+        self.normalize_expr(value_expr);
+        self.write(" ");
+        self.write(func);
+        true
+    }
+
+    // ========== 유틸리티 ==========
+
+    fn write(&mut self, s: &str) {
+        self.output.push_str(s);
+    }
+
+    fn write_indent(&mut self) {
+        for _ in 0..self.indent {
+            self.output.push_str("    ");
+        }
+    }
+
+    fn write_stmt_terminator(&mut self, stmt: &Stmt) {
+        let mood = match stmt {
+            Stmt::DeclBlock { mood, .. } => mood,
+            Stmt::Definition { mood, .. } => mood,
+            Stmt::Mutate { mood, .. } => mood,
+            Stmt::Expr { mood, .. } => mood,
+            Stmt::Receive { mood, .. } => mood,
+            Stmt::Send { mood, .. } => mood,
+            Stmt::Show { mood, .. } | Stmt::Inspect { mood, .. } => mood,
+            Stmt::PublicObservation { mood, .. } => mood,
+            Stmt::MetaBlock { mood, .. } => mood,
+            Stmt::Pragma { .. } => return,
+            Stmt::Return { mood, .. } => mood,
+            Stmt::If { mood, .. } => mood,
+            Stmt::Try { mood, .. } => mood,
+            Stmt::Choose { mood, .. } => mood,
+            Stmt::Repeat { mood, .. } => mood,
+            Stmt::BeatBlock { mood, .. } => mood,
+            Stmt::Hook { mood, .. } => mood,
+            Stmt::HookWhenBecomes { mood, .. } => mood,
+            Stmt::HookWhile { mood, .. } => mood,
+            Stmt::While { mood, .. } => mood,
+            Stmt::ForEach { mood, .. } => mood,
+            Stmt::Quantifier { mood, .. } => mood,
+            Stmt::Break { mood, .. } => mood,
+            Stmt::ContinueLoop { mood, .. } => mood,
+            Stmt::Contract { mood, .. } => mood,
+            Stmt::Guard { mood, .. } => mood,
+        };
+        match mood {
+            Mood::Interrogative => self.write("?"),
+            Mood::Exclamative => self.write("!"),
+            _ => self.write("."),
+        }
+    }
+}
+
+fn escape_string_literal(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
+}
+
+/// 편리 함수
+pub fn normalize(program: &CanonProgram, level: NormalizationLevel) -> String {
+    let mut normalizer = Normalizer::new(level);
+    normalizer.normalize_program(program)
+}
+
+/// Stable source-order-free expression material for semantic identities.
+/// Spans and NodeIds are deliberately absent from Normalizer output.
+pub fn normalize_expression_identity(expr: &Expr) -> String {
+    let mut normalizer = Normalizer::new(NormalizationLevel::N3);
+    normalizer.normalize_expr(expr);
+    normalizer.output
+}
+
+fn collect_call_signatures(program: &CanonProgram) -> HashMap<String, Vec<ParamPin>> {
+    let mut out = HashMap::new();
+    for item in &program.items {
+        let TopLevelItem::SeedDef(seed) = item;
+        out.insert(seed.canonical_name.clone(), seed.params.clone());
+        for tail in ["기", "고", "면", "면서"] {
+            out.insert(
+                format!("{}{}", seed.canonical_name, tail),
+                seed.params.clone(),
+            );
+        }
+    }
+    out
+}
+
+fn seed_literal_param_count(param: &str) -> usize {
+    param
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .count()
+        .max(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+
+    fn parse_and_normalize(source: &str, level: NormalizationLevel) -> String {
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        let mut parser = Parser::new(tokens);
+        let program = parser
+            .parse_program(source.to_string(), "test.ddoni".to_string())
+            .unwrap();
+        normalize(&program, level)
+    }
+
+    #[test]
+    fn test_n1_spacing_correction() {
+        let irregular = "나이:수=10";
+        let normalized = parse_and_normalize(irregular, NormalizationLevel::N1);
+
+        assert_eq!(normalized.trim(), "나이:수 = 10");
+    }
+
+    #[test]
+    fn test_n1_extra_spaces() {
+        let irregular = "나이  :  수  =  10";
+        let normalized = parse_and_normalize(irregular, NormalizationLevel::N1);
+
+        assert_eq!(normalized.trim(), "나이:수 = 10");
+    }
+
+    #[test]
+    fn test_n1_function_formatting() {
+        let source = "(x:수)증가:셈씨={x+1돌려줘.}";
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+
+        let expected = r#"(x:수) 증가:셈씨 = {
+    x + 1 되돌림.
+}"#;
+        assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_roundtrip() {
+        let original = "(x:수) 증가:셈씨 = { x + 1 돌려줘. }";
+        let normalized = parse_and_normalize(original, NormalizationLevel::N1);
+
+        // 두 번째 정본화는 동일해야 함 (왕복성)
+        let normalized2 = parse_and_normalize(&normalized, NormalizationLevel::N1);
+
+        assert_eq!(normalized.trim(), normalized2.trim());
+    }
+
+    #[test]
+    fn string_literal_roundtrips_lexer_escapes_without_normalizing_text() {
+        let original = r#"글:글 = "첫\줄둘\칸\따옴인용\따옴\역빗금값""#;
+        let normalized = parse_and_normalize(original, NormalizationLevel::N1);
+        assert!(normalized.contains(r#""첫\n둘\t\"인용\"\\값""#));
+
+        let normalized2 = parse_and_normalize(&normalized, NormalizationLevel::N1);
+        assert_eq!(normalized.trim(), normalized2.trim());
+        assert!(normalized.contains("값"));
+        assert!(!normalized.contains("값"));
+    }
+
+    #[test]
+    fn applied_type_roundtrips_with_comma_separated_arguments() {
+        for source in [
+            "(값:(글)차림) 처리:셈씨 = { 값 되돌림. }",
+            "(값:(글, 수)짝맞춤) 처리:셈씨 = { 값 되돌림. }",
+            "(값:(글, (수)차림)짝맞춤) 처리:셈씨 = { 값 되돌림. }",
+            "(값:((글, 수)짝맞춤)차림) 처리:셈씨 = { 값 되돌림. }",
+        ] {
+            let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+            let normalized_again = parse_and_normalize(&normalized, NormalizationLevel::N1);
+            assert_eq!(normalized.trim(), normalized_again.trim(), "{source}");
+            assert!(!normalized.contains("(글 수)"), "{normalized}");
+        }
+    }
+
+    #[test]
+    fn sender_filtered_typed_receive_has_exact_canonical_surface() {
+        let source = r#"
+관제탑:임자 = {
+    철수에게서 (받은수:수)를 받으면 {
+        받은수 보여주기.
+    }.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        assert!(normalized.contains("철수에게서 (받은수:수)를 받으면"));
+        let normalized2 = parse_and_normalize(&normalized, NormalizationLevel::N1);
+        assert_eq!(normalized.trim(), normalized2.trim());
+    }
+
+    #[test]
+    fn typed_receive_without_sender_is_any_sender_surface() {
+        let source = r#"
+관제탑:임자 = {
+    (받은수:수)를 받으면 {
+        받은수 보여주기.
+    }.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        assert!(normalized.contains("(받은수:수)를 받으면"));
+        assert!(!normalized.contains("에게서"));
+    }
+
+    #[test]
+    fn test_param_default_value_normalization() {
+        let source = r#"
+(속도:수=10) 이동:셈씨 = {
+    속도 돌려줘.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+
+        let expected = r#"(속도:수 = 10) 이동:셈씨 = {
+    속도 되돌림.
+}"#;
+        assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_josa_inserts_at() {
+        let source = r#"
+(대상:수~을~를) 이동:셈씨 = {
+    (대상을) 이동.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+
+        let expected = r#"(대상:수~을~를) 이동:셈씨 = {
+    대상~을 이동.
+}"#;
+        assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_question_mood_normalization() {
+        let source = r#"
+(값:수) 묻:움직씨 = {
+    1.
+}
+
+질문:셈씨 = {
+    (값) 묻기?
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+
+        let expected = r#"(값:수) 묻:움직씨 = {
+    1.
+}
+
+질문:셈씨 = {
+    값:값 묻기?
+}"#;
+        assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_fixed_pin_normalization() {
+        let source = r#"
+(대상:수~을, 도구:수~을) 이동:셈씨 = {
+    대상 돌려줘.
+}
+
+테스트:셈씨 = {
+    (1:도구, 2) 이동.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        assert!(normalized.contains("2:대상 1:도구 이동"));
+    }
+
+    #[test]
+    fn test_template_injection_normalization() {
+        let source = r#"
+Test:셈씨 = {
+    (id=1) 글무늬{"ID={id}"}.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        let expected = r#"Test:셈씨 = {
+    (id=1) 글무늬{ID={id}}.
+}"#;
+        assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_formula_injection_normalization() {
+        let source = r#"
+Test:셈씨 = {
+    (x=6) (#ascii) 수식{ y = 2*x + 3/2 }.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        let expected = r#"Test:셈씨 = {
+    (x=6) (#ascii) 수식{ y = 2*x + 3/2 }.
+}"#;
+        assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_type_ref_applied_normalization() {
+        let source = r#"
+(목록:(글)차림) 이동:셈씨 = {
+    목록 돌려줘.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        let expected = r#"(목록:(글) 차림) 이동:셈씨 = {
+    목록 되돌림.
+}"#;
+        assert_eq!(normalized.trim(), expected);
+    }
+
+    #[test]
+    fn test_block_headers_normalize_without_colon() {
+        let source = r#"
+테스트:움직씨 = {
+    채비: { 값:수 <- 0. }.
+    설정: { 화면: "기본". }.
+    반복: { 멈추기. }.
+    { 값 < 1 }인것 동안: { 멈추기. }.
+    (x) 값목록에 대해: { x 보여주기. }.
+}
+"#;
+        let normalized = parse_and_normalize(source, NormalizationLevel::N1);
+        assert!(normalized.contains("채비 {"));
+        assert!(normalized.contains("설정 {"));
+        assert!(normalized.contains("되풀이 {"));
+        assert!(normalized.contains("동안 {"));
+        assert!(normalized.contains("(x) 값목록에 대해 {"));
+
+        assert!(!normalized.contains("채비: {"));
+        assert!(!normalized.contains("설정: {"));
+        assert!(!normalized.contains("반복: {"));
+        assert!(!normalized.contains("동안: {"));
+        assert!(!normalized.contains("에 대해: {"));
+    }
+}

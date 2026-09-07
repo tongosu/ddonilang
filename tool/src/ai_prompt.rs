@@ -1,0 +1,738 @@
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::fs;
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
+use zip::ZipArchive;
+
+const SSOT_INDEX_PREFIX: &str = "SSOT_INDEX_";
+const SSOT_MANIFEST_PREFIX: &str = "SSOT_ALL_MANIFEST_";
+const SSOT_BUNDLE_PREFIX: &str = "SSOT_bundle_";
+const AI_PROMPT_TEMPLATE: &str = include_str!("../assets/ai_prompt_template_v20.0.3.txt");
+
+fn build_manifest_dir() -> PathBuf {
+    // Linked product worktrees intentionally do not carry the ignored SSOT
+    // directory.  The existing build-time root variable is also accepted at
+    // runtime so an operator can explicitly bind this developer workflow to
+    // its shared, read-only source root.  We never scan for or silently pick
+    // another worktree.
+    if let Some(root) = std::env::var_os("DDN_BUILD_REPO_ROOT").filter(|root| !root.is_empty()) {
+        return PathBuf::from(root).join("tool");
+    }
+    match option_env!("DDN_BUILD_REPO_ROOT") {
+        Some(root) => Path::new(root).join("tool"),
+        None => PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+    }
+}
+
+#[derive(Debug)]
+pub struct AiPromptArgs {
+    pub profile: String,
+    pub out_path: Option<PathBuf>,
+    pub bundle_path: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+struct PromptFile {
+    name: String,
+    bytes: Vec<u8>,
+}
+
+#[derive(Debug)]
+enum BundleSource {
+    Dir(PathBuf),
+    Zip(PathBuf),
+}
+
+#[derive(Debug)]
+struct SsotSelection {
+    version: String,
+    file_names: Vec<String>,
+}
+
+pub fn parse_ai_prompt_args<I>(args: &mut I) -> Result<AiPromptArgs, String>
+where
+    I: Iterator<Item = String>,
+{
+    let mut profile = None;
+    let mut out_path = None;
+    let mut bundle_path = None;
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--profile" => {
+                profile = Some(next_value(args, "--profile")?);
+            }
+            "--out" => {
+                out_path = Some(PathBuf::from(next_value(args, "--out")?));
+            }
+            "--bundle" => {
+                bundle_path = Some(PathBuf::from(next_value(args, "--bundle")?));
+            }
+            _ => return Err(format!("알 수 없는 옵션: {arg}")),
+        }
+    }
+    let profile = profile.unwrap_or_else(|| "lean".to_string());
+    Ok(AiPromptArgs {
+        profile,
+        out_path,
+        bundle_path,
+    })
+}
+
+fn next_value<I>(args: &mut I, flag: &str) -> Result<String, String>
+where
+    I: Iterator<Item = String>,
+{
+    args.next()
+        .ok_or_else(|| format!("{flag} 값이 필요합니다."))
+}
+
+pub fn run_ai_prompt(args: AiPromptArgs) -> Result<(), String> {
+    let output = build_ai_prompt(&args)?;
+    if let Some(out_path) = &args.out_path {
+        let output = std::str::from_utf8(&output)
+            .map_err(|e| format!("ai prompt UTF-8 출력 생성 실패: {e}"))?;
+        crate::artifact_output::write_text_artifact_atomic(out_path, output)
+            .map_err(|e| format!("ai prompt 출력 실패: {e}"))?;
+        println!("ai_prompt_written: {}", out_path.display());
+    } else {
+        let mut stdout = io::stdout();
+        stdout
+            .write_all(&output)
+            .map_err(|e| format!("ai prompt 출력 실패: {e}"))?;
+    }
+    Ok(())
+}
+
+fn build_ai_prompt(args: &AiPromptArgs) -> Result<Vec<u8>, String> {
+    let profile = args.profile.to_ascii_lowercase();
+    let (bundle_kind, source) = resolve_bundle_source(args.bundle_path.as_deref())?;
+    let selection = select_ssot(&source, &profile)?;
+    let files = load_profile_files(&source, &selection.file_names)?;
+    let bundle_hash = compute_bundle_hash(&files);
+
+    let mut out = Vec::new();
+    append_template(&mut out)?;
+    out.push(b'\n');
+    write_context_header(
+        &mut out,
+        &selection.version,
+        &profile,
+        &bundle_kind,
+        &bundle_hash,
+        &selection.file_names,
+    );
+    for file in &files {
+        append_file_block(&mut out, file);
+    }
+    Ok(out)
+}
+
+fn resolve_bundle_source(bundle_path: Option<&Path>) -> Result<(String, BundleSource), String> {
+    if let Some(path) = bundle_path {
+        if path.is_dir() {
+            return Ok(("dir".to_string(), BundleSource::Dir(path.to_path_buf())));
+        }
+        if path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.eq_ignore_ascii_case("zip"))
+            .unwrap_or(false)
+        {
+            let kind = if path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(|name| name.contains("_codex"))
+                .unwrap_or(false)
+            {
+                "codex"
+            } else {
+                "bundle"
+            };
+            return Ok((kind.to_string(), BundleSource::Zip(path.to_path_buf())));
+        }
+        return Err(format!("번들 경로를 찾을 수 없습니다: {}", path.display()));
+    }
+    if let Some(default_zip) = default_bundle_zip_path() {
+        return Ok(("codex".to_string(), BundleSource::Zip(default_zip)));
+    }
+    Ok(("dir".to_string(), BundleSource::Dir(default_ssot_dir()?)))
+}
+
+fn default_ssot_dir() -> Result<PathBuf, String> {
+    let manifest_dir = build_manifest_dir();
+    let root = manifest_dir
+        .parent()
+        .ok_or_else(|| "워크스페이스 루트를 찾을 수 없습니다.".to_string())?;
+    let preferred = root.join("docs").join("ssot").join("ssot");
+    if preferred.exists() {
+        return Ok(preferred);
+    }
+    Ok(root.join("docs").join("ssot"))
+}
+
+fn default_bundle_zip_path() -> Option<PathBuf> {
+    let manifest_dir = build_manifest_dir();
+    let root = manifest_dir.parent().unwrap_or(manifest_dir.as_path());
+    let candidates = [
+        root.to_path_buf(),
+        root.join("docs").join("ssot").join("ssot"),
+        root.join("docs").join("ssot"),
+    ];
+    let mut best: Option<(String, PathBuf)> = None;
+    for base in candidates {
+        let Ok(entries) = fs::read_dir(&base) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let Some(version) = extract_version_from_bundle_name(name) else {
+                continue;
+            };
+            if !name.contains("_codex") {
+                continue;
+            }
+            if best
+                .as_ref()
+                .map(|(current, _)| compare_versions(&version, current).is_gt())
+                .unwrap_or(true)
+            {
+                best = Some((version, path));
+            }
+        }
+    }
+    best.map(|(_, path)| path)
+}
+
+fn select_ssot(source: &BundleSource, profile: &str) -> Result<SsotSelection, String> {
+    let version = resolve_ssot_version(source)?;
+    let file_names = profile_file_names(profile, &version)?;
+    Ok(SsotSelection {
+        version,
+        file_names,
+    })
+}
+
+fn resolve_ssot_version(source: &BundleSource) -> Result<String, String> {
+    match source {
+        BundleSource::Dir(path) => resolve_ssot_version_from_dir(path),
+        BundleSource::Zip(path) => resolve_ssot_version_from_zip(path),
+    }
+}
+
+fn resolve_ssot_version_from_dir(path: &Path) -> Result<String, String> {
+    let entries = fs::read_dir(path)
+        .map_err(|e| format!("SSOT 디렉터리 읽기 실패: {} ({e})", path.display()))?;
+    let mut best_index: Option<String> = None;
+    let mut best_manifest: Option<String> = None;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        if let Some(version) = extract_version_from_index_name(name) {
+            update_best_version(&mut best_index, version);
+        }
+        if let Some(version) = extract_version_from_manifest_name(name) {
+            update_best_version(&mut best_manifest, version);
+        }
+    }
+    require_matching_authority_versions(best_index, best_manifest, &path.display().to_string())
+}
+
+fn resolve_ssot_version_from_zip(path: &Path) -> Result<String, String> {
+    let file = fs::File::open(path)
+        .map_err(|e| format!("SSOT 번들 열기 실패: {} ({e})", path.display()))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("SSOT 번들 읽기 실패: {e}"))?;
+    let mut best_index: Option<String> = None;
+    let mut best_manifest: Option<String> = None;
+    for index in 0..archive.len() {
+        let entry_name = archive
+            .by_index(index)
+            .map_err(|e| format!("SSOT 번들 엔트리 읽기 실패: {e}"))?
+            .name()
+            .to_string();
+        let basename = entry_name.rsplit('/').next().unwrap_or(&entry_name);
+        if let Some(version) = extract_version_from_index_name(basename) {
+            update_best_version(&mut best_index, version);
+        }
+        if let Some(version) = extract_version_from_manifest_name(basename) {
+            update_best_version(&mut best_manifest, version);
+        }
+    }
+    require_matching_authority_versions(best_index, best_manifest, &path.display().to_string())
+}
+
+fn update_best_version(best: &mut Option<String>, version: String) {
+    if best
+        .as_ref()
+        .map(|current| compare_versions(&version, current).is_gt())
+        .unwrap_or(true)
+    {
+        *best = Some(version);
+    }
+}
+
+fn require_matching_authority_versions(
+    index_version: Option<String>,
+    manifest_version: Option<String>,
+    source_label: &str,
+) -> Result<String, String> {
+    let index_version = index_version
+        .ok_or_else(|| format!("SSOT_INDEX 파일을 찾을 수 없습니다: {source_label}"))?;
+    let manifest_version = manifest_version
+        .ok_or_else(|| format!("SSOT_ALL_MANIFEST 파일을 찾을 수 없습니다: {source_label}"))?;
+    if index_version != manifest_version {
+        return Err(format!(
+            "SSOT authority version mismatch: index={index_version}, manifest={manifest_version}, source={source_label}"
+        ));
+    }
+    Ok(index_version)
+}
+
+fn profile_file_names(profile: &str, version: &str) -> Result<Vec<String>, String> {
+    let names = match profile {
+        "lean" => vec![
+            ssot_file("SSOT_INDEX", version),
+            ssot_file("SSOT_TERMS", version),
+            ssot_file("SSOT_DECISIONS", version),
+            ssot_file("SSOT_LANG", version),
+            ssot_file("SSOT_DEMOS", version),
+            ssot_file("GATE0_IMPLEMENTATION_CHECKLIST", version),
+        ],
+        "runtime" => vec![
+            ssot_file("SSOT_INDEX", version),
+            ssot_file("SSOT_TERMS", version),
+            ssot_file("SSOT_DECISIONS", version),
+            ssot_file("SSOT_LANG", version),
+            ssot_file("SSOT_PLATFORM", version),
+            ssot_file("SSOT_DEMOS", version),
+            ssot_file("GATE0_IMPLEMENTATION_CHECKLIST", version),
+        ],
+        "full" => vec![ssot_file("SSOT_ALL", version)],
+        _ => return Err(format!("지원하지 않는 프로파일: {profile}")),
+    };
+    Ok(names)
+}
+
+fn ssot_file(base: &str, version: &str) -> String {
+    format!("{base}_{version}.md")
+}
+
+fn extract_version_from_index_name(name: &str) -> Option<String> {
+    if !name.starts_with(SSOT_INDEX_PREFIX) || !name.ends_with(".md") {
+        return None;
+    }
+    let version = &name[SSOT_INDEX_PREFIX.len()..name.len() - 3];
+    is_version_like(version).then_some(version.to_string())
+}
+
+fn extract_version_from_manifest_name(name: &str) -> Option<String> {
+    if !name.starts_with(SSOT_MANIFEST_PREFIX) || !name.ends_with(".md") {
+        return None;
+    }
+    let version = &name[SSOT_MANIFEST_PREFIX.len()..name.len() - 3];
+    is_version_like(version).then_some(version.to_string())
+}
+
+fn extract_version_from_bundle_name(name: &str) -> Option<String> {
+    if !name.starts_with(SSOT_BUNDLE_PREFIX) || !name.ends_with(".zip") {
+        return None;
+    }
+    let rest = &name[SSOT_BUNDLE_PREFIX.len()..name.len() - 4];
+    let version = if let Some((head, _)) = rest.split_once("_codex") {
+        head
+    } else if let Some((head, _)) = rest.split_once("__") {
+        head
+    } else {
+        rest
+    };
+    is_version_like(version).then_some(version.to_string())
+}
+
+fn is_version_like(version: &str) -> bool {
+    if !version.starts_with('v') {
+        return false;
+    }
+    parse_version_parts(version).is_some()
+}
+
+fn parse_version_parts(version: &str) -> Option<Vec<u32>> {
+    let body = version.strip_prefix('v')?;
+    let mut parts = Vec::new();
+    for part in body.split('.') {
+        if part.is_empty() {
+            return None;
+        }
+        parts.push(part.parse::<u32>().ok()?);
+    }
+    Some(parts)
+}
+
+fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    let Some(pa) = parse_version_parts(a) else {
+        return a.cmp(b);
+    };
+    let Some(pb) = parse_version_parts(b) else {
+        return a.cmp(b);
+    };
+    let max_len = pa.len().max(pb.len());
+    for idx in 0..max_len {
+        let av = *pa.get(idx).unwrap_or(&0);
+        let bv = *pb.get(idx).unwrap_or(&0);
+        match av.cmp(&bv) {
+            std::cmp::Ordering::Equal => {}
+            other => return other,
+        }
+    }
+    std::cmp::Ordering::Equal
+}
+
+fn load_profile_files(
+    source: &BundleSource,
+    file_names: &[String],
+) -> Result<Vec<PromptFile>, String> {
+    match source {
+        BundleSource::Dir(dir) => load_profile_files_from_dir(dir, file_names),
+        BundleSource::Zip(path) => load_profile_files_from_zip(path, file_names),
+    }
+}
+
+fn load_profile_files_from_dir(
+    base_dir: &Path,
+    file_names: &[String],
+) -> Result<Vec<PromptFile>, String> {
+    let mut files = Vec::with_capacity(file_names.len());
+    for name in file_names {
+        let path = base_dir.join(name);
+        let bytes = fs::read(&path)
+            .map_err(|e| format!("SSOT 파일 읽기 실패: {} ({e})", path.display()))?;
+        let bytes = canonicalize_prompt_bytes(name, bytes)?;
+        files.push(PromptFile {
+            name: name.clone(),
+            bytes,
+        });
+    }
+    Ok(files)
+}
+
+fn load_profile_files_from_zip(
+    zip_path: &Path,
+    file_names: &[String],
+) -> Result<Vec<PromptFile>, String> {
+    let file = fs::File::open(zip_path)
+        .map_err(|e| format!("SSOT 번들 열기 실패: {} ({e})", zip_path.display()))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("SSOT 번들 읽기 실패: {e}"))?;
+
+    let mut exact_indices = HashMap::new();
+    let mut suffix_indices: HashMap<String, Vec<usize>> = HashMap::new();
+    for index in 0..archive.len() {
+        let entry_name = archive
+            .by_index(index)
+            .map_err(|e| format!("SSOT 번들 엔트리 읽기 실패: {e}"))?
+            .name()
+            .to_string();
+        for target in file_names {
+            if entry_name == *target {
+                if exact_indices.insert(target.clone(), index).is_some() {
+                    return Err(format!("SSOT 번들에 동일한 파일이 중복됩니다: {target}"));
+                }
+            } else if entry_name.ends_with(&format!("/{}", target)) {
+                suffix_indices
+                    .entry(target.clone())
+                    .or_default()
+                    .push(index);
+            }
+        }
+    }
+
+    let mut files = Vec::with_capacity(file_names.len());
+    for name in file_names {
+        let index = if let Some(index) = exact_indices.get(name) {
+            *index
+        } else if let Some(matches) = suffix_indices.get(name) {
+            if matches.len() == 1 {
+                matches[0]
+            } else {
+                return Err(format!("SSOT 번들에 경로가 중복됩니다: {name}"));
+            }
+        } else {
+            return Err(format!("SSOT 번들에서 파일을 찾을 수 없습니다: {name}"));
+        };
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|e| format!("SSOT 번들 엔트리 열기 실패: {e}"))?;
+        let mut bytes = Vec::new();
+        entry
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("SSOT 번들 읽기 실패: {name} ({e})"))?;
+        let bytes = canonicalize_prompt_bytes(name, bytes)?;
+        files.push(PromptFile {
+            name: name.clone(),
+            bytes,
+        });
+    }
+    Ok(files)
+}
+
+fn canonicalize_prompt_bytes(name: &str, bytes: Vec<u8>) -> Result<Vec<u8>, String> {
+    let text =
+        String::from_utf8(bytes).map_err(|_| format!("SSOT 파일이 UTF-8이 아닙니다: {name}"))?;
+    let canonical = text.replace("\r\n", "\n");
+    if canonical.contains('\r') {
+        return Err(format!("SSOT 파일에 단독 CR이 포함되어 있습니다: {name}"));
+    }
+    Ok(canonical.into_bytes())
+}
+
+fn compute_bundle_hash(files: &[PromptFile]) -> String {
+    let mut hasher = Sha256::new();
+    for file in files {
+        hasher.update(format!("FILENAME {}\n", file.name).as_bytes());
+        hasher.update(format!("BYTES {}\n", file.bytes.len()).as_bytes());
+        hasher.update(&file.bytes);
+        hasher.update(b"\n");
+    }
+    let digest = hasher.finalize();
+    format!("sha256:{}", hex::encode(digest))
+}
+
+fn append_template(out: &mut Vec<u8>) -> Result<(), String> {
+    let template = AI_PROMPT_TEMPLATE.replace("\r\n", "\n");
+    if template.contains('\r') {
+        return Err("ai prompt 템플릿에 단독 CR이 포함되어 있습니다.".to_string());
+    }
+    if template
+        .lines()
+        .any(|line| line.starts_with("SSOT_VERSION ="))
+    {
+        return Err("ai prompt 템플릿은 SSOT version을 소유할 수 없습니다.".to_string());
+    }
+    out.extend_from_slice(template.as_bytes());
+    if !template.ends_with('\n') {
+        out.push(b'\n');
+    }
+    Ok(())
+}
+
+fn push_line(out: &mut Vec<u8>, line: &str) {
+    out.extend_from_slice(line.as_bytes());
+    out.push(b'\n');
+}
+
+fn write_context_header(
+    out: &mut Vec<u8>,
+    ssot_version: &str,
+    profile: &str,
+    bundle_kind: &str,
+    bundle_hash: &str,
+    file_names: &[String],
+) {
+    push_line(out, "[컨텍스트]");
+    push_line(out, &format!("SSOT_VERSION = {ssot_version}"));
+    push_line(out, &format!("BUNDLE_KIND = {bundle_kind}"));
+    push_line(out, &format!("PROFILE = {profile}"));
+    push_line(out, &format!("BUNDLE_HASH = {bundle_hash}"));
+    push_line(out, "FILE_LIST =");
+    for name in file_names {
+        push_line(out, &format!("- {name}"));
+    }
+}
+
+fn append_file_block(out: &mut Vec<u8>, file: &PromptFile) {
+    push_line(out, &format!("===== BEGIN {} =====", file.name));
+    append_trimmed_trailing_ws_lines(out, &file.bytes);
+    if !file.bytes.ends_with(b"\n") {
+        out.push(b'\n');
+    }
+    push_line(out, &format!("===== END {} =====", file.name));
+}
+
+fn append_trimmed_trailing_ws_lines(out: &mut Vec<u8>, bytes: &[u8]) {
+    let mut start = 0;
+    while start < bytes.len() {
+        let mut end = start;
+        while end < bytes.len() && bytes[end] != b'\n' {
+            end += 1;
+        }
+        let mut trimmed_end = end;
+        while trimmed_end > start && matches!(bytes[trimmed_end - 1], b' ' | b'\t') {
+            trimmed_end -= 1;
+        }
+        out.extend_from_slice(&bytes[start..trimmed_end]);
+        if end < bytes.len() {
+            out.push(b'\n');
+            start = end + 1;
+        } else {
+            break;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ai_prompt_bundle_hash_vector_matches() {
+        let files = vec![
+            PromptFile {
+                name: "a.txt".to_string(),
+                bytes: b"A".to_vec(),
+            },
+            PromptFile {
+                name: "b.txt".to_string(),
+                bytes: b"BC\n".to_vec(),
+            },
+        ];
+        let hash = compute_bundle_hash(&files);
+        assert_eq!(
+            hash,
+            "sha256:628d75b0daab4ea5006e09b27937d73c7a6d2ad4d10a5c4cc3482ad1c8dc4c5a"
+        );
+    }
+
+    #[test]
+    fn ai_prompt_output_invariants_hold() {
+        let args = AiPromptArgs {
+            profile: "lean".to_string(),
+            out_path: None,
+            bundle_path: None,
+        };
+        let output = build_ai_prompt(&args).expect("build ai prompt");
+        let (bundle_kind, source) = resolve_bundle_source(None).expect("bundle source");
+        let ssot_version = resolve_ssot_version(&source).expect("ssot version");
+        assert!(!output.contains(&b'\r'));
+        let output_str = String::from_utf8(output.clone()).expect("utf8");
+        assert!(output_str.starts_with("[또니랑 코드 생성 규약]"));
+        assert!(!output_str.contains("v20.6.33"));
+        assert_eq!(
+            output_str
+                .lines()
+                .filter(|line| line.starts_with("SSOT_VERSION ="))
+                .count(),
+            1
+        );
+        assert!(!output_str
+            .lines()
+            .any(|line| line == "SSOT_VERSION = v0.2.1"));
+        assert!(!output_str
+            .lines()
+            .any(|line| line.ends_with(' ') || line.ends_with('\t')));
+
+        let ctx_index = output_str.find("[컨텍스트]\n").expect("context header");
+        let mut lines = output_str[ctx_index..].lines();
+        assert_eq!(lines.next(), Some("[컨텍스트]"));
+        let expected_version = format!("SSOT_VERSION = {ssot_version}");
+        assert_eq!(lines.next(), Some(expected_version.as_str()));
+        assert_eq!(
+            lines.next(),
+            Some(format!("BUNDLE_KIND = {bundle_kind}").as_str())
+        );
+        assert_eq!(lines.next(), Some("PROFILE = lean"));
+        let bundle_hash_line = lines.next().expect("bundle hash");
+        assert!(bundle_hash_line.starts_with("BUNDLE_HASH = sha256:"));
+        assert_eq!(lines.next(), Some("FILE_LIST ="));
+
+        let expected_files = profile_file_names("lean", &ssot_version).expect("files");
+        let mut actual_files = Vec::new();
+        for _ in 0..expected_files.len() {
+            let line = lines.next().expect("file list line");
+            assert!(line.starts_with("- "));
+            actual_files.push(line.trim_start_matches("- ").to_string());
+        }
+        assert_eq!(actual_files, expected_files);
+
+        let files = load_profile_files(&source, &expected_files).expect("load files");
+        let expected_hash = format!("BUNDLE_HASH = {}", compute_bundle_hash(&files));
+        assert_eq!(bundle_hash_line, expected_hash);
+
+        let mut cursor = output_str.as_str();
+        for file in &files {
+            let begin = format!("===== BEGIN {} =====\n", file.name);
+            let end = format!("===== END {} =====\n", file.name);
+            let start = cursor.find(&begin).expect("begin marker");
+            cursor = &cursor[start + begin.len()..];
+            let end_pos = cursor.find(&end).expect("end marker");
+            let body = &cursor[..end_pos];
+            let mut expected_body = Vec::new();
+            append_trimmed_trailing_ws_lines(&mut expected_body, &file.bytes);
+            if !file.bytes.ends_with(b"\n") {
+                expected_body.push(b'\n');
+            }
+            assert_eq!(body.as_bytes(), expected_body);
+            cursor = &cursor[end_pos + end.len()..];
+        }
+    }
+
+    #[test]
+    fn ai_prompt_text_canonicalizes_crlf_and_rejects_lone_cr() {
+        assert_eq!(
+            canonicalize_prompt_bytes("fixture.md", b"A\r\nB\n".to_vec())
+                .expect("canonicalize CRLF"),
+            b"A\nB\n"
+        );
+        assert!(canonicalize_prompt_bytes("fixture.md", b"A\rB".to_vec())
+            .expect_err("lone CR must fail")
+            .contains("단독 CR"));
+    }
+
+    #[test]
+    fn ai_prompt_rejects_index_manifest_version_mismatch() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let fixture = std::env::temp_dir().join(format!(
+            "ddn-ai-prompt-version-mismatch-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&fixture).expect("create mismatch fixture");
+        fs::write(fixture.join("SSOT_INDEX_v24.15.1.md"), "# index\n")
+            .expect("write mismatch index");
+        fs::write(
+            fixture.join("SSOT_ALL_MANIFEST_v24.15.0.md"),
+            "# manifest\n",
+        )
+        .expect("write mismatch manifest");
+        let error = resolve_ssot_version(&BundleSource::Dir(fixture.clone()))
+            .expect_err("mismatched authority versions must fail");
+        fs::remove_dir_all(&fixture).expect("remove mismatch fixture");
+        assert!(error.contains("SSOT authority version mismatch"));
+        assert!(error.contains("index=v24.15.1"));
+        assert!(error.contains("manifest=v24.15.0"));
+    }
+
+    #[test]
+    fn ai_prompt_output_matches_golden() {
+        let args = AiPromptArgs {
+            profile: "lean".to_string(),
+            out_path: None,
+            bundle_path: None,
+        };
+        let output = build_ai_prompt(&args).expect("build ai prompt");
+        let golden_path = default_golden_prompt_path();
+        let golden = fs::read(&golden_path)
+            .map_err(|e| format!("golden 파일 읽기 실패: {} ({e})", golden_path.display()))
+            .expect("read golden");
+        let golden = canonicalize_prompt_bytes("ai_prompt_golden", golden)
+            .expect("canonicalize golden text");
+        assert_eq!(output, golden);
+    }
+
+    fn default_golden_prompt_path() -> PathBuf {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = manifest_dir
+            .parent()
+            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")));
+        root.join("tests")
+            .join("toolchain_golden")
+            .join("ai_prompt_lean.txt")
+    }
+}

@@ -1,0 +1,120 @@
+kind	ko_canon	ko_alias	en	ja	mn	tr	qu	ay	ne	ta	te	kn	eu	sym3	notes
+decl_kind	이름씨		noun	名詞	нэр	isim	suti	suti	संज्ञा/नाम/naam	பெயர்ச்சொல்/peyar-sol/peyar	నామపదము/naama-padamu/peru	ನಾಮಪದ/naama-pada/hesaru	izen/izena		식별자/명사 분류(초안) / v5:문법용어+별칭확장
+decl_kind	움직씨		verb	動詞	үйл	eylem	ruray	luraña	क्रिया/kriya	வினைச்சொல்/vinai-sol/vinai	క్రియాపదము/kriyaa-padamu/kriya	ಕ್ರಿಯಾಪದ/kriyaa-pada/kriye	aditz/aditza		동작/절차 분류(초안) / v5:문법용어+별칭확장
+decl_kind	셈씨	값함수/func	func	関数	функц	islev	llamkay	lurawi	फलन/प्रविधि/phalan/prabidhi	seyal-sol/selvaakam	pani-padamu/pani	kelasa-pada/kelasa	funtzio/funtzioa		값을 돌려주는 셈(정본=셈씨, legacy=값함수)
+decl_kind	이음씨		link	接続	холбох	bagla	tinki	mayachawi	जोड्नु/jodnu	iNaippu-sol/iNaippu	sambanDha-padamu/sambanDham	sambanDha-pada/joDisu	lotura		연결/모듈/이음(초안)
+decl_kind	갈래씨	일묶음씨	thunk	サンク/遅延束	саатал	thunk/ertelem	qhipa/saqma	qhipaña	स्थगित/sthagita	thamasam/thaamadham	vishraamam/aagaDa	vishraama/aagaDa	atzerapen		정본=갈래씨, legacy=일묶음씨 (v8 정렬)
+decl_kind	흐름씨		flow	流れ	урсгал	akis	phaway	phayaña	प्रवाह/pravaha	oTTam	pravaaham	pravaha	fluxu		흐름 제어(초안)
+decl_kind	일때씨		ifkind	条件型/条件種	нөхцөлтөрөл	eger_tur	sichus_laya	ukax_kasta	यदि_प्रकार/yadi_prakar	enraal_vakai	yadi_rakam	yadi_prakaara	baldin_mota		조건 분류(초안)
+decl_kind	어찌씨		howkind	様態型/様態種	аргатөрөл	nasil	imayna_laya	qhawqha_kasta	कसरी_प्रकार/kasari_prakar	eppaDi_vakai	elaa_rakam	henge_prakaara	nola_mota		어찌(양태) 분류(초안)
+decl_kind	고름씨		choosekind	選別型/選別種	сонголттөрөл	secim_tur	akllana_laya	chhijhawi_kasta	चयन_प्रकार/chayan_prakar	thErvu_vakai	erchukunDa_rakam	torisu_prakaara	aukerapen_mota		고르기/선택 분류(초안)
+decl_kind	맞물림씨	관계씨	relkind	関係型/関係種	холбоостөрөл	iliski_tur	tinkuy_laya	mayachawi_kasta	सम्बन्ध_प्रकार/sambandha_prakar	uRavu_vakai	sambanDha_rakam	saMbandha_prakaara	harremanen_mota		정본=맞물림씨, legacy=관계씨
+decl_head	그릇채비:	변수준비:	var:	変数:	хувьсагч:	degisken:	tikray:	mayjt'awi:	चल:/चर:/chalbijog:	மாறி:/marippaDam:	మారు:/marchikondi:	ಬದಲಾಯಿಸು:/marubaDike:	aldagaia:		변수 선언 머릿말(콜론)
+decl_head	붙박이마련:	붙박이채비: / 상수준비:	const:	定数:	тогтмол:	sabit:	mana_tikray:	jan_mayjt'awi:	अचल:/स्थिर:/sthir:	நிலை:/maRRaaDhaadha:	స్థిరం:/sthiraM:	ಸ್ಥಿರ:/sthira:	konstante:		상수 선언 머릿말(콜론)
+sys_noun	샘	샘입력	sam	入力	оролт	girdi	yaykuy	mantawi	इनपुट/inpuT	uLLiidu	iMpuT	iMpuT	sarrera		입력 시스템/장치
+sys_noun	마디		tick	刻	тик	adim	tik	pacha	खण्ड/khaNDa	aLayavu	kaalaM	kaala	tik		시간/프레임 단위(초안)
+type	수		num	数	тоо	sayi	yupay	jakhu	संख्या/sankhya	எண்/eNNu	సంఖ్య/saMkhya	ಸಂಖ್ಯೆ/saMkhye	zenbaki		number
+type	글	문자열	str	文字列	үсэг	yazi	qillqa	qillqa	अक्षर/akshar	எழுத்து/eLutthu	అక్షరం/aksharam	ಅಕ್ಷರ/akshara	testua		string
+type	참거짓		bool	真偽	үнэнхудал	mantiksal/dogruyanlis	cheqaq	chiqapa	सत्य/satya	uNmai	nijam	satya	boolearra		boolean
+type	없음		none	無し	байхгүй	yok	mana	janiwa	केही_छैन/kei	illai	leDhu	illa	ezer_ez/batere_ez		null/none
+type	값꾸러미	튜플	tuple	タプル	багц	demet	tupla	tupla	युगल/yugal	iruppu	joDu	joDi	tupla		qu/ay 충돌 회피: tuple은 tupla 계열로 고정(v8 hotfix)
+type	차림	배열	array	配列	жагсаалт	dizi	hucha	qamachiña	तालिका/taalikaa	vari	samUham	shrENi	array		array/list
+type	모음	집합	set	集合	цуглуулга	kume	huñu	qata	सेट/sett	kuzhu	saMkalanam	saMgraha	multzo		set
+type	짝맞춤	사전	map	写像	хослол	esleme	tinkuy	mayachawi	नक्सा/map	paDam	manchamu	nakashe	mapa		map/dict
+type	겹차림	텐서	tensor	テンソル	тензор	tensor	kikinchay	kimsa_tupu	टेन्सर/tensor	piNavu	TenSar	TenSar	tentsorea		정본=겹차림, legacy=텐서
+ctrl	일때		if	もし	хэрэв	eger	sichus	ukhamaxa	यदि/yadi	enraal	ayite	yadii	baldin	?=>	if
+ctrl	아니면		else	でなければ	үгүйбол	yoksa	manaqa	janixa	नत्र/natra	illai_enraal	kaakunte	illaa	bestela	;=>	else
+ctrl	이면		then	なら	бол	ise	chayqa	ukhamaxa	भने/bhane	aanaal	ayite	aadare	orduan	=>>	then/arm
+ctrl	따라		match	一致	тааруул	esle	tupachiy	uñtawi	मिलाउनु/milaaunu	paRRi	saripolachu	taggaisu	bat_egin	|=|	match/switch
+logic	그리고		and	かつ	мөн	ve	hinaspa	ukatxa	र/ra	maRRum	mariyu	mattu	eta	&^&	and
+logic	또는		or	または	эсвэл	veya	utaq	jan_ukax	अथवा/athavaa	allahu	leedaa	athavaa	edo	|^|	or
+logic	아님		not	ではない	биш	degil	mana	janiwa	होइन/hoina	illai	kaadu	alla	ez	^^^	not
+flow	되풀이	반복	loop	繰返	давтах	tekrar	kutiy	kutjaña	दोहोर्याउनु/dohoryaaunu	maRupadiyum	mariyu	punaH	begizta	<*>	loop keyword(정본=되풀이, legacy=반복)
+flow	되돌림	반환	return	返す	буцаах	dondur	kutichiy	kutt'aña	फर्कनु/pharkanu	thirumbu	tirigipO	tirugi	itzuli	=<<	return keyword(정본=되돌림, legacy=반환)
+flow	멈추기		break	中断	зогсоох	durdur	sayachiy	sayt'aña	रोक्नु/roknu	niRuththu	aapu	nilisu	gelditu		break keyword(루프 탈출)
+flow	톺아보기	감사	audit	点検	шалгах	denetle	qhaway	uñjaña	निरीक्षण/niraikshan	paariththu	parikshinchuDi	parikshisu	ikuskatu	??!	inspect/audit(정본=톺아보기, legacy=감사) / (SYM3 후보)
+flow	늘지켜보고	유지하고/검사할때	watch	監視	ажиглах	izle	qhaway_sapa	uñjaña	निगरानी/nigraani	kaaNithal	krupuragaa	noDu	begiratu	!:!	invariant/watch(정본=늘지켜보고, legacy=유지하고/검사할때) / (SYM3 후보)
+head	고르기:		choose:	選ぶ:	сонго:	sec:	akllana:	chhijhaña:	चयन:/chayan:	thErnthu:	erchukunDa:	torisu:	aukeratu:		분기 머릿말
+head	해보고:		probe:	試す:	турш:	yokla:	ruraykuy:	yant'aña:	प्रयास:/prayas:	muRaiyuDu:	prayatninchu:	prayatnisu:	probatu:	!?:	probe/탐침 머릿말(관찰·결합)
+head	되풀이:	반복:	loop:	ループ:	давталт:	dongu:	kutiy:	kutjaña:	दोहोर्याउनु:/dohoryaaunu:	maRupadiyum:	mariyu:	punaH:	begizta:		무한 반복 머릿말(정본=되풀이:, legacy=반복:) / 렉서: ':' 포함 머릿말을 bare 키워드보다 먼저 매칭(MUST)
+head	동안:		while:	間:	хугацаанд:	iken:	chayman:	pachanxa:	सम्म:/samma:	varai:	varaku:	varege:	bitartean:		조건 반복 머릿말
+head	대해:		for:	について:	тухай:	icin:	rayku:	pachanxa:	लागि:/laagi:	paRRi:	kosam:	prati:	buruz:		순회 머릿말(ko 형태=~에 대해:에서 '대해:' 토큰부)
+clause	맞으면		pass	合格	тэнцвэл	olursa	allin	suma	उत्तीर्ण/pass	thErvu	dati	pass	pasatu		계약/검증 가지 키워드(초안)
+clause	바탕으로	전제하에	require	前提	шаард	kosul	munanapaq	munañataki	आवश्यक/aavashyak	thevai	avasaram	beeke	baldintza		계약 전제(pre)
+clause	다짐하고	보장하고	ensure	保証	батал	garanti	takyachiy	chiqanchawi	प्रतिबद्ध/pratibaddha	uRudhi	nischayam	haami	bermatu		계약 사후(post)
+tail	할때		when	とき	үед	olunca	haykuchus	qhawqharus	जधा/jadhaa	eppozhu	eppuDu	yaava	noiz		훅 꼬리( (#태그)할때 )
+tail	마다		each	ごと	бүр	her	sapa	sapa	प्रत्येक/pratyek	oruvarukkum	prathi	prati	bakoitza		반복 훅 꼬리( (매마디)마다 )
+tail	오면	올때	oncome	来たとき	ирэхэд	gelince	hamuy	jutiri	आउँदा/aaunaa	varumpozhu	vacchinappuDu	bandaaga	iristean		이벤트 꼬리(초안)
+tail	바뀔때		onchange	変わるとき	өөрчлөгдөхөд	degisince	tikray	mayjt'asi	परिवर्तन/parivartan	maaRumpozhu	maaruppuDu	badalaagide	aldatzean		이벤트 꼬리(초안)
+tail_tag	처음	시작	start	開始	эхлэл	basla	qallari	qalltawi	सुरु/suru	aarambam	modalupeTTu	prarambha	hasi		(시작)할때
+tail_tag	끝		end	終了	төгсгөл	bitis	tukuy	tukuyi	समाप्ति/samaapti	muRivu	antamu	anta	amaitu		(끝)할때
+head_reserved	함께:		together:	一緒に:	хамт:	birlikte:	kuska:	mayampi:	सगत:/sagataa:	kuudaa:	kalasiMdi:	kaluDi:	batera:		예약(동시성)
+head_reserved	나란히:		parallel:	並行:	зэрэгцээ:	paralel:	kikin:	kikipa:	समानान्तर:/samanantar:	naaDaaRaa:	samaanam:	samaanamagi:	paraleloan:		예약(동시성)
+head_reserved	해보기:	시도:	try:	試行:	оролд:	dene:	ruraykuy:	yant'aña:	कोशिस:/koshis:	muRaiyuDu:	prayatninchuDi:	prayatnisu:	saiatu:		예약(예외 처리 try)
+head_reserved	붙잡기:		catch:	捕捉:	барь:	yakala:	hap'iy:	katuqaña:	समात्नु/samatnu	piDi	paaTTu	hididu	harrapatu:		예약(예외)
+sugar	모두		all	全部	бүгд	hepsi	tukuy	taqi	सबै/sabai	ellaa	annitee	ellaa	guztiak		설탕 머릿말(모두 {})
+pronoun	나		self	わたし	би	ben	ñuqa	naya	म/ma	naan	nenu	naanu	ni		자기 참조
+pronoun	그것		it	それ	тэр	o	chay	uka	त्यो/tyo	adhu	adi	adu	hori		그것(기본 임자)
+pronoun	저마다		eachone	それぞれ	тусбүр	herbiri	sapanka	sapürüwa	प्रत्येक/pratyek	ordhoruvaru	prathidi	pratyeka	bakoitza		각자/각 원소
+pronoun	하나하나		onebyone	一つずつ	нэгнэгээр	tektek	hukllawan	mayampi	एक-एक/ek-ek	onRonRaaga	okkokkaTi	ondondu	banan-banan		하나씩
+binder	임자	개체	entity	主体	эзэн	ozne	kaq	amtawi	सत्व/satva	padarththu	vastuvu	vastu	entitatе/entitate		바인더/주체(예약어)
+sys_reserved	누리		world	世界	ертөнц	dunya	pacha	pacha	संसार/saMsaar	ulagu	prapa'ncaM	loka	mundua		예약: 세계/환경
+sys_reserved	지킴이		warden	守衛	харуул	bekci	arariwa	arktiri	पालक/palak	kaavalanr	kaapari	kaaval	zaindari		예약: 지킴이
+sys_reserved	탈	고장	fault	故障	алдаа	ariza	pantay	pantjasi	दोष/dosH	kuRRam	tappuDu	tappu	akats		예약: 오류/고장
+sys_reserved	거울		mirror	鏡	толь	ayna	rispiy	wich'inkata	ऐना/aiṇā	kaṇṇaaDi	kaṇṇāDi	kaṇṇāḍi	ispilu		예약: 기록/거울
+sys_reserved	쓸감	자원	asset	素材	нөөц	varlik	qullqi	utjawi	सम्पत्ति/sampatti	saadhanaṅṅaḷ	sampada	sampatti	baliabide		예약: 자산/쓸감
+sys_reserved	주사위	랜덤	dice	サイコロ	шоо	tavla	dado	wakhu	पासा/paasaa	thaayam	dais	paase	dado		TERM-FATAL-008 정본 목적지
+sys_reserved	알림씨	이벤트	alert	通知	мэдээлэл	uyari	willay	yatiyawi	सूचना/suchana	echcharikkai	heccharika	eccharike	abisu		TERM-WARN-004 정본 목적지
+sys_reserved	바탕	살림	root	基盤	суурь	taban	saphi	sapa	जर/jar	adipaDai	mUlamu	mUla	sustraitu		예약: 루트 상태
+sys_reserved	살핌말	진단말	diag	診断	онош	tani	hamutay	aruskipawi	निर्धान/nirDaan	paariththu	nidarSanam	nirdhara	diagnosia		예약: 진단
+sys_reserved	고침		fix	修正	засвар	duzelt	allichay	askichawi	समाधान/samaadhaan	sari_seithu	saricchuDi	sarimaaDu	konpondu		예약: 고침
+det_mode	D-STRICT		D-STRICT	D-STRICT	D-STRICT	D-STRICT	D-STRICT	D-STRICT	D-STRICT	D-STRICT	D-STRICT	D-STRICT	D-STRICT		결정성/안전 모드
+det_mode	D-FAST		D-FAST	D-FAST	D-FAST	D-FAST	D-FAST	D-FAST	D-FAST	D-FAST	D-FAST	D-FAST	D-FAST		결정성/성능 모드
+mood	$전혀		$none	$まったく	$огт	$hic	$mana	$janiwa	$केही_पनि/$kehi_pani	$edhuvum_illai	$emmiTi_leDhu	$yaavuDu_illa	$batere_ez		말결(부사)
+mood	$조금		$little	$すこし	$бага	$az	$pisi	$jisk'a	$अलि/$ali	$koncam	$konchem	$swAlpa	$gutxi		말결(부사)
+mood	$약간		$slight	$やや	$жаахан	$biraz	$pisi	$pisi	$थोरै/$thorai	$konjam	$konchem	$svalpa	$pixka		말결(부사)
+mood	$반쯤		$half	$半分	$хагас	$yari	$chawpi	$taypi	$आधा/$aaddhaa	$arai	$sగara	$ardha	$erdi		말결(부사)
+mood	$꽤		$quite	$かなり	$нэлээд	$oldukca	$aswanta	$waliki	$निकै/$nikai	$nalla	$baaga	$chennagi	$nahiko		말결(부사) / ne 충돌 회피(v8 hotfix)
+mood	$매우		$very	$とても	$маш	$cok	$ancha	$wali	$धेरै/$dherai	$mikavum	$caalaa	$tumbaa	$oso		말결(부사)
+mood	$완전		$fully	$完全	$бүрэн	$tam	$hunt'a	$phuqha	$पूर्ण/$puṇaḍ	$muRumaimga	$purtigaa	$puurtigaa	$guztiz		말결(부사)
+thunk_tail	}한것		}val/}=>	}したこと	}хийсэн	}yapilan	}ruraqa	}lurüwa	}गरेको/}gareko	}seidhadhu	}chesEdi	}maaDida	}eginda	}=>	토막 값 표지(기호 권장)
+thunk_tail	}인것		}is/}==	}であること	}юм	}olan	}kasqa	}uka	}हो/}ho	}aahu	}aTuvu	}adu	}da	}==	토막 참거짓 표지(기호 권장)
+thunk_tail	}아닌것		}not/}!=	}でないこと	}биш	}olmayan	}mana_kasqa	}janiwa	}होइन/}hoina	}illai	}kaadu	}alla	}ez_da	}!=	토막 부정 표지(기호 권장)
+thunk_tail	}하고		}do/}&>	}して	}хий	}yap	}ruray	}luraña	}गर्नु/}garnu	}sei	}ceyyi	}maaDu	}egin	}&>	토막 실행 표지(기호 권장)
+thunk_tail	}해서		}pipe/}|>	}して	}хийгээд	}yaparak	}ruraspan	}lurt'asa	}गरेर/}garera	}seidu	}chesi	}maaDi	}eginda	}|>	토막 파이프 표지(기호 권장)
+pipe	해서		pipe/|>	して/|>	хийгээд/|>	ile/|>	-spa	-sa	-एर/-era	-i	-i	-i	-rik	|>>	pipe 표지: en은 |>, sym3는 |>>. word‑dialect는 말씨별 접미/단어 표기를 우선하고 |>/|>>는 compat로만 허용(lint 권장).
+call_tail	~기/~하기		()	~こと/()	~х/()	~mak/~mek/()	~y	~ña	~नु/~nu	~al	~Daм	~uvudu	~tzea	!()	호출 표지: en/ja/mn/tr=(), sym3=!()
+josa	~을/~를		~ob	~を	~ыг/~ийг	~i/~yi/~ı/~i/~u/~ü	~ta	~wa	~लाई/~lai	~ai	~ni	~annu	~(r)en	~ob	object
+josa	~이/~가		~sb	~が	~нь/∅	~dir/∅	~qa	~xa	~ले/~le	~u	~u	~u	~k	~sb	subject
+josa	~은/~는		~tp	~は	~бол	~ise/∅	~ri	~xa	~चाहिँ/~chai	~ndru	~ane	~nu	~(r)a	~tp	topic
+josa	~에		~at	~に	~д	~da/~de/~a/~e	~pi	~na	~मा/~maa	~il	~lo	~alli	~(e)an	~at	at
+josa	~로/~으로		~by	~で	~аар/~ээр	~ile/~la/~la/~le	~wan	~mpi	~ले/~le	~aal	~tO	~inda	~(r)ez	~by	by
+josa	~에서		~fr	~から/~で	~аас/~ээс	~dan/~den/~da/~de	~manta	~ta	~बाट/~baaTa	~il_irundhu	~nuMci	~inda	~(e)tik	~fr	from
+josa	~에게/~께		~to	~に	~руу/~д	~a/~e/~a/~e	~man	~ru	~लाई/~laai	~ukku	~ki	~ge	~(r)i	~to	to
+josa	~부터		~fm	~から	~аас/~ээс	~dan/~den	~manta	~ta	~देखि/~dekhi	~il_irundhu	~nuMci	~inda	~(e)tik	~fm	from(min)
+josa	~까지		~un	~まで	~хүртэл	~kadar	~kama	~kamächi	~सम्म/~samma	~varai	~varaku	~varege	~arte	~un	until
+directive	#말씨:	#사투리:	#dialect:	#方言:	#аязгуур:	#lehce:	#simi:	#aru:	#भाषा:/#bhaashaa:	#mozhi:	#bhaasha:	#bhaashe:	#dialekto:		파일 말씨 헤더(제안; ko 정본은 #말씨)
+directive	#바탕숨김	#암묵살림	#root_hide	#基盤隠し	#суурьнуух	#taban_gizle	#saphi_pakay	#sapa_imaña	#जर_लुकाउनु/#jar_lukaunu	#adipaDai_maRai	#mUla_daachu	#mUla_hovisu	#sustraitu_ezkutatu		접두 생략 모드
+directive	#열림 허용(...)		#open_allow(...)	#開放許可(...)	#нээх_зөвш(...)	#acik_izin(...)	#kichay_saqiy(...)	#jist'aña_yanapiri(...)	#खोल्नु_अनुमति(...)/#kholnu_anumati(...)	#thiRa_anumadhi(...)	#teravaDaniki_anumati(...)	#tereyalu_anumati(...)	#ireki_baimena(...)		Open 선언(표기 제안)
+directive	#이름:		#name:	#名前:	#нэр:	#ad:	#suti:	#suti:	#नाम:/#naam:	#peyar:	#peru:	#hesaru:	#izena:		메타 헤더
+directive	#설명:	#풀이:	#desc:	#説明:	#тайлбар:	#aciklama:	#sut'inchay:	#qhanañchawi:	#वर्णना:/#varNana:	#vivaraM:	#varNana:	#varNane:	#deskribapena:		메타 헤더
+sys_reserved	짜임	구성	component	kouseitai	burdelduun	bilesen	wakicha	wakicha	घटक/ghatak	amaippu	ghaTakaM	ghaTaka	osagai		정본=짜임, 별칭=구성 (모듈 단위 블록)
+sys_reserved	너머	효과/바깥	external	gaiiki	gadna	dis	hawa	anqa	बाहिर/baahir	veLi	bayata	horage	kanpo		정본=너머, 별칭=효과/바깥 (비결정 경계 블록)
+sys_reserved	실행정책	돌림결	exec_policy	jikko_hoshin	ajillah_bodlogo	calistirma_politikasi	puriy_kama	sarana_kama	चलान_नीति/chalaan_niti	iyakku_kol	amalu_vidhaanam	chalana_neeti	exekuzio_politika		실행 정책 블록(제안 단계)
+sys_reserved	실행모드	돌림꼴	exec_mode	jikko_modo	ajillah_hev	calistirma_kipi	puriy_nira	sarana_nira	चलान_ढाँचा/chalaan_dhaacha	iyakku_murai	amalu_riti	chalana_riti	exekuzio_modu		실행 모드 열거형 키
+sys_reserved	효과정책	너머결	external_policy	gaiiki_hoshin	gadna_bodlogo	dis_politikasi	hawa_kama	anqa_kama	बाहिर_नीति/baahir_niti	veLi_kol	bayata_vidhaanam	horage_neeti	kanpo_politika		너머 호출 처리 정책(막기/기록/되살리기)
+sys_reserved	엄밀	굳음	strict	genmitsu	nariin	siki	chiqaq	chiqa	कडाई/kadai	kattinam	kaThinata	kaThiNa	zorrotz		strict 모드
+sys_reserved	일반	보통	general	ippan	yeronhii	genel	llapan	taqpacha	साधारण/saadhaaran	potuvana	sadhaarana	samanya	orokor		general 모드
+sys_reserved	막기	차단	deny	kyohi	horigloh	engelle	harkay	jarkana	रोक/rok	tadukku	aapu	taDe	ukatu		policy value: deny
+sys_reserved	기록	남기기	record	kiroku	burtgel	kaydet	qillqay	qillqaña	दर्ता/darta	pathivu	namodu	dakhale	erregistratu		policy value: record
+sys_reserved	되살리기	재생	replay	saisei	dahin_togloh	yeniden_oynat	kutichiy	kuttayaña	पुनरचल/punar_chal	meendum_iyakku	malli_nadipiMcu	matte_aDisu	berriz_jolastu		policy value: replay
+sys_reserved	상태	state	state	jotai	tolov	durum	kay	kata	अवस्था/awastha	nilai	sthiti	sthiti	egoera		상태 블록/개념
+sys_reserved	입력		input	nyuryoku	orolt	girdi	yaykuy	mantawi	इनपुट/inpuT	uLLiidu	input	input	sarrera		입력 블록 키워드 (샘과 의미 분리)
+sys_reserved	출력		output	shutsuryoku	garalt	cikti	lluqsi	mistu	आउटपुट/auTpuT	veLiyeedu	auTpuT	auTpuT	irteera		출력 블록 키워드
+sys_reserved	알림	소식/사건/알람	event	shirase	medee	olay	willay	yatiyawi	घटना/ghatana	seithi	ghaTana	ghaTane	gertaera		이벤트 반응 말결 키워드 (정본=알림, 별칭=소식/사건/알람)
+clause	따른다		follows	shitagau	dagana	izler	qatin	arxataña	अनुसरण/anusaran	pinpatru	anusarinchu	anusari	jarraitzen		배선 말결: A는 B를 따른다
+clause	잇는다		links	musubu	holbono	baglar	tinkiy	jakhthapiña	जोड/jod	iNai	kalupu	joDisu	lotzen		배선 말결: A로 B를 잇는다
+sys_reserved	보개마당	보개장면	scene_stage	bogae_hiroba	bogae_talbai	bogae_alani	bogae_pampa	bogae_pampa	बोगै_मञ्च/bogae_manch	bogae_meda	bogae_vedika	bogae_vedike	bogae_plaza		보개 연출 블록 정본
+sys_reserved	토막		segment	komaki	heseg	parca	taki	taqa	टुक्रा/tukra	tuNdu	bhagam	tuNuku	zati		보개마당 장면 단위
+sys_reserved	자막		caption	jimaku	hadmal	altyazi	ura_qillqa	aynu_qillqa	उपशीर्षक/upashirshak	thunaikkurippu	upa_sirshika	upa_shirshike	azpititulu		보개마당 텍스트 요소
+sys_reserved	더보기		more	motto	delgerengui	daha_fazla	astawan	jukampi	थप/thap	melum	inka	innashTu	gehiago		보개마당 상세 텍스트 요소
