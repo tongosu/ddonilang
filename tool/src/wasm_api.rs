@@ -121,6 +121,53 @@ pub fn logical_input_replay(source: &str, tape: &[u8], binding_json: &str) -> Re
         .map(|summary| summary.to_string()).map_err(|error| JsValue::from_str(&error))
 }
 const SPACE2D_SCHEMA: &str = "seamgrim.space2d.v0";
+/// WO15 provisional typed value intake; the V1 logical VM is unchanged.
+#[wasm_bindgen]
+pub struct DdnManipulationVm { session: crate::manipulation_input::ManipulationSession }
+#[wasm_bindgen]
+impl DdnManipulationVm {
+    pub fn bind_source_json(source: &str, binding_json: &str) -> Result<String, JsValue> {
+        let binding = serde_json::from_str(binding_json).map_err(|error| JsValue::from_str(&format!("E_MANIPULATION_BINDING_JSON: {error}")))?;
+        let bound = crate::manipulation_input::ManipulationSession::bind_source_for_fresh_run(source,binding).map_err(|error| JsValue::from_str(&error))?;
+        serde_json::to_string(&bound).map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+    #[wasm_bindgen(constructor)]
+    pub fn new(source: &str, binding_json: &str) -> Result<DdnManipulationVm, JsValue> {
+        let binding = serde_json::from_str(binding_json).map_err(|error| JsValue::from_str(&format!("E_MANIPULATION_BINDING_JSON: {error}")))?;
+        let session = crate::manipulation_input::ManipulationSession::new(source,binding).map_err(|error| JsValue::from_str(&error))?;
+        Ok(Self {session})
+    }
+    pub fn step_json(&mut self, snapshot_json: &str) -> Result<String, JsValue> {
+        let snapshot = serde_json::from_str(snapshot_json).map_err(|error| {
+            let reason=format!("E_MANIPULATION_SNAPSHOT_JSON: {error}");self.session.reject_input(reason.clone());JsValue::from_str(&reason)
+        })?;
+        let result=self.session.step(&snapshot).map_err(|error| JsValue::from_str(&error))?;
+        serde_json::to_string(&result).map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+    pub fn summary_json(&self) -> String {self.session.summary().to_string()}
+    pub fn view_json(&self) -> String {build_view_meta(self.session.committed_world()).to_string()}
+    pub fn abort_input(&mut self,message: &str) {self.session.reject_input(format!("E_MANIPULATION_INPUT_LOST: {message}"));}
+    pub fn seal_json(&self) -> Result<String, JsValue> {
+        let bytes=self.session.seal().map_err(|error| JsValue::from_str(&error))?;
+        Ok(json!({"tape_bytes":bytes,"summary":self.session.summary()}).to_string())
+    }
+}
+#[wasm_bindgen]
+pub fn manipulation_input_record(source: &str, request_json: &str) -> Result<String, JsValue> {
+    let request=serde_json::from_str(request_json).map_err(|error| JsValue::from_str(&format!("E_MANIPULATION_REQUEST_JSON: {error}")))?;
+    let (bytes,summary)=crate::manipulation_input::record_source(source,&request).map_err(|error| JsValue::from_str(&error))?;
+    Ok(json!({"tape_bytes":bytes,"summary":summary}).to_string())
+}
+#[wasm_bindgen]
+pub fn manipulation_input_replay(source: &str,tape: &[u8],binding_json: &str) -> Result<String, JsValue> {
+    let binding=serde_json::from_str(binding_json).map_err(|error| JsValue::from_str(&format!("E_MANIPULATION_BINDING_JSON: {error}")))?;
+    crate::manipulation_input::replay_source(source,tape,&binding).map(|summary|summary.to_string()).map_err(|error| JsValue::from_str(&error))
+}
+#[wasm_bindgen]
+pub fn manipulation_value_raw(text: &str) -> Result<String, JsValue> {
+    Fixed64::parse_decimal(text).map(|value|value.raw_i64().to_string())
+        .ok_or_else(||JsValue::from_str("E_MANIPULATION_VALUE: 정확한 소수 표기가 필요합니다"))
+}
 const BOGAE_DRAWLIST_TAG: &str = "보개_그림판_목록";
 const BOGAE_WIDTH_TAG: &str = "보개_그림판_가로";
 const BOGAE_HEIGHT_TAG: &str = "보개_그림판_세로";

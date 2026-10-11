@@ -637,6 +637,17 @@ fn validate_minimal_root_program(program: &CanonProgram) -> Result<(), StaticDia
                 collect_world_bindings(&body.stmts, &params, &mut world_names);
             }
         }
+        // An explicit project entry may own the same lifecycle hooks as a
+        // root program. Only their world bindings are visible to root views;
+        // ordinary callable locals and parameter names remain private.
+        if let Some(body) = &seed.body {
+            let params = seed.params.iter().map(|param| param.pin_name.clone()).collect();
+            for statement in &body.stmts {
+                if let Stmt::Hook { body, .. } = statement {
+                    collect_world_bindings(&body.stmts, &params, &mut world_names);
+                }
+            }
+        }
     }
     for name in world_names {
         symbols.entry(name).or_insert(StaticType::Unknown);

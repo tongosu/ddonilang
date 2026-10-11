@@ -9,7 +9,8 @@ import { applyExplorationPreset } from "./exploration_presets.js";
 import { FIRST_STEPS_PROJECTS as FIRST_STEPS_ALPHA1_PROJECTS } from "./first_steps_catalog.js";
 import { FIRST_STEPS_ALPHA2_PROJECTS } from './first_steps_alpha2_catalog.js';
 import { FIRST_STEPS_ALPHA3_PROJECTS } from './first_steps_alpha3_catalog.js';
-const FIRST_STEPS_PROJECTS=[...FIRST_STEPS_ALPHA1_PROJECTS,...FIRST_STEPS_ALPHA2_PROJECTS,...FIRST_STEPS_ALPHA3_PROJECTS];
+import { FIRST_STEPS_ALPHA4_PROJECTS } from './first_steps_alpha4_catalog.js';
+const FIRST_STEPS_PROJECTS=[...FIRST_STEPS_ALPHA1_PROJECTS,...FIRST_STEPS_ALPHA2_PROJECTS,...FIRST_STEPS_ALPHA3_PROJECTS,...FIRST_STEPS_ALPHA4_PROJECTS];
 const DEFERRED_LESSONS = [];
 import { runHostStep, HOST_STEP_STOP_NOTICE } from "../runtime/host_step_watchdog.js";
 let hostStopNotice = ""; // Presentation only; excluded from run/state/receipt/replay.
@@ -276,10 +277,43 @@ const PROJECTS = [
   },
 ];
 
+PROJECTS.push({
+  id:"alpha4_manipulation_point",title:"점과 반지름 · 조작 기록",kind:"알파4 잠정 입력 실습",
+  summary:"▶로 실행한 뒤 입력 기록을 열어 반지름과 좌표를 조작합니다. 실제 마디 입력을 저장해 다시 재생할 수 있습니다.",
+  tags:["입력","기록","알파4"],primaryView:"space2d",viewGrade:"explicit",
+  logicalInput:{binding:"alpha4_manipulation_point.binding.json",actions:"alpha4_manipulation_point.action_map.json",capacity:4096},
+  files:[{path:"lesson.ddn",role:"main",url:"../../samples/alpha4_manipulation_point.ddn"}]
+},{
+  id:"alpha4_lrl_lab",title:"LRL · 궤도와 속도 원",kind:"알파4 탐구 · 잠정 후보",
+  summary:"같은 운동의 궤도와 속도 공간을 나란히 봅니다. 초기값을 바꾼 뒤 ▶로 다시 실행하세요.",
+  tags:["물리","탐구","LRL","알파4"],primaryView:"space2d",viewGrade:"explicit",
+  files:[{path:"lesson.ddn",role:"main",url:"../../samples/alpha4_lrl_lab.ddn"}],
+  exploration:{parameters:{이심률:{min:0,max:0.8},섭동:{min:0,max:0.05},속도배율:{min:0.7,max:1.3},간격:{min:0.005,max:0.02},발사설정:{min:0,max:1,integer:true,hidden:true}},
+    presets:[{label:"원 운동",values:{이심률:0,섭동:0,속도배율:1,간격:0.01,발사설정:0}},
+      {label:"타원",values:{이심률:0.5,섭동:0,속도배율:1,간격:0.01,발사설정:0}},
+      {label:"섭동 비교",values:{이심률:0.5,섭동:0.02,속도배율:1,간격:0.01,발사설정:0}}],
+    guide:"공을 위로 끌어 놓으면 끌기 벡터를 초기 발사 속도로 원문에 적습니다(vx ±3, vy 0.2~3). ▶로 명시 재실행하세요. 무차원 중앙힘 모형이며 섭동=0에서만 A² 검산과 LRL 보존이 성립합니다. 방향 변화는 초기 A에서 현재 A까지의 주각(rad); A가 거의 0이면 방향없음입니다. 궤적은 5마디마다 표본하며 반 간격이 고정소수 오차까지 항상 줄이지는 않습니다."}
+});
+
 // Visual examples and a separate, ordered first-steps course.
-for (const project of FIRST_STEPS_ALPHA3_PROJECTS) {
+// Drawing helpers are real DDN module imports, not copied source or host lowering.
+function commonDrawingProjectFiles(lab) {
+  const paths=[`${lab}.project.ddn`,`${lab}.ddn`,'alpha4_drawing_common.ddn'];
+  return {
+    files:paths.map((path,index)=>({path,role:index===0?'root':'ddn_source',url:`../../samples/${path}`})),
+    portableSnapshot:{source_profile_identity:SOURCE_ANALYSIS_PROFILE_IDENTITY,
+      local_package_payload:{kind:'seamgrim.local_project_tree.v0',root_path:paths[0],entry_path:paths[1],
+        files:paths.map((path,index)=>({path,role:index===0?'root':'ddn_source'}))}}
+  };
+}
+for(const project of PROJECTS) {
+  if(['alpha3_double_pendulum_lab','alpha4_lrl_lab'].includes(project.id))
+    Object.assign(project,commonDrawingProjectFiles(project.id));
+}
+for (const project of [...FIRST_STEPS_ALPHA3_PROJECTS,...FIRST_STEPS_ALPHA4_PROJECTS]) {
   const lab=PROJECTS.find(item=>item.id===project.course.lab_id);
-  if(lab) { project.exploration=lab.exploration; project.viewPolicy=lab.viewPolicy; }
+  if(lab) { project.exploration=lab.exploration; project.viewPolicy=lab.viewPolicy; project.logicalInput=lab.logicalInput;
+    if(['alpha3_double_pendulum_lab','alpha4_lrl_lab'].includes(lab.id)) Object.assign(project,commonDrawingProjectFiles(lab.id)); }
 }
 for (const project of [...PROJECTS, ...FIRST_STEPS_PROJECTS]) project.sourceProfileIdentity = SOURCE_ANALYSIS_PROFILE_IDENTITY;
 
@@ -3594,6 +3628,66 @@ function renderSideViewInstances(project, instances) {
   });
 }
 
+// Initial-condition authoring only: dragging edits a visible literal. It does
+// not mutate the committed world or synthesize an execution input snapshot.
+let initialConditionDrag = null;
+function initialDragPoint(event, view) {
+  const rect=els.canvas.getBoundingClientRect(), camera=authoredCompositionHost.camera;
+  const width=els.canvas.width,height=els.canvas.height,zoom=camera?.zoom ?? 1;
+  const px=((event.clientX-rect.left)*width/rect.width-width/2-(camera?.x ?? 0))/zoom+width/2;
+  const py=((event.clientY-rect.top)*height/rect.height-height/2-(camera?.y ?? 0))/zoom+height/2;
+  const [xmin,xmax]=view.horizontal.map(raw=>Number(BigInt(raw))/4294967296);
+  const [ymin,ymax]=view.vertical.map(raw=>Number(BigInt(raw))/4294967296);
+  const scale=Math.min((width-36)/(xmax-xmin),(height-36)/(ymax-ymin));
+  return [xmin+(px-(width-(xmax-xmin)*scale)/2)/scale,
+    ymin+((height+(ymax-ymin)*scale)/2-py)/scale];
+}
+els.canvas.addEventListener('pointerdown',event=>{
+  const lab=currentProject().course?.lab_id ?? currentProject().id;
+  if(!['alpha3_double_pendulum_lab','alpha4_lrl_lab'].includes(lab) || els.sourceEditor.readOnly) return;
+  const view=activeFrame()?.wasm_state?.bogae_projection?.candidates?.[0]?.artifact?.view;
+  if(view?.kind!=='scene') return;
+  const point=initialDragPoint(event,view);
+  if(lab==='alpha4_lrl_lab') {
+    const center=view.elements[0]?.center?.map(raw=>Number(BigInt(raw))/4294967296);
+    if(!center || Math.hypot(point[0]-center[0],point[1]-center[1])>=0.18) return;
+    initialConditionDrag={pointer:event.pointerId,view,lab,anchor:center};
+    els.canvas.setPointerCapture(event.pointerId);return;
+  }
+  const centers=[3,4].map(index=>view.elements[index]?.center?.map(raw=>Number(BigInt(raw))/4294967296));
+  const index=centers.findIndex(center=>center && Math.hypot(point[0]-center[0],point[1]-center[1])<0.18);
+  if(index<0) return;
+  initialConditionDrag={pointer:event.pointerId,view,index,anchor:index===0?[0,0]:centers[0]};
+  els.canvas.setPointerCapture(event.pointerId);
+});
+els.canvas.addEventListener('pointerup',event=>{
+  const drag=initialConditionDrag;
+  if(!drag || drag.pointer!==event.pointerId) return;
+  initialConditionDrag=null;
+  const point=initialDragPoint(event,drag.view);
+  if(drag.lab==='alpha4_lrl_lab') {
+    try {
+      const source=applyExplorationPreset(els.sourceEditor.value,
+        {발사설정:{min:0,max:1,integer:true},발사가로속도:{min:-3,max:3},발사세로속도:{min:0.2,max:3}},
+        {발사설정:1,발사가로속도:Number((point[0]-drag.anchor[0]).toFixed(6)),발사세로속도:Number((point[1]-drag.anchor[1]).toFixed(6))});
+      els.sourceEditor.value=source;els.sourceEditor.dispatchEvent(new Event('input',{bubbles:true}));
+      pushDiagnostic('W_EXPLORATION_SOURCE_EDIT','발사 속도를 원문에 반영했습니다. ▶로 다시 계산하세요.');
+    } catch(error) {pushDiagnostic('E_EXPLORATION_PRESET',String(error.message),'error');renderAll();}
+    return;
+  }
+  const angle=Math.atan2(point[0]-drag.anchor[0],-(point[1]-drag.anchor[1]));
+  if(!Number.isFinite(angle)) return;
+  try {
+    const source=applyExplorationPreset(els.sourceEditor.value,currentProject().exploration.parameters,
+      {[drag.index===0?'초기각1':'초기각2']:Number(angle.toFixed(6))});
+    els.sourceEditor.value=source;els.sourceEditor.dispatchEvent(new Event('input',{bubbles:true}));
+    pushDiagnostic('W_EXPLORATION_SOURCE_EDIT','추의 초기각을 원문에 반영했습니다. ▶로 다시 계산하세요.');
+  } catch(error) {
+    pushDiagnostic('E_EXPLORATION_PRESET',String(error.message),'error');renderAll();
+  }
+});
+els.canvas.addEventListener('pointercancel',()=>{initialConditionDrag=null;});
+
 function renderViewPolicy(project) {
   // Preparing/rejected requests retain the last committed presentation, including
   // side instances and their local hidden state. Never carry it across projects.
@@ -4009,7 +4103,7 @@ async function selectProject(projectId, { preserveServerSession = false } = {}) 
     clearDiagnostics();
     state.projectControlsGeneration += 1;
     state.projectControls = emptyProjectControlModel(project.id, "loading");
-    state.activeFilePath = project.files[0].path;
+    state.activeFilePath = localProjectEntryPath(project);
     state.fileFilter = "";
     els.fileSearch.value = "";
     state.projectLoadError = "";
@@ -5562,6 +5656,7 @@ function renderExplorationPresets(project) {
   const spec=project.exploration;
   panel.hidden=!spec;
   if(!spec)return;
+  const initialSource=activeRuntimeSourceText(project);
   const buttons=panel.querySelector('[data-testid="exploration-preset-buttons"]');
   if(buttons.dataset.projectId!==project.id) {
     buttons.replaceChildren();buttons.dataset.projectId=project.id;
@@ -5577,8 +5672,39 @@ function renderExplorationPresets(project) {
       });
       buttons.append(button);
     }
+    // Initial-condition authoring only (A3-P5). Sliding edits the visible
+    // source; it does not advance a madi or inject a hidden live event.
+    for (const [name,rule] of Object.entries(spec.parameters)) {
+      if(rule.hidden)continue;
+      const label=document.createElement('label');label.style.cssText='display:inline-flex;align-items:center;gap:4px;margin:4px 8px 4px 0';
+      const value=document.createElement('output'), slider=document.createElement('input');slider.type='range';
+      slider.min=String(rule.min);slider.max=String(rule.max);slider.step=String(rule.integer?1:(rule.step ?? 0.001));
+      slider.dataset.explorationParameter=name;slider.setAttribute('aria-label',`${name} 초기값`);
+      const escaped=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      const match=new RegExp(`^${escaped}\\s*:=\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*\\.`,'m').exec(initialSource);
+      slider.value=match?.[1] ?? String(rule.min);value.textContent=slider.value;
+      slider.addEventListener('input',()=>{
+        if(els.sourceEditor.readOnly)return;
+        try {
+          const source=applyExplorationPreset(els.sourceEditor.value,spec.parameters,{[name]:Number(slider.value)});
+          value.textContent=slider.value;els.sourceEditor.value=source;
+          els.sourceEditor.dispatchEvent(new Event('input',{bubbles:true}));
+        } catch(error){pushDiagnostic('E_EXPLORATION_PRESET',String(error.message),'error');renderAll();}
+      });
+      label.append(document.createTextNode(name),slider,value);buttons.append(label);
+    }
   }
   for(const button of buttons.querySelectorAll('button'))button.disabled=els.sourceEditor.readOnly;
+  for(const slider of buttons.querySelectorAll('input')) {
+    slider.disabled=els.sourceEditor.readOnly;
+    const name=slider.dataset.explorationParameter;
+    const escaped=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const match=new RegExp(`^${escaped}\\s*:=\\s*(-?[0-9]+(?:\\.[0-9]+)?)\\s*\\.`,'m').exec(initialSource);
+    if(match && document.activeElement!==slider) {
+      slider.value=match[1];
+      slider.nextElementSibling.textContent=slider.value;
+    }
+  }
   panel.querySelector('p').textContent=spec.guide;
 }
 

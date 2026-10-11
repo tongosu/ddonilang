@@ -7,6 +7,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::fixed64_boundary::Fixed64FloatBoundary;
+fn manipulation_phase_text(phase: ddonirang_core::input::ValueEventPhase) -> &'static str {
+    use ddonirang_core::input::ValueEventPhase;
+    match phase { ValueEventPhase::Set => "설정", ValueEventPhase::Begin => "시작",
+        ValueEventPhase::Move => "이동", ValueEventPhase::End => "끝" }
+}
 use crate::gate0_registry;
 use crate::geoul_snapshot::{input_action_key_aliases, project_keyboard_state, SnapshotStateValue};
 use crate::input_tape::runtime_keys_to_tape_mask;
@@ -4542,6 +4547,38 @@ impl DdnRunner {
         Ok((output, receipt))
     }
 
+    // WO15 provisional typed manipulation intake. The common codec validates
+    // exact payloads; DOM/renderers never write world resources directly.
+    pub(crate) fn run_update_manipulation_with_initial_held(
+        &mut self, world: &NuriWorld,
+        binding: &crate::manipulation_input::ManipulationBinding,
+        snapshot: &crate::manipulation_input::ManipulationSnapshot,
+        defaults: &HashMap<String, Value>,
+        initial_held: Option<&BTreeMap<String, bool>>,
+    ) -> Result<(DdnRunOutput, serde_json::Value), String> {
+        let query = crate::manipulation_input::query(binding, snapshot)?;
+        let query = if let Some(initial) = initial_held {
+            query.with_initial_held(initial.clone()).map_err(|_|
+                "E_MANIPULATION_INPUT_STATE: 사건 전후 눌림 상태가 다릅니다".to_string())?
+        } else { query };
+        let input = InputSnapshot {
+            tick_id: snapshot.madi, dt: Fixed64::from_raw_i64(binding.dt_raw),
+            rng_seed: binding.initial_rng, keys_pressed: 0, last_key_name: String::new(),
+            pointer_x_i32: 0, pointer_y_i32: 0, ai_injections: vec![], net_events: vec![],
+            frame_source: ddonirang_core::InputSource::Person,
+        };
+        let update_name = self.update_name.clone();
+        let output = self.run_named_seed_with_input(world, &input, defaults, None,
+            &update_name, false, None, Some(&query)).map_err(|error| error.to_string())?;
+        let receipt = serde_json::json!({
+            "input_profile": binding.source_profile, "input_binding": binding,
+            "input_snapshot": snapshot,
+            "input_snapshot_sha256": crate::manipulation_input::snapshot_digest(snapshot)?,
+            "input_reads": output.input_reads,
+        });
+        Ok((output, receipt))
+    }
+
     pub(crate) fn run_update_diagnostic(
         &mut self,
         world: &NuriWorld,
@@ -4724,6 +4761,10 @@ impl DdnRunner {
             }
             ctx.dispatch_logical_input_reactions()?;
             for stmt in &ctx.program.root_stmts {
+                if self.named_entry_after_definitions
+                    && crate::bogae_projection::is_observation_definition(stmt) {
+                    continue;
+                }
                 let snapshot = ctx.capture_frame_snapshot(&locals);
                 if let Err(error) = ctx.eval_stmt(&mut locals, stmt) {
                     ctx.restore_frame_snapshot(&mut locals, &snapshot);
@@ -4736,8 +4777,6 @@ impl DdnRunner {
                     return Err("E_ROOT_PROGRAM_ABORTED: 실행이 중단되어 결과를 공개하지 않습니다".to_string().into());
                 }
             }
-            root_bogae_projection = crate::bogae_projection::resolve_selected(
-                &ctx.program.program, &ctx.program.source_identity, &locals, self.bogae_entry.as_deref());
             if self.named_entry_after_definitions {
                 let entry = ctx.program.functions.get(seed_name).ok_or_else(|| {
                     EvalError::Message(format!("시작 정의를 찾을 수 없습니다: {seed_name}"))
@@ -4746,7 +4785,17 @@ impl DdnRunner {
                     self.prev_keys_pressed = prev_keys_pressed;
                     return Err(error);
                 }
+                for stmt in &ctx.program.root_stmts {
+                    if crate::bogae_projection::is_observation_definition(stmt) {
+                        if let Err(error) = ctx.eval_stmt(&mut locals, stmt) {
+                            self.prev_keys_pressed = prev_keys_pressed;
+                            return Err(error);
+                        }
+                    }
+                }
             }
+            root_bogae_projection = crate::bogae_projection::resolve_selected(
+                &ctx.program.program, &ctx.program.source_identity, &locals, self.bogae_entry.as_deref());
         } else {
         let update = if let Some(update) = ctx.program.functions.get(seed_name) {
             update
@@ -11257,15 +11306,30 @@ impl<'a> EvalContext<'a> {
                             ddonirang_core::input::LogicalInputEventKind::Press => "누름",
                             ddonirang_core::input::LogicalInputEventKind::Repeat => "반복",
                             ddonirang_core::input::LogicalInputEventKind::Release => "뗌",
+                            ddonirang_core::input::LogicalInputEventKind::Number(..) => "수",
+                            ddonirang_core::input::LogicalInputEventKind::Coordinate(..) => "좌표",
                             _ => return Err("E_LOGICAL_INPUT_TEXT_UNSUPPORTED: 알파2는 글자 입력을 지원하지 않습니다".to_string().into()),
                         };
                         let ordinal = i64::try_from(event.receive_ordinal).map_err(|_|
                             EvalError::from("E_LOGICAL_INPUT_ORDER: 사건 순서가 범위를 넘었습니다".to_string()))?;
-                        values.push(Value::Pack(BTreeMap::from([
+                        let mut fields = BTreeMap::from([
                             ("채널".into(), Value::String(event.channel.clone())),
                             ("종류".into(), Value::String(kind.into())),
                             ("순서".into(), fixed_value(ordinal)),
-                        ])));
+                        ]);
+                        match &event.kind {
+                            ddonirang_core::input::LogicalInputEventKind::Number(raw,phase) => {
+                                fields.insert("수값".into(), Value::Fixed64(Fixed64::from_raw_i64(*raw)));
+                                fields.insert("단계".into(), Value::String(manipulation_phase_text(*phase).into()));
+                            }
+                            ddonirang_core::input::LogicalInputEventKind::Coordinate(raw,phase) => {
+                                fields.insert("좌표값".into(), Value::List(raw.iter().map(|value|
+                                    Value::Fixed64(Fixed64::from_raw_i64(*value))).collect()));
+                                fields.insert("단계".into(), Value::String(manipulation_phase_text(*phase).into()));
+                            }
+                            _ => {}
+                        }
+                        values.push(Value::Pack(fields));
                     }
                     Ok(Value::List(values))
                 }

@@ -1,0 +1,20 @@
+{
+  "id": "alpha4_lrl_lab",
+  "decision": "WO15 ALPHA4 authored lab; live input not implemented",
+  "source": "alpha4_lrl_lab.ddn",
+  "assumptions": ["무차원 평면 질점, 질량과 중력계수 1", "가속도 -r/r³-εr/r⁴", "퍼텐셜 -1/r-ε/(2r²)", "RK4 h와 h/2", "이심률은 초기 케플러 기준이며 섭동이나 속도배율 변경 뒤 실제 궤도의 이심률을 뜻하지 않음"],
+  "initial_definitions": {"이심률": 0.5, "섭동": 0, "속도배율": 1, "간격": 0.01},
+  "input_lifecycle": "슬라이더·공 끌기로 보이는 최상위 정의 수정 후 명시 재실행. 공 끌기는 발사설정=1과 초기 vx/vy를 원문에 기록하며 현재 세계를 변경하지 않음. 실행 중 typed 입력 지원은 별도 점 실습에서 검증",
+  "suggested_cases": [{"이심률": 0, "섭동": 0, "속도배율": 1}, {"이심률": 0.5, "섭동": 0, "속도배율": 1}, {"이심률": 0.5, "섭동": 0.02, "속도배율": 1}],
+  "recommended_domain": {"eccentricity": [0, 0.75], "perturbation": [0, 0.03], "speed_scale": [0.9, 1.1], "step": [0.0025, 0.01]},
+  "required_views": {"primary": "위치궤도", "overlay": "LRL분해", "side": ["호도그래프", "측정판"]},
+  "goals": ["A=p×L-r단위벡터를 세 화살표로 분해한다", "역제곱힘에서 속도 원과 LRL 보존을 확인한다", "중앙힘 각운동량·전체에너지 보존과 섭동에 의한 LRL 변화를 구별한다", "반간격과 독립 기준해로 수치 오차를 확인한다"],
+  "checks": [
+    {"oracle": "초기 손계산 r=1-e, vy=s*sqrt((1+e)/(1-e)), L=r*vy, E=vy²/2-1/r-ε/(2r²), Ax=r*vy²-1, Ay=0", "absolute_tolerance": 0.00000002},
+    {"oracle": "독립 double 중앙힘 RK4 동일 간격, raw x/y/vx/vy", "ticks": [1, 60, 600], "absolute_tolerance": 0.00001},
+    {"oracle": "1/16 간격 RK4 및 h/2 비교; Fixed64 바닥 오차 아래면 개선 비율을 강제하지 않음", "default_position_error_limit": 0.00005},
+    {"oracle": "ε=0에서 L,E,A 보존 및 |v-(0,Ax_initial/L_initial)|=1/L_initial", "default_600_tick_tolerance": 0.00001},
+    {"oracle": "ε=.02에서 L,E 보존, A는 변화; 초기 비교 원은 보존 원이라고 주장하지 않음", "default_600_tick_tolerance": 0.00002}
+  ],
+  "limits": ["고정 간격 RK4이며 원본 HTML의 적응 간격과 동일 state_hash 주장 없음", "매 단계 시작 r≤.05 또는 r≥20이면 물리값을 바꾸지 않고 멈춤", "RK4 중간 단계의 충돌·큰 간격 안정성을 보장하지 않음", "그림 고정 범위 밖은 자동 맞춤하지 않음", "궤적은 초기점과 5마디마다의 처음 600개 표본만 보존; 현재 질점과 측정은 매 마디 갱신", "0.0001 이하 화살표 생략; Fixed64 제곱근 오차 측정은 작은 거리에서 0으로 양자화될 수 있음", "좌표 그림으로 작성한 호도그래프이며 전용 graph/std 의미를 새로 만들지 않음"]
+}

@@ -23,6 +23,21 @@ export class DdnLogicalInputVm {
     view_json(): string;
 }
 
+/**
+ * WO15 provisional typed value intake; the V1 logical VM is unchanged.
+ */
+export class DdnManipulationVm {
+    free(): void;
+    [Symbol.dispose](): void;
+    abort_input(message: string): void;
+    static bind_source_json(source: string, binding_json: string): string;
+    constructor(source: string, binding_json: string);
+    seal_json(): string;
+    step_json(snapshot_json: string): string;
+    summary_json(): string;
+    view_json(): string;
+}
+
 export class DdnWasmVm {
     free(): void;
     [Symbol.dispose](): void;
@@ -105,6 +120,12 @@ export function authored_project_operation(operation: string, artifact_json: str
 export function logical_input_record(source: string, request_json: string): string;
 
 export function logical_input_replay(source: string, tape: Uint8Array, binding_json: string): string;
+
+export function manipulation_input_record(source: string, request_json: string): string;
+
+export function manipulation_input_replay(source: string, tape: Uint8Array, binding_json: string): string;
+
+export function manipulation_value_raw(text: string): string;
 
 export function wasm_apply_maegim_source_edit(source: string, source_path: string, control_name: string, value_text: string): string;
 
@@ -275,6 +296,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_ddnlogicalinputvm_free: (a: number, b: number) => void;
+    readonly __wbg_ddnmanipulationvm_free: (a: number, b: number) => void;
     readonly __wbg_ddnwasmvm_free: (a: number, b: number) => void;
     readonly authored_project_operation: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly ddnlogicalinputvm_abort_input: (a: number, b: number, c: number) => void;
@@ -284,6 +306,13 @@ export interface InitOutput {
     readonly ddnlogicalinputvm_step_json: (a: number, b: number, c: number, d: number) => void;
     readonly ddnlogicalinputvm_summary_json: (a: number, b: number) => void;
     readonly ddnlogicalinputvm_view_json: (a: number, b: number) => void;
+    readonly ddnmanipulationvm_abort_input: (a: number, b: number, c: number) => void;
+    readonly ddnmanipulationvm_bind_source_json: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly ddnmanipulationvm_new: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly ddnmanipulationvm_seal_json: (a: number, b: number) => void;
+    readonly ddnmanipulationvm_step_json: (a: number, b: number, c: number, d: number) => void;
+    readonly ddnmanipulationvm_summary_json: (a: number, b: number) => void;
+    readonly ddnmanipulationvm_view_json: (a: number, b: number) => void;
     readonly ddnwasmvm_add_view_prefix: (a: number, b: number, c: number) => void;
     readonly ddnwasmvm_apply_currentline_cell: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly ddnwasmvm_apply_currentline_cell_with_source_profile: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
@@ -332,6 +361,9 @@ export interface InitOutput {
     readonly ddnwasmvm_update_logic_with_source_profile: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly logical_input_record: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly logical_input_replay: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly manipulation_input_record: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly manipulation_input_replay: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
+    readonly manipulation_value_raw: (a: number, b: number, c: number) => void;
     readonly wasm_apply_maegim_source_edit: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly wasm_build_info: (a: number) => void;
     readonly wasm_canon_alrim_plan: (a: number, b: number, c: number) => void;

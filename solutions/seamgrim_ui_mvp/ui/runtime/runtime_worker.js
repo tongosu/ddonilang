@@ -16,6 +16,8 @@ const adapterOperations = new Set([
   "exportInputTapeV1", "runSummaryWithTapeV1",
   "replayLogicalInput",
   "bindLogicalSource",
+  "bindManipulationSource", "replayManipulationInput",
+  "manipulationValueRaw",
   "buildLocalGajiArtifact", "planGajiLifecycle", "projectGraph", "projectSymbols",
   "prepareProjectLink", "planProjectEdit", "projectGajiLock", "publishLocalGotgan", "searchLocalGotgan",
 ]);
@@ -27,8 +29,8 @@ function metadata(session) {
 }
 
 async function dispatch({ operation, args, sessionId }) {
-  if (operation === "createLogicalSession") {
-    const session = await adapter.createLogicalSession(args[0]);
+  if (operation === "createLogicalSession" || operation === "createManipulationSession") {
+    const session = await adapter[operation](args[0]);
     const id = nextSessionId++;
     logicalSessions.set(id, session);
     return { sessionId: id };

@@ -5,6 +5,20 @@ use ddonirang_lang::{CanonProgram, ExprKind, Stmt};
 use serde_json::{json, Value as Json};
 use std::collections::HashMap;
 
+/// Explicit non-world observation constructors. A named project entry advances
+/// the world before these authored root views are materialized (RD-137/138).
+/// Numeric definitions and arbitrary user calls are not reordered.
+pub(crate) fn is_observation_definition(statement: &Stmt) -> bool {
+    let Stmt::Definition { value, .. } = statement else { return false; };
+    let ExprKind::Call { func, .. } = &value.kind else { return false; };
+    is_observation_constructor(func)
+}
+
+fn is_observation_constructor(func: &str) -> bool {
+    matches!(func, "표준보기.장면" | "표준보기.결과표" | "표준보개.으뜸"
+        | "표준보개.짜임" | "표준보개.겹" | "표준보개.곁" | "표준보개.돋")
+}
+
 pub fn project_time(policy: ddonirang_lang::runtime::BogaeTimePolicy) -> Json {
     use ddonirang_lang::runtime::BogaeTimePolicy;
     match policy { BogaeTimePolicy::Common=>json!({"kind":"common"}),
@@ -193,6 +207,33 @@ pub fn resolve_selected(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn only_exact_builtin_observations_are_deferred() {
+        for name in ["표준보기.장면", "표준보기.결과표", "표준보개.으뜸", "표준보개.짜임", "표준보개.겹", "표준보개.곁", "표준보개.돋"] {
+            assert!(super::is_observation_constructor(name));
+        }
+        for name in ["표준보기.사용자계산", "표준보개.짜임계산", "사용자.장면", "표준장면.원"] {
+            assert!(!super::is_observation_constructor(name));
+        }
+    }
+    #[test]
+    fn named_entry_hook_views_observe_this_madi_without_world_writes() {
+        let entry = "초기 := 2. 실행:움직씨 := { (시작)할때 { 위치 <- 초기. }. (매마디)마다 { 위치 <- 위치+1. }. }.";
+        let view = "으뜸 := (보기=((장면=((요소들=차림[((중심=차림[위치,0],반지름=0.2) 표준장면.원)],가로범위=차림[0,10],세로범위=차림[-1,1]) 표준장면.평면)) 표준보기.장면)) 표준보개.으뜸. 짜임 := (관계들=차림[으뜸]) 표준보개.짜임.";
+        let run = |source: &str| crate::runtime_surface::run_summary_from_supported_source_profile_with_update_name_diagnostic(
+            source, "named-entry-view.ddn", Some(3), Some("v1-core-v25"), "실행", None).unwrap();
+        let world_only = run(entry);
+        let observed = run(&format!("{entry} {view}"));
+        assert_eq!(observed["resources"]["fixed64"]["위치"], "5");
+        assert_eq!(observed["state_hash"], world_only["state_hash"]);
+        let candidates = observed["bogae_projection"]["candidates"].as_array().unwrap();
+        let composition = candidates.iter().find(|row| row["label"] == "짜임").unwrap();
+        assert_eq!(composition["artifact"]["view"]["elements"][0]["center"][0],
+            serde_json::json!(Fixed64::from_i64(5).raw_i64().to_string()));
+        let invalid = format!("{entry} 으뜸 := (보기=((장면=((요소들=차림[((중심=차림[미정,0],반지름=0.2) 표준장면.원)],가로범위=차림[0,10],세로범위=차림[-1,1]) 표준장면.평면)) 표준보기.장면)) 표준보개.으뜸.");
+        assert!(crate::runtime_surface::run_summary_from_supported_source_profile_with_update_name_diagnostic(
+            &invalid, "missing.ddn", Some(1), Some("v1-core-v25"), "실행", None).is_err());
+    }
     use super::*;
     #[test]
     fn a3_rd136_time_policy_values_are_typed_and_not_world_resources() {

@@ -21,8 +21,11 @@ function targetText(target) {
 // Local display hit testing of Rust-resolved, explicitly authored targets only.
 // A six-pixel affordance makes small sample circles selectable; nearest wins,
 // but an exact tie is ambiguous and never auto-selects by declaration order.
-export function pickAuthoredTarget(view, relations, width, height, px, py) {
+export function pickAuthoredTarget(view, relations, width, height, px, py, camera = null) {
   if (view?.kind!=="scene" || px<18 || py<18 || px>width-18 || py>height-18) return null;
+  const zoom=camera?.zoom ?? 1;
+  px=(px-width/2-(camera?.x ?? 0))/zoom+width/2;
+  py=(py-height/2-(camera?.y ?? 0))/zoom+height/2;
   const [xmin,xmax]=view.horizontal.map(BigInt),[ymin,ymax]=view.vertical.map(BigInt);
   const sx=Number(xmax-xmin),sy=Number(ymax-ymin),scale=Math.min((width-36)/sx,(height-36)/sy);
   let best=null, distance=Infinity, tied=false;
@@ -33,7 +36,7 @@ export function pickAuthoredTarget(view, relations, width, height, px, py) {
       if (element?.kind!=="circle") continue;
       const x=(width-sx*scale)/2+Number(BigInt(element.center[0])-xmin)*scale;
       const y=(height+sy*scale)/2-Number(BigInt(element.center[1])-ymin)*scale;
-      const d=Math.hypot(px-x,py-y),radius=Math.max(6,Number(element.radius)*scale);
+      const d=Math.hypot(px-x,py-y),radius=Math.max(6/zoom,Number(element.radius)*scale);
       if (d>radius) continue;
       if (d<distance-1e-9) {best=relation;distance=d;tied=false;}
       else if (Math.abs(d-distance)<1e-9 && best?.relation_id!==relation.relation_id) tied=true;
@@ -47,9 +50,10 @@ function renderPlane(ctx,width,height,view,style = null) {
   const xspan=Number(xmax-xmin), yspan=Number(ymax-ymin);
   // Equal raw lengths have equal pixel lengths. Letterboxing preserves the
   // authored bounds; it is not fitting bounds to observed elements.
-  const scale=Math.min((width-36)/xspan,(height-36)/yspan);
-  const x = value => (width-xspan*scale)/2 + Number(BigInt(value)-xmin)*scale;
-  const y = value => (height+yspan*scale)/2-Number(BigInt(value)-ymin)*scale;
+  const zoom=style?.camera?.zoom ?? 1;
+  const scale=Math.min((width-36)/xspan,(height-36)/yspan)*zoom;
+  const x = value => (width-xspan*scale)/2 + Number(BigInt(value)-xmin)*scale+(style?.camera?.x ?? 0);
+  const y = value => (height+yspan*scale)/2-Number(BigInt(value)-ymin)*scale+(style?.camera?.y ?? 0);
   ctx.save(); ctx.beginPath(); ctx.rect(18,18,width-36,height-36); ctx.clip();
   ctx.strokeStyle=style?.color ?? "#215b8b"; ctx.fillStyle=style?.color ?? "#132018";
   ctx.lineWidth=style?.color ? 2 : 1.5;
@@ -128,7 +132,7 @@ export function renderAuthoredBogae(ctx, width, height, wasmState, local = null)
   if (isPlane) {
     model.family = "scene"; model.spatial_profile="plane2";
     model.element_count=view.elements.length;
-    renderPlane(ctx,width,height,view,local?.overlayStyle);
+    renderPlane(ctx,width,height,view,{...local?.overlayStyle,camera:local?.camera});
     const overlays=(model.relations ?? []).filter(r=>r.kind==="overlay"&&!local?.hidden?.has(r.relation_id)).sort((a,b)=>a.order-b.order);
     model.active_overlay_ids=overlays.map(r=>r.relation_id);
     for (const overlay of overlays) {
@@ -140,12 +144,12 @@ export function renderAuthoredBogae(ctx, width, height, wasmState, local = null)
     const selected=(model.relations ?? []).filter(r=>local?.selectedRelationIds?.has(r.relation_id));
     model.selected_object_ids=selected.map(r=>r.object_identity?.id ?? r.target_digest);
     const [xmin,xmax]=view.horizontal.map(BigInt),[ymin,ymax]=view.vertical.map(BigInt);
-    const sx=Number(xmax-xmin),sy=Number(ymax-ymin),s=Math.min((width-36)/sx,(height-36)/sy);
+    const sx=Number(xmax-xmin),sy=Number(ymax-ymin),s=Math.min((width-36)/sx,(height-36)/sy)*(local?.camera?.zoom ?? 1);
     ctx.save();ctx.strokeStyle="#e6a600";ctx.lineWidth=3;
     for (const relation of selected) for (const index of relation.selection?.element_indices ?? []) {
       const circle=view.elements[index];if (circle?.kind!=="circle") continue;
-      ctx.beginPath();ctx.ellipse((width-sx*s)/2+Number(BigInt(circle.center[0])-xmin)*s,
-        (height+sy*s)/2-Number(BigInt(circle.center[1])-ymin)*s,
+      ctx.beginPath();ctx.ellipse((width-sx*s)/2+Number(BigInt(circle.center[0])-xmin)*s+(local?.camera?.x ?? 0),
+        (height+sy*s)/2-Number(BigInt(circle.center[1])-ymin)*s+(local?.camera?.y ?? 0),
         Math.max(6,Number(circle.radius)*s)+4,Math.max(6,Number(circle.radius)*s)+4,0,0,2*Math.PI);ctx.stroke();
     }
     ctx.restore();
@@ -211,10 +215,12 @@ export function createAuthoredCompositionHost(onChange) {
   let docks = new Map();
   let layoutStage = null;
   let pickCanvas=null, pickHandler=null;
+  let camera={zoom:1,x:0,y:0}, cameraControls=null;
   function reset() {
     if (pickCanvas && pickHandler) pickCanvas.removeEventListener("click",pickHandler);
     pickCanvas=null;pickHandler=null;
     controls?.remove(); controls = null;
+    cameraControls?.remove(); cameraControls=null; camera={zoom:1,x:0,y:0};
     for (const panel of sidePanels.values()) panel.remove();
     for (const {panel} of magnifierPanels.values()) panel.remove();
     magnifierPanels = new Map();
@@ -238,6 +244,7 @@ export function createAuthoredCompositionHost(onChange) {
       return true;
     },
     get hidden() { return hidden; },
+    get camera() { return camera; },
     get selectedRelationIds() { return new Set(magnifierPanels.keys()); },
     render({projectId, wasmState, list, stage, toolbar, canvas:primaryCanvas}) {
       const projection = wasmState?.bogae_projection;
@@ -255,10 +262,20 @@ export function createAuthoredCompositionHost(onChange) {
         controls.tabIndex=-1;
         // Reopen controls must remain reachable when the side pane is hidden.
         toolbar.append(controls);
+        cameraControls=document.createElement('span');
+        cameraControls.dataset.authoredCameraControls='true';
+        const operations=[['＋','확대',()=>camera.zoom=Math.min(8,camera.zoom*1.25)],['−','축소',()=>camera.zoom=Math.max(0.25,camera.zoom/1.25)],
+          ['전체','원문 범위로 돌아가기',()=>camera={zoom:1,x:0,y:0}],
+          ['←','왼쪽으로 보기 이동',()=>camera.x-=40],['→','오른쪽으로 보기 이동',()=>camera.x+=40],
+          ['↑','위로 보기 이동',()=>camera.y-=40],['↓','아래로 보기 이동',()=>camera.y+=40]];
+        for(const [label,title,change] of operations){const button=document.createElement('button');button.type='button';button.textContent=label;
+          button.title=title;button.setAttribute('aria-label',title);button.addEventListener('click',()=>{change();onChange();});cameraControls.append(button);}
+        toolbar.append(cameraControls);
         list.replaceChildren();
       }
       // Reconcile Rust-supplied relation identities on every committed frame.
       stage.dataset.authoredPrimaryKind=candidate.artifact?.view?.kind ?? "";
+      cameraControls.hidden=candidate.artifact?.view?.kind!=='scene';
       // Preserve local state only for identities that still exist in this scope.
       const relations = candidate.artifact.relations ?? [];
       const relationById = new Map(relations.map(relation => [relation.relation_id, relation]));
@@ -272,7 +289,7 @@ export function createAuthoredCompositionHost(onChange) {
         pickCanvas.selectAuthoredTarget=event=>{
           const rect=pickCanvas.getBoundingClientRect();
           const picked=pickAuthoredTarget(candidate.artifact.view,relations,pickCanvas.width,pickCanvas.height,
-            (event.clientX-rect.left)*pickCanvas.width/rect.width,(event.clientY-rect.top)*pickCanvas.height/rect.height);
+            (event.clientX-rect.left)*pickCanvas.width/rect.width,(event.clientY-rect.top)*pickCanvas.height/rect.height,camera);
           if (!picked) return;
           const openPicked=()=>{
             const button=[...controls.querySelectorAll("button")].find(button=>button.dataset.authoredRelationToggle===picked.relation_id);
@@ -497,10 +514,10 @@ export function createAuthoredCompositionHost(onChange) {
         if (pickCanvas && relation.selection?.element_indices?.length) {
           const view=candidate.artifact.view, circle=view.elements[relation.selection.element_indices[0]];
           const [xmin,xmax]=view.horizontal.map(BigInt),[ymin,ymax]=view.vertical.map(BigInt);
-          const sx=Number(xmax-xmin),sy=Number(ymax-ymin),s=Math.min((pickCanvas.width-36)/sx,(pickCanvas.height-36)/sy);
+          const sx=Number(xmax-xmin),sy=Number(ymax-ymin),s=Math.min((pickCanvas.width-36)/sx,(pickCanvas.height-36)/sy)*camera.zoom;
           const rect=pickCanvas.getBoundingClientRect(),parent=pickCanvas.parentElement?.getBoundingClientRect?.() ?? rect;
-          const x=(pickCanvas.width-sx*s)/2+Number(BigInt(circle.center[0])-xmin)*s;
-          const y=(pickCanvas.height+sy*s)/2-Number(BigInt(circle.center[1])-ymin)*s;
+          const x=(pickCanvas.width-sx*s)/2+Number(BigInt(circle.center[0])-xmin)*s+camera.x;
+          const y=(pickCanvas.height+sy*s)/2-Number(BigInt(circle.center[1])-ymin)*s+camera.y;
           panel.style.left=`${rect.left-parent.left+Math.max(4,Math.min(rect.width-240,x*rect.width/pickCanvas.width+12))}px`;
           panel.style.top=`${rect.top-parent.top+Math.max(4,Math.min(rect.height-210,y*rect.height/pickCanvas.height-60))}px`;
         }

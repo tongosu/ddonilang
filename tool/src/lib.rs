@@ -54,6 +54,7 @@ pub mod scan_workflow;
 pub mod intent_workflow;
 pub mod input_tape;
 pub mod logical_input_tape;
+pub mod manipulation_input;
 pub mod input_receipt;
 pub mod host_resource;
 #[cfg(not(target_arch = "wasm32"))]

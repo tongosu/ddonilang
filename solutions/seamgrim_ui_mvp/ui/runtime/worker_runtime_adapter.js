@@ -6,6 +6,8 @@ const ADAPTER_METHODS = [
   "runSummaryWithSourceProfile", "planGajiExtraction", "projectSourceSha256",
   "exportInputTapeV1", "runSummaryWithTapeV1",
   "replayLogicalInput",
+  "bindManipulationSource", "replayManipulationInput",
+  "manipulationValueRaw",
   "buildLocalGajiArtifact", "planGajiLifecycle", "projectGraph", "projectSymbols",
   "prepareProjectLink", "planProjectEdit", "projectGajiLock", "publishLocalGotgan",
   "searchLocalGotgan",
@@ -95,14 +97,15 @@ export class WorkerRuntimeAdapter {
     return session;
   }
 
-  async createLogicalSession(options) {
+  async createLogicalSession(options, operationName = "createLogicalSession") {
     const generation = this.generation;
-    const created = await this.request("createLogicalSession", [options], null, generation);
+    const created = await this.request(operationName, [options], null, generation);
     const operations = { step:"logicalStep", summary:"logicalSummary", seal:"logicalSeal", abort:"logicalAbort", close:"logicalClose" };
     return Object.fromEntries(Object.entries(operations).map(([method, operation]) => [method,
       (...args) => this.request(operation, args, created.sessionId, generation),
     ]));
   }
+  createManipulationSession(options) {return this.createLogicalSession(options,"createManipulationSession");}
 }
 
 for (const operation of ADAPTER_METHODS) {

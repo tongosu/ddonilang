@@ -18,7 +18,13 @@ pub struct LogicalInputQuery<C> {
 pub enum LogicalChannelKind {
     Control,
     Text,
+    Number,
+    Coordinate,
 }
+
+/// Provisional Alpha4 value transaction phase. No host time or pixel authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ValueEventPhase { Set, Begin, Move, End }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LogicalInputEventKind {
@@ -27,6 +33,8 @@ pub enum LogicalInputEventKind {
     Release,
     CommittedText(String),
     Paste(String),
+    Number(i64, ValueEventPhase),
+    Coordinate([i64; 2], ValueEventPhase),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,6 +77,8 @@ impl<C: Ord> LogicalInputQuery<C> {
                 LogicalInputEventKind::CommittedText(_) | LogicalInputEventKind::Paste(_) => {
                     LogicalChannelKind::Text
                 }
+                LogicalInputEventKind::Number(_, _) => LogicalChannelKind::Number,
+                LogicalInputEventKind::Coordinate(_, _) => LogicalChannelKind::Coordinate,
             };
             match channels.get(&event.channel) {
                 None => return Err(LogicalInputQueryError::UnknownChannel),
@@ -81,7 +91,7 @@ impl<C: Ord> LogicalInputQuery<C> {
         for channel in held.keys() {
             match channels.get(channel) {
                 None => return Err(LogicalInputQueryError::UnknownChannel),
-                Some(LogicalChannelKind::Text) => {
+                Some(kind) if *kind != LogicalChannelKind::Control => {
                     return Err(LogicalInputQueryError::ChannelKindMismatch);
                 }
                 _ => {}
@@ -108,12 +118,13 @@ impl<C: Ord> LogicalInputQuery<C> {
     pub fn is_held(&self, channel: &C) -> Result<bool, LogicalInputQueryError> {
         match self.channels.get(channel) {
             None => Err(LogicalInputQueryError::UnknownChannel),
-            Some(LogicalChannelKind::Text) => Err(LogicalInputQueryError::ChannelKindMismatch),
+            Some(kind) if *kind != LogicalChannelKind::Control => Err(LogicalInputQueryError::ChannelKindMismatch),
             Some(LogicalChannelKind::Control) => self
                 .held
                 .get(channel)
                 .copied()
                 .ok_or(LogicalInputQueryError::MissingHeldState),
+            _ => Err(LogicalInputQueryError::ChannelKindMismatch),
         }
     }
 

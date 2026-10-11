@@ -57,6 +57,8 @@ enum Command {
     Workbench(WorkbenchCommand),
     LogicalRecord { source: PathBuf, request: PathBuf, output: PathBuf },
     LogicalReplay { source: PathBuf, tape: PathBuf, binding: PathBuf },
+    ManipulationRecord { source: PathBuf, request: PathBuf, output: PathBuf },
+    ManipulationReplay { source: PathBuf, tape: PathBuf, binding: PathBuf },
     AuthoredProject { operation: String, input: PathBuf },
     AuthoredRun { input: PathBuf, madi: Option<u32> },
 }
@@ -1057,6 +1059,8 @@ fn command_help_requested(command: &str, rest: &[String]) -> bool {
                 | "workbench"
                 | "logical-record" | "논리입력기록"
                 | "logical-replay" | "논리입력재생"
+                | "manipulation-record" | "조작입력기록"
+                | "manipulation-replay" | "조작입력재생"
         )
 }
 
@@ -1093,6 +1097,14 @@ fn parse_args(args: Vec<String>) -> Result<Command, String> {
                 _ => return Err("지원하지 않는 작품자료 작업입니다".into()),
             };
             Ok(Command::AuthoredProject { operation: operation.into(), input: PathBuf::from(&rest[1]) })
+        }
+        "manipulation-record" | "조작입력기록" => {
+            if rest.len()!=3 || rest.iter().any(|value|value.starts_with("--")) { return Err("E_CLI_MANIPULATION_ARGUMENTS: 원문·입력요청·출력기록 경로가 필요합니다".into()); }
+            Ok(Command::ManipulationRecord {source:PathBuf::from(&rest[0]),request:PathBuf::from(&rest[1]),output:PathBuf::from(&rest[2])})
+        }
+        "manipulation-replay" | "조작입력재생" => {
+            if rest.len()!=3 || rest.iter().any(|value|value.starts_with("--")) { return Err("E_CLI_MANIPULATION_ARGUMENTS: 원문·기록·입력계약 경로가 필요합니다".into()); }
+            Ok(Command::ManipulationReplay {source:PathBuf::from(&rest[0]),tape:PathBuf::from(&rest[1]),binding:PathBuf::from(&rest[2])})
         }
         "logical-record" | "논리입력기록" => {
             if rest.len() != 3 || rest.iter().any(|value| value.starts_with("--")) {
@@ -1317,6 +1329,23 @@ fn execute(command: Command) -> Result<(String, i32), ExecutionError> {
             let result = ddonirang_tool::authored_project::operate(&operation, &text)
                 .map_err(ExecutionError::input)?;
             Ok((result + "\n", 0))
+        }
+        Command::ManipulationRecord {source,request,output} => {
+            if existing_input_output_alias(&source,&output)||existing_input_output_alias(&request,&output) {
+                return Err(ExecutionError::input("E_CLI_OUTPUT_ALIASES_INPUT: 기록으로 입력을 덮어쓸 수 없습니다"));
+            }
+            ddonirang_tool::artifact_output::preflight_artifact_targets(&[output.as_path()]).map_err(ExecutionError::runtime)?;
+            let source=String::from_utf8(read_logical_input(&source)?).map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
+            let request=ddonirang_tool::serde_json::from_slice(&read_logical_input(&request)?).map_err(|_|ExecutionError::input("E_MANIPULATION_REQUEST_JSON: 입력 요청이 올바르지 않습니다"))?;
+            let (bytes,summary)=ddonirang_tool::manipulation_input::record_source(&source,&request).map_err(ExecutionError::runtime)?;
+            ddonirang_tool::artifact_output::write_binary_artifact_atomic(&output,&bytes).map_err(ExecutionError::runtime)?;
+            Ok((pretty_json(&summary)?+"\n",0))
+        }
+        Command::ManipulationReplay {source,tape,binding} => {
+            let source=String::from_utf8(read_logical_input(&source)?).map_err(|_|ExecutionError::input("E_SOURCE_UTF8_INVALID: 원문이 UTF-8이 아닙니다"))?;
+            let binding=ddonirang_tool::serde_json::from_slice(&read_logical_input(&binding)?).map_err(|_|ExecutionError::input("E_MANIPULATION_BINDING_JSON: 입력 계약이 올바르지 않습니다"))?;
+            let summary=ddonirang_tool::manipulation_input::replay_source(&source,&read_logical_input(&tape)?,&binding).map_err(ExecutionError::runtime)?;
+            Ok((pretty_json(&summary)?+"\n",0))
         }
         Command::LogicalRecord { source, request, output } => {
             if existing_input_output_alias(&source, &output) || existing_input_output_alias(&request, &output) {

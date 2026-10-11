@@ -1,7 +1,7 @@
 // Device events stay in the host. Only the admitted logical channel identities,
 // ordered Press/Repeat/Release and explicit settled held enter the world.
 export class LogicalActionInput {
-  constructor({ session, channels, initialHeld, actionMap, maxEvents }) {
+  constructor({ session, channels, initialHeld, actionMap, maxEvents, valueChannels = null }) {
     if (!session || typeof session.step !== "function" || typeof session.abort !== "function") {
       throw new Error("E_LOGICAL_INPUT_SESSION: 논리 실행이 필요합니다.");
     }
@@ -9,7 +9,7 @@ export class LogicalActionInput {
       throw new Error("E_LOGICAL_INPUT_CAPACITY: 사건 용량을 명시해야 합니다.");
     }
     const names = Object.keys(channels ?? {}).sort();
-    if (!names.length || names.some(name => channels[name] !== "Control")
+    if ((!names.length && !Object.keys(valueChannels ?? {}).length) || names.some(name => channels[name] !== "Control")
         || JSON.stringify(Object.keys(initialHeld ?? {}).sort()) !== JSON.stringify(names)
         || names.some(name => typeof initialHeld[name] !== "boolean")) {
       throw new Error("E_LOGICAL_INPUT_SCHEMA: 조작 채널과 초기 눌린 상태가 필요합니다.");
@@ -33,6 +33,7 @@ export class LogicalActionInput {
       throw new Error("E_INPUT_ACTION_MAP_INVALID: 모든 논리 채널의 사상이 필요합니다.");
     }
     this.session = session;
+    this.valueChannels = valueChannels;
     this.maxEvents = maxEvents;
     this.held = { ...initialHeld };
     this.events = [];
@@ -70,6 +71,24 @@ export class LogicalActionInput {
     this.events.push({ ordinal:this.events.length, channel, event:{kind} });
     if (!repeat) this.held[channel] = !released;
     return true;
+  }
+
+  // Provisional typed host intake. Exact raw strings are produced/validated by
+  // Rust. Never hide a coordinate in an action name or write world resources.
+  receiveValue(channel, payload) {
+    if (this.failure) throw this.failure;
+    const contract=this.valueChannels?.[channel];
+    if (!contract || !['Number','Coordinate'].includes(contract.kind)
+        || !['Set','Begin','Move','End'].includes(payload?.phase)) {
+      this.loseInput('E_MANIPULATION_TYPE: 선언된 조작 채널과 단계가 필요합니다.');throw this.failure;
+    }
+    const raw=contract.kind==='Number'?[payload.raw]:payload.raw;
+    if(!Array.isArray(raw)||raw.length!==(contract.kind==='Number'?1:2)
+        ||raw.some(value=>typeof value!=='string'||! /^(?:0|-?[1-9][0-9]*)$/.test(value))) {
+      this.loseInput('E_MANIPULATION_VALUE: 손실 없는 raw 수 표기가 필요합니다.');throw this.failure;
+    }
+    if(this.events.length>=this.maxEvents){this.loseInput('사건 용량을 넘었습니다.');throw this.failure;}
+    this.events.push({ordinal:this.events.length,channel,event:{kind:contract.kind,payload:{raw:contract.kind==='Number'?raw[0]:[...raw],phase:payload.phase}}});
   }
 
   attach(target, { controls = [] } = {}) {

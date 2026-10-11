@@ -2374,7 +2374,7 @@ class DdnExecHandler(BaseHTTPRequestHandler):
         if path == "/lessons/index.json":
             json_response(self, 200, build_public_lesson_index_payload(RUNTIME_CATALOG_MODE))
             return
-        for course in ("first_steps", "first_steps_alpha2", "first_steps_alpha3"):
+        for course in ("first_steps", "first_steps_alpha2", "first_steps_alpha3", "first_steps_alpha4"):
             prefix = f"/{course}/"
             if path.startswith(prefix):
                 course_root = (UI_DIR.parent / course).resolve()

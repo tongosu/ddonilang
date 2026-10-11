@@ -1084,6 +1084,11 @@ p {
 .bogae-stage[data-authored-primary-kind="scene"] > .canvas-wrap {
   min-height: clamp(360px, 48vh, 560px);
 }
+/* In the source/view split, keep live readouts below a scene in the viewport.
+   View-focused modes retain the larger primary scene above. */
+.workbench-layout[data-mode="ddn-main"] .bogae-stage[data-authored-primary-kind="scene"] > .canvas-wrap {
+  min-height: clamp(360px, calc(100dvh - 720px), 560px);
+}
 @container (max-width: 900px) {
   .workbench-layout[data-mode] .bogae-panel .bogae-stage[data-authored-layout="true"] {
     grid-template-rows: repeat(5, max-content);

@@ -7,6 +7,10 @@ export const RUNTIME_BRIDGE_V1_OPERATIONS = Object.freeze([
   "authoredProjectOperation",
   "createSession",
   "createLogicalSession",
+  "createManipulationSession",
+  "bindManipulationSource",
+  "replayManipulationInput",
+  "manipulationValueRaw",
   "bindLogicalSource",
   "replayLogicalInput",
   "sourceAnalysis",
@@ -118,6 +122,26 @@ export class WasmRuntimeAdapter {
     const Constructor = module.DdnLogicalInputVm;
     const bind = requireExport(Constructor, "bind_source_json", "E_LOGICAL_INPUT_BIND_SOURCE_UNSUPPORTED: 새 원문 결속 기능이 필요합니다.");
     return bind(sourceText, bindingJson);
+  }
+
+  async createManipulationSession({sourceText,bindingJson}) {
+    const module=await this.ensureProjectModule();
+    const Constructor=requireExport(module,'DdnManipulationVm','E_MANIPULATION_RUNTIME_MISSING: 조작 입력 실행기가 필요합니다.');
+    const vm=new Constructor(sourceText,bindingJson);
+    return {step:snapshot=>{const result=JSON.parse(vm.step_json(JSON.stringify(snapshot)));result.view_meta=JSON.parse(vm.view_json());return result;},
+      summary:()=>JSON.parse(vm.summary_json()),seal:()=>JSON.parse(vm.seal_json()),abort:message=>vm.abort_input(String(message)),close:()=>vm.free()};
+  }
+  async bindManipulationSource({sourceText,bindingJson}) {
+    const module=await this.ensureProjectModule();
+    return requireExport(module.DdnManipulationVm,'bind_source_json')(sourceText,bindingJson);
+  }
+  async manipulationValueRaw(text) {
+    const module = await this.ensureProjectModule();
+    return requireExport(module, 'manipulation_value_raw')(String(text));
+  }
+  async replayManipulationInput({sourceText,tapeBytes,bindingJson}) {
+    const module=await this.ensureProjectModule();
+    return JSON.parse(requireExport(module,'manipulation_input_replay')(sourceText,new Uint8Array(tapeBytes),bindingJson));
   }
 
   async replayLogicalInput({ sourceText, tapeBytes, bindingJson }) {
@@ -330,7 +354,11 @@ export class RuntimeBridgeV1 {
   }
 
   createLogicalSession(options) { return this.#adapter.createLogicalSession(options); }
+  createManipulationSession(options) { return this.#adapter.createManipulationSession(options); }
+  bindManipulationSource(options) { return this.#adapter.bindManipulationSource(options); }
+  replayManipulationInput(options) { return this.#adapter.replayManipulationInput(options); }
   bindLogicalSource(options) { return this.#adapter.bindLogicalSource(options); }
+  manipulationValueRaw(text) { return this.#adapter.manipulationValueRaw(text); }
   replayLogicalInput(request) { return this.#adapter.replayLogicalInput(request); }
 
   cancelExecution(reason) { this.#adapter.cancelExecution?.(reason); }
